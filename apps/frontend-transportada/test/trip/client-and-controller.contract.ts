@@ -297,9 +297,7 @@ describe('trip client contract', () => {
     expect(() => adapters.tripDetailFromApi({ ...TRIP_DETAIL, status: 'suspended' })).toThrow(
       'TRIP_RESPONSE_INVALID',
     )
-    expect(() => adapters.tripDetailFromApi({ ...TRIP_DETAIL, extraField: 'nope' })).toThrow(
-      'TRIP_RESPONSE_INVALID',
-    )
+    expect(adapters.tripDetailFromApi({ ...TRIP_DETAIL, extraField: 'nope' })).toEqual(TRIP_DETAIL)
     expect(() => adapters.tripDocumentFromApi({ ...TRIP_DOCUMENT, deliveredAt: 42 })).toThrow(
       'TRIP_RESPONSE_INVALID',
     )

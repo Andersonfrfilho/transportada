@@ -2,6 +2,19 @@
 import type { TripDetail } from './trip.types'
 
 type HelperCandidate = Readonly<{ canActAsHelper: boolean; id: string; status: string }>
+type DriverCandidate = Readonly<{ canDrive: boolean; id: string }>
+
+/**
+ * Spec 235 D5: motorista só entre quem dirige. O motorista **atual** da viagem fica na lista mesmo
+ * que a ficha tenha deixado de dirigir depois: sem ele ali, não haveria como retirá-lo.
+ */
+export function listDriverCandidates<TDriver extends DriverCandidate>(
+  input: Readonly<{ currentDriverIds: readonly string[]; drivers: readonly TDriver[] }>,
+): readonly TDriver[] {
+  const current = new Set(input.currentDriverIds)
+
+  return input.drivers.filter((driver) => driver.canDrive || current.has(driver.id))
+}
 
 /**
  * Spec 149 D1/D11: ajudante é escolhido à mão, só entre as fichas marcadas "pode atuar como
@@ -31,6 +44,11 @@ export function readTripHelperIds(trip: Pick<TripDetail, 'drivers'>): readonly s
     .filter((member) => member.role === 'helper')
     .sort((first, second) => first.position - second.position)
     .map((member) => member.driverId)
+}
+
+/** Quem a viagem já tem como motorista. Linha sem `role` é motorista (spec 078 D2). */
+export function readTripDriverIds(trip: Pick<TripDetail, 'drivers'>): readonly string[] {
+  return trip.drivers.filter((member) => member.role !== 'helper').map((member) => member.driverId)
 }
 
 /** A mesma pessoa não ocupa dois lugares (ADR-0065 §4): quem passa a dirigir deixa de ser ajudante. */

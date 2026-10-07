@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { QueryClient } from '@tanstack/react-query'
 
+import { OCCURRENCE_TYPES_QUERY_KEY } from '@/modules/trip/shared/occurrence.constant'
 import { TRIP_QUERY_KEY } from '@/modules/trip/shared/trip.constant'
 import type {
   CancelTripOccurrenceInput,
@@ -19,6 +20,9 @@ import { renderHook } from './renderHook.helper'
 
 const { useCancelOccurrence, useCorrectOccurrenceItems } = await import(
   '@/modules/trip/queries/useOccurrenceCorrection.query'
+)
+const { useOccurrenceTypeCatalogPanel } = await import(
+  '@/modules/trip/hooks/useOccurrenceTypeCatalogPanel.hook'
 )
 const { TRIP_OCCURRENCE_FEED_QUERY_KEY } = await import(
   '@/modules/trip/queries/tripOccurrenceFeed.query'
@@ -208,5 +212,29 @@ describe('mutações de correção e cancelamento da ocorrência (spec 240 T1.4)
     expect(new Set(keys).size).toBe(4)
     correcting.unmount()
     cancelling.unmount()
+  })
+})
+
+describe('cadastro de tipos de ocorrência (spec 241)', () => {
+  test('um 422 do cadastro recarrega os tipos: o tipo pode ter mudado em outra aba', async () => {
+    resetTripHookFakes([])
+    fakes.tripClient = {
+      ...fakes.tripClient,
+      saveOccurrenceType: () =>
+        Promise.reject(new Error('OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY')),
+    }
+    const rendered = await renderHook(() => useOccurrenceTypeCatalogPanel({ enabled: false }))
+    rendered.queryClient.setQueryData(OCCURRENCE_TYPES_QUERY_KEY, [])
+
+    const saveError = await rendered
+      .result()
+      .saveMutation.mutateAsync({} as never)
+      .catch((error: unknown) => error)
+
+    expect(saveError).toEqual(
+      expect.objectContaining({ message: 'OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY' }),
+    )
+    expect(isInvalidated(rendered.queryClient, OCCURRENCE_TYPES_QUERY_KEY)).toBe(true)
+    rendered.unmount()
   })
 })

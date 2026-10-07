@@ -117,7 +117,7 @@ export function findOccurrenceKey(reports: readonly DriverFieldReport[]): string
 /**
  * Os itens da fila, no mesmo toque. A ocorrência vai **antes**: rede caída nela para a drenagem, e a
  * devolução espera junto — a nota não fecha sem a prova ter subido. A devolução entra com
- * `location: null`; a posição chega depois pela chave (`applyReportLocation`).
+ * `location: null`, como a ocorrência; a posição chega depois pela chave, nos dois itens.
  */
 export function buildNotDeliveredReports(input: {
   readonly createIdempotencyKey: () => string
@@ -148,6 +148,7 @@ export function buildNotDeliveredReports(input: {
       documentId: input.documentId,
       idempotencyKey: input.createIdempotencyKey(),
       kind: 'documentOccurrence',
+      location: null,
       note: draft.note.trim(),
       occurrenceTypeId: selected.id,
       occurrenceTypeName: selected.name,

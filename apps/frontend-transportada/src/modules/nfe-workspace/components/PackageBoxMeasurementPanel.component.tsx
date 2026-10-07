@@ -17,6 +17,7 @@ import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
 import { PackageBoxEstimateNotice } from './PackageBoxEstimateNotice.component'
 import { PackageBoxFamilyApplyButton } from './PackageBoxFamilyApplyButton.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
+import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadsheetExport.hook'
 import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
 import {
   PACKAGE_BOX_STATUS_FILTERS,
@@ -36,8 +37,9 @@ import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
 import { resolveInitialUnitsPerBox } from '../shared/packageBoxUnitsPerBox.service'
 import {
+  buildPackageBoxExportColumns,
   buildPackageBoxPendingExportCsv,
-  buildPackageBoxPendingExportSheetData,
+  buildPackageBoxPendingExportRows,
   PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE,
   packageBoxPendingExportFileName,
   type PackageBoxPendingExportFeedback,
@@ -81,7 +83,10 @@ type PackageBoxMeasurementPanelProps = Readonly<{
    */
   pendingExport: Readonly<{
     feedback: PackageBoxPendingExportFeedback
-    prepare: (format: PackageBoxPendingExportFormat) => Promise<readonly PackageBox[] | undefined>
+    prepare: (
+      format: PackageBoxPendingExportFormat,
+      status: PackageBoxStatusFilter,
+    ) => Promise<readonly PackageBox[] | undefined>
     preparingFormat: PackageBoxPendingExportFormat | undefined
   }>
   /**
@@ -175,6 +180,7 @@ export function PackageBoxMeasurementPanel({
   status,
 }: PackageBoxMeasurementPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const spreadsheetExport = useSpreadsheetExport()
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [editingId, setEditingId] = useState<null | string>(null)
   /**
@@ -384,7 +390,26 @@ export function PackageBoxMeasurementPanel({
         productCode: t('packageBoxes.pendingExport.columns.productCode'),
         transportedVolumes: t('packageBoxes.pendingExport.columns.transportedVolumes'),
       },
+      measurementHeader: {
+        heightCm: t('packageBoxes.pendingExport.measurementColumns.heightCm'),
+        lengthCm: t('packageBoxes.pendingExport.measurementColumns.lengthCm'),
+        measuredAt: t('packageBoxes.pendingExport.measurementColumns.measuredAt'),
+        measuredByName: t('packageBoxes.pendingExport.measurementColumns.measuredByName'),
+        unitsPerBox: t('packageBoxes.pendingExport.measurementColumns.unitsPerBox'),
+        widthCm: t('packageBoxes.pendingExport.measurementColumns.widthCm'),
+      },
     }
+  }
+
+  function statusOptionLabel(filter: PackageBoxStatusFilter): string {
+    const label = t(`packageBoxes.status.${filter}`)
+    if (queue === null) return label
+    const counts = {
+      all: queue.measuredCount + queue.pendingCount,
+      measured: queue.measuredCount,
+      pending: queue.pendingCount,
+    }
+    return `${label} (${counts[filter]})`
   }
 
   function todayIsoDate(): string {
@@ -392,27 +417,33 @@ export function PackageBoxMeasurementPanel({
   }
 
   async function handleExportPendingCsv(): Promise<void> {
-    const boxes = await pendingExport.prepare('csv')
+    const boxes = await pendingExport.prepare('csv', status)
     if (boxes === undefined) return
-    const csv = buildPackageBoxPendingExportCsv({ boxes, labels: pendingExportLabels() })
+    const csv = buildPackageBoxPendingExportCsv({ boxes, labels: pendingExportLabels(), status })
     saveArchiveFile({
       blob: new Blob([csv], { type: PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE }),
-      fileName: packageBoxPendingExportFileName({ extension: 'csv', today: todayIsoDate() }),
+      fileName: packageBoxPendingExportFileName({
+        extension: 'csv',
+        status,
+        today: todayIsoDate(),
+      }),
     })
   }
 
   async function handleExportPendingXlsx(): Promise<void> {
-    const boxes = await pendingExport.prepare('xlsx')
+    const boxes = await pendingExport.prepare('xlsx', status)
     if (boxes === undefined) return
-    const sheetData = buildPackageBoxPendingExportSheetData({
-      boxes,
-      labels: pendingExportLabels(),
-    })
-    const { default: writeExcelFile } = await import('write-excel-file/browser')
-    const blob = await writeExcelFile(sheetData.map((row) => [...row])).toBlob()
-    saveArchiveFile({
-      blob,
-      fileName: packageBoxPendingExportFileName({ extension: 'xlsx', today: todayIsoDate() }),
+    const labels = pendingExportLabels()
+    await spreadsheetExport.exportSpreadsheet({
+      columns: buildPackageBoxExportColumns({ labels, status }),
+      fileName: packageBoxPendingExportFileName({
+        extension: 'xlsx',
+        status,
+        today: todayIsoDate(),
+      }),
+      rows: buildPackageBoxPendingExportRows({ boxes, labels, status }),
+      sheetName: t('packageBoxes.pendingExport.sheetName'),
+      title: t(`packageBoxes.pendingExport.title.${status}`),
     })
   }
 
@@ -449,53 +480,10 @@ export function PackageBoxMeasurementPanel({
       <header className={styles.header}>
         <h3 id="package-boxes-title">{t('packageBoxes.title')}</h3>
         <p className={styles.hint}>{t('packageBoxes.description')}</p>
-        {queue === null ? null : (
-          <p aria-live="polite" className={styles.counter}>
-            <Badge variant="success">
-              {t('packageBoxes.counter.measured', { count: queue.measuredCount })}
-            </Badge>
-            <Badge variant="warning">
-              {t('packageBoxes.counter.pending', { count: queue.pendingCount })}
-            </Badge>
-          </p>
-        )}
         <Button onClick={() => setIsPrintCardOpen(true)} size="sm" type="button" variant="ghost">
           <Icon name="download" />
           {t('packageBoxes.printCard.open')}
         </Button>
-        <div className={styles.actions}>
-          <Button
-            aria-busy={pendingExport.preparingFormat === 'xlsx'}
-            disabled={pendingExport.preparingFormat !== undefined}
-            onClick={() => {
-              void handleExportPendingXlsx()
-            }}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={pendingExport.preparingFormat === 'xlsx' ? 'spinner' : 'download'} />
-            {pendingExport.preparingFormat === 'xlsx'
-              ? t('packageBoxes.pendingExport.preparing')
-              : t('packageBoxes.pendingExport.xlsx')}
-          </Button>
-          <Button
-            aria-busy={pendingExport.preparingFormat === 'csv'}
-            disabled={pendingExport.preparingFormat !== undefined}
-            onClick={() => {
-              void handleExportPendingCsv()
-            }}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={pendingExport.preparingFormat === 'csv' ? 'spinner' : 'download'} />
-            {pendingExport.preparingFormat === 'csv'
-              ? t('packageBoxes.pendingExport.preparing')
-              : t('packageBoxes.pendingExport.csv')}
-          </Button>
-        </div>
-        <PendingExportNotice feedback={pendingExport.feedback} t={t as Translate} />
       </header>
 
       {/*
@@ -566,12 +554,56 @@ export function PackageBoxMeasurementPanel({
               ariaLabel={t('packageBoxes.statusLabel')}
               onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
               options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
-                label: t(`packageBoxes.status.${filter}`),
+                label: statusOptionLabel(filter),
                 value: filter,
               }))}
               value={status}
             />
           </label>
+
+          {queue === null ? null : (
+            <p aria-live="polite" className={styles.counter}>
+              <Badge variant="success">
+                {t('packageBoxes.counter.measured', { count: queue.measuredCount })}
+              </Badge>
+              <Badge variant="warning">
+                {t('packageBoxes.counter.pending', { count: queue.pendingCount })}
+              </Badge>
+            </p>
+          )}
+          <div className={styles.actions}>
+            <Button
+              aria-busy={pendingExport.preparingFormat === 'xlsx'}
+              disabled={pendingExport.preparingFormat !== undefined}
+              onClick={() => {
+                void handleExportPendingXlsx()
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name={pendingExport.preparingFormat === 'xlsx' ? 'spinner' : 'download'} />
+              {pendingExport.preparingFormat === 'xlsx'
+                ? t('packageBoxes.pendingExport.preparing')
+                : t('packageBoxes.pendingExport.xlsx')}
+            </Button>
+            <Button
+              aria-busy={pendingExport.preparingFormat === 'csv'}
+              disabled={pendingExport.preparingFormat !== undefined}
+              onClick={() => {
+                void handleExportPendingCsv()
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name={pendingExport.preparingFormat === 'csv' ? 'spinner' : 'download'} />
+              {pendingExport.preparingFormat === 'csv'
+                ? t('packageBoxes.pendingExport.preparing')
+                : t('packageBoxes.pendingExport.csv')}
+            </Button>
+          </div>
+          <PendingExportNotice feedback={pendingExport.feedback} t={t as Translate} />
 
           {items.length === 0 ? (
             <p className={styles.notice}>{t('packageBoxes.empty')}</p>
@@ -988,6 +1020,14 @@ function PackageBoxRow({
           })}
           {' · '}
           {measurementSourceLabel(t as Translate, box)}
+          {' · '}
+          {t(
+            box.measuredByName === null ? 'packageBoxes.lastRecord' : 'packageBoxes.lastRecordBy',
+            {
+              date: formatMeasuredAtDate(box.measuredAt),
+              name: box.measuredByName,
+            },
+          )}
         </p>
       )}
 

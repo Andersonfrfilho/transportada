@@ -1,26 +1,39 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+/*
+ * A caixa é o botão de ícone do design system: quadrada, pela medida compacta (`buttons.md`), sem
+ * borda — o ícone pequeno basta, e o fundo só aparece sob o ponteiro. A margem negativa devolve à
+ * linha o espaço que a área de toque tomou: o botão não engorda o campo que ele acompanha.
+ */
 .boxed,
 .boxedDone {
   display: inline-flex;
-  gap: var(--space-1);
+  flex: 0 0 auto;
   align-items: center;
-  min-height: 1.75rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 600;
+  justify-content: center;
+  inline-size: var(--control-height-compact);
+  block-size: var(--control-height-compact);
+  margin-block: calc(var(--space-2) * -1);
+  padding: 0;
+  border: none;
   cursor: pointer;
   background: transparent;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .boxed {
   color: var(--color-slate);
 }
 
+.boxed:hover,
+.boxed:focus-visible {
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
 .boxedDone {
-  border-color: var(--color-ready);
   color: var(--color-ready);
 }
 

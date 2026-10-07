@@ -1,0 +1,241 @@
+{
+  "occurrence": {
+    "column": "Avaria e devolução",
+    "badge": {
+      "occurrenceOpen": "Avaria aberta",
+      "toReturn": "A devolver",
+      "returned": "Devolvida"
+    },
+    "actions": {
+      "open": "Avaria",
+      "openLabel": "Registrar avaria — NF {{number}}",
+      "mark": "Devolver ao contratante",
+      "markLabel": "Devolver ao contratante — NF {{number}}",
+      "complete": "Concluir devolução",
+      "completeLabel": "Concluir devolução — NF {{number}}",
+      "unmark": "Desfazer devolução",
+      "unmarkLabel": "Desfazer devolução — NF {{number}}",
+      "retry": "Tentar de novo",
+      "retryLabel": "Tentar de novo — NF {{number}}"
+    },
+    "hints": {
+      "windowClosed": "O prazo de separação desta chegada terminou: não dá mais para registrar avaria.",
+      "windowClosedShort": "Prazo de avaria encerrado.",
+      "awaitingDecision": "Aguardando a decisão do contratante para concluir a devolução.",
+      "returnCaseCancelled": "Tratativa cancelada — desfaça a devolução"
+    },
+    "failure": "Não foi possível concluir: {{reason}}",
+    "loadFailed": "Não foi possível carregar as avarias desta chegada.",
+    "mark": {
+      "originLabel": "Avaria de origem",
+      "originOption": "{{type}} · {{moment}}",
+      "noteLabel": "Observação (opcional)",
+      "confirm": "Confirmar devolução",
+      "cancel": "Cancelar"
+    },
+    "dialog": {
+      "title": "Registrar avaria — NF {{number}}",
+      "close": "Fechar o formulário",
+      "loading": "Carregando o formulário da avaria",
+      "loadFailed": "Não foi possível carregar os tipos ou os itens da nota. Feche e abra de novo.",
+      "typeLabel": "Tipo da ocorrência",
+      "typePlaceholder": "Escolha o tipo",
+      "itemsLabel": "Itens afetados",
+      "itemsHint": "Marque os itens da nota que chegaram com problema. A quantidade é opcional.",
+      "itemsHintSingle": "Este tipo aceita um item só. A quantidade é opcional.",
+      "itemsEmpty": "Esta nota não traz itens.",
+      "noteLabel": "Observação (opcional)",
+      "cancel": "Cancelar",
+      "submit": "Registrar avaria",
+      "submitting": "Registrando…",
+      "typesEmpty": "Nenhum tipo de avaria de recebimento cadastrado. Avise o suporte.",
+      "submitBlockedNoTypes": "Não dá para registrar: não há tipo de avaria cadastrado."
+    },
+    "items": {
+      "itemLabel": "Item {{code}} — {{description}}",
+      "quantityField": "Quantidade (opcional)",
+      "quantityLabel": "Quantidade de {{code}}",
+      "unitLabel": "Unidade de {{code}}",
+      "unit": {
+        "box": "Caixa",
+        "unit": "Unidade"
+      }
+    },
+    "photo": {
+      "label": "Foto da avaria",
+      "captureLabel": "Tirar a foto da avaria",
+      "captureAction": "Tirar foto",
+      "empty": "Nenhuma foto",
+      "chosen": "Foto pronta",
+      "galleryLabel": "Escolher a foto da galeria",
+      "galleryAction": "Escolher da galeria",
+      "galleryEmpty": "Ou use uma foto que já existe",
+      "previewAlt": "Foto da avaria escolhida",
+      "preparing": "Preparando a foto…"
+    },
+    "fields": {
+      "occurrenceTypeId": "Tipo da ocorrência",
+      "productCodes": "Itens afetados",
+      "productQuantities": "Quantidades",
+      "note": "Observação",
+      "file": "Foto"
+    },
+    "issues": {
+      "required": "Escolha o tipo da ocorrência.",
+      "itemsRequired": "Marque ao menos um item da nota.",
+      "singleItem": "Este tipo aceita um item só.",
+      "quantityInvalid": "Use uma quantidade maior que zero, com até 3 casas decimais.",
+      "photoRequired": "Tire ou escolha uma foto da avaria.",
+      "photoTooLarge": "A foto passa de {{max}} KB. Tire de novo, mais perto.",
+      "photoNotImage": "Escolha uma imagem (foto).",
+      "photoUnreadable": "Não foi possível ler essa foto. Tente outra.",
+      "tooLong": "Use no máximo {{max}} caracteres.",
+      "refusedByServer": "O servidor recusou este valor."
+    },
+    "errors": {
+      "CARGO_ARRIVAL_OCCURRENCE_WINDOW_CLOSED": "O prazo de separação desta chegada terminou: não dá mais para registrar avaria.",
+      "CARGO_ARRIVAL_OCCURRENCE_KEY_REUSED": "Esta tentativa já foi usada com outros dados. Confira e registre de novo.",
+      "CARGO_ARRIVAL_OCCURRENCE_ITEMS_REQUIRED": "Marque ao menos um item da nota.",
+      "CARGO_ARRIVAL_OCCURRENCE_TYPE_NOT_FOUND": "Este tipo de ocorrência não existe mais. Escolha outro.",
+      "OCCURRENCE_TYPE_NOT_RECEIVING": "Este tipo não é de recebimento. Escolha outro.",
+      "OCCURRENCE_PHOTO_REQUIRED": "Tire ou escolha uma foto da avaria.",
+      "OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT": "Um dos itens não faz parte desta nota. Releia a nota e marque de novo.",
+      "OCCURRENCE_PRODUCT_DUPLICATE": "O mesmo item foi marcado duas vezes.",
+      "OCCURRENCE_TYPE_SINGLE_ITEM": "Este tipo aceita um item só.",
+      "OCCURRENCE_ITEM_QUANTITY_NOT_POSITIVE": "Use uma quantidade maior que zero.",
+      "OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN": "A unidade escolhida não vale para este item.",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "A nota precisa ser marcada como recebida antes de registrar avaria.",
+      "CARGO_ARRIVAL_DOCUMENT_RETURNED": "A nota já foi devolvida ao contratante.",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "Esta nota não faz parte desta chegada.",
+      "CARGO_ARRIVAL_RETURN_ALREADY_MARKED": "Esta nota já está marcada com outra avaria.",
+      "CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID": "Escolha uma avaria desta nota que não esteja cancelada.",
+      "CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP": "A nota já está em uma viagem: a devolução dela deixou de ser da chegada e passa a ser ocorrência de rua.",
+      "CARGO_ARRIVAL_RETURN_DECISION_PENDING": "A devolução só conclui depois da decisão do contratante (ou do escritório, no lugar dele) sobre a tratativa da avaria.",
+      "CARGO_ARRIVAL_RETURN_NOT_MARKED": "A nota não está marcada para devolução.",
+      "FORBIDDEN": "Seu acesso não permite esta ação.",
+      "CARGO_ARRIVAL_RETURN_CASE_CANCELLED": "A tratativa desta avaria foi cancelada. Desfaça a devolução (se a nota estiver marcada) e escolha outra avaria.",
+      "OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED": "A tratativa já mudou de etapa em outra tela. A lista foi relida: confira o estado antes de tentar de novo.",
+      "OCCURRENCE_CASE_NOTE_REQUIRED": "Escreva o motivo para continuar.",
+      "OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS": "A decisão foi “mercadoria paga”: registre o acerto antes de encerrar.",
+      "OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED": "Este tipo de avaria não admite reentrega.",
+      "OCCURRENCE_CASE_REDELIVERY_BLOCKED_HAS_NO_QUESTION": "Esta avaria não tem item apontado: não há o que perguntar ao contratante.",
+      "OCCURRENCE_CASE_DECISION_CONFLICT": "A tratativa já foi decidida de outro jeito. Releia a tela para ver a decisão.",
+      "OCCURRENCE_CASE_NOT_FOUND": "Esta avaria não tem tratativa aberta.",
+      "OCCURRENCE_SETTLEMENT_ITEM_UNKNOWN": "Um dos itens do acerto não faz parte desta avaria.",
+      "OCCURRENCE_SETTLEMENT_AMOUNT_INVALID": "Use um valor maior que zero em cada item.",
+      "OCCURRENCE_SETTLEMENT_PAYER_INVALID": "O pagador escolhido não vale para este item.",
+      "TOO_MANY_REQUESTS": "Muitas ações em pouco tempo. Aguarde um minuto e tente de novo."
+    },
+    "case": {
+      "none": "Sem tratativa",
+      "recorded": "Registrada",
+      "under_review": "Em análise",
+      "returned_to_warehouse": "Voltou ao galpão",
+      "awaiting_contractor": "Aguardando o contratante",
+      "decided": "Decidida",
+      "closed": "Encerrada",
+      "cancelled": "Cancelada"
+    },
+    "counts": {
+      "marked": "Notas a devolver: {{count}}",
+      "returned": "Notas devolvidas: {{count}}"
+    },
+    "blockers": {
+      "lead": "A chegada só fecha quando as notas a devolver forem devolvidas ou desfeitas:",
+      "shortcut": "NF {{number}}"
+    },
+    "list": {
+      "title": "Avarias da chegada",
+      "unknownNote": "Nota fora da lista",
+      "item": "{{code}} — {{description}}",
+      "itemWithQuantity": "{{code}} — {{description}} ({{quantity}})",
+      "photoAlt": "Foto da avaria",
+      "photoGone": "A foto não está mais disponível."
+    },
+    "caseActions": {
+      "title": "Tratativa",
+      "review": "Iniciar análise",
+      "reviewLabel": "Iniciar análise — {{type}} (NF {{number}})",
+      "submit": "Enviar ao contratante",
+      "submitLabel": "Enviar ao contratante — {{type}} (NF {{number}})",
+      "decide": "Registrar decisão",
+      "decideLabel": "Registrar decisão — {{type}} (NF {{number}})",
+      "close": "Encerrar tratativa",
+      "closeLabel": "Encerrar tratativa — {{type}} (NF {{number}})",
+      "warehouseReturn": "Devolver ao galpão",
+      "warehouseReturnLabel": "Devolver ao galpão — {{type}} (NF {{number}})",
+      "cancel": "Cancelar tratativa",
+      "cancelLabel": "Cancelar tratativa — {{type}} (NF {{number}})",
+      "closeBlockedByDraft": "Salve o acerto antes de encerrar.",
+      "settlementRequired": "A decisão foi “mercadoria paga”: registre o acerto antes de encerrar.",
+      "working": "Enviando…",
+      "dismiss": "Voltar",
+      "noteRequired": "Escreva o motivo para continuar.",
+      "panel": {
+        "submit": {
+          "title": "Enviar esta avaria ao contratante?",
+          "body": "O contratante passa a ver a avaria no portal e decide o que fazer. Depois de enviada, a tratativa só segue com a decisão dele ou a do escritório.",
+          "confirm": "Enviar ao contratante"
+        },
+        "close": {
+          "title": "Encerrar a tratativa?",
+          "body": "Depois de encerrada ela não muda mais.",
+          "confirm": "Encerrar tratativa"
+        },
+        "decide": {
+          "title": "Registrar a decisão no lugar do contratante",
+          "body": "A decisão fica registrada como da transportadora, no lugar do contratante, e não dá para trocar depois.",
+          "confirm": "Registrar decisão",
+          "kindLabel": "Decisão",
+          "noteLabel": "Motivo da decisão",
+          "kind": {
+            "other": "Outra decisão",
+            "goods_paid": "Mercadoria paga pela transportadora"
+          }
+        },
+        "warehouseReturn": {
+          "title": "Devolver a avaria ao galpão",
+          "body": "A tratativa termina e a mercadoria volta ao estoque. Não dá para desfazer.",
+          "confirm": "Devolver ao galpão",
+          "noteLabel": "Por que volta ao galpão?"
+        },
+        "cancel": {
+          "title": "Cancelar a tratativa",
+          "body": "Use quando a avaria foi aberta por engano. Não dá para desfazer.",
+          "confirm": "Cancelar tratativa",
+          "noteLabel": "Motivo do cancelamento"
+        }
+      }
+    },
+    "settlement": {
+      "title": "Acerto da mercadoria",
+      "hint": "Informe, por item, quanto foi pago e por quem. A avaria não tem viagem: o acerto fica registrado sem cobrança.",
+      "itemField": "Item",
+      "itemAria": "Item do acerto",
+      "itemPlaceholder": "Escolha o item",
+      "amountField": "Valor",
+      "amountPlaceholder": "0,00",
+      "payerField": "Quem paga",
+      "payerAria": "Quem paga o item do acerto",
+      "payer": {
+        "carrier": "Transportadora",
+        "contractor": "Contratante",
+        "insurer": "Seguradora"
+      },
+      "add": "Adicionar item",
+      "remove": "Remover",
+      "removeLabel": "Remover o item {{position}} do acerto",
+      "save": "Salvar acerto",
+      "saving": "Salvando…",
+      "total": "Total",
+      "saved": "Acerto salvo: {{total}}",
+      "loading": "Carregando o acerto",
+      "loadFailed": "Não foi possível ler o acerto gravado. O que você salvar aqui substitui o acerto.",
+      "issues": {
+        "productCodeRequired": "Escolha o item.",
+        "productCodeDuplicated": "Este item já está no acerto.",
+        "amountRequired": "Informe um valor maior que zero."
+      }
+    }
+  }
+}

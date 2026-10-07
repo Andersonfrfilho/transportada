@@ -3,6 +3,7 @@
 import {
   CANHOTO_REJECTION_REASONS,
   isDriverOccurrenceType,
+  TRIP_CREW_ROLES,
   type CanhotoRejection,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceType,
@@ -14,8 +15,10 @@ import {
   type DriverTripStop,
   type PendingProofDocument,
   type ProofFieldRequirement,
+  type TripCrewRole,
 } from './driverTrip.types'
 import { PROOF_CARGO_PHOTO_LIMIT } from './proofCargo.constant'
+import { DEFAULT_TRIP_CREW_ROLE } from './tripCrewRole.service'
 import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
 /**
@@ -243,6 +246,12 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
   return value.map(toPendingProof).filter((item): item is PendingProofDocument => item !== null)
 }
 
+/** Spec 243 D4: ausente (snapshot anterior) vale `driver`; papel desconhecido degrada para leitura, nunca para `driver`. */
+function readCrewRole(value: unknown): TripCrewRole {
+  if (value === undefined) return DEFAULT_TRIP_CREW_ROLE
+  return TRIP_CREW_ROLES.find((known) => known === value) ?? 'helper'
+}
+
 function toTrip(value: unknown): DriverTrip {
   if (!isRecord(value) || !Array.isArray(value.stops)) throw new DriverTripResponseError()
 
@@ -255,6 +264,7 @@ function toTrip(value: unknown): DriverTrip {
   )
 
   return {
+    crewRole: readCrewRole(value.crewRole),
     id: readString(value.id),
     isLegacyEnRouteTracking,
     manifest: toManifest(value.manifest),

@@ -10,8 +10,17 @@ import type { NotificationTemplateView } from '@/modules/notification/queries/us
 export const OCCURRENCE_TEMPLATE_NONE = '' as const
 
 export type OccurrenceEmailTemplateOption = Readonly<{
+  /** Spec 246 RF1e: o texto do modelo, para o operador ver o que vai sair antes de escolher. */
+  body: string
   key: string
   label: string
+  subject: string
+}>
+
+/** O que a tela sabe dos modelos: a lista e se ela já chegou, falhou ou ainda carrega. */
+export type OccurrenceEmailTemplatesState = Readonly<{
+  options: readonly OccurrenceEmailTemplateOption[]
+  status: 'error' | 'loading' | 'ready'
 }>
 
 /**
@@ -31,8 +40,10 @@ export function buildOccurrenceEmailTemplateOptions(
       return true
     })
     .map((template) => ({
+      body: template.body ?? '',
       key: template.key,
       label:
         template.subject === undefined || template.subject === '' ? template.key : template.subject,
+      subject: template.subject ?? '',
     }))
 }

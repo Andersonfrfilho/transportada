@@ -12,6 +12,7 @@ describe('parser da aba de delivery-clients (spec 150, correção Fase 4, item 1
   test('id conhecido resolve para a própria aba', () => {
     expect(resolveDeliveryClientTab('mail')).toBe('mail')
     expect(resolveDeliveryClientTab('clients')).toBe('clients')
+    expect(resolveDeliveryClientTab('contractors')).toBe('contractors')
   })
 
   test('id desconhecido, ou ausente, cai em clients — URL inventada não pode quebrar a tela', () => {

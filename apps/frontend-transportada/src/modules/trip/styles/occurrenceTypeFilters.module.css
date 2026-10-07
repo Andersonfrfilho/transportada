@@ -1,0 +1,153 @@
+/* Spec 246 RF11b: busca e pílulas do preview.html — cantos retos, rótulo mono, cobre na pílula ligada. */
+.root {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.searchRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.search {
+  flex: 1 1 18rem;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding-inline: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+}
+
+.search:focus-visible,
+.chip:focus-visible,
+.clear:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.clear {
+  min-height: var(--touch-target);
+  padding-inline: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: 0.82rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.clear:disabled {
+  border-style: dashed;
+  color: var(--color-slate-muted);
+  cursor: not-allowed;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.group {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.groupLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  max-width: 100%;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-slate-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+.chip:disabled {
+  border-style: dashed;
+  color: var(--color-slate-muted);
+  cursor: not-allowed;
+}
+
+.mark {
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.counter {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.reason {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-slate-muted);
+  font-size: 0.78rem;
+}
+
+.empty {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-4);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.emptyTitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+/* No celular cada grupo ocupa a sua linha e as pílulas quebram, como no preview; de 40rem em diante os grupos se emendam e os alvos encolhem. */
+@media (min-width: 40rem) {
+  .group {
+    display: contents;
+  }
+
+  .chip,
+  .clear,
+  .search {
+    min-height: var(--field-height-compact);
+  }
+}

@@ -2,7 +2,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverFieldReport, DriverTripStop } from './driverTrip.types'
 import type { AttachmentGroupEntries, QueuedAttachment } from './offlineAttachments.service'
-import type { DriverTripErrorDetail, QueuedReport } from './offlineQueue.service'
+import {
+  listReportPhotos,
+  type DriverTripErrorDetail,
+  type QueuedReport,
+} from './offlineQueue.service'
 import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
 
 /** Spec 206 RF8b: só este código dispara o motivo e o atalho — qualquer outra recusa fica genérica. */
@@ -59,6 +63,8 @@ export type EventQueueItemView = Readonly<{
    */
   stopId?: string
   status: EventQueueItemStatus
+  /** Spec 230: a viagem do despacho na fila — é ela que destrava as ações de campo na tela. */
+  tripId?: string
 }>
 
 function toProofAttachments(
@@ -102,11 +108,9 @@ export function buildEventQueueView(input: {
     )?.rejectionCause
     const report = item.report
     /** A foto da ocorrência mora no próprio item: sobe junto dele, e conta como anexo dele. */
-    const carriesPhoto =
-      (report.kind === 'documentOccurrence' && report.photo !== null) ||
-      report.kind === 'stopOccurrencePhoto'
+    const carriedFileCount = listReportPhotos(report).length
     return {
-      attachmentCount: group.length + (carriesPhoto ? 1 : 0),
+      attachmentCount: group.length + carriedFileCount,
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
       ...(report.kind === 'documentOccurrence' ||
       report.kind === 'deliver' ||
@@ -120,6 +124,7 @@ export function buildEventQueueView(input: {
       ...(report.kind === 'arrive' || report.kind === 'depart' || report.kind === 'cancelDeparture'
         ? { stopId: report.stopId }
         : {}),
+      ...(report.kind === 'dispatch' ? { tripId: report.tripId } : {}),
       status: toStatus(item),
     }
   })
@@ -187,6 +192,33 @@ export function hasSendableEvents(items: readonly EventQueueItemView[]): boolean
   return items.some(
     (item) => item.status.state !== 'rejected' && item.status.state !== 'unverified',
   )
+}
+
+/** Status HTTP que não são recusa de negócio: infraestrutura passageira, a próxima tentativa serve. */
+const NON_BUSINESS_REJECTION_STATUSES = new Set([401, 403, 408, 429])
+
+/**
+ * ADR-0075 §6, revisão M2 (spec 227): "Descartar" é para recusa de **negócio** — o servidor examinou
+ * o evento e decidiu que ele não vale. Sessão expirada, autenticação, tempo esgotado, limite de taxa
+ * e erro do servidor (`401`/`403`/`408`/`429`/5xx) são infraestrutura passageira, como
+ * `REQUEST_FAILED`: descartar apagaria uma entrega que a próxima tentativa enviaria.
+ */
+function isBusinessRejectionCause(cause: string): boolean {
+  if (cause === 'REQUEST_FAILED') return false
+  const status = Number.parseInt(cause, 10)
+  if (Number.isNaN(status)) return true
+  if (NON_BUSINESS_REJECTION_STATUSES.has(status)) return false
+  return status < 500 || status > 599
+}
+
+/** Recusado pelo servidor por motivo de negócio — o evento ou um anexo dele. */
+export function isEventQueueItemDiscardable(item: EventQueueItemView): boolean {
+  const isEventDiscardable =
+    item.status.state === 'rejected' && isBusinessRejectionCause(item.status.cause)
+  const isAttachmentDiscardable =
+    item.attachmentRejectionCause !== undefined &&
+    isBusinessRejectionCause(item.attachmentRejectionCause)
+  return isEventDiscardable || isAttachmentDiscardable
 }
 
 /**

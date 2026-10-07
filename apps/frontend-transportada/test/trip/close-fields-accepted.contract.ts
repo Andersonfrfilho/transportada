@@ -66,15 +66,15 @@ describe('o validador do detalhe aceita a chave nova e recusa tipo errado (spec 
     ).toBe(true)
   })
 
-  it('recusa closeReason numérico', () => {
-    expect(acceptsDetail({ ...TRIP_DETAIL, closeReason: 42 })).toBe(false)
+  it('descarta closeReason numérico e abre a viagem', () => {
+    expect(acceptsDetail({ ...TRIP_DETAIL, closeReason: 42 })).toBe(true)
   })
 
-  it('recusa closedAt numérico', () => {
-    expect(acceptsDetail({ ...TRIP_DETAIL, closedAt: 42 })).toBe(false)
+  it('descarta closedAt numérico e abre a viagem', () => {
+    expect(acceptsDetail({ ...TRIP_DETAIL, closedAt: 42 })).toBe(true)
   })
 
-  it('recusa closedByName numérico', () => {
-    expect(acceptsDetail({ ...TRIP_DETAIL, closedByName: 42 })).toBe(false)
+  it('descarta closedByName numérico e abre a viagem', () => {
+    expect(acceptsDetail({ ...TRIP_DETAIL, closedByName: 42 })).toBe(true)
   })
 })

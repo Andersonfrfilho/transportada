@@ -8,7 +8,7 @@ navegação manual em `src/main.tsx` (`pushState` + `popstate` + `sessionStorage
 sem zod** — `tailwind-merge`/`clsx`/`cva` estão no `package.json` mas não são usados; `cn()` é
 reimplementado em `src/lib/utils.ts`; validação é type guard manual em `*.validation.ts`.
 
-Módulos em `src/modules/`: `billing`, `company-settings`, `cte-batch`, `cte-issuance`,
+Módulos em `src/modules/`: `billing`, `cargo-receiving`, `company-settings`, `cte-batch`, `cte-issuance`,
 `cte-profiles`, `fleet`, `foundation`, `freight`, `identity`, `mdfe-manifest`, `nfe-workspace`,
 `nfse-invoice`, `notification`, `operations`, `trip`, `shared`. `shared/` concentra client HTTP +
 validação + view-model. Um client HTTP **por módulo** (`shared/<modulo>Client.service.ts`), com
@@ -82,7 +82,10 @@ perto do efeito". Painel **"Medida pela câmera (experimental)"** (spec 152) mor
 do `nfe-workspace`, registrado como `cameraMeasurement` em `SETTINGS_PANEL_PLACEMENT` com
 `{ module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' }` — exige `settings.manage`
 e controla o interruptor `cameraMeasurementEnabled` por empresa (padrão desligado). Contrato em
-`test/company-settings/tabs.contract.ts`.
+`test/company-settings/tabs.contract.ts`. Aba **Localização** (spec 239) em `/trips` (`trip` module),
+`TripLocationRetentionPanel`, `locationRetention` em `SETTINGS_PANEL_PLACEMENT` com
+`{ module: 'trip', source: 'locationRetentionSettings', tab: 'location' }` — permite quem tem `settings.manage`
+ligar/desligar e ajustar prazo (30–90 dias) do expurgo de coordenadas.
 
 ## Domínio de viagem, roteirização e proposta de carga — ver a referência
 
@@ -164,8 +167,8 @@ disparar o boot.
 - **Três telas ganharam a parede que não tinham** (Empresa, NFS-e e Repasses) e decidem **pelo mesmo
   mapa**, nunca por condição própria. Repasses fechou exposição real: não tinha checagem alguma e a
   consulta não tinha `enabled`. A entrada dela no mapa é a única que é **intenção de produto**
-  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.read`, achado
-  registrado em `docs/SECURITY.md:383`.
+  (`billing.create` ou `trip.financials`), não transcrição — a API lê com `trip.financials` desde a
+  spec 243 D1 (antes `trip.read`, achado BOLA registrado em `docs/SECURITY.md`).
 
 ⚠️ **Contrato de parede não se escreve procurando texto na fonte.** A primeira versão dos três
 contratos afirmava que o arquivo continha `isForbidden` e `t('forbidden')`, e passava verde com as
@@ -298,6 +301,11 @@ storage) vai para `test/trip-hooks/*.contract.ts`, importado por `test/trip-hook
 e rodado por `bun run test:hooks` — que o `test` chama no fim, **em processo próprio**, com o
 `@happy-dom/global-registrator` do `test/trip-hooks/dom.preload.ts`.
 
+⚠️ **Contrato de DOM é determinístico sob carga** (spec 237): o prazo do `waitFor` conta tempo esperado, não o custo de uma
+asserção reprovada; `expect(nó).toBeNull()` formata o nó do happy-dom (0,5–1 s) — dentro de `waitFor` afirme
+`querySelectorAll(...).length`; o `afterEach` do `renderHook.helper.ts` desmonta toda raiz montada. Valide estabilidade
+com ≥10 execuções, também com CPU ocupada: uma rodada verde não prova nada. Contrato: `wait-for-budget.contract.ts`.
+
 ⚠️ Não registre o DOM no processo dos contratos nem mova a suíte para a lista principal: o
 `window` global muda o que eles medem (`resolveTripAssemblyDraftStorage` decide por `typeof
 window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSuggestionClient`,
@@ -305,3 +313,170 @@ window`), e o `mock.module` que troca os clientes (`getTripClient`, `getRouteSug
 `test/trip-hooks/tripClientMocks.helper.ts`, e cada suíte reconfigura `tripHookFakes`. `renderHook`/`waitFor` são os de
 `test/trip-hooks/renderHook.helper.ts`, sobre `react-dom/client` + `act` — sem
 `@testing-library/*`. Storage em memória e cliente falso: `test/fixtures/tripAssemblyHooks.fixture.ts`.
+
+## A nota se abre inteira (spec 233)
+
+A linha da nota na viagem é um acordeão de abertura exclusiva (`useOpenTripDocument`) com Dados da nota,
+Ocorrências, Comprovante (dois selos) e Eventos desta entrega. ⚠️ `isDeliveryProof` recusa chave desconhecida
+e descarta o comprovante inteiro: o painel aceita o campo novo **antes** de a API mandá-lo.
+
+Detalhe completo: docs/ai-context/frontend-transportada.md § "A nota se abre inteira".
+
+A 228 põe nesses eventos a "Foto do canhoto" (`camera`, pino `delivered`) e o "Endereço da parada corrigido"
+(`edit`, pino `status`), com origem e deslocamento; "Ver no mapa" só com `location`. Detalhe:
+docs/ai-context/frontend-transportada.md § "Foto do canhoto e endereço corrigido na linha do tempo".
+
+## O ajudante é um perfil (spec 235)
+
+Seletor de perfil com opção `helper`, CNH oculta, "Pode atuar como ajudante" travado para ajudante-puro,
+"Diária própria" para quem pode ajudar. Papel na tabela de Acesso; convite com `helper` casa ficha pelo CPF.
+Seletor de motoristas da viagem exclui quem não dirige; lista de ajudantes segue inalterada (ambos filtram
+pela ficha). Permissão `trip.read` — sem `trip.report` — abre `NoWorkspaceAccess` no painel (decisão de
+produto fora da spec: qual app o ajudante usa). Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 235 — O ajudante é um perfil" e ADR-0093.
+
+## A linha do tempo mostra onde o evento aconteceu (spec 196, ADR-0081)
+
+`TripTimelineLocation` (ícone `map-pin`, tooltip com precisão, distância até a parada, coordenada e hora da
+leitura) e `TripTimelineLocationMap` (lazy, dois pinos, mapa quieto sem radar). A regra das cinco situações
+(`captured`, `restricted`, `unavailable`, `expired`, `null`) é `resolveTimelineLocationView`; só `unavailable`
+leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as exige) e `location: null` com
+`captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
+log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
+
+## Contratantes e perfil de recebimento (spec 237 T1.4)
+
+Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
+recebimento. O número da carga é lido pelo **texto que o antecede** (`arrivalReferenceLabel`, literal, uma
+linha), nunca por expressão regular (revisão de segurança S3). `PUT` do perfil sempre com as 10 chaves; recusa do servidor lista todos os campos com atalho
+(`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
+docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
+
+## O ajudante fecha as pontas (spec 243)
+
+Painel "Diária do ajudante" na aba de motoristas (`DriverCrewSettingsPanel`, fora de `SETTINGS_PANEL_PLACEMENT`,
+permissão `fleet.read`/`fleet.manage` da API). Variante de `NoWorkspaceAccess` para conta com `trip.read`
+e sem workspace: texto "Sua conta acompanha viagens pelo app do motorista" + botão para abrir o app (quando
+`VITE_DRIVER_APP_URL` existe). Contrato: `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/identity/no-workspace-access-variant.contract.tsx`. Detalhe: docs/ai-context/frontend-transportada.md
+§ "Spec 243 — O ajudante fecha as pontas" e ADR-0095.
+
+## Recebimento da carga e separação pelo celular (spec 237 T2.4)
+
+Módulo `cargo-receiving`, rota **`/recebimento`**, item "Recebimento" no grupo Operações — visível só com
+`fleet.read` (o mapa de `workspaceAccess.service.ts`); escrever é `trip.manage` e decide dentro da tela
+(`canManage`). Quatro telas, um módulo: `/recebimento` (lista), `/recebimento/nova` (registro),
+`/recebimento/:id/detalhe` (escritório) e **`/recebimento/:id` (o celular do separador)**. Namespace i18n
+`cargoReceiving`; guardas de resposta e erro **próprios** (nada importado de `delivery-clients`: contratante e
+perfil são lidos por projeção mínima — só `id/displayName/taxId` e `isEnabled`).
+
+- **A máquina do toque é pura** (`cargoSeparationTouch.service.ts`): esperada → recebida → separada, uma etapa
+  por vez. "Separar tudo do grupo" são **dois lotes em ordem** (`received` só para as esperadas, depois
+  `separated` para todas), porque a API só aceita `separated` a partir de `received`; a nota recusada no
+  primeiro não entra no segundo e **nunca derruba o lote**. O resultado traz o estado que cada nota tem DE FATO
+  (`TouchRun.states`) — é ele que a atualização otimista grava e que a volta restaura
+  (`useSeparationTouch.mutation.ts`: reverte só as notas do toque, e só relê a chegada quando nenhum toque está
+  em voo). O toque que cai por rede fica na linha com "Tentar de novo"; o botão de uma nota em voo fica travado.
+- **`Idempotency-Key` por tentativa** (`cargoIdempotencyKey.service.ts`): a mesma impressão do pedido (ordem das
+  notas não conta) reaproveita a chave; pedido diferente gera uma nova. Chave nova a cada render duplicaria a
+  chegada no duplo clique — é mutação provada.
+- **A recusa nomeia tudo** (`cargoReceivingRefusal.service.ts`, web.md §11): `documentIds.<n>` do 422 é a posição
+  da nota NO PEDIDO enviado (a ordem de marcação); o 409 do fechamento devolve o id de cada pendente em
+  `details[].documentId` (campo `pendingDocumentIds.<n>`). Cada nome é atalho (`focusCargoTarget.service.ts`, alvo por `data-field`/`data-document-id`).
+- **Seleção** limitada a 300 (`cargoDocumentSelection.service.ts`); "selecionar todas" é "as listadas" (o que a
+  busca deixou), porque a API pagina por cursor de 100.
+- **Contratos de DOM** em `test/trip-hooks/cargo-*.contract.ts` com o servidor dublado do
+  `cargoReceivingHarness.helper.ts` (aplica as MESMAS transições da API). ⚠️ O `MultiSelect`/`SearchableSelect`
+  só abrem opções dentro da suíte completa do `test:hooks` — isolados, a lista vem vazia (já era assim na T1.4).
+- O leitor de câmera é o primitivo `@/components/ui/barcode-scanner` + `extractNfeAccessKey` (o mesmo da
+  viagem): sem acoplar módulos. Fila offline do toque **não existe** (follow-up): falhou, fica na tela.
+
+Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T2.4".
+
+**Revisão das Fases 1–2 (2026-10-06), o que mudou no painel** — detalhe em docs/ai-context § "Spec 237 — correções da revisão
+das Fases 1–2, parte do painel":
+
+- **Filtro e ordenação da lista de chegadas vão inteiros ao servidor** (`resolveServerFilters`: vários contratantes e situações,
+  `sort`/`direction`), e **`sort`/`direction` viajam junto com o cursor** — cursor de outra ordem é `400
+CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` e a lista recarrega do início com aviso neutro. Notas e Separadas **não ordenam** (o
+  servidor não tem a coluna); nunca reintroduzir ordenação só sobre as páginas carregadas.
+- **Quem tem o recebimento ligado é UMA consulta paginada** (`GET /contractor-receiving-profiles`), nas três telas (registro,
+  envio da planilha e selo da aba Contratantes). Leitura de perfil por contratante só na ficha. As listas vivem sob
+  `RECEIVING_PROFILES_QUERY_KEY` (`modules/shared`) e salvar o perfil invalida a raiz.
+- **Rota e lote mostram o erro** (`CargoActionFailure`, recusa nomeando as notas pela seleção ENVIADA); o 409 do fechamento é
+  lido por `details[].documentId`. A chegada aberta é relida a cada 20 s (aba visível, sem toque em voo); "Separar tudo do
+  grupo" trava com toque do mesmo grupo em voo.
+- Funções com mais de um parâmetro recebem objeto — inclusive as internas.
+- **Tabela do recebimento vira cartão abaixo de 40 rem** (`.stacked` + `data-label` por célula): detalhe (grupos), lista de
+  chegadas e notas livres do registro. ⚠️ `scrollWidth <= clientWidth` NÃO prova que nada foi cortado — um ancestral com
+  `overflow` recorta e passa. A prova é a geometria real (`test/cargo-clipping-smoke.helper.ts`, nos specs de prints a 375 px).
+
+## Prévias de carga (spec 237 T4.4)
+
+Segunda visão de Recebimento: **`/recebimento/previas`** (lista + envio da planilha) e **`/recebimento/previas/:id`** (detalhe), no mesmo
+módulo `cargo-receiving`, com `CargoReceivingNav` (Chegadas | Prévias) dentro do shell. Leitura `fleet.read`, envio e ações `trip.manage`.
+Cliente, guardas (chaves exatas) e refusal **próprios** (`shared/cargoPreview*`); `RegistrationRefusalSummary` é reaproveitado.
+
+- **Envio:** `.xlsx/.xlsm`, teto de **960 KiB** (o do servidor), `Idempotency-Key` por tentativa (mesmo arquivo + contratante = mesma chave),
+  200 = "já foi enviada" (aviso + botão), 413/422 em português, recusa nomeando todos os campos. Só contratante com recebimento E prévia ligados.
+- **Repolling só enquanto há prévia na fila/lendo** (`resolveCargoPreviewRefetchInterval`); para sozinho. Estado de lista e filtros do detalhe na URL.
+- **"Esperando o XML" é neutro** (`data-tone="neutral"`), nunca alerta. Desvincular **avisa que age no grupo inteiro** antes de sair. Sem
+  `trip.manage` nenhuma ação aparece.
+- **Proposta de chegada** leva a `/recebimento/nova` por `history.state` (`cargoArrivalPrefill`) e **nunca assume data nem hora**: os campos vêm
+  vazios. Contratos: `test/cargo-receiving/preview-*.contract.ts` e `test/trip-hooks/cargo-preview-*.contract.ts` (+ `cargoPreviewHarness.helper.ts`).
+- A lista de prévias não traz contagem por estado (a API só a dá no detalhe). Nome/endereço do destinatário nunca em URL, título ou `localStorage`.
+- **Origem da prévia** (T4.7b): `CARGO_PREVIEW_SOURCES = ['email', 'upload']`, com contrato de paridade que lê a constante da API. A prévia por e-mail
+  **não tem autor**: só o selo neutro "Enviada por e-mail" (`CargoPreviewSourceBadge`), nunca endereço nem nome. Célula empilhada com selo = **um** filho.
+
+Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T4.4".
+
+## O ajudante sem resto (spec 244)
+
+**T3:** Conversor `toTypedAmountKeepingZero` (`modules/shared/decimalAmount.service.ts`) devolve `0,00` para
+`0.0000` nos campos `helperDailyRate`, `dailyAllowanceAmount` (ficha) e diária geral. Testes:
+`test/fleet/driver-daily-allowance.contract.ts`, `test/fleet/driver-crew-settings-panel.contract.tsx`,
+`test/shared/decimal-amount.contract.ts`.
+
+## Recomendar viagens na prévia (spec 237 T5.2)
+
+Botão no detalhe da prévia; duas visões (roteiros do contratante × proposta do roteirizador). **Nada vira viagem sem o
+fluxo existente**: "Montar viagem" navega a `/trips?createFromDocuments=` só com as notas roteáveis, e "Gerar proposta" é o
+`MultiVehicleSuggestionAction` com a prop opcional `label` (única mudança em `routing`). "Faltam N notas — esperando o
+XML" é neutro (nunca alerta); ação sem nota roteável fica desabilitada com o motivo; sem `trip.manage` nenhuma ação
+aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T5.2".
+
+## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
+
+A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de
+Configurações → Empresa: o `OccurrenceTypeCatalogPanel` **mudou de módulo** (`modules/trip`) e `SETTINGS_PANEL_PLACEMENT`
+segue com um endereço por painel. Tipos recolhidos, uma linha-resumo por tipo, exceções à vista lidas de **uma** consulta em
+lote (`GET /company-settings/occurrence-types/attachment-overrides`), clientes e contratantes só carregam quando um tipo abre.
+
+⚠️ O que cada campo mostra segue o **conjunto de momentos** (`readOccurrenceRequirementScope`), não o `stage`: `document`
+cobra os quatro campos e o mínimo de fotos, `stop` só a foto, `office` só Produtos. A exceção nasce com **nulo explícito**
+("Igual ao tipo") e guards e cliente toleram API anterior — `noteMode`, `signatureMode` e `moments` ausentes não viram padrão
+no `PUT`. Momentos são rascunho com Aplicar/Desfazer; conjunto vazio e `document + stop` juntos são recusados na tela.
+
+⚠️ O `Select` global mudou (contraste e alvo de 44px no toque; desligado sem `opacity`) e o `Tooltip` só estica o filho com
+`fill`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 246".
+
+## A avaria na entrada e "devolver ao contratante" (spec 237 T3.3)
+
+No módulo `cargo-receiving`: botão **Avaria** na nota (celular do separador), selos "Avaria aberta / A devolver / Devolvida",
+marcar, desfazer e concluir a devolução. Marcação e ocorrências vêm só de `GET /cargo-arrivals/:id/occurrences`; a leitura da
+chegada **não ganhou chave** (guardas exatas). **Desfazer é só `occurrences.resolve`** (`canResolve`), abrir/marcar/concluir é
+`trip.manage`; a janela vale só para abrir; concluir espera a tratativa `decided|closed`; `returned` é terminal — tudo em
+`cargoNoteActions.service.ts` (puro). A foto reduz por `buildOccurrencePhotoAttachment` (serviço de `trip/shared`, nunca componente
+nem hook do `trip`); `Idempotency-Key` por tentativa. Nota marcada sai do passo de separar, do "Separar tudo" e trava "Fechar
+chegada" (motivo antes do clique). ⚠️ O `Select` não abre em teste de DOM sem `stubVisibleLayout()`. Detalhe: docs/ai-context §
+"Spec 237 T3.3".
+
+## A tratativa da avaria de recebimento no painel (spec 237 T3.4b)
+
+No detalhe do escritório (`/recebimento/:id/detalhe`), cada avaria ganha as ações da tratativa para quem tem `occurrences.resolve`
+(`CargoOccurrenceCaseActions`): só o que a máquina da API aceita em cada estado (`resolveCargoCaseActions`), confirmação/motivo onde
+a ação não se desfaz, decisão só `other`/`goods_paid` (nunca reentrega), e o acerto sem motorista/`payerId` antes de encerrar
+`goods_paid` (a leitura não traz a decisão: o formulário abre ao decidir aqui ou no 422 do encerramento). Independe do estado da chegada.
+Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniaturas ficam estáveis entre leituras; progresso do celular
+só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
+`currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".

@@ -84,7 +84,6 @@ async function renderCurrentView(): Promise<void> {
         null,
         createElement(TripDeliveryProof, {
           documentId: 'document-1',
-          occurrences: null,
           products: [],
           reviewActions: {
             canReview: false,

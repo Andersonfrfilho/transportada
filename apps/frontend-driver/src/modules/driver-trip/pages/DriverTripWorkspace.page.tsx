@@ -11,6 +11,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverForeignPendingNotice } from '../components/DriverForeignPendingNotice.component'
+import { DriverHelperNotice } from '../components/DriverHelperNotice.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverLocationSharingIndicator } from '../components/DriverLocationSharingIndicator.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
@@ -21,9 +22,11 @@ import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNo
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
+import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice.component'
 import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
 import { useDriverSession } from '../hooks/useDriverSession.hook'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { useGeolocationPermission } from '../hooks/useGeolocationPermission.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
@@ -36,6 +39,8 @@ import {
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
+import { canReportOnTrip } from '../shared/tripCrewRole.service'
+import { resolveStalePending } from '../shared/stalePending.service'
 import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
 import {
   resolveDocumentActivityStatus,
@@ -46,7 +51,6 @@ import {
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
-  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -58,7 +62,8 @@ import {
   type NotDeliveredDraft,
   type NotDeliveredStatus,
 } from '../shared/notDelivered.service'
-import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
+import { buildDocumentOccurrenceReport } from '../shared/documentOccurrenceReport.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import {
   readCachedOccurrenceTypes,
   resolveOccurrenceTypesStorage,
@@ -73,6 +78,7 @@ import {
   findCurrentStop,
   findProofDocumentLabel,
   isAwaitingDispatch,
+  resolveDispatchState,
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
@@ -119,14 +125,10 @@ export function DriverTripWorkspacePage() {
    * A ocorrência que falha **não** muda o estado da nota — ao contrário de entregar e devolver. O
    * aviso diz isso, e repetir o toque é o conserto.
    */
-  const [occurrenceFailed, setOccurrenceFailed] = useState(false)
   /** Spec 082 (revisão): teto tipado da fila de EVENTOS — recusa anunciada, nada descartado. */
   const [eventLimitReached, setEventLimitReached] = useState(false)
   /** Spec 209 (D3): a foto do "Deu problema" não coube — o relato entrou sem ela, e a tela diz. */
   const [occurrencePhotoDropped, setOccurrencePhotoDropped] = useState(false)
-  /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
-  const [isDispatching, setIsDispatching] = useState(false)
-  const [dispatchFailed, setDispatchFailed] = useState(false)
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -203,7 +205,11 @@ export function DriverTripWorkspacePage() {
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const { autoSwitchedTripId, selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
-  const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
+  /** Spec 243 RF-3: o ajudante não reporta, então a posição dele nunca sobe — a API recusaria. */
+  const reportableTrips = (snapshot?.trips ?? []).filter(canReportOnTrip)
+  const locationSharingStatus = useLocationSharing(reportableTrips)
+  /** Spec 234 D4d: o cartão da parada avisa antes do "Entreguei" quando a localização está negada. */
+  const isLocationDenied = useGeolocationPermission()
   /**
    * Spec 206 D9: a parada a caminho, aplicando por cima os toques ainda na fila — sempre local e
    * imediato, funciona sem sinal (`enRouteStop.service.ts`).
@@ -292,6 +298,7 @@ export function DriverTripWorkspacePage() {
           items={driverTrip.queueView}
           lastSyncedAtMs={driverTrip.lastSyncedAtMs}
           onBack={() => window.history.back()}
+          onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
           onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
@@ -459,6 +466,7 @@ export function DriverTripWorkspacePage() {
     return statuses
   }
   const notDeliveredStatusByDocumentId = buildNotDeliveredStatuses()
+  const stalePending = resolveStalePending({ items: driverTrip.queueView, nowMs: Date.now() })
 
   /**
    * Pedido do usuário (25/09): "registrei... e nada aconteceu?" — entrega, devolução e "Deu
@@ -569,21 +577,15 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  /** Spec 218 D3: a ocorrência de nota com foto — o item da 179, que sobe a foto antes do registro. */
-  async function reportDocumentOccurrenceWithPhoto(
+  /** Spec 218 D3 + 226: a ocorrência de nota — o item da 179, que sobe a foto (se há) antes do registro. */
+  async function reportDocumentOccurrence(
     input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
   ): Promise<void> {
     setAttachmentLimit(undefined)
-    const report: DriverFieldReport = {
-      documentId: input.documentId,
+    const report = buildDocumentOccurrenceReport({
       idempotencyKey: createIdempotencyKey(),
-      kind: 'documentOccurrence',
-      note: input.note,
-      occurrenceTypeId: input.occurrenceTypeId,
-      occurrenceTypeName: input.occurrenceTypeName,
-      photo: input.photo,
-      productCode: '',
-    }
+      occurrence: input,
+    })
     const outcome = await driverTrip.reportAllOrNothing([report])
     if (outcome === 'count-limit') setEventLimitReached(true)
     if (outcome === 'size-limit') setAttachmentLimit('size-limit')
@@ -593,18 +595,17 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
-  async function dispatchTrip(tripId: string): Promise<void> {
-    setDispatchFailed(false)
-    setIsDispatching(true)
-    try {
-      await getDriverTripClient().dispatchTrip({ tripId })
-      driverTrip.refetchTrip()
-    } catch {
-      setDispatchFailed(true)
-    } finally {
-      setIsDispatching(false)
-    }
+  /**
+   * Spec 230: o despacho entra na fila como qualquer toque de campo — sem sinal fica como pendência de
+   * envio e sobe sozinho (ou pelo envio manual). Quando sobe, o snapshot novo abre as ações de campo.
+   */
+  function dispatchTrip(tripId: string): void {
+    void report((location) => ({
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'dispatch',
+      location,
+      tripId,
+    }))
   }
 
   function rememberTappedReport(tappedReport: TappedStopReport): void {
@@ -650,7 +651,18 @@ export function DriverTripWorkspacePage() {
     }))
   }
 
-  const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
+  /**
+   * Spec 230: o despacho na fila destrava as ações de campo — ele sobe antes de tudo que vier depois
+   * (a fila é em ordem), então o motorista segue trabalhando sem sinal. Recusado volta ao botão.
+   */
+  const dispatchItems = driverTrip.queueView.filter(
+    (item) => item.kind === 'dispatch' && item.tripId === trip?.id,
+  )
+  const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
+  const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
+  const dispatchState =
+    trip === undefined ? undefined : resolveDispatchState({ isDispatchQueued, trip })
+  const isTripAwaitingDispatch = dispatchState?.isAwaiting ?? false
   const proofPendingCount = listProofPendingDocuments(snapshot).length
   /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
   const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
@@ -730,23 +742,28 @@ export function DriverTripWorkspacePage() {
           </p>
         )}
 
+        {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
+
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
-        {isTripAwaitingDispatch && trip !== undefined ? (
+        {dispatchState?.canDispatch === true && trip !== undefined ? (
           <div className={styles.actions}>
-            <Button
-              disabled={isDispatching}
-              onClick={() => void dispatchTrip(trip.id)}
-              type="button"
-            >
+            <Button onClick={() => dispatchTrip(trip.id)} type="button">
               <Icon name="check" />
               {t('dispatch.start')}
             </Button>
             <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
           </div>
         ) : null}
-        {dispatchFailed ? (
+        {/* Spec 230: o despacho ficou na fila — a tela diz que ainda não chegou ao servidor */}
+        {isDispatchQueued && trip !== undefined && isAwaitingDispatch(trip) ? (
+          <p className={styles.stopMeta} role="status">
+            <Icon name="clock" />
+            {t('dispatch.queued')}
+          </p>
+        ) : null}
+        {isDispatchRejected ? (
           <p className={styles.alert} role="alert">
             {t('dispatch.failed')}
           </p>
@@ -792,6 +809,15 @@ export function DriverTripWorkspacePage() {
           <DriverTripReassignedNotice onDismiss={driverTrip.dismissReassignedTripNotice} />
         ) : null}
 
+        {/* Spec 229: parado há mais de um dia — o app só envia aberto, e nada sai da fila por idade */}
+        {stalePending === undefined ? null : (
+          <DriverStalePendingNotice
+            count={stalePending.count}
+            oldestQueuedAt={stalePending.oldestQueuedAt}
+            onOpenQueue={() => navigateToDriverSection('queue')}
+          />
+        )}
+
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
         {driverTrip.queuedCount > 0 ? (
           <button
@@ -828,11 +854,6 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
-        {occurrenceFailed ? (
-          <p className={styles.alert} role="alert">
-            {t('documentOccurrenceFailed')}
-          </p>
-        ) : null}
         {proofFailed ? (
           <p className={styles.rejectedBanner} role="alert">
             {t('proofFailed')}
@@ -879,6 +900,7 @@ export function DriverTripWorkspacePage() {
             */}
             <Button
               aria-label={t('search.scanTrigger')}
+              className={styles.stopSearchScan}
               onClick={() => setIsScannerOpen(true)}
               type="button"
               variant="ghost"
@@ -932,7 +954,9 @@ export function DriverTripWorkspacePage() {
                   isCurrent={stop.id === currentStopId}
                   isEnRoute={stop.id === enRouteStopId}
                   isFieldWorkBlocked={isTripAwaitingDispatch}
+                  isLocationDenied={isLocationDenied}
                   isOpen={stopExpansion.isOpen(stop.id)}
+                  isReadOnly={!canReportOnTrip(trip)}
                   key={stop.id}
                   lastKnownLocation={lastKnownLocation}
                   queueView={driverTrip.queueView}
@@ -954,23 +978,7 @@ export function DriverTripWorkspacePage() {
                   occurrenceTypes={occurrenceTypes}
                   onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                   onToggle={() => stopExpansion.toggle(stop.id)}
-                  onDocumentOccurrence={(input: {
-                    documentId: string
-                    note: string
-                    occurrenceTypeId: string
-                    productCode: string
-                  }) =>
-                    getDriverTripClient()
-                      .registerDocumentOccurrence(input)
-                      .then(() => true)
-                      .catch(() => {
-                        setOccurrenceFailed(true)
-                        return false
-                      })
-                  }
-                  onQueuedDocumentOccurrence={(input) =>
-                    void reportDocumentOccurrenceWithPhoto(input)
-                  }
+                  onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
                   onStopOccurrence={(input) => void reportStopOccurrence(input)}
                   notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
                   onNotDelivered={(input) => void reportNotDelivered(input)}

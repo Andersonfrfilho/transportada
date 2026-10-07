@@ -35,6 +35,8 @@ export type IconName =
   | 'refresh'
   | 'save'
   | 'search'
+  | 'sun'
+  | 'moon'
   | 'trash'
   | 'upload'
   | 'workspace-driver-trip'
@@ -104,6 +106,18 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
   /** Só deste app: o painel de "Quem recebeu" (Select) usa a busca da lista. */
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M20 20l-4-4'],
+  sun: [
+    'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+    'M12 2v2.5',
+    'M12 19.5V22',
+    'M4.2 4.2l1.8 1.8',
+    'M18 18l1.8 1.8',
+    'M2 12h2.5',
+    'M19.5 12H22',
+    'M4.2 19.8 6 18',
+    'M18 6l1.8-1.8',
+  ],
+  moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
   /** O volante: a tela de quem está com as mãos nele, e não a de quem monta a viagem. */

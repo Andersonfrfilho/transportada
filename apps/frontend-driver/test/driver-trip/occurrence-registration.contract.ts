@@ -10,12 +10,14 @@ import {
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import { listAvailableOccurrenceTypes } from '../../src/modules/driver-trip/shared/notDelivered.service'
 import {
-  canRegisterOccurrence,
   dispatchOccurrenceRegistration,
+  type OccurrenceRegistrationHandlers,
+} from '../../src/modules/driver-trip/shared/occurrenceDispatch.service'
+import {
+  canRegisterOccurrence,
   listMissingOccurrenceFields,
   resolveOccurrenceAttachmentMode,
   resolveOccurrenceTypesForDocument,
-  type OccurrenceRegistrationHandlers,
 } from '../../src/modules/driver-trip/shared/occurrenceRegistration.service'
 import { buildStopOccurrenceReports } from '../../src/modules/driver-trip/shared/stopOccurrencePhoto.service'
 
@@ -89,6 +91,32 @@ describe('a lista única traz os dois fluxos, cada tipo com o seu attachmentMode
     expect(isDriverOccurrenceType({ ...STOP_OPTIONAL, stopKind: 'damaged_goods' })).toBe(false)
     /** A cópia guardada antes da spec 218 não tem flow — continua valendo, como tipo de nota. */
     expect(isDriverOccurrenceType({ id: 'legado', name: 'Legado' })).toBe(true)
+  })
+
+  /**
+   * Spec 246 (ADR-0081 §9, app tolerante antes da API): o servidor passa a mandar os modos
+   * resolvidos da nota (`photoMode`, `noteMode`, `signatureMode`) e os mínimos em cada tipo — o
+   * guard tolera chave a mais, e a cópia guardada antes continua valendo.
+   */
+  it('tolera os modos resolvidos e os mínimos que a API passa a mandar', () => {
+    expect(
+      isDriverOccurrenceType({
+        attachmentMode: 'required',
+        flow: 'document',
+        id: 'novo',
+        itemsMinimumCount: null,
+        itemsMode: 'required',
+        name: 'Recusa total',
+        noteMode: 'required',
+        photoMinimumCount: 2,
+        photoMode: 'required',
+        signatureMode: 'optional',
+        stopKind: null,
+      }),
+    ).toBe(true)
+    expect(
+      isDriverOccurrenceType({ attachmentMode: 'required', id: 'antigo', name: 'Antigo' }),
+    ).toBe(true)
   })
 
   /** "Não entreguei" é devolução de nota: tipo de parada ali abriria ocorrência de nota errada. */
@@ -194,14 +222,17 @@ describe('confirmar sai por uma rota só, a do flow do tipo (D1, D3, D4)', () =>
     const handlers: OccurrenceRegistrationHandlers = {
       enqueueDocumentOccurrence: (input) =>
         calls.push({ input, name: 'enqueueDocumentOccurrence' }),
-      registerDocumentOccurrence: (input) =>
-        calls.push({ input, name: 'registerDocumentOccurrence' }),
       reportStopOccurrence: (input) => calls.push({ input, name: 'reportStopOccurrence' }),
     }
     return { calls, handlers }
   }
 
-  it('tipo de nota sem foto: a chamada direta de hoje, na nota tocada', () => {
+  /**
+   * Spec 226: a 218 D1/D3 deixou a nota sem foto como chamada direta ("mudança de arquitetura
+   * maior"). Sem rede o toque falhava e o texto digitado se perdia. O item `documentOccurrence` já
+   * aceitava `photo: null` — "Não entreguei" o usa assim — e o servidor recebe o mesmo `POST`.
+   */
+  it('tipo de nota sem foto: o mesmo item da fila, com photo nula (spec 226)', () => {
     const { calls, handlers } = spyHandlers()
 
     dispatchOccurrenceRegistration({
@@ -218,8 +249,10 @@ describe('confirmar sai por uma rota só, a do flow do tipo (D1, D3, D4)', () =>
           documentId: DOCUMENT_ID,
           note: 'Portão sem número',
           occurrenceTypeId: DOCUMENT_OFF.id,
+          occurrenceTypeName: DOCUMENT_OFF.name,
+          photo: null,
         },
-        name: 'registerDocumentOccurrence',
+        name: 'enqueueDocumentOccurrence',
       },
     ])
   })
@@ -286,7 +319,7 @@ describe('confirmar sai por uma rota só, a do flow do tipo (D1, D3, D4)', () =>
       type: { id: 'legado', name: 'Legado' },
     })
 
-    expect(calls.map((call) => call.name)).toEqual(['registerDocumentOccurrence'])
+    expect(calls.map((call) => call.name)).toEqual(['enqueueDocumentOccurrence'])
   })
 })
 
@@ -318,7 +351,7 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
       },
       getAccessToken: () => Promise.resolve('token-de-mentira'),
     })
-    await client.send(report)
+    await client.send({ report, stamp: undefined })
     return seen[0]?.json()
   }
 
@@ -329,10 +362,16 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceTypeId: STOP_OPTIONAL.id,
         stopId: STOP_ID,
       }),
-    ).toEqual({ description: 'Doca fechada', documentId: null, occurrenceTypeId: STOP_OPTIONAL.id })
+    ).toEqual({
+      description: 'Doca fechada',
+      documentId: null,
+      location: null,
+      occurrenceTypeId: STOP_OPTIONAL.id,
+    })
   })
 
   /** O item gravado antes da atualização do app ainda sai da fila — com o corpo que a API aceita. */
@@ -343,9 +382,15 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceKind: 'dock_closed',
         stopId: STOP_ID,
       }),
-    ).toEqual({ description: 'Doca fechada', documentId: null, kind: 'dock_closed' })
+    ).toEqual({
+      description: 'Doca fechada',
+      documentId: null,
+      kind: 'dock_closed',
+      location: null,
+    })
   })
 })

@@ -4,7 +4,7 @@
  * Spec 153 T404 (D7): a proposta com mais de um veículo grava **uma escolha de rota por veículo**,
  * nunca uma só compartilhada. D2: a escolha é identificada por `signature` + `criterion`, nunca por
  * índice — com dois veículos um índice não diria de qual lista. D1: quem nunca tocou o seletor
- * ainda manda `cheapest` explícito, em todo veículo aceito.
+ * ainda manda o padrão (`fastest`) explícito, em todo veículo aceito.
  *
  * Sem harness de render (confirmado em `test/nfe-workspace/package-box-measurement.contract.ts`), a
  * decisão por veículo mora em funções puras (`proposalRouteChoice.service.ts`), testadas aqui
@@ -26,7 +26,7 @@ type RouteChoice = Readonly<{
   signature: null | string
 }>
 
-const CHEAPEST_DEFAULT: RouteChoice = { criterion: 'cheapest', signature: null }
+const DEFAULT_CHOICE: RouteChoice = { criterion: 'fastest', signature: null }
 
 /* -------------------------------------------------------------------------------------------- *
  * resolveVehicleRouteChoice / resolveAcceptedRouteChoices — o núcleo testável de D7.
@@ -74,7 +74,7 @@ describe('proposalRouteChoice.service (spec 153 T404 / D7)', () => {
   })
 
   /** D1: veículo ausente do mapa nunca é indefinido — a mais barata é a escolha explícita dele. */
-  test('veículo sem escolha registrada resolve para cheapest explícito, nunca ausente', async () => {
+  test('veículo sem escolha registrada resolve para o padrão (fastest) explícito, nunca ausente', async () => {
     const { resolveVehicleRouteChoice } = await loadProposalRouteChoice()
 
     const choice = resolveVehicleRouteChoice({
@@ -82,12 +82,12 @@ describe('proposalRouteChoice.service (spec 153 T404 / D7)', () => {
       vehicleId: VEHICLE_ID,
     })
 
-    expect(choice).toEqual(CHEAPEST_DEFAULT)
+    expect(choice).toEqual(DEFAULT_CHOICE)
   })
 
   /**
    * O aceite manda um item por veículo aceito, sempre — o veículo que o operador tocou com a
-   * escolha dele, o que não tocou com `cheapest` explícito, e nunca os dois trocados de lugar.
+   * escolha dele, o que não tocou com o padrão explícito, e nunca os dois trocados de lugar.
    */
   test('resolveAcceptedRouteChoices devolve uma entrada por veículo, pareada e nunca trocada', async () => {
     const { resolveAcceptedRouteChoices } = await loadProposalRouteChoice()
@@ -102,7 +102,7 @@ describe('proposalRouteChoice.service (spec 153 T404 / D7)', () => {
 
     expect(accepted).toEqual([
       { routeChoice: { criterion: 'fastest', signature: 'rota-a' }, vehicleId: VEHICLE_ID },
-      { routeChoice: CHEAPEST_DEFAULT, vehicleId: SECOND_VEHICLE_ID },
+      { routeChoice: DEFAULT_CHOICE, vehicleId: SECOND_VEHICLE_ID },
     ])
   })
 })
@@ -180,13 +180,13 @@ describe('acceptMultiVehicleSuggestion manda a escolha de rota por veículo (spe
     ])
   })
 
-  /** D1: o veículo que ninguém tocou ainda manda `cheapest` explícito — nunca omitido do corpo. */
-  test('veículo cuja escolha ninguém tocou ainda manda cheapest explícito no aceite', async () => {
+  /** D1: o veículo que ninguém tocou ainda manda o padrão (`fastest`) explícito — nunca omitido do corpo. */
+  test('veículo cuja escolha ninguém tocou ainda manda o padrão explícito no aceite', async () => {
     const requests: Request[] = []
     const client = await createAcceptRecordingClient(requests)
 
     await client.acceptMultiVehicleSuggestion({
-      routeChoiceByVehicle: [{ routeChoice: CHEAPEST_DEFAULT, vehicleId: VEHICLE_ID }],
+      routeChoiceByVehicle: [{ routeChoice: DEFAULT_CHOICE, vehicleId: VEHICLE_ID }],
       suggestionId: SUGGESTION_ID,
     })
 
@@ -195,7 +195,7 @@ describe('acceptMultiVehicleSuggestion manda a escolha de rota por veículo (spe
     const body = await readJsonBody(acceptRequest)
     expect(Object.hasOwn(body, 'routeChoiceByVehicle')).toBe(true)
     expect(body.routeChoiceByVehicle).toEqual([
-      { routeChoice: CHEAPEST_DEFAULT, vehicleId: VEHICLE_ID },
+      { routeChoice: DEFAULT_CHOICE, vehicleId: VEHICLE_ID },
     ])
   })
 })

@@ -51,6 +51,12 @@ import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthByp
 import { DriverNotificationsPage } from '@/modules/notification/pages/DriverNotifications.page'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
+import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.service'
+import {
+  applyColorTheme,
+  readStoredColorTheme,
+  syncThemeColorMeta,
+} from '@/modules/shared/colorTheme.service'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import {
   resolveDriverRouteSection,
@@ -329,6 +335,9 @@ function startOffline(root: Root, snapshot: OwnedTripSnapshot | undefined): void
  * moram em `runDriverBoot`.
  */
 async function start(): Promise<void> {
+  /** Spec 231: a escolha guardada vale antes de qualquer tela; sem escolha, o CSS segue o sistema. */
+  applyColorTheme({ document, theme: readStoredColorTheme(window.localStorage) })
+  syncThemeColorMeta({ document, theme: readBrowserColorTheme() })
   const container = document.getElementById('root')
   if (container === null) throw new Error('DRIVER_ROOT_ELEMENT_MISSING')
   const root = createRoot(container)

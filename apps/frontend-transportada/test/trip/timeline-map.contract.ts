@@ -58,6 +58,8 @@ describe('minimapa da linha do tempo (spec 196)', () => {
   it('cobre todos os tipos de evento com categoria e ícone', () => {
     for (const kind of TRIP_TIMELINE_KINDS) {
       const category = TIMELINE_MAP_CATEGORY_BY_KIND[kind]
+      expect([kind, category === undefined]).toEqual([kind, false])
+      if (category === null) continue
       expect(TIMELINE_MAP_CATEGORIES).toContain(category)
       expect(TIMELINE_MAP_ICON_BY_CATEGORY[category]).toBeTruthy()
     }

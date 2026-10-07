@@ -10,6 +10,7 @@ import {
   IDENTITY_DOCUMENT_ISSUERS,
   IDENTITY_DOCUMENT_MAX_LENGTH,
 } from '../shared/fleet.types'
+import { isHelperOnlyDriver } from '../shared/fleetForm.service'
 import styles from '../styles/fleet.module.css'
 import { DriverCityField } from './DriverCityField.component'
 import { FleetField, FleetSelectField } from './FleetField.component'
@@ -35,6 +36,7 @@ export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalF
     ...(fetch === undefined ? {} : { fetch }),
     state: state.birthState,
   })
+  const hasLicense = !isHelperOnlyDriver(state)
   const licenseCities = useMunicipalityChoices({
     city: state.licenseIssuedCity,
     ...(fetch === undefined ? {} : { fetch }),
@@ -43,7 +45,7 @@ export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalF
 
   return (
     <fieldset className={styles.fieldGroup}>
-      <legend>{t('driverPersonalLegend')}</legend>
+      <legend>{t(hasLicense ? 'driverPersonalLegend' : 'driverPersonalLegendHelper')}</legend>
       <div className={styles.fieldGrid}>
         <FleetField
           label={t('driverNationality')}
@@ -108,23 +110,27 @@ export function DriverPersonalFields({ fetch, onChange, state }: DriverPersonalF
           value={state.identityDocumentState}
           onChange={(identityDocumentState) => onChange({ identityDocumentState })}
         />
-        <FleetSelectField
-          clearable
-          label={t('driverLicenseIssuedState')}
-          optionLabelKey="stateOption"
-          options={BRAZIL_STATE}
-          placeholder={t('driverLicenseIssuedStateUnset')}
-          value={state.licenseIssuedState}
-          onChange={(licenseIssuedState) => onChange({ licenseIssuedState })}
-        />
-        <DriverCityField
-          choices={licenseCities.choices}
-          hasState={licenseCities.hasState}
-          isLoading={licenseCities.isLoading}
-          label={t('driverLicenseIssuedCity')}
-          value={state.licenseIssuedCity}
-          onChange={(licenseIssuedCity) => onChange({ licenseIssuedCity })}
-        />
+        {hasLicense ? (
+          <>
+            <FleetSelectField
+              clearable
+              label={t('driverLicenseIssuedState')}
+              optionLabelKey="stateOption"
+              options={BRAZIL_STATE}
+              placeholder={t('driverLicenseIssuedStateUnset')}
+              value={state.licenseIssuedState}
+              onChange={(licenseIssuedState) => onChange({ licenseIssuedState })}
+            />
+            <DriverCityField
+              choices={licenseCities.choices}
+              hasState={licenseCities.hasState}
+              isLoading={licenseCities.isLoading}
+              label={t('driverLicenseIssuedCity')}
+              value={state.licenseIssuedCity}
+              onChange={(licenseIssuedCity) => onChange({ licenseIssuedCity })}
+            />
+          </>
+        ) : null}
       </div>
       <p className={styles.hint}>{t('driverPersonalHint')}</p>
     </fieldset>

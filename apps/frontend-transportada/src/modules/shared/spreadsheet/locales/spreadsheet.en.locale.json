@@ -1,0 +1,8 @@
+{
+  "letterhead": {
+    "taxId": "Tax ID",
+    "phone": "Phone",
+    "exportedOn": "Exported on {{date}}",
+    "exportedBy": "By {{name}}"
+  }
+}

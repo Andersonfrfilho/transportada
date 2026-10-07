@@ -106,4 +106,35 @@ describe('design system tooltip contract', () => {
     expect(layer).toContain('var(--color-fog)')
     expect(/#[0-9a-f]{3,8}\b/iu.test(layer)).toBe(false)
   })
+
+  /**
+   * O padrão é o da staging: o gatilho se encolhe ao conteúdo. Esticar o filho era global e levou o
+   * pino de posição do detalhe da viagem de 14px a 344px. Só quem hospeda campo de grade pede `fill`.
+   */
+  test('o gatilho só estica o filho com o modificador fill', async () => {
+    const styles = await readApplicationFile(TOOLTIP_STYLES_PATH)
+    const component = await readApplicationFile(TOOLTIP_COMPONENT_PATH)
+
+    expect(styles.includes('.trigger > *')).toBe(false)
+    expect(readRuleBlock(styles, '.trigger') ?? '').not.toContain('max-width')
+    expect(readRuleBlock(styles, '.triggerFill') ?? '').toContain('max-width: 100%')
+    expect(readRuleBlock(styles, '.triggerFill > *') ?? '').toContain('flex-grow: 1')
+    expect(component).toContain('fill?: boolean')
+  })
+
+  test('só os seletores da aba Tipos pedem fill, e o pino de posição não', async () => {
+    const withFill = [
+      'OccurrenceRequirementModeSelect',
+      'OccurrenceTypeItemsModeSelect',
+      'OccurrenceExceptionModeSelect',
+    ]
+    for (const name of withFill) {
+      const source = await readApplicationFile(`src/modules/trip/components/${name}.component.tsx`)
+      expect(/<Tooltip\s+dismissOnActivate\s+fill\b/u.test(source)).toBe(true)
+    }
+    const pin = await readApplicationFile(
+      'src/modules/trip/components/TripTimelineLocation.component.tsx',
+    )
+    expect(/<Tooltip[^>]*\bfill\b/u.test(pin)).toBe(false)
+  })
 })

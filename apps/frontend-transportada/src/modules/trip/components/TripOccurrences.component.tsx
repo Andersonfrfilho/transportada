@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
@@ -21,6 +22,11 @@ import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import {
+  carriesOccurrenceItems,
+  resolveItemsOnTypeChange,
+  resolveOccurrenceItemsMode,
+} from '../shared/occurrenceItemsMode.service'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
 import {
   hasOccurrencePhotoSendFailure,
@@ -38,9 +44,15 @@ import {
   OCCURRENCE_NOTE_PRESET_IDS,
   resolveOccurrenceNoteCounter,
 } from '../shared/occurrenceNotePreset.service'
+import {
+  buildTripOccurrenceRoute,
+  navigateToTripOccurrence,
+} from '../shared/tripOccurrenceRoute.service'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
+  /** Spec 233 D8: só quem lê a frota abre `/ocorrencias/:id` — sem isso, o tipo sai como texto. */
+  canOpenOccurrence?: boolean
   canRegister: boolean
   /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
   email: null | Readonly<{ body: string; subject: string }>
@@ -103,6 +115,7 @@ type TripOccurrencesProps = Readonly<{
  * obrigar a escolher faria quem registra escolher qualquer um.
  */
 export function TripOccurrences({
+  canOpenOccurrence = false,
   canRegister,
   email,
   isDialog = false,
@@ -140,18 +153,18 @@ export function TripOccurrences({
   const selectedType = disponiveis.find((type) => type.id === occurrenceTypeId)
   /** RF8: sem tipo escolhido ainda, o campo segue no comportamento de hoje (vários itens). */
   const allowsMultipleItems = selectedType?.allowsMultipleItems ?? true
+  const carriesItems = carriesOccurrenceItems(resolveOccurrenceItemsMode(selectedType))
 
   function handleOccurrenceTypeChange(nextTypeId: string): void {
     setOccurrenceTypeId(nextTypeId)
     const nextType = disponiveis.find((type) => type.id === nextTypeId)
     /**
-     * RF8: trocar para um tipo de item único com mais de um item marcado substitui pela primeira
-     * escolha — nunca soma. Sem isto, um `MultiSelect` que já tinha dois itens continuaria
-     * mandando os dois para um tipo que a API vai recusar com `422`.
+     * RF8 (166): tipo de item único com mais de um item marcado fica com a primeira escolha — nunca
+     * soma. Spec 241 RF8: tipo `off` leva a seleção toda embora, ou a API o recusaria com `422`.
      */
-    if (nextType?.allowsMultipleItems === false && productCodes.length > 1) {
-      setProductCodes(productCodes.slice(0, 1))
-    }
+    const next = resolveItemsOnTypeChange({ nextType, productCodes, quantitiesByCode })
+    setProductCodes(next.productCodes)
+    setQuantitiesByCode(next.quantitiesByCode)
   }
 
   useEffect(() => {
@@ -186,11 +199,24 @@ export function TripOccurrences({
    * hook retomar a mesma fila pelo que ainda não foi `sent`.
    */
   function buildRegisterInput() {
-    const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields({
-      codes: productCodes,
+    /** O tipo pode ter virado `off` com a tela aberta: o que ele não carrega não vai, mesmo escondido. */
+    const selection = resolveItemsOnTypeChange({
+      nextType: selectedType,
+      productCodes,
       quantitiesByCode,
     })
-    return { note, occurrenceTypeId, photos, productCodes, productQuantities, productQuantityUnits }
+    const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields({
+      codes: selection.productCodes,
+      quantitiesByCode: selection.quantitiesByCode,
+    })
+    return {
+      note,
+      occurrenceTypeId,
+      photos,
+      productCodes: selection.productCodes,
+      productQuantities,
+      productQuantityUnits,
+    }
   }
 
   async function handleSubmit() {
@@ -217,7 +243,24 @@ export function TripOccurrences({
             return (
               <li key={occurrence.id}>
                 <p className={styles.occurrenceEntryHeader}>
-                  <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                  {canOpenOccurrence ? (
+                    <a
+                      className={styles.occurrenceEntryLink}
+                      href={buildTripOccurrenceRoute(occurrence.id)}
+                      onClick={(event) => {
+                        /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
+                        event.preventDefault()
+                        navigateToTripOccurrence({
+                          navigator: createBrowserWorkspaceNavigator(),
+                          occurrenceId: occurrence.id,
+                        })
+                      }}
+                    >
+                      {occurrence.typeName}
+                    </a>
+                  ) : (
+                    <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                  )}
                   <span className={styles.hint}>{formatMoment(occurrence.createdAt)}</span>
                   <OccurrenceCancellationMark
                     cancellation={occurrence.cancellation}
@@ -337,23 +380,27 @@ export function TripOccurrences({
              * `Select` já é exclusivo por natureza, então escolher outro item substitui em vez de
              * somar, sem precisar de `resolveOccurrenceProductSelection`.
              */}
-            <OccurrenceProductSelect
-              allowsMultipleItems={allowsMultipleItems}
-              onChange={setProductCodes}
-              productCodes={productCodes}
-              products={products}
-            />
+            {carriesItems ? (
+              <OccurrenceProductSelect
+                allowsMultipleItems={allowsMultipleItems}
+                onChange={setProductCodes}
+                productCodes={productCodes}
+                products={products}
+              />
+            ) : null}
           </div>
           {/*
            * Spec 166 RF7: um campo de quantidade + unidade por item marcado. "A nota inteira"
            * (lista vazia) não tem item a contar — o bloco só nasce com item escolhido.
            */}
-          <OccurrenceItemQuantities
-            onChange={setQuantitiesByCode}
-            productCodes={productCodes}
-            products={products}
-            quantitiesByCode={quantitiesByCode}
-          />
+          {carriesItems ? (
+            <OccurrenceItemQuantities
+              onChange={setQuantitiesByCode}
+              productCodes={productCodes}
+              products={products}
+              quantitiesByCode={quantitiesByCode}
+            />
+          ) : null}
           {/* Marcador de obrigatório (item 7 da revisão): a única seção que de fato trava o envio
               (CA17) ganha o mesmo `*` que o resto do produto usa para campo obrigatório. */}
           <p className={styles.occurrencePhotoSectionLabel}>

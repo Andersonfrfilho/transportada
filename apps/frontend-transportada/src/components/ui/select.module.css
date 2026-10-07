@@ -46,9 +46,10 @@
 }
 
 .trigger:disabled {
-  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  /* Desligado se lê pela borda tracejada, não por apagar o texto: o motivo ao lado precisa continuar legível (4,5:1). */
+  border-style: dashed;
+  color: var(--color-slate-muted);
   cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .triggerCompact {
@@ -73,20 +74,23 @@
   background: var(--select-swatch);
 }
 
+/* O rótulo escolhido quebra linha: com reticências ele sumia no toque, onde `title` não existe. O gatilho cresce só quando o texto não cabe. */
 .value,
-.placeholder,
-.triggerDescription {
+.placeholder {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-/* O detalhe da opção escolhida, ao lado do rótulo: o gatilho tem uma linha só. */
+/* O detalhe da opção escolhida, ao lado do rótulo: uma linha só, com reticências e `title`. */
 .triggerDescription {
-  flex: 0 1 auto;
+  /* O rótulo é o que identifica a escolha: o detalhe só ocupa a sobra, sem tirar largura dele. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-slate-muted);
   font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .placeholder {
@@ -115,6 +119,8 @@
   display: flex;
   flex-direction: column;
   min-width: var(--floating-layer-min-width, 0);
+  /* Sem o teto, uma opção de uma linha só abria o painel além da borda direita da tela. */
+  max-width: calc(100vw - var(--space-4));
   max-height: min(16rem, var(--floating-layer-max-height, 16rem));
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
@@ -156,6 +162,8 @@
 .list {
   flex: 1 1 auto;
   display: grid;
+  /* Sem a coluna que encolhe, o detalhe de uma linha só alarga o item e a opção sai cortada no painel. */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   margin: 0;
   padding: var(--space-1);
@@ -184,7 +192,7 @@
   border-left: 2px solid transparent;
   color: var(--color-fog);
   font-size: 0.85rem;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -197,6 +205,7 @@
 
 .description {
   overflow: hidden;
+  white-space: nowrap;
   color: var(--color-slate-muted);
   font-size: 0.75rem;
   font-weight: 400;
@@ -205,12 +214,29 @@
 
 .optionActive {
   border-left-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
-  background: color-mix(in srgb, var(--color-copper) 16%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 10%, transparent);
 }
 
 .optionSelected {
   color: var(--color-copper);
   font-weight: 600;
+}
+
+/* Cobre sobre cobre translúcido ficava em 4,4:1: a opção escolhida e em foco aceita só um véu leve. */
+.optionSelected.optionActive {
+  background: color-mix(in srgb, var(--color-copper) 5%, transparent);
+}
+
+/* Dedo não acerta campo de 38px: no toque o gatilho compacto sobe ao alvo mínimo, sem mexer no desktop. */
+@media (pointer: coarse) {
+  .triggerCompact,
+  .option {
+    min-height: var(--touch-target);
+  }
+
+  .searchInput {
+    min-height: var(--touch-target);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

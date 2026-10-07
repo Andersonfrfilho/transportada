@@ -6,7 +6,11 @@ import type {
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
-import type { OccurrenceAttachmentMode } from './occurrence.constant'
+import type {
+  DeclaredAmountScope,
+  OccurrenceAttachmentMode,
+  OccurrenceItemsMode,
+} from './occurrence.constant'
 import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
@@ -196,6 +200,10 @@ export type TripOccurrence = Readonly<{
   /** Spec 167: `null` é "não foi cancelada" — ausente é "esta API ainda não publica o campo". */
   cancellation?: null | OccurrenceCancellation
   stage: 'delivery' | 'separation'
+  /** Spec 241 RF5: ausente é API anterior ao campo e lê `true`. */
+  typeAllowsMultipleItems?: boolean | null
+  /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
+  typeItemsMode?: OccurrenceItemsMode | null
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>
@@ -208,8 +216,21 @@ export type TripOccurrence = Readonly<{
  */
 export type FieldOccurrenceType = Readonly<{
   attachmentMode?: OccurrenceAttachmentMode
+  /** Spec 247 TP.1: os requisitos efetivos da devolução; ausentes são API anterior. */
+  declaredAmountLabel?: string
+  declaredAmountMode?: OccurrenceAttachmentMode
+  declaredAmountScope?: DeclaredAmountScope
   id: string
+  /** Spec 246: a quantidade mínima de produtos (nulo = todos os itens); ausente é API anterior. */
+  itemsMinimumCount?: null | number
+  itemsMode?: OccurrenceAttachmentMode
   name: string
+  noteMode?: OccurrenceAttachmentMode
+  photoMinimumCount?: number
+  photoMode?: OccurrenceAttachmentMode
+  referenceNumberLabel?: string
+  referenceNumberMode?: OccurrenceAttachmentMode
+  signatureMode?: OccurrenceAttachmentMode
 }>
 
 /**
@@ -320,6 +341,11 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
+  /** Spec 228 D6: a foto do canhoto e a correção do endereço da parada. Prioridades 3 e 2 na API. */
+  'document.canhoto_photo',
+  'stop.address_corrected',
+  /** Spec 249 D6: a troca de motorista/ajudante com a viagem na rua. Prioridade 8 na API. */
+  'crew_transfer',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -355,12 +381,51 @@ export type TripTimelineOccurrenceReference = Readonly<{
 }>
 
 /** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário nem imagem; a coordenada entrou pela ADR-0081 §6 e §6.1. */
+/** Spec 228 D8: a origem da correção do endereço; `refinement` é o refino de precisão pedido por pessoa. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS = [
+  'contractor',
+  'driver',
+  'operator',
+  'refinement',
+] as const
+export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS)[number]
+
+/** `displacementMeters` é `null` sem ponto anterior e no refino. */
+export type TripTimelineAddressChange = Readonly<{
+  displacementMeters: null | number
+  origin: TripTimelineAddressChangeOrigin
+}>
+
+export const TRIP_TIMELINE_CREW_ROLES = ['driver', 'helper'] as const
+export type TripTimelineCrewRole = (typeof TRIP_TIMELINE_CREW_ROLES)[number]
+
+/** Spec 249 D6: o retrato de quem estava na viagem — id, nome, papel e posição, nunca o CPF. */
+export type TripTimelineCrewMember = Readonly<{
+  driverId: string
+  name: string
+  position: number
+  role: TripTimelineCrewRole
+}>
+
+/** `costDifference` é dinheiro: a chave sai sem `trip.financials`, nunca vira `null`. */
+export type TripTimelineCrewTransfer = Readonly<{
+  costDifference?: string
+  mdfeDriverDivergence: boolean
+  nextCrew: readonly TripTimelineCrewMember[]
+  previousCrew: readonly TripTimelineCrewMember[]
+  reason: string
+}>
+
 export type TripTimelineItem = Readonly<{
+  /** Spec 228 D8: só em `stop.address_corrected`. Ausente em qualquer outro kind. */
+  addressChange?: TripTimelineAddressChange
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   channel: null | TripFieldChannel
   /** Spec 158 T12: só em `trip.status_changed` para `completed` manual (encerramento pelo botão). */
   closeReason: null | string
+  /** Spec 249 D6: só em `crew_transfer`, e nele é obrigatória. */
+  crewTransfer?: TripTimelineCrewTransfer
   document: null | TripTimelineDocumentReference
   /** Só em `*.status_changed`. */
   fromStatus: null | string
@@ -427,6 +492,8 @@ export type TripDocumentDetail = TripDocument &
     nfeNumber?: null | string
     nfeSeries?: null | string
     nfeTotalValue?: null | string
+    /** Spec 233 D5: quantos volumes a nota declara. Ausente é API anterior; `null`, nota sem a informação. */
+    volumeCount?: null | number
     /**
      * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como
      * dizer" (`freightSource: 'missing'`/ausente), nunca `R$ 0,00`. Opcional: API anterior não manda.

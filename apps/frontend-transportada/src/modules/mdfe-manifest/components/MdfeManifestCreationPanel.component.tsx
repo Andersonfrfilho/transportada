@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { listActiveDrivingDrivers } from '@/modules/fleet/shared/driverCrewRole.service'
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { MdfeManifestCreationController } from '../hooks/useMdfeManifestCreation.hook'
@@ -58,7 +59,7 @@ export function MdfeManifestCreationPanel({
   }
   const issues = validateManifestForm(formInput)
   const fromTrip = isManifestFromTrip(formInput)
-  const activeDrivers = drivers.filter((driver) => driver.status === 'active')
+  const activeDrivers = listActiveDrivingDrivers(drivers)
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )

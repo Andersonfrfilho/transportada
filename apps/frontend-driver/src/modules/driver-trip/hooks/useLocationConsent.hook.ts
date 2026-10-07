@@ -16,11 +16,20 @@ import { locationConsentRevocation } from '../shared/locationConsentRevocation.s
  */
 const DRIVER_NOT_REGISTERED_STATUS = 409
 
+/** Spec 244 D1: a rota pede `trip.report` até no `GET`; o ajudante (só `trip.read`) recebe 403 — não se aplica. */
+const CONSENT_NOT_APPLICABLE_STATUS = 403
+
+function isNotApplicableError(error: unknown): boolean {
+  return error instanceof DriverTripRequestError && error.status === CONSENT_NOT_APPLICABLE_STATUS
+}
+
 export const LOCATION_CONSENT_QUERY_KEY = ['driver-trip', 'location-consent'] as const
 
 export type LocationConsentState = Readonly<{
   /** Ligado só com `acceptedAt` lido do servidor — carregando ou com falha, fica desligado. */
   hasConsent: boolean
+  /** `false` quando a API recusou a leitura com 403: o cartão não se mostra e nada é gravado. */
+  isApplicable: boolean
   isFailed: boolean
   isLoading: boolean
   /**
@@ -56,15 +65,18 @@ export function useLocationConsent(): LocationConsentState {
   const isLocallyRevoked = useSyncExternalStore(
     locationConsentRevocation.subscribe,
     locationConsentRevocation.isRevoked,
+    locationConsentRevocation.isRevoked,
   )
   const query = useQuery({
     queryFn: () => getDriverTripClient().readLocationConsent(),
     queryKey: LOCATION_CONSENT_QUERY_KEY,
     retry: (failureCount, error) =>
-      error instanceof DriverTripRequestError && error.status === DRIVER_NOT_REGISTERED_STATUS
+      isNotApplicableError(error) ||
+      (error instanceof DriverTripRequestError && error.status === DRIVER_NOT_REGISTERED_STATUS)
         ? false
         : failureCount < 3,
   })
+  const isApplicable = !isNotApplicableError(query.error)
   const mutation = useMutation({
     mutationFn: (accepted: boolean) => getDriverTripClient().setLocationConsent(accepted),
     onError: () => {
@@ -85,13 +97,19 @@ export function useLocationConsent(): LocationConsentState {
   })
 
   return {
-    hasConsent: !isLocallyRevoked && query.data !== undefined && query.data.acceptedAt !== null,
-    isFailed: query.isError,
+    hasConsent:
+      isApplicable &&
+      !isLocallyRevoked &&
+      query.data !== undefined &&
+      query.data.acceptedAt !== null,
+    isApplicable,
+    isFailed: query.isError && isApplicable,
     isLoading: query.isLoading,
     isRevokeFailed: mutation.isError && mutation.variables === false,
     isSaveFailed: mutation.isError,
     isSaving: mutation.isPending,
     setConsent: (accepted) => {
+      if (!isApplicable) return
       if (!accepted) locationConsentRevocation.revoke()
       mutation.mutate(accepted)
     },

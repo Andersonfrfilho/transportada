@@ -75,7 +75,8 @@ describe('countPending (plan D5)', () => {
     expect(counts).toEqual({ drainable: 1, rejected: 1, total: 2 })
   })
 
-  it('anexo vencido (mais de 7 dias) não entra em drainable nem em rejected', () => {
+  /** Spec 227: não há mais prazo — o anexo parado há oito dias é pendência como qualquer outra. */
+  it('anexo de mais de 7 dias continua contado como pendência a enviar', () => {
     const stale = new Date(NOW.getTime() - EIGHT_DAYS_MS).toISOString()
 
     const counts = countPending({
@@ -84,10 +85,10 @@ describe('countPending (plan D5)', () => {
       reports: [],
     })
 
-    expect(counts).toEqual({ drainable: 0, rejected: 0, total: 0 })
+    expect(counts).toEqual({ drainable: 1, rejected: 0, total: 1 })
   })
 
-  it('anexo vencido e de outra conta: fora por qualquer um dos dois motivos, nunca contado', () => {
+  it('anexo antigo de outra conta: fora pelo dono, nunca contado', () => {
     const stale = new Date(NOW.getTime() - EIGHT_DAYS_MS).toISOString()
 
     const counts = countPending({

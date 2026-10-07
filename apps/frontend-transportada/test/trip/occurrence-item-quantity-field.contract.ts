@@ -56,7 +56,7 @@ describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
 
   it('trocar de tipo para item único substitui a seleção em vez de somar', () => {
     expect(SOURCE).toContain('handleOccurrenceTypeChange')
-    expect(SOURCE).toContain('productCodes.slice(0, 1)')
+    expect(SOURCE).toContain('resolveItemsOnTypeChange')
   })
 
   it('o envio monta as quantidades alinhadas por resolveOccurrenceItemQuantityFields', () => {

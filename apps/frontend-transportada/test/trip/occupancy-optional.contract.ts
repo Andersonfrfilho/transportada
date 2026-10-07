@@ -44,12 +44,9 @@ describe('campo novo nasce opcional (spec 078 D2)', () => {
     expect(aceita(TRIP_DETAIL)).toBe(true)
   })
 
-  /**
-   * ⚠️ Opcional **não** é "qualquer coisa": presente com forma errada continua reprovando, senão a
-   * disciplina viraria porta aberta.
-   */
-  it('reprova o campo novo com forma errada', () => {
-    expect(aceita({ ...TRIP_DETAIL, occupancy: 'cheio' })).toBe(false)
+  /** Ocupação com forma errada cai e a viagem abre sem ela: refinamento não derruba a tela. */
+  it('descarta o campo novo com forma errada e abre a viagem', () => {
+    expect(aceita({ ...TRIP_DETAIL, occupancy: 'cheio' })).toBe(true)
   })
 
   /** Campo **antigo** ausente segue reprovando: a regra vale para o que acabou de nascer. */
@@ -139,8 +136,8 @@ describe('a carreta nasce opcional, como todo campo novo', () => {
     ).toBe(true)
   })
 
-  it('reprova `trailer` com forma errada', () => {
-    expect(aceita({ ...TRIP_DETAIL, trailer: 'RTC4H67' })).toBe(false)
-    expect(aceita({ ...TRIP_DETAIL, trailer: { id: 'x' } })).toBe(false)
+  it('descarta `trailer` com forma errada e abre a viagem', () => {
+    expect(aceita({ ...TRIP_DETAIL, trailer: 'RTC4H67' })).toBe(true)
+    expect(aceita({ ...TRIP_DETAIL, trailer: { id: 'x' } })).toBe(true)
   })
 })

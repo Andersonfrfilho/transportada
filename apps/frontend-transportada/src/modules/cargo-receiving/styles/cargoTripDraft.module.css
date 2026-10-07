@@ -1,0 +1,238 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Recomendar viagens (spec 237 T5.2): o molde do painel de proposta do detalhe — borda de cobre, cantos retos. */
+.drafts {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-copper);
+}
+
+.draftsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.draftsHeader > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.draftsHeader h2,
+.draftsHeader p,
+.column h3,
+.column p {
+  margin: 0;
+}
+
+/* Empilhadas no celular e no tablet; lado a lado só onde cabem duas colunas legíveis. */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .board {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.column {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.routeList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.cardChosen {
+  border-color: var(--color-copper);
+}
+
+.cardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.cardHeader h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stateList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stateItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.totals div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.totals dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.totals dd {
+  margin: 0;
+  color: var(--color-fog);
+}
+
+.cities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.city {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font-size: 0.85rem;
+}
+
+.cityCount {
+  color: var(--color-slate);
+}
+
+/* "Faltam N notas": informação (a prévia chega horas antes do XML), então borda tracejada e tom neutro. */
+.missing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+  font-size: 0.9rem;
+}
+
+.reason {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.outside {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.outside h3,
+.outside p {
+  margin: 0;
+}
+
+.outsideList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outsideItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  color: var(--color-fog);
+}
+
+.solver {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+@media (min-width: 64rem) {
+  .solver {
+    position: sticky;
+    top: var(--space-4);
+  }
+}
+
+.solver h3,
+.solver p {
+  margin: 0;
+}
+
+.scope {
+  color: var(--color-fog);
+  font-weight: 600;
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-slate);
+}

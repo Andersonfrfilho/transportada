@@ -39,6 +39,22 @@
     "total": "Recorded total",
     "unknownActor": "removed user"
   },
+  "documentCost": {
+    "cost": "Cost",
+    "legCost": "of the leg",
+    "loss": "Loss",
+    "margin": "Margin",
+    "noStop": "No stop: counted only in the trip share, with no leg cost.",
+    "profit": "Profit",
+    "splitCriterion": "Return leg and one-off costs are split equally across the trip notes.",
+    "tax": "Tax",
+    "timeBasis": {
+      "complete": "Time complete.",
+      "incomplete": "Time incomplete: the arrival at some stop is missing.",
+      "partial": "Time partial: the departure from some stop is missing."
+    },
+    "tripShareCost": "trip share"
+  },
   "gapAction": {
     "emissionProfile": "open emission profiles",
     "federalRegime": "declare regime",
@@ -72,6 +88,19 @@
     "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
+  },
+  "comparison": {
+    "caption": "Current account and closed account, with the difference (closed minus current). Expenses include tax.",
+    "line": "Line",
+    "expected": "Current account",
+    "closed": "Closed",
+    "difference": "Difference",
+    "noDifference": "no difference",
+    "lines": {
+      "revenue": "Revenue",
+      "cost": "Expenses",
+      "result": "Result"
+    }
   },
   "ledger": {
     "driverBasis_one": "{{amount}} × {{days}} day · {{origin}}",

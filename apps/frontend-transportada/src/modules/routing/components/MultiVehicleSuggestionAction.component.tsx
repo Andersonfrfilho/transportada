@@ -15,6 +15,8 @@ type MultiVehicleSuggestionActionProps = Readonly<{
   className?: string | undefined
   companyId?: string | undefined
   documentIds: readonly string[]
+  /** Spec 237: quem a monta fora da barra de seleção de NF-e dá o próprio texto; sem ele, o de sempre. */
+  label?: string | undefined
   onAccepted: () => void
   onOpenTrip: (tripId: string) => void
   permissions: readonly string[]
@@ -32,6 +34,7 @@ export function MultiVehicleSuggestionAction({
   className,
   companyId,
   documentIds,
+  label,
   onAccepted,
   onOpenTrip,
   permissions,
@@ -105,7 +108,7 @@ export function MultiVehicleSuggestionAction({
         type="button"
       >
         <Icon name="send" />
-        {t('multiVehicle.action')}
+        {label ?? t('multiVehicle.action')}
       </button>
       <MultiVehicleSuggestionDialog
         dialog={dialog}

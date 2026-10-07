@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import './shared/color-theme.contract'
 import './shared/content-security-policy.contract'
 import './shared/driver-route.contract'
 import './shared/environment-banner.contract'

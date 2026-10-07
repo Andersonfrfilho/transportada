@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
+import { canOpenWorkspace } from '@/modules/shared/workspaceAccess.service'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -21,6 +22,7 @@ import { canOfferStopFieldAction } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import {
   hasTripDocumentFiscalWarning,
+  hasTripDocumentProof,
   tripDocumentLabel,
   tripDocumentReturnReasonCode,
 } from '../shared/tripDocument.service'
@@ -31,6 +33,7 @@ import type {
   TripStopDetail,
 } from '../shared/trip.types'
 import { hasProofPendingMarker } from '../shared/proofPendingMarker.service'
+import type { TripDocumentProofBadges as TripDocumentProofBadgesValue } from '../shared/tripDocumentProofBadges.service'
 import {
   countDocumentsWithOpenOccurrence,
   hasOpenOccurrenceMarker,
@@ -40,6 +43,8 @@ import {
   buildTripTimelineStopAnchorId,
 } from '../shared/tripTimelineLink.service'
 import { TripArrivalDialog } from './TripArrivalDialog.component'
+import { TripDocumentData } from './TripDocumentData.component'
+import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import {
   TripStopOccurrenceDialog,
   type TripStopOccurrenceSubmission,
@@ -126,10 +131,16 @@ export type TripStopDocumentActions = Readonly<{
   onOpenFieldDelivery: (documentId: string) => void
   /** Abre `SeparationOccurrenceDialog` para esta nota (ação da linha, no galpão). */
   onOpenSeparationOccurrence: (documentId: string) => void
-  /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
-  onToggleProof: (documentId: string) => void
-  openProofDocumentId: null | string
+  /** Spec 233 D1: abre e fecha a nota — abrir uma fecha a que estava aberta. */
+  onToggleDocument: (documentId: string) => void
+  openDocumentId: null | string
+  /** Spec 233 D4: conferência e pontualidade de cada nota, para o cabeçalho fechado. */
+  proofBadgesByDocumentId: ReadonlyMap<string, TripDocumentProofBadgesValue>
   renderProof: (documentId: string) => ReactNode
+  /** Spec 233 D2: a seção Ocorrências da nota aberta, depois do comprovante. */
+  renderOccurrences: (documentId: string) => ReactNode
+  /** Spec 233 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
+  renderEvents: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   /** Spec 180: registra a ocorrência desta parada — o diálogo (`TripStopOccurrenceDialog`) mora aqui. */
@@ -486,18 +497,9 @@ function TripStopDocumentRow({
           }),
           status: t(`separationStatus.${document.separationStatus}`),
         })
-  /**
-   * Spec 181 RF4/T304: contratante, regra fiscal e telefone são dado de confirmação, não de
-   * triagem — vão para a expansão da nota. `hasNoteDetail` decide **se** existe o quê: sem contato
-   * e sem regra de frete, a nota não oferece o disclosure vazio (mesma regra da CA07/CA16).
-   */
-  const hasNoteDetail =
-    (document.contact !== null && document.contact !== undefined) ||
-    (document.freightRuleName !== null && document.freightRuleName !== undefined)
-  const [isDetailExpanded, setIsDetailExpanded] = useState(false)
-  const detailId = `trip-stop-document-detail-${document.id}`
-  const proofId = `trip-stop-document-proof-${document.id}`
-  const isProofOpen = actions.openProofDocumentId === document.id
+  const hasProof = hasTripDocumentProof(document)
+  const bodyId = `trip-stop-document-body-${document.id}`
+  const isOpen = actions.openDocumentId === document.id
 
   return (
     <li
@@ -517,7 +519,20 @@ function TripStopDocumentRow({
             onChange={() => selection.toggle(document.id)}
           />
         </span>
-        <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+        {/*
+         * Spec 233 RF1: a caixa e o botão de abrir são **irmãos**. Botão dentro de botão é HTML
+         * inválido e engole o clique; a caixa marcada para o lote nunca abre nem fecha a nota.
+         */}
+        <button
+          aria-controls={bodyId}
+          aria-expanded={isOpen}
+          className={styles.stopDocumentHeadToggle}
+          onClick={() => actions.onToggleDocument(document.id)}
+          type="button"
+        >
+          <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+          <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} />
+        </button>
         <div className={styles.stopDocumentBadgeRow}>
           <span
             className={cn(
@@ -546,6 +561,8 @@ function TripStopDocumentRow({
               </Button>
             </Tooltip>
           ) : null}
+          {/* Spec 233 D4: os dois selos do comprovante ficam fora do botão de abrir, com a nota fechada. */}
+          <TripDocumentProofBadges badges={actions.proofBadgesByDocumentId.get(document.id)} />
           {/* Spec 223 RF4/RF9: baixada sem canhoto — sinaliza, não bloqueia nem substitui ação. */}
           {hasProofPendingMarker(document) ? (
             <Tooltip label={t('proofPending.hint')}>
@@ -600,57 +617,65 @@ function TripStopDocumentRow({
        * fixo. Só o nome de quem recebe fica à frente; telefone/contratante/regra vão para a
        * expansão (T304) — são dado de confirmação, não de triagem.
        */}
-      <div className={styles.stopDocumentGrid}>
-        {/*
-         * ⚠️ Mercadoria, frete e data são condições **irmãs**, nunca aninhadas: existe nota sem
-         * `nfeTotalValue` (vínculo que é só cálculo de frete), e é justamente nela que o frete — ou
-         * o aviso de que ele falta — é a única informação útil. Aninhar fazia o grupo inteiro sumir
-         * com a mercadoria.
-         */}
-        {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.moneyGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
-            </span>
-          </div>
-        )}
-        {/*
-         * Spec 176: o frete **da nota**, nunca a mercadoria. `estimated` marca a previsão;
-         * `measured` não precisa de selo. Sem valor e sem regra, a ausência é dita em texto —
-         * nunca `R$ 0,00`.
-         */}
-        {document.freightAmount === null || document.freightAmount === undefined ? (
-          document.freightSource === 'missing' ? (
+      {/*
+       * Revisão de design da 233: aberta, a nota **cede** o resumo — carga, cliente, emissão e frete
+       * já estão em "Dados da nota", e dizê-los duas vezes na mesma tela era o ruído que o canvas não tem.
+       */}
+      {isOpen ? null : (
+        <div className={styles.stopDocumentGrid}>
+          {/*
+           * ⚠️ Mercadoria, frete e data são condições **irmãs**, nunca aninhadas: existe nota sem
+           * `nfeTotalValue` (vínculo que é só cálculo de frete), e é justamente nela que o frete — ou
+           * o aviso de que ele falta — é a única informação útil. Aninhar fazia o grupo inteiro sumir
+           * com a mercadoria.
+           */}
+          {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.moneyGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
+              </span>
+            </div>
+          )}
+          {/*
+           * Spec 176: o frete **da nota**, nunca a mercadoria. `estimated` marca a previsão;
+           * `measured` não precisa de selo. Sem valor e sem regra, a ausência é dita em texto —
+           * nunca `R$ 0,00`.
+           */}
+          {document.freightAmount === null || document.freightAmount === undefined ? (
+            document.freightSource === 'missing' ? (
+              <div className={styles.stopDocumentGroup}>
+                <span className={styles.stopDocumentGroupLabel}>
+                  {t('stops.freightGroupLabel')}
+                </span>
+                <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+              </div>
+            ) : null
+          ) : (
             <div className={styles.stopDocumentGroup}>
               <span className={styles.stopDocumentGroupLabel}>{t('stops.freightGroupLabel')}</span>
-              <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
+                {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
+              </span>
             </div>
-          ) : null
-        ) : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.freightGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
-              {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
-            </span>
-          </div>
-        )}
-        {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.issuedGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
-          </div>
-        )}
-        {document.contact === null || document.contact === undefined ? null : (
-          <div className={styles.stopDocumentGroup}>
-            <span className={styles.stopDocumentGroupLabel}>{t('stops.peopleGroupLabel')}</span>
-            <span className={styles.stopDocumentMeta}>
-              {t('contact.recipient', { name: document.contact.name })}
-            </span>
-          </div>
-        )}
-      </div>
+          )}
+          {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.issuedGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
+            </div>
+          )}
+          {document.contact === null || document.contact === undefined ? null : (
+            <div className={styles.stopDocumentGroup}>
+              <span className={styles.stopDocumentGroupLabel}>{t('stops.peopleGroupLabel')}</span>
+              <span className={styles.stopDocumentMeta}>
+                {t('contact.recipient', { name: document.contact.name })}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       <div className={styles.rowActions}>
         {/*
          * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
@@ -790,67 +815,19 @@ function TripStopDocumentRow({
             {t('actions.deliver')}
           </Button>
         ) : null}
-        {/*
-         * Spec 181 RF1/T302: as duas expansões da nota reusam o padrão da spec 180 (`aria-expanded`/
-         * `aria-controls`, chevron, teclado, 44px) — nunca um segundo jeito de expandir. Spec 181 T502
-         * (revisão de layout): entram na mesma faixa de `.rowActions` das demais ações da nota — cada
-         * uma na própria linha do grid desperdiçava a largura inteira do card.
-         */}
-        {document.deliveredAt === null && document.returnedAt === null ? null : (
-          <Button
-            aria-controls={proofId}
-            aria-expanded={isProofOpen}
-            className={styles.stopDocumentToggle}
-            onClick={() => actions.onToggleProof(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={isProofOpen ? 'chevron-up' : 'chevron-down'} />
-            {t('actions.viewProof')}
-          </Button>
-        )}
-        {/*
-         * Spec 181 T304: contratante, regra fiscal e telefone são dado de confirmação — ficam na
-         * expansão, e a ausência de telefone não ocupa espaço na frente do card.
-         */}
-        {hasNoteDetail ? (
-          <Button
-            aria-controls={detailId}
-            aria-expanded={isDetailExpanded}
-            className={styles.stopDocumentToggle}
-            onClick={() => setIsDetailExpanded((current) => !current)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name={isDetailExpanded ? 'chevron-up' : 'chevron-down'} />
-            {isDetailExpanded ? t('stops.detailCollapse') : t('stops.detailExpand')}
-          </Button>
-        ) : null}
       </div>
-      {isProofOpen ? <div id={proofId}>{actions.renderProof(document.id)}</div> : null}
-      {hasNoteDetail && isDetailExpanded ? (
-        <div className={styles.stopDocumentDetailGroup} id={detailId}>
-          {document.contact === null || document.contact === undefined ? null : (
-            <>
-              <span className={styles.stopDocumentMeta}>
-                {document.contact.phone === null
-                  ? t('contact.withoutPhone')
-                  : t('contact.phone', { phone: document.contact.phone })}
-              </span>
-              {document.contact.contractorName === null ? null : (
-                <span className={styles.stopDocumentMeta}>
-                  {t('contact.contractor', { name: document.contact.contractorName })}
-                </span>
-              )}
-            </>
-          )}
-          {document.freightRuleName === null || document.freightRuleName === undefined ? null : (
-            <span className={styles.stopDocumentMeta}>
-              {t('stops.freight.rule', { name: document.freightRuleName })}
-            </span>
-          )}
+      {isOpen ? (
+        <div className={styles.stopDocumentBody} id={bodyId}>
+          <TripDocumentData
+            canOpenClients={canOpenWorkspace({
+              permissions: actions.permissions,
+              workspace: 'delivery-clients',
+            })}
+            document={document}
+          />
+          {hasProof ? actions.renderProof(document.id) : null}
+          {actions.renderOccurrences(document.id)}
+          {actions.renderEvents(document.id)}
         </div>
       ) : null}
     </li>

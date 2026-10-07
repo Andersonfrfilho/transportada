@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { driverClockOffset } from '../shared/clockOffset.service'
 import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
-import { readCurrentLocation } from '../shared/driverLocation.service'
+import {
+  readCurrentLocation,
+  readDirectTapLocation,
+  usesDirectTapLocation,
+} from '../shared/driverLocation.service'
 import { captureRegistry, persistWhileOpen } from '../shared/captureRegistry.service'
 import type {
   DriverFieldReport,
@@ -24,7 +29,6 @@ import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   applyAttachmentReceiverFields,
-  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
   releaseAttachmentsAwaitingDelivery,
@@ -35,10 +39,11 @@ import {
   type QueuedAttachment,
 } from '../shared/offlineAttachments.service'
 import {
-  applyReportLocation,
+  completeReportLocations,
   createIdempotencyKey,
   enqueueReport,
   enqueueReports,
+  listLocatedReportKeys,
   sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
@@ -64,6 +69,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { hasReassignedTrip } from '../shared/tripReassignment.service'
@@ -191,6 +197,8 @@ export type DriverTripController = Readonly<{
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
   dataSavedAt: string | undefined
+  /** Spec 227: o recusado de negócio sai da fila só pela mão do motorista, com confirmação na tela. */
+  discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
   isOfflineBoot: boolean
   /** Tudo o que é do dono e ainda está no aparelho — o "Sair" avisa antes de deixar para trás. */
@@ -383,10 +391,10 @@ export function useDriverTrip(
         attachmentStore,
         ...(only === undefined ? {} : { only }),
         ownerSubHash: session.subHash,
-        send: async (report): Promise<AttachmentSendOutcome> => {
+        send: async (stamped): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(report)
-            sentKeys.push(report.idempotencyKey)
+            await client.send(stamped)
+            sentKeys.push(stamped.report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
             return toAttachmentSendOutcome(error)
@@ -397,6 +405,9 @@ export function useDriverTrip(
             const result = await client.attachProof({
               attachmentKey: attachment.attachmentKey,
               capturedAt: attachment.capturedAt,
+              ...(attachment.clockOffsetMs === undefined
+                ? {}
+                : { clockOffsetMs: attachment.clockOffsetMs }),
               documentId: attachment.documentId,
               file: new File([attachment.blob], attachment.fileName, {
                 type: attachment.blob.type,
@@ -535,11 +546,10 @@ export function useDriverTrip(
 
   useEffect(() => {
     /**
-     * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
-     * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
+     * Spec 227: nada sai da fila por idade — o que não subiu é a única cópia do trabalho do
+     * motorista, e só sincronizar (ou o descarte explícito do recusado) o tira de lá.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date(), store })
-      .then(() => refreshQueueView())
+    void refreshQueueView()
       /** Spec 212: também sem rede — a foto já sai reduzida quando a drenagem puder levá-la. */
       .then(() => recoverProofPhotos())
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
@@ -563,6 +573,7 @@ export function useDriverTrip(
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
     return persistWhileOpen(captureRegistry, async () => {
       const result = await enqueueReport({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
@@ -589,6 +600,7 @@ export function useDriverTrip(
     return persistWhileOpen(captureRegistry, async () => {
       const fieldReport = build(null)
       const result = await enqueueReport({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
@@ -606,21 +618,28 @@ export function useDriverTrip(
       }
       await refreshQueueView()
 
-      const location = await readCurrentLocation()
-      if (location !== null) {
-        await store.update((items) =>
-          applyReportLocation({ idempotencyKey: fieldReport.idempotencyKey, items, location }),
-        )
-      }
+      await completeLocations([fieldReport])
       requestDrain(undefined)
       return 'queued'
     })
   }
 
+  /** Spec 196 D5: uma leitura (de 8 s, ou de 3 s no despacho e no "Iniciar rota") completa, pelas chaves, todos os itens do toque que levam ponto. */
+  async function completeLocations(reports: readonly DriverFieldReport[]): Promise<void> {
+    const keys = listLocatedReportKeys(reports)
+    if (keys.length === 0) return
+    const location = await (usesDirectTapLocation(reports)
+      ? readDirectTapLocation()
+      : readCurrentLocation())
+    if (location === null) return
+    await store.update((items) => completeReportLocations({ items, keys, location }))
+  }
+
   /**
    * Spec 179 (T303): "Não entreguei" grava a ocorrência com foto e a devolução juntas, antes do GPS —
    * como o `reportWithLocation`. A foto conta no teto de bytes dos anexos: estourou, nada entra e a
-   * tela diz (nunca descarte calado). A posição completa só a devolução, que é quem a leva.
+   * tela diz (nunca descarte calado). Spec 196: uma leitura só completa as duas chaves — a ocorrência
+   * e a devolução levam o ponto do mesmo toque.
    */
   function reportNotDelivered(
     reports: readonly DriverFieldReport[],
@@ -637,6 +656,7 @@ export function useDriverTrip(
       }
 
       const result = await enqueueReports({
+        clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
         now: new Date(),
         reports,
@@ -654,12 +674,7 @@ export function useDriverTrip(
       }
       await refreshQueueView()
 
-      const location = returned === undefined ? null : await readCurrentLocation()
-      if (returned !== undefined && location !== null) {
-        await store.update((items) =>
-          applyReportLocation({ idempotencyKey: returned.idempotencyKey, items, location }),
-        )
-      }
+      await completeLocations(reports)
       requestDrain(undefined)
       return 'queued'
     })
@@ -685,6 +700,7 @@ export function useDriverTrip(
       })
       const enqueue = (items: readonly DriverFieldReport[]) =>
         enqueueReports({
+          clockOffsetMs: driverClockOffset.read(),
           isUnverified: !session.canSync,
           now: new Date(),
           reports: items,
@@ -700,6 +716,7 @@ export function useDriverTrip(
       }
       if (!result.accepted) return result.reason
       await refreshQueueView()
+      await completeLocations(fitted.reports)
       requestDrain(undefined)
       return isPhotoDropped ? 'photo-dropped' : 'queued'
     })
@@ -727,10 +744,12 @@ export function useDriverTrip(
     const attachmentKey = input.attachmentKey ?? createIdempotencyKey()
     /** Spec 212: a foto nasce marcada — nenhuma drenagem a leva antes da versão leve. */
     const shouldReduce = shouldReduceProofFile({ file: input.file, kind: input.kind })
+    const clockOffsetMs = driverClockOffset.read()
     const attachment: QueuedAttachment = {
       attachmentKey,
       blob: input.file,
       capturedAt: new Date().toISOString(),
+      ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
       documentId: input.documentId,
       fileName: input.file.name,
       kind: input.kind,
@@ -870,6 +889,12 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** Spec 227: o recusado de negócio e o dado dele (blob, posição) saem do aparelho. */
+  async function discardRejected(idempotencyKey: string): Promise<void> {
+    await discardRejectedQueueItem({ attachmentStore, idempotencyKey, store })
+    await refreshQueueView()
+  }
+
   /** "Sair" com pendência própria (segurança M2): o item e o dado saem do aparelho. */
   async function discardOwn(): Promise<void> {
     await discardOwnPending({ attachmentStore, ownerSubHash: session.subHash, store })
@@ -902,6 +927,7 @@ export function useDriverTrip(
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
+    discardRejected,
     discardUnverifiedPending: discardUnverified,
     dismissReassignedTripNotice,
     foreignPendingCount,

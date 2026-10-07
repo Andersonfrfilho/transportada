@@ -1,6 +1,18 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+/**
+ * Spec 247 RF11: produto da NF-e para o registro de ocorrência com somas. Código, descrição,
+ * unidade comercial, quantidade e valor unitário — tudo do lado do servidor.
+ */
+export type DriverNfeProduct = Readonly<{
+  code: string
+  description: string
+  unit: string
+  quantity: string
+  unitValue: string
+}>
+
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
@@ -44,6 +56,12 @@ export type DriverTripDocument = Readonly<{
   series: string
   totalAmount: string
   volumeCount: string
+  /**
+   * Spec 247 T1.2: os produtos da nota para o registro de ocorrência com produtos. Ausente (snapshot
+   * antigo) a tela não oferece seleção de itens — só "A nota inteira". Com a chave vazia, lista zero
+   * produtos da NF-e (nota manual).
+   */
+  products?: readonly DriverNfeProduct[]
 }>
 
 /**
@@ -107,7 +125,16 @@ export type DriverTripManifest = Readonly<{
   protocol: string
 }>
 
+/** Spec 243 D4: o papel de quem lê na viagem — `helper` acompanha, só `driver` reporta. */
+export const TRIP_CREW_ROLES = ['driver', 'helper'] as const
+export type TripCrewRole = (typeof TRIP_CREW_ROLES)[number]
+
 export type DriverTrip = Readonly<{
+  /**
+   * Spec 243 D4: opcional porque o snapshot guardado no aparelho antes do campo existir não o traz —
+   * ausente equivale a `driver` (`resolveTripCrewRole`).
+   */
+  crewRole?: TripCrewRole
   id: string
   /**
    * Spec 206 D17: `true` quando o snapshot não trouxe `enRouteSince`/`enRouteTappedAt` em NENHUMA
@@ -255,6 +282,17 @@ export type DriverFieldReport =
       stopId: string
       tappedAt: string
     }>
+  /**
+   * Spec 230: "Despachar viagem" vai pela fila como qualquer toque de campo — sem sinal fica como
+   * pendência de envio e sobe sozinho (ou pelo envio manual). O servidor trata o despacho repetido
+   * como `unchanged`, então reenviar é seguro. O ponto (spec 196) entra depois, pela chave.
+   */
+  | Readonly<{
+      idempotencyKey: string
+      kind: 'dispatch'
+      location: DriverReportedLocation | null
+      tripId: string
+    }>
   /** Spec 206 D18: desfaz o "Iniciar rota" desta parada, a qualquer momento antes do "Cheguei". */
   | Readonly<{
       idempotencyKey: string
@@ -285,6 +323,7 @@ export type DriverFieldReport =
       documentId: string | null
       idempotencyKey: string
       kind: 'occurrence'
+      location: DriverReportedLocation | null
       stopId: string
     }> &
       StopOccurrenceReportReference)
@@ -297,13 +336,25 @@ export type DriverFieldReport =
       documentId: string
       idempotencyKey: string
       kind: 'documentOccurrence'
+      location: DriverReportedLocation | null
       note: string
       occurrenceTypeId: string
       /** Só para a tela de pendentes: quem decide pelo id é o servidor. */
       occurrenceTypeName: string
       photo: DriverOccurrencePhoto | null
+      /**
+       * Spec 246 (RF1c): as demais fotos, quando o tipo pede mais de uma — a primeira continua em
+       * `photo`, então o item gravado antes da spec segue valendo. Ausente é "só a primeira".
+       */
+      extraPhotos?: readonly DriverOccurrencePhoto[]
       /** Vazio é a nota inteira. */
       productCode: string
+      /**
+       * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
+       * o aviso para um fato só. Sobe pelo mesmo par de upload e vira `signatureObjectId`; nunca
+       * passa pelo comprovante da nota.
+       */
+      signature?: DriverOccurrenceSignature
     }>
   /**
    * Spec 209 (D2): a foto do "Deu problema", **atrás** da ocorrência de parada e nunca junto dela —
@@ -340,6 +391,9 @@ export type DriverFieldReport =
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
 export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 
+/** Spec 246: o PNG que o `SignaturePad` exporta, com a mesma forma da foto — vai inteiro para a fila. */
+export type DriverOccurrenceSignature = DriverOccurrencePhoto
+
 /**
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
  *
@@ -354,6 +408,18 @@ export type DriverOccurrenceType = Readonly<{
    */
   attachmentMode?: ProofFieldRequirement
   /**
+   * Spec 246 (RF1, RF1c2): os quatro modos e os mínimos, **já resolvidos para a nota** pelo servidor
+   * (tipo + exceção de contratante + exceção de destinatário). Todos opcionais: API anterior não os
+   * manda, e ausente lê como hoje — observação opcional, assinatura desligada, produtos opcionais,
+   * foto pelo `attachmentMode` e mínimo 1.
+   */
+  itemsMinimumCount?: number | null
+  itemsMode?: ProofFieldRequirement
+  noteMode?: ProofFieldRequirement
+  photoMinimumCount?: number
+  photoMode?: ProofFieldRequirement
+  signatureMode?: ProofFieldRequirement
+  /**
    * Spec 218 (D1): para qual das duas rotas o registro vai — nota (`document`) ou parada (`stop`).
    * Ausente é a cópia guardada antes da spec, quando todo tipo era de nota.
    */
@@ -362,6 +428,13 @@ export type DriverOccurrenceType = Readonly<{
   name: string
   /** Spec 218 D2: qual dos valores fixos o tipo de parada representa — escolhe a prévia do aviso. */
   stopKind?: DriverOccurrenceKind | null
+  /** Spec 247 T1.2: os campos opcionais da devolução com somas, tolerados antes de a API mandá-los. */
+  referenceNumberMode?: ProofFieldRequirement
+  referenceNumberLabel?: string
+  declaredAmountMode?: ProofFieldRequirement
+  declaredAmountScope?: string
+  declaredAmountLabel?: string
+  emailItemLineTemplate?: string
 }>
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
@@ -380,12 +453,31 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly attachmentMode?: unknown
     readonly flow?: unknown
     readonly id?: unknown
+    readonly itemsMode?: unknown
     readonly name?: unknown
+    readonly noteMode?: unknown
+    readonly photoMode?: unknown
+    readonly signatureMode?: unknown
     readonly stopKind?: unknown
+    readonly referenceNumberMode?: unknown
+    readonly referenceNumberLabel?: unknown
+    readonly declaredAmountMode?: unknown
+    readonly declaredAmountScope?: unknown
+    readonly declaredAmountLabel?: unknown
+    readonly emailItemLineTemplate?: unknown
   }
-  const hasKnownMode =
-    candidate.attachmentMode === undefined ||
-    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
+  /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
+  const hasKnownMode = [
+    candidate.attachmentMode,
+    candidate.itemsMode,
+    candidate.noteMode,
+    candidate.photoMode,
+    candidate.signatureMode,
+    candidate.referenceNumberMode,
+    candidate.declaredAmountMode,
+  ].every(
+    (mode) => mode === undefined || (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(mode),
+  )
   /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
   const hasKnownFlow =
     candidate.flow === undefined ||
@@ -394,12 +486,26 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     candidate.stopKind === undefined ||
     candidate.stopKind === null ||
     (DRIVER_OCCURRENCE_KINDS as readonly unknown[]).includes(candidate.stopKind)
+  /** Spec 247: os novos campos das devoluções são opcionais (tolerância) e podem ser strings. */
+  const hasKnownDeclaredAmountScope =
+    candidate.declaredAmountScope === undefined ||
+    (typeof candidate.declaredAmountScope === 'string' &&
+      ['item', 'occurrence'].includes(candidate.declaredAmountScope))
+  const hasKnownNewFields =
+    (candidate.referenceNumberLabel === undefined ||
+      typeof candidate.referenceNumberLabel === 'string') &&
+    (candidate.declaredAmountLabel === undefined ||
+      typeof candidate.declaredAmountLabel === 'string') &&
+    (candidate.emailItemLineTemplate === undefined ||
+      typeof candidate.emailItemLineTemplate === 'string')
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
     hasKnownMode &&
     hasKnownFlow &&
-    hasKnownStopKind
+    hasKnownStopKind &&
+    hasKnownDeclaredAmountScope &&
+    hasKnownNewFields
   )
 }
 

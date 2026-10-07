@@ -10,10 +10,12 @@ import { approveCanhotoBatch } from '../shared/canhotoBatchApproval.service'
 import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
-import type {
-  OccurrenceAttachmentMode,
-  OccurrenceRedeliveryPolicy,
-  OccurrenceType,
+import {
+  OCCURRENCE_CORRECTION_ERROR,
+  OCCURRENCE_TYPES_QUERY_KEY,
+  type OccurrenceAttachmentMode,
+  type OccurrenceRedeliveryPolicy,
+  type OccurrenceType,
 } from '../shared/occurrence.constant'
 import type { CanhotoReviewOutcome, OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
@@ -21,6 +23,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
+import type { CrewTransferResult, TransferTripCrewInput } from '../shared/tripCrewTransfer.types'
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import {
   buildOccurrencePhotoSendState,
@@ -104,7 +107,9 @@ import type {
   TripDocumentActionInput,
   TripMdfeRequirement,
 } from '../shared/trip.types'
+import { useOpenTripDocument } from './useOpenTripDocument.hook'
 import { useTripAllowedActions } from './useTripAllowedActions.hook'
+import { hasTripDocumentProof } from '../shared/tripDocument.service'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
 import { runFieldActionQueue } from '../shared/tripFieldActionQueue.service'
 
@@ -129,6 +134,8 @@ export type TripController = Readonly<{
   /** Spec 217 (RF4/RF6): `trips.manage`, mesma permissão que `cancelTrip`/`createTrip`. */
   changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
+  /** Spec 249: `trip.report-on-behalf`, a mesma permissão da baixa em nome do motorista. */
+  transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
@@ -265,6 +272,8 @@ export function createTripController(
     canSubmitCte,
     // Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma.
     closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
+    transferTripCrew: (body) =>
+      canReportOnBehalf ? input.client.transferTripCrew(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
@@ -365,8 +374,8 @@ export function useTripWorkspace(
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
   const listKey = [TRIP_QUERY_KEY] as const
 
-  /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
-  const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+  /** Spec 233 D1: a nota aberta no acordeão — uma só, e é ela que a âncora da linha do tempo abre. */
+  const { openDocumentId, toggleDocument } = useOpenTripDocument()
   /**
    * Qual nota está com o diálogo de ocorrência de separação aberto (botão da linha, sem passar
    * pelo comprovante). Mesmo padrão de `openProofDocumentId` — as consultas de ocorrência abaixo
@@ -375,7 +384,6 @@ export function useTripWorkspace(
   const [openSeparationOccurrenceDocumentId, setOpenSeparationOccurrenceDocumentId] = useState<
     null | string
   >(null)
-  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
 
   /** Spec 145 D16: quando começou o `pending` atual da planta — o teto de 10 min conta daqui. */
   const [cargoLayoutEpisode, setCargoLayoutEpisode] = useState<
@@ -413,6 +421,19 @@ export function useTripWorkspace(
       })
     },
   })
+
+  /**
+   * Spec 233 D1: abrir a nota **não** é pedir o comprovante. Nota que não foi entregue nem devolvida
+   * não tem comprovante — buscá-lo daria 404 e um estado de erro na tela. As três consultas abaixo
+   * (comprovante, itens) seguem `openProofDocumentId`, que só existe quando há o que buscar. As
+   * ocorrências são a exceção: nota não entregue também as tem (a ocorrência não espera a viagem
+   * sair), então a busca delas segue a nota aberta, entregue ou não.
+   */
+  const openDocument = tripQuery.data?.documents.find((document) => document.id === openDocumentId)
+  const openProofDocumentId =
+    openDocument !== undefined && hasTripDocumentProof(openDocument) ? openDocument.id : null
+  const activeProductsDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
+  const activeOccurrenceDocumentId = openDocumentId ?? openSeparationOccurrenceDocumentId
 
   const nextCargoLayoutEpisode = trackCargoLayoutPendingEpisode({
     key: cargoLayoutKey,
@@ -467,22 +488,22 @@ export function useTripWorkspace(
   const documentProductsQuery = useQuery({
     enabled:
       controller.canReadTripFleetDetails &&
-      activeOccurrenceDocumentId !== null &&
+      activeProductsDocumentId !== null &&
       input.tripId !== undefined &&
       input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
-        documentId: activeOccurrenceDocumentId ?? '',
+        documentId: activeProductsDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'document-products', activeOccurrenceDocumentId] as const,
+    queryKey: [...tripKey, 'document-products', activeProductsDocumentId] as const,
   })
 
   /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
   const occurrenceTypesQuery = useQuery({
     enabled: controller.canReadTrips,
     queryFn: () => controller.listOccurrenceTypes(),
-    queryKey: ['trip', 'occurrence-types'] as const,
+    queryKey: OCCURRENCE_TYPES_QUERY_KEY,
   })
 
   const occurrencesQuery = useQuery({
@@ -646,6 +667,13 @@ export function useTripWorkspace(
       await sendOccurrencePhotosSequentially({
         occurrenceId: occurrencePhotoOccurrenceIdRef.current,
         onFailed: (photoId, error) => {
+          /** Tipo que virou `off` com a tela aberta: recarrega os tipos para o seletor sair. */
+          if (
+            error instanceof Error &&
+            error.message === OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_NOT_ALLOWED
+          ) {
+            void queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPES_QUERY_KEY })
+          }
           state = markOccurrencePhotoFailed(
             state,
             photoId,
@@ -958,6 +986,15 @@ export function useTripWorkspace(
         queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
       ]).then(() => undefined),
   })
+  /** Spec 249: a viagem na rua troca de tripulação — viagem e `allowed-actions` relidas, o custo mudou. */
+  const transferCrewMutation = useMutation({
+    mutationFn: controller.transferTripCrew,
+    onSuccess: () =>
+      Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+      ]).then(() => undefined),
+  })
   const transitionDocumentMutation = useMutation({
     mutationFn: controller.transitionTripDocument,
     onSuccess: (result) => {
@@ -1062,8 +1099,9 @@ export function useTripWorkspace(
     occurrencePhotoSendState,
     resetSeparationOccurrencePhotoSend,
     sendSeparationOccurrencePhotos,
+    openDocumentId,
     openProofDocumentId,
-    setOpenProofDocumentId,
+    toggleDocument,
     openSeparationOccurrenceDocumentId,
     setOpenSeparationOccurrenceDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
@@ -1079,6 +1117,7 @@ export function useTripWorkspace(
     planRouteMutation,
     releaseDocumentMutation,
     reorderStopsMutation,
+    transferCrewMutation,
     transitionDocumentMutation,
     status: resolveQueryStatus({
       canRead: controller.canReadTrips,

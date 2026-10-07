@@ -1,16 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
   DriverOccurrenceFlow,
-  DriverOccurrencePhoto,
   DriverOccurrenceType,
   DriverTripDocument,
   ProofFieldRequirement,
 } from './driverTrip.types'
 import {
-  listMissingProofFields,
-  resolveProofFormPlan,
-  type ProofFieldKey,
-} from './proofFormPlan.service'
+  listMissingOccurrenceRequirements,
+  resolveOccurrenceRequirements,
+  type OccurrenceDraftFacts,
+  type OccurrenceMissingField,
+} from './occurrenceRequirements.service'
 
 /**
  * Spec 218 (RF-A5, D1–D4): o botão único de ocorrência. A lista tem todos os tipos do catálogo,
@@ -23,9 +23,9 @@ export function resolveOccurrenceFlow(type: DriverOccurrenceType): DriverOccurre
   return type.flow ?? 'document'
 }
 
-/** Ausente é a API anterior à 179 — sem foto, como era. */
+/** Spec 246: `photoMode` é o resolvido da nota; ausente é a API anterior — o `attachmentMode`, e sem ele, sem foto. */
 export function resolveOccurrenceAttachmentMode(type: DriverOccurrenceType): ProofFieldRequirement {
-  return type.attachmentMode ?? 'off'
+  return resolveOccurrenceRequirements(type).photoMode
 }
 
 /**
@@ -53,121 +53,51 @@ export function resolveOccurrenceTypesForDocument(input: {
 }
 
 /**
- * O mesmo veredito do comprovante (`listMissingProofFields`), com um plano de um campo só: a foto,
- * no `attachmentMode` do tipo. A regra de "obrigatório falta" é uma só no app.
+ * Spec 246 (RF7): o que o aparelho já tem em mãos. Fato não informado vale "nada capturado" — o
+ * gate nunca presume o que ninguém conferiu.
  */
-export function listMissingOccurrenceFields(input: {
-  readonly hasPhoto: boolean
-  readonly type: DriverOccurrenceType
-}): readonly ProofFieldKey[] {
-  const plan = resolveProofFormPlan({
-    cargo: 'off',
-    cargoMinimumCount: 1,
-    photo: resolveOccurrenceAttachmentMode(input.type),
-    receivedBy: 'off',
-    receiverDocument: 'off',
-    receiverName: 'off',
-    signature: 'off',
-  })
-  return listMissingProofFields({
-    plan,
-    values: {
-      cargoCount: 0,
-      hasPhoto: input.hasPhoto,
-      hasSignature: false,
-      receiverDocument: '',
-      receiverName: '',
-    },
+export type OccurrenceGateFacts = Readonly<{
+  hasNote?: boolean
+  hasPhoto: boolean
+  hasProducts?: boolean
+  hasSignature?: boolean
+  /** Ausente é uma foto quando `hasPhoto`, nenhuma quando não. */
+  photoCount?: number
+}>
+
+function toDraftFacts(facts: OccurrenceGateFacts): OccurrenceDraftFacts {
+  return {
+    hasNote: facts.hasNote ?? false,
+    hasProducts: facts.hasProducts ?? false,
+    hasSignature: facts.hasSignature ?? false,
+    photoCount: facts.photoCount ?? (facts.hasPhoto ? 1 : 0),
+  }
+}
+
+/**
+ * Um gate só, com um plano por campo: foto (e o mínimo), observação, assinatura e produtos, cada
+ * um no modo que o servidor resolveu para a nota. A parada segue só com a foto (D-d da 246).
+ */
+export function listMissingOccurrenceFields(
+  input: OccurrenceGateFacts & { readonly type: DriverOccurrenceType },
+): readonly OccurrenceMissingField[] {
+  return listMissingOccurrenceRequirements({
+    facts: toDraftFacts(input),
+    requirements: resolveOccurrenceRequirements(input.type),
   })
 }
 
 /**
- * P5: "Registrar" habilita com a foto **capturada no aparelho** — nada aqui espera upload. A foto
- * ainda sendo reduzida segura o botão: registrar sem ela a deixaria para trás.
+ * P5/P4: "Registrar" habilita com tudo o que é obrigatório **capturado no aparelho** — nada aqui
+ * espera upload nem rede. A foto ainda sendo reduzida segura o botão: registrar sem ela a deixaria
+ * para trás.
  */
-export function canRegisterOccurrence(input: {
-  readonly hasPhoto: boolean
-  readonly isPhotoReading: boolean
-  readonly type: DriverOccurrenceType | undefined
-}): boolean {
+export function canRegisterOccurrence(
+  input: OccurrenceGateFacts & {
+    readonly isPhotoReading: boolean
+    readonly type: DriverOccurrenceType | undefined
+  },
+): boolean {
   if (input.type === undefined || input.isPhotoReading) return false
-  return listMissingOccurrenceFields({ hasPhoto: input.hasPhoto, type: input.type }).length === 0
-}
-
-export type OccurrenceRegistrationDraft = Readonly<{
-  description: string
-  photo: DriverOccurrencePhoto | undefined
-}>
-
-/** As três rotas que já existiam — o formulário único só escolhe uma delas. */
-export type OccurrenceRegistrationHandlers = Readonly<{
-  /** D3: nota com foto — o item `documentOccurrence` da fila, que sobe a foto antes do registro. */
-  enqueueDocumentOccurrence: (input: {
-    readonly documentId: string
-    readonly note: string
-    readonly occurrenceTypeId: string
-    readonly occurrenceTypeName: string
-    readonly photo: DriverOccurrencePhoto
-  }) => void
-  /** Spec 079: nota sem foto — a chamada direta de sempre, sem fila. */
-  registerDocumentOccurrence: (input: {
-    readonly documentId: string
-    readonly note: string
-    readonly occurrenceTypeId: string
-  }) => void
-  /** Spec 209 + D2: a fila da parada, com o tipo do catálogo. */
-  reportStopOccurrence: (input: {
-    readonly description: string
-    /** Foto obrigatória nunca é derrubada pela fila cheia — ou entra com ela, ou não entra. */
-    readonly isPhotoRequired: boolean
-    readonly occurrenceTypeId: string
-    readonly photo: DriverOccurrencePhoto | undefined
-    readonly stopId: string
-  }) => void
-}>
-
-export type OccurrenceRegistrationRoute = 'document-direct' | 'document-queued' | 'stop'
-
-/**
- * Uma rota só, a do `flow`. D4: tipo de parada registra **na parada** — a nota é só de onde veio o
- * toque, e não vai junto.
- */
-export function dispatchOccurrenceRegistration(input: {
-  readonly documentId: string
-  readonly draft: OccurrenceRegistrationDraft
-  readonly handlers: OccurrenceRegistrationHandlers
-  readonly stopId: string
-  readonly type: DriverOccurrenceType
-}): OccurrenceRegistrationRoute {
-  const { draft, handlers, type } = input
-  const note = draft.description.trim()
-
-  if (resolveOccurrenceFlow(type) === 'stop') {
-    handlers.reportStopOccurrence({
-      description: note,
-      isPhotoRequired: resolveOccurrenceAttachmentMode(type) === 'required',
-      occurrenceTypeId: type.id,
-      photo: draft.photo,
-      stopId: input.stopId,
-    })
-    return 'stop'
-  }
-
-  if (draft.photo !== undefined) {
-    handlers.enqueueDocumentOccurrence({
-      documentId: input.documentId,
-      note,
-      occurrenceTypeId: type.id,
-      occurrenceTypeName: type.name,
-      photo: draft.photo,
-    })
-    return 'document-queued'
-  }
-
-  handlers.registerDocumentOccurrence({
-    documentId: input.documentId,
-    note,
-    occurrenceTypeId: type.id,
-  })
-  return 'document-direct'
+  return listMissingOccurrenceFields({ ...input, type: input.type }).length === 0
 }

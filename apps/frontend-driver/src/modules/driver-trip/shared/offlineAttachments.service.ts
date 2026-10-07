@@ -1,7 +1,8 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
-import type { DriverTripErrorDetail, OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type { DriverTripErrorDetail, OfflineQueueStore } from './offlineQueue.service'
 
 /**
  * Spec 082 D6: o comprovante entra na fila quando a entrega ainda não subiu. O blob mora numa store
@@ -26,6 +27,8 @@ export type QueuedAttachment = Readonly<{
   attachmentKey: string
   blob: Blob
   capturedAt: string
+  /** Spec 234 D2: o desvio do relógio medido na captura (junto de `capturedAt`); ausente, a API usa o piso de hoje. */
+  clockOffsetMs?: number
   documentId: string
   fileName: string
   /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
@@ -295,71 +298,6 @@ export function detectReceiverDrift(input: {
   }
 }
 
-/**
- * Spec 159 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
- * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
- * pode ficar indefinidamente no aparelho.
- */
-export const ATTACHMENT_DISCARD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
-
-export function isAttachmentDiscardable(input: {
-  readonly attachment: QueuedAttachment
-  readonly now: Date
-}): boolean {
-  const capturedAt = new Date(input.attachment.capturedAt).getTime()
-  if (!Number.isFinite(capturedAt)) return false
-  return input.now.getTime() - capturedAt > ATTACHMENT_DISCARD_AFTER_MS
-}
-
-/**
- * Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista.
- *
- * Spec 189 T9.2 (segurança M2): com a fila de eventos (`store`), o evento parado ganha o mesmo prazo
- * de 7 dias pelo `createdAt` — ele carrega posição e, no grupo dele, documento e nome do recebedor —
- * e os anexos pendurados nele saem junto, porque sem o evento eles subiriam para uma entrega que o
- * servidor nunca viu.
- */
-export async function discardStaleAttachments(input: {
-  readonly attachmentStore: AttachmentStore
-  readonly now: Date
-  readonly store?: OfflineQueueStore
-}): Promise<number> {
-  const staleEventKeys = new Set<string>()
-  await input.store?.update((current) =>
-    current.filter((item) => {
-      const createdAt = new Date(item.createdAt).getTime()
-      const isStale =
-        Number.isFinite(createdAt) && input.now.getTime() - createdAt > ATTACHMENT_DISCARD_AFTER_MS
-      if (isStale) staleEventKeys.add(item.report.idempotencyKey)
-      return !isStale
-    }),
-  )
-
-  const groups = await input.attachmentStore.readAll()
-  let discardedCount = staleEventKeys.size
-
-  for (const [eventKey, attachments] of groups) {
-    const isEventStale = staleEventKeys.has(eventKey)
-    const hasStale = attachments.some((attachment) =>
-      isAttachmentDiscardable({ attachment, now: input.now }),
-    )
-    if (!isEventStale && !hasStale) continue
-
-    const remaining = await input.attachmentStore.update({
-      eventKey,
-      mutate: (current) =>
-        isEventStale
-          ? []
-          : current.filter(
-              (attachment) => !isAttachmentDiscardable({ attachment, now: input.now }),
-            ),
-    })
-    discardedCount += attachments.length - remaining.length
-  }
-
-  return discardedCount
-}
-
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
   | Readonly<{
@@ -408,7 +346,7 @@ export async function drainQueueWithAttachments(input: {
    * conta. Sem dono, a drenagem é a de sempre.
    */
   readonly ownerSubHash?: string
-  readonly send: (report: QueuedReport['report']) => Promise<AttachmentSendOutcome>
+  readonly send: (stamped: StampedReport) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {
@@ -436,7 +374,7 @@ export async function drainQueueWithAttachments(input: {
     if (item.isUnverified === true) blockedByUnverified = true
     if (networkDown || blockedByUnverified || !isTargeted || skipRejected) continue
 
-    const outcome = await input.send(item.report)
+    const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
     if (outcome.kind === 'sent') {
       sentKeys.add(key)
       sent += 1
@@ -463,6 +401,7 @@ export async function drainQueueWithAttachments(input: {
         return [
           {
             attempts: item.attempts,
+            ...(item.clockOffsetMs === undefined ? {} : { clockOffsetMs: item.clockOffsetMs }),
             createdAt: item.createdAt,
             ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
             rejectionCause: cause,

@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { listActiveDrivingDrivers } from '@/modules/fleet/shared/driverCrewRole.service'
 import { sortDriversByScore } from '@/modules/fleet/shared/driverRecommendation.service'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
@@ -123,6 +124,8 @@ export function TripQuickCreateDialog({
   })
   /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
   const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
+  /** Spec 235 D5: o ajudante puro está em `activeDrivers` (ajudantes) e não entre os motoristas. */
+  const drivingDrivers = listActiveDrivingDrivers(activeDrivers)
   /** Spec 149 D1/D11: ajudante só entre quem pode ajudar, e nunca quem já está escolhido como motorista. */
   const helperCandidates = listHelperCandidates({
     currentHelperIds: quickCreate.helperIds,
@@ -311,7 +314,7 @@ export function TripQuickCreateDialog({
         <div className={styles.fieldGrid}>
           <label>
             {t('creation.drivers')}
-            {activeDrivers.length === 0 ? (
+            {drivingDrivers.length === 0 ? (
               <p className={styles.hint}>{t('creation.driversEmpty')}</p>
             ) : (
               <MultiSelect
@@ -319,7 +322,7 @@ export function TripQuickCreateDialog({
                 clearAllLabel={t('creation.driversClearAll')}
                 emptyLabel={t('creation.driversNoMatch')}
                 onChange={quickCreate.setDriverIds}
-                options={activeDrivers.map((driver) => {
+                options={drivingDrivers.map((driver) => {
                   const option = buildDriverSelectOption({
                     binding: bindingByDriverId.get(driver.id),
                     driver,

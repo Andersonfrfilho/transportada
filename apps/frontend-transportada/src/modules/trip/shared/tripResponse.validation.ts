@@ -3,11 +3,16 @@ import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
+  OCCURRENCE_ITEMS_MODES,
+  OCCURRENCE_MOMENTS,
+  OCCURRENCE_PHOTO_MINIMUM_COUNT,
   OCCURRENCE_TYPE_FLOWS,
+  type OccurrenceMoment,
   type OccurrenceType,
 } from './occurrence.constant'
 import {
   TRIP_FIELD_CHANNELS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS,
   TRIP_TIMELINE_KINDS,
   TRIP_TIMELINE_LOCATION_STATES,
 } from './trip.types'
@@ -27,6 +32,7 @@ import type {
   TripCargoWeight,
   TripOccupancy,
   TripPendingMeasurement,
+  TripTimelineAddressChange,
   TripTimelineDocumentReference,
   TripTimelineItem,
   TripTimelineLocation,
@@ -100,6 +106,7 @@ import {
   FIELD_OCCURRENCE_TYPE_KEYS,
   FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
+  TRIP_TIMELINE_ADDRESS_CHANGE_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
   TRIP_TIMELINE_LOCATION_KEYS,
@@ -109,6 +116,7 @@ import {
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
   TRIP_TRAILER_KEYS,
 } from './trip.constant'
+import { hasValidReturnRequirementFields } from './returnRequirementFields.validation'
 import {
   SCANNED_NFE_STATUS,
   TRIP_BATCH_ITEM_OUTCOME,
@@ -163,6 +171,8 @@ import {
   isString,
   isUnsignedInteger,
 } from './tripGuards.validation'
+import { hasCrewTransferForKind } from './tripTimelineCrewTransfer.validation'
+import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
 
 /**
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
@@ -250,6 +260,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
@@ -385,6 +399,11 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     /** Spec 185 T6.1: mesma tolerância — ausente é API anterior ao campo (spec 078 D2). */
     (value.leavesBehindOnDispatch === undefined || isBoolean(value.leavesBehindOnDispatch)) &&
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
+    (value.volumeCount === undefined ||
+      value.volumeCount === null ||
+      (typeof value.volumeCount === 'number' &&
+        Number.isFinite(value.volumeCount) &&
+        value.volumeCount >= 0)) &&
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
@@ -467,6 +486,57 @@ function isDetail(value: unknown): value is TripDetail {
       isString(value.capacityUnknownVehicleId)) &&
     (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
     isEveryItem(value.stops, isStopDetail)
+  )
+}
+
+function readTolerantDocumentDetail(value: unknown): TripDocumentDetail | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
+    guard: isDocumentDetail,
+    required: TRIP_DOCUMENT_DETAIL_KEYS,
+  })
+}
+
+function readTolerantStopDetail(value: unknown): TripStopDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  if (documents === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents },
+    {
+      allowed: [...TRIP_STOP_KEYS, ...TRIP_STOP_OPTIONAL_KEYS],
+      guard: isStopDetail,
+      required: TRIP_STOP_KEYS,
+    },
+  )
+}
+
+function readTolerantDriverLine(value: unknown): TripDriverLine | undefined {
+  return readTolerantRecord(value, {
+    allowed: [...TRIP_DRIVER_KEYS, ...TRIP_DRIVER_OPTIONAL_KEYS],
+    guard: isDriverLine,
+    required: TRIP_DRIVER_KEYS,
+  })
+}
+
+/**
+ * O detalhe da viagem não cai por causa de um refinamento: chave nova da API e campo opcional com
+ * forma errada (planta, ocupação, carreta, rótulos de nota) são descartados, e a viagem abre sem eles.
+ * Os campos da própria viagem e as listas de notas, motoristas e paradas seguem obrigatórios.
+ */
+function readTolerantDetail(value: unknown): TripDetail | undefined {
+  if (!isRecord(value)) return undefined
+  const documents = readTolerantList(value.documents, readTolerantDocumentDetail)
+  const drivers = readTolerantList(value.drivers, readTolerantDriverLine)
+  const stops = readTolerantList(value.stops, readTolerantStopDetail)
+  if (documents === undefined || drivers === undefined || stops === undefined) return undefined
+  return readTolerantRecord(
+    { ...value, documents, drivers, stops },
+    {
+      allowed: [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS],
+      guard: isDetail,
+      required: TRIP_DETAIL_KEYS,
+    },
   )
 }
 
@@ -695,8 +765,9 @@ export function createTripResponseAdapters() {
       return { batchId: input.batchId, documentCount: input.documentCount }
     },
     tripDetailFromApi(input: unknown): TripDetail {
-      if (!isDetail(input)) throw invalid()
-      return input
+      const detail = readTolerantDetail(input)
+      if (detail === undefined) throw invalid()
+      return detail
     },
     tripDocumentFromApi(input: unknown): TripDocument {
       if (!isDocument(input)) throw invalid()
@@ -1303,6 +1374,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.canhotoReviewReason === undefined ||
       isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
     (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
+    (value.proofRadiusMeters === undefined || isPositiveFiniteNumber(value.proofRadiusMeters)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
@@ -1392,6 +1464,12 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
       value.cancellation === null ||
       isOccurrenceCancellation(value.cancellation)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
+    (value.typeAllowsMultipleItems === undefined ||
+      value.typeAllowsMultipleItems === null ||
+      isBoolean(value.typeAllowsMultipleItems)) &&
+    (value.typeItemsMode === undefined ||
+      value.typeItemsMode === null ||
+      isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName)
   )
 }
@@ -1420,8 +1498,36 @@ function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
     }) &&
     isString(value.id) &&
     isString(value.name) &&
-    (value.attachmentMode === undefined ||
-      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
+    hasValidFieldOccurrenceTypeModes(value)
+  )
+}
+
+/**
+ * Spec 246 (ADR-0081 §9): os modos e os mínimos que a API passa a mandar em cada tipo de rua são
+ * aditivos — ausentes são API anterior; presentes, só no vocabulário e na faixa.
+ */
+function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boolean {
+  const modeKeys = ['attachmentMode', 'itemsMode', 'noteMode', 'photoMode', 'signatureMode']
+  const isEveryModeValid = modeKeys.every(
+    (key) => value[key] === undefined || isOneOf(value[key], OCCURRENCE_ATTACHMENT_MODES),
+  )
+  const isPhotoMinimumValid =
+    value.photoMinimumCount === undefined || isPhotoMinimumCount(value.photoMinimumCount)
+  const isItemsMinimumValid =
+    value.itemsMinimumCount === undefined ||
+    value.itemsMinimumCount === null ||
+    isPositiveInteger(value.itemsMinimumCount)
+  const isStopKindValid =
+    value.stopKind === undefined || value.stopKind === null || isString(value.stopKind)
+  const isFlowValid = value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)
+
+  return (
+    isEveryModeValid &&
+    isPhotoMinimumValid &&
+    isItemsMinimumValid &&
+    isStopKindValid &&
+    isFlowValid &&
+    hasValidReturnRequirementFields(value)
   )
 }
 
@@ -1485,6 +1591,20 @@ function isTimelineLocation(value: unknown): value is TripTimelineLocation {
   )
 }
 
+function isTimelineAddressChange(value: unknown): value is TripTimelineAddressChange {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_ADDRESS_CHANGE_KEYS) &&
+    isOneOf(value.origin, TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS) &&
+    (value.displacementMeters === null || isNonNegativeFiniteNumber(value.displacementMeters))
+  )
+}
+
+/** Spec 228 D8: o `addressChange` é do item do endereço e de mais nenhum; nele, é obrigatório. */
+function hasAddressChangeForKind(value: Readonly<Record<string, unknown>>): boolean {
+  if (value.kind !== 'stop.address_corrected') return value.addressChange === undefined
+  return isTimelineAddressChange(value.addressChange)
+}
+
 /** Spec 240: `cancellation` ausente (API anterior) lê como `null`; o item sem ocorrência passa como veio. */
 function withOccurrenceCancellation(item: TripTimelineItem): TripTimelineItem {
   if (item.occurrence === null || item.occurrence.cancellation !== undefined) return item
@@ -1507,6 +1627,8 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   }
   return (
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    hasAddressChangeForKind(value) &&
+    hasCrewTransferForKind(value) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&
@@ -1702,17 +1824,51 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'attachmentMode' | 'flow' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  | 'allowsMultipleItems'
+  | 'attachmentMode'
+  | 'flow'
+  | 'itemsMinimumCount'
+  | 'itemsMode'
+  | 'leavesDocumentBehind'
+  | 'moments'
+  | 'noteMode'
+  | 'photoMinimumCount'
+  | 'redeliveryPolicy'
+  | 'signatureMode'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
     emailsContractor?: unknown
     flow?: unknown
+    itemsMinimumCount?: unknown
+    itemsMode?: unknown
     leavesDocumentBehind?: unknown
+    moments?: unknown
+    noteMode?: unknown
+    photoMinimumCount?: unknown
     redeliveryPolicy?: unknown
+    signatureMode?: unknown
     stopKind?: unknown
+    referenceNumberMode?: unknown
+    referenceNumberLabel?: unknown
+    declaredAmountMode?: unknown
+    declaredAmountScope?: unknown
+    declaredAmountLabel?: unknown
+    emailItemLineTemplate?: unknown
   }>
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+}
+
+function isPhotoMinimumCount(value: unknown): boolean {
+  return (
+    isPositiveInteger(value) &&
+    value >= OCCURRENCE_PHOTO_MINIMUM_COUNT.min &&
+    value <= OCCURRENCE_PHOTO_MINIMUM_COUNT.max
+  )
+}
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
@@ -1730,10 +1886,28 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'emailsContractor',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
+        /** Spec 246 T1c.4: quantidade mínima de produtos (nulo = todos os itens), tolerada antes de a API mandá-la. */
+        'itemsMinimumCount',
+        /** Spec 241 RF1: mesma tolerância — ausente é API anterior ao campo e continua ausente. */
+        'itemsMode',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
+        /** Spec 246 T1b.1b: o painel tolera os momentos antes de a API mandá-los; sem eles não oferece o seletor. */
+        'moments',
+        /** Spec 246 T2.4 (ADR-0081 §9): os modos da observação e da assinatura, tolerados antes de a API mandá-los. */
+        'noteMode',
+        /** Spec 246 T1c.4: quantidade mínima de fotos (1..5), tolerada antes de a API mandá-la. */
+        'photoMinimumCount',
         'redeliveryPolicy',
+        'signatureMode',
         'stopKind',
+        /** Spec 247 T1.1 (ADR-0081 §9): os campos da devolução com somas, tolerados antes de a API mandá-los. */
+        'referenceNumberMode',
+        'referenceNumberLabel',
+        'declaredAmountMode',
+        'declaredAmountScope',
+        'declaredAmountLabel',
+        'emailItemLineTemplate',
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
@@ -1752,14 +1926,34 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
+    (value.itemsMinimumCount === undefined ||
+      value.itemsMinimumCount === null ||
+      isPositiveInteger(value.itemsMinimumCount)) &&
+    (value.itemsMode === undefined || isOneOf(value.itemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.noteMode === undefined || isOneOf(value.noteMode, OCCURRENCE_ATTACHMENT_MODES)) &&
+    (value.signatureMode === undefined ||
+      isOneOf(value.signatureMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
+    (value.moments === undefined ||
+      isEveryItem(value.moments, (moment) => isOneOf(moment, OCCURRENCE_MOMENTS))) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
+    (value.photoMinimumCount === undefined || isPhotoMinimumCount(value.photoMinimumCount)) &&
     (value.redeliveryPolicy === undefined ||
       value.redeliveryPolicy === 'unset' ||
       value.redeliveryPolicy === 'allowed' ||
       value.redeliveryPolicy === 'blocked') &&
-    (value.stage === 'delivery' || value.stage === 'separation')
+    (value.stage === 'delivery' || value.stage === 'separation') &&
+    /** Spec 247 T1.1: os campos opcionais da devolução. */
+    (value.referenceNumberMode === undefined ||
+      isOneOf(value.referenceNumberMode, ['off', 'optional', 'required'])) &&
+    (value.referenceNumberLabel === undefined || isString(value.referenceNumberLabel)) &&
+    (value.declaredAmountMode === undefined ||
+      isOneOf(value.declaredAmountMode, ['off', 'optional', 'required'])) &&
+    (value.declaredAmountScope === undefined ||
+      isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
+    (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
   )
 }
 
@@ -1771,12 +1965,40 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     allowsMultipleItems,
     attachmentMode,
     flow,
+    itemsMinimumCount,
+    itemsMode,
     leavesDocumentBehind,
+    moments,
+    noteMode,
+    photoMinimumCount,
     redeliveryPolicy,
+    signatureMode,
+    referenceNumberMode,
+    referenceNumberLabel,
+    declaredAmountMode,
+    declaredAmountScope,
+    declaredAmountLabel,
+    emailItemLineTemplate,
     ...rest
   } = raw
   return {
     ...rest,
+    ...(isOneOf(itemsMode, OCCURRENCE_ITEMS_MODES) ? { itemsMode } : {}),
+    ...(Array.isArray(moments) ? { moments: moments as readonly OccurrenceMoment[] } : {}),
+    ...(itemsMinimumCount === null || typeof itemsMinimumCount === 'number'
+      ? { itemsMinimumCount }
+      : {}),
+    ...(isOneOf(noteMode, OCCURRENCE_ATTACHMENT_MODES) ? { noteMode } : {}),
+    ...(isPhotoMinimumCount(photoMinimumCount)
+      ? { photoMinimumCount: photoMinimumCount as number }
+      : {}),
+    ...(isOneOf(signatureMode, OCCURRENCE_ATTACHMENT_MODES) ? { signatureMode } : {}),
+    ...(isString(referenceNumberMode) ? { referenceNumberMode } : {}),
+    ...(isString(referenceNumberLabel) ? { referenceNumberLabel } : {}),
+    ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
+    ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
+    ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',

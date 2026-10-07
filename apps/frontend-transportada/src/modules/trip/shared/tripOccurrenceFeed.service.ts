@@ -9,6 +9,7 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
+import type { OccurrenceItemsMode } from './occurrence.constant'
 import type {
   OccurrenceAttachment,
   OccurrenceCancellation,
@@ -124,10 +125,16 @@ export type TripOccurrenceFeedItem = Readonly<{
   invoiceNumber: null | string
   invoiceSeries: null | string
   notifies: boolean
+  /** Spec 241 RF5: ausente é API anterior ao campo. */
+  occurrenceTypeId?: null | string
   source: 'document' | 'stop'
   stage: 'delivery' | 'separation' | null
   stopLabel: null | string
   tripId: string
+  /** Spec 241 RF5: ausente é API anterior ao campo e lê `true`. */
+  typeAllowsMultipleItems?: boolean | null
+  /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
+  typeItemsMode?: OccurrenceItemsMode | null
   typeName: string
   vehiclePlate: string
 }>

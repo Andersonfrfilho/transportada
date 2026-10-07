@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { OCCURRENCE_CORRECTION_ERROR } from './occurrence.constant'
+import { OCCURRENCE_TYPE_MOMENTS_ERROR } from './occurrenceMoment.constant'
 
 export const TRIPS_PATH = '/trips'
 
@@ -117,6 +118,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
   TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
+  /** Spec 235 D5: a ficha escolhida como motorista só ajuda (`can_drive` falso) — 409, ids em `details`. */
+  TRIP_DRIVER_CANNOT_DRIVE: 'driverCannotDrive',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',
   TRIP_DRIVER_NOT_FOUND: 'driverNotFound',
@@ -170,11 +173,17 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 164, achado 1: reentrega escolhida sobre política `blocked` da tratativa. */
   OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED: 'occurrenceCaseRedeliveryNotAllowed',
   OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
+  /** Spec 237 T3.4a: o nome do tipo é único por empresa em qualquer etapa, e o tipo de recebimento não aparece nesta lista. */
+  OCCURRENCE_TYPE_NAME_TAKEN: 'occurrenceTypeNameTaken',
   /** Spec 240 RF7: a correção e o cancelamento da ocorrência de nota (spec 167). */
   [OCCURRENCE_CORRECTION_ERROR.CASE_ALREADY_OPEN]: 'occurrenceCaseAlreadyOpen',
   [OCCURRENCE_CORRECTION_ERROR.ALREADY_CANCELLED]: 'occurrenceAlreadyCancelled',
   [OCCURRENCE_CORRECTION_ERROR.CANCELLED]: 'occurrenceCancelled',
   [OCCURRENCE_CORRECTION_ERROR.TYPE_SINGLE_ITEM]: 'occurrenceTypeSingleItem',
+  /** Spec 241 RF6/RF11: tipo sem produtos recusa item e não abre tratativa. */
+  [OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_NOT_ALLOWED]: 'occurrenceTypeItemsNotAllowed',
+  [OCCURRENCE_CORRECTION_ERROR.TYPE_ITEMS_OFF_REDELIVERY_POLICY]:
+    'occurrenceTypeItemsOffRedeliveryPolicy',
   [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_NOT_POSITIVE]: 'occurrenceItemQuantityNotPositive',
   [OCCURRENCE_CORRECTION_ERROR.ITEM_QUANTITY_UNIT_PAIRING]: 'occurrenceItemQuantityUnitPairing',
   [OCCURRENCE_CORRECTION_ERROR.PRODUCT_NOT_IN_DOCUMENT]: 'occurrenceProductNotInDocument',
@@ -182,6 +191,10 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_REQUIRED]:
     'occurrenceCancellationReasonRequired',
   [OCCURRENCE_CORRECTION_ERROR.CANCELLATION_REASON_TOO_LONG]: 'occurrenceCancellationReasonTooLong',
+  /** Spec 246 RF0/T1b.6: as três recusas do conjunto de momentos do tipo, cada uma com texto próprio. */
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.REQUIRED]: 'occurrenceTypeMomentsRequired',
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.DOCUMENT_AND_STOP]: 'occurrenceTypeMomentsDocumentAndStop',
+  [OCCURRENCE_TYPE_MOMENTS_ERROR.STAGE_CONFLICT]: 'occurrenceTypeMomentsStageConflict',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
@@ -271,6 +284,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'nfeNumber',
   'nfeSeries',
   'nfeTotalValue',
+  /** Spec 233 D5: ausente é API anterior ao campo; presente é inteiro ou `null`. */
+  'volumeCount',
   /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
   'freightAmount',
   'freightRuleName',
@@ -450,6 +465,12 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    */
   'corrections',
   'cancellation',
+  /**
+   * Spec 241 RF5: o que o tipo **atual** diz sobre itens. Ausente é API anterior ao campo e lê
+   * `optional`/`true` (o comportamento de hoje); `occurrenceTypeId` já é obrigatório aqui.
+   */
+  'typeAllowsMultipleItems',
+  'typeItemsMode',
 ] as const
 
 /**
@@ -484,7 +505,24 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
  * Spec 179 T304: `attachmentMode` é aditivo — ausente é API anterior ao campo, e esta tela ainda
  * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
  */
-export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = ['attachmentMode'] as const
+export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
+  'attachmentMode',
+  /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */
+  'declaredAmountLabel',
+  'declaredAmountMode',
+  'declaredAmountScope',
+  /** Spec 246 (ADR-0081 §9, painel antes da API): os modos resolvidos da nota e os mínimos. */
+  'flow',
+  'itemsMinimumCount',
+  'itemsMode',
+  'noteMode',
+  'photoMinimumCount',
+  'photoMode',
+  'referenceNumberLabel',
+  'referenceNumberMode',
+  'signatureMode',
+  'stopKind',
+] as const
 
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 
@@ -516,7 +554,27 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
+  'addressChange',
+  'crewTransfer',
+  'lateRegistration',
+] as const
+
+/** Spec 249 D6: `costDifference` é a única opcional — a rota a tira de quem não tem `trip.financials`. */
+export const TRIP_TIMELINE_CREW_TRANSFER_REQUIRED_KEYS = [
+  'mdfeDriverDivergence',
+  'nextCrew',
+  'previousCrew',
+  'reason',
+] as const
+export const TRIP_TIMELINE_CREW_TRANSFER_ALLOWED_KEYS = [
+  ...TRIP_TIMELINE_CREW_TRANSFER_REQUIRED_KEYS,
+  'costDifference',
+] as const
+export const TRIP_TIMELINE_CREW_MEMBER_KEYS = ['driverId', 'name', 'position', 'role'] as const
+
+/** Spec 228 D8: as duas chaves exatas do `addressChange`; metros, nunca endereço. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_KEYS = ['displacementMeters', 'origin'] as const
 
 /** Spec 196 RF9: o ponto onde o toque aconteceu; a precisão é nula quando o aparelho não a informou. */
 export const TRIP_TIMELINE_LOCATION_KEYS = [
@@ -618,6 +676,7 @@ export const DELIVERY_PROOF_OPTIONAL_KEYS = [
   'capturedAt',
   'distanceMeters',
   'lateRegistration',
+  'proofRadiusMeters',
   'punctuality',
   'receiverDocument',
   'thumbnailUrl',

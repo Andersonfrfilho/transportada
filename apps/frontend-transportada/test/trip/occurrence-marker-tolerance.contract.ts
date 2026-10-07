@@ -104,13 +104,15 @@ describe('marcador de tratativa aberta na viagem (spec 164 T15)', () => {
     expect(detail.stops[0]?.hasOpenOccurrence).toBe(false)
   })
 
-  /** Tolerar a chave não é aceitar qualquer valor: marcador que não é booleano não chega à tela. */
-  it('recusa marcador que não é booleano', () => {
-    expect(() =>
-      adapters.tripDetailFromApi(buildDetail({ documentExtra: { openOccurrenceCase: 'sim' } })),
-    ).toThrow()
-    expect(() =>
-      adapters.tripDetailFromApi(buildDetail({ stopExtra: { hasOpenOccurrence: 1 } })),
-    ).toThrow()
+  /** Marcador que não é booleano não chega à tela: cai, e a viagem abre sem ele. */
+  it('descarta marcador que não é booleano e abre a viagem', () => {
+    const withDocumentMarker = adapters.tripDetailFromApi(
+      buildDetail({ documentExtra: { openOccurrenceCase: 'sim' } }),
+    )
+    expect(withDocumentMarker.documents[0]?.openOccurrenceCase).toBeUndefined()
+    const withStopMarker = adapters.tripDetailFromApi(
+      buildDetail({ stopExtra: { hasOpenOccurrence: 1 } }),
+    )
+    expect(withStopMarker.stops[0]?.hasOpenOccurrence).toBeUndefined()
   })
 })

@@ -16,7 +16,9 @@ import type { Page } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import {
+  ageQueuedItems,
   DRIVER_ACCESS_KEY,
+  DRIVER_DOCUMENT_ID,
   DRIVER_STOP_ID,
   mockDriverTripApi,
   SMOKE_OCCURRENCE_TYPE_IDS,
@@ -916,7 +918,7 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
 
   await fillNotDelivered(page)
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
   expect(paths).toEqual([
     '/me/trips/current/stops/:id/arrive',
@@ -978,9 +980,11 @@ test('ocorrência de parada com foto obrigatória: habilita ao capturar, e nunca
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
   const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
-  expect(api.reports()[0]?.body).toEqual({
+  /** Spec 196: a ocorrência leva o ponto; o reenvio da foto repete o corpo sem ele (a API guarda o primeiro). */
+  expect(api.reports()[0]?.body).toMatchObject({
     description: '',
     documentId: null,
+    location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.body).toEqual({
@@ -1010,7 +1014,7 @@ test('ocorrência de nota com foto: a foto sobe antes, e o registro leva o anexo
   await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
   await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
   expect(paths).toEqual([
     '/me/trips/current/documents/:id/occurrence-uploads',
@@ -1032,24 +1036,22 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
 
   await fillNotDelivered(page)
 
-  await expect(
-    page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.'),
-  ).toBeVisible()
+  await expect(page.getByText('Ocorrência na fila — sobe quando o sinal voltar.')).toBeVisible()
   // Pedido do usuário (25/09): "Cheguei" entrou na mesma fila — chegada + ocorrência + devolução.
   await expect(page.getByText('3 confirmações aguardando envio')).toBeVisible()
-  await expect(page.getByText('Ocorrência com foto enviada.')).toHaveCount(0)
+  await expect(page.getByText('Ocorrência enviada.')).toHaveCount(0)
   expect(api.storageUploads()).toEqual([])
   expect(api.reports().filter((report) => report.path.endsWith('/occurrences'))).toEqual([])
 
   await page.getByRole('button', { name: /confirmações aguardando envio/u }).click()
-  await expect(page.getByText('Ocorrência com foto')).toBeVisible()
+  await expect(page.getByText('Ocorrência da nota')).toBeVisible()
   await expect(page.getByText('1 anexo')).toBeVisible()
   await page.getByRole('button', { name: 'Voltar' }).click()
 
   api.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
 
-  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  await expect(page.getByText('Ocorrência enviada.')).toBeVisible()
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.reports().map((report) => report.path.split('/').at(-1))).toEqual([
     'arrive',
@@ -1058,4 +1060,542 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
     'occurrences',
     'return',
   ])
+})
+
+/**
+ * Spec 229: o app só envia aberto e nada sai da fila por idade (227) — o que está parado há mais de um
+ * dia ganha uma faixa que diz quantos e desde quando. Item novo não ganha.
+ */
+test('o que está parado há mais de um dia ganha a faixa de aviso; o recente, não', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { name: /^Fila de envio/u })).toBeVisible()
+  await expect(page.getByText(/parado desde/u)).toHaveCount(0)
+
+  await ageQueuedItems({ ageMs: 30 * 60 * 60 * 1000, page })
+  await page.reload()
+
+  const notice = page.getByRole('alert').filter({ hasText: 'parado desde' })
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('1 registro seu está parado desde')
+  await notice.click()
+  await expect(page.getByRole('button', { name: 'Enviar todos agora' })).toBeVisible()
+})
+
+/**
+ * Cabeçalho da viagem e busca: o "copiar" do código era um quadrado com borda que saltava acima da
+ * linha de texto, e o botão da câmera trazia uma segunda borda dentro da caixa do campo, com um vão à
+ * direita. Medido no navegador: nada de borda própria, centro alinhado e rente à borda do campo.
+ */
+test('o copiar do código e a câmera da busca ficam alinhados e sem borda própria', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  const code = page.locator('code').first()
+  const copy = page.getByRole('button', { name: 'Copiar o código da viagem' })
+  const [codeBox, copyBox] = await Promise.all([code.boundingBox(), copy.boundingBox()])
+  const codeCenter = (codeBox?.y ?? 0) + (codeBox?.height ?? 0) / 2
+  const copyCenter = (copyBox?.y ?? 0) + (copyBox?.height ?? 0) / 2
+  expect(Math.abs(codeCenter - copyCenter)).toBeLessThanOrEqual(2)
+  expect(copyBox?.width).toBeGreaterThanOrEqual(44)
+  expect(copyBox?.height).toBeGreaterThanOrEqual(44)
+  expect(await copy.evaluate((element) => getComputedStyle(element).borderTopColor)).toBe(
+    'rgba(0, 0, 0, 0)',
+  )
+
+  const search = page.getByRole('search')
+  const camera = search.getByRole('button')
+  const [searchBox, cameraBox] = await Promise.all([search.boundingBox(), camera.boundingBox()])
+  const gapToBorder =
+    (searchBox?.x ?? 0) + (searchBox?.width ?? 0) - ((cameraBox?.x ?? 0) + (cameraBox?.width ?? 0))
+  expect(gapToBorder).toBeLessThanOrEqual(1.5)
+  expect(await camera.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('0px')
+  expect(await camera.evaluate((element) => getComputedStyle(element).borderRightWidth)).toBe('0px')
+  await expect(page.getByPlaceholder('Buscar nota, cliente ou endereço')).toBeVisible()
+})
+
+/**
+ * Spec 230 (decisão do usuário, 03/10): despachar precisa chegar ao servidor, mas sem rede o toque
+ * fica como pendência de envio — o motorista já trabalha — e sobe sozinho quando o sinal volta, antes
+ * do que veio depois dele.
+ */
+test('despachar sem sinal fica pendente, libera o campo e sobe antes do resto quando o sinal volta', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { startsPlanned: true } })
+  await loginAsLocalUser(page)
+  const dispatch = page.getByRole('button', { name: 'Despachar viagem' })
+  await expect(dispatch).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toHaveCount(0)
+
+  api.setOffline(true)
+  await dispatch.click()
+  await expect(page.getByText(/Início da viagem aguardando envio/u)).toBeVisible()
+  await expect(dispatch).toHaveCount(0)
+  expect(api.reports().some((report) => report.path.endsWith('/dispatch'))).toBe(false)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { name: /^Fila de envio/u })).toBeVisible()
+
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/arrive')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  const paths = api.reports().map((report) => report.path)
+  expect(paths.findIndex((path) => path.endsWith('/dispatch'))).toBeGreaterThanOrEqual(0)
+  expect(paths.findIndex((path) => path.endsWith('/dispatch'))).toBeLessThan(
+    paths.findIndex((path) => path.endsWith('/arrive')),
+  )
+  await expect(page.getByText(/Início da viagem aguardando envio/u)).toHaveCount(0)
+})
+
+test('despachar com sinal sobe na hora e tira o botão', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { startsPlanned: true } })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/dispatch')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toHaveCount(0, {
+    timeout: 20_000,
+  })
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
+})
+
+test('despacho recusado pelo servidor avisa e devolve o botão', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: { dispatchRefusedWith: 409, startsPlanned: true },
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/dispatch')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  await expect(page.getByText('Não foi possível iniciar o trajeto. Toque de novo.')).toBeVisible({
+    timeout: 20_000,
+  })
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toHaveCount(0)
+})
+
+/**
+ * Spec 231: o app do motorista tem tema claro. Sem escolha guardada ele segue o sistema; o botão do
+ * Perfil troca e guarda; e a escolha viaja na URL de login (ADR-0060), porque o Keycloak é outra
+ * origem e não alcança o `localStorage`.
+ */
+const PAPER_BACKGROUND = 'rgb(242, 239, 233)'
+const ASPHALT_BACKGROUND = 'rgb(16, 34, 44)'
+
+async function readBodyBackground(page: Page): Promise<string> {
+  return page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+}
+
+test('com o sistema em claro o app pinta em papel, sem ninguém clicar', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+  expect(await page.evaluate(() => getComputedStyle(document.body).color)).toBe('rgb(29, 43, 51)')
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBeUndefined()
+})
+
+test('o botão do Perfil troca o tema, guarda a escolha e ela sobrevive ao recarregar', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  expect(await readBodyBackground(page)).toBe(ASPHALT_BACKGROUND)
+
+  await page.getByRole('button', { name: 'Perfil' }).click()
+  await page.getByRole('button', { name: 'Usar tema claro' }).click()
+
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light')
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+  expect(
+    await page.evaluate(() =>
+      document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
+    ),
+  ).toBe('#F2EFE9')
+  expect(await page.evaluate(() => window.localStorage.getItem('transportada:color-theme'))).toBe(
+    'light',
+  )
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Usar tema escuro' })).toBeVisible()
+  expect(await readBodyBackground(page)).toBe(PAPER_BACKGROUND)
+
+  await page.getByRole('button', { name: 'Usar tema escuro' }).click()
+  expect(await readBodyBackground(page)).toBe(ASPHALT_BACKGROUND)
+})
+
+test('o tema escolhido vai na URL de login, mesmo com o sistema em outro', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.addInitScript(() => window.localStorage.setItem('transportada:color-theme', 'light'))
+  await mockDriverTripApi({ page })
+  await page.goto('/')
+  await page.locator('#login-identifier').fill('local-user')
+  const authRequest = page.waitForRequest(
+    (request) =>
+      request.isNavigationRequest() && request.url().includes('/protocol/openid-connect/auth'),
+  )
+
+  await page.getByRole('button', { name: 'Continuar' }).click()
+
+  expect(new URL((await authRequest).url()).searchParams.get('transportada_theme')).toBe('light')
+})
+
+/**
+ * Spec 234 D1/D2: a nota mede o momento em que o evento nasceu, não o da chegada. O app lê o `Date`
+ * das respostas da API e manda `tappedAt` + `clockOffsetMs` em `arrive`/`deliver`/`return`, na
+ * ocorrência de parada e no multipart do comprovante. Aqui o servidor está 1 h à frente do aparelho.
+ */
+const SERVER_AHEAD_MS = 3_600_000
+const CLOCK_TOLERANCE_MS = 15_000
+
+function findReport(api: DriverTripApiMock, suffix: string) {
+  return api.reports().find((report) => report.path.endsWith(suffix))
+}
+
+function readReportBody(api: DriverTripApiMock, suffix: string): Record<string, unknown> {
+  const body: unknown = findReport(api, suffix)?.body
+  return typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+}
+
+test('com resposta de Date, o corpo do deliver leva tappedAt e o desvio do relógio', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { serverClockOffsetMs: SERVER_AHEAD_MS } })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const fields = readReportBody(api, suffix)
+    expect(typeof fields.clockOffsetMs).toBe('number')
+    expect(Math.abs((fields.clockOffsetMs as number) - SERVER_AHEAD_MS)).toBeLessThan(
+      CLOCK_TOLERANCE_MS,
+    )
+    // A hora do toque é a do aparelho, crua e recente — o desvio é que a corrige no servidor.
+    expect(Math.abs(Date.now() - Date.parse(String(fields.tappedAt)))).toBeLessThan(60_000)
+  }
+})
+
+test('sem Date nas respostas, o corpo do deliver sai como sempre saiu', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const body = readReportBody(api, suffix)
+    expect('clockOffsetMs' in body).toBe(false)
+    expect('tappedAt' in body).toBe(false)
+  }
+})
+
+/**
+ * O carimbo é o do toque, não o do envio: o toque nasce sem sinal, antes de qualquer resposta — e a
+ * resposta do `arrive`, na mesma drenagem, traz o primeiro `Date`. O `deliver` que vem logo atrás já
+ * está medido pelo app, mas o item foi criado sem desvio, e sai sem os dois campos.
+ */
+test('o desvio é o de quando o toque nasceu: medido durante a drenagem, não entra no item antigo', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+
+  api.setServerClockOffset(SERVER_AHEAD_MS)
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const body = readReportBody(api, suffix)
+    expect('clockOffsetMs' in body).toBe(false)
+    expect('tappedAt' in body).toBe(false)
+  }
+})
+
+test('o comprovante leva o desvio do relógio no multipart', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: {
+      serverClockOffsetMs: SERVER_AHEAD_MS,
+      settlesDeliveries: true,
+      stopDeliveryProof: {
+        photo: 'required',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'optional',
+      },
+    },
+  })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  const cameraChooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /^Tirar foto/u }).click()
+  await (await cameraChooser).setFiles(SMOKE_PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+  await page.getByRole('button', { exact: true, name: 'Confirmar entrega' }).click()
+
+  await expect.poll(() => findReport(api, '/proof') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  const fields = findReport(api, '/proof')?.formFields ?? {}
+  expect(Math.abs(Number(fields.clockOffsetMs) - SERVER_AHEAD_MS)).toBeLessThan(CLOCK_TOLERANCE_MS)
+  expect(fields.capturedAt).toBeDefined()
+})
+
+/**
+ * Spec 234 D7: o desvio medido com sinal sobrevive à aba descartada. O motorista abre com rede (o `Date`
+ * da API mede o relógio), o app recarrega com o Keycloak fora do ar (boot offline, sem nenhuma resposta
+ * da API nesta sessão) e a entrega tocada ali sai, depois de confirmada, com `tappedAt` e `clockOffsetMs`.
+ */
+test('o desvio medido antes de recarregar sem sinal ainda vai no deliver feito offline', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({ page, scenario: { serverClockOffsetMs: SERVER_AHEAD_MS } })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  await page.route('**/realms/**', async (route) => {
+    await route.abort()
+  })
+  await page.reload()
+  await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { name: 'Entreguei' }).first().click()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+  expect(api.reports()).toEqual([])
+
+  await page.unroute('**/realms/**')
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(page.getByText(/2 registros feitos sem rede às \d.* — enviar\?/u)).toBeVisible({
+    timeout: 20_000,
+  })
+  await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+
+  for (const suffix of ['/arrive', '/deliver']) {
+    const fields = readReportBody(api, suffix)
+    expect(Math.abs(Number(fields.clockOffsetMs) - SERVER_AHEAD_MS)).toBeLessThan(
+      CLOCK_TOLERANCE_MS,
+    )
+    expect(typeof fields.tappedAt).toBe('string')
+  }
+})
+
+/**
+ * Spec 234 D4d: com a permissão de localização negada, o cartão avisa antes do "Entreguei" — e só avisa:
+ * o toque continua valendo. O `denied` é simulado na Permissions API antes de a app abrir.
+ */
+const LOCATION_OFF_WARNING = /^Localização desligada: entregar assim conta como longe do local/u
+
+async function denyGeolocationPermission(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const status = new EventTarget() as EventTarget & { state: string }
+    status.state = 'denied'
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true,
+      value: { query: () => Promise.resolve(status) },
+    })
+  })
+}
+
+test('localização negada: o aviso aparece antes do Entreguei, e o Entreguei continua valendo', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await denyGeolocationPermission(page)
+  const api = await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toBeVisible()
+  const deliver = page.getByRole('button', { exact: true, name: 'Entreguei' })
+  await expect(deliver).toBeEnabled()
+  await deliver.click()
+
+  await expect.poll(() => findReport(api, '/deliver') !== undefined, { timeout: 20_000 }).toBe(true)
+})
+
+test('localização liberada: nenhum aviso antes do Entreguei', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: LOCATION_OFF_WARNING })).toHaveCount(0)
+})
+
+/**
+ * Spec 196 (T5.4): todo toque de campo leva o ponto. Com o GPS permitido o corpo sai com a posição
+ * do aparelho; negado, sai com `location: null` — a recusa nunca bloqueia o toque.
+ */
+const SMOKE_POSITION = { latitude: -23.5505, longitude: -46.6333 } as const
+
+async function openPlannedTrip(page: Page): Promise<DriverTripApiMock> {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: { startsPlanned: true, tracksEnRoute: true },
+  })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('button', { name: 'Despachar viagem' })).toBeVisible()
+  return api
+}
+
+test('GPS permitido: despacho, ocorrência da parada e ocorrência da nota levam o ponto', async ({
+  page,
+}) => {
+  await grantLocation(page)
+  const api = await openPlannedTrip(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await expect.poll(() => findReport(api, '/dispatch')).toBeDefined()
+  expect(findReport(api, '/dispatch')?.body).toMatchObject({ location: SMOKE_POSITION })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  const types = page.getByRole('radiogroup', { name: 'Qual ocorrência?' })
+  await types.getByRole('radio', { name: /Doca interditada/u }).click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect.poll(() => findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)).toBeDefined()
+  expect(findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)?.body).toMatchObject({
+    location: SMOKE_POSITION,
+  })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await page
+    .getByRole('radiogroup', { name: 'Qual ocorrência?' })
+    .getByRole('radio', { name: /Cliente ausente/u })
+    .click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect
+    .poll(() => findReport(api, `/documents/${DRIVER_DOCUMENT_ID}/occurrences`))
+    .toBeDefined()
+  expect(findReport(api, `/documents/${DRIVER_DOCUMENT_ID}/occurrences`)?.body).toMatchObject({
+    location: SMOKE_POSITION,
+  })
+})
+
+test('GPS negado: os mesmos toques saem com `location: null`, sem travar', async ({ page }) => {
+  const api = await openPlannedTrip(page)
+
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await expect.poll(() => findReport(api, '/dispatch')).toBeDefined()
+  expect(findReport(api, '/dispatch')?.body).toMatchObject({ location: null })
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await page
+    .getByRole('radiogroup', { name: 'Qual ocorrência?' })
+    .getByRole('radio', { name: /Doca interditada/u })
+    .click()
+  await page
+    .getByRole('group', { name: 'Registrar ocorrência' })
+    .getByRole('button', { exact: true, name: 'Registrar' })
+    .click()
+  await expect.poll(() => findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)).toBeDefined()
+  expect(findReport(api, `/stops/${DRIVER_STOP_ID}/occurrences`)?.body).toMatchObject({
+    location: null,
+  })
+})
+
+/**
+ * RF8: com o GPS mudo (o pedido de permissão aberto, que nunca chama de volta), "Despachar" e
+ * "Iniciar rota" saem em até 3,2 s do clique, com `location: null`. Mede o clique à requisição.
+ */
+test('GPS mudo: o despacho e o "Iniciar rota" saem em até 3,2 s', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: () => undefined,
+        watchPosition: () => 0,
+        clearWatch: () => undefined,
+      },
+    })
+  })
+  const api = await openPlannedTrip(page)
+
+  const dispatchRequest = page.waitForRequest(/\/me\/trips\/current\/dispatch$/u)
+  const dispatchClickedAt = Date.now()
+  await page.getByRole('button', { name: 'Despachar viagem' }).click()
+  await dispatchRequest
+  const dispatchElapsed = Date.now() - dispatchClickedAt
+  test.info().annotations.push({ type: 'dispatch-ms', description: String(dispatchElapsed) })
+  expect(dispatchElapsed).toBeLessThanOrEqual(3_200)
+  await expect.poll(() => findReport(api, '/dispatch')?.body).toMatchObject({ location: null })
+
+  const departRequest = page.waitForRequest(/\/stops\/[^/]+\/depart$/u)
+  const departClickedAt = Date.now()
+  await page
+    .getByRole('button', { name: /^Iniciar rota/u })
+    .first()
+    .click()
+  await departRequest
+  const departElapsed = Date.now() - departClickedAt
+  test.info().annotations.push({ type: 'depart-ms', description: String(departElapsed) })
+  expect(departElapsed).toBeLessThanOrEqual(3_200)
+  await expect.poll(() => findReport(api, '/depart')?.body).toMatchObject({ location: null })
 })

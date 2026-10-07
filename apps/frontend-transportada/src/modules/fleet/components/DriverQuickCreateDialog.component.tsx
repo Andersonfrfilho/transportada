@@ -35,9 +35,11 @@ import {
   PIX_KEY_TYPES,
 } from '../shared/fleet.types'
 import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
+import { isHelperOnlyDriver } from '../shared/fleetForm.service'
 import styles from '../styles/fleet.module.css'
 import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
+import { DriverHelperFields } from './DriverHelperFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
@@ -99,6 +101,7 @@ export function DriverQuickCreateDialog({
   const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const companyLookup = useCompanyLookup({ patch: form.patch })
   const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
+  const hasLicense = !isHelperOnlyDriver(form.state)
   const pixKeyMaxLength = pixKeyMaskLength(form.state.pixKeyType)
 
   /** O controlador guarda a chave; quem a traduz é a tela, que é onde o idioma está. */
@@ -144,7 +147,7 @@ export function DriverQuickCreateDialog({
         </p>
         <form onSubmit={handleSubmit} ref={formRef}>
           <fieldset className={styles.fieldGroup}>
-            <legend>{t('driverIdentityLegend')}</legend>
+            <legend>{t(hasLicense ? 'driverIdentityLegend' : 'driverIdentityLegendHelper')}</legend>
             <div className={styles.fieldGrid}>
               <FleetField
                 inputRef={focus.bindInput('name')}
@@ -192,28 +195,32 @@ export function DriverQuickCreateDialog({
                   form.patch({ email })
                 }}
               />
-              <FleetField
-                error={fieldErrorText(uniqueness.errorOf('licenseNumber'))}
-                inputMode="numeric"
-                inputRef={uniqueness.bindField('licenseNumber')}
-                label={t('driverLicense')}
-                maxLength={11}
-                value={form.state.licenseNumber}
-                onBlur={() => uniqueness.confirm('licenseNumber', form.state.licenseNumber)}
-                onChange={(licenseNumber) => {
-                  uniqueness.clear('licenseNumber')
-                  form.patch({ licenseNumber })
-                }}
-              />
-              <FleetSelectField<string>
-                clearable
-                label={t('driverLicenseCategory')}
-                optionLabelKey="licenseCategoryOption"
-                options={LICENSE_CATEGORIES}
-                placeholder={t('driverLicenseCategoryUnset')}
-                value={form.state.licenseCategory}
-                onChange={(licenseCategory) => form.patch({ licenseCategory })}
-              />
+              {hasLicense ? (
+                <>
+                  <FleetField
+                    error={fieldErrorText(uniqueness.errorOf('licenseNumber'))}
+                    inputMode="numeric"
+                    inputRef={uniqueness.bindField('licenseNumber')}
+                    label={t('driverLicense')}
+                    maxLength={11}
+                    value={form.state.licenseNumber}
+                    onBlur={() => uniqueness.confirm('licenseNumber', form.state.licenseNumber)}
+                    onChange={(licenseNumber) => {
+                      uniqueness.clear('licenseNumber')
+                      form.patch({ licenseNumber })
+                    }}
+                  />
+                  <FleetSelectField<string>
+                    clearable
+                    label={t('driverLicenseCategory')}
+                    optionLabelKey="licenseCategoryOption"
+                    options={LICENSE_CATEGORIES}
+                    placeholder={t('driverLicenseCategoryUnset')}
+                    value={form.state.licenseCategory}
+                    onChange={(licenseCategory) => form.patch({ licenseCategory })}
+                  />
+                </>
+              ) : null}
               <FleetField
                 inputMode="numeric"
                 label={t('driverPhone')}
@@ -272,7 +279,10 @@ export function DriverQuickCreateDialog({
                   optionLabelKey="driverProfileOption"
                   options={FLEET_DRIVER_PROFILES}
                   value={form.state.profile}
-                  onChange={(profile) => form.patch({ profile })}
+                  onChange={(profile) => {
+                    form.patch({ profile })
+                    if (profile === 'helper') uniqueness.clear('licenseNumber')
+                  }}
                 />
               ) : null}
               <FleetDateField
@@ -281,27 +291,33 @@ export function DriverQuickCreateDialog({
                 value={form.state.birthDate}
                 onChange={(birthDate) => form.patch({ birthDate })}
               />
-              <FleetDateField
-                hint={t('driverFirstLicenseAtHint')}
-                label={t('driverFirstLicenseAt')}
-                optional
-                value={form.state.firstLicenseAt}
-                onChange={(firstLicenseAt) => form.patch({ firstLicenseAt })}
-              />
-              <FleetDateField
-                hint={t('driverLicenseExpiresAtHint')}
-                label={t('driverLicenseExpiresAt')}
-                optional
-                value={form.state.licenseExpiresAt}
-                onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
-              />
+              {hasLicense ? (
+                <>
+                  <FleetDateField
+                    hint={t('driverFirstLicenseAtHint')}
+                    label={t('driverFirstLicenseAt')}
+                    optional
+                    value={form.state.firstLicenseAt}
+                    onChange={(firstLicenseAt) => form.patch({ firstLicenseAt })}
+                  />
+                  <FleetDateField
+                    hint={t('driverLicenseExpiresAtHint')}
+                    label={t('driverLicenseExpiresAt')}
+                    optional
+                    value={form.state.licenseExpiresAt}
+                    onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
+                  />
+                </>
+              ) : null}
               <FleetMoneyField
                 optional
+                keepsZero
                 label={t('driverDailyAllowanceAmount')}
                 scale={AMOUNT_DISPLAY_SCALE}
                 value={form.state.dailyAllowanceAmount}
                 onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
               />
+              <DriverHelperFields state={form.state} onChange={form.patch} />
             </div>
             <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
             {companyLookup.statusKey === null ? null : (
@@ -325,7 +341,9 @@ export function DriverQuickCreateDialog({
             ownedVehicleIds={ownedVehicleIds}
             selectedVehicleIds={form.selectedVehicleIds}
           />
-          <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+          {hasLicense ? (
+            <DriverCoverageFields coverage={form.coverage} regions={regions.regions} />
+          ) : null}
           {form.feedbackKey === null ? null : (
             <FleetFeedback
               isError={isFleetFeedbackError(form.feedbackKey)}

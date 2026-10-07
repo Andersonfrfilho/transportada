@@ -183,7 +183,16 @@ describe('a tela de ocorrência da parada', () => {
 
   it('a descrição é textarea e a prévia é renderizada pelo serviço puro', () => {
     expect(source).toInclude('<textarea')
-    expect(readFileSync(FORM_HOOK_PATH, 'utf8')).toInclude('renderOccurrenceNoticePreview')
+    expect(readFileSync(FORM_HOOK_PATH, 'utf8')).toInclude('buildOccurrencePreview')
+    expect(
+      readFileSync(
+        new URL(
+          '../../src/modules/driver-trip/shared/occurrencePreview.service.ts',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    ).toInclude('renderOccurrenceNoticePreview')
     expect(source).toInclude('occurrencePreview.title')
   })
 
@@ -193,7 +202,17 @@ describe('a tela de ocorrência da parada', () => {
    */
   it('a foto é da ocorrência, nunca do comprovante da nota', () => {
     expect(readFileSync(CARD_PATH, 'utf8')).not.toInclude('onOccurrencePhoto')
-    expect(source).toInclude("t('occurrencePhoto')")
+    expect(
+      readFileSync(
+        fileURLToPath(
+          new URL(
+            '../../src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
+            import.meta.url,
+          ),
+        ),
+        'utf8',
+      ),
+    ).toInclude("t('occurrencePhoto')")
     expect(driverTrip.occurrencePhoto.toLowerCase()).toInclude('foto da ocorrência')
   })
 })

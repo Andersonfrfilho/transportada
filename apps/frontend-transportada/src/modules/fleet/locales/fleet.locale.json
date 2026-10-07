@@ -179,6 +179,16 @@
   "costPerKilometer": "Custo por quilômetro",
   "costSummaryTitle": "Resumo dos custos",
   "costsUpdatedAt": "Custos atualizados em",
+  "crewSettings": {
+    "error": "Não foi possível salvar a diária do ajudante. Código: {{code}}.",
+    "hint": "Vale para quem não tem diária própria na ficha. Vazio: sem valor padrão — a conta da viagem aponta a lacuna.",
+    "label": "Diária geral (R$/dia)",
+    "loadError": "Não foi possível carregar a diária do ajudante.",
+    "retry": "Tentar de novo",
+    "save": "Salvar diária",
+    "saved": "Diária do ajudante salva.",
+    "title": "Diária do ajudante"
+  },
   "currencyPrefix": "R$",
   "dateField": {
     "chooseYear": "Escolher o ano",
@@ -250,6 +260,7 @@
   "driverAddressDistrict": "Bairro",
   "driverAddressHint": "Comece pelo CEP: com ele o endereço vem preenchido e sobra digitar o número. Sem CEP em mãos, busque pelo endereço no campo ao lado e escolha na lista.",
   "driverAddressLegend": "Endereço do motorista",
+  "driverAddressLegendHelper": "Endereço do ajudante",
   "driverAddressNumber": "Número",
   "driverAddressPostalCode": "CEP",
   "driverAddressPostalCodeHint": "Oito dígitos. A busca dispara sozinha ao completar.",
@@ -286,7 +297,12 @@
     "zonePill": "Rota inteira"
   },
   "driverDailyAllowanceAmount": "Diária (R$/dia)",
+  "driverCanActAsHelper": "Pode atuar como ajudante",
+  "driverCanActAsHelperHint": "Aparece na lista de ajudantes da viagem: a mesma pessoa dirige numa viagem e ajuda em outra.",
   "driverDailyAllowanceAmountHint": "Vazio usa o valor geral da empresa.",
+  "driverHelperDailyRate": "Diária própria (R$/dia)",
+  "driverHelperDailyRateHint": "Vazio usa a diária geral da empresa.",
+  "driverHelperLockedHint": "O perfil Ajudante sempre atua como ajudante e não precisa de CNH.",
   "driverEmail": "E-mail",
   "driverEmailHint": "Endereço do motorista para o acesso ao aplicativo de entregas. O convite sai por e-mail ou por telefone: um dos dois basta.",
   "driverFatherName": "Nome do pai",
@@ -324,6 +340,7 @@
   "driverIdentityDocumentState": "UF do órgão emissor",
   "driverIdentityDocumentStateUnset": "Sem UF",
   "driverIdentityLegend": "Identificação do motorista",
+  "driverIdentityLegendHelper": "Identificação do ajudante",
   "driverLicense": "CNH",
   "driverLicenseCategory": "Categoria da CNH",
   "driverLicenseCategoryUnset": "Sem categoria",
@@ -344,15 +361,17 @@
   "driverOwnedVehicle": "Do motorista",
   "driverPersonalHint": "Nacionalidade, naturalidade, filiação, documento de identidade e local de emissão da CNH ficam registrados na ficha para consulta — nenhum documento fiscal os transmite hoje.",
   "driverPersonalLegend": "Dados pessoais do motorista",
+  "driverPersonalLegendHelper": "Dados pessoais do ajudante",
   "driverPhone": "Telefone",
   "driverPixKey": "Chave Pix",
   "driverPixKeyType": "Tipo da chave Pix",
   "driverPixKeyTypeUnset": "Sem chave",
   "driverProfile": "Perfil de acesso",
-  "driverProfileHint": "O cadastro já cria o usuário do motorista para o aplicativo de entregas. O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da transportadora.",
+  "driverProfileHint": "O cadastro já cria o usuário do motorista para o aplicativo de entregas. O agregado costuma dirigir o veículo dele; o motorista dirige o próprio ou o da transportadora; o ajudante não dirige e não precisa de CNH.",
   "driverProfileOption": {
     "aggregate": "Agregado",
-    "driver": "Motorista"
+    "driver": "Motorista",
+    "helper": "Ajudante"
   },
   "driverRntrc": "RNTRC do motorista",
   "driverSecuresCargo": "Amarra a carga com cinta",
@@ -378,6 +397,7 @@
   "emailTaken": "Já existe um usuário com esse e-mail",
   "empty": "Nenhum veículo ou motorista cadastrado",
   "emptyValue": "—",
+  "helperBadge": "Ajudante",
   "energySettings": {
     "clear": "Limpar distribuidora",
     "distributorLabel": "Distribuidora",
@@ -671,9 +691,12 @@
     "copyCities": "Copiar cidades ({{count}})",
     "count": "{{count}} rota selecionada",
     "count_other": "{{count}} rotas selecionadas",
-    "export": "Exportar seleção ({{count}})",
+    "export": "Exportar CSV ({{count}})",
     "select": "Selecionar a rota {{code}}",
-    "selectAll": "Selecionar todas as rotas da lista"
+    "selectAll": "Selecionar todas as rotas da lista",
+    "exportExcel": "Exportar Excel ({{count}})",
+    "sheetName": "Regiões",
+    "title": "Regiões de frete"
   },
   "regionStatus": {
     "active": "Ativa",
@@ -696,6 +719,7 @@
     "trailer": "Reboque"
   },
   "save": "Salvar",
+  "profileEmpty": "A ficha precisa dirigir ou atuar como ajudante: não dá para desligar os dois.",
   "saveError": "Não foi possível salvar o cadastro",
   "saved": "Cadastro salvo",
   "secondaryFuelCostPerKilometer": "Segundo combustível por quilômetro",
@@ -872,9 +896,12 @@
     "count": "{{count}} veículo selecionado",
     "count_other": "{{count}} veículos selecionados",
     "deactivate": "Desativar ({{count}})",
-    "export": "Exportar seleção ({{count}})",
+    "export": "Exportar CSV ({{count}})",
     "select": "Selecionar o veículo de placa {{plate}}",
-    "selectAll": "Selecionar todos os veículos da lista"
+    "selectAll": "Selecionar todos os veículos da lista",
+    "exportExcel": "Exportar Excel ({{count}})",
+    "sheetName": "Veículos",
+    "title": "Veículos da frota"
   },
   "vehicleState": "UF de licenciamento",
   "vehicleStateUnset": "Selecione a UF",

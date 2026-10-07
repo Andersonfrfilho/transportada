@@ -9,6 +9,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { AggregateApplicationsTab } from '../components/AggregateApplicationsTab.component'
 import { AggregateDocumentsTab } from '../components/AggregateDocumentsTab.component'
+import { DriverCrewSettingsSection } from '../components/DriverCrewSettingsSection.component'
 import { DriverForm } from '../components/DriverForm.component'
 import { DriverPanel } from '../components/DriverPanel.component'
 import { EnergySettingsPanel } from '../components/EnergySettingsPanel.component'
@@ -411,23 +412,31 @@ export function FleetWorkspacePage() {
       id: 'drivers',
       label: t('tabs.drivers'),
       panel: (
-        <DriverPanel
-          actions={{
-            onEdit: (driver) => setEditor({ driver, kind: 'driver' }),
-            onNew: () => setEditor({ kind: 'driver' }),
-            onToggleStatus: toggleDriverStatus,
-            onViewVehicle,
-          }}
-          canManageFleet={canManageFleet}
-          filters={{ onChange: setDriverFilters, value: driverFilters }}
-          vehiclesByDriverId={vehiclesByDriverId}
-          view={{
-            status,
-            ...(workspace.viewModel.drivers === undefined
-              ? {}
-              : { drivers: workspace.viewModel.drivers }),
-          }}
-        />
+        <>
+          <DriverCrewSettingsSection
+            canManage={canManageFleet}
+            canRead={workspace.viewModel.canReadFleet}
+            {...(companyId === undefined ? {} : { companyId })}
+            isActive={activeTab === 'drivers'}
+          />
+          <DriverPanel
+            actions={{
+              onEdit: (driver) => setEditor({ driver, kind: 'driver' }),
+              onNew: () => setEditor({ kind: 'driver' }),
+              onToggleStatus: toggleDriverStatus,
+              onViewVehicle,
+            }}
+            canManageFleet={canManageFleet}
+            filters={{ onChange: setDriverFilters, value: driverFilters }}
+            vehiclesByDriverId={vehiclesByDriverId}
+            view={{
+              status,
+              ...(workspace.viewModel.drivers === undefined
+                ? {}
+                : { drivers: workspace.viewModel.drivers }),
+            }}
+          />
+        </>
       ),
     },
     ...(canManageFleet

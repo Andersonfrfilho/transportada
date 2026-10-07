@@ -130,6 +130,16 @@
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
+/* Erro de faixa e leitura bloqueada têm de aparecer no campo, não só no `aria`. */
+.fieldGrid input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldGrid input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -351,7 +361,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -384,7 +394,8 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
+  min-height: var(--control-height-dense);
   padding: 0 var(--space-2);
   background: transparent;
   /*
@@ -404,7 +415,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -428,6 +439,7 @@ button.occurrenceCaseBadge {
 
 .driverChecklist {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: var(--space-3);
   font-size: 0.85rem;
@@ -436,6 +448,7 @@ button.occurrenceCaseBadge {
 /* Cada motorista é um bloco: nome em cima, contato abaixo, para a fileira não virar uma frase só. */
 .driverLine {
   display: inline-flex;
+  min-width: 0;
   flex-direction: column;
   gap: var(--space-1);
 }
@@ -444,6 +457,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  overflow-wrap: anywhere;
   color: var(--color-slate);
 }
 
@@ -1296,8 +1310,42 @@ button.occurrenceCaseBadge {
 /* Spec 181 T502: entrou para dentro de `.rowActions` (flex) — `justify-self` era resquício de quando
    era item de grid, sem efeito nenhum ali. */
 .stopDocumentToggle {
-  min-height: var(--touch-target);
+  justify-self: start;
+  min-height: var(--control-height-compact);
   padding-inline: var(--space-2);
+}
+
+/* Sob toque (não é breakpoint: `responsive.md`) o alvo sobe para os 44px do `web.md` §10. */
+@media (pointer: coarse) {
+  .stopDocumentToggle {
+    min-height: var(--touch-target);
+  }
+}
+
+/**
+ * Spec 233 RF1: o botão que abre a nota — irmão da caixa de seleção, nunca pai dela. O rótulo e o
+ * chevron dividem a faixa; `min-width: 0` deixa o rótulo quebrar em vez de empurrar a janela em 375px.
+ */
+.stopDocumentHeadToggle {
+  min-width: 0;
+  min-height: var(--touch-target);
+  flex: 1 1 10rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 0;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  cursor: pointer;
+}
+
+.stopDocumentBody {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .stopDocumentDetailGroup {
@@ -1311,7 +1359,7 @@ button.occurrenceCaseBadge {
 .destinationOriginBadge {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   color: var(--color-copper);
@@ -1340,7 +1388,7 @@ button.occurrenceCaseBadge {
 .separationStatusBadge {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-compact);
+  height: var(--control-height-dense);
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   font-family: var(--font-utility);
@@ -1640,25 +1688,92 @@ button.occurrenceCaseBadge {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  padding: var(--space-5);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
 }
 
-.proofCardHeader {
+/* Linha-resumo: miniatura (irmã do botão) e o título que abre o comprovante. */
+.proofSummary {
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.proofSummaryHeading {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.proofSummaryToggle {
+  min-width: 0;
+  min-height: var(--touch-target);
+  width: 100%;
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  background: transparent;
+  cursor: pointer;
+}
+
+.proofSummaryText {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.proofSummaryMeta {
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.proofSummaryFigure {
+  --proof-thumbnail-size: var(--touch-target);
+
+  flex: 0 0 auto;
+}
+
+.proofSummaryFigure .deliveryProofImageFrame {
+  --delivery-proof-image-placeholder-height: var(--touch-target);
+}
+
+.proofSummaryFigure .proofSummaryImage {
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  margin: 0;
+  object-fit: cover;
+}
+
+.proofDetails {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2) var(--space-1);
+}
+
+.proofReviewText {
+  display: grid;
+  gap: var(--space-1);
 }
 
 .proofCardTitle {
-  margin: 0;
-  color: var(--color-fog);
-  font-size: 0.95rem;
-  font-weight: 600;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .proofStatus {
@@ -1693,7 +1808,9 @@ button.occurrenceCaseBadge {
 
 .proofMain .deliveryProofImage {
   display: block;
-  inline-size: 100%;
+  inline-size: auto;
+  max-inline-size: 100%;
+  max-block-size: var(--proof-image-max-height);
   margin: 0;
   object-fit: contain;
 }
@@ -1893,6 +2010,7 @@ button.occurrenceCaseBadge {
      conteúdo mais largo (nome de tipo de ocorrência sem quebra, por exemplo) como largura mínima. */
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin-block: var(--space-2);
 }
@@ -4265,6 +4383,20 @@ button.occurrenceCaseBadge {
   font-weight: 600;
 }
 
+.occurrenceEntryLink {
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
+.occurrenceEntryLink:hover,
+.occurrenceEntryLink:focus-visible {
+  color: var(--color-copper);
+  text-decoration: underline;
+}
+
 .occurrenceEntryItems {
   list-style: none;
   margin: var(--space-1) 0 0;
@@ -4952,4 +5084,159 @@ button.occurrenceCaseBadge {
   .canhotoBatchGrid {
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   }
+}
+
+/* Spec 233 RF3: a identidade da nota em grade rotulada; uma coluna no celular, três a partir do tablet. */
+.documentData {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.documentDataTitle {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataGrid {
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.documentDataField {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.documentDataLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataValue {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.documentDataLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-compact);
+  /* A caixa tem a altura do botão vizinho; a margem negativa devolve o respiro, a linha não cresce. */
+  margin-block: calc((var(--control-height-dense) - var(--control-height-compact)) / 2);
+  color: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+
+.documentDataLink:hover,
+.documentDataLink:focus-visible {
+  color: var(--color-copper);
+  text-decoration: underline;
+}
+
+/* Sob toque (não é breakpoint: `responsive.md`), o link rápido chega ao alvo como os botões vizinhos. */
+@media (pointer: coarse) {
+  .documentDataLink {
+    min-height: var(--touch-target);
+    margin-block: calc((var(--control-height-dense) - var(--touch-target)) / 2);
+  }
+}
+
+.documentDataText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* O título de "Ocorrências" vem de `TripOccurrences` (um `h4` de dica); na nota aberta ele é rótulo de seção como os vizinhos. */
+.documentOccurrences h4 {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.documentDataNote {
+  color: var(--color-slate-muted);
+  font-weight: 400;
+}
+
+.documentDataCost {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .documentDataGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Spec 239 D5: a contagem do que cai no primeiro ciclo, uma linha por tipo de evento. */
+.retentionImpactList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.retentionImpactList li {
+  display: flex;
+  align-items: center;
+  /* A linha tem a altura do controle compacto: o esqueleto que a antecede mede o mesmo. */
+  min-height: var(--control-height-compact);
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+  font-size: 0.85rem;
+}
+
+/* O botão que apaga veste o tom de alerta, sem ir para a outra ponta como `.actionDestructive`. */
+.retentionDestructive {
+  border-color: color-mix(in srgb, var(--color-alert) 45%, transparent);
+  color: var(--color-alert);
+}
+
+.retentionDestructive:hover:not(:disabled) {
+  border-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+}
+
+/* O esqueleto do painel repete a forma do conteúdo: linha de estado, rótulo + campo, fileira de ações. */
+.retentionSkeleton {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.retentionSkeletonField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
 }

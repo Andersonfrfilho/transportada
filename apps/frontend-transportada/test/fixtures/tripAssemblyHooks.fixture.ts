@@ -63,12 +63,18 @@ export type FakeTripClient = Pick<
   | 'correctTripOccurrenceItems'
   | 'createMultiVehicleSuggestion'
   | 'fieldDeliverDocument'
+  | 'listContractors'
+  | 'listOccurrenceAttachmentOverridesBatch'
+  | 'listOccurrenceTypes'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
   | 'readTripDeliveryProofs'
   | 'readTripDocumentProducts'
   | 'readTripTimeline'
   | 'registerTripOccurrence'
+  | 'replaceOccurrenceAttachmentOverrides'
+  | 'saveOccurrenceType'
+  | 'transferTripCrew'
 >
 
 /** Toda chamada não combinada falha alto: um teste que a dispara está medindo outra coisa. */
@@ -81,6 +87,10 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_CORRECT_TRIP_OCCURRENCE_ITEMS')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     fieldDeliverDocument: () => Promise.reject(new Error('UNEXPECTED_FIELD_DELIVER_DOCUMENT')),
+    listContractors: () => Promise.reject(new Error('UNEXPECTED_LIST_CONTRACTORS')),
+    listOccurrenceAttachmentOverridesBatch: () =>
+      Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_OVERRIDES_BATCH')),
+    listOccurrenceTypes: () => Promise.reject(new Error('UNEXPECTED_LIST_OCCURRENCE_TYPES')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
     readTripDeliveryProofs: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_DELIVERY_PROOFS')),
@@ -88,6 +98,10 @@ export function createUnexpectedTripClient(): FakeTripClient {
       Promise.reject(new Error('UNEXPECTED_READ_TRIP_DOCUMENT_PRODUCTS')),
     readTripTimeline: () => Promise.reject(new Error('UNEXPECTED_READ_TRIP_TIMELINE')),
     registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
+    replaceOccurrenceAttachmentOverrides: () =>
+      Promise.reject(new Error('UNEXPECTED_REPLACE_OCCURRENCE_OVERRIDES')),
+    saveOccurrenceType: () => Promise.reject(new Error('UNEXPECTED_SAVE_OCCURRENCE_TYPE')),
+    transferTripCrew: () => Promise.reject(new Error('UNEXPECTED_TRANSFER_TRIP_CREW')),
   }
 }
 

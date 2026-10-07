@@ -89,6 +89,24 @@ describe('settings panel placement contract', () => {
     }
   })
 
+  /**
+   * Spec 239 D7: a retenção da posição mora na aba Localização das viagens, ao lado do Comprovante —
+   * é onde o "Localização apagada" da linha do tempo aparece. Só essa aba liga a consulta dela.
+   */
+  test('a retenção da posição mora na aba Localização das viagens', () => {
+    expect(SETTINGS_PANEL_PLACEMENT.locationRetention).toEqual({
+      module: 'trip',
+      source: 'locationRetentionSettings',
+      tab: 'location',
+    })
+    expect(settingsPanelsOf('trip', 'location')).toEqual(['locationRetention'])
+    expect(settingsTabsOf('trip')).toEqual(['proof', 'location', 'types'])
+    expect(resolveSettingsDataScope('trip', 'location').locationRetentionSettings).toBe(true)
+    expect(resolveSettingsDataScope('trip', 'location').deliveryProofSettings).toBe(false)
+    expect(resolveSettingsDataScope('trip', 'proof').locationRetentionSettings).toBe(false)
+    expect(resolveSettingsDataScope('trip', 'trips').locationRetentionSettings).toBe(false)
+  })
+
   test('aba desconhecida cai na primeira', () => {
     expect(resolveCompanySettingsTab(undefined)).toBe('company')
     expect(resolveCompanySettingsTab('perfil-antigo')).toBe('company')

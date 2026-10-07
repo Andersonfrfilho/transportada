@@ -12,6 +12,9 @@
  */
 import Keycloak from 'keycloak-js'
 
+import { readBrowserColorTheme } from './browserColorTheme.service'
+import type { ColorTheme } from './colorTheme.constant'
+import { appendColorThemeToLoginUrl } from './colorTheme.service'
 import { getDriverEnvironment, isIdentifierFirstLoginEnabled } from './environment.config'
 
 const TOKEN_MINIMUM_VALIDITY_SECONDS = 30
@@ -350,12 +353,33 @@ export function createKeycloakAuthSession(
   }
 }
 
-const AUTH_SESSION = createKeycloakAuthSession(() =>
-  createKeycloakAuthProvider(
-    new Keycloak(getDriverEnvironment().keycloak),
-    getAuthenticationCallbackUrl(),
-  ),
-)
+/**
+ * ADR-0060 (spec 231): a escolha de tema do app viaja na URL de login, porque o Keycloak é outra
+ * origem e não alcança o `localStorage` onde ela mora. A costura é `keycloak.createLoginUrl` — no
+ * keycloak-js é campo de instância e as chamadas internas são `this.createLoginUrl(...)` —, então
+ * sobrescrever na instância cobre entrada, reautenticação e a etapa de identificação de uma vez.
+ * Ninguém escolhe nada do lado do Keycloak: o que viaja é cópia da escolha daqui, reescrita a cada
+ * entrada.
+ */
+export function shareColorThemeWithLoginScreen(input: {
+  readonly keycloak: Pick<Keycloak, 'createLoginUrl'>
+  readonly readTheme: () => ColorTheme
+}): void {
+  const createLoginUrl = input.keycloak.createLoginUrl.bind(input.keycloak)
+
+  input.keycloak.createLoginUrl = async (options) =>
+    appendColorThemeToLoginUrl({
+      url: await createLoginUrl(options),
+      theme: input.readTheme(),
+    })
+}
+
+const AUTH_SESSION = createKeycloakAuthSession(() => {
+  const keycloak = new Keycloak(getDriverEnvironment().keycloak)
+  shareColorThemeWithLoginScreen({ keycloak, readTheme: readBrowserColorTheme })
+
+  return createKeycloakAuthProvider(keycloak, getAuthenticationCallbackUrl())
+})
 
 export function getKeycloakAuthProvider(): KeycloakAuthProvider {
   return AUTH_SESSION.getProvider()

@@ -264,7 +264,9 @@ describe('chegada da parada libera as ações das notas (pedido do usuário 25/0
       'utf8',
     )
 
-    expect(card).toInclude('{isFieldWorkBlocked || isArrivalRecorded ? null : canReportArrival ? (')
+    expect(card).toInclude(
+      '{areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (',
+    )
     expect(card).not.toInclude('isFieldWorkBlocked || stop.arrivedAt !== null ? null')
     expect(card).toInclude('{isEnRoute && !isArrivalRecorded ? (')
     /** Sem hora do servidor, o selo diz "na fila" em vez de inventar um horário. */

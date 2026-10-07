@@ -16,8 +16,10 @@ import {
 import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
+import type { CrewTransferResult } from '../shared/tripCrewTransfer.types'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
 import { TripCrewDialog } from './TripCrewDialog.component'
+import { TripCrewTransferDialog } from './TripCrewTransferDialog.component'
 import styles from '../styles/trip.module.css'
 
 export type TripHeaderActionsProps = Readonly<{
@@ -43,6 +45,7 @@ export type TripHeaderActionsProps = Readonly<{
   isFiscalReadinessPanelVisible: boolean
   isPlanRoutePending: boolean
   isStartRoutePending: boolean
+  isTransferringCrew: boolean
   onCancel: () => void
   /** Spec 217 T310: `PATCH /trips/:id/crew` — a viagem inteira volta atualizada (mesmo invalidate). */
   onChangeCrew: (
@@ -52,6 +55,14 @@ export type TripHeaderActionsProps = Readonly<{
       vehicleId: string
     }>,
   ) => Promise<unknown>
+  /** Spec 249: `POST /trips/:id/crew-transfers` — a viagem que já saiu troca de tripulação, sem veículo. */
+  onTransferCrew: (
+    input: Readonly<{
+      driverIds: readonly string[]
+      helperIds: readonly string[]
+      reason: string
+    }>,
+  ) => Promise<CrewTransferResult>
   /** Spec 185 RF4/RF9: `loadRemaining` separa e carrega o que falta e despacha numa transação. */
   onDispatch: (input: { readonly loadRemaining: boolean }) => void
   /** A nota é a mesma que o selo da linha abre — o resumo do cabeçalho leva direto ao diálogo dela. */
@@ -94,6 +105,7 @@ export function TripHeaderActions({
   isFiscalReadinessPanelVisible,
   isPlanRoutePending,
   isStartRoutePending,
+  isTransferringCrew,
   onCancel,
   onChangeCrew,
   onDispatch,
@@ -101,6 +113,7 @@ export function TripHeaderActions({
   onPlanRoute,
   onSelectDriverId,
   onStartRoute,
+  onTransferCrew,
   requiresTrailer,
   selectedDriverId,
   trip,
@@ -109,6 +122,7 @@ export function TripHeaderActions({
   const [isDispatchConfirmOpen, setIsDispatchConfirmOpen] = useState(false)
   const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
   const [isCrewDialogOpen, setIsCrewDialogOpen] = useState(false)
+  const [isCrewTransferDialogOpen, setIsCrewTransferDialogOpen] = useState(false)
 
   const canStartRoute = canOfferTripFieldAction({
     action: 'startRoute',
@@ -116,7 +130,17 @@ export function TripHeaderActions({
     capabilities,
   })
 
-  if (!canManage && !canStartRoute) return null
+  /**
+   * Spec 249: visibilidade servida por `allowed-actions` e só para `trip.report-on-behalf` — o
+   * mesmo caminho da baixa do escritório. `canManage` não serve: o separador o tem e não transfere.
+   */
+  const canTransferCrew = canOfferTripFieldAction({
+    action: 'transferCrew',
+    canReportOnBehalf,
+    capabilities,
+  })
+
+  if (!canManage && !canStartRoute && !canTransferCrew) return null
 
   const canPlanRoute = canManage && trip.status === 'draft'
   const canDispatch = canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
@@ -206,6 +230,7 @@ export function TripHeaderActions({
     !canDispatch &&
     !canCancel &&
     !canDefineCrew &&
+    !canTransferCrew &&
     !canStartRoute &&
     readinessSummary === null &&
     openOccurrences === 0
@@ -261,6 +286,18 @@ export function TripHeaderActions({
         >
           <Icon name="truck" />
           {t('stateActions.defineCrew')}
+        </Button>
+      ) : null}
+      {canTransferCrew ? (
+        <Button
+          disabled={isTransferringCrew}
+          onClick={() => setIsCrewTransferDialogOpen(true)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="truck" />
+          {t('stateActions.transferCrew')}
         </Button>
       ) : null}
       {canDispatch ? (
@@ -358,6 +395,14 @@ export function TripHeaderActions({
         onSubmit={onChangeCrew}
         trip={trip}
         vehicles={crewVehicles}
+      />
+
+      <TripCrewTransferDialog
+        drivers={crewDrivers}
+        isOpen={isCrewTransferDialogOpen}
+        onClose={() => setIsCrewTransferDialogOpen(false)}
+        onSubmit={onTransferCrew}
+        trip={trip}
       />
     </div>
   )

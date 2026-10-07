@@ -8,7 +8,6 @@
     "certificates": "Certificados",
     "taxes": "Tributos",
     "driverAllowance": "Diária do motorista",
-    "occurrenceTypes": "Tipos de ocorrência",
     "entryKinds": "Espécies de lançamento",
     "quickReplies": "Respostas rápidas",
     "settingsResolution": "Verificar configuração"
@@ -283,7 +282,7 @@
   },
   "occurrenceTypeCatalog": {
     "title": "Tipos de ocorrência",
-    "hint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
+    "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "add": "Cadastrar tipo",
     "name": "Nome do tipo",
@@ -298,6 +297,10 @@
     "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "allowsMultipleItems": "Aceita vários itens",
+    "itemsMode": "Produtos",
+    "itemsModeHint": "Sem produtos: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Produtos opcionais: quem registra pode apontar os produtos.",
+    "itemsModeOff": "Sem produtos",
+    "itemsModeOptional": "Produtos opcionais",
     "redeliveryPolicy": "Admite reentrega",
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
@@ -314,23 +317,199 @@
     "flowDocument": "De nota",
     "flowStop": "De parada",
     "exceptions": {
-      "title": "Exceções",
-      "show": "Ver exceções",
-      "hide": "Esconder exceções",
-      "contractorTitle": "Por contratante",
-      "recipientTitle": "Por destinatário",
-      "contractor": "Contratante",
-      "contractorPlaceholder": "Buscar por nome ou CNPJ",
-      "recipientTaxId": "CNPJ ou CPF do destinatário",
+      "title": "Exceções por cliente",
+      "titleCount": "Exceções por cliente · {{count}}",
+      "intro": "A exceção vence a regra geral do tipo. Em cada campo, Igual ao tipo herda o que o tipo declara; a foto da exceção é sempre declarada.",
+      "empty": "Nenhuma exceção neste tipo.",
+      "loading": "Carregando as exceções…",
+      "failed": "Não foi possível carregar as exceções dos tipos. A regra geral de cada tipo segue valendo; recarregue a página para tentar de novo.",
+      "kindContractor": "Contratante",
+      "kindRecipient": "Destinatário",
+      "kind": "Quem",
+      "client": "Cliente",
+      "clientPlaceholder": "Buscar por nome ou CNPJ…",
+      "clientSearch": "Buscar cliente por nome ou CNPJ",
+      "clientEmpty": "Nenhum cliente encontrado.",
+      "pickClientFirst": "Escolha o cliente para poder adicionar a exceção.",
+      "clientsTruncated": "A lista de clientes pode estar incompleta: só os primeiros 3000 clientes ativos foram carregados, e quem ficou de fora não aparece para receber exceção.",
+      "contractorsTruncated": "A lista de contratantes pode estar incompleta: só os primeiros 3000 foram carregados, e quem ficou de fora não aparece para receber exceção.",
+      "clientsLoading": "Carregando os clientes cadastrados…",
+      "clientsFailed": "Não foi possível carregar os clientes cadastrados, então a exceção por destinatário não pode ser criada agora. A exceção só aceita cliente cadastrado; recarregue a página para tentar de novo.",
+      "contractorsFailed": "Não foi possível carregar os contratantes, então a exceção por contratante não pode ser criada agora. Recarregue a página para tentar de novo.",
+      "allClientsUsed": "Não há cliente cadastrado sem exceção neste tipo.",
+      "inheritMode": "Igual ao tipo",
+      "photo": "Foto",
+      "photoMinimum": "Mínimo de fotos",
+      "itemsMinimum": "Produtos exigidos",
+      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra.",
+      "readOnly": "Sem permissão para alterar as exceções.",
       "add": "Adicionar exceção",
       "remove": "Remover",
-      "emptyContractor": "Nenhuma exceção por contratante cadastrada.",
-      "emptyRecipient": "Nenhuma exceção por destinatário cadastrada."
+      "removeOf": "Remover exceção de {{name}}"
+    },
+    "identity": {
+      "title": "Identificação",
+      "name": "Nome",
+      "redelivery": "Devolução",
+      "flow": "Registro"
+    },
+    "create": {
+      "title": "Novo tipo"
+    },
+    "requirements": {
+      "scope": "regra geral",
+      "title": "O que exige",
+      "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos são os itens da nota que a ocorrência aponta.",
+      "mixedScope": "As exigências abaixo valem só nos momentos de rua (entrega da nota e chegada à parada). No galpão a regra é fixa.",
+      "stopOnlyScope": "Na chegada à parada só a foto é cobrada: observação, assinatura e produtos valem na entrega da nota.",
+      "fields": {
+        "photo": "Foto",
+        "note": "Observação",
+        "signature": "Assinatura",
+        "items": "Produtos"
+      },
+      "modes": {
+        "off": "Desligado",
+        "optional": "Opcional",
+        "required": "Obrigatório"
+      },
+      "hints": {
+        "photo": "Vale para o registro do motorista na rua. Desligado: não pede foto. Opcional: ele pode anexar. Obrigatório: a ocorrência só sai com a quantidade mínima de fotos.",
+        "note": "Desligado: o campo de observação não aparece. Opcional: o motorista pode escrever. Obrigatório: a ocorrência só sai com o texto preenchido.",
+        "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
+        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado."
+      },
+      "photoMinimum": {
+        "label": "Quantidade mínima de fotos",
+        "hint": "Só vale quando a foto é obrigatória. De 1 a 5."
+      },
+      "itemsMinimum": {
+        "label": "Produtos exigidos",
+        "all": "Todos os itens da nota",
+        "atLeast": "Ao menos N itens",
+        "count": "Quantidade mínima de produtos",
+        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra: não configure uma regra que o aparelho não cumpre."
+      }
+    },
+    "summary": {
+      "exceptionOne": "1 exceção",
+      "exceptionMany": "{{count}} exceções",
+      "noExceptions": "sem exceção",
+      "exceptionsLoading": "carregando exceções",
+      "exceptionsUnavailable": "exceções indisponíveis",
+      "inactive": "Inativo",
+      "notifies": "Avisa o contratante",
+      "needs": {
+        "photo": "Foto",
+        "note": "Observação",
+        "signature": "Assinatura",
+        "items": "Produtos",
+        "photoCount": "Foto ×{{count}}"
+      },
+      "needState": {
+        "off": "{{field}}: desligado",
+        "optional": "{{field}}: opcional",
+        "required": "{{field}}: obrigatório"
+      }
+    },
+    "moments": {
+      "title": "Em que momento pode acontecer",
+      "placeholder": "Escolha os momentos",
+      "searchPlaceholder": "Buscar momento",
+      "empty": "Nenhum momento encontrado.",
+      "clearAll": "Limpar momentos",
+      "remove": "Tirar momento {{label}}",
+      "apply": "Aplicar momentos",
+      "undo": "Desfazer",
+      "summary": "{{count}} momentos",
+      "labels": {
+        "separation": "Separação no galpão",
+        "document": "Entrega da nota",
+        "stop": "Chegada à parada",
+        "office": "Escritório, pelo motorista"
+      },
+      "note": "Observação, assinatura, produtos e fotos valem só nos momentos de rua (Entrega da nota e Chegada à parada). Nos outros momentos a regra é fixa.",
+      "problem": {
+        "empty": "Escolha ao menos um momento: sem nenhum o tipo não aparece para ninguém, então nada foi gravado.",
+        "documentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado."
+      }
+    },
+    "notification": {
+      "title": "Notificação",
+      "template": "Modelo da notificação",
+      "templateHint": "O e-mail que o contratante recebe quando este tipo é registrado. O texto se edita em Notificações; aqui só se escolhe qual modelo vale.",
+      "subject": "Assunto:",
+      "disabledReason": "O modelo só vale quando o tipo avisa o contratante. Ligue \"Avisar quando acontecer\" para escolher.",
+      "loading": "Carregando os modelos de e-mail…",
+      "failed": "Não foi possível carregar os modelos de e-mail. O modelo atual segue valendo; recarregue a página para tentar de novo.",
+      "missing": "O modelo \"{{key}}\" não está mais ativo, então nenhum e-mail sai por ele. Escolha outro modelo."
+    },
+    "filters": {
+      "title": "Filtros dos tipos",
+      "searchLabel": "Buscar tipos",
+      "searchPlaceholder": "Buscar por nome do tipo, ou por nome / CNPJ de quem tem exceção",
+      "clear": "Limpar",
+      "clearAll": "Limpar filtros",
+      "counter": "{{shown}} de {{total}} tipos",
+      "exceptionUnavailable": "O filtro Tem exceção fica indisponível enquanto as exceções não carregam.",
+      "emptyTitle": "Nenhum tipo corresponde",
+      "emptyReasonQuery": "Nenhum tipo tem esse nome, e ninguém com exceção tem esse nome ou CNPJ: \"{{query}}\".",
+      "emptyReasonPills_one": "Há 1 filtro ligado que nenhum tipo cumpre.",
+      "emptyReasonPills_other": "Há {{count}} filtros ligados que nenhum tipo cumpre juntos.",
+      "groups": {
+        "moment": "Momento",
+        "requirement": "Exige",
+        "other": "E ainda"
+      },
+      "chips": {
+        "moment": {
+          "separation": "Separação no galpão",
+          "document": "Entrega da nota",
+          "stop": "Chegada à parada",
+          "office": "Escritório"
+        },
+        "requirement": {
+          "photo": "Foto",
+          "note": "Observação",
+          "signature": "Assinatura",
+          "items": "Produtos"
+        },
+        "activity": {
+          "active": "Ativos",
+          "inactive": "Inativos"
+        },
+        "notification": {
+          "notifies": "Avisa contratante",
+          "silent": "Não avisa"
+        },
+        "exception": {
+          "has": "Tem exceção"
+        }
+      }
     }
   },
   "settingsResolution": {
+    "typeFields": {
+      "photoMode": "Foto",
+      "noteMode": "Observação",
+      "signatureMode": "Assinatura",
+      "itemsMode": "Produtos",
+      "photoMinimumCount": "Mínimo de fotos",
+      "itemsMinimumCount": "Mínimo de produtos"
+    },
+    "layers": {
+      "type": "Tipo",
+      "contractor": "Contratante",
+      "recipient": "Destinatário",
+      "default": "Padrão"
+    },
+    "itemsAll": "Todos os itens da nota",
+    "itemsAtLeast": "Ao menos {{count}}",
+    "photoCount_one": "{{count}} foto",
+    "photoCount_other": "{{count}} fotos",
+    "notApplicable": "Não se aplica",
     "title": "Verificar configuração efetiva",
-    "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e a exigência de foto de ocorrência que valem para essa combinação — a mesma conta que o app do motorista faria.",
+    "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e, em cada tipo de ocorrência, a foto, a observação, a assinatura, os produtos e os mínimos de fotos e de produtos que valem para essa combinação, com a camada que decidiu cada um — a mesma conta que o app do motorista faria.",
     "contractor": "Contratante",
     "contractorPlaceholder": "Buscar por nome ou CNPJ",
     "contractorSelected": "Contratante escolhido: {{contractor}}",

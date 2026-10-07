@@ -12,7 +12,12 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useTripCrewDialog } from '../hooks/useTripCrewDialog.hook'
 import type { TripDetail } from '../shared/trip.types'
-import { listHelperCandidates, readTripHelperIds } from '../shared/tripCrewHelpers.service'
+import {
+  listDriverCandidates,
+  listHelperCandidates,
+  readTripDriverIds,
+  readTripHelperIds,
+} from '../shared/tripCrewHelpers.service'
 import styles from '../styles/trip.module.css'
 
 type TripCrewDialogProps = Readonly<{
@@ -45,10 +50,15 @@ export function TripCrewDialog({
 }: TripCrewDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
+  /** Spec 235 D5: quem não dirige não é oferecido; o motorista atual fica para poder ser retirado. */
+  const driverCandidates = listDriverCandidates({
+    currentDriverIds: readTripDriverIds(trip),
+    drivers,
+  })
   const dialog = useTripCrewDialog({
     isOpen,
     onSubmit,
-    selectableDriverIds: drivers.map((driver) => driver.id),
+    selectableDriverIds: driverCandidates.map((driver) => driver.id),
     selectableVehicleIds: vehicles.map((vehicle) => vehicle.id),
     trip,
   })
@@ -95,7 +105,7 @@ export function TripCrewDialog({
         <div className={styles.fieldGrid}>
           <label>
             {t('crewDialog.drivers')}
-            {drivers.length === 0 ? (
+            {driverCandidates.length === 0 ? (
               <p className={styles.hint}>{t('crewDialog.driversEmpty')}</p>
             ) : (
               <MultiSelect
@@ -103,7 +113,10 @@ export function TripCrewDialog({
                 clearAllLabel={t('crewDialog.driversClearAll')}
                 emptyLabel={t('crewDialog.driversNoMatch')}
                 onChange={dialog.setDriverIds}
-                options={drivers.map((driver) => ({ label: driver.name, value: driver.id }))}
+                options={driverCandidates.map((driver) => ({
+                  label: driver.name,
+                  value: driver.id,
+                }))}
                 placeholder={t('crewDialog.driversPlaceholder')}
                 removeLabel={t('crewDialog.driversRemove')}
                 searchPlaceholder={t('crewDialog.driversSearch')}

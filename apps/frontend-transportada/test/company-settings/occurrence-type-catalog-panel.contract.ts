@@ -13,12 +13,13 @@ import {
   resolveSettingsDataScope,
   SETTINGS_PANEL_PLACEMENT,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
+import {
+  readOccurrenceTypeCreateSource,
+  readOccurrenceTypePanelSource,
+  readOccurrenceTypeUpdateSource,
+} from './occurrenceTypePanelSource.helper'
 
 const MODULES = new URL('../../src/modules/', import.meta.url)
-const PANEL = new URL(
-  '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
-  import.meta.url,
-)
 const PAGE = new URL(
   '../../src/modules/company-settings/pages/CompanySettings.page.tsx',
   import.meta.url,
@@ -61,36 +62,37 @@ async function findOccurrences(needle: string): Promise<readonly string[]> {
  * reescrito.
  */
 describe('catálogo de tipos de ocorrência em Configurações da empresa', () => {
-  it('o painel tem endereço em company-settings, aba própria', () => {
+  it('o painel mudou de endereço: tem exatamente um, em Ocorrências → Tipos (spec 246 CA01)', () => {
     expect(SETTINGS_PANEL_PLACEMENT.occurrenceTypeCatalog).toEqual({
-      module: 'company-settings',
+      module: 'trip',
       source: 'occurrenceTypeCatalog',
-      tab: 'occurrenceTypes',
+      tab: 'types',
     })
+    const addresses = Object.values(SETTINGS_PANEL_PLACEMENT).filter(
+      (placement) => placement.source === 'occurrenceTypeCatalog',
+    )
+    expect(addresses).toHaveLength(1)
   })
 
-  it('a aba liga a consulta só dela, e só com settings.manage e a aba ativa', () => {
-    expect(
-      resolveSettingsDataScope('company-settings', 'occurrenceTypes').occurrenceTypeCatalog,
-    ).toBe(true)
+  it('a aba liga a consulta só dela', () => {
+    expect(resolveSettingsDataScope('trip', 'types').occurrenceTypeCatalog).toBe(true)
+    expect(resolveSettingsDataScope('trip', 'proof').occurrenceTypeCatalog).toBe(false)
     expect(resolveSettingsDataScope('company-settings', 'company').occurrenceTypeCatalog).toBe(
       false,
     )
-
-    const page = readFileSync(PAGE, 'utf8')
-    expect(page).toMatch(/canManageSettings\s*&&\s*activeTab === 'occurrenceTypes'/u)
   })
 
-  it('a página de Configurações hospeda o painel na própria aba', () => {
+  it('a página de Configurações já não hospeda o painel', () => {
     const page = readFileSync(PAGE, 'utf8')
-    expect(page).toContain('<OccurrenceTypeCatalogPanel')
-    expect(page).toContain("tab === 'occurrenceTypes'")
+    expect(page).not.toContain('<OccurrenceTypeCatalogPanel')
+    expect(page).not.toContain("tab === 'occurrenceTypes'")
   })
 
-  it('o rótulo da aba fala do catálogo, não de avisos', () => {
-    expect(companySettingsPt.tabs.occurrenceTypes).toBeString()
-    expect(companySettingsPt.tabs.occurrenceTypes.toLowerCase()).not.toInclude('aviso')
-    expect(companySettingsEn.tabs.occurrenceTypes).toBeString()
+  it('o rótulo da aba antiga saiu de Configurações e o da nova fala do catálogo, não de avisos', () => {
+    expect(companySettingsPt.tabs).not.toHaveProperty('occurrenceTypes')
+    expect(companySettingsEn.tabs).not.toHaveProperty('occurrenceTypes')
+    expect(tripLocale.occurrenceFeed.tabs.types).toBeString()
+    expect(tripLocale.occurrenceFeed.tabs.types.toLowerCase()).not.toInclude('aviso')
   })
 
   it('o componente é reaproveitado, não duplicado: o antigo não existe mais', () => {
@@ -103,7 +105,7 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
         'utf8',
       ),
     ).toThrow()
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toContain('canManage')
     expect(panel).toContain('emailTemplateKey')
   })
@@ -127,10 +129,10 @@ describe('catálogo de tipos de ocorrência em Configurações da empresa', () =
  */
 describe('spec 166: interruptor "aceita vários itens" no cadastro', () => {
   it('o painel usa o primitivo Checkbox, nunca o input cru', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toContain('allowsMultipleItems')
     expect(panel).toContain("t('occurrenceTypeCatalog.allowsMultipleItems')")
-    expect(panel).toMatch(/<Checkbox[^>]*checked=\{allowsMultipleItems\}/u)
+    expect(panel).toMatch(/<Checkbox[^>]*checked=\{draft\.allowsMultipleItems\}/u)
     expect(panel).toMatch(/<Checkbox[^>]*checked=\{type\.allowsMultipleItems\}/u)
   })
 
@@ -154,7 +156,11 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
       'utf8',
     )
     expect(constant).toContain('OCCURRENCE_REDELIVERY_POLICY')
-    expect(constant).toContain('redeliveryPolicy: OccurrenceRedeliveryPolicy')
+    const domainType = readFileSync(
+      new URL('../../src/modules/trip/shared/occurrenceType.types.ts', import.meta.url),
+      'utf8',
+    )
+    expect(domainType).toContain('redeliveryPolicy: OccurrenceRedeliveryPolicy')
 
     const validation = readFileSync(
       new URL('../../src/modules/trip/shared/tripResponse.validation.ts', import.meta.url),
@@ -165,12 +171,10 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
   })
 
   it('toda chamada a onSave no painel carrega redeliveryPolicy — nenhuma escapa sem o campo', () => {
-    const panel = readFileSync(PANEL, 'utf8')
-    const calls = panel.split('onSave({').slice(1)
-    expect(calls.length).toBeGreaterThan(0)
-    for (const call of calls) {
-      const body = call.slice(0, call.indexOf('})'))
-      expect(body).toContain('redeliveryPolicy')
+    const panel = readOccurrenceTypePanelSource()
+    expect(panel.split('onSave({').length - 1).toBe(0)
+    for (const builder of [readOccurrenceTypeUpdateSource(), readOccurrenceTypeCreateSource()]) {
+      expect(builder).toContain('redeliveryPolicy')
     }
   })
 
@@ -193,7 +197,7 @@ describe('spec 164: redeliveryPolicy no cadastro do tipo de ocorrência', () => 
   })
 
   it('o painel usa o Select do design system, nunca <select> cru, para a política', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readOccurrenceTypePanelSource()
     expect(panel).toMatch(
       /<Select[^>]*ariaLabel=\{t\('occurrenceTypeCatalog\.redeliveryPolicy'\)\}/u,
     )
