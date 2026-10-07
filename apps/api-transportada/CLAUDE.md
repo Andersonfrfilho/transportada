@@ -491,7 +491,9 @@ docs/ai-context § "A ocorrência tem duas conversas".
   - o envio da operação passa a conversa ao motorista principal atual (`retarget`), e a conta
     anterior deixa de lê-la;
   - a resposta de quem não é o destinatário é 409 `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`;
-  - a tripulação é fixa desde a criação da viagem; o que muda é a conta por trás da ficha.
+  - a tripulação **não é fixa**: troca-se até `route_planned` (spec 217) e, com a viagem na rua,
+    por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097), que grava `trip_crew_events`;
+    a conversa segue o motorista principal de agora.
 - **O aviso automático à contratante** (T802, `emails_contractor` do tipo):
   - dispara e esquece depois do commit, nos cinco caminhos de registro, **em série** (T903, C4);
   - um por ocorrência (chave `occurrence-auto-mail:<id>`), sem autor, com a mensagem `automatic`;

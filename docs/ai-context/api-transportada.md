@@ -2016,9 +2016,9 @@ registro datado: o que se decidiu, o que se mediu e os defeitos achados no camin
 - **DKIM decide a identidade (S2).** O worker já gravava o `dkim_result` desde a 143, mas a leitura
   casava o `From` com o cadastro só pelo texto. Qualquer um com o token de resposta aparecia como o
   contato, com o selo "aprova cobranças". Agora só `aligned` identifica.
-- **A conversa do motorista (C1).** A tripulação é fixa desde a criação da viagem
-  (`trip_drivers.position`, sem rota que troque). O que muda é a **conta** por trás da ficha
-  (`fleet_drivers.membership_id`).
+- **A conversa do motorista (C1).** A tripulação troca até `route_planned` (spec 217) e, com a viagem
+  na rua, pela transferência da spec 249 (`trip_drivers.position` muda de dono; a conversa é
+  reapontada). Além disso, muda a **conta** por trás da ficha (`fleet_drivers.membership_id`).
   - Antes, a conversa ficava presa ao usuário do primeiro envio: o aviso ia à conta nova, que não
     via nada, e o co-motorista respondia numa conversa que não era dele.
   - Agora o envio da operação e a resposta do motorista principal assumem a conversa, e o resto
@@ -3021,3 +3021,30 @@ enquanto existir prévia por e-mail):
   `(company_id, contractor_id, recorded_at desc)` — o índice é por `recorded_at`, o relógio do banco, que a janela de
   e-mails do worker usa. **O upload recusa `Idempotency-Key` com o prefixo `email:`** (reservado à prévia por e-mail, 400).
   A pasta se chama `20261007040900_…`, depois da última de staging (renomeada na T4.7a, com o snapshot refeito).
+
+## Spec 249 — a viagem na rua troca de motorista e de ajudante (ADR-0097)
+
+- **Rota:** `POST /v1/trips/:id/crew-transfers`, permissão `trip.report-on-behalf` (admin, operador e
+  financeiro; o separador não alcança). Corpo estrito `{driverIds, helperIds, reason}` — **sem
+  `vehicleId`**. 201 com `data.trip` e `data.transfer` (`id`, `costBefore`, `costAfter`,
+  `costDifference`, `costHasGaps`, `mdfeDriverDivergence`; decimais string de 2 casas).
+- **Janela:** `isCrewTransferable` = `dispatched`, `in_transit`, `on_delivery_route`. Ação própria
+  `transferCrew` (publicada na lista `trip[]` de `allowed-actions`); a janela da 217 (`defineCrew`)
+  não mudou. `separating` e `loading` seguem sem troca.
+- **O que não muda:** `status`, `vehicle_id`, rota congelada, pedágio, ETA, paradas e notas. Em
+  `trips` só `updated_at`. **Nunca** `clearPlannedRoute`.
+- **Valor:** frete e receita não dependem do motorista. O custo (diária de motorista e de ajudante) é
+  **recalculado** e o evento guarda `cost_before`, `cost_after` e `cost_difference`. A conta é a de
+  `read-trip-valuation` (`trip-crew-cost.policy.ts`, `buildCostParcels` delega a ela) e roda **em
+  memória, dentro da transação e sob `FOR NO KEY UPDATE`** — não se lê `readContext` na transação.
+- **Histórico:** `trip_crew_events` (append-only por trigger; FK composta RESTRICT; CHECK
+  `cost_difference = cost_after − cost_before`), `audit_logs` `office.trip.crew-transfer` (só ids
+  opacos, sem nome nem motivo) e o item `crew_transfer` na linha do tempo (conteúdo aninhado em
+  `crewTransfer`; `costDifference` some para quem não tem `trip.financials`).
+- **MDF-e:** `mdfe_driver_divergence` é verdadeiro quando há MDF-e `authorized` **e** o conjunto de
+  motoristas (`role='driver'`) mudou. O MDF-e segue com o condutor anterior; incluir o condutor é
+  spec futura. Troca só de ajudante nunca diverge (ADR-0065).
+- **Erros:** `409 STATE_TRANSITION_NOT_ALLOWED` (`TRIP_CANCELLED`, `TRIP_COMPLETED`,
+  `TRIP_NOT_DISPATCHED`), `409 TRIP_CREW_UNCHANGED`, e os erros de ficha inelegível da criação.
+- **Risco conhecido (D10):** `financial-summary.query.ts` une o resultado congelado ao `trip_drivers`
+  **atual**; depois de uma transferência o total por motorista da viagem migra para o novo.
