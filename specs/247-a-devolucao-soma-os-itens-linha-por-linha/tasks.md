@@ -121,7 +121,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 
 > 🤖 Modelo: `sonnet`; T7.2 → `code-reviewer` `opus`
 
-- [ ] **T7.1** Revisão de design e usabilidade: print em 375, 768 e 1280 da aba Tipos (tipo aberto,
+- [x] **T7.1** Revisão de design e usabilidade: print em 375, 768 e 1280 da aba Tipos (tipo aberto,
       com e-mail e prévia), do registro no app do motorista e da correção. **Comparar o
       `preview.html` com a tela real, lado a lado**, com os mesmos dados, e registrar em
       `evidence.md` a tabela "elemento → preview → tela real → veredito" (rótulos, ordem, estados
