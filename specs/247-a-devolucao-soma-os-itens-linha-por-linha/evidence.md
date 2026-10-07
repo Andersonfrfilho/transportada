@@ -40,10 +40,29 @@
 
 ### T1.1 — `frontend-transportada` validação
 
-**Status**: ⏳ Pendente
+**Status**: ✅ Completo
+
+**Implementação**:
+- Adicionados 6 campos opcionais a `RawOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
+- Validação em `isOccurrenceType()` aceita os novos campos como opcionais e valida vocabulários
+- Transformação em `toOccurrenceType()` passa os campos novos adiante quando presentes
+- Contrato: teste que prova tipo COM e SEM as chaves é aceito
+
+**Gates**:
+- ✅ Typecheck: passou
+- ✅ Testes: 7210 pass, 0 fail (novo contrato incluído na lista)
 
 ---
 
 ### T1.2 — `frontend-driver` validação
 
-**Status**: ⏳ Pendente
+**Status**: ✅ Completo
+
+**Implementação**:
+- Adicionados 6 campos opcionais a `DriverOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
+- Validação em `isDriverOccurrenceType()` aceita os novos campos como opcionais e valida vocabulários
+- Contrato: teste que prova tipo COM e SEM as chaves é aceito, e rejeita valores inválidos
+
+**Gates**:
+- ✅ Typecheck: passou
+- ✅ Testes: 1247 pass, 0 fail (novo contrato incluído na lista)
