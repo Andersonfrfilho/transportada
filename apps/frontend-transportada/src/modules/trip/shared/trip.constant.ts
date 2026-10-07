@@ -301,7 +301,18 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'freightAmount',
   'freightRuleName',
   'freightSource',
+  /** Spec 236 T1.2b: ausente é API anterior; `null` é "sem prazo"; malformado cai sozinho (ver a guarda). */
+  'deliveryDeadline',
 ] as const
+
+/** Spec 236: as chaves exatas de cada estado do prazo de entrega — o que a API serializa, nada além. */
+export const TRIP_DELIVERY_DEADLINE_KEYS_BY_STATE = {
+  delivered_late: ['businessDaysLate', 'deliveredOn', 'dueOn', 'state'],
+  delivered_on_time: ['deliveredOn', 'dueOn', 'state'],
+  due_today: ['dueOn', 'state'],
+  on_time: ['businessDaysRemaining', 'dueOn', 'state'],
+  overdue: ['businessDaysLate', 'dueOn', 'state'],
+} as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
 export const TRIP_STOP_OPTIONAL_KEYS = [

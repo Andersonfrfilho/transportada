@@ -473,6 +473,19 @@ export type TripDocumentProduct = Readonly<{
   unitValue: string
 }>
 
+/** Spec 236: o prazo de entrega da nota. `not_applicable` da API chega como `null`, nunca como estado. */
+export type TripDocumentDeliveryDeadline =
+  | Readonly<{ businessDaysRemaining: number; dueOn: string; state: 'on_time' }>
+  | Readonly<{ dueOn: string; state: 'due_today' }>
+  | Readonly<{ businessDaysLate: number; dueOn: string; state: 'overdue' }>
+  | Readonly<{ deliveredOn: string; dueOn: string; state: 'delivered_on_time' }>
+  | Readonly<{
+      businessDaysLate: number
+      deliveredOn: string
+      dueOn: string
+      state: 'delivered_late'
+    }>
+
 export type TripDocumentDetail = TripDocument &
   Readonly<{
     cteAuthorized: boolean
@@ -515,6 +528,8 @@ export type TripDocumentDetail = TripDocument &
      */
     freightRuleName?: null | string
     freightSource?: TripDocumentFreightSource
+    /** Spec 236: ausente é API anterior; `null`, nota sem prazo (sem chegada, sem perfil, devolvida…). */
+    deliveryDeadline?: null | TripDocumentDeliveryDeadline
   }>
 
 /** O mesmo vocabulário de `TripAmounts.revenueSource` (spec 065 D7). */

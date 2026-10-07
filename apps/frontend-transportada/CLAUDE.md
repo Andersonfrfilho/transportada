@@ -445,6 +445,12 @@ fluxo existente**: "Montar viagem" navega a `/trips?createFromDocuments=` só co
 XML" é neutro (nunca alerta); ação sem nota roteável fica desabilitada com o motivo; sem `trip.manage` nenhuma ação
 aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T5.2".
 
+## O prazo de entrega da nota (spec 236 T1.2b)
+
+`documents[].deliveryDeadline` é aceito pelo painel (só tipo e guarda, sem selo ainda) **antes** de a API o mandar: opcional em
+`TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS`, chaves exatas por estado, e malformado cai **sozinho** (`dropMalformedDeliveryDeadline`) — sem isso o leitor
+tolerante levaria `contact` e `proofPending` junto. Nunca no `TripDocument`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 T1.2b".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de

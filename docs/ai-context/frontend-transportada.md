@@ -1381,3 +1381,17 @@ bloqueia se esvaziar; `useOccurrenceTypeRecordConfig` (exige `settings.manage`) 
 (`tripOccurrenceRequirements.validation.ts`) recusa forma errada e tolera `null`. `test/fixtures/occurrence-detail-values.golden.json` é cópia idêntica da API.
 
 **Verificado:** por texto no navegador (Vite 53010, API dublada) em 375/768/1280, sem estouro. **Não verificado:** a dica N14 só por contrato; nenhum `make smoke`.
+
+## Spec 236 T1.2b — o painel aceita o prazo de entrega antes da API o mandar
+
+`TripDocumentDetail.deliveryDeadline?: TripDocumentDeliveryDeadline | null` (`trip.types.ts`) é o prazo de entrega da nota: cinco estados
+(`on_time`, `due_today`, `overdue`, `delivered_on_time`, `delivered_late`), cada um com as **chaves exatas** do estado
+(`TRIP_DELIVERY_DEADLINE_KEYS_BY_STATE`) e `dueOn`/`deliveredOn` como data civil `YYYY-MM-DD` (nunca instante: `new Date('2026-10-15')` vira
+14/10 em São Paulo). `not_applicable` da API chega como `null`. **Esta task não renderiza nada**: o selo e o filtro são a Fase 2.
+
+⚠️ **A guarda mora em `isDocumentDetail` e o campo entra em `TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS`, mas isso sozinho derrubaria a nota.** O leitor
+tolerante (`readTolerantRecord`) cai para só os obrigatórios quando QUALQUER opcional vem fora da forma, e `contact`, `proofPending`, `volumeCount`…
+sumiriam juntos. Por isso `readTolerantDocumentDetail` passa antes por `dropMalformedDeliveryDeadline`
+(`tripDeliveryDeadline.validation.ts`), que tira só `deliveryDeadline` quando malformado. O campo vai **só** no detalhe, nunca no `TripDocument` (chaves
+exatas: uma chave nova o derrubaria). Contrato: `test/trip/delivery-deadline-tolerance.contract.ts`, com o JSON de referência
+`test/fixtures/trip-document-delivery-deadline.golden.json` (cópia idêntica da API, conferida lá). **Ordem de publicação: este painel antes da API.**

@@ -173,6 +173,10 @@ import {
 } from './tripGuards.validation'
 import { hasCrewTransferForKind } from './tripTimelineCrewTransfer.validation'
 import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
+import {
+  dropMalformedDeliveryDeadline,
+  isAbsentOrDeliveryDeadline,
+} from './tripDeliveryDeadline.validation'
 
 /**
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
@@ -407,7 +411,9 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
-      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES))
+      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES)) &&
+    /** Spec 236: ausente é API anterior; `null` é sem prazo; presente tem de ter o formato exato do estado. */
+    isAbsentOrDeliveryDeadline(value.deliveryDeadline)
   )
 }
 
@@ -490,7 +496,7 @@ function isDetail(value: unknown): value is TripDetail {
 }
 
 function readTolerantDocumentDetail(value: unknown): TripDocumentDetail | undefined {
-  return readTolerantRecord(value, {
+  return readTolerantRecord(dropMalformedDeliveryDeadline(value), {
     allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
     guard: isDocumentDetail,
     required: TRIP_DOCUMENT_DETAIL_KEYS,
