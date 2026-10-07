@@ -93,3 +93,28 @@ e `Export named 'NfseNationalTaxationCodeMissingError' not found`);
 
 `bun run typecheck` fica **vermelho por construção** nesta task (22 erros TS: símbolos que a T2.2/T2.3/T2.4
 criam). Fecha verde na T2.3, quando os símbolos existem.
+
+## E10 — T2.2: migration `20261007205304_nfse_national_taxation` (07/10/2026)
+
+Aditiva: `nfse_emission_profiles.national_taxation_code` (text, check `^[0-9]{6}$`),
+`nfse_emission_profiles.simples_national_rate` (numeric(9,6), check `>= 0`; percentual: `2.000000` =
+2,00%), `nfse_issuance_attempts.provider_request_key` (text). Todas nuláveis, sem DEFAULT. Pasta com
+`migration.sql`, `rollback.sql` (recusa com valor gravado, remove a linha do journal) e `snapshot.json`.
+Numeração conferida contra `origin/staging` (última: `20261007140303_business_calendar`; `rev-list HEAD..origin/staging` = 0).
+
+- `bun run db:generate --name probe` (apps/api-transportada) -> `{"status":"no_changes"}`.
+- **`make migration-test` NÃO foi usado**: ele chama `postgres-up` (Docker Compose do projeto, o Postgres
+  local tem histórico de I/O error e compartilha o projeto com a árvore principal). Rodado o comando que o
+  target executa (`bun run --cwd apps/api-transportada db:test`) com `DRIZZLE_TEST_DATABASE_URL` apontando
+  para um **Postgres 18.4 nativo descartável** (`initdb` no scratchpad, porta 55433, `fsync=off`):
+  `bun run db:test` -> **156 pass / 0 fail** (2614 expects; eram 2592 antes da asserção nova, então a
+  integração rodou, não pulou).
+- Asserção nova `test/database-migration/nfse-national-taxation.assertion.ts` (ligada em
+  `database-migration.integration.ts`): linha antiga atravessa com NULL; recusa `16020`, `1602011`,
+  `16020a`, `''` e taxa negativa pelas CHECK; rollback recusa com perfil preenchido e, depois, com chave de
+  tentativa; sem dados remove as três colunas e a migration volta a aplicar.
+- `test/nfse-schema.contract.test.ts` -> 58 pass / 0 fail. `static-migration.contract.ts` ganhou o nome
+  da pasta na lista.
+- `bunx eslint` nos arquivos tocados e `bunx prettier --check` limpos.
+- `bun run typecheck` segue com os mesmos 22 erros da T2.1 (só em `test/`, símbolos da T2.3/T2.4); nenhum
+  erro em `src/`.

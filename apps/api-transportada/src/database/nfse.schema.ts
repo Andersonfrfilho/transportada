@@ -125,6 +125,7 @@ export const NFSE_ISSUANCE_OUTBOX_STATUSES = ['requested', 'retry_scheduled'] as
 export type NfseIssuanceOutboxStatus = (typeof NFSE_ISSUANCE_OUTBOX_STATUSES)[number]
 
 const IBGE_CITY_PATTERN = '^[0-9]{7}$'
+export const NFSE_NATIONAL_TAXATION_CODE_PATTERN = '^[0-9]{6}$'
 const CNAE_PATTERN = '^[0-9]{7}$'
 const CNPJ_PATTERN = '^[A-Z0-9]{12}[0-9]{2}$'
 const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'
@@ -157,6 +158,8 @@ export const nfseEmissionProfiles = pgTable(
     cnaeCode: text('cnae_code').notNull(),
     serviceListItem: text('service_list_item').notNull(),
     municipalTaxationCode: text('municipal_taxation_code').notNull().default(''),
+    nationalTaxationCode: text('national_taxation_code'),
+    simplesNationalRate: rateColumn('simples_national_rate'),
     nbsCode: text('nbs_code').notNull().default(''),
     issRate: rateColumn('iss_rate').notNull().default('0'),
     issWithheld: boolean('iss_withheld').notNull().default(false),
@@ -215,6 +218,14 @@ export const nfseEmissionProfiles = pgTable(
     check(
       'nfse_emission_profiles_iss_rate_check',
       sql`${table.issRate} >= 0 and ${table.issRate} <= 1`,
+    ),
+    check(
+      'nfse_emission_profiles_national_taxation_code_check',
+      sql`${table.nationalTaxationCode} is null or ${table.nationalTaxationCode} ~ ${raw(`'${NFSE_NATIONAL_TAXATION_CODE_PATTERN}'`)}`,
+    ),
+    check(
+      'nfse_emission_profiles_simples_national_rate_check',
+      sql`${table.simplesNationalRate} is null or ${table.simplesNationalRate} >= 0`,
     ),
     check(
       'nfse_emission_profiles_municipality_check',
@@ -555,6 +566,7 @@ export const nfseIssuanceAttempts = pgTable(
     lastErrorCode: text('last_error_code'),
     lastErrorCause: text('last_error_cause'),
     lastErrorMessage: text('last_error_message'),
+    providerRequestKey: text('provider_request_key'),
     correlationId: text('correlation_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

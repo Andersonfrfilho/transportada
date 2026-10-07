@@ -33,6 +33,8 @@ describe('nfse emission profile schema', () => {
       'cnae_code',
       'service_list_item',
       'municipal_taxation_code',
+      'national_taxation_code',
+      'simples_national_rate',
       'nbs_code',
       'iss_rate',
       'iss_withheld',
@@ -72,7 +74,7 @@ describe('nfse national taxation columns', () => {
     const profiles = requireSchemaTable('nfseEmissionProfiles')
     const checks = checkSqlByName(profiles)
 
-    expect(columnNames(profiles)).toContainAllValues([
+    expect(columnNames(profiles)).toContainValues([
       'national_taxation_code',
       'simples_national_rate',
     ])
@@ -309,6 +311,7 @@ describe('nfse issuance rail schema', () => {
       'last_error_code',
       'last_error_cause',
       'last_error_message',
+      'provider_request_key',
       'correlation_id',
       'created_at',
       'updated_at',
