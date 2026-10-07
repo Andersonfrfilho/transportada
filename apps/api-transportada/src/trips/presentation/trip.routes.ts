@@ -4,7 +4,11 @@
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceDeclaredAmountScope,
+  OccurrenceMoment,
+  OccurrenceTypeFlow,
+} from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
   DeliveryProofView,
@@ -290,7 +294,13 @@ type SaveOccurrenceTypeInput = {
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
+  /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
+  readonly declaredAmountLabel?: string | undefined
+  readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
+  readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
   readonly emailBody: string
+  /** Spec 247 (RF6): o formato da linha de item; ausente é "não mexa". */
+  readonly emailItemLineTemplate?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
@@ -320,6 +330,9 @@ type SaveOccurrenceTypeInput = {
   readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 247 (RF1): o número do documento do cliente; ausente é "não mexa". */
+  readonly referenceNumberLabel?: string | undefined
+  readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
   /** Spec 246 (RF1): ausente é "não mexa" — ver o caso de uso. */
   readonly signatureMode?: DeliveryProofFieldMode | undefined
   readonly stage: 'delivery' | 'separation'

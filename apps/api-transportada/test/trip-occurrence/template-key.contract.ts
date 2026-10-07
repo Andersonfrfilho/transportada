@@ -112,7 +112,7 @@ async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => v
 }
 
 describe('gravação do tipo com template do módulo', () => {
-  test('key válida grava a key e zera assunto/corpo — o template manda', async () => {
+  test('key válida grava a key e mantém assunto/corpo — são dois canais (spec 247 RF2)', async () => {
     let savedValues: Record<string, unknown> = {}
     const saved = await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
@@ -126,8 +126,8 @@ describe('gravação do tipo com template do módulo', () => {
     })
 
     expect(savedValues.emailTemplateKey).toBe('billing.invoice-due')
-    expect(savedValues.emailSubject).toBe('')
-    expect(savedValues.emailBody).toBe('')
+    expect(savedValues.emailSubject).toBe('assunto digitado')
+    expect(savedValues.emailBody).toBe('corpo digitado')
     expect(saved.emailTemplateKey).toBe('billing.invoice-due')
   })
 
@@ -192,14 +192,23 @@ describe('aviso da ocorrência com template do módulo', () => {
     expect(calls[0]?.templateKey).toBe(NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE)
   })
 
-  /** Com o template no módulo, o e-mail pronto do registro não sai do assunto/corpo do tipo. */
-  test('tipo com key não devolve e-mail montado do legado', async () => {
+  /** Spec 247 RF2: a chave é do aviso interno; o e-mail à contratante usa o assunto/corpo do tipo. */
+  test('tipo com key e texto próprio devolve o e-mail montado do texto', async () => {
     const registered = await registrar(
       buildType({
         emailBody: 'sobra legada',
         emailSubject: 'sobra legada',
         emailTemplateKey: 'trip.ocorrencia-personalizada',
       }),
+      () => undefined,
+    )
+
+    expect(registered.email).toEqual({ body: 'sobra legada', subject: 'sobra legada' })
+  })
+
+  test('tipo com key e sem assunto não devolve e-mail montado', async () => {
+    const registered = await registrar(
+      buildType({ emailTemplateKey: 'trip.ocorrencia-personalizada' }),
       () => undefined,
     )
 

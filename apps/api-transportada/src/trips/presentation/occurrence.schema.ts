@@ -12,13 +12,19 @@ import type { ReportedLocation } from '../application/driver-field-report.port.j
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
+  OCCURRENCE_DECLARED_AMOUNT_SCOPES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
-import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
+import {
+  emailBodyTemplateSchema,
+  emailItemLineTemplateSchema,
+  emailSubjectTemplateSchema,
+} from './occurrence-template-fields.schema.js'
 import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
@@ -334,6 +340,9 @@ export async function parseAttachOccurrencePhotoRequest(
   }
 }
 
+/** Spec 247 (RF1): rótulo editável de um campo do registro — aparado, de 1 a 40 caracteres. */
+const requirementLabelSchema = z.string().trim().min(1).max(OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH)
+
 /**
  * O cadastro do tipo. ⚠️ `stage` é **obrigatório**: é ele que decide quem registra, e um padrão
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
@@ -342,6 +351,22 @@ export async function parseAttachOccurrencePhotoRequest(
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
+    /**
+     * Spec 247 (RF1): o número do documento do cliente (ex.: a NFD) e o valor pago digitado, cada um
+     * com modo, rótulo e (o valor) escopo. ⚠️ **Opcionais sem `default`, pelo mesmo motivo de
+     * `attachmentMode`**: ausente é "não mexa" — um padrão escondido desligaria, a cada edição de
+     * e-mail, o que a transportadora configurou.
+     */
+    declaredAmountLabel: requirementLabelSchema.optional(),
+    declaredAmountMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    declaredAmountScope: z.enum(OCCURRENCE_DECLARED_AMOUNT_SCOPES).optional(),
+    referenceNumberLabel: requirementLabelSchema.optional(),
+    referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /**
+     * Spec 247 (RF5, RF6): o formato de cada linha de item do e-mail, conferido com os marcadores de
+     * LINHA — `{{linhasItens}}` ali dentro seria recursão. Ausente é "não mexa"; vazio é a linha padrão.
+     */
+    emailItemLineTemplate: emailItemLineTemplateSchema.optional(),
     /**
      * Spec 166 (RF3/RF9), spec 246 T1c.3 (RF1b): um produto ou vários. ⚠️ **Opcional sem `default`,
      * pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um `default(true)` religaria
@@ -410,34 +435,13 @@ const occurrenceTypeSchema = z
      * marcado "segue sem a nota" desligaria a marca sem erro nenhum. Ausente é "não mexa".
      */
     leavesDocumentBehind: z.boolean().optional(),
+    /** Marcador desconhecido é recusado aqui, no cadastro — ver `occurrence-template-fields.schema.ts`. */
+    emailBody: emailBodyTemplateSchema.default(''),
+    emailSubject: emailSubjectTemplateSchema.default(''),
     /**
-     * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
-     * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.
-     */
-    emailBody: z
-      .string()
-      .max(4000)
-      .default('')
-      .refine(
-        (texto) => unknownTemplatePlaceholders({ context: 'body', template: texto }).length === 0,
-        {
-          message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
-        },
-      ),
-    emailSubject: z
-      .string()
-      .max(200)
-      .default('')
-      .refine(
-        (texto) =>
-          unknownTemplatePlaceholders({ context: 'subject', template: texto }).length === 0,
-        {
-          message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
-        },
-      ),
-    /**
-     * A chave do template do módulo de notificações que o tipo seleciona. Presente, ela é
-     * conferida contra o catálogo da empresa na gravação, e assunto/corpo acima são ignorados.
+     * A chave do template do módulo de notificações que o tipo seleciona para o aviso interno. Presente,
+     * ela é conferida contra o catálogo da empresa na gravação; assunto/corpo acima são o e-mail à
+     * contratante, outro canal, e continuam gravados (spec 247 RF2).
      */
     emailTemplateKey: z.string().trim().min(1).max(120).nullable().default(null),
     /**
@@ -499,6 +503,9 @@ const overrideRequirementFields = {
     .optional(),
   itemsMode: overrideModeSchema,
   noteMode: overrideModeSchema,
+  /** Spec 247 (D8): os dois modos novos — exigência, mesma natureza da foto e da observação. */
+  declaredAmountMode: overrideModeSchema,
+  referenceNumberMode: overrideModeSchema,
   photoMinimumCount: z
     .number()
     .int()

@@ -5,6 +5,7 @@
  */
 import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
@@ -122,8 +123,17 @@ export type OccurrenceTypeRecord = {
    * implementação real (`findOccurrenceType`) sempre grava.
    */
   readonly attachmentMode?: DeliveryProofFieldMode
+  /**
+   * Spec 247 (RF1): o valor pago digitado — modo (`'off'` ausente), escopo (`'item'` ausente) e
+   * rótulo. Opcionais só para os dublês de teste; a leitura real (`findOccurrenceType`) sempre grava.
+   */
+  readonly declaredAmountLabel?: string
+  readonly declaredAmountMode?: DeliveryProofFieldMode
+  readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
+  /** Spec 247 (RF6): o formato da linha de item; vazio usa a linha padrão. Opcional só em dublê. */
+  readonly emailItemLineTemplate?: string
   readonly emailSubject: string
   /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
   readonly emailTemplateKey: null | string
@@ -177,6 +187,9 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 247 (RF1): o número do documento do cliente — modo (`'off'` ausente) e rótulo. */
+  readonly referenceNumberLabel?: string
+  readonly referenceNumberMode?: DeliveryProofFieldMode
   /** Spec 246 (RF1): a exigência da assinatura. Ausente é `'off'`; só os dublês de teste a omitem. */
   readonly signatureMode?: DeliveryProofFieldMode
   readonly stage: TripOccurrenceStage
@@ -477,8 +490,7 @@ async function renderEmail(params: {
   readonly occurrenceType: OccurrenceTypeRecord
   readonly scope: { readonly productCodes: readonly string[] }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
-  /** Com template do módulo, o aviso sai pelo trilho de notificação — não há e-mail a montar aqui. */
-  if (params.occurrenceType.emailTemplateKey !== null) return null
+  /** Spec 247 (RF2): a chave é do aviso interno; o e-mail à contratante só depende do assunto. */
   if (params.occurrenceType.emailSubject === '') return null
 
   const values = await params.input.repository.readTemplateValues({

@@ -70,7 +70,7 @@ explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T4.4 é 🧠 — `opus`: é onde a exigência efetiva pode divergir do app)
 
-- [ ] **T4.1** Cadastro: `occurrence.schema.ts` com os campos e o contexto da linha;
+- [x] **T4.1** Cadastro: `occurrence.schema.ts` com os campos e o contexto da linha;
       `save-occurrence-type` sem zerar assunto/corpo (RF2), `422
 OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gravados. Contrato
       e integração (CA05) **antes**.

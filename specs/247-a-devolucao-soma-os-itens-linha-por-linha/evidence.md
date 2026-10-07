@@ -517,3 +517,73 @@ Cada mutação em `occurrence-template.policy.ts`, restaurada do original depois
 ```
 
 Revertidas todas, mesmo comando: `552 pass · 0 fail`.
+
+## Fase 4 — API
+
+### T4.1 — Cadastro do tipo: campos novos, 422 do valor pago e RF2
+
+**Contrato e integração antes.** `test/trip-occurrence/declared-amount-type-write.contract.ts` (entrypoint
+`trip-occurrence.contract.test.ts`, 21 casos) e `test/integration/occurrence-type-declared-amount-write.integration.ts`
+(na lista `test:integration` do `package.json`, 6 casos, CA05 incluída) escritos antes do código. O contrato
+ampliado de `template-key.contract.ts` passou a afirmar RF2 (a chave não zera assunto/corpo; o `email` do registro
+só depende do assunto). Vermelho antes da implementação, de `apps/api-transportada`
+(`bun --env-file=../../.env.test test --timeout 120000 ./test/trip-occurrence.contract.test.ts`, só a cauda foi
+guardada):
+
+```text
+Expected constructor: [class OccurrenceTypeDeclaredAmountNeedsItemsError]
+Received value: undefined
+(fail) valor pago por item exige produtos, sobre o estado resultante (spec 247 RF1) > ligar o valor pago por item num tipo que já tem produtos desligados é 422
+Expected: "assunto do SAC"
+Received: ""
+(fail) o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05) > salvar com email_template_key mantém assunto e corpo como vieram
+ 561 pass
+ 12 fail
+```
+
+**O que mudou** (tudo em `apps/api-transportada/src`):
+
+- `trips/presentation/occurrence.schema.ts`: `declaredAmountMode|Scope|Label`, `referenceNumberMode|Label`,
+  `emailItemLineTemplate` no corpo do `PUT` do tipo, **todos opcionais sem `default`** (ausente = "não mexa");
+  rótulo aparado de 1 a 40; nas exceções, `referenceNumberMode` e `declaredAmountMode` nulos/opcionais
+  (`overrideRequirementFields`). Marcadores conferidos por contexto em `occurrence-template-fields.schema.ts`
+  (novo; compartilhado com a prévia): assunto, corpo e linha de item, cada um com a sua lista.
+- `trips/domain/occurrence-declared-amount-shape.policy.ts` (novo): `assertDeclaredAmountHasItems` — inválido é
+  `declared_amount_mode <> 'off' AND declared_amount_scope = 'item' AND items_mode = 'off'` (os três termos),
+  lido sobre o estado **resultante** (campo ausente lê o gravado; sem gravado, os padrões das colunas).
+- `trips/application/save-occurrence-type.use-case.ts`: chama a guarda; **não zera mais assunto/corpo** com
+  `email_template_key` (RF2); o estado gravado também é lido quando algum campo novo vem ausente.
+  `save-occurrence-type-values.mapper.ts` repassa os seis campos novos.
+- `trips/infrastructure/delivery-proof-read.support.ts`: `findOccurrenceType`, `listOccurrenceTypes` e o retorno de
+  `writeOccurrenceTypeRow` devolvem os campos novos; INSERT usa o padrão da coluna e UPDATE **omite** o campo
+  ausente (os três estados). A tradução da CHECK `company_occurrence_types_declared_amount_items_check` para o
+  mesmo 422 já existia (Fase 2) e a corrida é coberta por teste de integração.
+- `occurrence-override-requirement-columns.support.ts` + `drizzle-occurrence-attachment-overrides.repository.ts`: os
+  dois modos novos nas exceções — ausente → `null` no INSERT e "não mexa" no UPDATE; nulo herda; valor grava;
+  lidos nas listas por tipo e em lote.
+- `register-trip-occurrence.use-case.ts` (`renderEmail`): deixou de pular o modelo próprio quando há
+  `emailTemplateKey` (RF2 do `spec.md`; efeito declarado: tipo com chave **e** assunto passa a devolver o e-mail
+  montado no registro).
+
+**Gates (de `apps/api-transportada`, salvo indicação):**
+
+```text
+$ bun run typecheck (raiz) → 7 × tsc --noEmit, sem saída (verde)
+$ bun run lint (API)       → eslint ... --max-warnings=0, sem saída (verde)
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+$ bun --env-file=../../.env.test test --timeout 120000          (contrato)
+ 10141 pass · 25 skip · 0 fail · Ran 10166 tests across 199 files. [127.57s]
+$ DATABASE_URL=postgres://postgres@127.0.0.1:56247/postgres bun --env-file=../../.env.test test --timeout 120000 \
+    ./test/integration/occurrence-type-declared-amount-write.integration.ts ./test/integration/occurrence-automatic-mail.integration.ts \
+    ./test/integration/occurrence-type-items-mode.integration.ts ./test/integration/occurrence-type-minimum-counts.integration.ts \
+    ./test/integration/occurrence-declared-amount.integration.ts
+ 24 pass · 0 fail · Ran 24 tests across 5 files. [62.31s]
+```
+
+Banco da integração: Postgres 18 **nativo descartável** na porta 56247 (initdb no scratchpad), `DATABASE_URL`
+por variável de ambiente; nada de staging, produção nem do 65432.
+
+⚠️ `bun run test` (o script, que não leva `--timeout 120000`) falha 9 testes de
+`toll booth catalog repository (spec 154)` por **timeout de 5 s** — contra o banco do `.env.test` (infra de E2E,
+inalcançável aqui), não contra o código desta task; o comando de contrato desta spec (com `--timeout 120000`) fecha
+verde como acima.

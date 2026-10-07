@@ -54,11 +54,13 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
     return this.database
       .select({
         attachmentMode: companyOccurrenceTypeContractorOverrides.attachmentMode,
+        declaredAmountMode: companyOccurrenceTypeContractorOverrides.declaredAmountMode,
         contractorId: companyOccurrenceTypeContractorOverrides.contractorId,
         itemsMinimumCount: companyOccurrenceTypeContractorOverrides.itemsMinimumCount,
         itemsMode: companyOccurrenceTypeContractorOverrides.itemsMode,
         noteMode: companyOccurrenceTypeContractorOverrides.noteMode,
         photoMinimumCount: companyOccurrenceTypeContractorOverrides.photoMinimumCount,
+        referenceNumberMode: companyOccurrenceTypeContractorOverrides.referenceNumberMode,
         signatureMode: companyOccurrenceTypeContractorOverrides.signatureMode,
       })
       .from(companyOccurrenceTypeContractorOverrides)
@@ -78,10 +80,12 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
     return this.database
       .select({
         attachmentMode: companyOccurrenceTypeRecipientOverrides.attachmentMode,
+        declaredAmountMode: companyOccurrenceTypeRecipientOverrides.declaredAmountMode,
         itemsMinimumCount: companyOccurrenceTypeRecipientOverrides.itemsMinimumCount,
         itemsMode: companyOccurrenceTypeRecipientOverrides.itemsMode,
         noteMode: companyOccurrenceTypeRecipientOverrides.noteMode,
         photoMinimumCount: companyOccurrenceTypeRecipientOverrides.photoMinimumCount,
+        referenceNumberMode: companyOccurrenceTypeRecipientOverrides.referenceNumberMode,
         signatureMode: companyOccurrenceTypeRecipientOverrides.signatureMode,
         taxId: companyOccurrenceTypeRecipientOverrides.taxId,
       })
@@ -228,12 +232,14 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
       this.database
         .select({
           attachmentMode: companyOccurrenceTypeContractorOverrides.attachmentMode,
+          declaredAmountMode: companyOccurrenceTypeContractorOverrides.declaredAmountMode,
           contractorId: companyOccurrenceTypeContractorOverrides.contractorId,
           itemsMinimumCount: companyOccurrenceTypeContractorOverrides.itemsMinimumCount,
           itemsMode: companyOccurrenceTypeContractorOverrides.itemsMode,
           noteMode: companyOccurrenceTypeContractorOverrides.noteMode,
           occurrenceTypeId: companyOccurrenceTypeContractorOverrides.occurrenceTypeId,
           photoMinimumCount: companyOccurrenceTypeContractorOverrides.photoMinimumCount,
+          referenceNumberMode: companyOccurrenceTypeContractorOverrides.referenceNumberMode,
           signatureMode: companyOccurrenceTypeContractorOverrides.signatureMode,
         })
         .from(companyOccurrenceTypeContractorOverrides)
@@ -248,11 +254,13 @@ export class DrizzleOccurrenceAttachmentOverridesRepository {
       this.database
         .select({
           attachmentMode: companyOccurrenceTypeRecipientOverrides.attachmentMode,
+          declaredAmountMode: companyOccurrenceTypeRecipientOverrides.declaredAmountMode,
           itemsMinimumCount: companyOccurrenceTypeRecipientOverrides.itemsMinimumCount,
           itemsMode: companyOccurrenceTypeRecipientOverrides.itemsMode,
           noteMode: companyOccurrenceTypeRecipientOverrides.noteMode,
           occurrenceTypeId: companyOccurrenceTypeRecipientOverrides.occurrenceTypeId,
           photoMinimumCount: companyOccurrenceTypeRecipientOverrides.photoMinimumCount,
+          referenceNumberMode: companyOccurrenceTypeRecipientOverrides.referenceNumberMode,
           signatureMode: companyOccurrenceTypeRecipientOverrides.signatureMode,
           taxId: companyOccurrenceTypeRecipientOverrides.taxId,
         })

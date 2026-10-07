@@ -1,8 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 246 (D-a, T2.4): as colunas de exigência das duas tabelas de exceção — `note_mode`,
- * `signature_mode`, `items_mode`, `photo_minimum_count` e `items_minimum_count`, todas **nulas e sem
+ * Spec 246 (D-a, T2.4), spec 247 (D8): as colunas de exigência das duas tabelas de exceção — `note_mode`,
+ * `signature_mode`, `items_mode`, `photo_minimum_count`, `items_minimum_count`, `reference_number_mode`
+ * e `declared_amount_mode`, todas **nulas e sem
  * padrão** (nulo herda do tipo). A leitura devolve o que está gravado; a escrita distingue três
  * estados: **ausente** (não mexa), **nulo** (herda) e **valor**.
  */
@@ -16,10 +17,12 @@ import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.p
 import { OccurrenceTypeItemsMinimumRequiresRequiredError } from '../domain/trip.error.js'
 
 export type OccurrenceOverrideRequirementFields = {
+  readonly declaredAmountMode?: DeliveryProofFieldMode | null | undefined
   readonly itemsMinimumCount?: null | number | undefined
   readonly itemsMode?: DeliveryProofFieldMode | null | undefined
   readonly noteMode?: DeliveryProofFieldMode | null | undefined
   readonly photoMinimumCount?: null | number | undefined
+  readonly referenceNumberMode?: DeliveryProofFieldMode | null | undefined
   readonly signatureMode?: DeliveryProofFieldMode | null | undefined
 }
 
@@ -43,10 +46,12 @@ function resolveNewRowNoteMode(input: OverrideWriteInput): DeliveryProofFieldMod
 export function toOverrideRequirementInsert(input: OverrideWriteInput) {
   return {
     attachmentMode: input.attachmentMode,
+    declaredAmountMode: input.declaredAmountMode ?? null,
     itemsMinimumCount: input.itemsMinimumCount ?? null,
     itemsMode: input.itemsMode ?? null,
     noteMode: resolveNewRowNoteMode(input),
     photoMinimumCount: input.photoMinimumCount ?? null,
+    referenceNumberMode: input.referenceNumberMode ?? null,
     signatureMode: input.signatureMode ?? null,
   }
 }
@@ -59,6 +64,12 @@ export function toOverrideRequirementUpdate(input: OverrideWriteInput) {
   return {
     attachmentMode: input.attachmentMode,
     ...toItemsMinimumCountUpdate(input),
+    ...(input.declaredAmountMode === undefined
+      ? {}
+      : { declaredAmountMode: input.declaredAmountMode }),
+    ...(input.referenceNumberMode === undefined
+      ? {}
+      : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
     ...(input.photoMinimumCount === undefined

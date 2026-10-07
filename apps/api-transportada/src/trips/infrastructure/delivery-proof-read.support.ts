@@ -47,6 +47,7 @@ import type {
 } from '../application/register-trip-occurrence.use-case.js'
 import type {
   OccurrenceMoment,
+  OccurrenceDeclaredAmountScope,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -832,7 +833,12 @@ export async function findOccurrenceType(
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       attachmentMode: companyOccurrenceTypes.attachmentMode,
+      /** Spec 247 (RF1): o valor pago digitado e o número do documento do cliente. */
+      declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
+      declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
+      declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       emailBody: companyOccurrenceTypes.emailBody,
+      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
@@ -855,6 +861,8 @@ export async function findOccurrenceType(
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
+      referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
       signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
@@ -982,7 +990,11 @@ export async function listOccurrenceTypes(
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       attachmentMode: companyOccurrenceTypes.attachmentMode,
+      declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
+      declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
+      declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       emailBody: companyOccurrenceTypes.emailBody,
+      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
@@ -996,6 +1008,8 @@ export async function listOccurrenceTypes(
       notifies: companyOccurrenceTypes.notifies,
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
+      referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
@@ -1080,7 +1094,12 @@ async function writeOccurrenceTypeRow(
      */
     readonly attachmentMode?: DeliveryProofFieldMode | undefined
     readonly companyId: string
+    /** Spec 247 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly declaredAmountLabel?: string | undefined
+    readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
+    readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
     readonly emailBody: string
+    readonly emailItemLineTemplate?: string | undefined
     readonly emailSubject: string
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
@@ -1112,6 +1131,8 @@ async function writeOccurrenceTypeRow(
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    readonly referenceNumberLabel?: string | undefined
+    readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
     /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
     readonly signatureMode?: DeliveryProofFieldMode | undefined
     readonly stage: TripOccurrenceStage
@@ -1140,6 +1161,24 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { allowsMultipleItems: input.allowsMultipleItems }),
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
+    ...(input.declaredAmountLabel === undefined
+      ? {}
+      : { declaredAmountLabel: input.declaredAmountLabel }),
+    ...(input.declaredAmountMode === undefined
+      ? {}
+      : { declaredAmountMode: input.declaredAmountMode }),
+    ...(input.declaredAmountScope === undefined
+      ? {}
+      : { declaredAmountScope: input.declaredAmountScope }),
+    ...(input.emailItemLineTemplate === undefined
+      ? {}
+      : { emailItemLineTemplate: input.emailItemLineTemplate }),
+    ...(input.referenceNumberLabel === undefined
+      ? {}
+      : { referenceNumberLabel: input.referenceNumberLabel }),
+    ...(input.referenceNumberMode === undefined
+      ? {}
+      : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
@@ -1204,7 +1243,11 @@ async function writeOccurrenceTypeRow(
     active: saved.active,
     allowsMultipleItems: saved.allowsMultipleItems,
     attachmentMode: saved.attachmentMode,
+    declaredAmountLabel: saved.declaredAmountLabel,
+    declaredAmountMode: saved.declaredAmountMode,
+    declaredAmountScope: saved.declaredAmountScope,
     emailBody: saved.emailBody,
+    emailItemLineTemplate: saved.emailItemLineTemplate,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
@@ -1218,6 +1261,8 @@ async function writeOccurrenceTypeRow(
     notifies: saved.notifies,
     photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    referenceNumberLabel: saved.referenceNumberLabel,
+    referenceNumberMode: saved.referenceNumberMode,
     signatureMode: saved.signatureMode,
     stage: saved.stage,
     stopKind: saved.stopKind,

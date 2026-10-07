@@ -231,6 +231,10 @@ export const OCCURRENCE_REFERENCE_NUMBER_PATTERN = '^[A-Za-z0-9 ./-]{1,30}$'
 /** Spec 247: o teto dos dois rótulos editáveis do tipo (`varchar(40)`). */
 export const OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH = 40
 
+/** Spec 079: os tetos do assunto e do corpo do e-mail à contratante (`varchar(200)` e texto). */
+export const OCCURRENCE_EMAIL_SUBJECT_MAX_LENGTH = 200
+export const OCCURRENCE_EMAIL_BODY_MAX_LENGTH = 4000
+
 /** Spec 247 (RF6): o teto do modelo de cada linha de item do e-mail. */
 export const OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH = 400
 

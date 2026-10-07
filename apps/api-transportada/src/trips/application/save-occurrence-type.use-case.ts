@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 079 (revisão): o tipo de ocorrência **seleciona** um template do módulo de notificações —
- * o texto do e-mail mora só lá. Assunto/corpo próprios são legado: continuam gravados na linha
- * antiga, e o cadastro com chave os zera de propósito, porque o template manda.
+ * Spec 079 (revisão): o tipo de ocorrência **seleciona** um template do módulo de notificações para o
+ * aviso interno (quem despachou a viagem). Spec 247 (RF2): o e-mail à contratante é outro canal, com
+ * assunto/corpo próprios — salvar um nunca apaga o outro.
  */
 import {
   OccurrenceEmailTemplateNotFoundError,
@@ -13,10 +13,12 @@ import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
 import {
   assertItemsMinimumMatchesMode,
   assertItemsOffHasNoRedeliveryPolicy,
@@ -49,7 +51,16 @@ export type SaveOccurrenceTypeValues = {
    * zerá-lo aqui desligaria a exigência de foto de um tipo `required` a cada edição de e-mail.
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
+  /**
+   * Spec 247 (RF1): o valor pago digitado — modo, escopo e rótulo. Ausente é "não mexa", nunca o
+   * padrão da coluna (`off`), que desligaria o campo de um tipo configurado a cada edição de e-mail.
+   */
+  readonly declaredAmountLabel?: string | undefined
+  readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
+  readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
   readonly emailBody: string
+  /** Spec 247 (RF6): o formato de cada linha de item do e-mail. Ausente é "não mexa". */
+  readonly emailItemLineTemplate?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
@@ -89,6 +100,9 @@ export type SaveOccurrenceTypeValues = {
   readonly occurrenceTypeId: null | string
   /** Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Ausente é "não mexa". */
   readonly photoMinimumCount?: number | undefined
+  /** Spec 247 (RF1): o número do documento do cliente — modo e rótulo. Ausente é "não mexa". */
+  readonly referenceNumberLabel?: string | undefined
+  readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
   /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   /** Spec 246 (RF1): a exigência da assinatura. Ausente é "não mexa" — nunca `'off'`. */
@@ -102,7 +116,15 @@ export type SaveOccurrenceTypeValues = {
  * de par para conferir.
  */
 export type CurrentOccurrenceTypeShape = Partial<
-  Pick<OccurrenceTypeRecord, 'flow' | 'itemsMinimumCount' | 'moments' | 'stage'>
+  Pick<
+    OccurrenceTypeRecord,
+    | 'declaredAmountMode'
+    | 'declaredAmountScope'
+    | 'flow'
+    | 'itemsMinimumCount'
+    | 'moments'
+    | 'stage'
+  >
 > &
   Pick<OccurrenceTypeRecord, 'itemsMode' | 'redeliveryPolicy'>
 
@@ -119,9 +141,9 @@ export type SaveOccurrenceTypeWithTemplateInput = {
 
 /**
  * ⚠️ **Chave presente é validada na gravação**, não no envio: descobrir o template inexistente
- * quando a ocorrência acontecer seria descobrir com o aviso já perdido. E com chave, assunto e
- * corpo do corpo da requisição são **ignorados e zerados** — dois textos para o mesmo aviso é o
- * defeito que esta revisão remove.
+ * quando a ocorrência acontecer seria descobrir com o aviso já perdido. A chave é do aviso interno;
+ * assunto e corpo são o e-mail à contratante e **seguem gravados como vieram** (spec 247 RF2) — zerá-los
+ * aqui apagava, sem erro, o e-mail que o aviso automático (183) manda.
  */
 export async function saveOccurrenceTypeWithTemplate(
   input: SaveOccurrenceTypeWithTemplateInput,
@@ -134,6 +156,7 @@ export async function saveOccurrenceTypeWithTemplate(
 
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
   assertItemsMinimumMatchesMode({ stored, values })
+  assertDeclaredAmountHasItems({ stored, values })
 
   const { emailTemplateKey } = values
   if (emailTemplateKey === null) return input.save(values)
@@ -144,17 +167,27 @@ export async function saveOccurrenceTypeWithTemplate(
   })
   if (!exists) throw new OccurrenceEmailTemplateNotFoundError()
 
-  return input.save({ ...values, emailBody: '', emailSubject: '' })
+  return input.save(values)
 }
 
 /** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */
 async function readStoredTypeWhenNeeded(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<CurrentOccurrenceTypeShape | null> {
-  const { itemsMinimumCount, itemsMode, moments, occurrenceTypeId, redeliveryPolicy } = input.values
+  const {
+    declaredAmountMode,
+    declaredAmountScope,
+    itemsMinimumCount,
+    itemsMode,
+    moments,
+    occurrenceTypeId,
+    redeliveryPolicy,
+  } = input.values
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
     (itemsMode === undefined ||
+      declaredAmountMode === undefined ||
+      declaredAmountScope === undefined ||
       itemsMinimumCount === undefined ||
       redeliveryPolicy === undefined ||
       moments === undefined)
