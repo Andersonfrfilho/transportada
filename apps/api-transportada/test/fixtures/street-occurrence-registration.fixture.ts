@@ -6,7 +6,9 @@
  * (spec 179: `trip_occurrence_uploads` + objeto `trip_occurrence_attachment`).
  */
 import { tripOccurrenceUploads } from '../../src/database/trip.schema.js'
+import type { DriverDocumentOccurrence } from '../../src/trips/application/driver-document-occurrence.types.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
+import type { DriverOccurrenceItemInput } from '../../src/trips/application/register-driver-occurrence.types.js'
 import {
   findDriverReachableDocument,
   findOccurrenceType,
@@ -46,11 +48,19 @@ export type StreetOccurrenceRegistration = Scope & {
   readonly attachmentObjectId: string | null
   /** Spec 246 (T2.7): a lista de fotos; quando presente vale no lugar do campo único. */
   readonly attachmentObjectIds?: readonly string[]
+  /** Spec 247 (T4.4): o valor pago da ocorrência, como texto. */
+  readonly declaredAmount?: string
   /** Spec 246: a nota a registrar; ausente é a da viagem semeada. */
   readonly documentId?: string
+  /** Spec 247 (T4.4): ausente é uma chave nova por chamada; fixa exercita o reenvio. */
+  readonly idempotencyKey?: string
+  /** Spec 247 (T4.4): os itens marcados, com quantidade e valor pago opcional. */
+  readonly items?: readonly DriverOccurrenceItemInput[]
   /** Spec 246: ausente é `cliente ausente`; vazio exercita a observação obrigatória. */
   readonly note?: string
   readonly productCode?: string
+  /** Spec 247 (T4.4): o número do documento do cliente. */
+  readonly referenceNumber?: string
   readonly signatureObjectId?: string | null
   readonly typeId: string
 }
@@ -62,7 +72,7 @@ export type StreetOccurrenceRegistration = Scope & {
 export function registerStreetOccurrence(
   database: TestDatabase,
   input: StreetOccurrenceRegistration,
-): Promise<{ readonly id: string }> {
+): Promise<DriverDocumentOccurrence> {
   const uploads = new DrizzleOccurrenceUploadRepository(database.db)
   const overrides = new DrizzleOccurrenceAttachmentOverridesRepository(database.db)
   return registerDriverOccurrence({
@@ -72,12 +82,15 @@ export function registerStreetOccurrence(
       ? {}
       : { attachmentObjectIds: input.attachmentObjectIds }),
     companyId: input.company.companyId,
+    ...(input.declaredAmount === undefined ? {} : { declaredAmount: input.declaredAmount }),
     documentId: input.documentId ?? input.trip.documentId,
     driverId: input.company.firstDriverId,
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
+    ...(input.items === undefined ? {} : { items: input.items }),
     note: input.note ?? 'cliente ausente',
     occurrenceTypeId: input.typeId,
     productCode: input.productCode ?? '',
+    ...(input.referenceNumber === undefined ? {} : { referenceNumber: input.referenceNumber }),
     repository: {
       findConfirmedUpload: (query) => uploads.findConfirmedUpload(query),
       findOccurrenceType: (query) => findOccurrenceType(database.db, query),
