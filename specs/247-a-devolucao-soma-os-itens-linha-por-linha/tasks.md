@@ -57,10 +57,10 @@ explícita do `package.json` da app.
 - [x] **T3.2** `occurrence-amount.policy.ts` em `bigint`, sem `Number`/`parseFloat`.
 - [x] **T3.3** Mutações da T3.1 registradas: truncar em vez de meio para cima; somar antes de
       arredondar; trocar `bigint` por `Number` (o caso `3 × 19,995` fica vermelho).
-- [ ] **T3.4** Contrato **antes**: `template.contract.ts` ampliado — os dois contextos, `linhasItens`
+- [x] **T3.4** Contrato **antes**: `template.contract.ts` ampliado — os dois contextos, `linhasItens`
       com o modelo do SAC (CA01, assunto e corpo exatos, `SPANI` vindo de `contractorName` de
       fixture), linha padrão, teto de 200, `{{` na descrição sai literal, recusas da CA04.
-- [ ] **T3.5** `occurrence-template.policy.ts`: duas listas, contexto, `linhasItens`,
+- [x] **T3.5** `occurrence-template.policy.ts`: duas listas, contexto, `linhasItens`,
       `numeroNotaSemSerie`, dinheiro formatado em `valorNota` (D4), `quantidadeItem` da ocorrência
       (D5).
 - [ ] **T3.6** Mutações da T3.4 registradas: aceitar marcador de linha no corpo; re-renderizar valor

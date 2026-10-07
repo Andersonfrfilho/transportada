@@ -451,3 +451,35 @@ error: Cannot find module '../../src/shared/occurrence-template.constant.js' fro
  0 pass
  1 fail
 ```
+
+### T3.5 — `occurrence-template.policy.ts`
+
+- `src/shared/occurrence-template.constant.ts` (novo, 68 linhas): as três listas fechadas, os contextos
+  (`subject`/`body`/`itemLine`), o teto de 200 e a linha padrão.
+- `src/trips/domain/occurrence-template.types.ts` (novo, 50 linhas): `OccurrenceTemplateValues` (campos
+  novos opcionais: `documentNumber`, `referenceNumber`, `declaredAmount`, `itemLineTemplate`, `lines`),
+  `OccurrenceTemplateLine`, `OccurrenceTemplateItem`. Os dois importadores de produção
+  (`register-trip-occurrence.use-case.ts`, `delivery-proof-read.support.ts`) passaram a importar o tipo daqui.
+- `src/trips/domain/occurrence-template.policy.ts` (199 linhas): `renderOccurrenceTemplate` em passagem única
+  (nenhum valor é lido de novo, então `{{` de cliente sai literal); `{{linhasItens}}` rende cada linha com o
+  modelo do tipo ou o padrão, na ordem, com teto de 200 e "e mais N itens"; `valorNota` formatado a partir do
+  `numeric` cru (D4); `quantidadeItem` da linha = quantidade da ocorrência, senão a da NF-e (D5);
+  `unknownTemplatePlaceholders({ template, context })` com a lista do contexto.
+- `src/trips/presentation/occurrence.schema.ts`: os dois chamadores de `unknownTemplatePlaceholders` passam o
+  contexto (`body` no corpo, `subject` no assunto) — consequência do contrato novo; o restante do cadastro
+  (campos novos, linha de item) é a T4.1.
+- Nenhum nome de tipo nem de contratante no código (contrato de parede confere `SPANI` e "devolução").
+
+Verde:
+
+```text
+$ bun run typecheck (raiz)   → exit 0
+$ bun --env-file=../../.env.test test --timeout 120000 (API, só contrato)
+ 10112 pass · 25 skip · 0 fail · Ran 10137 tests across 199 files
+$ bun run lint (API)         → exit 0
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+⚠️ Não rodei a integração (a fase é de domínio puro). `readOccurrenceTemplateValues` ainda não alimenta os
+campos novos (T4.7), mas `valorNota` passa a sair formatado (`7.840,64`) e `quantidadeItem` formatado —
+efeitos declarados D4/D5; testes de integração que afirmem o texto antigo, se existirem, serão pegos na T4.7.

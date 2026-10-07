@@ -20,9 +20,11 @@ import {
   buildOccurrenceItemValues,
   renderOccurrenceTemplate,
   unknownTemplatePlaceholders,
-  type OccurrenceTemplateLine,
-  type OccurrenceTemplateValues,
 } from '../../src/trips/domain/occurrence-template.policy.js'
+import type {
+  OccurrenceTemplateLine,
+  OccurrenceTemplateValues,
+} from '../../src/trips/domain/occurrence-template.types.js'
 
 const SAC_LINE: OccurrenceTemplateLine = {
   code: '2073170 02',
@@ -70,6 +72,10 @@ VALOR DA ENTREGA: R$ {{valorNota}}
 
 const SAC_ITEM_LINE =
   '{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}} – {{observacao}}'
+
+function sorted(list: readonly string[]): readonly string[] {
+  return [...list].toSorted()
+}
 
 function render(template: string, overrides: Partial<OccurrenceTemplateValues> = {}): string {
   return renderOccurrenceTemplate({ template, values: { ...DADOS, ...overrides } })
@@ -151,17 +157,17 @@ describe('as três listas fechadas de marcadores (spec 247 RF5)', () => {
   ]
 
   test('corpo: os 11 de hoje e mais cinco, com a linha de itens', () => {
-    expect([...OCCURRENCE_TEMPLATE_PLACEHOLDERS].toSorted()).toEqual(
+    expect(sorted(OCCURRENCE_TEMPLATE_PLACEHOLDERS)).toEqual(
       [...OCCURRENCE_LEVEL, 'linhasItens'].toSorted(),
     )
   })
 
   test('assunto: os do corpo, menos a linha de itens (é uma linha só)', () => {
-    expect([...OCCURRENCE_SUBJECT_PLACEHOLDERS].toSorted()).toEqual(OCCURRENCE_LEVEL.toSorted())
+    expect(sorted(OCCURRENCE_SUBJECT_PLACEHOLDERS)).toEqual(OCCURRENCE_LEVEL.toSorted())
   })
 
   test('linha de item: os de ocorrência e os sete da linha, sem a linha de itens', () => {
-    expect([...OCCURRENCE_ITEM_LINE_PLACEHOLDERS].toSorted()).toEqual(
+    expect(sorted(OCCURRENCE_ITEM_LINE_PLACEHOLDERS)).toEqual(
       [...OCCURRENCE_LEVEL, 'somaItem', 'unidadeItem', 'valorItem', 'valorUnitarioItem'].toSorted(),
     )
   })

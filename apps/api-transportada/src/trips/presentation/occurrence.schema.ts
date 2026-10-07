@@ -418,16 +418,23 @@ const occurrenceTypeSchema = z
       .string()
       .max(4000)
       .default('')
-      .refine((texto) => unknownTemplatePlaceholders(texto).length === 0, {
-        message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
-      }),
+      .refine(
+        (texto) => unknownTemplatePlaceholders({ context: 'body', template: texto }).length === 0,
+        {
+          message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
+        },
+      ),
     emailSubject: z
       .string()
       .max(200)
       .default('')
-      .refine((texto) => unknownTemplatePlaceholders(texto).length === 0, {
-        message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
-      }),
+      .refine(
+        (texto) =>
+          unknownTemplatePlaceholders({ context: 'subject', template: texto }).length === 0,
+        {
+          message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
+        },
+      ),
     /**
      * A chave do template do módulo de notificações que o tipo seleciona. Presente, ela é
      * conferida contra o catálogo da empresa na gravação, e assunto/corpo acima são ignorados.

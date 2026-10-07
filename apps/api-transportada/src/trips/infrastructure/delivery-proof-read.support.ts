@@ -58,7 +58,7 @@ import {
   TRIP_BOUND_OCCURRENCE_STAGES,
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
   OccurrenceTypeDeclaredAmountNeedsItemsError,
   OccurrenceTypeItemsMinimumRequiresRequiredError,

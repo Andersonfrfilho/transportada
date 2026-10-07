@@ -19,7 +19,7 @@ import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
   OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
