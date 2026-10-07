@@ -8,6 +8,8 @@
 
 - [x] **T1.1** 🧠 `business-calendar.policy.ts` + contrato em tabela **antes** (CA1, CA2, extremos);
       feriados nacionais por Páscoa; mutação.
+- [x] **T1.2a** Caracterização do roteirizador **antes** da migration: integração do worker contra Postgres fixando
+      como `municipal_holidays` fecha (ou não) o cliente — data, cidade, empresa e `2000-MM-DD`; mutação.
 - [ ] **T1.2** Migration aditiva: `municipal_holidays.recurrence/kind/month/day`, `state_holidays`,
       `saturday_is_business_day`; `rollback.sql`; `make migration-test`; `db:generate` = `no_changes`.
 - [ ] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4); integração contra

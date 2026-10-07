@@ -131,6 +131,12 @@ outras oito no cron. Mudou tabela na API? confira as cópias — migrations só 
 (`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
 coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).
 
+## O feriado municipal no roteirizador é fixado por teste (spec 238 T1.2a, 2026-10-07)
+
+`readPoolWindows` lê só `municipal_holidays.holiday_on = hoje (UTC)` das cidades das paradas, sem a cidade por
+cliente, e `test/route-optimization-municipal-holiday.integration.test.ts` caracteriza isso contra Postgres
+(inclusive o defeito de um feriado fechar o cliente de outra cidade no mesmo roteiro); data `yearly` (ano 2000) nunca casa.
+
 ## O e-mail à contratante sai para todos os destinatários, não só o primeiro (spec 150 T302)
 
 Até aqui `send-contractor-mail-outbound-message.use-case.ts` só entregava a `toAddresses[0]` —

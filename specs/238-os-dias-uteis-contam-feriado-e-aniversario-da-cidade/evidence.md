@@ -108,3 +108,65 @@ A T1.1 levantou Q1–Q3 como [NEEDS CLARIFICATION]; o usuário as decidiu no cha
 - Integração (`test:integration`): a T1.1 não toca banco, rota, migration, worker nem cron.
 - `make check` completo (frontend, worker, build de todas as apps): só os gates da API e o `format:check` da raiz.
 - Push/deploy: não é desta tarefa (quem publica é o orquestrador).
+
+## T1.2a — caracterização do roteirizador antes da migration (2026-10-07)
+
+Executada com `sonnet` em worktree isolado, branch `work/238-t12a` a partir de `origin/staging` (c298f9b20). Nenhum
+código de produção, migration, `municipal_holidays` ou contrato do solver foi tocado: só teste e docs.
+
+- **Arquivo:** `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts` (na lista
+  explícita de `test:integration`). Repositório, efeito, solver e banco reais; só a matriz é dublê (ADR-0044 §1). Passa
+  das 200 linhas (305) porque a semeadura de nota, destinatário, endereço e janela por cliente é tabela de INSERTs.
+- **Efeito observável:** cliente fechado vira janela `(0,0)` em `resolvePoolWindow`, e o solver declara a violação
+  `delivery_window` na parada (`route_suggestion_stops.violations`). A data do roteiro é o dia UTC de hoje
+  (`startOfUtcDaySeconds(new Date())`, não injetável); o teste a calcula por cenário.
+- **Só o pool lê feriado.** `municipalHolidays` aparece em um único ponto do worker (`readPoolWindows`, ~1053); a
+  sugestão de viagem (`readStops`) não resolve janela de cliente.
+
+### Comportamento atual medido
+
+| Cenário                                                              | Resultado                                   |
+| -------------------------------------------------------------------- | ------------------------------------------- |
+| Sem feriado                                                          | ninguém fechado                             |
+| Feriado `once`, cidade da parada, data do roteiro                    | parada fechada (`delivery_window`)          |
+| Mesmo feriado em ontem/amanhã                                        | ninguém fechado                             |
+| Feriado de cidade sem parada no roteiro (outra cidade)               | ninguém fechado (`inArray` por cidade)      |
+| Feriado de outra empresa                                             | ninguém fechado                             |
+| `holiday_on = 2000-MM-DD` (formato `yearly` da opção A)              | ninguém fechado: o solver nunca lê `yearly` |
+| **Defeito pré-existente:** feriado só da cidade B, roteiro com A e B | **A e B fechadas** (deveria ser só B)       |
+
+### Defeito conhecido (fora de escopo da 238, não corrigido)
+
+`readPoolWindows` busca só `holidayOn` das cidades das paradas do roteiro e passa **a mesma lista a todo cliente**:
+o feriado da cidade B fecha também o cliente da cidade A, desde que as duas tenham parada no mesmo roteiro. O teste o
+fixa com `// comportamento atual (defeito conhecido, spec 238 fora de escopo)`; quem corrigir inverte a asserção.
+Relevante para a T1.3: materializar o feriado anual por ano **não** muda isso, mas aumenta quantas linhas o defeito
+alcança.
+
+### Prova por mutação (cada uma restaurada com `git checkout`; `git diff --quiet` limpo)
+
+| Mutação no repositório/política                                                            | Vermelho                                      |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| Data do filtro SQL trocada por `'2000-01-01'`                                              | 2 fail: "once fecha" e o do defeito da cidade |
+| Filtro SQL por `holidayOn` removido **só no SQL**                                          | 0 fail — mutante equivalente (ver abaixo)     |
+| Filtro SQL por data removido **e** política (`delivery-window.policy.ts`) ignorando a data | 2 fail: "outra data" e "2000-MM-DD"           |
+| Filtro por `companyId` removido                                                            | 1 fail: "feriado de outra empresa"            |
+| Filtro por cidade (`inArray` de `cityIbgeCode`) removido                                   | 1 fail: "cidade sem parada no roteiro"        |
+
+⚠️ **O filtro de data tem duas camadas**: a consulta SQL e `resolveDeliveryWindow` (`holiday.holidayOn === date`).
+Remover só a do SQL não muda comportamento; por isso a prova do teste de data só fica vermelha derrubando as duas.
+
+### Gates
+
+- `bun run typecheck` → 0; `bun run lint` → 0 (`--max-warnings=0`); `bun run test` (contratos) → **1991 pass / 0 fail**.
+- Integração nova isolada → **7 pass / 0 fail** (28 `expect()`).
+- `test:integration` completo, uma vez, no banco descartável `t238t12a_worker_integration` (Postgres do Docker em
+  65432, migrado com `db:migrate` desta árvore) → **212 pass / 4 skip / 0 fail** (216 testes, 47 arquivos). Os 4
+  `skip` são testes que se autodesativam sem dependência opcional; não identifiquei quais (o `bun` não lista pulados),
+  e nenhum falhou — `osrm-routing-matrix` e `contractor-mail-inbound-outbox` não falharam nesta execução.
+
+### O que não rodou
+
+- `make check` completo e `make migration-test`: não há migration nesta task.
+- Integração da API e frontend: não tocados.
+- Push: não é desta tarefa.
