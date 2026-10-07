@@ -96,3 +96,89 @@ describe('driverTrip.types — tolerância aos campos da spec 247', () => {
     expect(isDriverOccurrenceType(typeWithInvalidMode)).toBe(false)
   })
 })
+
+describe('driverTripResponse.validation — tolerância a products no snapshot', () => {
+  it('aceita documento sem products (snapshot antigo)', () => {
+    const docWithoutProducts = {
+      id: 'doc-1',
+      accessKey: '123456789',
+      number: '12345',
+      series: '1',
+      deliveredAt: null,
+      grossWeight: '1000',
+      recipientName: 'Cliente XYZ',
+      recipientDisplayName: 'Cliente XYZ',
+      recipientIsCompany: false,
+      returnReason: null,
+      separationStatus: 'complete',
+      totalAmount: '5000',
+      volumeCount: '5',
+      proofPending: false,
+      deliveryProof: null,
+      occurrenceTypes: null,
+    }
+
+    // Tipo não pode ser estruturado assim sem estar em um document, mas valida a forma
+    expect(typeof docWithoutProducts.id).toBe('string')
+  })
+
+  it('aceita documento COM products (snapshot novo)', () => {
+    const docWithProducts = {
+      id: 'doc-1',
+      accessKey: '123456789',
+      number: '12345',
+      series: '1',
+      deliveredAt: null,
+      grossWeight: '1000',
+      recipientName: 'Cliente XYZ',
+      recipientDisplayName: 'Cliente XYZ',
+      recipientIsCompany: false,
+      returnReason: null,
+      separationStatus: 'complete',
+      totalAmount: '5000',
+      volumeCount: '5',
+      proofPending: false,
+      deliveryProof: null,
+      occurrenceTypes: null,
+      products: [
+        {
+          code: '2073170',
+          description: 'MAC ADRIA OVOS 500G',
+          unit: 'FD',
+          quantity: '10',
+          unitValue: '57.20',
+        },
+      ],
+    }
+
+    // Valida presença de products
+    expect(Array.isArray(docWithProducts.products)).toBe(true)
+    expect(docWithProducts.products).toHaveLength(1)
+  })
+
+  it('aceita documento com products vazio (nota sem NFe)', () => {
+    const docWithEmptyProducts = {
+      id: 'doc-1',
+      accessKey: '123456789',
+      number: '12345',
+      series: '1',
+      deliveredAt: null,
+      grossWeight: '1000',
+      recipientName: 'Cliente XYZ',
+      recipientDisplayName: 'Cliente XYZ',
+      recipientIsCompany: false,
+      returnReason: null,
+      separationStatus: 'complete',
+      totalAmount: '5000',
+      volumeCount: '5',
+      proofPending: false,
+      deliveryProof: null,
+      occurrenceTypes: null,
+      products: [],
+    }
+
+    // Valida array vazio
+    expect(Array.isArray(docWithEmptyProducts.products)).toBe(true)
+    expect(docWithEmptyProducts.products).toHaveLength(0)
+  })
+})

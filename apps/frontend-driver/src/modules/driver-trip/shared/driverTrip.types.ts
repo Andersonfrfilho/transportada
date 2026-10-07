@@ -1,6 +1,18 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+/**
+ * Spec 247 RF11: produto da NF-e para o registro de ocorrência com somas. Código, descrição,
+ * unidade comercial, quantidade e valor unitário — tudo do lado do servidor.
+ */
+export type DriverNfeProduct = Readonly<{
+  code: string
+  description: string
+  unit: string
+  quantity: string
+  unitValue: string
+}>
+
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
@@ -44,6 +56,12 @@ export type DriverTripDocument = Readonly<{
   series: string
   totalAmount: string
   volumeCount: string
+  /**
+   * Spec 247 T1.2: os produtos da nota para o registro de ocorrência com produtos. Ausente (snapshot
+   * antigo) a tela não oferece seleção de itens — só "A nota inteira". Com a chave vazia, lista zero
+   * produtos da NF-e (nota manual).
+   */
+  products?: readonly DriverNfeProduct[]
 }>
 
 /**
