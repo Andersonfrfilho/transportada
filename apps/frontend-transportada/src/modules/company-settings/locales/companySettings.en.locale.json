@@ -442,6 +442,7 @@
         "body": "Body markers — tap one to insert it where the cursor is.",
         "itemLine": "Product line markers — tap one to insert it where the cursor is."
       },
+      "markerOverflow": "The marker did not fit: this field is already at its {{max}}-character limit. Delete some text and try again.",
       "unknownMarker_one": "This marker does not exist in this field: {{markers}}. Use one from the list below; nothing was saved.",
       "unknownMarker_other": "These markers do not exist in this field: {{markers}}. Use the ones from the list below; nothing was saved.",
       "preview": {
