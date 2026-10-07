@@ -17,6 +17,8 @@ export type OccurrenceMissingContext = Readonly<{
 
 type OccurrenceRegisterActionProps = Readonly<{
   canRegister: boolean
+  /** O tipo exige algo: só então "tudo preenchido" é uma notícia a anunciar. */
+  hasRequiredFields?: boolean
   /** O que falta, na ordem em que o formulário pergunta — vira o motivo do botão desabilitado. */
   missingFields: readonly OccurrenceMissingField[]
   onCancel: () => void
@@ -34,6 +36,7 @@ type OccurrenceRegisterActionProps = Readonly<{
  */
 export function OccurrenceRegisterAction({
   canRegister,
+  hasRequiredFields = false,
   missingContext,
   missingFields,
   onCancel,
@@ -59,16 +62,23 @@ export function OccurrenceRegisterAction({
 
   return (
     <>
-      {hasMissing ? (
-        <p className={styles.notDeliveredMissing} id={missingId} role="status">
-          {t('occurrenceRegistration.missingLead', {
-            fields: missingFields
-              .map((field) =>
-                t(`occurrenceRegistration.missing.${field}`, describeMissingField(field)),
-              )
-              .join(', '),
-          })}
-        </p>
+      {rendersRegister ? (
+        <div role="status">
+          {hasMissing ? (
+            <p className={styles.notDeliveredMissing} id={missingId}>
+              {t('occurrenceRegistration.missingLead', {
+                fields: missingFields
+                  .map((field) =>
+                    t(`occurrenceRegistration.missing.${field}`, describeMissingField(field)),
+                  )
+                  .join(', '),
+              })}
+            </p>
+          ) : null}
+          {hasMissing || !hasRequiredFields ? null : (
+            <p className={styles.readyToRegister}>{t('occurrenceRegistration.readyToRegister')}</p>
+          )}
+        </div>
       ) : null}
       <div className={styles.actions}>
         {rendersRegister ? (

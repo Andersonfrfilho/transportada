@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
 import styles from '../styles/occurrenceValues.module.css'
+import { resolveOccurrenceTotalOrigin } from '../shared/occurrenceTotalOrigin.service'
 import { OccurrenceItemRow } from './OccurrenceItemRow.component'
 import { OccurrenceTotals } from './OccurrenceTotals.component'
 
@@ -49,7 +50,7 @@ export function OccurrenceItemsField({
           />
         ))}
       </ul>
-      <OccurrenceTotals declaredAmountLabel={declaredAmountLabel} totals={totals} />
+      <OccurrenceTotals origin={resolveOccurrenceTotalOrigin(form.values)} totals={totals} />
     </div>
   )
 }

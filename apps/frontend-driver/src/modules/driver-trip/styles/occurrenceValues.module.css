@@ -176,6 +176,13 @@
   color: var(--color-fog);
 }
 
+.totalsGroup {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
 .totals {
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   display: grid;

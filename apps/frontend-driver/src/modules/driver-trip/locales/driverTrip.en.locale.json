@@ -503,7 +503,7 @@
     "cancel": "Cancel",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
-      "limit": "Field limit: the amount cannot exceed R$ 9,999,999,999.99.",
+      "limit": "Field limit: the amount cannot exceed R$\u00a09,999,999,999.99.",
       "optional": "{{label}} · optional",
       "placeholder": "0.00",
       "required": "{{label}} · required"
@@ -511,10 +511,10 @@
     "items": {
       "amountOptional": "{{label}} · if different",
       "amountRequired": "{{label}} · required",
-      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
-      "money": "R$ {{value}}",
-      "onNote": "On the invoice: {{quantity}} {{unit}} × R$ {{unitValue}}",
-      "paid": "· paid R$ {{value}}",
+      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "money": "R$\u00a0{{value}}",
+      "onNote": "On the invoice: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
+      "paid": "· paid R$\u00a0{{value}}",
       "quantityAboveNote": "The invoice has only {{quantity}} {{unit}}.",
       "quantityLabel": "Quantity returned ({{unit}})",
       "quantityMissing": "Enter the quantity, greater than zero.",
@@ -524,7 +524,13 @@
       "titleOptional": "Products returned (optional)",
       "titleRequired": "Products returned (required)",
       "totals": {
-        "inMail": "Amount in the e-mail",
+        "inMail": "Total that goes in the e-mail",
+        "origin": {
+          "calculated": "Calculated from the invoice (quantity × unit price).",
+          "mixed": "{{typed}} of {{total}} lines with a typed amount paid; the others calculated from the invoice.",
+          "occurrence": "Amount paid typed for the whole occurrence.",
+          "typed": "Amount paid typed on every line."
+        },
         "sum": "Sum of the products (invoice)"
       },
       "varyingUnitValue": "The unit price varies on this invoice: enter the amount paid for this line."
@@ -552,6 +558,7 @@
     "products": {
       "title": "Invoice products (required)"
     },
+    "readyToRegister": "Everything the type asks for is filled in.",
     "referenceNumber": {
       "defaultLabel": "Customer document number",
       "optional": "{{label}} · optional",
