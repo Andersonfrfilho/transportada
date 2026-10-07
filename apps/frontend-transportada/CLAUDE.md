@@ -451,6 +451,15 @@ aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/fro
 `TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS`, chaves exatas por estado, e malformado cai **sozinho** (`dropMalformedDeliveryDeadline`) — sem isso o leitor
 tolerante levaria `contact` e `proofPending` junto. Nunca no `TripDocument`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 T1.2b".
 
+## O selo do prazo de entrega e o filtro (spec 236 Fase 2)
+
+Selo `TripDeliveryDeadlineBadge` na linha da nota (texto de `deliveryDeadline.label.*`, "Vencida" sem número quando o atraso é zero dia útil; `dueOn` é
+**data civil**, formatada por `formatDeliveryDeadlineDate`, nunca `new Date(texto)`) e data no "Dados da nota". Só informa: não é botão, não muda ação nem
+ordem. Filtro **no cliente** na lista de notas do detalhe (`useTripDeliveryDeadlineScope`, múltiplo, na URL como `?deadline=`, contagem por opção, só com
+alguma nota com prazo): as paradas ficam todas, "marcar todas" só alcança as notas à mostra. Sem filtro na lista de viagens (decisão aberta). A tinta do
+alerta é `--color-alert-ink` (a `--color-alert` crua media 4,11:1 no claro). ⚠️ Gancho `beforeEach`/`afterEach` no topo de contrato de `test:hooks` vale para
+a suíte inteira: guarde dentro de um `describe`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 Fase 2".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de

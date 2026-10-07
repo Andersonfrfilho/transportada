@@ -279,3 +279,81 @@ Mutações de CA6:
 
 Limite honesto: `computeDriverScore` e `classifyProofPunctuality` são puros e não têm entrada de prazo; a prova que importa é a da leitura do banco
 (`DrizzleDriverScoreRepository`), que é onde o prazo poderia ser ligado, e o contrato estático segura os imports.
+
+## Fase 2 — painel: o selo do prazo e o filtro (2026-10-07)
+
+Executada com `sonnet` no worktree `agent-a741c27bb4f2d11da`, branch `work/236-fase2` a partir de `origin/staging` (`dc379a36b`), `bun install --frozen-lockfile` limpo. **Só `apps/frontend-transportada` + docs e prints da spec; sem push** (tela visível: T2.4/T2.5 esperam a aprovação dos prints). API e worker intocados. Dado sintético, API dublada; nenhuma leitura de banco.
+
+| Commit      | Parte                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `30511ed0c` | T2.1 — contratos vermelhos (`Cannot find module` do serviço de visão, do filtro, do hook e dos componentes) |
+| `3a673a898` | T2.2 — selo, campo no "Dados da nota", filtro, locales pt-BR/en, estilos                                    |
+| `6fa2db1a6` | T2.3 — duas lacunas achadas pela mutação (ordem das notas na parada; marcar a parada com filtro)            |
+| (seguinte)  | T2.2/T2.4 — smoke, tinta do alerta, prints, docs e esta evidência                                           |
+
+### O que foi decidido
+
+- **Textos** (a spec P1/RF2 os define; nada inventado): "Vence em N dia(s) útil(eis)", "Vence hoje", "Vencida há N dia(s) útil(eis)", "Entregue no prazo", "Entregue com N dia(s) útil(eis) de atraso". Os dois casos que a spec não cobre, por N = 0: **"Vencida"** e **"Entregue fora do prazo"** (sem número). Em en: "Due in N business day(s)", "Due today", "Overdue by N business day(s)" / "Overdue", "Delivered on time", "Delivered N business day(s) late" / "Delivered after the deadline".
+- **Data**: `dueOn` separado em partes (`dd/mm/aaaa` em pt-BR, `mm/dd/aaaa` em en), nunca `new Date(texto)`; vai na dica do `Tooltip` do design system (o `title` nativo é proibido), num trecho para leitor de tela dentro do selo e no campo "Prazo de entrega" do "Dados da nota" (o estado fica só no cabeçalho, uma vez).
+- **Filtro**: no cliente, na lista de notas do detalhe (decisão do architect), seleção múltipla com união, URL `?deadline=`, só oferecido quando alguma nota tem prazo. **Filtro na lista de viagens: adiado** (decisão aberta com o usuário).
+- **Divergência do pedido**: o filtro faz "marcar todas" (da viagem e da parada) alcançar só as notas à mostra — sem isso o operador marcaria, e emitiria CT-e de, nota que não vê. Isso exigiu trocar a asserção de texto do `select-all-documents.contract.ts` (`documentIds={deadlineScope.visibleDocuments…}`; sem filtro é idêntico a antes). Limite conhecido: seleção feita **antes** do filtro continua valendo para as notas escondidas (o contador da barra de seleção a mostra).
+- **Tinta do alerta**: a revisão de design reprovou o selo "Vencida" no tema claro com `--color-alert` sobre o próprio fundo diluído (**4,11:1**). Nasceu `--color-alert-ink` (`#ff6b63` escuro, `#a92f27` claro) nos três blocos de tema do `index.css`, como as tintas `-ink` existentes.
+- **Smoke fora da CI**: `test/spec-236-prazo-prints.smoke.spec.ts` (modo `delivery-deadline` em `trip-smoke.helper.ts`, dados em `test/trip-delivery-deadline.fixture.ts`) roda com `PLAYWRIGHT_TEST_MATCH`, como os specs de prints das outras specs; **a config da CI não foi tocada**.
+
+### Contagens de passes (`bun run test`, que termina com `test:hooks`)
+
+| Suíte                  | Antes (origin/staging) | Depois | Novos                                                                 |
+| ---------------------- | ---------------------: | -----: | --------------------------------------------------------------------- |
+| contratos (`test`)     |                   7393 |   7425 | +32 (`view`, `filter`, `wiring`; `select-all` ajustado, mesmo número) |
+| `test:hooks` (com DOM) |                    956 |   1007 | +51 (`delivery-deadline-badge` e `delivery-deadline-filter`)          |
+
+`bun run typecheck` → 0; `bun run lint` → 0 erros (16 avisos que já existiam); `bun run format:check` na raiz → limpo.
+
+### Estabilidade do DOM
+
+Todos os arquivos de DOM novos instalam `stubVisibleLayout()` (helper novo `visibleLayout.helper.ts`), nenhum `expect(nó).toBeNull()` dentro de `waitFor` (só `querySelectorAll(...).length`), e **os ganchos ficam dentro de um `describe`**: a primeira versão tinha `beforeEach` no topo do arquivo, que num contrato importado pelo `test:hooks` vale para a suíte **inteira** — vazou `/trips/trip-1` para o contrato `trip-document-occurrence-link` (falha na rodada completa, nenhuma na isolada). `bun run test:hooks`: **10 execuções seguidas verdes** (1007 pass / 0 fail em todas) e **3 com CPU ocupada** (11 `yes > /dev/null`, um por núcleo, mortos pelos PIDs; 1007 pass / 0 fail, 40–42 s contra 25 s sem carga).
+
+### Mutações (CA3) — cada uma derrubou o contrato; o arquivo foi restaurado e conferido (`git diff --quiet`)
+
+| Mutação                                                           | Arquivo                                    | Falhas |
+| ----------------------------------------------------------------- | ------------------------------------------ | -----: |
+| selo some em `due_today`                                          | `TripDeliveryDeadlineBadge.component.tsx`  |      3 |
+| N = 0 mostra o número ("0 dias")                                  | `tripDeliveryDeadlineView.service.ts`      |      8 |
+| data convertida por `new Date(texto)` (recua um dia em SP)        | `tripDeliveryDeadlineView.service.ts`      |      1 |
+| filtro único no lugar do múltiplo                                 | `useTripDeliveryDeadlineFilter.hook.ts`    |      2 |
+| filtro por interseção em vez de união                             | `tripDeliveryDeadlineFilter.service.ts`    |      4 |
+| campo do prazo no `TripDocument` em vez do detalhe                | `trip.constant.ts`                         |     13 |
+| estado trocado: vencida usa o rótulo de entregue com atraso       | `tripDeliveryDeadlineView.service.ts`      |      9 |
+| estado trocado no filtro: entregue com atraso conta como vencida  | `tripDeliveryDeadline.constant.ts`         |     10 |
+| tom trocado: vencida em tom neutro                                | `tripDeliveryDeadline.constant.ts`         |      6 |
+| locale pt sem `dueToday`                                          | `trip.locale.json`                         |      3 |
+| locale en sem `onTime_other`                                      | `trip.en.locale.json`                      |      3 |
+| selo sem a dica do design system (Tooltip desligado)              | `TripDeliveryDeadlineBadge.component.tsx`  |      2 |
+| selo sem a data para o leitor de tela                             | `TripDeliveryDeadlineBadge.component.tsx`  |      2 |
+| selo só nas notas entregues                                       | `TripStopList.component.tsx`               |     25 |
+| parada sem nota no filtro some em vez de avisar                   | `TripStopList.component.tsx`               |      1 |
+| filtro apaga o resto da URL e o hash                              | `useTripDeliveryDeadlineFilter.hook.ts`    |      2 |
+| voltar no navegador não relê o filtro                             | `useTripDeliveryDeadlineFilter.hook.ts`    |      1 |
+| "limpar filtros" sempre visível                                   | `TripDeliveryDeadlineFilter.component.tsx` |      1 |
+| "marcar todas" da viagem alcança a nota escondida                 | `TripDetail.component.tsx`                 |      2 |
+| filtro oferecido sem nota com prazo                               | `tripDeliveryDeadlineFilter.service.ts`    |      3 |
+| `Sem prazo` ignora o campo ausente (API anterior)                 | `tripDeliveryDeadlineFilter.service.ts`    |     21 |
+| o selo reordena as notas da parada (sobreviveu à 1ª rodada)       | `TripStopList.component.tsx`               |  0 → 1 |
+| marcar a parada alcança a nota escondida (sobreviveu à 1ª rodada) | `TripStopList.component.tsx`               |  0 → 1 |
+
+As duas que sobreviveram viraram teste (`6fa2db1a6`) e derrubam agora.
+
+### Smoke e prints (T2.2/T2.4, `web.md` §15)
+
+Build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview` na porta **53517** (faixa 53500–53559), config do Playwright descartável, API 100% dublada; preview parado pela tarefa que este trabalho iniciou, config e resultados apagados, porta livre ao fim. **22 testes verdes** (prints × 3 larguras × 2 temas, o filtro com "marcar todas", a URL e as duas revisões de estilo). Revisão de design **por `getComputedStyle`**:
+
+- **Vizinho** (375, escuro): o selo e `separationStatusBadge` têm a mesma altura (24 px), borda (1 px), fonte (`SFMono-Regular` 11,52 px), peso e caixa-alta.
+- **Contraste** (≥ 4,5:1): selos — escuro 4,84 (vencida) / 4,92 / 6,00 / 4,94 / 4,92; claro 5,13 / 4,79 / 5,57 / 4,79 / 4,79. Contador do filtro 6,33 (escuro) / 5,66 (claro); "parada sem nota" 6,61 / 5,48.
+- **Alvo de toque** (375): gatilho do filtro 48 px, "Limpar filtros" 48 px (≥ 44). **Foco**: `:focus-visible` verdadeiro, contorno sólido de 2 px.
+- **Geometria**: sem rolagem horizontal e nada além da borda do recorte; o selo mais longo ("Entregue com 2 dias úteis de atraso") cabe a 375 px.
+
+PNGs em `specs/236-o-contratante-tem-prazo-de-entrega/prints/` (375, 768 e 1280 px; `-dark` e `-light`): `prazo-selo-estados-*`, `prazo-selo-detalhe-*`, `prazo-filtro-*` (painel aberto, duas opções marcadas, lista filtrada ao fundo) e `prazo-filtro-lista-*` (painel fechado).
+
+### Não rodado
+
+`make smoke` e os specs da CI no Playwright (o smoke da 236 é à parte, como os de prints); `make check` completo; integração/migration/worker (sem mudança neles); teste em aparelho real e em staging; a aprovação dos prints (**T2.4 e T2.5 seguem `[ ]`**); filtro na lista de viagens (adiado).

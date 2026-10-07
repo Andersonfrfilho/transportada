@@ -1395,3 +1395,33 @@ sumiriam juntos. Por isso `readTolerantDocumentDetail` passa antes por `dropMalf
 (`tripDeliveryDeadline.validation.ts`), que tira só `deliveryDeadline` quando malformado. O campo vai **só** no detalhe, nunca no `TripDocument` (chaves
 exatas: uma chave nova o derrubaria). Contrato: `test/trip/delivery-deadline-tolerance.contract.ts`, com o JSON de referência
 `test/fixtures/trip-document-delivery-deadline.golden.json` (cópia idêntica da API, conferida lá). **Ordem de publicação: este painel antes da API.**
+
+## Spec 236 Fase 2 — o selo do prazo de entrega e o filtro "vencidas / vencem hoje"
+
+**O selo** (`TripDeliveryDeadlineBadge`, `data-part="delivery-deadline"`, `data-state`, `data-tone`) mora na linha da nota, logo depois do selo
+de situação, no mesmo molde dele (altura `--control-height-dense`, borda, `--font-utility`, caixa-alta). O texto sai do bloco `deliveryDeadline.label`
+do `trip.locale.json`/`trip.en.locale.json` pela chave que `resolveDeliveryDeadlineView` devolve (`tripDeliveryDeadlineView.service.ts`, função
+pura): singular/plural por `_one`/`_other`, e **atraso de zero dia útil é "Vencida"/"Entregue fora do prazo", nunca "0 dias"**. Tom: `on_time`
+neutro, `due_today` e `delivered_late` cobre, `overdue` alerta, `delivered_on_time` verde. A data é só a dica do design system (`Tooltip`) e um
+trecho para leitor de tela dentro do selo; na nota aberta ela entra no "Dados da nota" (`TripDocumentDeadlineField`, campo "Prazo de entrega"), e
+o estado **não se repete** ali (mesma regra do comprovante, spec 233 D4). O selo não é botão, não leva foco e não muda ação nem ordem.
+
+⚠️ **`dueOn` é data civil.** `formatDeliveryDeadlineDate` separa a string em partes (pt-BR `dd/mm/aaaa`, en `mm/dd/aaaa`); nunca `new Date(texto)`.
+O contrato `delivery-deadline-view.contract.ts` roda o formatador em subprocessos com `TZ` em São Paulo, Kiritimati (+14) e Pago Pago (-11).
+
+⚠️ **Tinta do alerta.** `--color-alert` sobre o próprio fundo diluído media 4,11:1 no tema claro (reprovado, achado na revisão de design). Nasceu
+`--color-alert-ink` (`#ff6b63` escuro, `#a92f27` claro) no `index.css`, nos três blocos de tema, igual às demais tintas `-ink`.
+
+**O filtro** (`TripDeliveryDeadlineFilter`, `useTripDeliveryDeadlineScope`) é **no cliente**, na lista de notas do detalhe da viagem: o prazo
+depende do calendário e não vira filtro paginado. Seleção múltipla (união) com cinco opções — Vencidas, Vencem hoje, No prazo, Entregues
+(no prazo ou com atraso) e Sem prazo (`null` e campo ausente) —, cada uma com a contagem; só aparece quando alguma nota da viagem tem prazo;
+"Limpar filtros" só com filtro ativo. A escolha vai na URL (`?deadline=overdue,due_today`, ordem canônica, escrita no próprio gesto, resto da URL
+e hash preservados; `popstate` relê, porque a página não remonta ao trocar de viagem). **Não muda a rota nem a ordem**: as paradas ficam todas
+(a sem nota no filtro diz "Nenhuma nota desta parada corresponde ao filtro."), o contador da parada vira "1 de 2 notas", e "marcar todas"
+(da viagem e da parada) alcança só as notas à mostra — marcar e emitir CT-e de nota escondida seria agir às cegas. **Não há filtro na lista de
+viagens** (decisão aberta com o usuário). Seleção feita antes do filtro continua valendo para as notas que ele escondeu.
+
+Contratos: `test/trip/delivery-deadline-{view,filter,wiring}.contract.ts`, `test/trip-hooks/delivery-deadline-{badge,filter}.contract.ts`
+(fixture `test/fixtures/tripDeliveryDeadline.fixture.ts`). ⚠️ `beforeEach`/`afterEach` no topo de um contrato importado pelo `test:hooks` valem para a suíte
+**inteira**: os dois contratos novos guardam os ganchos dentro de um `describe` (um `resetLocation` no topo vazou `/trips/trip-1` para outro contrato).
+Smoke/prints (fora da CI): `test/spec-236-prazo-prints.smoke.spec.ts` com o modo `delivery-deadline` de `trip-smoke.helper.ts`.

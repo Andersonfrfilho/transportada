@@ -51,9 +51,9 @@ trip_document_id` em `delivery_address_overrides`); entrega (`selectDistinctOn` 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato **antes**: o selo (estados, textos pt-BR/en) e o filtro "vencidas/vencem hoje".
-- [ ] **T2.2** Selo na nota da viagem e filtro na lista, no padrão dos selos existentes; smoke Playwright.
-- [ ] **T2.3** Prova por mutação e evidência em `evidence.md`.
+- [x] **T2.1** Contrato **antes**: o selo (estados, textos pt-BR/en) e o filtro "vencidas/vencem hoje". Evidência em `evidence.md` § Fase 2.
+- [x] **T2.2** Selo na nota da viagem e filtro na lista, no padrão dos selos existentes; smoke Playwright (fora da CI, `spec-236-prazo-prints.smoke.spec.ts`). Filtro **no cliente, na lista de notas do detalhe** (decisão do architect); filtro na lista de viagens fica **adiado** (decisão aberta com o usuário).
+- [x] **T2.3** Prova por mutação e evidência em `evidence.md`.
 - [ ] **T2.4** **Revisão de design e usabilidade** (web.md §15): vizinhos, contraste nos dois temas,
       375/768/1280 px, **print enviado ao usuário e aprovado antes de publicar**.
 - [ ] **T2.5** Publicar em staging depois do print aprovado e confirmar o deploy.
