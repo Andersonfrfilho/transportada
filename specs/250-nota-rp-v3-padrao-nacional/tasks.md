@@ -63,7 +63,7 @@ Teste novo entra na lista explícita do `package.json` da app.
       `fetch` do composition root, compartilhado pelos dois gateways; contrato com relógio injetado.
 - [x] **T3.4** Cancelamento: `'2'`→`servico_nao_prestado`, `'4'`→`outros`+"Nota duplicada"; PDF/XML.
       Payload sem `nationalTaxationCode` na v3 → recusa fatal nomeada. Teste de contrato.
-- [ ] **T3.5** Registrar os arquivos novos no `package.json` de `test` do worker.
+- [x] **T3.5** Registrar os arquivos novos no `package.json` de `test` do worker.
 
 ## Fase 4 — Painel
 

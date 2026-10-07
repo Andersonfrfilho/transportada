@@ -370,3 +370,19 @@ Prova por mutação (aplicada à mão, revertida): trocar `confirmation.status =
 
 Gates (de `apps/worker-transportada`): `bun run typecheck` 0 erros · `nota-rp-v3-client` 94 pass · `nfse-provider-routing`
 35 pass · lint e prettier limpos (resultado completo na E19).
+
+## E19 — T3.5: lista explícita de testes do worker (07/10/2026)
+
+`apps/worker-transportada/package.json` (`test`) lista `./test/nota-rp-v3-client.contract.test.ts` (T3.1, que
+importa `cancel/issue/status/documents/rate-limit`) e `./test/nfse-provider-routing.contract.test.ts` (T3.3, que
+importa política, gateway de emissão, gateway de consulta/limitador e ponta a ponta). Os arquivos `*.contract.ts`
+das subpastas só rodam por esses entrypoints; nenhum arquivo de teste novo ficou fora da lista.
+
+Gates finais (de `apps/worker-transportada`, após T3.4): `bun run typecheck` 0 erros · `bun run lint` limpo ·
+`bunx prettier --check` limpo nos arquivos tocados · `bun run test` **2157 pass / 0 fail / 100 arquivos**
+(era 2142 antes da T3.4: +15 do cancelamento e do ponta a ponta).
+
+`test:integration`: **não rodou, e não precisava** — nenhum arquivo de `test/integration` toca os repositórios
+de NFS-e alterados. A consulta SQL nova foi provada à parte, em Postgres nativo descartável (E17), sem teste
+versionado: ver a lacuna em E17. Não declarar a integração do worker como verde por isso.
+
