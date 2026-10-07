@@ -47,8 +47,13 @@ function isAlignedPass(signature: DkimSignatureVerification): boolean {
   )
 }
 
+/**
+ * Spec 237 T4.7d: só a falha transitória de assinatura ALINHADA ao `From` vale como "sem veredito". A `mailauth`
+ * calcula `status.aligned` antes de consultar o DNS: uma assinatura de domínio alheio com o DNS mudo nunca decidiria
+ * nada, e repetir a entrega por ela mantinha o trilho refém de quem controla esse DNS.
+ */
 function isTransientFailure(signature: DkimSignatureVerification): boolean {
-  return TRANSIENT_FAILURE_RESULTS.has(signature.status.result)
+  return TRANSIENT_FAILURE_RESULTS.has(signature.status.result) && Boolean(signature.status.aligned)
 }
 
 function isAbsent(signature: DkimSignatureVerification): boolean {
@@ -66,7 +71,7 @@ export function resolveDkimAlignment(
 
   if (signatures.some(isAlignedPass)) return DKIM_ALIGNMENT_RESULT.ALIGNED
 
-  // Basta uma assinatura ainda sem veredito (DNS fora do ar) para o resultado ser "não deu para
+  // Basta uma assinatura alinhada ainda sem veredito (DNS fora do ar) para o resultado ser "não deu para
   // verificar", nunca "verificado e não alinhado" — ela poderia ter sido a decisiva.
   if (signatures.some(isTransientFailure)) return DKIM_ALIGNMENT_RESULT.UNVERIFIABLE
 
