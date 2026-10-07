@@ -57,6 +57,10 @@ const TRANSACTION_REACHABLE_FUNCTIONS = [
     file: 'trips/infrastructure/delivery-proof-read.support.ts',
     signature: 'export async function listDeliveryContacts(',
   },
+  {
+    file: 'business-calendar/infrastructure/business-calendar-rules.query.ts',
+    signature: 'export async function loadBusinessCalendarRules(',
+  },
 ] as const
 
 const NEXT_DECLARATION =
