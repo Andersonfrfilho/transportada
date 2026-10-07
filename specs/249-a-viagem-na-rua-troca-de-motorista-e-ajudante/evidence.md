@@ -64,3 +64,36 @@ a viagem e `allowed-actions`), botão "Transferir tripulação" no `TripHeaderAc
 A spec 217 introduziu a detecção de reatribuição como desaparecimento da viagem da lista, para viagens em `draft` e `route_planned`. A spec 249 estende essa lógica para viagens que já saíram, em `dispatched`, `in_transit` ou `on_delivery_route`. A função `hasReassignedTrip` já estava genérica o suficiente para cobrir esses novos estados — só precisava formalização em testes.
 
 Os textos foram ajustados para refletir que a viagem pode ser transferida enquanto está na rua, e que os registros anteriores permanecem com a viagem (conforme D9 da spec). Os rótulos de recusa agora deixam claro qual é o problema (transferência) e o que fazer (contatar escritório).
+
+## API parte 1 — T1.2 (parcial), T1.3, T1.4
+
+**Commits**: `cd0369a84` (contratos vermelhos) · `fd20121fa` (domínio e custo puro) · `fcc9aaf63` (migration).
+
+**T1.2 (parcial)** — vermelho pelo motivo certo: módulo `trip-crew-cost.policy.js` inexistente e export
+`isCrewTransferable` ausente; a grade de `allowed-actions` falhou por `transferCrew` não ser oferecido.
+Contratos: `test/trip-valuation/crew-cost.contract.ts` (paridade com `buildValuationFromContext` em 10
+cenários, origem da diária, lacuna, duração desconhecida, arredondamento, `antes + diferença = depois`),
+grade de `trip-state.contract.ts` (140 → 160 células), janela em `crew-status.contract.ts`,
+`allowed-actions` em `policy.contract.ts`. Ficam para a T1.5: `crew-transfer.contract.ts` e o
+`separator-role.contract.test.ts` (dependem da rota).
+
+**T1.4** — `trip-crew-cost.policy.ts` (`buildCrewCostParcels`, `summarizeCrewCost`,
+`buildCrewCostDifference`, `resolveAllowanceDays` movida); `buildCostParcels` delega.
+`isCrewTransferable` + `TRIP_ACTION.transferCrew` (sempre `unchanged` quando liberado; `cancelled` →
+`TRIP_CANCELLED`, `completed` → `TRIP_COMPLETED`, antes do despacho → `TRIP_NOT_DISPATCHED`, que já
+existia e já está no mapa de mensagens/HTTP). `allowed-actions` oferece `transferCrew` em `trip[]` com
+`canReportInField` (permissão `trip.report-on-behalf` + viagem com motorista, a mesma porta de
+`startRoute`). Expectativas existentes que mudaram por consequência (RF1): `dispatched`/`in_transit`
+com finance agora `['startRoute','transferCrew']`; `on_delivery_route` com operator `['cancel',
+'transferCrew']` e finance `['transferCrew']` (`test/trip-http/allowed-actions.contract.ts`).
+
+**T1.3** — `drizzle/20261007114250_trip_crew_events/` (`migration.sql`, `rollback.sql`,
+`snapshot.json` gerado por `db:generate`), trigger append-only, CHECKs de canal, motivo 1..500, forma do
+retrato (`next_crew` com ao menos 1) e `cost_difference = cost_after − cost_before`; FK composta
+`(company_id, trip_id)` com RESTRICT (a tabela é append-only); sem FK de `actor_user_id` (molde de
+`trip_status_events`). Rollback recusa com transferência gravada. Asserção:
+`test/database-migration/trip-crew-events.assertion.ts`.
+
+**Gates**: `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) · `bun run test`
+(contrato) 10408 pass / 25 skip / 0 fail · `make migration-test` 141 pass / 0 fail ·
+`bun run db:check` ok.
