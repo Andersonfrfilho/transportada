@@ -2163,3 +2163,74 @@ integração da API, 6 lotes em primeiro plano     exit=0 em todos — 208+250+2
 ```
 
 Integração em Postgres 18 nativo descartável (porta própria, derrubado ao fim).
+
+**Status**: ✅ Completo
+
+**Criado**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
+
+**Conteúdo**:
+
+- Instruções passo a passo para cadastrar "Devolução parcial" e "Devolução total" pela tela
+- Guia para renomear "Recusa parcial" e "Recusa total" (tipos existentes no bootstrap)
+- Configuração de campos: momentos, exigências, número do documento, valor pago, e-mail à contratante
+- Assunto, corpo e linha de item com valores EXATOS da spec § "Modelos do SAC"
+- Tabela de marcadores válidos com referência completa
+- Exemplo esperado (nota 680481, cliente Supermercado Trialba)
+- Nota sobre prorrogação de boleto (spec 248, não implementada)
+
+**Marcadores verificados por grep** (constante `occurrence-template.constant.ts`):
+
+| Marcador                 | Contexto               | Usado no roteiro | Status |
+| ------------------------ | ---------------------- | ---------------- | ------ |
+| `{{contratante}}`        | assunto/corpo          | ✅ assunto       | ✅     |
+| `{{numeroNotaSemSerie}}` | assunto/corpo          | ✅ assunto/corpo | ✅     |
+| `{{numeroReferencia}}`   | corpo                  | ✅ corpo         | ✅     |
+| `{{valorDeclarado}}`     | corpo                  | ✅ corpo         | ✅     |
+| `{{razaoSocial}}`        | corpo                  | ✅ corpo         | ✅     |
+| `{{valorNota}}`          | corpo                  | ✅ corpo         | ✅     |
+| `{{linhasItens}}`        | corpo (não no assunto) | ✅ corpo         | ✅     |
+| `{{codigoItem}}`         | linha                  | ✅ linha         | ✅     |
+| `{{item}}`               | linha                  | ✅ linha         | ✅     |
+| `{{quantidadeItem}}`     | linha                  | ✅ linha         | ✅     |
+| `{{unidadeItem}}`        | linha                  | ✅ linha         | ✅     |
+| `{{observacao}}`         | linha                  | ✅ linha         | ✅     |
+
+**Conferência por grep** (arquivo `occurrence-template.constant.ts`):
+
+```bash
+$ grep -E "numeroNotaSemSerie|numeroReferencia|valorDeclarado|contratante|razaoSocial|valorNota|linhasItens|codigoItem|quantidadeItem|unidadeItem|observacao" \
+    apps/api-transportada/src/shared/occurrence-template.constant.ts | grep -v "^//" | head -30
+```
+
+✅ Todos os marcadores estão presentes na lista `OCCURRENCE_TEMPLATE_PLACEHOLDERS` e/ou `OCCURRENCE_ITEM_LINE_PLACEHOLDERS`.
+
+**Nenhum marcador novo introduzido no roteiro** — todos validados contra a constante.
+
+**Prettier**:
+
+```text
+$ bun run format:check
+Checking formatting...
+All matched files use Prettier code style!
+```
+
+✅ Passou na primeira rodada (após `prettier --write`).
+
+**Verificação de estrutura**:
+
+- ✅ Não contém seed, migration ou script que crie/altere tipo
+- ✅ Apenas instruções manuais pela tela
+- ✅ Pt-BR, sem emoji
+- ✅ Segue padrão de documentação do projeto (técnico, estruturado, sem emoji)
+
+**Gates**:
+
+```text
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+Commit: passo seguinte.
+
+```
+
+```

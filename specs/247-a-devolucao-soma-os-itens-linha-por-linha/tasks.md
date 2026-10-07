@@ -112,7 +112,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T6.1** `docs/operacao/tipos-de-ocorrencia-do-sac.md`: roteiro de cadastro **pela tela** dos
+- [x] **T6.1** `docs/operacao/tipos-de-ocorrencia-do-sac.md`: roteiro de cadastro **pela tela** dos
       dois tipos com os valores exatos da spec § "Modelos do SAC" (e o que renomear em "Recusa
       parcial"/"Recusa total"). Nada de seed, migration ou script que crie/altere tipo de empresa
       existente. Prettier.
