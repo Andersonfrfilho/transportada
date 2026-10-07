@@ -57,6 +57,16 @@ async function openPanel(options: PreviewEmailDoubleInitial = {}) {
   return { calls, rendered }
 }
 
+/** Chaves e valores guardados; um armazenamento dublado por outro teste, sem `length`, não guarda nada para ler. */
+function storedValues(storage: Storage): string[] {
+  const values: string[] = []
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index)
+    if (key !== null) values.push(key, storage.getItem(key) ?? '')
+  }
+  return values
+}
+
 function refusalButtons(): string[] {
   const summary = document.querySelector('[data-refusal-summary]')
   return [...(summary?.querySelectorAll('button') ?? [])].map((button) => button.textContent ?? '')
@@ -263,24 +273,19 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
       spyOn(console, 'warn'),
       spyOn(console, 'error'),
     ]
-    const stored: string[] = []
-    const storage = [window.localStorage, window.sessionStorage].map((area) =>
-      spyOn(area, 'setItem').mockImplementation(((key: string, value: string) => {
-        stored.push(`${key}=${value}`)
-      }) as never),
-    )
     const { rendered } = await openPanel({ settings: FILLED_SETTINGS })
 
     try {
       await click(buttonByText('Gerar endereço'))
       await waitFor(() => expect(bodyText()).toContain(FIRST_TOKEN))
 
-      expect(stored.some((entry) => entry.includes(FIRST_TOKEN))).toBe(false)
+      const stored = [window.localStorage, window.sessionStorage].flatMap(storedValues)
+      expect(stored.some((value) => value.includes(FIRST_TOKEN))).toBe(false)
       expect(window.location.href.includes(FIRST_TOKEN)).toBe(false)
       const printed = logs.flatMap((spy) => spy.mock.calls.map((call) => JSON.stringify(call)))
       expect(printed.some((line) => line.includes(FIRST_TOKEN))).toBe(false)
     } finally {
-      for (const spy of [...logs, ...storage]) spy.mockRestore()
+      for (const spy of logs) spy.mockRestore()
       rendered.unmount()
     }
   })
