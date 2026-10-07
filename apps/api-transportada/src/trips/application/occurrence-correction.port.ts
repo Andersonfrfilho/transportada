@@ -9,6 +9,7 @@
  */
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import type { StoredOccurrenceLineValues } from '../domain/occurrence-correction-values.policy.js'
+import type { OccurrenceTypeOverridesReadPort } from './resolve-document-occurrence-requirements.service.js'
 import type { TripDocumentProduct } from './read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
@@ -55,7 +56,15 @@ export type CorrectedOccurrenceView = TripOccurrence &
     readonly products: readonly OccurrenceItemQuantity[]
   }
 
-export type OccurrenceCorrectionTransactionPort = {
+export type OccurrenceCorrectionTransactionPort = OccurrenceTypeOverridesReadPort & {
+  /** Spec 247 (T7.2b): contratante e destinatário da NOTA da ocorrência — nunca do corpo do pedido. */
+  findDocumentSubject(input: {
+    readonly companyId: string
+    readonly documentId: string
+  }): Promise<null | {
+    readonly contractorId: null | string
+    readonly recipientTaxId: null | string
+  }>
   /** `select … for no key update` — trava a linha antes de qualquer decisão (T302). */
   lockOccurrence(input: {
     readonly companyId: string

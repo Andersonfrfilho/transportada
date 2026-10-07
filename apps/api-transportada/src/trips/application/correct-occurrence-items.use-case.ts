@@ -14,6 +14,7 @@ import {
   resolveCorrectedOccurrenceScalars,
   type TriStateText,
 } from '../domain/occurrence-correction-values.policy.js'
+import { applyCorrectionRequirements } from '../domain/occurrence-correction-requirements.policy.js'
 import { resolveDocumentProductPricing } from '../domain/occurrence-product-pricing.policy.js'
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
 import {
@@ -23,6 +24,7 @@ import {
   TripDocumentNotFoundError,
   TripOccurrenceNotFoundError,
 } from '../domain/trip.error.js'
+import { resolveStoredOccurrenceRequirements } from './resolve-stored-occurrence-requirements.service.js'
 import type {
   CorrectedOccurrenceView,
   OccurrenceCorrectionUnitOfWork,
@@ -109,6 +111,26 @@ export async function correctOccurrenceItems(
       units: input.productQuantityUnits ?? [],
     })
 
+    /** Spec 247 (T7.2b N1): o modo EFETIVO manda — contratante e destinatário lidos da NOTA, nunca do corpo. */
+    const subject = await transaction.findDocumentSubject({
+      companyId: input.companyId,
+      documentId: occurrence.tripDocumentId,
+    })
+    if (subject === null) throw new TripDocumentNotFoundError()
+    const requirements = await resolveStoredOccurrenceRequirements({
+      companyId: input.companyId,
+      document: subject,
+      occurrenceType,
+      repository: transaction,
+    })
+    const applied = applyCorrectionRequirements({
+      declaredAmount: input.declaredAmount,
+      lineCount: nextItems.length,
+      productDeclaredAmounts: input.productDeclaredAmounts ?? [],
+      referenceNumber: input.referenceNumber,
+      requirements,
+    })
+
     const previousItems = await transaction.listCurrentItems({
       companyId: input.companyId,
       occurrenceId: input.occurrenceId,
@@ -116,18 +138,18 @@ export async function correctOccurrenceItems(
 
     /** Spec 247 (T4.8): o preço copiado no registro sobrevive; o do código novo sai da nota, nunca do corpo. */
     const nextLines = buildCorrectedOccurrenceLines({
-      declaredAmounts: input.productDeclaredAmounts ?? [],
+      declaredAmounts: applied.productDeclaredAmounts,
       nextItems,
       previousLines: previousItems,
       pricing: resolveDocumentProductPricing(documentProducts),
     })
     const scalars = resolveCorrectedOccurrenceScalars({
-      declaredAmount: input.declaredAmount,
+      declaredAmount: applied.declaredAmount,
       previous: {
         declaredAmount: occurrence.declaredAmount,
         referenceNumber: occurrence.referenceNumber,
       },
-      referenceNumber: input.referenceNumber,
+      referenceNumber: applied.referenceNumber,
     })
     assertSingleDeclaredAmountLevel({ declaredAmount: scalars.declaredAmount, lines: nextLines })
 

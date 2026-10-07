@@ -6,7 +6,6 @@
  * Toda consulta e toda escrita com o `companyId` do contexto no `where` — a exceção de uma empresa
  * nunca vaza para o cadastro de outra.
  */
-import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 
 import {
@@ -15,6 +14,7 @@ import {
 } from '../../database/trip.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
+import type { TripQueryable } from './trip-queryable.type.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
   rethrowOverrideShapeViolation,
@@ -23,7 +23,7 @@ import {
   type OccurrenceOverrideRequirementFields,
 } from './occurrence-override-requirement-columns.support.js'
 
-type Database = ReturnType<typeof createDrizzleProvider>['db']
+type Database = TripQueryable
 
 export type OccurrenceAttachmentContractorOverride = OccurrenceOverrideRequirementFields & {
   readonly attachmentMode: DeliveryProofFieldMode

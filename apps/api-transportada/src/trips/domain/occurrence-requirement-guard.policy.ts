@@ -53,7 +53,7 @@ export type AssertDriverOccurrenceRequirementsParams = {
   readonly requirements: OccurrenceRequirements
 }
 
-function lineDeclaredAmountField(index: number): string {
+export function lineDeclaredAmountField(index: number): string {
   return `items[${String(index)}].${OCCURRENCE_DECLARED_AMOUNT_FIELD}`
 }
 

@@ -220,7 +220,12 @@ describe('a correção recusa produto em tipo sem itens (spec 241 RF6, CA03)', (
   }) {
     const calls: string[] = []
     const transaction: OccurrenceCorrectionTransactionPort = {
+      findDocumentSubject: async () => ({ contractorId: null, recipientTaxId: null }),
       findOccurrenceType: async () => buildType({ itemsMode: input.itemsMode, stage: 'delivery' }),
+      findOccurrenceTypeOverrides: async () => ({
+        contractorOverrides: [],
+        recipientOverrides: [],
+      }),
       hasOpenCase: async () => false,
       insertCorrection: async () => void calls.push('insertCorrection'),
       listCurrentItems: async () =>
