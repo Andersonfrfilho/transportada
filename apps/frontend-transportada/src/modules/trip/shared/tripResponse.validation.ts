@@ -1942,7 +1942,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.referenceNumberLabel === undefined || isString(value.referenceNumberLabel)) &&
     (value.declaredAmountMode === undefined ||
       isOneOf(value.declaredAmountMode, ['off', 'optional', 'required'])) &&
-    (value.declaredAmountScope === undefined || isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
+    (value.declaredAmountScope === undefined ||
+      isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
     (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
   )

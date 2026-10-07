@@ -492,9 +492,12 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     (typeof candidate.declaredAmountScope === 'string' &&
       ['item', 'occurrence'].includes(candidate.declaredAmountScope))
   const hasKnownNewFields =
-    (candidate.referenceNumberLabel === undefined || typeof candidate.referenceNumberLabel === 'string') &&
-    (candidate.declaredAmountLabel === undefined || typeof candidate.declaredAmountLabel === 'string') &&
-    (candidate.emailItemLineTemplate === undefined || typeof candidate.emailItemLineTemplate === 'string')
+    (candidate.referenceNumberLabel === undefined ||
+      typeof candidate.referenceNumberLabel === 'string') &&
+    (candidate.declaredAmountLabel === undefined ||
+      typeof candidate.declaredAmountLabel === 'string') &&
+    (candidate.emailItemLineTemplate === undefined ||
+      typeof candidate.emailItemLineTemplate === 'string')
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
