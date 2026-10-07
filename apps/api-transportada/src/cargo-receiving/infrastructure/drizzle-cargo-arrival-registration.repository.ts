@@ -26,7 +26,11 @@ import {
   resolveSeparationDueAt,
   type CopiedArrivalRules,
 } from '../domain/cargo-arrival-transition.policy.js'
-import { selectArrivalCandidateRows, toIbgeCityCode } from './cargo-arrival-document.query.js'
+import {
+  selectArrivalDestinationCities,
+  type ArrivalDestinationCity,
+} from './cargo-arrival-destination.query.js'
+import { selectArrivalCandidateRows } from './cargo-arrival-document.query.js'
 import {
   findArrivalProfileRules,
   insertArrivalAudit,
@@ -73,7 +77,7 @@ async function register(
   if (refusals.length > 0) return { kind: 'refused', refusals }
 
   const arrivalId = await insertArrival(transaction, { params, rules: gate.rules })
-  const cities = new Map(rows.map((row) => [row.id, toIbgeCityCode(row.cityIbgeCode)]))
+  const cities = await selectArrivalDestinationCities(transaction, params)
   await insertDocumentsAndEvents(transaction, { arrivalId, cities, params })
   await insertArrivalAudit(transaction, {
     action: REGISTERED_AUDIT_ACTION,
@@ -160,7 +164,7 @@ async function insertDocumentsAndEvents(
   transaction: Transaction,
   input: {
     readonly arrivalId: string
-    readonly cities: ReadonlyMap<string, string | null>
+    readonly cities: ReadonlyMap<string, ArrivalDestinationCity>
     readonly params: Params
   },
 ): Promise<void> {
@@ -170,7 +174,7 @@ async function insertDocumentsAndEvents(
     .values(
       params.documentIds.map((nfeDocumentId) => ({
         arrivalId,
-        cityIbgeCode: cities.get(nfeDocumentId) ?? null,
+        cityIbgeCode: cities.get(nfeDocumentId)?.cityIbgeCode ?? null,
         companyId: params.companyId,
         nfeDocumentId,
         separationState: CARGO_ARRIVAL_DOCUMENT_STATE.expected,

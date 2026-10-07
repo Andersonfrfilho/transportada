@@ -86,14 +86,13 @@ export function buildCandidateDocumentFilters(params: {
   ]
 }
 
-/** As linhas que a política de candidatas julga, mais a cidade que a nota vai levar. */
+/** As linhas que a política de candidatas julga. */
 export function selectArrivalCandidateRows(
   executor: Pick<Database, 'select'>,
   params: { readonly companyId: string; readonly documentIds: readonly string[] },
 ) {
   return executor
     .select({
-      cityIbgeCode: recipientAddressSql(nfeAddresses.cityCode),
       emitterTaxId: emitterParticipant.taxId,
       id: nfeDocuments.id,
       isInArrival: isInArrivalSql(nfeDocuments.id).mapWith(Boolean),
