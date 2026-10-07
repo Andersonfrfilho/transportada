@@ -1393,6 +1393,110 @@ M2 — número não editado vira nulo (apagaria o gravado):               1 fail
 M3 — o espelho trunca em vez de arredondar meio para cima:            6 fail (casos de CA02, inclusive 3 × 19,995)
 ```
 
+## T5.3 — app do motorista (2026-10-07)
+
+Ramo `work/spec-247-driver`, a partir de `origin/staging` `477e5f535`. Só `apps/frontend-driver`.
+
+### O que mudou
+
+- **Snapshot chega à tela.** `toDocument` (`driverTripResponse.validation.ts`) descartava `products`; agora lê `products` (ausente
+  fica `undefined`, lista vazia fica vazia, item malformado some) e `hasVaryingUnitValue` (ausente é `false`). Parsado com o JSON de
+  referência da API (`test/fixtures/driver-snapshot-document.golden.json`).
+- **Espelho do cálculo.** `shared/occurrenceAmount.service.ts` (bigint, meio para cima por linha, soma das linhas já
+  arredondadas, valor pago digitado vence). `test/driver-trip/occurrence-amount.contract.ts` roda os **mesmos 24 casos** do
+  `occurrence-amount.contract.ts` da API, linha a linha, e o mesmo contrato de parede (sem `Number`/`parseFloat`/`Math`).
+- **Decisão local, sem rede.** `occurrenceDraftValues.service.ts` avalia produtos marcados, quantidade (até 3 casas, > 0, não
+  acima da nota), valor pago (por linha ou da ocorrência, conforme o escopo **efetivo**) e número do documento.
+  `resolveDeclaredAmountTarget` espelha o do servidor: escopo `item` sem linha marcada, ou com Produtos `off`, cai na ocorrência;
+  Produtos obrigatório sem nenhuma linha marcada espera as linhas. `required` bloqueia, `optional`/`off` não; preço que varia na
+  nota (`hasVaryingUnitValue`) com valor pago ligado e escopo item exige o valor **naquela linha**; `"0"` é valor, vazio não é.
+  Mínimo de produtos: `min(itemsMinimumCount ?? total, total)`, como `assertOccurrenceItemsRequirement` (nulo = todos os itens).
+- **Corpo pela fila existente.** `items?: [{ productCode, quantity, declaredAmount? }]`, `referenceNumber?`, `declaredAmount?`,
+  tudo `string`; o valor pago só vai no nível do escopo efetivo (nunca os dois — o servidor responde 400); nunca preço, unidade,
+  contratante nem escopo (`.strict()`). O relato `documentOccurrence` guarda os três e o `send` os põe no corpo do `POST`.
+- **Tela** (desenho de `preview.html`): `OccurrenceValuesSection` → `OccurrenceItemsField` (lista, caixa com rótulo-alvo de 44 px,
+  quantidade na unidade da nota, valor pago da linha, conta da linha `1 UN × R$ 57,20 = R$ 57,20`, soma dos produtos e valor pago),
+  campo da ocorrência e número do documento (rótulo e "obrigatório/opcional" do tipo). Ordem do formulário: produtos → valor pago
+  da ocorrência → número → observação → foto → assinatura (a mesma da lista "Para registrar, falta: …"). Sem lista no snapshot,
+  continua o chip "A nota inteira".
+- **Recusa do servidor na fila** diz o campo: `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED`, `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED`
+  (com `details[].field` = `items[N].declaredAmount` → "o valor pago de cada produto"), `OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT`,
+  `TRIP_OCCURRENCE_ITEMS_REQUIRED`/`_MINIMUM_NOT_MET` (`rejectionCauseLabel.service.ts`, pt e en).
+
+### Desvios deliberados do protótipo
+
+| Protótipo                                                               | Tela real                                                                             | Por quê                                                                                                        |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Valor pago da ocorrência sem "obrigatório/opcional" no rótulo           | com o sufixo, como a linha e o número                                                 | campo exigido sem aviso é só descoberto no botão desabilitado                                                  |
+| `R$ 19,99` (centavos) como valor unitário na nota                       | `R$ 19,995` (2 a 4 casas, como a nota traz)                                           | a soma da linha parte de 19,995; arredondado, a conta que o motorista faz de cabeça não fecha                  |
+| cobre puro no título do bloco e cinza/vermelho puros no apoio e no erro | misturados com o tom do texto                                                         | medido no tema claro: 4,03:1 / 4,26:1 / 4,14:1 (< 4,5); depois 5,5:1 ou mais nos dois temas                    |
+| `<input type=checkbox>` visível de 20 px                                | caixa desenhada, `<input>` escondido do olho e não do leitor (padrão do `file-field`) | `test/shared/touch-target.contract.ts` recusa `height < 44px` em controle; o alvo é o rótulo inteiro (≥ 44 px) |
+
+### Contratos (vermelho antes do código)
+
+- `occurrence-amount.contract.ts` (24), `occurrence-values.contract.ts` (34: digitação, soma, escopo efetivo, exigências, ordem),
+  `occurrence-values-queue.contract.ts` (7: gate do dispatch, relato, corpo do `POST` com o cliente de verdade),
+  `occurrence-values-fields.contract.tsx` (17: marcação, rótulos ligados por `for`/`id`, somas na tela, erro por linha, motivo do botão,
+  sem estilo em linha/`React.FC`/literal `R$` no TSX), `occurrence-rejection-cause.contract.ts` (4), mais os testes de `products` no
+  `driverTripResponse.validation.contract.test.ts`. Todos na lista do `test/driver-trip.contract.test.ts`. Dois testes antigos mudaram
+  de expectativa por motivo legítimo: a forma de `resolveOccurrenceRequirements`/`resolveOccurrenceFieldVisibility` ganhou as chaves
+  novas (default `off`), e a ordem da lista de faltas passou a `produtos, … , observação, foto, assinatura`.
+
+### Mutações
+
+```text
+base:                                                         55 pass · 0 fail (3 arquivos de valores)
+M0 espelho: meio para cima → truncar (occurrenceAmount)        5 fail  (24 casos do espelho)
+M1 dispatch sem os fatos de valores (gate de segunda trava)    1 fail
+M2 escopo "item" ignora Produtos desligado                     sobrevivia → teste direto de resolveDeclaredAmountTarget → 1 fail
+M3 valor pago "0" vira vazio                                   4 fail
+M4 corpo manda `unitValue` do produto                          5 fail
+M5 cliente descarta `items` do corpo                           1 fail
+restaurado: 1340 pass · 0 fail (app inteira)
+```
+
+M2 ficou verde de primeira porque `evaluateOccurrenceValues` já zera as linhas marcadas com Produtos `off` antes de chamar a função;
+o teste direto de `resolveDeclaredAmountTarget` fecha o buraco.
+
+### Navegador (`motorista-api-demo` + Vite do worktree, porta 53200; verificado por texto)
+
+⚠️ **Login real não foi usado.** A app do motorista não tem atalho de autenticação (ADR-0075 §7), a senha do `local-user` está só no
+`.env` (o `.env.example` traz um valor de exemplo) e o contrato do projeto veda expor o `.env`. Em vez disso, um arnês descartável
+(`harness247.html`, **apagado, não commitado**) montou o **`DriverOccurrenceRegistrationForm` real**, com o CSS e o i18n reais, sobre
+o documento que o **parser real** leu do JSON da demo (`/me/trips/current`, com produtos e três tipos efetivos adicionados a
+`scripts/driver-preview-api.ts`). Não passou por `DriverStopCard`/`DriverTripWorkspace` nem pelo IndexedDB e pela fila — isso fica para
+o smoke e para o usuário.
+
+- Tipo "Devolução parcial" (produtos obrigatórios, mínimo 1, valor pago obrigatório por linha, número obrigatório): título
+  "PRODUTOS DEVOLVIDOS (OBRIGATÓRIO)"; botão desabilitado com "Para registrar, falta: a marcação dos produtos, “Número da NFD”.";
+  marcados três produtos, falta "“Valor pago pela loja” de cada produto marcado"; digitação real (`3,5ab` → `3,5`, "A nota tem só 3 FD.",
+  `aria-invalid`), depois `3`, `50,00`, `0`, `8,5` e `NFD 45029!ç` (→ `NFD 45029`): **soma dos produtos R$ 127,19**
+  (59,99 + 57,20 + 10,00) e **valor pago R$ 58,50**; botão habilitado; o corpo que o relato leva:
+  `items:[{declaredAmount:"50.00",productCode:"2073170",quantity:"3"},{declaredAmount:"0",…},{declaredAmount:"8.5",…}]`,
+  `referenceNumber:"NFD 45029"`, `productCode:""`, nenhum preço/unidade.
+- Tipo "Avaria na descarga" (escopo da ocorrência, opcional, Produtos opcional, observação obrigatória): linhas sem campo de valor,
+  "Valor pago · opcional" e "Número do documento do cliente · opcional" abaixo da soma; marcar um produto mantém o valor na ocorrência
+  (soma R$ 57,20). "Cliente ausente" (tudo `off`): nenhum campo novo.
+- Geometria (`scrollWidth`/`clientWidth`, elementos fora da janela, alvo < 44 px, recortes), três larguras:
+
+| Largura | scrollWidth / clientWidth | fora da janela | alvo < 44 px | margem esq./dir. |
+| ------- | ------------------------- | -------------- | ------------ | ---------------- |
+| 375     | 375 / 375                 | 0              | 0            | 16 px / 16 px    |
+| 768     | 768 / 768                 | 0              | 0            | —                |
+| 1280    | 1280 / 1280               | 0              | 0            | —                |
+
+- Contraste (menor razão entre os textos do bloco, canvas + composição de camadas): tema escuro 5,69:1; tema claro 5,55:1 (antes
+  4,03–4,26:1, corrigido). O campo de "Quantidade" e o de "Valor pago" lado a lado ficavam com alturas diferentes (55 × 46 px, a grade
+  esticava a linha do campo): `align-content: start`.
+- Uma captura (375 px, tema escuro) como prova final ao usuário.
+
+### O que NÃO foi rodado
+
+- Smoke Playwright (`bun run --cwd apps/frontend-driver smoke`): exige Keycloak real e o build do smoke; não foi tentado.
+- Fluxo completo pela fila offline real no navegador (IndexedDB, drenagem, `POST` na API de staging): coberto só por contrato
+  (`occurrence-values-queue.contract.ts` usa o cliente HTTP de verdade com `fetch` dublê).
+- Revisão de design lado a lado com o `preview.html` em 768 e 1280 (T7.1 é outra task).
+
 ### Gates
 
 ```text
@@ -1495,3 +1599,13 @@ lista inteira (`isOccurrenceType` é de chaves fechadas) e seguiu mostrando o ti
 
 **O que não deu para fazer:** o desenho `preview.html` não foi posto **lado a lado** com a tela real (isso é a T7.1, com os mesmos dados nos três
 tamanhos); o acerto foi verificado só no desktop e a 375 px por texto/geometria, sem o fluxo do app do motorista (T5.3, outro executor).
+
+$ bun run typecheck (raiz) → tsc --noEmit ×7, sem erro
+$ bun run --cwd apps/frontend-driver test → 1340 pass · 0 fail · 2948 expect() (4 arquivos de contrato)
+$ bun run --cwd apps/frontend-driver lint → eslint ., sem saída
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+
+```
+
+Sem migration: `make migration-test` não se aplica. Sem push nem deploy.
+```
