@@ -63,3 +63,13 @@ Testes do v2: `test/nota-rp-v2-client.contract.test.ts`, `test/nota-rp-v2/{fixtu
 
 Recorte do contrato v3 gravado em `docs/ai-context/worker-transportada.md`
 ("A Nota RP v3 — recorte do contrato usado").
+
+## E8 — T1.1: revisão `architect`/Opus do ADR 0098 (07/10/2026)
+
+Veredito **aprovado com ajustes**; bloqueavam a implementação: porta e consumidor mudam (chave do
+provedor, `taxId`), `Falha` sem texto no `listar`, limitador por processo, idempotência entre
+reemissões e `not_found` nunca `rejected`. Todos incorporados no ADR 0098, `plan.md` e `tasks.md`
+(T2.1–T2.4, T3.2–T3.4, T5.1, T6.1). Conferido no código antes de aceitar: `issue({credential,
+payload})` sem chave (`nfse-fiscal-gateway.ts:140`), `NfseCredentialAccess` sem `taxId`, recusa sem
+`rejection` → `MALFORMED` (`nfse-reconciliation-outcome.policy.ts:84`), motivo `'2'|'4'`
+(`nfse-issuance-execution.schema.ts:23`).

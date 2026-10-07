@@ -26,20 +26,25 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `opus` (T1.1 🧠 — validar com `architect`)
 
-- [ ] **T1.1** 🧠 ADR **0098** "A NFS-e fala a Nota RP v3": seleção por env, `cTribNac` em coluna,
-      `hash_pedido`, vínculo de nota manual. Emenda a 0029 e a 0035. Aceite: ADR no `docs/adr/` com
-      numeração conferida em `origin/staging`.
+- [x] **T1.1** 🧠 ADR **0098** "A NFS-e fala a Nota RP v3": versão por tentativa, `cTribNac` e alíquota
+      SN em coluna, chave de provedor persistida, `not_found`→adiamento, limitador por processo.
+      Revisão `architect`/Opus em 07/10/2026: aprovado com ajustes, todos incorporados.
 
 ## Fase 2 — API e banco
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contratos vermelhos: perfil aceita/rejeita `nationalTaxationCode`; payload congelado o
-      leva; sem ele a criação para a v3 dá `409 NFSE_NATIONAL_TAXATION_CODE_MISSING`.
+- [ ] **T2.1** Contratos vermelhos: perfil aceita/rejeita `nationalTaxationCode` e
+      `simplesNationalRate`; payload congelado leva os dois; sem eles, com `NFSE_PROVIDER_API_VERSION=v3`
+      na **API**, a criação dá `409 NFSE_NATIONAL_TAXATION_CODE_MISSING`; `providerConfig` grava
+      `providerApiVersion`.
 - [ ] **T2.2** Migration `nfse_emission_profiles.national_taxation_code` (nullable, check `^\d{6}$`) + `rollback.sql` + snapshot + schema Drizzle. `make migration-test` verde.
 - [ ] **T2.3** Perfil (mapper, schema Zod, rotas), `freezeNfseIssuancePayload` e `FrozenPayloadShape`
-      com o campo; erro de bloqueio nomeado (spec 044).
-- [ ] **T2.4** Reemissão: `correction.nationalTaxationCode` na API e na política de correção.
+      com os dois campos; `NFSE_PROVIDER_API_VERSION` no schema de env da API e em `providerConfig`;
+      erro de bloqueio nomeado (spec 044).
+- [ ] **T2.4** Reemissão: `correction.nationalTaxationCode` e `correction.simplesNationalRate` na API e
+      na política de correção; **reuso de `provider_request_key`** quando a tentativa anterior terminou
+      ambígua (sem `providerDocumentId` e com causa de transporte).
 - [ ] **T2.5** Conferir `bun --env-file=../../.env.test run test:integration` nos arquivos tocados.
 
 ## Fase 3 — Worker (e cron, se houver)
@@ -48,11 +53,15 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 - [ ] **T3.1** 🧠 Contratos vermelhos do `nota-rp-v3.client` a partir das respostas do swagger
       (fixtures): emitir 200/409/422/403/429, listar por status, cancelar, pdf/xml.
-- [ ] **T3.2** `nota-rp-v3.client.ts` (cabeçalhos token+CNPJ+IM, throttle 1 req/s, mapeamento da
-      tabela do plan, saneamento de mensagem).
-- [ ] **T3.3** Gateway e status pull escolhem v2/v3 por `NFSE_PROVIDER_API_VERSION` (env schema do
-      worker e do cron; `.env.example`; `.railway/railway.ts` — variável sem segredo).
-- [ ] **T3.4** Cancelamento por nome de motivo; PDF/XML. Teste de contrato.
+- [ ] **T3.2** Porta: `issue` recebe a chave do provedor e `id_nota` opcional; `NfseCredentialAccess`
+      ganha `taxId` (os dois repositórios do worker o carregam). `nota-rp-v3.client.ts` (token+CNPJ+IM,
+      origem + `/api/v3`, mapeamento do plan, saneamento, `Falha`→`NOTA_RP_FALHA`, `not_found`→`error`).
+- [ ] **T3.3** Gateways (emissão, status pull, cancelamento, documentos) roteiam pela
+      `providerApiVersion` da tentativa; a variável vale só para emissões novas (env schema do worker
+      e da API; `.env.example`; `.railway/railway.ts`). **Limitador único por processo** envolvendo o
+      `fetch` do composition root, compartilhado pelos dois gateways; contrato com relógio injetado.
+- [ ] **T3.4** Cancelamento: `'2'`→`servico_nao_prestado`, `'4'`→`outros`+"Nota duplicada"; PDF/XML.
+      Payload sem `nationalTaxationCode` na v3 → recusa fatal nomeada. Teste de contrato.
 - [ ] **T3.5** Registrar os arquivos novos no `package.json` de `test` do worker.
 
 ## Fase 4 — Painel
@@ -68,8 +77,9 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T5.1 🧠 `opus`: muda o estado fiscal de uma nota)
 
-- [ ] **T5.1** 🧠 Decidir e desenhar "vincular nota emitida externamente": número, data, chave de
-      acesso → nota vai a `authorized` sem transmitir; auditoria com ator. Dependência da 042/T017 e
+- [ ] **T5.1** 🧠 Decidir e desenhar "vincular nota emitida externamente": **preferir vincular pelo
+      `id_nota` da Nota RP** (o status pull traz número, chave, PDF e XML); digitar número/data/chave
+      é a contingência. A nota vai a `authorized` sem transmitir; auditoria com ator. Dependência da 042/T017 e
       043/T010 (as 16 notas de Ribeirão Preto).
 - [ ] **T5.2** Implementar API + painel do vínculo, com contrato negativo (só nota rejeitada/falha).
 
@@ -77,7 +87,8 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T6.2 exige aprovação humana)
 
-- [ ] **T6.1** `make check` + `make migration-test` + `make worker-integration`; staging com `v2`.
+- [ ] **T6.1** `make check` + `make migration-test` + `make worker-integration`. Staging **não emite
+      NFS-e** (ADR-0035): a prova fiscal é a T6.2.
 - [ ] **T6.2** Virada em produção: `NFSE_PROVIDER_API_VERSION=v3`, perfil com `cTribNac 160201` e
       `cTribMun 160101`, uma nota de **valor mínimo** real, conferida no portal. Aprovação humana.
 - [ ] **T6.3** Atualizar `docs/ai-context/worker-transportada.md`, `cron-transportada.md`,

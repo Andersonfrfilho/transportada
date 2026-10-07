@@ -44,13 +44,14 @@ faz. O desenho assíncrono (outbox → consumidor → write-back → `nfse.statu
 
 ## Decisões por delegação
 
-- **Seleção v2 × v3 por variável de ambiente** (`NFSE_PROVIDER_API_VERSION`, `v2` | `v3`, padrão `v2`
-  até a virada). Distribuição é um deploy por transportadora (ADR-0021): a versão é do ambiente, não
-  da linha de dados, e a virada é reversível sem migration.
+- **Seleção v2 × v3 por variável de ambiente, versão gravada por tentativa** (ADR 0098):
+  `NFSE_PROVIDER_API_VERSION` (API e worker) escolhe a das emissões novas; consulta, cancelamento e
+  documentos seguem a versão da tentativa. A virada é reversível sem migration de dados.
 - `cTribNac` vira **coluna do perfil** (`national_taxation_code`), não derivação do item da LC 116 —
   o desdobro (`01`) não se deduz do item, e a prefeitura recusa par errado.
 - `regime` é **omitido** no corpo: a v3 usa o regime cadastrado da empresa.
-- `flags.hash_pedido` = `attemptId` (já é único e estável entre reentregas da mesma tentativa).
+- `flags.hash_pedido` = `provider_request_key` (coluna nova; copiada da tentativa anterior se ela
+  terminou ambígua, para não duplicar nota após timeout).
 - `409` de `hash_pedido` repetido vale como **aceito** com o `id_nota` devolvido (replay seguro).
 - O webhook usa a **mesma rota anônima** (`/public/nfse-callbacks/:token`): ela só antecipa a consulta,
   então o corpo e o `X-Signature` opcional ficam fora do caminho crítico (ADR-0029 §2 intacto).
