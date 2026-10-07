@@ -44,9 +44,7 @@ async function recordWith(input: {
   readonly headerFrom: readonly string[]
 }): Promise<RecordContractorMailInboundMessageInput> {
   const recordCalls: RecordContractorMailInboundMessageInput[] = []
-  // Variável, não literal: o dublê expõe os dois métodos e o tipo da porta só pede o que ela usa.
   const dkimVerifier = {
-    verify: async () => input.alignment,
     verifyWithHeaderFrom: async () => ({
       alignment: input.alignment,
       headerFrom: input.headerFrom,

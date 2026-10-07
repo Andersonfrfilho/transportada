@@ -14,11 +14,12 @@ import { RAW_EMAIL_MIME_TYPE } from '../domain/contractor-mail.constant.js'
 import { hasBoundedMimeHeaders } from '../domain/mime-header-bounds.policy.js'
 import { buildRawEmailObjectKey } from '../domain/raw-email-object-key.policy.js'
 import { hashReplyToken } from '../domain/reply-token.policy.js'
+import { resolveConversationDkimResult } from '../domain/conversation-sender-identity.policy.js'
 import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
 import { DKIM_ALIGNMENT_RESULT, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
-import type { VerifyDkimAlignmentPort } from '../infrastructure/dkim-verifier.gateway.js'
+import type { VerifyDkimHeaderFromPort } from '../infrastructure/dkim-verifier.gateway.js'
 import type {
   CargoPreviewEmailIntakePort,
   CargoPreviewEmailIntakeResult,
@@ -54,7 +55,7 @@ export type StoreRawEmailPort = {
 export type RecordContractorMailInboundMessageDependencies = {
   /** Spec 183 T702c1: os anexos do e-mail que viram anexo da mensagem da conversa. */
   readonly conversationAttachments: InboundConversationAttachmentsPort
-  readonly dkimVerifier: VerifyDkimAlignmentPort
+  readonly dkimVerifier: VerifyDkimHeaderFromPort
   readonly mailGateway: ResendMailGateway
   /** Spec 237 T4.6: o ramo da prévia encaminhada; só decide a mensagem que casa o token de um perfil. */
   readonly previewIntake: CargoPreviewEmailIntakePort
@@ -170,11 +171,17 @@ export async function recordContractorMailInboundMessage(
    * `mailauth` devolve para MIME que não parseia) e sem anexos, como o MIME ilegível já vira.
    */
   const hasBoundedHeaders = hasBoundedMimeHeaders(rawMessage)
-  const dkimResult = hasBoundedHeaders
-    ? await dependencies.dkimVerifier.verify(rawMessage)
-    : DKIM_ALIGNMENT_RESULT.ABSENT
   /** Spec 183 T406 (RF16): endereço para casar com os contatos, nome para quem está fora deles. */
   const sender = parseSenderMailbox(received.from)
+  const verification = hasBoundedHeaders
+    ? await dependencies.dkimVerifier.verifyWithHeaderFrom(rawMessage)
+    : { alignment: DKIM_ALIGNMENT_RESULT.ABSENT, headerFrom: [] }
+  /** Spec 237 T4.7d: o selo de verificada só vale quando o `From` assinado é o remetente gravado. */
+  const dkimResult = resolveConversationDkimResult({
+    alignment: verification.alignment,
+    headerFrom: verification.headerFrom,
+    senderAddress: sender.address,
+  })
 
   /**
    * Spec 183 T702c1: os anexos vão ao bucket antes da transação (o bucket não participa dela) e só

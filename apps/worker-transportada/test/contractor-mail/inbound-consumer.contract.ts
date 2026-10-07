@@ -98,8 +98,8 @@ function buildDependenciesStub(overrides?: {
       store: async () => ({ skipped: 0, stored: [] }),
     },
     dkimVerifier: {
-      async verify() {
-        return 'aligned'
+      async verifyWithHeaderFrom() {
+        return { alignment: 'aligned' as const, headerFrom: ['financeiro@contratante.com.br'] }
       },
     },
     mailGateway: {

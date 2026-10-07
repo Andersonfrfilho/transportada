@@ -75,7 +75,12 @@ function buildDependencies(probe: Probe): RecordContractorMailInboundMessageDepe
       discard: async () => undefined,
       store: async () => ({ skipped: 0, stored: [] }),
     },
-    dkimVerifier: { verify: async () => 'aligned' },
+    dkimVerifier: {
+      verifyWithHeaderFrom: async () => ({
+        alignment: 'aligned' as const,
+        headerFrom: ['financeiro@contratante.com.br'],
+      }),
+    },
     mailGateway: {
       downloadRawEmail: async () => {
         if (probe.threads.length === 0) {

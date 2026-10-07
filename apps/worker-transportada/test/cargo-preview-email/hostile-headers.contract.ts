@@ -124,9 +124,9 @@ describe('a conversa também não verifica DKIM de cabeçalho hostil (spec 237 T
         },
       },
       dkimVerifier: {
-        verify: async (rawMessage: Buffer) => {
+        verifyWithHeaderFrom: async (rawMessage: Buffer) => {
           verified.push(rawMessage)
-          return 'aligned' as const
+          return { alignment: 'aligned' as const, headerFrom: ['financeiro@contratante.example'] }
         },
       },
       mailGateway: {
