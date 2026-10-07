@@ -24,10 +24,12 @@ export type CargoPreviewRetentionRecord = {
  */
 export type CargoPreviewRetentionGateway = {
   /**
-   * Trava a prévia (`for update skip locked`) e reconfere dentro da transação: terminal, sem item em
-   * aberto e sem o evento de retenção. Vazio = outro ciclo a tratou ou travou.
+   * Trava a prévia e reconfere dentro da transação: terminal, sem item em aberto, sem o evento de
+   * retenção e com o último movimento no corte. Vazio = outro ciclo a tratou, o operador está nela
+   * (trava do contratante) ou ela deixou de ser elegível.
    */
   readonly lockEligiblePreview: (input: {
+    readonly cutoff: Date
     readonly previewId: string
   }) => Promise<CargoPreviewRetentionPreview | undefined>
   /** A planilha e o MIME bruto da prévia ainda vivos, na ordem de `id`, travados, até `limit + 1`. */

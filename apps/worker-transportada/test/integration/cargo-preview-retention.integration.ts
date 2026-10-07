@@ -12,6 +12,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
+import { buildCargoPreviewMatchLockKey } from '../../src/cargo-preview/domain/cargo-preview-lock.policy.js'
 import { createDrizzleApplyCargoPreviewRetentionBatch } from '../../src/cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
 import { CARGO_PREVIEW_RETENTION_MAX_OBJECTS_PER_PREVIEW } from '../../src/cargo-preview-retention/domain/cargo-preview-retention.constant.js'
 import {
@@ -459,6 +460,30 @@ describeDatabase('a retenção de 90 dias dos dados da planilha (integration, sp
     expect(await countEvents(seeded.previewId)).toBe(1)
     const objects = await readObjects([seeded.fileObjectId, ...seeded.rawObjectIds])
     expect(objects.every((object) => object.status === 'deleted')).toBe(true)
+  })
+
+  test('com o operador na prévia (trava do contratante) a retenção espera a próxima execução', async () => {
+    const seeded = await seedPreview({
+      items: [{ state: 'matched', updatedAt: daysAgo(100) }],
+      updatedAt: daysAgo(100),
+    })
+    const key = buildCargoPreviewMatchLockKey({
+      companyId: graph.companyId,
+      contractorId: graph.contractorId,
+    })
+    let heldResult: Awaited<ReturnType<typeof run>> | undefined
+    await db.transaction(async (transaction) => {
+      await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
+      heldResult = await run()
+    })
+
+    expect(heldResult?.retained).toBe(0)
+    expect(await countEvents(seeded.previewId)).toBe(0)
+    expect((await readObjects([seeded.fileObjectId]))[0]?.status).toBe('final')
+
+    await run()
+
+    expect(await countEvents(seeded.previewId)).toBe(1)
   })
 
   test('o histórico, o vínculo e o item decidido pelo operador não mudam', async () => {

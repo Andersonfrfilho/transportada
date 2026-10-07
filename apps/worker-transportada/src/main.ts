@@ -253,6 +253,9 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
+import { CARGO_PREVIEW_RETENTION_JOB } from './cargo-preview-retention/domain/cargo-preview-retention.constant.js'
+import { createDrizzleApplyCargoPreviewRetentionBatch } from './cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
 import { createTripOccurrenceAttachmentPurgeRoutine } from './trip-occurrence-attachment-purge/application/trip-occurrence-attachment-purge.routine.js'
 import { TRIP_OCCURRENCE_ATTACHMENT_PURGE_JOB } from './trip-occurrence-attachment-purge/domain/trip-occurrence-attachment-purge.constant.js'
 import { createDrizzlePurgeOccurrenceAttachmentBatch } from './trip-occurrence-attachment-purge/infrastructure/drizzle-trip-occurrence-attachment-purge.repository.js'
@@ -1332,6 +1335,21 @@ export async function startWorkerRuntime(
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
             }),
+          }),
+          /**
+           * Spec 237 T4.8 (decisão do usuário, 2026-10-06): 90 dias depois de a prévia ficar sem item
+           * em aberto, o arquivo da planilha e o MIME bruto saem do bucket e o dado pessoal dos itens
+           * é anulado. Sempre registrada, como as outras varreduras de retenção; a porta do bucket é
+           * só `deleteObject`.
+           */
+          [CARGO_PREVIEW_RETENTION_JOB]: createCargoPreviewRetentionRoutine({
+            apply: createDrizzleApplyCargoPreviewRetentionBatch({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
+              logger,
+            }),
+            logger,
+            now: () => new Date(),
           }),
           /**
            * Achado [3] da revisão de código de 23/09 (spec 179): sempre registrada, como as outras
