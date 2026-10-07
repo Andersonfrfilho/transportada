@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 238 T1.2a — **caracterização**: o que o roteirizador faz hoje com `municipal_holidays`, contra
- * Postgres e com o repositório real. Nenhum teste cobria essa leitura, e a T1.2 (migration que
+ * Spec 238 T1.2a — **caracterização**: o que o roteirizador faz com `municipal_holidays`, contra
+ * Postgres e com o repositório real. O feriado vale só para a parada da cidade dele (F1 do roteirizador). Nenhum teste cobria essa leitura, e a T1.2 (migration que
  * acrescenta colunas à tabela) só pode andar se o solver provar depois que continua lendo a data fixa.
  *
  * O efeito observável é a violação `delivery_window` da parada: cliente fechado vira janela impossível
@@ -26,23 +26,48 @@ const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://
 const db = provider.db
 
 const DEPOT = { addressKey: 'depot-holiday', latitude: '-21.1767000', longitude: '-47.8208000' }
+const CNPJ_A = '11222333000181'
 const DESTINATIONS = [
   {
     addressKey: '3543402|14099000|910',
     cityCode: '3543402',
+    hasClient: true,
+    hasWindows: true,
     latitude: '-21.1800000',
     longitude: '-47.8100000',
-    taxId: '11222333000181',
+    taxId: CNPJ_A,
   },
   {
     addressKey: '3550308|01310100|920',
     cityCode: '3550308',
+    hasClient: true,
+    hasWindows: true,
     latitude: '-23.5614000',
     longitude: '-46.6559000',
     taxId: '44555666000181',
   },
+  /** O mesmo CNPJ do cliente A, com uma segunda parada na cidade B. */
+  {
+    addressKey: '3550308|01310200|930',
+    cityCode: '3550308',
+    hasClient: false,
+    hasWindows: false,
+    latitude: '-23.5620000',
+    longitude: '-46.6570000',
+    taxId: CNPJ_A,
+  },
+  /** Cliente cadastrado sem nenhuma janela, numa cidade que nenhum outro cliente do arquivo usa. */
+  {
+    addressKey: '4106902|80010000|940',
+    cityCode: '4106902',
+    hasClient: true,
+    hasWindows: false,
+    latitude: '-25.4284000',
+    longitude: '-49.2733000',
+    taxId: '77888999000181',
+  },
 ] as const
-const [CITY_A, CITY_B] = DESTINATIONS
+const [CITY_A, CITY_B, CITY_B_SAME_CLIENT_AS_A, CITY_WITHOUT_WINDOWS] = DESTINATIONS
 const UNRELATED_CITY_CODE = '3304557'
 
 describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
@@ -51,7 +76,7 @@ describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
   const userId = crypto.randomUUID()
   const importId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
-  const documentIds = [crypto.randomUUID(), crypto.randomUUID()] as const
+  const documentIds = DESTINATIONS.map(() => crypto.randomUUID())
 
   beforeAll(async () => {
     for (const id of [companyId, otherCompanyId]) {
@@ -122,10 +147,14 @@ describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
         values (${crypto.randomUUID()}, ${companyId}, ${participantId}, 'Rua', ${number},
           'Centro', 'Cidade', ${destination.cityCode}, 'SP', ${postalCode})
       `)
+      if (!destination.hasClient) continue
+
       await db.execute(sql`
         insert into delivery_clients (id, company_id, tax_id, display_name)
         values (${clientId}, ${companyId}, ${destination.taxId}, ${`Cliente ${index}`})
       `)
+      if (!destination.hasWindows) continue
+
       for (const weekday of [0, 1, 2, 3, 4, 5, 6]) {
         await db.execute(sql`
           insert into delivery_client_windows
@@ -165,7 +194,10 @@ describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
     await db.execute(sql`delete from companies where id in (${companyId}, ${otherCompanyId})`)
     await db.execute(sql`
       delete from geocoded_addresses where address_key in
-        (${DEPOT.addressKey}, ${CITY_A.addressKey}, ${CITY_B.addressKey})
+        (${DEPOT.addressKey}, ${sql.join(
+          DESTINATIONS.map((destination) => sql`${destination.addressKey}`),
+          sql`, `,
+        )})
     `)
     await provider.close?.()
   })
@@ -196,13 +228,65 @@ describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
     expect(await closedAddressKeys([0])).toEqual([])
   })
 
-  test('comportamento atual (defeito conhecido, spec 238 fora de escopo): o feriado de uma cidade fecha o cliente de outra no mesmo roteiro', async () => {
+  test('o feriado de uma cidade fecha só as paradas dela, não o cliente de outra cidade no mesmo roteiro', async () => {
     await insertHoliday({ cityCode: CITY_B.cityCode, holidayOn: today() })
 
     const closed = await closedAddressKeys([0, 1])
 
-    // O repositório busca só `holidayOn` e o aplica a todo cliente do roteiro; o correto seria só [CITY_B].
-    expect(closed).toEqual([CITY_A.addressKey, CITY_B.addressKey].sort())
+    // O motivo é a cidade da parada: o cliente A tem janela cadastrada e nenhum feriado na cidade dele.
+    expect(closed).toEqual([CITY_B.addressKey])
+  })
+
+  test('o mesmo CNPJ com parada em A e em B, e feriado só em B, fecha só a parada de B', async () => {
+    await insertHoliday({ cityCode: CITY_B.cityCode, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 2])
+
+    expect(closed).toEqual([CITY_B_SAME_CLIENT_AS_A.addressKey])
+  })
+
+  test('o mesmo CNPJ com parada em A e em B, e feriado só em A, fecha só a parada de A', async () => {
+    await insertHoliday({ cityCode: CITY_A.cityCode, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 2])
+
+    expect(closed).toEqual([CITY_A.addressKey])
+  })
+
+  test('feriado em A e em B fecha as paradas das duas cidades', async () => {
+    await insertHoliday({ cityCode: CITY_A.cityCode, holidayOn: today() })
+    await insertHoliday({ cityCode: CITY_B.cityCode, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 1, 2])
+
+    expect(closed).toEqual(
+      [CITY_A.addressKey, CITY_B.addressKey, CITY_B_SAME_CLIENT_AS_A.addressKey].sort(),
+    )
+  })
+
+  test('cliente sem janela cadastrada numa cidade sem feriado fica aberto', async () => {
+    await insertHoliday({ cityCode: CITY_A.cityCode, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 3])
+
+    expect(closed).toEqual([CITY_A.addressKey])
+  })
+
+  test('cliente sem janela cadastrada numa cidade em feriado fica fechado', async () => {
+    await insertHoliday({ cityCode: CITY_WITHOUT_WINDOWS.cityCode, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 3])
+
+    expect(closed).toEqual([CITY_WITHOUT_WINDOWS.addressKey])
+  })
+
+  test('o feriado de uma cidade que não é a da parada do cliente nunca o fecha', async () => {
+    await insertHoliday({ cityCode: CITY_B.cityCode, holidayOn: today() })
+    await insertHoliday({ cityCode: UNRELATED_CITY_CODE, holidayOn: today() })
+
+    const closed = await closedAddressKeys([0, 3])
+
+    expect(closed).toEqual([])
   })
 
   test('feriado de outra empresa não afeta o roteiro', async () => {
