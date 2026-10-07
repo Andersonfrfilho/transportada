@@ -37,13 +37,107 @@ function accessKey(seed: number): string {
   )
 }
 
+/** Spec 247 (T5.3): o produto da nota como o snapshot do motorista o traz — texto, nunca número. */
+type PreviewProduct = {
+  code: string
+  description: string
+  hasVaryingUnitValue: boolean
+  quantity: string
+  unit: string
+  unitValue: string
+}
+
+const PREVIEW_PRODUCTS: readonly PreviewProduct[] = [
+  {
+    code: '2073170',
+    description: 'MAC ADRIA OVOS 500G',
+    hasVaryingUnitValue: false,
+    quantity: '3.0000',
+    unit: 'FD',
+    unitValue: '19.9950',
+  },
+  {
+    code: '2073171',
+    description: 'BISCOITO MAISENA 400G',
+    hasVaryingUnitValue: false,
+    quantity: '1.0000',
+    unit: 'UN',
+    unitValue: '57.2000',
+  },
+  {
+    code: '2073172',
+    description: 'FARDO DE AGUA MINERAL 1,5L (preço varia na nota)',
+    hasVaryingUnitValue: true,
+    quantity: '2.0000',
+    unit: 'FD',
+    unitValue: '10.0000',
+  },
+]
+
+/** Quatro tipos efetivos para a nota com produtos: obrigatório por linha, opcional, da ocorrência e sem valor. */
+const PREVIEW_OCCURRENCE_TYPES = [
+  {
+    attachmentMode: 'optional',
+    declaredAmountLabel: 'Valor pago pela loja',
+    declaredAmountMode: 'required',
+    declaredAmountScope: 'item',
+    flow: 'document',
+    id: '00000000-0000-4000-8000-000000000911',
+    itemsMinimumCount: 1,
+    itemsMode: 'required',
+    name: 'Devolução parcial',
+    noteMode: 'optional',
+    photoMode: 'optional',
+    referenceNumberLabel: 'Número da NFD',
+    referenceNumberMode: 'required',
+    signatureMode: 'off',
+    stopKind: null,
+  },
+  {
+    attachmentMode: 'off',
+    declaredAmountLabel: 'Valor pago',
+    declaredAmountMode: 'optional',
+    declaredAmountScope: 'occurrence',
+    flow: 'document',
+    id: '00000000-0000-4000-8000-000000000912',
+    itemsMinimumCount: null,
+    itemsMode: 'optional',
+    name: 'Avaria na descarga',
+    noteMode: 'required',
+    photoMode: 'off',
+    referenceNumberLabel: 'Número do documento do cliente',
+    referenceNumberMode: 'optional',
+    signatureMode: 'off',
+    stopKind: null,
+  },
+  {
+    attachmentMode: 'off',
+    declaredAmountLabel: 'Valor pago',
+    declaredAmountMode: 'off',
+    declaredAmountScope: 'item',
+    flow: 'document',
+    id: '00000000-0000-4000-8000-000000000913',
+    itemsMinimumCount: null,
+    itemsMode: 'off',
+    name: 'Cliente ausente',
+    noteMode: 'optional',
+    photoMode: 'off',
+    referenceNumberLabel: 'Número do documento do cliente',
+    referenceNumberMode: 'off',
+    signatureMode: 'off',
+    stopKind: null,
+  },
+]
+
 type PreviewDocument = {
   accessKey: string
   deliveredAt: string | null
   grossWeight: string
   id: string
   number: string
+  occurrenceTypes?: readonly unknown[]
   proofPending: boolean
+  products?: readonly PreviewProduct[]
   /** Spec 193 D14: nome que "O próprio cliente recebeu" preenche — trade name, senão razão social. */
   recipientDisplayName: string
   /** Spec 193 D14: PF ou PJ — decide se o nome preenchido pelo botão rápido fica selecionado. */
@@ -57,6 +151,7 @@ type PreviewDocument = {
 }
 
 function previewDocument(input: {
+  hasProducts?: boolean
   recipientDisplayName?: string
   recipientIsCompany?: boolean
   recipientName: string
@@ -70,6 +165,9 @@ function previewDocument(input: {
     grossWeight: input.weight,
     id: `00000000-0000-4000-8000-0000000002${String(input.seed).padStart(2, '0')}`,
     number: String(900100 + input.seed),
+    ...(input.hasProducts === true
+      ? { occurrenceTypes: PREVIEW_OCCURRENCE_TYPES, products: PREVIEW_PRODUCTS }
+      : {}),
     proofPending: false,
     recipientDisplayName: input.recipientDisplayName ?? input.recipientName,
     recipientIsCompany: input.recipientIsCompany ?? true,
@@ -168,6 +266,7 @@ function snapshot() {
               },
               documents: [
                 previewDocument({
+                  hasProducts: true,
                   recipientName: 'Mercearia do Centro',
                   seed: 1,
                   volumes: 3,
@@ -324,6 +423,9 @@ async function proxy(request: Request, url: URL): Promise<Response> {
   return new Response(response.body, { headers: responseHeaders, status: response.status })
 }
 
+/** Spec 247 (T5.3): o corpo do registro de ocorrência, em memória, para conferir o que a tela mandou. */
+const recordedOccurrenceBodies: unknown[] = []
+
 type RecordedLocation = { readonly location: unknown; readonly path: string }
 
 /**
@@ -347,6 +449,10 @@ Bun.serve({
     if (url.pathname === '/__debug/locations') {
       if (request.method === 'DELETE') recordedLocations.length = 0
       return json({ data: recordedLocations })
+    }
+    if (url.pathname === '/__debug/occurrences') return json({ data: recordedOccurrenceBodies })
+    if (request.method === 'POST' && /\/documents\/[^/]+\/occurrences$/.test(url.pathname)) {
+      recordedOccurrenceBodies.push(await request.clone().json())
     }
     if (request.method === 'POST' && url.pathname.startsWith('/me/trips/current/')) {
       await recordLocation(request.clone(), url.pathname)
