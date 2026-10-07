@@ -52,10 +52,10 @@ explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Contrato **antes**: `test/trip-occurrence/occurrence-amount.contract.ts` com a tabela
+- [x] **T3.1** Contrato **antes**: `test/trip-occurrence/occurrence-amount.contract.ts` com a tabela
       de casos (CA02), formatação de valor e quantidade, valor pago vencendo, nulo caindo no `vProd`.
-- [ ] **T3.2** `occurrence-amount.policy.ts` em `bigint`, sem `Number`/`parseFloat`.
-- [ ] **T3.3** Mutações da T3.1 registradas: truncar em vez de meio para cima; somar antes de
+- [x] **T3.2** `occurrence-amount.policy.ts` em `bigint`, sem `Number`/`parseFloat`.
+- [x] **T3.3** Mutações da T3.1 registradas: truncar em vez de meio para cima; somar antes de
       arredondar; trocar `bigint` por `Number` (o caso `3 × 19,995` fica vermelho).
 - [ ] **T3.4** Contrato **antes**: `template.contract.ts` ampliado — os dois contextos, `linhasItens`
       com o modelo do SAC (CA01, assunto e corpo exatos, `SPANI` vindo de `contractorName` de
