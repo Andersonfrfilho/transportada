@@ -14,7 +14,7 @@ explícita do `package.json` da app.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T0.1** Conferir em `origin/staging` que os fatos do `plan.md` § Contexto continuam (arquivo e
+- [x] **T0.1** Conferir em `origin/staging` que os fatos do `plan.md` § Contexto continuam (arquivo e
       linha); divergência vira nota em `evidence.md` antes de codar. Medir a distância da branch
       para `origin/staging` (`git rev-list --count`).
 - [ ] **T0.2** Consulta só-leitura em **staging** (não produção): quantos tipos têm
@@ -25,11 +25,11 @@ explícita do `package.json` da app.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** `frontend-transportada` `tripResponse.validation.ts`: aceitar como opcionais
+- [x] **T1.1** `frontend-transportada` `tripResponse.validation.ts`: aceitar como opcionais
       `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`,
       `declaredAmountLabel`, `emailItemLineTemplate`, e nas exceções os dois modos; contrato que
       prova que um tipo **com** e **sem** as chaves é aceito.
-- [ ] **T1.2** `frontend-driver`: a validação do snapshot aceita `products` opcional por nota e os
+- [x] **T1.2** `frontend-driver`: a validação do snapshot aceita `products` opcional por nota e os
       campos novos do tipo efetivo; contrato idem.
 
 ## Fase 2 — O dado (etapa 2)
@@ -127,27 +127,23 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       `evidence.md` a tabela "elemento → preview → tela real → veredito" (rótulos, ordem, estados
       vazio/erro/desabilitado, soma, contraste, foco, alvos ≥ 44 px, sem estouro de largura).
       Verificação por texto primeiro (`read_page`, geometria, contraste); print só como prova.
-- [ ] **T7.2** Passada independente de funcionalidade, usabilidade e design por `code-reviewer`
+- [x] **T7.2** Passada independente de funcionalidade, usabilidade e design por `code-reviewer`
       (`opus`): configurar o tipo do SAC na tela, registrar no app com dois itens e valor pago, ver o
       e-mail na conversa, corrigir pelo painel. Reprovado com bloqueante/alto → corrige e repete.
 
-      1ª rodada reprovou o app do motorista (A3 + B1); correções em `evidence.md` § "T7.2 — correções da
-      revisão: app do motorista". 2ª rodada aprovou com ressalvas; N1/N2/N10 (API) em `evidence.md` §
-      "T7.2b — API: requisitos efetivos no detalhe e correção sob o modo do tipo". Falta o painel consumir
-      `requirements` e a revisão final.
-
-      1ª rodada reprovou o app do motorista (A3 + B1); correções em `evidence.md` § "T7.2 — correções da
-      revisão: app do motorista". Falta repetir a revisão.
-
-      revisão: app do motorista". 2ª rodada aprovou com ressalvas; os achados dos frontends (N1–N5, N7–N9,
-      N11, N13, N14) estão em `evidence.md` § "T7.2b — frontends: requisitos efetivos, avisos e acabamento".
-      Falta repetir a revisão.
+      1ª rodada **reprovou** (app do motorista A3 + B1, painel A1/A2/M3, API M1/M2/M5); correções em
+      `evidence.md` § "T7.2 — correções da revisão" (API, painel, app do motorista). 2ª rodada **aprovou com
+      ressalvas**; N1/N2/N10 (API) em § "T7.2b — API" e os achados dos frontends (N1–N5, N7–N9, N11, N13,
+      N14) em § "T7.2b — frontends". Ressalva aberta: N6 e N12 sem registro na evidência; a decisão sobre a
+      tratativa da 164 no registro do motorista é do usuário (resumo executivo).
 
 - [x] **T7.3** Atualizar `CLAUDE.md` da raiz, `apps/*/CLAUDE.md` tocados e `docs/ai-context/`.
-- [ ] **T7.4** Gates: `bun run typecheck`, `make check`, `make migration-test`, integração da API em
+- [x] **T7.4** Gates: `bun run typecheck`, `make check`, `make migration-test`, integração da API em
       primeiro plano com `--env-file`; depois de `git fetch` + rebase + `bun install
 --frozen-lockfile`, `db:generate` = `no_changes`.
-- [ ] **T7.5** `evidence.md` consolidado.
+      Fechada em 2026-10-07 (evidence.md § "T7.4"); `make migration-test` não rodou literalmente (Docker): o
+      `db:test` rodou no Postgres 18 nativo descartável. T0.2 segue aberta: não medida em staging (sem credencial).
+- [x] **T7.5** `evidence.md` consolidado.
 
 ## Prompt de execução
 

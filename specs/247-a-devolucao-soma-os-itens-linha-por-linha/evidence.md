@@ -1,5 +1,39 @@
 # Evidence
 
+## Resumo executivo (T7.5, 2026-10-07)
+
+**O que a spec entregou.** O tipo de ocorrência passa a configurar número do documento do cliente, valor pago (por linha ou pela
+ocorrência) e o e-mail à contratante com linha de item; quem registra (motorista no app, operador na correção) marca itens, vê a soma de
+cada linha e a geral, e o e-mail sai no padrão do SAC. Tudo é coluna do tipo, nada por nome de tipo (CA03 provada com mutação).
+
+**Em staging (`origin/staging`):** Fases 0 a 4 — migration `20261007033420_occurrence_declared_amount`, API (registro do motorista, snapshot com
+produtos, prévia, aviso automático, correção) e parsers tolerantes do painel e do app —, mais as correções de API da T7.2/T7.2b (R1, R2, N1, N2, N10).
+**Fora de staging (45 commits locais em `work/spec-247-ui` antes desta consolidação):** todas as telas (aba Tipos, e-mail à contratante, correção, acerto da 164, app do
+motorista), os rótulos de momento, o roteiro `docs/operacao/tipos-de-ocorrencia-do-sac.md`, as correções de frontend da T7.2/T7.2b, o contexto de IA e esta evidência.
+Nada foi publicado nem implantado nesta rodada.
+
+**Gates finais (T7.4, detalhe na seção "T7.4"):** typecheck, format, lint das 7 apps e builds das 7 apps: exit 0. Contrato da API 10493 pass · 25 skip · 0 fail;
+integração da API 1171 pass · 1 skip · 0 fail em 6 lotes (216 arquivos, Postgres 18.4 descartável); `db:test` 141 pass; `db:generate` = `no_changes`; painel
+7374 + 934 pass; app do motorista 1383 pass; portal 89; worker 1991; cron 101; landing 131. `make check` literal: exit 0.
+
+**Duas revisões independentes (`code-reviewer`, `opus`).** 1ª: **reprovada** (app do motorista A3 + B1, painel A1/A2/M3, API M1/M2/M5 e acabamentos); corrigida em
+"T7.2 — correções da revisão". 2ª: **aprovada com ressalvas**; N1, N2, N3, N4, N5, N7, N8, N9, N10, N11, N13 e N14 corrigidos (seções "T7.2b"). Os achados N6 e N12
+da 2ª revisão não têm registro nesta evidência: conferir com o relatório da revisão antes de publicar.
+
+**Decisões pendentes do usuário (não são fatos).** (1) O registro do motorista **não abre a tratativa da 164** (`saveDocumentOccurrence` não recebe `redeliveryPolicy`), então a
+sugestão de acerto (RF12) só existe no galpão e no lote do escritório; abrir a tratativa na rua, ou aceitar que devolução de rua não tem acerto. (2) `previous_items` guarda só as
+linhas: número e valor pago **da ocorrência** são sobrescritos sem rastro na correção; guardar exige duas colunas aditivas em `trip_document_occurrence_corrections`.
+
+**Riscos abertos.** (a) M4: modelo antigo com `{{quantidadeItem}}` no corpo (fora de `{{linhasItens}}`) imprime as quantidades separadas por vírgula, que se confunde com decimal brasileiro
+(`2,5`). (b) Snapshot acima de 256 KiB só **medido sintético** (76 KB para 300 itens; viagem inteira extrapolada acima de 256 KiB); a paginação do plano não foi feita nem medida em staging. (c) Login e fila
+offline **reais** do motorista nunca foram exercitados (só arnês descartável e contrato). (d) T0.2 não medida em staging (sem credencial): quantos tipos têm `email_template_key` e `emails_contractor`
+perdiam o e-mail antes da RF2. (e) Caso `requirements: null` por tipo inexistente coberto por contrato, sem integração. (f) `make smoke` e Playwright do repositório não rodaram sobre as telas novas.
+
+**Correções desta consolidação.** Removidas a seção T6.1 solta (a que dizia `companies.settings`, permissão que não existe) e a cópia duplicada das seções T7.1, T7.2 painel e T7.2 motorista; contagens de linhas
+e afirmações superadas (T4.8, T5.4) anotadas no próprio texto. As seções históricas seguem abaixo, sem outras mudanças.
+
+---
+
 ## Fase 0 — Conferência
 
 ### T0.1 — Conferência dos fatos em origin/staging
@@ -358,7 +392,7 @@ error: Cannot find module '../../src/trips/domain/occurrence-amount.policy.js' f
 
 ### T3.2 — `occurrence-amount.policy.ts`
 
-`apps/api-transportada/src/trips/domain/occurrence-amount.policy.ts` (121 linhas): texto do `numeric` →
+`apps/api-transportada/src/trips/domain/occurrence-amount.policy.ts` (121 linhas na T3.2; 134 hoje): texto do `numeric` →
 `bigint` (4 casas), produto em escala 8 → centavos meio para cima, soma das linhas já arredondadas,
 valor pago vencendo, formatação brasileira. Sem `Number`/`parseFloat`/`Math`. O contrato da T3.1 passou
 a verde (a regra de dinheiro do domínio fica 100% em `bigint`). Verde:
@@ -1137,7 +1171,7 @@ produtos da nota, então a unidade comercial da nota (`'CX'`, `'FD'` — a que o
    `reference_number` e `declared_amount` anteriores exige duas colunas aditivas em `trip_document_occurrence_corrections` (migration + `rollback.sql`), que
    o `plan.md` não prevê. Os valores **das linhas** estão no histórico; o número e o valor da ocorrência são sobrescritos sem rastro. Decisão: aceitar, ou autorizar a migration.
 2. **A resposta da correção (`CorrectedOccurrenceView`) não ganhou `referenceNumber`/`declaredAmount`** — o mesmo motivo (painel com chaves exatas); fica para a tela (Fase 5), junto da tolerância.
-3. **A correção não cobra `required`** do número nem do valor pago: o painel publicado não os envia, e cobrá-los travaria a correção de qualquer ocorrência antiga de um tipo que
+3. **(Superado na T7.2b N1: `required` recusa a limpeza explícita; ausente mantém.)** A correção não cobra `required` do número nem do valor pago: o painel publicado não os envia, e cobrá-los travaria a correção de qualquer ocorrência antiga de um tipo que
    passou a exigi-los depois. A correção é o caminho de **completar** (D12), não de reprovar retroativamente.
 4. O pass-through de `main.ts` (rota → caso de uso) não tem teste: a rota → `execute` está provada por contrato, o caso de uso por integração; a fiação entre os dois, em `main.ts`, só pelo typecheck (os campos são opcionais).
 
@@ -1379,7 +1413,7 @@ A API não foi tocada.
 
 ### Limitações e o que fica para a API
 
-1. **A leitura da API ainda não publica o que a correção grava** (T4.8, limitação 2): o detalhe não traz o número do documento do
+1. **(Superado pela T7.2 R2/N2, API, e pelo painel na T7.2b: o detalhe publica `referenceNumber`, `declaredAmount`, `itemValues` e `requirements`.)** A leitura da API ainda não publica o que a correção grava (T4.8, limitação 2): o detalhe não traz o número do documento do
    cliente, o valor pago da ocorrência nem o das linhas, e a resposta da correção não os devolve. Por isso a seção abre **vazia**
    ("em branco mantém o gravado") em vez de pré-preenchida. Quando a API publicar, a tolerância já está no painel; falta só o
    pré-preenchimento (e mostrar o gravado no histórico de correções).
@@ -1815,7 +1849,7 @@ nem do `frontend-driver` foi tocado. Sem push nem deploy.
 | 3/A1 | O nível do valor pago nasce onde está gravado (linhas, ocorrência; senão o escopo do tipo; senão por linha). Valor digitado num nível com o outro gravado manda o outro `null` no mesmo corpo; trocar de nível **sem** valor novo não apaga nada. `DECLARED_AMOUNT_SELECTION_CONFLICT`, `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED` têm mensagem própria (pt/en), dizendo o que fazer.                                                                                                                                      |
 | 4/M3 | A sugestão do acerto usa o `unitValue` **copiado** (`itemValues`), soma todas as linhas do mesmo código, deixa o valor pago (linha ou ocorrência) vencer a soma e nunca sugere 0 ("A loja não pagou, sem valor a acertar"). Valor pago da ocorrência com vários códigos não tem como ser atribuído a um item: aparece o aviso "A loja pagou R$ X pela ocorrência inteira…" e nenhuma linha é inventada. Sem `itemValues` volta ao comportamento anterior, sem erro.                                                                                                      |
 | 5/B1 | O rascunho do "Salvar e-mail" (assunto/corpo/linha de item) é guardado por tipo num contexto da página (`useOccurrenceMailDraftStore`, criado pelo `OccurrenceTypeCatalogPanel`): recolher e reabrir a linha do tipo o devolve. Escolhida a solução mais simples (guardar), e não a de avisar antes de descartar: não exige perguntar nada ao operador. Trocar de aba da página desmonta o painel e descarta o rascunho (fora do escopo pedido).                                                                                                                         |
-| 6    | `OccurrenceSettlementPanel.component.tsx` (485 linhas) passou a 169, dividido em `OccurrenceSettlementRow`, `OccurrenceSettlementSaved`, `useOccurrenceSettlementDraft` e `occurrenceSettlementDraft.service`, em **commit separado e antes** da mudança funcional (`a9a22c1c1`); o contrato de parede `occurrence-settlement-panel.contract.ts` passou a ler as cinco partes. `OccurrenceCasePanel.component.tsx` (335) não foi tocado e não foi dividido.                                                                                                              |
+| 6    | `OccurrenceSettlementPanel.component.tsx` (485 linhas) passou a 169 (183 hoje), dividido em `OccurrenceSettlementRow`, `OccurrenceSettlementSaved`, `useOccurrenceSettlementDraft` e `occurrenceSettlementDraft.service`, em **commit separado e antes** da mudança funcional (`a9a22c1c1`); o contrato de parede `occurrence-settlement-panel.contract.ts` passou a ler as cinco partes. `OccurrenceCasePanel.component.tsx` (335) não foi tocado e não foi dividido.                                                                                                   |
 
 **Decisão de commits.** A2 e A1 dividem os mesmos arquivos (o rascunho, o serviço de resolução e o componente de valores) e nasceram juntos: um commit só
 (`b5ec95ca4`), em vez de dois que não compilariam isolados.
@@ -2128,311 +2162,6 @@ integração da API, 6 lotes em primeiro plano     exit=0 em todos — 208+250+2
 
 Integração em Postgres 18 nativo descartável (porta própria, derrubado ao fim).
 
-**Status**: ✅ Completo
-
-**Arquivo**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
-
-**O que foi corrigido na reescrita** (a primeira versão foi reprovada na conferência):
-
-1. **Erro de conteúdo grave**: a versão anterior mandava desligar o e-mail à contratante na Devolução total e dizia que o SAC não pediu e-mail automático. A spec (§ "Modelos do SAC") define o contrário: assunto `DEVOLUÇÃO TOTAL – NF {{numeroNotaSemSerie}}` e corpo com `Motivo: {{observacao}}`. O roteiro agora traz os passos de assunto, corpo, **Salvar e-mail**, ligar a caixa e conferir a prévia, e o resultado esperado do exemplo do SAC (NF 677002, FARMA LÍDER SANTA ISABEL LTDA, R$ 2.612,88; valores de exemplo). Diz que a Devolução total não usa linha de item (Produtos Desligado).
-2. **Rótulos chutados**: todo nome de tela, bloco, campo e botão foi trocado pelo texto real do painel (tabela abaixo). Não há mais "ou" nem "se ainda não foi atualizado". A rota errada `/company-settings/occurrence-types` saiu: a aba é **Tipos** em **Ocorrências** (`/ocorrencias`), permissão `companies.settings` (a versão anterior dizia `settings.manage`).
-
-3. **Fluxo real**: renomear é editar o campo **Nome** do bloco **Identificação** do tipo aberto (grava ao Enter/sair do campo); criar é o bloco **Novo tipo** (nasce com o momento **Separador, no galpão**, que precisa ser trocado); o formulário de criação não tem número do documento, valor pago nem e-mail, então estes se configuram depois, no tipo aberto. Texto do e-mail grava só com **Salvar e-mail**; momentos só com **Aplicar momentos**.
-4. **Campo a campo contra a spec**: parcial (momentos, Foto Obrigatório mínimo 1, Observação Obrigatório, Assinatura Desligado, Produtos Obrigatório "Ao menos N itens" com N=1 e **Aceita vários itens**, Número Obrigatório "Número da NFD", Valor pago Opcional "Por linha de produto" rótulo "Valor pago pela loja", e-mail ligado, assunto/corpo/linha exatos); total (foto como a parcial, Observação Obrigatório, Produtos Desligado, Número Opcional "Número da NFD", Valor pago Desligado, e-mail ligado). Ordem do **Valor pago** por linha documentada (exige Produtos ligado; a tela recusa sem gravar).
-5. **Prévia**: os resultados esperados vieram de `renderOccurrenceEmailPreview` executado (dados fixos de `occurrence-template-preview.policy.ts`: "Contratante Exemplo", NF 123456, "Supermercado Exemplo Ltda", NFD 45029, soma 117,19), não escritos de memória. A prévia nunca mostra a NF 677002; o exemplo do SAC é o resultado numa nota real.
-6. Mantidas: nota `{{numeroNotaSemSerie}}` vs `{{numeroNota}}`; zero à esquerda do "01FD"; decisão da spec de configurar/renomear "Recusa parcial/total" (id não muda); a Spani entra por `{{contratante}}`, nunca cravada; seção final da spec 248 sem instruções.
-
-**Rótulos reais usados e arquivo de origem**:
-
-| Rótulo na tela                                                                                                                                                                                                    | Origem                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Ocorrências (menu)                                                                                                                                                                                                | `src/modules/shared/workspaceNavigation.constant.ts:13`                                           |
-| Tipos (aba)                                                                                                                                                                                                       | `trip/locales/trip.locale.json` `occurrenceFeed.tabs.types`                                       |
-| No galpão · Na rua; Novo tipo; Nome do tipo; Cadastrar tipo; Avisar quando acontecer; Aceita vários itens; Modelo de e-mail; Sem e-mail                                                                           | `company-settings/locales/companySettings.locale.json` `occurrenceTypeCatalog.*`                  |
-| Identificação; Nome; Devolução                                                                                                                                                                                    | `occurrenceTypeCatalog.identity.*`; `OccurrenceTypeIdentity.component.tsx`                        |
-| Quem registra, e onde; Motorista, numa nota; Escritório, pelo motorista; Separador, no galpão; Tirar momento {{label}}; Aplicar momentos; Desfazer                                                                | `occurrenceTypeCatalog.moments.*`; `OccurrenceTypeMoments` e `OccurrenceTypeCreateMoments`        |
-| O que exige; regra geral; Foto; Observação; Assinatura; Produtos; Número do documento do cliente; Valor pago; Desligado/Opcional/Obrigatório                                                                      | `occurrenceTypeCatalog.requirements.*`                                                            |
-| Rótulo do número na tela de registro; Rótulo do valor na tela de registro; Digitado; Por linha de produto                                                                                                         | `requirements.record.*`; `OccurrenceTypeRecordFields.component.tsx`                               |
-| Quantidade mínima de fotos; Produtos exigidos; Ao menos N itens; Quantidade mínima de produtos                                                                                                                    | `requirements.photoMinimum` e `requirements.itemsMinimum`; `OccurrenceTypeMinimums.component.tsx` |
-| E-mail à contratante; Mandar e-mail à contratante da nota ao registrar; Assunto; Corpo; Linha de cada produto; Salvar e-mail; Desfazer; Prévia · dados de exemplo; Sai automaticamente quando o tipo é registrado | `occurrenceTypeCatalog.mail.*`; `OccurrenceTypeContractorMail.component.tsx`                      |
-| Ordem dos blocos do tipo aberto; clique na linha para abrir                                                                                                                                                       | `OccurrenceTypeRow.component.tsx`, `OccurrenceTypeSummary.component.tsx`                          |
-| Permissão `settings.manage`                                                                                                                                                                                       | `TripOccurrenceTypesTab.component.tsx` (comentário)                                               |
-
-**Marcadores**: só os das listas fechadas de `apps/api-transportada/src/shared/occurrence-template.constant.ts`, por contexto: assunto (`contratante`, `numeroNotaSemSerie`), corpo (`numeroReferencia`, `valorDeclarado`, `razaoSocial`, `numeroNotaSemSerie`, `valorNota`, `observacao`, `linhasItens`), linha (`codigoItem`, `item`, `quantidadeItem`, `unidadeItem`, `observacao`).
-
-**O que não foi conferido**: o roteiro não foi executado na tela (nenhum navegador aberto); os rótulos vêm da leitura do código e dos `locale.json`. O texto exato do motivo do SAC ("o cliente já havia recebido…") veio truncado na spec, então o exemplo usa "o cliente já havia recebido". A dica da tela em **Produtos exigidos** ainda diz que o app do motorista só marca "A nota inteira" e que "Ao menos N" não muda o que ele cobra; o `frontend-driver` hoje lê `itemsMinimumCount`, então a dica pode estar defasada (fora do escopo desta task). Não confirmei se o servidor aceita ligar o e-mail com assunto vazio, por isso o roteiro manda salvar os textos antes de ligar.
-
----
-
-## T7.1 — preview x tela real (2026-10-07)
-
-**Como.** Painel desta árvore (Vite 7, porta 53010, binário da app, `VITE_SMOKE_AUTH_BYPASS`, API dublada por `page.route`) e Chromium headless do Playwright do repositório; 375 px e 768 px **com toque** (`pointer: coarse`), 1280 px com ponteiro fino. O `preview.html` foi aberto por `file://` nos mesmos tamanhos, com os **mesmos dados** (NF 680481, três produtos, SPANI, "Número da NFD", "Valor pago pela loja"). Verificação por texto, geometria e contraste calculado (`getComputedStyle`, incluindo `color-mix`); prints só como prova, em `prints/t71-*` (`tipos`, `correcao`, `acerto`, `motorista`; `-real-` e `-preview-`, 375/768/1280).
-
-⚠️ **Motorista: arnês descartável, login real não exercitado.** O app não tem atalho de autenticação (ADR-0075 §7) e a senha do `local-user` é do `.env`, que não se abre. Um arnês (apagado, nunca commitado) montou o `DriverOccurrenceRegistrationForm` **real**, com o CSS e o i18n reais, sobre o JSON de `/me/trips/current` da API de demo (porta 53901) lido pelo **parser real** (`toDriverTripSnapshot`); só os produtos e o tipo foram trocados no JSON para ficarem iguais aos do desenho. **Não foram exercitados:** login/Keycloak, `DriverStopCard`/`DriverTripWorkspace`, IndexedDB e fila offline, a moldura de página do app (as margens do arnês são 16 px e as do app real podem diferir), foto de câmera real (a foto do print é um PNG de 1 px esticado).
-
-Servidores: painel (PID 77449, cwd `.../spec-247/apps/frontend-transportada`), Vite do motorista (77739) e demo (77737), ambos `.../spec-247/apps/frontend-driver`; as portas 53000/53001 (outra sessão) não foram tocadas. Encerrados por PID; portas livres.
-
-### Tabela — elemento → preview → tela real → veredito
-
-| #                                                                                              | Elemento                                                                                                                            | Preview                                                                                                                               | Tela real                                                                                                                                                       | Veredito                                                                                  |
-| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **a. Painel — aba Tipos, tipo aberto**                                                         |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
-| 1                                                                                              | Ordem dos blocos                                                                                                                    | Identificação · Momentos · O que exige · E-mail · Aviso interno · Exceções                                                            | a mesma (a prévia do e-mail fica dentro do bloco E-mail)                                                                                                        | OK                                                                                        |
-| 2                                                                                              | Rótulos de momento e dicas                                                                                                          | 4 momentos, dica à vista abaixo de cada                                                                                               | idênticos, dica à vista                                                                                                                                         | OK                                                                                        |
-| 3                                                                                              | Rótulos do bloco "O que exige"                                                                                                      | Foto · Observação · Produtos · Número do documento do cliente · Valor pago · Digitado (Por linha de produto / Um só, pela ocorrência) | idênticos                                                                                                                                                       | OK                                                                                        |
-| 4                                                                                              | "Rótulo na tela de registro" (número e valor)                                                                                       | o mesmo texto nos dois                                                                                                                | "Rótulo do número…" e "Rótulo do valor na tela de registro"                                                                                                     | DESVIO justificado: dois campos com o mesmo nome no mesmo bloco                           |
-| 5                                                                                              | Assinatura, Quantidade mínima de fotos, Produtos exigidos                                                                           | ausentes (fora do escopo do desenho)                                                                                                  | presentes (spec 246)                                                                                                                                            | DESVIO justificado: controles da 246                                                      |
-| 6                                                                                              | Dica de "Produtos exigidos" e da exceção                                                                                            | —                                                                                                                                     | dizia que o app só marca "A nota inteira" e para não configurar "Ao menos N" — falso desde a T5.3                                                               | **CORRIGIDO** (`9f0d8ede2`)                                                               |
-| 7                                                                                              | E-mail: interruptor, Assunto, Corpo, Linha de cada produto                                                                          | mesma ordem e textos                                                                                                                  | mesma ordem e textos; desligado mostra "Desligado: o operador manda pela conversa da ocorrência, se quiser." (igual)                                            | OK                                                                                        |
-| 8                                                                                              | Marcadores                                                                                                                          | uma fileira com os 16, para qualquer campo                                                                                            | lista por campo (assunto 15, corpo, linha 19), só os válidos no campo com o cursor                                                                              | DESVIO justificado: marcador de outro campo é recusado (RF3)                              |
-| 9                                                                                              | Dica dos marcadores                                                                                                                 | "Toque num marcador para inserir no campo em que o cursor está."                                                                      | "Marcadores do corpo — toque num para inserir onde o cursor está." (muda com o campo)                                                                           | DESVIO justificado (acompanha o item 8)                                                   |
-| 10                                                                                             | Prévia                                                                                                                              | coluna à direita do formulário inteiro                                                                                                | à direita do bloco E-mail a 1280 px (463 px); empilhada abaixo a 375/768, como no desenho                                                                       | DESVIO justificado: fica ao lado do que edita                                             |
-| 11                                                                                             | Erro de marcador                                                                                                                    | não desenhado                                                                                                                         | `aria-invalid` só no campo, aviso "Este marcador não existe neste campo…", Salvar desabilitado, nenhuma chamada à prévia, prévia anterior mantida               | OK (estado a mais, conferido no navegador)                                                |
-| 12                                                                                             | Salvar e-mail / Desfazer                                                                                                            | sem botão (o desenho edita ao vivo)                                                                                                   | botões; Salvar nasce desabilitado                                                                                                                               | DESVIO justificado: texto grava só por ação (T5.2)                                        |
-| 13                                                                                             | Alvo de "Salvar e-mail"/"Desfazer" sob toque                                                                                        | —                                                                                                                                     | 38,4 px a 768 px com toque (Button sm)                                                                                                                          | **CORRIGIDO** (`c5f6ab7f5`): 44 px medidos                                                |
-| 14                                                                                             | Aviso interno                                                                                                                       | "Avisar quem despachou a viagem" + dica                                                                                               | "Avisar quando acontecer" + modelo da notificação (246)                                                                                                         | DESVIO justificado: controle da 246                                                       |
-| 15                                                                                             | Aviso interno com "Avisar" ligado e tipo sem chave                                                                                  | —                                                                                                                                     | mostrava o texto do e-mail à contratante como "modelo próprio (legado)" sob "Sem e-mail"                                                                        | **CORRIGIDO**                                                                             |
-| 16                                                                                             | Dica do Aviso interno                                                                                                               | —                                                                                                                                     | "…fica no bloco ao lado" (está acima)                                                                                                                           | **CORRIGIDO** ("se configura no bloco acima")                                             |
-| 17                                                                                             | Exceções                                                                                                                            | 2 seletores (número, valor), rótulos do tipo                                                                                          | linha completa da 246; os rótulos são "Número da NFD" e "Valor pago pela loja"                                                                                  | DESVIO justificado: 246 + os rótulos do desenho                                           |
-| 18                                                                                             | Seletores                                                                                                                           | o `Select` real                                                                                                                       | o `Select` real, CSS global intocado                                                                                                                            | OK                                                                                        |
-| 19                                                                                             | Estados vazio/erro/desabilitado                                                                                                     | "Nenhum…" não desenhado                                                                                                               | "Nenhuma exceção neste tipo.", "Não há cliente cadastrado sem exceção…", Produtos desligado + valor por linha recusa sem gravar                                 | OK                                                                                        |
-| 20                                                                                             | Contraste                                                                                                                           | 4,88 (config)                                                                                                                         | mínimo 4,69 (claro), 5,55 (escuro, medido na T5.x)                                                                                                              | OK (≥ 4,5)                                                                                |
-| 21                                                                                             | Foco                                                                                                                                | anel de cobre                                                                                                                         | `outline: 2px solid` cobre no campo e nos marcadores (Tab)                                                                                                      | OK                                                                                        |
-| 22                                                                                             | Alvos ≥ 44 px                                                                                                                       | 38,4 px nos seletores de exceção                                                                                                      | 375 e 768 com toque: nenhum controle do bloco < 44; ponteiro fino: 38,4 (Select compacto, Button sm, MultiSelect)                                               | DESVIO justificado: iguais ao desenho e a todo o painel                                   |
-| 23                                                                                             | Estouro                                                                                                                             | 0                                                                                                                                     | 0 a 375/768/1280, nada fora da janela                                                                                                                           | OK                                                                                        |
-| 24                                                                                             | Largura útil a 375 px                                                                                                               | 309 px                                                                                                                                | 267 px                                                                                                                                                          | DESVIO justificado: o tipo vive dentro da linha da lista (acordeão), recuo da 246         |
-| **b. Painel — correção e acerto** (sem desenho no `preview.html`; conferidos contra RF12/RF13) |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
-| 25                                                                                             | Seção "Número e valor pago"                                                                                                         | —                                                                                                                                     | número, Digitado, valor por linha, "Soma da linha" e "Soma geral" (117,19 = 57,20 + 59,99); vazio mantém o gravado                                              | OK                                                                                        |
-| 26                                                                                             | Número inválido                                                                                                                     | —                                                                                                                                     | aviso, `aria-invalid`, Salvar correção desabilitado                                                                                                             | OK                                                                                        |
-| 27                                                                                             | Soma geral ao digitar o valor pago                                                                                                  | —                                                                                                                                     | não muda (é referência; o texto da seção diz)                                                                                                                   | DESVIO justificado: RF13, a soma nunca é gravada                                          |
-| 28                                                                                             | Alvos, contraste, estouro                                                                                                           | —                                                                                                                                     | 0 controles < 44 px na seção (375/768 toque e 1280); contraste 5,19; estouro 0                                                                                  | OK                                                                                        |
-| 29                                                                                             | Acerto: "Sugestão pelo registro"                                                                                                    | —                                                                                                                                     | "R$ 57,20 · soma da linha R$ 57,20"; valor pago 0 vira "A loja não pagou, sem valor a acertar"; botão "Usar a sugestão do registro" preenche uma linha, nunca 0 | OK                                                                                        |
-| 30                                                                                             | Acerto: "Código do produto" e "Valor" na página de detalhe                                                                          | —                                                                                                                                     | `<input>` nativo de 21 px, sem borda do sistema (fora do `.workspace-panel`)                                                                                    | **CORRIGIDO**: 48 px, foco e estado inválido                                              |
-| **c. App do motorista — registro** (arnês)                                                     |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
-| 31                                                                                             | Ordem                                                                                                                               | produtos → valor da ocorrência → número → observação → foto → faltas → botão                                                          | a mesma                                                                                                                                                         | OK                                                                                        |
-| 32                                                                                             | Produto: marcar, "Na nota: N UN × R$ …", quantidade (UN), "Valor pago pela loja · se diferente", conta `1 FD × R$ 57,20 = R$ 57,20` | idênticos                                                                                                                             | idênticos; marcar preenche 1                                                                                                                                    | OK                                                                                        |
-| 33                                                                                             | Valor unitário                                                                                                                      | `R$ 50,00` (49,995 arredondado) e conta `2 FD × R$ 50,00 = R$ 99,99`                                                                  | `R$ 49,995` e `2 FD × R$ 49,995 = R$ 99,99 · pago R$ 99,00`                                                                                                     | DESVIO justificado: a conta fecha com o que a nota traz                                   |
-| 34                                                                                             | Soma geral e valor pago                                                                                                             | 157,19 / 157,19                                                                                                                       | 157,19 / 156,20 (99,00 digitado numa linha)                                                                                                                     | OK (a conta é a do desenho; o dado difere)                                                |
-| 35                                                                                             | Título do bloco e rótulos                                                                                                           | "Produtos devolvidos" · "Número da NFD · obrigatório"                                                                                 | "…(obrigatório)" · "Número da NFD · obrigatório"; valor da ocorrência "· opcional"                                                                              | DESVIO justificado: exigência à vista                                                     |
-| 36                                                                                             | Observação                                                                                                                          | "Observação · obrigatória", campo desenhado                                                                                           | "O que aconteceu (obrigatório)" (texto do app, spec 218); era `<textarea>` nativo de 3 linhas                                                                   | rótulo DESVIO (vocabulário anterior à 247); campo **CORRIGIDO** (mesmo campo dos valores) |
-| 37                                                                                             | Foto                                                                                                                                | "Tirar foto da mercadoria avariada"                                                                                                   | "Tirar foto \*" / "Anexar" (spec 209/218)                                                                                                                       | DESVIO justificado: fluxo existente                                                       |
-| 38                                                                                             | Motivo do botão desabilitado                                                                                                        | "Falta: número da nfd, foto."                                                                                                         | "Para registrar, falta: “Número da NFD”, a observação, a foto." (`role=status`)                                                                                 | DESVIO justificado: texto da 246 RF7                                                      |
-| 39                                                                                             | Mensagem de tudo preenchido                                                                                                         | "Tudo o que o tipo pede está preenchido."                                                                                             | nenhuma; o botão liberado é o sinal                                                                                                                             | DESVIO justificado: região viva que repetiria a mensagem em todo tipo e na parada (246)   |
-| 40                                                                                             | Botão                                                                                                                               | "Registrar devolução"                                                                                                                 | "Registrar"                                                                                                                                                     | DESVIO justificado: rótulo genérico do app, serve a todos os tipos                        |
-| 41                                                                                             | Escolha do tipo                                                                                                                     | "Tipo: Devolução parcial"                                                                                                             | fichas com o nome e "Foto obrigatória"                                                                                                                          | DESVIO justificado: o motorista escolhe o tipo                                            |
-| 42                                                                                             | "E-mail que sai ao registrar"                                                                                                       | coluna à direita                                                                                                                      | ausente                                                                                                                                                         | DESVIO justificado: o motorista não vê nem manda o e-mail (RF11)                          |
-| 43                                                                                             | Mínimo de produtos                                                                                                                  | "ao menos um produto"                                                                                                                 | `itemsMinimumCount` nulo = todos ("mais produtos (mínimo de 3)"); com 1, basta um                                                                               | DESVIO justificado: RF11 (nulo = todos, como o servidor)                                  |
-| 44                                                                                             | Estados                                                                                                                             | vazio / completo                                                                                                                      | vazio: Registrar desabilitado e motivo; quantidade 11 > 10: "A nota tem só 10 FD." + `aria-invalid`; completo: liberado                                         | OK                                                                                        |
-| 45                                                                                             | Contraste                                                                                                                           | 5,35                                                                                                                                  | 4,57 (claro), 5,87 (escuro, com erro)                                                                                                                           | OK (≥ 4,5)                                                                                |
-| 46                                                                                             | Foco                                                                                                                                | —                                                                                                                                     | caixa desenhada com anel de 2 px de cobre; campos idem                                                                                                          | OK                                                                                        |
-| 47                                                                                             | Alvos                                                                                                                               | —                                                                                                                                     | rótulo da linha ≥ 65 px, campos 45–51 px, botões 48 px (375/768 toque e 1280)                                                                                   | OK                                                                                        |
-| 48                                                                                             | Estouro e borda                                                                                                                     | 0                                                                                                                                     | 0 nas três larguras, nada a menos de 8 px da borda                                                                                                              | OK                                                                                        |
-
-**Contagem:** 48 linhas — OK 22 · desvio justificado 20 · corrigido 5 (linhas 6, 13, 15, 16, 30) · mista 1 (linha 36: rótulo é desvio, campo foi corrigido).
-
-**Correções (contrato antes, commit isolado):** `9f0d8ede2` dica de Produtos exigidos; `896d58354` Aviso interno; `c5f6ab7f5` Salvar/Desfazer; `a8c8b02eb` campos do acerto; `83006aef1` observação do motorista. Detalhe: dica de Produtos exigidos (vermelho: "1 fail" do contrato M3, depois 2 pass); Aviso interno sem texto legado e "bloco acima" (vermelho 1 fail); `Salvar e-mail`/`Desfazer` a 44 px sob toque (vermelho 2 fail, medido 44 px a 768 px com toque); campos do acerto (vermelho 2 fail, medido 48 px); observação do motorista (vermelho 1 fail).
-
-**O que não foi verificado:** o login e a fila reais do app do motorista e a moldura de página do app; o tipo aberto com os dados reais da API (o painel usa API dublada, então "Salvar" fala com um dublê); tema escuro do painel nesta rodada (vale a medição da T5.x: 5,55); prints a 375 px do tipo aberto foram só geradas, não revistas uma a uma.
-
-## T7.2 — correções da revisão: painel
-
-Reprovação da revisão independente (T7.2): achados A1, A2, M3 e B1 do painel, mais a higiene de tamanho. A API (R2) já publica `referenceNumber`,
-`declaredAmount` e `itemValues` no detalhe. Cinco commits no painel (`798babc14`, `a9a22c1c1`, `b5ec95ca4`, `d26536974`, `4454131da`); nenhum arquivo da API
-nem do `frontend-driver` foi tocado. Sem push nem deploy.
-
-| Item | O que mudou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1    | `TripOccurrenceDetail` declara `referenceNumber`, `declaredAmount` e `itemValues` (opcionais: ausente é API ou ocorrência antiga); `readDetail` valida com guards (dinheiro só em texto decimal; forma errada recusa a resposta). O golden `occurrence-detail-values.golden.json` entra em `test/trip/occurrence-detail-values.contract.ts`, com e sem as chaves.                                                                                                                                                                                                        |
-| 2/A2 | A correção nasce preenchida: número, valor pago da ocorrência ou da linha vêm do detalhe (`occurrenceRecordedAmounts.service.ts`); rótulos do **tipo** (`referenceNumberLabel`/`declaredAmountLabel`, lidos de `GET /company-settings/occurrence-types` pelo `useOccurrenceTypeRecordConfig`), com fallback genérico. Sem valor gravado o campo diz "Nada gravado."; **Limpar** é botão explícito (envia `null`) e o campo vazio com gravado diz "Será limpo ao salvar.". "Valor que vai no e-mail" aparece ao lado da "Soma geral" (regra de RF9 sobre o estado final). |
-| 3/A1 | O nível do valor pago nasce onde está gravado (linhas, ocorrência; senão o escopo do tipo; senão por linha). Valor digitado num nível com o outro gravado manda o outro `null` no mesmo corpo; trocar de nível **sem** valor novo não apaga nada. `DECLARED_AMOUNT_SELECTION_CONFLICT`, `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED` têm mensagem própria (pt/en), dizendo o que fazer.                                                                                                                                      |
-| 4/M3 | A sugestão do acerto usa o `unitValue` **copiado** (`itemValues`), soma todas as linhas do mesmo código, deixa o valor pago (linha ou ocorrência) vencer a soma e nunca sugere 0 ("A loja não pagou, sem valor a acertar"). Valor pago da ocorrência com vários códigos não tem como ser atribuído a um item: aparece o aviso "A loja pagou R$ X pela ocorrência inteira…" e nenhuma linha é inventada. Sem `itemValues` volta ao comportamento anterior, sem erro.                                                                                                      |
-| 5/B1 | O rascunho do "Salvar e-mail" (assunto/corpo/linha de item) é guardado por tipo num contexto da página (`useOccurrenceMailDraftStore`, criado pelo `OccurrenceTypeCatalogPanel`): recolher e reabrir a linha do tipo o devolve. Escolhida a solução mais simples (guardar), e não a de avisar antes de descartar: não exige perguntar nada ao operador. Trocar de aba da página desmonta o painel e descarta o rascunho (fora do escopo pedido).                                                                                                                         |
-| 6    | `OccurrenceSettlementPanel.component.tsx` (485 linhas) passou a 169, dividido em `OccurrenceSettlementRow`, `OccurrenceSettlementSaved`, `useOccurrenceSettlementDraft` e `occurrenceSettlementDraft.service`, em **commit separado e antes** da mudança funcional (`a9a22c1c1`); o contrato de parede `occurrence-settlement-panel.contract.ts` passou a ler as cinco partes. `OccurrenceCasePanel.component.tsx` (335) não foi tocado e não foi dividido.                                                                                                              |
-
-**Decisão de commits.** A2 e A1 dividem os mesmos arquivos (o rascunho, o serviço de resolução e o componente de valores) e nasceram juntos: um commit só
-(`b5ec95ca4`), em vez de dois que não compilariam isolados.
-
-### Vermelho antes do código e mutações
-
-Os contratos de B1 e de M3 (tabela) foram escritos antes do código e viram vermelho (`B1`: reabrir devolvia o assunto gravado; `M3`: 8 fail). Em A1/A2, o
-serviço puro foi escrito antes do contrato desta rodada (o contrato dos componentes veio depois, sobre o componente já montado): a prova de que os
-contratos mordem é a mutação, cada uma sozinha e revertida (cópia do arquivo restaurada, `diff` vazio):
-
-```text
-A1-1  não limpar o outro nível ao trocar (clearsOccurrence/clearsLines = false)
-      puro:   3 fail — (a) "um só" · (b) "por linha" · "trocar de nível sem valor novo…zero é valor e apaga o outro nível"
-      painel: 2 fail — (a) PATCH sem as linhas nulas · (b) PATCH sem declaredAmount: null     (Expected path: "declaredAmount")
-A1-2  o nível nasce sempre "por linha" (resolveCorrectionAmountScope ignora o gravado e o tipo)
-      puro:   1 fail — "o nível nasce onde está gravado; sem gravado, no do tipo; sem tipo, por linha"
-      painel: 5 fail — valor da ocorrência gravado (inclusive zero) · (b) · (c) limpar tudo · nível do tipo · e-mail da ocorrência
-M3-1  o valor unitário vem da nota, não da cópia: puro 3 fail (3 × 19,995 · código repetido · código repetido com valor pago) + painel 1 fail
-M3-2  valor pago 0 vira sugestão: puro 2 fail ("a loja não pagou" no contrato antigo e no novo)
-```
-
-### Navegador (painel desta árvore, Vite 7 na porta 53010, API dublada por `page.route`, Chromium headless)
-
-Servidor: PID 59923, `cwd` conferido por `lsof -d cwd` = `.../transportada-wt/spec-247/apps/frontend-transportada` antes de qualquer afirmação; binário da app
-(`./node_modules/.bin/vite`), `VITE_API_URL` apontando para uma porta sem servidor (qualquer rota sem dublê voltava 404 em vez de tocar a API de outra
-sessão); 53000/53001/53911 intocadas; sem o `preview_start` do harness. Verificação por texto (`innerText`, `inputValue`, corpo capturado do `PATCH`, geometria
-com `getBoundingClientRect`); um recorte da seção como prova (não commitado).
-
-```text
-(a) gravado 50,00 na linha P1 e NFD 45029, tipo com "Número da NFD" / "Valor pago pela loja"
-    campos: "NFD 45029" · P1 "50,00" · P2 vazio com "Nada gravado." · nível "Por linha de produto" · "Valor que vai no e-mail: R$ 107,20" (50,00 + vProd 57,20)
-    "Um só, pela ocorrência" + 4000 → aviso das linhas; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2","declaredAmount":null}],"declaredAmount":"40.00"}
-(b) gravado 40,00 na ocorrência → nasce "Um só, pela ocorrência" com "40,00"; "Valor que vai no e-mail: R$ 40,00"
-    "Por linha de produto" + 5000 na P1 → PATCH {"items":[{"code":"P1","declaredAmount":"50.00",…},{"code":"P2"}],"declaredAmount":null}
-(c) Limpar na linha e no número → "Será limpo ao salvar." ×2; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2"}],"referenceNumber":null} (sem declaredAmount)
-Acerto (decidida goods_paid), preço atual da nota 25,00 e cópia 19,995: "P1 — R$ 59,99 · soma da linha R$ 59,99" e "P2 — R$ 57,20 · soma da linha R$ 57,20"
-
-                 375 px (toque)   768 px (toque)   1280 px (ponteiro fino)
-estouro horiz.         0                0                  0
-controles < 44 px      nenhum           nenhum             2 (Limpar, 38,4 px — Button sm do design system, só com ponteiro fino)
-```
-
-Os mesmos três cenários e a sugestão passaram nas três larguras. Os 404 do console são rotas sem dublê (sino, atalhos), não das telas verificadas. Servidor
-encerrado por PID, porta 53010 livre, harness e recorte apagados, `git status` limpo.
-
-### Limitações
-
-1. A **soma da linha** e a **Soma geral** da correção continuam calculadas sobre a nota carregada (preço atual) e a quantidade editada; o "valor que vai no e-mail"
-   com o pago digitado não depende disso, mas sem valor pago ele usa a mesma conta da nota, enquanto o servidor usa o `unit_value` copiado. Só diverge se o preço da
-   nota mudou depois do registro (o aviso do acerto, esse sim, parte da cópia).
-2. Os rótulos do tipo só chegam a quem tem `settings.manage` (a lista de tipos é dessa permissão); os demais operadores veem os rótulos genéricos.
-3. Código repetido na seleção da correção não é um caso do formulário (a seleção é por código): o valor gravado por linha usa a primeira linha do código.
-4. Vários códigos com valor pago da ocorrência: não há atribuição por item, o acerto mostra só o aviso (decisão acima), e o operador distribui o valor ao preencher.
-
-## T7.2 — correções da revisão: app do motorista (2026-10-07)
-
-A revisão independente reprovou o app do motorista no **A3 (bloqueante)** e levantou três itens de usabilidade (B1).
-
-### A3 — o valor pago descartava dígito em silêncio
-
-`sanitizeDecimalInput` aceitava `.` e `,` como separador e cortava o que passasse da 2ª casa: `1.500` digitado
-virava `1.50` (e o e-mail saía com R$ 1,50) e colar `1.234,56` gravava `1.23`. O painel usa outra semântica
-(`maskAmountInput`: só dígito, os dois últimos são centavos) — dado financeiro com duas digitações é defeito.
-
-**Correção.** O app do motorista replica a máscara do painel (sem importar código de outra app) em
-`occurrenceMoneyMask.service.ts`: só dígito entra, exibição `1.234,56` com milhar, eco imediato. `1.500` → `15,00`
-(visível ao vivo); colar `1.234,56` → `1.234,56`; `R$ 57,20` → `57,20`. `0` e `0,00` são **valor** (`"0.00"`); vazio
-não é; apagar a partir de `0,00` limpa o campo. O corpo segue string com ponto e 2 casas (`1234.56`), no padrão
-`DECLARED_AMOUNT_DECIMAL` da API. No teto (10 inteiros + 2 centavos) a tela diz, em região viva
-(`aria-live="polite"`): "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99." — a tecla extra não
-entra, mas nunca calada. Teclado `inputMode="numeric"`. `DECLARED_AMOUNT_INPUT`/`sanitizeDecimalInput` foram
-removidos (zero consumidores). O espelho do cálculo (`occurrenceAmount.service.ts`) não precisou mudar; os 24 casos
-da tabela espelhada seguem verdes.
-
-**Quantidade (até 3 casas).** `.` vale como `,` (o campo mostra a vírgula). Casa a mais NÃO é cortada: o texto
-fica como digitado, o campo ganha `aria-invalid` e a mensagem "A quantidade aceita no máximo 3 casas depois da
-vírgula." (`quantityProblem: 'too-many-decimals'`); mais de 9 dígitos inteiros idem (`'too-many-digits'`). O botão
-fica bloqueado pelo motivo "a quantidade dos produtos marcados" (`hasInvalidItemQuantity`).
-
-### B1
-
-- **(a)** Espaço não separável (U+00A0) depois de todo `R$` dos textos da tela (`money`, `paid`, `calculation`,
-  `onNote`, `limit`; pt-BR e en). `pago R$ / 99,00` não parte mais. Contrato: nenhum `R$ ` com espaço comum em
-  `occurrenceRegistration`, nos dois locales.
-- **(b)** O total "Valor pago pela loja R$ 156,20" misturava linhas digitadas com calculadas. Decisão: o rótulo é
-  **"Total que vai no e-mail"** e uma linha de origem o acompanha (`resolveOccurrenceTotalOrigin`): "Calculado pela
-  nota (quantidade × valor unitário).", "Valor pago digitado em todas as linhas.", "N de M linhas com valor pago
-  digitado; as outras, calculadas pela nota." ou "Valor pago digitado para a ocorrência inteira." — a semântica da
-  RF9 (o digitado vence a soma da linha) dita na tela, sem esconder a mistura.
-- **(c)** `OccurrenceRegisterAction` ganhou uma região viva `role="status"` sempre montada com o botão; ela diz o que
-  falta ou, quando o tipo exige algo (`hasRequiredOccurrenceField`) e tudo está preenchido, "Tudo o que o tipo pede
-  está preenchido." (verde `--color-ready` misturado ao tom do texto: 6,05:1 no claro, 6,87:1 no escuro).
-
-### Divisão de arquivo (sem mudar comportamento)
-
-`occurrenceDraftValues.service.ts` (299 linhas) foi dividido por responsabilidade, com 1341 testes verdes antes e
-depois: `occurrenceDraftValues.types.ts` (64), `occurrenceItemLine.service.ts` (~130) e o serviço de avaliação (~150).
-Os importadores seguem pelo mesmo caminho (reexport). `occurrenceRequirements.service.ts` (270) não foi editado.
-⚠️ `DriverOccurrenceRegistrationForm.component.tsx` está com 211 linhas (era 209: já estava acima do teto antes);
-acrescentei uma linha (`hasRequiredFields`) e não o dividi por estar fora do escopo pedido.
-
-### Vermelho antes do código
-
-Contrato novo `test/driver-trip/occurrence-money-input.contract.ts` (registrado no entrypoint):
-
-```text
-error: Cannot find module '../../src/modules/driver-trip/shared/occurrenceMoneyMask.service'
- 1 error
-```
-
-B1 (a–c) e origem do total, antes da implementação: `bun run --cwd apps/frontend-driver test` → `12 fail`
-(locale com `R$ ` comum, `Total que vai no e-mail`, origem, `hasRequiredFields`/`role="status"`).
-
-### Mutações (cada uma sozinha, vermelho, depois revertida)
-
-1. **Voltar a descartar dígito em silêncio** (`maskMoneyInput` cortando além da 2ª casa depois do separador e
-   `sanitizeQuantityInput` com `.slice(0, 3)`):
-
-```text
-(fail) a máscara de centavos do valor pago (igual à do painel) > "1.500" digitado vira 15,00 — visível ao vivo, e nenhum dígito some
-(fail) ... > "57,2" digitado: cada tecla ecoa na hora, sem perder dígito
-(fail) ... > teclas repetidas: zeros à esquerda não contam e o texto fica estável
-(fail) ... > milhar com ponto, em pt-BR
-(fail) ... > o teto são 10 dígitos inteiros + 2 centavos: além dele a tela avisa (nunca ignora calada)
-(fail) a quantidade (até 3 casas) não descarta dígito em silêncio > casas a mais ficam como digitadas (a tela marca, não corta)
- 1357 pass
- 6 fail
-```
-
-2. **Tratar "0,00" como vazio** (`unmaskMoneyText` devolvendo `undefined` para só zeros):
-
-```text
-(fail) a lista, a soma da linha e a soma geral (RF11, os números do protótipo) > valor pago 0 é aceito e diferente de vazio
-(fail) ... > escopo "item" sem nenhuma linha marcada cai na ocorrência — como o servidor
-(fail) o botão só libera com o exigido, sem rede (CA07) > valor pago obrigatório por linha: toda linha marcada o pede; zero vale
-(fail) ... > valor pago obrigatório da ocorrência: o campo da ocorrência o pede; zero vale
-(fail) a máscara de centavos ... > zero é valor: "0" e "0,00" mascaram para 0,00 e vão como "0.00"; vazio não é valor
-(fail) ... > o texto enviado casa com DECLARED_AMOUNT_DECIMAL da API
-(fail) o valor pago mascarado entra na conta e no corpo do envio > "0,00" é um valor ("0.00"), e vazio não manda nada
- 7 fail
-```
-
-Arquivos restaurados; base de volta a verde.
-
-### Testes existentes alterados (e por quê)
-
-`occurrence-values.contract.ts`: os rascunhos do valor pago passam a ser o texto **mascarado** que o campo guarda
-(`'0'` → `'0,00'`, `'10'` → `'10,00'`, `'50'` → `'50,00'`, `'8'` → `'8,00'`) e o corpo esperado ganha as 2 casas
-(`'0.00'`, `'10.00'`); o teste de `sanitizeDecimalInput` saiu junto com a função (coberto pelo contrato novo).
-`occurrence-values-fields.contract.tsx`: textos com `R$` + U+00A0, "Total que vai no e-mail" no lugar do rótulo do tipo.
-
-### Navegador (arnês descartável + Vite do worktree, porta 53200; verificado por texto)
-
-Arnês não commitado renderizando o `DriverOccurrenceRegistrationForm` real, com CSS e i18n reais; Vite do binário da
-app, PID confirmado com `cwd` neste worktree; encerrado por PID, arnês apagado, portas 53200/53901 livres.
-Sem login real (ADR-0075 §7).
-
-| Cenário digitado                                        | Resultado na tela                                                                                                                                                           |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1.500`                                                 | `15,00`                                                                                                                                                                     |
-| `R$ 1.234,56`                                           | `1.234,56`                                                                                                                                                                  |
-| 14 noves                                                | `9.999.999.999,99` + região viva "Limite do campo: …"                                                                                                                       |
-| `0`                                                     | `0,00`; "falta" passa a ser só a observação; corpo `declaredAmount: "0.00"`                                                                                                 |
-| quantidade `2.5555`                                     | texto fica `2,5555`, `aria-invalid="true"`, "…no máximo 3 casas…", Registrar desabilitado ("falta: a quantidade dos produtos marcados")                                     |
-| quantidade `2.555` + valor pago `9900` na linha do bolo | `2,555 CX × R$ 19,995 = R$ 51,09`; `1 UN × R$ 57,20 = R$ 57,20 · pago R$ 99,00`; total R$ 150,09; "1 de 2 linhas com valor pago digitado; as outras, calculadas pela nota." |
-| tipo exigindo valor + observação, tudo preenchido       | `role="status"`: "Tudo o que o tipo pede está preenchido."; Registrar liberado                                                                                              |
-
-Geometria: sem estouro em 375/768/1280 (`scrollWidth == innerWidth`), campos 46 px, botões 44–57 px, nenhum `R$ `
-com espaço comum nas linhas de conta; contraste da mensagem positiva 6,05:1 (claro) e 6,87:1 (escuro). Um print a
-375 px foi tirado como prova.
-
-### Gates (exit code conferido com `$?`)
-
-```text
-bun run typecheck                          exit=0
-bun run --cwd apps/frontend-driver test    exit=0  — 1371 pass · 0 fail · 3025 expect() calls
-bun run --cwd apps/frontend-driver lint    exit=0
-bun run format:check (raiz)                exit=0  — All matched files use Prettier code style!
-```
-
-### O que NÃO foi rodado
-
-`make check` completo, smoke Playwright do app do motorista, integração da API (fora do escopo; outro executor cuida
-da API), e o fluxo com login e fila reais (o arnês usa fila em memória). Revisão independente (T7.2) a repetir.
-
 ## T7.2b — frontends: requisitos efetivos, avisos e acabamento (2026-10-07)
 
 Achados da segunda revisão independente (T7.2): N1, N2, N3, N4, N5, N7, N8, N9, N11, N13, N14. A API publica o requisito
@@ -2522,3 +2251,32 @@ App do motorista: arnês descartável (não commitado) que renderiza o `DriverOc
 Servidores encerrados por PID (cwd conferido), arnês e roteiros apagados, portas 53010 e 53210 livres, `git status` limpo.
 
 **O que não foi rodado:** nenhum print (a regra do projeto pede um só ao fim, e o relatório é por texto); `make smoke`/Playwright do repositório (a verificação usou um roteiro descartável com a mesma dublagem por `page.route`); integração de API e `make migration-test` (a API não foi tocada); a dica N14 foi provada por contrato de componente, não no navegador; o desvio (dica "Limpar" ainda aparece no texto de ajuda geral da seção mesmo com campos `required`) ficou como está, por ser a legenda da seção, não de um campo.
+
+## T7.4 — gates finais (2026-10-07)
+
+`git fetch`: `origin/staging` não avançou (0 atrás, 44 à frente antes da T7.3); sem rebase. Código de saída conferido por `$?`, saída em arquivo, sem pipe.
+Postgres 18.4 **nativo descartável** (`127.0.0.1:56254`, diretório no scratchpad, `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL` por variável de
+ambiente), derrubado por `pg_ctl stop` no diretório (PID 46787) e diretório removido; `pg247` não foi tocado; nada contra staging ou produção.
+
+```text
+bun install --frozen-lockfile                      exit=0   (788 installs, no changes)
+bun run typecheck (raiz)                           exit=0
+bun run format:check (raiz)                        exit=0   All matched files use Prettier code style!
+lint api/painel/driver/worker/cron/client/landing  exit=0 em todos (painel: 16 warnings antigos, 0 errors)
+contrato da API (--env-file=../../.env.test)       exit=0   10493 pass · 25 skip · 0 fail · 10518 tests, 200 files
+bun run --cwd apps/frontend-driver test            exit=0   1383 pass · 0 fail
+bun run --cwd apps/frontend-transportada test      exit=0   7374 pass · 0 fail  +  934 pass · 0 fail (hooks)
+bun run --cwd apps/frontend-client test            exit=0   89 pass · 0 fail
+worker 1991 pass · cron 101 pass · landing 131 pass         exit=0 em todos, 0 fail
+integração da API, 6 lotes em primeiro plano       exit=0 em todos: 209 + 259 + 242 + 172 + 166 (1 skip) + 123 = 1171 pass · 1 skip · 0 fail (216 arquivos)
+bun run db:test (API)                              exit=0   141 pass · 0 fail · 8 arquivos
+bun run db:generate (API)                          exit=0   {"status":"no_changes","dialect":"postgresql"}; git status limpo
+bun run build das 7 apps                           exit=0 em todos
+make check (literal)                               exit=0   API 10484 pass · 34 skip · 0 fail; demais suítes como acima
+```
+
+**`make check` literal passou**: o `bun run test` da API rodou sem o timeout de `toll booth catalog repository (spec 154)` nesta máquina e sem DATABASE_URL de ambiente
+(34 skip contra 25 da execução com `--env-file` avulso; a diferença não foi investigada). O que prova o banco é a integração em lotes acima, não o `make check`.
+
+**O que não rodou:** `make migration-test` (sobe o Postgres do Docker); `db:test` rodou direto contra o Postgres nativo descartável, o mesmo script que o make chama. `make smoke`, `make worker-integration`,
+`make e2e-up`. Nenhum gate revelou defeito de código.
