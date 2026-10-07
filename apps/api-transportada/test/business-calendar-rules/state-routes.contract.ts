@@ -11,13 +11,10 @@ import { createStateHolidayRoutes } from '../../src/business-calendar/presentati
 import {
   COMPANY_CONTEXT,
   createHttpHandler,
-  FLEET_ONLY_PERMISSIONS,
   FORBIDDEN_BODY_KEYS,
   jsonRequest,
   RESOLVED_IP,
   recordingUseCase,
-  responseApiError,
-  responseData,
   STATE_HOLIDAY_ID,
   type RecordedCalls,
 } from '../fixtures/business-calendar-http.fixture.js'
@@ -71,7 +68,7 @@ function createFixture(permissions?: CompanyContext['permissions']) {
   }
 }
 
-describe('o feriado estadual (spec 238 T1.3, CA4)', () => {
+describe('o feriado estadual: criação (spec 238 T1.3, CA4)', () => {
   test('cria nas duas formas, com a empresa e o ator do contexto', async () => {
     const { calls, handle } = createFixture()
 
@@ -157,90 +154,5 @@ describe('o feriado estadual (spec 238 T1.3, CA4)', () => {
       expect((await handle(jsonRequest({ body, method: 'POST', path: PATH }))).status).toBe(400)
     }
     expect(calls.create).toEqual([])
-  })
-
-  test('edita dentro da forma e recusa corpo sem nenhuma mudança', async () => {
-    const { calls, handle } = createFixture()
-    const path = `${PATH}/${STATE_HOLIDAY_ID}`
-
-    const response = await handle(
-      jsonRequest({ body: { name: 'Novo', recurrence: 'yearly' }, method: 'PATCH', path }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(calls.update).toEqual([
-      {
-        changes: { name: 'Novo', recurrence: 'yearly' },
-        companyId: COMPANY_CONTEXT.companyId,
-        correlationId: 'freight-regions-http-correlation',
-        id: STATE_HOLIDAY_ID,
-        ipAddress: RESOLVED_IP,
-        userId: COMPANY_CONTEXT.userId,
-      },
-    ])
-    for (const body of [
-      { recurrence: 'once' },
-      { name: 'Sem forma' },
-      { holidayOn: '2026-07-09', recurrence: 'yearly' },
-      { month: 7, recurrence: 'once' },
-      { holidayOn: '2026-02-30', recurrence: 'once' },
-      { recurrence: 'once', stateIbgeCode: '33' },
-    ]) {
-      expect((await handle(jsonRequest({ body, method: 'PATCH', path }))).status).toBe(400)
-    }
-    expect(calls.update).toHaveLength(1)
-  })
-
-  test('apaga com 204 e lista pela UF; filtro desconhecido é 400', async () => {
-    const { calls, handle } = createFixture()
-
-    expect(
-      (await handle(jsonRequest({ method: 'DELETE', path: `${PATH}/${STATE_HOLIDAY_ID}` }))).status,
-    ).toBe(204)
-    const response = await handle(jsonRequest({ method: 'GET', path: `${PATH}?stateIbgeCode=35` }))
-    expect(response.status).toBe(200)
-    expect(await responseData(response)).toEqual([
-      {
-        holidayOn: '2026-07-09',
-        id: STATE_HOLIDAY_ID,
-        name: 'Revolução Constitucionalista',
-        recurrence: 'once',
-        stateIbgeCode: '35',
-        updatedAt: '2026-10-07T13:00:00.000Z',
-      },
-      {
-        day: 9,
-        id: STATE_HOLIDAY_ID,
-        month: 7,
-        name: 'Revolução Constitucionalista',
-        recurrence: 'yearly',
-        stateIbgeCode: '35',
-        updatedAt: '2026-10-07T13:00:00.000Z',
-      },
-    ])
-    expect(calls.list).toEqual([{ companyId: COMPANY_CONTEXT.companyId, stateIbgeCode: '35' }])
-    for (const query of ['?companyId=x', '?stateIbgeCode=99']) {
-      expect((await handle(jsonRequest({ method: 'GET', path: `${PATH}${query}` }))).status).toBe(
-        400,
-      )
-    }
-  })
-
-  test('sem settings.manage, nenhuma das quatro: 403', async () => {
-    const { calls, handle } = createFixture(FLEET_ONLY_PERMISSIONS)
-    const path = `${PATH}/${STATE_HOLIDAY_ID}`
-
-    for (const attempt of [
-      jsonRequest({ method: 'GET', path: PATH }),
-      jsonRequest({ body: ONCE_BODY, method: 'POST', path: PATH }),
-      jsonRequest({ body: { name: 'x', recurrence: 'once' }, method: 'PATCH', path }),
-      jsonRequest({ method: 'DELETE', path }),
-    ]) {
-      const response = await handle(attempt)
-
-      expect(response.status).toBe(403)
-      expect((await responseApiError(response)).code).toBe('FORBIDDEN')
-    }
-    expect(Object.values(calls).flat()).toEqual([])
   })
 })

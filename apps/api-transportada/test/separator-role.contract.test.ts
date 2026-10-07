@@ -4,6 +4,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
+import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
+import { createStateHolidayRoutes } from '../src/business-calendar/presentation/state-holiday.routes'
 import { createCargoArrivalDocumentProductsRoute } from '../src/cargo-receiving/presentation/cargo-arrival-document-products.routes'
 import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
@@ -98,6 +102,12 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
+    // Spec 238 T1.3: o calendário de dias úteis. Regra, feriado estadual e sábado são configuração
+    // (`settings.manage`, ler e escrever); só o `GET /municipal-holidays` é `fleet.read`, desde a spec 060.
+    ...createMunicipalHolidayRoutes(dependencies),
+    ...createMunicipalHolidayRuleRoutes(dependencies),
+    ...createStateHolidayRoutes(dependencies),
+    ...createBusinessCalendarSettingsRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
@@ -182,6 +192,12 @@ describe('separator role contract', () => {
       'GET /fleet/drivers/:id/score',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',
+      /**
+       * Spec 060 T008 (enumerado na spec 238 T1.3): o feriado do município é `fleet.read`, porque o roteiro
+       * consulta, e o separador monta roteiro. Só lê: cadastrar, editar e apagar (e a regra "todo ano", o
+       * feriado estadual e o sábado) são `settings.manage`, que ele não tem.
+       */
+      'GET /municipal-holidays',
       'GET /nfe-documents',
       'GET /nfe-documents/:id',
       'GET /nfe-documents/:id/eligibility',

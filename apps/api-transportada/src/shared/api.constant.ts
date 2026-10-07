@@ -118,6 +118,12 @@ export const API_CONTRACTOR_MAIL_TEMPLATES_PREVIEW_PATH = '/contractor-mail-temp
  */
 export const API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId'
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
+/** Spec 238 T1.3: a regra "todo ano" (o aniversário da cidade incluído), o feriado do estado e o sábado. */
+export const API_MUNICIPAL_HOLIDAY_RULES_PATH = '/municipal-holiday-rules'
+export const API_MUNICIPAL_HOLIDAY_RULES_MATERIALIZATIONS_PATH =
+  '/municipal-holiday-rules/materializations'
+export const API_STATE_HOLIDAYS_PATH = '/state-holidays'
+export const API_COMPANY_SETTINGS_BUSINESS_CALENDAR_PATH = '/company-settings/business-calendar'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
 export const API_OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'

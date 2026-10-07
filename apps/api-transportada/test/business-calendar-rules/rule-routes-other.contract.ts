@@ -47,12 +47,13 @@ describe('PATCH, DELETE, GET e geração dos próximos anos (spec 238 T1.3)', ()
     expect(calls.update).toHaveLength(1)
   })
 
-  test('recusa identificador que não é UUID', async () => {
-    const { handle } = createRuleRoutesFixture()
+  test('identificador que não é UUID canônico nem chega à rota: 404', async () => {
+    const { calls, handle } = createRuleRoutesFixture()
 
     const patch = jsonRequest({ body: { name: 'x' }, method: 'PATCH', path: `${PATH}/1` })
-    expect((await handle(patch)).status).toBe(400)
-    expect((await handle(jsonRequest({ method: 'DELETE', path: `${PATH}/1` }))).status).toBe(400)
+    expect((await handle(patch)).status).toBe(404)
+    expect((await handle(jsonRequest({ method: 'DELETE', path: `${PATH}/1` }))).status).toBe(404)
+    expect(Object.values(calls).flat()).toEqual([])
   })
 
   test('apagar responde 204 sem corpo', async () => {

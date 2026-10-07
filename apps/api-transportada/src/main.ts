@@ -612,14 +612,20 @@ import { createFleetDriverRegionsUseCase } from './freight-regions/application/f
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
-import {
-  createContractorsUseCase,
-  createMunicipalHolidaysUseCase,
-} from './delivery-clients/application/contractors.use-case.js'
-import {
-  DrizzleContractorRepository,
-  DrizzleMunicipalHolidayRepository,
-} from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
+import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
+import { createMunicipalHolidayRulesUseCases } from './business-calendar/application/municipal-holiday-rules.use-case.js'
+import { createMunicipalHolidaysUseCases } from './business-calendar/application/municipal-holidays.use-case.js'
+import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
+import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
+import { DrizzleMunicipalHolidayRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
+import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday-rule.repository.js'
+import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
+import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
+import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
+import { createMunicipalHolidayRuleRoutes } from './business-calendar/presentation/municipal-holiday-rule.routes.js'
+import { createStateHolidayRoutes } from './business-calendar/presentation/state-holiday.routes.js'
+import { createContractorsUseCase } from './delivery-clients/application/contractors.use-case.js'
+import { DrizzleContractorRepository } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import {
   createGetContractorReceivingProfileUseCase,
@@ -1988,9 +1994,7 @@ function createApplicationRoutes({
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
     repository: contractorPortalRepository,
   })
-  const municipalHolidays = createMunicipalHolidaysUseCase({
-    repository: new DrizzleMunicipalHolidayRepository(database),
-  })
+  const businessCalendarClock = { now: () => new Date() }
   const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
   const occurrenceChargeReport = createOccurrenceChargeReportUseCase({
     report: new DrizzleOccurrenceChargeReportRepository(database),
@@ -2920,6 +2924,30 @@ function createApplicationRoutes({
       resolveClientIp,
       save: createSaveLocationRetentionSettingsUseCase(locationRetentionDependencies),
     }),
+    ...createMunicipalHolidayRoutes({
+      ...createMunicipalHolidaysUseCases({
+        ...businessCalendarClock,
+        repository: new DrizzleMunicipalHolidayRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createMunicipalHolidayRuleRoutes({
+      ...createMunicipalHolidayRulesUseCases({
+        ...businessCalendarClock,
+        repository: new DrizzleMunicipalHolidayRuleRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createStateHolidayRoutes({
+      ...createStateHolidaysUseCases({ repository: new DrizzleStateHolidayRepository(database) }),
+      resolveClientIp,
+    }),
+    ...createBusinessCalendarSettingsRoutes({
+      ...createBusinessCalendarSettingsUseCases({
+        repository: new DrizzleBusinessCalendarSettingsRepository(database),
+      }),
+      resolveClientIp,
+    }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
@@ -3331,9 +3359,6 @@ function createApplicationRoutes({
       getByTaxId: { execute: (input) => contractorRegistry.getByTaxId(input) },
       getContractor: { execute: (input) => contractorRegistry.get(input) },
       listContractors: { execute: (input) => contractorRegistry.list(input) },
-      listHolidays: { execute: (input) => municipalHolidays.list(input) },
-      removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
-      saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
     }),
     ...createContractorReceivingProfileRoutes({

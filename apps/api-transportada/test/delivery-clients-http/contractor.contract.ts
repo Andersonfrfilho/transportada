@@ -5,10 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
-import type {
-  Contractor,
-  MunicipalHoliday,
-} from '../../src/delivery-clients/application/contractor.port.js'
+import type { Contractor } from '../../src/delivery-clients/application/contractor.port.js'
 import { createContractorRoutes } from '../../src/delivery-clients/presentation/contractor.routes.js'
 import {
   authenticatedContext,
@@ -18,11 +15,9 @@ import {
   FRONTEND_ORIGIN,
   jsonRequest,
   responseApiError,
-  responseData,
 } from '../fixtures/freight-region-http.fixture.js'
 
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000000701'
-const HOLIDAY_ID = '00000000-0000-4000-8000-000000000702'
 
 const CONTRACTOR: Contractor = {
   closingPeriod: 'monthly',
@@ -34,19 +29,9 @@ const CONTRACTOR: Contractor = {
   taxId: '30290856000160',
 }
 
-const HOLIDAY: MunicipalHoliday = {
-  cityIbgeCode: '3551702',
-  holidayOn: '2026-06-24',
-  id: HOLIDAY_ID,
-  name: 'Aniversário da cidade',
-}
-
 function createFixture(permissions?: CompanyContext['permissions']) {
   const calls: Record<string, unknown[]> = {
     create: [],
-    listHolidays: [],
-    removeHoliday: [],
-    saveHoliday: [],
     update: [],
   }
 
@@ -62,9 +47,6 @@ function createFixture(permissions?: CompanyContext['permissions']) {
     getByTaxId: record('getByTaxId', CONTRACTOR),
     getContractor: record('getContractor', CONTRACTOR),
     listContractors: record('listContractors', { items: [CONTRACTOR], nextCursor: null }),
-    listHolidays: record('listHolidays', [HOLIDAY]),
-    removeHoliday: record('removeHoliday', undefined),
-    saveHoliday: record('saveHoliday', HOLIDAY),
     updateContractor: record('update', CONTRACTOR),
   })
 
@@ -82,7 +64,7 @@ function createFixture(permissions?: CompanyContext['permissions']) {
   return { calls, handle: (request: Request) => handleRequest(request, { timeout() {} }) }
 }
 
-describe('as rotas do contratante e do feriado (spec 060 T008)', () => {
+describe('as rotas do contratante (spec 060 T008)', () => {
   test('cria o contratante com o documento canonicalizado', async () => {
     const fixture = createFixture()
 
@@ -127,59 +109,10 @@ describe('as rotas do contratante e do feriado (spec 060 T008)', () => {
     expect(invalid.status).toBe(400)
   })
 
-  test('lista feriado por cidade e por janela de datas', async () => {
-    const fixture = createFixture()
-
-    const response = await fixture.handle(
-      jsonRequest({
-        method: 'GET',
-        path: '/municipal-holidays?cityIbgeCode=3551702&from=2026-01-01&to=2026-12-31',
-      }),
-    )
-
-    expect(response.status).toBe(200)
-    expect(await responseData(response)).toEqual([HOLIDAY])
-    expect(fixture.calls.listHolidays).toEqual([
-      {
-        cityIbgeCode: '3551702',
-        context: COMPANY_CONTEXT,
-        from: '2026-01-01',
-        to: '2026-12-31',
-      },
-    ])
-  })
-
-  /** Código IBGE tem sete dígitos: aceitar qualquer texto guardaria feriado de cidade nenhuma. */
-  test('recusa município que não é código IBGE', async () => {
-    const fixture = createFixture()
-
-    const response = await fixture.handle(
-      jsonRequest({
-        body: { cityIbgeCode: '355', holidayOn: '2026-06-24', name: 'Festa' },
-        method: 'POST',
-        path: '/municipal-holidays',
-      }),
-    )
-
-    expect(response.status).toBe(400)
-    expect(fixture.calls.saveHoliday).toEqual([])
-  })
-
-  /** Apagar o que não existe é no-op: o operador clicou duas vezes, e isso não é conflito. */
-  test('apagar feriado responde 204, sem corpo', async () => {
-    const fixture = createFixture()
-
-    const response = await fixture.handle(
-      jsonRequest({ method: 'DELETE', path: `/municipal-holidays/${HOLIDAY_ID}` }),
-    )
-
-    expect(response.status).toBe(204)
-    expect(await response.text()).toBe('')
-  })
-
   /**
    * Ler é `fleet.read` porque o roteiro consulta; escrever é `settings.manage` porque o período de
-   * fechamento e o destinatário do relatório decidem para quem o dinheiro é cobrado.
+   * fechamento e o destinatário do relatório decidem para quem o dinheiro é cobrado. As rotas do
+   * feriado do município (mesma regra de permissão) estão em `test/business-calendar-rules/`.
    */
   test('quem cuida da frota lê, mas não muda o período de fechamento', async () => {
     const fixture = createFixture(new Set(['fleet.read', 'fleet.manage']))

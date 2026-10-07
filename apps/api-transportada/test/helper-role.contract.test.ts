@@ -4,6 +4,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
+import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
+import { createStateHolidayRoutes } from '../src/business-calendar/presentation/state-holiday.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
@@ -98,6 +102,12 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
+    // Spec 238 T1.3: o calendário de dias úteis. Regra, feriado estadual e sábado são configuração
+    // (`settings.manage`, ler e escrever); só o `GET /municipal-holidays` é `fleet.read`, desde a spec 060.
+    ...createMunicipalHolidayRoutes(dependencies),
+    ...createMunicipalHolidayRuleRoutes(dependencies),
+    ...createStateHolidayRoutes(dependencies),
+    ...createBusinessCalendarSettingsRoutes(dependencies),
     // Rotas do app do motorista: `trip.read` abre as de leitura, `trip.report` as de escrita.
     ...createMeTripRoutes(dependencies),
     ...createDeliveryChargeRoutes(dependencies),
