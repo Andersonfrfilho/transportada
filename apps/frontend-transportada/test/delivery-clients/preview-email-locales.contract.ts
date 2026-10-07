@@ -46,6 +46,15 @@ describe('os rótulos da prévia por e-mail (spec 237 T4.6b)', () => {
     },
   )
 
+  test('a recusa de caractere fora do ASCII nomeia a entrada e o punycode, nos dois idiomas', () => {
+    for (const locale of [ptLocale, enLocale]) {
+      const message = (locale as { issues: Record<string, string> }).issues.nonAscii
+      expect(message).toContain('{{entry}}')
+      expect(message).toContain('xn--')
+      expect(message).toContain('ASCII')
+    }
+  })
+
   test('o resultado da recusa tem rótulo nos dois idiomas', () => {
     for (const locale of [ptLocale, enLocale]) {
       const outcomes = (locale as { outcomes: Record<string, string> }).outcomes

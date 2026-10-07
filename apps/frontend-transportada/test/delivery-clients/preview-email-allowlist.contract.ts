@@ -19,6 +19,8 @@ import {
 
 const API_CONSTANTS =
   '../api-transportada/src/cargo-receiving/domain/contractor-preview-email.constant.ts'
+const API_POLICY =
+  '../api-transportada/src/cargo-receiving/domain/preview-email-allowlist.policy.ts'
 const API_PREVIEW_CONSTANTS = '../api-transportada/src/shared/cargo-preview.constant.ts'
 
 describe('o texto das listas da prévia por e-mail no painel (spec 237 T4.6b)', () => {
@@ -82,6 +84,30 @@ describe('o texto das listas da prévia por e-mail no painel (spec 237 T4.6b)', 
     ])
   })
 
+  /** Revisão de segurança (L1, L3): só ASCII visível; o banco conta caracteres, o JS contava unidades UTF-16. */
+  test.each([
+    ['emoji (2 caracteres no banco, 3 em UTF-16)', 'a😀'],
+    ['homógrafo cirílico (а de acme)', 'аcme.com'],
+    ['zero-width no meio do domínio', 'a​cme.com'],
+    ['bidi (RLO) no fim do domínio', 'acme.com‮'],
+    ['acento (IDN sem punycode)', 'pão.exemplo.test'],
+  ])('recusa %s, nos dois tipos de lista', (_name, entry) => {
+    for (const kind of ['forwarder', 'sender'] as const) {
+      const text = kind === 'forwarder' ? `x@${entry}` : entry
+      const result = validateAllowlistText({ kind, text })
+
+      expect(result.entries).toEqual([])
+      expect(result.issues).toEqual([{ code: 'nonAscii', entry: text.toLowerCase() }])
+    }
+  })
+
+  test('domínio internacional entra em punycode (xn--), que é ASCII', () => {
+    expect(validateAllowlistText({ kind: 'sender', text: 'xn--po-1ma.exemplo.test' })).toEqual({
+      entries: ['xn--po-1ma.exemplo.test'],
+      issues: [],
+    })
+  })
+
   test('o teto de 20 vale para entradas diferentes: o 21º é recusado, e a duplicata não conta', () => {
     const twentyOne = Array.from({ length: 21 }, (_, index) => `pessoa${index}@transportadora.test`)
 
@@ -111,6 +137,18 @@ describe('as faixas e os motivos são os da API (spec 237 T4.6b)', () => {
     expect(api).toContain(`entryMaxLength: ${PREVIEW_EMAIL_ALLOWLIST_LIMITS.entryMaxLength}`)
     expect(api).toContain(`entryMinLength: ${PREVIEW_EMAIL_ALLOWLIST_LIMITS.entryMinLength}`)
     expect(api).toContain(`maxEntries: ${PREVIEW_EMAIL_ALLOWLIST_LIMITS.maxEntries}`)
+  })
+
+  test('a expressão do ASCII visível e a medida em pontos de código são as da API, nos dois lados', async () => {
+    const [api, panel] = await Promise.all([
+      readFile(API_POLICY, 'utf8'),
+      readFile('src/modules/delivery-clients/shared/previewEmailAllowlist.validation.ts', 'utf8'),
+    ])
+
+    for (const source of [api, panel]) {
+      expect(source).toContain('/^[\\x21-\\x7e]+$/u')
+      expect(source).toContain('[...entry].length')
+    }
   })
 
   test('os códigos de motivo da recusa são exatamente os do CHECK da migration', async () => {

@@ -6,7 +6,7 @@
  * rotacionar com confirmação, o endereço que aparece UMA vez (e só na memória do componente) e as recusas
  * recentes com motivo traduzido. Dados sintéticos: endereços `@exemplo.test`.
  */
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
@@ -270,6 +270,7 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
     const logs = [
       spyOn(console, 'log'),
       spyOn(console, 'info'),
+      spyOn(console, 'debug'),
       spyOn(console, 'warn'),
       spyOn(console, 'error'),
     ]
@@ -288,6 +289,46 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
       for (const spy of logs) spy.mockRestore()
       rendered.unmount()
     }
+  })
+
+  /**
+   * Revisão de segurança (i6): sair da ficha com o endereço aberto também o apaga da memória — o cache de mutações (`gcTime: 0`) não
+   * guarda o resultado de quem já nem observa. A ficha fecha a seção como este anfitrião: o `QueryClient` segue vivo.
+   */
+  test('sair da ficha com o endereço aberto o apaga da tela e do cache de mutações', async () => {
+    function Host() {
+      const [isOpen, setIsOpen] = useState(true)
+      return createElement(
+        'div',
+        null,
+        createElement(
+          'button',
+          { onClick: () => setIsOpen(false), type: 'button' },
+          'Sair da ficha',
+        ),
+        isOpen
+          ? createElement(PreviewEmailPanel, { contractorId: PREVIEW_EMAIL_CONTRACTOR_ID })
+          : null,
+      )
+    }
+    installPreviewEmailDouble({ settings: FILLED_SETTINGS })
+    const rendered = await renderWithQueryClient(createElement(Host))
+    await waitFor(() => expect(document.querySelector('[aria-busy="true"]') === null).toBe(true))
+    await click(buttonByText('Gerar endereço'))
+    await waitFor(() => expect(bodyText()).toContain(FIRST_TOKEN))
+
+    await click(buttonByText('Sair da ficha'))
+
+    await waitFor(() => expect(bodyText().includes(FIRST_TOKEN)).toBe(false))
+    await waitFor(() =>
+      expect(
+        rendered.queryClient
+          .getMutationCache()
+          .getAll()
+          .some((mutation) => JSON.stringify(mutation.state.data ?? null).includes(FIRST_TOKEN)),
+      ).toBe(false),
+    )
+    rendered.unmount()
   })
 
   test('rotacionar pede confirmação: nada vai à rede antes dela, e cancelar não gera', async () => {
