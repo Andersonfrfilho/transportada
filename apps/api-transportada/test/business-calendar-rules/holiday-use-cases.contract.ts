@@ -33,12 +33,15 @@ describe('os casos de uso das datas fixas (spec 238 T1.3)', () => {
       save: async (input) => {
         calls.push({ input, name: 'save' })
         return {
-          cityIbgeCode: '3509502',
-          generatedByRuleId: null,
-          holidayOn: '2026-07-14',
-          id: HOLIDAY_ID,
-          kind: 'holiday',
-          name: 'Feriado',
+          adoptedFromRuleId: null,
+          holiday: {
+            cityIbgeCode: '3509502',
+            generatedByRuleId: null,
+            holidayOn: '2026-07-14',
+            id: HOLIDAY_ID,
+            kind: 'holiday',
+            name: 'Feriado',
+          },
         }
       },
       update: async (input) => {

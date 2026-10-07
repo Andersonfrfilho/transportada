@@ -15,6 +15,7 @@ import {
   jsonRequest,
   RESOLVED_IP,
   recordingUseCase,
+  responseData,
   STATE_HOLIDAY_ID,
   type RecordedCalls,
 } from '../fixtures/business-calendar-http.fixture.js'
@@ -53,10 +54,10 @@ const YEARLY_BODY = {
   stateIbgeCode: '35',
 } as const
 
-function createFixture(permissions?: CompanyContext['permissions']) {
+function createFixture(permissions?: CompanyContext['permissions'], created = true) {
   const calls: RecordedCalls = {}
   const routes = createStateHolidayRoutes({
-    create: recordingUseCase(calls, 'create', ONCE),
+    create: recordingUseCase(calls, 'create', { created, holiday: ONCE }),
     list: recordingUseCase(calls, 'list', [ONCE, YEARLY]),
     remove: recordingUseCase(calls, 'remove', undefined),
     resolveClientIp: () => RESOLVED_IP,
@@ -94,6 +95,15 @@ describe('o feriado estadual: criação (spec 238 T1.3, CA4)', () => {
         userId: COMPANY_CONTEXT.userId,
       },
     ])
+  })
+
+  test('o mesmo feriado de novo responde 200 com o existente, como o municipal', async () => {
+    const { handle } = createFixture(undefined, false)
+
+    const response = await handle(jsonRequest({ body: ONCE_BODY, method: 'POST', path: PATH }))
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toMatchObject({ id: STATE_HOLIDAY_ID, recurrence: 'once' })
   })
 
   test('todo ano em 29/02 é aceito; 31/04 e 30/02 não', async () => {

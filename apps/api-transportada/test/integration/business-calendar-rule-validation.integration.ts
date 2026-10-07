@@ -96,7 +96,7 @@ describe('editar a regra para um dia que não cabe (spec 238 T1.3)', () => {
         }),
       ).toBeNull()
       await expect(
-        repository.remove({ ...actorOf(tenant, 'c2'), id: missing }),
+        repository.remove({ ...actorOf(tenant, 'c2'), currentYear: 2026, id: missing }),
       ).resolves.toBeUndefined()
       expect(await readAudits(database, tenant.companyId)).toHaveLength(0)
     })

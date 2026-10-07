@@ -47,6 +47,26 @@ describe('POST /municipal-holiday-rules (spec 238 T1.3, CA4)', () => {
     ])
   })
 
+  test('a resposta do POST só tem as chaves de sempre: a contagem de digitadas é do PATCH e do GET', async () => {
+    const { handle } = createRuleRoutesFixture()
+
+    const response = await handle(
+      jsonRequest({ body: VALID_RULE_BODY, method: 'POST', path: PATH }),
+    )
+
+    expect(Object.keys((await responseData(response)) as object).sort()).toEqual([
+      'cityIbgeCode',
+      'createdAt',
+      'day',
+      'id',
+      'kind',
+      'materializedThroughYear',
+      'month',
+      'name',
+      'updatedAt',
+    ])
+  })
+
   test('o IP vem do resolvedor injetado, não do cabeçalho que o cliente forja', async () => {
     const { calls, handle } = createRuleRoutesFixture()
     const request = jsonRequest({ body: VALID_RULE_BODY, method: 'POST', path: PATH })

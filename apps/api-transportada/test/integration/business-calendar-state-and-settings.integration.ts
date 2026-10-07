@@ -45,8 +45,8 @@ describe('o feriado estadual (spec 238 T1.3)', () => {
       const tenant = await seedTenant(database)
       const repository = new DrizzleStateHolidayRepository(database.db)
 
-      const once = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
-      const yearly = await repository.create({ ...actorOf(tenant, 'c2'), ...YEARLY })
+      const { holiday: once } = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
+      const { holiday: yearly } = await repository.create({ ...actorOf(tenant, 'c2'), ...YEARLY })
 
       expect(once).toMatchObject({ holidayOn: '2026-07-09', recurrence: 'once' })
       expect(yearly).toMatchObject({ day: 9, month: 7, recurrence: 'yearly' })
@@ -62,34 +62,37 @@ describe('o feriado estadual (spec 238 T1.3)', () => {
     })
   })
 
-  testWithPostgres('repetir a mesma data na mesma UF é conflito; UF diferente não', async () => {
-    await withBusinessCalendarDatabase(async (database) => {
-      const tenant = await seedTenant(database)
-      const repository = new DrizzleStateHolidayRepository(database.db)
-      await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
-      await repository.create({ ...actorOf(tenant, 'c2'), ...YEARLY })
+  testWithPostgres(
+    'repetir a mesma data na mesma UF com outro nome é conflito; UF diferente não',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const repository = new DrizzleStateHolidayRepository(database.db)
+        await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
+        await repository.create({ ...actorOf(tenant, 'c2'), ...YEARLY })
 
-      await expect(repository.create({ ...actorOf(tenant, 'c3'), ...ONCE })).rejects.toBeInstanceOf(
-        StateHolidayConflictError,
-      )
-      await expect(
-        repository.create({ ...actorOf(tenant, 'c4'), ...YEARLY }),
-      ).rejects.toBeInstanceOf(StateHolidayConflictError)
-      await repository.create({ ...actorOf(tenant, 'c5'), ...ONCE, stateIbgeCode: '33' })
+        await expect(
+          repository.create({ ...actorOf(tenant, 'c3'), ...ONCE, name: 'Outro nome' }),
+        ).rejects.toBeInstanceOf(StateHolidayConflictError)
+        await expect(
+          repository.create({ ...actorOf(tenant, 'c4'), ...YEARLY, name: 'Outro nome' }),
+        ).rejects.toBeInstanceOf(StateHolidayConflictError)
+        await repository.create({ ...actorOf(tenant, 'c5'), ...ONCE, stateIbgeCode: '33' })
 
-      expect(await repository.list({ companyId: tenant.companyId })).toHaveLength(3)
-      expect(
-        await repository.list({ companyId: tenant.companyId, stateIbgeCode: '33' }),
-      ).toHaveLength(1)
-      expect(await readAudits(database, tenant.companyId)).toHaveLength(3)
-    })
-  })
+        expect(await repository.list({ companyId: tenant.companyId })).toHaveLength(3)
+        expect(
+          await repository.list({ companyId: tenant.companyId, stateIbgeCode: '33' }),
+        ).toHaveLength(1)
+        expect(await readAudits(database, tenant.companyId)).toHaveLength(3)
+      })
+    },
+  )
 
   testWithPostgres('edita dentro da forma, recusa a troca de forma e a colisão', async () => {
     await withBusinessCalendarDatabase(async (database) => {
       const tenant = await seedTenant(database)
       const repository = new DrizzleStateHolidayRepository(database.db)
-      const once = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
+      const { holiday: once } = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
       await repository.create({ ...actorOf(tenant, 'c2'), ...ONCE, holidayOn: '2026-08-01' })
 
       const renamed = await repository.update({
@@ -123,7 +126,7 @@ describe('o feriado estadual (spec 238 T1.3)', () => {
     await withBusinessCalendarDatabase(async (database) => {
       const tenant = await seedTenant(database)
       const repository = new DrizzleStateHolidayRepository(database.db)
-      const created = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
+      const { holiday: created } = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
 
       await repository.remove({ ...actorOf(tenant, 'c2'), id: created.id })
       await repository.remove({ ...actorOf(tenant, 'c3'), id: created.id })

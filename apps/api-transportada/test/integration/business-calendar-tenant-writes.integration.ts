@@ -43,7 +43,7 @@ async function seedTwoTenants(database: TestDatabase) {
     month: 7,
     name: 'Aniversário de Campinas',
   })
-  const typed = await holidays.save({
+  const { holiday: typed } = await holidays.save({
     ...actorOf(tenantA, 'a-typed'),
     cityIbgeCode: CAMPINAS,
     holidayOn: '2026-12-08',
@@ -73,7 +73,7 @@ describe('a empresa B diante dos dados da A: exclusão e geração (spec 238 T1.
         const fixture = await seedTwoTenants(database)
         const { generated, holidays, rule, rules, state, states, tenantA, tenantB, typed } = fixture
 
-        await rules.remove({ ...actorOf(tenantB, 'b1'), id: rule.id })
+        await rules.remove({ ...actorOf(tenantB, 'b1'), currentYear: 2026, id: rule.id })
         await holidays.remove({ ...actorOf(tenantB, 'b2'), currentYear: 2026, id: typed.id })
         await holidays.remove({
           ...actorOf(tenantB, 'b3'),
@@ -82,7 +82,9 @@ describe('a empresa B diante dos dados da A: exclusão e geração (spec 238 T1.
         })
         await states.remove({ ...actorOf(tenantB, 'b4'), id: state.id })
 
-        expect(await rules.list({ companyId: tenantA.companyId })).toHaveLength(1)
+        expect(await rules.list({ companyId: tenantA.companyId, currentYear: 2026 })).toHaveLength(
+          1,
+        )
         expect(await readHolidayRows(database, tenantA.companyId)).toHaveLength(12)
         expect(await states.list({ companyId: tenantA.companyId })).toHaveLength(1)
         expect(await readAudits(database, tenantB.companyId)).toEqual([])

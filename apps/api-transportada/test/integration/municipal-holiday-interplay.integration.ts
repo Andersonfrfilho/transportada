@@ -48,7 +48,7 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
         const tenant = await seedTenant(database)
         const { holidays, rule, rules } = await seedRule(database, tenant)
 
-        const adopted = await holidays.save({
+        const { adoptedFromRuleId, holiday: adopted } = await holidays.save({
           ...actorOf(tenant, 'corr-adopt'),
           cityIbgeCode: CAMPINAS,
           holidayOn: '2027-07-14',
@@ -60,7 +60,11 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
           kind: 'city_anniversary',
           name: 'Ponto facultativo',
         })
-        await rules.remove({ ...actorOf(tenant, 'corr-remove'), id: rule.id })
+        expect(adoptedFromRuleId).toBe(rule.id)
+        const audits = await readAudits(database, tenant.companyId)
+        expect(audits.at(-1)).toMatchObject({ action: 'municipal-holiday.saved' })
+        expect(audits.at(-1)?.metadata).toMatchObject({ adoptedFromRuleId: rule.id })
+        await rules.remove({ ...actorOf(tenant, 'corr-remove'), currentYear: 2026, id: rule.id })
         expect(await readHolidayRows(database, tenant.companyId)).toEqual([
           expect.objectContaining({
             holidayOn: '2027-07-14',
@@ -77,10 +81,18 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
       const tenant = await seedTenant(database)
       const holidays = new DrizzleMunicipalHolidayRepository(database.db)
       const base = { ...actorOf(tenant, 'corr-1'), cityIbgeCode: CAMPINAS, holidayOn: '2026-12-08' }
-      const first = await holidays.save({ ...base, kind: 'city_anniversary', name: 'Padroeira' })
+      const { holiday: first } = await holidays.save({
+        ...base,
+        kind: 'city_anniversary',
+        name: 'Padroeira',
+      })
 
-      const renamed = await holidays.save({ ...base, name: 'Nossa Senhora' })
-      const retyped = await holidays.save({ ...base, kind: 'holiday', name: 'Nossa Senhora' })
+      const { holiday: renamed } = await holidays.save({ ...base, name: 'Nossa Senhora' })
+      const { holiday: retyped } = await holidays.save({
+        ...base,
+        kind: 'holiday',
+        name: 'Nossa Senhora',
+      })
 
       expect(first.kind).toBe('city_anniversary')
       expect(renamed).toMatchObject({
@@ -93,12 +105,40 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
     })
   })
 
+  testWithPostgres(
+    'recadastrar a mesma data com o mesmo nome e tipo não muda nada e não audita',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const holidays = new DrizzleMunicipalHolidayRepository(database.db)
+        const base = {
+          ...actorOf(tenant, 'corr-1'),
+          cityIbgeCode: CAMPINAS,
+          holidayOn: '2026-12-08',
+          name: 'Padroeira',
+        }
+        const { holiday: first } = await holidays.save(base)
+
+        const sameWithoutKind = await holidays.save({ ...base, correlationId: 'corr-2' })
+        const sameWithKind = await holidays.save({
+          ...base,
+          correlationId: 'corr-3',
+          kind: 'holiday',
+        })
+
+        expect(sameWithoutKind).toEqual({ adoptedFromRuleId: null, holiday: first })
+        expect(sameWithKind).toEqual({ adoptedFromRuleId: null, holiday: first })
+        expect(await readAudits(database, tenant.companyId)).toHaveLength(1)
+      })
+    },
+  )
+
   testWithPostgres('o POST antigo, sem tipo, cria o feriado comum', async () => {
     await withBusinessCalendarDatabase(async (database) => {
       const tenant = await seedTenant(database)
       const holidays = new DrizzleMunicipalHolidayRepository(database.db)
 
-      const saved = await holidays.save({
+      const { adoptedFromRuleId, holiday: saved } = await holidays.save({
         ...actorOf(tenant, 'corr-old'),
         cityIbgeCode: CAMPINAS,
         holidayOn: '2026-11-02',
@@ -106,8 +146,10 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
       })
 
       expect(saved).toMatchObject({ generatedByRuleId: null, kind: 'holiday' })
+      expect(adoptedFromRuleId).toBeNull()
       const [audit] = await readAudits(database, tenant.companyId)
       expect(audit).toMatchObject({ action: 'municipal-holiday.saved', entityId: saved.id })
+      expect(audit?.metadata).toMatchObject({ adoptedFromRuleId: null })
     })
   })
 
@@ -117,7 +159,7 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
       await withBusinessCalendarDatabase(async (database) => {
         const tenant = await seedTenant(database)
         const { holidays, rule } = await seedRule(database, tenant)
-        const typed = await holidays.save({
+        const { holiday: typed } = await holidays.save({
           ...actorOf(tenant, 'corr-typed'),
           cityIbgeCode: CAMPINAS,
           holidayOn: '2027-07-14',
@@ -150,13 +192,15 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
       await withBusinessCalendarDatabase(async (database) => {
         const tenant = await seedTenant(database)
         const { holidays } = await seedRule(database, tenant)
-        const insert = (holidayOn: string) =>
-          holidays.save({
-            ...actorOf(tenant, `corr-${holidayOn}`),
-            cityIbgeCode: CAMPINAS,
-            holidayOn,
-            name: 'Digitado',
-          })
+        const insert = async (holidayOn: string) =>
+          (
+            await holidays.save({
+              ...actorOf(tenant, `corr-${holidayOn}`),
+              cityIbgeCode: CAMPINAS,
+              holidayOn,
+              name: 'Digitado',
+            })
+          ).holiday
         const beyond = await insert('2040-07-14')
         const past = await insert('2024-07-14')
         const otherDay = await insert('2027-07-20')

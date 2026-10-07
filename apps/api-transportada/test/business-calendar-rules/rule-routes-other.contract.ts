@@ -22,6 +22,17 @@ import {
 
 const PATH = '/municipal-holiday-rules'
 const RULE_PATH = `${PATH}/${RULE_ID}`
+const RULE_VIEW = {
+  cityIbgeCode: '3509502',
+  createdAt: '2026-10-07T12:00:00.000Z',
+  day: 14,
+  id: RULE_ID,
+  kind: 'city_anniversary',
+  materializedThroughYear: 2036,
+  month: 7,
+  name: 'Aniversário de Campinas',
+  updatedAt: '2026-10-07T13:00:00.000Z',
+}
 const ACTOR = {
   companyId: COMPANY_CONTEXT.companyId,
   correlationId: 'freight-regions-http-correlation',
@@ -45,6 +56,16 @@ describe('PATCH, DELETE, GET e geração dos próximos anos (spec 238 T1.3)', ()
       )
     }
     expect(calls.update).toHaveLength(1)
+  })
+
+  test('o PATCH diz quantas datas digitadas ficaram no dia antigo da regra', async () => {
+    const { handle } = createRuleRoutesFixture()
+
+    const response = await handle(
+      jsonRequest({ body: { day: 15 }, method: 'PATCH', path: RULE_PATH }),
+    )
+
+    expect(await responseData(response)).toEqual({ ...RULE_VIEW, typedHolidaysKept: 2 })
   })
 
   test('identificador que não é UUID canônico nem chega à rota: 404', async () => {
@@ -74,19 +95,7 @@ describe('PATCH, DELETE, GET e geração dos próximos anos (spec 238 T1.3)', ()
     )
 
     expect(response.status).toBe(200)
-    expect(await responseData(response)).toEqual([
-      {
-        cityIbgeCode: '3509502',
-        createdAt: '2026-10-07T12:00:00.000Z',
-        day: 14,
-        id: RULE_ID,
-        kind: 'city_anniversary',
-        materializedThroughYear: 2036,
-        month: 7,
-        name: 'Aniversário de Campinas',
-        updatedAt: '2026-10-07T13:00:00.000Z',
-      },
-    ])
+    expect(await responseData(response)).toEqual([{ ...RULE_VIEW, typedHolidaysKept: 2 }])
     expect(calls.list).toEqual([{ cityIbgeCode: '3509502', companyId: COMPANY_CONTEXT.companyId }])
   })
 
@@ -112,6 +121,25 @@ describe('PATCH, DELETE, GET e geração dos próximos anos (spec 238 T1.3)', ()
     expect(response.status).toBe(200)
     expect(await responseData(response)).toEqual({ holidaysCreated: 22, rulesProcessed: 2 })
     expect(calls.materialize).toEqual([ACTOR])
+  })
+
+  test('gerar os próximos anos aceita corpo vazio ou ausente e recusa campo desconhecido', async () => {
+    const accepted = [undefined, {}]
+    for (const body of accepted) {
+      const { calls, handle } = createRuleRoutesFixture()
+      const request = jsonRequest({ body, method: 'POST', path: `${PATH}/materializations` })
+
+      expect((await handle(request)).status).toBe(200)
+      expect(calls.materialize).toHaveLength(1)
+    }
+
+    for (const body of [{ companyId: ACTOR.companyId }, { currentYear: 2099 }, { years: 3 }]) {
+      const { calls, handle } = createRuleRoutesFixture()
+      const request = jsonRequest({ body, method: 'POST', path: `${PATH}/materializations` })
+
+      expect((await handle(request)).status).toBe(400)
+      expect(calls.materialize).toEqual([])
+    }
   })
 })
 

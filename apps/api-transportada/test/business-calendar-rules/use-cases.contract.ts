@@ -9,8 +9,8 @@ import { describe, expect, test } from 'bun:test'
 import type { BusinessCalendarActor } from '../../src/business-calendar/application/business-calendar-actor.types.js'
 import { createMunicipalHolidayRulesUseCases } from '../../src/business-calendar/application/municipal-holiday-rules.use-case.js'
 import type {
+  MunicipalHolidayRuleOverview,
   MunicipalHolidayRulePort,
-  MunicipalHolidayRuleRecord,
 } from '../../src/business-calendar/application/municipal-holiday-rule.port.js'
 
 const ACTOR: BusinessCalendarActor = {
@@ -21,7 +21,7 @@ const ACTOR: BusinessCalendarActor = {
 }
 const RULE_ID = '55555555-5555-4555-8555-555555555555'
 
-const RULE: MunicipalHolidayRuleRecord = {
+const RULE: MunicipalHolidayRuleOverview = {
   cityIbgeCode: '3509502',
   createdAt: new Date('2026-10-07T12:00:00.000Z'),
   day: 14,
@@ -30,8 +30,10 @@ const RULE: MunicipalHolidayRuleRecord = {
   materializedThroughYear: 2036,
   month: 7,
   name: 'Aniversário de Campinas',
+  typedHolidaysKept: 1,
   updatedAt: new Date('2026-10-07T12:00:00.000Z'),
 }
+const NOW = new Date('2026-10-07T15:00:00.000Z')
 
 function recordingRulePort(overrides: Partial<MunicipalHolidayRulePort> = {}) {
   const calls: { readonly name: string; readonly input: unknown }[] = []
@@ -96,10 +98,10 @@ describe('os casos de uso das regras "todo ano" (spec 238 T1.3)', () => {
     expect(calls).toEqual([{ input: { ...ACTOR, currentYear: 2027 }, name: 'materialize' }])
   })
 
-  test('a leitura filtra pela empresa do contexto e pela cidade pedida', async () => {
+  test('a leitura filtra pela empresa e pela cidade, e leva o ano corrente para contar as digitadas', async () => {
     const { calls, port } = recordingRulePort()
     const useCases = createMunicipalHolidayRulesUseCases({
-      now: () => new Date(),
+      now: () => NOW,
       repository: port,
     })
 
@@ -110,7 +112,10 @@ describe('os casos de uso das regras "todo ano" (spec 238 T1.3)', () => {
 
     expect(rules).toEqual([RULE])
     expect(calls).toEqual([
-      { input: { cityIbgeCode: '3509502', companyId: ACTOR.companyId }, name: 'list' },
+      {
+        input: { cityIbgeCode: '3509502', companyId: ACTOR.companyId, currentYear: 2026 },
+        name: 'list',
+      },
     ])
   })
 
@@ -131,14 +136,14 @@ describe('os casos de uso das regras "todo ano" (spec 238 T1.3)', () => {
     expect(failure).toMatchObject({ code: 'MUNICIPAL_HOLIDAY_RULE_NOT_FOUND', status: 404 })
   })
 
-  test('apagar o que não existe não falha', async () => {
+  test('apagar o que não existe não falha, e leva o ano corrente para contar as digitadas', async () => {
     const { calls, port } = recordingRulePort()
     const useCases = createMunicipalHolidayRulesUseCases({
-      now: () => new Date(),
+      now: () => NOW,
       repository: port,
     })
 
     await expect(useCases.remove.execute({ ...ACTOR, id: RULE_ID })).resolves.toBeUndefined()
-    expect(calls).toEqual([{ input: { ...ACTOR, id: RULE_ID }, name: 'remove' }])
+    expect(calls).toEqual([{ input: { ...ACTOR, currentYear: 2026, id: RULE_ID }, name: 'remove' }])
   })
 })

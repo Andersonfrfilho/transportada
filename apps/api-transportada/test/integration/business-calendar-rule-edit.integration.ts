@@ -111,7 +111,7 @@ describe('editar e apagar a regra (spec 238 T1.3)', () => {
           currentYear: 2026,
         })
 
-        await repository.remove({ ...actorOf(tenant, 'c3'), id: rule.id })
+        await repository.remove({ ...actorOf(tenant, 'c3'), currentYear: 2026, id: rule.id })
 
         const rows = await readHolidayRows(database, tenant.companyId)
         expect(rows).toHaveLength(11)
@@ -142,10 +142,11 @@ describe('editar e apagar a regra (spec 238 T1.3)', () => {
           month: 1,
         })
 
-        const all = await repository.list({ companyId: tenant.companyId })
+        const all = await repository.list({ companyId: tenant.companyId, currentYear: 2026 })
         const campinas = await repository.list({
           cityIbgeCode: CAMPINAS,
           companyId: tenant.companyId,
+          currentYear: 2026,
         })
 
         expect(all.map((rule) => [rule.cityIbgeCode, rule.materializedThroughYear])).toEqual([

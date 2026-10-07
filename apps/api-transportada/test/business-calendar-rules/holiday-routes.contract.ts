@@ -42,6 +42,7 @@ const FLEET_PERMISSIONS: CompanyContext['permissions'] = new Set(['fleet.read', 
 
 function createFixture(
   input: {
+    readonly adoptedFromRuleId?: string | null
     readonly removeError?: Error
     readonly permissions?: CompanyContext['permissions']
   } = {},
@@ -56,7 +57,10 @@ function createFixture(
       },
     },
     resolveClientIp: () => RESOLVED_IP,
-    save: recordingUseCase(calls, 'save', HOLIDAY),
+    save: recordingUseCase(calls, 'save', {
+      adoptedFromRuleId: input.adoptedFromRuleId ?? null,
+      holiday: HOLIDAY,
+    }),
     update: recordingUseCase(calls, 'update', HOLIDAY),
   })
   return {
@@ -131,6 +135,40 @@ describe('as rotas antigas de /municipal-holidays: leitura e POST (spec 238 T1.3
     expect(response.status).toBe(201)
     expect(calls.save).toEqual([{ ...ACTOR, ...BODY }])
     expect(calls.save?.[0]).not.toHaveProperty('kind')
+  })
+
+  test('a resposta do POST diz de qual regra a data digitada foi adotada, ou nulo', async () => {
+    const adopting = createFixture({ adoptedFromRuleId: RULE_ID })
+    const plain = createFixture()
+
+    const adopted = await adopting.handle(jsonRequest({ body: BODY, method: 'POST', path: PATH }))
+    const created = await plain.handle(jsonRequest({ body: BODY, method: 'POST', path: PATH }))
+
+    expect(adopted.status).toBe(201)
+    expect(await responseData(adopted)).toEqual({
+      adoptedFromRuleId: RULE_ID,
+      cityIbgeCode: '3551702',
+      generatedByRuleId: RULE_ID,
+      holidayOn: '2026-06-24',
+      id: HOLIDAY_ID,
+      kind: 'city_anniversary',
+      name: 'Aniversário da cidade',
+    })
+    expect(await responseData(created)).toMatchObject({ adoptedFromRuleId: null })
+  })
+
+  test('as outras respostas de /municipal-holidays não ganham a chave da adoção', async () => {
+    const { handle } = createFixture()
+
+    const patched = await handle(
+      jsonRequest({ body: { name: 'Novo' }, method: 'PATCH', path: `${PATH}/${HOLIDAY_ID}` }),
+    )
+    const listed = await handle(jsonRequest({ method: 'GET', path: PATH }))
+
+    expect(await responseData(patched)).not.toHaveProperty('adoptedFromRuleId')
+    expect(((await responseData(listed)) as readonly object[])[0]).not.toHaveProperty(
+      'adoptedFromRuleId',
+    )
   })
 
   test('com kind, ele segue até o caso de uso', async () => {

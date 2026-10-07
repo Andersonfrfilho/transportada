@@ -57,7 +57,7 @@ function createFixture(
       },
     },
     resolveClientIp: () => RESOLVED_IP,
-    save: recordingUseCase(calls, 'save', HOLIDAY),
+    save: recordingUseCase(calls, 'save', { adoptedFromRuleId: null, holiday: HOLIDAY }),
     update: recordingUseCase(calls, 'update', HOLIDAY),
   })
   return {

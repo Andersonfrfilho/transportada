@@ -44,7 +44,7 @@ async function seedTwoTenants(database: TestDatabase) {
     month: 7,
     name: 'Aniversário de Campinas',
   })
-  const typed = await holidays.save({
+  const { holiday: typed } = await holidays.save({
     ...actorOf(tenantA, 'a-typed'),
     cityIbgeCode: CAMPINAS,
     holidayOn: '2026-12-08',
@@ -71,7 +71,7 @@ describe('a empresa B diante dos dados da A: leitura e edição (spec 238 T1.3)'
     await withBusinessCalendarDatabase(async (database) => {
       const { holidays, rules, settings, states, tenantB } = await seedTwoTenants(database)
 
-      expect(await rules.list({ companyId: tenantB.companyId })).toEqual([])
+      expect(await rules.list({ companyId: tenantB.companyId, currentYear: 2026 })).toEqual([])
       expect(await holidays.list({ companyId: tenantB.companyId })).toEqual([])
       expect(await states.list({ companyId: tenantB.companyId })).toEqual([])
       expect(await settings.find({ companyId: tenantB.companyId })).toBeNull()

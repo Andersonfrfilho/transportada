@@ -51,7 +51,7 @@ const ONCE_BODY = {
 function createFixture(permissions?: CompanyContext['permissions']) {
   const calls: RecordedCalls = {}
   const routes = createStateHolidayRoutes({
-    create: recordingUseCase(calls, 'create', ONCE),
+    create: recordingUseCase(calls, 'create', { created: true, holiday: ONCE }),
     list: recordingUseCase(calls, 'list', [ONCE, YEARLY]),
     remove: recordingUseCase(calls, 'remove', undefined),
     resolveClientIp: () => RESOLVED_IP,

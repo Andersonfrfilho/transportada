@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { MunicipalHolidayRuleRecord } from '../../src/business-calendar/application/municipal-holiday-rule.port.js'
+import type {
+  MunicipalHolidayRuleOverview,
+  MunicipalHolidayRuleRecord,
+} from '../../src/business-calendar/application/municipal-holiday-rule.port.js'
 import { createMunicipalHolidayRuleRoutes } from '../../src/business-calendar/presentation/municipal-holiday-rule.routes.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
@@ -24,6 +27,9 @@ export const RULE: MunicipalHolidayRuleRecord = {
   updatedAt: new Date('2026-10-07T13:00:00.000Z'),
 }
 
+/** O que a leitura e a edição devolvem: a regra e quantas datas digitadas ficaram no dia dela. */
+export const RULE_OVERVIEW: MunicipalHolidayRuleOverview = { ...RULE, typedHolidaysKept: 2 }
+
 export const VALID_RULE_BODY = {
   cityIbgeCode: '3509502',
   day: 14,
@@ -41,11 +47,11 @@ export function createRuleRoutesFixture(
   const calls: RecordedCalls = {}
   const routes = createMunicipalHolidayRuleRoutes({
     create: recordingUseCase(calls, 'create', { created: input.created ?? true, rule: RULE }),
-    list: recordingUseCase(calls, 'list', [RULE]),
+    list: recordingUseCase(calls, 'list', [RULE_OVERVIEW]),
     materialize: recordingUseCase(calls, 'materialize', { holidaysCreated: 22, rulesProcessed: 2 }),
     remove: recordingUseCase(calls, 'remove', undefined),
     resolveClientIp: () => RESOLVED_IP,
-    update: recordingUseCase(calls, 'update', RULE),
+    update: recordingUseCase(calls, 'update', RULE_OVERVIEW),
   })
   return {
     calls,

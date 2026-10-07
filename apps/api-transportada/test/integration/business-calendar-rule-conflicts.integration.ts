@@ -63,7 +63,11 @@ describe('a regra diante da data digitada e do conflito (spec 238 T1.3)', () => 
         .where(isNotNull(municipalHolidays.sourceRuleId))
       expect(generated).toHaveLength(10)
 
-      await repository.remove({ ...actorOf(tenant, 'corr-remove'), id: rule.id })
+      await repository.remove({
+        ...actorOf(tenant, 'corr-remove'),
+        currentYear: 2026,
+        id: rule.id,
+      })
 
       const remaining = await readHolidayRows(database, tenant.companyId)
       expect(remaining.map((row) => row.name)).toEqual(['Digitado pelo operador'])

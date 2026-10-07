@@ -78,7 +78,7 @@ describe('a data gerada só se mexe pela regra (spec 238 T1.3)', () => {
           companyId: tenant.companyId,
           holidayOn: '2028-07-14',
         })
-        const typed = await holidays.save({
+        const { holiday: typed } = await holidays.save({
           ...actorOf(tenant, 'corr-typed'),
           cityIbgeCode: CAMPINAS,
           holidayOn: '2026-12-08',
@@ -137,7 +137,7 @@ describe('a data gerada só se mexe pela regra (spec 238 T1.3)', () => {
         })
         expect(await readAudits(database, tenant.companyId)).toHaveLength(0)
 
-        const typed = await holidays.save({
+        const { holiday: typed } = await holidays.save({
           ...actorOf(tenant, 'corr-2'),
           cityIbgeCode: CAMPINAS,
           holidayOn: '2026-12-08',
