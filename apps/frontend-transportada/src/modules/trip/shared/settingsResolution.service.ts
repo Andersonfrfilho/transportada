@@ -7,7 +7,12 @@ import {
   type DeliveryProofFieldSettingsWire,
 } from './deliveryProofSettings.service'
 import { OCCURRENCE_ATTACHMENT_MODES, OCCURRENCE_TYPE_FLOWS } from './occurrence.constant'
-import type { OccurrenceAttachmentMode, OccurrenceTypeFlow } from './occurrence.constant'
+import type {
+  DeclaredAmountScope,
+  OccurrenceAttachmentMode,
+  OccurrenceTypeFlow,
+} from './occurrence.constant'
+import { hasValidReturnRequirementFields } from './returnRequirementFields.validation'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 218 RF-E1: a tela de verificação — a rota é `settings.manage`, sem escrever nada. */
@@ -26,17 +31,26 @@ const SETTINGS_RESOLUTION_OCCURRENCE_TYPE_KEYS = [
  * que decidiu cada um. Aditivos — ausentes são API anterior.
  */
 const SETTINGS_RESOLUTION_OPTIONAL_KEYS = [
+  /** Spec 247 TP.2: os requisitos efetivos da devolução e a camada de cada um. */
+  'declaredAmountLabel',
+  'declaredAmountMode',
+  'declaredAmountScope',
   'itemsMinimumCount',
   'itemsMode',
   'noteMode',
   'photoMinimumCount',
   'photoMode',
+  'referenceNumberLabel',
+  'referenceNumberMode',
   'signatureMode',
   'sources',
 ] as const
 
 export type SettingsResolutionOccurrenceType = Readonly<{
   attachmentMode: OccurrenceAttachmentMode
+  declaredAmountLabel?: string
+  declaredAmountMode?: OccurrenceAttachmentMode
+  declaredAmountScope?: DeclaredAmountScope
   flow: OccurrenceTypeFlow
   id: string
   itemsMinimumCount?: null | number
@@ -45,15 +59,22 @@ export type SettingsResolutionOccurrenceType = Readonly<{
   noteMode?: OccurrenceAttachmentMode
   photoMinimumCount?: number
   photoMode?: OccurrenceAttachmentMode
+  referenceNumberLabel?: string
+  referenceNumberMode?: OccurrenceAttachmentMode
   signatureMode?: OccurrenceAttachmentMode
   sources?: Readonly<
     Partial<
       Record<
+        | 'declaredAmountLabel'
+        | 'declaredAmountMode'
+        | 'declaredAmountScope'
         | 'itemsMinimumCount'
         | 'itemsMode'
         | 'noteMode'
         | 'photoMinimumCount'
         | 'photoMode'
+        | 'referenceNumberLabel'
+        | 'referenceNumberMode'
         | 'signatureMode',
         string
       >
@@ -89,7 +110,10 @@ function isSettingsResolutionOccurrenceType(
     OCCURRENCE_TYPE_FLOWS.includes(value.flow as OccurrenceTypeFlow) &&
     isString(value.id) &&
     isString(value.name) &&
-    value.stage === 'delivery'
+    value.stage === 'delivery' &&
+    hasValidReturnRequirementFields(value) &&
+    (value.sources === undefined ||
+      (isRecord(value.sources) && Object.values(value.sources).every(isString)))
   )
 }
 

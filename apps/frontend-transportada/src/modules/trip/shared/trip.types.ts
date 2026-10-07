@@ -6,7 +6,11 @@ import type {
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
-import type { OccurrenceAttachmentMode, OccurrenceItemsMode } from './occurrence.constant'
+import type {
+  DeclaredAmountScope,
+  OccurrenceAttachmentMode,
+  OccurrenceItemsMode,
+} from './occurrence.constant'
 import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
@@ -212,6 +216,10 @@ export type TripOccurrence = Readonly<{
  */
 export type FieldOccurrenceType = Readonly<{
   attachmentMode?: OccurrenceAttachmentMode
+  /** Spec 247 TP.1: os requisitos efetivos da devolução; ausentes são API anterior. */
+  declaredAmountLabel?: string
+  declaredAmountMode?: OccurrenceAttachmentMode
+  declaredAmountScope?: DeclaredAmountScope
   id: string
   /** Spec 246: a quantidade mínima de produtos (nulo = todos os itens); ausente é API anterior. */
   itemsMinimumCount?: null | number
@@ -220,6 +228,8 @@ export type FieldOccurrenceType = Readonly<{
   noteMode?: OccurrenceAttachmentMode
   photoMinimumCount?: number
   photoMode?: OccurrenceAttachmentMode
+  referenceNumberLabel?: string
+  referenceNumberMode?: OccurrenceAttachmentMode
   signatureMode?: OccurrenceAttachmentMode
 }>
 

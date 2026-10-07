@@ -305,3 +305,32 @@ Ran 109 tests across 2 files. [13.45s]
 - `bun run lint` (API): exit 0.
 - ⚠️ O Postgres nativo é 18.4; a CI usa outro (memória "Postgres da CI ≠ Postgres 18 local"). As
   asserções desta fase leem nome de CHECK e `SQLSTATE` 23514, que não variam entre as versões.
+
+## Etapa 1b — painel tolerante nos dois parsers
+
+ADR-0081 §9 (painel tolerante ANTES da API): a T1.1 cobriu só `/occurrence-types` e as exceções; a API
+(T4.6) passa a publicar os requisitos efetivos da devolução no tipo de rua e na verificação, e dois
+guards do painel recusam chave desconhecida.
+
+- **TP.1** `isFieldOccurrenceType` (`tripResponse.validation.ts`): `referenceNumberMode` e
+  `declaredAmountMode` (`off|optional|required`), `declaredAmountScope` (`item|occurrence`),
+  `referenceNumberLabel` e `declaredAmountLabel` (texto não vazio, até 40) como opcionais. Chaves em
+  `FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`; tipo `FieldOccurrenceType` com os cinco campos opcionais.
+- **TP.2** `isSettingsResolutionView` (`settingsResolution.service.ts`): os mesmos cinco campos como
+  opcionais por tipo, e `sources` aceita as camadas deles (valores texto). A tela não os exibe ainda.
+- Validação compartilhada em `returnRequirementFields.validation.ts`; constantes em
+  `occurrence.constant.ts` (sem literal repetido).
+- Contrato: `test/trip/field-type-return-requirements-tolerance.contract.ts` (entra por
+  `test/trip.contract.test.ts`, que está na lista do `package.json`). Escrito antes: 4 testes
+  vermelhos (`4 fail`), verdes após a implementação. Cobre COM e SEM as chaves e recusa vocabulário,
+  escopo, rótulo vazio/longo e camada que não é texto.
+- Outros parsers do painel: nenhum outro valida `FieldOccurrenceType` com chaves fechadas. O
+  `occurrenceTypes` do catálogo e as exceções já tolerantes (T1.1). `cargoOccurrenceGuards`
+  (`TYPE_KEYS` exato: `allowsMultipleItems`, `id`, `itemsMode`, `name`) é outro contrato (caso de
+  ocorrência do recebimento) e não está no caminho dos requisitos efetivos — vigiar na T4.6.
+- frontend-driver: `isDriverOccurrenceType` já aceita `declaredAmountScope`, os dois modos e os
+  rótulos (`driverTripResponse.validation.contract.test.ts`, com e sem as chaves, e recusa de escopo e
+  modo inválidos) — sem mudança.
+- Gates: `bun run typecheck` (raiz) exit 0 · `frontend-transportada test`: `7219 pass · 0 fail` e
+  `838 pass · 0 fail` · `frontend-driver test`: `1250 pass · 0 fail` · `format:check`:
+  `All matched files use Prettier code style!`.

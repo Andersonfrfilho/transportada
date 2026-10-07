@@ -507,6 +507,10 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
  */
 export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'attachmentMode',
+  /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */
+  'declaredAmountLabel',
+  'declaredAmountMode',
+  'declaredAmountScope',
   /** Spec 246 (ADR-0081 §9, painel antes da API): os modos resolvidos da nota e os mínimos. */
   'flow',
   'itemsMinimumCount',
@@ -514,6 +518,8 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'noteMode',
   'photoMinimumCount',
   'photoMode',
+  'referenceNumberLabel',
+  'referenceNumberMode',
   'signatureMode',
   'stopKind',
 ] as const

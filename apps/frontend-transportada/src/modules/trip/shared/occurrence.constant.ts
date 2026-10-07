@@ -145,3 +145,17 @@ export const OCCURRENCE_CORRECTION_ERROR = {
 
 export type OccurrenceCorrectionErrorCode =
   (typeof OCCURRENCE_CORRECTION_ERROR)[keyof typeof OCCURRENCE_CORRECTION_ERROR]
+
+/** Spec 247 (ADR-0081 §9): onde o valor declarado da devolução é pedido, e o teto do rótulo. */
+export const DECLARED_AMOUNT_SCOPES = ['item', 'occurrence'] as const
+
+export type DeclaredAmountScope = (typeof DECLARED_AMOUNT_SCOPES)[number]
+
+export const RETURN_REQUIREMENT_LABEL_MAX_LENGTH = 40
+
+export const RETURN_REQUIREMENT_MODE_KEYS = ['declaredAmountMode', 'referenceNumberMode'] as const
+
+export const RETURN_REQUIREMENT_LABEL_KEYS = [
+  'declaredAmountLabel',
+  'referenceNumberLabel',
+] as const

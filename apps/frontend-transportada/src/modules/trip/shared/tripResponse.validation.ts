@@ -116,6 +116,7 @@ import {
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
   TRIP_TRAILER_KEYS,
 } from './trip.constant'
+import { hasValidReturnRequirementFields } from './returnRequirementFields.validation'
 import {
   SCANNED_NFE_STATUS,
   TRIP_BATCH_ITEM_OUTCOME,
@@ -1520,7 +1521,12 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
   const isFlowValid = value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)
 
   return (
-    isEveryModeValid && isPhotoMinimumValid && isItemsMinimumValid && isStopKindValid && isFlowValid
+    isEveryModeValid &&
+    isPhotoMinimumValid &&
+    isItemsMinimumValid &&
+    isStopKindValid &&
+    isFlowValid &&
+    hasValidReturnRequirementFields(value)
   )
 }
 
