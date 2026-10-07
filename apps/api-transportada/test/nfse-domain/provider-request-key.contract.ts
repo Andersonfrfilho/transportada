@@ -55,11 +55,23 @@ describe('nfse provider request key inheritance', () => {
     expect(resolveInheritedProviderRequestKey(accepted)).toBeUndefined()
   })
 
-  test('falha por causa que não é de transporte não herda a chave', () => {
-    const malformed = previousAttempt({ lastErrorCause: 'unexpected_status' })
+  test.each(['unexpected_status', 'malformed_response'])(
+    'resposta que pode ter criado a nota (%s) também herda a chave',
+    (lastErrorCause) => {
+      const attempt = previousAttempt({ lastErrorCause })
 
-    expect(resolveInheritedProviderRequestKey(malformed)).toBeUndefined()
-  })
+      expect(resolveInheritedProviderRequestKey(attempt)).toBe(PREVIOUS_KEY)
+    },
+  )
+
+  test.each(['not_found', 'invalid_payload', 'provider_not_configured', 'credential_unreadable'])(
+    'falha que nunca chega a criar a nota (%s) não herda a chave',
+    (lastErrorCause) => {
+      const attempt = previousAttempt({ lastErrorCause })
+
+      expect(resolveInheritedProviderRequestKey(attempt)).toBeUndefined()
+    },
+  )
 
   test('tentativa que não terminou em failed não herda a chave', () => {
     const scheduled = previousAttempt({ status: 'retry_scheduled' })

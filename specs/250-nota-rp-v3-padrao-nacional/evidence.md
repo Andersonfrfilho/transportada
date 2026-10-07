@@ -190,3 +190,11 @@ De `apps/api-transportada`:
   `providerDocumentId` não é ambígua, isolamento por empresa), na lista `test:integration` do `package.json`.
 - Gates finais: `bun run typecheck` 0 erros; `bun run lint` (src + test inteiros) 0 problemas;
   `bunx prettier --check` nos arquivos tocados limpo; `db:generate` `no_changes`.
+
+## E14 — Ajuste da herança da chave do provedor (revisão da Fase 2, 07/10/2026)
+
+O executor herdava a chave só em `timeout` e `transport_failure`. Ampliado para `unexpected_status`
+(5xx) e `malformed_response`, que também podem ter criado a nota na Nota RP; herdar a chave é
+inofensivo quando ela não foi criada (pedido recusado na validação libera a chave). `not_found`,
+`invalid_payload`, `provider_not_configured` e `credential_unreadable` nunca chegam a criar a nota e
+continuam com chave nova. Contrato: `test/nfse-domain/provider-request-key.contract.ts` (66 pass).

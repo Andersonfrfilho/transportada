@@ -4,7 +4,12 @@
 import type { NfseIssuanceStatus } from '../../database/nfse.schema.js'
 
 const AMBIGUOUS_FAILED_STATUS: NfseIssuanceStatus = 'failed'
-const AMBIGUOUS_CAUSES: ReadonlySet<string> = new Set(['timeout', 'transport_failure'])
+const AMBIGUOUS_CAUSES: ReadonlySet<string> = new Set([
+  'malformed_response',
+  'timeout',
+  'transport_failure',
+  'unexpected_status',
+])
 
 /** O que a tentativa anterior deixou para trás, lido antes de a reemissão abrir a seguinte. */
 export type NfseIssuanceAttemptHistory = {
@@ -16,7 +21,7 @@ export type NfseIssuanceAttemptHistory = {
 
 /**
  * A chave de idempotência do provedor (`hash_pedido`) da tentativa nova. Devolve a chave a **copiar**
- * só quando a anterior terminou ambígua — falhou por timeout ou transporte sem o provedor ter devolvido
+ * só quando a anterior terminou ambígua — falhou por timeout, transporte, status inesperado ou resposta ilegível sem o provedor ter devolvido
  * o id da nota, então a nota pode existir lá e uma chave nova a duplicaria. Em qualquer outro caso
  * devolve `undefined`, e a chave da tentativa nova é o próprio `attemptId`.
  */
