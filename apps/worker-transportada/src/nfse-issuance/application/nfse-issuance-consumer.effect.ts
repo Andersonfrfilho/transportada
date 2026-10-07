@@ -8,6 +8,8 @@ import type {
   NfseFiscalGateway,
 } from '../infrastructure/nfse-fiscal-gateway.js'
 import { NfseIssuanceFatalError, NfseIssuanceRecoverableError } from './nfse-issuance.error.js'
+import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 
 const CANCEL_ATTEMPT_KIND = 'cancel'
 const DEFAULT_CAUSE = 'transport_failure'
@@ -16,6 +18,8 @@ const MISSING_ISSUANCE_PAYLOAD = 'missing_issuance_payload'
 const MISSING_PROVIDER_DOCUMENT = 'missing_provider_document'
 const REJECTED_CAUSE = 'rejected'
 const UNKNOWN_REJECTION_CODE = 'NFSE_UNKNOWN'
+const REJECTION_MESSAGE_LIMIT = 300
+const IDENTIFIER_DIGIT_RUN = /\d{6,}/gu
 
 export type NfseIssuanceWriteBackKey = {
   readonly attemptId: string
@@ -71,10 +75,35 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
   readonly clock?: () => Date
   readonly executionInput: NfseIssuanceExecutionInputReader
   readonly gateway: NfseIssuanceGateway
+  readonly logger?: WorkerLogger
   readonly writeBack: NfseIssuanceWriteBack
 }): NfseIssuanceConsumerEffect {
-  const { executionInput, gateway, writeBack } = dependencies
+  const { executionInput, gateway, logger, writeBack } = dependencies
   const clock = dependencies.clock ?? ((): Date => new Date())
+
+  function logOutcome(input: {
+    readonly attemptKind: string
+    readonly key: NfseIssuanceWriteBackKey
+    readonly outcome: {
+      readonly cause?: string
+      readonly rejection?: { readonly code?: string; readonly message?: string }
+      readonly status: string
+    }
+  }): void {
+    if (logger === undefined) return
+    const { outcome } = input
+    const metadata = {
+      attemptId: input.key.attemptId,
+      attemptKind: input.attemptKind,
+      cause: outcome.cause,
+      invoiceId: input.key.invoiceId,
+      rejectionCode: outcome.rejection?.code,
+      rejectionMessage: sanitizeRejectionMessage(outcome.rejection?.message),
+      status: outcome.status,
+    }
+    const log = outcome.status === 'accepted' ? safeLogInfo : safeLogWarn
+    log({ logger, message: 'nfse_issuance_provider_outcome', metadata })
+  }
 
   async function issue(input: {
     readonly execution: NfseIssuanceExecutionInput
@@ -88,6 +117,7 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     await writeBack.recordInFlight(input.key)
 
     const outcome = await gateway.issue({ credential, payload })
+    logOutcome({ attemptKind: 'issue', key: input.key, outcome })
 
     if (outcome.status === 'accepted') {
       await writeBack.recordAccepted({
@@ -137,6 +167,7 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
       credential,
       providerDocumentId,
     })
+    logOutcome({ attemptKind: CANCEL_ATTEMPT_KIND, key: input.key, outcome })
 
     if (outcome.status === 'accepted') {
       await writeBack.recordCancellationConfirmed(input.key)
@@ -185,4 +216,9 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
       await issue({ execution, key })
     },
   }
+}
+
+/** O texto é da prefeitura e pode ecoar CNPJ ou chave de acesso: sequências longas de dígitos saem. */
+function sanitizeRejectionMessage(message: string | undefined): string | undefined {
+  return message?.replace(IDENTIFIER_DIGIT_RUN, '[REDACTED]').slice(0, REJECTION_MESSAGE_LIMIT)
 }
