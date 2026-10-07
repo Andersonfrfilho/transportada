@@ -428,6 +428,35 @@
         "required": "{{field}}: obrigatório"
       }
     },
+    "mail": {
+      "title": "E-mail à contratante",
+      "switch": "Mandar e-mail à contratante da nota ao registrar",
+      "save": "Salvar e-mail",
+      "undo": "Desfazer",
+      "fields": {
+        "subject": "Assunto",
+        "body": "Corpo",
+        "itemLine": "Linha de cada produto"
+      },
+      "markers": {
+        "subject": "Marcadores do assunto — toque num para inserir onde o cursor está.",
+        "body": "Marcadores do corpo — toque num para inserir onde o cursor está.",
+        "itemLine": "Marcadores da linha de cada produto — toque num para inserir onde o cursor está."
+      },
+      "unknownMarker_one": "Este marcador não existe neste campo: {{markers}}. Use um da lista abaixo; nada foi gravado.",
+      "unknownMarker_other": "Estes marcadores não existem neste campo: {{markers}}. Use os da lista abaixo; nada foi gravado.",
+      "preview": {
+        "title": "Prévia · dados de exemplo",
+        "recipient": "Para: contatos da contratante da nota que recebem ocorrências",
+        "loading": "Gerando a prévia…",
+        "failed": "Não foi possível gerar a prévia. O que você digitou continua aqui; tente de novo em instantes.",
+        "blocked": "Corrija o marcador para ver a prévia.",
+        "automatic": "Sai automaticamente quando o tipo é registrado.",
+        "manual": "Desligado: o operador manda pela conversa da ocorrência, se quiser.",
+        "noSubject": "Sem assunto o e-mail automático não sai.",
+        "linesWithoutItems": "Este tipo está sem produtos: onde houver {{marker}} o e-mail sai sem linhas."
+      }
+    },
     "moments": {
       "title": "Em que momento pode acontecer",
       "placeholder": "Escolha os momentos",
@@ -451,11 +480,11 @@
       }
     },
     "notification": {
-      "title": "Notificação",
+      "title": "Aviso interno",
       "template": "Modelo da notificação",
-      "templateHint": "O e-mail que o contratante recebe quando este tipo é registrado. O texto se edita em Notificações; aqui só se escolhe qual modelo vale.",
+      "templateHint": "Aviso a quem despachou a viagem, pelo módulo de Notificações. O texto se edita em Notificações; aqui só se escolhe qual modelo vale. O e-mail à contratante fica no bloco ao lado.",
       "subject": "Assunto:",
-      "disabledReason": "O modelo só vale quando o tipo avisa o contratante. Ligue \"Avisar quando acontecer\" para escolher.",
+      "disabledReason": "O modelo só vale quando o tipo avisa quem despachou a viagem. Ligue \"Avisar quando acontecer\" para escolher.",
       "loading": "Carregando os modelos de e-mail…",
       "failed": "Não foi possível carregar os modelos de e-mail. O modelo atual segue valendo; recarregue a página para tentar de novo.",
       "missing": "O modelo \"{{key}}\" não está mais ativo, então nenhum e-mail sai por ele. Escolha outro modelo."

@@ -428,6 +428,35 @@
         "required": "{{field}}: required"
       }
     },
+    "mail": {
+      "title": "Contractor e-mail",
+      "switch": "Send an e-mail to the invoice's contractor when registered",
+      "save": "Save e-mail",
+      "undo": "Undo",
+      "fields": {
+        "subject": "Subject",
+        "body": "Body",
+        "itemLine": "Line for each product"
+      },
+      "markers": {
+        "subject": "Subject markers — tap one to insert it where the cursor is.",
+        "body": "Body markers — tap one to insert it where the cursor is.",
+        "itemLine": "Product line markers — tap one to insert it where the cursor is."
+      },
+      "unknownMarker_one": "This marker does not exist in this field: {{markers}}. Use one from the list below; nothing was saved.",
+      "unknownMarker_other": "These markers do not exist in this field: {{markers}}. Use the ones from the list below; nothing was saved.",
+      "preview": {
+        "title": "Preview · sample data",
+        "recipient": "To: the invoice contractor's contacts that receive occurrences",
+        "loading": "Generating the preview…",
+        "failed": "Could not generate the preview. What you typed is still here; try again shortly.",
+        "blocked": "Fix the marker to see the preview.",
+        "automatic": "Goes out automatically when the type is registered.",
+        "manual": "Off: the operator sends it from the occurrence conversation, if they want.",
+        "noSubject": "Without a subject the automatic e-mail does not go out.",
+        "linesWithoutItems": "This type has no products: wherever there is {{marker}} the e-mail goes out without lines."
+      }
+    },
     "moments": {
       "title": "When it can happen",
       "placeholder": "Choose the moments",
@@ -451,11 +480,11 @@
       }
     },
     "notification": {
-      "title": "Notification",
+      "title": "Internal notice",
       "template": "Notification template",
-      "templateHint": "The e-mail the contractor receives when this type is registered. The text is edited under Notifications; here you only pick which template applies.",
+      "templateHint": "A notice to whoever dispatched the trip, through the Notifications module. The text is edited under Notifications; here you only pick which template applies. The contractor e-mail is in the block beside it.",
       "subject": "Subject:",
-      "disabledReason": "The template only applies when the type notifies the contractor. Turn on \"Notify when it happens\" to choose one.",
+      "disabledReason": "The template only applies when the type notifies whoever dispatched the trip. Turn on \"Notify when it happens\" to choose one.",
       "loading": "Loading the e-mail templates…",
       "failed": "Could not load the e-mail templates. The current template still applies; reload the page to try again.",
       "missing": "The template \"{{key}}\" is no longer active, so no e-mail goes out through it. Choose another template."

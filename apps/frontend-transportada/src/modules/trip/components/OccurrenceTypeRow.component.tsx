@@ -19,6 +19,7 @@ import {
   type OccurrenceTypeEdit,
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
+import { OccurrenceTypeContractorMail } from './OccurrenceTypeContractorMail.component'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
 import { OccurrenceTypeIdentity } from './OccurrenceTypeIdentity.component'
 import { OccurrenceTypeMoments } from './OccurrenceTypeMoments.component'
@@ -34,7 +35,7 @@ type OccurrenceTypeRowProps = Readonly<{
   type: OccurrenceType
 }>
 
-/** A ordem é a do preview: identificação, momentos, o que exige, notificação, exceções. */
+/** A ordem é a do preview: identificação, momentos, o que exige, e-mail à contratante, aviso interno, exceções. */
 export function OccurrenceTypeRow({
   canManage,
   exceptions,
@@ -74,6 +75,10 @@ export function OccurrenceTypeRow({
         onEdit={handleEdit}
         type={type}
       />
+      {/* Spec 247 RF3: API anterior ao campo não manda `emailsContractor` — sem o bloco, nada que ela recusaria. */}
+      {type.emailsContractor === undefined ? null : (
+        <OccurrenceTypeContractorMail disabled={isDisabled} onEdit={handleEdit} type={type} />
+      )}
       <OccurrenceTypeNotification
         disabled={isDisabled}
         onEdit={handleEdit}

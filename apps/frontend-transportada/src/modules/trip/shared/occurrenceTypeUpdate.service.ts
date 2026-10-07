@@ -24,6 +24,16 @@ export type OccurrenceTypeSaveInput = Readonly<{
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
   declaredAmountScope?: DeclaredAmountScope | undefined
+  /**
+   * Spec 247 RF2: o e-mail à contratante é independente do aviso interno. O `PUT` sem estes dois grava
+   * texto vazio, então toda edição de um tipo existente os leva como estão; a criação os omite.
+   */
+  emailBody?: string | undefined
+  /** Spec 247 RF6: o formato de cada linha de item — `undefined` é "não mexe". */
+  emailItemLineTemplate?: string | undefined
+  emailSubject?: string | undefined
+  /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
+  emailsContractor?: boolean | undefined
   emailTemplateKey: null | string
   /** Spec 218 (D1, RF-B5): `undefined` é "não mexe" — só a troca explícita do seletor manda o campo. */
   flow?: OccurrenceTypeFlow | undefined
@@ -64,6 +74,10 @@ export type OccurrenceTypeEdit = Readonly<
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
+      | 'emailBody'
+      | 'emailItemLineTemplate'
+      | 'emailsContractor'
+      | 'emailSubject'
       | 'emailTemplateKey'
       | 'flow'
       | 'itemsMinimumCount'
@@ -118,6 +132,8 @@ export function buildOccurrenceTypeUpdate(
     active: type.active,
     allowsMultipleItems: type.allowsMultipleItems,
     attachmentMode: type.attachmentMode,
+    emailBody: type.emailBody,
+    emailSubject: type.emailSubject,
     emailTemplateKey: type.emailTemplateKey,
     leavesDocumentBehind: type.leavesDocumentBehind,
     name: type.name,
