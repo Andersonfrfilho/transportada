@@ -351,6 +351,7 @@ describe('Drizzle migrations', () => {
       '20261006205139_occurrence_type_requirement_modes',
       '20261006205158_occurrence_type_moments',
       '20261006205209_occurrence_type_quantity_minimums',
+      '20261006205232_street_occurrence_attachment_backfill',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
