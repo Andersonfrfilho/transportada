@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
+
 import { DEFAULT_OCCURRENCE_ITEMS_MODE } from '../shared/occurrence.constant'
+import { buildCorrectionRecordedAmounts } from '../shared/occurrenceRecordedAmounts.service'
 import { resolveOccurrenceCorrectionActions } from '../shared/tripOccurrenceDetail.service'
 import type { TripOccurrenceDetail } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
@@ -129,7 +132,12 @@ export function OccurrenceCorrectionActions({
           items={occurrence.items}
           occurrenceId={occurrence.id}
           onClose={handleCorrectionClose}
+          recorded={buildCorrectionRecordedAmounts(occurrence)}
           tripId={occurrence.tripId}
+          typeLookup={{
+            canReadCatalog: permissions.includes(SETTINGS_MANAGE_PERMISSION),
+            occurrenceTypeId: occurrence.occurrenceTypeId ?? null,
+          }}
         />
       ) : null}
     </div>

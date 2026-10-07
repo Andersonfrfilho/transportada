@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { useOccurrenceTypeRecordConfig } from '../hooks/useOccurrenceTypeRecordConfig.hook'
 import { useCorrectOccurrenceItems } from '../queries/useOccurrenceCorrection.query'
 import { useOccurrenceDocumentProducts } from '../queries/useOccurrenceDocumentProducts.query'
 import {
   EMPTY_CORRECTION_AMOUNTS_DRAFT,
   resolveCorrectionAmounts,
 } from '../shared/occurrenceCorrectionAmounts.service'
+import type { CorrectionRecordedAmounts } from '../shared/occurrenceRecordedAmounts.service'
 import {
   buildOccurrenceCorrectionItems,
   resolveOccurrenceItemSelectionFromDetail,
@@ -32,7 +34,11 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
   items: readonly TripOccurrenceDetailItem[]
   occurrenceId: string
   onClose: () => void
+  /** O que o registro gravou: a correção nasce com isso, em vez de vazia. */
+  recorded: CorrectionRecordedAmounts
   tripId: string
+  /** Onde achar os rótulos do tipo: o catálogo é de quem tem `settings.manage`. */
+  typeLookup: Readonly<{ canReadCatalog: boolean; occurrenceTypeId: null | string }>
 }>
 
 /**
@@ -47,7 +53,9 @@ export function TripOccurrenceCorrectionForm({
   items,
   occurrenceId,
   onClose,
+  recorded,
   tripId,
+  typeLookup,
 }: TripOccurrenceCorrectionFormProps) {
   const { t } = useTranslation('trip')
   const titleId = useId()
@@ -64,7 +72,13 @@ export function TripOccurrenceCorrectionForm({
   const correction = useCorrectOccurrenceItems()
   const products = productsQuery.data ?? []
   const feedbackKey = resolveTripFeedbackKey(correction.error)
-  const amounts = resolveCorrectionAmounts({ codes: productCodes, draft: amountsDraft })
+  const typeConfig = useOccurrenceTypeRecordConfig(typeLookup)
+  const amounts = resolveCorrectionAmounts({
+    codes: productCodes,
+    draft: amountsDraft,
+    recorded,
+    typeScope: typeConfig.scope,
+  })
 
   useEffect(() => {
     titleRef.current?.focus()
@@ -118,11 +132,11 @@ export function TripOccurrenceCorrectionForm({
             quantitiesByCode={quantitiesByCode}
           />
           <OccurrenceCorrectionAmounts
-            codes={productCodes}
             draft={amountsDraft}
             onChange={setAmountsDraft}
-            products={products}
-            quantitiesByCode={quantitiesByCode}
+            recorded={recorded}
+            selection={{ codes: productCodes, products, quantitiesByCode }}
+            typeConfig={typeConfig}
           />
         </>
       ) : null}

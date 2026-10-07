@@ -1045,12 +1045,14 @@
     "occurrenceCaseDecisionConflict": "Outra decisão diferente já foi registrada para esta tratativa. Recarregue a página para ver o que ficou gravado.",
     "occurrenceCaseRedeliveryNotAllowed": "Esta ocorrência não admite reentrega — escolha outra decisão.",
     "occurrenceCaseNoteRequired": "Informe o motivo da decisão.",
-    "declaredAmountSelectionConflict": "O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um dos dois; nada foi gravado.",
+    "declaredAmountSelectionConflict": "O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um nível em \"Digitado\", use \"Limpar\" no outro e salve de novo. Nada foi gravado.",
     "occurrenceTypeDeclaredAmountNeedsItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado.",
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
     "occurrenceTypeMomentsDocumentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
-    "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro."
+    "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
+    "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
+    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -2224,7 +2226,7 @@
       },
       "amounts": {
         "title": "Número e valor pago",
-        "hint": "Deixe em branco para manter o que está gravado; apagar o que você digitou limpa o campo. A soma da linha é só referência: o valor pago digitado vale no lugar dela.",
+        "hint": "Os campos já trazem o que está gravado. Mude o que precisa; \"Limpar\" apaga o valor gravado. A soma da linha é só a conta da nota: o valor pago digitado não a muda, e vale no lugar dela no e-mail.",
         "referenceLabel": "Número do documento do cliente",
         "referenceInvalid": "Use só letras, números, espaço, ponto, barra e hífen, até 30 caracteres. Nada foi gravado.",
         "amountLabel": "Valor pago",
@@ -2237,7 +2239,14 @@
         },
         "placeholder": "0,00",
         "lineSum": "Soma da linha: R$ {{amount}}",
-        "totalSum": "Soma geral: R$ {{amount}}"
+        "totalSum": "Soma geral: R$ {{amount}}",
+        "clear": "Limpar",
+        "nothingRecorded": "Nada gravado.",
+        "willClear": "Será limpo ao salvar.",
+        "occurrenceAmountTyped": "{{label}} (da ocorrência)",
+        "emailAmount": "Valor que vai no e-mail: R$ {{amount}}",
+        "noticeOccurrenceRecorded": "Há um valor pago gravado na ocorrência. Ao digitar um valor numa linha, o da ocorrência é apagado: só um nível vale por vez.",
+        "noticeLinesRecorded": "Há valor pago gravado nas linhas. Ao digitar um valor da ocorrência, o das linhas é apagado: só um nível vale por vez."
       },
       "unavailable": {
         "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",

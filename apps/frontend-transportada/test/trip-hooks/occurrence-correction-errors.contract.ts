@@ -67,6 +67,21 @@ const MESSAGES: readonly (readonly [label: string, code: string, text: string])[
     OCCURRENCE_CORRECTION_ERROR.OCCURRENCE_NOT_FOUND,
     'Esta ocorrência não foi encontrada. Volte à lista de ocorrências e tente de novo.',
   ],
+  [
+    'valor pago nos dois níveis (400)',
+    OCCURRENCE_CORRECTION_ERROR.DECLARED_AMOUNT_SELECTION_CONFLICT,
+    'O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um nível em "Digitado", use "Limpar" no outro e salve de novo. Nada foi gravado.',
+  ],
+  [
+    'número do documento exigido (422)',
+    OCCURRENCE_CORRECTION_ERROR.REFERENCE_NUMBER_REQUIRED,
+    'Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.',
+  ],
+  [
+    'valor pago exigido (422)',
+    OCCURRENCE_CORRECTION_ERROR.DECLARED_AMOUNT_REQUIRED,
+    'Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.',
+  ],
 ]
 
 async function saveRejectingWith(
@@ -106,7 +121,7 @@ describe('mensagens de erro da correção, por código estável (spec 240 T2.3, 
     expect(alert).toBe(GENERIC)
   })
 
-  test('as oito mensagens são distintas entre si', () => {
+  test('as mensagens são distintas entre si', () => {
     expect(new Set(MESSAGES.map(([, , text]) => text)).size).toBe(MESSAGES.length)
   })
 
