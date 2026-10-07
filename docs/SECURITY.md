@@ -58,6 +58,30 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
+
+**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (ainda não implementada; spec 252, ADR-0100).
+
+**O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
+global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
+respondeu **404** em 2026-10-07 e a documentação **não diz se os dados podem ser armazenados**. É o mesmo tipo de
+risco que os termos do Google Maps Platform (spec 186, ADR-0044 §3), aceito lá por decisão do usuário; aqui **ainda
+não foi aceito**.
+
+**O que sai:** só código IBGE da cidade (ou UF) e ano, com `Authorization: Bearer <FERIADOS_API_TOKEN>`. Nunca
+`companyId`, nome de cliente ou endereço. Feriado não é dado pessoal.
+
+**O que segura (desenho, a provar nas tasks):** token só no worker, opcional (sem ele a rotina não é registrada e nada
+sai); header redigido no log (contrato, CA9); orçamento mensal e teto por ciclo no banco; resposta guardada por Zod
+(`malformed_response`, nada gravado); falha do fornecedor nunca derruba nada do negócio; origem "Importado
+(FeriadosAPI)" visível e desligamento auditado.
+
+**Pendência (passo do usuário):** confirmar com o fornecedor que guardar os feriados é permitido **antes** de
+configurar `FERIADOS_API_TOKEN` (spec 252 Q4, `[NEEDS CLARIFICATION]`). Ao ligar, `feriadosapi.com` entra na lista de
+destinos de saída (T6.1).
+
+**Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07.
+
 ### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
 
 **Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,
