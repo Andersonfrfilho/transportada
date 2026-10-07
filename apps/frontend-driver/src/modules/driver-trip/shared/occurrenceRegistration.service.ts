@@ -10,6 +10,7 @@ import {
   resolveOccurrenceRequirements,
   type OccurrenceDraftFacts,
   type OccurrenceMissingField,
+  type OccurrenceValuesFacts,
 } from './occurrenceRequirements.service'
 
 /**
@@ -63,6 +64,8 @@ export type OccurrenceGateFacts = Readonly<{
   hasSignature?: boolean
   /** Ausente é uma foto quando `hasPhoto`, nenhuma quando não. */
   photoCount?: number
+  /** Spec 247: produtos marcados, número e valor pago; ausente é "nada digitado". */
+  values?: OccurrenceValuesFacts
 }>
 
 function toDraftFacts(facts: OccurrenceGateFacts): OccurrenceDraftFacts {
@@ -71,6 +74,7 @@ function toDraftFacts(facts: OccurrenceGateFacts): OccurrenceDraftFacts {
     hasProducts: facts.hasProducts ?? false,
     hasSignature: facts.hasSignature ?? false,
     photoCount: facts.photoCount ?? (facts.hasPhoto ? 1 : 0),
+    ...(facts.values === undefined ? {} : { values: facts.values }),
   }
 }
 

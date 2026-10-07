@@ -497,10 +497,13 @@ async function sendDocumentOccurrence(input: {
   await request({
     body: JSON.stringify({
       ...buildAttachmentFields(attachmentObjectIds),
+      ...(report.declaredAmount === undefined ? {} : { declaredAmount: report.declaredAmount }),
+      ...(report.items === undefined ? {} : { items: report.items }),
       location: report.location,
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,
+      ...(report.referenceNumber === undefined ? {} : { referenceNumber: report.referenceNumber }),
       ...(signatureObjectId === undefined ? {} : { signatureObjectId }),
     }),
     dependencies,
