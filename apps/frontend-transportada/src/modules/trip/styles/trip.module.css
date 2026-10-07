@@ -2110,6 +2110,27 @@ button.occurrenceCaseBadge {
   align-content: end;
 }
 
+.settlementField input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+}
+
+.settlementField input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.settlementField input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
 .settlementFieldLabel {
   color: var(--color-slate);
   font-size: 0.8rem;
