@@ -23,6 +23,7 @@ function isInteger(value: unknown, min: number, max: number): boolean {
 /**
  * Spec 246 D-a: os cinco campos novos da exceção são modo-ou-nulo (nulo herda do tipo). Ausente é
  * API anterior ao campo e passa — a leitura não inventa valor que a API não mandou.
+ * Spec 247 T1.1: dois novos modos (`referenceNumberMode`, `declaredAmountMode`) como modo-ou-nulo.
  */
 function hasValidRequirementFields(value: Record<string, unknown>): boolean {
   return (
@@ -37,7 +38,11 @@ function hasValidRequirementFields(value: Record<string, unknown>): boolean {
         OCCURRENCE_PHOTO_MINIMUM_COUNT.max,
       )) &&
     (isNullOrAbsent(value.itemsMinimumCount) ||
-      isInteger(value.itemsMinimumCount, 1, Number.MAX_SAFE_INTEGER))
+      isInteger(value.itemsMinimumCount, 1, Number.MAX_SAFE_INTEGER)) &&
+    (isNullOrAbsent(value.referenceNumberMode) ||
+      isOneOf(value.referenceNumberMode, OCCURRENCE_ATTACHMENT_MODES)) &&
+    (isNullOrAbsent(value.declaredAmountMode) ||
+      isOneOf(value.declaredAmountMode, OCCURRENCE_ATTACHMENT_MODES))
   )
 }
 
