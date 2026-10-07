@@ -385,4 +385,3 @@ Gates finais (de `apps/worker-transportada`, após T3.4): `bun run typecheck` 0 
 `test:integration`: **não rodou, e não precisava** — nenhum arquivo de `test/integration` toca os repositórios
 de NFS-e alterados. A consulta SQL nova foi provada à parte, em Postgres nativo descartável (E17), sem teste
 versionado: ver a lacuna em E17. Não declarar a integração do worker como verde por isso.
-
