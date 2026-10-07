@@ -139,6 +139,10 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       1ª rodada reprovou o app do motorista (A3 + B1); correções em `evidence.md` § "T7.2 — correções da
       revisão: app do motorista". Falta repetir a revisão.
 
+      revisão: app do motorista". 2ª rodada aprovou com ressalvas; os achados dos frontends (N1–N5, N7–N9,
+      N11, N13, N14) estão em `evidence.md` § "T7.2b — frontends: requisitos efetivos, avisos e acabamento".
+      Falta repetir a revisão.
+
 - [ ] **T7.3** Atualizar `CLAUDE.md` da raiz, `apps/*/CLAUDE.md` tocados e `docs/ai-context/`.
 - [ ] **T7.4** Gates: `bun run typecheck`, `make check`, `make migration-test`, integração da API em
       primeiro plano com `--env-file`; depois de `git fetch` + rebase + `bun install
