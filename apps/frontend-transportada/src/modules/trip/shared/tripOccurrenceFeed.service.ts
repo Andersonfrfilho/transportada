@@ -196,6 +196,8 @@ export type TripOccurrenceDetailDriver = Readonly<{
 /** Spec 183 T207: o item atingido (specs 166/172); quantidade é string decimal. */
 export type TripOccurrenceDetailItem = Readonly<{
   code: string
+  /** Spec 247 (ADR-0081 §9): o valor pago da linha; ausente é API anterior ao campo, `null` é não digitado. */
+  declaredAmount?: null | string
   description: string
   quantity: null | string
   unit: null | string

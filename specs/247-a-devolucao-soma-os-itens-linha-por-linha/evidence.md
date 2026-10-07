@@ -1326,3 +1326,80 @@ $ bun run --cwd apps/frontend-transportada test
  7226 pass · 0 fail   Ran 7226 tests across 36 files.
  869 pass · 0 fail    Ran 869 tests across 1 file.   (test:hooks)
 ```
+
+### T5.4 — Correção com número e valores; acerto da 164 com sugestão (2026-10-07)
+
+**Contratos antes do código** (todos vermelhos antes de qualquer arquivo de `src/`):
+
+```text
+test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos 40 casos da API)
+test/trip/occurrence-correction-amounts.contract.ts   → idem  (três estados, escopo, número)
+test/trip/occurrence-settlement-suggestion.contract.ts→ idem  (RF12, zero nunca sugerido)
+test/trip-hooks/occurrence-correction-amounts.contract.ts   → 0 pass · 9 fail   (formulário montado de verdade)
+test/trip-hooks/occurrence-settlement-suggestion.contract.ts→ 2 pass · 4 fail   (painel de acerto montado de verdade; os 2 que passam são os "sem sugestão")
+```
+
+**A correção** (`TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts`): seção "Número e valor pago" com o número do
+documento do cliente, "Digitado" (por linha de produto · um só pela ocorrência) e o valor pago de cada linha, com a máscara de
+moeda pt-BR que o acerto já usa. **Três estados:** o campo que o operador não tocou não vai (a API mantém o gravado); digitado e
+apagado vai `null` (limpa); texto vale. O corpo do `PATCH` só leva `referenceNumber`/`declaredAmount`/`items[].declaredAmount`
+quando editados. **Nunca os dois níveis:** com itens escolhidos o escopo padrão é por linha e o campo da ocorrência some (e
+vice-versa); "a nota inteira" só tem o da ocorrência — a recusa `DECLARED_AMOUNT_SELECTION_CONFLICT` do servidor também tem frase
+própria. Dinheiro é sempre texto (`50.00`; `0.00` é valor, não vazio). Número fora de `[A-Za-z0-9 ./-]{1,30}` marca o campo
+(`aria-invalid` + aviso) e trava o salvar. **Soma da linha como referência** (`Soma da linha: R$ 57,20`, `Soma geral: R$ 13,00`):
+conta em inteiro sobre a nota carregada (`occurrenceAmount.service.ts`, **espelho** da política da API, provado pelos mesmos casos);
+linha na unidade de fallback (caixa) não tem conta confiável e fica sem soma — e sem soma de uma linha não há soma geral.
+
+**O acerto da 164** (`OccurrenceSettlementPanel` + `OccurrenceSettlementSuggestion`): enquanto o acerto não tem itens gravados e o
+operador não digitou nada, o painel lista a "Sugestão pelo registro": o valor pago digitado (origem `manual`), senão a soma da
+linha (origem `nfe`), com a soma da linha como referência. "Usar a sugestão do registro" **só preenche as linhas**; o operador
+confirma ao salvar, e cada linha manda a própria `amountSource` (editar o valor sugerido a faz `manual`). **Linha com valor pago 0
+não gera sugestão** — aparece à parte, "A loja não pagou, sem valor a acertar", com a soma visível — e **nada é preenchido com 0**
+(a 164 exige `amount > 0`, `422 OCCURRENCE_SETTLEMENT_AMOUNT_INVALID`). Item sem dado da nota nem valor pago não ganha sugestão
+inventada. Nenhuma regra da 164 mudou.
+
+**Tolerância (ADR-0081 §9), antes de a API publicar:** `previousItems[]` aceita `unitValue` e `declaredAmount` opcionais; os itens
+do detalhe aceitam `declaredAmount` opcional (o painel o usa para sugerir quando a API o publicar).
+
+### ⚠️ Achado do architect, conferido no código: o registro do motorista NÃO abre a tratativa da 164
+
+A tratativa só abre onde `saveTripOccurrence` recebe `redeliveryPolicy` (`delivery-proof-read.support.ts:621-628`,
+`if (input.redeliveryPolicy !== undefined) openOccurrenceCase(...)`). Quem repassa a política são **dois** caminhos:
+`register-trip-occurrence.use-case.ts:433-435` (registro do galpão/separação) e `office-occurrence-batch.service.ts:156-158` (lote do
+escritório). O caminho do motorista — `register-driver-occurrence.use-case.ts:62` → `DrizzleDriverFieldReportRepository
+.saveDocumentOccurrence` (`drizzle-driver-field-report.repository.ts:1164`) — **não tem nenhuma referência a `redeliveryPolicy`**:
+a devolução registrada na rua pelo app **nasce sem tratativa**, qualquer que seja a política do tipo. Consequência para esta spec: o
+fluxo que a 247 constrói (motorista registra itens + valor pago) nunca chega ao acerto da 164, e a sugestão da RF12 só aparece onde
+já há tratativa (registro do galpão e lote do escritório). **Não inventei solução**: implementei a sugestão onde há tratativa e
+deixo a decisão — abrir a tratativa também no registro do motorista, ou aceitar que devolução de rua não tem acerto — ao usuário.
+A API não foi tocada.
+
+### Limitações e o que fica para a API
+
+1. **A leitura da API ainda não publica o que a correção grava** (T4.8, limitação 2): o detalhe não traz o número do documento do
+   cliente, o valor pago da ocorrência nem o das linhas, e a resposta da correção não os devolve. Por isso a seção abre **vazia**
+   ("em branco mantém o gravado") em vez de pré-preenchida. Quando a API publicar, a tolerância já está no painel; falta só o
+   pré-preenchimento (e mostrar o gravado no histórico de correções).
+2. A sugestão do acerto só vê o valor pago digitado quando a API o publicar nos itens do detalhe; hoje ela sugere pela soma
+   (`nfe`). O caso "valor pago 0 → sem sugestão" está provado no contrato com o campo presente.
+3. A sugestão fica na página de detalhe da ocorrência (que conhece os itens); a linha expandida da lista segue com o acerto como era.
+4. `OccurrenceSettlementPanel.component.tsx` já passava de 200 linhas (418) e agora tem 485 — a divisão fica para a T7.
+
+### Mutações (cada uma vermelha, depois revertida; base restaurada: 2589 pass · 0 fail)
+
+```text
+M1 — valor pago zero deixa de ser "a loja não pagou":                 1 fail (contrato puro) + 4 fail (painel)
+M2 — número não editado vira nulo (apagaria o gravado):               1 fail (contrato puro) + 1 fail (formulário)
+M3 — o espelho trunca em vez de arredondar meio para cima:            6 fail (casos de CA02, inclusive 3 × 19,995)
+```
+
+### Gates
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7269 pass · 0 fail   Ran 7269 tests across 36 files.
+ 884 pass · 0 fail    Ran 884 tests across 1 file.   (test:hooks)
+```

@@ -245,8 +245,12 @@ export type FieldOccurrenceType = Readonly<{
  */
 export type OccurrenceProduct = Readonly<{
   code: string
+  /** Spec 247 (ADR-0081 §9): o valor pago da linha antes da correção — a API ainda não o publica. */
+  declaredAmount?: null | string
   quantity: null | string
   unit: null | OccurrenceQuantityUnit
+  /** Spec 247 (ADR-0081 §9): o valor unitário copiado no registro — a API ainda não o publica. */
+  unitValue?: null | string
 }>
 
 /** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
@@ -285,16 +289,22 @@ export type OccurrenceWriteResult = Omit<TripOccurrence, 'attachments'> &
 /** Spec 240 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
 export type CorrectOccurrenceItemInput = Readonly<{
   code: string
+  /** Spec 247 RF13: o valor pago da linha — ausente mantém, `null` limpa, texto vale. */
+  declaredAmount?: null | string
   quantity?: string
   unit?: OccurrenceQuantityUnit
 }>
 
 export type CorrectTripOccurrenceItemsInput = TripDocumentActionInput &
   Readonly<{
+    /** Spec 247 RF13: o valor pago da ocorrência — ausente mantém, `null` limpa, texto vale (nunca junto do de linha). */
+    declaredAmount?: null | string
     idempotencyKey: string
     /** Substitui o conjunto inteiro — não é edição item a item. */
     items: readonly CorrectOccurrenceItemInput[]
     occurrenceId: string
+    /** Spec 247 RF13: o número do documento do cliente — os mesmos três estados. */
+    referenceNumber?: null | string
   }>
 
 export type CancelTripOccurrenceInput = TripDocumentActionInput &
