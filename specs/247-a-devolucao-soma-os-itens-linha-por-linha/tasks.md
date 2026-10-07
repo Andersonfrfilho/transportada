@@ -63,7 +63,7 @@ explícita do `package.json` da app.
 - [x] **T3.5** `occurrence-template.policy.ts`: duas listas, contexto, `linhasItens`,
       `numeroNotaSemSerie`, dinheiro formatado em `valorNota` (D4), `quantidadeItem` da ocorrência
       (D5).
-- [ ] **T3.6** Mutações da T3.4 registradas: aceitar marcador de linha no corpo; re-renderizar valor
+- [x] **T3.6** Mutações da T3.4 registradas: aceitar marcador de linha no corpo; re-renderizar valor
       de item; manter `valorNota` cru.
 
 ## Fase 4 — API

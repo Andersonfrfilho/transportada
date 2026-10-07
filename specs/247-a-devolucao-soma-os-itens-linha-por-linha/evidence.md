@@ -483,3 +483,37 @@ $ bun run format:check (raiz) → All matched files use Prettier code style!
 ⚠️ Não rodei a integração (a fase é de domínio puro). `readOccurrenceTemplateValues` ainda não alimenta os
 campos novos (T4.7), mas `valorNota` passa a sair formatado (`7.840,64`) e `quantidadeItem` formatado —
 efeitos declarados D4/D5; testes de integração que afirmem o texto antigo, se existirem, serão pegos na T4.7.
+
+### T3.6 — Mutações da T3.4 (cada uma vermelha, depois revertida)
+
+Comando: `bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts --timeout 120000`
+(de `apps/api-transportada`), filtrado para `(fail)` e o resumo. Linha de base verde: `552 pass · 0 fail`.
+Cada mutação em `occurrence-template.policy.ts`, restaurada do original depois (`git status` limpo).
+
+**M1 — aceitar marcador de linha no corpo** (`KNOWN_PLACEHOLDERS.body` ganha a lista da linha):
+
+```text
+(fail) marcador no contexto errado é recusado no cadastro (spec 247 CA04) > marcador de linha no corpo é recusado
+ 551 pass
+ 1 fail
+```
+
+**M2 — re-renderizar valor de item** (a linha renderizada passa uma segunda vez pelo mesmo resolvedor):
+
+```text
+(fail) o que veio do cliente nunca é interpretado como marcador (spec 247 plan) > `{{` na descrição do item sai literal
+(fail) o que veio do cliente nunca é interpretado como marcador (spec 247 plan) > `{{` na observação, na razão social e no código sai literal
+ 550 pass
+ 2 fail
+```
+
+**M3 — manter `valorNota` cru** (`return values.totalValue`):
+
+```text
+(fail) o modelo do SAC sai exatamente como o SAC escreveu (spec 247 CA01) > corpo, com uma linha por item e as somas
+(fail) o valor da nota sai em formato brasileiro, sem símbolo (spec 247 RF7, D4) > 7840.6400 vira 7.840,64, e `R$ {{valorNota}}` gravado continua certo
+ 550 pass
+ 2 fail
+```
+
+Revertidas todas, mesmo comando: `552 pass · 0 fail`.
