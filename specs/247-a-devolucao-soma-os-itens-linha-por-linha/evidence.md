@@ -2420,3 +2420,17 @@ Observações: alvo ≥ 44 px sob toque a 375 px (botões "Tentar de novo" e "Ap
 Servidor encerrado por PID (cwd conferido), roteiro e config temporários apagados, porta 53010 livre, `git status` limpo.
 
 **O que não foi verificado:** o estado "sucesso com lista vazia" no navegador (provado só por contrato); tema escuro no navegador (os tokens `--color-fog`, `--color-copper` e `--color-slate-muted` são os do tema; o contraste foi lido pelos valores computados do tema claro); o vermelho do D2, D3 e D4 foi registrado só como vermelho de ausência (o arquivo de teste falhava antes do código), sem mutação posterior; a integração com o cadastro real em staging.
+
+## T7.5x — perda de edição entre salvamentos seguidos do tipo
+
+Relato: na aba Tipos, o rótulo "Valor pago pela loja" digitado + Enter voltou a "Valor pago" após recarregar; gravou só na segunda tentativa (o rótulo do número gravou de primeira).
+
+**Hipótese (perda de atualização no `PUT` do tipo): REFUTADA para os rótulos, CONFIRMADA para outros campos.**
+`buildOccurrenceTypeUpdate` só reenvia do tipo da tela: `active`, `allowsMultipleItems`, `attachmentMode`, `emailBody`, `emailSubject`, `emailTemplateKey`, `leavesDocumentBehind`, `name`, `notifies`, `redeliveryPolicy`, `stage`, `occurrenceTypeId`. Rótulos, modos, escopo, `moments` e `noteMode` só vão quando a edição os traz (`undefined` = "não mexe", omitido no corpo em `tripClient.service.ts`), então uma segunda edição sobre o tipo antigo NÃO desfaz um rótulo.
+
+- Vermelho (código antigo, `void invalidateQueries`): contrato `test/trip-hooks/occurrence-type-consecutive-saves.contract.ts`, edição A `notifies: true`, edição B rótulo do número montada sobre o tipo antigo → `Expected: true / Received: false` (1 fail, 2 pass).
+- Verde após a correção (o `saveMutation` devolve a promessa de `invalidateQueries` no `onSettled`, ficando pendente até a lista chegar; `isSaving` trava os campos): 3 pass, 0 fail. Os outros dois casos: rótulo gravado segue gravado (regressão) e erro no recarregamento não deixa o `saveMutation` pendente (o `invalidateQueries` do TanStack não rejeita por erro de leitura).
+- Mutação: voltar a `void queryClient.invalidateQueries` → o caso `notifies` reprova de novo (`Received: false`); revertida.
+- ⚠️ **Esta correção NÃO é demonstrada como solução do sintoma do rótulo.** A causa do rótulo segue desconhecida (candidatos, não provados: foco perdido quando o campo seguinte é desabilitado por `isSaving` logo após o blur do anterior; `PUT` recusado; servidor).
+
+**Auditoria** (`void invalidateQueries` em mutações; nada corrigido sem prova). Mesmo risco (envio montado do estado em cache, conjunto inteiro): `useDeliveryProofSettings.query.ts:47` (settings), `:64` (quatro modos correntes + interruptor OCR), `:76` e `:96` (substitui todas as exceções), `useOccurrenceAttachmentOverrides.query.ts:18` (substitui as exceções de um tipo), `delivery-clients/mutations/useUpdateContractor.mutation.ts:15` (`ContractorWrite`). Risco baixo ou nulo: `nfse-invoice/hooks/useNfseSettings.hook.ts:106,117` (`expectedVersion` → 409), `useCompanyEntryKindCatalogPanel.hook.ts:28,36` (criar/desativar), `trip-financials/*`, `identity/*` e demais criações/exclusões. Não verifiquei, uma a uma, se a tela libera os campos entre o `PUT` e a lista nova.

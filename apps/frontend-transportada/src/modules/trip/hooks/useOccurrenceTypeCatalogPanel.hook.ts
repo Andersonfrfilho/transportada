@@ -27,10 +27,12 @@ export function useOccurrenceTypeCatalogPanel(input: Readonly<{ enabled: boolean
    */
   const saveMutation = useMutation({
     mutationFn: client.saveOccurrenceType,
-    /** Também no erro: um `422` de tipo que mudou em outra aba pede o cadastro como está agora. */
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPES_QUERY_KEY })
-    },
+    /**
+     * Também no erro: um `422` de tipo que mudou em outra aba pede o cadastro como está agora.
+     * ⚠️ Devolve a promessa: o salvamento fica pendente até a lista chegar, e `isSaving` trava os campos
+     * enquanto o tipo na tela é o antigo — o `PUT` reenvia do tipo da tela os campos que a edição não toca.
+     */
+    onSettled: () => queryClient.invalidateQueries({ queryKey: OCCURRENCE_TYPES_QUERY_KEY }),
   })
 
   return { query, saveMutation }
