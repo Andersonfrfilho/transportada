@@ -1804,7 +1804,6 @@ migration); suíte do `frontend-transportada` (só ganhou um fixture, sem consum
 
 ### T6.1 — Roteiro de cadastro do SAC (2026-10-07)
 
-
 **Arquivo**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
 
 **O que foi corrigido na reescrita** (a primeira versão foi reprovada na conferência):
