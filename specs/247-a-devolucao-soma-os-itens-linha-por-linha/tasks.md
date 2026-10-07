@@ -81,7 +81,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       `referenceNumber?`, `declaredAmount?`; exigência efetiva por `resolveWithOverrides`
       (contratante e destinatário lidos da nota no servidor); `unit_value` lido de `nfe_products`;
       códigos `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `..._DECLARED_AMOUNT_REQUIRED`.
-      Integração CA06 **antes**, incluindo payload com preço forjado (ignorado) e empresa B.
+      Integração CA06 **antes**, incluindo payload com preço forjado (recusado com 400, `.strict()`; o `unit_value` sai sempre da nota) e empresa B.
 - [x] **T4.5** **CA03 — só a configuração decide.** Contrato + integração com os quatro tipos do
       `plan.md` § Testes; mutações registradas: `if` pelo nome do tipo; ler o modo do tipo em vez do
       efetivo.

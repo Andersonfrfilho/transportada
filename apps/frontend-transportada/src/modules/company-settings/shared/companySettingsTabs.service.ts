@@ -132,7 +132,7 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   /**
    * Spec 246: o catálogo mudou de endereço de Configurações para Ocorrências. O painel que a 241 já
    * alterou (com o campo Produtos) foi movido de company-settings para trip, e a aba "Tipos" agora
-   * mora em /ocorrencias, acessível com a mesma permissão (`companies.settings`). A `SettingsResolutionPanel`
+   * mora em /ocorrencias, acessível com a mesma permissão (`settings.manage`). A `SettingsResolutionPanel`
    * continua em Configurações e continua lendo o catálogo pelo hook que agora vem de trip.
    */
   occurrenceTypeCatalog: {

@@ -11,7 +11,7 @@ type TripOccurrenceTypesTabProps = Readonly<{
 
 /**
  * Spec 246 RF10: o cadastro dos tipos mora na aba Tipos de Ocorrências. A consulta só liga quando a
- * aba está montada — `Tabs` monta só o painel ativo — e com `companies.settings`.
+ * aba está montada — `Tabs` monta só o painel ativo — e com `settings.manage`.
  */
 export function TripOccurrenceTypesTab({ canManage }: TripOccurrenceTypesTabProps) {
   const { query, saveMutation } = useOccurrenceTypeCatalogPanel({ enabled: canManage })

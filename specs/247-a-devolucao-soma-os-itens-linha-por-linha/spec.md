@@ -352,7 +352,7 @@ anterior (`previous_items`, 167).
 - **CA05** Salvar `email_template_key` não apaga `email_subject`/`email_body`, e o aviso automático
   à contratante sai num tipo que tem os dois — integração, com mutação (devolver o `emailBody: ''`).
 - **CA06** O registro do motorista recusa sem número/valor quando o tipo efetivo exige, aceita quando
-  a exceção afrouxa, e grava `unit_value` lido da nota mesmo que o payload mande preço — integração.
+  a exceção afrouxa, e grava `unit_value` lido da nota; payload que manda preço (`unitValue`) é recusado com 400 (`.strict()`), nunca ignorado calado — integração.
 - **CA07** O app do motorista mostra os produtos, a soma da linha e a geral, e só libera o botão com
   o exigido, sem rede — contrato do app.
 - **CA08** `make migration-test` verde com `rollback.sql`; o rollback não toca colunas da 241/246.

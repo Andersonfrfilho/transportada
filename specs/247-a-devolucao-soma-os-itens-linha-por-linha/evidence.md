@@ -1198,3 +1198,523 @@ lote 4 (51 arquivos): 198 pass · 1 skip · 0 fail   [184.54s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula). Sem migration nesta task: `make migration-test` não se aplica.
+
+## Fase 5 — Telas do painel (etapa 3)
+
+### T5.1 — Aba Tipos: número do documento do cliente e valor pago (2026-10-07)
+
+**Contrato antes do código** (`apps/frontend-transportada/test/trip-hooks/occurrence-type-record-fields.contract.ts`,
+15 casos, entra por `test/trip-hooks.contract.test.ts`): monta o `OccurrenceTypeCatalogPanel` de verdade e
+**procura no controle** o que cada linha mostra (texto do gatilho do `Select`, valor do `input`, `role="alert"`).
+Vermelho antes de qualquer arquivo de `src/`:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-record-fields.contract.ts
+ 2 pass
+ 13 fail
+Ran 15 tests across 1 file.
+```
+
+**O que a tela faz** (decisões sobre o desenho aprovado, `preview.html` 1054–1141 e 1210–1238):
+
+- As duas linhas moram na seção "O que exige", abaixo da grade de Foto/Observação/Assinatura/Produtos, no
+  **mesmo `Select` de três estados** (`OccurrenceRequirementModeSelect`, sem `Select` novo e sem tocar o CSS do
+  `Select`). O nome do controle é fixo ("Número do documento do cliente", "Valor pago"); o **rótulo da tela de
+  registro** é um `input` à parte (máx. 40, grava ao sair, vazio ou igual ao gravado volta sem gravar, como o nome do tipo).
+- O valor pago ganha "Digitado": "Por linha de produto" · "Um só, pela ocorrência" (`declaredAmountScope`).
+- Só aparecem as linhas que a API trouxe (`referenceNumberMode`/`declaredAmountMode` presentes) **e** que o momento
+  cobra: nota ou escritório (`scope.recordFields`); parada sozinha e galpão não mostram nada.
+- **Regra do 422 antecipada** (`hasDeclaredAmountWithoutItems`, predicado de três termos:
+  `declaredAmountMode <> 'off' AND scope = 'item' AND itemsMode = 'off'`), avaliado sobre o estado **depois** da
+  edição. A escolha inválida **não grava** e a linha do valor pago mostra `role="alert"` ligado ao grupo por
+  `aria-describedby`: _"Valor pago por linha precisa de produtos…"_. O aviso some na edição válida seguinte ou quando
+  o tipo é recarregado. Rede de segurança: o código estável `OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS` do servidor
+  vira a mesma frase pelo alerta da aba (`trip.feedback.occurrenceTypeDeclaredAmountNeedsItems`).
+- **Exceções (D8):** contratante e destinatário ganham as duas linhas, com o rótulo que o tipo deu ("Número da NFD"),
+  "Igual ao tipo" (nulo herda); a exceção nova nasce com os **dois nulos explícitos**; rótulos e e-mail continuam do tipo
+  (nota na lista).
+- O `PUT` manda só o que a edição mudou (`undefined` é "não mexa"): `saveOccurrenceType` agora recebe
+  `OccurrenceTypeSaveInput` (um só tipo, no lugar da cópia inline).
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 15 pass):
+
+```text
+M1 — predicado de três termos arrancado (hasDeclaredAmountWithoutItems devolve sempre false):
+     4 fail — "ligar o valor pago sem produtos não grava e diz por quê", "desligar Produtos com valor pago por linha...",
+              "trocar o escopo para por linha...", "uma edição válida depois da recusa tira o aviso"
+M2 — as linhas valem em qualquer momento (scope.recordFields sem olhar document/office):
+     2 fail — "API sem os campos, tipo só de parada e tipo de galpão não oferecem as linhas",
+              "tipo de parada e API sem os campos não mostram as duas linhas na exceção"
+```
+
+**Teste existente ajustado de propósito:** `test/trip/occurrence-exception-service.contract.ts` — a exceção nova passa
+a nascer com sete nulos (os dois modos novos), não cinco.
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os 16 já existiam, em arquivos que esta task não tocou]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7222 pass · 0 fail   Ran 7222 tests across 36 files.
+ 854 pass · 0 fail    Ran 854 tests across 1 file.   (test:hooks)
+```
+
+### T5.2 — Bloco "E-mail à contratante" e "Aviso interno" (2026-10-07)
+
+**Contrato antes do código** (`test/trip-hooks/occurrence-type-contractor-mail.contract.ts`, 15 casos): monta a
+linha do tipo (`OccurrenceTypeRow`) de verdade com o cliente dublado (`previewOccurrenceTypeEmail`), procura nos
+controles o que cada um mostra e conta as chamadas à prévia. Vermelho antes de qualquer arquivo de `src/`:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-contractor-mail.contract.ts
+ 0 pass
+ 15 fail
+Ran 15 tests across 1 file.
+```
+
+**O que a tela faz** (`preview.html` 1143–1208 e 1242–1253):
+
+- Bloco entre "O que exige" e "Aviso interno": interruptor `emailsContractor` ("Mandar e-mail à contratante da nota ao
+  registrar", grava na hora), **Assunto**, **Corpo**, **Linha de cada produto** e a prévia ao lado (empilha abaixo de
+  64rem). Só aparece quando a API manda `emailsContractor` (API anterior: nada que ela recusaria).
+- Os três textos são **rascunho** (mesmo padrão dos momentos): nada grava a cada tecla; "Salvar e-mail" manda os três
+  de uma vez e só liga com mudança e sem marcador errado; "Desfazer" volta ao gravado.
+- **Marcadores por contexto** (`occurrenceMailTemplate.constant.ts`, cópia por valor da API, uma só declaração):
+  o campo em foco decide a lista — assunto (15), corpo (15 + `{{linhasItens}}`), linha (15 + 4 de linha). O clique
+  insere no cursor (ou no lugar da seleção), devolve o foco e o cursor ao campo, e não passa do teto do campo.
+- **Marcador desconhecido** (mesmo recorte do servidor, `/\{\{\s*([a-zA-Z]+)\s*\}\}/`) fica **no próprio campo**:
+  `aria-invalid`, aviso `role="alert"` ligado por `aria-describedby` nomeando o marcador (`{{numeroNfd}}`), Salvar
+  travado e **nenhuma chamada à prévia**. Vale também para marcador de outro contexto (`{{linhasItens}}` na linha,
+  `{{valorItem}}` no assunto — CA04).
+- **Prévia = resposta do servidor** (`POST /company-settings/occurrence-types/email-preview`, `settings.manage`),
+  sem segunda implementação no painel: cada texto assenta separado 400 ms depois da última tecla
+  (`useDebouncedValue`), o anterior fica na tela enquanto o novo chega, falha diz "Não foi possível gerar a prévia" e
+  não toca no que foi digitado. A nota diz se o e-mail sai sozinho, que sem assunto o automático não sai, e que
+  `{{linhasItens}}` em tipo sem produtos sai vazio.
+- **RF2 no painel:** o `PUT` sem `emailSubject`/`emailBody` grava texto vazio (default da API), então **toda** edição de
+  um tipo existente leva os dois como estão; `emailItemLineTemplate` e `emailsContractor` só vão quando editados.
+- **"Notificação" → "Aviso interno"**, com a dica corrigida visível (não mais só no tooltip): _"Aviso a quem
+  despachou a viagem, pelo módulo de Notificações…"_; o motivo do desabilitado idem.
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 15 pass):
+
+```text
+M1 — o save deixa de levar emailSubject/emailBody (RF2):
+     2 fail — "o interruptor grava emailsContractor e leva assunto e corpo como estão",
+              "uma edição que nada tem a ver com o e-mail também leva o assunto e o corpo gravados"
+M2 — todo campo valida contra a lista do corpo (contexto ignorado):
+     6 fail — salvar com marcador de linha, marcador errado, marcador de outro contexto e as três da prévia
+```
+
+**Testes existentes ajustados de propósito** (a edição de tipo agora leva assunto e corpo): `occurrence-type-update`,
+`occurrence-type-row-edits`, `occurrence-type-items-mode-panel`, `occurrence-type-identity` (ordem: "Aviso interno").
+Novos casos no contrato do cliente (`occurrence-requirement-catalog-client`): PUT só leva o e-mail quando informado;
+prévia por POST em `/email-preview`; resposta sem assunto ou corpo é recusada.
+
+**Fora do que a task pediu, deixado como estava:** o trecho "modelo próprio (legado)" dentro de "Aviso interno" (mostra
+`emailSubject` de tipo sem chave) descreve agora o e-mail à contratante — vale uma revisão na T7.1.
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes, fora desta task]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7226 pass · 0 fail   Ran 7226 tests across 36 files.
+ 869 pass · 0 fail    Ran 869 tests across 1 file.   (test:hooks)
+```
+
+### T5.4 — Correção com número e valores; acerto da 164 com sugestão (2026-10-07)
+
+**Contratos antes do código** (todos vermelhos antes de qualquer arquivo de `src/`):
+
+```text
+test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos casos da política da API)
+test/trip/occurrence-correction-amounts.contract.ts   → idem  (três estados, escopo, número)
+test/trip/occurrence-settlement-suggestion.contract.ts→ idem  (RF12, zero nunca sugerido)
+test/trip-hooks/occurrence-correction-amounts.contract.ts   → 0 pass · 9 fail   (formulário montado de verdade)
+test/trip-hooks/occurrence-settlement-suggestion.contract.ts→ 2 pass · 4 fail   (painel de acerto montado de verdade; os 2 que passam são os "sem sugestão")
+```
+
+**A correção** (`TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts`): seção "Número e valor pago" com o número do
+documento do cliente, "Digitado" (por linha de produto · um só pela ocorrência) e o valor pago de cada linha, com a máscara de
+moeda pt-BR que o acerto já usa. **Três estados:** o campo que o operador não tocou não vai (a API mantém o gravado); digitado e
+apagado vai `null` (limpa); texto vale. O corpo do `PATCH` só leva `referenceNumber`/`declaredAmount`/`items[].declaredAmount`
+quando editados. **Nunca os dois níveis:** com itens escolhidos o escopo padrão é por linha e o campo da ocorrência some (e
+vice-versa); "a nota inteira" só tem o da ocorrência — a recusa `DECLARED_AMOUNT_SELECTION_CONFLICT` do servidor também tem frase
+própria. Dinheiro é sempre texto (`50.00`; `0.00` é valor, não vazio). Número fora de `[A-Za-z0-9 ./-]{1,30}` marca o campo
+(`aria-invalid` + aviso) e trava o salvar. **Soma da linha como referência** (`Soma da linha: R$ 57,20`, `Soma geral: R$ 13,00`):
+conta em inteiro sobre a nota carregada (`occurrenceAmount.service.ts`, **espelho** da política da API, provado pelos mesmos casos);
+linha na unidade de fallback (caixa) não tem conta confiável e fica sem soma — e sem soma de uma linha não há soma geral.
+
+**O acerto da 164** (`OccurrenceSettlementPanel` + `OccurrenceSettlementSuggestion`): enquanto o acerto não tem itens gravados e o
+operador não digitou nada, o painel lista a "Sugestão pelo registro": o valor pago digitado (origem `manual`), senão a soma da
+linha (origem `nfe`), com a soma da linha como referência. "Usar a sugestão do registro" **só preenche as linhas**; o operador
+confirma ao salvar, e cada linha manda a própria `amountSource` (editar o valor sugerido a faz `manual`). **Linha com valor pago 0
+não gera sugestão** — aparece à parte, "A loja não pagou, sem valor a acertar", com a soma visível — e **nada é preenchido com 0**
+(a 164 exige `amount > 0`, `422 OCCURRENCE_SETTLEMENT_AMOUNT_INVALID`). Item sem dado da nota nem valor pago não ganha sugestão
+inventada. Nenhuma regra da 164 mudou.
+
+**Tolerância (ADR-0081 §9), antes de a API publicar:** `previousItems[]` aceita `unitValue` e `declaredAmount` opcionais; os itens
+do detalhe aceitam `declaredAmount` opcional (o painel o usa para sugerir quando a API o publicar).
+
+### ⚠️ Achado do architect, conferido no código: o registro do motorista NÃO abre a tratativa da 164
+
+A tratativa só abre onde `saveTripOccurrence` recebe `redeliveryPolicy` (`delivery-proof-read.support.ts:621-628`,
+`if (input.redeliveryPolicy !== undefined) openOccurrenceCase(...)`). Quem repassa a política são **dois** caminhos:
+`register-trip-occurrence.use-case.ts:433-435` (registro do galpão/separação) e `office-occurrence-batch.service.ts:156-158` (lote do
+escritório). O caminho do motorista — `register-driver-occurrence.use-case.ts:62` → `DrizzleDriverFieldReportRepository
+.saveDocumentOccurrence` (`drizzle-driver-field-report.repository.ts:1164`) — **não tem nenhuma referência a `redeliveryPolicy`**:
+a devolução registrada na rua pelo app **nasce sem tratativa**, qualquer que seja a política do tipo. Consequência para esta spec: o
+fluxo que a 247 constrói (motorista registra itens + valor pago) nunca chega ao acerto da 164, e a sugestão da RF12 só aparece onde
+já há tratativa (registro do galpão e lote do escritório). **Não inventei solução**: implementei a sugestão onde há tratativa e
+deixo a decisão — abrir a tratativa também no registro do motorista, ou aceitar que devolução de rua não tem acerto — ao usuário.
+A API não foi tocada.
+
+### Limitações e o que fica para a API
+
+1. **A leitura da API ainda não publica o que a correção grava** (T4.8, limitação 2): o detalhe não traz o número do documento do
+   cliente, o valor pago da ocorrência nem o das linhas, e a resposta da correção não os devolve. Por isso a seção abre **vazia**
+   ("em branco mantém o gravado") em vez de pré-preenchida. Quando a API publicar, a tolerância já está no painel; falta só o
+   pré-preenchimento (e mostrar o gravado no histórico de correções).
+2. A sugestão do acerto só vê o valor pago digitado quando a API o publicar nos itens do detalhe; hoje ela sugere pela soma
+   (`nfe`). O caso "valor pago 0 → sem sugestão" está provado no contrato com o campo presente.
+3. A sugestão fica na página de detalhe da ocorrência (que conhece os itens); a linha expandida da lista segue com o acerto como era.
+4. `OccurrenceSettlementPanel.component.tsx` já passava de 200 linhas (418) e agora tem 485 — a divisão fica para a T7.
+
+### Mutações (cada uma vermelha, depois revertida; base restaurada: 2589 pass · 0 fail)
+
+```text
+M1 — valor pago zero deixa de ser "a loja não pagou":                 1 fail (contrato puro) + 4 fail (painel)
+M2 — número não editado vira nulo (apagaria o gravado):               1 fail (contrato puro) + 1 fail (formulário)
+M3 — o espelho trunca em vez de arredondar meio para cima:            6 fail (casos de CA02, inclusive 3 × 19,995)
+```
+
+## T5.3 — app do motorista (2026-10-07)
+
+Ramo `work/spec-247-driver`, a partir de `origin/staging` `477e5f535`. Só `apps/frontend-driver`.
+
+### O que mudou
+
+- **Snapshot chega à tela.** `toDocument` (`driverTripResponse.validation.ts`) descartava `products`; agora lê `products` (ausente
+  fica `undefined`, lista vazia fica vazia, item malformado some) e `hasVaryingUnitValue` (ausente é `false`). Parsado com o JSON de
+  referência da API (`test/fixtures/driver-snapshot-document.golden.json`).
+- **Espelho do cálculo.** `shared/occurrenceAmount.service.ts` (bigint, meio para cima por linha, soma das linhas já
+  arredondadas, valor pago digitado vence). `test/driver-trip/occurrence-amount.contract.ts` roda os **mesmos 24 casos** do
+  `occurrence-amount.contract.ts` da API, linha a linha, e o mesmo contrato de parede (sem `Number`/`parseFloat`/`Math`).
+- **Decisão local, sem rede.** `occurrenceDraftValues.service.ts` avalia produtos marcados, quantidade (até 3 casas, > 0, não
+  acima da nota), valor pago (por linha ou da ocorrência, conforme o escopo **efetivo**) e número do documento.
+  `resolveDeclaredAmountTarget` espelha o do servidor: escopo `item` sem linha marcada, ou com Produtos `off`, cai na ocorrência;
+  Produtos obrigatório sem nenhuma linha marcada espera as linhas. `required` bloqueia, `optional`/`off` não; preço que varia na
+  nota (`hasVaryingUnitValue`) com valor pago ligado e escopo item exige o valor **naquela linha**; `"0"` é valor, vazio não é.
+  Mínimo de produtos: `min(itemsMinimumCount ?? total, total)`, como `assertOccurrenceItemsRequirement` (nulo = todos os itens).
+- **Corpo pela fila existente.** `items?: [{ productCode, quantity, declaredAmount? }]`, `referenceNumber?`, `declaredAmount?`,
+  tudo `string`; o valor pago só vai no nível do escopo efetivo (nunca os dois — o servidor responde 400); nunca preço, unidade,
+  contratante nem escopo (`.strict()`). O relato `documentOccurrence` guarda os três e o `send` os põe no corpo do `POST`.
+- **Tela** (desenho de `preview.html`): `OccurrenceValuesSection` → `OccurrenceItemsField` (lista, caixa com rótulo-alvo de 44 px,
+  quantidade na unidade da nota, valor pago da linha, conta da linha `1 UN × R$ 57,20 = R$ 57,20`, soma dos produtos e valor pago),
+  campo da ocorrência e número do documento (rótulo e "obrigatório/opcional" do tipo). Ordem do formulário: produtos → valor pago
+  da ocorrência → número → observação → foto → assinatura (a mesma da lista "Para registrar, falta: …"). Sem lista no snapshot,
+  continua o chip "A nota inteira".
+- **Recusa do servidor na fila** diz o campo: `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED`, `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED`
+  (com `details[].field` = `items[N].declaredAmount` → "o valor pago de cada produto"), `OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT`,
+  `TRIP_OCCURRENCE_ITEMS_REQUIRED`/`_MINIMUM_NOT_MET` (`rejectionCauseLabel.service.ts`, pt e en).
+
+### Desvios deliberados do protótipo
+
+| Protótipo                                                               | Tela real                                                                             | Por quê                                                                                                        |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Valor pago da ocorrência sem "obrigatório/opcional" no rótulo           | com o sufixo, como a linha e o número                                                 | campo exigido sem aviso é só descoberto no botão desabilitado                                                  |
+| `R$ 19,99` (centavos) como valor unitário na nota                       | `R$ 19,995` (2 a 4 casas, como a nota traz)                                           | a soma da linha parte de 19,995; arredondado, a conta que o motorista faz de cabeça não fecha                  |
+| cobre puro no título do bloco e cinza/vermelho puros no apoio e no erro | misturados com o tom do texto                                                         | medido no tema claro: 4,03:1 / 4,26:1 / 4,14:1 (< 4,5); depois 5,5:1 ou mais nos dois temas                    |
+| `<input type=checkbox>` visível de 20 px                                | caixa desenhada, `<input>` escondido do olho e não do leitor (padrão do `file-field`) | `test/shared/touch-target.contract.ts` recusa `height < 44px` em controle; o alvo é o rótulo inteiro (≥ 44 px) |
+
+### Contratos (vermelho antes do código)
+
+- `occurrence-amount.contract.ts` (24), `occurrence-values.contract.ts` (34: digitação, soma, escopo efetivo, exigências, ordem),
+  `occurrence-values-queue.contract.ts` (7: gate do dispatch, relato, corpo do `POST` com o cliente de verdade),
+  `occurrence-values-fields.contract.tsx` (17: marcação, rótulos ligados por `for`/`id`, somas na tela, erro por linha, motivo do botão,
+  sem estilo em linha/`React.FC`/literal `R$` no TSX), `occurrence-rejection-cause.contract.ts` (4), mais os testes de `products` no
+  `driverTripResponse.validation.contract.test.ts`. Todos na lista do `test/driver-trip.contract.test.ts`. Dois testes antigos mudaram
+  de expectativa por motivo legítimo: a forma de `resolveOccurrenceRequirements`/`resolveOccurrenceFieldVisibility` ganhou as chaves
+  novas (default `off`), e a ordem da lista de faltas passou a `produtos, … , observação, foto, assinatura`.
+
+### Mutações
+
+```text
+base:                                                         55 pass · 0 fail (3 arquivos de valores)
+M0 espelho: meio para cima → truncar (occurrenceAmount)        5 fail  (24 casos do espelho)
+M1 dispatch sem os fatos de valores (gate de segunda trava)    1 fail
+M2 escopo "item" ignora Produtos desligado                     sobrevivia → teste direto de resolveDeclaredAmountTarget → 1 fail
+M3 valor pago "0" vira vazio                                   4 fail
+M4 corpo manda `unitValue` do produto                          5 fail
+M5 cliente descarta `items` do corpo                           1 fail
+restaurado: 1340 pass · 0 fail (app inteira)
+```
+
+M2 ficou verde de primeira porque `evaluateOccurrenceValues` já zera as linhas marcadas com Produtos `off` antes de chamar a função;
+o teste direto de `resolveDeclaredAmountTarget` fecha o buraco.
+
+### Navegador (`motorista-api-demo` + Vite do worktree, porta 53200; verificado por texto)
+
+⚠️ **Login real não foi usado.** A app do motorista não tem atalho de autenticação (ADR-0075 §7), a senha do `local-user` está só no
+`.env` (o `.env.example` traz um valor de exemplo) e o contrato do projeto veda expor o `.env`. Em vez disso, um arnês descartável
+(`harness247.html`, **apagado, não commitado**) montou o **`DriverOccurrenceRegistrationForm` real**, com o CSS e o i18n reais, sobre
+o documento que o **parser real** leu do JSON da demo (`/me/trips/current`, com produtos e três tipos efetivos adicionados a
+`scripts/driver-preview-api.ts`). Não passou por `DriverStopCard`/`DriverTripWorkspace` nem pelo IndexedDB e pela fila — isso fica para
+o smoke e para o usuário.
+
+- Tipo "Devolução parcial" (produtos obrigatórios, mínimo 1, valor pago obrigatório por linha, número obrigatório): título
+  "PRODUTOS DEVOLVIDOS (OBRIGATÓRIO)"; botão desabilitado com "Para registrar, falta: a marcação dos produtos, “Número da NFD”.";
+  marcados três produtos, falta "“Valor pago pela loja” de cada produto marcado"; digitação real (`3,5ab` → `3,5`, "A nota tem só 3 FD.",
+  `aria-invalid`), depois `3`, `50,00`, `0`, `8,5` e `NFD 45029!ç` (→ `NFD 45029`): **soma dos produtos R$ 127,19**
+  (59,99 + 57,20 + 10,00) e **valor pago R$ 58,50**; botão habilitado; o corpo que o relato leva:
+  `items:[{declaredAmount:"50.00",productCode:"2073170",quantity:"3"},{declaredAmount:"0",…},{declaredAmount:"8.5",…}]`,
+  `referenceNumber:"NFD 45029"`, `productCode:""`, nenhum preço/unidade.
+- Tipo "Avaria na descarga" (escopo da ocorrência, opcional, Produtos opcional, observação obrigatória): linhas sem campo de valor,
+  "Valor pago · opcional" e "Número do documento do cliente · opcional" abaixo da soma; marcar um produto mantém o valor na ocorrência
+  (soma R$ 57,20). "Cliente ausente" (tudo `off`): nenhum campo novo.
+- Geometria (`scrollWidth`/`clientWidth`, elementos fora da janela, alvo < 44 px, recortes), três larguras:
+
+| Largura | scrollWidth / clientWidth | fora da janela | alvo < 44 px | margem esq./dir. |
+| ------- | ------------------------- | -------------- | ------------ | ---------------- |
+| 375     | 375 / 375                 | 0              | 0            | 16 px / 16 px    |
+| 768     | 768 / 768                 | 0              | 0            | —                |
+| 1280    | 1280 / 1280               | 0              | 0            | —                |
+
+- Contraste (menor razão entre os textos do bloco, canvas + composição de camadas): tema escuro 5,69:1; tema claro 5,55:1 (antes
+  4,03–4,26:1, corrigido). O campo de "Quantidade" e o de "Valor pago" lado a lado ficavam com alturas diferentes (55 × 46 px, a grade
+  esticava a linha do campo): `align-content: start`.
+- Uma captura (375 px, tema escuro) como prova final ao usuário.
+
+### O que NÃO foi rodado
+
+- Smoke Playwright (`bun run --cwd apps/frontend-driver smoke`): exige Keycloak real e o build do smoke; não foi tentado.
+- Fluxo completo pela fila offline real no navegador (IndexedDB, drenagem, `POST` na API de staging): coberto só por contrato
+  (`occurrence-values-queue.contract.ts` usa o cliente HTTP de verdade com `fetch` dublê).
+- Revisão de design lado a lado com o `preview.html` em 768 e 1280 (T7.1 é outra task).
+
+### Gates
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7269 pass · 0 fail   Ran 7269 tests across 36 files.
+ 884 pass · 0 fail    Ran 884 tests across 1 file.   (test:hooks)
+```
+
+### T5.5 — Rótulos de momento e dicas (2026-10-07)
+
+**Contrato antes do código** (`test/trip-hooks/occurrence-type-moment-labels.contract.ts`, 7 casos): monta a aba Tipos de verdade
+e **procura o rótulo no controle** — não a chave de tradução, não o texto da fonte. Vermelho antes do código:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-moment-labels.contract.ts
+ 0 pass
+ 7 fail
+Ran 7 tests across 1 file.
+```
+
+**O que a tela diz agora** (plan § Rótulos, D10; só texto, os valores gravados `separation`/`document`/`stop`/`office` não mudam):
+
+| Onde                 | Antes                         | Agora                                                                                                           |
+| -------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Título do controle   | Em que momento pode acontecer | **Quem registra, e onde**                                                                                       |
+| `separation`         | Separação no galpão           | **Separador, no galpão**                                                                                        |
+| `document`           | Entrega da nota               | **Motorista, numa nota**                                                                                        |
+| `stop`               | Chegada à parada              | **Motorista, na parada**                                                                                        |
+| `office`             | Escritório, pelo motorista    | Escritório, pelo motorista (e o **filtro** passa a dizer o mesmo, não "Escritório")                             |
+| Dica de cada momento | —                             | o exemplo do `preview.html`, **à vista** abaixo do controle (`<dl>`), no tipo aberto e no cadastro do tipo novo |
+
+- **Uma chave só:** o controle do tipo aberto, as pílulas, a linha recolhida, o cadastro do tipo novo **e o filtro** leem
+  `occurrenceTypeCatalog.moments.labels`; as quatro chaves duplicadas de `filters.chips.moment` foram apagadas (pt e en), então os
+  nomes não têm como divergir.
+- Os textos que falavam em "entrega da nota" / "chegada à parada" seguem o vocabulário novo: nota de exigência de tipo misto, nota de
+  parada, recusa de momentos juntos (aba e `trip.feedback`) — nos dois idiomas.
+- **Dica fora do `MultiSelect` de propósito:** `description` da opção viraria o valor da pílula selecionada (`multi-select.tsx:139`) e
+  poluiria cada pílula com uma frase; `MultiSelect` é componente compartilhado e não foi tocado.
+- **Testes existentes ajustados** só no texto dos rótulos: `occurrence-exceptions-panel`, `occurrence-type-create-form`,
+  `occurrence-type-filters-panel`, `occurrence-type-identity`, `occurrence-type-moment-scope`.
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 7 pass):
+
+```text
+M1 — a chave única volta a dizer "Entrega da nota":                   5 fail (controle, dica, linha recolhida, filtro, cadastro novo)
+M2 — o filtro volta a ler a própria chave (apagada):                   1 fail (pílulas do filtro)
+M3 — a dica de cada momento some do bloco do tipo aberto:              1 fail (o cadastro novo também tem dicas: o contrato olha dentro do bloco do tipo)
+```
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7269 pass · 0 fail   Ran 7269 tests across 36 files.
+ 891 pass · 0 fail    Ran 891 tests across 1 file.   (test:hooks)
+```
+
+### Verificação no navegador (T5.1, T5.2, T5.4, T5.5) — 2026-10-07
+
+**Como:** o painel **desta árvore** (`spec-247`, Vite 7 na porta **53010** — a 53000 e a 53001 são de **outra** árvore,
+`reconcile-spec-145`, e ficaram intocadas), com `VITE_SMOKE_AUTH_BYPASS`, a API dublada por `page.route` (os endpoints novos do
+tipo, a prévia, as exceções, o detalhe da ocorrência, a nota, o acerto) e Chromium headless do Playwright do repositório — **não** o
+painel do navegador embutido do Claude. Verificação **por texto e geometria** (`innerText`, `getBoundingClientRect`, contraste
+calculado sobre os fundos reais, `PUT`/`PATCH` capturados); um print só como prova. Os scripts ficam fora do repositório.
+
+```text
+Aba Tipos, tipo "Devolução parcial" aberto — estouro horizontal (scrollWidth − clientWidth), controles do bloco < 44 px, contraste mínimo
+  375 px toque, claro   : 0 · nenhum · 4,69:1
+  375 px toque, escuro  : 0 · nenhum · 5,55:1
+  768 px fino,  claro   : 0 · 4 (38,4 px "Salvar e-mail" — Button sm do design system; 20 px "Tirar momento…" e 28 px "Limpar momentos" — MultiSelect compartilhado) · 4,69:1
+  1280 px fino, claro   : 0 · os mesmos 4 · 4,69:1
+  1280 px fino, escuro  : 0 · os mesmos 4 · 5,55:1
+```
+
+Os 4 abaixo de 44 px só existem com ponteiro fino e são controles do design system que esta spec não altera; com toque (375 px) nenhum
+controle do bloco fica abaixo de 44 px. Nenhum elemento do bloco fica fora da janela em nenhuma largura.
+
+Interações conferidas **no navegador**, com a API dublada gravando o corpo:
+
+1. Salvar e-mail começa desabilitado; `{{numeroNfd}}` no corpo → `aria-invalid="true"` **só** no corpo, aviso _"Este marcador não existe neste campo: {{numeroNfd}}…"_,
+   Salvar desabilitado e **zero chamadas à prévia** durante o erro (a prévia anterior fica, com "Corrija o marcador para ver a prévia").
+2. Marcador clicado entra **no cursor** (`"Linha {{contratante}}1
+Linha 2"`) e o foco volta ao campo; assunto tem 15 marcadores (sem `{{linhasItens}}`), a linha tem 19 (com
+   `{{valorItem}}`, sem `{{linhasItens}}`).
+3. `PUT` do "Salvar e-mail" leva `emailSubject`, `emailBody` e `emailItemLineTemplate`; o do interruptor leva `emailsContractor:false` **e o assunto/corpo já gravados** (RF2, sem zerar).
+4. "Produtos: Desligado" com valor pago por linha ligado **não grava** (nenhum `PUT` novo) e mostra o aviso; o rótulo editado grava só `referenceNumberLabel`.
+5. Correção (`/ocorrencias/:id` → Corrigir): seção "Número e valor pago" sem estouro a 375 e 1280 px, nenhum controle < 44 px; `3 × 19,995` mostra
+   **Soma da linha: R$ 59,99**, `Soma geral: R$ 117,19`; digitar `5000` mostra `50,00`; o `PATCH` leva `referenceNumber:"NFD 45029"` e `declaredAmount:"50.00"` **só** na linha editada.
+6. Acerto da 164 (tratativa `goods_paid`): "Sugestão pelo registro" lista `R$ 57,20 · soma da linha R$ 57,20` e _"A loja não pagou, sem valor a acertar · soma da linha R$ 59,99"_;
+   "Usar a sugestão do registro" preenche **uma** linha (`57,20`, nunca 0) e o `PUT` leva `amountSource:"nfe"`.
+
+⚠️ Um tropeço do dublê, não do produto: o primeiro stub devolvia o corpo do `PUT` com `occurrenceTypeId` no tipo e o painel — corretamente — recusou a
+lista inteira (`isOccurrenceType` é de chaves fechadas) e seguiu mostrando o tipo antigo; corrigido o stub.
+
+**O que não deu para fazer:** o desenho `preview.html` não foi posto **lado a lado** com a tela real (isso é a T7.1, com os mesmos dados nos três
+tamanhos); o acerto foi verificado só no desktop e a 375 px por texto/geometria, sem o fluxo do app do motorista (T5.3, outro executor).
+
+$ bun run typecheck (raiz) → tsc --noEmit ×7, sem erro
+$ bun run --cwd apps/frontend-driver test → 1340 pass · 0 fail · 2948 expect() (4 arquivos de contrato)
+$ bun run --cwd apps/frontend-driver lint → eslint ., sem saída
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+
+```
+
+Sem migration: `make migration-test` não se aplica. Sem push nem deploy.
+```
+
+---
+
+## Fase 6 — Roteiro operacional
+
+### T6.1 — Roteiro operacional (2026-10-07, reescrito após reprovação)
+
+**Arquivo**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
+
+**O que foi corrigido na reescrita** (a primeira versão foi reprovada na conferência):
+
+1. **Erro de conteúdo grave**: a versão anterior mandava desligar o e-mail à contratante na Devolução total e dizia que o SAC não pediu e-mail automático. A spec (§ "Modelos do SAC") define o contrário: assunto `DEVOLUÇÃO TOTAL – NF {{numeroNotaSemSerie}}` e corpo com `Motivo: {{observacao}}`. O roteiro agora traz os passos de assunto, corpo, **Salvar e-mail**, ligar a caixa e conferir a prévia, e o resultado esperado do exemplo do SAC (NF 677002, FARMA LÍDER SANTA ISABEL LTDA, R$ 2.612,88; valores de exemplo). Diz que a Devolução total não usa linha de item (Produtos Desligado).
+2. **Rótulos chutados**: todo nome de tela, bloco, campo e botão foi trocado pelo texto real do painel (tabela abaixo). Não há mais "ou" nem "se ainda não foi atualizado". A rota errada `/company-settings/occurrence-types` saiu: a aba é **Tipos** em **Ocorrências** (`/ocorrencias`), permissão `settings.manage` (a correção posterior que trocou por `companies.settings` estava errada: essa permissão não existe).
+3. **Fluxo real**: renomear é editar o campo **Nome** do bloco **Identificação** do tipo aberto (grava ao Enter/sair do campo); criar é o bloco **Novo tipo** (nasce com o momento **Separador, no galpão**, que precisa ser trocado); o formulário de criação não tem número do documento, valor pago nem e-mail, então estes se configuram depois, no tipo aberto. Texto do e-mail grava só com **Salvar e-mail**; momentos só com **Aplicar momentos**.
+4. **Campo a campo contra a spec**: parcial (momentos, Foto Obrigatório mínimo 1, Observação Obrigatório, Assinatura Desligado, Produtos Obrigatório "Ao menos N itens" com N=1 e **Aceita vários itens**, Número Obrigatório "Número da NFD", Valor pago Opcional "Por linha de produto" rótulo "Valor pago pela loja", e-mail ligado, assunto/corpo/linha exatos); total (foto como a parcial, Observação Obrigatório, Produtos Desligado, Número Opcional "Número da NFD", Valor pago Desligado, e-mail ligado). Ordem do **Valor pago** por linha documentada (exige Produtos ligado; a tela recusa sem gravar).
+5. **Prévia**: os resultados esperados vieram de `renderOccurrenceEmailPreview` executado (dados fixos de `occurrence-template-preview.policy.ts`: "Contratante Exemplo", NF 123456, "Supermercado Exemplo Ltda", NFD 45029, soma 117,19), não escritos de memória. A prévia nunca mostra a NF 677002; o exemplo do SAC é o resultado numa nota real.
+6. Mantidas: nota `{{numeroNotaSemSerie}}` vs `{{numeroNota}}`; zero à esquerda do "01FD"; decisão da spec de configurar/renomear "Recusa parcial/total" (id não muda); a Spani entra por `{{contratante}}`, nunca cravada; seção final da spec 248 sem instruções.
+
+**Rótulos reais usados e arquivo de origem**:
+
+| Rótulo na tela                                                                                                                                                                                                    | Origem                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Ocorrências (menu)                                                                                                                                                                                                | `src/modules/shared/workspaceNavigation.constant.ts:13`                                           |
+| Tipos (aba)                                                                                                                                                                                                       | `trip/locales/trip.locale.json` `occurrenceFeed.tabs.types`                                       |
+| No galpão · Na rua; Novo tipo; Nome do tipo; Cadastrar tipo; Avisar quando acontecer; Aceita vários itens; Modelo de e-mail; Sem e-mail                                                                           | `company-settings/locales/companySettings.locale.json` `occurrenceTypeCatalog.*`                  |
+| Identificação; Nome; Devolução                                                                                                                                                                                    | `occurrenceTypeCatalog.identity.*`; `OccurrenceTypeIdentity.component.tsx`                        |
+| Quem registra, e onde; Motorista, numa nota; Escritório, pelo motorista; Separador, no galpão; Tirar momento {{label}}; Aplicar momentos; Desfazer                                                                | `occurrenceTypeCatalog.moments.*`; `OccurrenceTypeMoments` e `OccurrenceTypeCreateMoments`        |
+| O que exige; regra geral; Foto; Observação; Assinatura; Produtos; Número do documento do cliente; Valor pago; Desligado/Opcional/Obrigatório                                                                      | `occurrenceTypeCatalog.requirements.*`                                                            |
+| Rótulo do número na tela de registro; Rótulo do valor na tela de registro; Digitado; Por linha de produto                                                                                                         | `requirements.record.*`; `OccurrenceTypeRecordFields.component.tsx`                               |
+| Quantidade mínima de fotos; Produtos exigidos; Ao menos N itens; Quantidade mínima de produtos                                                                                                                    | `requirements.photoMinimum` e `requirements.itemsMinimum`; `OccurrenceTypeMinimums.component.tsx` |
+| E-mail à contratante; Mandar e-mail à contratante da nota ao registrar; Assunto; Corpo; Linha de cada produto; Salvar e-mail; Desfazer; Prévia · dados de exemplo; Sai automaticamente quando o tipo é registrado | `occurrenceTypeCatalog.mail.*`; `OccurrenceTypeContractorMail.component.tsx`                      |
+| Ordem dos blocos do tipo aberto; clique na linha para abrir                                                                                                                                                       | `OccurrenceTypeRow.component.tsx`, `OccurrenceTypeSummary.component.tsx`                          |
+| Permissão `settings.manage`                                                                                                                                                                                       | `TripOccurrenceTypesTab.component.tsx` (comentário)                                               |
+
+**Marcadores**: só os das listas fechadas de `apps/api-transportada/src/shared/occurrence-template.constant.ts`, por contexto: assunto (`contratante`, `numeroNotaSemSerie`), corpo (`numeroReferencia`, `valorDeclarado`, `razaoSocial`, `numeroNotaSemSerie`, `valorNota`, `observacao`, `linhasItens`), linha (`codigoItem`, `item`, `quantidadeItem`, `unidadeItem`, `observacao`).
+
+**O que não foi conferido**: o roteiro não foi executado na tela (nenhum navegador aberto); os rótulos vêm da leitura do código e dos `locale.json`. O texto exato do motivo do SAC ("o cliente já havia recebido…") veio truncado na spec, então o exemplo usa "o cliente já havia recebido". A dica da tela em **Produtos exigidos** ainda diz que o app do motorista só marca "A nota inteira" e que "Ao menos N" não muda o que ele cobra; o `frontend-driver` hoje lê `itemsMinimumCount`, então a dica pode estar defasada (fora do escopo desta task). Não confirmei se o servidor aceita ligar o e-mail com assunto vazio, por isso o roteiro manda salvar os textos antes de ligar.
+
+---
+
+## T7.1 — preview x tela real (2026-10-07)
+
+**Como.** Painel desta árvore (Vite 7, porta 53010, binário da app, `VITE_SMOKE_AUTH_BYPASS`, API dublada por `page.route`) e Chromium headless do Playwright do repositório; 375 px e 768 px **com toque** (`pointer: coarse`), 1280 px com ponteiro fino. O `preview.html` foi aberto por `file://` nos mesmos tamanhos, com os **mesmos dados** (NF 680481, três produtos, SPANI, "Número da NFD", "Valor pago pela loja"). Verificação por texto, geometria e contraste calculado (`getComputedStyle`, incluindo `color-mix`); prints só como prova, em `prints/t71-*` (`tipos`, `correcao`, `acerto`, `motorista`; `-real-` e `-preview-`, 375/768/1280).
+
+⚠️ **Motorista: arnês descartável, login real não exercitado.** O app não tem atalho de autenticação (ADR-0075 §7) e a senha do `local-user` é do `.env`, que não se abre. Um arnês (apagado, nunca commitado) montou o `DriverOccurrenceRegistrationForm` **real**, com o CSS e o i18n reais, sobre o JSON de `/me/trips/current` da API de demo (porta 53901) lido pelo **parser real** (`toDriverTripSnapshot`); só os produtos e o tipo foram trocados no JSON para ficarem iguais aos do desenho. **Não foram exercitados:** login/Keycloak, `DriverStopCard`/`DriverTripWorkspace`, IndexedDB e fila offline, a moldura de página do app (as margens do arnês são 16 px e as do app real podem diferir), foto de câmera real (a foto do print é um PNG de 1 px esticado).
+
+Servidores: painel (PID 77449, cwd `.../spec-247/apps/frontend-transportada`), Vite do motorista (77739) e demo (77737), ambos `.../spec-247/apps/frontend-driver`; as portas 53000/53001 (outra sessão) não foram tocadas. Encerrados por PID; portas livres.
+
+### Tabela — elemento → preview → tela real → veredito
+
+| #                                                                                              | Elemento                                                                                                                            | Preview                                                                                                                               | Tela real                                                                                                                                                       | Veredito                                                                                  |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **a. Painel — aba Tipos, tipo aberto**                                                         |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
+| 1                                                                                              | Ordem dos blocos                                                                                                                    | Identificação · Momentos · O que exige · E-mail · Aviso interno · Exceções                                                            | a mesma (a prévia do e-mail fica dentro do bloco E-mail)                                                                                                        | OK                                                                                        |
+| 2                                                                                              | Rótulos de momento e dicas                                                                                                          | 4 momentos, dica à vista abaixo de cada                                                                                               | idênticos, dica à vista                                                                                                                                         | OK                                                                                        |
+| 3                                                                                              | Rótulos do bloco "O que exige"                                                                                                      | Foto · Observação · Produtos · Número do documento do cliente · Valor pago · Digitado (Por linha de produto / Um só, pela ocorrência) | idênticos                                                                                                                                                       | OK                                                                                        |
+| 4                                                                                              | "Rótulo na tela de registro" (número e valor)                                                                                       | o mesmo texto nos dois                                                                                                                | "Rótulo do número…" e "Rótulo do valor na tela de registro"                                                                                                     | DESVIO justificado: dois campos com o mesmo nome no mesmo bloco                           |
+| 5                                                                                              | Assinatura, Quantidade mínima de fotos, Produtos exigidos                                                                           | ausentes (fora do escopo do desenho)                                                                                                  | presentes (spec 246)                                                                                                                                            | DESVIO justificado: controles da 246                                                      |
+| 6                                                                                              | Dica de "Produtos exigidos" e da exceção                                                                                            | —                                                                                                                                     | dizia que o app só marca "A nota inteira" e para não configurar "Ao menos N" — falso desde a T5.3                                                               | **CORRIGIDO** (`9f0d8ede2`)                                                               |
+| 7                                                                                              | E-mail: interruptor, Assunto, Corpo, Linha de cada produto                                                                          | mesma ordem e textos                                                                                                                  | mesma ordem e textos; desligado mostra "Desligado: o operador manda pela conversa da ocorrência, se quiser." (igual)                                            | OK                                                                                        |
+| 8                                                                                              | Marcadores                                                                                                                          | uma fileira com os 16, para qualquer campo                                                                                            | lista por campo (assunto 15, corpo, linha 19), só os válidos no campo com o cursor                                                                              | DESVIO justificado: marcador de outro campo é recusado (RF3)                              |
+| 9                                                                                              | Dica dos marcadores                                                                                                                 | "Toque num marcador para inserir no campo em que o cursor está."                                                                      | "Marcadores do corpo — toque num para inserir onde o cursor está." (muda com o campo)                                                                           | DESVIO justificado (acompanha o item 8)                                                   |
+| 10                                                                                             | Prévia                                                                                                                              | coluna à direita do formulário inteiro                                                                                                | à direita do bloco E-mail a 1280 px (463 px); empilhada abaixo a 375/768, como no desenho                                                                       | DESVIO justificado: fica ao lado do que edita                                             |
+| 11                                                                                             | Erro de marcador                                                                                                                    | não desenhado                                                                                                                         | `aria-invalid` só no campo, aviso "Este marcador não existe neste campo…", Salvar desabilitado, nenhuma chamada à prévia, prévia anterior mantida               | OK (estado a mais, conferido no navegador)                                                |
+| 12                                                                                             | Salvar e-mail / Desfazer                                                                                                            | sem botão (o desenho edita ao vivo)                                                                                                   | botões; Salvar nasce desabilitado                                                                                                                               | DESVIO justificado: texto grava só por ação (T5.2)                                        |
+| 13                                                                                             | Alvo de "Salvar e-mail"/"Desfazer" sob toque                                                                                        | —                                                                                                                                     | 38,4 px a 768 px com toque (Button sm)                                                                                                                          | **CORRIGIDO** (`c5f6ab7f5`): 44 px medidos                                                |
+| 14                                                                                             | Aviso interno                                                                                                                       | "Avisar quem despachou a viagem" + dica                                                                                               | "Avisar quando acontecer" + modelo da notificação (246)                                                                                                         | DESVIO justificado: controle da 246                                                       |
+| 15                                                                                             | Aviso interno com "Avisar" ligado e tipo sem chave                                                                                  | —                                                                                                                                     | mostrava o texto do e-mail à contratante como "modelo próprio (legado)" sob "Sem e-mail"                                                                        | **CORRIGIDO**                                                                             |
+| 16                                                                                             | Dica do Aviso interno                                                                                                               | —                                                                                                                                     | "…fica no bloco ao lado" (está acima)                                                                                                                           | **CORRIGIDO** ("se configura no bloco acima")                                             |
+| 17                                                                                             | Exceções                                                                                                                            | 2 seletores (número, valor), rótulos do tipo                                                                                          | linha completa da 246; os rótulos são "Número da NFD" e "Valor pago pela loja"                                                                                  | DESVIO justificado: 246 + os rótulos do desenho                                           |
+| 18                                                                                             | Seletores                                                                                                                           | o `Select` real                                                                                                                       | o `Select` real, CSS global intocado                                                                                                                            | OK                                                                                        |
+| 19                                                                                             | Estados vazio/erro/desabilitado                                                                                                     | "Nenhum…" não desenhado                                                                                                               | "Nenhuma exceção neste tipo.", "Não há cliente cadastrado sem exceção…", Produtos desligado + valor por linha recusa sem gravar                                 | OK                                                                                        |
+| 20                                                                                             | Contraste                                                                                                                           | 4,88 (config)                                                                                                                         | mínimo 4,69 (claro), 5,55 (escuro, medido na T5.x)                                                                                                              | OK (≥ 4,5)                                                                                |
+| 21                                                                                             | Foco                                                                                                                                | anel de cobre                                                                                                                         | `outline: 2px solid` cobre no campo e nos marcadores (Tab)                                                                                                      | OK                                                                                        |
+| 22                                                                                             | Alvos ≥ 44 px                                                                                                                       | 38,4 px nos seletores de exceção                                                                                                      | 375 e 768 com toque: nenhum controle do bloco < 44; ponteiro fino: 38,4 (Select compacto, Button sm, MultiSelect)                                               | DESVIO justificado: iguais ao desenho e a todo o painel                                   |
+| 23                                                                                             | Estouro                                                                                                                             | 0                                                                                                                                     | 0 a 375/768/1280, nada fora da janela                                                                                                                           | OK                                                                                        |
+| 24                                                                                             | Largura útil a 375 px                                                                                                               | 309 px                                                                                                                                | 267 px                                                                                                                                                          | DESVIO justificado: o tipo vive dentro da linha da lista (acordeão), recuo da 246         |
+| **b. Painel — correção e acerto** (sem desenho no `preview.html`; conferidos contra RF12/RF13) |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
+| 25                                                                                             | Seção "Número e valor pago"                                                                                                         | —                                                                                                                                     | número, Digitado, valor por linha, "Soma da linha" e "Soma geral" (117,19 = 57,20 + 59,99); vazio mantém o gravado                                              | OK                                                                                        |
+| 26                                                                                             | Número inválido                                                                                                                     | —                                                                                                                                     | aviso, `aria-invalid`, Salvar correção desabilitado                                                                                                             | OK                                                                                        |
+| 27                                                                                             | Soma geral ao digitar o valor pago                                                                                                  | —                                                                                                                                     | não muda (é referência; o texto da seção diz)                                                                                                                   | DESVIO justificado: RF13, a soma nunca é gravada                                          |
+| 28                                                                                             | Alvos, contraste, estouro                                                                                                           | —                                                                                                                                     | 0 controles < 44 px na seção (375/768 toque e 1280); contraste 5,19; estouro 0                                                                                  | OK                                                                                        |
+| 29                                                                                             | Acerto: "Sugestão pelo registro"                                                                                                    | —                                                                                                                                     | "R$ 57,20 · soma da linha R$ 57,20"; valor pago 0 vira "A loja não pagou, sem valor a acertar"; botão "Usar a sugestão do registro" preenche uma linha, nunca 0 | OK                                                                                        |
+| 30                                                                                             | Acerto: "Código do produto" e "Valor" na página de detalhe                                                                          | —                                                                                                                                     | `<input>` nativo de 21 px, sem borda do sistema (fora do `.workspace-panel`)                                                                                    | **CORRIGIDO**: 48 px, foco e estado inválido                                              |
+| **c. App do motorista — registro** (arnês)                                                     |                                                                                                                                     |                                                                                                                                       |                                                                                                                                                                 |                                                                                           |
+| 31                                                                                             | Ordem                                                                                                                               | produtos → valor da ocorrência → número → observação → foto → faltas → botão                                                          | a mesma                                                                                                                                                         | OK                                                                                        |
+| 32                                                                                             | Produto: marcar, "Na nota: N UN × R$ …", quantidade (UN), "Valor pago pela loja · se diferente", conta `1 FD × R$ 57,20 = R$ 57,20` | idênticos                                                                                                                             | idênticos; marcar preenche 1                                                                                                                                    | OK                                                                                        |
+| 33                                                                                             | Valor unitário                                                                                                                      | `R$ 50,00` (49,995 arredondado) e conta `2 FD × R$ 50,00 = R$ 99,99`                                                                  | `R$ 49,995` e `2 FD × R$ 49,995 = R$ 99,99 · pago R$ 99,00`                                                                                                     | DESVIO justificado: a conta fecha com o que a nota traz                                   |
+| 34                                                                                             | Soma geral e valor pago                                                                                                             | 157,19 / 157,19                                                                                                                       | 157,19 / 156,20 (99,00 digitado numa linha)                                                                                                                     | OK (a conta é a do desenho; o dado difere)                                                |
+| 35                                                                                             | Título do bloco e rótulos                                                                                                           | "Produtos devolvidos" · "Número da NFD · obrigatório"                                                                                 | "…(obrigatório)" · "Número da NFD · obrigatório"; valor da ocorrência "· opcional"                                                                              | DESVIO justificado: exigência à vista                                                     |
+| 36                                                                                             | Observação                                                                                                                          | "Observação · obrigatória", campo desenhado                                                                                           | "O que aconteceu (obrigatório)" (texto do app, spec 218); era `<textarea>` nativo de 3 linhas                                                                   | rótulo DESVIO (vocabulário anterior à 247); campo **CORRIGIDO** (mesmo campo dos valores) |
+| 37                                                                                             | Foto                                                                                                                                | "Tirar foto da mercadoria avariada"                                                                                                   | "Tirar foto \*" / "Anexar" (spec 209/218)                                                                                                                       | DESVIO justificado: fluxo existente                                                       |
+| 38                                                                                             | Motivo do botão desabilitado                                                                                                        | "Falta: número da nfd, foto."                                                                                                         | "Para registrar, falta: “Número da NFD”, a observação, a foto." (`role=status`)                                                                                 | DESVIO justificado: texto da 246 RF7                                                      |
+| 39                                                                                             | Mensagem de tudo preenchido                                                                                                         | "Tudo o que o tipo pede está preenchido."                                                                                             | nenhuma; o botão liberado é o sinal                                                                                                                             | DESVIO justificado: região viva que repetiria a mensagem em todo tipo e na parada (246)   |
+| 40                                                                                             | Botão                                                                                                                               | "Registrar devolução"                                                                                                                 | "Registrar"                                                                                                                                                     | DESVIO justificado: rótulo genérico do app, serve a todos os tipos                        |
+| 41                                                                                             | Escolha do tipo                                                                                                                     | "Tipo: Devolução parcial"                                                                                                             | fichas com o nome e "Foto obrigatória"                                                                                                                          | DESVIO justificado: o motorista escolhe o tipo                                            |
+| 42                                                                                             | "E-mail que sai ao registrar"                                                                                                       | coluna à direita                                                                                                                      | ausente                                                                                                                                                         | DESVIO justificado: o motorista não vê nem manda o e-mail (RF11)                          |
+| 43                                                                                             | Mínimo de produtos                                                                                                                  | "ao menos um produto"                                                                                                                 | `itemsMinimumCount` nulo = todos ("mais produtos (mínimo de 3)"); com 1, basta um                                                                               | DESVIO justificado: RF11 (nulo = todos, como o servidor)                                  |
+| 44                                                                                             | Estados                                                                                                                             | vazio / completo                                                                                                                      | vazio: Registrar desabilitado e motivo; quantidade 11 > 10: "A nota tem só 10 FD." + `aria-invalid`; completo: liberado                                         | OK                                                                                        |
+| 45                                                                                             | Contraste                                                                                                                           | 5,35                                                                                                                                  | 4,57 (claro), 5,87 (escuro, com erro)                                                                                                                           | OK (≥ 4,5)                                                                                |
+| 46                                                                                             | Foco                                                                                                                                | —                                                                                                                                     | caixa desenhada com anel de 2 px de cobre; campos idem                                                                                                          | OK                                                                                        |
+| 47                                                                                             | Alvos                                                                                                                               | —                                                                                                                                     | rótulo da linha ≥ 65 px, campos 45–51 px, botões 48 px (375/768 toque e 1280)                                                                                   | OK                                                                                        |
+| 48                                                                                             | Estouro e borda                                                                                                                     | 0                                                                                                                                     | 0 nas três larguras, nada a menos de 8 px da borda                                                                                                              | OK                                                                                        |
+
+**Contagem:** 48 linhas — OK 22 · desvio justificado 20 · corrigido 5 (linhas 6, 13, 15, 16, 30) · mista 1 (linha 36: rótulo é desvio, campo foi corrigido).
+
+**Correções (contrato antes, commit isolado):** `9f0d8ede2` dica de Produtos exigidos; `896d58354` Aviso interno; `c5f6ab7f5` Salvar/Desfazer; `a8c8b02eb` campos do acerto; `83006aef1` observação do motorista. Detalhe: dica de Produtos exigidos (vermelho: "1 fail" do contrato M3, depois 2 pass); Aviso interno sem texto legado e "bloco acima" (vermelho 1 fail); `Salvar e-mail`/`Desfazer` a 44 px sob toque (vermelho 2 fail, medido 44 px a 768 px com toque); campos do acerto (vermelho 2 fail, medido 48 px); observação do motorista (vermelho 1 fail).
+
+**O que não foi verificado:** o login e a fila reais do app do motorista e a moldura de página do app; o tipo aberto com os dados reais da API (o painel usa API dublada, então "Salvar" fala com um dublê); tema escuro do painel nesta rodada (vale a medição da T5.x: 5,55); prints a 375 px do tipo aberto foram só geradas, não revistas uma a uma.
