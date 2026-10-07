@@ -87,7 +87,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       efetivo.
 - [x] **T4.6** Snapshot do motorista com produtos por nota (uma consulta por viagem); medir o
       tamanho com a maior nota de staging e registrar.
-- [ ] **T4.7** `readOccurrenceTemplateValues`, prévia e aviso automático com os valores novos;
+- [x] **T4.7** `readOccurrenceTemplateValues`, prévia e aviso automático com os valores novos;
       integração do registro ao aviso automático com o modelo do SAC (CA01).
 - [ ] **T4.8** Correção (240/167): número e valores, `previous_items`; integração.
 

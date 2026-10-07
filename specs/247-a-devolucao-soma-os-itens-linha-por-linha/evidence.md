@@ -1016,3 +1016,93 @@ lote 4 (52 arquivos): 200 pass · 1 skip · 0 fail   [185.71s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula).
+
+## T4.7 — o aviso automático e a prévia com os valores gravados (2026-10-07)
+
+**O que mudou** (`apps/api-transportada/src`):
+
+- `trips/domain/occurrence-template-lines.policy.ts` (novo, puro): `buildOccurrenceTemplateLines` monta as linhas do modelo
+  do que o registro gravou (quantidade, unidade, `unit_value` copiado, valor pago) e do que a nota diz (descrição, quantidade
+  da NF-e, `vProd` somado por código). Ordem por `position`; sem linha gravada, os códigos marcados viram linhas inteiras;
+  código fora da nota é omitido.
+- `trips/infrastructure/occurrence-template-source.query.ts` (novo): duas consultas por ocorrência registrada — número do
+  documento do cliente, valor pago, formato da linha de item do tipo e as linhas de item.
+- `readOccurrenceTemplateValues` (`delivery-proof-read.support.ts`): com `occurrenceId` preenche `lines`, `referenceNumber`,
+  `declaredAmount`, `itemLineTemplate` e `documentNumber` (o número sem série, D6); a quantidade de `{{quantidadeItem}}` no
+  corpo passa a ser a da ocorrência (D5) e `{{valorNota}}` já sai formatado pela política (D4). Sem `occurrenceId`, o
+  comportamento é o anterior com a quantidade da NF-e.
+- Chamadores: `createOccurrenceSuggestedMailReader` (prévia da ocorrência **e** aviso automático, que usa o mesmo leitor) e
+  `registerTripOccurrence` (o `renderEmail` do galpão/escritório) passam o `occurrenceId`.
+
+**CA01 e a CA03 estendida ao caminho real** (`test/integration/occurrence-template-values.integration.ts`, na lista do
+`package.json`): o motorista registra pelo caminho de produção (`registerDriverOccurrence` + repositórios Drizzle) com itens,
+número e valor pago; o aviso automático da 183 sai pelo envio real da 143. Assunto `OCORRÊNCIA: SPANI – NF 680481 – DEVOLUÇÃO
+PARCIAL` e o corpo do SAC **exatos**, com `SPANI` de `contractors.display_name` da fixture, e a prévia
+(`readSuggestedMail`) idêntica ao que foi persistido em `contractor_mail_messages`. Também: valor pago digitado vence
+(`Pago 50,00 de 143,00`, soma da linha continua a calculada, quantidade `2,5` da ocorrência e não a `10` da NF-e); valor pago de
+escopo `occurrence` em `{{valorDeclarado}}` com `{{linhasItens}}` vazio; e a CA03 — dois tipos de **mesmo nome** em empresas
+diferentes com configuração diferente dão e-mails diferentes, e dois tipos de nomes diferentes com a mesma configuração dão
+exatamente o mesmo `suggested` do `findPlan` (o que o envio usa).
+
+### Vermelho antes do código
+
+```text
+$ DATABASE_URL=postgres://postgres@127.0.0.1:56249/transportada_test \
+  bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-template-values.integration.ts
+Expected: "OCORRÊNCIA: SPANI – NF 680481 – DEVOLUÇÃO PARCIAL"
+Received: "OCORRÊNCIA: SPANI – NF  – DEVOLUÇÃO PARCIAL"
+Expected: "Pago 50,00 de 143,00 – 2,5 – R$ 7.840,64"
+Received: "Pago  de  – 10 – R$ 7.840,64"
+ 0 pass
+ 4 fail
+```
+
+(A primeira passada falhou por defeito da fixture — Produtos `required` sem mínimo; corrigida — e só então o vermelho acima, pelo
+motivo certo: o número sem série vazio e a quantidade da NF-e.) O contrato das linhas nasceu vermelho por módulo ausente
+(`occurrence-template-lines.policy.js`).
+
+### Testes existentes
+
+Nenhum teste existente afirmava o texto antigo de `valorNota` ou `quantidadeItem`: o contrato do renderizador já tinha sido
+atualizado na T3.4/T3.5, e as integrações que montam `readTemplateValues` (`trip-detail-leaves-behind`, `trip-auto-dispatch`,
+`whatsapp-operator-flow-actions`, `occurrence-configuration-decides`, `occurrence-type-moments-registration`,
+`trip-occurrence-attachment`, `occurrence-automatic-mail`, `occurrence-conversation-mail`) passaram sem alteração (35 pass).
+`test/trip-occurrence/product-codes.contract.ts` ganhou uma asserção: o leitor do modelo recebe o `occurrenceId` gravado.
+
+### Mutações (cada uma sozinha, rodada e revertida; integração + contrato)
+
+```text
+M1 — quantidade da NF-e no lugar da gravada (`quantity: null`):                      3 fail (CA01, quantidade, contrato das linhas)
+M2 — valor unitário da nota no lugar do copiado:                                     1 fail (contrato das linhas)
+M3 — `occurrenceId` fora da leitura da prévia/aviso:                                 3 fail (as três da CA01)
+M4 — formato da linha de item do tipo ignorado (`itemLineTemplate: undefined`):      1 fail (modelo do SAC)
+M5 — valor pago da ocorrência ignorado (`declaredAmount: null`):                     1 fail (escopo occurrence)
+M6 — número da nota sem série ignorado (`documentNumber: undefined`):                2 fail (modelo do SAC e CA03 pelo envio real)
+M7 — `occurrenceId` fora do `renderEmail` do registro do escritório:                 1 fail (product-codes.contract)
+base restaurada: 668 pass · 0 fail
+```
+
+### Gates
+
+```text
+$ bun run typecheck                      (raiz)  → tsc --noEmit ×4, sem erro
+$ bun run lint                           (apps/api-transportada) → eslint --max-warnings=0, sem saída
+$ bun run format:check                   (raiz)  → All matched files use Prettier code style!
+$ bun --env-file=../../.env.test test --timeout 120000   (contrato, apps/api-transportada)
+ 10348 pass
+ 25 skip
+ 0 fail
+Ran 10373 tests across 200 files. [42.76s]
+```
+
+Integração completa (209 arquivos da lista `test:integration`), quatro lotes em primeiro plano, Postgres 18 nativo
+descartável (`127.0.0.1:56249`, diretório no scratchpad), `DATABASE_URL` por variável de ambiente:
+
+```text
+lote 1 (53 arquivos): 377 pass · 0 fail            [289.43s]
+lote 2 (53 arquivos): 308 pass · 7 skip · 0 fail   [182.41s]
+lote 3 (53 arquivos): 242 pass · 0 fail            [192.67s]
+lote 4 (50 arquivos): 194 pass · 1 skip · 0 fail   [188.89s]
+```
+
+Os `skip` não são testes desta task (nenhum arquivo novo pula).
