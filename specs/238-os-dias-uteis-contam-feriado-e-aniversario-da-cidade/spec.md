@@ -1,5 +1,9 @@
 # Feature 238 — os dias úteis contam feriado e aniversário da cidade
 
+> **Emenda (2026-10-07):** o item "Importar feriados de fonte pública … nunca carga automática" do **Fora do escopo**
+> foi revogado para a FeriadosAPI pelo **ADR-0100** (spec 252). O CSV manual (P3) continua fora. O texto abaixo fica
+> como registro histórico.
+
 > **Estado:** pronta para execução (sem dúvidas bloqueantes). **Primeira da fila** (236 e 237 dependem dela).
 > Decisão do usuário (2026-10-03): o prazo de entrega conta em **dias úteis, incluindo feriados e o
 > aniversário das cidades**, e **já existe um calendário com feriados** no produto: esta spec o **reaproveita**
