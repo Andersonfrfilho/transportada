@@ -121,7 +121,9 @@
       _(2026-10-06: `evidence.md` § T3.4a; **sem push**.)_
 - [x] **T3.4b** Painel: conduzir a tratativa da avaria de recebimento (ações do escritório) + correções do painel da
       revisão. _(2026-10-06: `evidence.md` § T3.4b; **sem push**.)_
-- [ ] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar.
+- [x] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar. _(2026-10-06: revisão `opus` REQUEST CHANGES → T3.4a/T3.4b;
+      prints da T3.3 e da T3.4b aprovados pelo usuário ("pode publicar"); em staging no commit `17f3577a4`, deploy
+      `37559003864` verde — `deploy-api` (com a conferência de migrations), `deploy-frontend`, `deploy-driver`, `deploy-client`.)_
 
 ## Fase 4b — Prévia por e-mail encaminhada _(D6 respondida: vocês encaminham)_
 
