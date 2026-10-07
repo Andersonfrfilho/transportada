@@ -19,13 +19,18 @@ const PARAMS = {
   coverage: { fromYear: 2026, toYear: 2027 },
 } as const
 
-const SETTINGS_ROWS = new Map([[companyBusinessCalendarSettings, [{ saturdayIsBusinessDay: true }]]])
+const SETTINGS_ROWS = new Map([
+  [companyBusinessCalendarSettings, [{ saturdayIsBusinessDay: true }]],
+])
 
 describe('spec 236 T1.2a — as quatro leituras do calendário em série', () => {
   test('a função nova faz as quatro consultas uma de cada vez', async () => {
     const { executor, stats } = createRecordingSelectExecutor({ rowsByTable: SETTINGS_ROWS })
 
-    const loaded = await loadBusinessCalendarRules(executor as BusinessCalendarRulesExecutor, PARAMS)
+    const loaded = await loadBusinessCalendarRules(
+      executor as BusinessCalendarRulesExecutor,
+      PARAMS,
+    )
 
     expect(stats.queryCount).toBe(4)
     expect(stats.maxInFlight).toBe(1)
