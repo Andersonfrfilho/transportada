@@ -105,7 +105,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       pago (por linha ou ocorrência), número com o rótulo do tipo; botão bloqueado pelo exigido
       (CA07), sem rede; envio pela fila.
 - [x] **T5.4** Correção no painel com número e valores; acerto da 164 com sugestão (RF12).
-- [ ] **T5.5** Rótulos de momento e dicas (plan § Rótulos), no controle, no filtro e no resumo;
+- [x] **T5.5** Rótulos de momento e dicas (plan § Rótulos), no controle, no filtro e no resumo;
       contrato que renderiza e procura no controle.
 
 ## Fase 6 — Roteiro operacional

@@ -129,7 +129,7 @@ describe('busca e filtros da aba Tipos (RF11b)', () => {
     scenario(async () => {
       await mount()
       expect(counter()).toBe('3 de 3 tipos')
-      expect(chip('Chegada à parada').getAttribute('aria-pressed')).toBe('false')
+      expect(chip('Motorista, na parada').getAttribute('aria-pressed')).toBe('false')
       expect(chip('Tem exceção').disabled).toBe(false)
     }),
   )
@@ -138,8 +138,8 @@ describe('busca e filtros da aba Tipos (RF11b)', () => {
     'as pílulas se combinam e a contagem acompanha',
     scenario(async () => {
       await mount()
-      await click(chip('Entrega da nota'))
-      expect(chip('Entrega da nota').getAttribute('aria-pressed')).toBe('true')
+      await click(chip('Motorista, numa nota'))
+      expect(chip('Motorista, numa nota').getAttribute('aria-pressed')).toBe('true')
       expect(counter()).toBe('2 de 3 tipos')
       await click(chip('Ativos'))
       expect(counter()).toBe('1 de 3 tipos')
