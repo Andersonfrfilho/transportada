@@ -114,6 +114,58 @@ mudaria de significado. Tabela própria deixa a tabela publicada e o contrato do
 **Armadilha de CHECK com coluna nula.** `month between 1 and 12` com `month` nulo dá NULL, e o CHECK aceita NULL: na
 ponta `yearly` de `state_holidays` as colunas são exigidas `is not null` à parte.
 
+### 6. Escrita, convivência das linhas e rotas (T1.3)
+
+`municipal_holidays` guarda só datas fixas e é o que o roteirizador lê; a regra "todo ano" fica em
+`municipal_holiday_rules`. Quem manda quando as duas convivem:
+
+1. A geração (`INSERT … ON CONFLICT (company_id, city_ibge_code, holiday_on) DO NOTHING`) nunca sobrescreve: a data que
+   o operador já digitou naquele dia fica, com o nome dele e `source_rule_id` nulo.
+2. Excluir a regra apaga em cascata só as linhas com `source_rule_id` dela; a digitada nunca.
+3. Editar a regra (mês, dia, nome, tipo; **a cidade não se edita**) apaga as linhas geradas dela e as gera de novo, na
+   mesma transação.
+4. `POST /municipal-holidays` numa data gerada é **adoção**: nome, tipo e `source_rule_id = NULL`; a linha vira do
+   operador e sobrevive à exclusão da regra. Sem `kind` no corpo, o recadastro mantém o tipo da linha.
+5. `DELETE`/`PATCH /municipal-holidays/:id` de linha **gerada** é 409 `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE`: o caminho é
+   editar ou excluir a regra. Apagar o que não existe segue no-op. `PATCH` muda só `name` e `kind` (a data e a cidade
+   são a identidade da linha).
+6. `DELETE` de linha **digitada** sobre o dia de uma regra gera de novo a linha da regra daquela data — só dentro do
+   horizonte (do ano corrente até `materialized_through_year`), senão o roteiro perderia a data.
+
+**Geração.** Na escrita da regra, do ano corrente até o corrente + 10 (11 anos), ano corrente em `America/Sao_Paulo` pelo
+relógio **injetado** no caso de uso; 29/02 só nos bissextos. **Sem rotina agendada** (custaria um job novo nos quatro
+catálogos e uma migration de CHECK): `POST /municipal-holiday-rules/materializations` completa o horizonte de todas as
+regras da empresa, idempotente (`DO NOTHING`; os ids não mudam), e a leitura da regra devolve `materializedThroughYear`
+para a tela avisar quando ficar abaixo do ano corrente + 2.
+
+**Leitura para a política** (`DrizzleBusinessCalendarRepository.loadRules`): uma consulta por tabela — regras, datas
+digitadas (`source_rule_id IS NULL` e `holiday_on` dentro da cobertura; a gerada é a mesma causa que a regra), feriados
+estaduais da UF (dois primeiros dígitos das cidades; `yearly` ou `once` na cobertura) e a configuração da empresa (sem
+linha = `false`) —, cada uma com `limit(BUSINESS_CALENDAR_MAX_RULES + 1)` para a política recusar com `TOO_MANY_RULES`.
+`Promise.all` está certo ali: calendário parcial é prazo errado, falhar é o comportamento correto.
+
+**Rotas.** `settings.manage` para ler e escrever em todas as novas; Zod `.strict()`; `companyId` do contexto
+autenticado, nunca do corpo; IP por `resolveClientIp`; toda escrita grava `audit_logs` **na mesma transação**, sob um
+lock por empresa (`pg_advisory_xact_lock`) que serializa a conferência de conflito, a geração e a regeneração.
+
+| Rota                                                      | Efeito                                                                  |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `GET/POST /municipal-holiday-rules`, `PATCH/DELETE …/:id` | regra "todo ano"; `POST` idêntico → 200 com a existente                 |
+| `POST /municipal-holiday-rules/materializations`          | completa o horizonte de todas as regras (idempotente)                   |
+| `GET/POST /state-holidays`, `PATCH/DELETE …/:id`          | feriado estadual `once`/`yearly` (`z.discriminatedUnion('recurrence')`) |
+| `GET/PUT /company-settings/business-calendar`             | `saturdayIsBusinessDay`; sem linha = `false`, `origin: 'default'`       |
+| `GET/POST/PATCH/DELETE /municipal-holidays`               | as antigas, com as regras acima; `GET` segue `fleet.read`               |
+
+**Códigos novos** (`BUSINESS_CALENDAR_RULE_ERROR_CODE`): `MUNICIPAL_HOLIDAY_RULE_CONFLICT` (409, mesma cidade e dia com
+nome ou tipo diferente), `MUNICIPAL_HOLIDAY_RULE_NOT_FOUND` (404), `MUNICIPAL_HOLIDAY_RULE_INVALID_DAY` (400, mês e dia
+mesclados que não existem, p.ex. `PATCH {month: 4}` numa regra de dia 31), `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE` (409),
+`MUNICIPAL_HOLIDAY_NOT_FOUND` (404), `STATE_HOLIDAY_CONFLICT` (409), `STATE_HOLIDAY_NOT_FOUND` (404) e
+`STATE_HOLIDAY_RECURRENCE_MISMATCH` (400, o `PATCH` traz a forma errada). Os da política seguem 422.
+
+**Não existe gerador de OpenAPI nesta API** e esta task não inventou um: o RF8 ("documentação OpenAPI gerada das
+rotas") fica registrado como divergência; a tabela acima e `docs/ai-context/api-transportada.md` são a documentação
+das rotas até existir o gerador.
+
 ## Riscos aceitos
 
 - **Consciência Negra (20/11) é listada em todo ano**, por paridade com o painel, embora só seja feriado
@@ -122,8 +174,8 @@ ponta `yearly` de `state_holidays` as colunas são exigidas `is not null` à par
   não sejam feriados nacionais por lei. Cidade que trabalha nesses dias conta um dia útil a menos.
 - **Fuso fixo de São Paulo**, sem coluna por empresa (decisão do usuário, Q3 abaixo): a política recebe a data;
   quem chamar converte o instante com `toCivilDate({ timeZone: 'America/Sao_Paulo' })`.
-- **O erro sai como 422** (`ApiError`) em todos os códigos; quem expuser a política numa rota decide o
-  mapeamento (T1.3).
+- **O erro da política sai como 422** (`ApiError`) em todos os códigos; as rotas de cadastro da T1.3 têm os próprios
+  códigos (§6) e a política ainda não é exposta numa rota.
 
 ## Decisões do usuário (2026-10-06) e pendências
 

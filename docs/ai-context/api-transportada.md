@@ -3056,6 +3056,40 @@ preenchido = gerada, FK composta `(company_id, source_rule_id)` com `ON DELETE C
   comandos em `municipal_holidays`) e `business-calendar*.assertion.ts` (dentro de `db:test`). Caso novo do roteirizador:
   `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts`.
 
+## Spec 238 T1.3 — repositório, geração das datas e rotas do calendário de dias úteis (ADR-0096 §6)
+
+`src/business-calendar/{application,infrastructure,presentation}` (a política pura é da T1.1). Sem migration: usa as
+tabelas da T1.2.
+
+- **`DrizzleBusinessCalendarRepository.loadRules({ companyId, cityCodes, coverage })`** alimenta `buildBusinessCalendar`:
+  uma consulta por tabela (regras, datas digitadas, feriados estaduais) em `Promise.all` — calendário parcial é prazo
+  errado, falhar é o comportamento certo —, cada uma com `limit(BUSINESS_CALENDAR_MAX_RULES + 1)` para a política recusar
+  com `TOO_MANY_RULES`; as UFs saem dos dois primeiros dígitos das cidades; lista de cidades vazia pula as consultas.
+  ⚠️ **`municipal_holidays` entra só com `source_rule_id IS NULL`**: a linha gerada é a mesma causa que a regra `yearly`, e
+  contá-la entra duas vezes. Ainda sem chamador (236/237); não está ligado ao `main.ts`.
+- **Geração** (`municipal-holiday-materialization.service.ts` + `municipal-holiday-generation.support.ts`): ano corrente
+  (São Paulo, relógio injetado no caso de uso) até +10; 29/02 só nos bissextos (`daysInMonth` do domínio, nunca SQL);
+  `ON CONFLICT … DO NOTHING` (a digitada vence e rodar de novo dá o mesmo conjunto e os mesmos ids). Sem rotina agendada:
+  `POST /municipal-holiday-rules/materializations` completa o horizonte; `materializedThroughYear` na leitura da regra.
+- **Convivência** (ADR-0096 §6): apagar a regra leva só as geradas; editar a regra as regenera; `POST /municipal-holidays`
+  numa gerada é **adoção** (`source_rule_id = NULL`); `DELETE`/`PATCH` de gerada é 409; `DELETE` de digitada sobre o dia
+  de uma regra regenera a da regra **só dentro do horizonte**.
+- **Escrita**: um lock por empresa (`pg_advisory_xact_lock` em `business-calendar-lock.support.ts`) serializa conferência,
+  geração e regeneração; `audit_logs` na **mesma transação** (`business-calendar-audit.support.ts`, ator, alvo, IP por
+  `resolveClientIp`, antes/depois). Id de outra empresa é ausência: `null`/no-op, nunca 409.
+- **Rotas** (`settings.manage` ler e escrever; Zod `.strict()`; `companyId` só do contexto): `GET/POST
+/municipal-holiday-rules`, `PATCH/DELETE …/:id`, `POST …/materializations`; `GET/POST /state-holidays`, `PATCH/DELETE
+…/:id`; `GET/PUT /company-settings/business-calendar`. As antigas `/municipal-holidays` (`fleet.read` lê, `settings.manage`
+  escreve) moraram em `delivery-clients/` até a T1.3 e agora vivem aqui, com `kind`, `generatedByRuleId` e `PATCH`.
+- ⚠️ **`PATCH` com id que não é UUID canônico é 404** (o roteador nem entrega a rota); `PATCH` de feriado estadual exige
+  `recurrence` e, no `yearly`, `month` e `day` juntos.
+- ⚠️ **As quatro fábricas de rota entram em `test/separator-role.contract.test.ts` e `helper-role.contract.test.ts`**; o
+  separador alcança só `GET /municipal-holidays`.
+- Contratos: `test/business-calendar-rules/` (HTTP, casos de uso, geração), `test/business-calendar-schema/tenant-safety
+.contract.ts` (toda instrução com `companyId` no fonte — rede grossa) e `test/integration/business-calendar-*.integration.ts`
+  - `municipal-holiday-*.integration.ts` (Postgres, dois tenants). Roteirizador: o caso novo em
+    `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts` (regra sem linha gerada não fecha).
+
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
 `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**

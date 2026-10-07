@@ -314,3 +314,128 @@ Duas camadas: o SQL que roda (`migration.sql`, pelo `db:test`) e o schema TS (co
   regra. Decidir na T1.3 se redigitar zera a origem.
 - O defeito do roteirizador da T1.2a (feriado de uma cidade fecha o cliente de outra no mesmo roteiro) segue de pé e agora
   alcança até 10 linhas por regra "todo ano".
+
+## T1.3 — repositório, geração das datas e rotas do calendário de dias úteis (2026-10-07)
+
+Executada com `sonnet` no worktree `angry-hamilton-090c30`, branch `work/spec-232-momento-do-evento`, sobre `origin/staging`
+(`fetch` e `rebase` com saída 0; `bun install --frozen-lockfile` sem mudança). Desenho fechado pelo `architect` (`opus`),
+ADR-0096 §6. Nenhuma migration, nenhuma mudança no roteirizador (`apps/worker-transportada/src/routing/**` e
+`resolveDeliveryWindow` intocados), nenhuma tela, nada publicado (push é de quem orquestra).
+
+- **Contrato antes** (`7dde3c838`, vermelho): HTTP por rota (`test/business-calendar-rules/`), casos de uso, geração
+  pura, tenant no fonte (`test/business-calendar-schema/tenant-safety.contract.ts`), integração contra Postgres
+  (`test/integration/`) e o caso novo do roteirizador no worker. Vermelho pelo motivo certo: `Cannot find module
+'../../src/business-calendar/…'` (domínio, aplicação, infraestrutura e apresentação não existiam).
+- **Repositório, geração e casos de uso** (`a5db911aa`): `src/business-calendar/{domain,application,infrastructure}`.
+- **Rotas** (`ccb178d57`): `src/business-calendar/presentation`, `main.ts`, `shared/api.constant.ts`; as rotas antigas de
+  `/municipal-holidays` saem de `delivery-clients/` para o módulo do calendário (o código, o caso de uso e o repositório
+  vão juntos: `contractor.routes.ts` já tinha mais de 300 linhas).
+- **Estilo** (`04fa2e546`).
+- **Docs** (commit seguinte): tasks, evidence, ADR-0096 §6, `docs/ai-context/api-transportada.md`,
+  `apps/api-transportada/CLAUDE.md`, `docs/SECURITY.md`.
+
+### O que mudou de observável nas rotas antigas de `/municipal-holidays`
+
+Só acréscimo, mais cinco comportamentos. **Nenhum consumidor tem guarda de chave exata**: o painel não chama a rota
+(sem tela, spec 238 Fase 2), o worker lê a tabela por SQL, e o único teste que a cobria (`contractor.contract.ts`)
+comparava a resposta do dublê.
+
+| Antes                                                                                    | Agora                                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `holidayOn`, `from`, `to` só por regex: `2026-02-30` chegava ao Postgres (erro de banco) | `parseCivilDate` dentro de um `z.string().transform`: **400**                                                                             |
+| `from > to` devolvia lista vazia                                                         | **400**                                                                                                                                   |
+| resposta `{ cityIbgeCode, holidayOn, id, name }`                                         | acrescenta `kind` e `generatedByRuleId`                                                                                                   |
+| `POST` sem `kind`                                                                        | continua **201**; o feriado novo é `holiday` e o recadastro mantém o tipo da linha                                                        |
+| `POST` numa data gerada por regra: mudava só o nome e deixava `source_rule_id`           | **adoção**: nome, tipo e `source_rule_id = NULL` (a linha vira do operador)                                                               |
+| `DELETE` apagava qualquer linha                                                          | de linha **gerada**: **409** `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE`; de digitada sobre o dia de uma regra: apaga e gera de novo a da regra |
+| sem `PATCH`                                                                              | `PATCH /:id` (`name`, `kind`), 409 na gerada, 404 se não existe                                                                           |
+| nenhuma escrita auditava                                                                 | toda escrita grava `audit_logs` na mesma transação (ator, alvo, IP, antes/depois)                                                         |
+
+Inalterado: `fleet.read` para ler, `settings.manage` para escrever; município em sete dígitos (o CHECK do banco antigo — a
+política recusa a cidade fora do padrão quando for lida); campo desconhecido no corpo continua 400; apagar o que não
+existe continua 204.
+
+### Gates
+
+- `bun run typecheck` → 0; `bun run lint` → 0 (`--max-warnings=0`); `npx prettier --check` (api e testes do worker) →
+  limpo; `bun run build` → ok; `bun run db:generate` → `no_changes`.
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000` e `run test`, a lista do `package.json`) →
+  **10575 pass / 25 skip / 0 fail**, 202 arquivos. Antes (T1.2): **10523 / 25 / 0**. +52 líquido: os novos contratos, menos
+  os quatro testes de feriado que saíram de `contractor.contract.ts` e foram reescritos em `test/business-calendar-rules/`.
+- `db:test` (`DRIZZLE_TEST_DATABASE_URL`) → **153 pass / 0 fail** (igual à T1.2: não há migration nova);
+  `migration-completeness.integration.ts` → 3 pass.
+- Integrações novas, **um arquivo por vez**, banco descartável de cada teste (`transportada_bizcal_*`, criado, migrado e
+  derrubado pela fixture): `business-calendar-rules` 3, `…-rule-conflicts` 3, `…-rule-edit` 3, `…-rule-validation` 2,
+  `municipal-holiday-interplay` 5, `municipal-holiday-generated` 4, `business-calendar-load-rules` 4,
+  `…-load-limits` 2, `…-tenant-safety` 2, `…-tenant-writes` 3, `…-state-and-settings` 6 → **37 pass / 0 fail**.
+  Existentes tocadas de perto, uma por vez: `delivery-charge-end-to-end` 1, `contractor-receiving-profile` 4,
+  `company-settings-repository` 3, `location-retention-settings` 7 → todas verdes. Nenhuma integração antiga lê
+  `municipal_holidays`.
+- **Roteirizador:** `route-optimization-municipal-holiday.integration.test.ts` no banco descartável próprio
+  `t238_t13_worker_it` (criado no Postgres do `.env.test`, migrado com `db:migrate` desta árvore, derrubado ao fim) →
+  **9 pass / 0 fail**: os 7 da T1.2a e o da data materializada **sem alteração**, mais o novo — uma regra "todo ano"
+  **sem** linha gerada para o ano do roteiro **não** fecha o cliente (só a data fixa vale).
+  `git diff 7f739a288 HEAD -- apps/worker-transportada/src apps/api-transportada/drizzle` vazio (nada de roteirizador nem de migration).
+
+### Prova por mutação (cada uma derrubou teste; restaurada com `git checkout`; `git diff --quiet` → 0 depois de cada)
+
+| Mutação                                              | Vermelho                                                                                     |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| M1 `DO UPDATE` no lugar de `DO NOTHING` na geração   | 2 fail — "a data que o operador já digitou vence", "gerar de novo não muda nada, nem os ids" |
+| M2 sem o caso bissexto (29/02 em todo ano)           | 3 fail — as duas da conta pura e "29/02 só gera os anos bissextos" (integração)              |
+| M3 `loadRules` inclui as geradas                     | 3 fail — o contrato de fonte (`isNull(sourceRuleId)`) e duas da leitura                      |
+| M4 `loadRules` sem o filtro de empresa               | 1 fail — "a empresa B não lê regra, feriado, estadual nem configuração"                      |
+| M5 editar apaga a digitada junto (escopo do cascade) | 1 fail — "editar regenera … nem apaga a digitada"                                            |
+| M6 sem `.strict()` no corpo da regra                 | 1 fail — "campo desconhecido é 400"                                                          |
+| M7 sem `parseCivilDate`                              | 4 fail — rotas antigas e estadual (`2026-02-30`, `2027-02-29`, `2026-13-01`)                 |
+| M8 adoção sem zerar `source_rule_id`                 | 2 fail — "adotar … sobrevive à exclusão da regra" e "apagar a digitada gera de novo"         |
+| M9 `DELETE` de gerada aceito                         | 1 fail — "apagar a gerada é 409 e a linha continua lá"                                       |
+| M10 apagar a digitada não regenera a da regra        | 1 fail — "apagar a digitada sobre o dia da regra gera de novo"                               |
+| M11 apagar feriado sem filtro de empresa             | 1 fail — "a empresa B não apaga nenhum deles, nem a gerada"                                  |
+
+⚠️ **"CASCADE apagando linha digitada"** (M5): o `ON DELETE CASCADE` é a FK da T1.2, que só alcança linhas com
+`source_rule_id` (MATCH SIMPLE) e já tem a prova dela em `db:test`. A mutação da T1.3 é o equivalente na aplicação — o
+`DELETE` das geradas antes de regenerar numa edição, que é o outro lugar onde a digitada correria risco.
+⚠️ M4 não é pega pelo contrato de fonte (a janela de 700 caracteres a partir do `.from(` já contém `companyId` da
+consulta vizinha); quem a pega é o teste com dois tenants. O contrato de fonte é rede grossa, não prova.
+
+### Decisões que divergiram do desenho ou o completaram (todas com motivo)
+
+1. **`PATCH /municipal-holidays/:id` muda só `name` e `kind`.** Data e cidade são a identidade da linha (unique) e mexer
+   nelas tornaria o "regenera a da regra" ambíguo; para mudar o dia, apaga-se e cadastra-se.
+2. **Auditoria também nas escritas das rotas antigas** (`POST`/`PATCH`/`DELETE /municipal-holidays`): leio "toda escrita
+   grava `audit_logs`" como global, e o `POST` ganhou efeito colateral (adoção). Efeito: a rota antiga recebe o ator.
+3. **As rotas, o caso de uso e o repositório antigos de feriado saíram de `delivery-clients/`** para `business-calendar/`
+   (arquivo ≤ 200 linhas; `contractor.routes.ts` tinha 300). `createContractorRoutes` perdeu `listHolidays`,
+   `removeHoliday` e `saveHoliday`; os testes de feriado foram para `test/business-calendar-rules/`.
+4. **Regeneração ao apagar a digitada só dentro do horizonte** (ano corrente até `materialized_through_year`). Fora dele a
+   data nunca foi da regra; regenerar mentiria sobre o alcance.
+5. **`PATCH /state-holidays/:id` exige `recurrence`** (a forma da união) e, no `yearly`, `month` e `day` juntos (ou
+   nenhum); forma diferente da gravada → 400 `STATE_HOLIDAY_RECURRENCE_MISMATCH`.
+6. **O mapper usa os tipos reais da T1.1** (`occurrence: { recurrence, … }`), não o formato plano do enunciado.
+7. **Id que não é UUID canônico em `PATCH`/`DELETE` dá 404**, não 400: o roteador (`canonicalUuid`, padrão) nem entrega
+   a rota. Id de **outra empresa** é ausência (null → 404 no `PATCH`, no-op no `DELETE`), nunca 409 — que confirmaria
+   que a linha existe.
+8. **`DrizzleBusinessCalendarRepository` não está ligado ao `main.ts`**: ainda não há consumidor (236/237 o usarão). Está
+   coberto por integração e pelo contrato de fonte.
+9. **`materialize` conta `rulesProcessed` = todas as regras examinadas** (inclusive as que já estavam completas); sem
+   regras não audita.
+10. **Município das rotas antigas segue com sete dígitos**; só as rotas novas exigem UF existente (CA4).
+11. **Sem `rateLimit`** nas rotas novas (escritas de configuração, como `driver-allowance`; só o `impact` da 239 tem teto
+    por ser consulta cara). O `POST …/materializations` é a mais cara (até 11 linhas por regra, lote de 1000): vale um
+    teto se a tela a expuser num botão repetível.
+12. **Sem OpenAPI** (ADR-0096 §6): não existe gerador nesta API e não foi inventado.
+
+### Para a T1.4 e a Fase 2
+
+- A tela avisa quando `materializedThroughYear < ano corrente + 2` e chama `POST …/materializations`.
+- As quatro fábricas de rota entram nas listas exaustivas `separator-role` e `helper-role`; o separador alcança só
+  `GET /municipal-holidays` (já alcançava desde a spec 060; agora está enumerado).
+- O defeito do roteirizador da T1.2a (feriado de uma cidade fecha o cliente de outra no mesmo roteiro) segue de pé e agora
+  alcança até 11 linhas por regra "todo ano".
+
+### O que não rodou
+
+- `test:integration` da API inteiro (~17 min): rodei as 11 novas, as quatro vizinhas e `migration-completeness`.
+- `make check` completo, frontend e `make migration-test` (não há migration; `db:test` rodou, 153 pass).
+- Push, deploy, qualquer banco de produção.

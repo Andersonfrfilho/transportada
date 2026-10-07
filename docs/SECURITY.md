@@ -58,6 +58,36 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
+
+**Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,
+`/company-settings/business-calendar`, e as antigas `/municipal-holidays`); ADR-0096 §6.
+
+**Quem alcança:** toda rota nova é `settings.manage`, para ler e para escrever — só o papel `company-admin` (medido em `COMPANY_ROLE_PERMISSIONS`); o
+separador, o operador e o motorista não. `GET /municipal-holidays` segue `fleet.read` (desde a spec 060; o separador o alcança,
+agora enumerado em `test/separator-role.contract.test.ts`), e as escritas dela são `settings.manage`. A empresa vem só do
+contexto autenticado; `.strict()` recusa `companyId`, `sourceRuleId`, `materializedThroughYear` e qualquer campo a mais;
+id de outra empresa é ausência (no-op ou 404), nunca 409, para não confirmar que a linha existe. Provado com dois tenants
+em `test/integration/business-calendar-tenant-*.integration.ts`.
+
+**Auditoria:** toda escrita grava `audit_logs` **na mesma transação** (rollback desfaz as duas), com ator, alvo, IP por
+`resolveClientIp` (o do salto conhecido, não o `x-forwarded-for` do cliente), correlation id e antes/depois. Ações:
+`municipal-holiday-rule.{created,updated,deleted,materialized}`, `municipal-holiday.{saved,updated,deleted}`,
+`state-holiday.{created,updated,deleted}`, `company-business-calendar-settings.saved`. Feriado e regra são cadastro da
+empresa, sem dado pessoal; o nome (até 120 caracteres) é texto livre do operador e entra no antes/depois.
+
+**O que continua aberto:**
+
+- **Sem `rateLimit`** (escrita de configuração, como as vizinhas). `POST /municipal-holiday-rules/materializations` é a
+  mais cara — insere até 11 linhas por regra da empresa, em lotes de 1000, sob o lock da empresa. Se a tela a expuser
+  num botão repetível, vale um teto no Postgres.
+- **Um cadastro errado afeta o prazo e o roteiro**: um feriado digitado numa cidade fecha o cliente dali no roteirizador
+  (a data fixa) e muda a conta de dias úteis. O controle é a permissão e a trilha acima, não validação de conteúdo.
+- O feriado municipal das rotas antigas segue aceitando sete dígitos de qualquer UF (o CHECK do banco antigo); só as
+  rotas novas exigem município de UF existente.
+
+**Origem:** spec 238 T1.3. Registrado em 2026-10-07.
+
 ### 2026-09-25 — a ocorrência tem duas conversas: anexo por URL assinada, remetente pelo DKIM, portal por referência opaca (spec 183)
 
 **Onde:**

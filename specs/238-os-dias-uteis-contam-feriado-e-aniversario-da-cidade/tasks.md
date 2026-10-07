@@ -15,7 +15,7 @@
       o CHECK de `kind`, a FK composta com `ON DELETE CASCADE` e o índice parcial; `rollback.sql` (as datas
       materializadas ficam); `make migration-test`; `db:generate` = `no_changes`; integração do roteirizador
       continua verde, com o caso novo da data materializada. Lista linha a linha em `evidence.md` § T1.2.
-- [ ] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4): regra "todo ano" gera as
+- [x] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4): regra "todo ano" gera as
       datas de 10 anos na escrita (29/02 só nos bissextos; colisão com data digitada é ignorada), ação idempotente
       "gerar próximos anos", feriado estadual e configuração de sábado; a leitura da política usa as regras como
       `yearly` e só as datas **sem** `source_rule_id` como `once`; integração contra Postgres incluindo que o solver

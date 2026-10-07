@@ -64,6 +64,12 @@ Dado do calendário (T1.2, ADR-0096 §5): `municipal_holiday_rules` (regra "todo
 `company_business_calendar_settings`; `municipal_holidays` só com datas fixas e `kind`/`source_rule_id`. UFs e vocabulário
 em `src/shared/business-calendar.constant.ts` (o schema não importa de domínio). CHECK aceita NULL: exija `is not null`
 à parte. Detalhe: docs/ai-context § "Spec 238 T1.2".
+Escrita e rotas (T1.3, ADR-0096 §6): regra "todo ano" gera as datas fixas de 10 anos (`DO NOTHING`; 29/02 só nos
+bissextos; sem rotina, `POST /municipal-holiday-rules/materializations` completa o horizonte); a digitada vence e a gerada só
+se mexe pela regra (409). `loadRules` lê as digitadas (`source_rule_id IS NULL`), nunca as geradas. Rotas
+`/municipal-holiday-rules`, `/state-holidays`, `/company-settings/business-calendar` e as antigas `/municipal-holidays`
+(`settings.manage` para escrever; auditoria na mesma transação, lock por empresa). Sem OpenAPI nesta API. Detalhe:
+docs/ai-context § "Spec 238 T1.3".
 
 ## Banco
 
