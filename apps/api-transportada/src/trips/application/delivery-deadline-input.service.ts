@@ -6,11 +6,9 @@
  * trocariam o dia de quem chega ou entrega à noite.
  */
 import { toCivilDate } from '../../business-calendar/application/civil-date.service.js'
+import { BUSINESS_CALENDAR_TIME_ZONE } from '../../business-calendar/domain/business-calendar.constant.js'
 import type { BusinessCalendar } from '../../business-calendar/domain/business-calendar.types.js'
-import {
-  DELIVERY_DEADLINE_TIME_ZONE,
-  DELIVERY_OUTCOME_KIND,
-} from '../domain/delivery-deadline.constant.js'
+import { DELIVERY_OUTCOME_KIND } from '../domain/delivery-deadline.constant.js'
 import { resolveDeliveryDeadline } from '../domain/delivery-deadline.policy.js'
 import type {
   DeliveryOutcome,
@@ -36,7 +34,7 @@ export type ResolveDeliveryDeadlineFromInstantsParams = {
 }
 
 function toBusinessDay(instant: Date): string {
-  return toCivilDate({ instant, timeZone: DELIVERY_DEADLINE_TIME_ZONE })
+  return toCivilDate({ instant, timeZone: BUSINESS_CALENDAR_TIME_ZONE })
 }
 
 function toDeliveryOutcome(outcome: DeliveryInstantOutcome): DeliveryOutcome {

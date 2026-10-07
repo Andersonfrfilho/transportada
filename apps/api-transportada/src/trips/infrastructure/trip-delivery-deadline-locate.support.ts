@@ -5,12 +5,12 @@
  * do destino físico com o desvio manual por cima (que a política de destino físico não conhece).
  */
 import { toCivilDate } from '../../business-calendar/application/civil-date.service.js'
-import { CITY_IBGE_CODE_PATTERN } from '../../business-calendar/domain/business-calendar.constant.js'
-import type { DeliveryInstantOutcome } from '../application/delivery-deadline-input.service.js'
 import {
-  DELIVERY_DEADLINE_TIME_ZONE,
-  DELIVERY_OUTCOME_KIND,
-} from '../domain/delivery-deadline.constant.js'
+  BUSINESS_CALENDAR_TIME_ZONE,
+  CITY_IBGE_CODE_PATTERN,
+} from '../../business-calendar/domain/business-calendar.constant.js'
+import type { DeliveryInstantOutcome } from '../application/delivery-deadline-input.service.js'
+import { DELIVERY_OUTCOME_KIND } from '../domain/delivery-deadline.constant.js'
 import type {
   DeadlineCandidate,
   DeliveryDeadlineNote,
@@ -23,7 +23,7 @@ export function isCandidate(note: DeliveryDeadlineNote): note is DeadlineCandida
 }
 
 export function civilYearOf(instant: Date): number {
-  return Number(toCivilDate({ instant, timeZone: DELIVERY_DEADLINE_TIME_ZONE }).slice(0, 4))
+  return Number(toCivilDate({ instant, timeZone: BUSINESS_CALENDAR_TIME_ZONE }).slice(0, 4))
 }
 
 function toValidCity(code: string | null | undefined): string | null {
@@ -48,12 +48,13 @@ export function locateCandidates(params: LocateParams): readonly LocatedCandidat
     const cityIbgeCode = toValidCity(rawCity)
     if (cityIbgeCode === null) return []
 
-    const deliveredAt = params.deliveredMoments.get(note.tripDocumentId) ?? note.documentDeliveredAt
-    return [{ cityIbgeCode, deliveredAt, note }]
+    return [
+      { cityIbgeCode, deliveredAt: params.deliveredMoments.get(note.tripDocumentId) ?? null, note },
+    ]
   })
 }
 
-/** Entregue sem momento algum não tem como ser medida: `undefined`, e a nota fica sem prazo. */
+/** Só o evento mede a entrega (234), nunca a hora que o servidor gravou na nota: sem ele, `undefined`. */
 export function toInstantOutcome(located: LocatedCandidate): DeliveryInstantOutcome | undefined {
   const { deliveredAt, note } = located
   if (note.outcomeKind !== DELIVERY_OUTCOME_KIND.DELIVERED) return { kind: note.outcomeKind }

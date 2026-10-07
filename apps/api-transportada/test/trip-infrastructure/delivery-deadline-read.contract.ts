@@ -31,7 +31,6 @@ function note(overrides: Partial<DeliveryDeadlineNote> = {}): DeliveryDeadlineNo
   return {
     arrivedAt: new Date('2026-10-13T15:00:00.000Z'),
     deadlineBusinessDays: 3,
-    documentDeliveredAt: null,
     nfeDocumentId: 'nfe-1',
     outcomeKind: 'pending',
     tripDocumentId: 'doc-1',
@@ -188,20 +187,10 @@ describe('spec 236 T1.2c — a leitura do prazo de entrega, sem banco', () => {
     })
   })
 
-  test('entregue sem evento não é medida, nem pela hora que o servidor gravou na nota', async () => {
+  test('entregue sem evento não é medida (a nota não carrega a hora do servidor)', async () => {
     const { executor } = createRecordingSelectExecutor()
 
-    const result = await read(
-      executor,
-      buildInput({
-        notes: [
-          note({
-            documentDeliveredAt: new Date('2026-10-14T15:00:00.000Z'),
-            outcomeKind: 'delivered',
-          }),
-        ],
-      }),
-    )
+    const result = await read(executor, buildInput({ notes: [note({ outcomeKind: 'delivered' })] }))
 
     expect(result.size).toBe(0)
   })
@@ -275,6 +264,37 @@ describe('spec 236 T1.2c — a leitura do prazo de entrega, sem banco', () => {
       tripDocumentIds: ['doc-1'],
       tripId: TRIP_ID,
     })
+  })
+
+  test('o aviso é um por viagem e código a cada cinco minutos, não um por leitura', async () => {
+    const warnings: Warning[] = []
+    const corrupt = new Map([
+      [
+        stateHolidays,
+        [{ day: 1, month: 1, name: 'Dado ruim', recurrence: 'yearly', stateIbgeCode: '99' }],
+      ],
+    ])
+    const { executor } = createRecordingSelectExecutor({ rowsByTable: corrupt })
+    const tripId = '0e0c0c10-0000-4000-8000-0000000000bb'
+    const otherTripId = '0e0c0c10-0000-4000-8000-0000000000cc'
+    const readAt = (instant: Date, id: string) => {
+      const input = buildInput({ tripId: id }, warnings)
+      return read(executor, {
+        ...input,
+        context: { ...input.context, clock: { now: () => instant } },
+      })
+    }
+
+    await readAt(NOW, tripId)
+    await readAt(new Date(NOW.getTime() + 30_000), tripId)
+    await readAt(new Date(NOW.getTime() + 299_000), tripId)
+    expect(warnings).toHaveLength(1)
+
+    await readAt(NOW, otherTripId)
+    expect(warnings).toHaveLength(2)
+
+    await readAt(new Date(NOW.getTime() + 301_000), tripId)
+    expect(warnings).toHaveLength(3)
   })
 
   test('a falha do banco propaga: a leitura da viagem cai como as outras', async () => {

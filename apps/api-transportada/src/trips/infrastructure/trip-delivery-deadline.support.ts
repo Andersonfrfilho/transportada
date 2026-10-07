@@ -10,7 +10,10 @@ import { BusinessCalendarError } from '../../business-calendar/domain/business-c
 import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import { resolveDeliveryDeadlineFromInstants } from '../application/delivery-deadline-input.service.js'
 import { resolveDeadlineCoverage } from '../domain/delivery-deadline-coverage.policy.js'
-import { DELIVERY_DEADLINE_STATE } from '../domain/delivery-deadline.constant.js'
+import {
+  DELIVERY_DEADLINE_STATE,
+  DELIVERY_OUTCOME_KIND,
+} from '../domain/delivery-deadline.constant.js'
 import type { DeliveryDeadlineView } from '../domain/delivery-deadline.types.js'
 import { loadCityCalendars, type CityCalendar } from './trip-delivery-deadline-calendar.support.js'
 import {
@@ -23,10 +26,11 @@ import {
   loadDeliveredMoments,
   loadDeliveryAddressOverrideCities,
 } from './trip-delivery-deadline.query.js'
-import {
-  TRIP_DELIVERY_DEADLINE_UNAVAILABLE_MESSAGE,
-  type LocatedCandidate,
-  type ReadTripDeliveryDeadlinesParams,
+import { TRIP_DELIVERY_DEADLINE_UNAVAILABLE_MESSAGE } from './trip-delivery-deadline.constant.js'
+import { shouldWarnRefusal } from './trip-delivery-deadline-warn-throttle.support.js'
+import type {
+  LocatedCandidate,
+  ReadTripDeliveryDeadlinesParams,
 } from './trip-delivery-deadline.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -46,9 +50,10 @@ function recordRefusal(refusals: Refusals, input: { code: string; tripDocumentId
 
 /** Só ids e o código da recusa: nada de dado da nota nem do destinatário no log. */
 function warnRefusals(params: ReadTripDeliveryDeadlinesParams, refusals: Refusals): void {
-  const { logger } = params.context
+  const { clock, logger } = params.context
   if (logger === undefined) return
   for (const [code, tripDocumentIds] of refusals) {
+    if (!shouldWarnRefusal({ code, now: clock.now(), tripId: params.tripId })) continue
     safeLogWarn({
       logger,
       message: TRIP_DELIVERY_DEADLINE_UNAVAILABLE_MESSAGE,
@@ -66,7 +71,7 @@ async function locateNotes(
 
   const ids = {
     companyId: params.companyId,
-    tripDocumentIds: candidates.map((n) => n.tripDocumentId),
+    tripDocumentIds: candidates.map((candidate) => candidate.tripDocumentId),
   }
   const overrides = await loadDeliveryAddressOverrideCities(queryable, ids)
   const deliveredMoments = await loadDeliveredMoments(queryable, ids)
@@ -113,12 +118,15 @@ function resolveEntry(input: ResolveEntryParams): DeliveryDeadlineView | undefin
 }
 
 function resolveCoverage(located: readonly LocatedCandidate[], now: Date) {
+  const hasPendingNote = located.some(
+    (entry) => entry.note.outcomeKind === DELIVERY_OUTCOME_KIND.PENDING,
+  )
   return resolveDeadlineCoverage({
     arrivalYears: located.map(({ note }) => civilYearOf(note.arrivedAt)),
     deliveryYears: located.flatMap((entry) =>
       entry.deliveredAt === null ? [] : [civilYearOf(entry.deliveredAt)],
     ),
-    todayYear: civilYearOf(now),
+    todayYear: hasPendingNote ? civilYearOf(now) : null,
   })
 }
 

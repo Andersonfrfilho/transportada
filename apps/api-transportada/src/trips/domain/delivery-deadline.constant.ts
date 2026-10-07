@@ -29,6 +29,3 @@ export const DELIVERY_DEADLINE_NOT_APPLICABLE_REASON = {
   RETURNED: 'returned',
   RETURNED_TO_CONTRACTOR: 'returned_to_contractor',
 } as const
-
-/** Fuso fixo de São Paulo (ADR-0096 Q3): o dia civil da chegada, da entrega e do "hoje" é o de lá. */
-export const DELIVERY_DEADLINE_TIME_ZONE = 'America/Sao_Paulo'

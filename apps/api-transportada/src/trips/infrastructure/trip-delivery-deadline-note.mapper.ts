@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
+import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 import type { CargoArrivalReturnState } from '../../shared/cargo-arrival.constant.js'
 import { resolveDeliveryOutcomeKind } from '../domain/delivery-deadline-outcome.policy.js'
 import type { DeliveryDeadlineNote } from './trip-delivery-deadline.types.js'
@@ -14,11 +15,10 @@ export type DeliveryDeadlineNoteRow = {
   readonly arrivalReturnToContractor: CargoArrivalReturnState | null
   readonly arrivedAt: Date | null
   readonly document: {
-    readonly deliveredAt: Date | null
     readonly id: string
     readonly nfeDocumentId: string | null
     readonly releasedAt: Date | null
-    readonly separationStatus: string
+    readonly separationStatus: TripDocumentSeparationStatus
   }
   readonly nfeDocumentStatus: NfeDocumentStatus | null
 }
@@ -27,7 +27,6 @@ export function toDeliveryDeadlineNote(row: DeliveryDeadlineNoteRow): DeliveryDe
   return {
     arrivedAt: row.arrivedAt,
     deadlineBusinessDays: row.arrivalDeadlineBusinessDays,
-    documentDeliveredAt: row.document.deliveredAt,
     nfeDocumentId: row.document.nfeDocumentId,
     outcomeKind: resolveDeliveryOutcomeKind({
       isNfeCancelled: row.nfeDocumentStatus === NFE_STATUS_CANCELLED,

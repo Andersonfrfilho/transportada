@@ -8,9 +8,8 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { deliveryAddressOverrides, tripStopEvents } from '../../database/trip.schema.js'
+import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import type { TripQueryable } from './trip-queryable.type.js'
-
-const DELIVERED_EVENT_KIND = 'delivered'
 
 type TripDocumentIdsParams = {
   readonly companyId: string

@@ -4,8 +4,6 @@
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DeliveryOutcomeKind } from '../domain/delivery-deadline-outcome.policy.js'
 
-export const TRIP_DELIVERY_DEADLINE_UNAVAILABLE_MESSAGE = 'trip_delivery_deadline_unavailable'
-
 export type DeliveryDeadlineClock = { now(): Date }
 
 export type DeliveryDeadlineReadContext = {
@@ -17,8 +15,6 @@ export type DeliveryDeadlineNote = {
   readonly arrivedAt: Date | null
   /** A cópia gravada na chegada, nunca o perfil atual do contratante. */
   readonly deadlineBusinessDays: number | null
-  /** `trip_documents.delivered_at`: só quando a nota está entregue e nenhum evento a mede. */
-  readonly documentDeliveredAt: Date | null
   readonly nfeDocumentId: string | null
   readonly outcomeKind: DeliveryOutcomeKind
   readonly tripDocumentId: string
