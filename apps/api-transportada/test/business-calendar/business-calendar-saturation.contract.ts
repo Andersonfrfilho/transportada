@@ -53,16 +53,16 @@ describe('spec 238 — calendário em que todo dia é feriado', () => {
   })
 
   test('procurar o dia 0 termina no fim da cobertura, com erro', () => {
-    expectCalendarError(
-      () => addBusinessDays({ calendar, days: 0, start: '2026-01-01' }),
-      BUSINESS_CALENDAR_ERROR_CODE.OUT_OF_COVERAGE,
-    )
+    expectCalendarError({
+      action: () => addBusinessDays({ calendar, days: 0, start: '2026-01-01' }),
+      code: BUSINESS_CALENDAR_ERROR_CODE.OUT_OF_COVERAGE,
+    })
   })
 
   test('somar o teto de dias termina no fim da cobertura, com erro', () => {
-    expectCalendarError(
-      () => addBusinessDays({ calendar, days: 366, start: '2026-03-10' }),
-      BUSINESS_CALENDAR_ERROR_CODE.OUT_OF_COVERAGE,
-    )
+    expectCalendarError({
+      action: () => addBusinessDays({ calendar, days: 366, start: '2026-03-10' }),
+      code: BUSINESS_CALENDAR_ERROR_CODE.OUT_OF_COVERAGE,
+    })
   })
 })
