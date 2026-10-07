@@ -11,7 +11,7 @@ export const CARGO_PREVIEW_ITEM_STATES = [
 ] as const
 export const CARGO_PREVIEW_DECIDERS = ['system', 'user'] as const
 export const CARGO_PREVIEW_LOAD_ORIGINS = ['totals', 'user', 'votes'] as const
-export const CARGO_PREVIEW_SOURCES = ['upload'] as const
+export const CARGO_PREVIEW_SOURCES = ['email', 'upload'] as const
 
 /** A prévia ainda está na fila ou sendo lida: a tela repete a leitura até ela assentar. */
 export const CARGO_PREVIEW_PENDING_STATUSES = ['queued', 'processing'] as const

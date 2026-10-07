@@ -50,11 +50,11 @@ const UPLOAD = buildPreviewSummary({ id: PREVIEW_ID, source: 'upload' })
 
 describe('a lista de origens da prévia (spec 237 T4.7b)', () => {
   test('o painel conhece exatamente as origens que a API grava', () => {
-    expect([...CARGO_PREVIEW_SOURCES].sort()).toEqual([...apiSources()].sort())
+    expect([...CARGO_PREVIEW_SOURCES].map(String).sort()).toEqual([...apiSources()].sort())
   })
 
   test('as duas origens estão na lista, e nenhuma outra', () => {
-    expect([...CARGO_PREVIEW_SOURCES].sort()).toEqual(['email', 'upload'])
+    expect([...CARGO_PREVIEW_SOURCES].map(String).sort()).toEqual(['email', 'upload'])
   })
 })
 
@@ -82,7 +82,9 @@ describe('a resposta com origem por e-mail (spec 237 T4.7b)', () => {
 
   test('origem desconhecida continua recusada, nas duas respostas', () => {
     expect(
-      isInvalid(() => toPreviewPage({ data: [{ ...UPLOAD, source: 'webhook' }], nextCursor: null })),
+      isInvalid(() =>
+        toPreviewPage({ data: [{ ...UPLOAD, source: 'webhook' }], nextCursor: null }),
+      ),
     ).toBe(true)
     expect(
       isInvalid(() => toPreviewDetail({ data: { ...buildPreviewDetail(), source: 'webhook' } })),
@@ -120,7 +122,10 @@ describe('o cliente HTTP lê a origem por e-mail (spec 237 T4.7b)', () => {
   test('o detalhe da prévia por e-mail chega', async () => {
     const client = clientAnswering({ data: buildPreviewDetail({ source: 'email' }) })
 
-    const detail = await client.getPreview({ filters: { afterRow: null }, previewId: PREVIEW_SECOND_ID })
+    const detail = await client.getPreview({
+      filters: { afterRow: null },
+      previewId: PREVIEW_SECOND_ID,
+    })
 
     expect(detail.source).toBe('email')
   })

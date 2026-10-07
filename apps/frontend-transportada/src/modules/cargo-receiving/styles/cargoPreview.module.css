@@ -95,6 +95,11 @@
 }
 
 /* Colunas fixas: as linhas de prévias diferentes alinham entre si, e a tabela rola no próprio quadro. */
+.sourceLine {
+  display: block;
+  margin-top: var(--space-1);
+}
+
 .previewTable {
   --stacked-min-width: 56rem;
   table-layout: fixed;

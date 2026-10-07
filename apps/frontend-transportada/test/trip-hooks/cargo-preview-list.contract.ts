@@ -68,7 +68,7 @@ const rowTexts = () =>
   [...document.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '')
 const rowFiles = () =>
   [...document.querySelectorAll('tbody tr')].map(
-    (row) => row.querySelectorAll('td')[1]?.textContent?.trim() ?? '',
+    (row) => row.querySelectorAll('td')[1]?.firstChild?.textContent?.trim() ?? '',
   )
 const parameters = () => new URLSearchParams(window.location.search)
 

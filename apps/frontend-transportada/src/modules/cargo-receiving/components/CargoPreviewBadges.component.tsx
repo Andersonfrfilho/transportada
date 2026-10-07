@@ -2,7 +2,11 @@
 import type { JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CargoPreviewItemState, CargoPreviewStatus } from '../shared/cargoPreview.types'
+import type {
+  CargoPreviewItemState,
+  CargoPreviewSource,
+  CargoPreviewStatus,
+} from '../shared/cargoPreview.types'
 import styles from '../styles/cargoReceiving.module.css'
 
 type BadgeTone = 'alert' | 'neutral' | 'ready' | 'warn'
@@ -45,6 +49,18 @@ export function CargoPreviewStatusBadge({
   return (
     <span className={joinClasses(styles.badge, TONE_CLASS[tone])} data-tone={tone}>
       {t(`preview.status.${status}`)}
+    </span>
+  )
+}
+
+/** Neutro de propósito: a origem informa, não alerta — e a prévia por e-mail não tem autor para citar. */
+export function CargoPreviewSourceBadge({
+  source,
+}: Readonly<{ source: CargoPreviewSource }>): JSX.Element {
+  const { t } = useTranslation('cargoReceiving')
+  return (
+    <span className={styles.badge} data-preview-source={source} data-tone="neutral">
+      {t(`preview.source.${source}`)}
     </span>
   )
 }

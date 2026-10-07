@@ -269,6 +269,10 @@
       "arrivals": "Arrivals",
       "previews": "Previews"
     },
+    "source": {
+      "email": "Sent by email",
+      "upload": "Sent in the panel"
+    },
     "status": {
       "queued": "Queued",
       "processing": "Reading",

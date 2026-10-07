@@ -269,6 +269,10 @@
       "arrivals": "Chegadas",
       "previews": "Prévias"
     },
+    "source": {
+      "email": "Enviada por e-mail",
+      "upload": "Enviada no painel"
+    },
     "status": {
       "queued": "Na fila",
       "processing": "Lendo",

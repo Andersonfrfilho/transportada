@@ -11,7 +11,7 @@ import type { CargoPreviewSummary } from '../shared/cargoPreview.types'
 import { formatOptionalText, formatPlannedDate } from '../shared/cargoPreviewFormat.service'
 import previewStyles from '../styles/cargoPreview.module.css'
 import tableStyles from '../styles/cargoTable.module.css'
-import { CargoPreviewStatusBadge } from './CargoPreviewBadges.component'
+import { CargoPreviewSourceBadge, CargoPreviewStatusBadge } from './CargoPreviewBadges.component'
 
 type CargoPreviewRowProps = Readonly<{
   onOpen: (previewId: string) => void
@@ -39,6 +39,9 @@ export function CargoPreviewRow({ onOpen, preview }: CargoPreviewRowProps): JSX.
       <td data-label={t('preview.table.contractor')}>{contractorName}</td>
       <td data-label={t('preview.table.fileName')} className={previewStyles.fileName}>
         {preview.fileName}
+        <span className={previewStyles.sourceLine}>
+          <CargoPreviewSourceBadge source={preview.source} />
+        </span>
       </td>
       <td data-label={t('preview.table.receivedAt')}>{formatMoment(preview.receivedAt)}</td>
       <td data-label={t('preview.table.plannedDate')}>

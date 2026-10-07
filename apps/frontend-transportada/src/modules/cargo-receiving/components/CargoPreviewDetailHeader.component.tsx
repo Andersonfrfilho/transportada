@@ -14,7 +14,11 @@ import detailStyles from '../styles/cargoDetail.module.css'
 import previewDetailStyles from '../styles/cargoPreviewDetail.module.css'
 import previewStyles from '../styles/cargoPreview.module.css'
 import styles from '../styles/cargoReceiving.module.css'
-import { CargoPreviewItemStateBadge, CargoPreviewStatusBadge } from './CargoPreviewBadges.component'
+import {
+  CargoPreviewItemStateBadge,
+  CargoPreviewSourceBadge,
+  CargoPreviewStatusBadge,
+} from './CargoPreviewBadges.component'
 
 type CargoPreviewDetailHeaderProps = Readonly<{ header: CargoPreviewDetail }>
 
@@ -41,6 +45,9 @@ export function CargoPreviewDetailHeader({ header }: CargoPreviewDetailHeaderPro
       <ul className={detailStyles.facts}>
         <li className={previewStyles.fileName}>
           {t('preview.facts.file', { name: header.fileName })}
+        </li>
+        <li>
+          <CargoPreviewSourceBadge source={header.source} />
         </li>
         <li>{t('preview.facts.receivedAt', { date: formatMoment(header.receivedAt) })}</li>
         <li>
