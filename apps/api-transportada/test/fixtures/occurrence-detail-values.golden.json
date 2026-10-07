@@ -14,5 +14,13 @@
       "unitValue": "57.2000"
     }
   ],
-  "referenceNumber": "NFD 45029"
+  "referenceNumber": "NFD 45029",
+  "requirements": {
+    "declaredAmountLabel": "Valor pago",
+    "declaredAmountMode": "optional",
+    "declaredAmountScope": "item",
+    "itemsMode": "optional",
+    "referenceNumberLabel": "Número do documento do cliente",
+    "referenceNumberMode": "optional"
+  }
 }

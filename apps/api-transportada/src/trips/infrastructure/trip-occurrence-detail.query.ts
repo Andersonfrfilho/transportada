@@ -22,6 +22,7 @@ import type {
 } from '../application/read-trip-occurrence-detail.use-case.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
 import { listOccurrenceCorrectionsByIds } from './occurrence-correction-read.query.js'
+import { findOccurrenceDetailRequirements } from './trip-occurrence-detail-requirements.query.js'
 import { findRecordedValues } from './trip-occurrence-detail-values.query.js'
 import { resolveOccurrenceItems } from './occurrence-items.support.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
@@ -128,7 +129,7 @@ export async function findTripOccurrenceDetail(
 ): Promise<TripOccurrenceDetail | null> {
   const item = await findTripOccurrenceFeedItem(queryable, input)
   if (item === null) return null
-  const [driver, items, corrections, recorded] = await Promise.all([
+  const [driver, items, corrections, recorded, requirements] = await Promise.all([
     findTripDriver(queryable, { companyId: input.companyId, tripId: item.tripId }),
     findOccurrenceItems(queryable, { companyId: input.companyId, item }),
     item.source === 'document'
@@ -138,6 +139,14 @@ export async function findTripOccurrenceDetail(
         })
       : Promise.resolve(new Map<string, OccurrenceCorrectionEntry[]>()),
     findRecordedValues(queryable, { companyId: input.companyId, item }),
+    findOccurrenceDetailRequirements(queryable, { companyId: input.companyId, item }),
   ])
-  return { ...item, ...recorded, corrections: corrections.get(item.id) ?? [], driver, items }
+  return {
+    ...item,
+    ...recorded,
+    corrections: corrections.get(item.id) ?? [],
+    driver,
+    items,
+    requirements,
+  }
 }

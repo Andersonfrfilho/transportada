@@ -5,6 +5,7 @@
  * parada, com a tratativa da spec 164 em `case`), mais o bloco do motorista da viagem. **Leitura
  * pura**: nada aqui decide nem muda a tratativa (spec 183 D4).
  */
+import type { TripOccurrenceDetailRequirements } from '../domain/occurrence-detail-requirements.policy.js'
 import { TripOccurrenceNotFoundError } from '../domain/trip.error.js'
 import type { OccurrenceCorrectionEntry } from './occurrence-correction.port.js'
 import type { TripOccurrenceFeedItem } from './trip-occurrence-feed.use-case.js'
@@ -62,6 +63,11 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   readonly itemValues: readonly TripOccurrenceDetailItemValues[]
   /** Spec 247 (T7.2 R2): o número do documento do cliente; `null` quando não foi registrado. */
   readonly referenceNumber: null | string
+  /**
+   * Spec 247 (T7.2b N2): o requisito EFETIVO do tipo para esta ocorrência (exceções do contratante e do
+   * destinatário da nota já aplicadas); `null` na ocorrência de parada e no tipo que não existe mais.
+   */
+  readonly requirements: null | TripOccurrenceDetailRequirements
 }
 
 export type TripOccurrenceDetailReaderPort = {
