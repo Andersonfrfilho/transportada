@@ -403,7 +403,8 @@
         "all": "Todos os itens da nota",
         "atLeast": "Ao menos N itens",
         "count": "Quantidade mínima de produtos",
-        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total: o app do motorista só libera o registro com todos os produtos marcados. Ao menos N libera com N produtos marcados."
+        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total: o app do motorista só libera o registro com todos os produtos marcados. Ao menos N libera com N produtos marcados.",
+        "allItemsHint": "Sem mínimo, o motorista marca todos os produtos da nota. Defina \"Ao menos N\" para aceitar devolução parcial."
       }
     },
     "summary": {

@@ -12,6 +12,7 @@ import {
   type OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
 import { OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX } from '@/modules/trip/shared/occurrenceRequirement.constant'
+import { shouldHintAllItemsRule } from '@/modules/trip/shared/occurrenceItemsMinimumHint.service'
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceTypeRequirement.module.css'
 
@@ -122,6 +123,11 @@ export function OccurrenceTypeMinimums({
           <span className={styles.legend}>
             {t('occurrenceTypeCatalog.requirements.itemsMinimum.hint')}
           </span>
+          {shouldHintAllItemsRule(type) ? (
+            <span className={styles.legend}>
+              {t('occurrenceTypeCatalog.requirements.itemsMinimum.allItemsHint')}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </>
