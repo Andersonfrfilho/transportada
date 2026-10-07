@@ -19,6 +19,10 @@ import {
 
 const TABLE = 'contractor_receiving_profiles'
 
+/** Spec 237 T4.6: 1..20 entradas, até 5100 caracteres juntas, sem controle, espaço, vírgula nem `<>`. */
+const PREVIEW_ALLOWLIST_CHECK = (column: string): string =>
+  `cardinality("${column}") between 1 and 20 and char_length(array_to_string("${column}", '|')) <= 5100 and array_to_string("${column}", '|') !~ '[[:cntrl:][:space:],<>]'`
+
 describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
   test('alcança o contratante pela empresa, nunca pelo id sozinho', () => {
     expect(foreignKeys(contractorReceivingProfiles)).toContainEqual({
@@ -72,6 +76,10 @@ describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
       delivery_deadline_business_days: 'smallint',
       match_window_days: 'smallint',
       preview_column_map: 'jsonb',
+      /** O helper não distingue o array (`text[]` na migration, coberta em `db:test`). */
+      preview_forwarder_allowlist: 'text',
+      preview_inbound_token_hash: 'char(64)',
+      preview_sender_allowlist: 'text',
       preview_sheet_name: 'text',
       separation_window_hours: 'smallint',
       weight_tolerance_percent: 'numeric(5, 2)',
@@ -88,8 +96,18 @@ describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
         '"delivery_deadline_business_days" between 1 and 60',
       [`${TABLE}_match_window_days_check`]: '"match_window_days" between 1 and 60',
       [`${TABLE}_preview_column_map_check`]: 'jsonb_typeof("preview_column_map") = \'object\'',
+      [`${TABLE}_preview_forwarder_allowlist_check`]: PREVIEW_ALLOWLIST_CHECK(
+        'preview_forwarder_allowlist',
+      ),
+      [`${TABLE}_preview_inbound_allowlists_check`]:
+        '"preview_inbound_token_hash" is null or ("preview_forwarder_allowlist" is not null and "preview_sender_allowlist" is not null)',
+      [`${TABLE}_preview_inbound_token_hash_check`]:
+        '"preview_inbound_token_hash" ~ \'^[0-9a-f]{64}$\'',
       [`${TABLE}_preview_requires_column_map_check`]:
         'not "preview_enabled" or "preview_column_map" is not null',
+      [`${TABLE}_preview_sender_allowlist_check`]: PREVIEW_ALLOWLIST_CHECK(
+        'preview_sender_allowlist',
+      ),
       [`${TABLE}_preview_sheet_name_check`]: 'char_length("preview_sheet_name") between 1 and 31',
       [`${TABLE}_separation_window_hours_check`]: '"separation_window_hours" between 1 and 168',
       [`${TABLE}_weight_tolerance_percent_check`]: '"weight_tolerance_percent" between 0 and 100',

@@ -86,7 +86,10 @@ describe('a prévia (spec 237 T4.2)', () => {
     expect(checks.cargo_previews_status_check).toBe(
       `"status" in ('failed', 'processing', 'queued', 'ready')`,
     )
-    expect(checks.cargo_previews_source_check).toBe(`"source" in ('upload')`)
+    expect(checks.cargo_previews_source_check).toBe(`"source" in ('email', 'upload')`)
+    expect(checks.cargo_previews_uploader_check).toBe(
+      `("source" = 'upload') = ("uploaded_by_user_id" is not null)`,
+    )
     expect(checks.cargo_previews_failure_shape_check).toBe(
       `("status" = 'failed') = ("error_code" is not null)`,
     )
@@ -107,7 +110,7 @@ describe('a prévia (spec 237 T4.2)', () => {
     )
   })
 
-  test('o recebimento é obrigatório; a leitura preenche data, contagem e aba', () => {
+  test('o recebimento é obrigatório; só a prévia por e-mail dispensa quem enviou (T4.6)', () => {
     expect([...requiredColumnNames(cargoPreviews)].sort()).toEqual(
       [
         'company_id',
@@ -124,7 +127,6 @@ describe('a prévia (spec 237 T4.2)', () => {
         'source',
         'status',
         'updated_at',
-        'uploaded_by_user_id',
       ].sort(),
     )
   })

@@ -150,7 +150,7 @@ function buildDependenciesStub(overrides?: {
       },
     },
     previewIntake: NOT_A_PREVIEW_INTAKE,
-      storageBucket: 'transportada-private',
+    storageBucket: 'transportada-private',
     storageProvider: 'minio',
   }
 }
