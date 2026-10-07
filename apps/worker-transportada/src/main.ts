@@ -941,6 +941,7 @@ export async function startWorkerRuntime(
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
           }),
         }),
+        logger,
         writeBack: nfseIssuanceWriteBack,
       }),
       logger,
