@@ -2,7 +2,7 @@
 
 Este roteiro descreve como configurar, pela tela do painel, os dois tipos de ocorrência que o SAC exige: **Devolução parcial** e **Devolução total**. Tudo é digitado na aba **Tipos** da tela **Ocorrências**. Não há seed, migration nem script: os textos abaixo são dado que o operador digita.
 
-Pré-requisito: conta com a permissão `companies.settings`. Sem ela a aba **Tipos** não aparece.
+Pré-requisito: conta com a permissão `settings.manage`. Sem ela a aba **Tipos** não aparece.
 
 ## Onde fica e como a tela salva
 
