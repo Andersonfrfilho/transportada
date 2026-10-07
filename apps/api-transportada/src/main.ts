@@ -1019,7 +1019,7 @@ export function bootstrap(): Bun.Server<undefined> {
    * também porque o hook do WhatsApp (abaixo) nasce antes das instâncias de `me-trip` mais adiante
    * neste arquivo. Nenhum caminho paralelo: o motorista pelo WhatsApp grava pelo mesmo repositório.
    */
-  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
+  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db, logger)
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
