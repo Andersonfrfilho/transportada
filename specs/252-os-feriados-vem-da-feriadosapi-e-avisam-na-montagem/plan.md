@@ -33,8 +33,8 @@
 - **Molde de rotina diária com migration:** `apps/api-transportada/drizzle/20261007133324_cargo_preview_retention/`
   (das quatro CHECK, as **duas** de `job` em `job_schedules` e `job_executions`, `NOT VALID` + `VALIDATE`; linha em
   `job_schedules`; o `rollback.sql` apaga o histórico da rotina em `job_executions` antes de devolver as CHECK). A
-  última migration em staging é `20261007140303_business_calendar`; a 250 tem `20261007205304_nfse_national_taxation`
-  ainda fora de staging.
+  última migration em staging é `20261007205304_nfse_national_taxation` (a 250, publicada durante a T0; antes era
+  `20261007140303_business_calendar`).
 - **Catálogo de jobs (4 cópias, 16 rotinas em staging):** `apps/api-transportada/src/shared/job-catalog.constant.ts`
   (molde 266–272, `minimumIntervalSeconds` por rotina), `apps/worker-transportada/src/shared/job-catalog.constant.ts`,
   `apps/cron-transportada/src/shared/job-catalog.constant.ts`, `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts`;
@@ -99,8 +99,8 @@ repositório, evidência da 238).
 ### Fase 2 — Dado e catálogo
 
 Uma migration aditiva (`apps/api-transportada/drizzle/<timestamp>_holiday_provider_import/`, timestamp depois do
-último em staging na hora de gerar — e depois de `20261007205304` se a 250 entrar antes; regerar o `snapshot.json` no
-rebase) com `migration.sql`, `rollback.sql` e `snapshot.json`; tabelas, colunas e **nomes explícitos** do ADR-0100 §3
+último em staging na hora de gerar — hoje `20261007205304`; regerar o `snapshot.json` no rebase se outra entrar
+antes) com `migration.sql`, `rollback.sql` e `snapshot.json`; tabelas, colunas e **nomes explícitos** do ADR-0100 §3
 (nenhum nome padrão do drizzle: o da FK de `municipal_holidays.provider_entry_id` teria 67 bytes). Ordem dentro do
 arquivo: primeiro as tabelas novas, depois as duas CHECK de `job` e a linha de `job_schedules` **pausada de fábrica**
 (`enabled = false`, `paused_at = now()`, `paused_origin = 'system'`, 86.400 s; D13), **por último** os comandos em

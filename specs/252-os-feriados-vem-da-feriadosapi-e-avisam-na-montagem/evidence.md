@@ -186,62 +186,67 @@ Fora da tabela, uma regra de dado: o fornecedor pode trazer duas entradas na mes
   ADR-0096 (Q1) já registra a correção do roteirizador. T2.4 da 238 (revisão de design) segue aberta e não colide.
 - **ADR-0048 §3:** emenda confirmada no topo (linhas 7–9).
 - **249:** a migration dela (`20261007114250_trip_crew_events`) já está em staging; nenhuma tabela em comum.
-- **250:** migration **ainda não publicada** no worktree `transportada-wt/spec-250`:
-  `20261007205304_nfse_national_taxation` (`nfse_emission_profiles`). Sem tabela em comum, mas a cadeia do
-  `snapshot.json` colide: a migration da 252 tem de nascer **depois** da última em staging na hora de gerar, e, se a 250
-  entrar antes, ser regerada depois de `20261007205304`. A 250 também desenha um limitador por processo no worker
-  (espaçamento ≥ 1 s, uma réplica): dois limitadores independentes, um por fornecedor; nenhum compartilhado.
+- **250:** a migration `20261007205304_nfse_national_taxation` (`nfse_emission_profiles`) estava só no worktree
+  `transportada-wt/spec-250` no começo da T0 e **entrou em staging durante ela** (`f052d897d`, Fase 2 da 250; o
+  `git fetch` do fim achou staging 6 commits à frente, e esta branch foi rebaseada sem conflito — a 250 não tocou
+  nenhum arquivo citado aqui, só o `.env.example`, onde a linha do Google segue 59). Sem tabela em comum; a migration
+  da 252 nasce **depois** de `20261007205304`, a última em staging agora. A 250 também desenha um limitador por
+  processo no worker (espaçamento ≥ 1 s, uma réplica): dois limitadores independentes, um por fornecedor; nenhum
+  compartilhado.
 - **251:** reserva o ADR 0099 (`specs/251-emissor-nacional-gratuito/tasks.md:87`), ainda não publicado; sem migration nem
   rotina nova.
 - **Catálogo de jobs:** varridos os 79 worktrees; nenhum tem nome de rotina fora das 16 de staging. Sem colisão.
 - **Numeração:** spec 252 e ADR 0100 só aparecem nesta spec (este worktree, `agent-a5499110de4d6b742` e
-  `pub-t26-t12a`, as três com os mesmos arquivos de staging). Última migration em staging: `20261007140303_business_calendar`.
+  `pub-t26-t12a`, as três com os mesmos arquivos de staging). Última migration em staging, depois do rebase:
+  `20261007205304_nfse_national_taxation`.
 
 ## T0.2 — reconferência de arquivo e linha (2026-10-07)
 
 Todos os pares citados em `plan.md` e `tasks.md` contra `origin/staging` (`eaa2a7eb7`). "Mudou" = moveu por outra
 sessão ou pela própria correção da Fase 1.
 
-| Citado                                                                                                   | Real                                                                                                                                     | Situação       |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `delivery-client.schema.ts` ~240–288 (`municipal_holidays`)                                              | 240–288; único 262–266; FK da regra 277–283; índice parcial 284–286                                                                      | igual          |
-| `state-holiday.schema.ts`                                                                                | 36–81; únicos parciais 58–63; CHECK de nome 72–75                                                                                        | igual          |
-| `business-calendar-rules.query.ts` (`loadBusinessCalendarRules`)                                         | 109–131; `readTypedHolidays` 53–74                                                                                                       | igual          |
-| `trip-delivery-deadline-calendar.support.ts`                                                             | `loadCityCalendars` 22–44                                                                                                                | igual          |
-| `drizzle-route-optimization.repository.ts` `readPoolWindows` ~990–1092 (select ~1050–1060, ~1076, ~1090) | `drizzle-pool-window.query.ts:27–120` (select 102–116) + `pool-window.policy.ts:16–118`; chamadas no repositório 917 e 929               | **mudou** (F1) |
-| `delivery-window.policy.ts` ~62–98                                                                       | `resolveDeliveryWindow` 66–97                                                                                                            | igual          |
-| `route-optimization-municipal-holiday.integration.test.ts` ~199–206                                      | casos por cidade 231–264 (o antigo "comportamento atual" foi invertido)                                                                  | **mudou** (F1) |
-| `20261007133324_cargo_preview_retention/` e última migration `20261007140303_business_calendar`          | iguais (a próxima livre é posterior à última de staging na hora de gerar; ver 250 acima)                                                 | igual          |
-| `job-catalog.constant.ts` (API, worker, cron) e `jobCatalog.constant.ts` (painel)                        | existem as quatro; molde `cargo-preview.retention.apply` em `api/src/shared/job-catalog.constant.ts:266–272`                             | igual          |
-| `test/job-catalog/catalog.contract.ts` "cada uma"                                                        | API, worker e cron; o painel em `test/shared/job-catalog.contract.ts`                                                                    | **corrigido**  |
-| `job-schedule.schema.ts` ~71 e ~149                                                                      | 71 e 149; `job_executions_open_unique` 145–147; lease `run-job-cycle.ts:27`                                                              | igual          |
-| `worker/src/config/environment.schema.ts` ~82–92                                                         | 82–92                                                                                                                                    | igual          |
-| `routeSchedule.service.ts` ~31–75                                                                        | `resolveRouteFinish` 30–51, `resolveWarnings` 60–74 (`findBrazilianHoliday` 64)                                                          | igual          |
-| `TripAssemblyMap.component.tsx` ~1159–1170                                                               | 1166–1169                                                                                                                                | igual          |
-| `useSolverCityOrder.hook.ts` ~102                                                                        | 102                                                                                                                                      | igual          |
-| `routeSuggestion.types.ts` (`estimatedArrivalAt`)                                                        | 44                                                                                                                                       | igual          |
-| `trip_stops.estimated_arrival_at`                                                                        | `trip.schema.ts:800`                                                                                                                     | igual          |
-| `stop-address-key.ts`                                                                                    | `buildStopAddressKey` 53–61 (`${cityCode}\|${postalCode}\|${number}`)                                                                    | igual          |
-| `route-suggestion.routes.ts` ~33–34                                                                      | 33–34                                                                                                                                    | igual          |
-| `geocoding.schema.ts`                                                                                    | `geocoded_addresses` 25–30                                                                                                               | igual          |
-| `docs/SECURITY.md` ~1771–1782                                                                            | 1768–1806 (entrada do CEP + atualização da 186); entrada da 252 em 61–83                                                                 | **corrigido**  |
-| `me-trip.routes.ts`, `find-current-driver-trip.use-case.ts`, `drizzle-current-driver-trip.repository.ts` | existem; caminho `API_ME_CURRENT_TRIP_PATH` (`shared/api.constant.ts:188`); `findCurrentDriverTrip` 215; isolamento dos produtos 365–368 | igual          |
-| `driverTripResponse.validation.ts` `toStop` ~215–235                                                     | 215–235                                                                                                                                  | igual          |
-| `tripSnapshot.service.ts` (24 h, `SHA-256(sub)`)                                                         | `TRIP_SNAPSHOT_MAX_AGE_MS` 14, digest 43                                                                                                 | igual          |
-| `frontend-transportada/src/modules/driver-trip/` (legado)                                                | existe                                                                                                                                   | igual          |
-| `test/integration/driver-snapshot-products.integration.ts`                                               | existe                                                                                                                                   | igual          |
-| `test/trip-domain/delivery-deadline-isolation.contract.ts`                                               | agulha 11, arquivos 15–23                                                                                                                | igual          |
-| `test/transaction-serial-queries.contract.test.ts`                                                       | existe                                                                                                                                   | igual          |
-| `apps/api-transportada/CLAUDE.md` ~555                                                                   | 555–556                                                                                                                                  | igual          |
-| `DriverStopCard.component.tsx`, `driver-trip/locales/`                                                   | existem (`driverTrip.locale.json`, `driverTrip.en.locale.json`)                                                                          | igual          |
-| `nfe_documents_company_updated_issued_id_idx`                                                            | `nfe.schema.ts:304–309`                                                                                                                  | igual          |
+| Citado                                                                                                   | Real                                                                                                                                     | Situação        |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `delivery-client.schema.ts` ~240–288 (`municipal_holidays`)                                              | 240–288; único 262–266; FK da regra 277–283; índice parcial 284–286                                                                      | igual           |
+| `state-holiday.schema.ts`                                                                                | 36–81; únicos parciais 58–63; CHECK de nome 72–75                                                                                        | igual           |
+| `business-calendar-rules.query.ts` (`loadBusinessCalendarRules`)                                         | 109–131; `readTypedHolidays` 53–74                                                                                                       | igual           |
+| `trip-delivery-deadline-calendar.support.ts`                                                             | `loadCityCalendars` 22–44                                                                                                                | igual           |
+| `drizzle-route-optimization.repository.ts` `readPoolWindows` ~990–1092 (select ~1050–1060, ~1076, ~1090) | `drizzle-pool-window.query.ts:27–120` (select 102–116) + `pool-window.policy.ts:16–118`; chamadas no repositório 917 e 929               | **mudou** (F1)  |
+| `delivery-window.policy.ts` ~62–98                                                                       | `resolveDeliveryWindow` 66–97                                                                                                            | igual           |
+| `route-optimization-municipal-holiday.integration.test.ts` ~199–206                                      | casos por cidade 231–264 (o antigo "comportamento atual" foi invertido)                                                                  | **mudou** (F1)  |
+| `20261007133324_cargo_preview_retention/` e última migration `20261007140303_business_calendar`          | molde igual; a última agora é `20261007205304_nfse_national_taxation` (250, entrou durante a T0)                                         | **mudou** (250) |
+| `job-catalog.constant.ts` (API, worker, cron) e `jobCatalog.constant.ts` (painel)                        | existem as quatro; molde `cargo-preview.retention.apply` em `api/src/shared/job-catalog.constant.ts:266–272`                             | igual           |
+| `test/job-catalog/catalog.contract.ts` "cada uma"                                                        | API, worker e cron; o painel em `test/shared/job-catalog.contract.ts`                                                                    | **corrigido**   |
+| `job-schedule.schema.ts` ~71 e ~149                                                                      | 71 e 149; `job_executions_open_unique` 145–147; lease `run-job-cycle.ts:27`                                                              | igual           |
+| `worker/src/config/environment.schema.ts` ~82–92                                                         | 82–92                                                                                                                                    | igual           |
+| `routeSchedule.service.ts` ~31–75                                                                        | `resolveRouteFinish` 30–51, `resolveWarnings` 60–74 (`findBrazilianHoliday` 64)                                                          | igual           |
+| `TripAssemblyMap.component.tsx` ~1159–1170                                                               | 1166–1169                                                                                                                                | igual           |
+| `useSolverCityOrder.hook.ts` ~102                                                                        | 102                                                                                                                                      | igual           |
+| `routeSuggestion.types.ts` (`estimatedArrivalAt`)                                                        | 44                                                                                                                                       | igual           |
+| `trip_stops.estimated_arrival_at`                                                                        | `trip.schema.ts:800`                                                                                                                     | igual           |
+| `stop-address-key.ts`                                                                                    | `buildStopAddressKey` 53–61 (`${cityCode}\|${postalCode}\|${number}`)                                                                    | igual           |
+| `route-suggestion.routes.ts` ~33–34                                                                      | 33–34                                                                                                                                    | igual           |
+| `geocoding.schema.ts`                                                                                    | `geocoded_addresses` 25–30                                                                                                               | igual           |
+| `docs/SECURITY.md` ~1771–1782                                                                            | 1768–1806 (entrada do CEP + atualização da 186); entrada da 252 em 61–83                                                                 | **corrigido**   |
+| `me-trip.routes.ts`, `find-current-driver-trip.use-case.ts`, `drizzle-current-driver-trip.repository.ts` | existem; caminho `API_ME_CURRENT_TRIP_PATH` (`shared/api.constant.ts:188`); `findCurrentDriverTrip` 215; isolamento dos produtos 365–368 | igual           |
+| `driverTripResponse.validation.ts` `toStop` ~215–235                                                     | 215–235                                                                                                                                  | igual           |
+| `tripSnapshot.service.ts` (24 h, `SHA-256(sub)`)                                                         | `TRIP_SNAPSHOT_MAX_AGE_MS` 14, digest 43                                                                                                 | igual           |
+| `frontend-transportada/src/modules/driver-trip/` (legado)                                                | existe                                                                                                                                   | igual           |
+| `test/integration/driver-snapshot-products.integration.ts`                                               | existe                                                                                                                                   | igual           |
+| `test/trip-domain/delivery-deadline-isolation.contract.ts`                                               | agulha 11, arquivos 15–23                                                                                                                | igual           |
+| `test/transaction-serial-queries.contract.test.ts`                                                       | existe                                                                                                                                   | igual           |
+| `apps/api-transportada/CLAUDE.md` ~555                                                                   | 555–556                                                                                                                                  | igual           |
+| `DriverStopCard.component.tsx`, `driver-trip/locales/`                                                   | existem (`driverTrip.locale.json`, `driverTrip.en.locale.json`)                                                                          | igual           |
+| `nfe_documents_company_updated_issued_id_idx`                                                            | `nfe.schema.ts:304–309`                                                                                                                  | igual           |
 
-Mudaram por outra sessão: nenhum além da correção do roteirizador (que mudou os dois primeiros marcados).
-Corrigidos por citação errada desde o desenho: o contrato do catálogo do painel e as linhas do `SECURITY.md`.
+Mudaram por outra sessão: a última migration (a 250 publicou `20261007205304` durante a T0); além dela, só as duas
+citações do roteirizador, pela correção da Fase 1. Corrigidos por citação errada desde o desenho: o contrato do
+catálogo do painel e as linhas do `SECURITY.md`. Reconferido depois do rebase sobre `dc96b88ca`: nenhum arquivo citado
+na tabela mudou.
 
 **Nome do módulo da rotina** (o plano pedia confirmar): os módulos de rotina do worker levam o nome do job
 (`fuel-price-pull/`, `nfse-status-pull/`, `geocoding-refine/`, `cargo-preview-retention/`), com
 `application/<job>.routine.ts`. O da 252 passa a `src/holiday-provider-pull/` (era `holiday-provider-import/`).
 
-**Próximo timestamp de migration:** qualquer um depois de `20261007140303_business_calendar` (última em staging) na
-hora de gerar; se a 250 publicar antes, depois de `20261007205304_nfse_national_taxation`.
+**Próximo timestamp de migration:** qualquer um depois de `20261007205304_nfse_national_taxation` (a última em
+staging depois do rebase), e depois da última que houver na hora de gerar.

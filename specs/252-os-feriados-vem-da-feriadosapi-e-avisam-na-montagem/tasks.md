@@ -79,7 +79,7 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
       com o nome novo, a linha de `job_schedules` **pausada de fábrica** (D13), os **nomes** de constraint e índice do
       ADR-0100 §3 (todos ≤ 63 bytes, nenhum padrão do drizzle), `rollback.sql` (estático).
 - [ ] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
-      hora de gerar — e de `20261007205304` se a 250 entrar antes) + `rollback.sql` + `snapshot.json` + schema
+      hora de gerar — hoje `20261007205304`, da 250) + `rollback.sql` + `snapshot.json` + schema
       Drizzle; comandos em tabela publicada no fim do arquivo; `make migration-test`; `db:generate` = `no_changes`;
       integração do roteirizador verde depois dela. Revisão `opus` em passada separada. **Só staging.** (CA2)
 - [ ] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
@@ -203,7 +203,7 @@ própria).
 (leia spec.md, plan.md, tasks.md, evidence.md § T0.1/T0.2 e docs/adr/0100-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem.md
 antes de começar). Fase 0 e Fase 1 já fechadas (ADR-0100 aceita; roteirizador por cidade em staging, 4454228ac):
 comece na T2.1. Uma task por vez, na ordem do tasks.md, em worktree/branch próprios a partir de origin/staging (git
-fetch antes; confira que 252 e o ADR 0100 seguem sendo desta spec e se a migration da 250 já entrou em staging).
+fetch antes; confira que 252 e o ADR 0100 seguem sendo desta spec e qual é a última migration em staging).
 Modelos: Fase 2 → T2.1 executor model=sonnet,
 T2.2 🧠 executor model=sonnet com revisão code-reviewer model=opus em passada separada, T2.3 executor model=haiku ·
 Fase 3 → T3.1–T3.4 executor model=sonnet, T3.5 executor model=haiku · Fase 4 (T4.1–T4.3) → executor model=sonnet ·

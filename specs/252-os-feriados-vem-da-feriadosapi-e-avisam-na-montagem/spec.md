@@ -267,5 +267,5 @@ null` em `municipal_holidays` e `state_holidays` (FK simples para o cache, `REST
   `VALIDATE`; lock retido até o `COMMIT` do lote (ADR-0096 §5) — medir antes de produção.
 - **Junção da descoberta sem índice:** `nfe_addresses` não tem índice por `(company_id, participant_id)`; a T3.2 mede
   o lote com `EXPLAIN` e, se preciso, o índice sai em migration própria (`CONCURRENTLY`).
-- **Migration paralela da 250** (`20261007205304_nfse_national_taxation`, ainda fora de staging): a da 252 nasce depois
-  da última de staging na hora de gerar e é regerada se a 250 entrar antes (cadeia do `snapshot.json`).
+- **Migrations paralelas:** a da 250 (`20261007205304_nfse_national_taxation`) entrou em staging durante a T0; a da
+  252 nasce depois da última de staging na hora de gerar e é regerada se outra entrar antes (cadeia do `snapshot.json`).
