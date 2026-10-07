@@ -93,6 +93,8 @@ export function mapTripDocumentDetail(input: {
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
   readonly contact?: TripDocumentDetail['contact']
+  /** Spec 236 RF5: derivado fora daqui (`trip-delivery-deadline.support.ts`) — padrão `null`. */
+  readonly deliveryDeadline?: TripDocumentDetail['deliveryDeadline']
   /** Spec 176: já resolvido antes do map — a política não conhece linha de banco. */
   readonly freight: ResolvedTripDocumentFreight
   readonly nfeIssuedAt?: Date | null
@@ -114,6 +116,7 @@ export function mapTripDocumentDetail(input: {
     ...mapTripDocument(input.document),
     contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
+    deliveryDeadline: input.deliveryDeadline ?? null,
     fiscalStatus,
     freightAmount: input.freight.amount,
     freightRuleName: input.freight.ruleName,

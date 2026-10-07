@@ -58,3 +58,9 @@ export type ResolveDeliveryDeadlineResult =
       readonly reason: DeliveryDeadlineNotApplicableReason
       readonly state: typeof DELIVERY_DEADLINE_STATE.NOT_APPLICABLE
     }
+
+/** O que a leitura serve: `not_applicable` não é estado de tela, sai como `null` no detalhe da viagem. */
+export type DeliveryDeadlineView = Exclude<
+  ResolveDeliveryDeadlineResult,
+  { readonly state: typeof DELIVERY_DEADLINE_STATE.NOT_APPLICABLE }
+>

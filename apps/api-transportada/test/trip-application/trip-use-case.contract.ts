@@ -122,6 +122,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   ...document(overrides),
   contact: null,
   cteAuthorized: false,
+  deliveryDeadline: null,
   fiscalStatus: 'authorized',
   freightAmount: null,
   freightRuleName: null,

@@ -2377,6 +2377,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
   Readonly<{
     contact: TripDocumentDetail['contact']
     cteAuthorized: TripDocumentDetail['cteAuthorized']
+    deliveryDeadline: TripDocumentDetail['deliveryDeadline']
     fiscalStatus: TripDocumentDetail['fiscalStatus']
     freightAmount: TripDocumentDetail['freightAmount']
     freightRuleName: TripDocumentDetail['freightRuleName']
@@ -2402,6 +2403,7 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   createdAt: 'safe',
   cteAuthorized: 'safe',
   deliveredAt: 'safe',
+  deliveryDeadline: 'safe',
   destinationOrigin: 'safe',
   fiscalStatus: 'safe',
   freightAmount: 'money',
@@ -2439,6 +2441,8 @@ function serializeTripDocumentDetail(input: {
     ...serializeTripDocument(document),
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
+    /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */
+    deliveryDeadline: document.deliveryDeadline === null ? null : { ...document.deliveryDeadline },
     fiscalStatus: document.fiscalStatus,
     freightAmount: document.freightAmount,
     freightRuleName: document.freightRuleName,

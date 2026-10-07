@@ -16,7 +16,7 @@ type CoverageCase = {
   readonly params: ResolveDeadlineCoverageParams
 }
 
-const COVERAGE_CASES: readonly CoverageCase[] = [
+const COVERAGE_CASES: CoverageCase[] = [
   {
     expected: { fromYear: 2026, toYear: 2027 },
     name: 'chegada deste ano e hoje: o ano seguinte entra pela chegada em 30/12',

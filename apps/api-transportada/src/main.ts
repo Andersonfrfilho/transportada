@@ -2145,6 +2145,8 @@ function createApplicationRoutes({
    */
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions, {
+    clock: businessCalendarClock,
+    logger,
     packageBoxLookup: packageBoxRepository,
   })
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */

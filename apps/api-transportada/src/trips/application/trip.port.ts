@@ -5,6 +5,7 @@ import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physi
 import type { MdfeBodyType } from '../../database/fleet.schema.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { DeliveryDeadlineView } from '../domain/delivery-deadline.types.js'
 import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
@@ -101,6 +102,12 @@ export type Trip = {
  */
 export type TripDocumentDetail = TripDocument & {
   readonly cteAuthorized: boolean
+  /**
+   * Spec 236 RF5: o prazo de entrega, derivado na leitura — nunca gravado. `null` quando a nota não tem
+   * prazo (sem chegada, sem prazo copiado, sem cidade de destino, encerrada). Só no detalhe: o painel lê
+   * o `TripDocument` com chaves exatas, e uma chave nova o derrubaria.
+   */
+  readonly deliveryDeadline: DeliveryDeadlineView | null
   readonly fiscalStatus: string
   /**
    * Spec 164 T15 (RF20): derivado na leitura de `trip_occurrence_cases` — existe tratativa ainda

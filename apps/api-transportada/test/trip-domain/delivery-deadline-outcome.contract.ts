@@ -6,6 +6,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { DeliveryOutcomeKind } from '../../src/trips/domain/delivery-deadline-outcome.policy.js'
 import { resolveDeliveryOutcomeKind } from '../../src/trips/domain/delivery-deadline-outcome.policy.js'
 import type { ResolveDeliveryOutcomeKindParams } from '../../src/trips/domain/delivery-deadline-outcome.policy.js'
 
@@ -17,12 +18,12 @@ const OPEN_NOTE: ResolveDeliveryOutcomeKindParams = {
 }
 
 type OutcomeCase = {
-  readonly expected: string
+  readonly expected: DeliveryOutcomeKind
   readonly name: string
   readonly note: Partial<ResolveDeliveryOutcomeKindParams>
 }
 
-const OUTCOME_CASES: readonly OutcomeCase[] = [
+const OUTCOME_CASES: OutcomeCase[] = [
   { expected: 'pending', name: 'pendente', note: {} },
   { expected: 'pending', name: 'separada', note: { separationStatus: 'separated' } },
   { expected: 'pending', name: 'carregada', note: { separationStatus: 'loaded' } },

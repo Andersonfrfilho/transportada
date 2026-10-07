@@ -171,6 +171,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
     taxId: '11222333000181',
   },
   cteAuthorized: true,
+  deliveryDeadline: null,
   fiscalStatus: 'authorized',
   freightAmount: null,
   freightRuleName: null,
