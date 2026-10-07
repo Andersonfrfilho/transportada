@@ -19,6 +19,8 @@ import {
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
+import { OccurrenceTypeMomentHints } from './OccurrenceTypeMomentHints.component'
+
 type OccurrenceTypeMomentsProps = Readonly<{
   disabled: boolean
   moments: readonly OccurrenceMoment[]
@@ -101,6 +103,7 @@ export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceT
           </Button>
         </div>
       )}
+      <OccurrenceTypeMomentHints />
       <p className={styles.legend}>{t('occurrenceTypeCatalog.moments.note')}</p>
     </section>
   )

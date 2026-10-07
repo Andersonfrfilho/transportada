@@ -15,6 +15,8 @@ import {
 } from '@/modules/trip/shared/occurrenceMoments.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
+import { OccurrenceTypeMomentHints } from './OccurrenceTypeMomentHints.component'
+
 type OccurrenceTypeCreateMomentsProps = Readonly<{
   moments: readonly OccurrenceMoment[]
   onChange: (moments: readonly OccurrenceMoment[]) => void
@@ -48,6 +50,7 @@ export function OccurrenceTypeCreateMoments({
           values={moments}
         />
       </Tooltip>
+      <OccurrenceTypeMomentHints />
       {problem === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`occurrenceTypeCatalog.moments.problem.${problem}`)}

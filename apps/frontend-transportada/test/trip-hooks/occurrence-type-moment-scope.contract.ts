@@ -127,13 +127,15 @@ function hasExceptionList(): boolean {
 
 describe('tipo de galpão e rua: as exigências da rua continuam à vista (A2)', () => {
   test(
-    '{separation, document} mostra Foto, Observação, Assinatura e Produtos, a nota dos momentos de rua e a lista de exceções',
+    '{separation, document} mostra Foto, Observação, Assinatura e Produtos, a nota de quando o motorista registra e a lista de exceções',
     scenario(async () => {
       await mount(buildType(['separation', 'document'], { stage: 'separation' }))
       for (const label of ['Foto', 'Observação', 'Assinatura', 'Produtos']) {
         expect(control(label) !== null).toBe(true)
       }
-      expect(pageText().includes('As exigências abaixo valem só nos momentos de rua')).toBe(true)
+      expect(pageText().includes('As exigências abaixo valem só quando o motorista registra')).toBe(
+        true,
+      )
       expect(hasExceptionList()).toBe(true)
       expect(pageText().includes('1 exceção')).toBe(true)
     }),
@@ -146,7 +148,9 @@ describe('tipo de galpão e rua: as exigências da rua continuam à vista (A2)',
       expect(control('Foto') === null).toBe(true)
       expect(control('Produtos') !== null).toBe(true)
       expect(hasExceptionList()).toBe(false)
-      expect(pageText().includes('As exigências abaixo valem só nos momentos de rua')).toBe(false)
+      expect(pageText().includes('As exigências abaixo valem só quando o motorista registra')).toBe(
+        false,
+      )
     }),
   )
 })
@@ -160,7 +164,7 @@ describe('tipo só de parada: só a Foto vale (M2)', () => {
       for (const label of ['Observação', 'Assinatura', 'Produtos', 'Quantidade mínima de fotos']) {
         expect(control(label) === null).toBe(true)
       }
-      expect(pageText().includes('Na chegada à parada só a foto é cobrada')).toBe(true)
+      expect(pageText().includes('Em Motorista, na parada só a foto é cobrada')).toBe(true)
       const section = document.querySelector('section[aria-label^="Exceções por cliente"]')
       const labels = [...(section?.querySelectorAll('button[aria-label]') ?? [])].map((button) =>
         button.getAttribute('aria-label'),

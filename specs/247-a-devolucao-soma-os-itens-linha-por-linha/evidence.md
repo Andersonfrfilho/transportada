@@ -1332,7 +1332,7 @@ $ bun run --cwd apps/frontend-transportada test
 **Contratos antes do código** (todos vermelhos antes de qualquer arquivo de `src/`):
 
 ```text
-test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos 40 casos da API)
+test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos casos da política da API)
 test/trip/occurrence-correction-amounts.contract.ts   → idem  (três estados, escopo, número)
 test/trip/occurrence-settlement-suggestion.contract.ts→ idem  (RF12, zero nunca sugerido)
 test/trip-hooks/occurrence-correction-amounts.contract.ts   → 0 pass · 9 fail   (formulário montado de verdade)
@@ -1403,3 +1403,95 @@ $ bun run --cwd apps/frontend-transportada test
  7269 pass · 0 fail   Ran 7269 tests across 36 files.
  884 pass · 0 fail    Ran 884 tests across 1 file.   (test:hooks)
 ```
+
+### T5.5 — Rótulos de momento e dicas (2026-10-07)
+
+**Contrato antes do código** (`test/trip-hooks/occurrence-type-moment-labels.contract.ts`, 7 casos): monta a aba Tipos de verdade
+e **procura o rótulo no controle** — não a chave de tradução, não o texto da fonte. Vermelho antes do código:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-moment-labels.contract.ts
+ 0 pass
+ 7 fail
+Ran 7 tests across 1 file.
+```
+
+**O que a tela diz agora** (plan § Rótulos, D10; só texto, os valores gravados `separation`/`document`/`stop`/`office` não mudam):
+
+| Onde                 | Antes                         | Agora                                                                                                           |
+| -------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Título do controle   | Em que momento pode acontecer | **Quem registra, e onde**                                                                                       |
+| `separation`         | Separação no galpão           | **Separador, no galpão**                                                                                        |
+| `document`           | Entrega da nota               | **Motorista, numa nota**                                                                                        |
+| `stop`               | Chegada à parada              | **Motorista, na parada**                                                                                        |
+| `office`             | Escritório, pelo motorista    | Escritório, pelo motorista (e o **filtro** passa a dizer o mesmo, não "Escritório")                             |
+| Dica de cada momento | —                             | o exemplo do `preview.html`, **à vista** abaixo do controle (`<dl>`), no tipo aberto e no cadastro do tipo novo |
+
+- **Uma chave só:** o controle do tipo aberto, as pílulas, a linha recolhida, o cadastro do tipo novo **e o filtro** leem
+  `occurrenceTypeCatalog.moments.labels`; as quatro chaves duplicadas de `filters.chips.moment` foram apagadas (pt e en), então os
+  nomes não têm como divergir.
+- Os textos que falavam em "entrega da nota" / "chegada à parada" seguem o vocabulário novo: nota de exigência de tipo misto, nota de
+  parada, recusa de momentos juntos (aba e `trip.feedback`) — nos dois idiomas.
+- **Dica fora do `MultiSelect` de propósito:** `description` da opção viraria o valor da pílula selecionada (`multi-select.tsx:139`) e
+  poluiria cada pílula com uma frase; `MultiSelect` é componente compartilhado e não foi tocado.
+- **Testes existentes ajustados** só no texto dos rótulos: `occurrence-exceptions-panel`, `occurrence-type-create-form`,
+  `occurrence-type-filters-panel`, `occurrence-type-identity`, `occurrence-type-moment-scope`.
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 7 pass):
+
+```text
+M1 — a chave única volta a dizer "Entrega da nota":                   5 fail (controle, dica, linha recolhida, filtro, cadastro novo)
+M2 — o filtro volta a ler a própria chave (apagada):                   1 fail (pílulas do filtro)
+M3 — a dica de cada momento some do bloco do tipo aberto:              1 fail (o cadastro novo também tem dicas: o contrato olha dentro do bloco do tipo)
+```
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7269 pass · 0 fail   Ran 7269 tests across 36 files.
+ 891 pass · 0 fail    Ran 891 tests across 1 file.   (test:hooks)
+```
+
+### Verificação no navegador (T5.1, T5.2, T5.4, T5.5) — 2026-10-07
+
+**Como:** o painel **desta árvore** (`spec-247`, Vite 7 na porta **53010** — a 53000 e a 53001 são de **outra** árvore,
+`reconcile-spec-145`, e ficaram intocadas), com `VITE_SMOKE_AUTH_BYPASS`, a API dublada por `page.route` (os endpoints novos do
+tipo, a prévia, as exceções, o detalhe da ocorrência, a nota, o acerto) e Chromium headless do Playwright do repositório — **não** o
+painel do navegador embutido do Claude. Verificação **por texto e geometria** (`innerText`, `getBoundingClientRect`, contraste
+calculado sobre os fundos reais, `PUT`/`PATCH` capturados); um print só como prova. Os scripts ficam fora do repositório.
+
+```text
+Aba Tipos, tipo "Devolução parcial" aberto — estouro horizontal (scrollWidth − clientWidth), controles do bloco < 44 px, contraste mínimo
+  375 px toque, claro   : 0 · nenhum · 4,69:1
+  375 px toque, escuro  : 0 · nenhum · 5,55:1
+  768 px fino,  claro   : 0 · 4 (38,4 px "Salvar e-mail" — Button sm do design system; 20 px "Tirar momento…" e 28 px "Limpar momentos" — MultiSelect compartilhado) · 4,69:1
+  1280 px fino, claro   : 0 · os mesmos 4 · 4,69:1
+  1280 px fino, escuro  : 0 · os mesmos 4 · 5,55:1
+```
+
+Os 4 abaixo de 44 px só existem com ponteiro fino e são controles do design system que esta spec não altera; com toque (375 px) nenhum
+controle do bloco fica abaixo de 44 px. Nenhum elemento do bloco fica fora da janela em nenhuma largura.
+
+Interações conferidas **no navegador**, com a API dublada gravando o corpo:
+
+1. Salvar e-mail começa desabilitado; `{{numeroNfd}}` no corpo → `aria-invalid="true"` **só** no corpo, aviso _"Este marcador não existe neste campo: {{numeroNfd}}…"_,
+   Salvar desabilitado e **zero chamadas à prévia** durante o erro (a prévia anterior fica, com "Corrija o marcador para ver a prévia").
+2. Marcador clicado entra **no cursor** (`"Linha {{contratante}}1
+Linha 2"`) e o foco volta ao campo; assunto tem 15 marcadores (sem `{{linhasItens}}`), a linha tem 19 (com
+   `{{valorItem}}`, sem `{{linhasItens}}`).
+3. `PUT` do "Salvar e-mail" leva `emailSubject`, `emailBody` e `emailItemLineTemplate`; o do interruptor leva `emailsContractor:false` **e o assunto/corpo já gravados** (RF2, sem zerar).
+4. "Produtos: Desligado" com valor pago por linha ligado **não grava** (nenhum `PUT` novo) e mostra o aviso; o rótulo editado grava só `referenceNumberLabel`.
+5. Correção (`/ocorrencias/:id` → Corrigir): seção "Número e valor pago" sem estouro a 375 e 1280 px, nenhum controle < 44 px; `3 × 19,995` mostra
+   **Soma da linha: R$ 59,99**, `Soma geral: R$ 117,19`; digitar `5000` mostra `50,00`; o `PATCH` leva `referenceNumber:"NFD 45029"` e `declaredAmount:"50.00"` **só** na linha editada.
+6. Acerto da 164 (tratativa `goods_paid`): "Sugestão pelo registro" lista `R$ 57,20 · soma da linha R$ 57,20` e _"A loja não pagou, sem valor a acertar · soma da linha R$ 59,99"_;
+   "Usar a sugestão do registro" preenche **uma** linha (`57,20`, nunca 0) e o `PUT` leva `amountSource:"nfe"`.
+
+⚠️ Um tropeço do dublê, não do produto: o primeiro stub devolvia o corpo do `PUT` com `occurrenceTypeId` no tipo e o painel — corretamente — recusou a
+lista inteira (`isOccurrenceType` é de chaves fechadas) e seguiu mostrando o tipo antigo; corrigido o stub.
+
+**O que não deu para fazer:** o desenho `preview.html` não foi posto **lado a lado** com a tela real (isso é a T7.1, com os mesmos dados nos três
+tamanhos); o acerto foi verificado só no desktop e a 375 px por texto/geometria, sem o fluxo do app do motorista (T5.3, outro executor).
