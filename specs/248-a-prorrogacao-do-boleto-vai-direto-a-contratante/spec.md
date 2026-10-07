@@ -422,7 +422,8 @@ Dado que o operador digita na aba Tipos — nada disso entra no código, seed ou
   sem política de reentrega.
 - Mandar e-mail à contratante ao registrar: **ligado**.
 - Assunto:
-  `OCORRÊNCIA -{{contratante}} - NF - {{numeroNotaSemSerie}} -MOT - {{motorista}} - MOTIVO - PRORROGAÇÃO`
+  `OCORRÊNCIA - {{contratante}} - NF - {{numeroNotaSemSerie}} - MOT - {{motorista}} - MOTIVO - PRORROGAÇÃO`
+  (hífens comuns com espaço dos dois lados; o SAC escreveu `-SPANI` e `-MOT` colados no exemplo dele)
 - Corpo:
 
   ```text

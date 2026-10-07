@@ -24,6 +24,7 @@ Na aba **Tipos**, procure por **Recusa parcial** e **Recusa total** (o catálogo
 
 - Se **Recusa parcial** existe, siga a opção "Renomear" do Passo 1 do Tipo 1. Se não existe, siga "Criar".
 - Mesma regra para **Recusa total** no Tipo 2.
+- **Tipo que já existe é configurado e renomeado, não recriado.** Antes de mudar qualquer campo de um tipo existente, **anote a configuração que ele tem hoje** (momentos, **Foto**, **Observação**, **Assinatura**, **Produtos**, e-mail): a tela salva cada controle na hora e não guarda histórico para voltar atrás.
 
 ## Tipo 1: Devolução parcial
 
@@ -35,14 +36,13 @@ Na aba **Tipos**, procure por **Recusa parcial** e **Recusa total** (o catálogo
 2. No bloco **Identificação**, no campo **Nome**, apague o texto e escreva `Devolução parcial`.
 3. Aperte Enter. O nome grava ao sair do campo e a linha passa a mostrar **Devolução parcial**.
 
-**Criar** (o tipo não existe), no bloco **Novo tipo**:
+**Criar** (o tipo não existe), no bloco **Novo tipo**. O formulário de cadastro é mínimo de propósito: tem **Nome do tipo**, o seletor de momentos, **Foto**, **Observação**, **Assinatura** e **Produtos**, **Avisar quando acontecer**, **Aceita vários itens**, a reentrega e **Modelo de e-mail**. Não tem os rótulos, as quantidades mínimas nem o texto do e-mail: eles se configuram no tipo aberto, nos passos seguintes.
 
 1. No campo **Nome do tipo**, escreva `Devolução parcial`.
 2. No seletor de momentos (**Quem registra, e onde**), clique em **Tirar momento Separador, no galpão** (o tipo novo nasce com esse momento) e escolha **Motorista, numa nota**.
-3. Em **Foto**, escolha **Obrigatório**. Em **Observação**, escolha **Obrigatório**. Em **Assinatura**, deixe **Desligado**. Em **Produtos**, escolha **Obrigatório**.
-4. Deixe **Aceita vários itens** marcada. Deixe **Avisar quando acontecer** desmarcada (é o aviso interno, não o e-mail à contratante).
-5. Em **Modelo de e-mail**, deixe **Sem e-mail**.
-6. Clique em **Cadastrar tipo**. O tipo aparece em **Na rua**; clique na linha **Devolução parcial** para abri-lo e continue no Passo 2.
+3. Em **Produtos**, escolha **Obrigatório**; as demais exigências (**Foto**, **Observação**, **Assinatura**) ficam para o Passo 4, no tipo aberto. Deixe **Aceita vários itens** marcada e **Avisar quando acontecer** desmarcada (é o aviso interno, não o e-mail à contratante).
+4. Deixe **Modelo de e-mail** em **Sem e-mail** e clique em **Cadastrar tipo**.
+5. A tela abre sozinha a linha do tipo novo, leva o foco até ela e confirma com "Tipo criado. Configure o que ele exige e o e-mail abaixo." Siga no Passo 2 nesse mesmo tipo aberto.
 
 ### Passo 2: Identificação
 
@@ -138,13 +138,12 @@ Embaixo da prévia deve constar "Sai automaticamente quando o tipo é registrado
 1. Clique na linha **Recusa total** para abri-lo.
 2. No bloco **Identificação**, no campo **Nome**, escreva `Devolução total` e aperte Enter.
 
-**Criar** (o tipo não existe), no bloco **Novo tipo**:
+**Criar** (o tipo não existe), no bloco **Novo tipo** (formulário mínimo: veja o Tipo 1; o que falta se configura no tipo aberto):
 
 1. No campo **Nome do tipo**, escreva `Devolução total`.
 2. Troque o momento: **Tirar momento Separador, no galpão** e escolha **Motorista, numa nota**.
-3. Em **Foto**, escolha **Obrigatório**. Em **Observação**, escolha **Obrigatório**. Em **Assinatura**, deixe **Desligado**. Em **Produtos**, escolha **Desligado**.
-4. Deixe **Avisar quando acontecer** desmarcada e **Modelo de e-mail** em **Sem e-mail**.
-5. Clique em **Cadastrar tipo**, depois abra a linha **Devolução total** (em **Na rua**).
+3. Em **Produtos**, escolha **Desligado**. Deixe **Avisar quando acontecer** desmarcada e **Modelo de e-mail** em **Sem e-mail**.
+4. Clique em **Cadastrar tipo**. A tela abre sozinha a linha **Devolução total** (em **Na rua**) e confirma com "Tipo criado."; **Foto**, **Observação**, **Assinatura** e o resto vêm no Passo 3, nesse tipo aberto.
 
 ### Passo 2: Momentos
 
@@ -242,6 +241,95 @@ A lista é fechada (`apps/api-transportada/src/shared/occurrence-template.consta
 - **`{{numeroNotaSemSerie}}` e `{{numeroNota}}` não são o mesmo marcador.** `{{numeroNota}}` imprime número e série quando há série (`680481/1`) e já tinha modelos gravados que dependem dele, por isso não mudou. O SAC escreve só o número, então o roteiro usa `{{numeroNotaSemSerie}}` (`680481`).
 - **Zero à esquerda do "01FD".** O SAC escreveu `01FD` no exemplo; zero à esquerda não é exigência do formato e não se imita. O modelo imprime a quantidade como ela foi registrada (`1FD`).
 
+## Envio automático ou manual
+
+No bloco **E-mail à contratante** de cada tipo, a caixa **Mandar e-mail à contratante da nota ao registrar** decide quem manda:
+
+- **Marcada**: o e-mail sai sozinho quando a ocorrência é registrada. A prévia mostra "Sai automaticamente quando o tipo é registrado."
+- **Desmarcada**: o modelo fica salvo, mas nada sai sozinho. A prévia mostra "Desligado: o operador manda pela conversa da ocorrência." O operador envia o e-mail pela conversa da ocorrência, depois de tratar o caso.
+
+Qual tipo usa cada modo:
+
+| Tipo                      | Modo                                    |
+| ------------------------- | --------------------------------------- |
+| **Devolução parcial**     | automático                              |
+| **Devolução total**       | automático                              |
+| **Prorrogação do boleto** | automático                              |
+| **Item avariado**         | manual (modelo salvo, caixa desmarcada) |
+| **Item faltante**         | manual (modelo salvo, caixa desmarcada) |
+
 ## Prorrogação do boleto
 
-A prorrogação do boleto é assunto da spec 248 e este roteiro não traz instruções para ela.
+Tipo da rua (a spec 248 trata o retorno do boleto atualizado; aqui só o cadastro). O formulário **Novo tipo** cria o mínimo; o resto se configura no tipo aberto.
+
+1. **Momentos**: somente **Motorista, numa nota**. Clique em **Aplicar momentos** se houve mudança.
+2. **O que exige**: **Foto** **Desligado**, **Observação** **Opcional**, **Assinatura** **Desligado**, **Produtos** **Desligado**, **Número do documento do cliente** **Desligado**, **Valor pago** **Desligado**.
+3. **E-mail à contratante**, **Assunto** (hífens comuns, com espaço dos dois lados):
+
+   ```text
+   OCORRÊNCIA - {{contratante}} - NF - {{numeroNotaSemSerie}} - MOT - {{motorista}} - MOTIVO - PRORROGAÇÃO
+   ```
+
+4. **Corpo** (as linhas em branco contam):
+
+   ```text
+   Bom dia,
+
+   O cliente está solicitando a prorrogação do boleto.
+
+   MOTORISTA: {{motorista}}
+   RAZÃO SOCIAL: {{razaoSocial}}
+   NOTA FISCAL: {{numeroNotaSemSerie}}
+   VALOR DA NOTA: R$ {{valorNota}}
+   ```
+
+   O **VALOR DA NOTA** não pode ficar vazio: o exemplo original do SAC deixava o valor em branco, e o modelo preenche com `{{valorNota}}`.
+
+5. Clique em **Salvar e-mail** e marque **Mandar e-mail à contratante da nota ao registrar** (envio automático).
+
+⚠️ **Reentrega, "Aceita vários itens" e "A viagem segue sem a nota" não aparecem neste tipo, e é a regra, não perda de campo.** Reentrega e vários itens só existem com **Produtos** em **Opcional** ou **Obrigatório**; "A viagem segue sem a nota" só existe em tipo do galpão (momento **Separador, no galpão**). A tela mostra uma dica no lugar dizendo isso.
+
+## Item avariado e Item faltante
+
+Dois tipos com o mesmo desenho. ⚠️ **Os textos de e-mail abaixo são SUGESTÃO, a ajustar pelo SAC; não são modelo do SAC.** Por isso o envio é **manual** (caixa **Mandar e-mail à contratante da nota ao registrar** desmarcada): o operador revisa e manda pela conversa da ocorrência depois de tratar o caso.
+
+Configuração comum:
+
+- **Momentos**: **Separador, no galpão** e **Motorista, numa nota**.
+- **Observação** **Opcional**, **Assinatura** **Desligado**, **Número do documento do cliente** **Desligado**, **Valor pago** **Desligado**.
+- **Produtos** **Obrigatório**, em **Produtos exigidos** **Ao menos N itens** com **Quantidade mínima de produtos** `1`; **Aceita vários itens** marcada.
+- **E-mail**: assunto, corpo e linha salvos com **Salvar e-mail**; caixa de envio automático **desmarcada**.
+
+| Campo    | Item avariado               | Item faltante |
+| -------- | --------------------------- | ------------- |
+| **Foto** | **Obrigatório**, mínimo `1` | **Opcional**  |
+
+**Assunto** do Item avariado:
+
+```text
+OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – ITEM AVARIADO
+```
+
+**Assunto** do Item faltante: o mesmo, terminando em `– ITEM FALTANTE`.
+
+**Corpo** do Item avariado:
+
+```text
+Por favor, verificar. Foi identificada avaria no ato da entrega.
+
+RAZÃO SOCIAL: {{razaoSocial}}
+NOTA FISCAL: {{numeroNotaSemSerie}}
+VALOR DA ENTREGA: R$ {{valorNota}}
+
+{{linhasItens}}
+```
+
+**Corpo** do Item faltante: o mesmo, com a primeira linha `Por favor, verificar. Foi identificada falta de mercadoria no ato da entrega.`
+
+**Linha de cada produto** (nos dois):
+
+```text
+{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}} – {{observacao}}
+```
+
+Marcadores conferidos contra `apps/api-transportada/src/shared/occurrence-template.constant.ts`: `contratante`, `numeroNotaSemSerie`, `motorista`, `razaoSocial`, `valorNota`, `observacao`, `codigoItem`, `item`, `quantidadeItem` (assunto, corpo e linha), `linhasItens` (só corpo), `unidadeItem` (só linha).
