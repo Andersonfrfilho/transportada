@@ -334,3 +334,24 @@ guards do painel recusam chave desconhecida.
 - Gates: `bun run typecheck` (raiz) exit 0 · `frontend-transportada test`: `7219 pass · 0 fail` e
   `838 pass · 0 fail` · `frontend-driver test`: `1250 pass · 0 fail` · `format:check`:
   `All matched files use Prettier code style!`.
+
+## Fase 3 — Cálculo e modelo de e-mail (domínio)
+
+### T3.1 — Contrato do cálculo, antes da implementação
+
+`apps/api-transportada/test/trip-occurrence/occurrence-amount.contract.ts` (importado por
+`test/trip-occurrence.contract.test.ts`, que está na lista explícita do `package.json`). Cobre CA02:
+tabela de dez linhas (inclui `2,5 × 0,3333`, `3 × 19,995`, `1,005`, `8,345`, meio centavo, quantidade
+nula caindo no `vProd`), soma das linhas arredondadas, valor pago vencendo, zero digitado, formatação
+e um valor além de 2^53.
+
+Vermelho esperado (a política ainda não existe) — o commit desta task é vermelho de propósito, e o
+typecheck/lint só fecham na T3.2:
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts --timeout 120000
+error: Cannot find module '../../src/trips/domain/occurrence-amount.policy.js' from '.../test/trip-occurrence/occurrence-amount.contract.ts'
+ 0 pass
+ 1 fail
+ 1 error
+```
