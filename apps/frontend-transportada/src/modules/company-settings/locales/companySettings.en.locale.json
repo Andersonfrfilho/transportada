@@ -342,7 +342,7 @@
       "photo": "Photo",
       "photoMinimum": "Minimum photos",
       "itemsMinimum": "Products required",
-      "itemsMinimumBlocked": "The minimum number of products only applies when Products is Required on this exception. The driver app only ticks “The whole invoice”, so “At least N” does not yet change what it requires.",
+      "itemsMinimumBlocked": "The minimum number of products only applies when Products is Required on this exception.",
       "readOnly": "No permission to change the exceptions.",
       "add": "Add exception",
       "remove": "Remove",
@@ -404,7 +404,7 @@
         "all": "All invoice items",
         "atLeast": "At least N items",
         "count": "Minimum number of products",
-        "hint": "Only applies when Products is Required. All invoice items suits a total refusal. The driver app only ticks “The whole invoice”, so “At least N” does not yet change what it requires: do not configure a rule the device does not meet."
+        "hint": "Only applies when Products is Required. All invoice items suits a total refusal: the driver app only enables the registration with every product ticked. At least N enables it with N products ticked."
       }
     },
     "summary": {
