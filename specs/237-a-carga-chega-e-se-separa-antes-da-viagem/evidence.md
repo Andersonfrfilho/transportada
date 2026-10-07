@@ -2196,3 +2196,114 @@ foto sintéticos. 44 testes verdes.
 
 Push/deploy; rebase (staging andou 53 commits); `make check` completo, `make smoke`/smoke da CI, `make migration-test` (nada de schema); a API e suas
 suítes (nada mudou); o `frontend-client`; teste em aparelho/câmera reais; leitura de staging ou produção.
+
+## T4.6 — a prévia por e-mail encaminhado (2026-10-07)
+
+### O que foi construído
+
+- **Migration `20261007024527_cargo_preview_email_intake`** (aprovada pelo usuário no chat — "Sim, pode criar"),
+  aditiva, com `rollback.sql` e `snapshot.json` encadeado ao último de staging: três colunas nulas em
+  `contractor_receiving_profiles` (`preview_inbound_token_hash`, `preview_forwarder_allowlist`,
+  `preview_sender_allowlist`, CHECK de que o token exige as duas listas e índice único parcial do hash por empresa),
+  `cargo_previews.source` aceita `email` com `uploaded_by_user_id` nulo (CHECK `(source = 'upload') =
+(uploaded_by_user_id is not null)`) e a tabela append-only `cargo_preview_email_intakes`
+  (único `(company_id, provider_email_id)`). Identificadores ≤ 63 bytes (um de 71 foi encurtado antes de gerar).
+  O rollback **recusa** enquanto houver prévia por e-mail. `db:generate` = `no_changes`; `db:test` 138 passam.
+- **Worker, `src/cargo-preview-email/`:** token e hash (`preview-inbound-token.policy.ts`), endereço único
+  (`mailbox-address.policy.ts`), listas (`preview-sender-allowlist.policy.ts`), remetente original
+  (`forwarded-original-sender.policy.ts`), anexo (`preview-email-attachment.policy.ts`), cópia por valor do
+  contrato do upload (`preview-upload-file.policy.ts`), leitura do MIME (`parse-forwarded-email.service.ts`),
+  as barreiras (`intake-cargo-preview-email.use-case.ts`), o armazenamento + criação
+  (`create-cargo-preview-from-email.service.ts`) e o banco (`drizzle-cargo-preview-email.repository.ts`,
+  `cargo-preview-email-create.writer.ts`). O trilho de e-mail ganhou `previewIntake` e o resultado
+  `{ outcome: 'preview' }`; o consumidor loga `inbound_email_preview_{accepted,rejected,rate_limited}`.
+  O gateway ganhou `maxBytes` (nunca acima dos 25 MiB). A chave do MIME bruto virou
+  `raw-email-object-key.policy.ts`, usada pelos dois trilhos.
+
+### Contrato antes do código
+
+Commit `ca413b157` (vermelho: 90 de 122 falhavam; os 32 verdes eram os do gateway, que já vinha pronto) e
+`d10f4f90d` (implementação). Casos: CA1 (aceita, reenvio da mesma mensagem, mesmo arquivo em outra mensagem,
+corrida), CA2 (recusa por encaminhador fora da lista, DKIM `not_aligned`/`absent`/`unverifiable`) e os hostis —
+remetente original fora da lista, nome de exibição imitando o permitido, subdomínio, cabeçalho duplicado, dois
+endereços, ausência, anexo grande demais (no limite passa, +1 byte recusa), extensão de planilha com bytes de PDF,
+mais de um anexo, nenhum anexo, MIME aninhado a 60 níveis, cabeçalhos de 70 KiB, mensagem dentro da mensagem anexada,
+`From` do MIME diferente do do provedor, token desconhecido/ligado a dois perfis, perfil não pronto, teto de abertas,
+janela de e-mails, e a **regressão** do trilho da conversa (as suítes da 143/183 seguem verdes com o ramo ligado
+sem reconhecer a mensagem). Integração contra Postgres: perfil por hash e por empresa, criação como o upload (prévia,
+evento `uploaded` no canal `worker`, outbox, intake, MIME), mesma mensagem sob corrida, mesmo arquivo em outra
+mensagem, duas mensagens com o mesmo arquivo ao mesmo tempo, teto de abertas, recusa idempotente e janela, trigger
+append-only e uma passada de ponta a ponta com o MIME real.
+
+### Gates (rodados nesta sessão)
+
+| Gate                                                                                                                                        | Resultado                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cd apps/worker-transportada && bun run typecheck && bun run lint`                                                                          | verdes                                                                                                                                                                                                             |
+| script `test` do worker                                                                                                                     | **1762 passam / 0 falham** (antes 1640; +122 do `cargo-preview-email.contract.test.ts`)                                                                                                                            |
+| `./test/integration/cargo-preview-email-intake.integration.ts`                                                                              | 9 passam (Postgres 18 nativo descartável)                                                                                                                                                                          |
+| `test:integration` do worker, completo, uma vez                                                                                             | 202 passam / **1 falha**: `osrm-routing-matrix.integration.test.ts` ("ponto fora da área") — usa o serviço OSRM de `ROUTING_MATRIX_URL`, sem relação com a mudança (distância 1 143 650 contra 4 511,2 do dataset) |
+| `cd apps/api-transportada && bun run typecheck && bun run lint`                                                                             | verdes                                                                                                                                                                                                             |
+| `bun --env-file=../../.env.test test --timeout 120000` (API)                                                                                | **10174 passam / 0 falham** (3 contratos de schema da 237 atualizados: colunas, CHECKs e `source`)                                                                                                                 |
+| `bun run db:test`                                                                                                                           | 138 passam (a lista estática de migrations ganhou a nova) + `cargo-preview-email-intake.assertion.ts` (CHECKs, único, append-only, rollback que recusa e que desfaz)                                               |
+| integrações da API tocadas (`cargo-preview`, `-resend`, `-unlink`, `-upload-limit`, `-trip-draft`, `contractor-receiving-profile`, `-list`) | verdes, um arquivo por vez                                                                                                                                                                                         |
+| `bun run format:check` na raiz                                                                                                              | verde (o prettier reescreveu um contrato da 143 antes)                                                                                                                                                             |
+
+### Mutações (script fora do repositório; cada arquivo restaurado; `git diff --quiet` limpo depois)
+
+| Mutação                                                      | Testes que caem |
+| ------------------------------------------------------------ | --------------- |
+| allow-list do encaminhador ignorada                          | 8               |
+| remetente original ignorado                                  | 7               |
+| DKIM do encaminhador ignorado                                | 4               |
+| teto do anexo ignorado                                       | 2               |
+| tipo pelos bytes ignorado                                    | 2               |
+| mais de um anexo aceito                                      | 2               |
+| ramo captura mensagem sem token                              | 1               |
+| teto do download do MIME removido                            | 1               |
+| `From` do MIME (o que o DKIM cobre) não reconferido          | 1               |
+| `From` duplicado na mensagem anexada aceito                  | 3               |
+| limite de e-mails por contratante removido                   | 1               |
+| profundidade do MIME sem limite                              | 1               |
+| hash do token igual ao da conversa                           | 1               |
+| reenvio do mesmo arquivo guarda arquivo duplicado            | 3               |
+| bloco encaminhado: último em vez do primeiro                 | 1               |
+| idempotência por mensagem removida do banco                  | 2               |
+| teto de prévias abertas ignorado                             | 1               |
+| prévia decide mesmo sem ser da prévia (regressão da 143/183) | 12              |
+| gateway aceita teto acima de 25 MiB                          | 1               |
+| bloco do texto de fora decide mesmo com mensagem anexada     | 6               |
+| mensagem anexada aninhada vira candidata                     | 1               |
+
+### Decisões que divergiram do texto do pedido
+
+- **Duas listas separadas**, uma do encaminhador e outra do remetente original (proposta aprovada), e o CHECK de que
+  o token exige as duas — o texto da spec (RF1) tinha uma lista só.
+- **Janela de e-mails por contratante (20 por 300 s)**, sem registro: a spec cita rate limit como mitigação e a
+  tabela dos e-mails serve de contador; o excesso é ignorado antes de baixar.
+- **Reenvio do mesmo arquivo devolve a prévia existente, mesmo que ela tenha falhado** (o upload a reabre): a
+  reabertura é follow-up; quem encaminha de novo depois de corrigir o perfil precisa de arquivo diferente ou da
+  reabertura pelo painel.
+- **MIME bruto só do e-mail aceito.** Recusa não grava corpo (RF3); o motivo e o resultado do DKIM ficam no registro.
+- **`unverifiable` (DNS do DKIM fora) é recusa**, não retentativa: o usuário reenvia, e o registro diz por quê.
+- **`e-mail ilegível` e `From` duplicado na mensagem de fora** viram `MIME_UNREADABLE`.
+
+### Passos do usuário pendentes
+
+1. MX/domínio de entrada no Resend (spec 143 T012) — nada disso foi tocado.
+2. Gravar por SQL, no perfil: o hash do token (`sha256("transportada:cargo-preview-inbound:v1:" + token)`) e as
+   duas listas — até a T4.6b; sem os três, a prévia por e-mail fica desligada.
+3. Configurar o encaminhamento das contas da equipe para `<token>@<domínio de entrada>`.
+
+### Follow-ups
+
+- **T4.6b** (rota `PUT` do token/listas e ficha); **T4.8** deve cobrir o MIME bruto da prévia; reabrir a prévia
+  que falhou no reenvio por e-mail; `security-reviewer` e `opus` na **T4.7**; formatos de encaminhamento além de
+  Gmail/Thunderbird/Apple/Outlook (o marcador é lista fechada) e anexos `inline` de assinatura que o cliente
+  marque como `attachment` tornam o e-mail ambíguo — medir com e-mails reais.
+
+### Não rodou
+
+DNS, MX, Resend e qualquer envio ou recebimento real; o `make migration-test` (Docker do Makefile): o equivalente,
+`bun run db:test`, rodou num Postgres 18 nativo descartável; o painel (não foi tocado); a revisão `opus` e a de
+segurança (T4.7).

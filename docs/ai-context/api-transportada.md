@@ -2999,3 +2999,22 @@ bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
   `municipal_holidays`, e o roteirizador (`holiday_on = input.date`) não muda (Q1; desenho na T1.2/T1.3, migration com
   aprovação humana); a cidade é a do **destino físico**, resolvida pelo chamador com `resolvePhysicalDestination`, nunca
   o endereço cadastrado do destinatário (Q2); fuso fixo de São Paulo (Q3).
+
+## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
+
+`20261007024527_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**
+enquanto existir prévia por e-mail):
+
+- `contractor_receiving_profiles`: `preview_inbound_token_hash char(64)` (hash do token do endereço de entrada,
+  único por empresa quando não nulo), `preview_forwarder_allowlist text[]` e `preview_sender_allowlist text[]`
+  (1..20 entradas, sem controle, espaço, vírgula nem `<>`); CHECK: token ⇒ as duas listas. **A rota
+  `PUT /contractors/:id/receiving-profile` não conhece as colunas** (T4.6b); o worker as lê.
+- `cargo_previews`: `uploaded_by_user_id` nulo e `source` aceita `email`; `cargo_previews_uploader_check` amarra
+  `source = 'upload'` a quem enviou. Nada na API lê `uploaded_by_user_id` fora do insert do upload.
+- `cargo_preview_email_intakes` (append-only por trigger): uma linha por e-mail que casou o token — `accepted`
+  (com `preview_id`, `is_replay`, `raw_object_id`) ou `rejected` (com `reason_code`) —, único por
+  `(company_id, provider_email_id)`. Só ids e códigos. Constantes (`CARGO_PREVIEW_EMAIL_*`) em
+  `shared/cargo-preview.constant.ts`, cópia byte a byte no worker.
+- Teste da migration: `test/database-migration/cargo-preview-email-intake.assertion.ts` (CHECKs, único, append-only,
+  rollback que recusa e que desfaz). Quem for ler a recusa na ficha do contratante (T4.6b) consulta a tabela por
+  `(company_id, contractor_id, received_at desc)`.

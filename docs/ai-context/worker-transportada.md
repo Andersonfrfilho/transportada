@@ -345,3 +345,34 @@ alvo rodaram num banco novo de nome próprio (ver `specs/237-.../evidence.md`).
 código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A fixture
 `graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
 (conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
+
+## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, ADR-0094 §10)
+
+Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` chama
+`previewIntake` (`cargo-preview-email/`) logo depois de buscar o e-mail e **antes** de procurar a conversa.
+`hasIntake` (por `provider_email_id`) é checado antes do Resend. Só a mensagem que casa o token de **um** perfil
+decide; token desconhecido, ausente ou de dois perfis devolve `not_a_preview` e o trilho da conversa segue
+como estava (as suítes da 143/183 rodam com um `previewIntake` que nunca reconhece nada).
+
+- **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:"
+  - token)`em`contractor_receiving_profiles.preview_inbound_token_hash`(distinto do hash de conversa;`+`recusado).
+O hash e a função`hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
+- **Barreiras, em ordem:** janela de e-mails do contratante (20 por 300 s, ignorada sem registro) → perfil pronto →
+  encaminhador do provedor na `preview_forwarder_allowlist` **antes** de baixar → MIME até 2 MiB
+  (`downloadRawEmail({ maxBytes })`) → DKIM do encaminhador `aligned` → `From` do MIME na lista → remetente original
+  (cabeçalho da mensagem anexada ou primeiro bloco encaminhado do texto) na `preview_sender_allowlist` → um anexo
+  candidato (960 KiB, `PK\x03\x04`). Cada recusa grava `cargo_preview_email_intakes` com o código e para.
+- **Leitura do MIME:** `parseForwardedEmail` usa PostalMime com `maxNestingDepth` 6, cabeçalhos 64 KiB e
+  `forceRfc822Attachments`; abre a mensagem anexada **uma vez** (a de dentro dela nunca é aberta nem vira
+  candidata). Ilegível devolve `undefined` → `MIME_UNREADABLE`.
+- **Criação:** `createPreviewFromEmail` é cópia por valor do `insertPreview` da API (`preview-upload-file.policy.ts`,
+  cobrada por `test/cargo-preview-email/parity.contract.ts`): toma a **mesma** advisory do upload, confere o registro
+  da mensagem, o arquivo do contratante (reenvio → `replayed`), o teto de 5 abertas (registra `TOO_MANY_OPEN_PREVIEWS`)
+  e grava prévia `source = 'email'` sem quem enviou, evento `uploaded` no canal `worker`, `cargo_preview_outbox` e o
+  registro `accepted` com o MIME bruto (`stored_objects`, `contractor_mail_raw`). Os dois objetos sobem **antes** da
+  transação e o que ela não deixar de pé sai do bucket.
+- **Log:** `inbound_email_preview_accepted` (ids, DKIM, `isReplay`), `inbound_email_preview_rejected` (código) e
+  `inbound_email_preview_rate_limited`; nunca endereço, assunto, corpo ou cabeçalho. Sem resposta ao remetente.
+- ⚠️ **A planilha nunca é aberta aqui:** os bytes entram na prévia e o trilho `cargo-preview.v1` a lê, com tetos e
+  `worker_thread`. ⚠️ Teste de integração semeia em série (o pool do Bun SQL trava com cadeias concorrentes de
+  INSERT). ⚠️ `bun test` de arquivo avulso: `./test/integration/cargo-preview-email-intake.integration.ts`.

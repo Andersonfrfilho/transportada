@@ -129,10 +129,21 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.6** Ramo "prévia" no worker de e-mail de entrada, **para mensagem ENCAMINHADA** (D6): token do
+- [x] **T4.6** Ramo "prévia" no worker de e-mail de entrada, **para mensagem ENCAMINHADA** (D6): token do
       perfil no endereço, remetente do encaminhamento na allow-list do perfil, **remetente original** lido do
       cabeçalho e também na allow-list, MIME bruto guardado, DKIM do encaminhador verificado e o do contratante
       tratado como perdido (risco aceito no `SECURITY.md`); limite de tamanho do anexo igual ao do upload; o anexo cai no mesmo caso de uso do upload; contratos (CA1, CA2); `security-reviewer`.
+      _(2026-10-07: migration `20261007024527_cargo_preview_email_intake` (aprovada pelo usuário: 3 colunas nulas no
+      perfil, `source = 'email'` sem quem enviou e a tabela append-only `cargo_preview_email_intakes`), ramo
+      `cargo-preview-email/` no worker, cópia por valor da criação da prévia com paridade, SECURITY (DKIM do
+      contratante perdido = risco aceito) e ADR-0094 §10 — `evidence.md` § T4.6; **sem push**. Token e listas
+      entram por SQL até a T4.6b; MX/Resend/listas são passo do usuário.)_
+- [ ] **T4.6b** Rota `PUT` do perfil para **gerar/rotacionar o token** do endereço de entrada (mostra o token uma
+      vez, guarda só o hash) e **editar as duas listas** (`preview_forwarder_allowlist`,
+      `preview_sender_allowlist`), com auditoria; a ficha do contratante no painel mostra o endereço de entrada
+      e as listas, e **as recusas recentes** (`cargo_preview_email_intakes`) por contratante. Contrato antes;
+      o formato do token e o hash são os de `preview-inbound-token.policy.ts` (copiar por valor, com paridade).
+      `sonnet`.
 - [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
       original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar.
 
@@ -146,6 +157,9 @@
       valor, peso, roteiro, vínculo, estado e trilha; idempotente, com evento append-only, sem PII em log,
       prazo configurável por constante nomeada; contrato antes, integração contra Postgres, mutação; registrar
       no `SECURITY.md` como decidido.
+      **Cobre também o MIME bruto** (`stored_objects.purpose = 'contractor_mail_raw'`) das mensagens da prévia por
+      e-mail (`cargo_preview_email_intakes.raw_object_id`): ele guarda a planilha e os cabeçalhos do encaminhamento
+      (T4.6, `SECURITY.md` 2026-10-06).
 
 ## Prompt de execução
 

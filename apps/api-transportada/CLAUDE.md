@@ -830,6 +830,12 @@ decidida (e recusa viagem viva e tratativa cancelada). A foto da avaria sobe **a
 da avaria de recebimento corre pelas rotas existentes de `/trip-occurrences/:id/case/*` — o acerto vale sem cobrança. ⚠️ A leitura da chegada **não** ganhou chave (guardas exatas do painel) — a marcação sai em
 `GET /cargo-arrivals/:id/occurrences`. Detalhe: docs/ai-context § "Spec 237 — Fase 3".
 
+**A prévia por e-mail encaminhado** (Fase 4b, T4.6, ADR-0094 §10): a API só guarda o que o worker lê — três colunas
+nulas no perfil (`preview_inbound_token_hash`, `preview_forwarder_allowlist`, `preview_sender_allowlist`; o token
+exige as duas listas), `cargo_previews.source = 'email'` com `uploaded_by_user_id` nulo (CHECK amarra os dois) e a
+tabela append-only `cargo_preview_email_intakes`. ⚠️ Código que lê `uploaded_by_user_id` trata o nulo; a rota `PUT`
+do perfil **não** grava token nem listas até a T4.6b (hoje, SQL). Detalhe: docs/ai-context § "Spec 237 — Fase 4b".
+
 ## Rascunhos de viagem da prévia (spec 237 T5.1)
 
 `GET /cargo-previews/:id/trip-drafts` (`fleet.read`, sem query): um rascunho por `RouteName`, só leitura — nada vira

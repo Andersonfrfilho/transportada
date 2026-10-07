@@ -287,6 +287,52 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
+
+**Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
+(`record-contractor-mail-inbound-message.use-case.ts`); `api-transportada`, migration
+`20261007024527_cargo_preview_email_intake` (ADR-0094 §10).
+
+**O que é:** o usuário encaminha o e-mail do contratante ao endereço de entrada do sistema; o worker lê a
+planilha anexa e cria a prévia pelo mesmo contrato do upload. O e-mail e a planilha são entrada hostil.
+
+**Risco aceito pelo usuário (2026-10-06):** o DKIM do **contratante** não chega ao sistema — ele não assina o
+encaminhamento, e o que se verifica é o DKIM de **quem encaminha**. O remetente original é lido do cabeçalho
+da mensagem encaminhada (ou do bloco no texto) e é **informação, nunca autenticação**: quem controla a conta
+encaminhadora pode forjar o remetente original e a planilha. **Limite do risco:** o dano é uma prévia falsa em
+estado `queued` para um contratante com perfil ligado — o vínculo continua exigindo valor **e** peso contra XML
+real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem nem nota.
+
+**O que segura (mitigações):**
+
+- **Token no endereço** (26 base32, só o hash no perfil, espaço de hash distinto do das conversas) **e**
+  **lista do encaminhador** (endereço exato) **e** **DKIM do encaminhador alinhado** — conferido sobre o
+  `From` do próprio MIME, depois de uma checagem barata do remetente do provedor antes de baixar. Falta de
+  qualquer um é recusa com código; lista ausente ou vazia recusa tudo.
+- **Remetente original na lista do perfil** (endereço ou domínio exato, nunca subdomínio); cabeçalho
+  duplicado, lista de endereços ou ausência são recusa; o nome de exibição é descartado.
+- **Tamanho e tipo:** MIME até 2 MiB (o gateway baixa com teto), anexo até 960 KiB (o do upload), tipo pelos
+  bytes (`PK\x03\x04`), **um** anexo candidato; MIME lido com PostalMime limitado (profundidade 6,
+  cabeçalhos 64 KiB) e a mensagem anexada aberta uma vez, sem recursão. O worker **nunca abre a planilha** no
+  consumidor de e-mail: ela segue para o leitor com tetos, `worker_thread` e orçamento (§7).
+- **Abuso:** 20 e-mails por contratante por 300 s (o excesso é ignorado, sem download) e no máximo 5 prévias
+  `queued`/`processing` por contratante, sob a mesma trava advisory do upload.
+- **Sem eco e sem PII em log:** nenhuma resposta ao remetente; log só com ids, códigos e contagens. A recusa
+  fica em `cargo_preview_email_intakes` (append-only) sem endereço, nome, assunto, corpo nem cabeçalho.
+- **Idempotência:** `(company_id, provider_email_id)` único; o mesmo arquivo do contratante devolve a prévia
+  existente; o MIME bruto só é guardado do e-mail aceito (RF3), em chave opaca.
+
+**Pendências / limites conhecidos:**
+
+1. **O remetente original forjado por quem encaminha não é detectável** — é o risco aceito acima.
+2. **Retenção do MIME bruto:** `contractor_mail_raw` das mensagens da prévia contém a planilha e os
+   cabeçalhos. A T4.8 (retenção de 90 dias) **deve cobri-lo**, junto com o arquivo e as colunas de pessoa dos
+   itens; até lá o prazo não é cumprido.
+3. **Sem rate limit por IP/remetente** além da janela por contratante: quem tem o token e consegue passar a
+   lista do encaminhador é a própria equipe.
+4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012) e as listas/hash do token no perfil —
+   por SQL até a T4.6b (rota `PUT` e ficha). O código não configura DNS nem envia e-mail.
+
 ### 2026-10-06 — spec 237 Fase 3 — avaria sem viagem: quem desfaz a devolução, a migration numa tabela central e o rollback destrutivo
 
 **Autorização (decidido, ADR-0094 §9.5 ajuste 8):** abrir a ocorrência de recebimento, marcar "devolver ao
