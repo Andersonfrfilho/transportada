@@ -191,6 +191,11 @@ describe('o corpo do POST da rota do motorista (contrato do servidor, .strict())
   it('sem os campos novos o corpo é o de antes', async () => {
     const body = await readBody({})
 
-    expect(Object.keys(body).sort()).toEqual(['location', 'note', 'occurrenceTypeId', 'productCode'])
+    expect(Object.keys(body).sort()).toEqual([
+      'location',
+      'note',
+      'occurrenceTypeId',
+      'productCode',
+    ])
   })
 })
