@@ -2337,3 +2337,134 @@ encerrado por PID, porta 53010 livre, harness e recorte apagados, `git status` l
 2. Os rótulos do tipo só chegam a quem tem `settings.manage` (a lista de tipos é dessa permissão); os demais operadores veem os rótulos genéricos.
 3. Código repetido na seleção da correção não é um caso do formulário (a seleção é por código): o valor gravado por linha usa a primeira linha do código.
 4. Vários códigos com valor pago da ocorrência: não há atribuição por item, o acerto mostra só o aviso (decisão acima), e o operador distribui o valor ao preencher.
+
+## T7.2 — correções da revisão: app do motorista (2026-10-07)
+
+A revisão independente reprovou o app do motorista no **A3 (bloqueante)** e levantou três itens de usabilidade (B1).
+
+### A3 — o valor pago descartava dígito em silêncio
+
+`sanitizeDecimalInput` aceitava `.` e `,` como separador e cortava o que passasse da 2ª casa: `1.500` digitado
+virava `1.50` (e o e-mail saía com R$ 1,50) e colar `1.234,56` gravava `1.23`. O painel usa outra semântica
+(`maskAmountInput`: só dígito, os dois últimos são centavos) — dado financeiro com duas digitações é defeito.
+
+**Correção.** O app do motorista replica a máscara do painel (sem importar código de outra app) em
+`occurrenceMoneyMask.service.ts`: só dígito entra, exibição `1.234,56` com milhar, eco imediato. `1.500` → `15,00`
+(visível ao vivo); colar `1.234,56` → `1.234,56`; `R$ 57,20` → `57,20`. `0` e `0,00` são **valor** (`"0.00"`); vazio
+não é; apagar a partir de `0,00` limpa o campo. O corpo segue string com ponto e 2 casas (`1234.56`), no padrão
+`DECLARED_AMOUNT_DECIMAL` da API. No teto (10 inteiros + 2 centavos) a tela diz, em região viva
+(`aria-live="polite"`): "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99." — a tecla extra não
+entra, mas nunca calada. Teclado `inputMode="numeric"`. `DECLARED_AMOUNT_INPUT`/`sanitizeDecimalInput` foram
+removidos (zero consumidores). O espelho do cálculo (`occurrenceAmount.service.ts`) não precisou mudar; os 24 casos
+da tabela espelhada seguem verdes.
+
+**Quantidade (até 3 casas).** `.` vale como `,` (o campo mostra a vírgula). Casa a mais NÃO é cortada: o texto
+fica como digitado, o campo ganha `aria-invalid` e a mensagem "A quantidade aceita no máximo 3 casas depois da
+vírgula." (`quantityProblem: 'too-many-decimals'`); mais de 9 dígitos inteiros idem (`'too-many-digits'`). O botão
+fica bloqueado pelo motivo "a quantidade dos produtos marcados" (`hasInvalidItemQuantity`).
+
+### B1
+
+- **(a)** Espaço não separável (U+00A0) depois de todo `R$` dos textos da tela (`money`, `paid`, `calculation`,
+  `onNote`, `limit`; pt-BR e en). `pago R$ / 99,00` não parte mais. Contrato: nenhum `R$ ` com espaço comum em
+  `occurrenceRegistration`, nos dois locales.
+- **(b)** O total "Valor pago pela loja R$ 156,20" misturava linhas digitadas com calculadas. Decisão: o rótulo é
+  **"Total que vai no e-mail"** e uma linha de origem o acompanha (`resolveOccurrenceTotalOrigin`): "Calculado pela
+  nota (quantidade × valor unitário).", "Valor pago digitado em todas as linhas.", "N de M linhas com valor pago
+  digitado; as outras, calculadas pela nota." ou "Valor pago digitado para a ocorrência inteira." — a semântica da
+  RF9 (o digitado vence a soma da linha) dita na tela, sem esconder a mistura.
+- **(c)** `OccurrenceRegisterAction` ganhou uma região viva `role="status"` sempre montada com o botão; ela diz o que
+  falta ou, quando o tipo exige algo (`hasRequiredOccurrenceField`) e tudo está preenchido, "Tudo o que o tipo pede
+  está preenchido." (verde `--color-ready` misturado ao tom do texto: 6,05:1 no claro, 6,87:1 no escuro).
+
+### Divisão de arquivo (sem mudar comportamento)
+
+`occurrenceDraftValues.service.ts` (299 linhas) foi dividido por responsabilidade, com 1341 testes verdes antes e
+depois: `occurrenceDraftValues.types.ts` (64), `occurrenceItemLine.service.ts` (~130) e o serviço de avaliação (~150).
+Os importadores seguem pelo mesmo caminho (reexport). `occurrenceRequirements.service.ts` (270) não foi editado.
+⚠️ `DriverOccurrenceRegistrationForm.component.tsx` está com 211 linhas (era 209: já estava acima do teto antes);
+acrescentei uma linha (`hasRequiredFields`) e não o dividi por estar fora do escopo pedido.
+
+### Vermelho antes do código
+
+Contrato novo `test/driver-trip/occurrence-money-input.contract.ts` (registrado no entrypoint):
+
+```text
+error: Cannot find module '../../src/modules/driver-trip/shared/occurrenceMoneyMask.service'
+ 1 error
+```
+
+B1 (a–c) e origem do total, antes da implementação: `bun run --cwd apps/frontend-driver test` → `12 fail`
+(locale com `R$ ` comum, `Total que vai no e-mail`, origem, `hasRequiredFields`/`role="status"`).
+
+### Mutações (cada uma sozinha, vermelho, depois revertida)
+
+1. **Voltar a descartar dígito em silêncio** (`maskMoneyInput` cortando além da 2ª casa depois do separador e
+   `sanitizeQuantityInput` com `.slice(0, 3)`):
+
+```text
+(fail) a máscara de centavos do valor pago (igual à do painel) > "1.500" digitado vira 15,00 — visível ao vivo, e nenhum dígito some
+(fail) ... > "57,2" digitado: cada tecla ecoa na hora, sem perder dígito
+(fail) ... > teclas repetidas: zeros à esquerda não contam e o texto fica estável
+(fail) ... > milhar com ponto, em pt-BR
+(fail) ... > o teto são 10 dígitos inteiros + 2 centavos: além dele a tela avisa (nunca ignora calada)
+(fail) a quantidade (até 3 casas) não descarta dígito em silêncio > casas a mais ficam como digitadas (a tela marca, não corta)
+ 1357 pass
+ 6 fail
+```
+
+2. **Tratar "0,00" como vazio** (`unmaskMoneyText` devolvendo `undefined` para só zeros):
+
+```text
+(fail) a lista, a soma da linha e a soma geral (RF11, os números do protótipo) > valor pago 0 é aceito e diferente de vazio
+(fail) ... > escopo "item" sem nenhuma linha marcada cai na ocorrência — como o servidor
+(fail) o botão só libera com o exigido, sem rede (CA07) > valor pago obrigatório por linha: toda linha marcada o pede; zero vale
+(fail) ... > valor pago obrigatório da ocorrência: o campo da ocorrência o pede; zero vale
+(fail) a máscara de centavos ... > zero é valor: "0" e "0,00" mascaram para 0,00 e vão como "0.00"; vazio não é valor
+(fail) ... > o texto enviado casa com DECLARED_AMOUNT_DECIMAL da API
+(fail) o valor pago mascarado entra na conta e no corpo do envio > "0,00" é um valor ("0.00"), e vazio não manda nada
+ 7 fail
+```
+
+Arquivos restaurados; base de volta a verde.
+
+### Testes existentes alterados (e por quê)
+
+`occurrence-values.contract.ts`: os rascunhos do valor pago passam a ser o texto **mascarado** que o campo guarda
+(`'0'` → `'0,00'`, `'10'` → `'10,00'`, `'50'` → `'50,00'`, `'8'` → `'8,00'`) e o corpo esperado ganha as 2 casas
+(`'0.00'`, `'10.00'`); o teste de `sanitizeDecimalInput` saiu junto com a função (coberto pelo contrato novo).
+`occurrence-values-fields.contract.tsx`: textos com `R$` + U+00A0, "Total que vai no e-mail" no lugar do rótulo do tipo.
+
+### Navegador (arnês descartável + Vite do worktree, porta 53200; verificado por texto)
+
+Arnês não commitado renderizando o `DriverOccurrenceRegistrationForm` real, com CSS e i18n reais; Vite do binário da
+app, PID confirmado com `cwd` neste worktree; encerrado por PID, arnês apagado, portas 53200/53901 livres.
+Sem login real (ADR-0075 §7).
+
+| Cenário digitado                                        | Resultado na tela                                                                                                                                                           |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1.500`                                                 | `15,00`                                                                                                                                                                     |
+| `R$ 1.234,56`                                           | `1.234,56`                                                                                                                                                                  |
+| 14 noves                                                | `9.999.999.999,99` + região viva "Limite do campo: …"                                                                                                                       |
+| `0`                                                     | `0,00`; "falta" passa a ser só a observação; corpo `declaredAmount: "0.00"`                                                                                                 |
+| quantidade `2.5555`                                     | texto fica `2,5555`, `aria-invalid="true"`, "…no máximo 3 casas…", Registrar desabilitado ("falta: a quantidade dos produtos marcados")                                     |
+| quantidade `2.555` + valor pago `9900` na linha do bolo | `2,555 CX × R$ 19,995 = R$ 51,09`; `1 UN × R$ 57,20 = R$ 57,20 · pago R$ 99,00`; total R$ 150,09; "1 de 2 linhas com valor pago digitado; as outras, calculadas pela nota." |
+| tipo exigindo valor + observação, tudo preenchido       | `role="status"`: "Tudo o que o tipo pede está preenchido."; Registrar liberado                                                                                              |
+
+Geometria: sem estouro em 375/768/1280 (`scrollWidth == innerWidth`), campos 46 px, botões 44–57 px, nenhum `R$ `
+com espaço comum nas linhas de conta; contraste da mensagem positiva 6,05:1 (claro) e 6,87:1 (escuro). Um print a
+375 px foi tirado como prova.
+
+### Gates (exit code conferido com `$?`)
+
+```text
+bun run typecheck                          exit=0
+bun run --cwd apps/frontend-driver test    exit=0  — 1371 pass · 0 fail · 3025 expect() calls
+bun run --cwd apps/frontend-driver lint    exit=0
+bun run format:check (raiz)                exit=0  — All matched files use Prettier code style!
+```
+
+### O que NÃO foi rodado
+
+`make check` completo, smoke Playwright do app do motorista, integração da API (fora do escopo; outro executor cuida
+da API), e o fluxo com login e fila reais (o arnês usa fila em memória). Revisão independente (T7.2) a repetir.
