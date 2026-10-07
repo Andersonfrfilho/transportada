@@ -94,6 +94,8 @@ async function mount(input: Parameters<typeof installExceptionsDouble>[0] = {}):
       createElement(OccurrenceTypeCatalogPanel, {
         canManage: true,
         isSaving: false,
+        loadStatus: 'ready',
+        onRetry: () => undefined,
         onSave: () => undefined,
         saveFeedbackKey: null,
         types: TYPES,

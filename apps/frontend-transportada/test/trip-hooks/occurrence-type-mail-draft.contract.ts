@@ -67,6 +67,8 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
       createElement(OccurrenceTypeCatalogPanel, {
         canManage: true,
         isSaving: false,
+        loadStatus: 'ready',
+        onRetry: () => undefined,
         onSave: () => undefined,
         saveFeedbackKey: null,
         types,

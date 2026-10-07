@@ -20,6 +20,7 @@ import {
   OccurrenceMailDraftStoreContext,
 } from '../hooks/useOccurrenceMailDraftStore.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
+import type { OccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
 import { countActiveOccurrenceTypeFilters } from '../shared/occurrenceTypeFilterChips.service'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
@@ -27,6 +28,7 @@ import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
 import { OccurrenceTypeFilterEmpty } from './OccurrenceTypeFilterEmpty.component'
 import { OccurrenceTypeFilters } from './OccurrenceTypeFilters.component'
 import { OccurrenceTypeList } from './OccurrenceTypeList.component'
+import { OccurrenceTypeLoadState } from './OccurrenceTypeLoadState.component'
 
 function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
   if (query.isError) return 'error' as const
@@ -36,6 +38,9 @@ function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>)
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
   isSaving: boolean
+  /** Lista ainda não chegou ≠ lista vazia: o aviso de vazio só vale com `ready`. */
+  loadStatus: OccurrenceTypeLoadStatus
+  onRetry: () => void
   onSave: (input: OccurrenceTypeSaveInput) => void
   /** Spec 241: a recusa da última gravação, já traduzida em chave de `trip.feedback`. */
   saveFeedbackKey: null | string
@@ -61,6 +66,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
 export function OccurrenceTypeCatalogPanel({
   canManage,
   isSaving,
+  loadStatus,
+  onRetry,
   onSave,
   saveFeedbackKey,
   types,
@@ -125,16 +132,22 @@ export function OccurrenceTypeCatalogPanel({
       <h2>{t('occurrenceTypeCatalog.title')}</h2>
       <p className={styles.hint}>{t('occurrenceTypeCatalog.hint')}</p>
 
-      {types.length === 0 ? (
+      {loadStatus !== 'ready' ? (
+        <OccurrenceTypeLoadState onRetry={onRetry} status={loadStatus} />
+      ) : null}
+
+      {loadStatus === 'ready' && types.length === 0 ? (
         <p className={styles.hint}>{t('occurrenceTypeCatalog.empty')}</p>
-      ) : (
+      ) : null}
+
+      {loadStatus === 'ready' && types.length > 0 ? (
         <OccurrenceTypeFilters
           canFilterByException={overridesQuery.isSuccess}
           controller={filtersController}
           shownCount={visibleTypes.length}
           totalCount={types.length}
         />
-      )}
+      ) : null}
 
       {saveFeedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
@@ -163,7 +176,7 @@ export function OccurrenceTypeCatalogPanel({
         </OccurrenceMailDraftStoreContext.Provider>
       )}
 
-      {canManage ? (
+      {canManage && loadStatus === 'ready' ? (
         <OccurrenceTypeCreateForm
           isSaving={isSaving}
           onSave={onSave}

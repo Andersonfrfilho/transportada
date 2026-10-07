@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
+import { readOccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { OccurrenceTypeCatalogPanel } from './OccurrenceTypeCatalogPanel.component'
 
@@ -20,6 +21,8 @@ export function TripOccurrenceTypesTab({ canManage }: TripOccurrenceTypesTabProp
     <OccurrenceTypeCatalogPanel
       canManage={canManage}
       isSaving={saveMutation.isPending}
+      loadStatus={canManage ? readOccurrenceTypeLoadStatus(query) : 'ready'}
+      onRetry={() => void query.refetch()}
       onSave={(type) => saveMutation.mutate(type)}
       saveFeedbackKey={resolveTripFeedbackKey(saveMutation.error)}
       types={query.data ?? []}
