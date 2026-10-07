@@ -23,6 +23,7 @@ import {
   type TripOccurrenceDetail,
   type TripOccurrenceDetailDriver,
   type TripOccurrenceDetailItem,
+  type TripOccurrenceItemValue,
   type TripOccurrenceDocument,
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
@@ -276,6 +277,23 @@ function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
   )
 }
 
+function isItemValue(value: unknown): value is TripOccurrenceItemValue {
+  return (
+    isRecord(value) &&
+    isString(value.productCode) &&
+    isString(value.quantity) &&
+    DECIMAL_STRING.test(value.quantity) &&
+    isString(value.unitValue) &&
+    DECIMAL_STRING.test(value.unitValue) &&
+    (value.declaredAmount === null ||
+      (isString(value.declaredAmount) && DECIMAL_STRING.test(value.declaredAmount)))
+  )
+}
+
+function isNullableDecimal(value: unknown): value is null | string {
+  return value === null || (isString(value) && DECIMAL_STRING.test(value))
+}
+
 function readDetail(payload: unknown): TripOccurrenceDetail {
   if (!isRecord(payload) || !isFeedItem(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -284,6 +302,7 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
   const { actorName, channel, corrections, document, driver, items, onBehalfOfDriverName } = fields
+  const { declaredAmount, itemValues, referenceNumber } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
@@ -296,7 +315,10 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
     ) ||
     !isNullableString(actorName) ||
     !isString(channel) ||
-    !isNullableString(onBehalfOfDriverName)
+    !isNullableString(onBehalfOfDriverName) ||
+    !(declaredAmount === undefined || isNullableDecimal(declaredAmount)) ||
+    !(referenceNumber === undefined || isNullableString(referenceNumber)) ||
+    !(itemValues === undefined || (Array.isArray(itemValues) && itemValues.every(isItemValue)))
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
