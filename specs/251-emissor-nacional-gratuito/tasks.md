@@ -63,6 +63,28 @@ commit isolado e evidência em `evidence.md`. Migration pede `make migration-tes
 
 ## Prompt de execução
 
-Spec com `[NEEDS CLARIFICATION]` aberto não ganha prompt de execução. Pendentes: ver `spec.md`
-(município aceita emissão direta; A1; destino da Nota RP; contrato do Swagger). A Fase 0 da
-**250** fecha antes desta.
+> Esta spec só começa depois que a **250 estiver em produção** e depois da **T0.2** (o município
+> aceita emissão direta?). O prompt para nessas duas condições.
+
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/251-emissor-nacional-gratuito/ (leia spec.md,
+plan.md, tasks.md e a evidence.md da 250 antes de tocar em código). Uma task por vez, na ordem do
+tasks.md, a partir de um worktree próprio (`make worktree NAME=spec-251`).
+PORTÃO 0: confira em origin/staging e em produção que a spec 250 foi entregue
+(NFSE_PROVIDER_API_VERSION=v3 emitindo). Se não, pare e avise.
+Modelos: Fase 0 → executor model=sonnet · T0.2 🧠 e T0.5 🧠 → opus (validar com architect) ·
+Fases 1, 2, 3 e 4 → executor model=sonnet · revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
+PORTÃO 1 (T0.2): confirme na API nacional (parâmetros municipais, produção restrita) que Ribeirão
+Preto aceita emissão direta. Se NÃO aceitar, pare, escreva a ADR "não faremos" e avise o usuário.
+PORTÃO 2 (T0.3–T0.5): transcreva o Swagger de produção restrita para plan.md; pergunte ao usuário
+(AskUserQuestion) pelo A1 de homologação, quem renova o A1 de produção e o destino da Nota RP
+(contingência × remoção). Sem resposta, pare.
+Cada task fecha com typecheck + testes + commit isolado (caminhos explícitos, --no-verify) e
+evidência em evidence.md. Migration pede `make migration-test` e rollback.sql; teste novo entra na
+lista do package.json; integração com --env-file. Nunca importar internals src/sefaz/* do pacote
+fiscal; nunca logar certificado, senha ou XML sensível; zerar buffers de chave.
+Staging emite em PRODUÇÃO RESTRITA; ADR 0099 reservado a esta spec (conferir em origin/staging).
+Pare e pergunte antes de: usar certificado real, deploy em produção, merge de PR para main, T4.2
+(virada e nota real de valor mínimo), migration destrutiva, qualquer [NEEDS CLARIFICATION] novo.
+```

@@ -84,10 +84,33 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 ## Prompt de execução
 
-Spec com `[NEEDS CLARIFICATION]` aberto não ganha prompt de execução. Perguntas pendentes:
+> A spec tem três `[NEEDS CLARIFICATION]` abertos. O prompt abaixo **para na T0.3 e pergunta** ao
+> usuário antes de qualquer código; ele não decide alíquota, retenção nem `cTribMun` por conta própria.
 
-1. Alíquota de `tributos_aproximados` (mín. 4,50% × 2,00% da nota 74).
-2. ISS retido ou não no perfil.
-3. `cTribMun` do perfil: `160107` ou `160101`.
-
-Fechadas as três, este arquivo recebe o prompt de autopilot (modelos por fase acima).
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/250-nota-rp-v3-padrao-nacional/ (leia spec.md,
+plan.md, tasks.md e evidence.md antes de tocar em código). Uma task por vez, na ordem do tasks.md,
+a partir de um worktree próprio (`make worktree NAME=spec-250`), nunca no checkout principal.
+Modelos: Fase 0 → executor model=haiku · Fases 2, 3, 4, 5 e 6 → executor model=sonnet ·
+T1.1 🧠, T3.1 🧠 e T5.1 🧠 → opus (validar com architect antes de implementar) ·
+revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
+PORTÃO 1 (T0.3): antes de qualquer código, pergunte ao usuário (AskUserQuestion) os três
+[NEEDS CLARIFICATION] de spec.md — alíquota de tributos_aproximados (mín. 4,50% × 2,00% da nota 74),
+ISS retido ou não, cTribMun 160107 × 160101 — e grave as respostas em spec.md e evidence.md. Sem
+resposta, pare.
+Cada task fecha com typecheck + testes + commit isolado (git add com caminhos explícitos, --no-verify
+por causa do hook que varre a árvore) e evidência em evidence.md. Migration (T2.2) pede
+`make migration-test`, rollback.sql e snapshot; teste novo entra na lista do package.json da app;
+`bun --env-file=../../.env.test run test:integration` para o que tocar test/integration.
+Após rebase, `bun install --frozen-lockfile` antes do typecheck. Numeração de ADR/migration
+conferida em origin/staging antes do commit (ADR 0098 reservado a esta spec).
+Publicação em staging: git fetch → rebase origin/staging → install → gates → push HEAD:staging,
+encadeado com && (rebase parado nunca chega ao push). Staging fica com
+NFSE_PROVIDER_API_VERSION=v2 até a virada.
+NÃO reemitir a nota de serviço da Comercial Zaragoza (R$ 2.601,95): ela já existe como NFS-e nº 74,
+emitida à mão no portal — usar o vínculo de nota externa (T5.x) ou descartar.
+Pare e pergunte antes de: leitura de dado de produção (T0.2), deploy em produção, merge de PR para
+main, T6.2 (virada para v3 e primeira nota real de valor mínimo), migration destrutiva, qualquer
+[NEEDS CLARIFICATION] novo.
+```
