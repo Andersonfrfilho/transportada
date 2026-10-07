@@ -70,6 +70,8 @@ export function OccurrenceCorrectionAmounts({
   })
   const sums = readCorrectionLineSums({ ...selection, final })
 
+  if (isReferenceOff && isAmountOff) return null
+
   return (
     <section aria-label={t('occurrenceDetail.correction.amounts.title')} className={styles.amounts}>
       <p className={styles.title}>{t('occurrenceDetail.correction.amounts.title')}</p>

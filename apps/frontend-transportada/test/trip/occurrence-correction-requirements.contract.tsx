@@ -76,6 +76,7 @@ describe('a correção segue o requisito efetivo do tipo (spec 247 T7.2b, N1/N2)
     expect(markup).not.toContain('Valor pago pela loja')
     expect(markup).not.toContain('<input')
     expect(markup).not.toContain('Valor que vai no e-mail')
+    expect(markup).toBe('')
   })
 
   test('modo off só no número: o valor pago continua', () => {
