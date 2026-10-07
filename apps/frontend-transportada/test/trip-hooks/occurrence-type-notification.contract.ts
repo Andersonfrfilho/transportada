@@ -168,18 +168,21 @@ describe('aviso ao contratante no tipo (RF1e)', () => {
   )
 
   test(
-    'modelo próprio antigo aparece marcado como legado, com o texto',
+    'o texto do e-mail à contratante, gravado no tipo, nunca aparece como aviso interno (spec 247 T7.1)',
     scenario(async () => {
       await mount(
         buildType({
-          emailBody: 'Texto antigo do tipo',
-          emailSubject: 'Assunto antigo',
+          emailBody: 'Corpo do e-mail à contratante',
+          emailSubject: 'Assunto do e-mail à contratante',
           emailTemplateKey: null,
         }),
       )
       const text = document.body.textContent ?? ''
-      expect(text.includes('Assunto antigo — modelo próprio (legado)')).toBe(true)
-      expect(text.includes('Texto antigo do tipo')).toBe(true)
+      expect(text.includes('Assunto do e-mail à contratante')).toBe(false)
+      expect(text.includes('Corpo do e-mail à contratante')).toBe(false)
+      expect(text.includes('modelo próprio (legado)')).toBe(false)
+      expect(text.includes('bloco ao lado')).toBe(false)
+      expect(text.includes('se configura no bloco acima')).toBe(true)
     }),
   )
 

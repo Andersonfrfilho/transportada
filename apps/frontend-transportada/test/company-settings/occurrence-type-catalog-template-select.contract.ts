@@ -90,11 +90,11 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
     expect(OCCURRENCE_TEMPLATE_NONE).toBe('')
   })
 
-  /** A linha do tipo mostra o modelo escolhido; a linha legada mostra o assunto com a marca. */
-  it('nomeia o modelo na linha, e marca o legado', () => {
-    expect(source).toInclude('legacyTemplate')
-    expect(companySettings.occurrenceTypeCatalog.legacyTemplate).toInclude('legado')
-    expect(companySettingsEn.occurrenceTypeCatalog.legacyTemplate).toBeString()
+  /** A linha do tipo mostra o modelo escolhido; o texto do e-mail à contratante não é aviso interno (247). */
+  it('não marca mais o texto do e-mail à contratante como modelo legado', () => {
+    expect(source).not.toInclude('legacyTemplate')
+    expect('legacyTemplate' in companySettings.occurrenceTypeCatalog).toBe(false)
+    expect('legacyTemplate' in companySettingsEn.occurrenceTypeCatalog).toBe(false)
   })
 
   /** O atalho leva ao editor de templates do módulo de notificações, pela navegação do shell. */
