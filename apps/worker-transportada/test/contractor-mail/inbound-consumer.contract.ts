@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+
+import { NOT_A_PREVIEW_INTAKE } from '../cargo-preview-email/not-a-preview.fixture.js'
 import type { RabbitMqConsumer, RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 
 import { startContractorMailInboundConsumer } from '../../src/runtime/contractor-mail-inbound-consumer.service.js'
@@ -147,7 +149,8 @@ function buildDependenciesStub(overrides?: {
         return undefined
       },
     },
-    storageBucket: 'transportada-private',
+    previewIntake: NOT_A_PREVIEW_INTAKE,
+      storageBucket: 'transportada-private',
     storageProvider: 'minio',
   }
 }

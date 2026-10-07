@@ -4,6 +4,8 @@
 import { createHash, generateKeyPairSync } from 'node:crypto'
 
 import { describe, expect, test } from 'bun:test'
+
+import { NOT_A_PREVIEW_INTAKE } from '../cargo-preview-email/not-a-preview.fixture.js'
 import { dkimSign } from 'mailauth'
 
 import {
@@ -211,6 +213,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -283,6 +286,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -340,6 +344,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -404,6 +409,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -468,6 +474,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -511,6 +518,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('should not store')
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -551,6 +559,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('should not store')
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -595,6 +604,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -636,6 +646,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -689,6 +700,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -764,6 +776,7 @@ describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
         }),
       },
       storage: { storeObject: async () => undefined },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }

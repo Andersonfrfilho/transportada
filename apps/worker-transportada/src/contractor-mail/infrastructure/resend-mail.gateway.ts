@@ -82,7 +82,11 @@ export type SendResendEmailInput = {
 const FORBIDDEN_RECIPIENT_CHARACTERS = /[\r\n,<>]/
 
 export type ResendMailGateway = {
-  downloadRawEmail(input: { readonly downloadUrl: string }): Promise<Buffer>
+  /** `maxBytes` baixa o teto (o ramo da prévia); nunca o sobe acima dos 25 MiB do provedor. */
+  downloadRawEmail(input: {
+    readonly downloadUrl: string
+    readonly maxBytes?: number
+  }): Promise<Buffer>
   fetchReceivedEmail(input: {
     readonly apiKey: string
     readonly emailId: string
@@ -156,7 +160,7 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
       return parsed.data
     },
 
-    async downloadRawEmail({ downloadUrl }) {
+    async downloadRawEmail({ downloadUrl, maxBytes }) {
       const url = safeParseUrl(downloadUrl)
       if (url === undefined || !isAllowedResendDownloadUrl(url)) {
         throw new ResendDownloadHostNotAllowedError()
@@ -187,7 +191,10 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
         throw new ResendProviderUnexpectedResponseError()
       }
 
-      return readBoundedBody(response)
+      return readBoundedBody(
+        response,
+        Math.min(maxBytes ?? MAX_RAW_EMAIL_BYTES, MAX_RAW_EMAIL_BYTES),
+      )
     },
   }
 }
@@ -243,11 +250,11 @@ function safeParseUrl(value: string): URL | undefined {
   }
 }
 
-async function readBoundedBody(response: Response): Promise<Buffer> {
+async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
   const reader = response.body?.getReader()
   if (reader === undefined) {
     const buffer = Buffer.from(await response.arrayBuffer())
-    if (buffer.byteLength > MAX_RAW_EMAIL_BYTES) throw new ResendDownloadTooLargeError()
+    if (buffer.byteLength > maxBytes) throw new ResendDownloadTooLargeError()
     return buffer
   }
 
@@ -258,7 +265,7 @@ async function readBoundedBody(response: Response): Promise<Buffer> {
     if (done) break
 
     totalBytes += value.byteLength
-    if (totalBytes > MAX_RAW_EMAIL_BYTES) {
+    if (totalBytes > maxBytes) {
       await reader.cancel()
       throw new ResendDownloadTooLargeError()
     }
