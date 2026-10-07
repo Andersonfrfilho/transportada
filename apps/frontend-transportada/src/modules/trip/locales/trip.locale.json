@@ -2130,7 +2130,8 @@
       "hint": "O que o registro da ocorrência diz que cada item vale: o valor pago digitado, senão a soma da linha. Nada é gravado até você usar a sugestão e salvar o acerto.",
       "reference": "soma da linha {{amount}}",
       "unpaid": "A loja não pagou, sem valor a acertar",
-      "use": "Usar a sugestão do registro"
+      "use": "Usar a sugestão do registro",
+      "unsplit": "A loja pagou R$ {{amount}} pela ocorrência inteira. Esse valor não é de um item só: distribua-o entre os itens do acerto."
     }
   },
   "occurrenceDetail": {

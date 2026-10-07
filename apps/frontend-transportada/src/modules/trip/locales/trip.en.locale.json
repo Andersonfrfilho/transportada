@@ -2130,7 +2130,8 @@
       "hint": "What the occurrence record says each item is worth: the typed amount paid, otherwise the line sum. Nothing is saved until you use the suggestion and save the settlement.",
       "reference": "line sum {{amount}}",
       "unpaid": "The store did not pay, nothing to settle",
-      "use": "Use the suggestion from the record"
+      "use": "Use the suggestion from the record",
+      "unsplit": "The store paid R$ {{amount}} for the whole occurrence. That amount does not belong to one item: split it among the settlement items."
     }
   },
   "occurrenceDetail": {
