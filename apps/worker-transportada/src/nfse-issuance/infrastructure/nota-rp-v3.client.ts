@@ -29,7 +29,7 @@ import type {
   NotaRpV3Client,
   NotaRpV3Dependencies,
 } from './nota-rp-v3.types.js'
-import type { NotaRpCancelOutcome } from './nota-rp-v2.client.js'
+import type { NotaRpCancelOutcome, NotaRpStatusOutcome } from './nota-rp-v2.client.js'
 
 const CONFLICT_STATUS = 409
 const NOT_FOUND_STATUS = 404
@@ -53,7 +53,12 @@ export function createNotaRpV3Client(dependencies: NotaRpV3Dependencies): NotaRp
         path: '/nota/cancelar',
       })
       if (sent.kind === 'error') return { cause: sent.cause, status: 'error' }
-      if (sent.kind === 'http') return classifyCancelHttpFailure(sent.response)
+      if (sent.kind === 'http') {
+        return classifyCancelHttpFailure({
+          providerDocumentId: params.providerDocumentId,
+          response: sent.response,
+        })
+      }
 
       const envelope = await readEnvelope({ redact, response: sent.response })
       if (envelope.kind === 'error') return { cause: envelope.cause, status: 'error' }
@@ -80,25 +85,7 @@ export function createNotaRpV3Client(dependencies: NotaRpV3Dependencies): NotaRp
       return readEnvelopedDocument({ envelope: envelope.data, kind })
     },
 
-    fetchStatus: async ({ providerDocumentId }) => {
-      const sent = await transport.request({
-        accept: JSON_MEDIA_TYPE,
-        method: 'GET',
-        path: '/nota/listar',
-        query: { id_nota: providerDocumentId },
-      })
-      if (sent.kind === 'error') return { cause: sent.cause, status: 'error' }
-      if (sent.kind === 'http') {
-        const cause = sent.response.status === NOT_FOUND_STATUS ? 'not_found' : 'unexpected_status'
-        return { cause, status: 'error' }
-      }
-
-      const envelope = await readEnvelope({ redact, response: sent.response })
-      if (envelope.kind === 'error') return { cause: envelope.cause, status: 'error' }
-      /** Consulta que o provedor recusa não prova nada sobre a nota: adia. */
-      if (envelope.kind === 'rejected') return { cause: 'unexpected_status', status: 'error' }
-      return interpretListResponse({ data: envelope.data, providerDocumentId })
-    },
+    fetchStatus: ({ providerDocumentId }) => queryStatus(providerDocumentId),
 
     issue: async ({ payload, providerDocumentId, providerRequestKey }) => {
       const built = buildIssueBody({
@@ -138,9 +125,44 @@ export function createNotaRpV3Client(dependencies: NotaRpV3Dependencies): NotaRp
     return { rejection: await readHttpRejection({ redact, response }), status: 'rejected' }
   }
 
-  async function classifyCancelHttpFailure(response: Response): Promise<NotaRpCancelOutcome> {
-    if (response.status !== CONFLICT_STATUS) return { cause: 'unexpected_status', status: 'error' }
-    return { rejection: await readHttpRejection({ redact, response }), status: 'rejected' }
+  async function queryStatus(providerDocumentId: string): Promise<NotaRpStatusOutcome> {
+    const sent = await transport.request({
+      accept: JSON_MEDIA_TYPE,
+      method: 'GET',
+      path: '/nota/listar',
+      query: { id_nota: providerDocumentId },
+    })
+    if (sent.kind === 'error') return { cause: sent.cause, status: 'error' }
+    if (sent.kind === 'http') {
+      const cause = sent.response.status === NOT_FOUND_STATUS ? 'not_found' : 'unexpected_status'
+      return { cause, status: 'error' }
+    }
+
+    const envelope = await readEnvelope({ redact, response: sent.response })
+    if (envelope.kind === 'error') return { cause: envelope.cause, status: 'error' }
+    /** Consulta que o provedor recusa não prova nada sobre a nota: adia. */
+    if (envelope.kind === 'rejected') return { cause: 'unexpected_status', status: 'error' }
+    return interpretListResponse({ data: envelope.data, providerDocumentId })
+  }
+
+  /** O 409 só vira `accepted` se a consulta provar a nota Cancelada; sem prova, nunca. */
+  async function classifyCancelHttpFailure(input: {
+    readonly providerDocumentId: string
+    readonly response: Response
+  }): Promise<NotaRpCancelOutcome> {
+    if (input.response.status !== CONFLICT_STATUS) {
+      return { cause: 'unexpected_status', status: 'error' }
+    }
+
+    const confirmation = await queryStatus(input.providerDocumentId)
+    if (confirmation.status === 'cancelled') return { status: 'accepted' }
+    if (confirmation.status === 'error') {
+      return { cause: confirmation.cause ?? 'unexpected_status', status: 'error' }
+    }
+    return {
+      rejection: await readHttpRejection({ redact, response: input.response }),
+      status: 'rejected',
+    }
   }
 }
 

@@ -13,6 +13,8 @@ import {
   createNotaRpV3ClientFixture,
   errorBody,
   jsonResponse,
+  listBody,
+  noteListItem,
   parseBody,
   recordingFetch,
   throwingFetch,
@@ -21,10 +23,22 @@ import {
 } from './fixture.js'
 
 const CANCEL_URL = `${PROVIDER_ORIGIN}/api/v3/nota/cancelar`
+const LIST_URL = `${PROVIDER_ORIGIN}/api/v3/nota/listar`
+
+/** O cancelar responde 409; qualquer chamada seguinte (a consulta de confirmação) responde `next`. */
+function respondConflictThen(next: () => Response): (call: FetchCall) => Response {
+  return (call) =>
+    call.method === 'POST'
+      ? errorBody({
+          message: 'Operação não pode ser realizada devido a conflito de estado',
+          status: 409,
+        })
+      : next()
+}
 
 async function cancelWith(input: {
   cancellationMotive?: '2' | '4'
-  respond?: () => Response
+  respond?: (call: FetchCall) => Response
 }): Promise<{ calls: FetchCall[]; outcome: NotaRpV3CancelOutcomeShape }> {
   const { calls, fetch } = recordingFetch(
     input.respond ??
@@ -91,18 +105,70 @@ describe('Nota RP v3 client — cancelamento: respostas', () => {
     expect(containsSecret(outcome)).toBe(false)
   })
 
-  // Decisão aberta (evidence.md E15): 409 "nota já cancelada" poderia valer accepted. Não inventar.
-  test('409 é rejected NOTA_RP_HTTP_409', async () => {
-    const { outcome } = await cancelWith({
-      respond: () =>
-        errorBody({
-          message: 'Operação não pode ser realizada devido a conflito de estado',
-          status: 409,
-        }),
+  // 409 não prova nada: o efeito só vale se a consulta confirmar a nota como Cancelada.
+  test('409 e a consulta confirma Cancelada: accepted, sem aceitar às cegas', async () => {
+    const { calls, outcome } = await cancelWith({
+      respond: respondConflictThen(() => listBody([noteListItem({ status: 'Cancelada' })])),
     })
 
-    expect(outcome.status).toBe('rejected')
-    expect(outcome.rejection?.code).toBe('NOTA_RP_HTTP_409')
+    expect(outcome).toEqual({ status: 'accepted' })
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      `POST ${CANCEL_URL}`,
+      `GET ${LIST_URL}?id_nota=${PROVIDER_DOCUMENT_ID}`,
+    ])
+    expect(calls[1]?.headers['x-auth-user-token']).toBe(API_TOKEN)
+  })
+
+  test.each(['Sucesso', 'Pendente', 'Falha'])(
+    '409 e a consulta mostra %s: rejected NOTA_RP_HTTP_409',
+    async (status) => {
+      const { outcome } = await cancelWith({
+        respond: respondConflictThen(() => listBody([noteListItem({ status })])),
+      })
+
+      expect(outcome.status).toBe('rejected')
+      expect(outcome.rejection?.code).toBe('NOTA_RP_HTTP_409')
+    },
+  )
+
+  test('409 e a consulta falha (5xx): error recuperável, nunca accepted', async () => {
+    const { outcome } = await cancelWith({
+      respond: respondConflictThen(() => errorBody({ message: 'Houve um erro', status: 500 })),
+    })
+
+    expect(outcome).toEqual({ cause: 'unexpected_status', status: 'error' })
+  })
+
+  test('409 e a nota não aparece na consulta: error not_found, nunca accepted', async () => {
+    const { outcome } = await cancelWith({ respond: respondConflictThen(() => listBody([])) })
+
+    expect(outcome).toEqual({ cause: 'not_found', status: 'error' })
+  })
+
+  test('409 e a consulta cai na rede: error transport_failure', async () => {
+    let calls = 0
+    const client = await createNotaRpV3ClientFixture({
+      fetch: async () => {
+        calls += 1
+        if (calls === 1) return errorBody({ message: 'conflito de estado', status: 409 })
+        throw new TypeError('fetch failed')
+      },
+    })
+
+    const outcome = await client.cancel({
+      cancellationMotive: '2',
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+    })
+
+    expect(outcome).toEqual({ cause: 'transport_failure', status: 'error' })
+  })
+
+  test('409 e a consulta devolve um corpo que não é lista: error, nunca accepted', async () => {
+    const { outcome } = await cancelWith({
+      respond: respondConflictThen(() => jsonResponse({ success: true })),
+    })
+
+    expect(outcome.status).toBe('error')
   })
 
   test('5xx é error unexpected_status', async () => {

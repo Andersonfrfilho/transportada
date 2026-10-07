@@ -4,3 +4,4 @@
 import './nfse-provider-routing/provider-version.contract.js'
 import './nfse-provider-routing/issuance-gateway.contract.js'
 import './nfse-provider-routing/status-gateway.contract.js'
+import './nfse-provider-routing/end-to-end.contract.js'

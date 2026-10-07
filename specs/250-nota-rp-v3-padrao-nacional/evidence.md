@@ -350,3 +350,23 @@ emissão 1 para `v2`, o `reissue` sumiu. Não há teste de integração do worke
 
 Desvios honestos: a política e os testes do consumidor foram escritos junto da implementação (vermelho comprovado
 só para o roteamento dos gateways e para a execução).
+
+## E18 — T3.4: cancelamento confirmado pela consulta e gateways ponta a ponta (07/10/2026)
+
+Decisão E15 (409 do `/cancelar`) fechada: o cliente v3 consulta `GET /nota/listar?id_nota=` após o 409
+(`queryStatus`, o mesmo caminho do `fetchStatus`, atrás do limitador): `Cancelada` → `accepted`; outro status
+(`Sucesso`, `Pendente`, `Falha`) → `rejected NOTA_RP_HTTP_409`; consulta que falha (5xx, rede, nota ausente,
+corpo sem lista) → `error` com a causa da consulta. **Nunca `accepted` sem confirmar.** Os códigos `'2'` e `'4'`
+do banco já estavam no cliente (T3.2) e agora têm teste pelo gateway.
+
+Contratos: `test/nota-rp-v3/cancel.contract.ts` (o caso único de 409 virou 8: confirmado, três status não
+cancelados, 5xx, nota ausente, rede e corpo fora do formato) e `test/nfse-provider-routing/end-to-end.contract.ts`
+(8): os dois gateways com o **cliente v3 real** e `fetch` gravador — emitir (`hash_pedido`), consultar (nos dois
+gateways), documento PDF, cancelar `'4'`, 409 confirmado/não confirmado/consulta fora do ar, e a v2 só no fetch cru.
+Vermelho antes do código: 5 falhas (as outras três já passavam porque `rejected` era o comportamento antigo).
+
+Prova por mutação (aplicada à mão, revertida): trocar `confirmation.status === 'cancelled'` por aceitar sempre
+→ **7 falhas** (três `rejected`, 5xx, ausente, rede, corpo inválido); arquivo restaurado, 94 pass.
+
+Gates (de `apps/worker-transportada`): `bun run typecheck` 0 erros · `nota-rp-v3-client` 94 pass · `nfse-provider-routing`
+35 pass · lint e prettier limpos (resultado completo na E19).

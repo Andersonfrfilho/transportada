@@ -545,3 +545,8 @@ Falha | Cancelada`.
   entregue como `v3Fetch` aos dois gateways (emissão e consulta); a v2 segue no `fetch` cru, sem espera
   nova. O limite da Nota RP é por CNPJ e o intervalo é por processo: **assume-se uma réplica do worker**.
   Subir réplicas exige limitador compartilhado (Redis) ou o limite estoura.
+- **`409` do `/cancelar` nunca vale `accepted` sozinho.** O cliente consulta `GET /nota/listar?id_nota=` (pelo
+  mesmo limitador): `Cancelada` → `accepted`; qualquer outro status → `rejected` `NOTA_RP_HTTP_409`; consulta
+  que falha (rede, 5xx, nota ausente, corpo fora do formato) → `error`, recuperável pelo retry da fila.
+  Motivo do banco: `'2'` → `servico_nao_prestado`; `'4'` → `outros` com `descricao` "Nota duplicada".
+  PDF e XML seguem a versão da nota pelos mesmos gateways.

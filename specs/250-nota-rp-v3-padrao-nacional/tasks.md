@@ -61,7 +61,7 @@ Teste novo entra na lista explícita do `package.json` da app.
       `providerApiVersion` da tentativa; a variável vale só para emissões novas (env schema do worker
       e da API; `.env.example`; `.railway/railway.ts`). **Limitador único por processo** envolvendo o
       `fetch` do composition root, compartilhado pelos dois gateways; contrato com relógio injetado.
-- [ ] **T3.4** Cancelamento: `'2'`→`servico_nao_prestado`, `'4'`→`outros`+"Nota duplicada"; PDF/XML.
+- [x] **T3.4** Cancelamento: `'2'`→`servico_nao_prestado`, `'4'`→`outros`+"Nota duplicada"; PDF/XML.
       Payload sem `nationalTaxationCode` na v3 → recusa fatal nomeada. Teste de contrato.
 - [ ] **T3.5** Registrar os arquivos novos no `package.json` de `test` do worker.
 
