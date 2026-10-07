@@ -105,6 +105,8 @@
     "previewEnabled": "Receive spreadsheet preview",
     "previewSheetName": "Tab name",
     "previewColumnMap": "Spreadsheet columns",
+    "forwarderAllowlist": "Who forwards",
+    "senderAllowlist": "Contractor's original sender",
     "arrivalReferenceLabel": "Text before the cargo number"
   },
   "columns": {

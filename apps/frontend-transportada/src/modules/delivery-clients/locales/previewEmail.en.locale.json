@@ -1,0 +1,95 @@
+{
+  "title": "Preview by e-mail",
+  "intro": "Your team forwards the contractor's e-mail, with the preview spreadsheet, to the system's inbound address by hand, and the system reads the preview on its own. Forwarding can be inline or as an attachment. Automatic forwarding (a mail rule or redirect) is not supported.",
+  "loading": "Loading the e-mail intake",
+  "loadError": "The e-mail intake could not be read ({{code}}).",
+  "status": {
+    "none": "No inbound address",
+    "active": "Address active",
+    "activeSince": "Address active since {{moment}}",
+    "noneHint": "Save both lists and generate the address to start receiving previews by e-mail.",
+    "activeHint": "The full address is shown only at the moment it is generated. To replace it, generate a new one."
+  },
+  "lists": {
+    "title": "Who can send",
+    "forwarder": {
+      "label": "Who forwards",
+      "hint": "Exact addresses of the team members who forward the e-mail, one per line. What counts is the signature (DKIM) of their domain: the list blocks anyone who does not control the domain."
+    },
+    "sender": {
+      "label": "Contractor's original sender",
+      "hint": "Exact contractor address or domain, one per line. Subdomains and * patterns do not count. The system reads the original sender from the forwarded message: it is information, not proof."
+    },
+    "save": "Save lists",
+    "saving": "Saving…",
+    "saved": "Lists saved",
+    "error": "The lists could not be saved ({{code}})."
+  },
+  "issues": {
+    "tooShort": "“{{entry}}”: too short (at least {{min}} characters).",
+    "tooLong": "“{{entry}}”: too long (at most {{max}} characters).",
+    "forbiddenCharacter": "“{{entry}}”: has a space, comma, < >, | or control character.",
+    "notAMailbox": "“{{entry}}”: must be a complete e-mail address.",
+    "notADomain": "“{{entry}}”: must be an exact domain, without * or a leading or trailing dot.",
+    "tooMany": "At most {{max}} different entries per list."
+  },
+  "address": {
+    "generate": "Generate address",
+    "regenerate": "Generate new address",
+    "generating": "Generating…",
+    "needsLists": "Fill in and save both lists before generating the address.",
+    "confirmTitle": "Generate a new address?",
+    "confirmBody": "The previous address stops working: e-mails sent to it will be refused as an unknown address.",
+    "confirm": "Yes, generate new address",
+    "cancel": "Cancel",
+    "errors": {
+      "RECEIVING_PROFILE_ALLOWLISTS_REQUIRED": "Fill in both lists and save before generating the address.",
+      "RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED": "The company has no inbound e-mail domain configured yet (contractor e-mail settings).",
+      "TOO_MANY_REQUESTS": "Too many attempts in a short time. Wait a few minutes and try again.",
+      "fallback": "The address could not be generated ({{code}})."
+    }
+  },
+  "generated": {
+    "title": "Address generated",
+    "warning": "Shown only now: copy and keep it. It will not be shown again.",
+    "next": "The next step is yours: point the MX of the inbound domain and register the domain with the e-mail service. The system does not do this.",
+    "copy": "Copy address",
+    "copied": "Address copied",
+    "close": "Close"
+  },
+  "intakes": {
+    "title": "Recent refusals",
+    "intro": "The latest e-mails that reached this address. Accepted ones also appear, with the preview link.",
+    "empty": "No e-mail received yet.",
+    "columns": {
+      "date": "Date",
+      "outcome": "Result",
+      "reason": "Reason",
+      "preview": "Preview"
+    },
+    "openPreview": "Open preview",
+    "noReason": "—"
+  },
+  "outcomes": {
+    "accepted": "Accepted",
+    "rejected": "Refused"
+  },
+  "reasons": {
+    "ATTACHMENT_AMBIGUOUS": "More than one possible attachment: the e-mail must carry a single spreadsheet.",
+    "ATTACHMENT_MISSING": "The e-mail did not bring the spreadsheet attached.",
+    "ATTACHMENT_NOT_A_WORKBOOK": "The attachment is not an Excel spreadsheet (.xlsx or .xlsm).",
+    "ATTACHMENT_TOO_LARGE": "The spreadsheet is over the maximum size accepted.",
+    "FORWARDER_DKIM_NOT_ALIGNED": "The signature (DKIM) of whoever forwarded does not match the sender.",
+    "FORWARDER_DKIM_UNVERIFIABLE": "The signature (DKIM) of whoever forwarded could not be verified.",
+    "FORWARDER_FROM_MISMATCH": "The sender of the message is not the one of the verified signature.",
+    "FORWARDER_NOT_ALLOWED": "Whoever forwarded is not on the “Who forwards” list.",
+    "MIME_UNREADABLE": "The message could not be read (invalid format or too complex).",
+    "ORIGINAL_SENDER_AMBIGUOUS": "It is unclear who the original sender is: the message points to more than one.",
+    "ORIGINAL_SENDER_MISSING": "The original sender could not be found in the forwarded message.",
+    "ORIGINAL_SENDER_NOT_ALLOWED": "The original sender is not on the contractor's list.",
+    "PREVIEW_NOT_ENABLED": "The spreadsheet preview is not turned on for this contractor.",
+    "RATE_LIMITED": "Too many e-mails in a few minutes: the excess was ignored.",
+    "RAW_EMAIL_TOO_LARGE": "The message is over the maximum size accepted.",
+    "TOO_MANY_OPEN_PREVIEWS": "There are already too many previews waiting to be read: wait for them to finish."
+  }
+}

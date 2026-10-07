@@ -21,8 +21,8 @@ function flatten(tree: LocaleTree, prefix = ''): readonly (readonly [string, str
 
 describe('os rótulos da prévia por e-mail (spec 237 T4.6b)', () => {
   test('pt-BR e inglês têm as mesmas chaves, nenhuma vazia', () => {
-    const pt = flatten(ptLocale as LocaleTree)
-    const en = flatten(enLocale as LocaleTree)
+    const pt = flatten(ptLocale)
+    const en = flatten(enLocale)
 
     expect(pt.map(([key]) => key).sort()).toEqual(en.map(([key]) => key).sort())
     for (const [key, value] of [...pt, ...en])

@@ -83,12 +83,12 @@ export const previewEmailFakes: {
 }
 
 /** Instala a API dublada, com o estado inicial pedido, e registra tudo que a tela leu e gravou. */
-export function installPreviewEmailDouble(
-  initial: Readonly<{
-    intakes?: readonly PreviewEmailIntake[]
-    settings?: PreviewEmailSettings
-  }> = {},
-): PreviewEmailCalls {
+export type PreviewEmailDoubleInitial = Readonly<{
+  intakes?: readonly PreviewEmailIntake[]
+  settings?: PreviewEmailSettings
+}>
+
+export function installPreviewEmailDouble(initial: PreviewEmailDoubleInitial = {}): PreviewEmailCalls {
   const calls: PreviewEmailCalls = {
     generations: [],
     intakeReads: [],

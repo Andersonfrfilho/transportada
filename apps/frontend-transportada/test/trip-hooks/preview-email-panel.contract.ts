@@ -20,10 +20,10 @@ import {
   ACTIVE_SETTINGS,
   ALL_REASON_INTAKES,
   ENTRY_DOMAIN,
-  EMPTY_SETTINGS,
   FILLED_SETTINGS,
   FIRST_TOKEN,
   installPreviewEmailDouble,
+  type PreviewEmailDoubleInitial,
   PREVIEW_EMAIL_CONTRACTOR_ID,
   PREVIEW_ID,
   previewEmailFakes,
@@ -39,27 +39,21 @@ import {
 } from './contractorDirectoryHarness.helper'
 import { renderWithQueryClient, settle, waitFor } from './renderHook.helper'
 
-const LOADING_TEXT = 'Carregando a entrada por e-mail'
-
-type OpenOptions = Readonly<{
-  intakes?: Parameters<typeof installPreviewEmailDouble>[0]['intakes']
-  settings?: Parameters<typeof installPreviewEmailDouble>[0]['settings']
-}>
-
 let restoreLayout: () => void
+let originalClipboard: PropertyDescriptor | undefined
 const written: string[] = []
 
 function bodyText(): string {
   return document.body.textContent ?? ''
 }
 
-async function openPanel(options: OpenOptions = {}) {
+async function openPanel(options: PreviewEmailDoubleInitial = {}) {
   const calls = installPreviewEmailDouble(options)
   const rendered = await renderWithQueryClient(
     createElement(PreviewEmailPanel, { contractorId: PREVIEW_EMAIL_CONTRACTOR_ID }),
   )
   await waitFor(() => expect(bodyText().includes('Prévia por e-mail')).toBe(true))
-  await waitFor(() => expect(bodyText().includes(LOADING_TEXT)).toBe(false))
+  await waitFor(() => expect(document.querySelector('[aria-busy="true"]') === null).toBe(true))
   return { calls, rendered }
 }
 
@@ -68,28 +62,37 @@ function refusalButtons(): string[] {
   return [...(summary?.querySelectorAll('button') ?? [])].map((button) => button.textContent ?? '')
 }
 
-beforeEach(() => {
-  document.body.innerHTML = ''
-  written.length = 0
-  restoreLayout = stubVisibleLayout()
-  Object.defineProperty(navigator, 'clipboard', {
-    configurable: true,
-    value: {
-      writeText: (text: string) => {
-        written.push(text)
-        return Promise.resolve()
+/**
+ * ⚠️ Os ganchos moram DENTRO de cada `describe`: este arquivo é importado por `trip-hooks.contract.test.ts` junto
+ * com todos os outros, e um `beforeEach`/`afterEach` de topo valeria para a suíte inteira.
+ */
+function installPanelHooks(): void {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    written.length = 0
+    restoreLayout = stubVisibleLayout()
+    originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          written.push(text)
+          return Promise.resolve()
+        },
       },
-    },
+    })
   })
-})
 
-afterEach(() => {
-  restoreLayout()
-  window.localStorage.clear()
-  window.sessionStorage.clear()
-})
+  afterEach(() => {
+    restoreLayout()
+    if (originalClipboard === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+    else Object.defineProperty(navigator, 'clipboard', originalClipboard)
+  })
+}
 
 describe('o estado do endereço de entrada (spec 237 T4.6b)', () => {
+  installPanelHooks()
+
   test('sem endereço: diz que não há, as listas vêm vazias e gerar espera as listas gravadas', async () => {
     const { rendered } = await openPanel()
 
@@ -135,6 +138,8 @@ describe('o estado do endereço de entrada (spec 237 T4.6b)', () => {
 })
 
 describe('editar as duas listas (spec 237 T4.6b)', () => {
+  installPanelHooks()
+
   test('entrada inválida é nomeada no campo, e nada vai à rede', async () => {
     const { calls, rendered } = await openPanel({ settings: FILLED_SETTINGS })
 
@@ -216,6 +221,8 @@ function maybeButtonByTextIn(text: string): HTMLButtonElement | undefined {
 }
 
 describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
+  installPanelHooks()
+
   test('a primeira vez não pede confirmação: mostra o endereço inteiro, copiar e o aviso de uma vez só', async () => {
     const { calls, rendered } = await openPanel({ settings: FILLED_SETTINGS })
 
@@ -256,21 +263,26 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
       spyOn(console, 'warn'),
       spyOn(console, 'error'),
     ]
+    const stored: string[] = []
+    const storage = [window.localStorage, window.sessionStorage].map((area) =>
+      spyOn(area, 'setItem').mockImplementation(((key: string, value: string) => {
+        stored.push(`${key}=${value}`)
+      }) as never),
+    )
     const { rendered } = await openPanel({ settings: FILLED_SETTINGS })
 
-    await click(buttonByText('Gerar endereço'))
-    await waitFor(() => expect(bodyText()).toContain(FIRST_TOKEN))
+    try {
+      await click(buttonByText('Gerar endereço'))
+      await waitFor(() => expect(bodyText()).toContain(FIRST_TOKEN))
 
-    const everywhere = JSON.stringify({
-      local: { ...window.localStorage },
-      location: window.location.href,
-      session: { ...window.sessionStorage },
-    })
-    expect(everywhere.includes(FIRST_TOKEN)).toBe(false)
-    const printed = logs.flatMap((spy) => spy.mock.calls.map((call) => JSON.stringify(call)))
-    expect(printed.some((line) => line.includes(FIRST_TOKEN))).toBe(false)
-    for (const spy of logs) spy.mockRestore()
-    rendered.unmount()
+      expect(stored.some((entry) => entry.includes(FIRST_TOKEN))).toBe(false)
+      expect(window.location.href.includes(FIRST_TOKEN)).toBe(false)
+      const printed = logs.flatMap((spy) => spy.mock.calls.map((call) => JSON.stringify(call)))
+      expect(printed.some((line) => line.includes(FIRST_TOKEN))).toBe(false)
+    } finally {
+      for (const spy of [...logs, ...storage]) spy.mockRestore()
+      rendered.unmount()
+    }
   })
 
   test('rotacionar pede confirmação: nada vai à rede antes dela, e cancelar não gera', async () => {
@@ -300,6 +312,7 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
     await click(buttonByText('Sim, gerar novo endereço'))
     await waitFor(() => expect(bodyText()).toContain(FIRST_TOKEN))
     await click(buttonByText('Fechar'))
+    await waitFor(() => expect(maybeButtonByText('Gerar novo endereço') !== undefined).toBe(true))
 
     await click(buttonByText('Gerar novo endereço'))
     await click(buttonByText('Sim, gerar novo endereço'))
@@ -328,6 +341,8 @@ describe('gerar o endereço de entrada (spec 237 T4.6b)', () => {
 })
 
 describe('as recusas recentes (spec 237 T4.6b)', () => {
+  installPanelHooks()
+
   test('uma linha por e-mail, com o motivo traduzido para TODOS os códigos e o link da prévia aceita', async () => {
     const { rendered } = await openPanel({ intakes: ALL_REASON_INTAKES, settings: ACTIVE_SETTINGS })
     await waitFor(() => expect(document.querySelectorAll('tbody tr').length).toBe(17))

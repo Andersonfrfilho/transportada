@@ -116,9 +116,13 @@ describe('as faixas e os motivos são os da API (spec 237 T4.6b)', () => {
   test('os códigos de motivo da recusa são exatamente os do CHECK da migration', async () => {
     const source = await readFile(API_PREVIEW_CONSTANTS, 'utf8')
     const block = /CARGO_PREVIEW_EMAIL_REJECTION_CODES = \[([^\]]*)\]/u.exec(source)?.[1] ?? ''
-    const apiCodes = [...block.matchAll(/'([A-Z_]+)'/gu)].map((match) => match[1])
+    const apiCodes = [...block.matchAll(/'([A-Z_]+)'/gu)].flatMap((match) =>
+      match[1] === undefined ? [] : [match[1]],
+    )
 
     expect(apiCodes).toHaveLength(16)
-    expect([...PREVIEW_EMAIL_REASON_CODES].sort()).toEqual([...apiCodes].sort())
+    expect([...(PREVIEW_EMAIL_REASON_CODES as readonly string[])].sort()).toEqual(
+      [...apiCodes].sort(),
+    )
   })
 })

@@ -18,6 +18,8 @@ import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
 import contractorDirectoryLocale from '@/modules/delivery-clients/locales/contractorDirectory.locale.json'
 import contractorDirectoryEnglishLocale from '@/modules/delivery-clients/locales/contractorDirectory.en.locale.json'
+import previewEmailLocale from '@/modules/delivery-clients/locales/previewEmail.locale.json'
+import previewEmailEnglishLocale from '@/modules/delivery-clients/locales/previewEmail.en.locale.json'
 import deliveryClientsLocale from '@/modules/delivery-clients/locales/deliveryClients.locale.json'
 import deliveryClientsEnglishLocale from '@/modules/delivery-clients/locales/deliveryClients.en.locale.json'
 import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
@@ -82,6 +84,7 @@ void i18n.use(initReactI18next).init({
       occurrenceConversation: occurrenceConversationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       pendingItems: pendingItemsEnglishLocale,
+      previewEmail: previewEmailEnglishLocale,
       routing: routingEnglishLocale,
       spreadsheet: spreadsheetEnglishLocale,
       translation: foundationEnglishLocale,
@@ -109,6 +112,7 @@ void i18n.use(initReactI18next).init({
       occurrenceConversation: occurrenceConversationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       pendingItems: pendingItemsLocale,
+      previewEmail: previewEmailLocale,
       routing: routingLocale,
       spreadsheet: spreadsheetLocale,
       translation: foundationLocale,
