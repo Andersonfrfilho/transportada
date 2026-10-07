@@ -492,3 +492,34 @@ usuário de 2026-10-06. Detalhe de segurança, o que fica e as pendências: `doc
 - **Provas:** `test/cargo-preview-retention/` (política, unidade com portas falsas, ciclo) e
   `test/integration/cargo-preview-retention.integration.ts` (Postgres, bucket em memória, semeia em série). ⚠️
   `bun test` de arquivo avulso: `./test/integration/cargo-preview-retention.integration.ts`.
+
+## A Nota RP v3 — recorte do contrato usado (spec 250 T0.4, 07/10/2026)
+
+Fonte: `https://www.notarp.com.br/docs/swagger.yaml` (OpenAPI 3, v3.0.0) e a coleção Postman do mesmo
+site. Mudou desde o recorte: o changelog em `/docs/changelog.md` (último: 10/08/2026).
+
+- **Auth:** `X-Auth-User-Token` + `X-Auth-CNPJ` (só dígitos) + `X-Auth-IM` (só dígitos). O token é do
+  usuário, não da empresa. A v2 recusa o `X-Auth-CNPJ` (403 "empresa não migrada"), a v3 o exige.
+- **Limite:** 1 req/s, burst 3; excedente é recusado. Não paralelizar; `emitir` só enfileira.
+- **Emitir** `POST /api/v3/nota/emitir` → `200 {success, id_nota}`. Obrigatórios: `tomador.documento`,
+  `tomador.nome`, `servico.descricao`, `valor_total`, `codigo_tributacao_nacional` (6 dígitos),
+  `codigo_tributacao_municipal`, `codigo_nbs` (9), `data_competencia` (`dd/mm/aaaa`), `pais`,
+  `incidencia_issqn`; `municipio` se `pais=BR`; `aliquota_issqn` (percentual) se `operacao_tributavel`.
+  Simples Nacional: `tributos_aproximados.aliquota_simples_nacional` (documenta mínimo de 4,50%).
+  Lucro Real/Presumido: PIS/COFINS e `ibscbs`. `flags.hash_pedido` = idempotência 24 h (repetido → `409`
+  com o `id_nota` original; pedido recusado na validação libera a chave); `flags.webhook_url` exige
+  `https://`; `flags.regime` omitido usa o cadastro da empresa. `id_nota` no corpo reemite nota em `Falha`.
+- **Consultar** `GET /api/v3/nota/listar?id_nota=` → `results[]` com `id_nota, numero, data_competencia,
+data_emissao, status, valor_servicos, chave_acesso`. Status: `Criada | Enviando | Pendente | Sucesso |
+Falha | Cancelada`.
+- **Cancelar** `POST /api/v3/nota/cancelar` `{id_nota, motivo, descricao?, enviar_email}`;
+  `motivo ∈ erro_emissao | servico_nao_prestado | outros` (`descricao` obrigatória em `outros`). Só nota
+  com `chave_acesso` (ADN) é cancelável por API. `409` se já cancelada.
+- **Documentos** `GET /api/v3/nota/pdf|xml?id_nota=` → `{success, base64_file}`; só `Sucesso`/`Cancelada`.
+- **Webhook:** `POST` com `{success, id_nota, numero, status, chave_acesso, ...}` ou
+  `{success:false, id_nota, erros:[{Codigo, Mensagem}]}`; `X-Signature` = HMAC-SHA256 do corpo bruto, se o
+  segredo estiver cadastrado; 41 reentregas em ~6 h; trate como idempotente por `id_nota`. Nossa rota
+  anônima só antecipa a consulta (ADR-0029 §2), então o corpo não é lido.
+- **Erro:** `{success:false, message, alert?, field?}`; HTTP 400/401/403/404/409/422/500.
+- ⚠️ A documentação diz que a v3 não atende Ribeirão Preto; o suporte da Nota RP (07/10/2026)
+  confirmou o contrário. O contrato acima é o que vale; o aviso do swagger está desatualizado.

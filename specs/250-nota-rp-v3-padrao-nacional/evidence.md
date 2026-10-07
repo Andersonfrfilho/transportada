@@ -48,3 +48,18 @@ idempotência por 24 h (`409` com o `id_nota` original). Changelog: 10/08/2026 (
 Respostas do usuário: alíquota de `tributos_aproximados` **2,00%** (igual à nota 74); ISS **não
 retido**; `cTribMun` **o do XML (160101)**. Risco aceito: a v3 documenta mínimo de 4,50%. Mitigação:
 valor em coluna do perfil e medição na primeira emissão real (T6.2).
+
+## E6 — T0.1: pontos que falam com a Nota RP (07/10/2026, a partir de `origin/staging`)
+
+`git grep -il "notarp|nota-rp|NotaRp"` em `apps/`: **não existe cópia do cliente no
+`cron-transportada`** (a menção da spec 040 é histórica). Pontos de código a trocar:
+`apps/worker-transportada/src/nfse-issuance/infrastructure/{nota-rp-v2.client.ts,nfse-fiscal-gateway.ts}`
+e `apps/worker-transportada/src/nfse-status-pull/infrastructure/nfse-fiscal-status.gateway.ts`.
+Na API só o nome do provedor (`notarp`) em `nfse.schema.ts` e `nfse-provider-credentials.use-case.ts`.
+Testes do v2: `test/nota-rp-v2-client.contract.test.ts`, `test/nota-rp-v2/{fixture,no-bearer.contract}.ts`,
+`test/nfse-fiscal-gateway.contract.test.ts` (worker).
+
+## E7 — T0.4
+
+Recorte do contrato v3 gravado em `docs/ai-context/worker-transportada.md`
+("A Nota RP v3 — recorte do contrato usado").

@@ -11,7 +11,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `haiku` (T0.3 é decisão do usuário)
 
-- [ ] **T0.1** Conferir contra `origin/staging`: existe cliente Nota RP no `cron-transportada`? Listar
+- [x] **T0.1** Conferir contra `origin/staging`: existe cliente Nota RP no `cron-transportada`? Listar
       todos os pontos que falam com `notarp.com.br` (worker emissão, worker status pull, cron).
       Aceite: lista em `evidence.md`.
 - [ ] **T0.2** (adiada para antes da T6.2; precisa de aprovação) Contar notas `pending_authorization`/`issuing` com `id_nota` da v2 em produção
@@ -19,7 +19,7 @@ Teste novo entra na lista explícita do `package.json` da app.
       antes da virada.
 - [x] **T0.3** Fechar os três `[NEEDS CLARIFICATION]` de `spec.md` com o usuário/suporte da Nota RP.
       Fechados em 07/10/2026 (2,00% · não retido · 160101).
-- [ ] **T0.4** Ler o `swagger.yaml` e a coleção Postman da v3 e guardar o recorte usado em
+- [x] **T0.4** Ler o `swagger.yaml` e a coleção Postman da v3 e guardar o recorte usado em
       `docs/ai-context/worker-transportada.md` (a referência não vive só na conversa).
 
 ## Fase 1 — Decisão
