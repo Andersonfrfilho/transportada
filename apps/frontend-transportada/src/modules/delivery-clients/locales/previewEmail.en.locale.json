@@ -29,6 +29,7 @@
     "tooShort": "“{{entry}}”: too short (at least {{min}} characters).",
     "tooLong": "“{{entry}}”: too long (at most {{max}} characters).",
     "forbiddenCharacter": "“{{entry}}”: has a space, comma, < >, | or control character.",
+    "nonAscii": "“{{entry}}”: visible ASCII characters only; write an international domain in punycode (xn--).",
     "notAMailbox": "“{{entry}}”: must be a complete e-mail address.",
     "notADomain": "“{{entry}}”: must be an exact domain, without * or a leading or trailing dot.",
     "tooMany": "At most {{max}} different entries per list."

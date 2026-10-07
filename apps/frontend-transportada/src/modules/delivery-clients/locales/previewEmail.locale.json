@@ -29,6 +29,7 @@
     "tooShort": "“{{entry}}”: é curta demais (mínimo {{min}} caracteres).",
     "tooLong": "“{{entry}}”: é longa demais (máximo {{max}} caracteres).",
     "forbiddenCharacter": "“{{entry}}”: tem espaço, vírgula, < >, | ou caractere de controle.",
+    "nonAscii": "“{{entry}}”: só caracteres ASCII visíveis; domínio internacional em punycode (xn--).",
     "notAMailbox": "“{{entry}}”: precisa ser um endereço de e-mail completo.",
     "notADomain": "“{{entry}}”: precisa ser um domínio exato, sem * nem ponto na ponta.",
     "tooMany": "No máximo {{max}} entradas diferentes por lista."

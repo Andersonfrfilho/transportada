@@ -11,6 +11,13 @@ import {
 import styles from '../styles/contractorDirectory.module.css'
 import previewStyles from '../styles/previewEmail.module.css'
 
+const NOT_VISIBLE_ASCII = /[^\x21-\x7e]/gu
+
+/** A entrada recusada pode ter bidi ou zero-width: ela nunca é desenhada crua, para não embaralhar a própria mensagem. */
+function printableEntry(entry: string): string {
+  return entry.replace(NOT_VISIBLE_ASCII, '?')
+}
+
 type PreviewEmailListFieldProps = Readonly<{
   isDisabled: boolean
   issues: readonly AllowlistIssue[]
@@ -61,7 +68,7 @@ export function PreviewEmailListField({
           {issues.map((issue) => (
             <li key={`${issue.code}:${issue.entry}`}>
               {t(`issues.${issue.code}`, {
-                entry: issue.entry,
+                entry: printableEntry(issue.entry),
                 max: issue.code === 'tooMany' ? LIMITS.maxEntries : LIMITS.entryMaxLength,
                 min: LIMITS.entryMinLength,
               })}

@@ -7,6 +7,7 @@ import {
 
 export type AllowlistIssueCode =
   | 'forbiddenCharacter'
+  | 'nonAscii'
   | 'notADomain'
   | 'notAMailbox'
   | 'tooLong'
@@ -23,6 +24,8 @@ export type ValidatedAllowlist = Readonly<{
 
 const LINE_BREAK = /\r?\n/u
 const FORBIDDEN_CHARACTER = /[\p{Cc}\s,<>|]/u
+/** ASCII visível: o CHECK do banco conta caracteres, e homógrafo, zero-width e bidi não passam (IDN entra em punycode). */
+const VISIBLE_ASCII = /^[\x21-\x7e]+$/u
 const MAILBOX = /^[^@]+@[^@]+$/u
 const INVALID_DOMAIN_EDGE = /^\.|\.$|\*/u
 
@@ -55,9 +58,11 @@ function findIssue(
   input: Readonly<{ entry: string; kind: PreviewAllowlistKind }>,
 ): AllowlistIssueCode | undefined {
   const { entry } = input
-  if (entry.length < LIMITS.entryMinLength) return 'tooShort'
-  if (entry.length > LIMITS.entryMaxLength) return 'tooLong'
   if (FORBIDDEN_CHARACTER.test(entry)) return 'forbiddenCharacter'
+  if (!VISIBLE_ASCII.test(entry)) return 'nonAscii'
+  const characters = [...entry].length
+  if (characters < LIMITS.entryMinLength) return 'tooShort'
+  if (characters > LIMITS.entryMaxLength) return 'tooLong'
   if (entry.includes('@')) return isValidMailbox(entry) ? undefined : 'notAMailbox'
   if (input.kind === PREVIEW_ALLOWLIST_KIND.forwarder) return 'notAMailbox'
   return INVALID_DOMAIN_EDGE.test(entry) ? 'notADomain' : undefined

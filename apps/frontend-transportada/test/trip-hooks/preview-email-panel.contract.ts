@@ -163,6 +163,25 @@ describe('editar as duas listas (spec 237 T4.6b)', () => {
     rendered.unmount()
   })
 
+  /** Revisão de segurança (L3): o erro nomeia a entrada, mas nunca desenha bidi ou zero-width — a mensagem não se embaralha. */
+  test('entrada com bidi ou zero-width é recusada e o erro a mostra sem o caractere oculto', async () => {
+    const { calls, rendered } = await openPanel({ settings: FILLED_SETTINGS })
+
+    await typeInto(
+      fieldByLabel('Remetente original do contratante'),
+      'acme.com\u202E\na\u200Bcme.com',
+    )
+    await click(buttonByText('Salvar listas'))
+
+    const message = describedBy(fieldByLabel('Remetente original do contratante'))
+    expect(message).toContain('ASCII')
+    expect(message).toContain('acme.com?')
+    expect(message).toContain('a?cme.com')
+    expect(message.includes('\u202E') || message.includes('\u200B')).toBe(false)
+    expect(calls.saves).toHaveLength(0)
+    rendered.unmount()
+  })
+
   test('mais de 20 entradas diferentes é recusado no campo', async () => {
     const { calls, rendered } = await openPanel()
     const twentyOne = Array.from(
