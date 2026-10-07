@@ -76,3 +76,36 @@
 
 - ✅ Typecheck: passou
 - ✅ Testes: 1250 pass, 0 fail (novo contrato de products incluído na lista)
+
+---
+
+## Fase 2 — O dado
+
+Base: `git fetch && git rebase origin/staging` ("Current branch work/spec-247 is up to date") +
+`bun install --frozen-lockfile` ("no changes"); distância `HEAD..origin/staging` = 0. Banco dos
+gates: **Postgres nativo descartável** (Homebrew 18.4, cluster em scratchpad, porta 56247, `fsync=off`)
+— nunca staging/produção. O `db:test` cria e derruba bancos aleatórios dentro dele.
+
+### T2.1 — Constantes do valor pago e do número do cliente
+
+**Status**: ✅ Completo
+
+- `apps/api-transportada/src/shared/trip-occurrence.constant.ts`: `OCCURRENCE_DECLARED_AMOUNT_SCOPE`
+  (`item`, `occurrence`) + `OCCURRENCE_DECLARED_AMOUNT_SCOPES`; `OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS`
+  (modos `off` via `OCCURRENCE_ITEMS_MODE.off`, escopo `item`, rótulos "Número do documento do
+  cliente" e "Valor pago"); `OCCURRENCE_REFERENCE_NUMBER_PATTERN = '^[A-Za-z0-9 ./-]{1,30}$'`;
+  `OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH = 40`; `OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH = 400`;
+  `OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK`. `DELIVERY_PROOF_FIELD_MODES` continua em
+  `src/database/company-delivery-proof-settings.schema.ts:25` (importado pelo schema na T2.2).
+- Contrato **antes**: `test/trip-occurrence/declared-amount-constant.contract.ts` (no entrypoint
+  `test/trip-occurrence.contract.test.ts`). Vermelho primeiro:
+  `SyntaxError: Export named 'OCCURRENCE_DECLARED_AMOUNT_SCOPE' not found` → `0 pass 1 fail 1 error`.
+  Depois: `5 pass 0 fail 17 expect() calls`.
+
+**Gates**:
+
+- `bun run typecheck` (raiz): exit 0.
+- Contrato da API (`bun --env-file=../../.env.test test --timeout 120000`):
+  `10058 pass · 25 skip · 0 fail · Ran 10083 tests across 199 files`.
+- `db:test` (equivalente ao `make migration-test`, contra o Postgres nativo):
+  `138 pass · 0 fail · Ran 138 tests across 8 files`.

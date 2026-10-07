@@ -36,7 +36,7 @@ explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — `opus`, validar com `architect` antes)
 
-- [ ] **T2.1** Constante `OCCURRENCE_DECLARED_AMOUNT_SCOPES` em `trip-occurrence.constant.ts`.
+- [x] **T2.1** Constante `OCCURRENCE_DECLARED_AMOUNT_SCOPES` em `trip-occurrence.constant.ts`.
 - [ ] **T2.2** 🧠 Schema e migration do `plan.md` § Modelo de dados: colunas do tipo com default,
       colunas nulas nas exceções, colunas da ocorrência e dos produtos, CHECKs geradas das
       constantes (nomes ≤ 63), CHECK `declared_amount_items`. `rollback.sql` que só derruba o que

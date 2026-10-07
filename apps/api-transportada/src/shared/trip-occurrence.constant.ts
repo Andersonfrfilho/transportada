@@ -194,5 +194,52 @@ export const OCCURRENCE_OVERRIDE_ITEMS_MINIMUM_SHAPE_CHECKS: readonly string[] =
   'occurrence_type_recipient_overrides_items_minimum_shape_check',
 ]
 
+/**
+ * Spec 247 (RF1): onde o valor pago é digitado — numa linha por item (`item`, exige produtos) ou um
+ * só pela ocorrência (`occurrence`). `VARCHAR` com CHECK gerada desta lista, nunca ENUM nativo.
+ */
+export const OCCURRENCE_DECLARED_AMOUNT_SCOPE = {
+  item: 'item',
+  occurrence: 'occurrence',
+} as const
+
+export const OCCURRENCE_DECLARED_AMOUNT_SCOPES = [
+  OCCURRENCE_DECLARED_AMOUNT_SCOPE.item,
+  OCCURRENCE_DECLARED_AMOUNT_SCOPE.occurrence,
+] as const
+
+export type OccurrenceDeclaredAmountScope = (typeof OCCURRENCE_DECLARED_AMOUNT_SCOPES)[number]
+
+/**
+ * Spec 247 (RF1): os padrões das colunas novas do tipo — os dois modos desligados, para nenhum tipo
+ * existente mudar de comportamento ao aplicar a migration. Nas exceções as colunas são nulas (herdam).
+ */
+export const OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS = {
+  declaredAmountLabel: 'Valor pago',
+  declaredAmountMode: OCCURRENCE_ITEMS_MODE.off,
+  declaredAmountScope: OCCURRENCE_DECLARED_AMOUNT_SCOPE.item,
+  referenceNumberLabel: 'Número do documento do cliente',
+  referenceNumberMode: OCCURRENCE_ITEMS_MODE.off,
+} as const
+
+/**
+ * Spec 247 (RF1): o número do documento do cliente (ex.: a NFD) — letras, dígitos, espaço, ponto,
+ * barra e hífen, de 1 a 30. Mesma expressão na CHECK (`~`, POSIX) e na validação da API.
+ */
+export const OCCURRENCE_REFERENCE_NUMBER_PATTERN = '^[A-Za-z0-9 ./-]{1,30}$'
+
+/** Spec 247: o teto dos dois rótulos editáveis do tipo (`varchar(40)`). */
+export const OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH = 40
+
+/** Spec 247 (RF6): o teto do modelo de cada linha de item do e-mail. */
+export const OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH = 400
+
+/**
+ * Spec 247 (RF1): valor pago digitado por item exige produtos no tipo. O cadastro a traduz em 422
+ * quando a corrida a atinge, como a `off ⇒ unset` da 241.
+ */
+export const OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK =
+  'company_occurrence_types_declared_amount_items_check'
+
 /** O índice único `(company_id, lower(btrim(name)))`, em qualquer etapa — não aparece no schema TS. */
 export const OCCURRENCE_TYPE_NAME_UNIQUE = 'company_occurrence_types_company_name_unique'
