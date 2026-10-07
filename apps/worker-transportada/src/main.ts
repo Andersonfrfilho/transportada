@@ -184,6 +184,7 @@ import { DrizzleNfseIssuanceWriteBackRepository } from './nfse-issuance/infrastr
 import { DrizzleNfseOutboxRepository } from './nfse-issuance/infrastructure/drizzle-nfse-outbox.repository.js'
 import { DrizzleNfseRetryPolicyRepository } from './nfse-issuance/infrastructure/drizzle-nfse-retry-policy.repository.js'
 import { createNfseFiscalGateway } from './nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
+import { createRateLimitedFetch } from './nfse-issuance/infrastructure/nota-rp-rate-limit.js'
 import { startNfseIssuanceConsumer } from './runtime/nfse-issuance-consumer.service.js'
 import { startJobRunConsumer } from './runtime/job-run-consumer.service.js'
 import { createJobCycle, type JobCyclePort } from './job-run/application/run-job-cycle.js'
@@ -503,6 +504,9 @@ type WorkerRuntimeDependencies = {
   }) => Promise<RuntimeConsumer | undefined>
 }
 
+/** A Nota RP v3 limita a taxa por CNPJ; uma réplica do worker, então o intervalo vale por processo. */
+const NFSE_PROVIDER_V3_MIN_INTERVAL_MILLISECONDS = 1000
+
 export async function startWorkerRuntime(
   params: {
     readonly dependencies?: WorkerRuntimeDependencies
@@ -583,6 +587,13 @@ export async function startWorkerRuntime(
     connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
   })
   const storageGateway = storageGatewayFactory({ environment })
+  /** Um só para os dois gateways: limitadores separados somariam as chamadas ao mesmo CNPJ. */
+  const nfseProviderV3Fetch = createRateLimitedFetch({
+    clock: () => Date.now(),
+    fetch: (input, init) => fetch(input, init),
+    minIntervalMilliseconds: NFSE_PROVIDER_V3_MIN_INTERVAL_MILLISECONDS,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  })
   const storageBucket =
     environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? 'transportada-private'
   const syntheticTopology = buildRabbitMqTopology(`${config.queuePrefix}.synthetic.v1`)
@@ -981,6 +992,7 @@ export async function startWorkerRuntime(
           secretService: createNfseCredentialSecretService({
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
           }),
+          v3Fetch: nfseProviderV3Fetch,
         }),
         logger,
         writeBack: nfseIssuanceWriteBack,
@@ -1486,6 +1498,7 @@ export async function startWorkerRuntime(
                 secretService: createNfseStatusCredentialSecretService({
                   envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
                 }),
+                v3Fetch: nfseProviderV3Fetch,
               }),
               writeBack: createDrizzleNfseReconciliationWriteBack({
                 db: database.db as ReturnType<typeof createDrizzleProvider>['db'],

@@ -13,6 +13,10 @@
  */
 import type { NfseCredentialSecretService } from '../../nfse-issuance/application/nfse-credential-secret.service.js'
 import {
+  createNfseV3ClientResolver,
+  type NfseV3ClientResolver,
+} from '../../nfse-issuance/infrastructure/nfse-v3-client.resolver.js'
+import {
   createNotaRpV2Client,
   type NotaRpFetch,
   type NotaRpStatusOutcome,
@@ -20,16 +24,26 @@ import {
   type NotaRpV2Config,
 } from '../../nfse-issuance/infrastructure/nota-rp-v2.client.js'
 import type {
+  NotaRpV3Client,
+  NotaRpV3Config,
+} from '../../nfse-issuance/infrastructure/nota-rp-v3.types.js'
+import type {
   NfseCredentialAccess,
   NfseDocumentFetchFacts,
   NfseStatusPort,
 } from '../application/nfse-fiscal-status.port.js'
+import type { NfseProviderApiVersion } from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
 import type { NfseProviderStatusFacts } from '../domain/nfse-reconciliation-outcome.policy.js'
 
 export type NfseFiscalStatusGatewayConfig = {
   readonly baseUrl: string | undefined
+  /** A consulta não usa; chega porque a config do provedor é uma só. */
+  readonly callbackBaseUrl?: string | undefined
   readonly timeoutMilliseconds: number
 }
+
+/** Os dois clientes têm o mesmo contrato de consulta e de documento. */
+type NotaRpClient = Pick<NotaRpV2Client, 'fetchDocument' | 'fetchStatus'>
 
 /** O cliente é discriminado por `status`; a consulta chega plana. A tradução é aqui, e é total. */
 function toStatusFacts(outcome: NotaRpStatusOutcome): NfseProviderStatusFacts {
@@ -57,16 +71,34 @@ function toStatusFacts(outcome: NotaRpStatusOutcome): NfseProviderStatusFacts {
 export function createNfseFiscalStatusGateway(dependencies: {
   readonly config: NfseFiscalStatusGatewayConfig
   readonly createClient?: (input: { readonly config: NotaRpV2Config }) => NotaRpV2Client
+  readonly createV3Client?: (input: { readonly config: NotaRpV3Config }) => NotaRpV3Client
   readonly fetch: NotaRpFetch
   readonly secretService: NfseCredentialSecretService
+  /** O fetch com o limitador compartilhado; só a v3 o usa. Sem ele, cai no `fetch` cru. */
+  readonly v3Fetch?: NotaRpFetch
 }): NfseStatusPort {
   const { config, fetch, secretService } = dependencies
   const createClient =
     dependencies.createClient ?? ((input) => createNotaRpV2Client({ config: input.config, fetch }))
+  const v3Resolver = createNfseV3ClientResolver({
+    baseUrl: config.baseUrl,
+    callbackBaseUrl: config.callbackBaseUrl,
+    clock: () => new Date(),
+    ...(dependencies.createV3Client === undefined
+      ? {}
+      : { createClient: dependencies.createV3Client }),
+    fetch: dependencies.v3Fetch ?? fetch,
+    secretService,
+    timeoutMilliseconds: config.timeoutMilliseconds,
+  })
 
-  async function resolveClient(
-    credential: NfseCredentialAccess,
-  ): Promise<NotaRpV2Client | 'credential_unreadable' | 'provider_not_configured'> {
+  async function resolveClient(input: {
+    readonly credential: NfseCredentialAccess
+    readonly providerApiVersion: NfseProviderApiVersion
+    readonly resolver: NfseV3ClientResolver
+  }): Promise<NotaRpClient | 'credential_unreadable' | 'provider_not_configured'> {
+    const { credential } = input
+    if (input.providerApiVersion === 'v3') return input.resolver.resolve(credential)
     const { baseUrl } = config
     /** Sem endereço não há a quem pedir — e o segredo continua selado. */
     if (baseUrl === undefined || baseUrl === '') return 'provider_not_configured'
@@ -96,9 +128,10 @@ export function createNfseFiscalStatusGateway(dependencies: {
     fetchDocument: async ({
       credential,
       kind,
+      providerApiVersion,
       providerDocumentId,
     }): Promise<NfseDocumentFetchFacts> => {
-      const client = await resolveClient(credential)
+      const client = await resolveClient({ credential, resolver: v3Resolver, providerApiVersion })
       if (typeof client === 'string') return { cause: client, status: 'error' }
 
       try {
@@ -118,8 +151,12 @@ export function createNfseFiscalStatusGateway(dependencies: {
       }
     },
 
-    fetchStatus: async ({ credential, providerDocumentId }): Promise<NfseProviderStatusFacts> => {
-      const client = await resolveClient(credential)
+    fetchStatus: async ({
+      credential,
+      providerApiVersion,
+      providerDocumentId,
+    }): Promise<NfseProviderStatusFacts> => {
+      const client = await resolveClient({ credential, resolver: v3Resolver, providerApiVersion })
       if (typeof client === 'string') return { cause: client, status: 'error' }
 
       try {

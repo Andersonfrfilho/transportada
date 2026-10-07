@@ -8,6 +8,7 @@ import type {
   NfseFiscalEnvironment,
 } from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseCredentialSecretService } from '../application/nfse-credential-secret.service.js'
+import type { NfseProviderApiVersion } from '../domain/nfse-provider-api-version.policy.js'
 import {
   createNotaRpV2Client,
   type NotaRpCancelOutcome,
@@ -22,6 +23,9 @@ import {
   type NotaRpV2Config,
 } from './nota-rp-v2.client.js'
 import { toIssRatePercentage } from './nfse-iss-rate-percentage.js'
+import { createNfseV3ClientResolver, type NfseV3ClientResolver } from './nfse-v3-client.resolver.js'
+import { asRecord } from './nota-rp-v3-envelope.js'
+import type { NotaRpV3Client, NotaRpV3Config } from './nota-rp-v3.types.js'
 
 /**
  * A porta que o consumidor enxerga. Três responsabilidades, e só elas:
@@ -110,6 +114,8 @@ export type NfseCredentialAccess = {
   readonly fiscalEnvironment: NfseFiscalEnvironment
   /** Vai no `X-AUTH-IM`. Não é segredo — o segredo é o token, e ele continua selado. */
   readonly municipalRegistration: string
+  /** CNPJ em claro (`X-Auth-CNPJ` da v3). Não é segredo — o segredo é o token. */
+  readonly taxId: string
 }
 
 export type NfseFiscalGatewayConfig = {
@@ -127,20 +133,28 @@ export type NfseFiscalGateway = {
   cancel(input: {
     readonly cancellationMotive: NfseCancellationMotive
     readonly credential: NfseCredentialAccess
+    readonly providerApiVersion: NfseProviderApiVersion
     readonly providerDocumentId: string
   }): Promise<NfseGatewayCancelOutcome>
   fetchDocument(input: {
     readonly credential: NfseCredentialAccess
     readonly kind: NotaRpDocumentKind
+    readonly providerApiVersion: NfseProviderApiVersion
     readonly providerDocumentId: string
   }): Promise<NfseGatewayDocumentOutcome>
   fetchStatus(input: {
     readonly credential: NfseCredentialAccess
+    readonly providerApiVersion: NfseProviderApiVersion
     readonly providerDocumentId: string
   }): Promise<NfseGatewayStatusOutcome>
   issue(input: {
     readonly credential: NfseCredentialAccess
     readonly payload: unknown
+    readonly providerApiVersion: NfseProviderApiVersion
+    /** `id_nota` já provado como da v3: só a reedição o envia. */
+    readonly providerDocumentId?: string
+    /** Vira o `hash_pedido` da v3; é a chave de idempotência da emissão no provedor. */
+    readonly providerRequestKey: string
   }): Promise<NfseGatewayIssueOutcome>
 }
 
@@ -148,13 +162,27 @@ export function createNfseFiscalGateway(dependencies: {
   readonly clock?: () => Date
   readonly config: NfseFiscalGatewayConfig
   readonly createClient?: (input: { readonly config: NotaRpV2Config }) => NotaRpV2Client
+  readonly createV3Client?: (input: { readonly config: NotaRpV3Config }) => NotaRpV3Client
   readonly fetch: NotaRpFetch
   readonly secretService: NfseCredentialSecretService
+  /** O fetch com o limitador compartilhado; só a v3 o usa. Sem ele, cai no `fetch` cru. */
+  readonly v3Fetch?: NotaRpFetch
 }): NfseFiscalGateway {
   const { config, fetch, secretService } = dependencies
   const clock = dependencies.clock ?? ((): Date => new Date())
   const createClient =
     dependencies.createClient ?? ((input) => createNotaRpV2Client({ config: input.config, fetch }))
+  const v3Resolver = createNfseV3ClientResolver({
+    baseUrl: config.baseUrl,
+    callbackBaseUrl: config.callbackBaseUrl,
+    clock,
+    ...(dependencies.createV3Client === undefined
+      ? {}
+      : { createClient: dependencies.createV3Client }),
+    fetch: dependencies.v3Fetch ?? fetch,
+    secretService,
+    timeoutMilliseconds: config.timeoutMilliseconds,
+  })
 
   async function resolveClient(
     credential: NfseCredentialAccess,
@@ -185,7 +213,14 @@ export function createNfseFiscalGateway(dependencies: {
   }
 
   return {
-    cancel: async ({ cancellationMotive, credential, providerDocumentId }) => {
+    cancel: async ({ cancellationMotive, credential, providerApiVersion, providerDocumentId }) => {
+      if (providerApiVersion === 'v3') {
+        return runOnV3({
+          credential,
+          resolver: v3Resolver,
+          run: (client) => client.cancel({ cancellationMotive, providerDocumentId }),
+        })
+      }
       const resolved = await resolveClient(credential)
       if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
@@ -195,7 +230,14 @@ export function createNfseFiscalGateway(dependencies: {
       }
     },
 
-    fetchDocument: async ({ credential, kind, providerDocumentId }) => {
+    fetchDocument: async ({ credential, kind, providerApiVersion, providerDocumentId }) => {
+      if (providerApiVersion === 'v3') {
+        return runOnV3({
+          credential,
+          resolver: v3Resolver,
+          run: (client) => client.fetchDocument({ kind, providerDocumentId }),
+        })
+      }
       const resolved = await resolveClient(credential)
       if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
@@ -205,7 +247,14 @@ export function createNfseFiscalGateway(dependencies: {
       }
     },
 
-    fetchStatus: async ({ credential, providerDocumentId }) => {
+    fetchStatus: async ({ credential, providerApiVersion, providerDocumentId }) => {
+      if (providerApiVersion === 'v3') {
+        return runOnV3({
+          credential,
+          resolver: v3Resolver,
+          run: (client) => client.fetchStatus({ providerDocumentId }),
+        })
+      }
       const resolved = await resolveClient(credential)
       if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
       try {
@@ -215,7 +264,11 @@ export function createNfseFiscalGateway(dependencies: {
       }
     },
 
-    issue: async ({ credential, payload }) => {
+    issue: async (input) => {
+      const { credential, payload } = input
+      if (input.providerApiVersion === 'v3') {
+        return issueOnV3({ config, input, resolver: v3Resolver })
+      }
       const parsed = payloadSchema.safeParse(payload)
       if (!parsed.success) return { cause: 'invalid_payload', status: 'error' }
 
@@ -243,6 +296,45 @@ export function createNfseFiscalGateway(dependencies: {
       }
     },
   }
+}
+
+/** Nenhuma exceção escapa: a v3 também devolve `error` em vez de lançar. */
+async function runOnV3<TOutcome>(input: {
+  readonly credential: NfseCredentialAccess
+  readonly resolver: NfseV3ClientResolver
+  readonly run: (client: NotaRpV3Client) => Promise<TOutcome>
+}): Promise<TOutcome | { readonly cause: NfseGatewayCause; readonly status: 'error' }> {
+  const resolved = await input.resolver.resolve(input.credential)
+  if (typeof resolved === 'string') return { cause: resolved, status: 'error' }
+  try {
+    return await input.run(resolved)
+  } catch {
+    return { cause: 'transport_failure', status: 'error' }
+  }
+}
+
+/** O payload da v3 não passa pelo schema da v2: a recusa nomeada mora no cliente v3. */
+async function issueOnV3(input: {
+  readonly config: NfseFiscalGatewayConfig
+  readonly input: Parameters<NfseFiscalGateway['issue']>[0]
+  readonly resolver: NfseV3ClientResolver
+}): Promise<NfseGatewayIssueOutcome> {
+  const { callbackBaseUrl } = input.config
+  /** Sem endereço de retorno o pedido não é aceito — e o segredo continua selado. */
+  if (callbackBaseUrl === undefined || callbackBaseUrl === '') {
+    return { cause: 'provider_not_configured', status: 'error' }
+  }
+  const { payload, providerDocumentId, providerRequestKey } = input.input
+  return runOnV3({
+    credential: input.input.credential,
+    resolver: input.resolver,
+    run: (client) =>
+      client.issue({
+        payload: asRecord(payload) ?? {},
+        providerRequestKey,
+        ...(providerDocumentId === undefined ? {} : { providerDocumentId }),
+      }),
+  })
 }
 
 type ResolvedClient = {

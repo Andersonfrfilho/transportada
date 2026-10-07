@@ -103,6 +103,8 @@ export default defineRailway((ctx) => {
       LOG_LEVEL: preserve(),
       LOG_SINK_URL: preserve(),
       NFSE_CALLBACK_BASE_URL: preserve(),
+      /** Versão que as emissões NOVAS gravam na tentativa; o worker roteia pela tentativa, não por esta. */
+      NFSE_PROVIDER_API_VERSION: 'v2',
       NOTIFICATION_SUPPRESSION_HMAC_KEY: preserve(),
       OBJECT_STORAGE_ACCESS_KEY: preserve(),
       OBJECT_STORAGE_BUCKET: preserve(),

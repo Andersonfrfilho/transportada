@@ -17,8 +17,8 @@
 
 ### Seleção do cliente (ADR 0098)
 
-`NFSE_PROVIDER_API_VERSION` (`v2` | `v3`, padrão `v2`) é lida pela **API e pelo worker** e vale só para
-emissões novas; a API grava `providerApiVersion` em `providerConfig` e todo o resto (consulta,
+`NFSE_PROVIDER_API_VERSION` (`v2` | `v3`, padrão `v2`) é lida só pela **API** e vale só para
+emissões novas (o worker roteia pela tentativa); a API grava `providerApiVersion` em `providerConfig` e todo o resto (consulta,
 cancelamento, documentos) roteia pela versão **da tentativa**. O cliente v3 usa só a **origem** de
 `NFSE_PROVIDER_BASE_URL` e acrescenta `/api/v3`.
 

@@ -25,6 +25,11 @@ import {
   type NfseServiceInvoiceStatus,
 } from '../../database/nfse-issuance-execution.schema.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
+import { listIssuanceAttemptHistory } from '../../nfse-issuance/infrastructure/drizzle-nfse-issuance-history.reader.js'
+import {
+  resolveLatestIssuanceApiVersion,
+  type NfseProviderApiVersion,
+} from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
 import { buildDueInvoiceOrdering } from './nfse-reconciliation.query.js'
 import type { NfseStoredDocument } from '../application/nfse-document-storage.port.js'
 import type { NfseReconciliationWriteBackPort } from '../application/nfse-reconciliation-write-back.port.js'
@@ -79,7 +84,7 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
 
       if (invoices.length === 0) return []
 
-      const [attempts, credentials] = await Promise.all([
+      const [attempts, credentials, issuanceHistory] = await Promise.all([
         listLatestAttempts({
           companyIds: invoices.map((invoice) => invoice.companyId),
           db: dependencies.db,
@@ -89,6 +94,11 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
           companyIds: invoices.map((invoice) => invoice.companyId),
           db: dependencies.db,
           environment,
+        }),
+        listIssuanceAttemptHistory({
+          companyIds: invoices.map((invoice) => invoice.companyId),
+          db: dependencies.db,
+          invoiceIds: invoices.map((invoice) => invoice.invoiceId),
         }),
       ])
 
@@ -107,6 +117,9 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
           ),
           credential: credentials.get(invoice.companyId),
           invoice,
+          providerApiVersion: resolveLatestIssuanceApiVersion(
+            issuanceHistory.get(invoice.invoiceId) ?? [],
+          ),
         }),
       )
     },
@@ -474,6 +487,7 @@ async function listCredentials(input: {
       fiscalEnvironment: nfseProviderCredentials.fiscalEnvironment,
       municipalRegistration: nfseProviderCredentials.municipalRegistration,
       status: nfseProviderCredentials.status,
+      taxId: nfseProviderCredentials.taxId,
     })
     .from(nfseProviderCredentials)
     .where(
@@ -493,6 +507,7 @@ async function listCredentials(input: {
       fiscalEnvironment: row.fiscalEnvironment,
       municipalRegistration: row.municipalRegistration,
       status: row.status,
+      taxId: row.taxId,
     })
   }
   return byCompany
@@ -508,9 +523,11 @@ function toCandidate(input: {
     readonly providerDocumentId: string | null
     readonly status: NfseServiceInvoiceStatus
   }
+  readonly providerApiVersion: NfseProviderApiVersion
 }): NfseReconciliationCandidate {
   return {
     companyId: input.invoice.companyId,
+    providerApiVersion: input.providerApiVersion,
     invoiceId: input.invoice.invoiceId,
     status: toReconciliationStatus(input.invoice.status),
     ...(input.attemptId === undefined ? {} : { attemptId: input.attemptId }),

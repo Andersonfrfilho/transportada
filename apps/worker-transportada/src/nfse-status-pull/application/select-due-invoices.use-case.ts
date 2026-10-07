@@ -11,6 +11,7 @@ import {
   NFSE_RECONCILIATION_INELIGIBILITY_REASONS,
   type NfseReconciliationIneligibilityReason,
 } from '../domain/nfse-reconciliation-eligibility.policy.js'
+import type { NfseProviderApiVersion } from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
 import type { NfseReconciliationSourceStatus } from '../domain/nfse-reconciliation-outcome.policy.js'
 import type { NfseCredentialAccess } from './nfse-fiscal-status.port.js'
 import type {
@@ -23,6 +24,7 @@ export type DueNfseInvoice = {
   readonly companyId: string
   readonly credential: NfseCredentialAccess
   readonly invoiceId: string
+  readonly providerApiVersion: NfseProviderApiVersion
   readonly providerDocumentId: string
   readonly status: NfseReconciliationSourceStatus
 }
@@ -100,8 +102,10 @@ function toDueInvoice(candidate: NfseReconciliationCandidate): DueNfseInvoice {
       envelope: credential.envelope,
       fiscalEnvironment: credential.fiscalEnvironment,
       municipalRegistration: credential.municipalRegistration,
+      taxId: credential.taxId,
     },
     invoiceId: candidate.invoiceId,
+    providerApiVersion: candidate.providerApiVersion,
     providerDocumentId: candidate.providerDocumentId as string,
     status: candidate.status as NfseReconciliationSourceStatus,
   }

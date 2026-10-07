@@ -3,6 +3,7 @@
  */
 import type { NfseCancellationMotive } from '../../database/nfse-issuance-execution.schema.js'
 import type { NfseProcessingEnvelopeV1 } from '../../messaging/nfse-processing-envelope.schema.js'
+import type { NfseProviderApiVersion } from '../domain/nfse-provider-api-version.policy.js'
 import type {
   NfseCredentialAccess,
   NfseFiscalGateway,
@@ -39,7 +40,13 @@ export type NfseIssuanceExecutionInput = {
   readonly cancellationMotive?: NfseCancellationMotive
   readonly credential: NfseCredentialAccess
   readonly payload?: unknown
+  /** Versão da API do provedor da tentativa (emissão) ou da última emissão da nota (demais). */
+  readonly providerApiVersion: NfseProviderApiVersion
   readonly providerDocumentId?: string
+  /** Tentativa legada não tem chave: o próprio `attemptId` assume o papel. */
+  readonly providerRequestKey?: string
+  /** `id_nota` só para a reedição de uma nota que a própria v3 criou. */
+  readonly reissueProviderDocumentId?: string
 }
 
 export type NfseIssuanceExecutionInputReader = {
@@ -109,14 +116,22 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     readonly execution: NfseIssuanceExecutionInput
     readonly key: NfseIssuanceWriteBackKey
   }): Promise<void> {
-    const { credential, payload } = input.execution
+    const { credential, payload, providerApiVersion } = input.execution
 
     /** O documento transmitido é o congelado na requisição: remontá-lo aqui mudaria a nota fiscal. */
     if (payload === undefined) throw new NfseIssuanceFatalError(MISSING_ISSUANCE_PAYLOAD)
 
     await writeBack.recordInFlight(input.key)
 
-    const outcome = await gateway.issue({ credential, payload })
+    const outcome = await gateway.issue({
+      credential,
+      payload,
+      providerApiVersion,
+      providerRequestKey: input.execution.providerRequestKey ?? input.key.attemptId,
+      ...(input.execution.reissueProviderDocumentId === undefined
+        ? {}
+        : { providerDocumentId: input.execution.reissueProviderDocumentId }),
+    })
     logOutcome({ attemptKind: 'issue', key: input.key, outcome })
 
     if (outcome.status === 'accepted') {
@@ -150,7 +165,8 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     readonly execution: NfseIssuanceExecutionInput
     readonly key: NfseIssuanceWriteBackKey
   }): Promise<void> {
-    const { cancellationMotive, credential, providerDocumentId } = input.execution
+    const { cancellationMotive, credential, providerApiVersion, providerDocumentId } =
+      input.execution
 
     if (providerDocumentId === undefined || providerDocumentId === '') {
       throw new NfseIssuanceFatalError(MISSING_PROVIDER_DOCUMENT)
@@ -165,6 +181,7 @@ export function createNfseIssuanceWorkerEffect(dependencies: {
     const outcome = await gateway.cancel({
       cancellationMotive,
       credential,
+      providerApiVersion,
       providerDocumentId,
     })
     logOutcome({ attemptKind: CANCEL_ATTEMPT_KIND, key: input.key, outcome })

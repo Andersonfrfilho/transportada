@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { NfseFiscalEnvironment } from '../../database/nfse-issuance-execution.schema.js'
+import type { NfseProviderApiVersion } from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
 
 export type NfseReconciliationInvoiceStatus =
   | 'authorized'
@@ -17,6 +18,7 @@ export type NfseReconciliationCredential = {
   readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly municipalRegistration: string
   readonly status: 'active' | 'inactive'
+  readonly taxId: string
 }
 
 /**
@@ -29,6 +31,8 @@ export type NfseReconciliationCandidate = {
   readonly credential?: NfseReconciliationCredential
   readonly invoiceId: string
   readonly nextStatusCheckAt?: Date
+  /** Versão da última emissão da nota; a consulta e os documentos falam a mesma API. */
+  readonly providerApiVersion: NfseProviderApiVersion
   readonly providerDocumentId?: string
   readonly status: NfseReconciliationInvoiceStatus
 }

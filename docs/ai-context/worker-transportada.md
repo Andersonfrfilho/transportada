@@ -527,3 +527,21 @@ Falha | Cancelada`.
 - **Erro:** `{success:false, message, alert?, field?}`; HTTP 400/401/403/404/409/422/500.
 - ⚠️ A documentação diz que a v3 não atende Ribeirão Preto; o suporte da Nota RP (07/10/2026)
   confirmou o contrário. O contrato acima é o que vale; o aviso do swagger está desatualizado.
+
+### Roteamento por versão e limitador (spec 250 T3.3)
+
+- **A versão é a da tentativa, e o worker não lê `NFSE_PROVIDER_API_VERSION`.** A API grava
+  `providerApiVersion` (`v2`|`v3`, ausente = `v2`) no `provider_config` da tentativa de **emissão**. O
+  worker lê a versão da própria tentativa ao emitir; ao cancelar, consultar e baixar documentos, da
+  **última tentativa de emissão** da nota (`attempt_kind='issue'`, maior `attempt_number`). A política
+  mora em `nfse-issuance/domain/nfse-provider-api-version.policy.ts`; a leitura em
+  `drizzle-nfse-issuance-history.reader.ts`, usada pelos dois repositórios (execução e reconciliação).
+- **`id_nota` na reemissão** só viaja se a nota já tem `provider_document_id` **e** toda emissão anterior
+  foi v3 (`canReuseProviderDocumentId`). Sem como provar a origem, vai nota nova: a chave de idempotência
+  (`provider_request_key`; tentativa legada usa o `attemptId`) protege a duplicação.
+- **v2 não muda.** O payload da v3 não passa pelo zod da v2: `nationalTaxationCode` ausente vira `rejected`
+  nomeado dentro do cliente v3, nunca `error invalid_payload`.
+- **Um limitador, um processo.** `createRateLimitedFetch` (1 s) é criado **uma vez** no `main.ts` e
+  entregue como `v3Fetch` aos dois gateways (emissão e consulta); a v2 segue no `fetch` cru, sem espera
+  nova. O limite da Nota RP é por CNPJ e o intervalo é por processo: **assume-se uma réplica do worker**.
+  Subir réplicas exige limitador compartilhado (Redis) ou o limite estoura.

@@ -45,7 +45,7 @@ faz. O desenho assíncrono (outbox → consumidor → write-back → `nfse.statu
 ## Decisões por delegação
 
 - **Seleção v2 × v3 por variável de ambiente, versão gravada por tentativa** (ADR 0098):
-  `NFSE_PROVIDER_API_VERSION` (API e worker) escolhe a das emissões novas; consulta, cancelamento e
+  `NFSE_PROVIDER_API_VERSION` (só a API; o worker roteia pela tentativa) escolhe a das emissões novas; consulta, cancelamento e
   documentos seguem a versão da tentativa. A virada é reversível sem migration de dados.
 - `cTribNac` vira **coluna do perfil** (`national_taxation_code`), não derivação do item da LC 116 —
   o desdobro (`01`) não se deduz do item, e a prefeitura recusa par errado.

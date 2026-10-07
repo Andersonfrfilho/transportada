@@ -36,8 +36,8 @@ Fatos que delimitam a decisão (spec 250, `evidence.md`):
 ## Decisão
 
 1. **A versão é gravada por tentativa; a variável escolhe só a versão das emissões novas.**
-   `NFSE_PROVIDER_API_VERSION` (`v2` | `v3`, padrão `v2`) é lida pela **API** e pelo **worker**
-   (o cron não fala com a Nota RP). A API grava `providerApiVersion` em `providerConfig` (jsonb que
+   `NFSE_PROVIDER_API_VERSION` (`v2` | `v3`, padrão `v2`) é lida só pela **API**, que a grava
+   na tentativa; o **worker roteia pela tentativa** (o cron não fala com a Nota RP). A API grava `providerApiVersion` em `providerConfig` (jsonb que
    já existe por tentativa, sem migration). Consulta, cancelamento e documentos roteiam pela versão
    **da tentativa que emitiu a nota** (ausente = `v2`). Assim voltar a variável não faz a v2 consultar
    `id_nota` da v3, e a virada é reversível.
@@ -86,7 +86,7 @@ Fatos que delimitam a decisão (spec 250, `evidence.md`):
 
 ## Consequências
 
-- `NFSE_PROVIDER_API_VERSION` nasce em **worker e API**. O `NfseCredentialAccess` ganha `taxId`;
+- `NFSE_PROVIDER_API_VERSION` nasce só na **API**; o worker roteia pela tentativa. O `NfseCredentialAccess` ganha `taxId`;
   `issue` ganha a chave do provedor.
 - Migration aditiva: no perfil `national_taxation_code` e `simples_national_rate`; na tentativa
   `provider_request_key`; todas nuláveis, com `rollback.sql`.

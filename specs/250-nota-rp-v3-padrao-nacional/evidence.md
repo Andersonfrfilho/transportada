@@ -309,3 +309,44 @@ Prova por mutação (aplicada à mão, revertida):
 Decisões desta task: `success:false` na **consulta** vira `error unexpected_status` (não `rejected`, como na
 v2): recusa do listar não prova nada sobre a nota (ADR 0098 §7). 4xx do cancelar além do 409 →
 `unexpected_status`. O 409 do cancelar segue `rejected NOTA_RP_HTTP_409` até a T3.4 (consulta de confirmação).
+
+## E17 — T3.3: gateways roteiam pela versão da tentativa e limitador único (07/10/2026)
+
+O que mudou (`apps/worker-transportada`):
+
+- Política `nfse-issuance/domain/nfse-provider-api-version.policy.ts`: `parseProviderApiVersion` (ausente ou
+  desconhecida = `v2`), `resolveLatestIssuanceApiVersion` (maior `attempt_number` de emissão) e
+  `canReuseProviderDocumentId` (id_nota só se **toda** emissão anterior foi v3). Leitor
+  `drizzle-nfse-issuance-history.reader.ts`, reaproveitado pelos dois repositórios.
+- Coluna `provider_request_key` entra no schema do worker; `NfseCredentialAccess` (emissão e consulta) ganha
+  `taxId`; os dois repositórios o carregam. Execução entrega `providerApiVersion`, `providerRequestKey?` e
+  `reissueProviderDocumentId?`; o consumidor usa o `attemptId` como chave de tentativa legada.
+- Porta `NfseFiscalGateway`/`NfseStatusPort`: `issue` com `providerApiVersion`, `providerRequestKey`,
+  `providerDocumentId?`; `cancel`/`fetchStatus`/`fetchDocument` com `providerApiVersion`. Roteamento v3 em
+  `nfse-v3-client.resolver.ts` (compartilhado pelos dois gateways); v2 inalterado.
+- `main.ts`: um `createRateLimitedFetch` (1 s) criado uma vez e passado como `v3Fetch` aos dois gateways; a v2
+  segue no `fetch` cru. Uma réplica do worker assumida (documentado).
+- `.railway/railway.ts`: `NFSE_PROVIDER_API_VERSION: 'v2'` no serviço `api` (literal, sem segredo).
+  **`railway config apply` NÃO foi executado.** Validação: o módulo carrega e, avaliado com `ctx` de produção e de
+  staging, contém a variável literal (o motor `plan` exige a CLI >= 5.42.1, ausente aqui). ADR 0098, spec e plan
+  corrigidos: a variável é lida só pela API.
+
+Testes (novos em `test/nfse-provider-routing/`, entrypoint `nfse-provider-routing.contract.test.ts`, registrado
+no `package.json`): política (15), gateway de emissão (v2 inalterado; v3 com chave, id_nota e config completa;
+sem callback → `provider_not_configured`; envelope ilegível; payload v3 sem `nationalTaxationCode` → `rejected`
+e não `invalid_payload`; v3 usa `v3Fetch` e v2 o fetch cru; cancel/doc/status por versão), gateway de consulta e
+dois gateways compartilhando o relógio do limitador (2ª chamada espera 1000 ms; v2 não espera). Execução:
+`nfse-issuance-execution-input` reescrito (8) e três casos novos no consumidor.
+
+Gates (de `apps/worker-transportada`): `bun run typecheck` 0 erros · `bun run lint` limpo · `bunx prettier --check`
+limpo (src, test, package.json, `.railway/railway.ts`) · `bun run test` **2142 pass / 0 fail**.
+
+SQL real (Postgres nativo descartável, porta 56421, todas as migrations da API aplicadas — uma de backfill de
+dados falhou por tabela auxiliar e não afeta NFS-e; FKs das 6 tabelas NFS-e desativados só no banco descartável,
+script apagado, banco derrubado): `load` da emissão devolveu `v3`, `key-2`, `reissue '777'`, CNPJ; `load` do
+cancelamento devolveu `v3` (da última emissão) e o documento; `listCandidates` devolveu `v3` e o CNPJ; trocando a
+emissão 1 para `v2`, o `reissue` sumiu. Não há teste de integração do worker para NFS-e (nenhum arquivo em
+`test/integration` toca estes repositórios): **o que se provou foi a consulta, não um teste versionado**.
+
+Desvios honestos: a política e os testes do consumidor foram escritos junto da implementação (vermelho comprovado
+só para o roteamento dos gateways e para a execução).
