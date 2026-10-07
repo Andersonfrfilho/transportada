@@ -2995,5 +2995,7 @@ bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
   subprocesso com `TZ=America/Sao_Paulo` (`test/business-calendar/time-zone-probe.ts`) pega — medido por mutação.
 - **Paridade com o painel** por conjunto de datas, 1900–2199 (`national-holiday-parity.contract.ts`, carrega
   `brazilianHoliday.service.ts` por URL de arquivo). Mudou feriado no painel? Mude aqui, ou o contrato reprova.
-- Pendente (ADR-0096): o roteirizador casa `holiday_on = input.date` e nunca verá um `yearly` (Q1, desenho da T1.2);
-  cidade do destinatário × destino físico (Q2); fuso fixo de São Paulo (Q3).
+- Decidido pelo usuário (ADR-0096): o `yearly` é guardado como regra **e** materializado como data fixa por ano em
+  `municipal_holidays`, e o roteirizador (`holiday_on = input.date`) não muda (Q1; desenho na T1.2/T1.3, migration com
+  aprovação humana); a cidade é a do **destino físico**, resolvida pelo chamador com `resolvePhysicalDestination`, nunca
+  o endereço cadastrado do destinatário (Q2); fuso fixo de São Paulo (Q3).

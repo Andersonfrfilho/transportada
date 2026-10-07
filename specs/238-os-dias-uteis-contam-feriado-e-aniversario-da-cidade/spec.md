@@ -69,7 +69,8 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
   cadastrável. Sem seed automático de estados.
 - **RF5 — Sábado:** configuração da empresa `saturday_is_business_day` (padrão `false`: segunda a sexta);
   premissa revogável pelo operador.
-- **RF6 — Resolução por cidade:** o calendário de uma cidade = nacionais ∪ estaduais (UF do IBGE) ∪
+- **RF6 — Resolução por cidade** (a cidade é a do destino físico, resolvida por quem chama com
+  `resolvePhysicalDestination` — ADR-0096): o calendário de uma cidade = nacionais ∪ estaduais (UF do IBGE) ∪
   municipais daquela cidade. A UF sai dos dois primeiros dígitos do código IBGE.
 - **RF7 — Tela** em Configurações: lista, cria, edita e remove feriado municipal/estadual e aniversário
   (hoje só API), com locale pt-BR/en, tabela com filtros múltiplos e ordenação (web.md §7).

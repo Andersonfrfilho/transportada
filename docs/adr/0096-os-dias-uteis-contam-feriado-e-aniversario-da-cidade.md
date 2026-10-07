@@ -73,7 +73,7 @@ feriado termina em `OUT_OF_COVERAGE`, não em laço.
   nacional desde 2024 (Lei 14.759/2023). Afeta só contas sobre datas anteriores a 2024.
 - **Carnaval e Corpus Christi contam como feriado** (decisão da spec 238, como o painel já faz), embora
   não sejam feriados nacionais por lei. Cidade que trabalha nesses dias conta um dia útil a menos.
-- **Fuso fixo de São Paulo**, sem coluna por empresa (decisão do usuário, §5 Q3): a política recebe a data;
+- **Fuso fixo de São Paulo**, sem coluna por empresa (decisão do usuário, Q3 abaixo): a política recebe a data;
   quem chamar converte o instante com `toCivilDate({ timeZone: 'America/Sao_Paulo' })`.
 - **O erro sai como 422** (`ApiError`) em todos os códigos; quem expuser a política numa rota decide o
   mapeamento (T1.3).

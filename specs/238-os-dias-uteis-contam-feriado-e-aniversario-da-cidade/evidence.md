@@ -86,14 +86,22 @@ subprocesso, e o UTC também é sondado.
 7. **`BusinessCalendarError` estende `ApiError` com status 422** para todos os códigos (padrão dos `*.error.ts` de
    domínio da API); o mapeamento numa rota fica para a T1.3.
 
-### Pendências [NEEDS CLARIFICATION] (não bloqueiam a T1.1; registradas na ADR-0096)
+### Pendências decididas pelo usuário (2026-10-06; ADR-0096 § "Decisões do usuário")
 
-- **Q1** — `apps/worker-transportada/src/routing/infrastructure/drizzle-route-optimization.repository.ts:1053-1059`
-  casa `holiday_on = input.date`: um feriado `yearly` nunca será visto pelo roteirizador. O desenho de dados da T1.2
-  (A: `recurrence`/`kind` com `yearly` em `2000-MM-DD`; B: `month`/`day`) depende de decisão do usuário e de
-  aprovação da migration em tabela existente.
-- **Q2** — qual cidade vale: destinatário (`<enderDest>`, decidido na 236) × destino físico (`<entrega>`, spec 073).
-- **Q3** — fuso fixo de São Paulo, sem coluna por empresa.
+A T1.1 levantou Q1–Q3 como [NEEDS CLARIFICATION]; o usuário as decidiu no chat. A política não muda: recebe regras
+`once` e `yearly` e um `cityIbgeCode`.
+
+- **Q1 — decidida:** o roteirizador casa `holiday_on = input.date`
+  (`apps/worker-transportada/src/routing/infrastructure/drizzle-route-optimization.repository.ts:1053-1059`). O feriado
+  `yearly` (aniversário incluído) fica guardado como regra "todo ano" para a política **e** é materializado
+  automaticamente como uma data fixa por ano em `municipal_holidays` (rotina que gera os próximos anos); o roteirizador
+  continua lendo só datas fixas e **não é alterado**. Desenho dos dados e da rotina: T1.2/T1.3; a migration em tabela
+  existente segue exigindo aprovação humana específica.
+- **Q2 — decidida:** a cidade do feriado é sempre o **destino físico** da carga, resolvido pelo chamador com
+  `resolvePhysicalDestination` (desvio manual → `<entrega>` → `<enderDest>`, spec 073), nunca o endereço cadastrado do
+  destinatário. A política recebe só o `cityIbgeCode`. A spec 238 (§ Dúvidas e RF6) foi ajustada; 236/237 ficam com o
+  coordenador (destrava a M6 da 237).
+- **Q3 — decidida:** fuso fixo de São Paulo (`America/Sao_Paulo`), sem coluna por empresa.
 
 ### O que não rodou
 
