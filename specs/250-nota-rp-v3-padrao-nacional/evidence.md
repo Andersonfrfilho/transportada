@@ -198,3 +198,81 @@ O executor herdava a chave só em `timeout` e `transport_failure`. Ampliado para
 inofensivo quando ela não foi criada (pedido recusado na validação libera a chave). `not_found`,
 `invalid_payload`, `provider_not_configured` e `credential_unreadable` nunca chegam a criar a nota e
 continuam com chave nova. Contrato: `test/nfse-domain/provider-request-key.contract.ts` (66 pass).
+
+## E15 — T3.1: contratos vermelhos do cliente Nota RP v3 e do limitador (07/10/2026)
+
+Arquivos novos (só teste, nenhum código de produção): `apps/worker-transportada/test/nota-rp-v3-client.contract.test.ts`
+(entrypoint fino, registrado na lista explícita do script `test` do `package.json` do worker, logo após o da v2) e
+`test/nota-rp-v3/{fixture,issue,status,cancel,documents,rate-limit}.contract.ts`. Corpos de resposta vêm do
+`swagger.yaml` (exemplos de `emitir` 200, `ErrorResponse`, `UnprocessableEntity` com `errors[]`, `NotaListItem`,
+`pdf`/`xml` com `base64_file`); o `409` com `id_nota` vem da descrição de `flags.hash_pedido`.
+
+Superfície contratada (a T3.2 implementa com estes nomes):
+
+- `createNotaRpV3Client({ clock, config, fetch })` em `src/nfse-issuance/infrastructure/nota-rp-v3.client.ts`;
+  `config = { baseUrl, callbackBaseUrl, callbackToken, municipalRegistration, taxId, timeoutMilliseconds, token }`;
+  `issue({ payload, providerRequestKey, providerDocumentId? })` recebe o **payload congelado** e monta o corpo;
+  `fetchStatus`, `cancel`, `fetchDocument` com as mesmas entradas e os mesmos tipos de outcome da v2.
+- `createRateLimitedFetch(fetch, { minIntervalMilliseconds, clock: () => number, sleep })` em
+  `src/nfse-issuance/infrastructure/nota-rp-rate-limit.ts` (assinatura fixada pela orquestração; tem dois
+  parâmetros posicionais, o que a regra §10 do code-standart proíbe — a T3.2 pode trocar por objeto único
+  e ajustar o `createLimited` do teste).
+- Código nomeado novo, escolhido aqui: `NFSE_ISS_EXIGIBILITY_UNSUPPORTED` (exigibilidade diferente de `'1'`).
+  Os outros dois são os da ADR: `NFSE_NATIONAL_TAXATION_CODE_MISSING`, `NFSE_SIMPLES_RATE_MISSING`.
+
+Casos (77 testes; os `for` geram um teste nomeado por status):
+
+- Emissão — cabeçalhos/URL: POST `{origem}/api/v3/nota/emitir`; token, CNPJ e IM só dígitos (entrada formatada),
+  `content-type`/`accept` JSON; sinal de timeout; `baseUrl` com `/api/v2`, só origem e com barra final dão a
+  mesma URL.
+- Emissão — corpo: igualdade exata com `EXPECTED_ISSUE_BODY` (tabela do plan); `data_competencia` em
+  America/Sao_Paulo (relógio 02:30Z de 08/10 → `07/10/2026`; outro relógio → `05/01/2026`); `issRate`
+  `0.027500` → `2.75`; `serviceAmount`/`simplesNationalRate` como número sem recálculo; `issqn_retido`;
+  complemento/telefone só se não vazios; flags (`hash_pedido` = chave recebida, `webhook_url` com o callback
+  token, `enviar_email:false`, sem `regime`); `id_nota` numérico só com `providerDocumentId`.
+- Emissão — recusa local sem HTTP: sem `nationalTaxationCode`, sem `simplesNationalRate`, `issExigibility '3'`.
+- Emissão — respostas: 200 ok → accepted `'12345'`; 200 `success:false` → rejected; 200 sem `id_nota` →
+  malformed; 409 com `id_nota` → accepted; 400/401/403/404/422 → `NOTA_RP_HTTP_<s>` com a mensagem; 422 do
+  swagger com `errors[]`; saneamento (token e callback token fora, ≤ 500 caracteres) em 4xx e em 200
+  `success:false`; 408/425/429/500/502/503 → error `unexpected_status`; rede → `transport_failure`;
+  `TimeoutError` → `timeout`; corpo não-JSON → malformed.
+- Consulta: GET `{origem}/api/v3/nota/listar?id_nota=` com cabeçalhos e sem corpo; Criada/Enviando/Pendente →
+  pending; Sucesso → authorized (`verificationCode` = `chave_acesso`, `authorizedAt` = `data_emissao`); Sucesso
+  sem `numero`/`data_emissao`/`chave_acesso` → malformed (três testes); Falha → `NOTA_RP_FALHA` com mensagem
+  fixa (dois corpos diferentes, mesma recusa); Cancelada → cancelled; status desconhecido (`Processando`) →
+  malformed; `results: []` e 404 → error `not_found` (nunca rejected); 401/403 na consulta → error, não
+  recusa; 5xx → `unexpected_status`; não-JSON e envelope sem `success` → malformed; rede sem vazar segredo.
+- Cancelamento: POST `{origem}/api/v3/nota/cancelar` com cabeçalhos; `'2'` → `servico_nao_prestado`, `'4'` →
+  `outros` + `descricao: "Nota duplicada"`, `id_nota` numérico, `enviar_email:false`; 200 → accepted; 200
+  `success:false` → rejected saneado; **409 → rejected `NOTA_RP_HTTP_409`**; 5xx; rede.
+- Documentos (pdf e xml): GET `{origem}/api/v3/nota/{kind}?id_nota=` com cabeçalhos; `base64_file` → ok com os
+  bytes decodificados e o `contentType` do tipo; base64 que não é PDF → malformed (a assinatura segue em
+  `resolveNfseDocumentBytes`); `success:false` → rejected; 404 → `not_found`; 5xx.
+- Limitador: concorrentes espaçados ≥ 1000 ms na ordem de chegada; dois consumidores da mesma instância no
+  mesmo relógio; intervalo vencido não espera; espera só o que falta (600 ms após 400); erro propaga e não
+  trava a fila; repassa `url`/`init` e devolve a mesma `Response`; relógio falso não espera de verdade.
+
+Decisões abertas (para a T3.2/T3.4 decidirem, não inventadas aqui):
+
+- TODO decisão: **409 do `/cancelar`** ("nota já cancelada" pelo swagger) poderia valer `accepted` (efeito já
+  alcançado). O contrato fixa `rejected NOTA_RP_HTTP_409` por ora; mudar exige contrato novo.
+- 409 do `/emitir` **sem** `id_nota` (ex.: nota que não está em `Falha` e não pode ser reeditada) — sem caso.
+- 4xx do `/cancelar` além do 409 (400/403/404/422) — sem caso; a v2 os tratava como `unexpected_status`.
+- Código da recusa de `success:false` em 200 (a v2 usa `NOTA_RP_UNKNOWN`) — o contrato só exige `rejected` e a
+  mensagem.
+- `taker.address` ausente no payload (permitido pelo schema da v2) — sem caso.
+
+Comandos (de `apps/worker-transportada`):
+
+- `bun test --timeout 120000 ./test/nota-rp-v3-client.contract.test.ts` -> **0 pass / 77 fail**, todos por
+  `Cannot find module` de `nota-rp-v3.client.js` ou `nota-rp-rate-limit.js` (vermelho por construção).
+- `bun run typecheck` -> 2 erros, **ambos TS2307 por construção**: `test/nota-rp-v3/fixture.ts` (módulo do
+  cliente) e `test/nota-rp-v3/rate-limit.contract.ts` (módulo do limitador). Nenhum outro erro.
+- `bun run lint` (src + test inteiros) -> 0 problemas. `bunx prettier --check` nos arquivos novos e no
+  `package.json` -> limpo.
+- Sonda das fixtures de documento contra `resolveNfseDocumentBytes` (script no scratchpad): PDF 8 bytes, XML 45
+  bytes, HTML em base64 → `undefined` — os casos de documento são satisfazíveis.
+- **Prova por mutação: não viável sem implementação** (todo teste já falha no import). Fica para a T3.2, com as
+  mutações-alvo: (1) usar `baseUrl` cru em vez da origem — derruba "baseUrl com /api/v2, só com a origem…";
+  (2) `not_found` → `rejected` — derruba os dois de "nota ausente adia"; (3) não sanear o token — derruba os
+  de saneamento e de rede sem vazar segredo.

@@ -52,7 +52,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T3.1 🧠 `opus`: a classificação de erros v3 herda o contrato de status da v2)
 
-- [ ] **T3.1** 🧠 Contratos vermelhos do `nota-rp-v3.client` a partir das respostas do swagger
+- [x] **T3.1** 🧠 Contratos vermelhos do `nota-rp-v3.client` a partir das respostas do swagger
       (fixtures): emitir 200/409/422/403/429, listar por status, cancelar, pdf/xml.
 - [ ] **T3.2** Porta: `issue` recebe a chave do provedor e `id_nota` opcional; `NfseCredentialAccess`
       ganha `taxId` (os dois repositórios do worker o carregam). `nota-rp-v3.client.ts` (token+CNPJ+IM,
