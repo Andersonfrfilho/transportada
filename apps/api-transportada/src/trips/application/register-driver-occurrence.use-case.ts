@@ -14,8 +14,8 @@ import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { assessDriverOccurrence } from './driver-occurrence-assessment.service.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
 import { deriveFieldAuthorship } from './field-trip-target.types.js'
+import type { DriverDocumentOccurrence } from './driver-document-occurrence.types.js'
 import type { RegisterDriverOccurrenceInput } from './register-driver-occurrence.types.js'
-import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 export type {
@@ -35,8 +35,8 @@ const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
  */
 export async function registerDriverOccurrence(
   input: RegisterDriverOccurrenceInput,
-): Promise<TripOccurrence> {
-  const { attachmentObjectIds, occurrenceType, scope, signatureObjectId, tripId } =
+): Promise<DriverDocumentOccurrence> {
+  const { attachmentObjectIds, lines, occurrenceType, scope, signatureObjectId, tripId } =
     await assessDriverOccurrence(input)
   const authorship = deriveFieldAuthorship(input)
 
@@ -46,7 +46,7 @@ export async function registerDriverOccurrence(
    * (Fase 3) não pode duplicar a ocorrência.
    */
   return input.unitOfWork.execute((transaction) =>
-    withFieldReport<TripOccurrence>({
+    withFieldReport<DriverDocumentOccurrence>({
       guard: {
         actorUserId: input.actorUserId,
         authorship,
@@ -65,7 +65,15 @@ export async function registerDriverOccurrence(
           attachmentObjectIds,
           authorship,
           companyId: input.companyId,
+          declaredAmount: input.declaredAmount ?? null,
           documentId: input.documentId,
+          items: lines.map((line) => ({
+            declaredAmount: line.declaredAmount,
+            productCode: line.productCode,
+            quantity: line.quantity,
+            quantityUnit: line.quantityUnit,
+            unitValue: line.unitValue,
+          })),
           locationStamp: resolveFieldTapLocationStamp({
             location: input.location,
             locator: input,
@@ -73,6 +81,7 @@ export async function registerDriverOccurrence(
           note: input.note,
           occurrenceTypeId: occurrenceType.id,
           productCode: scope.productCode,
+          referenceNumber: input.referenceNumber ?? null,
           signatureObjectId,
           stage: TRIP_OCCURRENCE_STAGE.delivery,
           tripId,

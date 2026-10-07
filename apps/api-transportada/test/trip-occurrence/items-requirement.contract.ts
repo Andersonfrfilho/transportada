@@ -21,6 +21,7 @@ import {
   createFieldReportState,
   createFieldReportUnitOfWork,
 } from '../driver-trip/field-report.double.js'
+import { NEUTRAL_DOCUMENT_PRODUCT_LINE } from '../fixtures/document-product.fixture.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 const DOCUMENT = '00000000-0000-4000-8000-000000000017'
@@ -28,15 +29,15 @@ const TYPE_ID = '00000000-0000-4000-8000-0000000000e1'
 const TRIP = '00000000-0000-4000-8000-000000000011'
 const RECIPIENT_TAX_ID = '12345678000190'
 const THREE_PRODUCTS = [
-  { code: 'A-1', description: 'PARAFUSO' },
-  { code: 'B-2', description: 'PORCA' },
-  { code: 'C-3', description: 'ARRUELA' },
+  { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'A-1', description: 'PARAFUSO' },
+  { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'B-2', description: 'PORCA', ordinal: 2 },
+  { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'C-3', description: 'ARRUELA', ordinal: 3 },
 ]
 
 type Registration = {
   readonly overrides?: FieldOccurrenceTypeOverrides
   readonly productCode?: string
-  readonly products?: readonly { readonly code: string; readonly description: string }[]
+  readonly products?: readonly (typeof THREE_PRODUCTS)[number][]
   readonly recipientTaxId?: string
   readonly type: Partial<OccurrenceTypeRecord>
 }
@@ -120,7 +121,13 @@ describe('produtos obrigatórios: todos os itens da nota (spec 246 T2.4b)', () =
   test('o único item de uma nota de um item cobre todos os itens', async () => {
     const { result, state } = register({
       productCode: 'A-1',
-      products: [THREE_PRODUCTS[0] ?? { code: 'A-1', description: 'PARAFUSO' }],
+      products: [
+        THREE_PRODUCTS[0] ?? {
+          ...NEUTRAL_DOCUMENT_PRODUCT_LINE,
+          code: 'A-1',
+          description: 'PARAFUSO',
+        },
+      ],
       type: allItems,
     })
 
@@ -155,7 +162,7 @@ describe('produtos obrigatórios com mínimo (spec 246 T2.4b, RF1c2)', () => {
   test('o mínimo nunca passa do total da nota: dois itens exigidos em nota de um item', async () => {
     const { result, state } = register({
       productCode: 'A-1',
-      products: [{ code: 'A-1', description: 'PARAFUSO' }],
+      products: [{ ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'A-1', description: 'PARAFUSO' }],
       type: atLeastTwo,
     })
 

@@ -549,6 +549,10 @@ export async function saveTripOccurrence(
     readonly note: string
     readonly productCode: string
     readonly occurrenceTypeId: string
+    /** Spec 247 (T4.4): o valor pago da ocorrência; ausente/nulo grava nulo. */
+    readonly declaredAmount?: null | string
+    /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo grava nulo. */
+    readonly referenceNumber?: null | string
     /**
      * Spec 164 T4 (RF3): a política do tipo, copiada para a tratativa no registro. Ausente (ou
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
@@ -580,10 +584,12 @@ export async function saveTripOccurrence(
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectIds?.[0] ?? input.attachmentObjectId ?? null,
       companyId: input.companyId,
+      declaredAmount: input.declaredAmount ?? null,
       ...input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      referenceNumber: input.referenceNumber ?? null,
       signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,

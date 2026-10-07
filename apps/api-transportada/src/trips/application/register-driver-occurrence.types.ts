@@ -4,6 +4,8 @@
  * As portas e a entrada de `registerDriverOccurrence` (spec 079, 179, 246) — em arquivo próprio para o
  * caso de uso e a avaliação da ocorrência (`driver-occurrence-assessment.service.ts`) o compartilharem.
  */
+import type { DriverOccurrenceItemRequest } from '../domain/driver-occurrence-items.policy.js'
+import type { PricedDocumentProduct } from '../domain/occurrence-product-pricing.policy.js'
 import type { ReportedLocation, DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
 import type { FieldTripLocator, FieldTripTarget } from './field-trip-target.types.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
@@ -36,12 +38,19 @@ export type DriverOccurrenceReadPort = OccurrenceTypeOverridesReadPort &
       readonly recipientTaxId?: null | string | undefined
       readonly tripId: string
     }>
+    /**
+     * Spec 247 (T4.4): a linha inteira da NF-e — preço, unidade, quantidade e ordem são lidos daqui,
+     * nunca do corpo. Uma consulta por registro.
+     */
     listDocumentProducts(input: {
       readonly companyId: string
       readonly documentId: string
       readonly tripId: string
-    }): Promise<readonly { readonly code: string; readonly description: string }[]>
+    }): Promise<readonly (PricedDocumentProduct & { readonly description: string })[]>
   }
+
+/** Spec 247 (T4.4): um item marcado pelo motorista — código, quantidade e o valor pago opcional. */
+export type DriverOccurrenceItemInput = DriverOccurrenceItemRequest
 
 export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
@@ -60,14 +69,23 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
    */
   readonly attachmentObjectIds?: readonly string[] | undefined
   readonly companyId: string
+  /** Spec 247 (T4.4): o valor pago da ocorrência, texto com até duas casas; ausente é não digitado. */
+  readonly declaredAmount?: string | undefined
   readonly documentId: string
   readonly idempotencyKey: string
+  /**
+   * Spec 247 (T4.4): os itens com quantidade. Ausente é o contrato anterior (`productCode`); a rota
+   * recusa os dois juntos.
+   */
+  readonly items?: readonly DriverOccurrenceItemInput[] | undefined
   /** Spec 196 T3.3: o ponto do toque; ausente é o aparelho que não mandou, e carimba `unavailable`. */
   readonly location?: ReportedLocation | null | undefined
   readonly note: string
   readonly occurrenceTypeId: string
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
   readonly productCode: string
+  /** Spec 247 (T4.4): o número do documento do cliente; ausente é não informado. */
+  readonly referenceNumber?: string | undefined
   readonly repository: DriverOccurrenceReadPort
   /**
    * Spec 246 (RF9): a referência à assinatura já confirmada — nunca o arquivo, e nunca uma linha de

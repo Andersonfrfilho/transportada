@@ -25,6 +25,7 @@ import {
   type FieldOccurrenceType,
 } from '../application/list-field-occurrence-types.use-case.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import type { DriverOccurrenceItemInput } from '../application/register-driver-occurrence.types.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
@@ -206,13 +207,19 @@ export type MeTripDependencies = {
     /** Spec 246 (T2.7): a lista de uploads confirmados (1 a 5); a rota recusa a lista junto do campo único. */
     readonly attachmentObjectIds?: readonly string[] | undefined
     readonly companyId: string
+    /** Spec 247 (T4.4): o valor pago da ocorrência, texto. */
+    readonly declaredAmount?: string | undefined
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
+    /** Spec 247 (T4.4): os itens com quantidade — preço e unidade saem da nota no servidor. */
+    readonly items?: readonly DriverOccurrenceItemInput[] | undefined
     readonly location: ReportedLocation | null
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /** Spec 247 (T4.4): o número do documento do cliente. */
+    readonly referenceNumber?: string | undefined
     /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
     readonly signatureObjectId?: string | null | undefined
   }) => Promise<TripOccurrence>
@@ -639,12 +646,15 @@ export function createMeTripRoutes(
     defineRoute<{
       readonly attachmentObjectId?: string | undefined
       readonly attachmentObjectIds?: readonly string[] | undefined
+      readonly declaredAmount?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
+      readonly items?: readonly DriverOccurrenceItemInput[] | undefined
       readonly location: ReportedLocation | null
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
+      readonly referenceNumber?: string | undefined
       readonly signatureObjectId?: string | null | undefined
     }>({
       async handle({ context, input }): Promise<Response> {
@@ -654,13 +664,16 @@ export function createMeTripRoutes(
           attachmentObjectId: input.attachmentObjectId,
           attachmentObjectIds: input.attachmentObjectIds,
           companyId: context.scope.companyId,
+          declaredAmount: input.declaredAmount,
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
+          items: input.items,
           location: input.location,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
+          referenceNumber: input.referenceNumber,
           signatureObjectId: input.signatureObjectId,
         })
 
@@ -672,12 +685,15 @@ export function createMeTripRoutes(
         return {
           attachmentObjectId: body.attachmentObjectId,
           attachmentObjectIds: body.attachmentObjectIds,
+          declaredAmount: body.declaredAmount,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
+          items: body.items,
           location: body.location,
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
+          referenceNumber: body.referenceNumber,
           signatureObjectId: body.signatureObjectId,
         }
       },

@@ -16,8 +16,11 @@ import type { EventLocationStampColumns } from '../domain/event-location-stamp.t
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type {
+  DriverDocumentOccurrence,
+  DriverDocumentOccurrenceLineInput,
+} from './driver-document-occurrence.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
-import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
@@ -441,12 +444,18 @@ export type DriverFieldReportTransactionPort = {
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence>
+    /** Spec 247 (T4.4): o valor pago da ocorrência; ausente/nulo é não digitado. */
+    readonly declaredAmount?: null | string
+    /** Spec 247 (T4.4): as linhas, gravadas na mesma transação; ausente/vazia é nenhuma linha. */
+    readonly items?: readonly DriverDocumentOccurrenceLineInput[]
+    /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo é não informado. */
+    readonly referenceNumber?: null | string
+  }): Promise<null | DriverDocumentOccurrence>
   /** O reenvio da fila offline: a ocorrência de nota já gravada por esta chave. */
   findDocumentOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<null | TripOccurrence>
+  }): Promise<null | DriverDocumentOccurrence>
 }
 
 export type DriverFieldReportUnitOfWork = {

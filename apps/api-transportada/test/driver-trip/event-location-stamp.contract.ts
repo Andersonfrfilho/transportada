@@ -23,6 +23,7 @@ import { NO_EVENT_LOCATION_STAMP } from '../../src/trips/domain/event-location-s
 import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { createFieldReportState, createFieldReportUnitOfWork } from './field-report.double.js'
+import { NEUTRAL_DOCUMENT_PRODUCT_LINE } from '../fixtures/document-product.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const ACTOR_USER_ID = '00000000-0000-4000-8000-000000000002'
@@ -300,7 +301,9 @@ describe('a ocorrência da nota leva o carimbo (T3.3)', () => {
     }),
     findOccurrenceTypeOverrides: async () => ({ contractorOverrides: [], recipientOverrides: [] }),
     findReachableDocument: async () => ({ tripId: TRIP_ID }),
-    listDocumentProducts: async () => [{ code: 'ZG-4410', description: 'CAIXA' }],
+    listDocumentProducts: async () => [
+      { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'ZG-4410', description: 'CAIXA' },
+    ],
   }
 
   function buildUnitOfWork() {

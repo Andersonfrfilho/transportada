@@ -22,6 +22,7 @@ import {
   createFieldReportState,
   createFieldReportUnitOfWork,
 } from '../driver-trip/field-report.double.js'
+import { NEUTRAL_DOCUMENT_PRODUCT_LINE } from '../fixtures/document-product.fixture.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 const ACTOR = '00000000-0000-4000-8000-00000000000f'
@@ -30,7 +31,9 @@ const DRIVER = '00000000-0000-4000-8000-00000000000d'
 const OCCURRENCE = '00000000-0000-4000-8000-0000000000c1'
 const TIPO = '00000000-0000-4000-8000-0000000000e1'
 const TRIP = '00000000-0000-4000-8000-000000000011'
-const PRODUCTS = [{ code: 'ZG-4410', description: 'CAIXA DE PARAFUSOS' }]
+const PRODUCTS = [
+  { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'ZG-4410', description: 'CAIXA DE PARAFUSOS' },
+]
 const NOT_ALLOWED_CODE = 'OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED'
 
 function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeRecord {

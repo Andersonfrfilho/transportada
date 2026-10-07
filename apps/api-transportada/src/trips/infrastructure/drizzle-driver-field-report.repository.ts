@@ -32,10 +32,17 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
+import type {
+  DriverDocumentOccurrence,
+  DriverDocumentOccurrenceLineInput,
+} from '../application/driver-document-occurrence.types.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
-import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
+import {
+  insertOccurrenceProductRows,
+  listOccurrenceProductLines,
+} from './drizzle-occurrence-product.repository.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
@@ -1149,24 +1156,31 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return occurrence ?? null
   }
 
-  /** Spec 179 T200: a mesma escrita que o galpão usa (`saveTripOccurrence`), dentro desta transação. */
+  /**
+   * Spec 179 T200: a mesma escrita que o galpão usa (`saveTripOccurrence`), dentro desta transação.
+   * Spec 247 (T4.4): as linhas entram na **mesma** transação, e a resposta é relida do banco — igual,
+   * byte a byte, à do reenvio pela chave.
+   */
   public async saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
     readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
+    readonly declaredAmount?: null | string
     readonly documentId: string
+    readonly items?: readonly DriverDocumentOccurrenceLineInput[]
     readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly referenceNumber?: null | string
     readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence> {
-    return saveTripOccurrence(this.transaction, {
+  }): Promise<null | DriverDocumentOccurrence> {
+    const saved = await saveTripOccurrence(this.transaction, {
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId,
       ...(input.attachmentObjectIds === undefined
@@ -1174,29 +1188,47 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         : { attachmentObjectIds: input.attachmentObjectIds }),
       authorship: input.authorship,
       companyId: input.companyId,
+      declaredAmount: input.declaredAmount ?? null,
       documentId: input.documentId,
       locationStamp: input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      referenceNumber: input.referenceNumber ?? null,
       signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripId: input.tripId,
       typeName: input.typeName,
     })
+    if (saved === null) return null
+
+    await insertOccurrenceProductRows(this.transaction, {
+      companyId: input.companyId,
+      items: (input.items ?? []).map((line) => ({
+        code: line.productCode,
+        declaredAmount: line.declaredAmount,
+        quantity: line.quantity,
+        unit: line.quantityUnit,
+        unitValue: line.unitValue,
+      })),
+      occurrenceId: saved.id,
+    })
+    return this.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId: saved.id })
   }
 
   public async findDocumentOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<null | TripOccurrence> {
+  }): Promise<null | DriverDocumentOccurrence> {
     const [occurrence] = await this.transaction
       .select({
         createdAt: tripDocumentOccurrences.createdAt,
+        declaredAmount: tripDocumentOccurrences.declaredAmount,
         id: tripDocumentOccurrences.id,
         note: tripDocumentOccurrences.note,
         occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
         productCode: tripDocumentOccurrences.productCode,
+        referenceNumber: tripDocumentOccurrences.referenceNumber,
         stage: tripDocumentOccurrences.stage,
         typeName: companyOccurrenceTypes.name,
       })
@@ -1219,10 +1251,13 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
     return {
       createdAt: occurrence.createdAt.toISOString(),
+      declaredAmount: occurrence.declaredAmount,
       id: occurrence.id,
+      items: await listOccurrenceProductLines(this.transaction, input),
       note: occurrence.note,
       occurrenceTypeId: occurrence.occurrenceTypeId,
       productCode: occurrence.productCode,
+      referenceNumber: occurrence.referenceNumber,
       stage: occurrence.stage,
       typeName: occurrence.typeName,
     }

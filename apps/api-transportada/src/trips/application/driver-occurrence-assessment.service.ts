@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Tudo o que o registro da ocorrência de nota do motorista confere **antes** de gravar (spec 079, 179,
- * 241, 246): o tipo e a nota são alcançáveis, a exigência efetiva da nota (tipo + exceção do contratante
+ * 241, 246, 247): o tipo e a nota são alcançáveis, a exigência efetiva da nota (tipo + exceção do contratante
  * + exceção do destinatário, lidos da nota no servidor), os produtos, e cada objeto referenciado — anexos
  * e assinatura — existe, é desta empresa e desta viagem e é do motorista.
  *
@@ -16,11 +16,16 @@ import {
   TripOccurrenceSignatureIsAttachmentError,
 } from '../domain/trip.error.js'
 import {
+  resolveDriverOccurrenceLines,
+  type DriverOccurrenceLine,
+} from '../domain/driver-occurrence-items.policy.js'
+import {
   assertOccurrenceItemsRequirement,
   assertOccurrenceTypeAcceptsProducts,
 } from '../domain/occurrence-items-mode.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { assertDriverOccurrenceRequirements } from '../domain/occurrence-requirement-guard.policy.js'
+import { resolveDocumentProductPricing } from '../domain/occurrence-product-pricing.policy.js'
 import type { OccurrenceRequirements } from '../domain/occurrence-requirements.policy.js'
 import {
   resolveOccurrenceProductScope,
@@ -35,6 +40,8 @@ import { resolveOccurrenceUploadAttachment } from './resolve-occurrence-upload-a
 export type DriverOccurrenceAssessment = {
   /** Os anexos já conferidos, na ordem em que o motorista os mandou; vazio é "sem anexo". */
   readonly attachmentObjectIds: readonly string[]
+  /** Spec 247 (T4.4): as linhas a gravar, com preço e unidade da nota; vazia é nenhuma linha. */
+  readonly lines: readonly DriverOccurrenceLine[]
   readonly occurrenceType: OccurrenceTypeRecord
   readonly scope: OccurrenceProductScope
   readonly signatureObjectId: null | string
@@ -102,22 +109,50 @@ async function resolveUploads(params: ResolveUploadsParams): Promise<readonly st
 
 type AssertProductsParams = {
   readonly input: RegisterDriverOccurrenceInput
+  readonly occurrenceType: OccurrenceTypeRecord
   readonly requirements: OccurrenceRequirements
   readonly tripId: string
 }
 
-/** Spec 241 (RF6), 246 (RF1b, RF1c2): o modo de produtos é o efetivo; a nota inteira aponta todos os itens. */
-async function resolveProductScope(params: AssertProductsParams): Promise<OccurrenceProductScope> {
+type ProductAssessment = {
+  readonly lines: readonly DriverOccurrenceLine[]
+  readonly scope: OccurrenceProductScope
+}
+
+/**
+ * Spec 241 (RF6), 246 (RF1b, RF1c2): o modo de produtos é o efetivo; a nota inteira aponta todos os
+ * itens. Spec 247 (T4.4): com `items`, cada um é conferido contra a nota — uma consulta só — e vira a
+ * linha a gravar; sem `items`, o contrato anterior (`productCode`) segue byte a byte.
+ */
+async function resolveProducts(params: AssertProductsParams): Promise<ProductAssessment> {
   const { input, requirements, tripId } = params
+  const items = input.items ?? []
   assertOccurrenceTypeAcceptsProducts({
     itemsMode: requirements.itemsMode,
     productCode: input.productCode,
+    productCodes: items.map((item) => item.productCode),
   })
   const products = await input.repository.listDocumentProducts({
     companyId: input.companyId,
     documentId: input.documentId,
     tripId,
   })
+  if (items.length > 0) {
+    const pricing = resolveDocumentProductPricing(products)
+    const lines = resolveDriverOccurrenceLines({
+      allowsMultipleItems: params.occurrenceType.allowsMultipleItems,
+      items,
+      pricing,
+    })
+    assertOccurrenceItemsRequirement({
+      itemsMinimumCount: requirements.itemsMinimumCount,
+      itemsMode: requirements.itemsMode,
+      selectedCount: lines.length,
+      totalCount: pricing.size,
+    })
+    return { lines, scope: { productCode: lines[0]?.productCode ?? '', scope: 'product' } }
+  }
+
   const scope = resolveOccurrenceProductScope({ productCode: input.productCode, products })
   if (scope === null) throw new TripDocumentNotReachableError()
 
@@ -127,7 +162,7 @@ async function resolveProductScope(params: AssertProductsParams): Promise<Occurr
     selectedCount: scope.scope === 'document' ? products.length : 1,
     totalCount: products.length,
   })
-  return scope
+  return { lines: [], scope }
 }
 
 export async function assessDriverOccurrence(
@@ -148,7 +183,7 @@ export async function assessDriverOccurrence(
     occurrenceType,
     repository: input.repository,
   })
-  const scope = await resolveProductScope({ input, requirements, tripId })
+  const { lines, scope } = await resolveProducts({ input, occurrenceType, requirements, tripId })
 
   const requestedIds = requestedAttachmentIds(input)
   const requestedSignature = requestedSignatureIds(input)
@@ -157,8 +192,11 @@ export async function assessDriverOccurrence(
   }
   assertDriverOccurrenceRequirements({
     attachmentCount: requestedIds.length,
+    declaredAmount: input.declaredAmount ?? null,
     hasSignature: requestedSignature.length > 0,
+    lines,
     note: input.note,
+    referenceNumber: input.referenceNumber ?? null,
     requirements,
   })
 
@@ -169,6 +207,7 @@ export async function assessDriverOccurrence(
 
   return {
     attachmentObjectIds,
+    lines,
     occurrenceType,
     scope,
     signatureObjectId: signatureObjectIds[0] ?? null,

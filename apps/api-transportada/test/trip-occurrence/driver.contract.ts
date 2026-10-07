@@ -15,6 +15,7 @@ import {
   createFieldReportState,
   createFieldReportUnitOfWork,
 } from '../driver-trip/field-report.double.js'
+import { NEUTRAL_DOCUMENT_PRODUCT_LINE } from '../fixtures/document-product.fixture.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 const DOCUMENT = '00000000-0000-4000-8000-000000000017'
@@ -24,7 +25,9 @@ const TIPO = '00000000-0000-4000-8000-0000000000e1'
 const IDEMPOTENCY_KEY = '00000000-0000-4000-8000-0000000000aa'
 const UPLOAD = '00000000-0000-4000-8000-0000000000bb'
 
-const PRODUTOS = [{ code: 'ZG-4410', description: 'CAIXA DE PARAFUSOS' }]
+const PRODUTOS = [
+  { ...NEUTRAL_DOCUMENT_PRODUCT_LINE, code: 'ZG-4410', description: 'CAIXA DE PARAFUSOS' },
+]
 
 function readPort(
   overrides: {

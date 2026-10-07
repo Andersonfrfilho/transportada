@@ -7,6 +7,7 @@ import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { DECLARED_AMOUNT_DECIMAL } from '../../shared/money.constant.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
@@ -16,6 +17,7 @@ import {
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_REFERENCE_NUMBER_PATTERN,
   OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
@@ -32,6 +34,47 @@ import {
   type OfficeForm,
   type OfficeFormValue,
 } from './office-multipart.schema.js'
+
+const OCCURRENCE_PRODUCT_CODE_MAX_LENGTH = 60
+
+/**
+ * O teto de itens de uma ocorrência. Uma nota com mais itens que isso marcados por inteiro é a nota
+ * inteira — e é assim que ela deve ser registrada, com a lista vazia. O teto também impede que o
+ * corpo cresça sem limite por um campo repetido.
+ */
+const OCCURRENCE_PRODUCT_CODES_LIMIT = 200
+
+/** Spec 247 (T4.4): a quantidade devolvida — `numeric(12,3)`, texto, nunca número JSON. */
+const OCCURRENCE_ITEM_QUANTITY_DECIMAL = /^\d{1,9}(\.\d{1,3})?$/
+const NON_ZERO_DIGIT = /[1-9]/
+
+const ITEMS_FIELD = 'items'
+const DECLARED_AMOUNT_FIELD = 'declaredAmount'
+
+/** Spec 247 (RF14): valor pago é texto com até duas casas — negativo, três casas ou número é `400`. */
+const declaredAmountSchema = z.string().regex(DECLARED_AMOUNT_DECIMAL)
+
+/**
+ * Spec 247 (T4.4): um item marcado pelo motorista. **Sem preço e sem unidade**: os dois saem da nota
+ * no servidor, e o `strict()` recusa quem tentar mandá-los.
+ */
+const driverOccurrenceItemSchema = z
+  .object({
+    declaredAmount: declaredAmountSchema.optional(),
+    productCode: z.string().trim().min(1).max(OCCURRENCE_PRODUCT_CODE_MAX_LENGTH),
+    quantity: z
+      .string()
+      .regex(OCCURRENCE_ITEM_QUANTITY_DECIMAL)
+      .refine((quantity) => NON_ZERO_DIGIT.test(quantity)),
+  })
+  .strict()
+
+/** Spec 247 (RF14): vazio é "não informado"; presente, só `[A-Za-z0-9 ./-]`, até 30. */
+const referenceNumberSchema = z
+  .string()
+  .trim()
+  .transform((value) => (value === '' ? undefined : value))
+  .pipe(z.string().regex(new RegExp(OCCURRENCE_REFERENCE_NUMBER_PATTERN)).optional())
 
 /**
  * ⚠️ `stage` **não entra no corpo**: ele é derivado do tipo, e aceitá-lo do cliente deixaria quem
@@ -68,9 +111,52 @@ const registerOccurrenceSchema = z
     occurrenceTypeId: z.string().uuid(),
     /** Vazio é a ocorrência da nota inteira: recusa total não tem item a apontar. */
     productCode: z.string().trim().max(60).default(''),
+    /** Spec 247 (T4.4): o valor pago da ocorrência; junto de valor em alguma linha é `400`. */
+    declaredAmount: declaredAmountSchema.optional(),
+    /** Spec 247 (T4.4): os itens com quantidade; junto de `productCode` é `400`. */
+    items: z
+      .array(driverOccurrenceItemSchema)
+      .min(1)
+      .max(OCCURRENCE_PRODUCT_CODES_LIMIT)
+      .optional(),
+    /** Spec 247 (T4.4): o número do documento do cliente. */
+    referenceNumber: referenceNumberSchema.optional(),
   })
   .strict()
   .superRefine(refineAttachmentSelection)
+  .superRefine(refineItemSelection)
+
+/**
+ * Spec 247 (T4.4): as duas formas de apontar produto (`productCode` antigo e `items` novo) e os dois
+ * níveis do valor pago (ocorrência e linha) são **recusados juntos**, nunca reconciliados — escolher
+ * um em silêncio gravaria o que ninguém marcou. Código repetido em `items` também é `400`.
+ */
+function refineItemSelection(
+  body: {
+    readonly declaredAmount?: string | undefined
+    readonly items?: readonly z.infer<typeof driverOccurrenceItemSchema>[] | undefined
+    readonly productCode: string
+  },
+  context: z.RefinementCtx,
+): void {
+  const items = body.items ?? []
+  if (items.length === 0) return
+  if (body.productCode !== '') {
+    context.addIssue({ code: 'custom', message: 'ITEM_SELECTION_CONFLICT', path: [ITEMS_FIELD] })
+  }
+  const codes = items.map((item) => item.productCode)
+  if (new Set(codes).size !== codes.length) {
+    context.addIssue({ code: 'custom', message: 'ITEM_DUPLICATED', path: [ITEMS_FIELD] })
+  }
+  const hasLineAmount = items.some((item) => item.declaredAmount !== undefined)
+  if (body.declaredAmount !== undefined && hasLineAmount) {
+    context.addIssue({
+      code: 'custom',
+      message: 'DECLARED_AMOUNT_SELECTION_CONFLICT',
+      path: [DECLARED_AMOUNT_FIELD],
+    })
+  }
+}
 
 function refineAttachmentSelection(
   body: {
@@ -165,14 +251,6 @@ const OCCURRENCE_MULTIPART_FIELD = {
 const OCCURRENCE_MULTIPART_FIELDS = new Set<string>(Object.values(OCCURRENCE_MULTIPART_FIELD))
 
 const OCCURRENCE_NOTE_MAX_LENGTH = 500
-const OCCURRENCE_PRODUCT_CODE_MAX_LENGTH = 60
-
-/**
- * O teto de itens de uma ocorrência. Uma nota com mais itens que isso marcados por inteiro é a nota
- * inteira — e é assim que ela deve ser registrada, com a lista vazia. O teto também impede que o
- * corpo cresça sem limite por um campo repetido.
- */
-const OCCURRENCE_PRODUCT_CODES_LIMIT = 200
 
 export type RegisterOccurrenceMultipartAttachment = {
   readonly bytes: Uint8Array

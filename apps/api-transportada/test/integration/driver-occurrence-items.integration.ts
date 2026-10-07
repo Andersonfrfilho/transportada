@@ -446,7 +446,8 @@ describe('registro do motorista com itens, número e valor pago (spec 247 T4.4, 
         expect(missing.details?.[0]?.field).toBe('declaredAmount')
 
         const saved = await registerStreetOccurrence(database, { ...base, declaredAmount: '0' })
-        expect(saved.declaredAmount).toBe('0.0000')
+        /** O driver devolve o zero do `numeric` sem as casas (`'0'`); o que importa é não ser nulo. */
+        expect(saved.declaredAmount).toMatch(/^0(?:\.0+)?$/)
         expect(saved.items).toEqual([])
       })
     },

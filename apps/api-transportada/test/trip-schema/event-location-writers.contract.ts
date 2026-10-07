@@ -70,9 +70,32 @@ function createFakeTransaction() {
         return { returning: async () => [row] }
       },
     }),
-    select: () => ({
-      from: () => ({ where: () => ({ limit: async () => [{ id: DOCUMENT_ID }] }) }),
-    }),
+    /**
+     * Spec 247 (T4.4): o repositório do motorista relê a ocorrência gravada (com junção e as linhas)
+     * para responder igual ao reenvio; a leitura devolve a mesma linha, e nenhuma linha de item.
+     */
+    select: () => {
+      const query = {
+        innerJoin: () => query,
+        where: () => ({
+          limit: async () => [
+            {
+              createdAt: new Date('2026-10-02T12:00:00.000Z'),
+              declaredAmount: null,
+              id: DOCUMENT_ID,
+              note: '',
+              occurrenceTypeId: 'type-1',
+              productCode: '',
+              referenceNumber: null,
+              stage: 'delivery',
+              typeName: 'Recusa',
+            },
+          ],
+          orderBy: async () => [],
+        }),
+      }
+      return { from: () => query }
+    },
   }
 
   return { inserts, transaction: transaction as never }
