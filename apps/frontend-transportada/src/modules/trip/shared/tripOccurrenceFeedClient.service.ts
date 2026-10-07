@@ -269,7 +269,10 @@ function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
     isString(value.description) &&
     (value.quantity === null ||
       (isString(value.quantity) && DECIMAL_STRING.test(value.quantity))) &&
-    isNullableString(value.unit)
+    isNullableString(value.unit) &&
+    (value.declaredAmount === undefined ||
+      value.declaredAmount === null ||
+      (isString(value.declaredAmount) && DECIMAL_STRING.test(value.declaredAmount)))
   )
 }
 

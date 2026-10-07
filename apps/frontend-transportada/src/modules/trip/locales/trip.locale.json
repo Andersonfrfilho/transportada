@@ -1045,6 +1045,7 @@
     "occurrenceCaseDecisionConflict": "Outra decisão diferente já foi registrada para esta tratativa. Recarregue a página para ver o que ficou gravado.",
     "occurrenceCaseRedeliveryNotAllowed": "Esta ocorrência não admite reentrega — escolha outra decisão.",
     "occurrenceCaseNoteRequired": "Informe o motivo da decisão.",
+    "declaredAmountSelectionConflict": "O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um dos dois; nada foi gravado.",
     "occurrenceTypeDeclaredAmountNeedsItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado.",
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
     "occurrenceTypeMomentsDocumentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
@@ -2121,7 +2122,14 @@
     "productCodeRequired": "Informe o código do produto.",
     "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
     "reimbursedOn": "Ressarcido em {{date}}",
-    "savedItemsTitle": "Itens gravados"
+    "savedItemsTitle": "Itens gravados",
+    "suggestion": {
+      "title": "Sugestão pelo registro",
+      "hint": "O que o registro da ocorrência diz que cada item vale: o valor pago digitado, senão a soma da linha. Nada é gravado até você usar a sugestão e salvar o acerto.",
+      "reference": "soma da linha {{amount}}",
+      "unpaid": "A loja não pagou, sem valor a acertar",
+      "use": "Usar a sugestão do registro"
+    }
   },
   "occurrenceDetail": {
     "back": "Voltar para ocorrências",
@@ -2213,6 +2221,23 @@
         "save": "Salvar correção",
         "discard": "Descartar",
         "productsError": "Não foi possível carregar os itens da nota. Feche e tente de novo."
+      },
+      "amounts": {
+        "title": "Número e valor pago",
+        "hint": "Deixe em branco para manter o que está gravado; apagar o que você digitou limpa o campo. A soma da linha é só referência: o valor pago digitado vale no lugar dela.",
+        "referenceLabel": "Número do documento do cliente",
+        "referenceInvalid": "Use só letras, números, espaço, ponto, barra e hífen, até 30 caracteres. Nada foi gravado.",
+        "amountLabel": "Valor pago",
+        "occurrenceAmount": "Valor pago da ocorrência",
+        "scope": "Onde se digita o valor pago",
+        "scopeTitle": "Digitado",
+        "scopes": {
+          "item": "Por linha de produto",
+          "occurrence": "Um só, pela ocorrência"
+        },
+        "placeholder": "0,00",
+        "lineSum": "Soma da linha: R$ {{amount}}",
+        "totalSum": "Soma geral: R$ {{amount}}"
       },
       "unavailable": {
         "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",

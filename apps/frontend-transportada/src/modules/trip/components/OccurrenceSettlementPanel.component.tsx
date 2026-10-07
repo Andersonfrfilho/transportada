@@ -9,6 +9,7 @@ import { useDriverOptions } from '@/modules/fleet/hooks/useDriverOptions.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
+import { useOccurrenceDocumentProducts } from '../queries/useOccurrenceDocumentProducts.query'
 import { useOccurrenceSettlementQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   formatOccurrenceSettlementAmount,
@@ -19,23 +20,43 @@ import {
   unmaskAmountInput,
 } from '../shared/occurrenceSettlementMoney.service'
 import {
+  buildSettlementSuggestion,
+  buildSettlementSuggestionLines,
+  type SettlementSuggestionRow,
+} from '../shared/occurrenceSettlementSuggestion.service'
+import {
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
+  type OccurrenceSettlementAmountSource,
   type OccurrenceSettlementItem,
   type OccurrenceSettlementPayerKind,
   type OccurrenceSettlementView,
+  type TripOccurrenceDetailItem,
 } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { OccurrenceSettlementSuggestion } from './OccurrenceSettlementSuggestion.component'
 
 export type OccurrenceSettlementPanelProps = Readonly<{
   canResolve: boolean
   /** Sobe para o painel da tratativa: encerrar com rascunho não gravado perde o acerto digitado. */
   onDraftDirtyChange?: (isDirty: boolean) => void
   occurrenceId: string
+  /**
+   * Spec 247 T5.4 (RF12): os itens do registro e a nota onde ler o valor deles. Ausente, o acerto é o de
+   * sempre — sem sugestão, tudo digitado.
+   */
+  suggestionSource?: Readonly<{
+    companyId?: string
+    documentId: string
+    items: readonly TripOccurrenceDetailItem[]
+    tripId: string
+  }>
 }>
 
 type DraftRow = Readonly<{
   /** O valor **mascarado** que o campo mostra (`1.234,56`); o decimal sai de `unmaskAmountInput`. */
   amount: string
+  /** Spec 247 RF12: `nfe` só enquanto o valor é o que a nota sugeriu; o operador que o digita passa a `manual`. */
+  amountSource: OccurrenceSettlementAmountSource
   id: string
   payerId: string
   payerKind: OccurrenceSettlementPayerKind
@@ -48,7 +69,14 @@ function nextRowId(): string {
 }
 
 function emptyRow(): DraftRow {
-  return { amount: '', id: nextRowId(), payerId: '', payerKind: 'driver', productCode: '' }
+  return {
+    amount: '',
+    amountSource: 'manual',
+    id: nextRowId(),
+    payerId: '',
+    payerKind: 'driver',
+    productCode: '',
+  }
 }
 
 const dayFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' })
@@ -92,6 +120,7 @@ export function OccurrenceSettlementPanel({
   canResolve,
   onDraftDirtyChange,
   occurrenceId,
+  suggestionSource,
 }: OccurrenceSettlementPanelProps) {
   const { t } = useTranslation('trip')
   const actions = useOccurrenceCaseActions()
@@ -114,6 +143,7 @@ export function OccurrenceSettlementPanel({
     setRows(
       settlementQuery.data.items.map((item) => ({
         amount: maskAmountFromDecimal(item.amount),
+        amountSource: item.amountSource,
         id: nextRowId(),
         payerId: item.payerId ?? '',
         payerKind: item.payerKind,
@@ -123,6 +153,22 @@ export function OccurrenceSettlementPanel({
     setLastResult(settlementQuery.data)
   }, [occurrenceId, settlementQuery.data])
 
+  const productsQuery = useOccurrenceDocumentProducts({
+    ...(suggestionSource?.companyId === undefined ? {} : { companyId: suggestionSource.companyId }),
+    documentId: suggestionSource?.documentId ?? '',
+    isEnabled: canResolve && suggestionSource !== undefined,
+    tripId: suggestionSource?.tripId ?? '',
+  })
+  const suggestion = buildSettlementSuggestion(
+    buildSettlementSuggestionLines({
+      items: suggestionSource?.items ?? [],
+      products: productsQuery.data ?? [],
+    }),
+  )
+  const isPristine =
+    rows.length === 1 && rows.every((row) => row.amount === '' && row.productCode === '')
+  const hasSavedItems = (settlementQuery.data?.items.length ?? 0) > 0
+  const hasSuggestion = suggestion.rows.length > 0 || suggestion.unpaid.length > 0
   const clientTotal = sumOccurrenceSettlementAmounts(
     rows.map((row) => unmaskAmountInput(row.amount)),
   )
@@ -136,6 +182,20 @@ export function OccurrenceSettlementPanel({
 
   function updateRow(id: string, patch: Partial<DraftRow>): void {
     publishRows(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  }
+
+  /** O operador confirma ao salvar: usar a sugestão só preenche as linhas, sem gravar nada. */
+  function handleUseSuggestion(): void {
+    publishRows(
+      suggestion.rows.map((row: SettlementSuggestionRow) => ({
+        amount: maskAmountFromDecimal(row.amount),
+        amountSource: row.amountSource,
+        id: nextRowId(),
+        payerId: '',
+        payerKind: 'driver',
+        productCode: row.productCode,
+      })),
+    )
   }
 
   function addRow(): void {
@@ -153,7 +213,7 @@ export function OccurrenceSettlementPanel({
 
     const items: OccurrenceSettlementItem[] = rows.map((row) => ({
       amount: unmaskAmountInput(row.amount),
-      amountSource: 'manual',
+      amountSource: row.amountSource,
       payerKind: row.payerKind,
       productCode: row.productCode.trim(),
       ...(row.payerKind === 'driver' && row.payerId.trim().length > 0
@@ -204,6 +264,10 @@ export function OccurrenceSettlementPanel({
     <div className={styles.occurrenceStage}>
       <h4 className={styles.hint}>{t('occurrenceSettlement.title')}</h4>
 
+      {isPristine && !hasSavedItems && hasSuggestion ? (
+        <OccurrenceSettlementSuggestion onUse={handleUseSuggestion} suggestion={suggestion} />
+      ) : null}
+
       <div className={styles.settlementGrid}>
         <div className={styles.settlementColumns}>
           <span>{t('occurrenceSettlement.productCode')}</span>
@@ -247,7 +311,10 @@ export function OccurrenceSettlementPanel({
                   aria-label={t('occurrenceSettlement.amount')}
                   inputMode="decimal"
                   onChange={(event) =>
-                    updateRow(row.id, { amount: maskAmountInput(event.target.value) })
+                    updateRow(row.id, {
+                      amount: maskAmountInput(event.target.value),
+                      amountSource: 'manual',
+                    })
                   }
                   placeholder={t('occurrenceSettlement.amountPlaceholder')}
                   type="text"

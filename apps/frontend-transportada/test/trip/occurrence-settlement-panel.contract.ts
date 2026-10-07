@@ -69,9 +69,10 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
     expect(panel).toContain("item.payerKind === 'carrier' ? null : (")
   })
 
-  test('amountSource é sempre manual — esta tela não tem de onde ler o valor da nota', () => {
+  test('amountSource nasce manual; só a sugestão do registro (spec 247 RF12) manda a origem da nota', () => {
     const panel = readFileSync(PANEL, 'utf8')
     expect(panel).toContain("amountSource: 'manual'")
+    expect(panel).toContain('amountSource: row.amountSource')
   })
 
   test('usa Select/Button/Icon do design system para o seletor de pagador', () => {

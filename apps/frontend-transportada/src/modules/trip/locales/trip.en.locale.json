@@ -1045,6 +1045,7 @@
     "occurrenceCaseDecisionConflict": "A different decision has already been recorded for this case. Reload the page to see what was saved.",
     "occurrenceCaseRedeliveryNotAllowed": "This occurrence does not allow redelivery — choose another decision.",
     "occurrenceCaseNoteRequired": "State the reason for the decision.",
+    "declaredAmountSelectionConflict": "The amount paid per line and the occurrence amount cannot come together. Choose one of them; nothing was saved.",
     "occurrenceTypeDeclaredAmountNeedsItems": "An amount paid per line needs products: with Products off there is no line to type it on. Choose \"One for the whole occurrence\" under Typed, or turn Products on. Nothing was saved.",
     "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
     "occurrenceTypeMomentsDocumentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
@@ -2121,7 +2122,14 @@
     "productCodeRequired": "Enter the product code.",
     "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
     "reimbursedOn": "Reimbursed on {{date}}",
-    "savedItemsTitle": "Saved items"
+    "savedItemsTitle": "Saved items",
+    "suggestion": {
+      "title": "Suggestion from the record",
+      "hint": "What the occurrence record says each item is worth: the typed amount paid, otherwise the line sum. Nothing is saved until you use the suggestion and save the settlement.",
+      "reference": "line sum {{amount}}",
+      "unpaid": "The store did not pay, nothing to settle",
+      "use": "Use the suggestion from the record"
+    }
   },
   "occurrenceDetail": {
     "back": "Back to occurrences",
@@ -2213,6 +2221,23 @@
         "save": "Save correction",
         "discard": "Discard",
         "productsError": "The invoice items could not be loaded. Close and try again."
+      },
+      "amounts": {
+        "title": "Number and amount paid",
+        "hint": "Leave blank to keep what is saved; erasing what you typed clears the field. The line sum is only a reference: the typed amount paid takes its place.",
+        "referenceLabel": "Customer document number",
+        "referenceInvalid": "Use only letters, digits, space, dot, slash and hyphen, up to 30 characters. Nothing was saved.",
+        "amountLabel": "Amount paid",
+        "occurrenceAmount": "Amount paid for the occurrence",
+        "scope": "Where the amount paid is typed",
+        "scopeTitle": "Typed",
+        "scopes": {
+          "item": "Per product line",
+          "occurrence": "One for the whole occurrence"
+        },
+        "placeholder": "0.00",
+        "lineSum": "Line sum: R$ {{amount}}",
+        "totalSum": "Total sum: R$ {{amount}}"
       },
       "unavailable": {
         "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",

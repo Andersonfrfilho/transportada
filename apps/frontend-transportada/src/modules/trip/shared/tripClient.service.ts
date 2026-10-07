@@ -1252,7 +1252,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async correctTripOccurrenceItems(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ items: input.items }),
+        body: JSON.stringify({
+          items: input.items,
+          /** Spec 247 RF13: ausente mantém o gravado, `null` limpa — nunca manda `undefined` no corpo. */
+          ...(input.declaredAmount === undefined ? {} : { declaredAmount: input.declaredAmount }),
+          ...(input.referenceNumber === undefined
+            ? {}
+            : { referenceNumber: input.referenceNumber }),
+        }),
         dependencies,
         idempotencyKey: input.idempotencyKey,
         method: 'PATCH',

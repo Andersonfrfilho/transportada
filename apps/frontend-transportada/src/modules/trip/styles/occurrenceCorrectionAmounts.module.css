@@ -1,0 +1,68 @@
+/* Spec 247 T5.4: o número e o valor pago dentro do formulário de correção — campos mono-rotulados, soma como apoio. */
+.amounts {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.field {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.fieldLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.lines {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+
+.sum {
+  margin: 0;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.total {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.invalid {
+  border-color: var(--color-alert);
+}
+
+.alert {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-alert);
+  color: var(--color-fog);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}

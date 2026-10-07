@@ -131,13 +131,23 @@ export function resolveOccurrenceItemSelectionFromDetail(
 
 /** O corpo da correção: o conjunto inteiro, e `quantity`/`unit` só nos itens que têm contagem. */
 export function buildOccurrenceCorrectionItems(
-  input: Readonly<{ codes: readonly string[]; quantitiesByCode: OccurrenceQuantitiesByCode }>,
+  input: Readonly<{
+    codes: readonly string[]
+    /** Spec 247 RF13: o valor pago só das linhas editadas — a ausente mantém o gravado. */
+    declaredAmounts?: ReadonlyMap<string, null | string>
+    quantitiesByCode: OccurrenceQuantitiesByCode
+  }>,
 ): readonly CorrectOccurrenceItemInput[] {
   const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields(input)
   return input.codes.map((code, index) => {
     const quantity = productQuantities[index] ?? null
     const unit = productQuantityUnits[index] ?? null
-    return quantity === null || unit === null ? { code } : { code, quantity, unit }
+    const declared = input.declaredAmounts?.has(code)
+      ? { declaredAmount: input.declaredAmounts.get(code) ?? null }
+      : {}
+    return quantity === null || unit === null
+      ? { code, ...declared }
+      : { code, ...declared, quantity, unit }
   })
 }
 

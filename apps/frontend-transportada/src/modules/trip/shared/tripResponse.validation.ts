@@ -1405,10 +1405,16 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
  */
 function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
   return (
-    hasExactKeys(value, ['code', 'quantity', 'unit'] as const) &&
+    hasKeys(value, {
+      /** Spec 247 (ADR-0081 §9): o valor unitário copiado e o valor pago da linha — tolerados antes de a API os publicar. */
+      allowed: ['code', 'declaredAmount', 'quantity', 'unit', 'unitValue'],
+      required: ['code', 'quantity', 'unit'],
+    }) &&
     isString(value.code) &&
     (value.quantity === null || isString(value.quantity)) &&
     (value.unit === null || isString(value.unit)) &&
+    isOptionalNullableString(value.declaredAmount) &&
+    isOptionalNullableString(value.unitValue) &&
     /** Os dois andam juntos, como no banco — meia contagem não chega à tela. */
     (value.quantity === null) === (value.unit === null)
   )

@@ -200,6 +200,9 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_TYPE_MOMENTS_ERROR.STAGE_CONFLICT]: 'occurrenceTypeMomentsStageConflict',
   /** Spec 247 RF1: valor pago por linha em tipo sem produtos — a tela antecipa, o servidor é a rede de segurança. */
   [OCCURRENCE_TYPE_DECLARED_AMOUNT_ERROR.NEEDS_ITEMS]: 'occurrenceTypeDeclaredAmountNeedsItems',
+  /** Spec 247 RF13: a correção com valor da ocorrência e de linha juntos — a tela não deixa, o servidor recusa. */
+  [OCCURRENCE_CORRECTION_ERROR.DECLARED_AMOUNT_SELECTION_CONFLICT]:
+    'declaredAmountSelectionConflict',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
