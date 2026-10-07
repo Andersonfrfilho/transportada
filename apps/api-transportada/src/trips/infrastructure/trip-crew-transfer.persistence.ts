@@ -5,11 +5,9 @@
  * roda na transação do repositório, sob `SELECT trips … FOR NO KEY UPDATE`, e **em sequência** — o
  * Bun SQL deixa a transação ociosa quando consultas disputam a conexão dela.
  */
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
-import { auditLogs } from '../../database/database.schema.js'
-import { mdfeManifests } from '../../database/mdfe.schema.js'
-import { tripCrewEvents, tripDrivers, trips } from '../../database/trip.schema.js'
+import { tripDrivers, trips } from '../../database/trip.schema.js'
 import type {
   TransferTripCrewParams,
   TripCrewTransferSummary,
@@ -19,26 +17,21 @@ import {
   type CrewCostDifference,
 } from '../domain/trip-crew-cost.policy.js'
 import {
-  TRIP_AUDIT_ENTITY_TYPE,
-  TRIP_CREW_TRANSFER_AUDIT_ACTION,
-} from '../domain/trip-crew-transfer.constant.js'
-import {
   summarizeRosterCost,
   type TripCrewCostFigures,
 } from '../domain/trip-crew-transfer-cost.policy.js'
-import {
-  buildCrewSnapshot,
-  hasDriverSetChanged,
-  isCrewRequestUnchanged,
-} from '../domain/trip-crew-transfer.policy.js'
-import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { hasDriverSetChanged, isCrewRequestUnchanged } from '../domain/trip-crew-transfer.policy.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripCrewUnchangedError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
 import type { TripDriverLine } from '../domain/trip.policy.js'
 import { readCrewCostBasis } from './trip-crew-cost.query.js'
 import type { TripTransaction } from './trip-queryable.type.js'
-
-const AUTHORIZED_MANIFEST_STATUS = 'authorized'
+import {
+  hasAuthorizedManifest,
+  recordAudit,
+  recordCrewEvent,
+  replaceCrew,
+} from './trip-crew-transfer-write.persistence.js'
 
 /**
  * `null` é viagem inexistente nesta empresa. Não toca em `trips` além de `updated_at` — `status`,
@@ -152,116 +145,5 @@ async function measureCostDifference(
   return buildCrewCostDifference({
     after: summarizeRosterCost({ basis, roster: params.crew }),
     before: summarizeRosterCost({ basis, roster: previousCrew }),
-  })
-}
-
-async function replaceCrew(
-  transaction: TripTransaction,
-  { companyId, crew, tripId }: TransferTripCrewParams,
-): Promise<void> {
-  await transaction
-    .delete(tripDrivers)
-    .where(and(eq(tripDrivers.companyId, companyId), eq(tripDrivers.tripId, tripId)))
-  await transaction.insert(tripDrivers).values(
-    crew.map((member) => ({
-      companyId,
-      driverId: member.driverId,
-      driverName: member.driverName,
-      driverTaxId: member.driverTaxId,
-      position: BigInt(member.position),
-      role: member.role,
-      tripId,
-    })),
-  )
-  await transaction
-    .update(trips)
-    .set({ updatedAt: sql`now()` })
-    .where(and(eq(trips.companyId, companyId), eq(trips.id, tripId)))
-}
-
-async function hasAuthorizedManifest(
-  transaction: TripTransaction,
-  { companyId, tripId }: TransferTripCrewParams,
-): Promise<boolean> {
-  const [manifest] = await transaction
-    .select({ id: mdfeManifests.id })
-    .from(mdfeManifests)
-    .where(
-      and(
-        eq(mdfeManifests.companyId, companyId),
-        eq(mdfeManifests.tripId, tripId),
-        eq(mdfeManifests.status, AUTHORIZED_MANIFEST_STATUS),
-      ),
-    )
-    .limit(1)
-  return manifest !== undefined
-}
-
-type RecordCrewEventParams = {
-  readonly cost: CrewCostDifference
-  readonly mdfeDriverDivergence: boolean
-  readonly params: TransferTripCrewParams
-  readonly previousCrew: readonly TripDriverLine[]
-}
-
-async function recordCrewEvent(
-  transaction: TripTransaction,
-  { cost, mdfeDriverDivergence, params, previousCrew }: RecordCrewEventParams,
-): Promise<string> {
-  const [event] = await transaction
-    .insert(tripCrewEvents)
-    .values({
-      actorUserId: params.actorUserId,
-      channel: params.channel,
-      companyId: params.companyId,
-      costAfter: cost.costAfter,
-      costBefore: cost.costBefore,
-      costDifference: cost.costDifference,
-      costHasGaps: cost.costHasGaps,
-      /** `now()` é o início da transação: duas transferências serializadas pelo lock sairiam fora de ordem. */
-      createdAt: sql`clock_timestamp()`,
-      mdfeDriverDivergence,
-      nextCrew: buildCrewSnapshot(params.crew),
-      previousCrew: buildCrewSnapshot(previousCrew),
-      reason: params.reason,
-      tripId: params.tripId,
-    })
-    .returning({ id: tripCrewEvents.id })
-  if (event === undefined) throw new Error('TRIP_CREW_EVENT_NOT_RECORDED')
-  return event.id
-}
-
-type RecordAuditParams = {
-  readonly eventId: string
-  readonly mdfeDriverDivergence: boolean
-  readonly params: TransferTripCrewParams
-  readonly previousCrew: readonly TripDriverLine[]
-}
-
-/**
- * `security.md` §10: ação sensível — troca quem responde pela carga. O motivo e os nomes são dado de
- * negócio e nunca entram em `metadata`; só ids opacos, a divergência de MDF-e e o IP.
- */
-async function recordAudit(
-  transaction: TripTransaction,
-  { eventId, mdfeDriverDivergence, params, previousCrew }: RecordAuditParams,
-): Promise<void> {
-  await transaction.insert(auditLogs).values({
-    action: TRIP_CREW_TRANSFER_AUDIT_ACTION,
-    actorUserId: params.actorUserId,
-    companyId: params.companyId,
-    correlationId: params.correlationId,
-    entityId: params.tripId,
-    entityType: TRIP_AUDIT_ENTITY_TYPE,
-    metadata: {
-      crewEventId: eventId,
-      ipAddress: params.ipAddress,
-      mdfeDriverDivergence,
-      nextDriverIds: params.crew.map((member) => member.driverId),
-      previousDriverIds: previousCrew.map((member) => member.driverId),
-    },
-    permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
-    targetId: params.tripId,
-    targetType: TRIP_AUDIT_ENTITY_TYPE,
   })
 }

@@ -97,3 +97,81 @@ retrato (`next_crew` com ao menos 1) e `cost_difference = cost_after − cost_be
 **Gates**: `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) · `bun run test`
 (contrato) 10408 pass / 25 skip / 0 fail · `make migration-test` 141 pass / 0 fail ·
 `bun run db:check` ok.
+
+## API parte 2 — T1.5, T1.6 e a linha do tempo
+
+**Commits**: `9930e8c9c` (contratos vermelhos da rota, do caso de uso e da política) · `59831caa5` (rota,
+caso de uso, repositório, auditoria) · `0c733be68` (contratos vermelhos da linha do tempo) · `7d1ead708`
+(linha do tempo) · integração T1.6 (commit seguinte, com esta seção).
+
+**T1.5 — vermelho pelo motivo certo**: `POST /trips/:id/crew-transfers` respondia 404 (rota ausente) em
+20 dos 22 testes do contrato HTTP, `transferCrew is not a function` em 19 do caso de uso, e a política
+pura não existia. `TripCrewUnchangedError` entrou com o contrato como vocabulário.
+
+**T1.5 — implementação**: `POST /v1/trips/:id/crew-transfers` (`OFFICE_REPORT_POLICY`, ou seja
+`trip.report-on-behalf`; `company-admin`, `operator` e `finance` alcançam, `separator` e `viewer` não).
+Corpo estrito `{ driverIds (1..10), helperIds, reason (1..500) }`, 201 com `data.trip` (o mesmo
+`serializeTripDetail` do `GET /trips/:id`) e `data.transfer` com só as seis chaves do contrato. O
+repositório (`trip-crew-transfer.persistence.ts` + `-write.persistence.ts`, chamados por
+`DrizzleTripRepository.transferCrew`) segue a ordem da Decisão T1.1: `SELECT trips … FOR NO KEY UPDATE`
+→ `checkTripTransition(transferCrew)` → `trip_drivers` por `position` (igual ao pedido →
+`TripCrewUnchangedError`) → um `SELECT fleet_drivers` e as duas diárias da empresa **em sequência** →
+custo antes/depois em memória (`summarizeRosterCost` sobre `buildCrewCostParcels`/`buildCrewCostDifference`)
+→ `DELETE`+`INSERT trip_drivers` → em `trips` só `updated_at` → MDF-e `authorized` + conjunto de
+condutores mudou → `INSERT trip_crew_events` + `audit_logs` (`office.trip.crew-transfer`, ids opacos, sem
+motivo nem nome) → `readTripDetail(transaction)`.
+
+**Linha do tempo**: fonte nova `trip-timeline-crew.query.ts`, `kind: 'crew_transfer'`, prioridade 8, chave
+opcional `crewTransfer: { reason, previousCrew[], nextCrew[], costDifference, mdfeDriverDivergence }`.
+`costDifference` é dinheiro: a rota (`redactTimelineCosts`) a tira do objeto (chave ausente, nunca `null`)
+sem `trip.financials`. Contratos: vocabulário, merge, tenant safety da fonte, corte por permissão.
+
+**T1.6 — integração contra Postgres** (`createDatabaseProvider`, pool de 10, `prepare: false`, como em
+produção): `trip-crew-transfer.integration.ts` (16), `…-concurrency.integration.ts` (4) e
+`…-timeline.integration.ts` (4). Cobrem: custo com diárias diferentes (360,00 → 860,00 = +500,00;
+860,00 → 320,00 = −540,00; `antes + diferença = depois` em centavos); ajudante que assume o volante
+(role `driver`, posição 1); rota congelada, pedágio, ETA, `vehicle_id`, status, paradas e notas iguais
+byte a byte (e nenhum `trip_status_events` novo); MDF-e (`authorized` + motorista trocado diverge;
+`authorized` + só ajudante, `draft` ou ausente não); o motorista novo lê a viagem pelo vínculo e o antigo
+deixa de vê-la; histórico com `jsonb` armazenado como `array` (não string) e lido de volta; append-only
+(UPDATE e DELETE recusados); auditoria sem motivo nem nome; `TRIP_CREW_UNCHANGED` sem gravar nada;
+reconferência da janela sob lock (inclusive cancelamento durante a espera); viagem de outra empresa → 404;
+concorrência com a trava segurada por uma transação bloqueadora e `pg_stat_activity` mostrando as escritas
+paradas no lock: pedidos idênticos (um vence, o outro `TRIP_CREW_UNCHANGED`), pedidos diferentes (os dois
+valem em série e o histórico encadeia), e a transferência que espera em vez de passar por cima.
+
+**Prova por mutação** (cada uma derrubou os testes esperados e foi desfeita): sem `FOR NO KEY UPDATE`
+(3 de concorrência), `vehicle_id` junto no `UPDATE trips` (2), MDF-e sem exigir `authorized` (4), sinal da
+diferença invertido (5), sem reconferir a janela (2), sem `TRIP_CREW_UNCHANGED` (2), cursor da fonte da
+linha do tempo desligado (1, laço até o timeout).
+
+**Divergências em relação ao `plan.md`**:
+
+1. **Linha do tempo**: o `kind` é `crew_transfer`, como pedido, mas o conteúdo vai **aninhado** em
+   `crewTransfer` (padrão de `addressChange`, spec 228) em vez de cinco chaves soltas no item — o painel
+   valida chave exata, e chaves soltas obrigariam as outras nove fontes a emiti-las. `actor` é o
+   `actorName` que todo item já tem. Sem `trip.financials`, `costDifference` some do objeto.
+2. **O painel precisa publicar primeiro** (ADR-0081 §9): `apps/frontend-transportada/test/trip/timeline.contract.ts`
+   compara `TRIP_TIMELINE_KINDS` com o arquivo da API e **fica vermelho (1 teste)** com o commit
+   `7d1ead708` até a T2.3 acrescentar `crew_transfer` (e a chave `crewTransfer`). Em execução, o painel
+   descarta o item de `kind` desconhecido em vez de reprovar a página (spec 206 D12), então o risco é de
+   CI, não de tela. Esse commit não deve ir sozinho para `staging`.
+3. Não há `shared/errors/codes.ts` neste repositório: o código estável (`TRIP_CREW_UNCHANGED`, 409) mora na
+   classe de `trip.error.ts`, como todos os outros erros de `trips`, e o status HTTP é o do `ApiError`.
+4. Não existe documento OpenAPI/Scalar nesta API (nenhum `openapi`/`scalar` em `src/`): não havia onde
+   registrar a rota. A lista de rotas por permissão (`separator-role`, `finance-read`) foi atualizada.
+5. `trip_crew_events.created_at` é gravado com `clock_timestamp()`, não com o `now()` padrão (início da
+   transação): duas transferências serializadas pelo lock sairiam fora de ordem na linha do tempo.
+6. `data.transfer` sai sempre com os valores de custo: os três papéis com `trip.report-on-behalf` têm
+   também `trip.financials`, então a rota não corta nada ali.
+7. A linha do tempo passou a ter dez consultas em `Promise.all` (o limite do pool é 10); a nota em
+   `trip-timeline.query.ts` foi atualizada.
+8. `refineCrewSize` foi extraída em `trip-request.schema.ts` (a mensagem do teto de dez pessoas se repetia
+   duas vezes; a terceira cópia violaria a regra de strings repetidas).
+
+**Gates** (`apps/api-transportada`, Postgres 18 nativo descartável; o Postgres do Docker do `.env.test` não
+foi usado): `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) · `bun run test`
+(contrato) 10473 pass / 25 skip / 0 fail · `bun run test:integration` completo, com
+`DRIZZLE_TEST_DATABASE_URL` apontando para o banco nativo, **1163 pass / 1 skip / 0 fail** em 214
+arquivos (os 24 testes novos entre os que passaram — nenhum em skip; o skip é anterior à spec) ·
+`bun run db:check` ok. Não houve migration nova nesta parte.
