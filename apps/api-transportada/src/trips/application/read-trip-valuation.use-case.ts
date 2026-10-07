@@ -23,19 +23,9 @@ import {
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
-import {
-  DAILY_ALLOWANCE_DAYS_ORIGIN,
-  suggestAllowanceDays,
-} from '../domain/daily-allowance.policy.js'
-import {
-  buildTripDriverCost,
-  type TripCrewMember,
-  type TripDriverCostDays,
-} from '../domain/trip-driver-cost.policy.js'
-import {
-  buildTripHelperCost,
-  type TripHelperCostMember,
-} from '../domain/trip-helper-cost.policy.js'
+import { buildCrewCostParcels } from '../domain/trip-crew-cost.policy.js'
+import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import type { TripHelperCostMember } from '../domain/trip-helper-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
@@ -658,13 +648,7 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
   const hasDistance = distance !== null && distance > 0
 
   return [
-    buildDriverParcel(context),
-    buildTripHelperCost({
-      companyDailyRate: context.helperCompanyDailyRate ?? null,
-      helpers: context.helperCrew ?? [],
-      journeyIncludesReturn: context.journeyIncludesReturn ?? null,
-      journeySeconds: context.journeySeconds ?? null,
-    }),
+    ...buildCrewCostParcels(context),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),
@@ -680,36 +664,6 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
       kind: 'delivery_charges',
     }),
   ]
-}
-
-/**
- * Spec 143 D4: **dias informados vencem a sugestão** — quem lançou a viagem sabe o que ela vai
- * durar melhor do que a duração estimada do roteiro, e é essa diferença que separa a parcela medida
- * da prevista.
- */
-function buildDriverParcel(context: TripValuationContext): TripCostParcel {
-  return buildTripDriverCost({
-    companyDailyAmount: context.companyDailyAllowanceAmount ?? null,
-    crew: context.crew ?? [],
-    days: resolveAllowanceDays(context),
-  })
-}
-
-/**
- * ⚠️ Roteiro sem duração **não é viagem de um dia**: é viagem de duração desconhecida, e a política
- * responde por ela com lacuna. Tratar a ausência como zero segundo sugeria um dia calado, e a
- * viagem de três dias saía por um terço do custo do motorista numa margem de aparência fechada.
- */
-function resolveAllowanceDays(context: TripValuationContext): TripDriverCostDays {
-  const informedDays = context.dailyAllowanceDays ?? null
-  if (informedDays !== null) {
-    return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: informedDays }
-  }
-
-  const durationSeconds = context.estimatedDurationSeconds ?? null
-  if (durationSeconds === null) return { of: 'unknown' }
-
-  return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: suggestAllowanceDays(durationSeconds) }
 }
 
 /**

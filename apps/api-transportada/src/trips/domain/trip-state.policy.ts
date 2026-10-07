@@ -38,6 +38,12 @@ export const TRIP_ACTION = {
   planRoute: 'planRoute',
   /** ADR-0058: "saí". É a informação que a derivação não tinha como ver. */
   startRoute: 'startRoute',
+  /**
+   * Spec 249 D1: troca motorista e ajudante de uma viagem **que já saiu**. Separada de `defineCrew`
+   * de propósito — a janela da 217 (até `route_planned`) não muda, e aqui nunca há transição de
+   * status: liberado é sempre `unchanged`.
+   */
+  transferCrew: 'transferCrew',
 } as const
 
 export type TripAction = (typeof TRIP_ACTION)[keyof typeof TRIP_ACTION]
@@ -330,6 +336,7 @@ export function checkTripTransition(params: CheckTripTransitionParams): TripTran
     })
   }
   // Spec 216: sem tripulação, só `defineCrew` e `cancel` (já resolvidos acima) têm o que fazer.
+  if (action === TRIP_ACTION.transferCrew) return checkTransferCrew(tripStatus)
   if (tripStatus === 'awaiting_crew') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined }
   }
@@ -387,6 +394,33 @@ function checkDefineCrew(input: {
  */
 export function isCrewSwappable(tripStatus: TripStatus): boolean {
   return tripStatus === 'awaiting_crew' || tripStatus === 'draft' || tripStatus === 'route_planned'
+}
+
+/**
+ * Spec 249 D1: a viagem na rua troca de tripulação; as encerradas dizem o motivo próprio, e tudo
+ * antes do despacho cabe à `defineCrew`. Resultado de status é sempre `unchanged`.
+ */
+function checkTransferCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
+  if (tripStatus === 'cancelled') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
+  }
+  if (tripStatus === 'completed') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
+  }
+  if (!isCrewTransferable(tripStatus)) {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched }
+  }
+
+  return { outcome: 'unchanged' }
+}
+
+/**
+ * Spec 249 D1: **a janela da transferência de tripulação, numa função só** — a máquina de estados a
+ * usa para liberar e `resolveTripAllowedActions` para oferecer a tela. É a rua de agora, e não se
+ * sobrepõe a `isCrewSwappable`.
+ */
+export function isCrewTransferable(tripStatus: TripStatus): boolean {
+  return (TRIP_ON_ROAD_STATUSES as readonly TripStatus[]).includes(tripStatus)
 }
 
 /**
