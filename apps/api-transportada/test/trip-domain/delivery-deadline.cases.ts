@@ -6,6 +6,7 @@
  * levam `today` bem depois do vencimento: a política não pode olhar o relógio de quem já entregou.
  */
 import type {
+  DeliveryDeadlineNotApplicableReason,
   DeliveryOutcome,
   ResolveDeliveryDeadlineResult,
 } from '../../src/trips/domain/delivery-deadline.types.js'
@@ -157,7 +158,7 @@ export type NotApplicableCase = {
     readonly city: DeadlineCity | null
     readonly days: number | null
   }
-  readonly reason: string
+  readonly reason: DeliveryDeadlineNotApplicableReason
 }
 
 const COMPLETE_PARAMS = { arrivedOn: MONDAY, city: BELO_HORIZONTE, days: 3 } as const
