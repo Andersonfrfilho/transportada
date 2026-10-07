@@ -46,7 +46,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 - [x] **T2.4** Reemissão: `correction.nationalTaxationCode` e `correction.simplesNationalRate` na API e
       na política de correção; **reuso de `provider_request_key`** quando a tentativa anterior terminou
       ambígua (sem `providerDocumentId` e com causa de transporte).
-- [ ] **T2.5** Conferir `bun --env-file=../../.env.test run test:integration` nos arquivos tocados.
+- [x] **T2.5** Conferir `bun --env-file=../../.env.test run test:integration` nos arquivos tocados.
 
 ## Fase 3 — Worker (e cron, se houver)
 

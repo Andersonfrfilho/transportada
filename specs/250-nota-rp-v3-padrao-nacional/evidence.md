@@ -164,3 +164,29 @@ Numeração conferida contra `origin/staging` (última: `20261007140303_business
 - `bun test` de nfse-schema, nfse-domain, nfse-invoices-application, nfse-profiles, nfse-invoices-http,
   nfse-callbacks, env-example, composition e test-registry -> **396 pass / 0 fail**.
 - `bun run typecheck` -> 0 erros. `bunx eslint` e `bunx prettier --check` limpos. `db:generate` -> `no_changes`.
+
+## E13 — T2.5: contrato e integração da API contra Postgres (07/10/2026)
+
+Banco: **Postgres 18.4 nativo descartável** (`initdb` no scratchpad, `127.0.0.1:55433`, `fsync=off`), apontado por
+`DRIZZLE_TEST_DATABASE_URL`, que os testes de integração leem antes de `DATABASE_URL`. O `.env.test` aponta
+para a infra de E2E (Docker, 65432), que não foi subida: **a integração rodou de fato, nada foi pulado por
+falta de banco** (as contagens abaixo são de testes executados). `make migration-test` e `make check` da
+raiz não foram rodados (Docker); o equivalente de migration está na E10.
+
+De `apps/api-transportada`:
+
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato, descoberta padrão) -> **10828 pass / 25 skip / 0 fail**
+  (202 arquivos; os 25 skip já existiam: contrato que depende de infra ausente).
+- `bun --env-file=../../.env.test run test` (lista explícita do `package.json`) -> 10828 pass / 25 skip / 0 fail.
+- Integração, nos mesmos cortes que a CI usa (`scripts/integration-shard.ts`), cada um em primeiro plano:
+  `... test --timeout 120000 $(bun scripts/integration-shard.ts 1/4)` -> 401 pass / 0 fail (317 s);
+  `2/4` -> 288 pass / 0 fail (239 s); `3/4` -> 268 pass / 0 fail (252 s); `4/4` -> 283 pass / 1 skip / 0 fail
+  (294 s; o skip não foi identificado por execução — o único candidato do corte com guarda de infraestrutura é
+  `toll-booth-reload.integration.ts`, que exige storage); `identity` (os 7 arquivos que falam com o
+  Keycloak, entre eles `whatsapp-issuance-confirm`, que cria NFS-e pelo repositório real, `server` e `auth-me`)
+  -> 39 pass / 0 fail. Total de integração: **1279 pass / 1 skip / 0 fail**.
+- Arquivo novo `test/integration/nfse-provider-request-key.integration.ts` (4 testes contra Postgres: chave =
+  `attemptId` na primeira tentativa, cópia após falha ambígua, chave própria após rejeição, nota com
+  `providerDocumentId` não é ambígua, isolamento por empresa), na lista `test:integration` do `package.json`.
+- Gates finais: `bun run typecheck` 0 erros; `bun run lint` (src + test inteiros) 0 problemas;
+  `bunx prettier --check` nos arquivos tocados limpo; `db:generate` `no_changes`.
