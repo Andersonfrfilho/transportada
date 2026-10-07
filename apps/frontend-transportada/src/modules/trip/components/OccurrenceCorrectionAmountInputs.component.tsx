@@ -22,6 +22,8 @@ export type OccurrenceCorrectionAmountInputsProps = Readonly<{
   codes: readonly string[]
   draft: CorrectionAmountsDraft
   isByLine: boolean
+  /** O tipo exige o valor pago: sem "Limpar", com o texto de obrigatório. */
+  isRequired: boolean
   /** A soma de cada linha, já formatada, para o rodapé do campo da linha. */
   lineSums: ReadonlyMap<string, string>
   onChange: (draft: CorrectionAmountsDraft) => void
@@ -35,6 +37,7 @@ export function OccurrenceCorrectionAmountInputs({
   codes,
   draft,
   isByLine,
+  isRequired,
   lineSums,
   onChange,
   recorded,
@@ -74,6 +77,7 @@ export function OccurrenceCorrectionAmountInputs({
               hasRecorded={recorded.lineAmounts.has(code)}
               inputMode="decimal"
               isInvalid={false}
+              isRequired={isRequired}
               key={code}
               label={`${code} — ${lineAmountLabel}`}
               onChange={(text) => handleLineAmountChange(code, text)}
@@ -97,6 +101,7 @@ export function OccurrenceCorrectionAmountInputs({
           hasRecorded={recorded.declaredAmount !== null}
           inputMode="decimal"
           isInvalid={false}
+          isRequired={isRequired}
           label={
             amountLabel === undefined
               ? t('occurrenceDetail.correction.amounts.occurrenceAmount')

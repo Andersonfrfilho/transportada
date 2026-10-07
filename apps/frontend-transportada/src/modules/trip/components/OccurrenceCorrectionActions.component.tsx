@@ -133,6 +133,7 @@ export function OccurrenceCorrectionActions({
           occurrenceId={occurrence.id}
           onClose={handleCorrectionClose}
           recorded={buildCorrectionRecordedAmounts(occurrence)}
+          requirements={occurrence.requirements ?? null}
           tripId={occurrence.tripId}
           typeLookup={{
             canReadCatalog: permissions.includes(SETTINGS_MANAGE_PERMISSION),

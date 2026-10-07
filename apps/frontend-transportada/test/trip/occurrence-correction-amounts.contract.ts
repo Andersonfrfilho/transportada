@@ -45,7 +45,11 @@ describe('três estados: ausente mantém, nulo limpa, texto vale', () => {
       codes: ['696'],
       draft: EMPTY_CORRECTION_AMOUNTS_DRAFT,
     })
-    expect(resolved).toEqual({ hasReferenceNumberError: false, lineAmounts: new Map() })
+    expect(resolved).toEqual({
+      hasReferenceNumberError: false,
+      hasRequiredCleared: false,
+      lineAmounts: new Map(),
+    })
     expect(resolved).not.toHaveProperty('referenceNumber')
     expect(resolved).not.toHaveProperty('declaredAmount')
   })
@@ -368,5 +372,70 @@ describe('o valor que vai no e-mail (RF9 espelhada)', () => {
       quantitiesByCode: new Map([['X', { quantity: '3', unit: 'UN' }]]),
     })
     expect(result.emailAmount).toBe('59,99')
+  })
+})
+
+describe('o modo efetivo do tipo manda na correção (spec 247 T7.2b, N1)', () => {
+  const typed = draft({
+    lineAmounts: new Map([['696', '5,00']]),
+    occurrenceAmount: '9,00',
+    referenceNumber: 'NFD 45029',
+  })
+
+  test('off: nada do número nem do valor pago vai no corpo, mesmo digitado antes', () => {
+    const resolved = resolveCorrectionAmounts({
+      amountMode: 'off',
+      codes: ['696'],
+      draft: typed,
+      referenceMode: 'off',
+    })
+    expect(resolved).not.toHaveProperty('referenceNumber')
+    expect(resolved).not.toHaveProperty('declaredAmount')
+    expect(resolved.lineAmounts.size).toBe(0)
+    expect(resolved.hasReferenceNumberError).toBe(false)
+  })
+
+  test('off só no número: o valor pago segue, e número inválido digitado antes não reprova', () => {
+    const resolved = resolveCorrectionAmounts({
+      amountMode: 'optional',
+      codes: ['696'],
+      draft: draft({ lineAmounts: typed.lineAmounts, referenceNumber: 'NFD#1' }),
+      referenceMode: 'off',
+    })
+    expect(resolved.hasReferenceNumberError).toBe(false)
+    expect(resolved.lineAmounts.get('696')).toBe('5.00')
+  })
+
+  test('required: esvaziar o número ou o valor pago bloqueia; digitar não', () => {
+    const base = { amountMode: 'required', referenceMode: 'required' } as const
+    expect(
+      resolveCorrectionAmounts({ ...base, codes: [], draft: draft({ referenceNumber: '  ' }) })
+        .hasRequiredCleared,
+    ).toBe(true)
+    expect(
+      resolveCorrectionAmounts({
+        ...base,
+        codes: ['696'],
+        draft: draft({ lineAmounts: new Map([['696', '']]) }),
+      }).hasRequiredCleared,
+    ).toBe(true)
+    expect(
+      resolveCorrectionAmounts({
+        ...base,
+        codes: [],
+        draft: draft({ occurrenceAmount: '', scope: 'occurrence' }),
+      }).hasRequiredCleared,
+    ).toBe(true)
+    expect(
+      resolveCorrectionAmounts({ ...base, codes: ['696'], draft: typed }).hasRequiredCleared,
+    ).toBe(false)
+    expect(
+      resolveCorrectionAmounts({
+        amountMode: 'optional',
+        codes: ['696'],
+        draft: draft({ lineAmounts: new Map([['696', '']]), referenceNumber: '' }),
+        referenceMode: 'optional',
+      }).hasRequiredCleared,
+    ).toBe(false)
   })
 })

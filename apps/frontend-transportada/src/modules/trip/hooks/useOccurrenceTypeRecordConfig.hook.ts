@@ -1,25 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
 
-import { OCCURRENCE_TYPES_QUERY_KEY, type DeclaredAmountScope } from '../shared/occurrence.constant'
+import { OCCURRENCE_TYPES_QUERY_KEY } from '../shared/occurrence.constant'
+import {
+  GENERIC_RECORD_CONFIG,
+  type OccurrenceTypeRecordConfig,
+} from '../shared/occurrenceRecordConfig.service'
 import { getTripClient } from './useTripWorkspace.hook'
 
-export type OccurrenceTypeRecordConfig = Readonly<{
-  amountLabel: string | undefined
-  referenceLabel: string | undefined
-  scope: DeclaredAmountScope | undefined
-}>
-
-const GENERIC_CONFIG: OccurrenceTypeRecordConfig = {
-  amountLabel: undefined,
-  referenceLabel: undefined,
-  scope: undefined,
-}
-
 /**
- * Spec 247 T7.2 (A2): os rótulos e o nível do valor pago do **tipo** da ocorrência. O catálogo é de quem gerencia
- * as configurações (`settings.manage`): sem a permissão a consulta nem sai, e tipo não encontrado cai nos
- * rótulos genéricos — nunca bloqueia a correção.
+ * Spec 247 T7.2 (A2): o **fallback** dos rótulos e do nível do valor pago do tipo, quando o detalhe da ocorrência
+ * não publica `requirements` (API anterior). O catálogo é de quem gerencia as configurações (`settings.manage`):
+ * sem a permissão a consulta nem sai, e tipo não encontrado cai nos rótulos genéricos — nunca bloqueia a correção.
  */
 export function useOccurrenceTypeRecordConfig(
   input: Readonly<{ canReadCatalog: boolean; occurrenceTypeId: null | string }>,
@@ -31,10 +23,12 @@ export function useOccurrenceTypeRecordConfig(
     retry: false,
   })
   const type = query.data?.find((candidate) => candidate.id === input.occurrenceTypeId)
-  if (type === undefined) return GENERIC_CONFIG
+  if (type === undefined) return GENERIC_RECORD_CONFIG
   return {
     amountLabel: type.declaredAmountLabel,
+    amountMode: type.declaredAmountMode,
     referenceLabel: type.referenceNumberLabel,
+    referenceMode: type.referenceNumberMode,
     scope: type.declaredAmountScope,
   }
 }
