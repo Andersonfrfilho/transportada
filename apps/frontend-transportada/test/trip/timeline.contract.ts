@@ -328,7 +328,9 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
   }
 
   it('os dois kinds entram depois de trip.created, na ordem da D6', () => {
-    expect([...TRIP_TIMELINE_KINDS].slice(-3)).toEqual([
+    const kinds: readonly string[] = TRIP_TIMELINE_KINDS
+    const start = kinds.indexOf('trip.created')
+    expect(kinds.slice(start, start + 3)).toEqual([
       'trip.created',
       'document.canhoto_photo',
       'stop.address_corrected',
@@ -368,8 +370,9 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
 
   it('recusa addressChange em qualquer kind que não seja o do endereço', () => {
     const addressChange = { displacementMeters: 45, origin: 'operator' }
+    /** `crew_transfer` leva a própria chave obrigatória (spec 249): o controle sem chave não vale para ele. */
     for (const kind of TRIP_TIMELINE_KINDS.filter(
-      (candidate) => candidate !== 'stop.address_corrected',
+      (candidate) => candidate !== 'stop.address_corrected' && candidate !== 'crew_transfer',
     )) {
       expect(() =>
         adapters.tripTimelineFromApi({
