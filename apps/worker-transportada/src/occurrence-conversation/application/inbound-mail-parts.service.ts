@@ -7,11 +7,17 @@
  * aninhada (`forceRfc822Attachments`) e quem a abre somos nós: só depois da MESMA barreira de cabeçalho do MIME
  * de fora e até três níveis. O resultado visível é o de antes — os anexos de dentro entram na mesma posição —;
  * a aninhada hostil ou funda demais conta como uma recusa e o resto da mensagem segue lido.
+ * T4.7d: o número de partes é medido antes do PostalMime (mais de 200 linhas de fronteira = recusa) e as
+ * aninhadas abertas dividem um orçamento de 5 para a mensagem toda (5000 aninhadas eram 25 s de laço travado).
  */
 import PostalMime from 'postal-mime'
 
-import { MIME_HEADER_LIMITS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import {
+  MIME_HEADER_LIMITS,
+  MIME_PART_LIMITS,
+} from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { hasBoundedMimeHeaders } from '../../contractor-mail/domain/mime-header-bounds.policy.js'
+import { hasBoundedMimeParts } from '../../contractor-mail/domain/mime-part-bounds.policy.js'
 
 const MAX_NESTED_MESSAGE_DEPTH = 3
 const NESTED_MESSAGE_MIME_TYPE = 'message/rfc822'
@@ -30,12 +36,24 @@ export type InboundMailParts = {
   readonly skippedNestedMessages: number
 }
 
-/** MIME ilegível lança: quem chama decide o que fazer sem a mensagem. */
-export async function readInboundMailParts(raw: Uint8Array): Promise<InboundMailParts> {
-  return flattenParts(raw, 0)
+type NestedBudget = { remaining: number }
+
+type FlattenInput = {
+  readonly budget: NestedBudget
+  readonly depth: number
+  readonly raw: Uint8Array
 }
 
-async function flattenParts(raw: Uint8Array, depth: number): Promise<InboundMailParts> {
+const REFUSED: InboundMailParts = { parts: [], skippedNestedMessages: 1 }
+
+/** MIME ilegível lança: quem chama decide o que fazer sem a mensagem. */
+export async function readInboundMailParts(raw: Uint8Array): Promise<InboundMailParts> {
+  return flattenParts({ budget: { remaining: MIME_PART_LIMITS.maxNestedMessages }, depth: 0, raw })
+}
+
+async function flattenParts(input: FlattenInput): Promise<InboundMailParts> {
+  const { budget, depth, raw } = input
+  if (!hasBoundedMimeParts(raw)) return REFUSED
   const { attachments } = await PostalMime.parse(raw, POSTAL_MIME_OPTIONS)
   const parts: InboundMailPart[] = []
   let skippedNestedMessages = 0
@@ -44,7 +62,7 @@ async function flattenParts(raw: Uint8Array, depth: number): Promise<InboundMail
       parts.push(part)
       continue
     }
-    const nested = await readNestedMessage(part, depth + 1)
+    const nested = await readNestedMessage({ budget, depth: depth + 1, part })
     if (nested === undefined) {
       skippedNestedMessages += 1
       continue
@@ -61,13 +79,15 @@ function isInlineNestedMessage(part: InboundMailPart): boolean {
 }
 
 async function readNestedMessage(
-  part: InboundMailPart,
-  depth: number,
+  input: Omit<FlattenInput, 'raw'> & { readonly part: InboundMailPart },
 ): Promise<InboundMailParts | undefined> {
-  const bytes = toBytes(part.content)
-  if (depth > MAX_NESTED_MESSAGE_DEPTH || !hasBoundedMimeHeaders(bytes)) return undefined
+  const { budget, depth, part } = input
+  if (budget.remaining === 0) return undefined
+  budget.remaining -= 1
+  const raw = toBytes(part.content)
+  if (depth > MAX_NESTED_MESSAGE_DEPTH || !hasBoundedMimeHeaders(raw)) return undefined
   try {
-    return await flattenParts(bytes, depth)
+    return await flattenParts({ budget, depth, raw })
   } catch {
     return undefined
   }

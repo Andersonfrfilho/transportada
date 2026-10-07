@@ -10,6 +10,7 @@ import PostalMime, { type Attachment, type Email } from 'postal-mime'
 
 import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { hasBoundedMimeHeaders } from '../../contractor-mail/domain/mime-header-bounds.policy.js'
+import { hasBoundedMimeParts } from '../../contractor-mail/domain/mime-part-bounds.policy.js'
 import { PREVIEW_EMAIL_MIME_LIMITS } from '../domain/cargo-preview-email.constant.js'
 import {
   readOriginalSenderFromForwardedText,
@@ -68,9 +69,9 @@ export async function parseForwardedEmail(
   }
 }
 
-/** A mensagem anexada nunca passou pela barreira do DKIM: os endereços dela custam o mesmo `addressparser`. */
+/** A mensagem anexada nunca passou pela barreira do DKIM: os endereços dela custam o mesmo `addressparser`, e o número de partes custa o do PostalMime. */
 async function parseLimited(raw: Uint8Array): Promise<Email | undefined> {
-  if (!hasBoundedMimeHeaders(raw)) return undefined
+  if (!hasBoundedMimeHeaders(raw) || !hasBoundedMimeParts(raw)) return undefined
   try {
     return await PostalMime.parse(raw, PARSE_OPTIONS)
   } catch {

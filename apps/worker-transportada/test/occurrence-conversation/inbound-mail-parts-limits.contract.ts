@@ -43,11 +43,11 @@ describe('o teto de partes do MIME da conversa (spec 237 T4.7d)', () => {
     expect(elapsedMs).toBeLessThan(LIMIT_MS)
   })
 
-  test('o teto é de 200 linhas de fronteira: 199 partes (200 linhas) passam, 200 partes (201) recusam', async () => {
+  test('o teto é de 200 linhas de fronteira: 198 anexos (200 linhas com o texto e o fecho) passam, 199 recusam', async () => {
     const parts = (count: number) =>
       readInboundMailParts(bytes(message('B', pdfPart('B', 'a.pdf').repeat(count))))
-    expect((await parts(199)).parts).toHaveLength(199)
-    expect(await parts(200)).toEqual({ parts: [], skippedNestedMessages: 1 })
+    expect((await parts(198)).parts).toHaveLength(198)
+    expect(await parts(199)).toEqual({ parts: [], skippedNestedMessages: 1 })
   })
 
   test('a fronteira com espaço no valor também conta (o PostalMime a reconhece)', async () => {
@@ -80,11 +80,9 @@ describe('o teto de partes do MIME da conversa (spec 237 T4.7d)', () => {
 })
 
 describe('o orçamento das mensagens aninhadas abertas (spec 237 T4.7d)', () => {
+  /** Uma mensagem de uma parte só (o PDF): sem linha de fronteira própria, só o `To`+`Cc` de 2 KiB que custa leitura. */
   const honestInner = (index: number) =>
-    message(`N${index}`, pdfPart(`N${index}`, `dentro-${index}.pdf`)).replace(
-      OUTER_HEADER,
-      `From: x@y.example\r\nTo: ${'a=?b?c?d?='.repeat(200)}\r\nCc: ${'a=?b?c?d?='.repeat(200)}\r\nSubject: i\r\nMIME-Version: 1.0\r\n`,
-    )
+    `From: x@y.example\r\nTo: ${'a=?b?c?d?='.repeat(200)}\r\nCc: ${'a=?b?c?d?='.repeat(200)}\r\nSubject: i\r\nMIME-Version: 1.0\r\nContent-Type: application/pdf; name="dentro-${index}.pdf"\r\nContent-Disposition: attachment; filename="dentro-${index}.pdf"\r\nContent-Transfer-Encoding: base64\r\n\r\n${PDF_BASE64}\r\n`
 
   test('1000 aninhadas com To+Cc de 2 KiB: recusa pelo teto de partes, em milissegundos', async () => {
     const body = Array.from({ length: 1000 }, (_, index) => nestedPart('B', honestInner(index)))
