@@ -10,7 +10,8 @@ const DECIMAL_INPUT = /^(\d*)(?:[.,](\d*))?$/u
 const NON_DECIMAL_CHARACTER = /[^\d.,]/gu
 const SEPARATOR = /[.,]/u
 const EVERY_SEPARATOR = /[.,]/gu
-const REFERENCE_NUMBER_FORBIDDEN = /[^A-Za-z0-9 ./-]/gu
+/** Cópia por valor de `OCCURRENCE_REFERENCE_NUMBER_PATTERN` da API — mudou lá, muda aqui. */
+const REFERENCE_NUMBER_PATTERN = /^[A-Za-z0-9 ./-]{1,30}$/u
 
 /** A quantidade devolvida é `numeric(12,3)`: nove dígitos inteiros e três casas. */
 export const QUANTITY_LIMITS = { maxDecimals: 3, maxIntegerDigits: 9 } as const
@@ -46,13 +47,17 @@ export function toCanonicalDecimal(text: string): string | undefined {
   return decimalDigits === '' ? integer : `${integer}.${decimalDigits}`
 }
 
-/** Número do documento do cliente: o que o padrão da API recusa nem entra no campo. */
-export function sanitizeReferenceNumberInput(text: string): string {
-  return text.replace(REFERENCE_NUMBER_FORBIDDEN, '').slice(0, REFERENCE_NUMBER_MAX_LENGTH)
+/** Vazio (depois de aparar) é "não informado" e vale; o resto tem de seguir o padrão da API. */
+export function isReferenceNumberValid(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed === '' || REFERENCE_NUMBER_PATTERN.test(trimmed)
 }
 
-/** Vazio (depois de aparar) é "não informado" — a API também lê assim. */
+/**
+ * O que vai no corpo: aparado, e só se válido. Nada é cortado nem limpo em silêncio — o que o padrão da API
+ * recusa fica no campo, marcado, e segura o botão (`isReferenceNumberValid`).
+ */
 export function toReferenceNumber(text: string): string | undefined {
-  const trimmed = sanitizeReferenceNumberInput(text).trim()
-  return trimmed === '' ? undefined : trimmed
+  const trimmed = text.trim()
+  return trimmed !== '' && REFERENCE_NUMBER_PATTERN.test(trimmed) ? trimmed : undefined
 }

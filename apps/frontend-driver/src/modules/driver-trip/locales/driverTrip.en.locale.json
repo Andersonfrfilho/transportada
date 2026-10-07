@@ -525,6 +525,7 @@
       "titleRequired": "Products returned (required)",
       "totals": {
         "inMail": "Total that goes in the e-mail",
+        "none": "No value",
         "origin": {
           "calculated": "Calculated from the invoice (quantity × unit price).",
           "mixed": "{{typed}} of {{total}} lines with a typed amount paid; the others calculated from the invoice.",
@@ -546,6 +547,7 @@
       "products": "the products",
       "productsMinimum": "more products (at least {{count}})",
       "referenceNumber": "“{{label}}”",
+      "referenceNumberInvalid": "“{{label}}” with letters, digits, space, dot, slash and hyphen only",
       "signature": "the signature"
     },
     "missingLead": "To register, still missing: {{fields}}.",
@@ -562,6 +564,7 @@
     "referenceNumber": {
       "defaultLabel": "Customer document number",
       "optional": "{{label}} · optional",
+      "invalid": "Use only letters, digits, space, dot, slash and hyphen, up to {{max}} characters. Nothing was cut: fix the text.",
       "required": "{{label}} · required"
     },
     "signature": {

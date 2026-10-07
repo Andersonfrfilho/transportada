@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { formatBrazilianAmount } from '../shared/occurrenceAmount.service'
@@ -19,19 +20,28 @@ type OccurrenceTotalsProps = Readonly<{
 export function OccurrenceTotals({ origin, totals }: OccurrenceTotalsProps) {
   const { t } = useTranslation('driverTrip')
 
-  function formatMoney(cents: bigint | null | undefined): string {
-    return t('occurrenceRegistration.items.money', {
-      value: formatBrazilianAmount(cents ?? 0n),
-    })
+  /** "0,00" é o valor de "a loja não pagou": sem nada a somar o total é traço, nunca zero por omissão. */
+  function renderMoney(cents: bigint | null | undefined): ReactNode {
+    if (cents === null || cents === undefined) {
+      return (
+        <>
+          <span aria-hidden="true">—</span>
+          <span className={styles.visuallyHidden}>
+            {t('occurrenceRegistration.items.totals.none')}
+          </span>
+        </>
+      )
+    }
+    return t('occurrenceRegistration.items.money', { value: formatBrazilianAmount(cents) })
   }
 
   return (
     <div className={styles.totalsGroup}>
       <dl aria-live="polite" className={styles.totals}>
         <dt>{t('occurrenceRegistration.items.totals.sum')}</dt>
-        <dd>{formatMoney(totals?.itemsSumCents)}</dd>
+        <dd>{renderMoney(totals?.itemsSumCents)}</dd>
         <dt>{t('occurrenceRegistration.items.totals.inMail')}</dt>
-        <dd>{formatMoney(totals?.declaredAmountCents)}</dd>
+        <dd>{renderMoney(totals?.declaredAmountCents)}</dd>
       </dl>
       {origin === undefined ? null : (
         <p className={styles.fieldHint}>

@@ -71,6 +71,13 @@ export function OccurrenceValuesSection({
       {visibility.rendersReferenceNumber ? (
         <div className={styles.block}>
           <OccurrenceTextField
+            error={
+              valuesForm.values.facts.hasInvalidReferenceNumber
+                ? t('occurrenceRegistration.referenceNumber.invalid', {
+                    max: REFERENCE_NUMBER_MAX_LENGTH,
+                  })
+                : undefined
+            }
             inputMode="text"
             label={t(
               requirements.referenceNumberMode === 'required'
@@ -78,7 +85,6 @@ export function OccurrenceValuesSection({
                 : 'occurrenceRegistration.referenceNumber.optional',
               { label: labels.referenceNumber },
             )}
-            maxLength={REFERENCE_NUMBER_MAX_LENGTH}
             onChange={valuesForm.handleReferenceNumberChange}
             value={valuesForm.referenceNumberText}
           />

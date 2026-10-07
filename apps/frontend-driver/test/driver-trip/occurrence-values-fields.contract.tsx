@@ -7,6 +7,9 @@ import { describe, expect, test } from 'bun:test'
 import '@/modules/shared/i18n/i18n.service'
 import { OccurrenceMoneyField } from '@/modules/driver-trip/components/OccurrenceMoneyField.component'
 import { OccurrenceItemsField } from '@/modules/driver-trip/components/OccurrenceItemsField.component'
+import { OccurrenceValuesSection } from '@/modules/driver-trip/components/OccurrenceValuesSection.component'
+import type { OccurrenceRegistrationForm } from '@/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook'
+import { OccurrenceTotals } from '@/modules/driver-trip/components/OccurrenceTotals.component'
 import { OccurrenceRegisterAction } from '@/modules/driver-trip/components/OccurrenceRegisterAction.component'
 import enLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import ptLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
@@ -19,7 +22,10 @@ import {
   evaluateOccurrenceValues,
   type OccurrenceItemDrafts,
 } from '@/modules/driver-trip/shared/occurrenceDraftValues.service'
-import { resolveOccurrenceRequirements } from '@/modules/driver-trip/shared/occurrenceRequirements.service'
+import {
+  resolveOccurrenceFieldVisibility,
+  resolveOccurrenceRequirements,
+} from '@/modules/driver-trip/shared/occurrenceRequirements.service'
 
 /**
  * Spec 247 (T5.3, RF11, CA07): a tela do motorista mostra os produtos, a soma da linha e a geral, o
@@ -159,10 +165,12 @@ describe('a lista de produtos da nota (RF11)', () => {
     expect(html).toContain('Valor pago pela loja')
   })
 
-  test('sem nada marcado a soma é R$\u00a00,00', () => {
+  test('sem nada marcado os dois totais são traço, nunca R$\u00a00,00 por omissão (T7.2b, N3)', () => {
     const html = renderItems({ drafts: {}, type: buildType({ declaredAmountMode: 'optional' }) })
 
-    expect(html.match(/R\$\u00a00,00/gu)).toHaveLength(2)
+    expect(html).not.toContain('R$\u00a00,00')
+    expect(html.match(/>—<\/span>/gu)).toHaveLength(2)
+    expect(html.match(/Sem valor/gu)).toHaveLength(2)
   })
 
   test('valor pago desligado: a segunda linha diz que é o valor do e-mail, e nenhuma linha o pede', () => {
@@ -455,5 +463,77 @@ describe('a tela segue o design system do app', () => {
 
     expect(hook).not.toMatch(/useState[^)]*[Ss]um/u)
     expect(hook).not.toMatch(/useEffect/u)
+  })
+})
+
+describe('o total só vira R$\u00a00,00 quando zero foi o valor (spec 247 T7.2b, N3)', () => {
+  function renderTotals(totals: Parameters<typeof OccurrenceTotals>[0]['totals']): string {
+    return renderToStaticMarkup(<OccurrenceTotals origin={undefined} totals={totals} />)
+  }
+
+  test('zero digitado é valor: aparece como R$\u00a00,00', () => {
+    const html = renderTotals({ declaredAmountCents: 0n, itemsSumCents: 0n })
+    expect(html.match(/R\$\u00a00,00/gu)).toHaveLength(2)
+    expect(html).not.toContain('Sem valor')
+  })
+
+  test('sem o que somar (nulo ou ausente) é traço, com o texto para o leitor de tela', () => {
+    for (const totals of [undefined, { declaredAmountCents: null, itemsSumCents: null }]) {
+      const html = renderTotals(totals)
+      expect(html).not.toContain('R$')
+      expect(html.match(/aria-hidden="true">—<\/span>/gu)).toHaveLength(2)
+    }
+  })
+
+  test('um só dos dois sem valor: o outro continua mostrando o seu', () => {
+    const html = renderTotals({ declaredAmountCents: 5000n, itemsSumCents: null })
+    expect(html).toContain('R$\u00a050,00')
+    expect(html.match(/Sem valor/gu)).toHaveLength(1)
+  })
+})
+
+describe('número do documento com caractere inválido (spec 247 T7.2b, N4)', () => {
+  function renderSection(referenceNumber: string): string {
+    const type = buildType({ referenceNumberMode: 'optional' })
+    const valuesForm = {
+      ...buildForm({ drafts: {}, type }),
+      referenceNumberText: referenceNumber,
+      values: evaluateOccurrenceValues({
+        drafts: {},
+        products: PRODUCTS,
+        requirements: resolveOccurrenceRequirements(type),
+        texts: { declaredAmount: '', referenceNumber },
+      }),
+    }
+    const form = {
+      handleProductsToggle: () => undefined,
+      hasProducts: false,
+      valuesForm,
+      visibility: resolveOccurrenceFieldVisibility(type, { hasProductList: true }),
+    } as unknown as OccurrenceRegistrationForm
+    return renderToStaticMarkup(
+      <OccurrenceValuesSection
+        form={form}
+        labels={{ declaredAmount: 'Valor pago', referenceNumber: 'Número da NFD' }}
+        requirements={resolveOccurrenceRequirements(type)}
+      />,
+    )
+  }
+
+  test('o texto digitado continua no campo, marcado como inválido e explicado', () => {
+    const html = renderSection('NFD 45029<script>')
+    expect(html).toContain('value="NFD 45029&lt;script&gt;"')
+    expect(html).toContain('aria-invalid="true"')
+    expect(html).toMatch(/aria-describedby="[^"]+-error"/u)
+    expect(html).toContain(
+      'Use só letras, números, espaço, ponto, barra e hífen, até 30 caracteres.',
+    )
+    expect(html).not.toContain('maxLength')
+  })
+
+  test('texto válido não é marcado nem explicado', () => {
+    const html = renderSection('NFD 45029')
+    expect(html).not.toContain('aria-invalid')
+    expect(html).not.toContain('Use só letras')
   })
 })

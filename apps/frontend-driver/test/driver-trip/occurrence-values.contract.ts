@@ -6,7 +6,7 @@ import type {
   DriverOccurrenceType,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
-  sanitizeReferenceNumberInput,
+  isReferenceNumberValid,
   toCanonicalDecimal,
   toReferenceNumber,
 } from '../../src/modules/driver-trip/shared/occurrenceDecimalInput.service'
@@ -124,11 +124,21 @@ describe('o que o motorista digita vira o texto que o servidor aceita (nunca num
     expect(toCanonicalDecimal(',')).toBeUndefined()
   })
 
-  it('o número do documento só leva o que o padrão da API aceita, até 30; vazio é ausente', () => {
-    expect(sanitizeReferenceNumberInput('NFD-45029/1.A ç!')).toBe('NFD-45029/1.A ')
-    expect(sanitizeReferenceNumberInput('A'.repeat(40))).toHaveLength(30)
+  it('o número do documento vale pelo padrão da API, até 30; vazio é ausente', () => {
+    expect(isReferenceNumberValid('NFD-45029/1.A')).toBe(true)
+    expect(isReferenceNumberValid('A'.repeat(30))).toBe(true)
+    expect(isReferenceNumberValid('A'.repeat(31))).toBe(false)
+    expect(isReferenceNumberValid('NFD 45029<script>')).toBe(false)
+    expect(isReferenceNumberValid('Nº 45029')).toBe(false)
+    expect(isReferenceNumberValid('   ')).toBe(true)
     expect(toReferenceNumber('  NFD 45029  ')).toBe('NFD 45029')
     expect(toReferenceNumber('   ')).toBeUndefined()
+  })
+
+  it('número com caractere inválido NÃO é limpo em silêncio: é recusado, e vai nem o texto cortado', () => {
+    expect(toReferenceNumber('NFD 45029<script>')).toBeUndefined()
+    expect(toReferenceNumber('Nº 45029')).toBeUndefined()
+    expect(toReferenceNumber('A'.repeat(31))).toBeUndefined()
   })
 })
 
@@ -518,5 +528,32 @@ describe('o botão só libera com o exigido, sem rede (CA07)', () => {
         values: values.facts,
       }),
     ).toEqual(['products', 'declaredAmount', 'referenceNumber', 'note', 'photo', 'signature'])
+  })
+})
+
+describe('número do documento inválido segura o botão pelo motivo (spec 247 T7.2b, N4)', () => {
+  const itemsOnly = { itemsMinimumCount: 1 } as const
+  const base = { drafts: pick({ P2: '1' }) }
+  const withText = (referenceNumber: string, mode: 'off' | 'optional' | 'required') => ({
+    ...base,
+    texts: { declaredAmount: '', referenceNumber },
+    type: buildType({ ...itemsOnly, referenceNumberMode: mode }),
+  })
+
+  it('opcional ou obrigatório, com caractere inválido: o motivo é o número inválido, não "falta"', () => {
+    expect(missing(withText('NFD 45029<script>', 'optional'))).toEqual(['referenceNumberInvalid'])
+    expect(missing(withText('NFD 45029<script>', 'required'))).toEqual(['referenceNumberInvalid'])
+    expect(missing(withText('A'.repeat(31), 'optional'))).toEqual(['referenceNumberInvalid'])
+  })
+
+  it('o corpo não leva o número inválido, e o texto digitado fica como digitado', () => {
+    const values = evaluate(withText('NFD 45029<script>', 'optional'))
+    expect(values.payload).not.toHaveProperty('referenceNumber')
+    expect(values.facts.hasInvalidReferenceNumber).toBe(true)
+  })
+
+  it('válido libera; desligado ignora o texto', () => {
+    expect(missing(withText('NFD 45029', 'optional'))).toEqual([])
+    expect(missing(withText('NFD 45029<script>', 'off'))).toEqual([])
   })
 })
