@@ -8,6 +8,8 @@ import '@/modules/shared/i18n/i18n.service'
 import { OccurrenceMoneyField } from '@/modules/driver-trip/components/OccurrenceMoneyField.component'
 import { OccurrenceItemsField } from '@/modules/driver-trip/components/OccurrenceItemsField.component'
 import { OccurrenceRegisterAction } from '@/modules/driver-trip/components/OccurrenceRegisterAction.component'
+import enLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
+import ptLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
 import type { OccurrenceValuesForm } from '@/modules/driver-trip/hooks/useOccurrenceValues.hook'
 import type {
   DriverNfeProduct,
@@ -109,8 +111,8 @@ describe('a lista de produtos da nota (RF11)', () => {
     expect(html.match(/<label><input[^>]*type="checkbox"/gu)).toHaveLength(3)
     expect(html).toContain('P1')
     expect(html).toContain('Biscoito')
-    expect(html).toContain('Na nota: 3 CX × R$ 19,995')
-    expect(html).toContain('Na nota: 1 UN × R$ 57,20')
+    expect(html).toContain('Na nota: 3 CX × R$\u00a019,995')
+    expect(html).toContain('Na nota: 1 UN × R$\u00a057,20')
   })
 
   test('produto desmarcado não mostra campo nem conta', () => {
@@ -118,7 +120,7 @@ describe('a lista de produtos da nota (RF11)', () => {
 
     expect(html).not.toContain('Quantidade devolvida')
     expect(html).not.toMatch(/ =</u)
-    expect(html).not.toContain('R$ 19,995 =')
+    expect(html).not.toContain('R$\u00a019,995 =')
   })
 
   test('produto marcado mostra a quantidade na unidade da nota e a conta da linha', () => {
@@ -129,10 +131,10 @@ describe('a lista de produtos da nota (RF11)', () => {
 
     expect(html).toContain('Quantidade devolvida (CX)')
     expect(html).toContain('Quantidade devolvida (UN)')
-    expect(html).toContain('3 CX × R$ 19,995 =')
-    expect(html).toContain('R$ 59,99')
-    expect(html).toContain('1 UN × R$ 57,20 =')
-    expect(html).toContain('R$ 57,20')
+    expect(html).toContain('3 CX × R$\u00a019,995 =')
+    expect(html).toContain('R$\u00a059,99')
+    expect(html).toContain('1 UN × R$\u00a057,20 =')
+    expect(html).toContain('R$\u00a057,20')
   })
 
   test('o rótulo de cada campo é ligado a ele (for/id) — nunca um texto solto', () => {
@@ -146,27 +148,27 @@ describe('a lista de produtos da nota (RF11)', () => {
     expect(html).toContain('inputMode="decimal"')
   })
 
-  test('a soma geral e a linha do valor pago: 57,20 + 59,99 = R$ 117,19', () => {
+  test('a soma geral e a linha do valor pago: 57,20 + 59,99 = R$\u00a0117,19', () => {
     const html = renderItems({
       drafts: { P1: { declaredAmountText: '', isSelected: true, quantityText: '3' }, P2: SELECTED },
       type: buildType({ declaredAmountMode: 'optional' }),
     })
 
     expect(html).toContain('Soma dos produtos (NF-e)')
-    expect(html).toContain('R$ 117,19')
+    expect(html).toContain('R$\u00a0117,19')
     expect(html).toContain('Valor pago pela loja')
   })
 
-  test('sem nada marcado a soma é R$ 0,00', () => {
+  test('sem nada marcado a soma é R$\u00a00,00', () => {
     const html = renderItems({ drafts: {}, type: buildType({ declaredAmountMode: 'optional' }) })
 
-    expect(html.match(/R\$ 0,00/gu)).toHaveLength(2)
+    expect(html.match(/R\$\u00a00,00/gu)).toHaveLength(2)
   })
 
   test('valor pago desligado: a segunda linha diz que é o valor do e-mail, e nenhuma linha o pede', () => {
     const html = renderItems({ drafts: { P2: SELECTED }, type: buildType({}) })
 
-    expect(html).toContain('Valor no e-mail')
+    expect(html).toContain('Total que vai no e-mail')
     expect(html).not.toContain('obrigatório</label>')
     expect(html).not.toContain('se diferente')
   })
@@ -209,7 +211,7 @@ describe('o valor pago por linha (escopo "por produto")', () => {
     })
 
     expect(html).not.toContain('Valor pago pela loja · obrigatório')
-    expect(html).toContain('Valor pago pela loja')
+    expect(html).toContain('Total que vai no e-mail')
   })
 })
 
@@ -257,6 +259,62 @@ describe('quantidade com casas a mais: a tela marca, não corta (T7.2)', () => {
 
   test('3 casas é válido: sem erro', () => {
     expect(renderQuantity('0,555')).not.toContain('aria-invalid')
+  })
+})
+
+describe('dinheiro nunca quebra depois do "R$" (T7.2, B1a)', () => {
+  test('todo "R$" dos textos da tela é seguido de espaço não separável, em pt-BR e em inglês', () => {
+    for (const locale of [ptLocale, enLocale]) {
+      const texts = JSON.stringify(locale.occurrenceRegistration)
+      expect(texts).toContain('R$\u00a0')
+      expect(texts).not.toMatch(/R\$ /u)
+    }
+  })
+
+  test('a conta da linha e o "pago" levam o espaço não separável', () => {
+    const html = renderItems({
+      drafts: { P2: { declaredAmountText: '99,00', isSelected: true, quantityText: '1' } },
+      type: buildType({ declaredAmountMode: 'optional' }),
+    })
+
+    expect(html).toContain('· pago R$\u00a099,00')
+    expect(html).not.toMatch(/R\$ \d/u)
+  })
+})
+
+describe('o total diz de onde vem (T7.2, B1b, RF9)', () => {
+  const PAID = { declaredAmountText: '50,00', isSelected: true, quantityText: '1' } as const
+
+  test('nada digitado: é a soma calculada pela nota', () => {
+    const html = renderItems({
+      drafts: { P2: SELECTED },
+      type: buildType({ declaredAmountMode: 'optional' }),
+    })
+
+    expect(html).toContain('Total que vai no e-mail')
+    expect(html).toContain('Calculado pela nota (quantidade × valor unitário).')
+    expect(html).not.toContain('Valor pago pela loja</dt>')
+  })
+
+  test('misturado: diz quantas linhas são digitadas e que as outras são calculadas', () => {
+    const html = renderItems({
+      drafts: { P1: { declaredAmountText: '', isSelected: true, quantityText: '3' }, P2: PAID },
+      type: buildType({ declaredAmountMode: 'optional' }),
+    })
+
+    expect(html).toContain('R$\u00a0109,99')
+    expect(html).toContain(
+      '1 de 2 linhas com valor pago digitado; as outras, calculadas pela nota.',
+    )
+  })
+
+  test('todas digitadas', () => {
+    const html = renderItems({
+      drafts: { P2: PAID },
+      type: buildType({ declaredAmountMode: 'optional' }),
+    })
+
+    expect(html).toContain('Valor pago digitado em todas as linhas.')
   })
 })
 
@@ -326,6 +384,43 @@ describe('o botão desabilitado diz o que falta, com os rótulos do tipo (CA07)'
 
   test('o valor pago da ocorrência', () => {
     expect(renderAction(['declaredAmount'])).toContain('falta: “Valor pago pela loja”.')
+  })
+})
+
+describe('o botão liberado anuncia que está tudo preenchido (T7.2, B1c)', () => {
+  function renderReady(input: { readonly hasRequiredFields: boolean; readonly missing: boolean }) {
+    return renderToStaticMarkup(
+      <OccurrenceRegisterAction
+        canRegister={!input.missing}
+        hasRequiredFields={input.hasRequiredFields}
+        missingFields={input.missing ? ['note'] : []}
+        onCancel={() => undefined}
+        onRegister={() => undefined}
+        photoMinimumCount={1}
+        rendersRegister
+      />,
+    )
+  }
+
+  test('com algo exigido e tudo preenchido: região viva com a mensagem positiva', () => {
+    const html = renderReady({ hasRequiredFields: true, missing: false })
+
+    expect(html).toMatch(/role="status"[^>]*>.*Tudo o que o tipo pede está preenchido\./u)
+    expect(html).not.toContain('Para registrar, falta')
+  })
+
+  test('faltando algo: a mensagem é a do que falta, nunca a positiva', () => {
+    const html = renderReady({ hasRequiredFields: true, missing: true })
+
+    expect(html).toContain('Para registrar, falta: a observação.')
+    expect(html).not.toContain('Tudo o que o tipo pede')
+  })
+
+  test('nada exigido: sem mensagem positiva, mas a região viva continua montada', () => {
+    const html = renderReady({ hasRequiredFields: false, missing: false })
+
+    expect(html).not.toContain('Tudo o que o tipo pede')
+    expect(html).toContain('role="status"')
   })
 })
 
