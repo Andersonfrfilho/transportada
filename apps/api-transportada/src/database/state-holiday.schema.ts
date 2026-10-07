@@ -6,6 +6,7 @@ import {
   check,
   date,
   foreignKey,
+  index,
   integer,
   pgTable,
   text,
@@ -19,6 +20,7 @@ import {
   HOLIDAY_NAME_MAX_LENGTH,
   HOLIDAY_RECURRENCE,
 } from '../shared/business-calendar.constant.js'
+import { holidayProviderEntries } from './holiday-provider.schema.js'
 import { companies } from './identity.schema.js'
 import { inList, monthDayInRangeSql } from './schema-check.constant.js'
 
@@ -46,6 +48,8 @@ export const stateHolidays = pgTable(
     name: text().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Spec 252: preenchido = importado do fornecedor, e só como `once` (D6). Editar nome ou tipo o adota (zera). */
+    providerEntryId: uuid('provider_entry_id'),
   },
   (table) => [
     foreignKey({
@@ -73,6 +77,21 @@ export const stateHolidays = pgTable(
       'state_holidays_name_check',
       sql`char_length(${table.name}) between 1 and ${sql.raw(String(HOLIDAY_NAME_MAX_LENGTH))}`,
     ),
+    /** O alvo é global e a entrada nunca é apagada (só ganha `removed_at`): `RESTRICT`. */
+    foreignKey({
+      columns: [table.providerEntryId],
+      foreignColumns: [holidayProviderEntries.id],
+      name: 'state_holidays_provider_entry_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'state_holidays_provider_once_check',
+      sql`${table.providerEntryId} is null or ${table.recurrence} = ${recurrenceIs(HOLIDAY_RECURRENCE.ONCE)}`,
+    ),
+    index('state_holidays_provider_entry_idx')
+      .on(table.companyId, table.providerEntryId)
+      .where(sql`${table.providerEntryId} is not null`),
     check(
       'state_holidays_shape_check',
       sql`(${table.recurrence} = ${recurrenceIs(HOLIDAY_RECURRENCE.ONCE)} and ${table.holidayOn} is not null and ${table.month} is null and ${table.day} is null) or (${table.recurrence} = ${recurrenceIs(HOLIDAY_RECURRENCE.YEARLY)} and ${table.holidayOn} is null and ${table.month} is not null and ${table.day} is not null and ${monthDayInRangeSql({ day: table.day, month: table.month })})`,

@@ -24,7 +24,7 @@ const findColumn = (name: string) =>
   getTableConfig(municipalHolidays).columns.find((column) => column.name === name)
 
 describe('as datas fixas de feriado ganham tipo e origem (spec 238 T1.2)', () => {
-  test('só duas colunas novas, ao fim das que o roteirizador já lê', () => {
+  test('as colunas novas ficam ao fim das que o roteirizador já lê (a 252 acrescenta a origem importada)', () => {
     expect(columnNames(municipalHolidays)).toEqual([
       'id',
       'company_id',
@@ -34,10 +34,12 @@ describe('as datas fixas de feriado ganham tipo e origem (spec 238 T1.2)', () =>
       'created_at',
       'kind',
       'source_rule_id',
+      'provider_entry_id',
     ])
     expect(columnSqlTypes(municipalHolidays)).toMatchObject({
       holiday_on: 'date',
       kind: 'text',
+      provider_entry_id: 'uuid',
       source_rule_id: 'uuid',
     })
     expect(requiredColumnNames(municipalHolidays)).toContain('holiday_on')
@@ -48,6 +50,8 @@ describe('as datas fixas de feriado ganham tipo e origem (spec 238 T1.2)', () =>
     expect(findColumn('kind')?.default).toBe('holiday')
     expect(findColumn('source_rule_id')?.notNull).toBeFalse()
     expect(findColumn('source_rule_id')?.hasDefault).toBeFalse()
+    expect(findColumn('provider_entry_id')?.notNull).toBeFalse()
+    expect(findColumn('provider_entry_id')?.hasDefault).toBeFalse()
   })
 
   test('o tipo é vocabulário fechado, e o CHECK de cidade antigo não muda', () => {

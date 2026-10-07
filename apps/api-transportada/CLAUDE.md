@@ -74,6 +74,14 @@ Correções da revisão (T1.3b): `POST /municipal-holidays` devolve `adoptedFrom
 `typedHolidaysKept` (a digitada que a regra não conhece mais); editar a regra só apaga as geradas do ano corrente em diante;
 auditoria só quando muda; `POST /state-holidays` idêntico é 200. A migration foi editada no lugar (não publicada) e os
 comandos de `municipal_holidays` vão no fim do lote. Detalhe: docs/ai-context § "Spec 238 T1.3b".
+Feriados da FeriadosAPI (spec 252 T2.2, ADR-0100 §3): migration `20261009040622_holiday_provider_import` — cache **global** do
+fornecedor (`holiday_provider_fetches`/`_entries`/`_monthly_usage`, sem `company_id`, nunca por rota), demanda/cursor/supressões
+por empresa (`holiday_import_cities`, `company_holiday_import_settings`, `holiday_import_suppressions`) e `provider_entry_id`
+em `municipal_holidays`/`state_holidays` (nunca junto com `source_rule_id`; no estadual só `once`). Todo nome de constraint
+é explícito (o da FK do municipal teria 67 bytes). A rotina `holiday.provider.pull` nasce **pausada de fábrica** em
+`job_schedules`. O `rollback.sql` **recusa** com feriado importado, supressão ou execução aberta. ⚠️ A CHECK de `job` do schema
+vem do catálogo TS: o snapshot da migration já traz o nome novo, então o contrato `schema-snapshot` fica vermelho até a T2.3
+pôr `holiday.provider.pull` nas quatro cópias — a migration só vai ao ar com o catálogo. Detalhe: `specs/252-*/evidence.md` § T2.2.
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é

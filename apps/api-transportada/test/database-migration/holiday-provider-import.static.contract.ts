@@ -85,9 +85,12 @@ describe('a migration da importação de feriados entra aditiva (spec 252 T2.1)'
     const migrationText = stripComments(await readFileText(MIGRATION_SUFFIX, 'migration.sql'))
     const rollbackText = stripComments(await readFileText(MIGRATION_SUFFIX, 'rollback.sql'))
 
-    for (const name of [...ALL_NEW_CONSTRAINT_NAMES, ...ALL_NEW_INDEX_NAMES]) {
-      expect(migrationText).toContain(`"${name}"`)
-    }
+    // A PK inline leva o nome do Postgres (`<tabela>_pkey`); o integration o confere contra `pg_constraint`.
+    const explicitNames = [...ALL_NEW_CONSTRAINT_NAMES, ...ALL_NEW_INDEX_NAMES].filter(
+      (name) => !name.endsWith('_pkey') || migrationText.includes(`CONSTRAINT "${name}"`),
+    )
+    expect(explicitNames.length).toBeGreaterThanOrEqual(35)
+    for (const name of explicitNames) expect(migrationText).toContain(`"${name}"`)
     for (const text of [migrationText, rollbackText]) {
       const identifiers = [...text.matchAll(/"([^"]+)"/gu)].map((match) => match[1] ?? '')
       expect(identifiers.length).toBeGreaterThan(40)
@@ -203,7 +206,8 @@ describe('a migration da importação de feriados entra aditiva (spec 252 T2.1)'
 
     expect(sqlText).toContain(`DELETE FROM "job_executions" WHERE "job" = '${JOB}'`)
     expect(sqlText).toContain(`DELETE FROM "job_schedules" WHERE "job" = '${JOB}'`)
-    expect(sqlText.match(new RegExp(`'${JOB}'`, 'gu'))).toHaveLength(2)
+    // Os dois DELETE e a contagem de execução aberta da recusa.
+    expect(sqlText.match(new RegExp(`'${JOB}'`, 'gu'))).toHaveLength(3)
     for (const constraint of ['job_executions_job_check', 'job_schedules_job_check']) {
       expect(sqlText).toContain(`ADD CONSTRAINT "${constraint}" CHECK ("job" in (${previousList}))`)
     }
