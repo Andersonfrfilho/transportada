@@ -89,7 +89,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
       tamanho com a maior nota de staging e registrar.
 - [x] **T4.7** `readOccurrenceTemplateValues`, prévia e aviso automático com os valores novos;
       integração do registro ao aviso automático com o modelo do SAC (CA01).
-- [ ] **T4.8** Correção (240/167): número e valores, `previous_items`; integração.
+- [x] **T4.8** Correção (240/167): número e valores, `previous_items`; integração.
 
 ## Fase 5 — Telas (etapa 3)
 

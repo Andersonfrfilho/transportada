@@ -1106,3 +1106,95 @@ lote 4 (50 arquivos): 194 pass · 1 skip · 0 fail   [188.89s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula).
+
+## T4.8 — a correção edita o número e os valores pagos (2026-10-07)
+
+**O que mudou** (`apps/api-transportada/src`):
+
+- `PATCH .../occurrences/:occurrenceId/items` aceita, além de `items[].{code, quantity, unit}`: `items[].declaredAmount`,
+  `declaredAmount` (a ocorrência) e `referenceNumber`. **Três estados**: ausente mantém o gravado, `null` limpa, texto passa a
+  valer (número vazio limpa). Número: `[A-Za-z0-9 ./-]`, até 30; valor: texto com até 2 casas, `>= 0` — o mesmo vocabulário do registro.
+  `unitValue` e `quantityUnit` da nota no corpo são `400` (`strict`): o servidor nunca lê preço do payload.
+- `trips/domain/occurrence-correction-values.policy.ts` (novo, puro): `buildCorrectedOccurrenceLines` (o `unit_value` de um
+  código que já estava na ocorrência é o **copiado no registro**, o de um código novo sai da nota; teto de quantidade da nota, só
+  na unidade da nota), `resolveCorrectedOccurrenceScalars` (os três estados; `'50'` e `'50.0000'` não são mudança) e
+  `assertSingleDeclaredAmountLevel` (valor da ocorrência e de linha ao mesmo tempo é `400 DECLARED_AMOUNT_SELECTION_CONFLICT`, como no registro).
+- `correct-occurrence-items.use-case.ts`: `previous_items` passa a guardar `{code, quantity, unit, unitValue, declaredAmount}`; o número e o valor da
+  ocorrência são gravados quando mudam; mudança só de valor pago ou de número também conta como correção real (RF5). **A correção não manda e-mail.**
+  `companyId` vem do contexto; ocorrência de outra empresa continua `404`.
+- `occurrence-correction-read.query.ts`: a leitura **projeta** `previousItems` nas três chaves de sempre. O painel publicado recusa chave a mais em cada item
+  (`isOccurrenceProduct` usa `hasExactKeys(['code','quantity','unit'])`); a API só passa a publicá-las depois de ele as tolerar (ADR-0081 §9).
+- Fingerprint da idempotência (`buildOccurrenceCorrectionFingerprint`): sem os campos novos é a chave de sempre; com eles, ausente, nulo e texto dão chaves
+  diferentes.
+
+**Defeito antigo corrigido de passagem (necessário para editar linha do motorista):** a correção chamava `resolveOccurrenceItemQuantities` **sem** os
+produtos da nota, então a unidade comercial da nota (`'CX'`, `'FD'` — a que o registro do motorista grava desde a T4.4 e a 172 aceita) era recusada com
+`OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN`. Agora a correção passa os produtos, como o registro. Visto vermelho antes do código (abaixo).
+
+### Limitações e decisões — para o architect
+
+1. **O número e o valor pago da OCORRÊNCIA antigos não ficam no histórico.** `previous_items` é a única coluna da correção e é uma lista de linhas; guardar
+   `reference_number` e `declared_amount` anteriores exige duas colunas aditivas em `trip_document_occurrence_corrections` (migration + `rollback.sql`), que
+   o `plan.md` não prevê. Os valores **das linhas** estão no histórico; o número e o valor da ocorrência são sobrescritos sem rastro. Decisão: aceitar, ou autorizar a migration.
+2. **A resposta da correção (`CorrectedOccurrenceView`) não ganhou `referenceNumber`/`declaredAmount`** — o mesmo motivo (painel com chaves exatas); fica para a tela (Fase 5), junto da tolerância.
+3. **A correção não cobra `required`** do número nem do valor pago: o painel publicado não os envia, e cobrá-los travaria a correção de qualquer ocorrência antiga de um tipo que
+   passou a exigi-los depois. A correção é o caminho de **completar** (D12), não de reprovar retroativamente.
+4. O pass-through de `main.ts` (rota → caso de uso) não tem teste: a rota → `execute` está provada por contrato, o caso de uso por integração; a fiação entre os dois, em `main.ts`, só pelo typecheck (os campos são opcionais).
+
+### Vermelho antes do código
+
+```text
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/trip-occurrence.contract.test.ts
+ 0 pass · 1 fail · 1 error      (módulo `occurrence-correction-values.policy.js` ausente)
+$ DATABASE_URL=postgres://postgres@127.0.0.1:56249/transportada_test \
+  bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-correction-values.integration.ts
+Expected: "OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT"
+Received: "OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN"
+ 0 pass
+ 4 fail
+```
+
+### Testes existentes alterados (e por quê)
+
+- `test/trip-occurrence/items-mode-guard.contract.ts`: o dublê da transação (`lockOccurrence`, `listCurrentItems`, `writeDeclaredValues`) passou a ter a forma nova da porta.
+- `test/fixtures/document-product.fixture.ts`: a linha neutra ganhou `totalValue` — a porta devolve o produto inteiro da nota (a correção usa preço e unidade, não só código e descrição).
+
+### Mutações (cada uma sozinha, rodada e revertida; integração + contrato)
+
+```text
+M1 — valor unitário sempre da nota (perde o copiado):                          2 fail (integração, contrato)
+M2 — valor pago ausente apaga o gravado:                                       3 fail
+M3 — previous_items só com as três chaves:                                     1 fail (integração)
+M4 — leitura sem a projeção de três chaves (vaza ao painel):                   1 fail (integração)
+M5 — correção sem os produtos da nota na validação da unidade:                 3 fail
+M6 — número/valor sozinhos não contam como mudança:                            1 fail
+M7 — item do corpo sem `strict` (preço da nota passa):                         2 fail (parse e rota)
+M8 — sem o teto de quantidade da nota:                                         2 fail
+M9 — nível único do valor pago não conferido:                                  1 fail
+base restaurada: 684 pass · 0 fail
+```
+
+### Gates
+
+```text
+$ bun run typecheck                      (raiz)  → tsc --noEmit ×4, sem erro
+$ bun run lint                           (apps/api-transportada) → eslint --max-warnings=0, sem saída
+$ bun run format:check                   (raiz)  → All matched files use Prettier code style!
+$ bun --env-file=../../.env.test test --timeout 120000   (contrato, apps/api-transportada)
+ 10364 pass
+ 25 skip
+ 0 fail
+Ran 10389 tests across 200 files. [45.22s]
+```
+
+Integração completa (210 arquivos da lista `test:integration`), quatro lotes em primeiro plano, Postgres 18 nativo
+descartável (`127.0.0.1:56249`, diretório no scratchpad), `DATABASE_URL` por variável de ambiente:
+
+```text
+lote 1 (53 arquivos): 377 pass · 0 fail            [293.04s]
+lote 2 (53 arquivos): 308 pass · 7 skip · 0 fail   [173.67s]
+lote 3 (53 arquivos): 242 pass · 0 fail            [182.32s]
+lote 4 (51 arquivos): 198 pass · 1 skip · 0 fail   [184.54s]
+```
+
+Os `skip` não são testes desta task (nenhum arquivo novo pula). Sem migration nesta task: `make migration-test` não se aplica.
