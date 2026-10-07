@@ -523,6 +523,8 @@
       "amountOptional": "{{label}} · se diferente",
       "amountRequired": "{{label}} · obrigatório",
       "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "fillTotal": "Total da nota",
+      "fillTotalAria": "Devolver tudo: {{quantity}} {{unit}}",
       "money": "R$\u00a0{{value}}",
       "onNote": "Na nota: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
       "paid": "· pago R$\u00a0{{value}}",

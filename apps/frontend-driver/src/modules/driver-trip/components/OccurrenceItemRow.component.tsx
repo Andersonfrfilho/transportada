@@ -1,12 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { buttonClassName } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 
 import { formatBrazilianAmount, formatBrazilianQuantity } from '../shared/occurrenceAmount.service'
 import type { OccurrenceItemLine } from '../shared/occurrenceDraftValues.service'
 import { formatBrazilianUnitValue } from '../shared/occurrenceMoneyFormat.service'
+import {
+  isTotalQuantityText,
+  resolveTotalQuantityText,
+} from '../shared/occurrenceTotalQuantity.service'
 import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
 import styles from '../styles/occurrenceValues.module.css'
 import { OccurrenceMoneyField } from './OccurrenceMoneyField.component'
@@ -39,6 +44,17 @@ export function OccurrenceItemRow({
     lineCents === undefined
       ? t('occurrenceRegistration.declaredAmount.placeholder')
       : formatBrazilianAmount(lineCents)
+
+  const totalQuantityText = resolveTotalQuantityText(product.quantity)
+  const isTotalQuantity = isTotalQuantityText({
+    onNote: product.quantity,
+    quantityText: line.draft.quantityText,
+  })
+
+  function handleFillTotalQuantity(): void {
+    if (totalQuantityText === undefined) return
+    form.handleItemQuantityChange({ code: product.code, text: totalQuantityText })
+  }
 
   function describeQuantityProblem(): string | undefined {
     if (line.quantityProblem === OCCURRENCE_QUANTITY_PROBLEM.tooManyDecimals) {
@@ -84,13 +100,32 @@ export function OccurrenceItemRow({
       {line.isSelected ? (
         <>
           <div className={styles.itemNumbers}>
-            <OccurrenceTextField
-              error={describeQuantityProblem()}
-              inputMode="decimal"
-              label={t('occurrenceRegistration.items.quantityLabel', { unit: product.unit })}
-              onChange={(text) => form.handleItemQuantityChange({ code: product.code, text })}
-              value={line.draft.quantityText}
-            />
+            <div className={styles.quantityGroup}>
+              <OccurrenceTextField
+                error={describeQuantityProblem()}
+                inputMode="decimal"
+                label={t('occurrenceRegistration.items.quantityLabel', { unit: product.unit })}
+                onChange={(text) => form.handleItemQuantityChange({ code: product.code, text })}
+                value={line.draft.quantityText}
+              />
+              {totalQuantityText === undefined ? null : (
+                <button
+                  aria-label={t('occurrenceRegistration.items.fillTotalAria', {
+                    quantity: formatBrazilianQuantity(product.quantity),
+                    unit: product.unit,
+                  })}
+                  aria-pressed={isTotalQuantity}
+                  className={buttonClassName({
+                    className: cn(styles.fillTotal, isTotalQuantity ? styles.fillTotalActive : ''),
+                    variant: 'secondary',
+                  })}
+                  onClick={handleFillTotalQuantity}
+                  type="button"
+                >
+                  {t('occurrenceRegistration.items.fillTotal')}
+                </button>
+              )}
+            </div>
             {isAmountVisible ? (
               <OccurrenceMoneyField
                 label={t(

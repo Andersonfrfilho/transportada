@@ -512,6 +512,8 @@
       "amountOptional": "{{label}} · if different",
       "amountRequired": "{{label}} · required",
       "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "fillTotal": "Full note quantity",
+      "fillTotalAria": "Return all: {{quantity}} {{unit}}",
       "money": "R$\u00a0{{value}}",
       "onNote": "On the invoice: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
       "paid": "· paid R$\u00a0{{value}}",
