@@ -1,9 +1,11 @@
 # Feature 252 — Os feriados vêm da FeriadosAPI e avisam na montagem
 
-> **Estado:** desenho fechado pelo `architect` (`opus`, 2026-10-07); **duas dúvidas de produto abertas (Q3, Q4)**
-> que **não bloqueiam código** e **bloqueiam ligar a rotina** (configurar o token). Aviso no app do motorista
-> acrescentado pelo usuário no mesmo dia (Q5b, D12). **ADR-0100** (emenda o ADR-0048
-> §3 e o "fora do escopo" da 238). Migration **só staging**; produção exige aprovação própria.
+> **Estado:** desenho fechado pelo `architect` (`opus`, 2026-10-07) e **validado contra o código na T0.1** (mesmo dia;
+> 22 correções no lugar, nenhuma decisão do usuário mudou — `evidence.md` § T0.1). **ADR-0100 aceita.** A Fase 1 (o
+> roteirizador por cidade) já está em staging (`4454228ac`). **Duas dúvidas de produto abertas (Q3, Q4)** que **não
+> bloqueiam código** e **bloqueiam ligar a rotina** (configurar o token e despausar). Aviso no app do motorista
+> acrescentado pelo usuário no mesmo dia (Q5b, D12). **ADR-0100** (emenda o ADR-0048 §3 e o "fora do escopo" da 238).
+> Migration **só staging**; produção exige aprovação própria.
 > **Número:** 252 e ADR 0100 conferidos livres em `origin/staging` e nos worktrees em 2026-10-07 (ADR 0099 reservado
 > pela 251). Reconferir antes de publicar.
 
@@ -14,11 +16,11 @@ digita: a amostra local de NF-e tem **67 cidades de destino distintas**, todas e
 tem feriado cadastrado. O prazo da 236 conta dia útil a mais nessas cidades, e a montagem da viagem só avisa feriado
 **nacional**, e só para a última parada (`routeSchedule.service.ts` ~31–75).
 
-E há um defeito que a importação tornaria visível: o roteirizador (`readPoolWindows`,
-`drizzle-route-optimization.repository.ts` ~1050–1076) busca só `holidayOn` das cidades do roteiro e aplica a mesma
-lista a **todos** os clientes. O feriado da cidade B fecha o cliente da cidade A. Está fixado como "comportamento
-atual" no teste `route-optimization-municipal-holiday.integration.test.ts` ~199–206. Com ~4 feriados por cidade e 20
-cidades por roteiro, cerca de 1 dia útil em 5 fecharia todos os clientes.
+E havia um defeito que a importação tornaria visível: o roteirizador (`readPoolWindows`, então em
+`drizzle-route-optimization.repository.ts` ~1050–1076) buscava só `holidayOn` das cidades do roteiro e aplicava a mesma
+lista a **todos** os clientes. O feriado da cidade B fechava o cliente da cidade A. Com ~4 feriados por cidade e 20
+cidades por roteiro, cerca de 1 dia útil em 5 fecharia todos os clientes. **Corrigido em 2026-10-07** (Fase 1, em
+staging: `913aad994`, `4454228ac`, `1754e36e7`; a leitura mora agora em `routing/infrastructure/drizzle-pool-window.query.ts`).
 
 Pedido do usuário (2026-10-07): puxar os feriados da **FeriadosAPI** (`https://feriadosapi.com`), aos poucos e
 respeitando o limite, **gravando no nosso banco**, até cobrir todas as cidades **de destino das notas que já temos**,
@@ -55,17 +57,21 @@ e fazer os feriados importados **avisarem na montagem** quando uma entrega cair 
 - **Q3 — `[NEEDS CLARIFICATION]` Plano e cota.** As 67 cidades da amostra estão todas fora das 27 capitais. O plano
   gratuito cobre nacionais, estaduais e capitais; o interior "consome cota" e a documentação não diz quanto. O plano
   Developer custa **R$ 39/mês com 5.000 consultas/mês**; as 645 cidades de SP × 2 anos = 1.290 consultas cabem no 1º
-  mês, e a amostra pede ≈ 138 na carga e ≈ 25/mês depois. **Pergunta:** qual plano, e qual valor de
-  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (padrão proposto: o limite mensal do plano escolhido menos 10% de folga)?
+  mês, e a amostra pede ≈ 138 na carga e ≈ 23/mês depois. **Pergunta:** qual plano, e qual valor de
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (padrão proposto: o limite mensal do plano escolhido menos 10% de folga)? O
+  orçamento é **por instalação** (o contador mora no banco de cada uma, ADR-0021): uma chave compartilhada entre
+  transportadoras divide os 60/min e a cota sem que um banco veja o outro — uma chave por instalação, ou o orçamento de
+  cada uma dividido.
 - **Q4 — `[NEEDS CLARIFICATION]` Termos de uso.** A página de termos respondeu 404 e a documentação não diz se os
   dados podem ser guardados. Risco registrado no ADR-0100 e em `docs/SECURITY.md` (2026-10-07). **Passo do usuário:**
   confirmar com o fornecedor que guardar os feriados é permitido **antes** de configurar o token.
 
 ### Passos do usuário (nunca da IA)
 
-Criar a conta na FeriadosAPI, gerar a chave, escolher o plano (Q3), confirmar os termos (Q4) e configurar
+Criar a conta na FeriadosAPI, gerar a chave, escolher o plano (Q3), confirmar os termos (Q4), configurar
 `FERIADOS_API_TOKEN` (e, se diferente do padrão, `FERIADOS_API_MONTHLY_REQUEST_BUDGET`) no serviço do **worker** em
-staging. Sem token, a rotina não é registrada e nada sai do produto.
+staging e **despausar** a rotina `holiday.provider.pull` no painel (ela nasce pausada de fábrica, D13). Sem token, a
+rotina não é registrada e nada sai do produto.
 
 ## Decisões por delegação (revogáveis; detalhadas no ADR-0100 §2)
 
@@ -73,16 +79,19 @@ staging. Sem token, a rotina não é registrada e nada sai do produto.
   `company_id` (precedente `geocoded_addresses`), nunca expostas por rota. Demanda, cursor, supressões e as linhas do
   calendário seguem por empresa.
 - **D2 — Identidade `(escopo, ibge, data)`.** O `id` do fornecedor (`external_id`) é só rastro.
-- **D3 — Digitada vence; gerada por regra também vence a importada** (`ON CONFLICT DO NOTHING`).
+- **D3 — Digitada vence; gerada por regra também vence a importada** (`ON CONFLICT DO NOTHING`). Vale para a linha que
+  já existe: regra criada depois de uma importada no mesmo dia convive com ela (o dia conta uma vez).
 - **D4 — Nacional não é importado.** Uma busca por ano só para conferir paridade com o calendário do código; as
   diferenças são contadas (`national_mismatch`), nunca gravadas.
 - **D5 — `FACULTATIVO` só no cache**, não aplicado (Carnaval e Corpus Christi seguem como a 238 decidiu).
 - **D6 — Estadual vira `state_holidays` `once` marcado**, pulado se já há `yearly` digitado no mesmo dia e mês.
-- **D7 — Só datas de hoje em diante** (dia civil de São Paulo, relógio injetado): o selo de prazo de nota já entregue
-  não muda.
+- **D7 — Só datas de hoje em diante** (dia civil de São Paulo, relógio injetado): o **estado** do selo de prazo de
+  nota já entregue não muda (só a contagem de dias de atraso da nota entregue **hoje** pode cair em 1, e fica mais
+  certa); desligar importada só vale de hoje em diante.
 - **D8 — Horizonte:** ano corrente e o seguinte; par já buscado é rebuscado depois de 180 dias.
-- **D9 — Limitador:** 1,2 s entre requisições (~50/min), teto de 100 por ciclo, orçamento mensal no banco, rotina
-  1×/dia com piso de 3.600 s; a trava de uma execução por rotina já existe.
+- **D9 — Limitador:** 1,2 s entre requisições (~50/min), teto de 100 por ciclo, orçamento mensal no banco (upsert,
+  incrementado antes da chamada), rotina 1×/dia (86.400 s em `job_schedules`) com piso de 3.600 s
+  (`minimumIntervalSeconds` do catálogo); a trava de uma execução por rotina já existe.
 - **D10 — Token só no worker**, opcional; vazio = ausente = rotina não registrada, boot verde.
 - **D11 — O aviso fala da cidade, não da exceção do cliente**: pede para conferir, nunca bloqueia.
 - **D12 — O aviso do motorista vem pronto da API, na leitura que o app já faz** (`GET /me/trips/current`), como campo
@@ -92,55 +101,72 @@ staging. Sem token, a rotina não é registrada e nada sai do produto.
   do calendário da cidade do destino físico). Sem rota nova para o app (o aviso viaja no snapshot guardado no
   aparelho e funciona sem rede), e a resposta traz `cityName` para o texto dizer "em Campinas" sem o app consultar
   nada. A nota do motorista **não** lê o calendário.
+- **D13 — A rotina nasce pausada de fábrica** (validação, T0.1): sem token cada janela diária fecharia
+  `unexpected_error` com `job_run_routine_missing`; a linha de `job_schedules` nasce `enabled = false`,
+  `paused_origin = 'system'`, e despausar é passo do usuário junto com o token.
 
 ## Requisitos funcionais
 
 - **RF1 — Roteirizador por cidade da parada.** `readPoolWindows` traz `cityIbgeCode` no select de
   `municipal_holidays` e resolve a janela por `(cidade da parada, CNPJ)` (chave `${cityCode}\u0000${taxId}`). A política
-  `delivery-window.policy.ts` e o contrato com o solver não mudam; sem migration e sem consulta nova.
-- **RF2 — Modelo de dados** (migration aditiva única, `rollback.sql`, só staging; ADR-0100 §3): cache global
-  `holiday_provider_fetches`, `holiday_provider_entries`, `holiday_provider_monthly_usage`; por empresa
+  `delivery-window.policy.ts` e o contrato com o solver não mudam; sem migration e sem consulta nova. **Feito**
+  (`4454228ac`, `drizzle-pool-window.query.ts` + `pool-window.policy.ts`).
+- **RF2 — Modelo de dados** (migration aditiva única, `rollback.sql`, só staging; ADR-0100 §3, com **todos os nomes
+  de constraint e índice explícitos e ≤ 63 bytes**): cache global `holiday_provider_fetches` (nacional com
+  `ibge_code = 'BR'`), `holiday_provider_entries`, `holiday_provider_monthly_usage`; por empresa
   `holiday_import_cities`, `company_holiday_import_settings`, `holiday_import_suppressions`; `provider_entry_id uuid
-null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com `source_rule_id`, índice parcial; o nome
-  da rotina nas CHECK de `job` e uma linha em `job_schedules`.
+null` em `municipal_holidays` e `state_holidays` (FK simples para o cache, `RESTRICT`), CHECK de exclusão mútua com
+  `source_rule_id`, CHECK de importada só `once` no estadual, índices parciais; o nome da rotina nas duas CHECK de `job`
+  e uma linha **pausada de fábrica** em `job_schedules` (D13).
 - **RF3 — Catálogo de jobs:** `holiday.provider.pull` nas quatro cópias (API, worker, cron, painel), **painel primeiro**.
 - **RF4 — Cliente HTTP** da FeriadosAPI no worker: `Authorization: Bearer`, guarda Zod com as chaves esperadas, erros
   tipados (`provider_unreachable`, `provider_unauthorized`, `malformed_response`), fixture no formato da documentação.
 - **RF5 — Descoberta:** cursor por empresa sobre `nfe_documents_company_updated_issued_id_idx`, lotes de até 2.000
-  notas, até 20 lotes por ciclo, destino físico pela mesma junção do roteirizador, upsert em `holiday_import_cities`.
+  notas, até 20 lotes por ciclo, destino físico pela mesma junção do roteirizador (SQL dos dois papéis + a escolha
+  por `resolvePhysicalDestination` em TypeScript, nunca `COALESCE`), upsert em `holiday_import_cities`. O desvio manual
+  não entra (como no roteirizador; ADR-0100 §5).
 - **RF6 — Busca:** pares `(cidade, ano)` pendentes ou vencidos por `sum(document_count)` decrescente; uma requisição
   por par (`GET /feriados/cidade/{ibge}?ano=Y&limit=100`); paginação só se > 100; nacional 1 por ano só para
   paridade; estadual só se a cidade não o trouxer. Limitador e orçamento do D9; tratamento de erro do ADR-0100 §5.
 - **RF7 — Aplicação:** SQL por conjunto. `MUNICIPAL` → `municipal_holidays ON CONFLICT DO NOTHING`, pulando as
-  suprimidas; `ESTADUAL` → `state_holidays` `once` marcado (D6); só datas `>=` hoje em São Paulo (D7). Data removida
-  pelo fornecedor: `removed_at` no cache, a linha da empresa fica e é sinalizada.
+  suprimidas; `ESTADUAL` → `state_holidays` `once` marcado (D6), com o `ON CONFLICT` sobre o único parcial `once`;
+  só datas `>=` hoje em São Paulo (D7). Data removida pelo fornecedor: `removed_at` no cache, a linha da empresa fica e
+  é sinalizada.
 - **RF8 — Chave e configuração:** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` no schema do worker
   (opcionais; vazio = ausente; molde `GOOGLE_MAPS_API_KEY`); `.env.example` sem valor; `.railway/railway.ts` com
   `preserve()`; registro condicional da rotina; `job_run_routine_missing` sem token.
 - **RF9 — Rotas de gestão** (`settings.manage`, Zod `.strict()`, `companyId` do contexto, `audit_logs` na mesma
-  transação): desligar e restaurar um feriado importado, adotar (editar nome/tipo vira digitada), status da importação
-  (cidades cobertas/pendentes, último ciclo, orçamento usado no mês, falhas, removidos pelo fornecedor).
+  transação): desligar (só de hoje em diante) e restaurar um feriado importado, adotar (editar nome/tipo vira
+  digitada), status da importação (cidades cobertas/pendentes, último ciclo, orçamento usado no mês, falhas, removidos
+  pelo fornecedor). As rotas da 238 passam a tratar a importada (municipal e estadual): `DELETE` **é** o desligar (com
+  supressão), `POST` da mesma data e `PATCH` são adoção (zeram `provider_entry_id`), e `typedHolidaysKept` conta só
+  `provider_entry_id IS NULL` (ADR-0100 §4).
 - **RF10 — Avisos na API:** `GET /trips/:id` ganha nas paradas o campo **aditivo**
   `holidayWarnings` (formato em RF10b; paradas não concluídas, `trip_stops.estimated_arrival_at` em
   dia civil de São Paulo), reaproveitando o calendário da 236; `POST /business-calendar/day-checks` (`fleet.read`,
   corpo `.strict()`, até 200 itens `{ cityIbgeCode, date }`, responde só os dias não úteis por feriado).
 - **RF10b — Formato único do aviso:** `{ date, cityIbgeCode, cityName, reasons[] }`, com `cityName` lido do mesmo
-  endereço do destino físico que dá o código (nulo → o texto omite a cidade) e `reasons[]` com escopo (nacional,
-  estadual, municipal), origem (código, cadastrado, gerado por regra, importado) e nome. O mesmo formato serve o
-  detalhe da viagem e o app do motorista.
+  endereço do destino físico que dá o código (`nfe_addresses.city` pela escolha de `listStopAddresses`; nulo quando o
+  `city_code` do endereço não é a cidade da parada, como no desvio manual → o texto omite a cidade) e `reasons[]` com
+  escopo (nacional, estadual, municipal), origem (código, cadastrado, gerado por regra, importado) e nome. A origem é
+  campo novo do calendário (`HolidayReason` hoje só tem o escopo). O mesmo formato serve o detalhe da viagem e o app do
+  motorista.
 - **RF11 — Painel:** aba Calendário com a origem (nacional, estadual, cadastrado, importado), desligar/restaurar,
   removidos pelo fornecedor e status; avisos por parada na montagem (uma chamada a `day-checks` depois que o solver
   termina; se falhar, o aviso nacional de hoje) e selo nas paradas do detalhe. Locale pt-BR/en, tokens, dois temas.
 - **RF13 — Aviso na leitura do motorista:** `GET /me/trips/current` ganha `holidayWarnings` nas paradas (D12, RF10b).
   Recorte pelo vínculo do motorista intacto (BOLA). Calendário das cidades das paradas carregado **uma vez**, em série,
-  **+4 consultas fixas** sobre a contagem atual da leitura (medida e fixada em contrato antes do código), sem N+1.
-  Falha ao carregar o calendário não derruba a leitura: sai sem aviso, com log só de ids e contagem.
+  **+5 consultas fixas** sobre a contagem atual da leitura (4 do calendário + 1 dos endereços para o `cityName`, que a
+  leitura do motorista hoje não lê; medida e fixada em contrato antes do código), sem N+1. Falha ao carregar não
+  derruba a leitura: sai sem aviso, com log só de ids e contagem. O módulo do aviso é chamado pelo caso de uso, nunca
+  pelo repositório da leitura, e não importa `trip-delivery-deadline-*` (contrato de isolamento da 236).
 - **RF14 — App do motorista:** a guarda da resposta (`driverTripResponse.validation.ts`) lê `holidayWarnings` como
   acessório (ausente ou malformado → lista vazia, nunca recusa da viagem) e o guarda no snapshot; o cartão da parada
   mostra o aviso ("Hoje é feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir."), neutro,
   sem esconder nem bloquear iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo
   ≥ 44 px se houver toque; pt-BR/en no padrão do app; nenhum código importado do painel (ADR-0075). "Hoje" só quando
-  a data do aviso é o dia civil do aparelho; senão a data ("Dia 13/10 é feriado em …").
+  a data do aviso é o dia civil de São Paulo no relógio do aparelho, corrigido pelo desvio que o app já mede
+  (`clockOffset.service.ts`); senão a data ("Dia 13/10 é feriado em …").
 - **RF12 — Última tarefa:** revisão de design e usabilidade com print (web.md §15), documentação viva e revisão final.
 
 ## Requisitos não funcionais
@@ -151,7 +177,8 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - **Falha nunca derruba o negócio:** pior caso é feriado não importado (o estado de hoje). Fornecedor fora do ar não
   atrasa importação de NF-e, roteirização ou emissão.
 - **Sem N+1:** o detalhe da viagem soma +0 consultas quando o calendário da 236 já foi carregado, senão +4 fixas, em
-  série (ADR-0096 §6); `day-checks` +4 fixas para até 200 itens.
+  série (ADR-0096 §6), e o `cityName` sai dos endereços que ele já lê; `day-checks` +4 fixas para até 200 itens; a
+  leitura do motorista +5 fixas (RF13).
 - **Relógio injetado** em toda decisão de data (D7, D8, backoff, mês do orçamento).
 - **Compatível para trás:** cliente que não conhece `holidayWarnings` segue igual; o painel e o app do motorista
   toleram o campo ausente. O campo é de **resposta**: a regra do `apps/api-transportada/CLAUDE.md` ("`.strict()` exige
@@ -165,7 +192,11 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 
 ## Casos extremos e falhas
 
-- Sem token: rotina não registrada, `job_run_routine_missing`, boot verde, nenhuma requisição.
+- Sem token: rotina não registrada, boot verde, nenhuma requisição; a linha nasce pausada (D13), então não há janela
+  `job_run_routine_missing` diária. Despausada sem token: `job_run_routine_missing` e `unexpected_error`, como hoje
+  com as outras rotinas opcionais.
+- Primeiro pedido do mês: o contador nasce no upsert (nunca um `UPDATE` sem linha que pararia a rotina).
+- Duas entradas do fornecedor no mesmo dia e cidade (facultativo e municipal): vence a não facultativa.
 - 401/403: ciclo encerra com `provider_unauthorized`, nenhuma requisição a mais.
 - 429: ciclo encerra e o próximo respeita `Retry-After`.
 - Orçamento mensal atingido: pares ficam `quota_exhausted` até o dia 1º; não é falha.
@@ -195,7 +226,8 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - **CA6** Data removida pelo fornecedor continua na empresa, sinalizada (`removed_at` no cache).
 - **CA7** 401 encerra com `provider_unauthorized` sem nova requisição; 429 espera o `Retry-After`; o orçamento mensal
   nunca é ultrapassado (contador incrementado antes da chamada).
-- **CA8** Sem token: `job_run_routine_missing` e boot verde.
+- **CA8** Sem token: rotina não registrada e boot verde; a linha de `job_schedules` nasce pausada de fábrica
+  (`paused_origin = 'system'`); despausada sem token, `job_run_routine_missing`.
 - **CA9** O token não aparece em nenhuma linha de log (contrato sobre a saída do logger, inclusive em erro).
 - **CA10** `FACULTATIVO` e `NACIONAL` não são aplicados; a diferença nacional é contada em `national_mismatch`.
 - **CA11** Data passada não entra; o selo da 236 de nota já entregue não muda.
@@ -204,7 +236,7 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - **CA13** `day-checks` responde 400 a campo desconhecido e a mais de 200 itens, e nunca aceita `companyId` do corpo.
 - **CA14** O aviso nunca desabilita "Criar viagem"; prints em 375/768/1280 px, claro e escuro, aprovados pelo usuário.
 - **CA15** O motorista vê o aviso **só nas paradas da cidade em feriado** e **só da viagem dele** (outro motorista,
-  outra viagem ou outra empresa não recebem); a leitura soma **+4 consultas fixas** com uma cidade ou com várias; o
+  outra viagem ou outra empresa não recebem); a leitura soma **+5 consultas fixas** com uma cidade ou com várias; o
   aviso nunca esconde nem desabilita ação do app; prints 375/768/1280, claro e escuro, aprovados pelo usuário.
 - **CA16** A nota do motorista (`computeDriverScore`), a pontualidade do comprovante e `missingAfterHours` são
   **idênticos** com e sem feriado na cidade da parada (integração); a mutação "a nota desconta o feriado" derruba o
@@ -233,3 +265,7 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - **Aniversário de cidade pode não vir** (a documentação não o menciona): o cadastro manual da 238 continua valendo.
 - **Migration em tabela publicada** (`municipal_holidays`, `state_holidays`): `ADD COLUMN` nulo e CHECK `NOT VALID` +
   `VALIDATE`; lock retido até o `COMMIT` do lote (ADR-0096 §5) — medir antes de produção.
+- **Junção da descoberta sem índice:** `nfe_addresses` não tem índice por `(company_id, participant_id)`; a T3.2 mede
+  o lote com `EXPLAIN` e, se preciso, o índice sai em migration própria (`CONCURRENTLY`).
+- **Migration paralela da 250** (`20261007205304_nfse_national_taxation`, ainda fora de staging): a da 252 nasce depois
+  da última de staging na hora de gerar e é regerada se a 250 entrar antes (cadeia do `snapshot.json`).
