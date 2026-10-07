@@ -8,8 +8,11 @@
 export type DriverNfeProduct = Readonly<{
   code: string
   description: string
-  unit: string
+  /** O valor unitário varia entre as linhas do código: o valor pago passa a ser exigido na linha. */
+  hasVaryingUnitValue: boolean
+  /** A soma das linhas do código, com as casas da NF-e: é o teto do que se devolve. */
   quantity: string
+  unit: string
   unitValue: string
 }>
 
