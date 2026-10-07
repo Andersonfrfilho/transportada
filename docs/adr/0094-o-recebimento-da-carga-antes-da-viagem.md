@@ -596,24 +596,42 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
 - **As duas listas** (colunas aditivas, nulas): `preview_forwarder_allowlist` (quem encaminha, **endereço
   exato**) e `preview_sender_allowlist` (o remetente original, **endereço exato ou domínio exato**, nunca
   subdomínio). Separadas porque são conjuntos de natureza diferente; numa lista só, quem encaminha forjaria o
-  original com o próprio endereço. Lista ausente ou vazia recusa tudo, e o CHECK do banco recusa token sem as duas.
-- **Onde o ramo mora.** `recordContractorMailInboundMessage` chama `previewIntake` logo depois de buscar o
-  e-mail e **antes** de procurar conversa; só a mensagem que casa o token de **um** perfil entra — token
-  desconhecido, sem token ou ligado a mais de um perfil segue pelo trilho da conversa exatamente como antes
-  (contrato de regressão).
+  original com o próprio endereço. Lista ausente ou vazia recusa tudo; o CHECK do banco recusa token sem as duas e entrada nula, vazia, com
+  controle, espaço, vírgula, `<>` ou `|`, ou fora de 3–254 caracteres (T4.7a; o worker ignora o que não for texto).
+- **Onde o ramo mora.** `recordContractorMailInboundMessage` procura primeiro a **conversa** (token do trilho da
+  143/183) e só chama `previewIntake` quando **nenhuma** thread casa — **a conversa vence** (T4.7a): um e-mail que
+  traz o endereço da prévia e o de uma conversa, no `To` ou no `Cc`, é resposta da conversa. Só a mensagem que casa o
+  token de **um** perfil entra no ramo; token desconhecido, sem token ou ligado a mais de um perfil devolve
+  `not_a_preview` e a mensagem é descartada como antes (contrato de regressão). `hasIntake` roda antes do Resend
+  para toda mensagem.
 - **As barreiras, da mais barata à mais cara**, cada uma com código estável: janela de e-mails do contratante
-  (20 por 300 s; o excesso é ignorado sem registro nem download) → perfil pronto (`PREVIEW_NOT_ENABLED`) →
-  encaminhador do provedor na lista, **antes de baixar** (`FORWARDER_NOT_ALLOWED`) → MIME até **2 MiB**
-  (`RAW_EMAIL_TOO_LARGE`; o gateway ganhou `maxBytes`, que nunca sobe os 25 MiB) → DKIM do encaminhador
-  alinhado (`FORWARDER_DKIM_NOT_ALIGNED`, também para `absent` e `unverifiable`) → o `From` **do próprio MIME**
-  (o que o DKIM cobre) na lista → remetente original (`ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) →
-  um único anexo candidato, até **960 KiB**, assinatura zip nos bytes (`ATTACHMENT_*`) → teto de 5 prévias
-  abertas (`TOO_MANY_OPEN_PREVIEWS`, dentro da transação).
+  (abaixo) → perfil pronto (`PREVIEW_NOT_ENABLED`) → encaminhador do provedor na lista, **antes de baixar**
+  (`FORWARDER_NOT_ALLOWED`) → MIME até **2 MiB** (`RAW_EMAIL_TOO_LARGE`; o gateway ganhou `maxBytes`, que nunca sobe
+  os 25 MiB) → **cabeçalho medido** (`MIME_UNREADABLE`, T4.7a) → DKIM do encaminhador alinhado
+  (`FORWARDER_DKIM_NOT_ALIGNED`, também para `absent`; **`unverifiable` repete a entrega** e só a última grava
+  `FORWARDER_DKIM_UNVERIFIABLE`) → o `From` **do próprio MIME** (o que o DKIM cobre) na lista → remetente original
+  (`ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) → um único anexo candidato, até **960 KiB**, assinatura zip
+  nos bytes (`ATTACHMENT_*`) → teto de 5 prévias abertas (`TOO_MANY_OPEN_PREVIEWS`, dentro da transação).
+- **A janela de e-mails (T4.7a).** Dois contadores por contratante em 300 s, pelo **relógio do banco**
+  (`recorded_at`, nunca a data do e-mail): os que passaram do DKIM do encaminhador (teto **20**) e os que ficaram
+  antes dele (teto **100**, só para a tabela não ser inundada por quem sabe o endereço). Fechada a janela, o excesso
+  não baixa nada e deixa **uma** linha `RATE_LIMITED` por contratante e janela; o rastro não entra nos contadores.
+- **O cabeçalho é medido antes do DKIM (T4.7a).** O `addressparser` do nodemailer, que a `mailauth` usa para
+  `From`/`Return-Path`, é quadrático: 400 KB de `a,a,a…` travaram o laço de eventos por 58 s. Antes de qualquer
+  `dkimVerify` a seção de cabeçalhos tem de caber em 64 KiB (com fim de cabeçalho) e cada linha desdobrada de `From`,
+  `Return-Path`, `Sender` e `Reply-To` em 2 KiB. A mesma função guarda o trilho da conversa (mensagem hostil: DKIM
+  `absent` e sem anexos).
+- **`l=` nunca alinha (T4.7a).** Assinatura DKIM que declara só parte do corpo (`l=`) deixa o resto livre para quem
+  encaminha; a política de alinhamento — a mesma do trilho 143/183 — não a conta como alinhada.
 - **O remetente original.** PostalMime limitado (`maxNestingDepth` 6, cabeçalhos 64 KiB,
   `forceRfc822Attachments`) abre a mensagem anexada **uma vez, sem recursão**; sem ela, vale o **primeiro**
-  bloco encaminhado do texto (marcadores Gmail/Thunderbird/Apple/Outlook, até 200 linhas, cabeçalho de até 12).
-  `From` duplicado, lista de endereços ou mais de um `From` no bloco são `ambiguous`; nada é adivinhado. O
-  nome de exibição é descartado (`"fr@x" <mallory@y>` vale `mallory@y`). Fica registrado `unverified`.
+  bloco encaminhado do texto (marcadores Gmail/Thunderbird/Apple en e pt-BR/Outlook, até 200 linhas, cabeçalho de
+  até 12, `De:` dobrado; percorre os marcadores até achar um bloco com `From`/`De`, então a assinatura com `____` não
+  esconde o remetente). `From` duplicado, lista de endereços ou mais de um `From` no bloco são `ambiguous`; nada é
+  adivinhado. A caixa é `endereço` ou `nome <endereço>` e só: o Outlook em texto (`Nome <a@x<mailto:a@x>>`) e o
+  clássico (`Nome [mailto:a@x]`) são desembrulhados quando repetem o mesmo endereço; mais de um `<` ou `@` fora de
+  aspas, comentário, grupo, `mailto:` e nome codificado sem endereço real são recusa. O nome de exibição é
+  descartado (`"fr@x" <mallory@y>` vale `mallory@y`). Fica registrado `unverified`.
 - **A prévia nasce como a do upload:** cópia por valor (`preview-upload-file.policy.ts`, com contrato de
   paridade) do nome sem caminho, da impressão do pedido, da chave do objeto, do teto de abertas e da trava de
   envio — a **mesma** advisory da API, então upload e e-mail não furam o teto nem duplicam o arquivo um com o
@@ -627,11 +645,19 @@ null)` amarra os dois), `idempotency_key = 'email:' + sha256(providerEmailId)`, 
   (`stored_objects.purpose = 'contractor_mail_raw'`, chave opaca) é guardado **só do aceito**; e-mail recusado
   não grava corpo (RF3).
 - **O que o desenho não faz:** não responde ao remetente (sem eco), não reabre a prévia que falhou quando o
-  mesmo arquivo volta por e-mail (o upload reabre; aqui devolve a existente — follow-up), não tem rate limit além
+  mesmo arquivo volta por e-mail (o upload reabre; aqui devolve a existente com o status dela —
+  `replayed_existing`, log `replay: true` e `previewStatus` — e a reabertura é follow-up), não tem rate limit além
   da janela de e-mails e do teto de abertas, e **não verifica o contratante**: o DKIM dele se perde no
   encaminhamento (risco aceito, `docs/SECURITY.md`, 2026-10-06).
+- **Como a mensagem chega (T4.7a): encaminhar MANUALMENTE.** A equipe encaminha a mensagem do contratante ao
+  endereço de entrada — **inline** (o bloco "Forwarded message") ou **como anexo** (`message/rfc822`). O encaminhamento
+  **automático** (regra, redirecionamento do Gmail ou do Outlook) preserva o `From` do contratante e não cria bloco
+  encaminhado: o encaminhador do provedor não é o da lista e o remetente original não é lido — essa forma **não é
+  suportada por esta versão**. `[NEEDS CLARIFICATION]` — decisão do usuário pendente: se o encaminhamento automático
+  for necessário, é outro desenho (o contratante assina o e-mail; a lista passa a ser de quem **assina**).
 - **Passos do usuário (spec 143 T012):** MX e domínio de entrada no Resend, e — enquanto não há tela — gravar
-  por SQL o hash do token e as duas listas no perfil. Nada disso é feito pelo código.
+  por SQL o hash do token e as duas listas no perfil (o token deve ter ≥ 130 bits aleatórios, `openssl rand`; o
+  CHECK só confere o alfabeto). Nada disso é feito pelo código.
 
 ## Consequências
 

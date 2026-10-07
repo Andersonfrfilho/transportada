@@ -144,8 +144,20 @@
       e as listas, e **as recusas recentes** (`cargo_preview_email_intakes`) por contratante. Contrato antes;
       o formato do token e o hash são os de `preview-inbound-token.policy.ts` (copiar por valor, com paridade).
       `sonnet`.
+- [x] **T4.7a** Correções das revisões `opus` (código e segurança) da T4.6, **antes da publicação**: cabeçalho do MIME
+      medido antes do DKIM (prévia e conversa), `l=` nunca alinha, janela por contratante com dois contadores pelo
+      relógio do banco e rastro `RATE_LIMITED`, a conversa vence quando há os dois endereços, o MIME da vencedora
+      nunca é apagado pela reentrega, parser do remetente original (Outlook, Apple pt-BR, `De:` dobrado, hostis),
+      DKIM `unverifiable` repete a entrega, reenvio com o status da prévia, CHECK das listas, prefixo `email:` reservado
+      no upload, contrato de que hash e listas não saem, paridade nos dois sentidos. Migration
+      `20261007024527_cargo_preview_email_intake` **editada no lugar** (ainda não publicada). Docs: ADR-0094 §10,
+      `SECURITY.md` (L3, L4, encaminhamento só manual, ordem de deploy). `evidence.md` § T4.7a; **sem push**.
+- [ ] **T4.7b** Painel: aceitar `source: 'email'` na lista/detalhe da prévia + rótulo de origem + contrato do guard
+      (hoje o guard de resposta da prévia no painel só conhece `upload`; a prévia por e-mail nasce com `source =
+    'email'` e `uploaded_by_user_id` nulo). `sonnet`.
 - [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
-      original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar.
+      original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar. _(Os achados da primeira
+      revisão estão na T4.7a; esta é a revisão do que mudou, depois da T4.7b.)_
 
 ## Fase 4c — Retenção dos dados da planilha (decisão do usuário: 90 dias)
 
@@ -160,6 +172,9 @@
       **Cobre também o MIME bruto** (`stored_objects.purpose = 'contractor_mail_raw'`) das mensagens da prévia por
       e-mail (`cargo_preview_email_intakes.raw_object_id`): ele guarda a planilha e os cabeçalhos do encaminhamento
       (T4.6, `SECURITY.md` 2026-10-06).
+      ⚠️ **Só pode marcar `stored_objects.status = 'deleted'` e apagar o objeto do bucket** (T4.7a): a tabela de
+      e-mails é append-only e a FK `RESTRICT` de `raw_object_id` impede anular a referência ou apagar
+      `cargo_previews`/`stored_objects` referenciados — a linha do MIME **fica**, só o conteúdo some.
 
 ## Prompt de execução
 

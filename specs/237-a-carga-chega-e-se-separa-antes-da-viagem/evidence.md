@@ -2293,7 +2293,9 @@ append-only e uma passada de ponta a ponta com o MIME real.
 1. MX/domínio de entrada no Resend (spec 143 T012) — nada disso foi tocado.
 2. Gravar por SQL, no perfil: o hash do token (`sha256("transportada:cargo-preview-inbound:v1:" + token)`) e as
    duas listas — até a T4.6b; sem os três, a prévia por e-mail fica desligada.
-3. Configurar o encaminhamento das contas da equipe para `<token>@<domínio de entrada>`.
+3. **Encaminhar MANUALMENTE** a mensagem do contratante (inline ou como anexo) para `<token>@<domínio de entrada>`
+   (T4.7a: encaminhamento automático/redirect do Gmail ou Outlook preserva o `From` do contratante e não cria bloco
+   encaminhado — não é suportado; ver § T4.7a e `SECURITY.md`).
 
 ### Follow-ups
 
@@ -2307,3 +2309,115 @@ append-only e uma passada de ponta a ponta com o MIME real.
 DNS, MX, Resend e qualquer envio ou recebimento real; o `make migration-test` (Docker do Makefile): o equivalente,
 `bun run db:test`, rodou num Postgres 18 nativo descartável; o painel (não foi tocado); a revisão `opus` e a de
 segurança (T4.7).
+
+## T4.7a — correções das revisões `opus` (código e segurança) da T4.6 (2026-10-07)
+
+A migration `20261007024527_cargo_preview_email_intake` **ainda não foi publicada**: foi editada **no lugar**
+(migration, `rollback.sql`, `snapshot.json` e schemas TS), sem migration nova. `git fetch` + `rebase origin/staging`
+(sem migration nova em staging; snapshot continua encadeado ao último, `db:generate` = `no_changes`).
+
+### O que mudou, por achado
+
+| #   | Achado                                              | Correção                                                                                                                                                                                                                                                                          |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| 1   | DoS: DKIM sem teto de cabeçalho                     | `mime-header-bounds.policy.ts`: 64 KiB de seção (com fim de cabeçalho) e 2 KiB por linha desdobrada de `From`/`Return-Path`/`Sender`/`Reply-To`, **antes** do `dkimVerify` na prévia (`MIME_UNREADABLE`) **e** na conversa (DKIM `absent`, sem anexos)                            |
+| 2   | `l=` aceito como alinhado                           | `dkim-alignment.policy.ts`: `canonBodyLengthLimited` nunca alinha (vale para a conversa)                                                                                                                                                                                          |
+| 3   | Janela contava recusas e o excesso sumia            | dois contadores (20 passaram do DKIM / 100 antes dele), por `recorded_at`; uma linha `RATE_LIMITED` por contratante e janela; CHECK de `reason_code` ampliado; índice agora por `recorded_at`                                                                                     |
+| 4   | Conversa perdia para a prévia                       | a conversa é procurada primeiro; a prévia só é consultada sem thread                                                                                                                                                                                                              |
+| 5   | Reentrega apagava o MIME da vencedora               | `already_recorded` descarta só a planilha da tentativa; o MIME só sai se nenhuma linha o referencia (`isRawKept`)                                                                                                                                                                 |
+| 6   | Parser do remetente original                        | Outlook texto/clássico, Apple pt-BR, `De:` dobrado, vários marcadores; recusa 2 `<`/`@`, comentário, grupo, `mailto:`, nome codificado sem endereço                                                                                                                               |
+| 7   | `unverifiable` virava recusa permanente             | repete a entrega (erro de domínio → `retry`); só a última (`retryCount >= maxRetries`, 3) grava `FORWARDER_DKIM_UNVERIFIABLE`                                                                                                                                                     |
+| 8   | Reenvio de prévia que falhou devolvia "aceito" mudo | resultado `replayed_existing`; log `inbound_email_preview_accepted` com `replay: true` e `previewStatus`; intake já guarda `is_replay` (sem coluna nova); a prévia **não** é reaberta (follow-up)                                                                                 |
+| 9   | CHECK das listas fraco                              | 1–20 entradas de 3–254 caracteres, sem NULL/vazia/controle/`                                                                                                                                                                                                                      | `; `normalize` do worker ignora o que não é texto |
+| 10  | Baixos                                              | `maxBytes` só finito; `ZIP_SIGNATURE` morta removida; `message/rfc822`, `TOO_MANY_OPEN_PREVIEWS`, `minio` e códigos repetidos viraram constante; writer dividido (208 → 127 + 136 linhas); erros de domínio; `rejecter` tipado; prefixo `email:` reservado no upload da API (400) |
+| 11  | Hash e listas não saem                              | integração da API afirma o conjunto exato de chaves do `GET`/`PUT`, da lista e do `audit_logs` (antes e depois)                                                                                                                                                                   |
+| 12  | Paridade                                            | contrato nos dois sentidos: corpo de `hasZipSignature`, `>` do teto, 960 KiB (calculado da API), `OPEN_STATUSES` e `>=` do 5, chaves de `cargo_previews`, do `details` e do payload, chave do objeto, colunas da tabela e do perfil, prefixo e códigos                            |
+
+O contrato de paridade nos dois sentidos **achou um defeito real**: a cópia da tabela de e-mails no worker não tinha
+`recorded_at`.
+
+### Contrato antes do código (commits)
+
+`d113b60f5` (API: listas, códigos e índice, vermelho em `db:test` pelo motivo certo: `['']` passava no CHECK antigo) →
+`ef65849e1`/`978dfd109` (migration e schemas) · `c8dd02735` (worker: 60 vermelhos de 202 + 7 de 12 na integração, cada um
+pelo motivo do achado; a barreira de cabeçalho entrou como esqueleto que deixa tudo passar) → `6ffba53b6` (código) ·
+`8091c56f0` (API: prefixo reservado vermelho; hash/listas) → `85cbf70aa` · `81f507258` (paridade e mutações).
+
+### Gates (rodados nesta sessão)
+
+| Gate                                                                                                                           | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| worker `bun run typecheck && bun run lint`                                                                                     | verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| script `test` do worker                                                                                                        | **1848 passam / 0 falham** (antes 1762)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `./test/integration/cargo-preview-email-intake.integration.ts` (Postgres 18 nativo descartável)                                | 12 passam (antes 9) — banco em uso impresso: `t47a_worker` na porta 55947, `DATABASE_URL` sobrescrito sobre `.env.test`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| API `bun run typecheck && bun run lint`                                                                                        | verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bun --env-file=../../.env.test test --timeout 120000` (API)                                                                   | **10177 passam / 0 falham** (antes 10174; 25 pulados, os de Postgres sem URL)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `bun run db:test` (nativo) e `make migration-test` (Docker)                                                                    | 138 passam nos dois (migration + rollback + reaplica, CHECKs novos, índice por `recorded_at`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `test:integration` completo do worker, uma vez por banco novo (Postgres 18 nativo; `DATABASE_URL` sobrescrito, banco impresso) | 204 passam / **2 falham**, as duas **sem relação com a mudança**: `osrm-routing-matrix` (dataset do OSRM local) e `contractor-mail-inbound-outbox` ("does not let a second claim…"), **flaky pré-existente**: no `origin/staging` limpo caiu em 1 de 4 execuções completas, e isolado num banco novo caiu em 1 de 3 (hipótese: `new Date()` em ms contra `occurred_at` em µs, quando semeia e reivindica no mesmo milissegundo). Num banco reaproveitado por muitas execuções, `cargo-preview-reevaluation` também caiu (a fila do relay acumula pedidos pendentes de todas as execuções; `limit: 50`) e passou no banco novo |
+| integrações da API tocadas, um arquivo por vez                                                                                 | `cargo-preview` (6), `-resend` (2), `-unlink` (2), `-upload-limit` (2), `-trip-draft` (5), `contractor-receiving-profile` (4, +1 nova), `-list` (1): verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `bun run format:check` na raiz                                                                                                 | verde                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+### Mutações (script fora do repositório; cada arquivo restaurado; `git diff --quiet` limpo depois)
+
+| Mutação                                                         | Testes que caem                                |
+| --------------------------------------------------------------- | ---------------------------------------------- |
+| sem a barreira de cabeçalho na prévia                           | 3                                              |
+| sem a barreira de cabeçalho na conversa                         | 1                                              |
+| `l=` aceito como alinhado                                       | 2                                              |
+| conversa não vence (prévia sempre consultada)                   | 5                                              |
+| `already_recorded` apaga o MIME                                 | 1 (contrato) + 2 (integração, uma é a corrida) |
+| parser pega o primeiro `<>` (sem âncora no fim)                 | 3                                              |
+| `unverifiable` volta a ser recusa permanente                    | 1                                              |
+| rastro `RATE_LIMITED` não gravado                               | 2                                              |
+| janela pelo `received_at` em vez do `recorded_at`               | 1                                              |
+| contador "autenticados" conta tudo                              | 1                                              |
+| rastro `RATE_LIMITED` sem a checagem de "um por janela"         | 1                                              |
+| status da prévia reenviada fixo em `queued`                     | 1                                              |
+| `>=` do teto de 5 vira `>` no worker                            | 1 (paridade)                                   |
+| `every` vira `some` na assinatura zip do worker                 | 1 (paridade)                                   |
+| coluna extra no insert de `cargo_previews`                      | 1 (paridade)                                   |
+| prefixo `email:` diferente no worker                            | 2                                              |
+| código de recusa renomeado no worker                            | 1 (paridade)                                   |
+| `toProfile` da API espalha a linha inteira (vaza hash e listas) | 1                                              |
+| upload da API sem a reserva do prefixo                          | 2                                              |
+
+### O que muda de observável no trilho da 143/183
+
+- **Item 1:** mensagem com cabeçalho fora do limite (seção > 64 KiB, sem fim de cabeçalho, ou `From`/`Return-Path`/
+  `Sender`/`Reply-To` > 2 KiB) é gravada com `dkim_result = 'absent'`, **sem verificar DKIM e sem extrair anexos**.
+  Antes, a `mailauth` rodava (e podia travar o worker). Mensagem comum não muda. Os contratos que usavam `Buffer.alloc(0)`
+  ou `'mime'` como MIME bruto precisaram de um MIME com fim de cabeçalho.
+- **Item 2:** a política de alinhamento é compartilhada: uma resposta cuja **única** assinatura alinhada tem `l=` passa
+  de `aligned` a `not_aligned` e deixa de decidir a identidade/taxa. Mais rígido, de propósito.
+- **Item 4:** a ordem do trilho mudou — a thread é procurada **antes** da prévia. Efeito: mensagem de conversa não
+  consulta mais `findProfilesByTokenHashes`; `hasIntake` segue rodando para toda mensagem.
+
+### Decisões que divergiram do texto do pedido
+
+- **Item 8 sem coluna nova:** `is_replay` + `preview_id` já registram o reenvio; o status é derivável por junção. O
+  status entra no resultado e no log, não numa coluna (o dado é mutável).
+- **Item 9, "e registra":** o guard do worker ignora entrada que não é texto sem log — a política é pura, não há logger
+  na barreira, e o CHECK do banco já recusa NULL/vazio. Segunda barreira, não primeira.
+- **`unverifiable` retentável:** o consumidor **tem** contador (`retryCount`, `maxRetries` = 3, 5 s); nenhuma
+  infraestrutura nova.
+- **Prefixo `email:` reservado só no upload da prévia**, não no `readIdempotencyKey` compartilhado (a chegada usa
+  outra tabela). Reserva sem distinção de caixa (`EMAIL:` também), por clareza.
+- **O erro de limpeza (`catch` de `storeAndCreatePreview`) segue apagando o que a tentativa subiu**, MIME incluído:
+  se o banco falhar numa corrida com a vencedora, a limpeza pode apagar o MIME dela (janela estreita, exige duplicata
+  simultânea **e** falha de banco). Não foi mudado — o pedido dizia `already_recorded`. Registrado como residual.
+
+### Passos do usuário e `[NEEDS CLARIFICATION]`
+
+Sem mudança nos passos de MX/Resend/listas, mais: o token deve ser gerado com `openssl rand` (≥ 130 bits; L4 no
+`SECURITY.md`). **Encaminhamento automático (regra/redirect) não é suportado**; decisão pendente do usuário se for preciso.
+
+### Ordem de deploy
+
+`.github/workflows/deploy.yml`: `deploy-api` (com `preDeployCommand` das migrations e `assert-migrations`) vem **antes**
+de `deploy-worker`, que tem `needs: deploy-api` e recusa subir se ele falhou ou foi cancelado. Como `hasIntake` roda para
+toda mensagem de conversa, o worker novo falharia em todo e-mail de conversa sem a migration — a ordem real o impede;
+reverter só a API quebraria o trilho.
+
+### Não rodou
+
+DNS, MX, Resend e qualquer envio ou recebimento real; o painel (não foi tocado — T4.7b); push; staging e produção.

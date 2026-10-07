@@ -104,14 +104,20 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   nunca derruba nem espera a importação, coalescida e adiada 30 s. Detalhe: docs/ai-context § "A prévia
   da carga é lida e vinculada aqui".
 
-- **A prévia também chega por e-mail encaminhado** (spec 237 T4.6, ADR-0094 §10) — ramo `previewIntake`
-  (`src/cargo-preview-email/`) dentro de `contractor-mail-inbound.v1`, **antes** da busca de conversa; só entra a
-  mensagem que casa o token de um perfil (hash em `contractor_receiving_profiles`, espaço distinto do das
-  conversas), o resto segue o trilho da 143/183. Encaminhador e remetente original em listas **separadas** do
-  perfil; DKIM só do encaminhador (o do contratante se perde: `docs/SECURITY.md`, 2026-10-06); anexo com o teto e o
-  critério do upload; recusa vira linha em `cargo_preview_email_intakes` (só código), sem corpo nem eco. A criação
-  da prévia é **cópia por valor** do upload da API (`preview-upload-file.policy.ts`, paridade). A planilha nunca é
-  aberta aqui. Detalhe: docs/ai-context § "A prévia por e-mail encaminhado".
+- **A prévia também chega por e-mail encaminhado** (spec 237 T4.6/T4.7a, ADR-0094 §10) — ramo `previewIntake`
+  (`src/cargo-preview-email/`) dentro de `contractor-mail-inbound.v1`, consultado **só quando nenhuma conversa casa**
+  (**a conversa vence** se o e-mail traz os dois endereços); só entra a mensagem que casa o token de um perfil (hash em
+  `contractor_receiving_profiles`, espaço distinto do das conversas), o resto segue o trilho da 143/183. Encaminhador e
+  remetente original em listas **separadas** do perfil; DKIM só do encaminhador (o do contratante se perde:
+  `docs/SECURITY.md`, 2026-10-06) e **`l=` nunca alinha** (vale para a conversa também). **O cabeçalho do MIME é medido
+  antes de qualquer `dkimVerify`** (`mime-header-bounds.policy.ts`: 64 KiB e 2 KiB por linha de `From`/`Return-Path`/
+  `Sender`/`Reply-To`; o `addressparser` é quadrático) — na conversa a mensagem hostil vira DKIM `absent`, sem anexos.
+  Janela por contratante com dois contadores pelo relógio do banco e rastro `RATE_LIMITED`; DKIM sem veredito repete a
+  entrega e só a última grava `FORWARDER_DKIM_UNVERIFIABLE`; o MIME da mensagem é de quem a registrou (reentrega
+  descarta só a planilha da tentativa). Anexo com o teto e o critério do upload; recusa vira linha em
+  `cargo_preview_email_intakes` (só código), sem corpo nem eco. A criação da prévia é **cópia por valor** do upload da
+  API (`preview-upload-file.policy.ts`, paridade nos dois sentidos). A planilha nunca é aberta aqui. Detalhe:
+  docs/ai-context § "A prévia por e-mail encaminhado".
 
 ## O expurgo de posição (spec 196, ADR-0081)
 

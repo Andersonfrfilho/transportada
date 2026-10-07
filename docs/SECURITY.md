@@ -315,8 +315,20 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
   bytes (`PK\x03\x04`), **um** anexo candidato; MIME lido com PostalMime limitado (profundidade 6,
   cabeçalhos 64 KiB) e a mensagem anexada aberta uma vez, sem recursão. O worker **nunca abre a planilha** no
   consumidor de e-mail: ela segue para o leitor com tetos, `worker_thread` e orçamento (§7).
-- **Abuso:** 20 e-mails por contratante por 300 s (o excesso é ignorado, sem download) e no máximo 5 prévias
-  `queued`/`processing` por contratante, sob a mesma trava advisory do upload.
+- **Abuso (T4.7a):** janela por contratante em 300 s com **dois contadores** pelo relógio do banco — 20 e-mails
+  que passaram do DKIM do encaminhador e 100 que ficaram antes dele (só para a tabela não ser inundada); o excesso
+  não baixa nada e deixa **uma** linha `RATE_LIMITED` por janela. No máximo 5 prévias `queued`/`processing` por
+  contratante, sob a mesma trava advisory do upload.
+- **Cabeçalho medido antes do DKIM (T4.7a):** seção de cabeçalhos em 64 KiB e cada linha desdobrada de `From`,
+  `Return-Path`, `Sender` e `Reply-To` em 2 KiB, **antes** do `dkimVerify` — o `addressparser` do nodemailer é
+  quadrático (400 KB de `Return-Path: a,a,a…` travaram o worker por 58 s). Vale também para o trilho da conversa
+  (mensagem hostil: DKIM `absent`, sem anexos).
+- **`l=` nunca alinha (T4.7a):** assinatura DKIM que cobre só parte do corpo não conta como alinhada — nos dois
+  trilhos.
+- **DKIM sem veredito repete (T4.7a):** `unverifiable` (DNS fora) não é recusa permanente: a entrega repete e só a
+  última grava `FORWARDER_DKIM_UNVERIFIABLE`.
+- **A conversa vence (T4.7a):** e-mail com o endereço da prévia **e** o de uma conversa é resposta da conversa; a
+  prévia não é consultada.
 - **Sem eco e sem PII em log:** nenhuma resposta ao remetente; log só com ids, códigos e contagens. A recusa
   fica em `cargo_preview_email_intakes` (append-only) sem endereço, nome, assunto, corpo nem cabeçalho.
 - **Idempotência:** `(company_id, provider_email_id)` único; o mesmo arquivo do contratante devolve a prévia
@@ -332,6 +344,22 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
    lista do encaminhador é a própria equipe.
 4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012) e as listas/hash do token no perfil —
    por SQL até a T4.6b (rota `PUT` e ficha). O código não configura DNS nem envia e-mail.
+5. **L3 — a lista do encaminhador por "endereço exato" só é tão forte quanto o DKIM do domínio** (T4.7a). O
+   alinhamento é **relaxado** (domínio organizacional) e o `i=` da assinatura não é verificado: quem assina por
+   `team.com`, ou por um subdomínio dele, passa o DKIM com `From: forwarder@team.com` e se faz passar por
+   `forwarder@team.com`. A lista barra quem **não** controla o domínio da equipe, não quem controla uma conta
+   qualquer dele.
+6. **L4 — o token aparece em claro no `raw.eml` guardado** (T4.7a): o MIME bruto do e-mail aceito tem o endereço de
+   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). Enquanto a T4.6b não gerar o token no
+   servidor, ele é **escolhido à mão por SQL** — o CHECK só confere o alfabeto (26 base32), então um padrão fraco
+   passa. Gerar com `openssl rand` (≥ 130 bits aleatórios) e nunca derivar de nome, data ou sequência.
+7. **Só se encaminha à mão** (T4.7a): a equipe **encaminha manualmente** a mensagem (inline ou como anexo). Regra ou
+   redirecionamento automático do Gmail/Outlook preserva o `From` do contratante e não cria bloco encaminhado — não é
+   suportado por esta versão. **[NEEDS CLARIFICATION]** decisão do usuário: se o encaminhamento automático for
+   necessário, é outro desenho (a lista passa a ser de quem assina, e a defesa deixa de ser o encaminhador).
+8. **Ordem de deploy:** `hasIntake` e a busca de perfil por token rodam para **toda** mensagem de conversa; se o
+   worker subir antes da migration, e-mail de conversa falha até ela existir. O `deploy.yml` garante `deploy-api`
+   (`preDeployCommand` + `assert-migrations`) antes de `deploy-worker`; reverter só a API quebra o trilho.
 
 ### 2026-10-06 — spec 237 Fase 3 — avaria sem viagem: quem desfaz a devolução, a migration numa tabela central e o rollback destrutivo
 

@@ -346,33 +346,68 @@ código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A 
 `graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
 (conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
 
-## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, ADR-0094 §10)
+## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6 e T4.7a, ADR-0094 §10)
 
-Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` chama
-`previewIntake` (`cargo-preview-email/`) logo depois de buscar o e-mail e **antes** de procurar a conversa.
-`hasIntake` (por `provider_email_id`) é checado antes do Resend. Só a mensagem que casa o token de **um** perfil
-decide; token desconhecido, ausente ou de dois perfis devolve `not_a_preview` e o trilho da conversa segue
-como estava (as suítes da 143/183 rodam com um `previewIntake` que nunca reconhece nada).
+Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` procura
+primeiro a **conversa** e só chama `previewIntake` (`cargo-preview-email/`) quando **nenhuma** thread casa
+(T4.7a: a conversa vence — um e-mail com o endereço da prévia e o da conversa, no `To` ou no `Cc`, é resposta
+da conversa e a prévia nem é consultada). `hasIntake` (por `provider_email_id`) é checado antes do Resend, para
+**toda** mensagem. Só a que casa o token de **um** perfil decide; token desconhecido, ausente ou de dois perfis
+devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como antes. Resultado do ramo:
+`accepted`, `replayed_existing`, `rejected`, `rate_limited` ou `already_recorded`.
 
-- **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:"
-  - token)`em`contractor_receiving_profiles.preview_inbound_token_hash`(distinto do hash de conversa;`+`recusado).
-O hash e a função`hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
-- **Barreiras, em ordem:** janela de e-mails do contratante (20 por 300 s, ignorada sem registro) → perfil pronto →
-  encaminhador do provedor na `preview_forwarder_allowlist` **antes** de baixar → MIME até 2 MiB
-  (`downloadRawEmail({ maxBytes })`) → DKIM do encaminhador `aligned` → `From` do MIME na lista → remetente original
-  (cabeçalho da mensagem anexada ou primeiro bloco encaminhado do texto) na `preview_sender_allowlist` → um anexo
-  candidato (960 KiB, `PK\x03\x04`). Cada recusa grava `cargo_preview_email_intakes` com o código e para.
+- **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:" + token)`
+  em `contractor_receiving_profiles.preview_inbound_token_hash` (distinto do hash de conversa; `+` recusado).
+  O hash e a função `hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
+- **Barreiras, em ordem:** janela de e-mails do contratante → perfil pronto → encaminhador do provedor na
+  `preview_forwarder_allowlist` **antes** de baixar → MIME até 2 MiB (`downloadRawEmail({ maxBytes })`, só número
+  finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM do encaminhador `aligned` → `From` do MIME
+  na lista → remetente original (cabeçalho da mensagem anexada ou primeiro bloco encaminhado do texto) na
+  `preview_sender_allowlist` → um anexo candidato (960 KiB, `PK\x03\x04`). Cada recusa grava
+  `cargo_preview_email_intakes` com o código e para.
+- **Janela de e-mails (T4.7a):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
+  (`recorded_at`, nunca `received_at`): os que passaram do DKIM do encaminhador (`forwarder_dkim_result =
+'aligned'`, teto 20) e os que ficaram antes dele (teto 100, só para a tabela não ser inundada); o rastro
+  `RATE_LIMITED` fica fora dos dois. Atingido um dos tetos, o excesso não baixa nada e grava **uma** linha
+  `RATE_LIMITED` por contratante e janela (`recordRateLimited`, sob advisory própria).
+- **Cabeçalho medido antes do DKIM (T4.7a):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
+  cabeçalho (`\r\n\r\n` ou `\n\n`) dentro de 64 KiB e cada linha **desdobrada** de `From`, `Return-Path`,
+  `Sender` e `Reply-To` em 2 KiB — o `addressparser` do nodemailer, que a `mailauth` usa, é quadrático (400 KB de
+  `a,a,a…` travaram o laço por 58 s). Na prévia: `MIME_UNREADABLE`, sem DKIM. **No trilho da conversa** (mesma
+  função): a mensagem é gravada com DKIM `absent` (o que a `mailauth` devolve para MIME que não parseia) e **sem
+  extrair anexos**; mensagem comum não muda.
+- **DKIM sem veredito (`unverifiable`, DNS fora):** a entrega **repete**. O ramo lança
+  `CargoPreviewEmailDkimUnverifiableError` (o consumidor devolve `retry`, log `reason: dkim_unverifiable`), sem gravar
+  nada; só a **última** entrega (`retryCount >= maxRetries` da topologia, 3) grava `FORWARDER_DKIM_UNVERIFIABLE`. O
+  consumidor repassa `delivery.isLastAttempt` ao ramo.
+- **`l=` nunca alinha (T4.7a):** `dkim-alignment.policy.ts` ignora a assinatura com `canonBodyLengthLimited` (corpo só em
+  parte coberto). A política é a do trilho 143/183 também: uma resposta cuja única assinatura alinhada tem `l=`
+  passa a `not_aligned` e deixa de decidir a identidade.
+- **Remetente original:** `mailbox-address.policy.ts` aceita só `endereço` ou `nome <endereço>` (sem `mailto:`),
+  desembrulha `Nome <a@x<mailto:a@x>>` e `Nome [mailto:a@x]` do Outlook (só quando repetem o mesmo endereço) e recusa
+  mais de um `<`/`@` fora de aspas, comentário, grupo e nome codificado sem endereço real.
+  `forwarded-original-sender.policy.ts` percorre os marcadores (Gmail, Thunderbird, Apple en/pt-BR, Outlook,
+  `____`) até o primeiro bloco com `From`/`De`, desdobra o cabeçalho dobrado e trata mais de um `From` no bloco como
+  `ambiguous`.
 - **Leitura do MIME:** `parseForwardedEmail` usa PostalMime com `maxNestingDepth` 6, cabeçalhos 64 KiB e
   `forceRfc822Attachments`; abre a mensagem anexada **uma vez** (a de dentro dela nunca é aberta nem vira
   candidata). Ilegível devolve `undefined` → `MIME_UNREADABLE`.
-- **Criação:** `createPreviewFromEmail` é cópia por valor do `insertPreview` da API (`preview-upload-file.policy.ts`,
-  cobrada por `test/cargo-preview-email/parity.contract.ts`): toma a **mesma** advisory do upload, confere o registro
-  da mensagem, o arquivo do contratante (reenvio → `replayed`), o teto de 5 abertas (registra `TOO_MANY_OPEN_PREVIEWS`)
-  e grava prévia `source = 'email'` sem quem enviou, evento `uploaded` no canal `worker`, `cargo_preview_outbox` e o
-  registro `accepted` com o MIME bruto (`stored_objects`, `contractor_mail_raw`). Os dois objetos sobem **antes** da
-  transação e o que ela não deixar de pé sai do bucket.
-- **Log:** `inbound_email_preview_accepted` (ids, DKIM, `isReplay`), `inbound_email_preview_rejected` (código) e
-  `inbound_email_preview_rate_limited`; nunca endereço, assunto, corpo ou cabeçalho. Sem resposta ao remetente.
+- **Criação:** `createPreviewFromEmail` (`cargo-preview-email-create.writer.ts`, linhas em `…-rows.writer.ts`) é
+  cópia por valor do `insertPreview` da API (`preview-upload-file.policy.ts`, cobrada por
+  `test/cargo-preview-email/parity.contract.ts`, nos dois sentidos): toma a **mesma** advisory do upload, confere o
+  registro da mensagem, o arquivo do contratante (reenvio → `replayed`, com o **status** da prévia existente, que
+  **não** é reaberta), o teto de 5 abertas (registra `TOO_MANY_OPEN_PREVIEWS`) e grava prévia `source = 'email'` sem
+  quem enviou, evento `uploaded` no canal `worker`, `cargo_preview_outbox` e o registro `accepted` com o MIME bruto
+  (`stored_objects`, `contractor_mail_raw`). Os dois objetos sobem **antes** da transação. A planilha tem chave
+  aleatória **desta tentativa**; o MIME tem a chave da mensagem e é de **quem a registrou**: em `already_recorded` a
+  tentativa descarta só a planilha (e o MIME apenas quando nenhuma linha o referencia, `isRawKept = false`).
+- **Log:** `inbound_email_preview_accepted` (ids, DKIM, `replay`, e `previewStatus` no reenvio),
+  `inbound_email_preview_rejected` (código) e `inbound_email_preview_rate_limited`; nunca endereço, assunto,
+  corpo ou cabeçalho. Sem resposta ao remetente.
 - ⚠️ **A planilha nunca é aberta aqui:** os bytes entram na prévia e o trilho `cargo-preview.v1` a lê, com tetos e
   `worker_thread`. ⚠️ Teste de integração semeia em série (o pool do Bun SQL trava com cadeias concorrentes de
   INSERT). ⚠️ `bun test` de arquivo avulso: `./test/integration/cargo-preview-email-intake.integration.ts`.
+- ⚠️ **Ordem de deploy:** `hasIntake` roda para toda mensagem de conversa, então o worker novo falha em **todo**
+  e-mail de conversa se a migration `20261007024527_cargo_preview_email_intake` não existir. O `deploy.yml` já
+  garante a ordem (`deploy-api` com `preDeployCommand` e `assert-migrations` antes de `deploy-worker`, que `needs:
+deploy-api`); **reverter a API sem o worker** quebra o trilho de conversa até o worker voltar.
