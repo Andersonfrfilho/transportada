@@ -1,0 +1,10 @@
+/* Spec 247 T7.2b: o aviso de teto do campo de valor — apoio discreto, some quando vazio. */
+.notice {
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.notice:empty {
+  display: none;
+}

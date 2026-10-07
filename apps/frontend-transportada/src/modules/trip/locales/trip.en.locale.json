@@ -1,4 +1,5 @@
 {
+  "amountLimit": "Limit of 10 digits before the comma: the next key will not be accepted.",
   "actions": {
     "backToList": "Back to trips",
     "close": "Close trip",

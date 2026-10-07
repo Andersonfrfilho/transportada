@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
+import { AmountLimitNotice } from '@/modules/trip/components/AmountLimitNotice.component'
 import { OccurrenceCorrectionAmounts } from '@/modules/trip/components/OccurrenceCorrectionAmounts.component'
 import { EMPTY_CORRECTION_AMOUNTS_DRAFT } from '@/modules/trip/shared/occurrenceCorrectionAmounts.service'
 import {
@@ -96,5 +97,16 @@ describe('a correção segue o requisito efetivo do tipo (spec 247 T7.2b, N1/N2)
     expect(required).not.toContain('aria-label="Limpar')
     expect(required.match(/Obrigatório: este campo não pode ficar vazio\./gu)).toHaveLength(2)
     expect(render(fromRequirements({}), recorded)).toContain('aria-label="Limpar')
+  })
+})
+
+describe('aviso de teto do valor (spec 247 T7.2b, N5)', () => {
+  test('o aviso só ganha texto no teto de dígitos, em região viva', () => {
+    const quiet = renderToStaticMarkup(<AmountLimitNotice value="123,45" />)
+    const loud = renderToStaticMarkup(<AmountLimitNotice value="1.234.567.890,12" />)
+    expect(quiet).toContain('aria-live="polite"')
+    expect(quiet).toContain('role="status"')
+    expect(quiet).not.toContain('Limite')
+    expect(loud).toContain('Limite de 10 dígitos antes da vírgula')
   })
 })

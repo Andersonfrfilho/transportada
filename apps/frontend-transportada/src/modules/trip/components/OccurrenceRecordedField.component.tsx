@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import styles from '../styles/occurrenceCorrectionAmounts.module.css'
+import { AmountLimitNotice } from './AmountLimitNotice.component'
 
 export type OccurrenceRecordedFieldProps = Readonly<{
   children?: ReactNode
@@ -84,6 +85,7 @@ export function OccurrenceRecordedField({
           </Button>
         )}
       </div>
+      {inputMode === 'decimal' ? <AmountLimitNotice value={value} /> : null}
       {stateText === null ? null : (
         <span className={styles.sum} id={stateId}>
           {stateText}

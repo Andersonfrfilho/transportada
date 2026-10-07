@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   formatOccurrenceSettlementAmount,
+  isAmountInputAtLimit,
   isPositiveDecimalAmount,
   maskAmountFromDecimal,
   maskAmountInput,
@@ -185,6 +186,16 @@ describe('spec 164 T30 A3: máscara de moeda pt-BR', () => {
     expect(maskAmountInput('1')).toBe('0,01')
     expect(maskAmountInput('12345678')).toBe('123.456,78')
     expect(maskAmountInput('abc')).toBe('')
+  })
+
+  test('teto de 10 inteiros + 2 centavos: dígito além não entra e o aviso aparece (spec 247 T7.2b, N5)', () => {
+    expect(maskAmountInput('12345678901234')).toBe('1.234.567.890,12')
+    expect(maskAmountInput('1.234.567.890,12')).toBe('1.234.567.890,12')
+    expect(maskAmountInput('000000000000123')).toBe('1,23')
+    expect(isAmountInputAtLimit('1.234.567.890,12')).toBe(true)
+    expect(isAmountInputAtLimit('123.456,78')).toBe(false)
+    expect(isAmountInputAtLimit('0,00')).toBe(false)
+    expect(unmaskAmountInput(maskAmountInput('12345678901234')).length).toBeLessThanOrEqual(13)
   })
 
   test('o decimal que a API lê sai do texto mascarado', () => {
