@@ -65,6 +65,7 @@ export function OccurrenceTypeContractorMail({
   const fieldRefs = useRef<
     Partial<Record<OccurrenceMailContext, null | OccurrenceMailFieldElement>>
   >({})
+  const [overflowContext, setOverflowContext] = useState<null | OccurrenceMailContext>(null)
   const pendingCaret = useRef<null | PendingCaret>(null)
 
   /** O rascunho também vai para o guardião da página: recolher a linha do tipo desmonta este componente. */
@@ -79,10 +80,19 @@ export function OccurrenceTypeContractorMail({
     emailItemLineTemplate: type.emailItemLineTemplate ?? '',
     emailSubject: type.emailSubject,
   }
-  const pending = draft !== null && isOccurrenceMailDraftChanged(draft, saved) ? draft : null
+  const isDraftChanged = draft !== null && isOccurrenceMailDraftChanged(draft, saved)
+  const pending = isDraftChanged ? draft : null
   const shown = pending ?? saved
   const problems = readOccurrenceMailProblems(shown)
   const isBlocked = hasOccurrenceMailProblems(problems)
+
+  /** O salvar pousou (o guardado igualou o rascunho): só então o rascunho some — falhou, ele sobrevive. */
+  const hasSavedLanded = draft !== null && !isDraftChanged
+  useEffect(() => {
+    if (!hasSavedLanded) return
+    setDraftState(null)
+    draftStore.discard(type.id)
+  }, [draftStore, hasSavedLanded, type.id])
 
   /** O cursor volta ao campo logo depois do marcador inserido: a lista de marcadores tirou o foco dele. */
   useEffect(() => {
@@ -104,14 +114,17 @@ export function OccurrenceTypeContractorMail({
     const start = element?.selectionStart ?? text.length
     const end = element?.selectionEnd ?? start
     const next = insertOccurrenceMailMarker({ end, marker, start, text })
-    if (next.text.length > OCCURRENCE_MAIL_MAX_LENGTH[activeContext]) return
+    if (next.text.length > OCCURRENCE_MAIL_MAX_LENGTH[activeContext]) {
+      setOverflowContext(activeContext)
+      return
+    }
+    setOverflowContext(null)
     pendingCaret.current = { caret: next.caret, context: activeContext }
     handleChange(activeContext, next.text)
   }
 
   function handleSave() {
     if (pending === null || isBlocked) return
-    draftStore.discard(type.id)
     onEdit(pending)
   }
 
@@ -139,6 +152,13 @@ export function OccurrenceTypeContractorMail({
             disabled={disabled}
             onPick={handlePickMarker}
           />
+          <p aria-live="polite" className={styles.hint} role="status">
+            {overflowContext === null
+              ? ''
+              : t('occurrenceTypeCatalog.mail.markerOverflow', {
+                  max: OCCURRENCE_MAIL_MAX_LENGTH[overflowContext],
+                })}
+          </p>
           <div className={styles.actions}>
             <Button
               className={styles.action}

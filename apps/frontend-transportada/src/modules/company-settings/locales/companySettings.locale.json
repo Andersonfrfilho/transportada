@@ -442,6 +442,7 @@
         "body": "Marcadores do corpo — toque num para inserir onde o cursor está.",
         "itemLine": "Marcadores da linha de cada produto — toque num para inserir onde o cursor está."
       },
+      "markerOverflow": "O marcador não coube: este campo já está no limite de {{max}} caracteres. Apague um trecho e tente de novo.",
       "unknownMarker_one": "Este marcador não existe neste campo: {{markers}}. Use um da lista abaixo; nada foi gravado.",
       "unknownMarker_other": "Estes marcadores não existem neste campo: {{markers}}. Use os da lista abaixo; nada foi gravado.",
       "preview": {
