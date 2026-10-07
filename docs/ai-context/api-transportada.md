@@ -3007,14 +3007,17 @@ enquanto existir prévia por e-mail):
 
 - `contractor_receiving_profiles`: `preview_inbound_token_hash char(64)` (hash do token do endereço de entrada,
   único por empresa quando não nulo), `preview_forwarder_allowlist text[]` e `preview_sender_allowlist text[]`
-  (1..20 entradas, sem controle, espaço, vírgula nem `<>`); CHECK: token ⇒ as duas listas. **A rota
+  (1..20 entradas de 3 a 254 caracteres, sem NULL, vazia, controle, espaço, vírgula, `<>` nem `|` — T4.7a); CHECK: token ⇒ as duas listas. **A rota
   `PUT /contractors/:id/receiving-profile` não conhece as colunas** (T4.6b); o worker as lê.
 - `cargo_previews`: `uploaded_by_user_id` nulo e `source` aceita `email`; `cargo_previews_uploader_check` amarra
   `source = 'upload'` a quem enviou. Nada na API lê `uploaded_by_user_id` fora do insert do upload.
 - `cargo_preview_email_intakes` (append-only por trigger): uma linha por e-mail que casou o token — `accepted`
   (com `preview_id`, `is_replay`, `raw_object_id`) ou `rejected` (com `reason_code`) —, único por
-  `(company_id, provider_email_id)`. Só ids e códigos. Constantes (`CARGO_PREVIEW_EMAIL_*`) em
+  `(company_id, provider_email_id)`. Só ids e códigos; `reason_code` inclui `RATE_LIMITED` (o rastro do excesso, uma linha por
+  contratante e janela) e `FORWARDER_DKIM_UNVERIFIABLE` (T4.7a). Constantes (`CARGO_PREVIEW_EMAIL_*`) em
   `shared/cargo-preview.constant.ts`, cópia byte a byte no worker.
 - Teste da migration: `test/database-migration/cargo-preview-email-intake.assertion.ts` (CHECKs, único, append-only,
   rollback que recusa e que desfaz). Quem for ler a recusa na ficha do contratante (T4.6b) consulta a tabela por
-  `(company_id, contractor_id, received_at desc)`.
+  `(company_id, contractor_id, recorded_at desc)` — o índice é por `recorded_at`, o relógio do banco, que a janela de
+  e-mails do worker usa. **O upload recusa `Idempotency-Key` com o prefixo `email:`** (reservado à prévia por e-mail, 400).
+  A pasta se chama `20261007040900_…`, depois da última de staging (renomeada na T4.7a, com o snapshot refeito).
