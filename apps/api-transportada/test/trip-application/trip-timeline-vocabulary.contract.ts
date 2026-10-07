@@ -16,16 +16,19 @@ import {
 import type { TripTimelineItem } from '../../src/trips/application/trip-timeline.types.js'
 
 describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
-  test('os dois kinds novos entram depois de trip.created, na ordem da D6', () => {
-    expect(TRIP_TIMELINE_KINDS.slice(-3)).toEqual([
+  test('os dois kinds da 228 entram depois de trip.created, na ordem da D6, e a 249 fecha a lista', () => {
+    expect(TRIP_TIMELINE_KINDS.slice(-4)).toEqual([
       'trip.created',
       'document.canhoto_photo',
       'stop.address_corrected',
+      'crew_transfer',
     ])
   })
 
   test('a tabela de prioridades inteira: nada existente renumerado, 3 e 2 para os novos', () => {
     expect(TRIP_TIMELINE_KIND_PRIORITY).toEqual({
+      /** Spec 249: a transferência não é causa nem efeito de nenhum outro evento — fica acima de todos no empate. */
+      crew_transfer: 8,
       'document.canhoto_photo': 3,
       'document.delivered': 4,
       'document.occurrence': 2,
@@ -52,6 +55,47 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
     for (const priority of Object.values(TRIP_TIMELINE_KIND_PRIORITY)) {
       expect(Number.isInteger(priority)).toBe(true)
     }
+  })
+
+  test('crewTransfer é opcional no item e carrega só as cinco chaves do contrato (spec 249)', () => {
+    const base: TripTimelineItem = {
+      actorName: 'Maria Operadora',
+      channel: 'backoffice',
+      closeReason: null,
+      document: null,
+      fromStatus: null,
+      id: 'item-2',
+      kind: 'crew_transfer',
+      lateRegistration: false,
+      location: null,
+      locationState: null,
+      occurrence: null,
+      occurredAt: '2026-10-07T12:00:00.000Z',
+      onBehalfOfDriverName: null,
+      recordedAt: null,
+      returnReason: null,
+      stop: null,
+      toStatus: null,
+    }
+    const transferred: TripTimelineItem = {
+      ...base,
+      crewTransfer: {
+        costDifference: '150.00',
+        mdfeDriverDivergence: true,
+        nextCrew: [{ driverId: 'b', name: 'Bruno', position: 1, role: 'driver' }],
+        previousCrew: [{ driverId: 'a', name: 'Ana', position: 1, role: 'driver' }],
+        reason: 'Motorista passou mal',
+      },
+    }
+
+    expect(Object.keys(transferred.crewTransfer ?? {}).sort()).toEqual([
+      'costDifference',
+      'mdfeDriverDivergence',
+      'nextCrew',
+      'previousCrew',
+      'reason',
+    ])
+    expect('crewTransfer' in base).toBe(false)
   })
 
   test('as origens do addressChange são as quatro da D8', () => {

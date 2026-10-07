@@ -17,6 +17,7 @@ const TIMELINE_SOURCE_FILES = [
   '../../src/trips/infrastructure/trip-timeline-status.query.ts',
   '../../src/trips/infrastructure/trip-timeline-stop.query.ts',
   '../../src/trips/infrastructure/trip-timeline-document.query.ts',
+  '../../src/trips/infrastructure/trip-timeline-crew.query.ts',
 ] as const
 
 const QUERY_SOURCE = TIMELINE_SOURCE_FILES.map((path) =>
@@ -31,6 +32,9 @@ describe('tenant safety da linha do tempo da viagem (spec 158 T5)', () => {
     expect(QUERY_SOURCE).toContain('eq(tripStopOccurrences.companyId, params.companyId)')
     expect(QUERY_SOURCE).toContain('eq(tripDocumentOccurrences.companyId, params.companyId)')
     expect(QUERY_SOURCE).toContain('eq(tripDocumentEvents.companyId, params.companyId)')
+    // Spec 249: a transferência de tripulação entra por empresa **e** viagem.
+    expect(QUERY_SOURCE).toContain('eq(tripCrewEvents.companyId, params.companyId)')
+    expect(QUERY_SOURCE).toContain('eq(tripCrewEvents.tripId, params.tripId)')
   })
 
   test('trip_stop_events entra pela viagem via trip_stops, nunca sem tripId', () => {
