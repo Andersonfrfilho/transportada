@@ -1333,6 +1333,8 @@ $ bun run --cwd apps/frontend-transportada test
 
 ```text
 test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos casos da política da API)
+
+test/trip/occurrence-amount-mirror.contract.ts        → Cannot find module '.../occurrenceAmount.service'   (os mesmos 40 casos da API)
 test/trip/occurrence-correction-amounts.contract.ts   → idem  (três estados, escopo, número)
 test/trip/occurrence-settlement-suggestion.contract.ts→ idem  (RF12, zero nunca sugerido)
 test/trip-hooks/occurrence-correction-amounts.contract.ts   → 0 pass · 9 fail   (formulário montado de verdade)

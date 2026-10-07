@@ -9,12 +9,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useCorrectOccurrenceItems } from '../queries/useOccurrenceCorrection.query'
 import { useOccurrenceDocumentProducts } from '../queries/useOccurrenceDocumentProducts.query'
 import {
+  EMPTY_CORRECTION_AMOUNTS_DRAFT,
+  resolveCorrectionAmounts,
+} from '../shared/occurrenceCorrectionAmounts.service'
+import {
   buildOccurrenceCorrectionItems,
   resolveOccurrenceItemSelectionFromDetail,
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { TripOccurrenceDetailItem } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { OccurrenceCorrectionAmounts } from './OccurrenceCorrectionAmounts.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 
@@ -50,6 +55,7 @@ export function TripOccurrenceCorrectionForm({
   const initialSelection = resolveOccurrenceItemSelectionFromDetail(items)
   const [productCodes, setProductCodes] = useState(initialSelection.productCodes)
   const [quantitiesByCode, setQuantitiesByCode] = useState(initialSelection.quantitiesByCode)
+  const [amountsDraft, setAmountsDraft] = useState(EMPTY_CORRECTION_AMOUNTS_DRAFT)
   const productsQuery = useOccurrenceDocumentProducts({
     ...(companyId === undefined ? {} : { companyId }),
     documentId,
@@ -58,17 +64,27 @@ export function TripOccurrenceCorrectionForm({
   const correction = useCorrectOccurrenceItems()
   const products = productsQuery.data ?? []
   const feedbackKey = resolveTripFeedbackKey(correction.error)
+  const amounts = resolveCorrectionAmounts({ codes: productCodes, draft: amountsDraft })
 
   useEffect(() => {
     titleRef.current?.focus()
   }, [])
 
   function handleSubmit(): void {
+    if (amounts.hasReferenceNumberError) return
     correction.mutate(
       {
+        ...(amounts.declaredAmount === undefined ? {} : { declaredAmount: amounts.declaredAmount }),
         documentId,
-        items: buildOccurrenceCorrectionItems({ codes: productCodes, quantitiesByCode }),
+        items: buildOccurrenceCorrectionItems({
+          codes: productCodes,
+          declaredAmounts: amounts.lineAmounts,
+          quantitiesByCode,
+        }),
         occurrenceId,
+        ...(amounts.referenceNumber === undefined
+          ? {}
+          : { referenceNumber: amounts.referenceNumber }),
         tripId,
       },
       { onSuccess: onClose },
@@ -101,6 +117,13 @@ export function TripOccurrenceCorrectionForm({
             products={products}
             quantitiesByCode={quantitiesByCode}
           />
+          <OccurrenceCorrectionAmounts
+            codes={productCodes}
+            draft={amountsDraft}
+            onChange={setAmountsDraft}
+            products={products}
+            quantitiesByCode={quantitiesByCode}
+          />
         </>
       ) : null}
       {feedbackKey === null ? null : (
@@ -120,7 +143,9 @@ export function TripOccurrenceCorrectionForm({
           {t('occurrenceDetail.correction.form.discard')}
         </Button>
         <Button
-          disabled={correction.isPending || !productsQuery.isSuccess}
+          disabled={
+            correction.isPending || !productsQuery.isSuccess || amounts.hasReferenceNumberError
+          }
           onClick={handleSubmit}
           size="sm"
           type="button"
