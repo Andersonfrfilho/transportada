@@ -250,3 +250,22 @@ na tabela mudou.
 
 **Próximo timestamp de migration:** qualquer um depois de `20261007205304_nfse_national_taxation` (a última em
 staging depois do rebase), e depois da última que houver na hora de gerar.
+
+## T5.1 e T5.1b — painel e app do motorista toleram `holidayWarnings` (2026-10-07)
+
+**Commits:** `928c7bb8c` (app do motorista; a mensagem diz "painel" por engano do executor) e `f37457a8d` (painel).
+O contrato vermelho não foi commitado antes do código nesta task — a ordem do ritmo ficou invertida; a prova de que
+os testes seguram a regra é a mutação abaixo.
+
+- **Painel** (`tripResponse.validation.ts`, `trip.constant.ts`, `trip.types.ts`): `holidayWarnings` entra em
+  `TRIP_STOP_OPTIONAL_KEYS`; `isStopDetail` aceita ausente ou lista de avisos bem formados. Presente e malformado é
+  recusado (o painel valida a resposta inteira, como nos demais campos opcionais da parada).
+- **App do motorista** (`driverTripResponse.validation.ts`, `driverTrip.types.ts`): `readHolidayWarnings` lê o campo como
+  acessório — ausente ou malformado vira lista vazia, item sem motivo é descartado, nunca `DriverTripResponseError`; o
+  campo só entra na parada quando há aviso. Tipos duplicados por valor (ADR-0075, nada importado do painel).
+- **Gates (conferidos por mim, fora do relato do executor):** painel `typecheck` 0, `lint` 0, `bun run test` 7580 pass
+  antes da mutação e `test:hooks` 1104 pass; app do motorista `typecheck` 0, `lint` 0, `bun run test` 1411 pass / 0 fail.
+- **Mutação:** tirar `'holidayWarnings'` de `TRIP_STOP_OPTIONAL_KEYS` → 1 teste do painel falha (7580 pass / 1 fail);
+  tirar o spread de `holidayWarnings` em `toStop` → 1 teste do motorista falha (1410 pass / 1 fail); restaurado,
+  `git diff --quiet` verde.
+- **Fora desta task:** nenhuma tela; a queda do `day-checks` no aviso nacional de hoje fica na T5.3.

@@ -153,9 +153,10 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
 > 🤖 Modelo: `sonnet` (T5.1 e T5.1b em `haiku`). **T5.1 e T5.1b executam e publicam antes da Fase 4** (API depois dos
 > clientes tolerantes).
 
-- [ ] **T5.1** Painel tolerante aos campos novos: validação aceita `holidayWarnings` ausente ou presente; `day-checks`
-      indisponível cai no aviso nacional de hoje. Sai antes da API.
-- [ ] **T5.1b** App do motorista tolerante (`apps/frontend-driver`): a guarda `driverTripResponse.validation.ts`
+- [x] **T5.1** Painel tolerante aos campos novos: validação aceita `holidayWarnings` ausente ou presente; `day-checks`
+      indisponível cai no aviso nacional de hoje. Sai antes da API. (Feito para `holidayWarnings`; a queda do `day-checks` no aviso nacional vem com o
+      consumo do endpoint, na T5.3 — a rota ainda não existe. Evidência: `evidence.md` § T5.1/T5.1b.)
+- [x] **T5.1b** App do motorista tolerante (`apps/frontend-driver`): a guarda `driverTripResponse.validation.ts`
       (`toStop`) passa a ler `holidayWarnings` como **acessório** — ausente ou malformado vira lista vazia, **nunca**
       `DriverTripResponseError` (molde do motivo da recusa do canhoto, spec 220 RF29) — e o campo entra no tipo
       `DriverTripStop`, para o snapshot guardado no aparelho (`tripSnapshot.service.ts`) carregá-lo (snapshot antigo
