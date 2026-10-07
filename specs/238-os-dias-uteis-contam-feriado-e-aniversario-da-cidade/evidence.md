@@ -135,7 +135,11 @@ código de produção, migration, `municipal_holidays` ou contrato do solver foi
 | `holiday_on = 2000-MM-DD` (formato `yearly` da opção A)              | ninguém fechado: o solver nunca lê `yearly` |
 | **Defeito pré-existente:** feriado só da cidade B, roteiro com A e B | **A e B fechadas** (deveria ser só B)       |
 
-### Defeito conhecido (fora de escopo da 238, não corrigido)
+### Defeito conhecido (fora de escopo da 238)
+
+> **Corrigido em 2026-10-07, por decisão do usuário, antes de a importação de feriados valer** (F1 do roteirizador,
+> branch `work/roteirizador-feriado-por-cidade`): o feriado vale só para a parada da cidade dele. Ver
+> § "F1 do roteirizador — feriado por cidade" ao fim deste arquivo. O texto abaixo é a caracterização do defeito.
 
 `readPoolWindows` busca só `holidayOn` das cidades das paradas do roteiro e passa **a mesma lista a todo cliente**:
 o feriado da cidade B fecha também o cliente da cidade A, desde que as duas tenham parada no mesmo roteiro. O teste o
@@ -645,3 +649,39 @@ célula 13,47 / 13,40; texto do diálogo 12,92 / 13,81. Alvo de toque a 375 px (
 - `make check` completo, `make smoke` e a CI (só os gates da app + `format:check` na raiz); nada mudou na API nem no worker.
 - Prints com a API real (todos dublados); o preview do orquestrador (`preview-local-antes-de-subir`) é passo seguinte.
 - T2.4: **aprovação do usuário sobre os prints e a publicação em staging** — pendentes.
+
+## F1 do roteirizador — feriado por cidade (2026-10-07)
+
+O usuário aprovou, no chat, abrir o contrato congelado do roteirizador **só** para isto: o feriado municipal deixa de
+fechar todos os clientes do roteiro e passa a fechar só o cliente cuja **parada** está na cidade do feriado. Motivo da
+pressa: com a importação de centenas de cidades, cerca de um dia útil em cinco fecharia todos os clientes de um
+roteiro de ~20 cidades.
+
+- **Mudança:** a janela do cliente é resolvida por `(cidade da parada, CNPJ)`, chave `${cityCode}\u0000${taxId}`.
+  `readPoolWindows` passa a trazer `cityIbgeCode` junto de `holidayOn`, e cada parada recebe **só** os feriados da
+  cidade dela (o destino físico, `resolvePhysicalDestination`). `resolvePoolWindow` recebe a cidade do grupo. A
+  exceção do cliente continua vencendo o feriado; `resolveDeliveryWindow` e o contrato com o solver
+  (`startSeconds`/`endSeconds` por parada) **não mudaram**, e não há consulta nem migration nova (as mesmas três
+  consultas em `Promise.all`).
+- **Arquivos:** `readPoolWindows`/`resolvePoolWindow` saíram do repositório (que já passava de mil linhas) para
+  `infrastructure/drizzle-pool-window.query.ts` (consultas) e `domain/pool-window.policy.ts` (resolução pura); o
+  repositório encolheu em ~157 linhas. Divergência da correção mínima pedida: a extração, justificada pelo tamanho do
+  arquivo.
+- **Contrato antes (vermelho pelo motivo certo, commit `1986d7ad2`):** 5 dos 15 testes falharam com o defeito — a
+  parada da cidade A aparecia fechada pelo feriado da B. A asserção do defeito foi invertida (`[CITY_B]`), e entraram:
+  o mesmo CNPJ com paradas em A e em B (feriado só em B, só em A), feriado nas duas, cliente sem janela cadastrada em
+  cidade sem feriado (aberto) e em feriado (fechado), e feriado de cidade que não é a da parada. Os 8 testes antigos
+  seguiram **sem alteração** (a cidade "sem parada" continua `3304557`; o cliente novo sem janela usa Curitiba).
+- **Depois:** 15 pass / 0 fail no arquivo; typecheck e lint do worker limpos.
+
+| Mutação (cada uma restaurada; diff limpo depois)       | Vermelho                                 |
+| ------------------------------------------------------ | ---------------------------------------- |
+| Tirar o filtro por cidade (volta a fechar tudo)        | 5 fail                                   |
+| Chave só com o CNPJ                                    | 2 fail (mesmo CNPJ em A e em B)          |
+| Cidade do cliente (1ª parada dele) em vez da da parada | 2 fail (mesmo CNPJ em A e em B)          |
+| Remover o filtro por empresa                           | 1 fail: "feriado de outra empresa"       |
+| Trocar a data do filtro SQL por `'2000-01-01'`         | 8 fail                                   |
+| Remover o filtro por data **só no SQL**                | 0 fail — mutante equivalente (ver T1.2a) |
+
+⚠️ O filtro por data continua em duas camadas (SQL e `resolveDeliveryWindow`): tirar só a do SQL não muda o
+comportamento, igual à T1.2a; trocar a data por outra, sim.

@@ -227,6 +227,11 @@ das rotas até existir o gerador.
   só `holiday_on = data` e **não é alterado** (contrato dele segue congelado; a busca em
   `drizzle-route-optimization.repository.ts` ≈1050–1060 não muda). O desenho dos dados está em §5 (T1.2, só
   staging; **produção continua exigindo aprovação humana específica**) e a geração das datas é da T1.3.
+- **Nota (2026-10-07) — o defeito do roteirizador foi corrigido e o contrato dele mudou só nisso.** O feriado
+  municipal passou a valer só para a parada da cidade dele (antes fechava todo cliente do roteiro). A janela é
+  resolvida por `(cidade da parada, CNPJ)`; a política `resolveDeliveryWindow` e o contrato com o solver não mudaram.
+  Decisão do usuário, antes de a importação de feriados valer; evidência em `specs/238-…/evidence.md` § "F1 do
+  roteirizador". O "não é alterado" da Q1 vale para o desenho dos dados, não para este ponto.
 - **Q2 — DECIDIDA: a cidade do feriado é sempre onde a carga será entregue**, isto é, o destino físico: o desvio
   manual (`delivery_address_overrides`, um por `trip_document`, vale o mais recente) por cima do que
   `resolvePhysicalDestination` decide (`<entrega>` → `<enderDest>`, spec 073; a função só conhece `delivery` e

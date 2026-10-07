@@ -131,11 +131,15 @@ outras oito no cron. Mudou tabela na API? confira as cópias — migrations só 
 (`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
 coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).
 
-## O feriado municipal no roteirizador é fixado por teste (spec 238 T1.2a, 2026-10-07)
+## O feriado municipal no roteirizador vale só para a parada da cidade dele (spec 238 T1.2a e F1, 2026-10-07)
 
-`readPoolWindows` lê só `municipal_holidays.holiday_on = hoje (UTC)` das cidades das paradas, sem a cidade por
-cliente, e `test/route-optimization-municipal-holiday.integration.test.ts` caracteriza isso contra Postgres
-(inclusive o defeito de um feriado fechar o cliente de outra cidade no mesmo roteiro); data `yearly` (ano 2000) nunca casa.
+A janela do cliente no pool é resolvida por `(cidade da parada, CNPJ)` (`drizzle-pool-window.query.ts` lê;
+`domain/pool-window.policy.ts` resolve, chave `${cityCode}\u0000${taxId}`). Cada parada recebe só os
+`municipal_holidays.holiday_on = hoje (UTC)` da cidade dela; antes, o feriado da cidade B fechava também o cliente da
+cidade A no mesmo roteiro. A exceção do cliente continua vencendo o feriado, cliente sem janela cadastrada em cidade
+em feriado fica fechado, e o mesmo CNPJ com paradas em A e em B fecha só a parada da cidade em feriado. Data `yearly`
+(ano 2000) nunca casa. `resolveDeliveryWindow` e o contrato com o solver não mudaram.
+`test/route-optimization-municipal-holiday.integration.test.ts` fixa isso contra Postgres.
 
 ## O e-mail à contratante sai para todos os destinatários, não só o primeiro (spec 150 T302)
 
