@@ -4,7 +4,7 @@
  * Spec 143, T004: prova que a `mailauth` roda sob o Bun para verificar DKIM, com mensagens
  * inteiramente sintéticas — chave RSA de teste gerada em memória, nada de dado real (ADR-0063 §3).
  */
-import { generateKeyPairSync } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 
 import { describe, expect, test } from 'bun:test'
 import { dkimSign } from 'mailauth'
@@ -247,5 +247,93 @@ describe('a política de alinhamento com assinatura de corpo limitado (spec 237 
 
   test('sem o campo, a assinatura alinhada segue valendo (mensagens que a mailauth não marca)', () => {
     expect(resolveDkimAlignment([aligned])).toBe('aligned')
+  })
+})
+
+describe('o prazo total da verificação de DKIM (spec 237 T4.7c, NOVO-3)', () => {
+  /** O `bh=` certo para o corpo, senão a `mailauth` desiste antes de consultar o DNS. */
+  const BODY = 'corpo\r\n'
+  const bodyHash = createHash('sha256').update(BODY).digest('base64')
+  const fakeSignatures = (count: number) =>
+    Array.from(
+      { length: count },
+      (_, index) =>
+        `DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=e${index}.example; s=a; h=from; bh=${bodyHash}; b=YQ==`,
+    ).join('\r\n')
+  const message = (count: number) =>
+    Buffer.from(`${fakeSignatures(count)}\r\nFrom: a@b.example\r\n\r\n${BODY}`)
+
+  test('DNS que nunca responde: termina no prazo como unverifiable, sem esperar cada consulta em série', async () => {
+    let calls = 0
+    const gateway = createDkimVerifierGateway({
+      deadlineMs: 300,
+      dnsTimeoutMs: 150,
+      resolveDns: () => {
+        calls += 1
+        return new Promise<string[][]>(() => undefined)
+      },
+    })
+    const startedAt = performance.now()
+    const result = await gateway.verifyWithHeaderFrom(message(8))
+    const elapsed = performance.now() - startedAt
+
+    expect(result).toEqual({ alignment: 'unverifiable', headerFrom: [] })
+    expect(elapsed).toBeGreaterThanOrEqual(250)
+    expect(elapsed).toBeLessThan(800)
+    expect(calls).toBeGreaterThan(0)
+  })
+
+  test('depois do prazo nenhuma consulta nova sai: o laço da mailauth acaba rápido', async () => {
+    let calls = 0
+    const gateway = createDkimVerifierGateway({
+      deadlineMs: 200,
+      dnsTimeoutMs: 100,
+      resolveDns: () => {
+        calls += 1
+        return new Promise<string[][]>(() => undefined)
+      },
+    })
+    await gateway.verify(message(8))
+    const callsAtDeadline = calls
+    expect(callsAtDeadline).toBeLessThanOrEqual(3)
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    expect(calls).toBe(callsAtDeadline)
+  })
+
+  test('o verify da conversa também respeita o prazo', async () => {
+    const gateway = createDkimVerifierGateway({
+      deadlineMs: 200,
+      dnsTimeoutMs: 150,
+      resolveDns: () => new Promise<string[][]>(() => undefined),
+    })
+    const startedAt = performance.now()
+    expect(await gateway.verify(message(8))).toBe('unverifiable')
+    expect(performance.now() - startedAt).toBeLessThan(700)
+  })
+
+  test('antes do prazo, nada muda: a assinatura alinhada segue aligned e devolve o From da mailauth', async () => {
+    const domain = 'contratante.com.br'
+    const { privateKey, publicKey } = generateTestKeyPair()
+    const signed = await signSyntheticMessage({
+      message: buildSyntheticMessage({ body: 'APROVADO', from: `financeiro@${domain}` }),
+      privateKey,
+      signingDomain: domain,
+    })
+    const gateway = createDkimVerifierGateway({
+      deadlineMs: 5_000,
+      resolveDns: dnsRecordsFor({ [`${SELECTOR}._domainkey.${domain}`]: dkimTxtRecord(publicKey) }),
+    })
+
+    expect(await gateway.verifyWithHeaderFrom(Buffer.from(signed))).toEqual({
+      alignment: 'aligned',
+      headerFrom: [`financeiro@${domain}`],
+    })
+  })
+
+  test('o prazo padrão cabe em 15 segundos', async () => {
+    const { DKIM_VERIFICATION_DEADLINE_MS } = await import(
+      '../../src/contractor-mail/infrastructure/dkim-verifier.gateway.js'
+    )
+    expect(DKIM_VERIFICATION_DEADLINE_MS).toBe(15_000)
   })
 })

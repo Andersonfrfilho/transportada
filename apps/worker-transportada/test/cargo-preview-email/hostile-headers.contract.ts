@@ -197,6 +197,21 @@ describe('a conversa também não verifica DKIM de cabeçalho hostil (spec 237 T
     expect(recorded).toEqual([{ dkimResult: 'absent' }])
   })
 
+  test('nove assinaturas DKIM: grava como DKIM ausente, sem verificar nem ler anexos (spec 237 T4.7c)', async () => {
+    const signatures = Array.from(
+      { length: 9 },
+      (_, index) =>
+        `DKIM-Signature: v=1; a=rsa-sha256; d=e${index}.example; s=a; h=from; bh=x; b=y`,
+    ).join('\r\n')
+    const { extracted, recorded, result, verified } = await run(
+      `${signatures}\r\nFrom: financeiro@contratante.example\r\n\r\nAPROVADO\r\n`,
+    )
+    expect(verified).toHaveLength(0)
+    expect(extracted).toHaveLength(0)
+    expect(result).toMatchObject({ dkimResult: 'absent', outcome: 'recorded' })
+    expect(recorded).toEqual([{ dkimResult: 'absent' }])
+  })
+
   test('mensagem comum segue verificada e com anexos lidos, como antes', async () => {
     const { extracted, recorded, verified } = await run(
       'From: financeiro@contratante.example\r\nTo: x@y.example\r\n\r\nAPROVADO\r\n',

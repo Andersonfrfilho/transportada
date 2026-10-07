@@ -9,7 +9,13 @@
 import { describe, expect, test } from 'bun:test'
 
 import { PREVIEW_EMAIL_INTAKE_RATE_LIMIT } from '../../src/cargo-preview-email/domain/cargo-preview-email.constant.js'
-import { COMPANY_ID, CONTRACTOR_ID, PROVIDER_EMAIL_ID, runIntake } from './intake.harness.js'
+import {
+  COMPANY_ID,
+  CONTRACTOR_ID,
+  PROVIDER_EMAIL_ID,
+  READY_PROFILE,
+  runIntake,
+} from './intake.harness.js'
 
 describe('os tetos da janela de e-mails por contratante (spec 237 T4.7a)', () => {
   test('20 autenticados e 100 não autenticados, em 5 minutos', () => {
@@ -46,11 +52,12 @@ describe('a janela de e-mails por contratante (spec 237 T4.7a)', () => {
     ])
   })
 
-  test('100 recusas anteriores ao DKIM também fecham a janela, com o mesmo rastro', async () => {
+  test('100 recusas anteriores ao DKIM NÃO fecham a janela para o encaminhador legítimo (spec 237 T4.7c)', async () => {
     const run = runIntake({ recentIntakes: { unauthenticated: 100 } })
-    expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rate_limited' })
-    expect(run.calls.downloads).toEqual([])
-    expect(run.calls.rateLimited).toHaveLength(1)
+    expect(await run.result).toMatchObject({ kind: 'accepted' })
+    expect(run.calls.downloads).toHaveLength(1)
+    expect(run.calls.created).toHaveLength(1)
+    expect(run.calls.rateLimited).toEqual([])
   })
 
   test('recusas anteriores ao DKIM não consomem a janela dos aceitos', async () => {
@@ -63,5 +70,77 @@ describe('a janela de e-mails por contratante (spec 237 T4.7a)', () => {
     const run = runIntake({ recentIntakes: { authenticated: 19 } })
     expect(await run.result).toMatchObject({ kind: 'accepted' })
     expect(run.calls.rateLimited).toEqual([])
+  })
+})
+
+describe('o contador de não autenticados para de GRAVAR, não de AVALIAR (spec 237 T4.7c, M2)', () => {
+  const junkSender = { from: 'Intruso <intruso@evil.example>' }
+  const saturated = { unauthenticated: 100 }
+
+  test('encaminhador fora da lista, janela cheia: a recusa volta com o código, sem linha nova e com um rastro', async () => {
+    const run = runIntake({ received: junkSender, recentIntakes: saturated })
+    expect(await run.result).toEqual({
+      contractorId: CONTRACTOR_ID,
+      kind: 'rejected',
+      reason: 'FORWARDER_NOT_ALLOWED',
+    })
+    expect(run.calls.rejections).toEqual([])
+    expect(run.calls.rateLimited).toHaveLength(1)
+    expect(run.calls.downloads).toEqual([])
+  })
+
+  test('janela com espaço: a mesma recusa grava a linha como sempre', async () => {
+    const run = runIntake({ received: junkSender, recentIntakes: { unauthenticated: 99 } })
+    expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_NOT_ALLOWED' })
+    expect(run.calls.rejections).toHaveLength(1)
+    expect(run.calls.rateLimited).toEqual([])
+  })
+
+  test('perfil sem a prévia ligada, janela cheia: também não grava', async () => {
+    const run = runIntake({
+      profiles: [{ ...READY_PROFILE, isPreviewReady: false }],
+      recentIntakes: saturated,
+    })
+    expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'PREVIEW_NOT_ENABLED' })
+    expect(run.calls.rejections).toEqual([])
+    expect(run.calls.rateLimited).toHaveLength(1)
+  })
+
+  test('DKIM que não alinha, janela cheia: sem linha nova (a recusa era anterior ao DKIM)', async () => {
+    const run = runIntake({ dkim: 'not_aligned', recentIntakes: saturated })
+    expect(await run.result).toMatchObject({
+      kind: 'rejected',
+      reason: 'FORWARDER_DKIM_NOT_ALIGNED',
+    })
+    expect(run.calls.rejections).toEqual([])
+    expect(run.calls.rateLimited).toHaveLength(1)
+  })
+
+  test('recusa DEPOIS do DKIM alinhado conta nos autenticados e continua gravando', async () => {
+    const run = runIntake({
+      profiles: [{ ...READY_PROFILE, senderAllowlist: ['outro@contratante.example'] }],
+      recentIntakes: saturated,
+    })
+    expect(await run.result).toMatchObject({
+      kind: 'rejected',
+      reason: 'ORIGINAL_SENDER_NOT_ALLOWED',
+    })
+    expect(run.calls.rejections).toHaveLength(1)
+    expect(run.calls.rateLimited).toEqual([])
+  })
+
+  test('20 autenticados e encaminhador fora da lista: a checagem barata continua gravando a recusa', async () => {
+    const run = runIntake({ received: junkSender, recentIntakes: { authenticated: 20 } })
+    expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_NOT_ALLOWED' })
+    expect(run.calls.rejections).toHaveLength(1)
+    expect(run.calls.downloads).toEqual([])
+  })
+
+  test('as duas janelas cheias e um encaminhador legítimo: o teto de autenticados fecha antes do download', async () => {
+    const run = runIntake({ recentIntakes: { authenticated: 20, unauthenticated: 100 } })
+    expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rate_limited' })
+    expect(run.calls.downloads).toEqual([])
+    expect(run.calls.dkimVerifications).toEqual([])
+    expect(run.calls.rateLimited).toHaveLength(1)
   })
 })

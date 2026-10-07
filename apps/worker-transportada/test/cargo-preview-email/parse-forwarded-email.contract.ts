@@ -107,3 +107,16 @@ describe('a leitura do e-mail encaminhado (spec 237 T4.6)', () => {
     expect(parsed?.forwarderAddress).toBeUndefined()
   })
 })
+
+describe('a mensagem anexada também passa pela barreira de cabeçalho (spec 237 T4.7c)', () => {
+  test('Cc de 62 KiB na mensagem anexada: ilegível, em milissegundos (era ~4 s no addressparser do PostalMime)', async () => {
+    const hostile = buildOriginalMime({
+      extraHeaders: [`Cc: ${'a=?b?c?d?='.repeat(5600)}`],
+      from: ORIGINAL,
+    })
+    const raw = buildMime({ forwardedMessages: [hostile], from: FORWARDER })
+    const startedAt = performance.now()
+    expect(await parseForwardedEmail(enc(raw))).toBeUndefined()
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+  })
+})

@@ -171,6 +171,99 @@ describe('extrair os anexos do MIME (spec 183 T702c1)', () => {
   })
 })
 
+describe('a mensagem aninhada no MIME da conversa (spec 237 T4.7c, NOVO-2)', () => {
+  /** O `To` de uma mensagem `message/rfc822` aninhada: o `addressparser` do PostalMime é quadrático nele. */
+  function withNestedMessage(input: {
+    readonly innerHeaders: string
+    readonly disposition?: string
+  }) {
+    const inner = [
+      'From: x@y.example',
+      input.innerHeaders,
+      'Subject: dentro',
+      'MIME-Version: 1.0',
+      'Content-Type: multipart/mixed; boundary="interna"',
+      '',
+      '--interna',
+      'Content-Type: text/plain',
+      '',
+      'corpo de dentro',
+      '--interna',
+      'Content-Type: application/pdf; name="dentro.pdf"',
+      'Content-Disposition: attachment; filename="dentro.pdf"',
+      'Content-Transfer-Encoding: base64',
+      '',
+      PDF.toString('base64'),
+      '--interna--',
+      '',
+    ].join('\r\n')
+    return Buffer.from(
+      [
+        'From: Financeiro Alfa <financeiro@alfa.example.test>',
+        'To: token@resposta.example.test',
+        'Subject: Re: Ocorrência',
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/mixed; boundary="externa"',
+        '',
+        '--externa',
+        'Content-Type: text/plain',
+        '',
+        'oi',
+        '--externa',
+        'Content-Type: message/rfc822',
+        ...(input.disposition === undefined ? [] : [`Content-Disposition: ${input.disposition}`]),
+        '',
+        inner,
+        '--externa--',
+        '',
+      ].join('\r\n'),
+      'latin1',
+    )
+  }
+
+  test('o anexo de uma mensagem aninhada comum continua sendo lido, como antes', async () => {
+    const extracted = await extractInboundMailAttachments(
+      new Uint8Array(withNestedMessage({ innerHeaders: 'To: ana@x.example' })),
+    )
+    expect(extracted.accepted.map((item) => item.fileName)).toEqual(['dentro.pdf'])
+    expect(extracted.skipped).toBe(0)
+  })
+
+  test('a mensagem aninhada com `To` de 62 KiB não trava o laço: é recusada em milissegundos', async () => {
+    const startedAt = performance.now()
+    const extracted = await extractInboundMailAttachments(
+      new Uint8Array(withNestedMessage({ innerHeaders: `To: ${'a=?b?c?d?='.repeat(5600)}` })),
+    )
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+    expect(extracted.accepted).toEqual([])
+    expect(extracted.skipped).toBe(1)
+  })
+
+  test('a mensagem anexada como `attachment` (encaminhar como anexo) segue só contando como recusa', async () => {
+    const extracted = await extractInboundMailAttachments(
+      new Uint8Array(
+        withNestedMessage({
+          disposition: 'attachment; filename="fwd.eml"',
+          innerHeaders: 'To: ana@x.example',
+        }),
+      ),
+    )
+    expect(extracted.accepted).toEqual([])
+    expect(extracted.skipped).toBe(1)
+  })
+
+  test('mensagens aninhadas uma dentro da outra além do teto de profundidade viram uma recusa só', async () => {
+    let nested = 'Subject: fundo\r\nContent-Type: text/plain\r\n\r\ncorpo'
+    for (let level = 0; level < 8; level += 1) {
+      nested = `Subject: n${level}\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b${level}"\r\n\r\n--b${level}\r\nContent-Type: message/rfc822\r\n\r\n${nested}\r\n--b${level}--\r\n`
+    }
+    const startedAt = performance.now()
+    const extracted = await extractInboundMailAttachments(new Uint8Array(Buffer.from(nested)))
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+    expect(extracted.accepted).toEqual([])
+  })
+})
+
 describe('guardar e descartar os anexos (spec 183 T702c1)', () => {
   test('cada anexo vai ao bucket com chave opaca, sha256 e tipo; descartar apaga os mesmos', async () => {
     const stored: { contentType: string; key: string; sha256: string }[] = []

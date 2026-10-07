@@ -59,8 +59,12 @@ export type Calls = {
 export type HarnessOptions = {
   readonly createOutcome?: CreatePreviewOutcome | (() => never)
   readonly dkim?: DkimAlignmentResult
+  /** Troca o verificador inteiro (o de verdade, com `mailauth`); sem ele, um dublê que conta as chamadas. */
+  readonly dkimVerifier?: IntakeCargoPreviewEmailDependencies['dkimVerifier']
   readonly download?: () => Promise<Buffer>
   /** Última entrega da fila: a recusa por DKIM sem veredito só é gravada aqui. */
+  /** O que a `mailauth` leu como `From` da mensagem — o dublê devolve o encaminhador, como no e-mail comum. */
+  readonly headerFrom?: readonly string[]
   readonly isLastAttempt?: boolean
   readonly profiles?: readonly PreviewProfileRecord[]
   readonly rawEmail?: string
@@ -81,13 +85,21 @@ export function runIntake(options: HarnessOptions = {}) {
     stored: [],
   }
   const raw = Buffer.from(options.rawEmail ?? validRawEmail())
-  const dependencies: IntakeCargoPreviewEmailDependencies = {
-    dkimVerifier: {
-      verify: async (rawMessage) => {
-        calls.dkimVerifications.push(rawMessage)
-        return options.dkim ?? 'aligned'
-      },
+  const countingVerifier = {
+    verify: async (rawMessage: Buffer) => {
+      calls.dkimVerifications.push(rawMessage)
+      return options.dkim ?? 'aligned'
     },
+    verifyWithHeaderFrom: async (rawMessage: Buffer) => {
+      calls.dkimVerifications.push(rawMessage)
+      return {
+        alignment: options.dkim ?? ('aligned' as const),
+        headerFrom: options.headerFrom ?? [FORWARDER],
+      }
+    },
+  }
+  const dependencies: IntakeCargoPreviewEmailDependencies = {
+    dkimVerifier: options.dkimVerifier ?? countingVerifier,
     mailGateway: {
       downloadRawEmail: async (input) => {
         calls.downloads.push({ maxBytes: input.maxBytes })
