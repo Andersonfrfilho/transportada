@@ -38,7 +38,7 @@ fábrica o gateway usa. `NFSE_PROVIDER_BASE_URL` continua a URL única (ADR-0035
 | `servico.incidencia_issqn`                               | `issExigibility`                                          | `'1'` → `operacao_tributavel`; demais → erro nomeado até haver caso real         |
 | `servico.aliquota_issqn`                                 | `issRate`                                                 | fração→percentual por string (reusa `toIssRatePercentage`)                       |
 | `servico.issqn_retido`                                   | `issWithheld`                                             |                                                                                  |
-| `servico.tributos_aproximados.aliquota_simples_nacional` | perfil                                                    | **[NEEDS CLARIFICATION] 1**                                                      |
+| `servico.tributos_aproximados.aliquota_simples_nacional` | `simplesNationalRate` (perfil, novo)                      | 2,00% decidido; ausente na v3 → erro nomeado                                     |
 | `flags.hash_pedido`                                      | `attemptId`                                               | idempotência 24 h                                                                |
 | `flags.webhook_url`                                      | `{callbackBaseUrl}/public/nfse-callbacks/{callbackToken}` | exige `https://`                                                                 |
 | `flags.enviar_email`                                     | `false`                                                   |                                                                                  |
@@ -70,7 +70,7 @@ com prefetch baixo; o status pull é sequencial. Não é fila nova: é um `throt
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Par fiscal errado → prefeitura recusa (`E215`)       | `cTribNac`+`cTribMun` do perfil conferidos contra a nota 74; primeira emissão real de valor mínimo, sob aprovação                                   |
 | Duplicar a nota 74 ao reemitir                       | Fase 5: vincular a nota manual em vez de reemitir; nenhum job reemite sozinho                                                                       |
-| Alíquota de tributos aproximados rejeitada (< 4,50%) | [NEEDS CLARIFICATION] 1 fecha antes de codar a Fase 3                                                                                               |
+| Alíquota de tributos aproximados rejeitada (< 4,50%) | Valor decidido 2,00% em coluna do perfil; a T6.2 (nota real de valor mínimo) mede, e a correção é de dado                                           |
 | Virada com notas em voo                              | Notas `pending_authorization` da v2 continuam consultáveis? **Não** — `id_nota` da v2 não existe na v3. T0.2 mede quantas há; a virada espera zerar |
 | Documentação v3 desatualizada (diz "exceto RP")      | Confirmado pelo suporte (07/10); registrar o e-mail/atendimento em `evidence.md`                                                                    |
 | Rate limit estourado em lote                         | Throttle de 1 req/s; teste de contrato com relógio injetado                                                                                         |

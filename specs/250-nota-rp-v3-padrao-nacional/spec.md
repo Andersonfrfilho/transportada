@@ -40,6 +40,7 @@ faz. O desenho assíncrono (outbox → consumidor → write-back → `nfse.statu
 - Regime da transportadora: **Simples Nacional**.
 - Fazer a v3 **primeiro**, para corrigir; depois a troca para o emissor nacional gratuito (spec 251).
 - O `cTribNac` vem do XML da nota emitida (`160201`).
+- Alíquota SN 2,00%, ISS não retido, `cTribMun` 160101 (ver "Esclarecimentos fechados").
 
 ## Decisões por delegação
 
@@ -79,13 +80,12 @@ faz. O desenho assíncrono (outbox → consumidor → write-back → `nfse.statu
 - Emissão em massa pela planilha da Nota RP.
 - Homologação: não existe. A primeira emissão real é de valor mínimo e **pede aprovação humana**.
 
-## [NEEDS CLARIFICATION] — a spec não vira prompt de execução até fechar
+## Esclarecimentos fechados (T0.3, 07/10/2026)
 
-1. **`tributos_aproximados.aliquota_simples_nacional`.** A v3 exige e documenta mínimo de 4,50%
-   (alíquota efetiva do anexo). A nota manual saiu com `pTotTribSN 2.00`. Qual valor vale para a
-   transportadora, e a Nota RP aceita 2,00? (Pergunta à Valéria/contato@notarp.com.br.)
-2. **`ISS retido pelo tomador`.** O diálogo de reemissão exibia "retido" sem valor visível; a nota
-   manual saiu **não retida** (`tpRetISSQN 1`). Confirmar o valor do perfil antes de migrar.
-3. **`cTribMun` do perfil.** `160107` (ABRASF) ou `160101` (nacional, aceito na nota 74)? Muda no
-   perfil na virada; confirmar com o usuário que nenhuma outra transportadora/CNPJ do perfil depende
-   de `160107`.
+1. **Alíquota de `tributos_aproximados`: 2,00%**, igual à nota 74 (`pTotTribSN 2.00`). A v3
+   documenta mínimo de 4,50%; o risco de recusa é aceito e a **primeira emissão real (T6.2) o
+   mede**. O valor vira coluna do perfil (`simples_national_rate`), não literal no adaptador:
+   se a Nota RP recusar, corrige-se o dado, não o código.
+2. **ISS retido: não** (`issWithheld = false`, `tpRetISSQN 1`, igual à nota 74).
+3. **`cTribMun` do perfil na v3: `160101`** (o do XML da nota 74); `cTribNac` = `160201`. O
+   `160107` só valia na v2 e sai do perfil na virada.

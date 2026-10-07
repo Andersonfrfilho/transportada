@@ -42,3 +42,9 @@ Rotas: `empresa/*`, `nota/{listar,emitir,cancelar,pdf,xml,remover}`, `dominio/*`
 `X-Auth-User-Token` + `X-Auth-CNPJ` + `X-Auth-IM`. Limite 1 req/s (burst 3). `hash_pedido`:
 idempotência por 24 h (`409` com o `id_nota` original). Changelog: 10/08/2026 (webhook assinado,
 41 reentregas), 30/07/2026 (`valor_deducoes`), 12/04/2026 (`pis_retido`/`cofins_retido`).
+
+## E5 — Esclarecimentos fechados (T0.3, 07/10/2026)
+
+Respostas do usuário: alíquota de `tributos_aproximados` **2,00%** (igual à nota 74); ISS **não
+retido**; `cTribMun` **o do XML (160101)**. Risco aceito: a v3 documenta mínimo de 4,50%. Mitigação:
+valor em coluna do perfil e medição na primeira emissão real (T6.2).

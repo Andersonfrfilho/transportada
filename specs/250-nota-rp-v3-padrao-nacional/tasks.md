@@ -1,7 +1,7 @@
 # Tasks
 
-> Pré-condição: **há `[NEEDS CLARIFICATION]` aberto em `spec.md`** — a Fase 0 (T0.3) os fecha com o
-> usuário; sem isso o prompt de execução não vale. Produção só por PR com aprovação humana.
+> Pré-condição: nenhum `[NEEDS CLARIFICATION]` aberto (fechados na T0.3, 07/10/2026).
+> Produção só por PR com aprovação humana.
 
 Uma task por vez. Contrato vermelho antes da implementação. Cada task fecha com typecheck + teste +
 commit isolado e evidência em `evidence.md`. Migration pede `make migration-test` e `rollback.sql`.
@@ -14,10 +14,11 @@ Teste novo entra na lista explícita do `package.json` da app.
 - [ ] **T0.1** Conferir contra `origin/staging`: existe cliente Nota RP no `cron-transportada`? Listar
       todos os pontos que falam com `notarp.com.br` (worker emissão, worker status pull, cron).
       Aceite: lista em `evidence.md`.
-- [ ] **T0.2** Contar notas `pending_authorization`/`issuing` com `id_nota` da v2 em produção
+- [ ] **T0.2** (adiada para antes da T6.2; precisa de aprovação) Contar notas `pending_authorization`/`issuing` com `id_nota` da v2 em produção
       (leitura, via aprovação do usuário). Aceite: número em `evidence.md`; se > 0, decidir drenar
       antes da virada.
-- [ ] **T0.3** Fechar os três `[NEEDS CLARIFICATION]` de `spec.md` com o usuário/suporte da Nota RP.
+- [x] **T0.3** Fechar os três `[NEEDS CLARIFICATION]` de `spec.md` com o usuário/suporte da Nota RP.
+      Fechados em 07/10/2026 (2,00% · não retido · 160101).
 - [ ] **T0.4** Ler o `swagger.yaml` e a coleção Postman da v3 e guardar o recorte usado em
       `docs/ai-context/worker-transportada.md` (a referência não vive só na conversa).
 
@@ -84,7 +85,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 ## Prompt de execução
 
-> A spec tem três `[NEEDS CLARIFICATION]` abertos. O prompt abaixo **para na T0.3 e pergunta** ao
+> Os três `[NEEDS CLARIFICATION]` foram fechados na T0.3 (07/10/2026). O prompt abaixo **parava na T0.3 e perguntava** ao
 > usuário antes de qualquer código; ele não decide alíquota, retenção nem `cTribMun` por conta própria.
 
 ```text
