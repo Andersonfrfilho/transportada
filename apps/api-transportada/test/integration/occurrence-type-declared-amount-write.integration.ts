@@ -22,6 +22,8 @@ import {
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
 import { OccurrenceTypeDeclaredAmountNeedsItemsError } from '../../src/trips/domain/trip.error.js'
+import { toSaveOccurrenceTypeValues } from '../../src/trips/application/save-occurrence-type-values.mapper.js'
+import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurrence.schema.js'
 import {
   findOccurrenceType,
   listOccurrenceTypes,
@@ -126,6 +128,53 @@ describe('os campos novos do tipo contra o Postgres (spec 247 RF1)', () => {
             referenceNumberMode: 'required',
           })
         }
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'o PUT sem emailBody e emailSubject preserva o gravado; "" explícito apaga (T7.2 M1)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId } = await seedCompany(database)
+        const created = await saveThroughUseCase(
+          database,
+          companyId,
+          valuesFor({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT }),
+        )
+
+        const putWithout = async (extra: Record<string, unknown>) =>
+          saveThroughUseCase(
+            database,
+            companyId,
+            toSaveOccurrenceTypeValues(
+              await parseOccurrenceTypeRequest(
+                new Request('http://localhost/company-settings/occurrence-types', {
+                  body: JSON.stringify({
+                    emailTemplateKey: null,
+                    name: 'Devolução parcial',
+                    occurrenceTypeId: created.id,
+                    stage: 'delivery',
+                    ...extra,
+                  }),
+                  headers: { 'content-type': 'application/json' },
+                  method: 'PUT',
+                }),
+              ),
+            ),
+          )
+
+        const renamed = await putWithout({ name: 'Devolução parcial (SAC)' })
+        expect(renamed).toMatchObject({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT })
+        const read = await findOccurrenceType(database.db, {
+          companyId,
+          occurrenceTypeId: created.id,
+        })
+        expect(read).toMatchObject({ emailBody: SAC_BODY, emailSubject: SAC_SUBJECT })
+
+        const erased = await putWithout({ emailBody: '', emailSubject: '' })
+        expect(erased).toMatchObject({ emailBody: '', emailSubject: '' })
       })
     },
     30_000,

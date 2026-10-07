@@ -58,12 +58,13 @@ export type SaveOccurrenceTypeValues = {
   readonly declaredAmountLabel?: string | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-  readonly emailBody: string
+  /** Ausente é "não mexa"; `''` explícito apaga o texto (spec 247 RF2). */
+  readonly emailBody?: string | undefined
   /** Spec 247 (RF6): o formato de cada linha de item do e-mail. Ausente é "não mexa". */
   readonly emailItemLineTemplate?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject: string
+  readonly emailSubject?: string | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Obrigatório na

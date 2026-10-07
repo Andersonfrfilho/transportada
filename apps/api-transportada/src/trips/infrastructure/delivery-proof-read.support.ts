@@ -1106,9 +1106,10 @@ async function writeOccurrenceTypeRow(
     readonly declaredAmountLabel?: string | undefined
     readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
     readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-    readonly emailBody: string
+    /** Spec 247 RF2: ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly emailBody?: string | undefined
     readonly emailItemLineTemplate?: string | undefined
-    readonly emailSubject: string
+    readonly emailSubject?: string | undefined
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
@@ -1156,8 +1157,6 @@ async function writeOccurrenceTypeRow(
   const values = {
     active: input.active,
     companyId: input.companyId,
-    emailBody: input.emailBody,
-    emailSubject: input.emailSubject,
     emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
@@ -1165,6 +1164,8 @@ async function writeOccurrenceTypeRow(
   }
 
   const attachmentModeChange = {
+    ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
+    ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
     ...(input.allowsMultipleItems === undefined
       ? {}
       : { allowsMultipleItems: input.allowsMultipleItems }),

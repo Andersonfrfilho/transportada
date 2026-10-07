@@ -302,12 +302,12 @@ type SaveOccurrenceTypeInput = {
   readonly declaredAmountLabel?: string | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
-  readonly emailBody: string
+  readonly emailBody?: string | undefined
   /** Spec 247 (RF6): o formato da linha de item; ausente é "não mexa". */
   readonly emailItemLineTemplate?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject: string
+  readonly emailSubject?: string | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver

@@ -513,9 +513,14 @@ const occurrenceTypeSchema = z
      * marcado "segue sem a nota" desligaria a marca sem erro nenhum. Ausente é "não mexa".
      */
     leavesDocumentBehind: z.boolean().optional(),
-    /** Marcador desconhecido é recusado aqui, no cadastro — ver `occurrence-template-fields.schema.ts`. */
-    emailBody: emailBodyTemplateSchema.default(''),
-    emailSubject: emailSubjectTemplateSchema.default(''),
+    /**
+     * Marcador desconhecido é recusado aqui, no cadastro — ver `occurrence-template-fields.schema.ts`.
+     * ⚠️ **Opcionais sem `default`**: o UPDATE sobrescreve o registro inteiro, e o painel publicado não
+     * manda estes campos; com `default('')` cada edição apagava o e-mail à contratante. Ausente é
+     * "não mexa"; `''` explícito apaga de propósito.
+     */
+    emailBody: emailBodyTemplateSchema.optional(),
+    emailSubject: emailSubjectTemplateSchema.optional(),
     /**
      * A chave do template do módulo de notificações que o tipo seleciona para o aviso interno. Presente,
      * ela é conferida contra o catálogo da empresa na gravação; assunto/corpo acima são o e-mail à
