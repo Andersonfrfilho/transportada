@@ -28,21 +28,20 @@ import {
 } from './list-field-occurrence-types.use-case.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
-  OccurrenceCoreRequirements,
   OccurrenceRequirementLayer,
-  OccurrenceRequirementSources,
+  OccurrenceRequirements,
 } from '../domain/occurrence-requirements.policy.js'
 
-/** Spec 247: a camada dos seis campos da 246 — a tela de verificação ainda não conhece os novos. */
+/** Spec 247 (T4.6): a camada dos onze campos — a tela de verificação já tolera os cinco novos (ADR-0081 §9). */
 type SettingsResolutionSources = Readonly<
-  Record<keyof OccurrenceCoreRequirements, OccurrenceRequirementLayer>
+  Record<keyof OccurrenceRequirements, OccurrenceRequirementLayer>
 >
 
 /**
  * Spec 246 (RF12, P5): os seis campos resolvidos de cada tipo e a camada (`type`, `contractor`,
  * `recipient` ou `default`) que decidiu cada um — o mesmo resolvedor do snapshot e do registro.
  */
-export type SettingsResolutionOccurrenceType = OccurrenceCoreRequirements &
+export type SettingsResolutionOccurrenceType = OccurrenceRequirements &
   Readonly<{
     attachmentMode: DeliveryProofFieldMode
     flow: OccurrenceTypeFlow
@@ -99,24 +98,18 @@ function toFieldSettings(input: DeliveryProofFieldSettings): DeliveryProofFieldS
   }
 }
 
-function pickSources(sources: OccurrenceRequirementSources): SettingsResolutionSources {
+function pickRequirements(type: FieldOccurrenceType): OccurrenceRequirements {
   return {
-    itemsMinimumCount: sources.itemsMinimumCount,
-    itemsMode: sources.itemsMode,
-    noteMode: sources.noteMode,
-    photoMinimumCount: sources.photoMinimumCount,
-    photoMode: sources.photoMode,
-    signatureMode: sources.signatureMode,
-  }
-}
-
-function pickRequirements(type: FieldOccurrenceType): OccurrenceCoreRequirements {
-  return {
+    declaredAmountLabel: type.declaredAmountLabel,
+    declaredAmountMode: type.declaredAmountMode,
+    declaredAmountScope: type.declaredAmountScope,
     itemsMinimumCount: type.itemsMinimumCount,
     itemsMode: type.itemsMode,
     noteMode: type.noteMode,
     photoMinimumCount: type.photoMinimumCount,
     photoMode: type.photoMode,
+    referenceNumberLabel: type.referenceNumberLabel,
+    referenceNumberMode: type.referenceNumberMode,
     signatureMode: type.signatureMode,
   }
 }
@@ -162,7 +155,7 @@ export async function readSettingsResolution(
       flow: type.flow,
       id: type.id,
       name: type.name,
-      sources: pickSources(sources),
+      sources,
       stage: TRIP_OCCURRENCE_STAGE.delivery,
     })),
   }

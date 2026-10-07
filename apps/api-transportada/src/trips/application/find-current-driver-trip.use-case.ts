@@ -23,6 +23,7 @@ import type { DriverScorePort } from '../../fleet/application/driver-score.port.
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type { DriverDocumentProduct } from '../domain/driver-document-products.policy.js'
 import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
 
 export type DriverTripDocument = {
@@ -51,6 +52,12 @@ export type DriverTripDocument = {
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
    */
   readonly proofPending: boolean
+  /**
+   * Spec 247 (RF11, T4.6): os produtos da nota, um por código, com o preço e a quantidade que o
+   * servidor usa na conta. `[]` é nota sem produto (manual); ausente é a leitura que falhou nesta
+   * chamada — refinamento sobre um snapshot que funciona sem ela, e o app cai na nota inteira.
+   */
+  readonly products?: readonly DriverDocumentProduct[]
   /**
    * Spec 193 D14: como o destinatário é chamado — nome fantasia, senão razão social (a regra de
    * `resolveRecipientDisplayName`). É o que "O próprio cliente recebeu" preenche no nome.

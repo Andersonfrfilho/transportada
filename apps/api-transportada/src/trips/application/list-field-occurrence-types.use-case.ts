@@ -16,7 +16,12 @@
  * herda do tipo. `attachmentMode` segue no corpo, igual a `photoMode`, para o app que não o conhece.
  */
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
-import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceDeclaredAmountScope,
+  OccurrenceMoment,
+  OccurrenceTypeFlow,
+} from '../../shared/trip-occurrence.constant.js'
+import { resolveDeclaredAmountTarget } from '../domain/occurrence-declared-amount-target.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import {
@@ -34,10 +39,15 @@ import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
 /**
- * Spec 247: só os seis campos da 246 — o painel (escritório) recusa chave que não conhece, e os modos
- * do número e do valor pago só entram aqui depois de ele tolerá-los (ADR-0081 §9, T4.6).
+ * Spec 247 (T4.6): os seis campos da 246 e os cinco da devolução — o painel e o app já os toleram
+ * (etapa 1 e 1b da ADR-0081 §9). O escopo do valor pago sai **efetivo**: com Produtos desligado, é `occurrence`.
  */
 export type FieldOccurrenceType = OccurrenceCoreRequirements & {
+  readonly declaredAmountLabel: string
+  readonly declaredAmountMode: DeliveryProofFieldMode
+  readonly declaredAmountScope: OccurrenceDeclaredAmountScope
+  readonly referenceNumberLabel: string
+  readonly referenceNumberMode: DeliveryProofFieldMode
   /**
    * Spec 179 T304: se o registro do motorista exige comprovante. Igual a `photoMode`, mantido no
    * corpo por um ciclo para o app anterior à spec 246. `type.attachmentMode` é ausente só para dado
@@ -169,9 +179,19 @@ function toFieldOccurrenceType(params: {
   return {
     ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
+    declaredAmountLabel: requirements.declaredAmountLabel,
+    declaredAmountMode: requirements.declaredAmountMode,
+    /** O tipo não conhece a nota: só o modo de Produtos conta aqui; a nota sem produto refina no snapshot. */
+    declaredAmountScope: resolveDeclaredAmountTarget({
+      itemsMode: requirements.itemsMode,
+      lineCount: 1,
+      scope: requirements.declaredAmountScope,
+    }),
     flow: type.flow ?? 'document',
     id: type.id,
     name: type.name,
+    referenceNumberLabel: requirements.referenceNumberLabel,
+    referenceNumberMode: requirements.referenceNumberMode,
     stopKind: resolveFieldStopKind(type),
   }
 }

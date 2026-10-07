@@ -14,7 +14,12 @@ import {
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
-import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
+import {
+  nfeDocuments,
+  nfeParticipants,
+  nfeProducts,
+  nfeVolumes,
+} from '../../database/nfe.schema.js'
 import {
   tripDeliveryProofs,
   tripDocuments,
@@ -42,6 +47,11 @@ import {
   resolveFieldOccurrenceTypes,
   selectFieldOccurrenceTypes,
 } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  buildDriverDocumentProducts,
+  refineDeclaredAmountScopeForDocument,
+  type DriverDocumentProduct,
+} from '../domain/driver-document-products.policy.js'
 import {
   type CanhotoRecaptureState,
   isDeliveryProofSettled,
@@ -329,22 +339,29 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
      * três. Nota sem volume importado é caso normal — a NF-e é dado de terceiro, e nós não a
      * preenchemos.
      */
-    const [volumesByDocument, photoPresenceByDocument] = await Promise.all([
-      this.sumVolumes({
-        companyId: input.companyId,
-        nfeDocumentIds: documentRows
-          .map((row) => row.nfeDocumentId)
-          .filter((documentId): documentId is string => documentId !== null),
-      }),
+    const nfeDocumentIds = documentRows
+      .map((row) => row.nfeDocumentId)
+      .filter((documentId): documentId is string => documentId !== null)
+    const [volumesByDocument, photoPresenceByDocument, productsByNfeDocument] = await Promise.all([
+      this.sumVolumes({ companyId: input.companyId, nfeDocumentIds }),
       this.listDeliveryPhotoPresence({
         companyId: input.companyId,
         documentIds: documentRows.map((row) => row.id),
       }),
+      /**
+       * Spec 247 (T4.6): uma consulta para todas as notas de todas as viagens do motorista, nunca uma
+       * por nota. Refinamento isolado do `Promise.all`, como `occurrenceTypes`: se falhar, a nota
+       * sai sem `products` e o app oferece a nota inteira — o caminho crítico não cai junto.
+       */
+      this.listDocumentProducts({ companyId: input.companyId, nfeDocumentIds }).catch(() => null),
     ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
         ...row,
         hasDeliveryPhoto: photoPresenceByDocument.get(row.id) ?? false,
+        ...(productsByNfeDocument === null
+          ? {}
+          : { products: productsByNfeDocument.get(row.nfeDocumentId ?? '') ?? [] }),
         volumes: volumesByDocument.get(row.nfeDocumentId ?? '') ?? null,
       })),
       (row) => row.stopId,
@@ -794,6 +811,46 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
+   * Spec 247 (T4.6): os produtos de cada nota, já resolvidos por código, numa consulta só pelas notas
+   * fiscais do lote. O vínculo `trip_documents` já filtrou o que o motorista alcança.
+   */
+  private async listDocumentProducts(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<Map<string, readonly DriverDocumentProduct[]>> {
+    if (input.nfeDocumentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        code: nfeProducts.code,
+        commercialUnit: nfeProducts.commercialUnit,
+        description: nfeProducts.description,
+        documentId: nfeProducts.documentId,
+        ordinal: nfeProducts.ordinal,
+        quantity: nfeProducts.quantity,
+        unitValue: nfeProducts.unitValue,
+      })
+      .from(nfeProducts)
+      .where(
+        and(
+          eq(nfeProducts.companyId, input.companyId),
+          inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
+        ),
+      )
+      .orderBy(asc(nfeProducts.documentId), asc(nfeProducts.ordinal))
+
+    const byDocument = groupBy(rows, (row) => row.documentId)
+    return new Map(
+      [...byDocument].map(([documentId, documentRows]) => [
+        documentId,
+        buildDriverDocumentProducts(
+          documentRows.map((row) => ({ ...row, ordinal: Number(row.ordinal) })),
+        ),
+      ]),
+    )
+  }
+
+  /**
    * ADR-0070 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
    * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
    * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
@@ -981,6 +1038,8 @@ type DocumentRow = {
   readonly hasDeliveryPhoto: boolean
   readonly id: string
   readonly number: string | null
+  /** Spec 247 (T4.6): ausente quando a leitura dos produtos falhou nesta chamada. */
+  readonly products?: readonly DriverDocumentProduct[]
   readonly recipientName: string | null
   readonly recipientTaxId: string | null
   readonly recipientTradeName: string | null
@@ -1049,7 +1108,11 @@ function toDriverDocument(
           overrides: occurrenceTypes.overrides,
           recipientTaxId: row.recipientTaxId ?? '',
           types: occurrenceTypes.types,
-        })
+        }).map((type) =>
+          row.products === undefined
+            ? type
+            : refineDeclaredAmountScopeForDocument({ productCount: row.products.length, type }),
+        )
 
   return {
     accessKey: row.accessKey ?? '',
@@ -1067,6 +1130,7 @@ function toDriverDocument(
       row.deliveredAt !== null &&
       deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
       !row.hasDeliveryPhoto,
+    ...(row.products === undefined ? {} : { products: row.products }),
     recipientDisplayName: resolveRecipientDisplayName({
       legalName: row.recipientName ?? '',
       tradeName: row.recipientTradeName ?? '',

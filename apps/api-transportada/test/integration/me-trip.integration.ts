@@ -713,10 +713,12 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         )
 
         // A nota do contratante Alfa resolve `required`; a nota irmã, sem contratante, segue a
-        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista.
+        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista. As notas do
+        // cenário não têm produto: o valor pago, de escopo `item`, cai na ocorrência (spec 247 T4.6).
         expect(overriddenDocument?.occurrenceTypes).toEqual([
           buildFieldOccurrenceType({
             attachmentMode: 'required',
+            declaredAmountScope: 'occurrence',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
           }),
@@ -724,6 +726,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(plainDocument?.occurrenceTypes).toEqual([
           buildFieldOccurrenceType({
             attachmentMode: 'optional',
+            declaredAmountScope: 'occurrence',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
           }),
