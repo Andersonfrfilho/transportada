@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { applyCargoPreviewRetentionUnit } from '../../src/cargo-preview-retention/application/cargo-preview-retention-unit.service.js'
+import {
+  applyCargoPreviewRetentionUnit,
+  settleCargoPreviewRetentionUnit,
+} from '../../src/cargo-preview-retention/application/cargo-preview-retention-unit.service.js'
 import type {
   CargoPreviewRetentionGateway,
   CargoPreviewRetentionObject,
@@ -209,5 +212,31 @@ describe('a unidade da retenção: uma prévia (spec 237 T4.8)', () => {
         previewId: PREVIEW.id,
       }),
     ).rejects.toThrow('deadlock detected')
+  })
+
+  test('erro imprevisto numa prévia vira `failed` e só o tipo dele vai ao log', async () => {
+    const fake = buildGateway()
+    const gateway: CargoPreviewRetentionGateway = {
+      ...fake.gateway,
+      anonymizeItems: async () => {
+        throw new Error('duplicate key value violates "RUA DAS FLORES, 10"')
+      },
+      runInTransaction: (work) => work(gateway),
+    }
+    const logged: unknown[][] = []
+    const record = (...args: unknown[]) => {
+      logged.push(args)
+    }
+
+    const result = await settleCargoPreviewRetentionUnit({
+      deleteObject: buildDelete().deleteObject,
+      gateway,
+      logger: { debug: record, error: record, info: record, warn: record } as never,
+      now: NOW,
+      previewId: PREVIEW.id,
+    })
+
+    expect(result).toBe('failed')
+    expect(logged).toEqual([['cargo_preview_retention_unit_failed', { errorName: 'Error' }]])
   })
 })

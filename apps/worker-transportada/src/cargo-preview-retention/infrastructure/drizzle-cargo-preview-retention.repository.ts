@@ -4,15 +4,10 @@
 import { and, notInArray } from 'drizzle-orm'
 
 import { cargoPreviews } from '../../database/cargo-preview.schema.js'
-import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import type { ApplyCargoPreviewRetentionBatch } from '../application/cargo-preview-retention.port.js'
-import { applyCargoPreviewRetentionUnit } from '../application/cargo-preview-retention-unit.service.js'
+import { settleCargoPreviewRetentionUnit } from '../application/cargo-preview-retention-unit.service.js'
 import type { DeleteStoredObjectBytes } from '../application/cargo-preview-retention-unit.port.js'
-import {
-  CARGO_PREVIEW_RETENTION_UNIT_RESULT,
-  type CargoPreviewRetentionUnitResult,
-} from '../domain/cargo-preview-retention.constant.js'
 import { resolveCargoPreviewRetentionCutoff } from '../domain/cargo-preview-retention.policy.js'
 import { buildCargoPreviewRetentionCondition } from './cargo-preview-retention-eligibility.query.js'
 import {
@@ -53,34 +48,16 @@ export function createDrizzleApplyCargoPreviewRetentionBatch(input: {
     const deferredPreviewIds: string[] = []
     // Em série de propósito: cada unidade segura uma transação com I/O de rede.
     for (const candidate of candidates) {
-      const result = await settleUnit({ ...input, gateway, now, previewId: candidate.id })
+      const result = await settleCargoPreviewRetentionUnit({
+        ...input,
+        gateway,
+        now,
+        previewId: candidate.id,
+      })
       counts[result] += 1
       if (result === 'failed' || result === 'partial') deferredPreviewIds.push(candidate.id)
     }
 
     return { ...counts, deferredPreviewIds, processed: candidates.length }
-  }
-}
-
-/** Uma prévia que estoura por motivo imprevisto vira `failed`: não pode trancar as outras do lote. */
-async function settleUnit(input: {
-  readonly deleteObject: DeleteStoredObjectBytes
-  readonly gateway: ReturnType<typeof createDrizzleCargoPreviewRetentionGateway>
-  readonly logger?: WorkerLogger
-  readonly now: Date
-  readonly previewId: string
-}): Promise<CargoPreviewRetentionUnitResult> {
-  try {
-    return await applyCargoPreviewRetentionUnit(input)
-  } catch (error) {
-    if (input.logger !== undefined) {
-      // Só o tipo do erro: a mensagem do Postgres pode trazer o valor da linha.
-      safeLogWarn({
-        logger: input.logger,
-        message: 'cargo_preview_retention_unit_failed',
-        metadata: { errorName: error instanceof Error ? error.name : 'unknown' },
-      })
-    }
-    return CARGO_PREVIEW_RETENTION_UNIT_RESULT.failed
   }
 }

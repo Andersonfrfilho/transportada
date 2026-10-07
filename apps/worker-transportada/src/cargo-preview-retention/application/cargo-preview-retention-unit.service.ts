@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
   CARGO_PREVIEW_RETENTION_DELETE_TIMEOUT_MS,
   CARGO_PREVIEW_RETENTION_MAX_OBJECTS_PER_PREVIEW,
@@ -34,6 +36,31 @@ export async function applyCargoPreviewRetentionUnit(input: {
       return CARGO_PREVIEW_RETENTION_UNIT_RESULT.failed
     }
     throw error
+  }
+}
+
+/**
+ * Uma prévia que estoura por motivo imprevisto vira `failed`: não pode trancar as outras do lote.
+ * Só o tipo do erro vai ao log — a mensagem do Postgres pode trazer o valor da linha.
+ */
+export async function settleCargoPreviewRetentionUnit(input: {
+  readonly deleteObject: DeleteStoredObjectBytes
+  readonly gateway: CargoPreviewRetentionGateway
+  readonly logger?: WorkerLogger
+  readonly now: Date
+  readonly previewId: string
+}): Promise<CargoPreviewRetentionUnitResult> {
+  try {
+    return await applyCargoPreviewRetentionUnit(input)
+  } catch (error) {
+    if (input.logger !== undefined) {
+      safeLogWarn({
+        logger: input.logger,
+        message: 'cargo_preview_retention_unit_failed',
+        metadata: { errorName: error instanceof Error ? error.name : 'unknown' },
+      })
+    }
+    return CARGO_PREVIEW_RETENTION_UNIT_RESULT.failed
   }
 }
 
