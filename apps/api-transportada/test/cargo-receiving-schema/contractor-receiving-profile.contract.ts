@@ -24,7 +24,7 @@ const TABLE = 'contractor_receiving_profiles'
  * `<`, `>` nem `|` (o separador do teste de forma, que assim nunca aparece dentro de uma entrada).
  */
 const PREVIEW_ALLOWLIST_CHECK = (column: string): string =>
-  `cardinality("${column}") between 1 and 20 and array_position("${column}", null) is null and array_to_string("${column}", '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string("${column}", '|') !~ '[[:cntrl:][:space:],<>|]'`
+  `cardinality("${column}") between 1 and 20 and array_position("${column}", null) is null and array_to_string("${column}", '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string("${column}", '') !~ '[[:cntrl:][:space:],<>|]'`
 
 describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
   test('alcança o contratante pela empresa, nunca pelo id sozinho', () => {
