@@ -121,14 +121,18 @@ describe('deliveryDeadline na nota da viagem (spec 236 T1.2b)', () => {
   ]
 
   it.each(MALFORMED)(
-    'descarta só o campo quando vem %s: contact e proofPending ficam',
+    'descarta só o campo quando vem %s: contact, proofPending e openOccurrenceCase ficam',
     (_, bad) => {
-      const detail = adapters.tripDetailFromApi(buildDetail({ deliveryDeadline: bad }))
+      const detail = adapters.tripDetailFromApi(
+        buildDetail({ deliveryDeadline: bad, openOccurrenceCase: true }),
+      )
 
       expect(detail.documents[0]?.deliveryDeadline).toBeUndefined()
       expect(detail.documents[0]?.contact).toEqual(CONTACT)
       expect(detail.documents[0]?.proofPending).toBe(true)
+      expect(detail.documents[0]?.openOccurrenceCase).toBe(true)
       expect(detail.stops[0]?.documents[0]?.deliveryDeadline).toBeUndefined()
+      expect(detail.stops[0]?.documents[0]?.openOccurrenceCase).toBe(true)
       expect(detail.stops[0]?.documents[0]?.contact).toEqual(CONTACT)
     },
   )
