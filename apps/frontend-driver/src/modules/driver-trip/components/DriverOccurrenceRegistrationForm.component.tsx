@@ -23,6 +23,7 @@ import {
   resolveRequiredItemsCount,
 } from '../shared/occurrenceRequirements.service'
 import styles from '../styles/driverTrip.module.css'
+import valueStyles from '../styles/occurrenceValues.module.css'
 
 type DriverOccurrenceRegistrationFormProps = Readonly<{
   document: DriverTripDocument
@@ -137,8 +138,8 @@ export function DriverOccurrenceRegistrationForm({
         <>
           <OccurrenceValuesSection form={form} labels={valueLabels} requirements={requirements} />
           {visibility?.rendersNote === false ? null : (
-            <label>
-              <span>
+            <label className={valueStyles.field}>
+              <span className={valueStyles.fieldLabel}>
                 {t(
                   requirements?.noteMode === 'required'
                     ? 'occurrenceRegistration.noteRequired'
@@ -146,6 +147,7 @@ export function DriverOccurrenceRegistrationForm({
                 )}
               </span>
               <textarea
+                className={valueStyles.input}
                 maxLength={500}
                 onChange={(event) => form.handleDescriptionChange(event.target.value)}
                 rows={3}
