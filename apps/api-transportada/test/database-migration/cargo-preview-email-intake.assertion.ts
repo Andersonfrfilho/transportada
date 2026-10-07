@@ -62,8 +62,15 @@ async function insertContractor(probe: CargoPreviewEmailIntakeProbe, taxId: stri
 async function assertProfileRules(probe: CargoPreviewEmailIntakeProbe, contractorIds: string[]) {
   const { database } = probe
   const [first, second] = contractorIds as [string, string]
-  const setProfile = (contractorId: string, token: string | null, list: string[] | null) => {
-    const literal = list === null ? null : `{${list.map((entry) => `"${entry}"`).join(',')}}`
+  const setProfile = (
+    contractorId: string,
+    token: string | null,
+    list: (string | null)[] | null,
+  ) => {
+    const literal =
+      list === null
+        ? null
+        : `{${list.map((entry) => (entry === null ? 'NULL' : `"${entry}"`)).join(',')}}`
     return database`
       insert into contractor_receiving_profiles
         (company_id, contractor_id, preview_inbound_token_hash, preview_forwarder_allowlist, preview_sender_allowlist)
@@ -80,6 +87,24 @@ async function assertProfileRules(probe: CargoPreviewEmailIntakeProbe, contracto
   await expectQueryToFail(setProfile(first, null, []), CHECK_VIOLATION)
   await expectQueryToFail(setProfile(first, null, ['a b@x.com']), CHECK_VIOLATION)
   await expectQueryToFail(setProfile(first, null, ['<a@x.com>']), CHECK_VIOLATION)
+  const allowlistRule = 'contractor_receiving_profiles_preview_forwarder_allowlist_check'
+  await expectQueryToFail(setProfile(first, null, ['']), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(setProfile(first, null, ['ab']), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(setProfile(first, null, ['a@x.com', null]), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(setProfile(first, null, [null]), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(setProfile(first, null, ['a@x.com', '']), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(setProfile(first, null, ['abc|def@x.com']), CHECK_VIOLATION, allowlistRule)
+  await expectQueryToFail(
+    setProfile(first, null, [`${'a'.repeat(250)}@x.com`]),
+    CHECK_VIOLATION,
+    allowlistRule,
+  )
+  await expectQueryToFail(
+    setProfile(first, null, Array.from({ length: 21 }, (_, index) => `a${index}@x.com`)),
+    CHECK_VIOLATION,
+    allowlistRule,
+  )
+  await setProfile(first, null, [`${'a'.repeat(250)}.com`.slice(0, 254)])
   await setProfile(first, TOKEN_HASH, ['a@x.com', 'contratante.com.br'])
   await expectQueryToFail(
     setProfile(second, TOKEN_HASH, ['a@x.com']),
@@ -87,6 +112,18 @@ async function assertProfileRules(probe: CargoPreviewEmailIntakeProbe, contracto
     'contractor_receiving_profiles_company_inbound_token_unique',
   )
   await setProfile(second, null, null)
+}
+
+/** A janela de e-mails por contratante (T4.7a) lê `recorded_at`, o relógio do banco, e não `received_at`. */
+async function assertRateWindowIndex(database: SQL) {
+  const rows = await database<{ indexdef: string; indexname: string }[]>`
+    select indexname, indexdef from pg_indexes where tablename = 'cargo_preview_email_intakes'
+  `
+  const names = rows.map((row) => row.indexname)
+  expect(names).toContain('cargo_preview_email_intakes_company_contractor_recorded_idx')
+  expect(names).not.toContain('cargo_preview_email_intakes_company_contractor_received_idx')
+  const index = rows.find((row) => row.indexname.endsWith('_recorded_idx'))
+  expect(index?.indexdef).toContain('(company_id, contractor_id, recorded_at DESC)')
 }
 
 async function insertPreview(
@@ -160,6 +197,8 @@ async function assertPreviewAndIntakeRules(
   )
   await insertIntake('accepted', null, previewId, 'e1')
   await insertIntake('rejected', 'FORWARDER_NOT_ALLOWED', null, 'e2')
+  await insertIntake('rejected', 'RATE_LIMITED', null, 'e3')
+  await insertIntake('rejected', 'FORWARDER_DKIM_UNVERIFIABLE', null, 'e4')
   await expectQueryToFail(
     insertIntake('rejected', 'FORWARDER_NOT_ALLOWED', null, 'e2'),
     UNIQUE_VIOLATION,
@@ -186,6 +225,7 @@ export async function assertCargoPreviewEmailIntake(
     await insertContractor(probe, '40290856000242'),
   ]
   await assertProfileRules(probe, contractorIds)
+  await assertRateWindowIndex(database)
   await assertPreviewAndIntakeRules(probe, contractorIds[0] ?? '')
 
   const rollback = await Bun.file(

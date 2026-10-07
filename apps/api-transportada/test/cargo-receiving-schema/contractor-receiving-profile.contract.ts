@@ -19,9 +19,12 @@ import {
 
 const TABLE = 'contractor_receiving_profiles'
 
-/** Spec 237 T4.6: 1..20 entradas, até 5100 caracteres juntas, sem controle, espaço, vírgula nem `<>`. */
+/**
+ * Spec 237 T4.6/T4.7a: 1..20 entradas de 3 a 254 caracteres, sem NULL, vazia, controle, espaço, vírgula,
+ * `<`, `>` nem `|` (o separador do teste de forma, que assim nunca aparece dentro de uma entrada).
+ */
 const PREVIEW_ALLOWLIST_CHECK = (column: string): string =>
-  `cardinality("${column}") between 1 and 20 and char_length(array_to_string("${column}", '|')) <= 5100 and array_to_string("${column}", '|') !~ '[[:cntrl:][:space:],<>]'`
+  `cardinality("${column}") between 1 and 20 and array_position("${column}", null) is null and array_to_string("${column}", '|') ~ '^[^|]{3,254}([|][^|]{3,254})*$' and array_to_string("${column}", '|') !~ '[[:cntrl:][:space:],<>|]'`
 
 describe('o perfil de recebimento do contratante (spec 237 T1.2)', () => {
   test('alcança o contratante pela empresa, nunca pelo id sozinho', () => {
