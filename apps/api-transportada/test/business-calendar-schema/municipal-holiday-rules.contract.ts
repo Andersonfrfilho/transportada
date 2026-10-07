@@ -100,4 +100,11 @@ describe('as regras de feriado municipal "todo ano" (spec 238 T1.2)', () => {
     )
     expect(checks.municipal_holiday_rules_name_check).toBe('char_length("name") between 1 and 120')
   })
+
+  test('o ano até onde a regra foi gerada fica no intervalo do domínio, 1583 a 9999', () => {
+    expect(
+      unqualifiedCheckSqlByName(municipalHolidayRules)
+        .municipal_holiday_rules_materialized_through_year_check,
+    ).toBe('"materialized_through_year" between 1583 and 9999')
+  })
 })

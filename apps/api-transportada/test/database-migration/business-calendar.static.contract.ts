@@ -70,6 +70,38 @@ describe('a migration do calendário útil entra aditiva (spec 238 T1.2)', () =>
     expect(statements).toEqual(STATEMENTS_ON_MUNICIPAL_HOLIDAYS)
   })
 
+  test('os seis comandos são os ÚLTIMOS: o lock da tabela publicada é retido o menor tempo possível', async () => {
+    const statements = splitStatements(await readFileText('migration.sql')).filter(
+      (statement) => !statement.startsWith('SET LOCAL'),
+    )
+    const lastSix = statements.slice(-STATEMENTS_ON_MUNICIPAL_HOLIDAYS.length)
+
+    expect(lastSix).toEqual(STATEMENTS_ON_MUNICIPAL_HOLIDAYS)
+    expect(
+      statements
+        .slice(0, -STATEMENTS_ON_MUNICIPAL_HOLIDAYS.length)
+        .some((statement) => statement.includes('"municipal_holidays"')),
+    ).toBeFalse()
+  })
+
+  test('o cabeçalho não promete o que o migrador não cumpre: o lock vai até o COMMIT do lote', async () => {
+    const raw = await readFileText('migration.sql')
+
+    expect(raw).toContain('ACCESS EXCLUSIVE')
+    expect(raw).toContain('até o COMMIT do lote inteiro')
+    expect(raw).toContain('deploy sem migration longa')
+    expect(raw).not.toMatch(/NOT VALID[^\n]*alivia/iu)
+    expect(raw).not.toContain('(SHARE UPDATE EXCLUSIVE: leitura e escrita seguem)')
+  })
+
+  test('o ano até onde a regra foi gerada é limitado ao intervalo do domínio (1583 a 9999)', async () => {
+    const sqlText = stripComments(await readFileText('migration.sql'))
+
+    expect(sqlText).toContain(
+      'CONSTRAINT "municipal_holiday_rules_materialized_through_year_check" CHECK ("materialized_through_year" between 1583 and 9999)',
+    )
+  })
+
   test('nenhum dado é escrito e nada existente é apagado, renomeado ou alterado', async () => {
     const sqlText = stripComments(await readFileText('migration.sql'))
 

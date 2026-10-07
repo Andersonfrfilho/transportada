@@ -29,6 +29,7 @@ type RuleValues = {
   readonly companyId?: string
   readonly day?: number
   readonly kind?: string
+  readonly materializedThroughYear?: number
   readonly month?: number
   readonly name?: string
 }
@@ -42,7 +43,7 @@ export async function insertRule(
       (company_id, city_ibge_code, month, day, kind, name, materialized_through_year)
     values (${values.companyId ?? fixture.companyId}, ${values.cityIbgeCode ?? CAMPINAS},
       ${values.month ?? 7}, ${values.day ?? 14}, ${values.kind ?? 'city_anniversary'},
-      ${values.name ?? 'Aniversário de Campinas'}, ${HORIZON_YEAR})
+      ${values.name ?? 'Aniversário de Campinas'}, ${values.materializedThroughYear ?? HORIZON_YEAR})
     returning id
   `
   if (row === undefined) throw new Error('rule was not inserted')
@@ -75,6 +76,9 @@ export async function assertRuleConstraints(fixture: CalendarFixture): Promise<v
   ] as const) {
     await rejected({ day, month }, 'month_day_check')
   }
+  for (const materializedThroughYear of [0, 1582, 10_000, -1]) {
+    await rejected({ materializedThroughYear }, 'materialized_through_year_check')
+  }
   await rejected({ kind: 'feast' }, 'kind_check')
   await rejected({ name: '' }, 'name_check')
   await rejected({ name: 'x'.repeat(121) }, 'name_check')
@@ -83,6 +87,8 @@ export async function assertRuleConstraints(fixture: CalendarFixture): Promise<v
   await insertRule(fixture, { day: 30, month: 4, kind: 'holiday' })
   await insertRule(fixture, { day: 31, month: 12, cityIbgeCode: '1100015' })
   await insertRule(fixture, { cityIbgeCode: '5300108', day: 31, month: 1 })
+  await insertRule(fixture, { cityIbgeCode: '1100015', day: 1, materializedThroughYear: 1583 })
+  await insertRule(fixture, { cityIbgeCode: '1100023', day: 1, materializedThroughYear: 9999 })
 
   await rejected(
     { day: 29, month: 2, name: 'outro nome' },
