@@ -325,5 +325,49 @@ describe('o filtro do prazo de entrega no detalhe da viagem (spec 236)', () => {
       expect(unfilteredButtons.length).toBeGreaterThan(0)
       expect(buttonsOfFirstRow()).toEqual(unfilteredButtons)
     })
+
+    it('a ordem das notas dentro da parada é a recebida: a vencida não sobe nem desce', async () => {
+      const overdue = DEADLINE_DOCUMENTS[0] as TripDocumentDetail
+      const onTime = DEADLINE_DOCUMENTS[2] as TripDocumentDetail
+
+      await renderWithQueryClient(
+        createElement(TripStopList, {
+          actions: buildRowActions(),
+          canReorder: false,
+          onReorder: () => undefined,
+          selection: buildSelection(),
+          stops: [buildDeadlineStop({ documents: [onTime, overdue], id: 'stop-x', sequence: 1 })],
+        }),
+      )
+
+      expect(rowNumbers()).toEqual(['1003', '1001'])
+    })
+
+    it('marcar a parada alcança só as notas à mostra, nunca a que o filtro escondeu', async () => {
+      const calls: (readonly [readonly string[], boolean])[] = []
+      const selection = {
+        ...buildSelection(),
+        toggleMany: (documentIds: readonly string[], isChecked: boolean) => {
+          calls.push([documentIds, isChecked])
+        },
+      }
+      await renderWithQueryClient(
+        createElement(TripStopList, {
+          actions: buildRowActions(),
+          canReorder: false,
+          onReorder: () => undefined,
+          selection,
+          stops: buildStops(),
+          visibleDocumentIds: new Set(['doc-today', 'doc-null']),
+        }),
+      )
+
+      const checkbox = document.querySelector<HTMLInputElement>(
+        '[aria-label="Selecionar todas as notas da parada Parada 3"]',
+      )
+      await click(checkbox as HTMLElement)
+
+      expect(calls).toEqual([[['doc-today', 'doc-null'], true]])
+    })
   })
 })
