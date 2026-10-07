@@ -8,7 +8,11 @@
 export const PREVIEW_ALLOWLIST_LIMITS = {
   entryMaxLength: 254,
   entryMinLength: 3,
+  /** Teto do que se aceita LER antes da validação por entrada: o corpo hostil não vira milhares de recusas. */
+  inputEntryMaxLength: 254 * 4,
+  inputMaxEntries: 20 * 5,
   maxEntries: 20,
+  maxReportedIssues: 25,
 } as const
 
 export const PREVIEW_ALLOWLIST_KIND = { forwarder: 'forwarder', sender: 'sender' } as const
@@ -25,6 +29,7 @@ export type PreviewAllowlistField =
 
 export const PREVIEW_ALLOWLIST_ISSUE = {
   forbiddenCharacter: 'forbiddenCharacter',
+  nonAscii: 'nonAscii',
   notADomain: 'notADomain',
   notAMailbox: 'notAMailbox',
   tooLong: 'tooLong',

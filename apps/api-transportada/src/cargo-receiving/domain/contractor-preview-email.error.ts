@@ -22,6 +22,17 @@ export class ReceivingProfileAllowlistsRequiredError extends ApiError {
   }
 }
 
+/** O CHECK do banco recusou uma lista que a validação deixou passar: nunca 500, e o código é estável. */
+export class ReceivingProfileAllowlistsInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'RECEIVING_PROFILE_ALLOWLISTS_INVALID',
+      message: 'An allowlist entry is not valid',
+      status: 422,
+    })
+  }
+}
+
 /** O domínio de entrada é o da configuração de e-mail da empresa (spec 143): sem ela não há endereço a montar. */
 export class ReceivingProfileInboundDomainNotConfiguredError extends ApiError {
   public constructor() {

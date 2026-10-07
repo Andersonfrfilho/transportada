@@ -44,6 +44,7 @@ export type SavePreviewEmailAllowlistsRecordParams = PreviewEmailLists & {
 }
 
 export type SavePreviewEmailAllowlistsOutcome =
+  | { readonly status: 'allowlists_invalid' }
   | { readonly status: 'contractor_not_found' }
   | { readonly missing: readonly PreviewAllowlistField[]; readonly status: 'allowlists_required' }
   | { readonly settings: PreviewEmailSettings; readonly status: 'saved' }

@@ -26,6 +26,8 @@ export type NormalizedPreviewAllowlist = {
 }
 
 const FORBIDDEN_CHARACTER = /[\p{Cc}\s,<>|]/u
+/** ASCII visível: o CHECK do banco conta caracteres, e homógrafo, zero-width e bidi não passam (IDN entra em punycode). */
+const VISIBLE_ASCII = /^[\x21-\x7e]+$/u
 const MAILBOX = /^[^@]+@[^@]+$/u
 const INVALID_DOMAIN_EDGE = /^\.|\.$|\*/u
 
@@ -55,9 +57,11 @@ function findIssue(input: {
   readonly kind: PreviewAllowlistKind
 }): PreviewAllowlistIssueReason | undefined {
   const { entry } = input
-  if (entry.length < LIMITS.entryMinLength) return PREVIEW_ALLOWLIST_ISSUE.tooShort
-  if (entry.length > LIMITS.entryMaxLength) return PREVIEW_ALLOWLIST_ISSUE.tooLong
   if (FORBIDDEN_CHARACTER.test(entry)) return PREVIEW_ALLOWLIST_ISSUE.forbiddenCharacter
+  if (!VISIBLE_ASCII.test(entry)) return PREVIEW_ALLOWLIST_ISSUE.nonAscii
+  const characters = [...entry].length
+  if (characters < LIMITS.entryMinLength) return PREVIEW_ALLOWLIST_ISSUE.tooShort
+  if (characters > LIMITS.entryMaxLength) return PREVIEW_ALLOWLIST_ISSUE.tooLong
 
   const isMailbox = entry.includes('@')
   if (isMailbox) return isValidMailbox(entry) ? undefined : PREVIEW_ALLOWLIST_ISSUE.notAMailbox

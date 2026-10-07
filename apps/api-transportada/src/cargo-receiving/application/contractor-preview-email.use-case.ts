@@ -6,6 +6,7 @@
  */
 import { ContractorNotFoundError } from '../../delivery-clients/domain/delivery-client.error.js'
 import {
+  ReceivingProfileAllowlistsInvalidError,
   ReceivingProfileAllowlistsRequiredError,
   ReceivingProfileInboundDomainNotConfiguredError,
 } from '../domain/contractor-preview-email.error.js'
@@ -98,6 +99,8 @@ export function createContractorPreviewEmailUseCases(
           senderAllowlist: params.senderAllowlist,
         })
         if (outcome.status === 'contractor_not_found') throw new ContractorNotFoundError()
+        if (outcome.status === 'allowlists_invalid')
+          throw new ReceivingProfileAllowlistsInvalidError()
         if (outcome.status === 'allowlists_required') {
           throw new ReceivingProfileAllowlistsRequiredError(outcome.missing)
         }

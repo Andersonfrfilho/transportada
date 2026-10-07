@@ -21,21 +21,27 @@ import { normalizePreviewAllowlist } from '../domain/preview-email-allowlist.pol
 const ISSUE_MESSAGES: Readonly<Record<PreviewAllowlistIssueReason, string>> = {
   [PREVIEW_ALLOWLIST_ISSUE.forbiddenCharacter]:
     'it has a control character, space, comma, < > or |',
+  [PREVIEW_ALLOWLIST_ISSUE.nonAscii]:
+    'it must use only visible ASCII characters; write an international domain in punycode (xn--)',
   [PREVIEW_ALLOWLIST_ISSUE.notADomain]: 'it must be an exact domain, without * or a leading dot',
   [PREVIEW_ALLOWLIST_ISSUE.notAMailbox]: 'it must be a complete e-mail address',
   [PREVIEW_ALLOWLIST_ISSUE.tooLong]: `it must have at most ${LIMITS.entryMaxLength} characters`,
   [PREVIEW_ALLOWLIST_ISSUE.tooShort]: `it must have at least ${LIMITS.entryMinLength} characters`,
 }
 const REFLECTED_ENTRY_MAX_LENGTH = 60
-const CONTROL_CHARACTERS = /\p{Cc}/gu
+const NOT_VISIBLE_ASCII = /[^\x21-\x7e]/gu
 const INTAKE_LIMIT = /^(?:[1-9]|[1-4][0-9]|50)$/u
 
 function allowlistSchema(kind: PreviewAllowlistKind) {
   return z
-    .array(z.string())
+    .array(z.string().max(LIMITS.inputEntryMaxLength))
+    .max(LIMITS.inputMaxEntries)
     .superRefine((entries, context) => {
+      /** Lista ou entrada acima do teto já foi recusada pelo `max`: validar cada entrada de um corpo hostil só repetiria a recusa. */
+      if (entries.length > LIMITS.inputMaxEntries) return
+      if (entries.some((entry) => entry.length > LIMITS.inputEntryMaxLength)) return
       const result = normalizePreviewAllowlist({ entries, kind })
-      for (const issue of result.issues) {
+      for (const issue of result.issues.slice(0, LIMITS.maxReportedIssues)) {
         context.addIssue({
           code: 'custom',
           message: `Invalid entry "${printable(issue.entry)}": ${ISSUE_MESSAGES[issue.reason]}`,
@@ -53,7 +59,7 @@ function allowlistSchema(kind: PreviewAllowlistKind) {
 }
 
 function printable(entry: string): string {
-  return entry.replace(CONTROL_CHARACTERS, '?').slice(0, REFLECTED_ENTRY_MAX_LENGTH)
+  return entry.replace(NOT_VISIBLE_ASCII, '?').slice(0, REFLECTED_ENTRY_MAX_LENGTH)
 }
 
 export const previewEmailAllowlistsSchema = z

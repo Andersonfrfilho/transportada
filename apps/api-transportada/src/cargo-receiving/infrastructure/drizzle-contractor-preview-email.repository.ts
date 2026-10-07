@@ -12,6 +12,7 @@ import { cargoPreviewEmailIntakes } from '../../database/cargo-preview-email-int
 import { contractorMailSettings } from '../../database/contractor-mail.schema.js'
 import { contractorReceivingProfiles } from '../../database/contractor-receiving-profile.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
+import { findPostgresError } from '../../database/postgres-error.support.js'
 import type { ContractorPreviewEmailRepositoryPort } from '../application/contractor-preview-email.port.js'
 import type {
   FindPreviewEmailParams,
@@ -36,6 +37,8 @@ import {
 } from './contractor-preview-email.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const CHECK_VIOLATION = '23514'
 
 export class DrizzleContractorPreviewEmailRepository
   implements ContractorPreviewEmailRepositoryPort
@@ -78,7 +81,21 @@ export class DrizzleContractorPreviewEmailRepository
     return rows.map((row) => ({ ...row, receivedAt: row.receivedAt.toISOString() }))
   }
 
-  public saveAllowlists(
+  /** O CHECK conta caracteres do banco: o que a política deixar passar é desfecho tipado (422), não 500. */
+  public async saveAllowlists(
+    params: SavePreviewEmailAllowlistsRecordParams,
+  ): Promise<SavePreviewEmailAllowlistsOutcome> {
+    try {
+      return await this.persistAllowlists(params)
+    } catch (error) {
+      if (findPostgresError({ error })?.sqlState === CHECK_VIOLATION) {
+        return { status: 'allowlists_invalid' }
+      }
+      throw error
+    }
+  }
+
+  private persistAllowlists(
     params: SavePreviewEmailAllowlistsRecordParams,
   ): Promise<SavePreviewEmailAllowlistsOutcome> {
     const { actor, contractorId } = params
