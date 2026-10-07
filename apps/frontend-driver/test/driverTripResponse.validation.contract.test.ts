@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, it, expect } from 'bun:test'
 import { isDriverOccurrenceType } from '../src/modules/driver-trip/shared/driverTrip.types'
+import { toDriverTripSnapshot } from '../src/modules/driver-trip/shared/driverTripResponse.validation'
 
 /**
  * Spec 247 T1.2: O app do motorista tolera os campos novos da devolução antes de a API mandá-los.
@@ -180,5 +183,76 @@ describe('driverTripResponse.validation — tolerância a products no snapshot',
     // Valida array vazio
     expect(Array.isArray(docWithEmptyProducts.products)).toBe(true)
     expect(docWithEmptyProducts.products).toHaveLength(0)
+  })
+})
+
+/**
+ * Spec 247 T4.6: o documento que a API serializa de verdade (JSON de referência gerado pela integração
+ * da API, `driver-snapshot-products.integration.ts`) passa pelo parser do app e o tipo efetivo chega com
+ * os campos novos — não uma fixture escrita à mão para agradar o guard.
+ */
+describe('driverTripResponse.validation — o documento real da API com produtos e tipo efetivo', () => {
+  const golden = JSON.parse(
+    readFileSync(
+      new URL('./fixtures/driver-snapshot-document.golden.json', import.meta.url),
+      'utf8',
+    ),
+  ) as Record<string, unknown>
+
+  function parseSnapshot() {
+    return toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        pendingProofs: [],
+        score: null,
+        trips: [
+          {
+            createdAt: '2026-10-07T00:00:00.000Z',
+            crewRole: 'driver',
+            id: 'trip-1',
+            manifest: null,
+            status: 'in_transit',
+            stops: [
+              {
+                arrivedAt: null,
+                completedAt: null,
+                deliveryWindowEnd: null,
+                deliveryWindowStart: null,
+                documents: [golden],
+                enRouteSince: null,
+                enRouteTappedAt: null,
+                id: 'stop-1',
+                label: 'Centro, 100',
+                latitude: null,
+                longitude: null,
+                schedule: null,
+                sequence: 1,
+              },
+            ],
+            vehiclePlate: 'ABC1D23',
+          },
+        ],
+      },
+    })
+  }
+
+  it('aceita o documento e preserva o tipo efetivo com os campos novos', () => {
+    const document = parseSnapshot().trips[0]?.stops[0]?.documents[0]
+
+    expect(document?.number).toBe('680481')
+    expect(document?.occurrenceTypes).toHaveLength(1)
+    expect(document?.occurrenceTypes?.[0]).toMatchObject({
+      declaredAmountLabel: 'Valor pago pela loja',
+      declaredAmountMode: 'optional',
+      declaredAmountScope: 'item',
+      referenceNumberLabel: 'Número da NFD',
+      referenceNumberMode: 'required',
+    })
+  })
+
+  it('o tipo efetivo do documento real passa no guard do tipo', () => {
+    const [type] = golden.occurrenceTypes as readonly unknown[]
+
+    expect(isDriverOccurrenceType(type)).toBe(true)
   })
 })
