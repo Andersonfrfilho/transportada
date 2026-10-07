@@ -294,3 +294,14 @@ Ran 109 tests across 2 files. [13.61s]
  0 fail
 Ran 109 tests across 2 files. [13.45s]
 ```
+
+### Fechamento da Fase 2 — gates finais
+
+- Integração completa da API (`bun --env-file=../../.env.test run test:integration`, de
+  `apps/api-transportada`, com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL`
+  apontando para o Postgres nativo descartável — o `.env.test` aponta para a infra de E2E):
+  `1102 pass · 1 skip · 0 fail · 8046 expect() calls · Ran 1103 tests across 204 files [869.12s]`, exit 0.
+- `bun run format:check` (raiz): `All matched files use Prettier code style!`
+- `bun run lint` (API): exit 0.
+- ⚠️ O Postgres nativo é 18.4; a CI usa outro (memória "Postgres da CI ≠ Postgres 18 local"). As
+  asserções desta fase leem nome de CHECK e `SQLSTATE` 23514, que não variam entre as versões.
