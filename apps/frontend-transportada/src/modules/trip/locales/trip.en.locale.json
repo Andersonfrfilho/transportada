@@ -1045,6 +1045,7 @@
     "occurrenceCaseDecisionConflict": "A different decision has already been recorded for this case. Reload the page to see what was saved.",
     "occurrenceCaseRedeliveryNotAllowed": "This occurrence does not allow redelivery — choose another decision.",
     "occurrenceCaseNoteRequired": "State the reason for the decision.",
+    "occurrenceTypeDeclaredAmountNeedsItems": "An amount paid per line needs products: with Products off there is no line to type it on. Choose \"One for the whole occurrence\" under Typed, or turn Products on. Nothing was saved.",
     "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
     "occurrenceTypeMomentsDocumentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
     "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",

@@ -338,6 +338,7 @@
       "contractorsFailed": "Não foi possível carregar os contratantes, então a exceção por contratante não pode ser criada agora. Recarregue a página para tentar de novo.",
       "allClientsUsed": "Não há cliente cadastrado sem exceção neste tipo.",
       "inheritMode": "Igual ao tipo",
+      "recordNote": "A exceção muda só as exigências do número e do valor pago. Rótulos e e-mail são do tipo.",
       "photo": "Foto",
       "photoMinimum": "Mínimo de fotos",
       "itemsMinimum": "Produtos exigidos",
@@ -366,7 +367,9 @@
         "photo": "Foto",
         "note": "Observação",
         "signature": "Assinatura",
-        "items": "Produtos"
+        "items": "Produtos",
+        "referenceNumber": "Número do documento do cliente",
+        "declaredAmount": "Valor pago"
       },
       "modes": {
         "off": "Desligado",
@@ -377,7 +380,20 @@
         "photo": "Vale para o registro do motorista na rua. Desligado: não pede foto. Opcional: ele pode anexar. Obrigatório: a ocorrência só sai com a quantidade mínima de fotos.",
         "note": "Desligado: o campo de observação não aparece. Opcional: o motorista pode escrever. Obrigatório: a ocorrência só sai com o texto preenchido.",
         "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
-        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado."
+        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado.",
+        "referenceNumber": "Desligado: a tela de registro não pede. Opcional: pede e aceita vazio. Obrigatório: o botão de registrar só libera com o número preenchido (ex.: o da NFD da loja).",
+        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e."
+      },
+      "record": {
+        "referenceLabel": "Rótulo do número na tela de registro",
+        "amountLabel": "Rótulo do valor na tela de registro",
+        "scope": "Onde se digita o valor pago",
+        "scopeTitle": "Digitado",
+        "scopes": {
+          "item": "Por linha de produto",
+          "occurrence": "Um só, pela ocorrência"
+        },
+        "amountWithoutItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado."
       },
       "photoMinimum": {
         "label": "Quantidade mínima de fotos",

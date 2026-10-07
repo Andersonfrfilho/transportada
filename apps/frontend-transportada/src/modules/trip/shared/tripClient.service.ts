@@ -123,14 +123,9 @@ import {
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import {
   CONTRACTOR_DIRECTORY_MAX_PAGES,
-  type OccurrenceAttachmentMode,
   type OccurrenceAttachmentOverrides,
   type OccurrenceAttachmentOverridesByType,
-  type OccurrenceMoment,
-  type OccurrenceRedeliveryPolicy,
   type OccurrenceType,
-  type OccurrenceItemsWriteMode,
-  type OccurrenceTypeFlow,
 } from './occurrence.constant'
 import {
   isSettingsResolutionView,
@@ -141,6 +136,7 @@ import {
   readOccurrenceAttachmentOverrides,
   readOccurrenceAttachmentOverridesBatch,
 } from './occurrenceAttachmentOverrides.validation'
+import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -327,36 +323,7 @@ export type TripClient = Readonly<{
   replaceOccurrenceAttachmentOverrides: (
     input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
-  saveOccurrenceType: (
-    input: Readonly<{
-      active: boolean
-      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
-      allowsMultipleItems: boolean
-      /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
-      attachmentMode: OccurrenceAttachmentMode
-      emailTemplateKey: null | string
-      /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
-      flow?: OccurrenceTypeFlow | undefined
-      /** Spec 241 RF4: `undefined` é "não mexe" — só vai quando a listagem trouxe `itemsMode`. */
-      itemsMode?: OccurrenceItemsWriteMode | undefined
-      /** Spec 246 RF4: `undefined` é "não mexe"; `null` é "todos os itens" (só com Produtos obrigatório). */
-      itemsMinimumCount?: null | number | undefined
-      /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
-      leavesDocumentBehind: boolean
-      /** Spec 246 RF0: `undefined` é "não mexe". */
-      moments?: readonly OccurrenceMoment[] | undefined
-      name: string
-      /** Spec 246 RF1/RF4: observação e assinatura — `undefined` é "não mexe". */
-      noteMode?: OccurrenceAttachmentMode | undefined
-      notifies: boolean
-      occurrenceTypeId: null | string
-      photoMinimumCount?: number | undefined
-      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
-      redeliveryPolicy: OccurrenceRedeliveryPolicy
-      signatureMode?: OccurrenceAttachmentMode | undefined
-      stage: 'delivery' | 'separation'
-    }>,
-  ) => Promise<OccurrenceType>
+  saveOccurrenceType: (input: OccurrenceTypeSaveInput) => Promise<OccurrenceType>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -981,6 +948,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             : { photoMinimumCount: input.photoMinimumCount }),
           redeliveryPolicy: input.redeliveryPolicy,
           ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
+          /** Spec 247 RF1: a devolução com somas — mesma regra, só vai o que a edição muda. */
+          ...(input.referenceNumberMode === undefined
+            ? {}
+            : { referenceNumberMode: input.referenceNumberMode }),
+          ...(input.referenceNumberLabel === undefined
+            ? {}
+            : { referenceNumberLabel: input.referenceNumberLabel }),
+          ...(input.declaredAmountMode === undefined
+            ? {}
+            : { declaredAmountMode: input.declaredAmountMode }),
+          ...(input.declaredAmountScope === undefined
+            ? {}
+            : { declaredAmountScope: input.declaredAmountScope }),
+          ...(input.declaredAmountLabel === undefined
+            ? {}
+            : { declaredAmountLabel: input.declaredAmountLabel }),
           stage: input.stage,
         }),
         dependencies,

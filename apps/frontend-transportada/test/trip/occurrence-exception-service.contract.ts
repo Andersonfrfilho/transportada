@@ -81,17 +81,26 @@ describe('exceções: edição devolve as duas listas inteiras (RF4)', () => {
       attachmentMode: 'required',
       key: { kind: 'recipient', taxId: '98765432000110' },
     })
-    /** Os cinco campos herdam por nulo EXPLÍCITO: a API, para tolerar o painel antigo, grava a observação seguindo a foto quando a chave falta. */
+    /** Os sete campos (spec 247 D8: mais número e valor pago) herdam por nulo EXPLÍCITO: a API, para tolerar o painel antigo, grava a observação seguindo a foto quando a chave falta. */
     expect(added.recipientOverrides[1]).toEqual({
       attachmentMode: 'required',
+      declaredAmountMode: null,
       itemsMinimumCount: null,
       itemsMode: null,
       noteMode: null,
       photoMinimumCount: null,
+      referenceNumberMode: null,
       signatureMode: null,
       taxId: '98765432000110',
     })
-    for (const field of ['itemsMode', 'noteMode', 'photoMinimumCount', 'signatureMode']) {
+    for (const field of [
+      'declaredAmountMode',
+      'itemsMode',
+      'noteMode',
+      'photoMinimumCount',
+      'referenceNumberMode',
+      'signatureMode',
+    ]) {
       expect(added.recipientOverrides[1]).toHaveProperty(field)
     }
   })

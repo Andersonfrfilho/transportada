@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  DeclaredAmountScope,
   OccurrenceAttachmentMode,
   OccurrenceItemsMode,
   OccurrenceMoment,
@@ -21,9 +22,20 @@ export type OccurrenceType = Readonly<{
   allowsMultipleItems: boolean
   /** Spec 179 RF1: a exigência da **foto** no registro do motorista. Ausente na API é `off`. */
   attachmentMode: OccurrenceAttachmentMode
-  /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
+  /**
+   * Spec 247 RF1: o valor pago digitado — modo, rótulo e onde se digita. Ausente é API anterior aos
+   * campos: a aba não oferece as linhas e o `PUT` nunca as manda.
+   */
+  declaredAmountLabel?: string
+  declaredAmountMode?: OccurrenceAttachmentMode
+  declaredAmountScope?: DeclaredAmountScope
+  /** O e-mail à contratante da nota (spec 079/183/247): assunto e corpo próprios, independentes do aviso interno. */
   emailBody: string
+  /** Spec 247 RF6: o formato de cada linha de item; vazio é a linha padrão. Ausente é API anterior. */
+  emailItemLineTemplate?: string
   emailSubject: string
+  /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
+  emailsContractor?: boolean
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
   /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
@@ -56,6 +68,9 @@ export type OccurrenceType = Readonly<{
   notifies: boolean
   /** Spec 246 RF1c: de 1 a 5, lida só com a foto `required`. Ausente é API anterior ao campo (mesma regra). */
   photoMinimumCount?: number
+  /** Spec 247 RF1: o número do documento do cliente (ex.: a NFD) — rótulo e modo. Ausente é API anterior. */
+  referenceNumberLabel?: string
+  referenceNumberMode?: OccurrenceAttachmentMode
   /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */
   redeliveryPolicy: OccurrenceRedeliveryPolicy
   /** Spec 246 RF1: a exigência da assinatura. Ausente é API anterior ao campo (mesma regra). */
@@ -68,10 +83,13 @@ export type OccurrenceType = Readonly<{
  * campo a campo. Ausente é API anterior: lê-se como nulo (herda), e nunca é mandado de volta.
  */
 type OccurrenceRequirementOverrideFields = Readonly<{
+  /** Spec 247 D8: os dois modos da devolução com somas — também modo-ou-nulo, e nunca reenviados sem edição. */
+  declaredAmountMode?: null | OccurrenceAttachmentMode
   itemsMinimumCount?: null | number
   itemsMode?: null | OccurrenceItemsMode
   noteMode?: null | OccurrenceAttachmentMode
   photoMinimumCount?: null | number
+  referenceNumberMode?: null | OccurrenceAttachmentMode
   signatureMode?: null | OccurrenceAttachmentMode
 }>
 
