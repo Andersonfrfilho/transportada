@@ -37,6 +37,20 @@
   (`routing/presentation/route-suggestion.routes.ts` ~33–34); as rotas do calendário usam `settings.manage`.
 - **Cache global de terceiro:** `geocoded_addresses` (`database/geocoding.schema.ts`), sem `company_id`.
 - **Destinos de saída:** `docs/SECURITY.md` ~1771–1782 (CEP, Google; termos do Google aceitos como risco, spec 186).
+- **App do motorista** (`apps/frontend-driver`, ADR-0075): lê `GET /me/trips/current`
+  (`api-transportada/src/trips/presentation/me-trip.routes.ts`, `application/find-current-driver-trip.use-case.ts`,
+  `infrastructure/drizzle-current-driver-trip.repository.ts`), recortada pelo vínculo do motorista. A guarda da
+  resposta (`driver-trip/shared/driverTripResponse.validation.ts`, `toStop` ~215–235) **escolhe campo a campo**: campo
+  desconhecido é ignorado, campo essencial ausente vira `DriverTripResponseError`. O que passa pela guarda é o
+  `DriverTripSnapshot` guardado no aparelho (`tripSnapshot.service.ts`, 24 h, dono `SHA-256(sub)`), de onde o app abre
+  sem rede. O painel ainda tem a cópia legada `frontend-transportada/src/modules/driver-trip/` (spec 189, em drenagem).
+- **Contagem e isolamento na leitura do motorista:** `test/integration/driver-snapshot-products.integration.ts` conta
+  as consultas a `nfe_products` (uma por viagem) e prova que a falha dos produtos não derruba o snapshot (247 T4.6);
+  **não há contrato da contagem total** da leitura — a T4.3 mede e fixa. `test/trip-domain/delivery-deadline-isolation.contract.ts`
+  impede que `driver-score.policy.ts`, `delivery-proof-*.ts`, `proof-pending.query.ts` e
+  `drizzle-current-driver-trip.repository.ts` importem o prazo da 236.
+- **Regra de ordem do `apps/api-transportada/CLAUDE.md`** (~555): "`.strict()` exige API antes do app" — é sobre corpo
+  de **requisição**. `holidayWarnings` é **resposta**: clientes tolerantes primeiro, API depois.
 
 ## Desenho
 
@@ -82,40 +96,56 @@ RETURNING requests` antes de cada chamada — sem linha devolvida, o ciclo para.
   ainda não estão no calendário entram na **mesma** carga (+4 fixas, em série, nunca por parada).
 - `POST /business-calendar/day-checks` (`fleet.read`): até 200 itens, uma carga do calendário para o conjunto de
   cidades, resposta só com os dias não úteis por feriado (`explainDay(...).reasons` com a origem).
+- `holidayWarnings` em `GET /me/trips/current` (T4.3, D12): o cálculo mora num módulo de aviso próprio, chamado pelo
+  caso de uso da leitura depois do recorte pelo vínculo — nunca dentro de `driver-score.policy.ts` nem das políticas
+  do comprovante. Data: `estimated_arrival_at` em dia civil de São Paulo, ou hoje (relógio injetado) com a parada em
+  andamento. Uma carga do calendário para as cidades das paradas, em série, isolada com `.catch` que devolve "sem
+  aviso" e loga só ids e contagem (a leitura do motorista não pode cair por um refinamento). O contrato de isolamento
+  ganha a agulha do calendário/aviso para os arquivos da nota e do comprovante.
 
-### Fase 5 — Painel
+### Fase 5 — Painel e app do motorista
 
-Tolerância primeiro (campo ausente = sem aviso). Depois aba Calendário (origem, desligar/restaurar, removidos pelo
-fornecedor, status) e avisos (montagem: por parada, uma chamada a `day-checks` quando o solver termina, com
-recuo para o aviso nacional; detalhe: selo na parada). Texto neutro, nunca bloqueia "Criar viagem".
+Tolerância primeiro (campo ausente = sem aviso), no painel (T5.1) e no app do motorista (T5.1b), as duas publicadas
+**antes** da API. Depois aba Calendário (origem, desligar/restaurar, removidos pelo fornecedor, status) e avisos
+(montagem: por parada, uma chamada a `day-checks` quando o solver termina, com recuo para o aviso nacional; detalhe:
+selo na parada). Texto neutro, nunca bloqueia "Criar viagem".
+
+App do motorista (T5.4): o aviso no cartão da parada (`DriverStopCard.component.tsx`), lido do snapshot (funciona sem
+rede), texto curto de campo, "hoje" só quando a data do aviso é o dia civil do aparelho, nunca esconde nem bloqueia
+ação, alvo ≥ 44 px se houver toque, locale do app (`driver-trip/locales/`), nada importado do painel.
 
 ## Riscos e mitigação
 
-| Risco                                                       | Mitigação                                                                              |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Importar antes da Fase 1 fecha todos os clientes do roteiro | Fase 1 publicada em staging é pré-requisito da escrita; T3.4 confere no início         |
-| Termos de uso não permitem guardar (Q4)                     | Rotina inerte sem token; o usuário confirma antes de configurar                        |
-| Cota cobrada por cidade sem preço conhecido (Q3)            | Orçamento mensal no banco, teto de 100 por ciclo, prioridade por volume de notas       |
-| Token em log                                                | Header redigido no gateway e no logger; contrato sobre a saída                         |
-| Contrato do fornecedor muda                                 | Guarda Zod com chaves esperadas; `malformed_response`; nada gravado                    |
-| Lock em `municipal_holidays`/`state_holidays`               | Comandos no fim do arquivo; `NOT VALID` + `VALIDATE`; medir antes de produção          |
-| Rollback com rotina ligada                                  | `rollback.sql` recusa com execução aberta; reverter o worker junto (molde da 237 T4.8) |
-| Painel publicado antes da API                               | Painel tolerante (T5.1) sai primeiro; `day-checks` ausente cai no aviso nacional       |
-| Concorrência com edição manual no calendário                | `ON CONFLICT DO NOTHING`; supressão consultada na aplicação; lock por empresa da 238   |
+| Risco                                                       | Mitigação                                                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Importar antes da Fase 1 fecha todos os clientes do roteiro | Fase 1 publicada em staging é pré-requisito da escrita; T3.4 confere no início                 |
+| Termos de uso não permitem guardar (Q4)                     | Rotina inerte sem token; o usuário confirma antes de configurar                                |
+| Cota cobrada por cidade sem preço conhecido (Q3)            | Orçamento mensal no banco, teto de 100 por ciclo, prioridade por volume de notas               |
+| Token em log                                                | Header redigido no gateway e no logger; contrato sobre a saída                                 |
+| Contrato do fornecedor muda                                 | Guarda Zod com chaves esperadas; `malformed_response`; nada gravado                            |
+| Lock em `municipal_holidays`/`state_holidays`               | Comandos no fim do arquivo; `NOT VALID` + `VALIDATE`; medir antes de produção                  |
+| Rollback com rotina ligada                                  | `rollback.sql` recusa com execução aberta; reverter o worker junto (molde da 237 T4.8)         |
+| Painel publicado antes da API                               | Painel tolerante (T5.1) sai primeiro; `day-checks` ausente cai no aviso nacional               |
+| App do motorista publicado depois da API                    | A guarda já ignora campo desconhecido; ainda assim T5.1b sai antes e lê o aviso como acessório |
+| Aviso derruba a leitura do motorista                        | Carga do calendário isolada (`.catch` → sem aviso); integração com o calendário falhando       |
+| Feriado mexer na nota do motorista                          | Contrato de isolamento + integração com e sem feriado (CA16)                                   |
+| Aviso guardado no aparelho envelhece                        | O app mostra a data; "hoje" só se for o dia civil do aparelho                                  |
+| Concorrência com edição manual no calendário                | `ON CONFLICT DO NOTHING`; supressão consultada na aplicação; lock por empresa da 238           |
 
 ## Ordem de publicação
 
 1. T1.2 sozinha (worker) em staging.
 2. T2.2 com T2.3 — painel primeiro, depois a migration com API/worker/cron.
-3. API (Fase 4).
-4. Worker (Fase 3), **inerte sem token**.
-5. O usuário confirma termos e plano (Q3, Q4) e configura o token em staging.
-6. Acompanhar o 1º ciclo (requisições, orçamento, linhas gravadas, falhas) e registrar em `evidence.md`.
-7. Telas (Fase 5) depois dos prints aprovados.
-8. Produção por PR `staging → main` com aprovação humana (e a migration com aprovação própria, Q2).
+3. Painel tolerante (T5.1) e app do motorista tolerante (T5.1b).
+4. API (Fase 4).
+5. Worker (Fase 3), **inerte sem token**.
+6. O usuário confirma termos e plano (Q3, Q4) e configura o token em staging.
+7. Acompanhar o 1º ciclo (requisições, orçamento, linhas gravadas, falhas) e registrar em `evidence.md`.
+8. Telas (T5.2, T5.3, T5.4) depois dos prints aprovados.
+9. Produção por PR `staging → main` com aprovação humana (e a migration com aprovação própria, Q2).
 
 ## Documentação viva
 
 `docs/spec/domain-model.md`, `docs/ai-context/api-transportada.md`, `docs/ai-context/worker-transportada.md`,
-`docs/ai-context/frontend-transportada.md`, `CLAUDE.md` das apps tocadas, `docs/SECURITY.md` (destino de saída
+`docs/ai-context/frontend-transportada.md`, `docs/ai-context/frontend-driver.md`, `CLAUDE.md` das apps tocadas, `docs/SECURITY.md` (destino de saída
 `feriadosapi.com`), `.env.example`, `.railway/railway.ts`.

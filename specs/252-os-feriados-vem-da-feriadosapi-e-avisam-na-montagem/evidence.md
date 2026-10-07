@@ -75,3 +75,33 @@ de SP × 2 anos = 1.290 consultas cabem no 1º mês do plano Developer.
 - **Q4** termos de uso — `[NEEDS CLARIFICATION]`; risco no ADR-0100 e em `docs/SECURITY.md`.
 
 Nenhum dos dois bloqueia código; os dois bloqueiam configurar `FERIADOS_API_TOKEN` (passo do usuário).
+
+## Acréscimo do usuário — o aviso no app do motorista (2026-10-07)
+
+Pedido no chat, depois do desenho: _"e o aviso no app do motorista também"_. Incorporado como Q5b, D12, RF10b, RF13,
+RF14, CA15–CA17 e as tasks T4.3, T5.1b e T5.4; ADR-0100 §2 (D12) e §6. Só documentação.
+
+Fatos conferidos em `origin/staging` (`927335484`) para o desenho:
+
+- **A guarda do app escolhe campo a campo.** `apps/frontend-driver/src/modules/driver-trip/shared/driverTripResponse.validation.ts`
+  (`toStop` ~215–235) monta a parada só com os campos que conhece; campo desconhecido na resposta é **ignorado**, e só
+  campo essencial ausente (`documents`, `sequence`) vira `DriverTripResponseError`. O app de hoje já tolera
+  `holidayWarnings`; a T5.1b o faz **ler** o campo como acessório (molde do motivo da recusa do canhoto, spec 220 RF29)
+  e o leva ao `DriverTripSnapshot`.
+- **Offline:** o que passa pela guarda é o snapshot guardado no aparelho (`tripSnapshot.service.ts`: 24 h, dono
+  `SHA-256(sub)`, ADR-0075 §8). O aviso precisa estar no tipo validado para sobreviver sem rede.
+- **A regra de ordem da API é de requisição.** `apps/api-transportada/CLAUDE.md` ~555: "Os esquemas `.strict()` exigem
+  **API antes do app**: campo novo no app antes de a API aceitar dá `400`". `holidayWarnings` é campo de **resposta**:
+  a ordem é a inversa (clientes tolerantes → API).
+- **Contagem de consultas da leitura do motorista:** `test/integration/driver-snapshot-products.integration.ts` conta
+  só as consultas a `nfe_products` (uma por viagem, 247 T4.6) e prova que a falha dos produtos não derruba o snapshot.
+  **Não há contrato da contagem total** de `GET /me/trips/current`; a T4.3 mede a linha de base e a fixa antes do
+  código.
+- **Isolamento da nota:** `test/trip-domain/delivery-deadline-isolation.contract.ts` impede que
+  `driver-score.policy.ts`, `delivery-proof-*.ts`, `proof-pending.query.ts` e `drizzle-current-driver-trip.repository.ts`
+  importem o prazo da 236 (agulha `delivery-deadline`). A T4.3 acrescenta a agulha do calendário/aviso para os
+  arquivos da nota e do comprovante (a leitura do motorista pode usar o aviso; a nota não).
+- **App separada:** o cabeçalho da guarda diz "cópia por valor" da do painel (ADR-0075 §7); nada é importado. O
+  módulo legado `driver-trip` do painel fica fora (spec 189 Fase 10) e já tolera o campo pela mesma guarda.
+
+Escolha por delegação registrada: o aviso traz `cityName` (RF10b) para o texto "em Campinas" sair sem consulta no app.

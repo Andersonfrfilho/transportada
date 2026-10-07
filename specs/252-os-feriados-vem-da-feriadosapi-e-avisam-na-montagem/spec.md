@@ -1,7 +1,8 @@
 # Feature 252 — Os feriados vêm da FeriadosAPI e avisam na montagem
 
 > **Estado:** desenho fechado pelo `architect` (`opus`, 2026-10-07); **duas dúvidas de produto abertas (Q3, Q4)**
-> que **não bloqueiam código** e **bloqueiam ligar a rotina** (configurar o token). **ADR-0100** (emenda o ADR-0048
+> que **não bloqueiam código** e **bloqueiam ligar a rotina** (configurar o token). Aviso no app do motorista
+> acrescentado pelo usuário no mesmo dia (Q5b, D12). **ADR-0100** (emenda o ADR-0048
 > §3 e o "fora do escopo" da 238). Migration **só staging**; produção exige aprovação própria.
 > **Número:** 252 e ADR 0100 conferidos livres em `origin/staging` e nos worktrees em 2026-10-07 (ADR 0099 reservado
 > pela 251). Reconferir antes de publicar.
@@ -33,6 +34,8 @@ e fazer os feriados importados **avisarem na montagem** quando uma entrega cair 
    o status da importação.
 4. A montagem da viagem (por parada) e o detalhe da viagem (selo nas paradas) avisam quando a entrega prevista cai em
    feriado da cidade — só informam, nunca bloqueiam.
+5. O **app do motorista** avisa, em cada parada da viagem dele, quando a entrega cai em feriado da cidade da parada —
+   texto curto de campo, funciona sem rede, nunca esconde nem bloqueia ação, e a nota do motorista não muda.
 
 ## Decisões do usuário (2026-10-07; não reabrir)
 
@@ -44,6 +47,8 @@ e fazer os feriados importados **avisarem na montagem** quando uma entrega cair 
 - **Q2 — aprovada:** migration aditiva **só para staging** nesta spec; produção exige aprovação própria.
 - **Q5 — aprovada:** os avisos aparecem na **montagem da viagem** (por parada, no lugar do aviso que hoje só olha
   feriado nacional) e no **detalhe da viagem** (selo nas paradas). Na **seleção de notas não** (não existe data ainda).
+- **Q5b — pedido do usuário (2026-10-07, depois do desenho):** _"e o aviso no app do motorista também"_. O app do
+  motorista (`apps/frontend-driver`) mostra o aviso por parada da viagem dele (D12, RF13, RF14).
 
 ### Abertas — `[NEEDS CLARIFICATION]` (não bloqueiam código; bloqueiam ligar a rotina)
 
@@ -80,6 +85,13 @@ staging. Sem token, a rotina não é registrada e nada sai do produto.
   1×/dia com piso de 3.600 s; a trava de uma execução por rotina já existe.
 - **D10 — Token só no worker**, opcional; vazio = ausente = rotina não registrada, boot verde.
 - **D11 — O aviso fala da cidade, não da exceção do cliente**: pede para conferir, nunca bloqueia.
+- **D12 — O aviso do motorista vem pronto da API, na leitura que o app já faz** (`GET /me/trips/current`), como campo
+  aditivo `holidayWarnings` por parada. A data é o dia civil de São Paulo do `estimated_arrival_at` da parada, ou
+  **hoje** quando a parada já está em andamento (`enRouteSince` ou `arrivedAt` preenchido e `completedAt` nulo);
+  parada concluída não tem aviso. A cidade é o 1º segmento da `addressKey`; a regra é a mesma do painel (`explainDay`
+  do calendário da cidade do destino físico). Sem rota nova para o app (o aviso viaja no snapshot guardado no
+  aparelho e funciona sem rede), e a resposta traz `cityName` para o texto dizer "em Campinas" sem o app consultar
+  nada. A nota do motorista **não** lê o calendário.
 
 ## Requisitos funcionais
 
@@ -109,12 +121,26 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
   transação): desligar e restaurar um feriado importado, adotar (editar nome/tipo vira digitada), status da importação
   (cidades cobertas/pendentes, último ciclo, orçamento usado no mês, falhas, removidos pelo fornecedor).
 - **RF10 — Avisos na API:** `GET /trips/:id` ganha nas paradas o campo **aditivo**
-  `holidayWarnings: [{ date, cityIbgeCode, reasons[] }]` (paradas não concluídas, `trip_stops.estimated_arrival_at` em
+  `holidayWarnings` (formato em RF10b; paradas não concluídas, `trip_stops.estimated_arrival_at` em
   dia civil de São Paulo), reaproveitando o calendário da 236; `POST /business-calendar/day-checks` (`fleet.read`,
   corpo `.strict()`, até 200 itens `{ cityIbgeCode, date }`, responde só os dias não úteis por feriado).
+- **RF10b — Formato único do aviso:** `{ date, cityIbgeCode, cityName, reasons[] }`, com `cityName` lido do mesmo
+  endereço do destino físico que dá o código (nulo → o texto omite a cidade) e `reasons[]` com escopo (nacional,
+  estadual, municipal), origem (código, cadastrado, gerado por regra, importado) e nome. O mesmo formato serve o
+  detalhe da viagem e o app do motorista.
 - **RF11 — Painel:** aba Calendário com a origem (nacional, estadual, cadastrado, importado), desligar/restaurar,
   removidos pelo fornecedor e status; avisos por parada na montagem (uma chamada a `day-checks` depois que o solver
   termina; se falhar, o aviso nacional de hoje) e selo nas paradas do detalhe. Locale pt-BR/en, tokens, dois temas.
+- **RF13 — Aviso na leitura do motorista:** `GET /me/trips/current` ganha `holidayWarnings` nas paradas (D12, RF10b).
+  Recorte pelo vínculo do motorista intacto (BOLA). Calendário das cidades das paradas carregado **uma vez**, em série,
+  **+4 consultas fixas** sobre a contagem atual da leitura (medida e fixada em contrato antes do código), sem N+1.
+  Falha ao carregar o calendário não derruba a leitura: sai sem aviso, com log só de ids e contagem.
+- **RF14 — App do motorista:** a guarda da resposta (`driverTripResponse.validation.ts`) lê `holidayWarnings` como
+  acessório (ausente ou malformado → lista vazia, nunca recusa da viagem) e o guarda no snapshot; o cartão da parada
+  mostra o aviso ("Hoje é feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir."), neutro,
+  sem esconder nem bloquear iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo
+  ≥ 44 px se houver toque; pt-BR/en no padrão do app; nenhum código importado do painel (ADR-0075). "Hoje" só quando
+  a data do aviso é o dia civil do aparelho; senão a data ("Dia 13/10 é feriado em …").
 - **RF12 — Última tarefa:** revisão de design e usabilidade com print (web.md §15), documentação viva e revisão final.
 
 ## Requisitos não funcionais
@@ -127,7 +153,15 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - **Sem N+1:** o detalhe da viagem soma +0 consultas quando o calendário da 236 já foi carregado, senão +4 fixas, em
   série (ADR-0096 §6); `day-checks` +4 fixas para até 200 itens.
 - **Relógio injetado** em toda decisão de data (D7, D8, backoff, mês do orçamento).
-- **Compatível para trás:** cliente que não conhece `holidayWarnings` segue igual; o painel tolera o campo ausente.
+- **Compatível para trás:** cliente que não conhece `holidayWarnings` segue igual; o painel e o app do motorista
+  toleram o campo ausente. O campo é de **resposta**: a regra do `apps/api-transportada/CLAUDE.md` ("`.strict()` exige
+  API antes do app") vale para corpo de **requisição**; aqui a ordem é a inversa — clientes tolerantes primeiro, API
+  depois. A guarda do app já escolhe campo a campo (`toStop`) e ignora o desconhecido; a T5.1b só passa a ler o novo
+  sem nunca recusar por ele.
+- **A nota do motorista não muda com feriado:** `computeDriverScore`, a pontualidade do comprovante e
+  `missingAfterHours` não leem o calendário nem o aviso (contrato de isolamento, como a 236 CA6).
+- **Offline no app do motorista:** o aviso é parte do snapshot guardado (24 h, dono por `SHA-256(sub)`, ADR-0075 §8);
+  sem rede mostra o último conhecido, nunca calcula nem inventa.
 
 ## Casos extremos e falhas
 
@@ -144,6 +178,9 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - Mesmo CNPJ com paradas em duas cidades no mesmo roteiro: o feriado de uma não fecha a outra.
 - Parada sem `estimatedArrivalAt`: sem aviso (ausência é ausência).
 - Cidade sem código IBGE válido: sem aviso, nunca "assume" calendário (ADR-0096 §4).
+- Parada do motorista em andamento num dia de feriado com ETA de ontem: a data do aviso é **hoje** (D12).
+- App do motorista sem rede com snapshot de ontem: o aviso mostra a data dele, não "hoje" (RF14).
+- Calendário indisponível na leitura do motorista: viagem sai inteira, sem aviso.
 
 ## Critérios de aceite
 
@@ -166,6 +203,14 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
   +4 fixas (contrato de contagem de consultas).
 - **CA13** `day-checks` responde 400 a campo desconhecido e a mais de 200 itens, e nunca aceita `companyId` do corpo.
 - **CA14** O aviso nunca desabilita "Criar viagem"; prints em 375/768/1280 px, claro e escuro, aprovados pelo usuário.
+- **CA15** O motorista vê o aviso **só nas paradas da cidade em feriado** e **só da viagem dele** (outro motorista,
+  outra viagem ou outra empresa não recebem); a leitura soma **+4 consultas fixas** com uma cidade ou com várias; o
+  aviso nunca esconde nem desabilita ação do app; prints 375/768/1280, claro e escuro, aprovados pelo usuário.
+- **CA16** A nota do motorista (`computeDriverScore`), a pontualidade do comprovante e `missingAfterHours` são
+  **idênticos** com e sem feriado na cidade da parada (integração); a mutação "a nota desconta o feriado" derruba o
+  teste.
+- **CA17** O aviso funciona **offline**: com o snapshot guardado e sem rede, o app mostra o último aviso conhecido;
+  resposta com `holidayWarnings` malformado ou ausente não derruba a viagem.
 
 ## Fora do escopo
 
@@ -173,7 +218,9 @@ null` em `municipal_holidays` e `state_holidays`, CHECK de exclusão mútua com 
 - O **dia UTC** do roteirizador: depois das 21 h em Brasília o "dia" vira o seguinte. Risco registrado; outra spec.
 - Importar o país inteiro (só as cidades de destino das notas).
 - O CSV manual da 238 (P3).
-- O aviso no portal do contratante e no app do motorista.
+- O aviso no portal do contratante.
+- O módulo legado `driver-trip` do painel (`/minha-viagem`, em drenagem até a remoção da spec 189 Fase 10): tolera o
+  campo novo (a guarda escolhe campo a campo) e não ganha o aviso.
 - Aviso na seleção de notas (Q5: não existe data ainda).
 - Produção (exige aprovação própria, Q2).
 

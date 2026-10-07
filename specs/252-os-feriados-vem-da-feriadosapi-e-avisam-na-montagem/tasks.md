@@ -13,33 +13,36 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
 
 ## Quadro
 
-| Task | Modelo                          | Migration | Prints  | Depende de     |
-| ---- | ------------------------------- | --------- | ------- | -------------- |
-| T0.1 | 🧠 `opus`                       | —         | —       | —              |
-| T0.2 | `haiku`                         | —         | —       | T0.1           |
-| T1.1 | `haiku`                         | —         | —       | T0.2           |
-| T1.2 | `sonnet`                        | —         | —       | T1.1           |
-| T2.1 | `sonnet`                        | —         | —       | T1.2 (staging) |
-| T2.2 | 🧠 `sonnet` (revisão `opus`)    | **sim**   | —       | T2.1           |
-| T2.3 | `haiku`                         | —         | —       | T2.1           |
-| T3.1 | `sonnet`                        | —         | —       | T2.2           |
-| T3.2 | `sonnet`                        | —         | —       | T2.2           |
-| T3.3 | `sonnet`                        | —         | —       | T3.1, T3.2     |
-| T3.4 | `sonnet`                        | —         | —       | T3.3           |
-| T3.5 | `haiku`                         | —         | —       | T3.4           |
-| T4.1 | `sonnet`                        | —         | —       | T2.2           |
-| T4.2 | `sonnet`                        | —         | —       | T2.2           |
-| T5.1 | `haiku`                         | —         | —       | T4.1, T4.2     |
-| T5.2 | `sonnet`                        | —         | **sim** | T5.1           |
-| T5.3 | `sonnet`                        | —         | **sim** | T5.1           |
-| T6.1 | `sonnet` (revisão final `opus`) | —         | **sim** | todas          |
+| Task  | Modelo                          | Migration | Prints  | Depende de     |
+| ----- | ------------------------------- | --------- | ------- | -------------- |
+| T0.1  | 🧠 `opus`                       | —         | —       | —              |
+| T0.2  | `haiku`                         | —         | —       | T0.1           |
+| T1.1  | `haiku`                         | —         | —       | T0.2           |
+| T1.2  | `sonnet`                        | —         | —       | T1.1           |
+| T2.1  | `sonnet`                        | —         | —       | T1.2 (staging) |
+| T2.2  | 🧠 `sonnet` (revisão `opus`)    | **sim**   | —       | T2.1           |
+| T2.3  | `haiku`                         | —         | —       | T2.1           |
+| T3.1  | `sonnet`                        | —         | —       | T2.2           |
+| T3.2  | `sonnet`                        | —         | —       | T2.2           |
+| T3.3  | `sonnet`                        | —         | —       | T3.1, T3.2     |
+| T3.4  | `sonnet`                        | —         | —       | T3.3           |
+| T3.5  | `haiku`                         | —         | —       | T3.4           |
+| T4.1  | `sonnet`                        | —         | —       | T2.2           |
+| T4.2  | `sonnet`                        | —         | —       | T2.2           |
+| T4.3  | `sonnet`                        | —         | —       | T4.2           |
+| T5.1  | `haiku`                         | —         | —       | T0.1           |
+| T5.1b | `haiku`                         | —         | —       | T0.1           |
+| T5.2  | `sonnet`                        | —         | **sim** | T5.1, T4.1     |
+| T5.3  | `sonnet`                        | —         | **sim** | T5.1, T4.2     |
+| T5.4  | `sonnet`                        | —         | **sim** | T5.1b, T4.3    |
+| T6.1  | `sonnet` (revisão final `opus`) | —         | **sim** | todas          |
 
 ## Fase 0 — Decisão e conferência
 
 > 🤖 Modelo: `haiku` (T0.1 é 🧠 — `opus`)
 
 - [ ] **T0.1** 🧠 Validar o **ADR-0100** (redigido em 2026-10-07 a partir do desenho do `architect`) com `architect`
-      `opus`: D1–D11, modelo de dados, emendas ao ADR-0048 §3 e à 238. Status de "proposta" para "aceita"; divergência
+      `opus`: D1–D12, modelo de dados, emendas ao ADR-0048 §3 e à 238. Status de "proposta" para "aceita"; divergência
       vira emenda no ADR e nota em `evidence.md`.
 - [ ] **T0.2** Conferir os fatos do `plan.md` § Contexto contra `origin/staging` (arquivo e linha) e o próximo
       timestamp de migration livre. Divergência vira nota em `evidence.md`.
@@ -97,32 +100,57 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
 - [ ] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
       até 200 itens, 400 a campo desconhecido e a > 200); contrato de contagem de consultas (+0 ou +4 fixas), leituras
       em série dentro de transação (`transaction-serial-queries.contract.test.ts`). (CA12, CA13)
+- [ ] **T4.3** `holidayWarnings` nas paradas de `GET /me/trips/current` (D12): data = dia civil de São Paulo do
+      `estimated_arrival_at`, ou **hoje** com a parada em andamento; paradas concluídas sem aviso; mesmo formato do
+      detalhe, com `cityName`. **Antes do código:** medir e fixar em contrato a contagem de consultas atual da leitura
+      do motorista; depois dela, **+4 fixas** com uma cidade ou com várias (calendário carregado uma vez, em série, sem
+      N+1). Falha na carga do calendário **não derruba o snapshot**: sai sem aviso e loga só ids e contagem (molde dos
+      produtos da 247 T4.6, `driver-snapshot-products.integration.ts`). Recorte pelo vínculo do motorista intacto
+      (BOLA: o motorista de outra viagem não recebe o aviso dela). **Não-regressão:** `computeDriverScore`, a
+      pontualidade do comprovante e `missingAfterHours` idênticos com e sem feriado (integração), e o contrato de
+      isolamento (`trip-domain/delivery-deadline-isolation.contract.ts`) ganha a agulha do calendário/aviso para
+      `driver-score.policy.ts`, `delivery-proof-*.ts` e `proof-pending.query.ts`. Mutação: o aviso de outra cidade
+      na parada, a nota descontar o feriado. (CA15, CA16)
 
-## Fase 5 — Painel
+## Fase 5 — Painel e app do motorista
 
-> 🤖 Modelo: `sonnet` (T5.1 em `haiku`)
+> 🤖 Modelo: `sonnet` (T5.1 e T5.1b em `haiku`). **T5.1 e T5.1b executam e publicam antes da Fase 4** (API depois dos
+> clientes tolerantes).
 
 - [ ] **T5.1** Painel tolerante aos campos novos: validação aceita `holidayWarnings` ausente ou presente; `day-checks`
       indisponível cai no aviso nacional de hoje. Sai antes da API.
+- [ ] **T5.1b** App do motorista tolerante (`apps/frontend-driver`): a guarda `driverTripResponse.validation.ts`
+      (`toStop`) passa a ler `holidayWarnings` como **acessório** — ausente ou malformado vira lista vazia, **nunca**
+      `DriverTripResponseError` (molde do motivo da recusa do canhoto, spec 220 RF29) — e o campo entra no tipo
+      `DriverTripStop`, para o snapshot guardado no aparelho (`tripSnapshot.service.ts`) carregá-lo. Sem tela ainda.
+      Nenhum código importado do painel (ADR-0075). Sai antes da API.
 - [ ] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
       fornecedor, status da importação; locale pt-BR/en. **Prints** 375/768/1280, claro e escuro, aprovados pelo
       usuário antes de publicar.
 - [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
+- [ ] **T5.4** Aviso no app do motorista, por parada da viagem dele: texto curto e de campo ("Hoje é feriado em
+      Campinas (aniversário da cidade). Confirme com o cliente antes de ir."; em data futura, "Dia 13/10 é feriado em
+      …"; "hoje" só quando a data do aviso é o dia civil do aparelho em São Paulo), neutro, **nunca esconde nem
+      bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo ≥ 44 px se
+      houver toque; locale pt-BR/en no padrão do app. **Offline:** o aviso vem do snapshot guardado; sem rede mostra
+      o último conhecido e não inventa. **Prints** 375/768/1280, claro e escuro, aprovados pelo usuário antes de
+      publicar. (CA15, CA17)
 
 ## Fase 6 — Fechamento
 
 > 🤖 Modelo: `sonnet` (revisão final `opus`)
 
-- [ ] **T6.1** Revisão de design e usabilidade (web.md §15) comparando a tela real com os prints aprovados;
-      documentação viva (`plan.md` § Documentação viva), entrada de `feriadosapi.com` como destino de saída em
+- [ ] **T6.1** Revisão de design e usabilidade (web.md §15) comparando a tela real com os prints aprovados,
+      no painel e no app do motorista (T5.4); documentação viva (`plan.md` § Documentação viva), entrada de `feriadosapi.com` como destino de saída em
       `docs/SECURITY.md`; revisão final com `code-reviewer` `opus` em passada separada; auditoria do §15 do
       `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização).
 
 ## Publicação
 
-T1.2 sai sozinha → T2.2 com T2.3 (painel antes) → API (Fase 4) → worker (Fase 3), **inerte sem token** → o usuário
+T1.2 sai sozinha → T2.2 com T2.3 (painel antes) → **painel tolerante (T5.1) e app do motorista tolerante (T5.1b)** →
+API (Fase 4) → worker (Fase 3), **inerte sem token** → o usuário
 confirma termos e plano (Q3, Q4) e configura o token em staging → acompanhar o 1º ciclo e registrar em `evidence.md` →
 telas depois dos prints aprovados → produção por PR `staging → main` com aprovação humana (a migration com aprovação
 própria).
@@ -137,9 +165,12 @@ antes; confira que 252 e o ADR 0100 seguem sendo desta spec).
 Modelos: T0.1 🧠 → opus (architect valida o ADR-0100) · Fase 0 (T0.2) → executor model=haiku ·
 Fase 1 → T1.1 executor model=haiku, T1.2 executor model=sonnet · Fase 2 → T2.1 executor model=sonnet,
 T2.2 🧠 executor model=sonnet com revisão code-reviewer model=opus em passada separada, T2.3 executor model=haiku ·
-Fase 3 → T3.1–T3.4 executor model=sonnet, T3.5 executor model=haiku · Fase 4 → executor model=sonnet ·
-Fase 5 → T5.1 executor model=haiku, T5.2 e T5.3 executor model=sonnet · T6.1 → executor model=sonnet e revisão final
-code-reviewer model=opus.
+Fase 3 → T3.1–T3.4 executor model=sonnet, T3.5 executor model=haiku · Fase 4 (T4.1–T4.3) → executor model=sonnet ·
+Fase 5 → T5.1 e T5.1b executor model=haiku, T5.2, T5.3 e T5.4 executor model=sonnet · T6.1 → executor model=sonnet e
+revisão final code-reviewer model=opus.
+Ordem de publicação: T1.2 sozinha → migration com catálogo (painel antes) → painel tolerante (T5.1) e app do motorista
+tolerante (T5.1b) → API (Fase 4) → worker inerte sem token → telas (T5.2, T5.3, T5.4) só com prints aprovados.
+App do motorista é app separada (ADR-0075): nada importado do painel; a nota do motorista não muda com feriado.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com: contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do package.json (API:
 contrato e integração são dois comandos, com --env-file=../../.env.test), integração contra Postgres que responda,

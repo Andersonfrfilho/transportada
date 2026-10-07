@@ -46,7 +46,7 @@ A correção é mínima: o select traz `cityIbgeCode`, e a janela passa a ser re
 migration e sem consulta nova. O teste de caracterização passa a esperar `[CITY_B]` e ganha o caso do mesmo CNPJ com
 paradas em duas cidades.
 
-### 2. As decisões por delegação (D1–D11, revogáveis pelo usuário)
+### 2. As decisões por delegação (D1–D12, revogáveis pelo usuário)
 
 - **D1 — Cache global do fornecedor, efeito por empresa.** O que a FeriadosAPI responde é fato público e vai para
   tabelas **sem `company_id`** (precedente: `geocoded_addresses`), nunca expostas por rota; pagar duas vezes a mesma
@@ -73,6 +73,11 @@ paradas em duas cidades.
 - **D11 — O aviso fala da cidade, não da exceção do cliente.** "Feriado em Campinas" não sabe se aquele CD abre; o
   texto pede para conferir, nunca bloqueia (a exceção do cliente continua vencendo o feriado no roteirizador, ADR-0048
   §3).
+- **D12 — O aviso também chega ao app do motorista, pronto, na leitura que ele já faz.** Pedido do usuário em
+  2026-10-07 ("e o aviso no app do motorista também"); a forma é delegação. `GET /me/trips/current` ganha
+  `holidayWarnings` por parada (§6); sem rota nova, o aviso viaja no snapshot guardado no aparelho e funciona sem rede.
+  Para o motorista, a data é a do `estimated_arrival_at` da parada em dia civil de São Paulo, ou **hoje** quando a
+  parada já está em andamento; parada concluída não tem aviso. A nota do motorista não lê o calendário.
 
 ### 3. Modelo de dados (uma migration aditiva, com `rollback.sql`, só staging)
 
@@ -150,12 +155,28 @@ cada chamada e a rotina para ao atingir o orçamento.
 - **O formato** só informa e nunca desabilita "Criar viagem", com a origem marcada (nacional, estadual, cadastrado,
   importado): "Entrega prevista ter 13/10 em Campinas: feriado municipal — Aniversário (importado). Confira se o
   cliente recebe."
-- **API:** `GET /trips/:id` ganha nas paradas o campo **aditivo** `holidayWarnings: [{ date, cityIbgeCode, reasons[] }]`,
+- **Formato único:** `{ date, cityIbgeCode, cityName, reasons[] }` — `cityName` do mesmo endereço do destino físico
+  que dá o código (nulo → o texto omite a cidade); `reasons[]` com escopo, origem e nome. Serve o painel e o app do
+  motorista.
+- **API:** `GET /trips/:id` ganha nas paradas o campo **aditivo** `holidayWarnings` nesse formato,
   reaproveitando o calendário que a 236 já carrega (+0 consultas quando já carregado; senão +4 fixas, em série, sem
   N+1). `POST /business-calendar/day-checks` serve a montagem (a sugestão é efêmera): corpo `.strict()` com até 200
   itens `{ cityIbgeCode, date }`, `companyId` do contexto, responde só os dias não úteis, +4 consultas fixas. O painel
   chama **uma vez**, depois que o solver termina; se a rota falhar, cai no aviso nacional de hoje.
-- **Ordem de publicação:** painel tolerante → API → telas.
+- **App do motorista** (`apps/frontend-driver`, app separada, ADR-0075): `GET /me/trips/current` ganha
+  `holidayWarnings` nas paradas, com o recorte pelo vínculo do motorista intacto (ele só vê a viagem dele). O
+  calendário das cidades das paradas é carregado **uma vez**, em série, **+4 consultas fixas** sobre a contagem atual
+  da leitura (medida e fixada em contrato antes do código); falha ao carregar não derruba a leitura, só tira o aviso.
+  A guarda do app (`driverTripResponse.validation.ts`) escolhe campo a campo e já ignora o desconhecido; ela passa a
+  ler o aviso como **acessório** (ausente ou malformado → lista vazia, nunca recusa da viagem) e o guarda no snapshot
+  do aparelho. Texto curto de campo ("Hoje é feriado em Campinas (aniversário da cidade). Confirme com o cliente
+  antes de ir."), "hoje" só quando a data do aviso é o dia civil do aparelho; nunca esconde nem bloqueia iniciar
+  trajeto, chegar, entregar ou registrar ocorrência. Sem rede, mostra o último aviso conhecido e não inventa. Nada é
+  importado do painel. **Não-regressão:** `computeDriverScore`, a pontualidade do comprovante e `missingAfterHours`
+  não leem o calendário nem o aviso (contrato de isolamento, como a 236 CA6).
+- **Ordem de publicação:** painel tolerante e app do motorista tolerante → API → telas. O campo é de **resposta**: a
+  regra "`.strict()` exige API antes do app" do `apps/api-transportada/CLAUDE.md` vale para corpo de requisição, e
+  aqui a ordem é a inversa.
 
 ## Consequências
 
@@ -167,6 +188,8 @@ cada chamada e a rotina para ao atingir o orçamento.
 - Falha do fornecedor nunca derruba nada do negócio: o pior caso é feriado não importado, que é o estado de hoje.
 - O roteirizador deixa de fechar clientes de uma cidade pelo feriado de outra — correção que vale mesmo sem a
   importação.
+- O motorista passa a saber, na parada, que a cidade está em feriado, sem rede e sem consulta nova do app; a leitura
+  dele custa +4 consultas fixas e a nota dele não muda.
 
 ## Riscos
 
@@ -181,21 +204,25 @@ cada chamada e a rotina para ao atingir o orçamento.
   e a supressão impede a volta; D7 impede que um erro mude o passado.
 - **Aniversário de cidade não aparece na documentação** do fornecedor. Se ele não vier, a cidade fica só com o que o
   fornecedor tem; o cadastro manual da 238 continua valendo e vence.
+- **O aviso guardado no aparelho envelhece.** O snapshot vale até 24 h (ADR-0075 §8); um aviso calculado ontem pode
+  não valer hoje. Por isso o app mostra a data do aviso e só diz "hoje" quando ela é o dia civil do aparelho.
 - **Dia UTC no roteirizador** (fora de escopo): depois das 21 h em Brasília, o "dia" do roteiro vira o seguinte. Fica
   para outra spec.
 
 ## Alternativas descartadas
 
-| Alternativa                                | Por que não                                                                                                             |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Cache por empresa                          | Paga a mesma cidade uma vez por empresa; o dado é público e não muda por empresa                                        |
-| Roteirizador lendo o cache direto          | Muda o contrato congelado do solver e ignora supressão, adoção e a precedência da linha digitada                        |
-| Importar o país inteiro (5.571 municípios) | ~11 mil requisições para cidades onde nunca houve entrega; estoura cota sem benefício                                   |
-| Importar sem corrigir o roteirizador antes | Cada feriado importado fecharia todos os clientes do roteiro, não só os da cidade                                       |
-| Bloquear "Criar viagem" em feriado         | O cliente pode abrir (exceção do cliente, ADR-0048 §3); quem decide é o operador                                        |
-| BrasilAPI                                  | Só nacionais (conferido em 2026-10-07: das 14 datas de 2026, 13 batem com o código e a outra é a Páscoa); sem municipal |
-| Gravar feriado passado                     | Mudaria o selo de prazo de nota já entregue (236)                                                                       |
-| Rotina horária                             | 1×/dia cobre a demanda (≈ 25 requisições/mês de manutenção) e gasta menos cota                                          |
+| Alternativa                                 | Por que não                                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Cache por empresa                           | Paga a mesma cidade uma vez por empresa; o dado é público e não muda por empresa                                        |
+| Roteirizador lendo o cache direto           | Muda o contrato congelado do solver e ignora supressão, adoção e a precedência da linha digitada                        |
+| Importar o país inteiro (5.571 municípios)  | ~11 mil requisições para cidades onde nunca houve entrega; estoura cota sem benefício                                   |
+| Importar sem corrigir o roteirizador antes  | Cada feriado importado fecharia todos os clientes do roteiro, não só os da cidade                                       |
+| App do motorista calculando o aviso sozinho | Copiaria o calendário para o app separado (ADR-0075) e divergiria da API; offline sem a lista da cidade                 |
+| Rota nova só para o aviso do motorista      | Mais uma chamada no celular e um aviso que some sem rede; a leitura atual já é guardada no aparelho                     |
+| Bloquear "Criar viagem" em feriado          | O cliente pode abrir (exceção do cliente, ADR-0048 §3); quem decide é o operador                                        |
+| BrasilAPI                                   | Só nacionais (conferido em 2026-10-07: das 14 datas de 2026, 13 batem com o código e a outra é a Páscoa); sem municipal |
+| Gravar feriado passado                      | Mudaria o selo de prazo de nota já entregue (236)                                                                       |
+| Rotina horária                              | 1×/dia cobre a demanda (≈ 25 requisições/mês de manutenção) e gasta menos cota                                          |
 
 ## Emendas
 
