@@ -284,6 +284,7 @@
     "title": "Occurrence types",
     "hint": "Each type declares in which moments it can be logged and what proof it requires. The tax-ID exception overrides the general rule: recipient first, then contractor. The contractor alert only goes out for checked types.",
     "empty": "No type registered yet. Register the first one to be able to log occurrences.",
+    "created": "Type created. Set what it requires and its email below.",
     "groupCount_one": "{{count}} type",
     "groupCount_other": "{{count}} types",
     "hiddenFields": {

@@ -18,6 +18,8 @@ import {
 } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
+import { buildOccurrenceTypeSummaryId } from '../hooks/useOccurrenceTypeJustCreated.hook'
+
 type OccurrenceTypeSummaryProps = Readonly<{
   controlsId: string
   exceptions: OccurrenceTypeExceptionsState
@@ -69,6 +71,7 @@ export function OccurrenceTypeSummary({
       aria-controls={controlsId}
       aria-expanded={isExpanded}
       className={styles.summary}
+      id={buildOccurrenceTypeSummaryId(type.id)}
       onClick={onToggle}
       type="button"
     >

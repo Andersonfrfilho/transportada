@@ -284,6 +284,7 @@
     "title": "Tipos de ocorrência",
     "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "created": "Tipo criado. Configure o que ele exige e o e-mail abaixo.",
     "groupCount_one": "{{count}} tipo",
     "groupCount_other": "{{count}} tipos",
     "hiddenFields": {

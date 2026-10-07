@@ -16,6 +16,7 @@ import {
   OccurrenceMomentsDraftStoreContext,
 } from '../hooks/useOccurrenceMomentsDraftStore.hook'
 import { useOccurrenceTypeCatalogData } from '../hooks/useOccurrenceTypeCatalogData.hook'
+import { useOccurrenceTypeJustCreated } from '../hooks/useOccurrenceTypeJustCreated.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
 import type { OccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
@@ -77,7 +78,18 @@ export function OccurrenceTypeCatalogPanel({
   const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
   const [momentsDraftStore] = useState(createOccurrenceMomentsDraftStore)
 
+  const created = useOccurrenceTypeJustCreated({
+    onCreated: (typeId) => setExpandedIds((current) => new Set(current).add(typeId)),
+    types,
+  })
+
+  function handleCreate(input: OccurrenceTypeSaveInput) {
+    created.trackCreate(input.name)
+    onSave(input)
+  }
+
   function handleToggle(typeId: string) {
+    created.dismiss(typeId)
     setExpandedIds((current) => {
       const next = new Set(current)
       if (!next.delete(typeId)) next.add(typeId)
@@ -127,6 +139,12 @@ export function OccurrenceTypeCatalogPanel({
         </p>
       )}
 
+      {created.createdTypeId === undefined ? null : (
+        <p className={styles.successNotice} role="status">
+          {t('occurrenceTypeCatalog.created')}
+        </p>
+      )}
+
       {types.length > 0 && visibleTypes.length === 0 ? (
         <OccurrenceTypeFilterEmpty
           activeCount={countActiveOccurrenceTypeFilters(filtersController.filters)}
@@ -153,7 +171,7 @@ export function OccurrenceTypeCatalogPanel({
       {canManage && loadStatus === 'ready' ? (
         <OccurrenceTypeCreateForm
           isSaving={isSaving}
-          onSave={onSave}
+          onSave={handleCreate}
           support={createSupport}
           templateOptions={templates.options}
         />
