@@ -403,7 +403,8 @@
         "all": "All invoice items",
         "atLeast": "At least N items",
         "count": "Minimum number of products",
-        "hint": "Only applies when Products is Required. All invoice items suits a total refusal: the driver app only enables the registration with every product ticked. At least N enables it with N products ticked."
+        "hint": "Only applies when Products is Required. All invoice items suits a total refusal: the driver app only enables the registration with every product ticked. At least N enables it with N products ticked.",
+        "allItemsHint": "With no minimum, the driver must mark every product on the invoice. Set \"At least N\" to accept a partial return."
       }
     },
     "summary": {
