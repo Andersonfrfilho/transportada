@@ -1,15 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
+  DriverOccurrenceItem,
   DriverOccurrencePhoto,
   DriverOccurrenceSignature,
   DriverOccurrenceType,
 } from './driverTrip.types'
+import type { OccurrenceValuesPayload } from './occurrenceDraftValues.service'
 import {
   listMissingOccurrenceFields,
   resolveOccurrenceAttachmentMode,
   resolveOccurrenceFlow,
 } from './occurrenceRegistration.service'
-import { resolveOccurrenceFieldVisibility } from './occurrenceRequirements.service'
+import {
+  resolveOccurrenceFieldVisibility,
+  type OccurrenceValuesFacts,
+} from './occurrenceRequirements.service'
 
 /**
  * Spec 218 (RF-A5, D1–D4) e 246: a saída do botão único — o rascunho, as duas rotas e a escolha
@@ -24,6 +29,8 @@ export type OccurrenceRegistrationDraft = Readonly<{
   hasProducts?: boolean
   photo: DriverOccurrencePhoto | undefined
   signature?: DriverOccurrenceSignature | undefined
+  /** Spec 247 (T5.3): o que foi marcado e digitado, já avaliado pelo tipo (`evaluateOccurrenceValues`). */
+  values?: Readonly<{ facts: OccurrenceValuesFacts; payload: OccurrenceValuesPayload }>
 }>
 
 /** As duas rotas que existem — o formulário único só escolhe uma delas. */
@@ -34,12 +41,18 @@ export type OccurrenceRegistrationHandlers = Readonly<{
    * à falta de rede. Spec 246: as demais fotos e a assinatura entram **neste mesmo item** (209 D1).
    */
   enqueueDocumentOccurrence: (input: {
+    /** Spec 247: o valor pago da ocorrência, texto — só no escopo "da ocorrência". */
+    readonly declaredAmount?: string
     readonly documentId: string
     readonly extraPhotos?: readonly DriverOccurrencePhoto[]
+    /** Spec 247: os produtos devolvidos, com quantidade em texto; ausente é a nota inteira. */
+    readonly items?: readonly DriverOccurrenceItem[]
     readonly note: string
     readonly occurrenceTypeId: string
     readonly occurrenceTypeName: string
     readonly photo: DriverOccurrencePhoto | null
+    /** Spec 247: o número do documento do cliente. */
+    readonly referenceNumber?: string
     readonly signature?: DriverOccurrenceSignature
   }) => void
   /** Spec 209 + D2: a fila da parada, com o tipo do catálogo. */
@@ -83,6 +96,7 @@ function toEffectiveDraft(input: {
 function isDraftComplete(input: {
   readonly effective: EffectiveOccurrenceDraft
   readonly type: DriverOccurrenceType
+  readonly values: OccurrenceRegistrationDraft['values']
 }): boolean {
   const { effective } = input
   return (
@@ -93,6 +107,7 @@ function isDraftComplete(input: {
       hasSignature: effective.signature !== undefined,
       photoCount: (effective.photo === undefined ? 0 : 1) + effective.extraPhotos.length,
       type: input.type,
+      ...(input.values === undefined ? {} : { values: input.values.facts }),
     }).length === 0
   )
 }
@@ -111,7 +126,7 @@ export function dispatchOccurrenceRegistration(input: {
 }): OccurrenceRegistrationRoute {
   const { handlers, type } = input
   const effective = toEffectiveDraft({ draft: input.draft, type })
-  if (!isDraftComplete({ effective, type })) return 'blocked'
+  if (!isDraftComplete({ effective, type, values: input.draft.values })) return 'blocked'
 
   if (resolveOccurrenceFlow(type) === 'stop') {
     handlers.reportStopOccurrence({
@@ -124,13 +139,17 @@ export function dispatchOccurrenceRegistration(input: {
     return 'stop'
   }
 
+  const payload = input.draft.values?.payload
   handlers.enqueueDocumentOccurrence({
+    ...(payload?.declaredAmount === undefined ? {} : { declaredAmount: payload.declaredAmount }),
     documentId: input.documentId,
     ...(effective.extraPhotos.length === 0 ? {} : { extraPhotos: effective.extraPhotos }),
+    ...(payload?.items === undefined ? {} : { items: payload.items }),
     note: effective.note,
     occurrenceTypeId: type.id,
     occurrenceTypeName: type.name,
     photo: effective.photo ?? null,
+    ...(payload?.referenceNumber === undefined ? {} : { referenceNumber: payload.referenceNumber }),
     ...(effective.signature === undefined ? {} : { signature: effective.signature }),
   })
   return 'document-queued'

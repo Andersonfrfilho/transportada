@@ -95,7 +95,7 @@ describe('o botão habilita ao capturar o último campo, sem rede (CA05)', () =>
       photoCount: 0,
     }
     const steps = [
-      { expected: ['note', 'products', 'photo', 'signature'], facts },
+      { expected: ['products', 'note', 'photo', 'signature'], facts },
       { expected: ['products', 'photo', 'signature'], facts: { ...facts, hasNote: true } },
       {
         expected: ['photo', 'signature'],

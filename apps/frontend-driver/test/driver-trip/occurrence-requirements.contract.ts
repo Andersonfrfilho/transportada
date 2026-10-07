@@ -85,17 +85,24 @@ describe('o app novo contra a API anterior: campo ausente lê como hoje (spec 24
 
   it('sem nenhum modo novo: observação opcional, assinatura desligada, produtos opcional, mínimo 1', () => {
     expect(resolveOccurrenceRequirements(LEGACY)).toEqual({
+      declaredAmountMode: 'off',
+      declaredAmountScope: 'item',
+      itemsMinimumCount: null,
       itemsMode: 'optional',
       noteMode: 'optional',
       photoMinimumCount: 1,
       photoMode: 'off',
+      referenceNumberMode: 'off',
       signatureMode: 'off',
     })
     expect(resolveOccurrenceFieldVisibility(LEGACY)).toEqual({
       photoLimit: 1,
+      rendersDeclaredAmount: false,
+      rendersItemsList: false,
       rendersNote: true,
       rendersPhoto: false,
       rendersProducts: false,
+      rendersReferenceNumber: false,
       rendersSignature: false,
     })
   })

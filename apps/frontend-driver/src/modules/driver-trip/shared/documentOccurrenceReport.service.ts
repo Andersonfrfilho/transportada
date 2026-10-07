@@ -19,9 +19,11 @@ export function buildDocumentOccurrenceReport(input: {
 }): DocumentOccurrenceReport {
   const { occurrence } = input
   return {
+    ...(occurrence.declaredAmount === undefined ? {} : { declaredAmount: occurrence.declaredAmount }),
     documentId: occurrence.documentId,
     ...(occurrence.extraPhotos === undefined ? {} : { extraPhotos: occurrence.extraPhotos }),
     idempotencyKey: input.idempotencyKey,
+    ...(occurrence.items === undefined ? {} : { items: occurrence.items }),
     kind: 'documentOccurrence',
     location: null,
     note: occurrence.note,
@@ -29,6 +31,9 @@ export function buildDocumentOccurrenceReport(input: {
     occurrenceTypeName: occurrence.occurrenceTypeName,
     photo: occurrence.photo,
     productCode: '',
+    ...(occurrence.referenceNumber === undefined
+      ? {}
+      : { referenceNumber: occurrence.referenceNumber }),
     ...(occurrence.signature === undefined ? {} : { signature: occurrence.signature }),
   }
 }
