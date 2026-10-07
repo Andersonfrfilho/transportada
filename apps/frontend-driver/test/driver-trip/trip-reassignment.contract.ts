@@ -68,3 +68,19 @@ describe('hasReassignedTrip (spec 217 RF8/D6)', () => {
     expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(false)
   })
 })
+
+/**
+ * Spec 249 (D9): a viagem pode ser transferida quando já está na rua em `dispatched`, `in_transit`
+ * ou `on_delivery_route`. O motorista que saiu deixa de vê-la na lista, assim como na 217.
+ */
+describe('hasReassignedTrip (spec 249 D9 — transferência em andamento)', () => {
+  it.each(['dispatched', 'in_transit', 'on_delivery_route'])(
+    'viagem em %s transferida para outro motorista some da lista',
+    (status) => {
+      const previousTrips = [buildTrip('trip-1', status)]
+      const currentTrips: DriverTrip[] = []
+
+      expect(hasReassignedTrip({ currentTrips, previousTrips })).toBe(true)
+    },
+  )
+})

@@ -27,8 +27,8 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
-      "notOfDriver": "esta viagem não é mais sua — a tripulação mudou",
-      "stopNotReachable": "esta parada não está mais na sua viagem",
+      "notOfDriver": "esta viagem foi transferida; peça ao escritório para registrar",
+      "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
     "discard": {
@@ -373,7 +373,7 @@
   },
   "reassignedTrip": {
     "dismiss": "Entendi",
-    "notice": "Esta viagem não está mais com você — ela foi repassada a outro motorista ou voltou para o planejamento do escritório. Fale com o escritório se precisar de mais detalhes."
+    "notice": "Esta viagem foi passada para outro motorista ou ajudante. O que você entregou e registrou fica com a viagem."
   },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
