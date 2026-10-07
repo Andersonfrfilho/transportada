@@ -12,11 +12,13 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import {
   assertMaterializedHolidays,
   assertRuleConstraints,
-  assertSettingsConstraints,
-  assertStateHolidayConstraints,
   insertRule,
   type CalendarFixture,
 } from './business-calendar-constraints.assertion.js'
+import {
+  assertSettingsConstraints,
+  assertStateHolidayConstraints,
+} from './business-calendar-state.assertion.js'
 import { migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_business_calendar'
