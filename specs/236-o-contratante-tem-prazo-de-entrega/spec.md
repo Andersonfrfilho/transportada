@@ -69,11 +69,12 @@ aparece e nada quebra.
 now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`): soma a janela de separação
   em horas e **depois** os dias úteis pelo calendário da 238. Relógio, fuso e calendário por parâmetro.
 - **RF2 — Estados:** `open`, `due_today`, `overdue`, `delivered_on_time`, `delivered_late`,
-  `not_applicable` (sem chegada, sem perfil/prazo, devolvida, cancelada, sem cidade do destinatário).
+  `not_applicable` (sem chegada, sem perfil/prazo, devolvida, cancelada, sem cidade do destino físico).
 - **RF3 — Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca pela chegada ao servidor; sem
   entrega, o relógio do servidor.
-- **RF4 — Cidade do calendário:** a do **destinatário** da nota (`nfe_addresses.city_code`) — decidido pelo
-  usuário.
+- **RF4 — Cidade do calendário:** onde a carga **será entregue** — o destino físico (`resolvePhysicalDestination`:
+  desvio manual → `<entrega>` → `<enderDest>`, spec 073), **não** o endereço cadastrado do destinatário. Decidido
+  pelo usuário em 2026-10-06 (revoga a decisão de 2026-10-03 "cidade do destinatário").
 - **RF5 — Leitura por nota:** o detalhe da viagem recebe por documento `deliveryDeadline:
 { dueAt, state, businessDaysLate? } | null`, no join que já traz o `contractorId`, **sem** novo resolvedor
   paralelo e sem N+1 (o calendário das cidades da viagem em uma consulta).
@@ -112,5 +113,5 @@ now, recipientCityIbge, calendar })` → `{ dueAt, state, businessDaysLate? }`):
 ## Dúvidas
 
 Nenhuma aberta. Respondidas pelo usuário em 2026-10-03: **3 dias úteis desde a chegada** (as 24 h correm
-dentro), **cidade do destinatário**, **só informa**, **os 3 dias são de entrega (não do comprovante)** e
+dentro), **cidade do destino físico** (revisto em 2026-10-06), **só informa**, **os 3 dias são de entrega (não do comprovante)** e
 **tudo é novo** (sem backfill).

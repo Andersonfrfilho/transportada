@@ -73,19 +73,24 @@ feriado termina em `OUT_OF_COVERAGE`, não em laço.
   nacional desde 2024 (Lei 14.759/2023). Afeta só contas sobre datas anteriores a 2024.
 - **Carnaval e Corpus Christi contam como feriado** (decisão da spec 238, como o painel já faz), embora
   não sejam feriados nacionais por lei. Cidade que trabalha nesses dias conta um dia útil a menos.
-- **Fuso fixo de São Paulo**, sem coluna por empresa: a política recebe a data; quem chamar converte o
-  instante com `toCivilDate({ timeZone: 'America/Sao_Paulo' })` até existir o fuso da empresa (Q3).
+- **Fuso fixo de São Paulo**, sem coluna por empresa (decisão do usuário, §5 Q3): a política recebe a data;
+  quem chamar converte o instante com `toCivilDate({ timeZone: 'America/Sao_Paulo' })`.
 - **O erro sai como 422** (`ApiError`) em todos os códigos; quem expuser a política numa rota decide o
   mapeamento (T1.3).
 
-## Pendências [NEEDS CLARIFICATION] — não bloqueiam a T1.1
+## Decisões do usuário (2026-10-06) e pendências
 
-- **Q1 — A busca do roteirizador nunca verá um feriado `yearly`.**
-  `apps/worker-transportada/src/routing/infrastructure/drizzle-route-optimization.repository.ts`
-  (≈1050–1060) casa `holiday_on = input.date`. O desenho de dados da T1.2 depende de decisão do usuário e de
-  aprovação de migration em tabela existente: (A) `recurrence`/`kind` com o `yearly` gravado em
-  `2000-MM-DD` (a busca do roteirizador precisa passar a casar mês e dia), ou (B) colunas `month`/`day`
-  (o roteirizador precisa ler as duas).
-- **Q2 — Qual cidade vale:** a do destinatário (`<enderDest>`, decidido na 236) ou a do destino físico
-  (`<entrega>`, spec 073).
-- **Q3 — Fuso fixo de São Paulo** ou coluna de fuso por empresa.
+- **Q1 — DECIDIDA: o aniversário da cidade (e todo feriado anual) vira uma data fixa por ano, materializada
+  automaticamente.** A política conhece a regra "todo ano" (`yearly`); o banco, para o roteirizador, recebe uma
+  linha de data fixa por ano em `municipal_holidays`, gerada por uma rotina. Assim o roteirizador continua lendo
+  só `holiday_on = data` e **não é alterado** (contrato dele segue congelado; a busca em
+  `drizzle-route-optimization.repository.ts` ≈1050–1060 não muda). O desenho exato dos dados e da rotina é da
+  T1.2/T1.3, e a migration em `municipal_holidays` (tabela existente) **exige aprovação humana específica** quando
+  chegar a hora; esta decisão aprova o desenho, não a migration.
+- **Q2 — DECIDIDA: a cidade do feriado é sempre onde a carga será entregue**, isto é, o destino físico decidido
+  por `resolvePhysicalDestination` (desvio manual → `<entrega>` → `<enderDest>`, spec 073), e **não** o endereço
+  cadastrado do destinatário. A política recebe só um `cityIbgeCode`; quem a chamar resolve esse código pelo
+  destino físico. Isso substitui o que as specs 236 e 238 diziam sobre `nfe_addresses.city_code` e é a mesma
+  cidade usada para o grupo rota×cidade da separação (spec 237).
+- **Q3 — Fuso fixo de São Paulo** (padrão do repositório, `FISCAL_TIME_ZONE`), sem coluna por empresa; registrado
+  como limite: uma transportadora em MT, MS, AM, RO, RR ou AC terá o dia civil errado na virada da noite.

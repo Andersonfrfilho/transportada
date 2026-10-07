@@ -107,5 +107,5 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 ## Dúvidas
 
 Nenhuma bloqueante. Premissas adotadas (revogáveis, sem travar a execução): **sábado não é dia útil**
-(configurável por empresa) e **a cidade do feriado é a do destinatário** (decidido pelo usuário na 236);
+(configurável por empresa) e **a cidade do feriado é sempre onde a carga será entregue**, o destino físico de `resolvePhysicalDestination` (decidido pelo usuário em 2026-10-06; antes constava "a do destinatário"), e **o feriado anual vira uma data fixa por ano, materializada por rotina**, para o roteirizador não mudar (ADR-0096);
 Carnaval e Corpus Christi seguem como feriado, **como o calendário atual do painel já faz**.
