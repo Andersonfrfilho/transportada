@@ -77,6 +77,7 @@ function registrar(input: {
   readonly productCodes?: readonly string[]
   readonly seen: {
     save: SaveCall
+    templateOccurrenceId?: string | undefined
     templateProductCodes: readonly string[] | undefined
   }
 }) {
@@ -112,6 +113,7 @@ function registrar(input: {
       },
       async readTemplateValues(query) {
         input.seen.templateProductCodes = query.productCodes
+        input.seen.templateOccurrenceId = query.occurrenceId
         return {
           contractorName: '',
           documentLabel: '',
@@ -158,6 +160,7 @@ function registrar(input: {
 
 type Seen = {
   save: SaveCall
+  templateOccurrenceId?: string | undefined
   templateProductCodes: readonly string[] | undefined
 }
 
@@ -222,6 +225,8 @@ describe('o registro grava vários itens e mantém a coluna antiga', () => {
     const registered = await registrar({ productCodes: ['ZG-4410', 'ZG-4411'], seen })
 
     expect(seen.templateProductCodes).toEqual(['ZG-4410', 'ZG-4411'])
+    /** Spec 247 (T4.7): o leitor do modelo recebe a ocorrência já gravada, de onde lê o que o registro guardou. */
+    expect(seen.templateOccurrenceId).toBe(OCCURRENCE_ID)
     expect(registered.email?.body).toBe('Itens: Parafuso sextavado, Porca')
   })
 
