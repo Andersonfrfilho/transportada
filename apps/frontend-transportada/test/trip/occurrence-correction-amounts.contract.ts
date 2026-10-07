@@ -439,3 +439,36 @@ describe('o modo efetivo do tipo manda na correção (spec 247 T7.2b, N1)', () =
     ).toBe(false)
   })
 })
+
+describe('a soma da correção usa o valor unitário COPIADO no registro (spec 247 T7.2b, N9)', () => {
+  const product = {
+    code: 'X',
+    commercialUnit: 'UN',
+    description: 'X',
+    ordinal: 1,
+    quantity: '3.000',
+    totalValue: '60.00',
+    unitValue: '20.0000',
+  }
+  const input = {
+    codes: ['X'],
+    final: { lineAmounts: new Map(), occurrenceAmount: null },
+    products: [product],
+    quantitiesByCode: new Map([['X', { quantity: '3', unit: 'UN' }]]),
+  }
+  const copied = [
+    { declaredAmount: null, productCode: 'X', quantity: '3.000', unitValue: '19.9950' },
+  ]
+
+  test('o preço da nota mudou depois do registro: vale a cópia, na linha, no total e no e-mail', () => {
+    const result = readCorrectionLineSums({ ...input, itemValues: copied })
+    expect(result.lines.get('X')).toBe('59,99')
+    expect(result.total).toBe('59,99')
+    expect(result.emailAmount).toBe('59,99')
+  })
+
+  test('sem itemValues, ou sem a linha dele, vale o preço atual da nota', () => {
+    expect(readCorrectionLineSums(input).lines.get('X')).toBe('60,00')
+    expect(readCorrectionLineSums({ ...input, itemValues: [] }).lines.get('X')).toBe('60,00')
+  })
+})

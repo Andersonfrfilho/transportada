@@ -22,6 +22,7 @@ import {
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type {
   TripOccurrenceDetailItem,
+  TripOccurrenceItemValue,
   TripOccurrenceRequirements,
 } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
@@ -36,6 +37,8 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
   documentId: string
   id: string
   items: readonly TripOccurrenceDetailItem[]
+  /** Spec 247 T7.2b: o valor unitário copiado no registro, para a soma da correção. */
+  itemValues?: readonly TripOccurrenceItemValue[] | undefined
   occurrenceId: string
   onClose: () => void
   /** O que o registro gravou: a correção nasce com isso, em vez de vazia. */
@@ -57,6 +60,7 @@ export function TripOccurrenceCorrectionForm({
   documentId,
   id,
   items,
+  itemValues,
   occurrenceId,
   onClose,
   recorded,
@@ -149,7 +153,7 @@ export function TripOccurrenceCorrectionForm({
             draft={amountsDraft}
             onChange={setAmountsDraft}
             recorded={recorded}
-            selection={{ codes: productCodes, products, quantitiesByCode }}
+            selection={{ codes: productCodes, itemValues, products, quantitiesByCode }}
             typeConfig={typeConfig}
           />
         </>

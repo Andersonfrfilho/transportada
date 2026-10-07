@@ -16,6 +16,7 @@ import {
   type CorrectionRecordedAmounts,
 } from '../shared/occurrenceRecordedAmounts.service'
 import type { TripDocumentProduct } from '../shared/trip.types'
+import type { TripOccurrenceItemValue } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/occurrenceCorrectionAmounts.module.css'
 import { OccurrenceCorrectionAmountInputs } from './OccurrenceCorrectionAmountInputs.component'
 import { OccurrenceCorrectionReference } from './OccurrenceCorrectionReference.component'
@@ -26,6 +27,8 @@ export type OccurrenceCorrectionAmountsProps = Readonly<{
   recorded: CorrectionRecordedAmounts
   selection: Readonly<{
     codes: readonly string[]
+    /** O valor unitário que o registro copiou; ausente é API anterior. */
+    itemValues?: readonly TripOccurrenceItemValue[] | undefined
     products: readonly TripDocumentProduct[]
     quantitiesByCode: OccurrenceQuantitiesByCode
   }>

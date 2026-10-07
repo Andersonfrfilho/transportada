@@ -13,6 +13,7 @@ import {
 import type { CorrectionFinalAmounts } from './occurrenceRecordedAmounts.service'
 import type { OccurrenceQuantitiesByCode } from './occurrenceProductSelection.service'
 import type { TripDocumentProduct } from './trip.types'
+import type { TripOccurrenceItemValue } from './tripOccurrenceFeed.service'
 
 export type CorrectionLineSums = Readonly<{
   /**
@@ -28,22 +29,27 @@ export type CorrectionLineSums = Readonly<{
 }>
 
 function readLineCents(
-  input: Readonly<{ product: TripDocumentProduct; quantity: string; unit: string | undefined }>,
+  input: Readonly<{
+    product: TripDocumentProduct
+    quantity: string
+    unit: string | undefined
+    unitValue: string
+  }>,
 ): bigint | null {
-  const { product, quantity, unit } = input
+  const { product, quantity, unit, unitValue } = input
   try {
     if (quantity === '') {
       return calculateItemLineAmount({
         quantity: null,
         totalValue: product.totalValue,
-        unitValue: product.unitValue,
+        unitValue,
       })
     }
     if (unit !== product.commercialUnit) return null
     return calculateItemLineAmount({
       quantity,
       totalValue: product.totalValue,
-      unitValue: product.unitValue,
+      unitValue,
     })
   } catch {
     /** Quantidade que não é decimal: a tela não inventa conta, só não mostra a soma. */
@@ -76,6 +82,8 @@ export function readCorrectionLineSums(
     codes: readonly string[]
     /** O que valerá depois do salvar; ausente não calcula o valor do e-mail. */
     final?: CorrectionFinalAmounts
+    /** O valor unitário que o registro copiou: a conta o usa no lugar do preço atual da nota (RF9). */
+    itemValues?: readonly TripOccurrenceItemValue[] | undefined
     products: readonly TripDocumentProduct[]
     quantitiesByCode: OccurrenceQuantitiesByCode
   }>,
@@ -87,10 +95,12 @@ export function readCorrectionLineSums(
     const product = input.products.find((candidate) => candidate.code === code)
     const entry = input.quantitiesByCode.get(code)
     if (product === undefined) continue
+    const copied = input.itemValues?.find((value) => value.productCode === code)
     const lineCents = readLineCents({
       product,
       quantity: entry?.quantity.trim() ?? '',
       unit: entry?.unit,
+      unitValue: copied?.unitValue ?? product.unitValue,
     })
     if (lineCents === null) continue
     lines.set(code, formatBrazilianAmount(lineCents))
