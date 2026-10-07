@@ -361,8 +361,8 @@
       "scope": "general rule",
       "title": "What it requires",
       "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products are the invoice items the occurrence points to.",
-      "mixedScope": "The requirements below apply only to the street moments (invoice delivery and arrival at the stop). At the warehouse the rule is fixed.",
-      "stopOnlyScope": "On arrival at the stop only the photo is required: note, signature and products apply on invoice delivery.",
+      "mixedScope": "The requirements below apply only when the driver registers (Driver, on an invoice and Driver, at the stop). At the warehouse the rule is fixed.",
+      "stopOnlyScope": "With Driver, at the stop only the photo is required: note, signature and products apply with Driver, on an invoice.",
       "fields": {
         "photo": "Photo",
         "note": "Note",
@@ -458,7 +458,7 @@
       }
     },
     "moments": {
-      "title": "When it can happen",
+      "title": "Who registers, and where",
       "placeholder": "Choose the moments",
       "searchPlaceholder": "Search moment",
       "empty": "No moment found.",
@@ -468,15 +468,22 @@
       "undo": "Undo",
       "summary": "{{count}} moments",
       "labels": {
-        "separation": "Warehouse separation",
-        "document": "Document delivery",
-        "stop": "Arrival at the stop",
-        "office": "Office, by the driver"
+        "separation": "Separator, at the warehouse",
+        "document": "Driver, on an invoice",
+        "stop": "Driver, at the stop",
+        "office": "Office, for the driver"
       },
-      "note": "Note, signature, products and photos only apply at the street moments (Document delivery and Arrival at the stop). The other moments have a fixed rule.",
+      "hints": {
+        "separation": "A crushed box found at the check, before the load leaves.",
+        "document": "In front of the customer: the store returned two bales of that invoice.",
+        "stop": "About the place, with no invoice: the gate was closed.",
+        "office": "The operator registers on the panel on the driver's behalf."
+      },
+      "hintsTitle": "What each one means",
+      "note": "Note, signature, products and photos only apply when the driver registers (Driver, on an invoice and Driver, at the stop). The other moments have a fixed rule.",
       "problem": {
         "empty": "Choose at least one moment: with none the type is shown to nobody, so nothing was saved.",
-        "documentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved."
+        "documentAndStop": "Driver, on an invoice and Driver, at the stop cannot share one type: the driver app would show the type twice. Nothing was saved."
       }
     },
     "notification": {
@@ -507,12 +514,6 @@
         "other": "And also"
       },
       "chips": {
-        "moment": {
-          "separation": "Warehouse picking",
-          "document": "Delivery of the invoice",
-          "stop": "Arrival at the stop",
-          "office": "Office"
-        },
         "requirement": {
           "photo": "Photo",
           "note": "Note",

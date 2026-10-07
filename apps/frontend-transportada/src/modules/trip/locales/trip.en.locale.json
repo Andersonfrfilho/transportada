@@ -1048,7 +1048,7 @@
     "declaredAmountSelectionConflict": "The amount paid per line and the occurrence amount cannot come together. Choose one of them; nothing was saved.",
     "occurrenceTypeDeclaredAmountNeedsItems": "An amount paid per line needs products: with Products off there is no line to type it on. Choose \"One for the whole occurrence\" under Typed, or turn Products on. Nothing was saved.",
     "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
-    "occurrenceTypeMomentsDocumentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
+    "occurrenceTypeMomentsDocumentAndStop": "Driver, on an invoice and Driver, at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
     "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",
     "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another."
   },

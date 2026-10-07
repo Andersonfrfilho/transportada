@@ -1048,7 +1048,7 @@
     "declaredAmountSelectionConflict": "O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um dos dois; nada foi gravado.",
     "occurrenceTypeDeclaredAmountNeedsItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado.",
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
-    "occurrenceTypeMomentsDocumentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
+    "occurrenceTypeMomentsDocumentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro."
   },
