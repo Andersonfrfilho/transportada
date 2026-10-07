@@ -23,8 +23,8 @@ nota**, pintado pela situação da viagem.
 - **Situação da linha** (função pura, uma só, na API; o front só pinta):
   `cancelled` → fora do relatório · `awaiting_crew, draft, route_planned, separating, loading` →
   `warehouse` (branco) · `dispatched, in_transit, on_delivery_route` → `on_route` (roxo) ·
-  `completed` com ao menos uma nota entregue → `finished` (verde) · `completed` com **todas** as
-  notas `returned` → `total_return` (verde-água). Listas vêm de `trip-state.policy.ts`
+  `completed` com **todas** as notas `returned` → `total_return` (verde-água) · qualquer outro
+  `completed` → `finished` (verde; inclui encerramento manual com nota pendente, para a função ser total). Listas vêm de `trip-state.policy.ts`
   (`TRIP_ON_ROAD_STATUSES` etc.), nunca copiadas.
 - **Nota liberada** (`trip_documents.released_at` preenchido) **não** entra: já não pertence à viagem.
   A conta de "todas devolvidas" também a ignora.
@@ -44,7 +44,7 @@ nota**, pintado pela situação da viagem.
   nota (número, série, chave), contratante, destinatário (nome, cidade, UF), valor, situação da nota,
   datas de entrega/devolução, motivo da devolução. Cursor e `limit` até 100 por página.
 - **RF2** Aceita `tripIdIn` (até 100) **ou** os filtros; se vierem os dois, os dois valem (E).
-  Chave desconhecida é 400; todos os erros de validação juntos (`apis.md`).
+  Chave desconhecida é 400 `INVALID_REQUEST`; todos os erros de validação juntos (parse em Zod com `details`).
 - **RF3** A situação (`warehouse|on_route|finished|total_return`) é calculada pelo servidor numa função
   pura e vem em cada linha.
 - **RF4** O painel de `/trips` ganha os filtros de nota e contratante, com os mesmos primitivos e
@@ -76,7 +76,7 @@ nota**, pintado pela situação da viagem.
   do mais antigo ao mais novo, marcadas "1 de 2", "2 de 2". CPF/telefone fora das páginas.
 - **RF12** O PDF é gerado no servidor em streaming com `pdfkit` (já na API), lendo o objeto original
   do bucket privado; bucket e chave nunca saem. Imagem é ajustada à largura útil sem distorcer; se a proporção passar de 6 cm de altura, limita-se a 7 cm e centraliza; se for menor que 5 cm, mantém a proporção (nunca estica). Foto girada (vertical) é rotacionada 90° para ficar horizontal, usando a orientação EXIF quando houver. Teto de **200 canhotos** por PDF; acima, 422 `TRIP_PROOF_REPORT_TOO_LARGE` informando o
-  teto. Mesma permissão do `GET /trips/:id/delivery-proofs`.
+  teto. Mesma permissão do `GET /trips/:id/delivery-proofs` (`TRIP_FIELD_READ_POLICY`); a rota é `GET /v1/trip-document-report/proofs-pdf`.
 - **RF8** Tudo em i18n (pt-BR e en, acentuado), sem PII em log; CPF/telefone fora das colunas.
 
 ## Fora do escopo

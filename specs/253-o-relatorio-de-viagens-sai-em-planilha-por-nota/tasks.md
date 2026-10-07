@@ -18,16 +18,15 @@ registra. Executar em worktree própria: `make worktree NAME=spec-253`.
 
 > 🤖 Modelo: `sonnet`
 
-- **T2.1** `trip-report.schema.ts` + `trip-report.types.ts` + código `TRIP_REPORT_TOO_LARGE`
+- **T2.1** `trip-report.schema.ts` + `trip-report.types.ts` + erros `TripReportTooLargeError`/`TripProofReportTooLargeError` em `trip.error.ts`
   (Zod, erros juntos, `limit` ≤ 100, `tripIdIn` ≤ 100). Aceite: testes de validação. (RF2)
 - **T2.2** `trip-report.repository.ts` + `list-trip-report.use-case.ts`: junção, filtros no SQL, cursor,
   teto, `amount` só com `trip.financials`, sem `released_at`. Aceite: testes de caso feliz e de falha
   contra o banco de teste. (RF1, RF2)
-- **T2.3** Rota `GET /v1/trip-document-report` + permissão + OpenAPI/Scalar; teste "toda rota aparece
-  no documento"; teste E2E em `env.test.e2e`. Aceite: E2E verde. (RF1)
+- **T2.3** Rota `GET /v1/trip-document-report` + permissão (sem OpenAPI nesta API); teste E2E em `env.test.e2e`. Aceite: E2E verde. (RF1)
 
 - **T2.4** `trip-proof-page.layout.ts` (puro) + `trip-proof-pdf.gateway.ts` + `export-trip-proof-pdf.use-case.ts`
-  - rota `POST /v1/trip-document-report/proofs-pdf`: fluxo de blocos (cabe quantos couberem, bloco inteiro ou vai para a próxima página), bloco de aviso sem canhoto,
+  - rota `GET /v1/trip-document-report/proofs-pdf`: fluxo de blocos (cabe quantos couberem, bloco inteiro ou vai para a próxima página), bloco de aviso sem canhoto,
     "1 de 2" na reentrega, imagem ilegível vira aviso, faixa horizontal 100% da largura com altura de 5 a 7 cm e rotação da foto vertical, teto 200 (`TRIP_PROOF_REPORT_TOO_LARGE`), só
     `kind = photo`, valor só com `trip.financials`, sem bucket/chave. Aceite: testes do layout e do use
     case (com canhoto, sem canhoto, reentrega, imagem ruim, acima do teto) e E2E que baixa o PDF e confere

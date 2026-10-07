@@ -28,11 +28,20 @@ selectedIds ──────┼─► useTripReportExport ─► GET /trip-doc
    - `resolve-trip-report-tone.policy.ts`: função pura `(tripStatus, documentStatuses[]) → tone`,
      usando os grupos de `trip-state.policy.ts`.
    - `list-trip-report.use-case.ts` + repositório `trip-report.repository.ts`: junta `trips`,
-     `trip_documents` (sem `released_at`), nota e `contractors` por `tax_id`; filtros no SQL, índice
-     por cursor `(trip_id, trip_document_id)`; conta antes e recusa acima do teto.
-   - Rota `GET /trip-document-report` em `trip.routes.ts`, derivada para o OpenAPI (Scalar) e coberta
-     pelo teste "toda rota aparece no documento".
-   - Erros no domínio de viagem: `TRIP_REPORT_TOO_LARGE` em `shared/errors/codes.ts`.
+     `trip_documents` (sem `released_at`), nota e `contractors` por `tax_id`; filtros no SQL; conta antes
+     e recusa acima do teto. Nota = `coalesce(trip_documents.nfe_document_id,
+freight_calculations.nfe_document_id)` (molde do alias `nfeDocumentsViaFreight` em
+     `drizzle-trip.repository.ts`); `documentIdIn` vale sobre a nota resolvida. Ordem
+     `trips.created_at desc, trips.id desc, trip_documents.id desc`; cursor
+     `<created_at com µs via to_char>::<tripId>::<tripDocumentId>` com parser próprio (o
+     `readPaging` só aceita `<iso>::<uuid>`). Contratante: `left join contractors` por
+     `(company_id, tax_id)`, unicidade garantida por `contractors_company_tax_id_unique`; endereço do
+     destinatário por `LATERAL … limit 1` (`nfe_addresses` não é único por participante).
+   - Rota `GET /v1/trip-document-report` registrada em `trip.routes.ts`. Esta API não tem OpenAPI
+     (`apps/api-transportada/CLAUDE.md`): sem Scalar nem teste de cobertura de documento.
+   - Erros `TripReportTooLargeError` (`TRIP_REPORT_TOO_LARGE`, 422) e `TripProofReportTooLargeError`
+     (`TRIP_PROOF_REPORT_TOO_LARGE`, 422) em `trips/domain/trip.error.ts`, estendendo `ApiError`.
+     Não existe `shared/errors/codes.ts`.
 2. **Layout** (`shared/spreadsheet/`): `SpreadsheetRowTone` e `SPREADSHEET_ROW_TONES` em
    `spreadsheetLayout.service.ts`; `rows` aceita `{ cells, tone? }` **ou** o formato antigo (união
    discriminada por `Array.isArray`) para não tocar nos outros exportadores; `buildBodyRow` usa o tom
@@ -50,15 +59,16 @@ selectedIds ──────┼─► useTripReportExport ─► GET /trip-doc
 
 ### PDF de canhotos (RF10 a RF12)
 
-- Rota `POST /v1/trip-document-report/proofs-pdf`, mesmos filtros do relatório (corpo JSON, pois as
-  listas de ids e o filtro podem ser longos). Resposta `Response(stream)` com
+- Rota `GET /v1/trip-document-report/proofs-pdf`, mesma query do relatório e `TRIP_FIELD_READ_POLICY`
+  (`anyPermission` só é aceito em GET pelo roteador; 100 ids cabem em ~4 KB de URL). Resposta `Response(stream)` com
   `content-disposition: attachment`, `cache-control: no-store`, `application/pdf`.
 - `export-trip-proof-pdf.use-case.ts` reaproveita o repositório do relatório para listar as notas e
-  busca `trip_delivery_proofs` (`kind = 'photo'`, via `stop_event_id` → `trip_documents`) para achar
-  `bucket`/`object_key`; lê cada imagem por `getObjectStream` do `NfeStorageGateway`.
+  busca `trip_delivery_proofs` (`kind = 'photo'`) → `trip_stop_events` por `stop_event_id` →
+  `trip_stop_events.trip_document_id`; objeto por `object_id` → `stored_objects.bucket/object_key`;
+  ordem `trip_delivery_proofs.created_at asc`; lê cada imagem por `getObjectStream` do `NfeStorageGateway`.
 - `trip-proof-pdf.gateway.ts` com `pdfkit`, no molde de `occurrence-statement-pdf.gateway.ts` e
   `invoice-pdf.gateway.ts`; layout puro separado (`trip-proof-page.layout.ts`) para testar a
-  disposição sem renderizar. Página A4 retrato em fluxo: o layout puro calcula a altura de cada bloco (1,6 cm de informações + imagem de 5 a 7 cm + 0,4 cm de folga) e vai empilhando enquanto couber na área útil (29,7 − 3 de margens − 1,2 de cabeçalho − 0,8 de rodapé = 24,7 cm); o bloco que não cabe abre a página seguinte. Imagem com `fit` de largura, mínimo de referência 5 cm sem esticar, máximo 7 cm; imagem em retrato é girada 90° (EXIF primeiro). O layout puro expõe essas medidas em constantes (`PROOF_IMAGE_MIN_HEIGHT_CM` e `PROOF_IMAGE_MAX_HEIGHT_CM`; o número total de páginas vem de calcular o fluxo antes de desenhar (para o "Página X de Y")).
+  disposição sem renderizar. Página A4 retrato em fluxo: o layout puro calcula a altura de cada bloco (1,6 cm de informações + imagem de 5 a 7 cm + 0,4 cm de folga) e vai empilhando enquanto couber na área útil (29,7 − 3 de margens − 1,2 de cabeçalho − 0,8 de rodapé = 24,7 cm); o bloco que não cabe abre a página seguinte. Imagem com `fit` de largura, mínimo de referência 5 cm sem esticar, máximo 7 cm; imagem em retrato é girada 90° com `doc.rotate` (EXIF: não há `sharp` na API; confirmar no spike da T2.4 se o pdfkit 0.19 aplica a orientação). O layout puro expõe essas medidas em constantes (`PROOF_IMAGE_MIN_HEIGHT_CM` e `PROOF_IMAGE_MAX_HEIGHT_CM`; o número total de páginas vem de calcular o fluxo antes de desenhar (para o "Página X de Y")).
 - Imagem corrompida ou formato que o `pdfkit` não lê (só JPEG/PNG): a página sai com o aviso
   "Imagem indisponível" e as informações, e o PDF segue (catch local de fallback gracioso, §7).
 - Front: `tripProofPdf.service.ts` (POST → blob → `saveArchiveFile`), `useTripProofPdfExport.hook.ts`
@@ -75,8 +85,8 @@ selectedIds ──────┼─► useTripReportExport ─► GET /trip-doc
   hook entrega hoje. Se o usuário espera selecionar entre páginas, é outro requisito (anotar).
 - **`Promise.all` no front**: as páginas são sequenciais por cursor, sem lote paralelo; busca de
   logo/timbre fica em `Promise.allSettled` dentro de `letterhead.load` (já existente).
-- **Contratante sem cadastro**: junção por `tax_id` pode duplicar linha se houver dois contratantes
-  com o mesmo CNPJ — conferir unicidade; senão `DISTINCT ON`.
+- **Contratante sem cadastro**: sem duplicação (índice único `company_id, tax_id`); o risco de linha
+  duplicada está em `nfe_addresses`, tratado com `LATERAL … limit 1`.
 - **Contraste**: tons só são aceitos com texto escuro e razão ≥ 4,5:1 (teste unitário calcula).
 
 ## Contrato HTTP
@@ -84,18 +94,19 @@ selectedIds ──────┼─► useTripReportExport ─► GET /trip-doc
 `GET /v1/trip-document-report`
 
 Query: `cursor?`, `limit?` (1–100, padrão 100), `tripIdIn?` (≤ 100), `documentIdIn?` (≤ 100, para a
-seleção feita na aba de notas), `tripStatusIn?`, `vehicleIdIn?`,
+seleção feita na aba de notas), `statusIn?` (mesmo parser de `GET /trips`), `vehicleIdIn?`,
 `driverIdIn?`, `createdFrom?`, `createdUntil?`, `proofPendingEq?`, `search?`, `contractorIdIn?`
 (aceita o marcador `none`), `recipientCityIn?`, `recipientStateIn?`, `valueOperator?` + `valueAmount?`,
 `documentStatusIn?`.
 
-200 → `{ data: TripReportRow[], pagination: { total, nextCursor } }`;
-`TripReportRow = { tripId, tripCode, tone, documentNumber, documentSeries, accessKey, contractorName,
+200 → `{ data: TripReportRow[], page: { nextCursor, total }, excludedWithoutTrip }` (`total` e
+`excludedWithoutTrip` só na primeira página, sem `cursor`);
+`TripReportRow = { tripId, tone, documentNumber, documentSeries, accessKey, contractorName,
 recipientName, recipientCity, recipientState, amount?, documentStatus, deliveredAt?, returnedAt?,
 returnReason? }` (`amount` omitido sem `trip.financials`).
-Erros: 400 `VALIDATION_ERROR` (todos juntos) · 401 · 403 · 422 `TRIP_REPORT_TOO_LARGE`.
+Erros: 400 `INVALID_REQUEST` (query em Zod com `details`, todos juntos) · 401 · 403 · 422 `TRIP_REPORT_TOO_LARGE`.
 
 ## Decisão 🧠 que as demais tasks herdam
 
-O contrato acima, a regra de tom e a junção de contratante. Validar com `architect` (opus) **antes** de
-T2 em diante.
+O contrato acima, a regra de tom e a junção de contratante. Validado com `architect` (opus) em 2026-10-07: APROVADO COM AJUSTES, ajustes aplicados acima
+(ver `evidence.md` T1.1).
