@@ -211,6 +211,7 @@ async function assertPreviewAndIntakeRules(
   await insertIntake('rejected', 'FORWARDER_NOT_ALLOWED', null, 'e2')
   await insertIntake('rejected', 'RATE_LIMITED', null, 'e3')
   await insertIntake('rejected', 'FORWARDER_DKIM_UNVERIFIABLE', null, 'e4')
+  await insertIntake('rejected', 'FORWARDER_FROM_MISMATCH', null, 'e5')
   await expectQueryToFail(
     insertIntake('rejected', 'FORWARDER_NOT_ALLOWED', null, 'e2'),
     UNIQUE_VIOLATION,
