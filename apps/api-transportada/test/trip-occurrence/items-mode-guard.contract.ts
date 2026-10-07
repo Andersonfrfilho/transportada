@@ -224,17 +224,22 @@ describe('a correção recusa produto em tipo sem itens (spec 241 RF6, CA03)', (
       hasOpenCase: async () => false,
       insertCorrection: async () => void calls.push('insertCorrection'),
       listCurrentItems: async () =>
-        input.productCodes.length === 0 ? [{ code: 'ZG-4410', quantity: null, unit: null }] : [],
+        input.productCodes.length === 0
+          ? [{ code: 'ZG-4410', declaredAmount: null, quantity: null, unit: null, unitValue: null }]
+          : [],
       listDocumentProducts: async () => PRODUCTS,
       lockOccurrence: async () => ({
         cancelledAt: null,
+        declaredAmount: null,
         occurrenceTypeId: TIPO,
+        referenceNumber: null,
         tripDocumentId: DOCUMENT,
         tripId: TRIP,
       }),
       readOccurrenceView: async () => ({}) as CorrectedOccurrenceView,
       replaceItems: async () => void calls.push('replaceItems'),
       writeCancellation: async () => undefined,
+      writeDeclaredValues: async () => void calls.push('writeDeclaredValues'),
     }
     const result = correctOccurrenceItems({
       actorUserId: ACTOR,

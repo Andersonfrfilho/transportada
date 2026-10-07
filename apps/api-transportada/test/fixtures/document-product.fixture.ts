@@ -8,5 +8,6 @@ export const NEUTRAL_DOCUMENT_PRODUCT_LINE = {
   commercialUnit: 'UN',
   ordinal: 1,
   quantity: '1.0000',
+  totalValue: '1.0000',
   unitValue: '1.0000',
 } as const
