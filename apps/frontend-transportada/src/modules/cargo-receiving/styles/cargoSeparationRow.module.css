@@ -1,0 +1,94 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.documentList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.documentRow {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+.documentRow:nth-child(even) {
+  background: var(--color-graphite);
+}
+
+.documentInfo {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.documentHead {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.documentNumber {
+  font-family: var(--font-utility);
+  font-weight: 700;
+}
+
+.recipient {
+  color: var(--color-slate-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+/* O botão grande do passo: texto do próximo passo, nunca só cor, e o alvo de toque do painel. */
+.stepButton {
+  min-height: var(--touch-target);
+  padding-block: var(--space-3);
+  width: 100%;
+}
+
+.stepDone {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  min-height: var(--touch-target);
+  color: var(--color-ready-ink);
+  font-family: var(--font-utility);
+  text-transform: uppercase;
+}
+
+.failure {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-alert);
+}
+
+.retryButton {
+  min-height: var(--touch-target);
+  width: 100%;
+}
+
+.refusedNote {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+@media (min-width: 40rem) {
+  .stepButton,
+  .retryButton {
+    width: auto;
+    justify-self: start;
+  }
+}
+
+@media (min-width: 64rem) {
+  .documentList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

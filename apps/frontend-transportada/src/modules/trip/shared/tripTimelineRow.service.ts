@@ -20,10 +20,13 @@ const KNOWN_TRIP_STATUSES: ReadonlySet<string> = new Set(TRIP_STATUS)
 const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 const ICON_BY_KIND = {
+  crew_transfer: 'workspace-users',
+  'document.canhoto_photo': 'camera',
   'document.delivered': 'check',
   'document.occurrence': 'alert',
   'document.returned': 'refresh',
   'document.status_changed': 'document',
+  'stop.address_corrected': 'edit',
   'stop.arrived': 'map-pin',
   'stop.departed': 'truck',
   'stop.departure_cancelled': 'close',
@@ -34,6 +37,9 @@ const ICON_BY_KIND = {
 } as const satisfies Record<TripTimelineKind, IconName>
 
 const NEUTRAL_KINDS: ReadonlySet<TripTimelineKind> = new Set([
+  'crew_transfer',
+  'document.canhoto_photo',
+  'stop.address_corrected',
   'stop.arrived',
   'stop.departed',
   'trip.created',
@@ -104,13 +110,18 @@ function resolveLateChip(item: TripTimelineItem, t: Translate): TripTimelineChip
   return { id: 'late', label: t('eventTimeline.chip.recordedLaterUnknown'), tone: 'copper' }
 }
 
-/** Só o que o item já publica: chip sem dado correspondente não é desenhado. */
+/**
+ * Só o que o item já publica: chip sem dado correspondente não é desenhado. `shouldOmitStop` é da
+ * seção cujos eventos são todos da mesma parada ("Eventos desta entrega"): o chip dizia a mesma coisa
+ * em cada linha.
+ */
 export function resolveTripTimelineChips(
   item: TripTimelineItem,
   t: Translate,
+  options: Readonly<{ shouldOmitStop?: boolean }> = {},
 ): readonly TripTimelineChip[] {
   const stopChip: TripTimelineChip | null =
-    item.stop === null
+    item.stop === null || options.shouldOmitStop === true
       ? null
       : {
           id: 'stop',

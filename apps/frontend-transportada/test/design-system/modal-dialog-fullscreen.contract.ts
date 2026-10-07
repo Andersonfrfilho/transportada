@@ -50,6 +50,12 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/delivery-clients/styles/contractorContactDialog.module.css',
     overlay: '.overlay',
   },
+  /** Spec 237 T3.3: a avaria na nota da chegada, aberta pelo separador no celular. */
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/cargo-receiving/styles/cargoOccurrenceDialog.module.css',
+    overlay: '.overlay',
+  },
   { dialog: '.dialog', filePath: 'src/modules/fleet/styles/fleet.module.css', overlay: '.overlay' },
   /** Spec 183 T407: "Enviar à contratante". */
   {

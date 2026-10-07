@@ -1,0 +1,572 @@
+{
+  "eyebrow": "Cargo receiving",
+  "forbidden": "Your access does not include cargo receiving.",
+  "status": {
+    "open": "Open",
+    "closed": "Closed"
+  },
+  "state": {
+    "expected": "Expected",
+    "received": "Received",
+    "separated": "Separated"
+  },
+  "badge": {
+    "overdue": "Overdue",
+    "inLiveTrip": "Already on a trip",
+    "noDue": "No deadline"
+  },
+  "group": {
+    "noRoute": "No route",
+    "noCity": "No city",
+    "title": "{{route}} · {{city}}",
+    "counts": "{{done}} of {{total}} separated",
+    "stateCounts": "Expected {{expected}} · Received {{received}} · Separated {{separated}}",
+    "aside": "{{count}} being returned"
+  },
+  "document": {
+    "number": "Invoice {{number}}",
+    "unknownRecipient": "Recipient not provided"
+  },
+  "progress": {
+    "label": "Separation progress",
+    "value": "{{separated}} of {{total}} separated"
+  },
+  "facts": {
+    "arrivedAt": "Arrived: {{date}}",
+    "dueAt": "Separation deadline: {{date}}",
+    "noDueAt": "No separation deadline",
+    "reference": "Reference: {{reference}}",
+    "pallets": "Pallets: {{count}}"
+  },
+  "list": {
+    "title": "Arrivals",
+    "hint": "Each arrival is a contractor's cargo that reached the dock. Register the arrival, check the invoices and separate by route and city before building the trip.",
+    "register": "Register arrival",
+    "loading": "Loading the arrivals",
+    "error": "Could not load the arrivals ({{code}}).",
+    "empty": "No arrival registered yet.",
+    "emptyFiltered": "No arrival matches these filters.",
+    "loadMore": "Load more arrivals",
+    "count_one": "{{count}} arrival loaded",
+    "count_other": "{{count}} arrivals loaded",
+    "orderChanged": "The list order changed while you were browsing. We reloaded from the start."
+  },
+  "filters": {
+    "contractor": "Contractor",
+    "contractorPlaceholder": "All contractors",
+    "contractorSummary_one": "{{count}} contractor",
+    "contractorSummary_other": "{{count}} contractors",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor found",
+    "contractorRemove": "Remove the contractor filter",
+    "status": "Status",
+    "statusPlaceholder": "All statuses",
+    "statusSummary_one": "{{count}} status",
+    "statusSummary_other": "{{count}} statuses",
+    "statusSearch": "Search status",
+    "statusEmpty": "No status found",
+    "statusRemove": "Remove the status filter",
+    "clear": "Clear filters",
+    "clearAll": "Clear all filters"
+  },
+  "table": {
+    "region": "List of arrivals",
+    "contractor": "Contractor",
+    "arrivedAt": "Arrival",
+    "documents": "Invoices",
+    "progress": "Separated",
+    "dueAt": "Separation deadline",
+    "status": "Status",
+    "actions": "Actions",
+    "open": "Open",
+    "openLabel": "Open the arrival of {{name}}",
+    "separate": "Separate",
+    "separateLabel": "Separate the arrival of {{name}}",
+    "sortAscending": "ascending order",
+    "sortDescending": "descending order",
+    "sortNone": "not sorted"
+  },
+  "register": {
+    "title": "Register arrival",
+    "hint": "Pick the contractor, say when the truck arrived and tick the invoices that came. The separation window starts at the arrival time.",
+    "back": "Back to arrivals",
+    "details": "Arrival details",
+    "contractor": "Contractor",
+    "contractorHint": "Only contractors with receiving turned on in their profile are listed.",
+    "contractorPlaceholder": "Pick the contractor",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor with receiving turned on",
+    "contractorsLoading": "Loading the contractors",
+    "date": "Arrival date",
+    "time": "Arrival time",
+    "timePlaceholder": "HH:MM",
+    "timeHint": "Default: now, in your browser's time zone.",
+    "palletCount": "Pallets (optional)",
+    "reference": "Reference (optional)",
+    "referenceHint": "Seal or cargo number, up to {{max}} characters.",
+    "submit": "Register arrival",
+    "submitting": "Registering…",
+    "dateField": {
+      "chooseYear": "Choose the year",
+      "clear": "Clear date",
+      "nextMonth": "Next month",
+      "openCalendar": "Open calendar",
+      "placeholder": "dd/mm/yyyy",
+      "previousMonth": "Previous month"
+    }
+  },
+  "available": {
+    "title": "Cargo invoices",
+    "pickContractor": "Pick the contractor to list their free invoices.",
+    "loading": "Loading the invoices",
+    "error": "Could not load the invoices ({{code}}).",
+    "empty": "This contractor has no free invoices for an arrival.",
+    "emptyFiltered": "No invoice matches this search.",
+    "search": "Search invoice",
+    "searchPlaceholder": "Number, recipient or city",
+    "selectAll": "Select all listed",
+    "selectOne": "Select invoice {{number}}",
+    "counter": "{{count}} of {{max}} invoices selected",
+    "limitReached": "The limit of {{max}} invoices per arrival was reached.",
+    "loadMore": "Load more invoices",
+    "number": "Invoice",
+    "recipient": "Recipient",
+    "city": "City",
+    "value": "Amount",
+    "region": "Invoices available for the arrival"
+  },
+  "fields": {
+    "arrivedAt": "Arrival date and time",
+    "contractorId": "Contractor",
+    "palletCount": "Pallets",
+    "reference": "Reference",
+    "documentIds": "Invoices"
+  },
+  "issues": {
+    "required": "Required field.",
+    "invalidTime": "Use the time as HH:MM.",
+    "future": "The arrival cannot be in the future.",
+    "integer": "Use a whole number from {{min}} to {{max}}.",
+    "tooLong": "Use at most {{max}} characters.",
+    "noDocuments": "Tick at least one invoice.",
+    "tooMany": "At most {{max}} invoices per arrival.",
+    "refusedByServer": "The server refused this value.",
+    "tooOld": "Use a date up to {{max}} days ago."
+  },
+  "refusal": {
+    "lead": "Check:",
+    "documentsLead": "Refused invoices:",
+    "documentShortcut": "Invoice {{number}}",
+    "reasons": {
+      "DOCUMENT_ALREADY_IN_ARRIVAL": "is already in another arrival",
+      "DOCUMENT_FROM_ANOTHER_ISSUER": "is from another issuer",
+      "DOCUMENT_IN_LIVE_TRIP": "is already on a trip",
+      "DOCUMENT_NOT_AUTHORIZED": "is not authorized",
+      "DOCUMENT_NOT_FOUND": "was not found",
+      "CARGO_ARRIVAL_CLOSED": "the arrival is closed",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_RECEIVED": "must be received before separating",
+      "CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED": "the invoice already moved on — someone else may have separated it",
+      "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "is not in this arrival",
+      "CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN": "is marked to return to the contractor",
+      "CARGO_ARRIVAL_DOCUMENT_RETURNED": "was already returned to the contractor",
+      "DOCUMENT_RETURN_TO_CONTRACTOR": "is marked for return to the contractor"
+    }
+  },
+  "errors": {
+    "CARGO_RECEIVING_NOT_ENABLED": "Cargo receiving is not turned on for this contractor. Turn it on in their profile, under Clients, Contractors tab.",
+    "CARGO_ARRIVAL_ARRIVED_AT_IN_FUTURE": "The arrival cannot be in the future. Check the date and time.",
+    "CARGO_ARRIVAL_KEY_REUSED": "This attempt was already used with other data. Check and register again.",
+    "CARGO_ARRIVAL_NOT_FOUND": "This arrival no longer exists.",
+    "CONTRACTOR_NOT_FOUND": "The contractor was not found.",
+    "CARGO_ARRIVAL_CLOSED": "The arrival is closed: read only.",
+    "REQUEST_FAILED": "No connection to the server.",
+    "RESPONSE_INVALID": "Unexpected response from the server.",
+    "unknown": "Could not complete ({{code}}).",
+    "CARGO_ARRIVAL_DOCUMENTS_NOT_IN_ARRIVAL": "Some invoices are not part of this arrival.",
+    "CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD": "The arrival cannot be more than 30 days ago. Check the date and time."
+  },
+  "detail": {
+    "title": "Arrival of {{name}}",
+    "back": "Back to arrivals",
+    "openSeparation": "Open the separation on the phone",
+    "loading": "Loading the arrival",
+    "error": "Could not load the arrival ({{code}}).",
+    "closedNotice": "Arrival closed: read only.",
+    "groupRegion": "Invoices of group {{title}}",
+    "selectGroup": "Select group {{title}}",
+    "selectDocument": "Select invoice {{number}}",
+    "recipient": "Recipient",
+    "state": "Status",
+    "value": "Invoice",
+    "selected_one": "{{count}} invoice selected",
+    "selected_other": "{{count}} invoices selected",
+    "clearSelection": "Clear selection"
+  },
+  "actions": {
+    "routeLabel": "Route (up to {{max}} characters)",
+    "routeHint": "Leave empty to clear the route of the selected invoices.",
+    "applyRoute": "Apply route",
+    "markReceived": "Mark as received",
+    "markSeparated": "Mark as separated",
+    "close": "Close arrival",
+    "closing": "Closing…",
+    "pendingLead": "Still to separate:",
+    "pendingShortcut": "Invoice {{number}}"
+  },
+  "outcome": {
+    "title": "Batch result",
+    "summary": "{{changed}} changed, {{unchanged}} unchanged, {{refused}} refused.",
+    "refusedLead": "Refused:",
+    "refusedShortcut": "Invoice {{number}}",
+    "routeApplied": "Route applied to the selected invoices.",
+    "dismiss": "Dismiss the result",
+    "details": "See each invoice's result",
+    "line": "Invoice {{number}} — {{result}}",
+    "result": {
+      "changed": "changed",
+      "unchanged": "unchanged",
+      "refused": "refused: {{reason}}"
+    }
+  },
+  "separation": {
+    "title": "Separation",
+    "back": "Arrivals",
+    "openOffice": "Open the office view",
+    "loading": "Loading the separation",
+    "error": "Could not load the separation ({{code}}).",
+    "search": "Search invoice",
+    "searchPlaceholder": "Invoice number",
+    "scan": "Read the access key",
+    "scanTitle": "Read the access key",
+    "scanClose": "Close the reader",
+    "scanDenied": "The camera was denied. Allow access in the browser settings.",
+    "scanReading": "Point the camera at the invoice barcode.",
+    "scanStarting": "Starting the camera…",
+    "scanUnavailable": "This device cannot read with the camera.",
+    "scanFound": "Invoice found: {{number}}.",
+    "scanNotFound": "This key does not belong to any invoice of this arrival.",
+    "noMatches": "No invoice with that number.",
+    "offline": "No connection. A tap that fails stays on screen to try again.",
+    "groupToggle": "Show or hide group {{title}}",
+    "groupAll": "Separate this whole group",
+    "groupAllDone": "Whole group separated",
+    "step": {
+      "expected": "Mark as received",
+      "received": "Mark as separated",
+      "separated": "Separated"
+    },
+    "stepLabel": "{{step}} — invoice {{number}}",
+    "failure": "Could not send: {{reason}}",
+    "retry": "Try again",
+    "retryLabel": "Try again — invoice {{number}}",
+    "refused": "Refused: {{reason}}",
+    "closedNotice": "Arrival closed: read only."
+  },
+  "preview": {
+    "unknownContractor": "Unidentified contractor",
+    "nav": {
+      "label": "Receiving sections",
+      "arrivals": "Arrivals",
+      "previews": "Previews"
+    },
+    "source": {
+      "email": "Sent by email",
+      "upload": "Sent in the panel"
+    },
+    "status": {
+      "queued": "Queued",
+      "processing": "Reading",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "itemState": {
+      "matched": "Linked",
+      "awaiting_xml": "Waiting for the XML",
+      "suggested": "Suggested",
+      "ambiguous": "Ambiguous",
+      "invalid": "Invalid"
+    },
+    "failure": {
+      "PREVIEW_CELL_TOO_LONG": "A spreadsheet cell is longer than allowed.",
+      "PREVIEW_COLUMN_DUPLICATED": "The spreadsheet header repeats a column.",
+      "PREVIEW_COLUMN_NOT_FOUND": "A column the contractor profile expects is missing from the spreadsheet.",
+      "PREVIEW_FILE_CORRUPTED": "The file is corrupted and could not be read.",
+      "PREVIEW_FILE_MISSING": "The uploaded file was not found for reading.",
+      "PREVIEW_FILE_TOO_LARGE": "The spreadsheet is larger than allowed.",
+      "PREVIEW_MATCH_TIMEOUT": "Linking this preview to the invoices took longer than allowed. Send the same file again to retry.",
+      "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
+      "PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor.",
+      "PREVIEW_PARSE_TIMEOUT": "Reading the spreadsheet took longer than the limit.",
+      "PREVIEW_PROCESSING_ABANDONED": "Reading the spreadsheet did not finish. Send the same file again to retry.",
+      "PREVIEW_PROCESSING_INTERRUPTED": "Reading the spreadsheet was interrupted midway. Send the same file again to retry.",
+      "PREVIEW_SHEET_NOT_FOUND": "The sheet set in the profile does not exist in the spreadsheet.",
+      "PREVIEW_TOO_MANY_CELLS": "The spreadsheet has too many cells, in a row or in total.",
+      "PREVIEW_TOO_MANY_ENTRIES": "The file has too many entries to be a spreadsheet.",
+      "PREVIEW_TOO_MANY_ROWS": "The spreadsheet has too many rows.",
+      "PREVIEW_TOO_MANY_STRINGS": "The spreadsheet has too many texts.",
+      "PREVIEW_VALUE_OUT_OF_RANGE": "A number in the spreadsheet is too large to be stored. Check the values and weights.",
+      "PREVIEW_ZIP_BOMB": "The file expands beyond the safety limit.",
+      "PREVIEW_ZIP_ENTRY_UNSAFE": "The file has an unsafe entry and was refused.",
+      "unknown": "The spreadsheet could not be read. Check the file and upload it again."
+    },
+    "fields": {
+      "contractorId": "Contractor",
+      "file": "Preview spreadsheet"
+    },
+    "list": {
+      "title": "Previews",
+      "hint": "Each preview is the spreadsheet the contractor sends before the cargo arrives. Upload it, check what already has an invoice and propose the arrival.",
+      "loading": "Loading the previews",
+      "error": "Could not load the previews ({{code}}).",
+      "empty": "No preview uploaded yet.",
+      "emptyFiltered": "No preview matches these filters.",
+      "loadMore": "Load more previews",
+      "count": "{{shown}} of {{total}} previews loaded"
+    },
+    "table": {
+      "region": "Previews list",
+      "contractor": "Contractor",
+      "fileName": "File",
+      "receivedAt": "Received at",
+      "plannedDate": "Planned day",
+      "rowCount": "Rows",
+      "status": "Status",
+      "openLabel": "Open the preview of {{name}}"
+    },
+    "filters": {
+      "itemState": "Item status",
+      "itemStatePlaceholder": "All statuses",
+      "itemStateSummary_one": "{{count}} status",
+      "itemStateSummary_other": "{{count}} statuses",
+      "itemStateRemove": "Remove the item status filter",
+      "route": "Route",
+      "routePlaceholder": "All routes",
+      "routeSummary_one": "{{count}} route",
+      "routeSummary_other": "{{count}} routes",
+      "routeRemove": "Remove the route filter",
+      "routeSearch": "Search route",
+      "routeEmpty": "No route found"
+    },
+    "upload": {
+      "title": "Upload spreadsheet",
+      "contractor": "Spreadsheet contractor",
+      "contractorHint": "Only contractors with receiving and previews turned on in the profile appear.",
+      "contractorPlaceholder": "Choose the contractor",
+      "contractorSearch": "Search contractor",
+      "contractorEmpty": "No contractor with receiving and previews turned on",
+      "contractorsLoading": "Loading the contractors",
+      "chooseFile": "Choose file",
+      "noFile": "No file chosen",
+      "fileHint": "Accepts .xlsx and .xlsm up to {{max}} KB. Reading happens in the background.",
+      "submit": "Upload spreadsheet",
+      "submitting": "Uploading…",
+      "alreadySent": "This spreadsheet was already uploaded.",
+      "openExisting": "Open the preview",
+      "noEligibleContractor": "No contractor with previews turned on. Turn on receiving and previews in the contractor profile, in Clients, Contractors tab.",
+      "openContractors": "Open contractors"
+    },
+    "issues": {
+      "contractorId": {
+        "required": "Choose the contractor."
+      },
+      "file": {
+        "required": "Choose the spreadsheet.",
+        "extension": "Use an .xlsx or .xlsm file.",
+        "empty": "The file is empty.",
+        "tooLarge": "The spreadsheet is over {{max}} KB. Upload one up to {{max}} KB."
+      }
+    },
+    "errors": {
+      "PREVIEW_FILE_TOO_LARGE": "The spreadsheet is over the 960 KB limit the server accepts.",
+      "PREVIEW_NOT_A_WORKBOOK": "The file is not a valid .xlsx or .xlsm spreadsheet.",
+      "CARGO_PREVIEW_NOT_ENABLED": "Previews are not enabled for this contractor. Turn them on in its profile, in Clients, Contractors tab.",
+      "CARGO_PREVIEW_TOO_MANY_OPEN": "This contractor already has 5 previews waiting to be read. Wait for them to finish and upload again.",
+      "CARGO_PREVIEW_KEY_REUSED": "This attempt was already used with another spreadsheet. Choose the file again and upload.",
+      "CARGO_PREVIEW_NOT_FOUND": "This preview no longer exists.",
+      "CARGO_PREVIEW_ITEM_NOT_FOUND": "This row is no longer part of the preview.",
+      "CARGO_PREVIEW_NOT_READY": "The preview was not read yet. Wait for the reading to finish.",
+      "CARGO_PREVIEW_DOCUMENT_ALREADY_LINKED": "This invoice is already linked to another preview.",
+      "CARGO_PREVIEW_DOCUMENT_NOT_CANDIDATE": "This invoice cannot be linked to this preview: it is from another issuer or not authorized.",
+      "CARGO_PREVIEW_ITEM_ALREADY_LINKED": "This row is already linked to another invoice. Unlink it before linking again.",
+      "CARGO_PREVIEW_ITEM_NOT_SUGGESTED": "Only a row with a suggestion can be confirmed.",
+      "CARGO_PREVIEW_ITEM_INVALID": "This row is invalid in the spreadsheet: there is nothing to link. Fix the spreadsheet and upload it again."
+    },
+    "facts": {
+      "file": "File: {{name}}",
+      "receivedAt": "Received at: {{date}}",
+      "plannedDate": "Planned day: {{date}}",
+      "rows_one": "{{count}} row",
+      "rows_other": "{{count}} rows"
+    },
+    "summary": {
+      "label": "Summary by status"
+    },
+    "detail": {
+      "title": "Preview of {{name}}",
+      "back": "Back to previews",
+      "loading": "Loading the preview",
+      "error": "Could not load the preview.",
+      "empty": "This preview has no rows.",
+      "emptyFiltered": "No row matches these filters.",
+      "loadMore": "Load more items",
+      "awaitingNote": "Waiting for the XML is normal: the preview arrives hours before the invoices. The link is made when each XML is imported."
+    },
+    "route": {
+      "none": "No route",
+      "noLoad": "Load not paired yet",
+      "load": "Load {{reference}} · paired {{origin}}",
+      "origin": {
+        "totals": "by the totals",
+        "votes": "by the votes",
+        "user": "by the operator"
+      },
+      "counts": "{{matched}} of {{total}} linked",
+      "region": "Rows of route {{title}}"
+    },
+    "item": {
+      "columns": {
+        "row": "Row",
+        "recipient": "Recipient",
+        "city": "City",
+        "value": "Amount",
+        "weight": "Weight",
+        "state": "Status",
+        "actions": "Actions"
+      },
+      "linked": "Invoice {{number}} · {{value}}",
+      "decidedBy": {
+        "system": "automatic",
+        "user": "by the operator"
+      },
+      "candidates": {
+        "suggested_one": "{{count}} candidate invoice: confirm to link.",
+        "suggested_other": "{{count}} candidate invoices: confirm to link.",
+        "ambiguous_one": "{{count}} candidate invoice: choose one.",
+        "ambiguous_other": "{{count}} candidate invoices: choose one."
+      },
+      "rowError": "Column {{column}}: {{reason}}",
+      "actions": {
+        "confirm": "Confirm",
+        "confirmLabel": "Confirm row {{row}}",
+        "unlink": "Unlink",
+        "unlinkLabel": "Unlink row {{row}}",
+        "link": "Link by hand",
+        "linkLabel": "Link row {{row}} by hand"
+      }
+    },
+    "rowErrors": {
+      "required": "a value is required",
+      "decimal": "the value must be a decimal number, not negative"
+    },
+    "unlink": {
+      "warning": "Unlinking releases invoice {{number}} from every row that closes it ({{count}} in this list).",
+      "confirm": "Unlink anyway",
+      "cancel": "Cancel"
+    },
+    "manual": {
+      "title": "Link row {{row}} to an invoice",
+      "search": "Search invoice",
+      "candidate": "Candidate",
+      "choose": "Choose",
+      "chooseLabel": "Choose invoice {{number}}",
+      "confirm": "Link to invoice {{number}}",
+      "cancel": "Cancel",
+      "empty": "No free invoice from this contractor matches the search."
+    },
+    "proposal": {
+      "propose": "Propose arrival",
+      "proposing": "Proposing…",
+      "title": "Arrival draft",
+      "facts": "Contractor: {{contractor}}. Planned day: {{date}}.",
+      "entering_one": "{{count}} invoice goes into the arrival.",
+      "entering_other": "{{count}} invoices go into the arrival.",
+      "none": "No invoice can go into the arrival right now.",
+      "refusedLead": "Left out:",
+      "unknownDocument": "An invoice",
+      "register": "Register the arrival with these invoices",
+      "noMatched": "No invoice linked yet: invoices come in when the XML arrives.",
+      "notReady": "The preview is still being read.",
+      "failed": "Reading the preview failed: fix the spreadsheet and upload it again."
+    },
+    "prefill": {
+      "notice_one": "{{count}} invoice came from the preview. Check the arrival date and time: they are not assumed.",
+      "notice_other": "{{count}} invoices came from the preview. Check the arrival date and time: they are not assumed.",
+      "plannedDate": "Planned day in the preview: {{date}}.",
+      "missing_one": "{{count}} proposed invoice is no longer free and was left out.",
+      "missing_other": "{{count}} proposed invoices are no longer free and were left out."
+    },
+    "drafts": {
+      "open": "Recommend trips",
+      "close": "Close the recommendation",
+      "title": "Trip recommendation",
+      "hint": "The contractor's routes become draft trips and the route optimizer makes its own proposal. Nothing becomes a trip without your approval.",
+      "loading": "Loading the recommendation",
+      "error": "The trip recommendation could not be loaded.",
+      "notReady": "The recommendation shows up once the preview has been read.",
+      "failed": "Reading the preview failed: there is nothing to recommend.",
+      "empty": "This preview has no routes to recommend.",
+      "readOnly": "You can see the recommendation; building trips needs the trips permission.",
+      "routes": {
+        "title": "Contractor routes",
+        "hint": "Each route in the spreadsheet is a draft trip with the invoices already linked."
+      },
+      "card": {
+        "cities": "Route cities",
+        "cityDocuments_one": "{{count}} invoice",
+        "cityDocuments_other": "{{count}} invoices",
+        "cityPending": "+{{count}} waiting",
+        "cityUnknown": "City not informed",
+        "lines": "{{matched}} of {{total}} lines linked",
+        "documents_one": "{{count}} invoice linked",
+        "documents_other": "{{count}} invoices linked",
+        "weight": "Weight",
+        "value": "Value",
+        "volume": "Volume",
+        "missing_one": "{{count}} invoice missing — waiting for the XML",
+        "missing_other": "{{count}} invoices missing — waiting for the XML",
+        "inLiveTrip_one": "{{count}} invoice is already on a trip",
+        "inLiveTrip_other": "{{count}} invoices are already on a trip",
+        "create": "Build a trip with these invoices",
+        "chooseRoute": "Use only this route in the proposal",
+        "routeChosen": "Only this route in the proposal",
+        "reason": {
+          "no_linked_documents": "No invoice linked yet: the trip can be built once the XML arrives.",
+          "none_routable": "The linked invoices are already on a trip or cannot be routed."
+        }
+      },
+      "solver": {
+        "title": "Route optimizer proposal",
+        "hint": "The route optimizer spreads the linked invoices across vehicles. You review and accept through the usual flow.",
+        "action": "Generate proposal",
+        "scopeAll_one": "All routes: {{count}} invoice",
+        "scopeAll_other": "All routes: {{count}} invoices",
+        "scopeRoute_one": "Route {{route}}: {{count}} invoice",
+        "scopeRoute_other": "Route {{route}}: {{count}} invoices",
+        "backToAll": "Use all routes",
+        "empty": "No invoice can go to the route optimizer right now: the linked ones are already on a trip, or none is linked yet.",
+        "overLimit": "The route optimizer accepts up to {{limit}} invoices per proposal. Pick a route."
+      },
+      "outside": {
+        "title": "Invoices left out",
+        "hint": "These lines are not part of the recommendation right now.",
+        "in_live_trip_one": "{{count}} invoice is already on a trip",
+        "in_live_trip_other": "{{count}} invoices are already on a trip",
+        "awaiting_xml_one": "{{count}} line waiting for the XML",
+        "awaiting_xml_other": "{{count}} lines waiting for the XML",
+        "suggested_one": "{{count}} suggested line waiting for your approval",
+        "suggested_other": "{{count}} suggested lines waiting for your approval",
+        "ambiguous_one": "{{count}} ambiguous line, for you to pick the invoice",
+        "ambiguous_other": "{{count}} ambiguous lines, for you to pick the invoice",
+        "invalid_one": "{{count}} invalid line in the spreadsheet",
+        "invalid_other": "{{count}} invalid lines in the spreadsheet",
+        "show": {
+          "in_live_trip": "Show the linked invoices",
+          "awaiting_xml": "Show the lines waiting for the XML",
+          "suggested": "Show the suggested lines",
+          "ambiguous": "Show the ambiguous lines",
+          "invalid": "Show the invalid lines"
+        }
+      }
+    }
+  }
+}

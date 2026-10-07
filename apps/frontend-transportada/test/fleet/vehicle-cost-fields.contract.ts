@@ -244,6 +244,19 @@ describe('fleet vehicle cost fields contract', () => {
     expect(styles).toMatch(/\.fieldGrid label > span \{\s*align-self: end/)
   })
 
+  /**
+   * Spec 235 A1: a 1280 px a caixa "R$" passava da coluna do painel — a trilha `auto` do rótulo
+   * crescia até a largura intrínseca do `input` — e o interruptor de uma linha só esticava o trilho
+   * do rótulo da diária ao lado.
+   */
+  test('keeps a money field inside its column and the row tracks aligned', async () => {
+    const styles = await readApplicationFile('src/modules/fleet/styles/fleet.module.css')
+
+    expect(styles).toMatch(/\.fieldGrid label \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
+    expect(styles).toMatch(/\.moneyField \{[^}]*min-width: 0/)
+    expect(styles).toMatch(/\.fieldGrid > \.driverSecuresCargo \{[^}]*grid-row: span 3/)
+  })
+
   test('names every cost label and the summary in both locales', async () => {
     const [ptLocale, enLocale] = await Promise.all([
       readApplicationFile('src/modules/fleet/locales/fleet.locale.json'),

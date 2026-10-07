@@ -313,6 +313,12 @@
   color: var(--color-slate-muted);
 }
 
+/* Origem e deslocamento do endereço corrigido são uma frase só: quebra por palavra, nunca rola. */
+.itemAddressChange {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /**
  * Spec 180 RF15: o link para a nota/parada fica visível fechado — é navegação, não detalhe a
  * esconder (RF16 recolhe o que sobra, não o caminho para a coisa citada).
@@ -344,9 +350,15 @@
 .itemToggle {
   grid-column: 2;
   justify-self: start;
-  min-height: var(--touch-target);
+  min-height: var(--control-height-compact);
   margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .itemToggle {
+    min-height: var(--touch-target);
+  }
 }
 
 @keyframes tripTimelineDetailEnter {
@@ -395,9 +407,15 @@
  */
 .detailMapToggle {
   justify-self: start;
-  min-height: var(--touch-target);
+  min-height: var(--control-height-compact);
   margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .detailMapToggle {
+    min-height: var(--touch-target);
+  }
 }
 
 /* O painel fechado existe só para o `aria-controls` ter destino: vazio, não vira respiro na grade. */
@@ -452,6 +470,7 @@
   background: none;
   color: var(--color-slate-muted);
   cursor: help;
+  font: inherit;
 }
 
 /**

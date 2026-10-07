@@ -19,6 +19,8 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverLocationConsentCard() {
   const { t } = useTranslation('driverTrip')
   const consent = useLocationConsent()
+  if (!consent.isApplicable) return null
+
   const isTurningOn = !consent.hasConsent
   const isSwitchDisabled =
     isTurningOn && (consent.isLoading || consent.isFailed || consent.isSaving)

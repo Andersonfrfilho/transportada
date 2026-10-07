@@ -11,11 +11,8 @@ import {
   buildOccurrenceEmailTemplateOptions,
   OCCURRENCE_TEMPLATE_NONE,
 } from '../../src/modules/trip/shared/occurrenceTemplate.service'
+import { readOccurrenceTypePanelSource } from './occurrenceTypePanelSource.helper'
 
-const PANEL = new URL(
-  '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
-  import.meta.url,
-)
 const STYLES = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
 const CLIENT = new URL('../../src/modules/trip/shared/tripClient.service.ts', import.meta.url)
 
@@ -38,7 +35,7 @@ function buildTemplate(overrides: Partial<Record<string, unknown>>) {
  * digita assunto nem corpo — ele **seleciona** o modelo pela chave, e é a chave que vai gravada.
  */
 describe('modelo de e-mail do tipo de ocorrência', () => {
-  const source = readFileSync(PANEL, 'utf8')
+  const source = readOccurrenceTypePanelSource()
   const styles = readFileSync(STYLES, 'utf8')
 
   /** Nenhum input cru: altura, padding e fonte vêm dos tokens (docs/frontend/fields.md). */

@@ -16,6 +16,7 @@ export const SETTINGS_PANELS = [
   'nfseCredential',
   'nfseProfiles',
   'deliveryProof',
+  'locationRetention',
   'federalTaxes',
   'driverAllowance',
   'occurrenceTypeCatalog',
@@ -54,6 +55,7 @@ export type SettingsDataSource =
   | 'freightRegions'
   | 'fuelPrices'
   | 'landing'
+  | 'locationRetentionSettings'
   | 'nfse'
   | 'occurrenceTypeCatalog'
   | 'quickReplies'
@@ -128,15 +130,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
   tollBoothCharges: { module: 'fleet', source: 'tollBoothCharges', tab: 'tolls' },
   /**
-   * O catálogo morava na tela de viagens, numa aba chamada "Avisos" — nome que descrevia só o
-   * efeito colateral (o e-mail) e escondia o que a tela realmente é: o **cadastro** do catálogo
-   * (nome, etapa, interruptor de aviso, modelo de e-mail). Isto não é "configuração perto do
-   * efeito": é cadastro da empresa, e mora em Configurações como os demais.
+   * Spec 246: o catálogo mudou de endereço de Configurações para Ocorrências. O painel que a 241 já
+   * alterou (com o campo Produtos) foi movido de company-settings para trip, e a aba "Tipos" agora
+   * mora em /ocorrencias, acessível com a mesma permissão (`settings.manage`). A `SettingsResolutionPanel`
+   * continua em Configurações e continua lendo o catálogo pelo hook que agora vem de trip.
    */
   occurrenceTypeCatalog: {
-    module: 'company-settings',
+    module: 'trip',
     source: 'occurrenceTypeCatalog',
-    tab: 'occurrenceTypes',
+    tab: 'types',
   },
   /**
    * Spec 169 RF7: o cadastro mora perto do efeito — a mesma aba financeira de Configurações onde
@@ -169,6 +171,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   companyContacts: { module: 'company-settings', source: 'companyContacts', tab: 'site' },
   landing: { module: 'company-settings', source: 'landing', tab: 'site' },
+  /**
+   * Spec 239 D7 — por quanto tempo a posição do evento fica guardada mora na aba Localização das
+   * viagens, ao lado do Comprovante: o efeito é o "Localização apagada" da linha do tempo da viagem.
+   */
+  locationRetention: { module: 'trip', source: 'locationRetentionSettings', tab: 'location' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
   nfseCredential: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
   nfseProfiles: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
@@ -233,6 +240,7 @@ export function resolveSettingsDataScope(
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
     landing: sources.has('landing'),
+    locationRetentionSettings: sources.has('locationRetentionSettings'),
     nfse: sources.has('nfse'),
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
     quickReplies: sources.has('quickReplies'),
@@ -248,7 +256,6 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'certificates',
   'taxes',
   'driverAllowance',
-  'occurrenceTypes',
   'entryKinds',
   'quickReplies',
   'settingsResolution',

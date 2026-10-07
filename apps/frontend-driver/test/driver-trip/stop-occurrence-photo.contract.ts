@@ -79,6 +79,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
+        location: null,
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         stopId: STOP_ID,
       },
@@ -141,7 +142,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     const { client, seen } = buildClient()
     const [occurrence] = buildReports(PHOTO)
 
-    await client.send(occurrence as DriverFieldReport)
+    await client.send({ report: occurrence as DriverFieldReport, stamp: undefined })
 
     expect(seen.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
       `POST /me/trips/current/stops/${STOP_ID}/occurrences`,
@@ -149,6 +150,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     expect(await seen[0]?.json()).toEqual({
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })
@@ -157,7 +159,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     const { client, seen } = buildClient()
     const [, photo] = buildReports(PHOTO)
 
-    await client.send(photo as DriverFieldReport)
+    await client.send({ report: photo as DriverFieldReport, stamp: undefined })
 
     expect(seen.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([
       `POST /me/trips/current/stops/${STOP_ID}/occurrence-uploads`,
@@ -178,7 +180,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
   it('nada do "Deu problema" passa pela rota de comprovante da nota', async () => {
     const { client, seen } = buildClient()
 
-    for (const report of buildReports(PHOTO)) await client.send(report)
+    for (const report of buildReports(PHOTO)) await client.send({ report, stamp: undefined })
 
     expect(seen.some((request) => request.url.includes('/proof'))).toBe(false)
     expect(seen.some((request) => request.url.includes('/documents/'))).toBe(false)
@@ -223,6 +225,13 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
     ),
     'utf8',
   )
+  const photoField = readFileSync(
+    new URL(
+      '../../src/modules/driver-trip/components/OccurrencePhotoField.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
   const formHook = readFileSync(
     new URL(
       '../../src/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook.ts',
@@ -247,9 +256,11 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
   })
 
   it('uma foto por ocorrência, com câmera, galeria e "Refazer" (D1)', () => {
-    expect(form).toInclude('FilePickerButton')
-    expect(form).toInclude('capture="environment"')
-    expect(form).toInclude('proofCapture.retake')
+    expect(photoField).toInclude('FilePickerButton')
+    expect(photoField).toInclude('capture="environment"')
+    expect(photoField).toInclude('proofCapture.retake')
+    expect(photoField).not.toInclude('<FileField')
+    expect(form).toInclude('<OccurrencePhotoField')
     expect(form).not.toInclude('<FileField')
   })
 

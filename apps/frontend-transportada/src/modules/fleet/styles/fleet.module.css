@@ -131,6 +131,12 @@
   text-transform: uppercase;
 }
 
+/* O selo "Ajudante" mora ao lado do nome: quem não dirige não tem CNH para o distinguir na linha. */
+.driverHelperBadge {
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+
 .statusActive {
   border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
   color: var(--color-ready);
@@ -254,6 +260,7 @@
 /* Rótulo que quebra em duas linhas empurrava só o seu campo: a fileira toda divide os trilhos. */
 .fieldGrid label {
   grid-row: span 3;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: subgrid;
   row-gap: var(--space-1);
 }
@@ -838,6 +845,7 @@
 
 .fuelPriceStatusError {
   color: var(--color-alert);
+  overflow-wrap: anywhere;
 }
 
 .fuelPriceStatusSuccess {
@@ -942,6 +950,8 @@
 
 .srOnly {
   position: absolute;
+  /* Sem o `left`, o texto oculto de um cabeçalho dentro da tabela rolável nascia na posição estática e alargava a página até 886px. */
+  left: 0;
   width: 1px;
   height: 1px;
   overflow: hidden;
@@ -951,6 +961,7 @@
 
 .moneyField {
   display: flex;
+  min-width: 0;
   align-items: stretch;
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
@@ -1374,6 +1385,11 @@
   gap: var(--space-1);
 }
 
+/* Bloco de uma linha só esticava o trilho do rótulo do campo vizinho e o separava da própria caixa. */
+.fieldGrid > .driverSecuresCargo {
+  grid-row: span 3;
+}
+
 /**
  * Spec 110 D3: a faixa de identidade do veículo — o caminhão na frente, antes de qualquer número.
  * Compartilhada pela proposta multi-veículo e pela criação manual (D8).
@@ -1388,7 +1404,7 @@
   display: grid;
   gap: var(--space-3);
   align-items: center;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-copper) 28%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 50%, transparent);

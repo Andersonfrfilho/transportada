@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { DEFAULT_OCCURRENCE_ITEMS_MODE } from '../shared/occurrence.constant'
 import { resolveOccurrenceCorrectionActions } from '../shared/tripOccurrenceDetail.service'
 import type { TripOccurrenceDetail } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
@@ -40,6 +41,7 @@ export function OccurrenceCorrectionActions({
       hasItems: occurrence.source === 'document' && occurrence.items.length > 0,
       isCancelled: occurrence.cancellation != null,
       permissions,
+      typeItemsMode: occurrence.typeItemsMode ?? DEFAULT_OCCURRENCE_ITEMS_MODE,
       wasCorrected: (occurrence.corrections?.length ?? 0) > 0,
     },
     t as Translate,
@@ -120,6 +122,7 @@ export function OccurrenceCorrectionActions({
       ) : null}
       {isCorrecting ? (
         <TripOccurrenceCorrectionForm
+          allowsMultipleItems={occurrence.typeAllowsMultipleItems ?? true}
           {...(companyId === undefined ? {} : { companyId })}
           documentId={tripDocumentId}
           id={formId}

@@ -99,6 +99,13 @@ export function toTypedAmount(input: ScaledAmountInput): string {
   return toDecimalString(rescaleHalfUp(amount, input.scale), input.scale).replace('.', ',')
 }
 
+/** Spec 244 D3: onde zero é um valor deliberado (diária), ele volta como `0,00` em vez de vazio. */
+export function toTypedAmountKeepingZero(input: ScaledAmountInput): string {
+  if (isZeroAmount(input.value)) return zeroAmount(input.scale).replace('.', ',')
+
+  return toTypedAmount(input)
+}
+
 /** O mesmo que `toTypedAmount`, com o milhar que a máscara de medida mostra enquanto se digita. */
 export function toTypedMeasure(input: ScaledAmountInput): string {
   const typed = toTypedAmount(input)
@@ -127,6 +134,16 @@ export function maskTypedAmount(input: ScaledAmountInput): string {
   const grouped = integerPart.replace(GROUP_POSITION_PATTERN, '.')
 
   return input.scale === 0 ? grouped : `${grouped},${fractionPart}`
+}
+
+/** Spec 244 D3: exibição da diária — zero já formatado continua `0,00`; o resto é a máscara comum. */
+export function maskTypedAmountKeepingZero(input: ScaledAmountInput): string {
+  const digits = input.value.replace(NON_DIGIT_PATTERN, '')
+  if (digits !== '' && digits.replace(LEADING_ZERO_PATTERN, '') === '') {
+    return zeroAmount(input.scale).replace('.', ',')
+  }
+
+  return maskTypedAmount(input)
 }
 
 /**

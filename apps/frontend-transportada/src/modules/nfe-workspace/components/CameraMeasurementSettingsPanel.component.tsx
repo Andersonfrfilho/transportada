@@ -26,6 +26,7 @@ export type CameraMeasurementValidationPanelProps = Readonly<{
   isFetchingNextPage: boolean
   isLoading: boolean
   onExport: () => void
+  onExportExcel: () => void
   onLoadMore: () => void
   onPeriodChange: (from: string, to: string) => void
   summary: CameraMeasurementValidationSummary
@@ -179,6 +180,15 @@ function CameraMeasurementValidationSection(
             )}
           </button>
         )}
+        <button
+          className={styles.primaryAction}
+          disabled={validation.entries.length === 0}
+          onClick={validation.onExportExcel}
+          type="button"
+        >
+          <Icon name="download" />
+          {t('cameraMeasurementValidationExportExcel')}
+        </button>
         <button
           className={styles.primaryAction}
           disabled={validation.entries.length === 0}

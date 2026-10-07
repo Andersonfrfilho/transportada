@@ -90,13 +90,13 @@ describe('o detalhe aceita `cargoLayoutState` antes de a API servir (spec 145 D1
   })
 
   for (const [label, state] of INVALID_STATES) {
-    it(`reprova o detalhe com ${label}`, () => {
-      expect(acceptsDetail({ ...TRIP_DETAIL, cargoLayoutState: state })).toBe(false)
+    it(`descarta o estado da planta com ${label} e abre a viagem`, () => {
+      expect(acceptsDetail({ ...TRIP_DETAIL, cargoLayoutState: state })).toBe(true)
     })
   }
 
-  it('reprova `cargoLayoutState` nulo: a API sempre serve o objeto quando serve a chave', () => {
-    expect(acceptsDetail({ ...TRIP_DETAIL, cargoLayoutState: null })).toBe(false)
+  it('descarta `cargoLayoutState` nulo e abre a viagem sem o estado da planta', () => {
+    expect(acceptsDetail({ ...TRIP_DETAIL, cargoLayoutState: null })).toBe(true)
   })
 })
 

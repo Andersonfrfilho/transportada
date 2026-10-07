@@ -19,6 +19,8 @@ import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 
 export type TripOccurrenceCorrectionFormProps = Readonly<{
+  /** Spec 241 RF9: o teto de um item do tipo, para a escolha única nascer antes do `422`. */
+  allowsMultipleItems: boolean
   companyId?: string
   documentId: string
   id: string
@@ -33,6 +35,7 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
  * servidor substitui, e a política dele decide se algo mudou; a tela não faz essa conta.
  */
 export function TripOccurrenceCorrectionForm({
+  allowsMultipleItems,
   companyId,
   documentId,
   id,
@@ -87,7 +90,7 @@ export function TripOccurrenceCorrectionForm({
       {productsQuery.isSuccess ? (
         <>
           <OccurrenceProductSelect
-            allowsMultipleItems
+            allowsMultipleItems={allowsMultipleItems}
             onChange={setProductCodes}
             productCodes={productCodes}
             products={products}

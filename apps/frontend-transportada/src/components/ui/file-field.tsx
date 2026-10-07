@@ -12,8 +12,11 @@ export type FileFieldProps = Readonly<{
   /** `environment` abre a câmera traseira no celular — é o anexo que o motorista tira na entrega. */
   capture?: 'environment' | 'user'
   className?: string | undefined
+  /** O erro é do próprio campo: `aria-describedby` aponta para a mensagem dele (`web.md` §11). */
+  describedBy?: string | undefined
   disabled?: boolean
   fileName?: string
+  isInvalid?: boolean
   inputRef?: RefObject<HTMLInputElement | null>
   label: string
   multiple?: boolean
@@ -40,9 +43,11 @@ export function FileField({
   actionLabel,
   capture,
   className,
+  describedBy,
   disabled = false,
   fileName,
   inputRef,
+  isInvalid = false,
   label,
   multiple = false,
   onSelect,
@@ -75,6 +80,8 @@ export function FileField({
         Nenhum arquivo escolhido". A segunda existe só para o clique alcançar o input escondido.
       */}
       <input
+        aria-describedby={describedBy}
+        aria-invalid={isInvalid ? true : undefined}
         aria-label={label}
         className={styles.input}
         disabled={disabled}

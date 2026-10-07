@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadsheetExport.hook'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,7 +26,10 @@ import { useCameraMeasurementSettings } from '../hooks/useCameraMeasurementSetti
 import { useCameraMeasurementExport } from '../hooks/useCameraMeasurementExport.hook'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
 import {
+  buildCameraMeasurementColumns,
   buildCameraMeasurementCsv,
+  buildCameraMeasurementRows,
+  CAMERA_MEASUREMENT_EXPORT_EXCEL_FILE_NAME,
   CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
   CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE,
 } from '../shared/cameraMeasurementExport.service'
@@ -283,6 +287,7 @@ export function NfeWorkspacePage() {
   })
   /** Export do que falta medir — a fila inteira, buscada só no clique de baixar. */
   const packageBoxPendingExport = usePackageBoxPendingExport()
+  const spreadsheetExport = useSpreadsheetExport()
   /**
    * Spec 152 D14: leitura própria de `cargo.measure` — quem mede não tem `settings.manage`, então
    * não reaproveita `cargoSettings` (aquela é a leitura do painel de configuração).
@@ -704,6 +709,15 @@ export function NfeWorkspacePage() {
                                   { type: CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE },
                                 ),
                                 fileName: CAMERA_MEASUREMENT_EXPORT_FILE_NAME,
+                              })
+                            },
+                            onExportExcel: () => {
+                              void spreadsheetExport.exportSpreadsheet({
+                                columns: buildCameraMeasurementColumns(),
+                                fileName: CAMERA_MEASUREMENT_EXPORT_EXCEL_FILE_NAME,
+                                rows: buildCameraMeasurementRows(cameraMeasurementExport.entries),
+                                sheetName: t('cameraMeasurementExportSheetName'),
+                                title: t('cameraMeasurementExportTitle'),
                               })
                             },
                             onLoadMore: cameraMeasurementExport.fetchNextPage,

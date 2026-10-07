@@ -35,3 +35,18 @@ export function resolveSyncAge(input: {
   if (elapsed < HOUR_MS) return { unit: 'minutes', value: Math.floor(elapsed / MINUTE_MS) }
   return { unit: 'hours', value: Math.floor(elapsed / HOUR_MS) }
 }
+
+export type SyncPhase = 'pending' | 'synced' | 'syncing'
+
+/**
+ * A hora da última sincronização é a da *leitura* da viagem, não a de a fila estar vazia: com evento
+ * parado, "Sincronizado agora mesmo" sozinho soa como "está tudo enviado". Pendência não enviada
+ * tem de aparecer na própria linha.
+ */
+export function resolveSyncPhase(input: {
+  readonly isSyncing: boolean
+  readonly pendingCount: number
+}): SyncPhase {
+  if (input.isSyncing) return 'syncing'
+  return input.pendingCount > 0 ? 'pending' : 'synced'
+}

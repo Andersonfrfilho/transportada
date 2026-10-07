@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverProfile.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhonePanel.component'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
+import { syncThemeColorMeta } from '@/modules/shared/colorTheme.service'
+import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 
 import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
 import type { DriverTrip, DriverTripSnapshot } from '../shared/driverTrip.types'
@@ -63,6 +65,11 @@ export function DriverProfilePage({
   const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false)
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
+  const colorTheme = useColorTheme()
+
+  useEffect(() => {
+    syncThemeColorMeta({ document, theme: colorTheme.theme })
+  }, [colorTheme.theme])
   const profile = getKeycloakAuthProvider().getProfile()
   /**
    * ADR-0075 §8: "Sair" leva a viagem guardada junto — nada dela fica no aparelho. Sem rede o
@@ -148,6 +155,19 @@ export function DriverProfilePage({
         >
           <Icon name="clipboard-list" />
           {t('eventQueue.open')}
+        </Button>
+      </section>
+
+      <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('theme.title')}</h2>
+        <Button
+          className={styles.eventQueueOpenButton}
+          type="button"
+          variant="secondary"
+          onClick={colorTheme.toggleTheme}
+        >
+          <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
+          {colorTheme.theme === 'dark' ? t('theme.useLight') : t('theme.useDark')}
         </Button>
       </section>
 

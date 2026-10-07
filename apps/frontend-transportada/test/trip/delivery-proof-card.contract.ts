@@ -168,11 +168,15 @@ describe('o card por texto de fonte', () => {
   const card = readFileSync(new URL('TripDeliveryProof.component.tsx', COMPONENTS), 'utf8')
   const styles = readFileSync(STYLES, 'utf8')
 
-  it('o estado da conferência mora no cabeçalho, ao lado do título', () => {
-    const header = /<header[^>]*>([\s\S]*?)<\/header>/u.exec(card)?.[1] ?? ''
+  /** Revisão de design da 233: os selos moram só no cabeçalho da nota; o card tem o resumo que abre. */
+  it('o card não desenha selos: o título é o botão que abre o comprovante', () => {
+    expect(card).not.toInclude('<TripDocumentProofBadges')
+    expect(card).not.toInclude('<header')
+    const summary = /<h4[^>]*>([\s\S]*?)<\/h4>/u.exec(card)?.[1] ?? ''
 
-    expect(header).toInclude('deliveryProof.title')
-    expect(header).toInclude('<ProofReviewChip')
+    expect(summary).toInclude('aria-expanded={isExpanded}')
+    expect(summary).toInclude('aria-controls={detailsId}')
+    expect(summary).toInclude('deliveryProof.title')
   })
 
   it('o rodapé de ação é separado por régua e carrega o prazo e os botões', () => {

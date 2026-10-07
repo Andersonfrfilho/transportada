@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadsheetExport.hook'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,7 +20,8 @@ import {
 } from '../shared/tripNavigation.service'
 import {
   buildTripPendingMeasurementsCsv,
-  buildTripPendingMeasurementsSheetData,
+  buildTripPendingMeasurementsColumns,
+  buildTripPendingMeasurementsRows,
   TRIP_PENDING_MEASUREMENTS_CSV_MEDIA_TYPE,
   tripPendingMeasurementsFileName,
   type TripPendingMeasurementsExportLabels,
@@ -53,6 +55,7 @@ function todayIsoDate(): string {
 
 export function TripPendingMeasurements({ measurements }: TripPendingMeasurementsProps) {
   const { t } = useTranslation('trip')
+  const spreadsheetExport = useSpreadsheetExport()
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   /** RF06/CA05: medir caixa é `cargo.measure` — sem ela, a tabela continua como hoje. */
@@ -206,15 +209,13 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
   }
 
   async function handleExportXlsx(): Promise<void> {
-    const sheetData = buildTripPendingMeasurementsSheetData({
-      labels: exportLabels(),
-      measurements,
-    })
-    const { default: writeExcelFile } = await import('write-excel-file/browser')
-    const blob = await writeExcelFile(sheetData.map((row) => [...row])).toBlob()
-    saveArchiveFile({
-      blob,
+    const labels = exportLabels()
+    await spreadsheetExport.exportSpreadsheet({
+      columns: buildTripPendingMeasurementsColumns(labels),
       fileName: tripPendingMeasurementsFileName({ extension: 'xlsx', today: todayIsoDate() }),
+      rows: buildTripPendingMeasurementsRows({ labels, measurements }),
+      sheetName: t('pendingMeasurement.export.sheetName'),
+      title: t('pendingMeasurement.export.title'),
     })
   }
 

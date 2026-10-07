@@ -15,6 +15,8 @@ export const TRIP_ALLOWED_ACTIONS = [
   'dispatch',
   'planRoute',
   'startRoute',
+  /** Spec 249: trocar a tripulação da viagem que já saiu — só `trip.report-on-behalf`, servida pela API. */
+  'transferCrew',
 ] as const
 export const STOP_ALLOWED_ACTIONS = ['arrive', 'occurrence'] as const
 export const DOCUMENT_ALLOWED_ACTIONS = [

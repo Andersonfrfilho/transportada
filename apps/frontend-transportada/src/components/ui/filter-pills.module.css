@@ -36,7 +36,7 @@
 }
 
 .label {
-  color: var(--color-slate);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.68rem;
   text-transform: uppercase;
@@ -114,7 +114,12 @@
 /* Dedo não acerta alvo de 1rem: no toque o botão de remover cresce sem mexer no desktop. */
 @media (pointer: coarse) {
   .remove {
-    width: calc(var(--space-10) + var(--space-1));
-    height: calc(var(--space-10) + var(--space-1));
+    flex: 0 0 auto;
+    width: var(--touch-target);
+    height: var(--touch-target);
+  }
+
+  .clearAll {
+    min-height: var(--touch-target);
   }
 }

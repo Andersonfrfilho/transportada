@@ -18,7 +18,7 @@ const TYPES_MODULE = '../../src/modules/fleet/shared/fleet.types'
  * O bundle não carrega código da API: a lista é reescrita no frontend, e o que garante que as duas
  * dizem a mesma coisa é esta asserção — a disciplina de `vehicle-type-catalog.contract.ts`.
  */
-const PROFILES = ['aggregate', 'driver'] as const
+const PROFILES = ['aggregate', 'driver', 'helper'] as const
 
 /** Arquivos que o vínculo digitado deixou órfãos: o select saiu, e eles não têm outro consumidor. */
 const REMOVED_FILES = [

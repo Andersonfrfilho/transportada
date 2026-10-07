@@ -21,6 +21,8 @@ export const TOLL_BOOTH_CATALOG_PATH = '/toll-booths'
 /** Spec 154 RF3/RF4: extratos registrados e o botão que recarrega o catálogo a partir de um deles. */
 export const TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
 export const TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
+/** Spec 149/239: a diária geral do ajudante; `fleet.read` lê e `fleet.manage` grava. */
+export const COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
@@ -98,6 +100,7 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_EMAIL_TAKEN: 'emailTaken',
   FLEET_DRIVER_LICENSE_NUMBER_TAKEN: 'licenseNumberTaken',
   FLEET_DRIVER_NOT_FOUND: 'driverNotFound',
+  FLEET_DRIVER_PROFILE_EMPTY: 'profileEmpty',
   FLEET_DRIVER_MEMBERSHIP_NOT_FOUND: 'membershipNotFound',
   FLEET_DRIVER_MEMBERSHIP_TAKEN: 'membershipTaken',
   FLEET_DRIVER_TAX_ID_TAKEN: 'taxIdTaken',
@@ -430,6 +433,8 @@ export const DRIVER_FORM_KEYS = [
 
 export const DRIVER_DETAIL_KEYS = [
   ...DRIVER_BODY_KEYS,
+  /** Spec 235 D2: só leitura — nenhum corpo de escrita o carrega, o PATCH é strict. */
+  'canDrive',
   'createdAt',
   /**
    * ⚠️ Spec 097 D6. Como todo campo desta lista, **a API sobe antes do frontend**: com o corpo

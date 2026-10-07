@@ -167,6 +167,11 @@ export function buildContentSecurityPolicy({
     // é atributo `style`, que nonce não cobre. Em script `unsafe-inline` seria execução de terceiro;
     // aqui é a folha que o próprio bundle escreve.
     `style-src ${SELF} ${UNSAFE_INLINE}`,
-    `worker-src ${SELF}`,
+    /**
+     * `blob:` é o worker de compressão da biblioteca de planilha (`fflate`), que monta o próprio
+     * código numa URL de objeto: com 900 caixas o `.xlsx` não saía e só o CSV baixava. `script-src`
+     * segue `'self'` — o worker nasce do código do bundle, nunca de texto de terceiro.
+     */
+    `worker-src ${SELF} blob:`,
   ].join('; ')
 }

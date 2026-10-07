@@ -7,6 +7,7 @@ const ROOT_STYLESHEET_PATH = 'src/styles/index.css'
 const CONTROL_TOKENS = [
   '--control-height: var(--field-height)',
   '--control-height-compact: var(--field-height-compact)',
+  '--control-height-dense: 1.5rem',
 ] as const
 const SQUARE_SIZE = /^(?:min-)?(width|height):\s*([\d.]+rem)$/
 

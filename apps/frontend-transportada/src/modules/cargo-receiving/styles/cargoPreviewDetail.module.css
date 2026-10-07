@@ -1,0 +1,191 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Detalhe da prévia: cabeçalho, resumo por situação, grupos por roteiro e as linhas de cada um. */
+.headerPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.summaryItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+/* A explicação de "esperando o XML": informação, nunca alerta — tom neutro. */
+.awaitingNote {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate);
+}
+
+.routeSection {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.routeHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.routeHeader h3 {
+  margin: 0;
+}
+
+.routeFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+/* Colunas fixas: as linhas de roteiros diferentes alinham entre si, e a tabela rola no próprio quadro. */
+.itemTable {
+  --stacked-min-width: 70rem;
+  table-layout: fixed;
+}
+
+.colRow {
+  width: 4.5rem;
+}
+
+.colRecipient {
+  width: 16rem;
+}
+
+.colCity {
+  width: 9rem;
+}
+
+.colAmount {
+  width: 8rem;
+}
+
+.colWeight {
+  width: 7rem;
+}
+
+.colState {
+  width: 15rem;
+}
+
+.colActions {
+  width: 14rem;
+}
+
+.recipient {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.secondary {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.stateCell {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.rowErrors {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* O que se abre sob a linha: o aviso de desvincular e o seletor de nota. */
+.expansion {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-copper);
+}
+
+.expansionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.optionList {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 18rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.optionInfo {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.proposal {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-copper);
+}
+
+.proposal h2,
+.proposal p,
+.expansion p {
+  margin: 0;
+}
+
+.proposalList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

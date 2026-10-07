@@ -47,11 +47,11 @@ describe('o contato do motorista na tela da viagem', () => {
     expect(aceita({ ...TRIP_DETAIL, drivers: [anterior] })).toBe(true)
   })
 
-  /** Opcional não é "qualquer coisa": presente com forma errada continua reprovando. */
-  test('reprova contato com forma errada', () => {
+  /** Contato com forma errada cai; o motorista continua na viagem. */
+  test('descarta contato com forma errada e abre a viagem', () => {
     expect(
       aceita({ ...TRIP_DETAIL, drivers: [{ ...TRIP_DETAIL.drivers[0], driverPhone: 55 }] }),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   /**

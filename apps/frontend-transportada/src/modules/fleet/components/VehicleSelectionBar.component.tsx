@@ -5,14 +5,18 @@ import { useTranslation } from 'react-i18next'
 import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadsheetExport.hook'
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 
 import type { VehicleTableController } from '../hooks/useVehicleTable.hook'
 import type { FleetVehicleDetail, FleetVehicleStatus } from '../shared/fleet.types'
 import {
   buildVehiclePlateList,
+  buildVehicleExportColumns,
   buildVehicleSelectionCsv,
+  buildVehicleSelectionRows,
   VEHICLE_EXPORT_COLUMNS,
+  VEHICLE_EXPORT_EXCEL_FILE_NAME,
   VEHICLE_EXPORT_FILE_NAME,
   VEHICLE_EXPORT_MEDIA_TYPE,
   type VehicleExportColumn,
@@ -51,6 +55,7 @@ export function VehicleSelectionBar({
   table,
 }: VehicleSelectionBarProps) {
   const { t } = useTranslation('fleet')
+  const spreadsheetExport = useSpreadsheetExport()
   const [hasCopiedPlates, setHasCopiedPlates] = useState(false)
 
   const selected = table.selectedVehicles
@@ -59,22 +64,37 @@ export function VehicleSelectionBar({
   const inactive = selected.filter((vehicle) => vehicle.status === 'inactive')
   const active = selected.filter((vehicle) => vehicle.status === 'active')
 
-  function exportSelection(): void {
-    const csv = buildVehicleSelectionCsv({
-      labels: {
-        header: Object.fromEntries(
-          VEHICLE_EXPORT_COLUMNS.map((column) => [column, t(`vehicleExport.${column}`)]),
-        ) as Record<VehicleExportColumn, string>,
-        translateValue: ({ column, value }) => {
-          if (value === '') return value
-          if (EXPORT_TRANSLATED_KEY_COLUMNS.includes(column)) return t(value)
-          const prefix = EXPORT_VALUE_KEY_PREFIX[column]
-          if (prefix === undefined) return value
-          return t(`${prefix}.${value}`)
-        },
+  function vehicleHeader(): Record<VehicleExportColumn, string> {
+    return Object.fromEntries(
+      VEHICLE_EXPORT_COLUMNS.map((column) => [column, t(`vehicleExport.${column}`)]),
+    ) as Record<VehicleExportColumn, string>
+  }
+
+  function vehicleExportLabels() {
+    return {
+      header: vehicleHeader(),
+      translateValue: ({ column, value }: { column: VehicleExportColumn; value: string }) => {
+        if (value === '') return value
+        if (EXPORT_TRANSLATED_KEY_COLUMNS.includes(column)) return t(value)
+        const prefix = EXPORT_VALUE_KEY_PREFIX[column]
+        if (prefix === undefined) return value
+        return t(`${prefix}.${value}`)
       },
-      vehicles: selected,
+    }
+  }
+
+  async function exportExcel(): Promise<void> {
+    await spreadsheetExport.exportSpreadsheet({
+      columns: buildVehicleExportColumns(vehicleHeader()),
+      fileName: VEHICLE_EXPORT_EXCEL_FILE_NAME,
+      rows: buildVehicleSelectionRows({ labels: vehicleExportLabels(), vehicles: selected }),
+      sheetName: t('vehicleSelection.sheetName'),
+      title: t('vehicleSelection.title'),
     })
+  }
+
+  function exportSelection(): void {
+    const csv = buildVehicleSelectionCsv({ labels: vehicleExportLabels(), vehicles: selected })
 
     saveArchiveFile({
       blob: new Blob([csv], { type: VEHICLE_EXPORT_MEDIA_TYPE }),
@@ -119,6 +139,17 @@ export function VehicleSelectionBar({
             </Button>
           </>
         ) : null}
+        <Button
+          onClick={() => {
+            void exportExcel()
+          }}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="export" />
+          {t('vehicleSelection.exportExcel', { count: selected.length })}
+        </Button>
         <Button onClick={exportSelection} size="sm" type="button" variant="secondary">
           <Icon name="export" />
           {t('vehicleSelection.export', { count: selected.length })}

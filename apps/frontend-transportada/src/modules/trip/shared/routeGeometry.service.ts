@@ -153,8 +153,8 @@ export type RouteChoice = Readonly<{
   signature: null | string
 }>
 
-/** D1: a mais barata é o default — quem nunca tocou o seletor aceitou esta opção (spec 153 T404). */
-export const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }
+/** A mais rápida é o default — é a que o mapa abre, e quem nunca tocou o seletor aceitou esta opção. */
+export const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'fastest', signature: null }
 
 /**
  * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`

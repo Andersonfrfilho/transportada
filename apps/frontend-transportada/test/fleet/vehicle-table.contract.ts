@@ -10,8 +10,10 @@ import {
   VEHICLE_PILL_FIELDS,
 } from '@/modules/fleet/shared/vehicleFilterPills.service'
 import {
+  buildVehicleExportColumns,
   buildVehiclePlateList,
   buildVehicleSelectionCsv,
+  buildVehicleSelectionRows,
   VEHICLE_EXPORT_COLUMNS,
   VEHICLE_EXPORT_FILE_NAME,
   VEHICLE_EXPORT_MEDIA_TYPE,
@@ -202,6 +204,26 @@ describe('fleet vehicle table contract', () => {
     expect(VEHICLE_EXPORT_FILE_NAME).toBe('veiculos.csv')
     expect(VEHICLE_EXPORT_MEDIA_TYPE).toContain('charset=utf-8')
     expect(buildVehiclePlateList([VOLVO, SCANIA])).toBe('AAA1B11\nBBB2C22')
+  })
+
+  test('the Excel export keeps numbers as numbers and has a width and format per column', () => {
+    const header = Object.fromEntries(
+      VEHICLE_EXPORT_COLUMNS.map((column) => [column, `head:${column}`]),
+    ) as Record<VehicleExportColumn, string>
+    const columns = buildVehicleExportColumns(header)
+    const [row = []] = buildVehicleSelectionRows({
+      labels: { header, translateValue: (input) => `t:${input.value}` },
+      vehicles: [VOLVO],
+    })
+
+    expect(columns.map((column) => column.header)).toEqual(
+      VEHICLE_EXPORT_COLUMNS.map((column) => `head:${column}`),
+    )
+    expect(columns.every((column) => column.width > 0)).toBe(true)
+    expect(row).toHaveLength(VEHICLE_EXPORT_COLUMNS.length)
+    expect(row[VEHICLE_EXPORT_COLUMNS.indexOf('costPerKilometer')]).toBe(2.692)
+    expect(row[VEHICLE_EXPORT_COLUMNS.indexOf('plate')]).toBe('AAA1B11')
+    expect(row[VEHICLE_EXPORT_COLUMNS.indexOf('status')]).toBe('t:active')
   })
 
   test('repeats the technical sheet of the same brand without inheriting identity', () => {

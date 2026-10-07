@@ -85,7 +85,7 @@ describe('a fila offline', () => {
     const sentKeys: string[] = []
 
     const result = await drainQueue({
-      send: (report) => {
+      send: ({ report }) => {
         sentKeys.push(report.idempotencyKey)
         return Promise.resolve('sent')
       },
@@ -109,7 +109,7 @@ describe('a fila offline', () => {
     const attempted: string[] = []
 
     const result = await drainQueue({
-      send: (report): Promise<DrainOutcome> => {
+      send: ({ report }): Promise<DrainOutcome> => {
         attempted.push(report.idempotencyKey)
         return Promise.resolve(report.idempotencyKey === 'chave-2' ? 'failed-network' : 'sent')
       },
@@ -141,7 +141,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
 
     const result = await drainQueue({
-      send: async (report) => {
+      send: async ({ report }) => {
         if (report.idempotencyKey === 'chave-1') {
           await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
         }
@@ -164,7 +164,8 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
 
     const result = await drainQueue({
-      send: (report) => Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
+      send: ({ report }) =>
+        Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
       store,
     })
 
@@ -220,7 +221,8 @@ describe('a posição chega depois do toque (M1)', () => {
     })
   })
 
-  it('ocorrência não tem posição: fica como está', () => {
+  /** Spec 196: a ocorrência também leva o ponto do toque — a exceção antiga saiu. */
+  it('a ocorrência é completada pela chave, como qualquer toque de campo', () => {
     const occurrence: QueuedReport = {
       attempts: 0,
       createdAt: NOW.toISOString(),
@@ -229,13 +231,15 @@ describe('a posição chega depois do toque (M1)', () => {
         documentId: null,
         idempotencyKey: 'chave-3',
         kind: 'occurrence',
+        location: null,
         occurrenceKind: 'long_wait',
         stopId: 'stop-1',
       },
     }
 
     expect(
-      applyReportLocation({ idempotencyKey: 'chave-3', items: [occurrence], location: LOCATION }),
-    ).toEqual([occurrence])
+      applyReportLocation({ idempotencyKey: 'chave-3', items: [occurrence], location: LOCATION })[0]
+        ?.report,
+    ).toMatchObject({ kind: 'occurrence', location: LOCATION })
   })
 })

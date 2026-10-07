@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
-import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
 import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse.validation'
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
@@ -47,6 +48,8 @@ export type ListTripOccurrencesInput = Readonly<{
 }>
 
 type CaseActionInput = Readonly<{ occurrenceId: string }>
+/** O corpo real das seis ações (`occurrence-case.routes.ts`); a visão completa vem do feed, que a ação invalida. */
+type CaseActionResult = Readonly<{ kind: 'changed' | 'unchanged'; status: string }>
 type CaseActionWithNoteInput = Readonly<{ note: string; occurrenceId: string }>
 type CaseDecisionInput = Readonly<{
   kind: TripOccurrenceCaseDecisionKind
@@ -64,17 +67,15 @@ export type TripOccurrenceFeedClient = Readonly<{
   /** Spec 183 RF19: `GET /trip-occurrences/:id/timeline` — os eventos em ordem e os três tempos. */
   readOccurrenceTimeline: (input: Readonly<{ occurrenceId: string }>) => Promise<OccurrenceTimeline>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
-  cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<TripOccurrenceCaseView>
+  cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<CaseActionResult>
   /** RF8: só sai de `decided`. */
-  closeOccurrenceCase: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
-  submitOccurrenceCaseToContractor: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  submitOccurrenceCaseToContractor: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF5: `recorded` → `under_review`. */
-  reviewOccurrenceCase: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  reviewOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF6: nota obrigatória — encerra dentro da transportadora, sem visibilidade externa. */
-  returnOccurrenceCaseToWarehouse: (
-    input: CaseActionWithNoteInput,
-  ) => Promise<TripOccurrenceCaseView>
+  returnOccurrenceCaseToWarehouse: (input: CaseActionWithNoteInput) => Promise<CaseActionResult>
   /**
    * Achado 1 da revisão (spec 164): decisão em nome do contratante que não respondeu, feita pelo
    * escritório. `actorKind: 'internal'` é constante da rota — nunca vem daqui —, e é isso que
@@ -82,9 +83,7 @@ export type TripOccurrenceFeedClient = Readonly<{
    * (`OCCURRENCE_CASE_DECISION_CONFLICT`) sobre tratativa já decidida com decisão divergente, e
    * `422` (`OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`) para reentrega sobre política `blocked`.
    */
-  decideOccurrenceCaseOnBehalfOfContractor: (
-    input: CaseDecisionInput,
-  ) => Promise<TripOccurrenceCaseView>
+  decideOccurrenceCaseOnBehalfOfContractor: (input: CaseDecisionInput) => Promise<CaseActionResult>
   /** RF23: substitui a lista inteira — só com a tratativa `decided` e decisão `goods_paid`. */
   recordOccurrenceSettlement: (
     input: Readonly<{ items: readonly OccurrenceSettlementItem[]; occurrenceId: string }>,
@@ -190,10 +189,17 @@ function isFeedItem(value: unknown): value is RawFeedItem {
     isNullableString(value.invoiceNumber) &&
     isNullableString(value.invoiceSeries) &&
     typeof value.notifies === 'boolean' &&
+    (value.occurrenceTypeId === undefined || isNullableString(value.occurrenceTypeId)) &&
     (value.source === 'document' || value.source === 'stop') &&
     (value.stage === null || value.stage === 'delivery' || value.stage === 'separation') &&
     isNullableString(value.stopLabel) &&
     isString(value.tripId) &&
+    (value.typeAllowsMultipleItems === undefined ||
+      value.typeAllowsMultipleItems === null ||
+      typeof value.typeAllowsMultipleItems === 'boolean') &&
+    (value.typeItemsMode === undefined ||
+      value.typeItemsMode === null ||
+      isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
     isString(value.typeName) &&
     isString(value.vehiclePlate)
   )
@@ -366,11 +372,16 @@ function readReimbursementResult(payload: unknown): Readonly<{ kind: 'changed' |
   return { kind: payload.data.kind }
 }
 
-function readCaseView(payload: unknown): TripOccurrenceCaseView {
-  if (!isRecord(payload) || !isCaseView(payload.data)) {
+function readCaseActionResult(payload: unknown): CaseActionResult {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.data) ||
+    (payload.data.kind !== 'changed' && payload.data.kind !== 'unchanged') ||
+    !isString(payload.data.status)
+  ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return toCaseView(payload.data)
+  return { kind: payload.data.kind, status: payload.data.status }
 }
 
 function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] {
@@ -460,7 +471,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/review`,
         { method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async returnOccurrenceCaseToWarehouse(input) {
       const payload = await requestJson(
@@ -468,7 +479,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/warehouse-return`,
         { body: { note: input.note }, method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async submitOccurrenceCaseToContractor(input) {
       const payload = await requestJson(
@@ -476,7 +487,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/contractor-submission`,
         { method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async closeOccurrenceCase(input) {
       const payload = await requestJson(
@@ -484,7 +495,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/closure`,
         { method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async cancelOccurrenceCase(input) {
       const payload = await requestJson(
@@ -492,7 +503,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/cancel`,
         { body: { note: input.note }, method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async decideOccurrenceCaseOnBehalfOfContractor(input) {
       const payload = await requestJson(
@@ -500,7 +511,7 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/decision`,
         { body: { kind: input.kind, note: input.note }, method: 'POST' },
       )
-      return readCaseView(payload)
+      return readCaseActionResult(payload)
     },
     async findOccurrenceSettlement(input) {
       const payload = await requestJson(

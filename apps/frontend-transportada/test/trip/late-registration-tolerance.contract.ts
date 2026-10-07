@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { resolveProofRadiusMeters } from '../../src/modules/trip/shared/deliveryProof.service'
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
 
 const adapters = createTripResponseAdapters()
@@ -103,6 +104,25 @@ describe('comprovante tolera lateRegistration (spec 205 RF8)', () => {
   })
 })
 
+describe('comprovante aceita o raio de pontualidade (spec 233 D6)', () => {
+  it('aceita raio positivo e finito, sem descartar o comprovante', () => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, proofRadiusMeters: 300 }])).toEqual([
+      { ...PROOF, proofRadiusMeters: 300 },
+    ])
+  })
+
+  it.each([
+    ['zero', 0],
+    ['negativo', -1],
+    ['NaN', Number.NaN],
+    ['string numérica', '300'],
+  ])('descarta o comprovante com proofRadiusMeters %s', (_label, proofRadiusMeters) => {
+    expect(adapters.deliveryProofsFromApi([{ ...PROOF, proofRadiusMeters }, PROOF])).toEqual([
+      PROOF,
+    ])
+  })
+})
+
 describe('comprovante recusa distanceMeters que não é distância', () => {
   it('aceita distância finita e não negativa', () => {
     expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters: 0 }])).toHaveLength(1)
@@ -116,5 +136,21 @@ describe('comprovante recusa distanceMeters que não é distância', () => {
     ['string numérica', '120'],
   ])('descarta o comprovante com distanceMeters %s', (_label, distanceMeters) => {
     expect(adapters.deliveryProofsFromApi([{ ...PROOF, distanceMeters }, PROOF])).toEqual([PROOF])
+  })
+})
+
+describe('o raio que a nota mostra vem do comprovante (spec 233 D6/T5.3)', () => {
+  it('devolve o raio do primeiro comprovante que o trouxe', () => {
+    const proofs = adapters.deliveryProofsFromApi([
+      PROOF,
+      { ...PROOF, id: 'p2', proofRadiusMeters: 300 },
+    ])
+
+    expect(resolveProofRadiusMeters(proofs)).toBe(300)
+  })
+
+  it('sem raio em nenhum comprovante, não há raio — nunca um número suposto', () => {
+    expect(resolveProofRadiusMeters(adapters.deliveryProofsFromApi([PROOF]))).toBeUndefined()
+    expect(resolveProofRadiusMeters([])).toBeUndefined()
   })
 })

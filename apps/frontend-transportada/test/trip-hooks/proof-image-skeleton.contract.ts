@@ -63,7 +63,6 @@ async function renderProofs(proofs: readonly DeliveryProof[]): Promise<void> {
         null,
         createElement(TripDeliveryProof, {
           documentId: 'document-1',
-          occurrences: null,
           products: [],
           reviewActions: {
             canReview: false,
@@ -74,6 +73,11 @@ async function renderProofs(proofs: readonly DeliveryProof[]): Promise<void> {
         }),
       ),
     )
+    await Promise.resolve()
+  })
+  /** O comprovante nasce compacto; estas provas são das imagens do aberto, onde moram a principal e a tira. */
+  await act(async () => {
+    container?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.click()
     await Promise.resolve()
   })
 }

@@ -2,7 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { DriverTripRequestError, getDriverTripClient } from '../shared/driverTripClient.service'
+import {
+  DriverTripRequestError,
+  getDriverTripClient,
+  isRetryableStatus,
+} from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import type {
   DriverFieldReport,
@@ -17,7 +21,6 @@ import {
 import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
-  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
   type AttachmentSendOutcome,
@@ -128,8 +131,11 @@ export type DriverTripController = Readonly<{
   status: 'error' | 'loading' | 'ready'
 }>
 
-function toOutcome(error: unknown): AttachmentSendOutcome {
+export function toOutcome(error: unknown): AttachmentSendOutcome {
   if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
+  if (error instanceof DriverTripRequestError && isRetryableStatus(error.status)) {
+    return { kind: 'failed-network' }
+  }
   const cause =
     error instanceof DriverTripRequestError
       ? error.status !== undefined
@@ -321,12 +327,8 @@ export function useDriverTrip(
   drainRef.current = requestDrain
 
   useEffect(() => {
-    /**
-     * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
-     * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
-     */
-    void discardStaleAttachments({ attachmentStore, now: new Date() })
-      .then(() => refreshQueueView())
+    /** Spec 227: nada sai da fila por idade — só sincronizar, ou o descarte explícito do recusado. */
+    void refreshQueueView()
       /** Spec 212: a foto presa já sai reduzida quando a drenagem puder levá-la. */
       .then(() => recoverProofPhotos())
     /** "Abertura" (revisão M4): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */

@@ -8,6 +8,9 @@
  * porque é ele que decide quem registra, e isso é regra do produto, não escolha de quem cadastra.
  */
 
+/** Os tipos cadastrados: o cadastro, o registro e a recarga depois de um `422` leem a mesma consulta. */
+export const OCCURRENCE_TYPES_QUERY_KEY = ['trip', 'occurrence-types'] as const
+
 export const TRIP_OCCURRENCE_STAGE = {
   delivery: 'delivery',
   separation: 'separation',
@@ -32,9 +35,49 @@ export type OccurrenceRedeliveryPolicy =
  * Spec 179 RF1: se o tipo exige comprovante (foto) no registro do motorista — o mesmo vocabulário
  * do canhoto (`DELIVERY_PROOF_FIELD_MODES`). Nasce `off`; `required` exige foto e observação.
  */
-export const OCCURRENCE_ATTACHMENT_MODES = ['off', 'optional', 'required'] as const
+export const OCCURRENCE_ATTACHMENT_MODE = {
+  off: 'off',
+  optional: 'optional',
+  required: 'required',
+} as const
+
+export const OCCURRENCE_ATTACHMENT_MODES = [
+  OCCURRENCE_ATTACHMENT_MODE.off,
+  OCCURRENCE_ATTACHMENT_MODE.optional,
+  OCCURRENCE_ATTACHMENT_MODE.required,
+] as const
 
 export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[number]
+
+/**
+ * Spec 241 RF1: se a ocorrência do tipo carrega produtos — o mesmo vocabulário do comprovante
+ * (`OCCURRENCE_ATTACHMENT_MODES`). `off` não mostra seletor nem aceita item; `optional` é o
+ * comportamento de hoje; `required` (spec 246 RF1b) exige ao menos um produto, ou o mínimo do tipo.
+ */
+export const OCCURRENCE_ITEMS_MODE = {
+  off: 'off',
+  optional: 'optional',
+  required: 'required',
+} as const
+
+export const OCCURRENCE_ITEMS_MODES = [
+  OCCURRENCE_ITEMS_MODE.off,
+  OCCURRENCE_ITEMS_MODE.optional,
+  OCCURRENCE_ITEMS_MODE.required,
+] as const
+
+export type OccurrenceItemsMode = (typeof OCCURRENCE_ITEMS_MODES)[number]
+
+export const OCCURRENCE_ITEMS_WRITE_MODES = [
+  OCCURRENCE_ITEMS_MODE.off,
+  OCCURRENCE_ITEMS_MODE.optional,
+  OCCURRENCE_ITEMS_MODE.required,
+] as const
+
+export type OccurrenceItemsWriteMode = (typeof OCCURRENCE_ITEMS_WRITE_MODES)[number]
+
+/** Spec 241: API anterior ao campo não diz nada — o tipo carrega itens, como sempre carregou. */
+export const DEFAULT_OCCURRENCE_ITEMS_MODE: OccurrenceItemsMode = OCCURRENCE_ITEMS_MODE.optional
 
 /**
  * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro o tipo alimenta — ocorrência **de nota**
@@ -46,56 +89,39 @@ export const OCCURRENCE_TYPE_FLOWS = ['document', 'stop'] as const
 
 export type OccurrenceTypeFlow = (typeof OCCURRENCE_TYPE_FLOWS)[number]
 
-/** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
-export type OccurrenceType = Readonly<{
-  active: boolean
-  /**
-   * Spec 166 RF3/RF8/RF9: tipo com o interruptor desligado só aceita **um** item por ocorrência —
-   * o campo de item vira seleção única, e trocar a escolha substitui em vez de somar. Padrão
-   * `true` preserva o comportamento de hoje.
-   */
-  allowsMultipleItems: boolean
-  /** Spec 179 RF1: a exigência de comprovante no registro do motorista. Ausente na API é `off`. */
-  attachmentMode: OccurrenceAttachmentMode
-  /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
-  emailBody: string
-  emailSubject: string
-  /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
-  emailTemplateKey: null | string
-  /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
-  flow: OccurrenceTypeFlow
-  id: string
-  /**
-   * Spec 185 T6.1 (D2, RF6): só para tipos de separação — ocorrência aberta desse tipo, sobre a
-   * nota inteira, tira a nota da conta de "carga fechada" (`leavesBehindOnDispatch`) e o despacho a
-   * libera da viagem. Padrão `false`: nenhum tipo novo tira nota da viagem sem decisão explícita.
-   */
-  leavesDocumentBehind: boolean
-  name: string
-  notifies: boolean
-  /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */
-  redeliveryPolicy: OccurrenceRedeliveryPolicy
-  stage: TripOccurrenceStage
-}>
+/**
+ * Spec 246 (RF0): os momentos em que o tipo pode ser registrado. Cópia por valor de
+ * `OCCURRENCE_MOMENTS` (`shared/trip-occurrence.constant.ts` da API) — mudou lá, muda aqui. A aba
+ * Tipos os edita (`OccurrenceTypeMoments`).
+ */
+export const OCCURRENCE_MOMENTS = ['separation', 'document', 'stop', 'office'] as const
+
+export type OccurrenceMoment = (typeof OCCURRENCE_MOMENTS)[number]
+
+/** Spec 246 RF1/RF3: o valor de hoje, que a tela só lê quando a API não manda o campo — nunca o grava de volta. */
+export const DEFAULT_OCCURRENCE_NOTE_MODE: OccurrenceAttachmentMode =
+  OCCURRENCE_ATTACHMENT_MODE.optional
+export const DEFAULT_OCCURRENCE_SIGNATURE_MODE: OccurrenceAttachmentMode =
+  OCCURRENCE_ATTACHMENT_MODE.off
 
 /**
- * Spec 218 RF-B1/RF-B3: as duas listas de exceção do `attachmentMode` de um tipo, por contratante e
- * por destinatário — mesmo par que a tela de comprovante já tem, um `attachmentMode` por chave.
+ * Spec 246 (RF1c): a faixa da quantidade mínima de fotos. Cópia por valor de
+ * `OCCURRENCE_PHOTO_MINIMUM_COUNT` da API — mudou lá, muda aqui. A aba Tipos o edita
+ * (`OccurrenceTypeMinimums`).
  */
-export type OccurrenceAttachmentContractorOverride = Readonly<{
-  attachmentMode: OccurrenceAttachmentMode
-  contractorId: string
-}>
+export const OCCURRENCE_PHOTO_MINIMUM_COUNT = { max: 5, min: 1 } as const
 
-export type OccurrenceAttachmentRecipientOverride = Readonly<{
-  attachmentMode: OccurrenceAttachmentMode
-  taxId: string
-}>
+export type {
+  OccurrenceAttachmentContractorOverride,
+  OccurrenceAttachmentOverrides,
+  OccurrenceAttachmentOverridesByType,
+  OccurrenceAttachmentRecipientOverride,
+  OccurrenceType,
+} from './occurrenceType.types'
 
-export type OccurrenceAttachmentOverrides = Readonly<{
-  contractorOverrides: readonly OccurrenceAttachmentContractorOverride[]
-  recipientOverrides: readonly OccurrenceAttachmentRecipientOverride[]
-}>
+/** Revisão do painel M7: o teto do seletor de contratantes da exceção — acima dele a tela avisa que a lista pode estar incompleta. */
+export const CONTRACTOR_DIRECTORY_MAX_PAGES = 30
+export const CONTRACTOR_DIRECTORY_LIMIT = CONTRACTOR_DIRECTORY_MAX_PAGES * 100
 
 /** Spec 240: o teto do motivo é o do servidor (`OCCURRENCE_CANCELLATION_REASON_TOO_LONG`). */
 export const OCCURRENCE_CANCELLATION_REASON_MAX_LENGTH = 500
@@ -112,8 +138,24 @@ export const OCCURRENCE_CORRECTION_ERROR = {
   ITEM_QUANTITY_UNIT_PAIRING: 'OCCURRENCE_ITEM_QUANTITY_UNIT_PAIRING',
   OCCURRENCE_NOT_FOUND: 'TRIP_OCCURRENCE_NOT_FOUND',
   PRODUCT_NOT_IN_DOCUMENT: 'OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT',
+  TYPE_ITEMS_NOT_ALLOWED: 'OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED',
+  TYPE_ITEMS_OFF_REDELIVERY_POLICY: 'OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY',
   TYPE_SINGLE_ITEM: 'OCCURRENCE_TYPE_SINGLE_ITEM',
 } as const
 
 export type OccurrenceCorrectionErrorCode =
   (typeof OCCURRENCE_CORRECTION_ERROR)[keyof typeof OCCURRENCE_CORRECTION_ERROR]
+
+/** Spec 247 (ADR-0081 §9): onde o valor declarado da devolução é pedido, e o teto do rótulo. */
+export const DECLARED_AMOUNT_SCOPES = ['item', 'occurrence'] as const
+
+export type DeclaredAmountScope = (typeof DECLARED_AMOUNT_SCOPES)[number]
+
+export const RETURN_REQUIREMENT_LABEL_MAX_LENGTH = 40
+
+export const RETURN_REQUIREMENT_MODE_KEYS = ['declaredAmountMode', 'referenceNumberMode'] as const
+
+export const RETURN_REQUIREMENT_LABEL_KEYS = [
+  'declaredAmountLabel',
+  'referenceNumberLabel',
+] as const

@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type React from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,27 +16,22 @@ const quantityFormatter = new Intl.NumberFormat('pt-BR', {
 })
 
 /**
- * Spec 181 RF7/T303: produtos e ocorrências paravam de ser despejados **incondicionalmente** nos
- * três estados do comprovante — cada um vira a própria expansão, reusando o padrão da spec 180
+ * Spec 181 RF7/T303: os produtos paravam de ser despejados **incondicionalmente** nos três estados do
+ * comprovante — a lista vira a própria expansão, reusando o padrão da spec 180
  * (`aria-expanded`/`aria-controls`, chevron). Nota sem produto não oferece a expansão vazia; ela só
- * imprime o aviso de que não há item (mesma regra da CA07/CA16). As ocorrências são o formulário
- * inteiro de `TripOccurrences` (registrar + histórico) — o conteúdo delas é da spec 164/166/167,
- * fora do escopo desta feature, então a expansão de ocorrências fica sempre oferecida.
+ * imprime o aviso de que não há item (mesma regra da CA07/CA16). As ocorrências saíram daqui
+ * (spec 233 D2): são seção da nota aberta (`TripDocumentOccurrences`).
  */
 export function TripDeliveryProofDetail({
   documentId,
-  occurrences,
   products,
 }: Readonly<{
   documentId: string
-  occurrences: React.ReactNode
   products: readonly TripDocumentProduct[]
 }>) {
   const { t } = useTranslation('trip')
   const [isProductsExpanded, setIsProductsExpanded] = useState(false)
-  const [isOccurrencesExpanded, setIsOccurrencesExpanded] = useState(false)
   const productsId = `trip-delivery-proof-products-${documentId}`
-  const occurrencesId = `trip-delivery-proof-occurrences-${documentId}`
 
   return (
     <>
@@ -64,21 +58,6 @@ export function TripDeliveryProofDetail({
           ) : null}
         </>
       )}
-      <Button
-        aria-controls={occurrencesId}
-        aria-expanded={isOccurrencesExpanded}
-        className={styles.stopDocumentToggle}
-        onClick={() => setIsOccurrencesExpanded((current) => !current)}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        <Icon name={isOccurrencesExpanded ? 'chevron-up' : 'chevron-down'} />
-        {isOccurrencesExpanded
-          ? t('deliveryProof.occurrencesCollapse')
-          : t('deliveryProof.occurrencesToggle')}
-      </Button>
-      {isOccurrencesExpanded ? <div id={occurrencesId}>{occurrences}</div> : null}
     </>
   )
 }

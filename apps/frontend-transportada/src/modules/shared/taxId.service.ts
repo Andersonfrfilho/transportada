@@ -85,6 +85,11 @@ export function formatCnpj(value: string): string {
  * Campo que aceita pessoa ou empresa: decide o formato pelo tamanho já digitado, porque CPF
  * completo (11) nunca é prefixo válido de CNPJ (12 na base) — não há ambiguidade no corte.
  */
+/** Mesma regra de `formatTaxId`: até 11 dígitos é pessoa física. Rótulo e máscara não podem discordar. */
+export function isIndividualTaxId(value: string): boolean {
+  return normalizeTaxId(value).length <= CPF_LENGTH
+}
+
 export function formatTaxId(value: string): string {
   const document = normalizeTaxId(value)
   return document.length <= CPF_LENGTH ? formatCpf(document) : formatCnpj(document)

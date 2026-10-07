@@ -7,10 +7,20 @@ import {
 } from '@/modules/shared/KeycloakAuthProvider.provider'
 
 import {
+  buildClockFields,
+  computeClockOffsetMs,
+  driverClockOffset,
+  MAX_CLOCK_SAMPLE_ROUND_TRIP_MS,
+  type ClockOffsetStore,
+  type EventClockStamp,
+  type StampedReport,
+} from './clockOffset.service'
+import {
   isDriverOccurrenceType,
   PROOF_PUNCTUALITY_VALUES,
   type DriverFieldReport,
   type DriverOccurrenceKind,
+  type DriverOccurrencePhoto,
   type DriverOccurrenceTypesResult,
   type DriverTripSnapshot,
   type ProofPunctuality,
@@ -20,7 +30,7 @@ import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripRespo
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
-import { createIdempotencyKey, type DriverTripErrorDetail } from './offlineQueue.service'
+import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
@@ -100,12 +110,26 @@ export class DriverTripRequestError extends Error {
 }
 
 /**
+ * Quem falhou foi o caminho, não o item: gateway fora (502/503/504), limite de taxa (429) e tempo
+ * esgotado (408). ⚠️ O 500 fica de fora — `failed-network` para a drenagem inteira, e um item que
+ * derruba o servidor travaria todos os de trás por até 7 dias.
+ */
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
+
+export function isRetryableStatus(status: number | undefined): boolean {
+  return status !== undefined && RETRYABLE_STATUSES.has(status)
+}
+
+/**
  * O resultado de um envio da fila. Rede caída **e** erro de identidade (`IDENTITY_*`: refresh sem
  * transporte, sessão vencida) são "tente depois" — o item fica drenável, sem causa de recusa, e sobe
  * depois de a rede ou a sessão voltarem. Só a resposta do servidor recusa.
  */
 export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
   if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
+  if (error instanceof DriverTripRequestError && isRetryableStatus(error.status)) {
+    return { kind: 'failed-network' }
+  }
   if (isIdentityError(error)) return { kind: 'failed-network' }
   const cause =
     error instanceof DriverTripRequestError
@@ -119,8 +143,12 @@ export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
 
 type ClientDependencies = Readonly<{
   apiUrl: string
+  /** Spec 234 D1: onde cada resposta bem-sucedida deixa o desvio do relógio; ausente, não se mede. */
+  clockOffset?: ClockOffsetStore
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
+  /** Só o teste passa, para fixar a hora do aparelho; em produção vale o `Date.now`. */
+  now?: () => number
   /** Só o teste passa, para provar o teto sem esperar por ele; em produção vale o deste arquivo. */
   timeouts?: Readonly<{
     accessTokenMilliseconds?: number
@@ -150,6 +178,8 @@ export type DriverTripClient = Readonly<{
     attachmentKey?: string
     /** ISO — referência de horário da RF5; sem ele, a API usa o recebimento no servidor. */
     capturedAt?: string
+    /** Spec 234 D2: o desvio do relógio medido quando a foto foi captada; ausente, a API usa o piso de hoje. */
+    clockOffsetMs?: number
     documentId: string
     file: File
     kind: 'cargo' | 'photo' | 'signature'
@@ -165,24 +195,6 @@ export type DriverTripClient = Readonly<{
     /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
     thumbnail?: File
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
-  /**
-   * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
-   * trajeto. Fora de `dispatched`/`in_transit` a API recusa as escritas de campo — este é o botão
-   * que abre o portão.
-   */
-  dispatchTrip: (input: { tripId: string }) => Promise<void>
-  /**
-   * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
-   * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
-   * estado que ninguém sabe destravar, e repetir o toque é o conserto.
-   */
-  registerDocumentOccurrence: (input: {
-    documentId: string
-    /** Spec 218: o que o motorista escreveu no formulário único; ausente é vazio. */
-    note?: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => Promise<void>
   /**
    * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
    *
@@ -211,7 +223,8 @@ export type DriverTripClient = Readonly<{
   readDeliveryProofs: (documentId: string) => Promise<readonly DriverDeliveryProof[]>
   /** Spec 189 T7.5: o consentimento de posição — `null` é "nunca consentiu" ou "retirou". */
   readLocationConsent: () => Promise<LocationConsent>
-  send: (report: DriverFieldReport) => Promise<void>
+  /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
+  send: (stamped: StampedReport) => Promise<void>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
   sendLocation: (
     position: Readonly<{ latitude: string; longitude: string }>,
@@ -249,6 +262,8 @@ export function reportPath(report: JsonFieldReport): string {
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/depart`
     case 'cancelDeparture':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/cancel-departure`
+    case 'dispatch':
+      return `${CURRENT_TRIP_PATH}/dispatch`
     case 'deliver':
       return `${CURRENT_TRIP_PATH}/documents/${report.documentId}/deliver`
     case 'return':
@@ -263,15 +278,19 @@ export function reportPath(report: JsonFieldReport): string {
  * a chave (schemas `.strict()`, 400). Exportada para o contrato provar que o corpo sai igual ao de
  * hoje enquanto a constante estiver desligada.
  */
-export function reportBody(report: JsonFieldReport): string {
+export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): string {
+  const clockFields = buildClockFields({ kind: report.kind, stamp })
   switch (report.kind) {
     case 'arrive':
-      return JSON.stringify({ location: report.location })
+      return JSON.stringify({ location: report.location, ...clockFields })
     case 'depart':
     case 'cancelDeparture':
       return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
+    case 'dispatch':
+      return JSON.stringify({ location: report.location, tripId: report.tripId })
     case 'deliver':
       return JSON.stringify({
+        ...clockFields,
         location: report.location,
         ...(shouldSendLateRegistration({
           isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
@@ -282,6 +301,7 @@ export function reportBody(report: JsonFieldReport): string {
       })
     case 'return':
       return JSON.stringify({
+        ...clockFields,
         location: report.location,
         reason: report.reason,
         ...(shouldSendLateRegistration({
@@ -293,8 +313,10 @@ export function reportBody(report: JsonFieldReport): string {
       })
     case 'occurrence':
       return JSON.stringify({
+        ...clockFields,
         description: report.description,
         documentId: report.documentId,
+        location: report.location,
         ...stopOccurrenceReference(report),
       })
   }
@@ -329,6 +351,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const accuracyMeters = clampProofAccuracyMeters(input.accuracyMeters)
       if (accuracyMeters !== undefined) form.set('accuracyMeters', String(accuracyMeters))
       if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (input.clockOffsetMs !== undefined) form.set('clockOffsetMs', String(input.clockOffsetMs))
       if (
         shouldSendLateRegistration({
           isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
@@ -345,28 +368,6 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
       })
       return toProofAttachResult(payload)
-    },
-    async dispatchTrip(input) {
-      await request({
-        body: JSON.stringify({ tripId: input.tripId }),
-        dependencies,
-        method: 'POST',
-        path: `${CURRENT_TRIP_PATH}/dispatch`,
-      })
-    },
-    async registerDocumentOccurrence(input) {
-      await request({
-        body: JSON.stringify({
-          note: input.note ?? '',
-          occurrenceTypeId: input.occurrenceTypeId,
-          productCode: input.productCode,
-        }),
-        dependencies,
-        // Um toque, uma chave: repetir o toque depois de uma falha é o conserto (spec 179 T200).
-        idempotencyKey: createIdempotencyKey(),
-        method: 'POST',
-        path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
-      })
     },
     async listOccurrenceTypes() {
       /**
@@ -438,13 +439,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
       return toLocationConsent(payload)
     },
-    async send(report) {
+    async send({ report: queuedReport, stamp }) {
+      const report = withLegacyLocation(queuedReport)
       if (report.kind === 'documentOccurrence') {
         await sendDocumentOccurrence({ dependencies, report })
         return
       }
       if (report.kind === 'stopOccurrencePhoto') {
-        await sendStopOccurrencePhoto({ dependencies, report })
+        await sendStopOccurrencePhoto({ dependencies, report, stamp })
         return
       }
       if (report.kind === 'proofReceiver') {
@@ -458,7 +460,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         return
       }
       await request({
-        body: reportBody(report),
+        body: reportBody({ report, stamp }),
         dependencies,
         idempotencyKey: report.idempotencyKey,
         method: 'POST',
@@ -478,27 +480,54 @@ async function sendDocumentOccurrence(input: {
   readonly report: DocumentOccurrenceReport
 }): Promise<void> {
   const { dependencies, report } = input
-  const attachmentObjectId =
-    report.photo === null
-      ? undefined
-      : await uploadOccurrencePhoto({
-          dependencies,
-          photo: report.photo.blob,
-          uploadsPath: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`,
-        })
+  const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
+  const photos = listDocumentOccurrencePhotos(report)
+  /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
+  const [attachmentObjectIds, signatureObjectId] = await Promise.all([
+    Promise.all(
+      photos.map((photo) =>
+        uploadOccurrencePhoto({ dependencies, photo: photo.blob, uploadsPath }),
+      ),
+    ),
+    report.signature === undefined
+      ? Promise.resolve(undefined)
+      : uploadOccurrencePhoto({ dependencies, photo: report.signature.blob, uploadsPath }),
+  ])
 
   await request({
     body: JSON.stringify({
-      ...(attachmentObjectId === undefined ? {} : { attachmentObjectId }),
+      ...buildAttachmentFields(attachmentObjectIds),
+      location: report.location,
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,
+      ...(signatureObjectId === undefined ? {} : { signatureObjectId }),
     }),
     dependencies,
     idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrences`,
   })
+}
+
+/** As fotos do item, na ordem: a primeira (`photo`) e as demais (`extraPhotos`, spec 246). */
+function listDocumentOccurrencePhotos(
+  report: DocumentOccurrenceReport,
+): readonly DriverOccurrencePhoto[] {
+  return [...(report.photo === null ? [] : [report.photo]), ...(report.extraPhotos ?? [])]
+}
+
+/**
+ * Spec 246 (T2.7): uma foto sai como o campo único de sempre — a API antiga e o item gravado antes
+ * continuam valendo —, e mais de uma como a lista. A API recusa mandar os dois juntos.
+ */
+function buildAttachmentFields(
+  attachmentObjectIds: readonly string[],
+): Record<string, string | readonly string[]> {
+  if (attachmentObjectIds.length === 0) return {}
+  const [first] = attachmentObjectIds
+  if (attachmentObjectIds.length === 1 && first !== undefined) return { attachmentObjectId: first }
+  return { attachmentObjectIds }
 }
 
 /**
@@ -509,8 +538,9 @@ async function sendDocumentOccurrence(input: {
 async function sendStopOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
   readonly report: StopOccurrencePhotoReport
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, report } = input
+  const { dependencies, report, stamp } = input
   const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
   const attachmentObjectId = await uploadOccurrencePhoto({
     dependencies,
@@ -520,6 +550,7 @@ async function sendStopOccurrencePhoto(input: {
 
   await request({
     body: JSON.stringify({
+      ...buildClockFields({ kind: report.kind, stamp }),
       attachmentObjectId,
       description: report.description,
       documentId: report.documentId,
@@ -667,6 +698,7 @@ function abortSignalWithDeadline(
 export function getDriverTripClient(): DriverTripClient {
   return createDriverTripClient({
     apiUrl: getDriverEnvironment().apiBaseUrl,
+    clockOffset: driverClockOffset,
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
   })
@@ -857,6 +889,8 @@ async function request(
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   })
 
+  const now = input.dependencies.now ?? Date.now
+  const sentAtMs = now()
   let response: Response
   try {
     response = await input.dependencies.fetch(
@@ -865,6 +899,9 @@ async function request(
   } catch {
     // Rede caída: quem chamou devolve o item para a fila em vez de dizer ao motorista que falhou.
     throw offline()
+  }
+  if (response.ok) {
+    recordClockOffset({ dependencies: input.dependencies, receivedAtMs: now(), response, sentAtMs })
   }
 
   let rawBody: string
@@ -878,9 +915,11 @@ async function request(
   try {
     payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
   } catch {
+    /** O status só vai quando a resposta já era recusa: o HTML de um 502 precisa dele para esperar. */
     throw new DriverTripRequestError({
       code: DRIVER_TRIP_ERROR.RESPONSE_INVALID,
       isOffline: false,
+      ...(response.ok ? {} : { status: response.status }),
     })
   }
 
@@ -899,6 +938,25 @@ async function request(
   }
 
   return payload
+}
+
+/** Spec 234 D1: o `Date` da resposta contra o ponto médio do pedido; resposta sem `Date` mantém o desvio anterior. */
+function recordClockOffset(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    receivedAtMs: number
+    response: Response
+    sentAtMs: number
+  }>,
+): void {
+  const { clockOffset } = input.dependencies
+  if (clockOffset === undefined) return
+  if (input.receivedAtMs - input.sentAtMs > MAX_CLOCK_SAMPLE_ROUND_TRIP_MS) return
+  const offsetMs = computeClockOffsetMs({
+    deviceNowMs: (input.sentAtMs + input.receivedAtMs) / 2,
+    serverDateHeader: input.response.headers.get('date'),
+  })
+  if (offsetMs !== undefined) clockOffset.write(offsetMs)
 }
 
 function readErrorCode(payload: unknown): string {

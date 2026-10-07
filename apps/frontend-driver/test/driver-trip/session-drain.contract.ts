@@ -66,9 +66,9 @@ describe('falha de identidade na drenagem é falha de rede, não recusa', () => 
     const result = await drainQueueWithAttachments({
       attachmentStore: createMemoryAttachments(),
       ownerSubHash: OWNER,
-      send: async (report): Promise<AttachmentSendOutcome> => {
+      send: async ({ report }): Promise<AttachmentSendOutcome> => {
         try {
-          await client.send(report)
+          await client.send({ report, stamp: undefined })
           return { kind: 'sent' }
         } catch (error) {
           return toAttachmentSendOutcome(error)

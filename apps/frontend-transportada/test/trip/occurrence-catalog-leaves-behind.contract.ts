@@ -4,18 +4,15 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, test } from 'bun:test'
 
 import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
+import { readOccurrenceTypePanelSource } from '../company-settings/occurrenceTypePanelSource.helper'
 
 /**
  * Spec 185 T6.1 (D2, RF6): o catálogo de ocorrências ganha "A viagem segue sem a nota" — só para
  * tipos de separação (CHECK do banco recusa em `delivery`), com dica curta explicando o efeito.
  */
-const PANEL = new URL(
-  '../../src/modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx',
-  import.meta.url,
-)
 
 describe('a caixa "a viagem segue sem a nota" só em tipo de separação (spec 185 D2/RF6)', () => {
-  const panel = readFileSync(PANEL, 'utf8')
+  const panel = readOccurrenceTypePanelSource()
 
   it('usa o Checkbox do design system, nunca <input type=checkbox> cru', () => {
     const checkboxCount = panel.split('<Checkbox').length - 1

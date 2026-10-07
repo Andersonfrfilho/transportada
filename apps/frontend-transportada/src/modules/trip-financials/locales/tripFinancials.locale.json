@@ -39,6 +39,22 @@
     "total": "Total lançado",
     "unknownActor": "usuário removido"
   },
+  "documentCost": {
+    "cost": "Gasto",
+    "legCost": "do trecho",
+    "loss": "Prejuízo",
+    "margin": "Margem",
+    "noStop": "Sem parada: entra só no rateio de viagem, sem gasto de trecho.",
+    "profit": "Lucro",
+    "splitCriterion": "Retorno e avulso são repartidos igualmente entre as notas da viagem.",
+    "tax": "Imposto",
+    "timeBasis": {
+      "complete": "Tempo completo.",
+      "incomplete": "Tempo incompleto: faltou a chegada em alguma parada.",
+      "partial": "Tempo parcial: faltou a saída de alguma parada."
+    },
+    "tripShareCost": "rateio da viagem"
+  },
   "gapAction": {
     "emissionProfile": "abrir perfis de emissão",
     "federalRegime": "declarar regime",
@@ -72,6 +88,19 @@
     "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
+  },
+  "comparison": {
+    "caption": "Conta atual e conta fechada, com a diferença (fechado menos conta atual). Despesas incluem o imposto.",
+    "line": "Linha",
+    "expected": "Conta atual",
+    "closed": "Fechado",
+    "difference": "Diferença",
+    "noDifference": "sem diferença",
+    "lines": {
+      "revenue": "Receita",
+      "cost": "Despesas",
+      "result": "Resultado"
+    }
   },
   "ledger": {
     "driverBasis_one": "{{amount}} × {{days}} dia · {{origin}}",

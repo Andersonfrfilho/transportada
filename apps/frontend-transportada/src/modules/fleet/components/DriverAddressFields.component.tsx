@@ -8,6 +8,7 @@ import {
   type FleetDriverFormState,
 } from '../shared/fleet.types'
 import { DriverHomeMap } from './DriverHomeMap.component'
+import { isHelperOnlyDriver } from '../shared/fleetForm.service'
 import styles from '../styles/fleet.module.css'
 import { DriverCityField } from './DriverCityField.component'
 import { FleetField, FleetSelectField } from './FleetField.component'
@@ -39,7 +40,9 @@ export function DriverAddressFields({
 
   return (
     <fieldset className={styles.fieldGroup}>
-      <legend>{t('driverAddressLegend')}</legend>
+      <legend>
+        {t(isHelperOnlyDriver(state) ? 'driverAddressLegendHelper' : 'driverAddressLegend')}
+      </legend>
       <p className={styles.hint}>{t('driverAddressHint')}</p>
       {/*
         ⚠️ **A ADR-0037 tirou o mapa desta tela, e o adendo de 2026-09-08 o traz de volta por outro

@@ -1,5 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  toSpreadsheetNumber,
+  type SpreadsheetCellValue,
+  type SpreadsheetColumn,
+} from '@/modules/shared/spreadsheet/spreadsheetLayout.service'
+import {
   CSV_BYTE_ORDER_MARK,
   CSV_FIELD_SEPARATOR,
   CSV_LINE_SEPARATOR,
@@ -33,7 +38,23 @@ export const CAMERA_MEASUREMENT_EXPORT_COLUMNS = [
   'gravado_em',
 ] as const
 
+const CAMERA_NUMERIC_COLUMN_RANGE = { first: 2, last: 5 } as const
+
+const CAMERA_COLUMN_LAYOUT: readonly SpreadsheetColumn[] = [
+  { format: '@', header: 'caixa', width: 24 },
+  { header: 'dimensao', width: 12 },
+  { align: 'right', format: '0', header: 'fita_mm', width: 12 },
+  { align: 'right', format: '0', header: 'camera_mm', width: 12 },
+  { align: 'right', format: '0', header: 'erro_mm', width: 12 },
+  { align: 'right', format: '0', header: 'margem_mm', width: 12 },
+  { align: 'center', header: 'dentro_da_margem', width: 18 },
+  { header: 'motivos', width: 30 },
+  { header: 'origem', width: 16 },
+  { header: 'gravado_em', width: 24 },
+]
+
 export const CAMERA_MEASUREMENT_EXPORT_FILE_NAME = 'medidas-camera.csv'
+export const CAMERA_MEASUREMENT_EXPORT_EXCEL_FILE_NAME = 'medidas-camera.xlsx'
 export const CAMERA_MEASUREMENT_EXPORT_MEDIA_TYPE = 'text/csv;charset=utf-8'
 
 /** R8: nunca a descrição do produto — só o código do produto e o GTIN da caixa identificam a linha. */
@@ -94,6 +115,28 @@ function toRow(entry: CameraMeasurementExportEntry, dimension: ExportDimension):
  * checagem negativa deixaria ela entrar junto de qualquer origem futura que não seja `typed`. Mesmo
  * formato de `buildFreightRegionCsv`: sem lib externa, testável sem DOM.
  */
+/** Colunas do arquivo da câmera: a mesma ordem do CSV, com largura e formato. */
+export function buildCameraMeasurementColumns(): readonly SpreadsheetColumn[] {
+  return CAMERA_COLUMN_LAYOUT
+}
+
+/** As mesmas linhas do CSV, com as quatro medidas em milímetros como número. */
+export function buildCameraMeasurementRows(
+  entries: readonly CameraMeasurementExportEntry[],
+): readonly (readonly SpreadsheetCellValue[])[] {
+  return entries
+    .filter((entry) => CAMERA_PARTICIPATION_SOURCES.has(entry.source))
+    .flatMap((entry) =>
+      EXPORT_DIMENSIONS.map((dimension) =>
+        toRow(entry, dimension).map((value, index) =>
+          index >= CAMERA_NUMERIC_COLUMN_RANGE.first && index <= CAMERA_NUMERIC_COLUMN_RANGE.last
+            ? toSpreadsheetNumber(value)
+            : value,
+        ),
+      ),
+    )
+}
+
 export function buildCameraMeasurementCsv(
   entries: readonly CameraMeasurementExportEntry[],
 ): string {

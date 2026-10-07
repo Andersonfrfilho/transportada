@@ -406,7 +406,7 @@
     "driversSummary_other": "{{count}} drivers picked",
     "helpers": "Helpers",
     "helpersClearAll": "Remove all",
-    "helpersEmpty": "No active driver is marked as a helper on their record.",
+    "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
     "helpersNoMatch": "No helper found",
     "helpersPlaceholder": "Choose helpers",
     "helpersRemove": "Remove this helper",
@@ -434,13 +434,14 @@
     "driversSummary_other": "{{count}} drivers picked",
     "error": {
       "generic": "Could not change the crew right now. Try again.",
+      "driverCannotDrive": "Someone chosen as a driver does not drive: the record is a helper's. Pick another driver or move this person to helpers.",
       "helperNotEligible": "A chosen helper is not marked as a helper on the driver record.",
       "helperWithoutDriver": "Choose at least one driver before adding helpers.",
       "separationStarted": "The cargo separation already started: this trip no longer accepts a driver or vehicle change."
     },
     "helpers": "Helpers",
     "helpersClearAll": "Remove all",
-    "helpersEmpty": "No active driver is marked as a helper on their record.",
+    "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
     "helpersNoMatch": "No helper found",
     "helpersPlaceholder": "Choose helpers",
     "helpersRemove": "Remove this helper",
@@ -453,6 +454,64 @@
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
+  },
+  "crewTransferDialog": {
+    "blocker": {
+      "crewUnchanged": "The chosen crew is the same as the current one. Change at least one person.",
+      "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only.",
+      "driverRequired": "Choose at least one driver.",
+      "helperIsDriver": "The same person cannot be both driver and helper.",
+      "reasonTooLong": "The reason is longer than 500 characters."
+    },
+    "clearAll": "Remove all",
+    "drivers": "Drivers",
+    "driversEmpty": "There is no active driver in the fleet to choose from.",
+    "driversNoMatch": "No driver found",
+    "driversPlaceholder": "Choose drivers",
+    "driversRemove": "Remove this driver",
+    "driversSummary": "{{count}} driver chosen",
+    "driversSummary_other": "{{count}} drivers chosen",
+    "error": {
+      "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only. Choose another driver.",
+      "generic": "Could not transfer the crew right now. Try again.",
+      "helperNotEligible": "A chosen helper is not marked as a helper on their record.",
+      "helperWithoutDriver": "Choose at least one driver before adding helpers.",
+      "notAllowed": "This trip does not accept a crew transfer right now: only a trip under way can be transferred.",
+      "unchanged": "The chosen crew is the same as the current one. Nothing was changed."
+    },
+    "helpers": "Helpers",
+    "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
+    "helpersNoMatch": "No helper found",
+    "helpersPlaceholder": "Choose helpers",
+    "helpersRemove": "Remove this helper",
+    "helpersSummary": "{{count}} helper chosen",
+    "helpersSummary_other": "{{count}} helpers chosen",
+    "outcome": {
+      "costAfter": "New cost",
+      "costBefore": "Previous cost",
+      "decrease": "The trip cost went down with the new crew.",
+      "difference": "Difference",
+      "done": "Crew transferred. The trip carries on from where it was.",
+      "gaps": "Some cost parcel is incomplete; the value uses what the screen already shows for it.",
+      "increase": "The trip cost went up with the new crew.",
+      "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
+      "same": "The trip cost did not change."
+    },
+    "reason": "Reason for the transfer",
+    "role": {
+      "driver": "driver",
+      "helper": "helper"
+    },
+    "search": "Search by name",
+    "submit": "Transfer",
+    "subtitle": "The trip carries on from where it is. Only who drives and who helps change; vehicle, route and stops stay as they are, and the crew cost is recalculated.",
+    "summary": {
+      "line": "{{leaving}} → {{entering}}",
+      "nobody": "nobody",
+      "title": "Who leaves → who joins"
+    },
+    "title": "Transfer crew",
+    "vehicleLocked": "The vehicle does not change: the trip carries on with the same truck."
   },
   "dateRange": {
     "clear": "Clear period",
@@ -548,8 +607,6 @@
     "imageLoading": "Loading the proof image",
     "lateRegistration": "Registered afterwards",
     "notDelivered": "This document has not been delivered yet.",
-    "occurrencesCollapse": "Collapse occurrences",
-    "occurrencesToggle": "View occurrences",
     "open": "Open in full size",
     "photoAlt": "Photo of the delivery proof",
     "productLine": "{{quantity}} {{unit}} · {{description}}",
@@ -559,10 +616,9 @@
     "punctuality": {
       "on_time": "On time",
       "late": "Late",
-      "away": "Away from the stop",
-      "late_and_away": "Late and away from the stop"
+      "away": "Away from the stop or no location",
+      "late_and_away": "Late and away from the stop or no location"
     },
-    "receivedBy": "Received by: {{relation}}",
     "receivedByOptions": {
       "recipient": "The customer",
       "spouse": "Spouse",
@@ -593,6 +649,7 @@
     "readings": {
       "capturedAt": "Captured",
       "distance": "Distance",
+      "receiverRelation": "Who received",
       "requirement": "Requirement"
     },
     "reviewStatus": {
@@ -667,6 +724,31 @@
     "delivery": "Delivery",
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
+  "documentData": {
+    "cargoValue": "Cargo value",
+    "issuedAt": "Issued",
+    "freight": "Freight",
+    "client": "Client",
+    "copied": "Copied",
+    "copy": {
+      "cargoValue": "Copy cargo value",
+      "issuedAt": "Copy issue date",
+      "freight": "Copy freight",
+      "client": "Copy client",
+      "nfeNumber": "Copy invoice number",
+      "series": "Copy series",
+      "taxId": "Copy tax ID",
+      "cpf": "Copy CPF",
+      "volumes": "Copy volumes"
+    },
+    "costTitle": "Cost and profit of this invoice",
+    "nfeNumber": "Invoice",
+    "series": "Series",
+    "taxId": "Tax ID",
+    "cpf": "CPF",
+    "title": "Invoice data",
+    "volumes": "Volumes"
+  },
   "detail": {
     "closedManually": "Closed manually on {{moment}}",
     "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",
@@ -716,10 +798,33 @@
   "empty": "No trip found",
   "error": "Could not load trips",
   "eventTimeline": {
+    "addressChange": {
+      "summary": "{{origin}} · {{displacement}}",
+      "displacement": {
+        "meters": "moved {{distance}} m",
+        "kilometers": "moved {{distance}} km"
+      },
+      "origin": {
+        "contractor": "Corrected by the contractor",
+        "driver": "Corrected by the driver",
+        "operator": "Corrected by the office",
+        "refinement": "Precision refinement"
+      }
+    },
     "attachmentCount_one": "{{count}} photo attached",
     "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",
     "collapse": "Collapse",
+    "crewTransfer": {
+      "change": {
+        "driver": "Driver: {{from}} → {{to}}",
+        "helper": "Helper: {{from}} → {{to}}"
+      },
+      "costDifference": "Cost difference: {{amount}}",
+      "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
+      "nobody": "nobody",
+      "reason": "Reason: {{reason}}"
+    },
     "documentFilterOption": "Invoice {{invoice}}",
     "day": {
       "count_one": "{{count}} event",
@@ -727,11 +832,22 @@
       "today": "Today",
       "yesterday": "Yesterday"
     },
+    "document": {
+      "empty": "No events recorded for this invoice yet",
+      "error": "Could not load the events for this delivery",
+      "loading": "Loading the events for this delivery",
+      "radius": "Tolerated radius from the stop: {{meters}} m",
+      "title": "Events for this delivery"
+    },
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
     "expand": "View more",
     "filterByDocument": "Filter by invoice",
     "itemTitle": {
+      "addressCorrected": "Stop address corrected",
+      "canhotoPhoto": "Receipt photo — invoice {{invoice}}",
+      "canhotoPhotoUnknownDocument": "Receipt photo",
+      "crewTransfer": "Crew transferred",
       "dispatched": "Trip dispatched",
       "documentDelivered": "{{document}} delivered",
       "documentLabel": "Invoice {{invoice}}",
@@ -749,6 +865,7 @@
       "stopArrived": "Arrival at stop {{sequence}}",
       "stopArrivedUnknown": "Arrival at stop",
       "stopDeparted": "On the way to stop {{sequence}}",
+      "stopDepartedForThisStop": "Departure for this stop",
       "stopDepartedUnknown": "On the way to a stop",
       "stopDepartureCancelled": "Cancelled the route to stop {{sequence}}",
       "stopDepartureCancelledUnknown": "Cancelled the route to a stop",
@@ -805,8 +922,8 @@
       "partial": "The map shows only the events already loaded. Load more to include the earlier ones.",
       "missingUnavailable_one": "{{count}} event without a position: the device did not provide it.",
       "missingUnavailable_other": "{{count}} events without a position: the device did not provide it.",
-      "missingExpired_one": "{{count}} event whose position was erased after 90 days.",
-      "missingExpired_other": "{{count}} events whose position was erased after 90 days.",
+      "missingExpired_one": "{{count}} event whose position was erased after the retention period.",
+      "missingExpired_other": "{{count}} events whose position was erased after the retention period.",
       "missingRestricted_one": "{{count}} event with a recorded position that is hidden for your access.",
       "missingRestricted_other": "{{count}} events with a recorded position that is hidden for your access.",
       "legendLabel": "Event types on the map",
@@ -848,14 +965,18 @@
       "capturedAt": "Read at {{moment}}",
       "restricted": "The point was recorded, but this access does not show the coordinate.",
       "unavailable": "The device did not deliver a position on this tap.",
-      "expired": "The coordinate is erased after 90 days; the event remains.",
+      "expired": "The coordinate is erased after the retention period; the event remains.",
       "viewMap": "View on map",
       "hideMap": "Hide map",
       "mapLoading": "Loading the map",
       "mapMissing": "The map is not available right now.",
       "eventPin": "Where the driver tapped",
       "legend": "Plain pin: where the driver tapped. Numbered pin: stop {{sequence}}.",
-      "legendEventOnly": "Plain pin: where the driver tapped. The stop has no registered coordinate."
+      "legendEventOnly": "Plain pin: where the driver tapped. The stop has no registered coordinate.",
+      "addressPin": "New address point",
+      "addressCorrectedAt": "Corrected at {{moment}}",
+      "legendAddress": "Plain pin: new point of the stop address. Numbered pin: stop {{sequence}}.",
+      "legendAddressEventOnly": "Plain pin: new point of the stop address."
     }
   },
   "feedback": {
@@ -866,6 +987,7 @@
     "documentNotFound": "Document not found on this trip.",
     "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
     "documentReturnReasonRequired": "Provide the return reason.",
+    "driverCannotDrive": "Someone chosen as a driver does not drive: the record is a helper's.",
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
@@ -884,6 +1006,8 @@
     "occurrenceAlreadyCancelled": "This occurrence was already cancelled and cannot be cancelled again. Nothing was saved; the screen was refreshed with the current state.",
     "occurrenceCancelled": "This occurrence was cancelled and can no longer be corrected. Nothing was saved; the screen was refreshed with the current state.",
     "occurrenceTypeSingleItem": "This occurrence type accepts a single item. Keep only one item and save again.",
+    "occurrenceTypeItemsNotAllowed": "This occurrence type does not carry products. Remove the chosen items and try again; if it needs products, turn Products on in the type setup. Nothing was saved.",
+    "occurrenceTypeItemsOffRedeliveryPolicy": "A type without products does not open a case: leave redelivery unset or switch Products back to Optional. Nothing was saved.",
     "occurrenceItemQuantityNotPositive": "The quantity of each item must be greater than zero. Fix it and save again.",
     "occurrenceItemQuantityUnitPairing": "Quantity and unit go together: fill in both or neither. Fix it and save again.",
     "occurrenceProductNotInDocument": "One of the chosen items is not in this invoice. Choose only items from the invoice and save again.",
@@ -920,7 +1044,11 @@
     "timelineCursorInvalid": "The timeline cursor is invalid.",
     "occurrenceCaseDecisionConflict": "A different decision has already been recorded for this case. Reload the page to see what was saved.",
     "occurrenceCaseRedeliveryNotAllowed": "This occurrence does not allow redelivery — choose another decision.",
-    "occurrenceCaseNoteRequired": "State the reason for the decision."
+    "occurrenceCaseNoteRequired": "State the reason for the decision.",
+    "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
+    "occurrenceTypeMomentsDocumentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
+    "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",
+    "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -971,6 +1099,62 @@
   "intro": "Organize trips without a CT-e: link a vehicle, drivers, and the fiscal notes carried.",
   "kicker": "Non-fiscal operation",
   "loading": "Loading trips",
+  "locationRetention": {
+    "clear": "Back to default",
+    "confirm": {
+      "action": {
+        "enable": {
+          "pending": "Turn on and erase…",
+          "ready_one": "Turn on and erase {{amount}} point",
+          "ready_other": "Turn on and erase {{amount}} points"
+        },
+        "shorten": {
+          "pending": "Shorten and erase…",
+          "ready_one": "Shorten and erase {{amount}} point",
+          "ready_other": "Shorten and erase {{amount}} points"
+        }
+      },
+      "atLeastCount": "at least {{formatted}}",
+      "cancel": "Cancel",
+      "cappedCount": "more than 100 thousand",
+      "close": "Close",
+      "grace": "Erasing only starts 24 hours after you confirm. To undo within that window, turn it off: nothing will have been erased.",
+      "groups": {
+        "arrival": "Arrivals and deliveries",
+        "canhotoPhoto": "Delivery receipt photos",
+        "occurrence": "Occurrences",
+        "statusChange": "Status changes"
+      },
+      "intro": "With a {{days}}-day retention, these events already lose their point in the first cycle, and those that expire by then add to this count:",
+      "loadError": "Could not count what would be erased. Close and try again.",
+      "loading": "Counting events",
+      "title": {
+        "enable": "Turn on position erasing?",
+        "shorten": "Shorten the retention period?"
+      }
+    },
+    "daysLabel": "Retention period (days)",
+    "daysRangeError": "Enter a whole number from {{min}} to {{max}}.",
+    "disable": "Turn off erasing",
+    "effectiveAt": "Starts to apply on {{moment}}",
+    "enable": "Turn on erasing",
+    "forbidden": "Only people who manage the company settings can see and change this period.",
+    "hint": "How long the position recorded on trip events is kept. After the period the event stays on the timeline, without the point.",
+    "lgpd": "The position recorded on trip events is the driver's personal data (LGPD, art. 5, I). Keeping it for a defined period and erasing it afterwards meets the principles of necessity and limited processing (art. 6, III). Erasing is final: the event stays on the timeline, without the point. Punctuality and distance already assessed do not change.",
+    "liveTrail": "The live trail of the trip is erased after 36 hours, always; this period does not change it.",
+    "loadError": "Could not read the position retention period.",
+    "loading": "Loading the retention period",
+    "saveDays": "Save period",
+    "saveError": "Could not save. Nothing was changed.",
+    "saving": "Saving",
+    "status": {
+      "active": "On: the position is erased after {{days}} days.",
+      "off": "Off: no position is erased.",
+      "waiting": "On, waiting for the 24-hour grace period: nothing is erased yet."
+    },
+    "title": "Erase the position after the retention period",
+    "whatsapp": "A location sent through WhatsApp is not kept in the conversation: the point goes to the trip event and follows this deadline."
+  },
   "mdfeGate": {
     "close": "Close",
     "documentColumn": "Document",
@@ -1164,6 +1348,10 @@
       "stop": "Stop"
     },
     "tableTitle": "Recorded occurrences",
+    "tabs": {
+      "feed": "Feed",
+      "types": "Types"
+    },
     "title": "Occurrences",
     "caseStatus": {
       "none": "No case",
@@ -1199,7 +1387,9 @@
     "unknownProduct": "Unidentified product",
     "export": {
       "csv": "Download CSV",
-      "xlsx": "Download Excel"
+      "xlsx": "Download Excel",
+      "sheetName": "To measure",
+      "title": "What is left to measure on the trip"
     },
     "inline": {
       "length": "Length (cm)",
@@ -1630,6 +1820,7 @@
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
     "defineCrew": "Change driver/vehicle",
+    "transferCrew": "Transfer crew",
     "dispatch": "Dispatch",
     "dispatchConfirmTitle": "Dispatch the trip",
     "dispatchUnderstood": "Got it",
@@ -1729,6 +1920,7 @@
     "withoutDriver": "No driver"
   },
   "tabs": {
+    "location": "Location",
     "proof": "Delivery receipt",
     "trips": "Trips"
   },

@@ -689,6 +689,8 @@
       "all": "Todas"
     },
     "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx",
+    "lastRecord": "Último registro em {{date}}",
+    "lastRecordBy": "Último registro em {{date}} por {{name}}",
     "experimentalBadge": "Experimental",
     "experimentalHint": "A medida pela câmera é uma estimativa. Confira com a fita antes de gravar; na dúvida, digite.",
     "margin": "±{{margin}} cm",
@@ -791,11 +793,25 @@
         "commercialUnit": "Embalagem",
         "transportedVolumes": "Quantidade pendente"
       },
-      "truncated": "O arquivo traz as {{total, number}} primeiras caixas pendentes da fila — há mais caixas por medir além delas.",
+      "measurementColumns": {
+        "lengthCm": "Comprimento (cm)",
+        "widthCm": "Largura (cm)",
+        "heightCm": "Altura (cm)",
+        "unitsPerBox": "Unidades por caixa",
+        "measuredAt": "Medida em",
+        "measuredByName": "Medida por"
+      },
+      "truncated": "O arquivo traz as {{total, number}} primeiras caixas da fila — há mais caixas além delas.",
       "preparing": "Preparando…",
-      "empty": "Não há caixas pendentes para exportar.",
+      "empty": "Não há caixas para exportar nesta situação.",
       "failed": "Não foi possível preparar o arquivo. Tente de novo.",
-      "rateLimited": "Muitas exportações seguidas. Tente de novo em alguns minutos."
+      "rateLimited": "Muitas exportações seguidas. Tente de novo em alguns minutos.",
+      "sheetName": "Caixas",
+      "title": {
+        "pending": "Caixas por medir",
+        "measured": "Caixas já medidas",
+        "all": "Todas as caixas"
+      }
     },
     "estimate": {
       "badge": "Estimada",
@@ -828,5 +844,8 @@
       "postalCodeInvalid": "CEP precisa ter 8 dígitos.",
       "cityCodeInvalid": "Código IBGE precisa ter 7 dígitos e começar pelo prefixo da UF escolhida."
     }
-  }
+  },
+  "cameraMeasurementValidationExportExcel": "Exportar Excel do período",
+  "cameraMeasurementExportSheetName": "Medidas da câmera",
+  "cameraMeasurementExportTitle": "Medidas feitas com a câmera"
 }

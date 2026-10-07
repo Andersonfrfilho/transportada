@@ -1,0 +1,169 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
+import {
+  buildOccurrenceEmailTemplateOptions,
+  type OccurrenceEmailTemplatesState,
+} from '@/modules/trip/shared/occurrenceTemplate.service'
+import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
+import { useOccurrenceAttachmentOverridesBatchQuery } from '@/modules/trip/queries/useOccurrenceAttachmentOverridesBatch.query'
+import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import styles from '@/modules/trip/styles/trip.module.css'
+
+import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
+import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
+import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
+import { countActiveOccurrenceTypeFilters } from '../shared/occurrenceTypeFilterChips.service'
+import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
+import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
+import { OccurrenceTypeFilterEmpty } from './OccurrenceTypeFilterEmpty.component'
+import { OccurrenceTypeFilters } from './OccurrenceTypeFilters.component'
+import { OccurrenceTypeList } from './OccurrenceTypeList.component'
+
+function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
+  if (query.isError) return 'error' as const
+  return query.isSuccess ? ('ready' as const) : ('loading' as const)
+}
+
+export type OccurrenceTypeCatalogPanelProps = Readonly<{
+  canManage: boolean
+  isSaving: boolean
+  onSave: (input: OccurrenceTypeSaveInput) => void
+  /** Spec 241: a recusa da última gravação, já traduzida em chave de `trip.feedback`. */
+  saveFeedbackKey: null | string
+  types: readonly OccurrenceType[]
+}>
+
+/**
+ * Spec 079, hoje a aba Tipos de `/ocorrencias` (spec 246): esta tela é o **cadastro** do
+ * catálogo (nome, etapa, interruptor de aviso, modelo de e-mail), não uma tela de avisos — morar em
+ * Viagens → "Avisos" escondia o cadastro atrás do nome do efeito colateral dele.
+ *
+ * ⚠️ **O texto do aviso não é digitado aqui.** O template mora no módulo de notificações, e o tipo
+ * só **seleciona** qual modelo usar — quem escreve o texto (e os marcadores dele) é o editor de
+ * templates. Linha antiga com assunto/corpo próprios continua funcionando, marcada como legado.
+ *
+ * ⚠️ **O grupo é escolhido no cadastro**, e não é enfeite: `separation` é do galpão (`trip.manage`)
+ * e `delivery` é da rua (`trip.report`). É ele que decide quem registra, e por isso o campo é
+ * obrigatório — um padrão escondido daria permissão por omissão.
+ *
+ * ⚠️ **O padrão é não avisar.** Aviso que ninguém pediu vira ruído, e ruído faz o operador ignorar
+ * também o que importa.
+ */
+export function OccurrenceTypeCatalogPanel({
+  canManage,
+  isSaving,
+  onSave,
+  saveFeedbackKey,
+  types,
+}: OccurrenceTypeCatalogPanelProps) {
+  const { t } = useTranslation('companySettings')
+  const { t: tTrip } = useTranslation('trip')
+  const createSupport = {
+    hasItemsMode: types.some((type) => type.itemsMode !== undefined),
+    hasMoments: types.some((type) => type.moments !== undefined),
+    hasRequirementModes: types.some((type) => type.noteMode !== undefined),
+  }
+
+  const filtersController = useOccurrenceTypeFilters()
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+
+  function handleToggle(typeId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (!next.delete(typeId)) next.add(typeId)
+      return next
+    })
+  }
+
+  /**
+   * Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por
+   * tipo. As duas listas grandes só vêm quando alguém abre um tipo ou busca por quem tem exceção.
+   */
+  const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
+  const people = useOccurrenceExceptionPeople({
+    enabled: canManage && (expandedIds.size > 0 || filtersController.filters.query.trim() !== ''),
+  })
+
+  function exceptionsOf(type: OccurrenceType): OccurrenceTypeExceptionsState {
+    if (overridesQuery.isError) return { overrides: undefined, people, status: 'error' }
+    if (!overridesQuery.isSuccess) return { overrides: undefined, people, status: 'loading' }
+    const found = overridesQuery.data.find((entry) => entry.occurrenceTypeId === type.id)
+    return {
+      overrides: found ?? { contractorOverrides: [], recipientOverrides: [] },
+      people,
+      status: 'ready',
+    }
+  }
+
+  const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
+  const templates: OccurrenceEmailTemplatesState = {
+    options: buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? []),
+    status: toLoadStatus(emailTemplates),
+  }
+
+  const exceptionsByTypeId = overridesQuery.isSuccess
+    ? new Map(overridesQuery.data.map((entry) => [entry.occurrenceTypeId, entry]))
+    : undefined
+  const visibleTypes = filterOccurrenceTypes({
+    context: { exceptionsByTypeId, people },
+    filters: filtersController.filters,
+    types,
+  })
+
+  return (
+    <section className={styles.panel}>
+      <h2>{t('occurrenceTypeCatalog.title')}</h2>
+      <p className={styles.hint}>{t('occurrenceTypeCatalog.hint')}</p>
+
+      {types.length === 0 ? (
+        <p className={styles.hint}>{t('occurrenceTypeCatalog.empty')}</p>
+      ) : (
+        <OccurrenceTypeFilters
+          canFilterByException={overridesQuery.isSuccess}
+          controller={filtersController}
+          shownCount={visibleTypes.length}
+          totalCount={types.length}
+        />
+      )}
+
+      {saveFeedbackKey === null ? null : (
+        <p className={styles.alert} role="alert">
+          {tTrip(`feedback.${saveFeedbackKey}`)}
+        </p>
+      )}
+
+      {types.length > 0 && visibleTypes.length === 0 ? (
+        <OccurrenceTypeFilterEmpty
+          activeCount={countActiveOccurrenceTypeFilters(filtersController.filters)}
+          onClear={filtersController.clear}
+          query={filtersController.filters.query}
+        />
+      ) : (
+        <OccurrenceTypeList
+          canManage={canManage}
+          exceptionsOf={exceptionsOf}
+          expandedIds={expandedIds}
+          isSaving={isSaving}
+          onSave={onSave}
+          onToggle={handleToggle}
+          templates={templates}
+          types={visibleTypes}
+        />
+      )}
+
+      {canManage ? (
+        <OccurrenceTypeCreateForm
+          isSaving={isSaving}
+          onSave={onSave}
+          support={createSupport}
+          templateOptions={templates.options}
+        />
+      ) : null}
+    </section>
+  )
+}

@@ -8,6 +8,7 @@ import type {
   DriverTripStop,
   PendingProofDocument,
 } from './driverTrip.types'
+import { canReportOnTrip } from './tripCrewRole.service'
 
 /** Entregue e devolvida saíram do eixo do campo: não há mais o que tocar nelas. */
 const SETTLED_STATUSES = ['delivered', 'returned']
@@ -43,6 +44,20 @@ export function findCurrentStop(input: {
  */
 export function isAwaitingDispatch(trip: DriverTrip): boolean {
   return trip.status === 'route_planned'
+}
+
+type DispatchStateInput = {
+  readonly isDispatchQueued?: boolean
+  readonly trip: Pick<DriverTrip, 'crewRole' | 'status'>
+}
+
+/** Spec 243 D1: a espera é fato da viagem (todo papel a vê); despachar é permissão de quem reporta. */
+export function resolveDispatchState({ isDispatchQueued = false, trip }: DispatchStateInput): {
+  readonly canDispatch: boolean
+  readonly isAwaiting: boolean
+} {
+  const isAwaiting = trip.status === 'route_planned' && !isDispatchQueued
+  return { canDispatch: isAwaiting && canReportOnTrip(trip), isAwaiting }
 }
 
 export function countPendingDocuments(stop: DriverTripStop): number {

@@ -1,15 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import type { StampedReport } from '../../src/modules/driver-trip/shared/clockOffset.service'
+
 import type { DriverFieldReport } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   applyAttachmentLocation,
   applyAttachmentReceiverFields,
-  ATTACHMENT_DISCARD_AFTER_MS,
-  discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
-  isAttachmentDiscardable,
   type AttachmentStore,
   type QueuedAttachment,
 } from '@/modules/driver-trip/shared/offlineAttachments.service'
@@ -285,7 +284,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const first = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -305,7 +304,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const second = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -328,7 +327,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const first = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'sent' })
       },
@@ -401,7 +400,7 @@ describe('a fila offline com anexos (D6)', () => {
     const store = createMemoryQueue([rejectedItem, queuedDelivery('chave-2', 'document-2')])
     const attachmentStore = createMemoryAttachments()
     const sent: string[] = []
-    const send = (report: DriverFieldReport) => {
+    const send = ({ report }: StampedReport) => {
       sent.push(report.idempotencyKey)
       return Promise.resolve({ kind: 'sent' } as const)
     }
@@ -441,7 +440,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     const result = await drainQueueWithAttachments({
       attachmentStore,
-      send: (report) => {
+      send: ({ report }) => {
         attempted.push(report.idempotencyKey)
         return Promise.resolve({ kind: 'failed-network' })
       },
@@ -597,55 +596,5 @@ describe('o campo do recebedor chega depois do anexo (spec 203)', () => {
     })
 
     expect(next).toEqual(items)
-  })
-})
-
-/**
- * Spec 159 (T11, item 4): anexo recusado ou parado expira aos 7 dias — o descarte apaga o dado
- * (blob, posição), não só a entrada da fila. Risco aceito em `docs/SECURITY.md`.
- */
-describe('descarte do anexo parado (T11, item 4)', () => {
-  const now = new Date('2026-09-18T00:00:00.000Z')
-
-  it('7 dias e um instante depois da captura é descartável; no limite, não é', () => {
-    const stale = photo('document-1', 10, 'velho')
-    const capturedAtStale = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS - 1).toISOString()
-    const capturedAtFresh = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS + 1).toISOString()
-
-    expect(
-      isAttachmentDiscardable({ attachment: { ...stale, capturedAt: capturedAtStale }, now }),
-    ).toBe(true)
-    expect(
-      isAttachmentDiscardable({ attachment: { ...stale, capturedAt: capturedAtFresh }, now }),
-    ).toBe(false)
-  })
-
-  it('descarta o anexo velho e apaga o dado — o recente permanece na mesma chave', async () => {
-    const attachmentStore = createMemoryAttachments()
-    const oldCapturedAt = new Date(now.getTime() - ATTACHMENT_DISCARD_AFTER_MS - 1).toISOString()
-    await attachmentStore.update({
-      eventKey: 'chave-1',
-      mutate: () => [
-        { ...photo('document-1', 10, 'velho'), capturedAt: oldCapturedAt, rejectionCause: '409' },
-        { ...photo('document-1', 10, 'recente'), capturedAt: now.toISOString() },
-      ],
-    })
-
-    const discarded = await discardStaleAttachments({ attachmentStore, now })
-
-    expect(discarded).toBe(1)
-    const remaining = attachmentStore.entries().get('chave-1') ?? []
-    expect(remaining.map((item) => item.attachmentKey)).toEqual(['recente'])
-  })
-
-  it('sem anexo velho nenhum, nada é descartado', async () => {
-    const attachmentStore = createMemoryAttachments()
-    await enqueueAttachment({
-      attachment: { ...photo(), capturedAt: now.toISOString() },
-      attachmentStore,
-      store: createMemoryQueue(),
-    })
-
-    expect(await discardStaleAttachments({ attachmentStore, now })).toBe(0)
   })
 })

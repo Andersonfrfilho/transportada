@@ -1,0 +1,109 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * A avaria na entrada e o "devolver ao contratante" (spec 237 T3.3): a nota no celular. Mobile-first: coluna
+ * única, todo botão de toque nasce do token `--touch-target`, nada de medida solta.
+ */
+/*
+ * A avaria na entrada e o "devolver ao contratante" (spec 237 T3.3). Mobile-first: coluna única, todo botão de
+ * toque nasce do token `--touch-target`, nada de medida solta, e o tablet só acrescenta respiro.
+ */
+.noteActions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.noteBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.noteButtons {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.noteAction {
+  min-height: var(--touch-target);
+  width: 100%;
+}
+
+.noteHint {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.noteFailure {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+.markPanel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.markPanel label {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.markPanel textarea {
+  width: 100%;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  resize: vertical;
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fieldGroup {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fieldTitle {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
+@media (min-width: 40rem) {
+  .noteButtons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .noteAction {
+    width: auto;
+  }
+}

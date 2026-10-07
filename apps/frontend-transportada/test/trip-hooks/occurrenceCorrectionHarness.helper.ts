@@ -61,13 +61,15 @@ const WRITE_RESULT: OccurrenceWriteResult = {
 let currentItems: readonly TripOccurrenceDetailItem[] = []
 let currentCorrections: NonNullable<TripOccurrenceDetail['corrections']> = []
 let detailReadCount = 0
+let detailOverrides: Partial<TripOccurrenceDetail> = {}
 
 /** A API dublada: guarda o conjunto vigente e o devolve na próxima leitura do detalhe. */
-export function installServerDouble(): {
+export function installServerDouble(overrides: Partial<TripOccurrenceDetail> = {}): {
   calls: CorrectTripOccurrenceItemsInput[]
   detailReads: () => number
 } {
   const calls: CorrectTripOccurrenceItemsInput[] = []
+  detailOverrides = overrides
   detailReadCount = 0
   currentItems = buildOccurrenceDetailFixture().items
   currentCorrections = []
@@ -102,7 +104,11 @@ export function DetailHarness() {
     queryFn: () => {
       detailReadCount += 1
       return Promise.resolve(
-        buildOccurrenceDetailFixture({ corrections: currentCorrections, items: currentItems }),
+        buildOccurrenceDetailFixture({
+          ...detailOverrides,
+          corrections: currentCorrections,
+          items: currentItems,
+        }),
       )
     },
     queryKey: DETAIL_KEY,
@@ -156,4 +162,32 @@ export function listedItems(): string[] {
   return [...document.querySelectorAll('ul[aria-label="itens"] li')].map(
     (item) => item.textContent ?? '',
   )
+}
+
+/**
+ * O DOM do teste devolve retângulos zerados, e o `Select` fecha na hora uma camada cujo gatilho
+ * "está fora da janela" (`useFloatingLayer`). Devolve a função que desfaz o remendo.
+ */
+export function stubVisibleLayout(): () => void {
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect')
+  const visibleRect: DOMRect = {
+    bottom: 130,
+    height: 30,
+    left: 100,
+    right: 300,
+    toJSON: () => ({}),
+    top: 100,
+    width: 200,
+    x: 100,
+    y: 100,
+  }
+  Object.defineProperty(Element.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => visibleRect,
+    writable: true,
+  })
+  return () => {
+    if (original !== undefined)
+      Object.defineProperty(Element.prototype, 'getBoundingClientRect', original)
+  }
 }

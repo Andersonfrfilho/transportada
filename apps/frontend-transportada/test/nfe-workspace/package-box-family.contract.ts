@@ -18,6 +18,7 @@ function buildBox(overrides: Partial<PackageBox> & { readonly id: string }): Pac
     heightMm: null,
     lengthMm: null,
     measuredAt: null,
+    measuredByName: null,
     measurementMarginMm: null,
     measurementSource: null,
     packagingSiblingCount: 0,

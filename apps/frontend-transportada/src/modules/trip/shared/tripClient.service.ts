@@ -21,6 +21,8 @@ import {
   type CanhotoReviewResult,
 } from './canhotoReviewResult.service'
 import { createTripReviewAdapters } from './tripReview.validation'
+import { parseCrewTransfer } from './tripCrewTransfer.validation'
+import type { CrewTransferResult, TransferTripCrewInput } from './tripCrewTransfer.types'
 import type {
   TripDocumentReview,
   TripDocumentReviewStatus,
@@ -113,29 +115,43 @@ import {
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
-import { contractorSummariesFromApi, type ContractorSummary } from './contractorSummary.service'
+import {
+  contractorSummariesFromApi,
+  readContractorNextCursor,
+  type ContractorSummary,
+} from './contractorSummary.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type {
-  OccurrenceAttachmentMode,
-  OccurrenceAttachmentOverrides,
-  OccurrenceRedeliveryPolicy,
-  OccurrenceType,
-  OccurrenceTypeFlow,
+import {
+  CONTRACTOR_DIRECTORY_MAX_PAGES,
+  type OccurrenceAttachmentMode,
+  type OccurrenceAttachmentOverrides,
+  type OccurrenceAttachmentOverridesByType,
+  type OccurrenceMoment,
+  type OccurrenceRedeliveryPolicy,
+  type OccurrenceType,
+  type OccurrenceItemsWriteMode,
+  type OccurrenceTypeFlow,
 } from './occurrence.constant'
 import {
   isSettingsResolutionView,
   SETTINGS_RESOLUTION_PATH,
   type SettingsResolutionView,
 } from './settingsResolution.service'
+import {
+  readOccurrenceAttachmentOverrides,
+  readOccurrenceAttachmentOverridesBatch,
+} from './occurrenceAttachmentOverrides.validation'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 /** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
+const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
 /** Spec 218 T10/T11: o mesmo seletor de contratante do painel de contatos, sem importar o módulo. */
 const CONTRACTORS_PATH = '/contractors'
+const CONTRACTOR_DIRECTORY_PAGE_SIZE = 100
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -152,6 +168,8 @@ export type TripClient = Readonly<{
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   /** Spec 217 (RF4/RF6): `PATCH /trips/:id/crew` — troca motorista(s) e/ou veículo. */
   changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
+  /** Spec 249: `POST /trips/:id/crew-transfers` — a viagem que já saiu muda de tripulação, sem veículo. */
+  transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
    * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
@@ -246,7 +264,13 @@ export type TripClient = Readonly<{
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   /** Spec 158 D4: `GET /trips/:id/timeline`, paginada por cursor `(occurredAt, id)`. */
   readTripTimeline: (
-    input: Readonly<{ cursor: null | string; limit: number; tripId: string }>,
+    input: Readonly<{
+      cursor: null | string
+      /** Spec 233 T5.1: só os eventos desta nota e os da parada dela — o filtro é do servidor. */
+      documentId?: string
+      limit: number
+      tripId: string
+    }>,
   ) => Promise<TripTimelinePage>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
   readDeliveryProofSettings: () => Promise<CompanyDeliveryProofSettings>
@@ -279,7 +303,7 @@ export type TripClient = Readonly<{
     input: Readonly<{ overrides: readonly DeliveryProofSettingsContractorOverride[] }>,
   ) => Promise<readonly DeliveryProofSettingsContractorOverride[]>
   /**
-   * Spec 218 T10/T11/T14: `GET /contractors?limit=100` — mesmo seletor de
+   * Spec 218 T10/T11/T14: `GET /contractors` (seguindo o cursor até o teto) — mesmo seletor de
    * `delivery-clients/shared/contractorContactsClient.service.ts`, aqui para não cruzar módulo
    * (`web.md` §1).
    */
@@ -295,6 +319,11 @@ export type TripClient = Readonly<{
   listOccurrenceAttachmentOverrides: (
     input: Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
+  /**
+   * Spec 246 RF11c: as exceções de TODOS os tipos numa consulta só. API anterior à rota (404) é
+   * lista vazia, nunca erro — o catálogo segue editável.
+   */
+  listOccurrenceAttachmentOverridesBatch: () => Promise<OccurrenceAttachmentOverridesByType>
   replaceOccurrenceAttachmentOverrides: (
     input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
@@ -308,13 +337,23 @@ export type TripClient = Readonly<{
       emailTemplateKey: null | string
       /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
       flow?: OccurrenceTypeFlow | undefined
+      /** Spec 241 RF4: `undefined` é "não mexe" — só vai quando a listagem trouxe `itemsMode`. */
+      itemsMode?: OccurrenceItemsWriteMode | undefined
+      /** Spec 246 RF4: `undefined` é "não mexe"; `null` é "todos os itens" (só com Produtos obrigatório). */
+      itemsMinimumCount?: null | number | undefined
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
+      /** Spec 246 RF0: `undefined` é "não mexe". */
+      moments?: readonly OccurrenceMoment[] | undefined
       name: string
+      /** Spec 246 RF1/RF4: observação e assinatura — `undefined` é "não mexe". */
+      noteMode?: OccurrenceAttachmentMode | undefined
       notifies: boolean
       occurrenceTypeId: null | string
+      photoMinimumCount?: number | undefined
       /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
       redeliveryPolicy: OccurrenceRedeliveryPolicy
+      signatureMode?: OccurrenceAttachmentMode | undefined
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
@@ -545,43 +584,10 @@ function readDeliveryProofContractorOverrides(
   return input.overrides.map(normalizeDeliveryProofFieldSettings)
 }
 
-function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
-  return value === 'off' || value === 'optional' || value === 'required'
-}
-
-function isOccurrenceAttachmentContractorOverride(
-  value: unknown,
-): value is OccurrenceAttachmentOverrides['contractorOverrides'][number] {
-  return (
-    isRecord(value) &&
-    isOccurrenceAttachmentMode(value.attachmentMode) &&
-    isString(value.contractorId)
-  )
-}
-
-function isOccurrenceAttachmentRecipientOverride(
-  value: unknown,
-): value is OccurrenceAttachmentOverrides['recipientOverrides'][number] {
-  return (
-    isRecord(value) && isOccurrenceAttachmentMode(value.attachmentMode) && isString(value.taxId)
-  )
-}
-
-/** Spec 218 RF-B3: `{ contractorOverrides, recipientOverrides }`, mesmo molde do par de comprovante. */
-function readOccurrenceAttachmentOverrides(input: unknown): OccurrenceAttachmentOverrides {
-  if (
-    !isRecord(input) ||
-    !Array.isArray(input.contractorOverrides) ||
-    !Array.isArray(input.recipientOverrides) ||
-    !input.contractorOverrides.every(isOccurrenceAttachmentContractorOverride) ||
-    !input.recipientOverrides.every(isOccurrenceAttachmentRecipientOverride)
-  ) {
-    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-  }
-  return {
-    contractorOverrides: input.contractorOverrides,
-    recipientOverrides: input.recipientOverrides,
-  }
+function readOccurrenceAttachmentOverridesOrThrow(input: unknown): OccurrenceAttachmentOverrides {
+  const overrides = readOccurrenceAttachmentOverrides(input)
+  if (overrides === undefined) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  return overrides
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -811,6 +817,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
+    async transferTripCrew(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          driverIds: input.driverIds,
+          helperIds: input.helperIds,
+          reason: input.reason,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/crew-transfers`,
+      })
+      const data = readEnvelopeData(response)
+      if (!isRecord(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      try {
+        return {
+          transfer: parseCrewTransfer(data.transfer),
+          trip: adapters.tripDetailFromApi(data.trip),
+        }
+      } catch {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+    },
     async acceptMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
         /**
@@ -936,11 +964,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           emailTemplateKey: input.emailTemplateKey,
           /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
           ...(input.flow === undefined ? {} : { flow: input.flow }),
+          /** Spec 241 RF4: mesma regra do `flow` — ausente é "não mexe". */
+          ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+          /** Spec 246 RF4: os cinco campos novos seguem a mesma regra — só vão quando a edição os muda. */
+          ...(input.itemsMinimumCount === undefined
+            ? {}
+            : { itemsMinimumCount: input.itemsMinimumCount }),
           leavesDocumentBehind: input.leavesDocumentBehind,
+          ...(input.moments === undefined ? {} : { moments: input.moments }),
           name: input.name,
+          ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
+          ...(input.photoMinimumCount === undefined
+            ? {}
+            : { photoMinimumCount: input.photoMinimumCount }),
           redeliveryPolicy: input.redeliveryPolicy,
+          ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
           stage: input.stage,
         }),
         dependencies,
@@ -955,7 +995,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'GET',
         path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
       })
-      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+      return readOccurrenceAttachmentOverridesOrThrow(readEnvelopeData(response))
+    },
+    async listOccurrenceAttachmentOverridesBatch() {
+      try {
+        const response = await authorizedRequest({
+          dependencies,
+          method: 'GET',
+          path: OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH,
+        })
+        const overrides = readOccurrenceAttachmentOverridesBatch(readEnvelopeData(response))
+        if (overrides === undefined) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+        return overrides
+      } catch (error) {
+        if (readTripRequestErrorStatus(error) === 404) return []
+        throw error
+      }
     },
     /** O corpo do `PUT` é o conjunto inteiro das duas listas — o que não veio sai. */
     async replaceOccurrenceAttachmentOverrides(input) {
@@ -968,15 +1023,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'PUT',
         path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
       })
-      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+      return readOccurrenceAttachmentOverridesOrThrow(readEnvelopeData(response))
     },
     async listContractors() {
-      const response = await authorizedRequest({
-        dependencies,
-        method: 'GET',
-        path: `${CONTRACTORS_PATH}?limit=100`,
-      })
-      return contractorSummariesFromApi(response)
+      const contractors: ContractorSummary[] = []
+      let cursor: null | string = null
+      for (let page = 0; page < CONTRACTOR_DIRECTORY_MAX_PAGES; page += 1) {
+        // O cursor da próxima página só existe depois da resposta desta: não há o que paralelizar.
+        const response: unknown = await authorizedRequest({
+          dependencies,
+          method: 'GET',
+          path: `${CONTRACTORS_PATH}?limit=${String(CONTRACTOR_DIRECTORY_PAGE_SIZE)}${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+        })
+        contractors.push(...contractorSummariesFromApi(response))
+        cursor = readContractorNextCursor(response)
+        if (cursor === null) break
+      }
+      return contractors
     },
     async readSettingsResolution(input) {
       const search = new URLSearchParams()
@@ -1126,7 +1189,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       return adapters.occurrencesFromApi(readEnvelopeData(response))
     },
     async readTripTimeline(input) {
-      const search = buildSearch({ cursor: input.cursor, limit: input.limit }, {})
+      const search = buildSearch(
+        { cursor: input.cursor, limit: input.limit },
+        { documentId: input.documentId },
+      )
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',

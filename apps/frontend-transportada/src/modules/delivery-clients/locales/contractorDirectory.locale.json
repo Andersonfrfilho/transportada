@@ -1,0 +1,141 @@
+{
+  "title": "Contratantes",
+  "hint": "Quem contrata o frete. O cadastro nasce da primeira nota; aqui você acerta os dados de cada um e as regras de recebimento da carga.",
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Nome ou CNPJ",
+    "status": "Situação",
+    "statusPlaceholder": "Todas as situações",
+    "statusSummary_one": "{{count}} situação",
+    "statusSummary_other": "{{count}} situações",
+    "statusSearch": "Buscar situação",
+    "statusEmpty": "Nenhuma situação encontrada",
+    "statusRemove": "Remover o filtro de situação",
+    "clear": "Limpar filtros",
+    "clearAll": "Limpar todos os filtros",
+    "count": "{{shown}} de {{total}} contratantes"
+  },
+  "status": {
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "table": {
+    "region": "Lista de contratantes",
+    "name": "Nome",
+    "taxId": "CNPJ",
+    "status": "Situação",
+    "receiving": "Recebimento",
+    "actions": "Ações",
+    "open": "Abrir",
+    "openLabel": "Abrir a ficha de {{name}}",
+    "unnamed": "Sem nome",
+    "loading": "Carregando contratantes",
+    "empty": "Nenhum contratante cadastrado ainda. Eles aparecem aqui quando a primeira nota é importada.",
+    "emptyFiltered": "Nenhum contratante com esses filtros.",
+    "error": "Não foi possível carregar os contratantes: {{code}}",
+    "sortNone": "sem ordenação",
+    "sortAscending": "ordem crescente",
+    "sortDescending": "ordem decrescente"
+  },
+  "badge": {
+    "enabled": "Recebimento ativo",
+    "disabled": "Recebimento desligado",
+    "none": "Sem perfil",
+    "loading": "Lendo o perfil",
+    "error": "Perfil indisponível"
+  },
+  "ficha": {
+    "close": "Fechar a ficha",
+    "taxId": "CNPJ {{taxId}}",
+    "readOnly": "Você pode ver os dados, mas só quem gerencia as configurações os altera.",
+    "loadingProfile": "Carregando o perfil de recebimento",
+    "profileError": "Não foi possível carregar o perfil de recebimento: {{code}}"
+  },
+  "details": {
+    "title": "Dados do contratante",
+    "displayName": "Nome de exibição",
+    "displayNameHint": "Como o contratante aparece nas telas. O CNPJ é a identidade dele e não se edita aqui.",
+    "closingPeriod": "Período de fechamento",
+    "closingPeriodHint": "De quanto em quanto tempo o frete dele é fechado em fatura.",
+    "closing": {
+      "fortnightly": "Quinzenal",
+      "monthly": "Mensal"
+    },
+    "reportEmail": "E-mail do relatório",
+    "reportEmailHint": "Para onde vai o relatório do lote fechado. Em branco, o lote se exporta à mão.",
+    "notes": "Observações",
+    "status": "Situação",
+    "save": "Salvar dados",
+    "saving": "Salvando…",
+    "saved": "Dados salvos.",
+    "error": "Não foi possível salvar os dados: {{code}}"
+  },
+  "profile": {
+    "title": "Perfil de recebimento",
+    "intro": "Como a carga deste contratante chega e é separada antes de virar viagem. Sem perfil, ou com o perfil desligado, o fluxo continua como hoje.",
+    "groups": {
+      "receiving": "Recebimento",
+      "deadlines": "Prazos",
+      "preview": "Prévia da planilha",
+      "advanced": "Avançado"
+    },
+    "isEnabledHint": "Desligado, este contratante segue o fluxo de hoje: nenhuma regra de recebimento se aplica.",
+    "requiresDamageCheckHint": "Guarda a decisão de conferir avaria na entrada. A tela de avaria ainda não existe; por enquanto isto só fica registrado.",
+    "separationWindowHoursHint": "Horas, a partir da chegada, para separar a carga e abrir avarias. Em branco, a chegada não tem relógio de separação.",
+    "deliveryDeadlineBusinessDaysHint": "Dias úteis, desde a chegada, para entregar. Será usado pelo painel de prazos quando ele estiver disponível; por enquanto só fica guardado. Em branco, sem prazo.",
+    "matchWindowDaysHint": "Até quantos dias depois da prévia um XML ainda pode ser ligado a ela. O padrão é 15.",
+    "weightTolerancePercentHint": "Diferença de peso aceita ao ligar uma linha da prévia à nota, em porcentagem. Zero exige o peso exato.",
+    "previewEnabledHint": "O contratante manda uma planilha de prévia antes de a carga chegar. A leitura da planilha ainda está em construção; ligar agora guarda o mapa de colunas para quando ela existir.",
+    "previewSheetNameHint": "Aba da planilha que tem os dados, com até 31 caracteres. Em branco, vale a primeira aba.",
+    "columnMapHint": "Para cada campo, o nome exato da coluna na planilha do contratante. Deixe em branco o que a planilha não traz. Roteiro, valor e peso são obrigatórios para ler a prévia.",
+    "columnMapTitle": "Colunas da planilha",
+    "arrivalReferenceLabelHint": "No texto das informações adicionais da nota, o que vem escrito logo antes do número da carga, como NroCarga: (copie igual, com os dois-pontos). Em branco, o número da carga não é lido.",
+    "save": "Salvar perfil",
+    "saving": "Salvando…",
+    "saved": "Perfil salvo.",
+    "error": "Não foi possível salvar o perfil: {{code}}"
+  },
+  "fields": {
+    "isEnabled": "Recebimento ligado",
+    "requiresDamageCheck": "Conferir avaria na entrada",
+    "separationWindowHours": "Janela de separação (horas)",
+    "deliveryDeadlineBusinessDays": "Prazo de entrega (dias úteis)",
+    "matchWindowDays": "Janela de vínculo (dias)",
+    "weightTolerancePercent": "Tolerância do peso (%)",
+    "previewEnabled": "Receber prévia da planilha",
+    "previewSheetName": "Nome da aba",
+    "previewColumnMap": "Colunas da planilha",
+    "arrivalReferenceLabel": "Texto que antecede o número da carga"
+  },
+  "columns": {
+    "contractorReference": "Referência do contratante",
+    "recipientCode": "Código do destinatário",
+    "recipientName": "Nome do destinatário",
+    "weightKg": "Peso (kg)",
+    "volumeM3": "Volume (m³)",
+    "value": "Valor",
+    "address": "Endereço",
+    "neighborhood": "Bairro",
+    "city": "Cidade",
+    "state": "UF",
+    "postalCode": "CEP",
+    "routeName": "Roteiro",
+    "routingDate": "Data do roteiro"
+  },
+  "issues": {
+    "required": "Campo obrigatório.",
+    "notAnInteger": "Informe um número inteiro.",
+    "notANumber": "Informe um número, sem sinal.",
+    "tooManyDecimals": "Use no máximo duas casas decimais.",
+    "outOfRange": "Use um valor de {{min}} a {{max}}.",
+    "tooLong": "Use no máximo {{max}} caracteres.",
+    "controlCharacter": "Use uma linha só, sem tabulação nem quebra de linha.",
+    "duplicateColumn": "Esta coluna já está em outro campo.",
+    "requiredForPreview": "Obrigatório para ler a prévia.",
+    "invalidEmail": "Informe um e-mail válido.",
+    "refusedByServer": "O servidor recusou este valor."
+  },
+  "refusal": {
+    "lead": "Confira:"
+  }
+}

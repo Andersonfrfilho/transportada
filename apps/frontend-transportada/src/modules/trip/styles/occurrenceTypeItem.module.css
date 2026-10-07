@@ -1,0 +1,177 @@
+/* Spec 246 RF11: o tipo recolhido com a linha-resumo do preview.html — rótulo mono, cantos retos, cobre no apoio. */
+.item {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+/* O grupo (galpão ou rua) do cadastro: `fieldset` nasce com `min-inline-size: min-content`, e um nome de tipo sem espaço alargava a página. */
+.group {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: none;
+}
+
+/* No celular a moldura do grupo só gasta largura: cada tipo já tem a sua. */
+@media (min-width: 40rem) {
+  .group {
+    padding: var(--space-3);
+    border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  }
+}
+
+.groupTitle {
+  padding: 0;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}
+
+.itemInactive .name {
+  color: var(--color-slate);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: -2px;
+}
+
+.caret {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.name {
+  flex: 1 1 11rem;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.tags,
+.needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tag {
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate-muted);
+  font-family: var(--font-utility);
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.need {
+  padding: 0 var(--space-2);
+  border: 1px solid currentcolor;
+  font-family: var(--font-utility);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.needRequired {
+  color: var(--color-copper);
+}
+
+.needOptional {
+  color: var(--color-slate);
+}
+
+.needOff {
+  color: var(--color-slate-muted);
+  border-style: dashed;
+}
+
+/* O estado de cada exigência lido por leitor de tela e no toque: a cor sozinha não diz Desligado, Opcional ou Obrigatório. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.notifies {
+  color: var(--color-ready-ink);
+  font-size: 0.8rem;
+}
+
+.count {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+}
+
+.details {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+/* Spec 246 RF1e: o bloco de notificação — o modelo escolhido com o texto à vista. */
+.notification {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.templatePreview {
+  max-height: 14rem;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+}
+
+.templateNote {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}

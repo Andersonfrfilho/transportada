@@ -38,11 +38,11 @@ describe('a entrega tem um botão primário só (spec 218)', () => {
   })
 
   it('"Entregue" é estado da nota, nunca o rótulo "Entreguei" dela', () => {
-    const row = documentRowSource()
-    const settled = row.slice(
-      row.indexOf('if (isDocumentSettled(document)) {'),
-      row.indexOf('<DriverNotDeliveredStatus'),
+    const settled = CARD.slice(
+      CARD.indexOf('function DocumentSettledState('),
+      CARD.indexOf('function DocumentRow('),
     )
+    expect(settled).toInclude('function DocumentSettledState(')
     expect(settled).not.toInclude("t('deliver')")
     expect(settled).toInclude("t('activity.delivered'")
   })

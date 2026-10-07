@@ -92,6 +92,63 @@ describe('tolerância a allowsMultipleItems/redeliveryPolicy ausentes (achado B7
     expect(type?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
   })
 
+  /**
+   * Spec 246 T1b.1b (ADR-0081 §9, painel antes da API): o catálogo passa a mandar `moments`. A guarda
+   * de chave exata reprovaria a lista inteira; ausente é API anterior ao campo.
+   */
+  it('aceita `moments` da API nova, e a lista sem ele da API anterior', () => {
+    const [withMoments] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ moments: ['separation', 'document'] }),
+    ])
+    const [withoutMoments] = adapters.occurrenceTypesFromApi([buildOccurrenceType()])
+
+    expect(withMoments?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+    expect(withoutMoments?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+    expect(adapters.occurrenceTypeFromApi(buildOccurrenceType({ moments: ['office'] })).id).toBe(
+      '54ed0225-f293-47c3-84fe-0b66eff68784',
+    )
+  })
+
+  it('recusa `moments` com forma errada ou momento fora do vocabulário', () => {
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ moments: 'separation' })]),
+    ).toThrow()
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ moments: ['warehouse'] })]),
+    ).toThrow()
+  })
+
+  /**
+   * Spec 246 T1c.4 (ADR-0081 §9, painel antes da API): o catálogo passa a mandar a quantidade mínima
+   * de fotos e de produtos. Ausente é API anterior; `null` em produtos é "todos os itens da nota".
+   */
+  it('aceita `photoMinimumCount` e `itemsMinimumCount` da API nova, presentes ou ausentes', () => {
+    const [withBoth] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ itemsMinimumCount: 2, itemsMode: 'required', photoMinimumCount: 3 }),
+    ])
+    const [allItems] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ itemsMinimumCount: null, itemsMode: 'required', photoMinimumCount: 1 }),
+    ])
+    const [legacy] = adapters.occurrenceTypesFromApi([buildOccurrenceType()])
+
+    expect(withBoth?.itemsMode).toBe('required')
+    expect(allItems?.itemsMode).toBe('required')
+    expect(legacy?.id).toBe('54ed0225-f293-47c3-84fe-0b66eff68784')
+  })
+
+  it('recusa `photoMinimumCount` e `itemsMinimumCount` com forma ou faixa errada', () => {
+    for (const extra of [
+      { photoMinimumCount: 0 },
+      { photoMinimumCount: 6 },
+      { photoMinimumCount: '2' },
+      { photoMinimumCount: null },
+      { itemsMinimumCount: 0 },
+      { itemsMinimumCount: 'all' },
+    ]) {
+      expect(() => adapters.occurrenceTypesFromApi([buildOccurrenceType(extra)])).toThrow()
+    }
+  })
+
   it('recusa `emailsContractor` e `stopKind` com forma errada', () => {
     expect(() =>
       adapters.occurrenceTypesFromApi([buildOccurrenceType({ emailsContractor: 'yes' })]),

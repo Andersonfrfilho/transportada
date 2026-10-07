@@ -48,6 +48,25 @@ describe('exportação das caixas pendentes no hook', () => {
     expect(hook.result().feedback).toEqual({ kind: 'idle' })
   })
 
+  test('o clique pede a situação escolhida na tela, e pendente é o padrão', async () => {
+    const requested: string[] = []
+    hook = await renderHook(() =>
+      usePackageBoxPendingExport({
+        loadPendingExport: (status) => {
+          requested.push(status)
+          return Promise.resolve({ items: [BOX], truncated: false })
+        },
+      }),
+    )
+
+    await act(async () => {
+      await hook!.result().prepare('csv', 'measured')
+      await hook!.result().prepare('xlsx')
+    })
+
+    expect(requested).toEqual(['measured', 'pending'])
+  })
+
   test('o clique busca, mostra qual formato está sendo preparado e entrega as caixas', async () => {
     const deferred = createDeferred<PackageBoxPendingExport>()
     hook = await renderHook(() =>

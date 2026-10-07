@@ -12,6 +12,7 @@ import { resolveSettingsDataScope } from '@/modules/company-settings/shared/comp
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { ContractorContactsPanel } from '../components/ContractorContactsPanel.component'
+import { ContractorDirectoryPanel } from '../components/ContractorDirectoryPanel.component'
 import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
 import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
@@ -22,11 +23,11 @@ import { useContractorMailSettings } from '../hooks/useContractorMailSettings.ho
 import { useDeliveryClients } from '../hooks/useDeliveryClients.hook'
 import styles from '../styles/deliveryClients.module.css'
 
-const CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
+const CONTRACTOR_MANAGE_PERMISSION = 'settings.manage'
 
-export type DeliveryClientTabId = 'clients' | 'mail'
+export type DeliveryClientTabId = 'clients' | 'contractors' | 'mail'
 
-const DELIVERY_CLIENT_TAB_IDS: readonly DeliveryClientTabId[] = ['clients', 'mail']
+const DELIVERY_CLIENT_TAB_IDS: readonly DeliveryClientTabId[] = ['clients', 'contractors', 'mail']
 
 export function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
   return DELIVERY_CLIENT_TAB_IDS.find((tab) => tab === id) ?? 'clients'
@@ -69,7 +70,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
   const controller = useDeliveryClients({ permissions })
   const isReadOnly = !controller.canManageClients
 
-  const canManageContractorMail = permissions.includes(CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION)
+  const canManageContractorMail = permissions.includes(CONTRACTOR_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('delivery-clients', activeTab)
   const contractorMail = useContractorMailSettings({
     ...(companyId === undefined ? {} : { companyId }),
@@ -80,6 +81,13 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
     id: 'clients',
     label: t('tabs.clients'),
     panel: <ClientsListPanel controller={controller} isReadOnly={isReadOnly} t={t} />,
+  }
+
+  /** Spec 237 T1.4: a primeira tela de contratante — dados e perfil de recebimento. */
+  const contractorsTab: TabsItem = {
+    id: 'contractors',
+    label: t('tabs.contractors'),
+    panel: <ContractorDirectoryPanel canManage={canManageContractorMail} />,
   }
 
   const mailTab: TabsItem = {
@@ -119,7 +127,11 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
     ),
   }
 
-  const tabs: readonly TabsItem[] = [clientsTab, ...(canManageContractorMail ? [mailTab] : [])]
+  const tabs: readonly TabsItem[] = [
+    clientsTab,
+    contractorsTab,
+    ...(canManageContractorMail ? [mailTab] : []),
+  ]
   const selectedTab = tabs.some((tab) => tab.id === activeTab)
     ? activeTab
     : (tabs[0]?.id ?? 'clients')

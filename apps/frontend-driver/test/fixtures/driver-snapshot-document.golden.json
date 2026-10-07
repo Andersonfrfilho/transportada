@@ -1,0 +1,71 @@
+{
+  "accessKey": "35261030290856000160550010006804811000000017",
+  "deliveredAt": null,
+  "deliveryProof": {
+    "cargo": "off",
+    "cargoMinimumCount": 1,
+    "photo": "optional",
+    "receivedBy": "optional",
+    "receiverDocument": "off",
+    "receiverName": "optional",
+    "signature": "optional"
+  },
+  "grossWeight": "0",
+  "id": "DOCUMENT_ID",
+  "number": "680481",
+  "occurrenceTypes": [
+    {
+      "itemsMinimumCount": null,
+      "itemsMode": "required",
+      "noteMode": "optional",
+      "photoMinimumCount": 1,
+      "photoMode": "off",
+      "signatureMode": "off",
+      "attachmentMode": "off",
+      "declaredAmountLabel": "Valor pago pela loja",
+      "declaredAmountMode": "optional",
+      "declaredAmountScope": "item",
+      "flow": "document",
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "name": "Tipo configurado",
+      "referenceNumberLabel": "Número da NFD",
+      "referenceNumberMode": "required",
+      "stopKind": null
+    }
+  ],
+  "proofPending": false,
+  "products": [
+    {
+      "code": "P1",
+      "description": "Biscoito",
+      "hasVaryingUnitValue": false,
+      "quantity": "3.0000",
+      "unit": "CX",
+      "unitValue": "19.9950"
+    },
+    {
+      "code": "P2",
+      "description": "Bolo",
+      "hasVaryingUnitValue": false,
+      "quantity": "1.0000",
+      "unit": "UN",
+      "unitValue": "57.2000"
+    },
+    {
+      "code": "P3",
+      "description": "Fardo de água",
+      "hasVaryingUnitValue": true,
+      "quantity": "2.0000",
+      "unit": "FD",
+      "unitValue": "10.0000"
+    }
+  ],
+  "recipientDisplayName": "Destinatário",
+  "recipientIsCompany": true,
+  "recipientName": "Destinatário",
+  "returnReason": null,
+  "separationStatus": "loaded",
+  "series": "1",
+  "totalAmount": "7840.6400",
+  "volumeCount": "0"
+}

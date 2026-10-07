@@ -10,7 +10,12 @@
   "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "occurrencePhotoDropped": "Ocorrência registrada sem a foto: o espaço para fotos aguardando envio está cheio. Envie os pendentes e registre outra ocorrência com a foto, se precisar.",
+  "helperNotice": {
+    "detail": "Aqui você vê as paradas, as notas e o manifesto. Chegada, entrega, devolução e ocorrência são do motorista.",
+    "title": "Você acompanha esta viagem como ajudante"
+  },
   "dispatch": {
+    "queued": "Início da viagem aguardando envio — sobe quando o sinal voltar. Você já pode registrar as paradas.",
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
     "start": "Despachar viagem",
     "waiting": "Aguardando o despacho — as ações de campo liberam depois de despachar a viagem."
@@ -22,20 +27,27 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
-      "notOfDriver": "esta viagem não é mais sua — a tripulação mudou",
-      "stopNotReachable": "esta parada não está mais na sua viagem",
+      "notOfDriver": "esta viagem foi transferida; peça ao escritório para registrar",
+      "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
+    },
+    "discard": {
+      "confirm": "Descartar mesmo assim",
+      "keep": "Manter",
+      "open": "Descartar",
+      "warning": "A entrega não foi registrada; fale com o escritório. Descartar apaga este item do aparelho."
     },
     "empty": "Nada aguardando envio.",
     "itemTitle": {
       "depart": "Iniciar rota — parada {{sequence}}"
     },
     "kind": {
+      "dispatch": "Iniciar viagem",
       "arrive": "Chegada",
       "cancelDeparture": "Cancelamento de rota",
       "depart": "Iniciar rota",
       "deliver": "Entrega",
-      "documentOccurrence": "Ocorrência com foto",
+      "documentOccurrence": "Ocorrência da nota",
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
       "proofReceiver": "Quem recebeu",
@@ -114,9 +126,9 @@
     "empty": "Nenhuma foto pendente. Está tudo em dia.",
     "open": "Fotos pendentes",
     "outcome": {
-      "away": "Registrada longe do local — pode ter tirado pontos da sua nota.",
+      "away": "Registrada longe do local ou sem a localização da entrega — pode ter tirado pontos da sua nota.",
       "late": "Registrada fora do prazo — pode ter tirado pontos da sua nota.",
-      "late_and_away": "Registrada fora do prazo e longe do local — pode ter tirado pontos da sua nota.",
+      "late_and_away": "Registrada fora do prazo e longe do local (ou sem a localização da entrega) — pode ter tirado pontos da sua nota.",
       "not_required": "Registrada.",
       "on_time": "Registrada em dia e no local."
     },
@@ -150,7 +162,7 @@
     "signOut": "Sair",
     "vehicleTitle": "Veículo da viagem",
     "whatsappTitle": "WhatsApp",
-    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias.",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "signOutPending": {
       "cancel": "Ficar",
       "discard": "Descartar e sair",
@@ -306,6 +318,10 @@
     "pending": "Pendente"
   },
   "stopTitle": "Parada {{sequence}}",
+  "stalePending": {
+    "notice_one": "{{count}} registro seu está parado desde {{date}} e ainda não chegou ao escritório. Abra o app com sinal para enviar.",
+    "notice_other": "{{count}} registros seus estão parados desde {{date}} e ainda não chegaram ao escritório. Abra o app com sinal para enviar."
+  },
   "sync": {
     "hours_one": "Sincronizado há {{count}} hora",
     "hours_other": "Sincronizado há {{count}} horas",
@@ -313,8 +329,15 @@
     "minutes_other": "Sincronizado há {{count}} minutos",
     "never": "Ainda não sincronizou",
     "now": "Sincronizado agora mesmo",
+    "pending_one": "{{count}} aguardando envio",
+    "pending_other": "{{count}} aguardando envio",
     "syncing_one": "Enviando {{count}} pendência…",
     "syncing_other": "Enviando {{count}} pendências…"
+  },
+  "theme": {
+    "title": "Aparência",
+    "useDark": "Usar tema escuro",
+    "useLight": "Usar tema claro"
   },
   "title": "Minha viagem",
   "tripCodeCopied": "Código copiado",
@@ -324,7 +347,6 @@
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
-  "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
   "documentOccurrenceProduct": "Item",
   "documentOccurrenceTypesEmpty": "Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.",
   "documentOccurrenceTypesFailed": "Não foi possível carregar os tipos de ocorrência agora. Entregar e devolver continuam funcionando normalmente.",
@@ -334,6 +356,7 @@
   "proofPendingWarningTitle": "Foto do canhoto obrigatória",
   "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
   "proofPendingWarningDetails": "Como a foto conta na nota",
+  "locationOffWarning": "Localização desligada: entregar assim conta como longe do local e pode tirar pontos da sua nota. Ligue a localização do aparelho para a entrega valer no local.",
   "offline": {
     "empty": "Sem viagem salva; conecte-se para carregar a sua viagem.",
     "emptyTitle": "Sem conexão",
@@ -350,7 +373,7 @@
   },
   "reassignedTrip": {
     "dismiss": "Entendi",
-    "notice": "Esta viagem não está mais com você — ela foi repassada a outro motorista ou voltou para o planejamento do escritório. Fale com o escritório se precisar de mais detalhes."
+    "notice": "Esta viagem não está mais com você — foi passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você entregou e registrou fica com a viagem. Fale com o escritório se precisar de mais detalhes."
   },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
@@ -430,9 +453,9 @@
     },
     "withoutOccurrence": "Sem os tipos de ocorrência, a devolução segue só com o motivo — agora não há onde registrar a foto.",
     "status": {
-      "queued": "Ocorrência com foto na fila — sobe quando o sinal voltar.",
-      "sent": "Ocorrência com foto enviada.",
-      "rejected": "O servidor recusou a ocorrência com foto. Veja em eventos pendentes."
+      "queued": "Ocorrência na fila — sobe quando o sinal voltar.",
+      "sent": "Ocorrência enviada.",
+      "rejected": "O servidor recusou a ocorrência. Veja em eventos pendentes."
     }
   },
   "startRoute": {
@@ -462,7 +485,6 @@
     "delivered": "Entregue às {{time}}",
     "deliveredQueued": "Entregue às {{time}} · na fila",
     "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
-    "documentOccurrenceRecorded": "Ocorrência registrada às {{time}}",
     "occurrenceMarker": "Com ocorrência",
     "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
     "occurrenceRejected": "O escritório recusou a ocorrência registrada às {{time}}. Veja em eventos pendentes.",
@@ -485,9 +507,28 @@
     },
     "cancel": "Cancelar",
     "legend": "Qual ocorrência?",
+    "missing": {
+      "note": "a observação",
+      "photo": "a foto",
+      "photoMinimum": "mais fotos (mínimo de {{count}})",
+      "products": "a marcação dos produtos",
+      "signature": "a assinatura"
+    },
     "missingLead": "Para registrar, falta: {{fields}}.",
+    "noteRequired": "O que aconteceu (obrigatório)",
     "open": "Ocorrência",
     "openHint": "Registrar um problema desta nota ou da parada",
+    "photoAnother": "Tirar outra foto",
+    "photoCount": "Fotos: {{count}} de {{limit}}",
+    "photoRemoveLast": "Remover a última foto",
+    "products": {
+      "title": "Produtos da nota (obrigatório)"
+    },
+    "signature": {
+      "redo": "Colher a assinatura de novo",
+      "title": "Assinatura (opcional)",
+      "titleRequired": "Assinatura (obrigatória)"
+    },
     "title": "Registrar ocorrência"
   }
 }

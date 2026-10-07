@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './driver-trip/network-deadline.contract'
+import './driver-trip/retryable-status.contract'
 import './driver-trip/catalog-parity.contract'
 import './driver-trip/code128.contract'
 import './driver-trip/office-execution.contract'
@@ -29,3 +30,4 @@ import './driver-trip/legacy-beacon.contract'
 import './driver-trip/stop-occurrence-photo.contract'
 import './driver-trip/proof-photo-recovery.contract'
 import './driver-trip/current-trip.contract'
+import './driver-trip/api-payload-golden.contract'
