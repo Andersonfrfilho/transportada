@@ -440,6 +440,8 @@ export type TripTimelineItem = Readonly<{
   /** Só em `*.status_changed`. */
   fromStatus: null | string
   id: string
+  /** `true` quando o autor é uma integração, não uma pessoa. Ausente na API anterior ao campo. */
+  isSystemActor?: boolean
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean

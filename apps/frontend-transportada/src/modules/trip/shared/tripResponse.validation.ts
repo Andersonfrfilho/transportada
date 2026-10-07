@@ -1665,6 +1665,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     hasAddressChangeForKind(value) &&
     hasCrewTransferForKind(value) &&
+    (value.isSystemActor === undefined || isBoolean(value.isSystemActor)) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&

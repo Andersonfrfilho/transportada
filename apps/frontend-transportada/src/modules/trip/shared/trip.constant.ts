@@ -581,6 +581,8 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   'addressChange',
   'crewTransfer',
+  /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
+  'isSystemActor',
   'lateRegistration',
 ] as const
 

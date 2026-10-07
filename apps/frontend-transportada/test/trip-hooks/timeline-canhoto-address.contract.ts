@@ -277,7 +277,7 @@ describe('linha do tempo da viagem: endereço corrigido (spec 228 T4.1)', () => 
 })
 
 describe('Eventos desta entrega: os dois eventos novos (spec 228 T4.1)', () => {
-  it('a foto aparece junto da entrega da própria nota, em ordem cronológica', async () => {
+  it('a foto aparece junto da entrega da própria nota, do mais recente ao mais antigo', async () => {
     const dom = await renderDocumentEvents([
       PHOTO_WITH_POINT,
       makeItem('delivered', {}),
@@ -285,9 +285,9 @@ describe('Eventos desta entrega: os dois eventos novos (spec 228 T4.1)', () => {
     ])
 
     const titles = [...dom.querySelectorAll('ol > li p')].map((node) => node.textContent)
-    expect(titles[0]).toBe('Endereço da parada corrigido')
+    expect(titles[0]).toBe('Foto do canhoto')
     expect(titles[1]).toContain('entregue')
-    expect(titles[2]).toBe('Foto do canhoto')
+    expect(titles[2]).toBe('Endereço da parada corrigido')
   })
 
   it('o endereço da parada traz origem e deslocamento; só o evento com ponto abre o mapa', async () => {
