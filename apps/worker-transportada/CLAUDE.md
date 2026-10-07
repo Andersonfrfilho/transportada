@@ -127,7 +127,8 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   `not_aligned`) e só a última grava `FORWARDER_DKIM_UNVERIFIABLE`; **a conversa só grava `aligned` com o `From` assinado
   igual ao remetente gravado** (`conversation-sender-identity.policy.ts`); o MIME da mensagem é de quem a registrou (reentrega descarta só a
   planilha da tentativa). Anexo com o teto e o critério do upload; recusa vira linha em `cargo_preview_email_intakes`
-  (só código), sem corpo nem eco. A criação da prévia é **cópia por valor** do upload da API
+  (só código), sem corpo nem eco. O token do endereço é **gerado pela API** (T4.6b, 26 base32 de `getRandomValues`) com a mesma política de hash
+  deste ramo — `test/cargo-preview-email/parity.contract.ts` cobra o padrão, o propósito e a expressão do hash dos dois lados. A criação da prévia é **cópia por valor** do upload da API
   (`preview-upload-file.policy.ts`, paridade nos dois sentidos). A planilha nunca é aberta aqui. Detalhe:
   docs/ai-context § "A prévia por e-mail encaminhado".
 

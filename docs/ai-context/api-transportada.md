@@ -3120,7 +3120,8 @@ enquanto existir prévia por e-mail):
 - `contractor_receiving_profiles`: `preview_inbound_token_hash char(64)` (hash do token do endereço de entrada,
   único por empresa quando não nulo), `preview_forwarder_allowlist text[]` e `preview_sender_allowlist text[]`
   (1..20 entradas de 3 a 254 caracteres, sem NULL, vazia, controle, espaço, vírgula, `<>` nem `|` — T4.7a); CHECK: token ⇒ as duas listas. **A rota
-  `PUT /contractors/:id/receiving-profile` não conhece as colunas** (T4.6b); o worker as lê.
+  `PUT /contractors/:id/receiving-profile` não conhece as colunas** (de propósito, T4.6b: a leitura e a escrita delas moram nas
+  rotas da seção seguinte, e o perfil mantém as 10 chaves exatas); o worker as lê.
 - `cargo_previews`: `uploaded_by_user_id` nulo e `source` aceita `email`; `cargo_previews_uploader_check` amarra
   `source = 'upload'` a quem enviou. Nada na API lê `uploaded_by_user_id` fora do insert do upload.
 - `cargo_preview_email_intakes` (append-only por trigger): uma linha por e-mail que casou o token — `accepted`
@@ -3133,6 +3134,41 @@ enquanto existir prévia por e-mail):
   `(company_id, contractor_id, recorded_at desc)` — o índice é por `recorded_at`, o relógio do banco, que a janela de
   e-mails do worker usa. **O upload recusa `Idempotency-Key` com o prefixo `email:`** (reservado à prévia por e-mail, 400).
   A pasta se chama `20261007040900_…`, depois da última de staging (renomeada na T4.7a, com o snapshot refeito).
+
+## Spec 237 — T4.6b, gerar o endereço de entrada da prévia por e-mail e editar as duas listas (ADR-0094 §10)
+
+Quatro rotas **novas** em `cargo-receiving/presentation/contractor-preview-email.routes.ts` (montadas por
+`cargo-receiving/contractor-preview-email.composition.ts`), **todas `settings.manage`** — ler também: o separador, o `fiscal` e o
+`viewer` leem a frota (`fleet.read`) e não alcançam nenhuma (contrato `separator-role`; precedente: o calendário de dias úteis,
+spec 238). Mudar a política de leitura é trocar a constante `MANAGE_POLICY` do arquivo (e a lista do contrato).
+
+- `GET|PUT /contractors/:id/receiving-profile/preview-email` → `{ contractorId, forwarderAllowlist, hasInboundToken, inboundTokenSetAt,
+senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_logs` (índice `company, target_type, target_id`); hash gravado
+  por SQL fica sem hora (`null`). `PUT` leva as **duas** listas (`.strict()`, arrays de texto): minúsculas, aparadas, sem duplicata, as faixas
+  do CHECK (3–254, sem controle/espaço/`,<>|`, ≤ 20 **distintas**); quem encaminha é endereço completo, o remetente original é endereço ou
+  domínio (sem `*`, sem ponto na ponta). Cada entrada inválida vira um detalhe `forwarderAllowlist.<índice>` com a entrada na mensagem.
+  Lista vazia = "sem lista" (coluna nula); com endereço ativo, esvaziar uma é **422 `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED`** (os detalhes
+  nomeiam a lista). Cria a linha do perfil (tudo padrão, `is_enabled = false`) se ainda não existe. Audita `…preview-allowlists-saved` **só quando
+  muda**, com antes/depois das listas (configuração do operador, não segredo) e o IP.
+- `POST …/inbound-token` (corpo vazio, `.strict()`; `parseOptionalBody`): o token é gerado **aqui** (`generatePreviewInboundToken`: 26 símbolos
+  base32, 5 bits de `crypto.getRandomValues` cada, máscara — 130 bits, sem viés) e só o **hash** (`hashPreviewInboundToken`, cópia por valor da
+  política do worker; contrato de paridade em `worker-transportada/test/cargo-preview-email/parity.contract.ts`) chega ao repositório. Devolve
+  `{ address, token }` **uma vez**, com `cache-control: no-store`. Exige as duas listas (422 acima) e o domínio de entrada da empresa em
+  `contractor_mail_settings.reply_domain` (a mesma configuração da 143; sem ela, **409
+  `RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED`**). Rotacionar = chamar de novo: o hash anterior some (a mensagem em voo para o endereço
+  antigo cai como `token_unknown`). **`rateLimit` 10 em 300 s por usuário no Postgres** (escopo `receiving-profile-inbound-token`). Auditoria
+  `…inbound-token-generated` na **mesma transação** (ator, alvo, IP, `isRotation`) — **nunca o token nem o hash**.
+- `GET …/email-intakes?limit=` (1–50, padrão 20; outro parâmetro é 400): `cargo_preview_email_intakes` do contratante, **mais recentes primeiro**
+  (`recorded_at`, o relógio do banco), só `{ outcome, previewId, reasonCode, receivedAt }` (a tabela nunca guardou endereço, nome, assunto
+  nem corpo).
+- Trava: `for no key update` no contratante + `for update` no perfil (duas gerações/edições simultâneas se serializam). Tenant: toda junção por
+  `company_id` do contexto; contratante alheio é 404 nas quatro.
+- **Por que sub-recurso e não chaves no `GET|PUT /receiving-profile`:** o painel publicado valida o perfil com chaves **exatas**
+  (`RECEIVING_PROFILE_KEYS`); uma chave nova no perfil derrubaria a ficha com `RESPONSE_INVALID` até o painel novo subir. As rotas novas não
+  mudam o perfil, e a ordem de deploy deixa de importar.
+- Contratos: `test/cargo-receiving/{preview-inbound-token,preview-email-allowlist,contractor-preview-email-use-case}.contract.ts`,
+  `test/cargo-receiving-http/contractor-preview-email-routes.contract.ts`, `rate-limited-routes` e `separator-role`; integração
+  `test/integration/contractor-preview-email.integration.ts` (Postgres: uma geração, rotação, auditoria atômica, tenant).
 
 ## Spec 249 — a viagem na rua troca de motorista e de ajudante (ADR-0097)
 

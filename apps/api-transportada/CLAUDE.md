@@ -857,7 +857,14 @@ da avaria de recebimento corre pelas rotas existentes de `/trip-occurrences/:id/
 nulas no perfil (`preview_inbound_token_hash`, `preview_forwarder_allowlist`, `preview_sender_allowlist`; o token
 exige as duas listas), `cargo_previews.source = 'email'` com `uploaded_by_user_id` nulo (CHECK amarra os dois) e a
 tabela append-only `cargo_preview_email_intakes`. ⚠️ Código que lê `uploaded_by_user_id` trata o nulo; a rota `PUT`
-do perfil **não** grava token nem listas até a T4.6b (hoje, SQL). Detalhe: docs/ai-context § "Spec 237 — Fase 4b".
+do perfil **não** conhece token nem listas (o perfil segue com as 10 chaves exatas: o painel publicado as valida). Detalhe: docs/ai-context § "Spec 237 — Fase 4b".
+
+**Gerar o endereço de entrada e editar as listas** (T4.6b, ADR-0094 §10): sub-recurso `…/receiving-profile/{preview-email,inbound-token,
+email-intakes}` (`contractor-preview-email.routes.ts`), **tudo `settings.manage`** (o separador lê a frota e não alcança nenhuma). O token
+nasce **no servidor** (130 bits de `getRandomValues`), só o hash vai ao banco, aparece **uma vez** na resposta do `POST` (`no-store`) e a
+leitura **nunca** devolve hash nem token; rotacionar apaga o hash anterior. Auditoria `audit_logs` **na mesma transação**, sem token nem hash;
+`rateLimit` 10/300 s. `hashPreviewInboundToken` é cópia por valor da política do worker (paridade no teste do worker). Detalhe: docs/ai-context
+§ "Spec 237 — T4.6b".
 
 ## Rascunhos de viagem da prévia (spec 237 T5.1)
 

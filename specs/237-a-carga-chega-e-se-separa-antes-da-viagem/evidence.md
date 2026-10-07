@@ -2916,3 +2916,126 @@ edição; são os quatro testes que reprovam na API.
 
 Push, staging e produção; `make migration-test` e `db:test` (a pasta da migration não está completa); leitura de
 qualquer banco de produção; DNS, MX, Resend e e-mail real; MinIO real (dublê em memória).
+
+## T4.6b — gerar o endereço de entrada da prévia por e-mail e editar as duas listas (2026-10-07)
+
+**Sem push.** Worktree `agent-a21c85e6406c797de`, branch `work/237-t46b` a partir de `origin/staging`. Nenhuma migration (as três colunas e a
+tabela de e-mails já existem em `20261007040900_cargo_preview_email_intake`; `db:generate` = `no_changes`).
+
+### O que foi feito, e duas divergências do enunciado
+
+- **API (`cargo-receiving/`):** quatro rotas num **sub-recurso** do perfil — `GET|PUT …/receiving-profile/preview-email`, `POST …/receiving-profile/inbound-token`,
+  `GET …/receiving-profile/email-intakes?limit=`. Token de 26 base32 / 130 bits de `crypto.getRandomValues` (máscara de 5 bits), só o hash guardado
+  (`hashPreviewInboundToken`, cópia por valor da política do worker), resposta única com `no-store`, rotação que apaga o hash anterior, 422
+  `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED` (detalhes nomeiam as listas), 409 `RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED` (o domínio vem de
+  `contractor_mail_settings.reply_domain` da empresa, a configuração da 143), `rateLimit` 10/300 s por usuário (Postgres), auditoria **na mesma transação**
+  (ator, alvo, IP, hora, `isRotation`; nunca token nem hash), listas validadas por Zod `.strict()` antes do banco com a entrada inválida nomeada.
+- **Painel:** seção "Prévia por e-mail" na ficha (`PreviewEmailPanel`, só com `settings.manage`): estado, as duas listas, gerar/rotacionar (confirmação ao
+  rotacionar), o endereço mostrado uma vez e a tabela de recusas.
+- **Divergência 1 — sub-recurso, não chaves no perfil.** O enunciado pedia que o `GET` do perfil devolvesse `hasInboundToken`/as listas e que o `PUT`
+  aceitasse as listas. **O painel publicado valida o perfil por chaves exatas** (`isReceivingProfile` → `hasExactKeys(RECEIVING_PROFILE_KEYS)`): chave
+  nova no `GET` derrubaria a ficha com `RESPONSE_INVALID`, e chave obrigatória nova no `PUT` quebraria o salvar de um painel em cache. A alternativa pedida (painel
+  tolerante publicado antes) cria ordem de deploy; o sub-recurso a evita e **deixa o contrato do perfil intacto** (o contrato existente "o hash e as
+  listas nunca saem pelo perfil", da T4.7a, segue verde sem mudança). Por isso **não há commit de "painel tolerante"**.
+- **Divergência 2 — ler também é `settings.manage`.** O enunciado dava `fleet.read` à leitura, mas pedia que o **separador não alcançasse** as rotas; o `separator`
+  tem `fleet.read` (e `fiscal`/`viewer`/`operator` também). Precedente: o calendário de dias úteis (238), `settings.manage` para ler e escrever. Trocar é
+  uma constante (`MANAGE_POLICY` em `contractor-preview-email.routes.ts`) mais a lista de `separator-role`. No painel a seção some para quem não gere
+  (`canManage`), e a API nem é chamada.
+- **Audita as listas com antes/depois** (a T4.7a tinha decidido que as listas não vão para a auditoria **do perfil** porque o `PUT` do perfil nem as conhece);
+  aqui a lista **é** a autorização e a ação é própria (`…preview-allowlists-saved`). Está em `SECURITY.md` (2026-10-07). Reverter é tirar `before/after` do metadata.
+
+### Commits (todos locais)
+
+| Etapa                     | SHA                       | Conteúdo                                                                           |
+| ------------------------- | ------------------------- | ---------------------------------------------------------------------------------- |
+| API, contrato vermelho    | `f6aa087f1`               | testes + integração + paridade do worker; 4 suítes vermelhas por módulo ausente    |
+| API, código               | `6f0f0164a`               | rotas, caso de uso, repositório, política do token e das listas, composição        |
+| API, casos extras         | `899d71151`               | gerar com uma lista só; domínio de entrada de outra empresa                        |
+| Painel, contrato vermelho | `e4ab2b77c`               | contratos puros e de DOM, harness; vermelhos por módulo ausente                    |
+| Painel, código            | `d8f2f0699`               | seção, cliente, validação, locales, CSS, ficha                                     |
+| Painel, armazenamento     | `0cb92cdce`               | varredura do armazenamento (mutação P2 sobreviveu ao primeiro desenho do teste)    |
+| Prints e docs             | (último commit da branch) | CSS do botão de copiar, spec de prints, 30 PNGs, ADR/SECURITY/ai-context/CLAUDE.md |
+
+### Gates (saída nova)
+
+- API: `bun run typecheck` e `bun run lint` limpos; contratos `bun --env-file=<.env.test> test --timeout 120000` → **10764 pass / 25 skip / 0 fail** (antes 10720: **+44**); `db:generate` =
+  `{"status":"no_changes"}`; integração `contractor-preview-email.integration.ts` **12 pass** e `contractor-receiving-profile.integration.ts` **4 pass**, uma por vez, no
+  Postgres 18.4 nativo descartável (`127.0.0.1:56437`, banco criado e apagado por teste); worker `parity.contract.ts` **29 pass** (+5).
+- Painel: `bun run typecheck` limpo, `bun run lint` 0 erro (16 avisos antigos de outros arquivos), `bun run test` → **7440 pass / 0 fail** (antes 7393: **+47**) e `test:hooks` →
+  **978 pass / 0 fail** (antes 956: **+22**).
+- **Estabilidade do DOM:** `bun run test:hooks` **13 execuções, 13 verdes** — 10 com a CPU livre e 3 com 11 processos `yes` em laço (PIDs iniciados por mim e encerrados
+  pelo PID). Esperas só por condição positiva (`aria-busy` ausente por comparação booleana, texto presente); nenhum `expect(nó).toBeNull()` dentro de `waitFor`;
+  `stubVisibleLayout()` no arquivo novo. ⚠️ **Os ganchos `beforeEach/afterEach` ficam DENTRO dos `describe`:** o arquivo entra numa suíte de DOM só, e o primeiro desenho
+  (gancho de topo, com `sessionStorage.clear()`) derrubou **978 testes** de outros arquivos (`clear is not a function`). Corrigido antes do commit do código.
+
+### Mutações (cada uma vermelha, arquivo restaurado, `git diff --quiet` por mutação)
+
+API:
+
+| #   | Mutação                                                          | Resultado                                  |
+| --- | ---------------------------------------------------------------- | ------------------------------------------ |
+| M1  | a leitura devolve uma chave a mais (o hash)                      | morta (integração)                         |
+| M2  | o hash vai ao metadata da auditoria                              | morta                                      |
+| M3  | rotacionar não troca o hash existente                            | morta                                      |
+| M4  | gerar com só uma das listas                                      | morta (caso novo)                          |
+| M5  | entrada com caractere proibido aceita                            | morta (7 falhas)                           |
+| M6  | `fleet.read` no lugar de `settings.manage` (o separador alcança) | morta (5 falhas: rotas e `separator-role`) |
+| M7  | o token não vem do CSPRNG (`Math.random`)                        | morta                                      |
+| M8  | a falha da auditoria é engolida (o hash troca sem trilha)        | morta                                      |
+| M9  | a geração sem `rateLimit`                                        | morta                                      |
+| M10 | a leitura ignora a empresa do contexto                           | morta                                      |
+| M11 | esvaziar a lista com endereço ativo é aceito                     | morta                                      |
+| M12 | a edição audita mesmo sem mudança                                | morta                                      |
+| M13 | o corpo das listas aceita chave desconhecida                     | morta                                      |
+| M14 | a normalização não passa para minúsculas                         | morta (3 falhas)                           |
+| M15 | `limit` acima de 50 aceito                                       | morta                                      |
+| M16 | o propósito do hash muda (`v2`)                                  | morta (contrato do hash)                   |
+| M17 | o domínio de entrada é lido de outra empresa                     | morta (caso novo)                          |
+| M18 | a trava de gravação ignora a empresa                             | morta                                      |
+
+Painel:
+
+| #              | Mutação                                                       | Resultado                                                                                                                                           |
+| -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1             | rotacionar sem confirmação                                    | morta                                                                                                                                               |
+| P2 / P2b / P2c | o endereço vai ao `localStorage` / `sessionStorage` / console | **P2 sobreviveu** ao primeiro desenho do teste (espião em `setItem` de uma instância); o teste passou a **ler** o armazenamento, e as três morreram |
+| P3             | motivo `RATE_LIMITED` sem rótulo                              | morta                                                                                                                                               |
+| P4             | fechar o painel não apaga o endereço                          | morta                                                                                                                                               |
+| P5             | sem `gcTime: 0` (o cache de mutações guarda o endereço)       | morta                                                                                                                                               |
+| P6             | entrada com caractere proibido aceita no painel               | morta (5 falhas)                                                                                                                                    |
+| P7             | a guarda do endereço gerado aceita chave a mais               | morta                                                                                                                                               |
+| P8             | a seção aparece para quem só lê                               | morta                                                                                                                                               |
+| P9             | copiar copia só o token                                       | morta                                                                                                                                               |
+| P10            | o aviso "mostrado só agora" some                              | morta                                                                                                                                               |
+| P11            | a recusa do servidor não nomeia os campos                     | morta                                                                                                                                               |
+| P12            | grava mesmo com entrada inválida                              | morta                                                                                                                                               |
+| P13            | o link da prévia aponta para a rota errada                    | morta                                                                                                                                               |
+| P14            | o teto de 20 entradas some                                    | morta                                                                                                                                               |
+| P15            | o `POST` de gerar manda corpo                                 | morta                                                                                                                                               |
+
+### Revisão de design (`web.md` §15), por estilo calculado
+
+Build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview` na porta **53571** (faixa 53560–53619, livre; encerrado pelo PID), config do Playwright descartável
+(apagada), API inteira dublada, **30 PNGs** em `prints/previa-email-{ficha,listas,token,rotacao,recusas}-{375,768,1280}-{dark,light}.png` (endereços `@exemplo.test`).
+⚠️ A CSP nasce no `vite preview`: as `VITE_*` precisam estar no ambiente **do preview também**, senão a CSP bloqueia a API e a lista de contratantes cai em `REQUEST_FAILED`.
+
+- Nenhuma rolagem horizontal; geometria real sem corte (`expectNoClipping`) e sem células sobrepostas, nas 30 telas.
+- **Contraste ≥ 4,5:1 nos dois temas** (menor valor por elemento): ajuda do campo 4,83 · texto da seção 4,83 · aviso "mostrado só agora" 4,86 · erro do campo 4,69 · selo 5,37 · link da prévia 5,37 · endereço 12,19 · rótulo 12,66 · motivo 12,66 · cabeçalho 12,66.
+- **Alvo de toque ≥ 44 px a 375:** 0 violações em 10 telas. Achado e corrigido: o `CopyButton` (primitivo) mede 38,4 px; na seção ganhou `inline-size/block-size: var(--touch-target)`
+  e sem a margem negativa da tabela. O atalho do aviso de recusa (componente de sempre da ficha) só cresce em `pointer: coarse` e fica fora da medida de desktop, como no perfil.
+- **Contra os vizinhos (375, escuro):** "Salvar listas" × "Salvar perfil": altura **48 px = 48 px**, fonte 13,33 px = 13,33 px, família Arial = Arial; o campo da lista × "Observações": fonte 14,4 px = 14,4 px,
+  borda 1 px = 1 px. **Diferenças deliberadas:** a lista usa a face monoespaçada (SFMono, a do CNPJ da ficha — para conferir e-mail caractere a caractere) e 5 linhas (111 px × 83 px).
+  Selo do estado 11,52 px mono caixa alta 24 px, o da lista de contratantes.
+- Contratos de design do repo seguiram verdes depois de dois ajustes: ponto de quebra só em 40/64/80 rem (era 48) e sem `min-height` próprio de campo.
+
+### Decisões de desenho a registrar
+
+- **Gerar não exige `previewEnabled`:** o worker recusa com `PREVIEW_NOT_ENABLED` e a recusa aparece na tabela com o motivo traduzido.
+- **O endereço não pode ser relido:** quem perdeu o valor rotaciona (limite conhecido no `SECURITY.md`).
+- **Listas lidas do que a API devolve (normalizado):** após salvar, o campo mostra o que foi gravado (minúsculas, sem duplicata).
+- **A tabela traz os aceitos também**, com o link da prévia (`/recebimento/previas/<id>`); o título segue "Recusas recentes" como pedido.
+
+### Não rodou
+
+Push; `make migration-test` e `make check` inteiro (nenhuma migration; `format:check` e gates por app rodados); integração fora das duas citadas; `make smoke` da CI; leitura de banco de produção;
+DNS, MX, Resend e e-mail real (o painel só **diz** o passo seguinte). A **aprovação dos 30 prints** é do usuário — só então publicar.

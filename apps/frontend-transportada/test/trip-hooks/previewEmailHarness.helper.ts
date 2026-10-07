@@ -88,7 +88,9 @@ export type PreviewEmailDoubleInitial = Readonly<{
   settings?: PreviewEmailSettings
 }>
 
-export function installPreviewEmailDouble(initial: PreviewEmailDoubleInitial = {}): PreviewEmailCalls {
+export function installPreviewEmailDouble(
+  initial: PreviewEmailDoubleInitial = {},
+): PreviewEmailCalls {
   const calls: PreviewEmailCalls = {
     generations: [],
     intakeReads: [],

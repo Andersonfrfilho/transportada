@@ -1366,6 +1366,31 @@ detalhe da prévia por e-mail quebrava igual.
   selo cai sob o rótulo da coluna (medido no print; `readBadgeMisalignment` no spec de prints).
 - Prints: `test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI), `prints/previa-origem-email-{lista,detalhe}-*`.
 
+## Spec 237 T4.6b — a seção "Prévia por e-mail" da ficha do contratante (2026-10-07; ainda não publicada)
+
+`PreviewEmailPanel` (`delivery-clients/components/`), montada por `ContractorFicha` **só com `canManage`** (= `settings.manage`; a API também
+exige para ler). Fala com **rotas novas** (`GET|PUT …/receiving-profile/preview-email`, `POST …/inbound-token`, `GET …/email-intakes`) por um
+cliente próprio (`previewEmailClient.service.ts`, `getPreviewEmailClient`); o perfil (`receiving-profile`) **não ganhou chave** e o `PUT` do perfil
+segue com as 10 chaves. `requestContractorApi` passou a aceitar `POST`.
+
+- **Estado:** `PreviewEmailStatus` ("Sem endereço de entrada" × "Endereço ativo desde …"; o endereço nunca aparece aqui).
+- **Listas:** `PreviewEmailAllowlistsForm` + `PreviewEmailListField` (uma entrada por linha). `previewEmailAllowlist.validation.ts` é cópia por
+  valor das regras da API (corpus idêntico nos dois testes) e devolve um erro **por entrada**, que o campo nomeia (`aria-invalid` +
+  `aria-describedby`). Recusa do servidor: `RefusedFieldsHint` com os rótulos `fields.forwarderAllowlist|senderAllowlist` (`receivingRefusal.service`
+  resolve `forwarderAllowlist.2` para a lista, não para o índice).
+- **Endereço:** `usePreviewEmailAddress` — primeira geração direta; trocar um ativo pede confirmação ("o endereço anterior deixa de valer").
+  `PreviewEmailGeneratedAddress` mostra o endereço completo **uma vez**, com `CopyButton` (alvo de 44 px) e o aviso "mostrado só agora".
+  ⚠️ **O token só existe em `mutation.data`**, com `gcTime: 0`, e `dismiss`/desmontar chamam `reset()`: nunca `localStorage`, URL, console nem
+  estado local. O contrato `preview-email-panel` varre o armazenamento, a URL e o console, e o cache de mutações.
+- **Recusas recentes:** `PreviewEmailIntakes` (+ `Row`), tabela que vira cartão abaixo de 40 rem (`data-label`); motivo traduzido para **todos** os
+  16 códigos do CHECK (`previewEmail.locale.json`, namespace próprio; contrato de rótulos pt/en e de paridade com a constante da API); código novo
+  da API passa como veio. O link da prévia aceita (`/recebimento/previas/<id>`, cópia por valor da rota) navega sem recarregar.
+- **Testes:** pure `test/delivery-clients/preview-email-{client,allowlist,locales}.contract.ts`; DOM `test/trip-hooks/preview-email-{panel,ficha}.contract.ts`
+  com `previewEmailHarness.helper.ts` (o `mock.module` do cliente novo é instalado uma vez e o harness da ficha o reaproveita). ⚠️ Os ganchos
+  `beforeEach/afterEach` do arquivo vivem **dentro** dos `describe` (os contratos de DOM entram numa suíte só).
+- **Prints:** `test/spec-237-previa-email-prints.smoke.spec.ts` (fora da CI; build com `VITE_SMOKE_AUTH_BYPASS=true` e o preview **precisa** das
+  `VITE_*` no ambiente também — a CSP nasce no `vite preview`), `prints/previa-email-{ficha,listas,token,rotacao,recusas}-*`.
+
 ## Spec 247 — Tipos, correção e acerto com número e valor pago (ainda não publicada)
 
 **Aba Tipos.** `OccurrenceTypeRecordFields`/`OccurrenceTypeRequirementFields` (número do documento e valor pago: modo, rótulo, escopo; exceções com "Igual ao tipo"),

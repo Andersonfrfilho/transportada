@@ -598,7 +598,7 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
   entrada da spec 143. `contractor_receiving_profiles.preview_inbound_token_hash` guarda
   `sha256("transportada:cargo-preview-inbound:v1:" + token)` — um espaço de hash **distinto** do das
   conversas (um token de conversa nunca abre um perfil de prévia, nem o contrário) —, único por empresa
-  (índice parcial). `+` continua rejeitado. O token em si não é guardado; gerar e rotacionar é a T4.6b.
+  (índice parcial). `+` continua rejeitado. O token em si não é guardado: **a API o gera e rotaciona** (T4.6b, abaixo).
 - **As duas listas** (colunas aditivas, nulas): `preview_forwarder_allowlist` (quem encaminha, **endereço
   exato**) e `preview_sender_allowlist` (o remetente original, **endereço exato ou domínio exato**, nunca
   subdomínio). Separadas porque são conjuntos de natureza diferente; numa lista só, quem encaminha forjaria o
@@ -706,9 +706,27 @@ null)` amarra os dois), `idempotency_key = 'email:' + sha256(providerEmailId)`, 
   encaminhado: o encaminhador do provedor não é o da lista e o remetente original não é lido — essa forma **não é
   suportada por esta versão**. `[NEEDS CLARIFICATION]` — decisão do usuário pendente: se o encaminhamento automático
   for necessário, é outro desenho (o contratante assina o e-mail; a lista passa a ser de quem **assina**).
-- **Passos do usuário (spec 143 T012):** MX e domínio de entrada no Resend, e — enquanto não há tela — gravar
-  por SQL o hash do token e as duas listas no perfil (o token deve ter ≥ 130 bits aleatórios, `openssl rand`; o
-  CHECK só confere o alfabeto). Nada disso é feito pelo código.
+- **Gerar o endereço e editar as listas (T4.6b).** Quatro rotas num sub-recurso do perfil, **todas `settings.manage`** (ler também: o
+  separador lê a frota e não alcança nenhuma): `GET|PUT …/receiving-profile/preview-email` (as duas listas e `hasInboundToken` +
+  `inboundTokenSetAt`; **nunca** o hash), `POST …/receiving-profile/inbound-token` e `GET …/receiving-profile/email-intakes?limit=`
+  (`{ outcome, previewId, reasonCode, receivedAt }`, mais recentes primeiro, sem endereço, nome, assunto nem corpo). **Sub-recurso, e não chaves
+  novas em `GET|PUT /receiving-profile`,** porque o painel publicado valida o perfil por chaves **exatas** (§5): chave nova no perfil derrubaria a
+  ficha (`RESPONSE_INVALID`) até o painel novo subir, e o `PUT` do perfil com chave obrigatória nova derrubaria o salvar de um painel em cache. As
+  rotas novas deixam o perfil como está e a ordem de deploy deixa de importar.
+  - **O token nasce no servidor:** 26 símbolos base32 de `crypto.getRandomValues` (5 bits cada; **130 bits**), só o hash vai ao banco (a mesma
+    política do worker, copiada por valor com contrato de paridade nos dois sentidos) e o token + o endereço (`<token>@<domínio de entrada>`, o
+    domínio de `contractor_mail_settings.reply_domain` da empresa — sem ele, **409** `RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED`) saem **uma
+    vez**, na resposta do `POST` (`no-store`). **Rotacionar = chamar de novo:** o hash anterior some na mesma transação. Exige as duas listas
+    (**422** `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED`, os detalhes nomeiam as que faltam); `rateLimit` de 10 em 300 s por usuário no Postgres.
+  - **Auditoria `audit_logs` na mesma transação** (ator, alvo, IP, hora, `isRotation`), sem token nem hash; a edição das listas audita **só
+    quando muda**, com antes/depois. Duas gerações simultâneas se serializam (`for update` no perfil).
+  - **As listas** (`.strict()`, texto, normalizadas: minúsculas, aparadas, sem duplicata; as faixas do CHECK; ≤ 20 entradas **distintas**): quem
+    encaminha é endereço completo, o remetente original é endereço ou domínio exato (sem `*`), a entrada inválida é nomeada (`forwarderAllowlist.<i>`).
+    Lista vazia = sem lista; com endereço ativo, esvaziar uma é 422 (o CHECK exige as duas).
+  - **O painel** (ficha do contratante, só `settings.manage`): estado "sem endereço" × "ativo desde …", as duas listas com erro por entrada, "Gerar
+    endereço" / "Gerar novo endereço" (a rotação pede confirmação), o painel do endereço **mostrado uma vez** (copiar, aviso, passo seguinte do
+    operador) e a tabela de recusas com o motivo traduzido para os 16 códigos do CHECK. O endereço só existe na memória do componente.
+- **Passos do usuário (spec 143 T012):** MX e domínio de entrada no Resend. Nada disso é feito pelo código (o painel só o diz).
 
 ### 11. A retenção de 90 dias dos dados da planilha (Fase 4c, T4.8)
 

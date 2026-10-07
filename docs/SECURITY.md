@@ -382,6 +382,37 @@ trocar o `kind` dessas linhas à mão, e por isso o rollback recusa se houver al
 
 **Origem:** decisão do usuário em 2026-10-06 (spec 237 RF/SECURITY item 2 da Fase 4a); implementação T4.8.
 
+### 2026-10-07 — spec 237 T4.6b — o endereço de entrada da prévia por e-mail é gerado no servidor, mostrado uma vez e rotacionável
+
+**Onde:** `api-transportada`, `cargo-receiving/` (`contractor-preview-email.routes.ts`, `preview-inbound-token.policy.ts`,
+`drizzle-contractor-preview-email.repository.ts`); `frontend-transportada`, `PreviewEmailPanel` na ficha do contratante (ADR-0094 §10).
+
+**O que muda:** até a T4.6b o token do endereço e as duas listas entravam por SQL. Agora há quatro rotas (`settings.manage`, ler e escrever): ler
+e editar as listas, **gerar/rotacionar** o endereço e ler as recusas recentes.
+
+**O que segura:**
+
+- **Gerado no servidor, ≥ 130 bits.** 26 símbolos base32 de 5 bits tirados de `crypto.getRandomValues` (máscara de 5 bits, sem viés). O cliente
+  nunca escolhe o token; o CHECK do banco, que só confere o alfabeto, deixa de ser a única barreira.
+- **Só o hash é guardado** (`sha256("transportada:cargo-preview-inbound:v1:" + token)`, o mesmo que o worker calcula; contrato de paridade nos dois
+  lados). O token e o endereço saem **uma vez**, na resposta do `POST` (`Cache-Control: no-store`). **Nenhuma leitura devolve o hash, o token ou
+  o endereço** — só `hasInboundToken` e a hora da última geração (que vem da auditoria). No painel o valor vive só na memória do componente
+  (`gcTime: 0`, apagado ao fechar o painel ou sair da ficha); nunca em `localStorage`, URL, log ou telemetria (contrato de DOM varre os quatro).
+- **Rotação invalida o anterior** (o hash antigo deixa de existir na mesma transação; o painel pede confirmação). **Teto de 10 gerações em 5 minutos
+  por usuário**, no Postgres (`receiving-profile-inbound-token`).
+- **Auditoria `audit_logs` na MESMA transação** (ator, alvo, IP por `resolveClientIp`, hora, `isRotation`) — **nunca o token nem o hash**, no
+  log, no metadata ou na resposta. Falha na auditoria desfaz a troca do hash (integração com mutação). A edição das listas audita **só quando
+  muda**, com antes/depois das listas (configuração do operador, e-mails da equipe e domínio do contratante; é a trilha de quem autorizou quem).
+- **As duas listas validadas antes do banco** (as faixas do CHECK; quem encaminha é endereço completo, o remetente original é endereço ou domínio,
+  nunca padrão), com a entrada inválida nomeada; esvaziar uma lista com endereço ativo é recusado (422) — o CHECK do banco exige as duas.
+- **Leitura também é `settings.manage`**, não `fleet.read`: o separador, o `fiscal` e o `viewer` leem a frota e **não** alcançam as rotas (a lista do
+  encaminhador mostra endereços da equipe; as recusas mostram o que chegou). Contrato `separator-role`.
+- **Tenant:** contratante de outra empresa é 404 nas quatro; o domínio de entrada vem de `contractor_mail_settings` **da empresa do contexto**.
+
+**Limites conhecidos (T4.6b):** (1) o endereço aparece em claro no `raw.eml` do e-mail aceito (L4 acima; a T4.8 o apaga em 90 dias) e na tela de
+quem o gerou, uma vez — quem tem o endereço e passa a lista do encaminhador alimenta a prévia, como antes. (2) Quem copia o endereço e fecha o
+painel sem guardá-lo só o recupera **rotacionando**. (3) O passo seguinte (MX, domínio no Resend) continua do operador; o painel só o diz.
+
 ### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
 
 **Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
@@ -480,17 +511,19 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
    itens; até lá o prazo não é cumprido.
 3. **Sem rate limit por IP/remetente** além da janela por contratante: quem tem o token e consegue passar a
    lista do encaminhador é a própria equipe.
-4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012) e as listas/hash do token no perfil —
-   por SQL até a T4.6b (rota `PUT` e ficha). O código não configura DNS nem envia e-mail.
+4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012). As listas e o endereço (token) saem da
+   ficha do contratante desde a T4.6b (entrada de 2026-10-07 abaixo); o código não configura DNS nem envia e-mail.
 5. **L3 — a lista do encaminhador por "endereço exato" só é tão forte quanto o DKIM do domínio** (T4.7a). O
    alinhamento é **relaxado** (domínio organizacional) e o `i=` da assinatura não é verificado: quem assina por
    `team.com`, ou por um subdomínio dele, passa o DKIM com `From: forwarder@team.com` e se faz passar por
    `forwarder@team.com`. A lista barra quem **não** controla o domínio da equipe, não quem controla uma conta
    qualquer dele.
 6. **L4 — o token aparece em claro no `raw.eml` guardado** (T4.7a): o MIME bruto do e-mail aceito tem o endereço de
-   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). Enquanto a T4.6b não gerar o token no
-   servidor, ele é **escolhido à mão por SQL** — o CHECK só confere o alfabeto (26 base32), então um padrão fraco
-   passa. Gerar com `openssl rand` (≥ 130 bits aleatórios) e nunca derivar de nome, data ou sequência.
+   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). **T4.6b: o token passou a ser gerado no
+   servidor** (130 bits de `crypto.getRandomValues`, nunca derivado de nome, data ou sequência) — o caminho de
+   escolher à mão por SQL, em que o CHECK só confere o alfabeto (26 base32) e deixava um padrão fraco passar, deixa
+   de ser o caminho normal; quem ainda gravar um hash por SQL carrega a mesma responsabilidade de antes (`openssl rand`).
+   Rotacionar o endereço apaga o hash anterior (e-mail em voo para ele cai como `token_unknown`).
 7. **Só se encaminha à mão** (T4.7a): a equipe **encaminha manualmente** a mensagem (inline ou como anexo). Regra ou
    redirecionamento automático do Gmail/Outlook preserva o `From` do contratante e não cria bloco encaminhado — não é
    suportado por esta versão. **[NEEDS CLARIFICATION]** decisão do usuário: se o encaminhamento automático for

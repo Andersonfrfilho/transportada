@@ -139,12 +139,19 @@
       `cargo-preview-email/` no worker, cópia por valor da criação da prévia com paridade, SECURITY (DKIM do
       contratante perdido = risco aceito) e ADR-0094 §10 — `evidence.md` § T4.6; **sem push**. Token e listas
       entram por SQL até a T4.6b; MX/Resend/listas são passo do usuário.)_
-- [ ] **T4.6b** Rota `PUT` do perfil para **gerar/rotacionar o token** do endereço de entrada (mostra o token uma
+- [x] **T4.6b** Rota `PUT` do perfil para **gerar/rotacionar o token** do endereço de entrada (mostra o token uma
       vez, guarda só o hash) e **editar as duas listas** (`preview_forwarder_allowlist`,
       `preview_sender_allowlist`), com auditoria; a ficha do contratante no painel mostra o endereço de entrada
       e as listas, e **as recusas recentes** (`cargo_preview_email_intakes`) por contratante. Contrato antes;
       o formato do token e o hash são os de `preview-inbound-token.policy.ts` (copiar por valor, com paridade).
       `sonnet`.
+      **Feito (2026-10-07), sem push:** quatro rotas num **sub-recurso** do perfil (`preview-email`, `inbound-token`,
+      `email-intakes`), todas `settings.manage`; o token nasce no servidor (130 bits), só o hash é guardado, aparece uma vez
+      (`no-store`), rotação apaga o hash anterior, auditoria na mesma transação, `rateLimit` 10/300 s; painel: seção "Prévia por
+      e-mail" da ficha, o endereço só na memória do componente. **Divergências do enunciado (decididas):** sub-recurso e não
+      chaves novas em `GET|PUT /receiving-profile` (o painel publicado valida o perfil por chaves exatas) e leitura também
+      `settings.manage` (o separador tem `fleet.read` e não pode alcançar as rotas). `evidence.md` § T4.6b; ADR-0094 §10;
+      `SECURITY.md` 2026-10-07; **30 prints a aprovar antes de publicar**.
 - [x] **T4.7a** Correções das revisões `opus` (código e segurança) da T4.6, **antes da publicação**: cabeçalho do MIME
       medido antes do DKIM (prévia e conversa), `l=` nunca alinha, janela por contratante com dois contadores pelo
       relógio do banco e rastro `RATE_LIMITED`, a conversa vence quando há os dois endereços, o MIME da vencedora

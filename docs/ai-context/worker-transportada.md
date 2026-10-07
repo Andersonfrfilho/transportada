@@ -364,7 +364,9 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
 
 - **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:" + token)`
   em `contractor_receiving_profiles.preview_inbound_token_hash` (distinto do hash de conversa; `+` recusado).
-  O hash e a função `hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
+  O hash e a função `hashPreviewInboundToken` são os que a API (T4.6b) copia por valor para **gerar** o token no servidor
+  (`api-transportada/src/cargo-receiving/domain/preview-inbound-token.policy.ts`); `test/cargo-preview-email/parity.contract.ts` lê os dois
+  arquivos e cobra o padrão, o propósito do hash e a expressão do hash — mudar um lado sem o outro reprova (o endereço gerado deixaria de abrir).
 - **Barreiras, em ordem:** perfil pronto → encaminhador do provedor na `preview_forwarder_allowlist` **antes** de
   baixar → teto de e-mails **autenticados** da janela (T4.7c; só o download e o DKIM ficam atrás dele) → MIME até 2 MiB
   (`downloadRawEmail({ maxBytes })`, só número finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM

@@ -84,6 +84,13 @@
   min-width: 0;
 }
 
+/* O botão de copiar é o alvo principal desta tela: alvo de toque inteiro, sem a margem negativa da tabela. */
+.addressRow > button {
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  margin-block: 0;
+}
+
 .address {
   flex: 1;
   min-width: 0;

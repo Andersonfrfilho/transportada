@@ -352,6 +352,11 @@ linha), nunca por expressão regular (revisão de segurança S3). `PUT` do perfi
 (`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
 docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
 
+**Seção "Prévia por e-mail" da ficha** (T4.6b): `PreviewEmailPanel`, só com `settings.manage`; cliente e rotas próprios (o perfil não ganhou chave).
+Endereço gerado aparece **uma vez**, só em `mutation.data` (`gcTime: 0`, `reset()` ao fechar/desmontar) — nunca em `localStorage`, URL ou console;
+rotacionar pede confirmação. Ganchos `beforeEach/afterEach` de arquivo de DOM vão **dentro** do `describe` (a suíte de DOM é uma só). Detalhe:
+docs/ai-context/frontend-transportada.md § "Spec 237 T4.6b".
+
 ## O ajudante fecha as pontas (spec 243)
 
 Painel "Diária do ajudante" na aba de motoristas (`DriverCrewSettingsPanel`, fora de `SETTINGS_PANEL_PLACEMENT`,
