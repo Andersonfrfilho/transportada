@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverNfeProduct } from './driverTrip.types'
+import type { OCCURRENCE_QUANTITY_PROBLEM } from './occurrenceValues.constant'
 import type { DeclaredAmountScope, OccurrenceValuesFacts } from './occurrenceRequirements.service'
 
 export type OccurrenceItemDraft = Readonly<{
@@ -18,10 +19,7 @@ export const EMPTY_OCCURRENCE_ITEM_DRAFT: OccurrenceItemDraft = {
 }
 
 export type OccurrenceItemQuantityProblem =
-  | 'above-note'
-  | 'missing'
-  | 'too-many-decimals'
-  | 'too-many-digits'
+  (typeof OCCURRENCE_QUANTITY_PROBLEM)[keyof typeof OCCURRENCE_QUANTITY_PROBLEM]
 
 export type OccurrenceItemLine = Readonly<{
   /** O valor pago digitado, canônico — só quando o valor se digita por linha. */
