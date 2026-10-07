@@ -23,6 +23,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
+import type { CrewTransferResult, TransferTripCrewInput } from '../shared/tripCrewTransfer.types'
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import {
   buildOccurrencePhotoSendState,
@@ -133,6 +134,8 @@ export type TripController = Readonly<{
   /** Spec 217 (RF4/RF6): `trips.manage`, mesma permissão que `cancelTrip`/`createTrip`. */
   changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
+  /** Spec 249: `trip.report-on-behalf`, a mesma permissão da baixa em nome do motorista. */
+  transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
@@ -269,6 +272,8 @@ export function createTripController(
     canSubmitCte,
     // Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma.
     closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
+    transferTripCrew: (body) =>
+      canReportOnBehalf ? input.client.transferTripCrew(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
@@ -981,6 +986,15 @@ export function useTripWorkspace(
         queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
       ]).then(() => undefined),
   })
+  /** Spec 249: a viagem na rua troca de tripulação — viagem e `allowed-actions` relidas, o custo mudou. */
+  const transferCrewMutation = useMutation({
+    mutationFn: controller.transferTripCrew,
+    onSuccess: () =>
+      Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+      ]).then(() => undefined),
+  })
   const transitionDocumentMutation = useMutation({
     mutationFn: controller.transitionTripDocument,
     onSuccess: (result) => {
@@ -1103,6 +1117,7 @@ export function useTripWorkspace(
     planRouteMutation,
     releaseDocumentMutation,
     reorderStopsMutation,
+    transferCrewMutation,
     transitionDocumentMutation,
     status: resolveQueryStatus({
       canRead: controller.canReadTrips,

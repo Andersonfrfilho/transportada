@@ -172,7 +172,9 @@ describe('resposta de POST /trips/:id/crew-transfers (spec 249 RF5)', () => {
 
   it('recusa resumo sem campo, com campo trocado de tipo ou com chave desconhecida', async () => {
     const { parseCrewTransfer } = await loadFutureModule<ValidationModule>(TRANSFER_VALIDATION)
-    const { mdfeDriverDivergence: _removed, ...incomplete } = TRANSFER
+    const incomplete = Object.fromEntries(
+      Object.entries(TRANSFER).filter(([key]) => key !== 'mdfeDriverDivergence'),
+    )
 
     expect(() => parseCrewTransfer(incomplete)).toThrow()
     expect(() => parseCrewTransfer({ ...TRANSFER, costHasGaps: 'false' })).toThrow()
@@ -184,10 +186,12 @@ describe('resposta de POST /trips/:id/crew-transfers (spec 249 RF5)', () => {
     const requests: Request[] = []
     const client = createTripClient({
       apiUrl: API_URL,
-      fetch: async (input, init) => {
+      fetch: (input, init) => {
         const request = new Request(input, init)
         requests.push(request)
-        return Response.json({ data: { transfer: TRANSFER, trip: TRIP_DETAIL } }, { status: 201 })
+        return Promise.resolve(
+          Response.json({ data: { transfer: TRANSFER, trip: TRIP_DETAIL } }, { status: 201 }),
+        )
       },
       getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
     }) as unknown as Readonly<{

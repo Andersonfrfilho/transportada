@@ -455,6 +455,64 @@
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
   },
+  "crewTransferDialog": {
+    "blocker": {
+      "crewUnchanged": "The chosen crew is the same as the current one. Change at least one person.",
+      "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only.",
+      "driverRequired": "Choose at least one driver.",
+      "helperIsDriver": "The same person cannot be both driver and helper.",
+      "reasonTooLong": "The reason is longer than 500 characters."
+    },
+    "clearAll": "Remove all",
+    "drivers": "Drivers",
+    "driversEmpty": "There is no active driver in the fleet to choose from.",
+    "driversNoMatch": "No driver found",
+    "driversPlaceholder": "Choose drivers",
+    "driversRemove": "Remove this driver",
+    "driversSummary": "{{count}} driver chosen",
+    "driversSummary_other": "{{count}} drivers chosen",
+    "error": {
+      "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only. Choose another driver.",
+      "generic": "Could not transfer the crew right now. Try again.",
+      "helperNotEligible": "A chosen helper is not marked as a helper on their record.",
+      "helperWithoutDriver": "Choose at least one driver before adding helpers.",
+      "notAllowed": "This trip does not accept a crew transfer right now: only a trip under way can be transferred.",
+      "unchanged": "The chosen crew is the same as the current one. Nothing was changed."
+    },
+    "helpers": "Helpers",
+    "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
+    "helpersNoMatch": "No helper found",
+    "helpersPlaceholder": "Choose helpers",
+    "helpersRemove": "Remove this helper",
+    "helpersSummary": "{{count}} helper chosen",
+    "helpersSummary_other": "{{count}} helpers chosen",
+    "outcome": {
+      "costAfter": "New cost",
+      "costBefore": "Previous cost",
+      "decrease": "The trip cost went down with the new crew.",
+      "difference": "Difference",
+      "done": "Crew transferred. The trip carries on from where it was.",
+      "gaps": "Some cost parcel is incomplete; the value uses what the screen already shows for it.",
+      "increase": "The trip cost went up with the new crew.",
+      "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
+      "same": "The trip cost did not change."
+    },
+    "reason": "Reason for the transfer",
+    "role": {
+      "driver": "driver",
+      "helper": "helper"
+    },
+    "search": "Search by name",
+    "submit": "Transfer",
+    "subtitle": "The trip carries on from where it is. Only who drives and who helps change; vehicle, route and stops stay as they are, and the crew cost is recalculated.",
+    "summary": {
+      "line": "{{leaving}} → {{entering}}",
+      "nobody": "nobody",
+      "title": "Who leaves → who joins"
+    },
+    "title": "Transfer crew",
+    "vehicleLocked": "The vehicle does not change: the trip carries on with the same truck."
+  },
   "dateRange": {
     "clear": "Clear period",
     "nextMonth": "Next month",
@@ -1751,6 +1809,7 @@
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
     "defineCrew": "Change driver/vehicle",
+    "transferCrew": "Transfer crew",
     "dispatch": "Dispatch",
     "dispatchConfirmTitle": "Dispatch the trip",
     "dispatchUnderstood": "Got it",

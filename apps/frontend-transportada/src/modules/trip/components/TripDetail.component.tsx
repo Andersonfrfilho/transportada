@@ -851,6 +851,7 @@ export function TripDetail({
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           isStartRoutePending={workspace.startFieldTripMutation.isPending}
+          isTransferringCrew={workspace.transferCrewMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
           onChangeCrew={(input) =>
             workspace.changeCrewMutation.mutateAsync(
@@ -865,6 +866,9 @@ export function TripDetail({
           onSelectDriverId={setSelectedOfficeDriverId}
           onStartRoute={() =>
             workspace.startFieldTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
+          }
+          onTransferCrew={(input) =>
+            workspace.transferCrewMutation.mutateAsync({ ...input, tripId: trip.id })
           }
           requiresTrailer={isTractorUnit && (trip.trailer ?? null) === null}
           selectedDriverId={officeDriverId ?? ''}

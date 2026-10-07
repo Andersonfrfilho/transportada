@@ -455,6 +455,64 @@
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
   },
+  "crewTransferDialog": {
+    "blocker": {
+      "crewUnchanged": "A tripulação escolhida é igual à atual. Troque ao menos uma pessoa.",
+      "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante.",
+      "driverRequired": "Escolha ao menos um motorista.",
+      "helperIsDriver": "A mesma pessoa não pode ser motorista e ajudante.",
+      "reasonTooLong": "O motivo passa de 500 caracteres."
+    },
+    "clearAll": "Retirar todos",
+    "drivers": "Motoristas",
+    "driversEmpty": "Não há motorista ativo na frota para escolher.",
+    "driversNoMatch": "Nenhum motorista encontrado",
+    "driversPlaceholder": "Escolher motoristas",
+    "driversRemove": "Retirar este motorista",
+    "driversSummary": "{{count}} motorista escolhido",
+    "driversSummary_other": "{{count}} motoristas escolhidos",
+    "error": {
+      "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante. Escolha outro motorista.",
+      "generic": "Não foi possível transferir a tripulação agora. Tente de novo.",
+      "helperNotEligible": "Algum ajudante escolhido não está marcado como ajudante na ficha.",
+      "helperWithoutDriver": "Escolha ao menos um motorista antes de acrescentar ajudantes.",
+      "notAllowed": "Esta viagem não aceita transferência de tripulação agora: só a viagem em andamento pode ser transferida.",
+      "unchanged": "A tripulação escolhida é igual à atual. Nada foi alterado."
+    },
+    "helpers": "Ajudantes",
+    "helpersEmpty": "Nenhum ajudante ativo. Cadastre um em Frota › Motoristas ou dê o papel Ajudante em Acesso.",
+    "helpersNoMatch": "Nenhum ajudante encontrado",
+    "helpersPlaceholder": "Escolher ajudantes",
+    "helpersRemove": "Retirar este ajudante",
+    "helpersSummary": "{{count}} ajudante escolhido",
+    "helpersSummary_other": "{{count}} ajudantes escolhidos",
+    "outcome": {
+      "costAfter": "Custo novo",
+      "costBefore": "Custo anterior",
+      "decrease": "O custo da viagem diminuiu com a nova tripulação.",
+      "difference": "Diferença",
+      "done": "Tripulação transferida. A viagem segue de onde estava.",
+      "gaps": "Alguma parcela do custo está incompleta; o valor usa o que a tela já mostra para ela.",
+      "increase": "O custo da viagem aumentou com a nova tripulação.",
+      "mdfeDivergence": "O MDF-e autorizado desta viagem segue com o condutor anterior: a troca não altera o manifesto.",
+      "same": "O custo da viagem não mudou."
+    },
+    "reason": "Motivo da transferência",
+    "role": {
+      "driver": "motorista",
+      "helper": "ajudante"
+    },
+    "search": "Buscar por nome",
+    "submit": "Transferir",
+    "subtitle": "A viagem continua de onde está. Só mudam quem dirige e quem ajuda; veículo, rota e paradas ficam como estão, e o custo da tripulação é recalculado.",
+    "summary": {
+      "line": "{{leaving}} → {{entering}}",
+      "nobody": "ninguém",
+      "title": "Quem sai → quem entra"
+    },
+    "title": "Transferir tripulação",
+    "vehicleLocked": "O veículo não muda: a viagem segue com o mesmo caminhão."
+  },
   "dateRange": {
     "clear": "Limpar período",
     "nextMonth": "Próximo mês",
@@ -1751,6 +1809,7 @@
     "batchSeparate_other": "Separar {{count}} notas",
     "cancel": "Cancelar viagem",
     "defineCrew": "Trocar motorista/veículo",
+    "transferCrew": "Transferir tripulação",
     "dispatch": "Despachar",
     "dispatchConfirmTitle": "Despachar a viagem",
     "dispatchUnderstood": "Entendi",

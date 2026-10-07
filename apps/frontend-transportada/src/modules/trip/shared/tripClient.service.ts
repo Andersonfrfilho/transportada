@@ -21,6 +21,8 @@ import {
   type CanhotoReviewResult,
 } from './canhotoReviewResult.service'
 import { createTripReviewAdapters } from './tripReview.validation'
+import { parseCrewTransfer } from './tripCrewTransfer.validation'
+import type { CrewTransferResult, TransferTripCrewInput } from './tripCrewTransfer.types'
 import type {
   TripDocumentReview,
   TripDocumentReviewStatus,
@@ -166,6 +168,8 @@ export type TripClient = Readonly<{
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   /** Spec 217 (RF4/RF6): `PATCH /trips/:id/crew` — troca motorista(s) e/ou veículo. */
   changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
+  /** Spec 249: `POST /trips/:id/crew-transfers` — a viagem que já saiu muda de tripulação, sem veículo. */
+  transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
    * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
@@ -812,6 +816,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/crew`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async transferTripCrew(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          driverIds: input.driverIds,
+          helperIds: input.helperIds,
+          reason: input.reason,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/crew-transfers`,
+      })
+      const data = readEnvelopeData(response)
+      if (!isRecord(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      try {
+        return {
+          transfer: parseCrewTransfer(data.transfer),
+          trip: adapters.tripDetailFromApi(data.trip),
+        }
+      } catch {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
     },
     async acceptMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
