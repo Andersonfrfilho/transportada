@@ -1718,3 +1718,34 @@ Servidores: painel (PID 77449, cwd `.../spec-247/apps/frontend-transportada`), V
 **Correções (contrato antes, commit isolado):** `9f0d8ede2` dica de Produtos exigidos; `896d58354` Aviso interno; `c5f6ab7f5` Salvar/Desfazer; `a8c8b02eb` campos do acerto; `83006aef1` observação do motorista. Detalhe: dica de Produtos exigidos (vermelho: "1 fail" do contrato M3, depois 2 pass); Aviso interno sem texto legado e "bloco acima" (vermelho 1 fail); `Salvar e-mail`/`Desfazer` a 44 px sob toque (vermelho 2 fail, medido 44 px a 768 px com toque); campos do acerto (vermelho 2 fail, medido 48 px); observação do motorista (vermelho 1 fail).
 
 **O que não foi verificado:** o login e a fila reais do app do motorista e a moldura de página do app; o tipo aberto com os dados reais da API (o painel usa API dublada, então "Salvar" fala com um dublê); tema escuro do painel nesta rodada (vale a medição da T5.x: 5,55); prints a 375 px do tipo aberto foram só geradas, não revistas uma a uma.
+
+## T7.2 — correções da revisão: API
+
+Reprovação da revisão independente (T7.2). Duas tasks sequenciais, commits por item. Integração em Postgres 18 nativo
+descartável (`127.0.0.1:56251`, diretório no scratchpad, `DATABASE_URL` por variável de ambiente).
+
+### R1 — correções pequenas e protetoras
+
+| Item  | O que mudou                                                                                                                                                                                                                                                                                                                                     | Prova                                                                                                                                                                                                                                                  |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M1    | `emailBody`/`emailSubject` do `PUT` do tipo passam de `.default('')` a `.optional()`; ausente é "não mexa" no caso de uso e no repositório (INSERT usa o padrão da coluna, UPDATE omite); `''` explícito continua apagando de propósito. O painel publicado em staging não manda os dois campos e apagava o e-mail à contratante a cada edição. | `test/trip-occurrence/email-template-absent.contract.ts` (3) e `occurrence-type-declared-amount-write.integration.ts` (PUT sem os campos preserva; `''` apaga). Mutação (voltar `.default('')`): 1 fail no contrato, 1 fail na integração.             |
+| M2    | Com o modo **efetivo** `off`, número do documento, valor pago da ocorrência e valor pago de linha do registro do motorista são descartados (viram `null`) em `assessDriverOccurrence`, pelo modo já resolvido por `resolveOccurrenceRequirements`; nada é recusado (a fila offline não trava quando a configuração muda).                       | `driver-occurrence-items.integration.ts`, caso novo (escopo `item` e escopo `occurrence`). Mutação (gravar mesmo com `off`): 1 fail.                                                                                                                   |
+| M5    | A leitura de produtos do snapshot do motorista (`listActiveTrips`) segue isolada, mas agora deixa `logger.warn` estruturado `driver_snapshot_products_read_failed` só com `companyId`, `tripIds` e `affectedDocumentCount` (sem a mensagem do erro).                                                                                            | `driver-snapshot-products.integration.ts`, caso novo (leitura forçada a falhar: snapshot segue sem `products`, aviso presente, sem `boom`). Mutação (tirar o aviso): 1 fail.                                                                           |
+| B3    | `occurrence-correction.policy.ts` usava 3 bytes NUL literais como separador; agora `\u0000` no template. Comportamento igual.                                                                                                                                                                                                                   | `git grep -I -c normalizeQuantity` passa a casar o arquivo (o git o trata como texto); contratos de correção seguem verdes (26 pass). O próprio commit de troca aparece como binário porque o lado antigo era binário; qualquer diff seguinte é texto. |
+| B4    | `SETTINGS_MANAGE_POLICY` exportada de `trip.routes.ts` e importada na rota da prévia; `OCCURRENCE_DECLARED_AMOUNT_FIELD` em `shared/trip-occurrence.constant.ts`, importada pelo schema, pelo guarda de exigência e pelo erro de conflito.                                                                                                      | typecheck, lint, contratos.                                                                                                                                                                                                                            |
+| B6/B7 | Permissão correta é `settings.manage` (a correção anterior para `companies.settings` estava errada: não existe); preço no payload é recusado com 400 (`.strict()`), não "ignorado" (spec.md CA06, tasks.md). Comentários do painel (`TripOccurrenceTypesTab.component.tsx`, `companySettingsTabs.service.ts`) corrigidos, sem lógica.           | `prettier --check`.                                                                                                                                                                                                                                    |
+
+**Teste existente alterado (M2).** `driver-occurrence-items.integration.ts` › "preço forjado no valor pago é gravado como valor
+pago…" afirmava que o número do documento era gravado com `referenceNumberMode: 'off'` (a T4.4 aceitava e gravava `off`).
+Isso é exatamente o defeito M2. O caso agora usa `referenceNumberMode: 'optional'` — a intenção dele é provar que `unit_value`
+e unidade saem da nota —, e o novo caso prova que, com `off`, o valor é descartado.
+
+**Gates R1** (fresh, código de saída conferido):
+
+```text
+contrato (apps/api-transportada)        exit=0 · 10367 pass · 25 skip · 0 fail (200 arquivos)
+integração, 4 lotes em primeiro plano   exit=0 · 377 pass | 308 pass 7 skip | 242 pass | 201 pass 1 skip · 0 fail (210 arquivos)
+bun run lint (API)                      exit=0
+bun run typecheck (raiz)                exit=0
+bun run format:check (raiz)             exit=0
+```
