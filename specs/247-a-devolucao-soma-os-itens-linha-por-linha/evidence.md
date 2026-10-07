@@ -43,14 +43,17 @@
 **Status**: ✅ Completo
 
 **Implementação**:
-- Adicionados 6 campos opcionais a `RawOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
+- **Tipo**: Adicionados 6 campos opcionais a `RawOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
 - Validação em `isOccurrenceType()` aceita os novos campos como opcionais e valida vocabulários
 - Transformação em `toOccurrenceType()` passa os campos novos adiante quando presentes
-- Contrato: teste que prova tipo COM e SEM as chaves é aceito
+- **Exceções**: Adicionados `referenceNumberMode` e `declaredAmountMode` (como modo-ou-nulo) à validação `hasValidRequirementFields()` em `occurrenceAttachmentOverrides.validation.ts`
+- **Contratos**: 
+  - `tripResponse.validation.contract.test.ts`: tipo COM e SEM as chaves
+  - `occurrenceAttachmentOverrides.validation.contract.test.ts` (novo): exceção COM/SEM/NULL nos modos novos, rejeita inválido
 
 **Gates**:
 - ✅ Typecheck: passou
-- ✅ Testes: 7210 pass, 0 fail (novo contrato incluído na lista)
+- ✅ Testes: 7214 pass, 0 fail (incluindo novo contrato de exceções)
 
 ---
 
@@ -59,10 +62,13 @@
 **Status**: ✅ Completo
 
 **Implementação**:
-- Adicionados 6 campos opcionais a `DriverOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
+- **Tipo de ocorrência**: Adicionados 6 campos opcionais a `DriverOccurrenceType`: `referenceNumberMode`, `referenceNumberLabel`, `declaredAmountMode`, `declaredAmountScope`, `declaredAmountLabel`, `emailItemLineTemplate`
 - Validação em `isDriverOccurrenceType()` aceita os novos campos como opcionais e valida vocabulários
-- Contrato: teste que prova tipo COM e SEM as chaves é aceito, e rejeita valores inválidos
+- **Snapshot**: Adicionado tipo `DriverNfeProduct` (code, description, unit, quantity, unitValue) e campo `products` (array opcional) ao `DriverTripDocument`
+- **Contratos**: 
+  - `driverTripResponse.validation.contract.test.ts`: tipo COM e SEM as chaves (tipos de ocorrência)
+  - `driverTripResponse.validation.contract.test.ts` (estendido): documento COM/SEM/VAZIO products no snapshot
 
 **Gates**:
 - ✅ Typecheck: passou
-- ✅ Testes: 1247 pass, 0 fail (novo contrato incluído na lista)
+- ✅ Testes: 1250 pass, 0 fail (novo contrato de products incluído na lista)
