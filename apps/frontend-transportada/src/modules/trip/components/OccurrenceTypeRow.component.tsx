@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
@@ -45,7 +45,9 @@ export function OccurrenceTypeRow({
   type,
 }: OccurrenceTypeRowProps) {
   const { t } = useTranslation('companySettings')
-  const isDisabled = !canManage || isSaving
+  const isDisabled = !canManage
+  /** Edições feitas desde a última vez que o salvamento esteve parado: o tipo da tela ainda não as tem. */
+  const unsavedEdits = useRef<OccurrenceTypeEdit>({})
   const scope = readOccurrenceRequirementScope(type)
   /** A recusa vale para o tipo como estava: recarregado do servidor (outro objeto), o aviso some sozinho. */
   const [blockedType, setBlockedType] = useState<null | OccurrenceType>(null)
@@ -55,12 +57,15 @@ export function OccurrenceTypeRow({
   })
 
   function handleEdit(edit: OccurrenceTypeEdit) {
-    if (hasDeclaredAmountWithoutItems(type, edit)) {
+    if (!isSaving) unsavedEdits.current = {}
+    const combinedEdit = { ...unsavedEdits.current, ...edit }
+    if (hasDeclaredAmountWithoutItems(type, combinedEdit)) {
       setBlockedType(type)
       return
     }
     setBlockedType(null)
-    onSave(buildOccurrenceTypeUpdate(type, edit))
+    unsavedEdits.current = combinedEdit
+    onSave(buildOccurrenceTypeUpdate(type, combinedEdit))
   }
 
   return (
