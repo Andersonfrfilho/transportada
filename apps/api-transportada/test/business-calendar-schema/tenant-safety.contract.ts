@@ -31,6 +31,7 @@ describe('as consultas do calendário filtram pela empresa (spec 238 T1.3)', () 
     const names = repositorySources().map((source) => source.name)
 
     expect(names).toContain('drizzle-business-calendar.repository.ts')
+    expect(names).toContain('business-calendar-rules.query.ts')
     expect(names).toContain('drizzle-municipal-holiday-rule.repository.ts')
     expect(names).toContain('drizzle-municipal-holiday.repository.ts')
     expect(names).toContain('drizzle-state-holiday.repository.ts')
@@ -53,19 +54,13 @@ describe('as consultas do calendário filtram pela empresa (spec 238 T1.3)', () 
   })
 
   test('o calendário que a política lê nunca inclui a data gerada por regra', () => {
-    const source = readFileSync(
-      new URL('drizzle-business-calendar.repository.ts', INFRASTRUCTURE),
-      'utf8',
-    )
+    const source = readFileSync(new URL('business-calendar-rules.query.ts', INFRASTRUCTURE), 'utf8')
 
     expect(source).toContain('isNull(municipalHolidays.sourceRuleId)')
   })
 
   test('cada consulta do calendário tem teto: o excesso vira TOO_MANY_RULES na política', () => {
-    const source = readFileSync(
-      new URL('drizzle-business-calendar.repository.ts', INFRASTRUCTURE),
-      'utf8',
-    )
+    const source = readFileSync(new URL('business-calendar-rules.query.ts', INFRASTRUCTURE), 'utf8')
 
     expect(source.match(/\.limit\(BUSINESS_CALENDAR_MAX_RULES \+ 1\)/g)).toHaveLength(3)
   })

@@ -36,8 +36,6 @@ type CitiesParams = { readonly cityCodes: readonly string[]; readonly companyId:
 type StatesParams = LoadBusinessCalendarRulesParams & { readonly stateCodes: readonly string[] }
 
 /** Cada consulta pede um a mais que o teto de regras: a política recusa o excesso (`TOO_MANY_RULES`). */
-const QUERY_LIMIT = BUSINESS_CALENDAR_MAX_RULES + 1
-
 function readYearlyRules(executor: BusinessCalendarRulesExecutor, params: CitiesParams) {
   return executor
     .select()
@@ -48,7 +46,7 @@ function readYearlyRules(executor: BusinessCalendarRulesExecutor, params: Cities
         inArray(municipalHolidayRules.cityIbgeCode, [...params.cityCodes]),
       ),
     )
-    .limit(QUERY_LIMIT)
+    .limit(BUSINESS_CALENDAR_MAX_RULES + 1)
 }
 
 /** `source_rule_id` nulo: a gerada é a regra de novo, e a política já a expande por ano. */
@@ -72,7 +70,7 @@ function readTypedHolidays(
         ),
       ),
     )
-    .limit(QUERY_LIMIT)
+    .limit(BUSINESS_CALENDAR_MAX_RULES + 1)
 }
 
 function readStateHolidays(executor: BusinessCalendarRulesExecutor, params: StatesParams) {
@@ -97,7 +95,7 @@ function readStateHolidays(executor: BusinessCalendarRulesExecutor, params: Stat
         ),
       ),
     )
-    .limit(QUERY_LIMIT)
+    .limit(BUSINESS_CALENDAR_MAX_RULES + 1)
 }
 
 function readSettings(executor: BusinessCalendarRulesExecutor, companyId: string) {
