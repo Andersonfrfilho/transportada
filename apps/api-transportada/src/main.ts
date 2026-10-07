@@ -99,8 +99,16 @@ import {
   createGetDriverAllowanceSettingsUseCase,
   createSetDriverAllowanceSettingsUseCase,
 } from './companies/application/driver-allowance-settings.use-case.js'
+import {
+  createClearLocationRetentionSettingsUseCase,
+  createGetLocationRetentionSettingsUseCase,
+  createReadLocationRetentionImpactUseCase,
+  createSaveLocationRetentionSettingsUseCase,
+} from './companies/application/location-retention-settings.use-case.js'
 import { DrizzleDriverAllowanceSettingsRepository } from './companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
+import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
+import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -187,6 +195,7 @@ import { createNfseCredentialGapFinder } from './whatsapp-commands/application/p
 import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
 import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
+import { createInMemoryWhatsAppSharedLocationStore } from './whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
@@ -289,11 +298,14 @@ import {
   OCCURRENCE_CORRECTION_OPERATION,
 } from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import { toSaveOccurrenceTypeValues } from './trips/application/save-occurrence-type-values.mapper.js'
 import {
   readOccurrenceAttachmentOverrides,
   replaceOccurrenceAttachmentOverrides,
 } from './trips/application/occurrence-attachment-overrides.use-case.js'
 import { DrizzleOccurrenceAttachmentOverridesRepository } from './trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
+import { listOccurrenceTypeIds } from './trips/infrastructure/occurrence-type-ids-read.query.js'
+import { listOccurrenceAttachmentOverridesByType } from './trips/application/list-occurrence-attachment-overrides.use-case.js'
 import {
   createListTripOccurrenceFeedUseCase,
   createReadTripOccurrenceAttachmentsUseCase,
@@ -396,7 +408,11 @@ import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-
 import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
 import { listTripCosts } from './trips/application/list-trip-costs.use-case'
 import { createReadTripTimelineUseCase } from './trips/application/read-trip-timeline.use-case'
-import { findTripCompanyScope, listTripTimeline } from './trips/infrastructure/trip-timeline.query'
+import {
+  findTripCompanyScope,
+  findTripDocumentScope,
+  listTripTimeline,
+} from './trips/infrastructure/trip-timeline.query'
 import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
 import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
@@ -515,6 +531,7 @@ import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
+import { createOccurrenceTypeEmailPreviewRoutes } from './trips/presentation/occurrence-type-email-preview.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
@@ -604,6 +621,34 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import {
+  createGetContractorReceivingProfileUseCase,
+  createListContractorReceivingProfilesUseCase,
+  createSaveContractorReceivingProfileUseCase,
+} from './cargo-receiving/application/contractor-receiving-profile.use-case.js'
+import { DrizzleContractorReceivingProfileRepository } from './cargo-receiving/infrastructure/drizzle-contractor-receiving-profile.repository.js'
+import { createContractorReceivingProfileRoutes } from './cargo-receiving/presentation/contractor-receiving-profile.routes.js'
+import { createContractorReceivingProfileListRoutes } from './cargo-receiving/presentation/contractor-receiving-profile-list.routes.js'
+import {
+  createGetCargoArrivalUseCase,
+  createListAvailableArrivalDocumentsUseCase,
+  createListCargoArrivalsUseCase,
+} from './cargo-receiving/application/read-cargo-arrival.use-case.js'
+import { createRegisterCargoArrivalUseCase } from './cargo-receiving/application/register-cargo-arrival.use-case.js'
+import {
+  createAssignCargoArrivalRouteUseCase,
+  createBatchCargoArrivalStatusUseCase,
+  createChangeCargoArrivalDocumentStateUseCase,
+  createCloseCargoArrivalUseCase,
+} from './cargo-receiving/application/separate-cargo-arrival.use-case.js'
+import { DrizzleCargoArrivalReadRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-read.repository.js'
+import { DrizzleCargoArrivalRegistrationRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-registration.repository.js'
+import { DrizzleCargoArrivalSeparationRepository } from './cargo-receiving/infrastructure/drizzle-cargo-arrival-separation.repository.js'
+import { createCargoArrivalSeparationRoutes } from './cargo-receiving/presentation/cargo-arrival-separation.routes.js'
+import { createCargoArrivalRoutes } from './cargo-receiving/presentation/cargo-arrival.routes.js'
+import { createCargoArrivalOccurrenceHttpRoutes } from './cargo-receiving/cargo-arrival-occurrence.composition.js'
+import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
+import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
@@ -1003,7 +1048,12 @@ export function bootstrap(): Bun.Server<undefined> {
     settle: (input: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
       whatsappDriverFieldReports.execute((transaction) => transaction.settle(input)),
   }
+  /** Spec 196 T3.6: o ponto que o motorista manda no WhatsApp espera o toque seguinte, só em memória. */
+  const whatsappSharedLocations = createInMemoryWhatsAppSharedLocationStore({
+    clock: () => new Date(),
+  })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    consumeSharedLocation: (key) => whatsappSharedLocations.consume(key),
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
         ...input,
@@ -1021,6 +1071,12 @@ export function bootstrap(): Bun.Server<undefined> {
           findConfirmedUpload: (query) =>
             whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          /** Spec 246 (RF6): a exceção do tipo vale no WhatsApp como em qualquer canal. */
+          findOccurrenceTypeOverrides: (query) =>
+            new DrizzleOccurrenceAttachmentOverridesRepository(database.db).listOverridesForTypes({
+              companyId: query.companyId,
+              occurrenceTypeIds: [query.occurrenceTypeId],
+            }),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
@@ -1188,7 +1244,7 @@ export function bootstrap(): Bun.Server<undefined> {
           repository: {
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-            listOccurrences: (query) => listTripOccurrences(database.db, query),
+            listOccurrences: (query) => listTripOccurrences(database.db, { ...query, logger }),
             readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
             saveOccurrence: (query) =>
               persistSeparationOccurrenceWithAttachment({
@@ -1373,9 +1429,7 @@ export function bootstrap(): Bun.Server<undefined> {
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
   const whatsappCommandHook = createWhatsAppCommandHookFactory({
-    apiVersion: config.whatsapp.apiVersion,
     authorization: new AuthorizationService(),
-    baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
     flowActions: [
       ...driverWhatsAppFlowActions,
@@ -1393,6 +1447,7 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     logger,
     rateLimiter: createRateLimiter(),
+    sharedLocations: whatsappSharedLocations,
     resolveActor: createResolveWhatsAppActorUseCase({
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),
@@ -1918,6 +1973,14 @@ function createApplicationRoutes({
   const contractorRegistry = createContractorsUseCase({
     repository: new DrizzleContractorRepository(database),
   })
+  const receivingProfileRepository = new DrizzleContractorReceivingProfileRepository(database)
+  const cargoArrivalReads = new DrizzleCargoArrivalReadRepository(database)
+  // Spec 237 Fase 2: a chegada só é registrada pela tela (painel e PWA do separador), ADR-0068 §3.
+  const cargoArrivalWriting = {
+    channel: CARGO_ARRIVAL_CHANNEL.backoffice,
+    now: () => new Date(),
+    repository: new DrizzleCargoArrivalSeparationRepository(database),
+  }
   const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
   const tripLocationRepository = new DrizzleTripLocationRepository(database)
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
@@ -2012,6 +2075,10 @@ function createApplicationRoutes({
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
+  const locationRetentionDependencies = {
+    now: () => new Date(),
+    settings: new DrizzleLocationRetentionSettingsRepository(database),
+  }
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -2097,7 +2164,7 @@ function createApplicationRoutes({
     database,
     cargoLayoutLeaseOptions,
   )
-  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -2846,6 +2913,13 @@ function createApplicationRoutes({
       get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
       set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
     }),
+    ...createLocationRetentionSettingsRoutes({
+      clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),
+      get: createGetLocationRetentionSettingsUseCase(locationRetentionDependencies),
+      impact: createReadLocationRetentionImpactUseCase(locationRetentionDependencies),
+      resolveClientIp,
+      save: createSaveLocationRetentionSettingsUseCase(locationRetentionDependencies),
+    }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
@@ -3262,6 +3336,65 @@ function createApplicationRoutes({
       saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
     }),
+    ...createContractorReceivingProfileRoutes({
+      getProfile: createGetContractorReceivingProfileUseCase({
+        repository: receivingProfileRepository,
+      }),
+      saveProfile: createSaveContractorReceivingProfileUseCase({
+        repository: receivingProfileRepository,
+      }),
+    }),
+    ...createContractorReceivingProfileListRoutes({
+      listProfiles: createListContractorReceivingProfilesUseCase({
+        repository: receivingProfileRepository,
+      }),
+    }),
+    ...createCargoArrivalRoutes({
+      getArrival: createGetCargoArrivalUseCase({
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+      }),
+      listArrivals: createListCargoArrivalsUseCase({
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+      }),
+      listAvailableDocuments: createListAvailableArrivalDocumentsUseCase({
+        readRepository: cargoArrivalReads,
+      }),
+      registerArrival: createRegisterCargoArrivalUseCase({
+        channel: cargoArrivalWriting.channel,
+        now: cargoArrivalWriting.now,
+        readRepository: cargoArrivalReads,
+        registrationRepository: new DrizzleCargoArrivalRegistrationRepository(database),
+      }),
+    }),
+    ...createCargoArrivalSeparationRoutes({
+      assignRoute: createAssignCargoArrivalRouteUseCase(cargoArrivalWriting),
+      batchStatus: createBatchCargoArrivalStatusUseCase(cargoArrivalWriting),
+      changeDocumentState: createChangeCargoArrivalDocumentStateUseCase(cargoArrivalWriting),
+      closeArrival: createCloseCargoArrivalUseCase(cargoArrivalWriting),
+    }),
+    // Spec 237 Fase 3: a avaria sem viagem e a marcação "devolver ao contratante" (ADR-0094 §9).
+    ...createCargoArrivalOccurrenceHttpRoutes({
+      bucket: resolveStorageBucket(environment),
+      database,
+      logger,
+      storage: createNfeStorageGatewayFromEnvironment({
+        environment,
+        finalBucket: resolveStorageBucket(environment),
+        stagingBucket: resolveStorageBucket(environment),
+      }),
+    }),
+    // Spec 237 Fase 4a: a prévia por upload — a API guarda e enfileira, quem lê é o worker.
+    ...createCargoPreviewHttpRoutes({
+      bucket: resolveStorageBucket(environment),
+      database,
+      storage: createNfeStorageGatewayFromEnvironment({
+        environment,
+        finalBucket: resolveStorageBucket(environment),
+        stagingBucket: resolveStorageBucket(environment),
+      }),
+    }),
     ...createContractorContactRoutes({
       createContact: { execute: (input) => contractorContacts.create(input) },
       listContacts: { execute: (input) => contractorContacts.list(input) },
@@ -3430,6 +3563,12 @@ function createApplicationRoutes({
           repository: {
             findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
             findOccurrenceType: (query) => findOccurrenceType(database, query),
+            /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
+            findOccurrenceTypeOverrides: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes({
+                companyId: query.companyId,
+                occurrenceTypeIds: [query.occurrenceTypeId],
+              }),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
@@ -3533,6 +3672,7 @@ function createApplicationRoutes({
               actorUserId: request.actorUserId,
               channel: TRIP_FIELD_CHANNELS.driverApp,
               companyId: input.companyId,
+              locationStamp: request.locationStamp,
               repository: tripRouteRepository,
               tripId: request.tripId,
             }),
@@ -3543,6 +3683,7 @@ function createApplicationRoutes({
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -3672,12 +3813,14 @@ function createApplicationRoutes({
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       targets: fieldTripTargetRepository,
     }),
+    ...createOccurrenceTypeEmailPreviewRoutes(),
     ...createTripFieldOfficeOccurrenceRoutes({
       resolveClientIp,
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           contractorId: input.contractorId ?? null,
+          moment: input.moment,
           overrides: {
             listOverridesForTypes: (query) =>
               occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
@@ -3717,10 +3860,22 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       updateTripCrew: { execute: (input) => trips.updateCrew(input) },
+      transferTripCrew: { execute: (input) => trips.transferCrew(input) },
       setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+      },
+      listOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          listOccurrenceAttachmentOverridesByType({
+            companyId: input.context.companyId,
+            port: {
+              listOccurrenceTypeIds: (query) => listOccurrenceTypeIds(database, query),
+              listOverridesForTypes: (query) =>
+                occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+            },
+          }),
       },
       readOccurrenceAttachmentOverrides: {
         execute: (input) =>
@@ -3764,6 +3919,8 @@ function createApplicationRoutes({
         execute: (input) =>
           saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
+            findCurrentType: ({ companyId, occurrenceTypeId }) =>
+              findOccurrenceType(database, { companyId, occurrenceTypeId }),
             save: (values) =>
               saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
             templates: {
@@ -3779,22 +3936,7 @@ function createApplicationRoutes({
                 )
               },
             },
-            values: {
-              active: input.active,
-              allowsMultipleItems: input.allowsMultipleItems,
-              attachmentMode: input.attachmentMode,
-              emailBody: input.emailBody,
-              emailSubject: input.emailSubject,
-              emailsContractor: input.emailsContractor,
-              emailTemplateKey: input.emailTemplateKey,
-              flow: input.flow,
-              leavesDocumentBehind: input.leavesDocumentBehind,
-              name: input.name,
-              notifies: input.notifies,
-              occurrenceTypeId: input.occurrenceTypeId,
-              redeliveryPolicy: input.redeliveryPolicy,
-              stage: input.stage,
-            },
+            values: toSaveOccurrenceTypeValues(input),
           }),
       },
       /**
@@ -3812,6 +3954,7 @@ function createApplicationRoutes({
           const occurrences = await listTripOccurrences(database, {
             companyId: input.context.companyId,
             documentId: input.documentId,
+            logger,
             tripId: input.tripId,
           })
           const downloads = createDeliveryProofDownloadGateway({ storage: storageGateway })
@@ -3834,7 +3977,7 @@ function createApplicationRoutes({
         reader: {
           listAttachmentLocations: (query) =>
             listTripOccurrenceAttachmentLocations(database, query),
-          listFeed: (query) => listTripOccurrenceFeed(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
       readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
@@ -3842,7 +3985,7 @@ function createApplicationRoutes({
         reader: {
           listAttachmentLocations: (query) =>
             listTripOccurrenceAttachmentLocations(database, query),
-          listFeed: (query) => listTripOccurrenceFeed(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query, { logger }),
         },
       }),
       /**
@@ -3918,7 +4061,7 @@ function createApplicationRoutes({
                   repository: {
                     findOccurrenceType: (query) => findOccurrenceType(database, query),
                     listDocumentProducts: (query) => listDocumentProducts(database, query),
-                    listOccurrences: (query) => listTripOccurrences(database, query),
+                    listOccurrences: (query) => listTripOccurrences(database, { ...query, logger }),
                     readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
                     /**
                      * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
@@ -4048,10 +4191,13 @@ function createApplicationRoutes({
               idempotencyKey: input.idempotencyKey,
               operation: `${OCCURRENCE_CORRECTION_OPERATION}:${buildOccurrenceCorrectionFingerprint(
                 {
+                  declaredAmount: input.declaredAmount,
                   occurrenceId: input.occurrenceId,
                   productCodes: input.productCodes,
+                  productDeclaredAmounts: input.productDeclaredAmounts,
                   productQuantities: input.productQuantities,
                   productQuantityUnits: input.productQuantityUnits,
+                  referenceNumber: input.referenceNumber,
                 },
               )}`,
               transaction: fieldReportGuardTransaction,
@@ -4061,10 +4207,13 @@ function createApplicationRoutes({
                 actorUserId: input.context.userId,
                 companyId: input.context.companyId,
                 occurrenceId: input.occurrenceId,
+                declaredAmount: input.declaredAmount,
                 productCode: '',
                 productCodes: input.productCodes,
+                productDeclaredAmounts: input.productDeclaredAmounts,
                 productQuantities: input.productQuantities,
                 productQuantityUnits: input.productQuantityUnits,
+                referenceNumber: input.referenceNumber,
                 unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
               }),
             recall: (resultId) =>
@@ -4237,9 +4386,11 @@ function createApplicationRoutes({
             companyId: input.context.companyId,
             ...(input.documentIds === undefined ? {} : { documentIds: input.documentIds }),
             downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+            logger,
             repository: {
               findByTrip: (query) => findDeliveryProofsByTrip(database, query),
             },
+            settings: deliveryProofRepository,
             tripId: input.tripId,
           }),
       },
@@ -4358,7 +4509,10 @@ function createApplicationRoutes({
         }),
       },
       readTripTimeline: createReadTripTimelineUseCase({
-        existence: { findTripCompanyScope: (input) => findTripCompanyScope(database, input) },
+        existence: {
+          findTripCompanyScope: (input) => findTripCompanyScope(database, input),
+          findTripDocumentScope: (input) => findTripDocumentScope(database, input),
+        },
         reader: { listTripTimeline: (input) => listTripTimeline(database, input) },
       }),
       saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
@@ -4383,6 +4537,23 @@ function createApplicationRoutes({
         execute: (input) =>
           readTripValuation({
             ...input,
+            liveRoute: {
+              depot: {
+                readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+                readDescription: () =>
+                  routeDepotQuery.readDescription({ companyId: input.companyId }),
+              },
+              geometry:
+                routingMatrixUrl === undefined
+                  ? { readRouteGeometry: async () => null }
+                  : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+              repository: tripPlannedRouteRepository,
+              tollBooths: createCompanyScopedTollBoothGateway({
+                catalog: tollBoothRepository,
+                charges: tollBoothChargeRepository,
+                companyId: input.companyId,
+              }),
+            },
             repository: {
               findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
               readContext: (query) => tripValuationQuery.readContext(query),

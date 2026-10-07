@@ -46,5 +46,5 @@ export async function loadTripDocumentIdsWithOpenOccurrenceCase(
       ),
     )
 
-  return new Set(rows.map((row) => row.tripDocumentId))
+  return new Set(rows.flatMap((row) => (row.tripDocumentId === null ? [] : [row.tripDocumentId])))
 }

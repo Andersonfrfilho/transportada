@@ -173,7 +173,10 @@ describe('local Keycloak realm contract', () => {
     expect(makefile).toContain('config: realm-contract')
     expect(makefile).toContain('up: config')
     expect(makefile).toContain('ps: config')
-    expect(makefile).toContain('smoke: config')
+    expect(makefile).toContain('smoke: smoke-health smoke-panel smoke-landing smoke-driver')
+    for (const target of ['smoke-health', 'smoke-panel', 'smoke-landing', 'smoke-driver']) {
+      expect(makefile).toContain(`${target}: config`)
+    }
     expect(makefile).toContain('$(KEYCLOAK_MANAGEMENT_PORT)/health/ready')
     expect(makefile).toContain(
       '$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration',

@@ -219,6 +219,18 @@ describe('rotas de administração de usuários — situação e perfis', () => 
     expect(response.status).toBe(200)
     expect(fixture.replaceRolesCalls[0]?.roles).toEqual(['operator', 'fiscal'])
   })
+
+  /** Spec 235 D4: a troca que esvaziaria a ficha de frota é recusada inteira, nunca 500. */
+  test('troca que deixaria a ficha de frota sem perfil responde 409', async () => {
+    const fixture = await createUserAdministrationHttpFixture({ refusal: 'fleet-profile-empty' })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: REPLACE_ROLES_BODY, method: 'PUT', path: `${USER_PATH}/roles` }),
+    )
+
+    expect(response.status).toBe(409)
+    expect((await responseApiError(response)).code).toBe('FLEET_DRIVER_PROFILE_EMPTY')
+  })
 })
 
 describe('rotas de administração de usuários — edição de perfil', () => {

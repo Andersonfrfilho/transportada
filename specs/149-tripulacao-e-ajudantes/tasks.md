@@ -1,14 +1,14 @@
 # Spec 149 — Tarefas
 
-| fase | tasks        | modelo recomendado | fallback se der 429 |
-| ---- | ------------ | ------------------ | ------------------- |
-| 1    | T1 🧠, T2    | `opus`, `sonnet`   | `fable`, `opus`     |
-| 2    | T3–T5        | `sonnet`           | `opus`              |
-| 3    | T6–T7        | `sonnet`           | `opus`              |
-| 4    | T8 🧠, T9    | `opus`, `sonnet`   | `fable`, `opus`     |
-| 5    | T10–T11      | `sonnet`           | `opus`              |
-| 6    | T12–T14, T16 | `sonnet`           | `opus`              |
-| 7    | T15          | `haiku`            | `sonnet`            |
+| fase | tasks        | modelo recomendado     | fallback se der 429 |
+| ---- | ------------ | ---------------------- | ------------------- |
+| 1    | T1 🧠, T2    | `opus`, `sonnet`       | `fable`, `opus`     |
+| 2    | T3–T5        | `sonnet`               | `opus`              |
+| 3    | T6–T7        | `sonnet`               | `opus`              |
+| 4    | T8, T9       | `sonnet`, `haiku`      | `opus`, `sonnet`    |
+| 5    | T10–T11      | `sonnet`               | `opus`              |
+| 6    | T12–T14, T16 | `sonnet` (T14 `haiku`) | `opus`              |
+| 7    | T15          | `haiku`                | `sonnet`            |
 
 Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app (integração com
 `--env-file=../../.env.test`), `make check` na fase, commit isolado e evidência em `evidence.md`.
@@ -41,12 +41,12 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 ## Fase 4 — Score de entregas
 
-> 🤖 Modelo: `sonnet` (T8 é 🧠 — `opus`)
+> 🤖 Modelo: `sonnet` (T9 → `haiku`)
 
-- [ ] T8 🧠 — `driver-performance.policy.ts` (pesos, renormalização, sem histórico) e
+- [ ] T8 — `driver-performance.policy.ts` (pesos, renormalização, sem histórico) e
       `driver-performance.query.ts` (uma consulta, 90 dias, tenant). Integração contra Postgres com
       `EXPLAIN` registrado.
-- [ ] T9 — `GET /fleet-drivers/performance` (`fleet.read`), com contrato de envelope e isolamento.
+- [ ] T9 `haiku` — `GET /fleet-drivers/performance` (`fleet.read`), com contrato de envelope e isolamento.
 
 ## Fase 5 — Recomendação e aprendizado
 
@@ -58,14 +58,18 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 
 ## Fase 6 — Tela
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T14 → `haiku`)
 
-- [ ] T12 — Ficha do motorista e painel "Diária do ajudante" perto do efeito.
+- [x] T12 — Ficha do motorista e painel "Diária do ajudante" perto do efeito.
+      **Ficha fechada pela spec 235 T9** (switch "Pode atuar como ajudante" e "Diária própria" na aba e na
+      criação rápida; ver `specs/235-o-ajudante-e-um-perfil/`). ⚠️ O painel geral "Diária do ajudante"
+      (`company_crew_settings`, aba da empresa) **não existe no painel** — a busca por ele em
+      `apps/frontend-transportada/src` não acha nada; segue sem dono.
 - [ ] T13 — Montagem manda os pares do estado (D12); revisão com select de motorista (score + motivo) e
       ajudantes por veículo, gravando pelo PATCH; resumo das linhas sem motorista.
       **Aberta** no que depende da Fase 5 (score/recomendação e o `PATCH /route-suggestions/.../crew`);
       o ajudante pela tela de viagem foi fechado na T16.
-- [ ] T14 — Linha "Ajudantes" na conta da proposta e da viagem. **Viagem fechada na T16**; a lista
+- [ ] T14 `haiku` — Linha "Ajudantes" na conta da proposta e da viagem. **Viagem fechada na T16**; a lista
       "só parcela com lacuna ou derivação" da proposta (`buildSuggestionCostParcelLines`) segue como está.
 - [x] T16 — Recorte de T13/T14 sem Fase 4/5: o operador adiciona, troca e remove ajudantes pela tela da
       viagem (criação rápida + troca de tripulação) e a diária entra na conta. `PATCH /trips/:id/crew`
@@ -87,8 +91,9 @@ Toda task fecha com: contrato vermelho antes, `bun run typecheck`, testes da app
 tasks.md antes de começar, e a ADR-0065). Uma task por vez, na ordem do tasks.md, na branch
 work/spec-149-tripulacao-ajudantes.
 Modelos: Fase 1 → T1 🧠 opus (validar migrations com architect antes de gerar) · T2 executor model=sonnet ·
-Fases 2, 3, 5 e 6 → executor model=sonnet · T8 🧠 → opus (fórmula e consulta validadas por architect) ·
-T9 executor model=sonnet · Fase 7 → executor model=haiku · revisão final → code-reviewer model=opus.
+Fases 2, 3, 5 e 6 → executor model=sonnet (T14 → haiku) · T8 → executor model=sonnet ·
+T9 executor model=haiku · Fase 7 → executor model=haiku · revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com contrato vermelho antes, bun run typecheck, testes da app (integração da API com
 bun --env-file=../../.env.test test --timeout 120000), teste novo adicionado ao package.json, commit
 isolado, evidência em evidence.md; make check e make migration-test ao fim de cada fase.

@@ -9,20 +9,20 @@ isolado com `--no-verify` e caminhos explícitos. Sem migration.
 
 ## Fase 1 — API do aceite
 
-> 🤖 Modelo: `opus` (regra de domínio no aceite)
+> 🤖 Modelo: `sonnet` (regra de domínio no aceite, mas sem decisão que outras tasks herdem)
 
 - [ ] **T0** Conferir as premissas do `plan.md` (aceite sem ETA; `main.ts:2629` sem `routeFreezer`;
       estado de `trip-stop-order.adapter.ts` em `origin/staging`, que a 192 muda para levar o ator) e
       anotar arquivo:linha no `evidence.md`. Divergiu: pare e pergunte. Conferir que 201 segue livre.
-- [ ] **T1** 🧠 `stopIds?` no aceite (RF1, RF2): schema, validação do conjunto antes de qualquer
+- [ ] **T1** `stopIds?` no aceite (RF1, RF2): schema, validação do conjunto antes de qualquer
       escrita, ordem enviada, rota congelada dessa ordem. Integração: CA01–CA04. **Publicar em staging
       antes da T2.**
 
 ## Fase 2 — Painel
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T2 ⚙️ `haiku`: encadeamento descrito, aceite por contrato)
 
-- [ ] **T2** `RouteSuggestionPanel` → `onAccept(order)` → hook → cliente com `stopIds` só com ordem
+- [ ] **T2** ⚙️ `RouteSuggestionPanel` → `onAccept(order)` → hook → cliente com `stopIds` só com ordem
       manual (RF3). Contrato do hook e do cliente (CA05).
 - [ ] **T3** `TripStopList`: `KeyboardSensor` + `sortableKeyboardCoordinates`, anúncios traduzidos
       (RF4, CA06), e a nota datada na 079 `spec.md:18`. Condicional: se `stopOrderVersion` já vier no detalhe (spec 192 em staging), mandar
@@ -38,7 +38,8 @@ isolado com `--no-verify` e caminhos explícitos. Sem migration.
 plan.md e tasks.md antes; leia a seção de trip/routing de apps/frontend-transportada/CLAUDE.md e
 specs/111-ordem-manual-da-proposta/spec.md D3/D4). Uma task por vez, na ordem.
 Árvore própria (make worktree NAME=spec-201; em worktree do Claude, branch própria) — sem git stash.
-Modelos: T0–T1 → opus · T2–T4 → executor model=sonnet.
+Modelos: T0–T1 → executor model=sonnet · T2 → executor model=haiku · T3–T4 → executor model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task: teste antes (visto vermelho), typecheck + lint + testes; na API os DOIS comandos
 (contrato e test:integration com --env-file=../../.env.test); evidência em evidence.md; commit isolado
 com --no-verify e caminhos explícitos.

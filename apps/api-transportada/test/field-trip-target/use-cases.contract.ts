@@ -104,6 +104,7 @@ function buildProofRepository() {
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
       deliveryEventPosition: undefined,
+      isDeliveryRecordedByDriver: true,
     }),
     findDeliveryEventId: async (input) => {
       lookups.push(input)
@@ -304,6 +305,10 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
           name: 'Recusa',
           notifies: false,
           stage: 'delivery',
+        }),
+        findOccurrenceTypeOverrides: async () => ({
+          contractorOverrides: [],
+          recipientOverrides: [],
         }),
         findReachableDocument: async (input) => {
           lookups.push(input)

@@ -591,9 +591,7 @@ async function buildScenario(db: Database, companyId: string) {
     appSecret: APP_SECRET,
     baseUrl,
     buildMessageHook: createWhatsAppCommandHookFactory({
-      apiVersion: API_VERSION,
       authorization: new AuthorizationService(),
-      baseUrl,
       clock: () => new Date(),
       flowActions: issuanceFlowActions,
       graphs: createModuleWhatsAppFlowGraphProvider({

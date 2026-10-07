@@ -12,6 +12,7 @@ import {
   buildUsernameCandidates,
   pickAvailableUsername,
 } from '../domain/generated-username.policy.js'
+import { FLEET_LINKED_ROLES } from '../domain/fleet-linked-roles.constant.js'
 import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 import { toDisplayPersonName, toStoredPersonName } from '../../shared/person-name.service.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
@@ -69,8 +70,6 @@ export type InviteCompanyUserResult = CompanyUserView & {
 export type InviteCompanyUserUseCase = {
   execute(input: InviteCompanyUserInput): Promise<InviteCompanyUserResult>
 }
-
-const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 /**
  * Usuário nasce desabilitado e sem senha no Keycloak: só a ativação (código → senha) habilita.

@@ -2,21 +2,22 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ChannelAdapterInterface } from '@adatechnology/meta-whatsapp-contracts'
-import type { WhatsAppMessageProvider } from '@adatechnology/meta-whatsapp-provider'
 
 import type { WhatsAppMessageSenderPort } from '../application/whatsapp-command-driver.port.js'
 
-/**
- * Texto e lista saem pelo adaptador de canal do módulo; botões, pelo provider, porque o
- * `ChannelAdapterInterface` da 0.1.0 não tem botão. Os dois usam o mesmo token e o mesmo número.
- */
+/** Texto, lista e botões saem pelo mesmo adaptador de canal do módulo: mesmo token, mesmo número. */
 export function createMetaWhatsAppMessageSender(input: {
-  readonly buttons: Pick<WhatsAppMessageProvider, 'sendInteractiveButtons'>
-  readonly channel: Pick<ChannelAdapterInterface, 'sendInteractiveList' | 'sendText'>
+  readonly channel: Pick<
+    ChannelAdapterInterface,
+    'sendInteractiveButtons' | 'sendInteractiveList' | 'sendText'
+  >
 }): WhatsAppMessageSenderPort {
   return {
     async sendButtons({ body, buttons, to }) {
-      await input.buttons.sendInteractiveButtons({ bodyText: body, buttons, to })
+      if (input.channel.sendInteractiveButtons === undefined) {
+        throw new Error('The WhatsApp channel adapter does not support interactive buttons')
+      }
+      await input.channel.sendInteractiveButtons({ body, buttons: [...buttons], to })
     },
     async sendList({ body, buttonLabel, rows, to }) {
       await input.channel.sendInteractiveList({ body, buttonLabel, rows: [...rows], to })

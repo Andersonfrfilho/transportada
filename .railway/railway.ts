@@ -123,6 +123,9 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
+      /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
+      WHATSAPP_APP_SECRET: preserve(),
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),
     },
   })
 
@@ -177,6 +180,10 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SENTRY_DSN: preserve(),
       SMTP_URL: preserve(),
+      /** Nomes dos templates aprovados na Meta (convite e recuperação de senha) e o idioma. */
+      WHATSAPP_CODE_TEMPLATE_LANGUAGE: preserve(),
+      WHATSAPP_INVITATION_TEMPLATE: preserve(),
+      WHATSAPP_PASSWORD_RESET_TEMPLATE: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),
     },

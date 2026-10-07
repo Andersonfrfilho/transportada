@@ -218,6 +218,11 @@ export type FleetDriverInput = {
 }
 
 export type FleetDriver = FleetDriverInput & {
+  /**
+   * Spec 235 D2: dirige. Só leitura — quem o decide é o perfil na criação e a troca de papéis
+   * depois; o corpo de `PATCH` nunca o escreve.
+   */
+  readonly canDrive: boolean
   readonly createdAt: string
   /**
    * Onde a casa fica, e por que ela pode não ter coordenada (spec 097 D6) — é isto que a tela
@@ -342,6 +347,8 @@ export type FleetDriverContactDirectoryPort = {
 
 export type FleetDriverRepositoryPort = {
   create(input: {
+    /** Spec 235 D2: vai no `INSERT` porque a ficha e o convite não compartilham transação. */
+    readonly canDrive: boolean
     readonly companyId: string
     readonly driver: FleetDriverInput
   }): Promise<FleetDriver>

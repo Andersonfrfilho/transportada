@@ -1,15 +1,16 @@
 # Tasks — Spec 194
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**⚙️ = task que desce para `haiku`** (mecânica, aceite por comando) dentro de uma fase `sonnet`.
+**🧠 = task que sobe para `opus`** (produz decisão que outras tasks herdam). Escalada: gate falhou 2× em `haiku` → `sonnet`; em `sonnet` → `opus`; registrar em `evidence.md`.
 
-| Fase | Assunto                                   | Modelo                          | Depende de                                             |
-| ---- | ----------------------------------------- | ------------------------------- | ------------------------------------------------------ |
-| 1    | Qualidade da foto, grava primeiro         | `sonnet`                        | task do `attach` em `origin/staging`; T1.2b 👤         |
-| 2    | Número da NF-e (OCR)                      | `sonnet`; T2.2 e T2.4 🧠 `opus` | fase 1; 196 e 192 no `useDriverTrip`/página, ou rebase |
-| 3    | Assinatura no canhoto                     | `sonnet`                        | fase 1                                                 |
-| 4    | Metadado na API (**opcional**, migration) | `sonnet`; T4.1 🧠 `opus`        | T4.0 👤; migration da 193 em `origin/staging`          |
-| 5    | Fechamento, segurança, validação de campo | `sonnet`; T5.2 `opus`           | fases 1–3                                              |
+| Fase | Assunto                                   | Modelo                                    | Depende de                                             |
+| ---- | ----------------------------------------- | ----------------------------------------- | ------------------------------------------------------ |
+| 1    | Qualidade da foto, grava primeiro         | `sonnet`                                  | task do `attach` em `origin/staging`; T1.2b 👤         |
+| 2    | Número da NF-e (OCR)                      | `sonnet`; T2.2 🧠 `opus`; T2.7 ⚙️ `haiku` | fase 1; 196 e 192 no `useDriverTrip`/página, ou rebase |
+| 3    | Assinatura no canhoto                     | `sonnet`                                  | fase 1                                                 |
+| 4    | Metadado na API (**opcional**, migration) | `sonnet`; T4.0 ⚙️ `haiku`                 | T4.0 👤; migration da 193 em `origin/staging`          |
+| 5    | Fechamento, segurança, validação de campo | `sonnet`; T5.3 ⚙️ `haiku`                 | fases 1–3                                              |
 
 A fase 3 pode correr em paralelo à 2 (arquivos diferentes, salvo a lista de motivos, que a 3 só
 acrescenta). A coordenação por arquivo com 192/193/195/196 está no `plan.md`.
@@ -40,9 +41,9 @@ depois de o usuário ver.
 
 ## Fase 1 — Qualidade da foto, grava primeiro
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T1.0, T1.2, T1.4, T1.9 → ⚙️ `haiku`)
 
-- [ ] **T1.0 — Base e pré-requisito.** `git fetch && git rebase origin/staging &&
+- [ ] ⚙️ **T1.0 — Base e pré-requisito.** `git fetch && git rebase origin/staging &&
 bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a foto
       (`DriverStopCard.component.tsx:549-555`) está em `origin/staging` — se não, **parar e avisar**;
       (b) os três botões de `6aef92ab6` e o `onConfirm` do `ProofCrop`; (c) `ls specs/` por 197/198 e
@@ -57,7 +58,7 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
       `['lowContrast']`; estourada → `['overexposed']`; ruído cinza → `['noDocument']`; texto cortado
       nas duas laterais → `['documentCut']`; escura + tremida → os dois, na ordem fixa; lado menor < 64
       px não avalia nitidez; um pixel de reflexo não muda o veredito (percentis). Evidência: vermelho.
-- [ ] **T1.2 — Serviço puro.** `proofPhotoCheck.constant.ts` (com `PROOF_PHOTO_CHECK_ENABLED`),
+- [ ] ⚙️ **T1.2 — Serviço puro.** `proofPhotoCheck.constant.ts` (com `PROOF_PHOTO_CHECK_ENABLED`),
       `proofPhotoCheck.types.ts`, `proofPhotoQuality.service.ts` (plan.md § Fase 1). Sem tocar em
       `proofCrop.service.ts`. Evidência: T1.1 verde.
 - [ ] **T1.2b 👤 — Calibração com fotos reais.** `scripts/calibrate-proof-photo.ts` (plan.md). Pedir
@@ -72,7 +73,7 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
       → só acrescenta; falha na escrita → a anterior fica. `attachProof` aceita `replacesAttachmentKey?`
       e devolve `{ outcome, attachmentKey? }`; `handleProof` e `onProof` ajustados sem mudar a tela.
       Evidência: testes, typecheck.
-- [ ] **T1.4 — O seletor abre por handle.** `FilePickerButton` ganha `pickerRef` com `{ open(): void }`
+- [ ] ⚙️ **T1.4 — O seletor abre por handle.** `FilePickerButton` ganha `pickerRef` com `{ open(): void }`
       (`useImperativeHandle`, `input.click()` síncrono), sem mexer no `RefCallback` da câmera. Contrato:
       o handle chama `click()` no mesmo tique e o registro `'camera'` abre como no toque direto.
 - [ ] **T1.5 — Fluxo puro e registro.** `proofPhotoCheckFlow.service.ts` e `'proof-check'` em
@@ -96,12 +97,12 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
       boa, um motivo, três motivos, parada concluída com a frase de pontualidade); revisão contra os
       vizinhos (botões da seção, `DriverProofOutcomeNotice`); enviar ao usuário e **esperar "pode
       subir"**.
-- [ ] **T1.9 — Publicar a fase 1 em staging.** Só com T1.2b e T1.8 fechadas. fetch → rebase
+- [ ] ⚙️ **T1.9 — Publicar a fase 1 em staging.** Só com T1.2b e T1.8 fechadas. fetch → rebase
       `origin/staging` → install → `make check` → push, encadeado com `&&`. Prettier nos `.md`.
 
 ## Fase 2 — Número da NF-e (OCR)
 
-> 🤖 Modelo: `sonnet` (T2.2 e T2.4 são 🧠 — `opus`, com o `architect` validando antes de implementar)
+> 🤖 Modelo: `sonnet` (T2.2 é 🧠 — `opus`, com o `architect` validando antes de implementar; T2.4 → `sonnet`; T2.7 → ⚙️ `haiku`)
 
 - [ ] **T2.1 — O interruptor chega ao motorista.** API: contrato vermelho de `GET /me/trips/current`
       com `data.canhotoOcrEnabled`; integração de isolamento (empresa A ligada, B desligada) em
@@ -134,7 +135,7 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
       confiança → `unread`; zeros à esquerda; série que não bate → `mismatch`; mesmo número em duas
       notas sem série → `unread`. Implementar `canhotoOcr.service.ts` (cópia da extração) e
       `canhotoNumberCheck.service.ts`.
-- [ ] **T2.4 🧠 — Leitura depois do aceite.** `canhotoOcrEngine.service.ts` por cópia + prazo total de
+- [ ] **T2.4 — Leitura depois do aceite.** `canhotoOcrEngine.service.ts` por cópia + prazo total de
       20 s desde o aceite (carga + leitura) + `saveData` + `prefetchCanhotoOcrAssets`;
       `canhotoOcrImage.service.ts` (≤ 2000 px, giros para tira vertical); `useCanhotoNumberChecks.hook.ts`
       no nível da página (dispara com `outcome === 'queued'` e `attachmentKey`; descarta chave velha ou
@@ -148,7 +149,7 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
       é singleton por aba) e `context.setOffline(true)` antes da segunda leitura, que tem de funcionar.
 - [ ] **T2.6 👤 — Preview local.** Prints 375/768 (confere, outra da parada, outra qualquer, pendência
       informativa), tempo da primeira carga e das seguintes; o usuário vê antes de subir.
-- [ ] **T2.7 — Publicar a fase 2 em staging** (sequência da T1.9). O interruptor segue desligado em
+- [ ] ⚙️ **T2.7 — Publicar a fase 2 em staging** (sequência da T1.9). O interruptor segue desligado em
       todo ambiente; ligar é decisão do usuário.
 
 ## Fase 3 — Assinatura no canhoto
@@ -168,11 +169,11 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
 
 ## Fase 4 — Metadado na API (opcional)
 
-> 🤖 Modelo: `sonnet` (T4.1 é 🧠 — `opus`)
+> 🤖 Modelo: `sonnet` (T4.0 → ⚙️ `haiku`)
 
-- [ ] **T4.0 👤 — Aprovação.** Perguntar ao usuário se o escritório deve ver o resultado das
+- [ ] ⚙️ **T4.0 👤 — Aprovação.** Perguntar ao usuário se o escritório deve ver o resultado das
       verificações (exige migration). Sem "sim", a fase 4 não começa.
-- [ ] **T4.1 🧠 — Migration aditiva**, depois da `delivery_proof_received_by` da 193 estar em
+- [ ] **T4.1 — Migration aditiva**, depois da `delivery_proof_received_by` da 193 estar em
       `origin/staging` (ou no mesmo lote, combinado com quem executa a 193): colunas do plan.md,
       `rollback.sql`, `snapshot.json`, número conferido em `origin/staging`, `make migration-test`,
       `db:generate` = `no_changes`.
@@ -185,14 +186,14 @@ bun install --frozen-lockfile`. Conferir: (a) a task do `attach` que descarta a 
 
 ## Fase 5 — Fechamento
 
-> 🤖 Modelo: `sonnet` (T5.2 → `security-reviewer` `opus`)
+> 🤖 Modelo: `sonnet` (T5.2 → `security-reviewer` `sonnet`; T5.3 → ⚙️ `haiku`)
 
 - [ ] **T5.1 — Revisão de design** (`designer`, `sonnet`): todos os estados em 375/768, contraste,
       consistência com os vizinhos; prints ao usuário; divergência consertada ou registrada.
-- [ ] **T5.2 — Revisão de segurança** (`security-reviewer`, `opus`): CSP (forma escolhida), rota de
+- [ ] **T5.2 — Revisão de segurança** (`security-reviewer`, `sonnet`): CSP (forma escolhida), rota de
       cache do SW, nada saindo do aparelho, isolamento do interruptor; entrada em `docs/SECURITY.md`
       com `'wasm-unsafe-eval'` na app do motorista.
-- [ ] **T5.3 — Documentação viva.** `apps/frontend-driver/CLAUDE.md` (fluxo "grava primeiro, avisa
+- [ ] ⚙️ **T5.3 — Documentação viva.** `apps/frontend-driver/CLAUDE.md` (fluxo "grava primeiro, avisa
       depois", `proof-check`, `replaceQueuedProof`), `docs/ai-context/frontend-driver.md`,
       `apps/api-transportada/CLAUDE.md` se o snapshot mudou; ADR-0078 para "aceita".
 - [ ] **T5.4 👤 — Validação de campo.** Com o usuário, em staging, 2 celulares e 2 luzes:
@@ -220,11 +221,12 @@ worktree`. T1.0 primeiro: se a task que corrige o `attach` que descarta a foto
 Regra central (ADR-0078 §1): grava primeiro, avisa depois — a foto vai para o IndexedDB no onConfirm do
 ProofCrop, com 'proof-check' aberto antes de desmontar o recorte; nenhuma verificação segura a foto em
 memória; "Tirar outra" substitui numa escrita só.
-Modelos: Fase 1 → executor model=sonnet · Fase 2 → executor model=sonnet, exceto T2.2 🧠 e T2.4 🧠 →
-opus (validar com architect model=opus antes de implementar) · Fase 3 → executor model=sonnet · Fase 4
-só com o "sim" do usuário na T4.0: executor model=sonnet, T4.1 🧠 → opus · T5.1 → designer model=sonnet
-· T5.2 → security-reviewer model=opus · T5.3 → executor model=sonnet · revisão final → code-reviewer
-model=opus.
+Modelos: Fase 1 → executor model=sonnet (T1.0, T1.2, T1.4, T1.9 ⚙️ → model=haiku) · Fase 2 → executor
+model=sonnet, exceto T2.2 🧠 → opus (validar com architect model=opus antes de implementar) e T2.7 ⚙️ →
+haiku · Fase 3 → executor model=sonnet · Fase 4 só com o "sim" do usuário na T4.0 (⚙️ haiku): executor
+model=sonnet · T5.1 → designer model=sonnet · T5.2 → security-reviewer model=sonnet · T5.3 ⚙️ → executor
+model=haiku · revisão final → code-reviewer model=sonnet. Escalada: gate falhou 2× em haiku → sonnet; em
+sonnet → opus; registrar em evidence.md.
 Cada task fecha com typecheck + lint + testes + commit isolado (--no-verify, caminhos explícitos),
 evidência em evidence.md. O build do motorista roda o dist.contract. Na API, os DOIS comandos (contrato
 e `bun --env-file=../../.env.test run test:integration`, de dentro de apps/api-transportada); integração

@@ -51,11 +51,11 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
      * ⚠️ Esta porta nunca anota nós (`nodeIds: null`, de propósito — esta suíte é da geometria, não
      * do pedágio), então a assinatura sai nula nos dois lados e nunca deduplica contra si mesma
      * (spec 153): a segunda chamada vira uma candidata "diferente" sem custo conhecido, e sem custo
-     * comparável o critério `cheapest` não acha candidata — a seleção cai na principal, sem
-     * reproduzir escolha nenhuma porque nenhuma foi pedida em cima de dado que falta.
+     * comparável, mas o critério padrão é `fastest`, que só olha a duração: a principal vence e a
+     * escolha conta como reproduzida.
      */
     expect(view.selectedIndex).toBe(0)
-    expect(view.choiceReproduced).toBe(false)
+    expect(view.choiceReproduced).toBe(true)
   })
 
   /**

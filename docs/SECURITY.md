@@ -248,9 +248,14 @@ não passa pelo Keycloak, só pela posse do aparelho.
   conta aparece como "pendências de outra conta", com "Descartar" e aviso. Nunca sai com o token de
   quem não tocou.
 - **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
-  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159, e desde a spec
-  189 T9.2 os eventos parados também (`discardStaleAttachments` com a fila de eventos, pelo
-  `createdAt`), levando junto os anexos pendurados neles.
+  suspensa até haver sessão. ⚠️ **Sem prazo de descarte (spec 227, decisão do usuário em
+  02/10/2026: "não apaga até sincronizar").** O descarte de 7 dias da spec 159 e o dos eventos
+  parados da spec 189 T9.2 (`discardStaleAttachments`) foram removidos: o que o motorista fez e o
+  aparelho ainda não enviou é a única cópia do trabalho dele. **Risco aceito:** a posição e a foto
+  ficam no IndexedDB do aparelho por tempo indeterminado, legíveis por quem o desbloquear. O que
+  continua tirando dado de lá: o envio, o "Descartar" do recusado de negócio com confirmação
+  (`queueDiscard.service.ts`, só 4xx — nunca 5xx, 401/403/408/429 nem erro de rede), o "Descartar e
+  sair" e o descarte de pendência de outra conta.
 - **"Sair" com pendência própria.** Antes de sair, a app avisa "N registros seus ainda não
   subiram" e oferece "Enviar agora" (com sessão) ou "Descartar e sair" — o descarte
   (`queueOwner.service.ts:discardOwnPending`) apaga evento, blob, documento e nome do recebedor e
@@ -282,6 +287,354 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
+
+**Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
+(`record-contractor-mail-inbound-message.use-case.ts`); `api-transportada`, migration
+`20261007040900_cargo_preview_email_intake` (ADR-0094 §10).
+
+**O que é:** o usuário encaminha o e-mail do contratante ao endereço de entrada do sistema; o worker lê a
+planilha anexa e cria a prévia pelo mesmo contrato do upload. O e-mail e a planilha são entrada hostil.
+
+**Risco aceito pelo usuário (2026-10-06):** o DKIM do **contratante** não chega ao sistema — ele não assina o
+encaminhamento, e o que se verifica é o DKIM de **quem encaminha**. O remetente original é lido do cabeçalho
+da mensagem encaminhada (ou do bloco no texto) e é **informação, nunca autenticação**: quem controla a conta
+encaminhadora pode forjar o remetente original e a planilha. **Limite do risco:** o dano é uma prévia falsa em
+estado `queued` para um contratante com perfil ligado — o vínculo continua exigindo valor **e** peso contra XML
+real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem nem nota.
+
+**O que segura (mitigações):**
+
+- **Token no endereço** (26 base32, só o hash no perfil, espaço de hash distinto do das conversas) **e**
+  **lista do encaminhador** (endereço exato) **e** **DKIM do encaminhador alinhado** — conferido sobre o
+  `From` do próprio MIME, depois de uma checagem barata do remetente do provedor antes de baixar. Falta de
+  qualquer um é recusa com código; lista ausente ou vazia recusa tudo.
+- **Remetente original na lista do perfil** (endereço ou domínio exato, nunca subdomínio); cabeçalho
+  duplicado, lista de endereços ou ausência são recusa; o nome de exibição é descartado.
+- **Tamanho e tipo:** MIME até 2 MiB (o gateway baixa com teto), anexo até 960 KiB (o do upload), tipo pelos
+  bytes (`PK\x03\x04`), **um** anexo candidato; MIME lido com PostalMime limitado (profundidade 6,
+  cabeçalhos 64 KiB) e a mensagem anexada aberta uma vez, sem recursão. O worker **nunca abre a planilha** no
+  consumidor de e-mail: ela segue para o leitor com tetos, `worker_thread` e orçamento (§7).
+- **Abuso (T4.7a, T4.7c, T4.7d):** janela por contratante em 300 s com **dois contadores** pelo relógio do banco — 20
+  **autenticados** e 100 **recusas**. Só conta como autenticado o que o encaminhador prova: a prévia aceita e a recusa
+  **depois de o remetente original passar na lista** (anexo inválido, teto de abertas). As seis recusas anteriores
+  (`MIME_UNREADABLE`, `FORWARDER_FROM_MISMATCH`, `FORWARDER_NOT_ALLOWED`, `ORIGINAL_SENDER_*`) ficam nas recusas, mesmo com o DKIM
+  `aligned`: o `d=` pode ser do atacante e uma mensagem assinada pelo encaminhador pode ter só sido reenviada (T4.7d). O teto de
+  **autenticados** fecha o download e o DKIM (deixa **uma** linha `RATE_LIMITED` por janela); o de **recusas** só **para
+  de gravar** — a checagem barata continua sendo avaliada e devolvida, sem linha nova, e o encaminhador legítimo não
+  fica trancado do lado de fora por lixo endereçado ao token. No máximo 5 prévias `queued`/`processing` por
+  contratante, sob a mesma trava advisory do upload.
+- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c, T4.7d):** seção de cabeçalhos em 64 KiB e **cada campo desdobrado** em
+  2 KiB (`from`, `sender`, `reply-to`, `return-path`, e a **soma** dos repetidos de mesmo nome), **8 KiB por campo e 16 KiB na
+  soma** nos destinatários (`to`, `cc`, `bcc`, `delivered-to`) ou 8 KiB (os outros), **antes** do `dkimVerify` — o
+  `addressparser` é quadrático (400 KB de `Return-Path: a,a,a…` travaram o worker por 58 s; no pior padrão 2 KiB custam
+  2,4 ms, 8 KiB 37 ms, 32 KiB 708 ms). Os destinatários subiram de 2 para 8 KiB na T4.7d porque uma resposta a todos de uma lista
+  de ~120 endereços com nome (7,6 KiB) perdia DKIM e anexos (o falso positivo que a T4.7c registrou). O teto de 8 KiB cobre até ~125
+  endereços com nome num campo `To`/`Cc`; a lista de 150 (9,3 KiB) ainda recusa, a não ser que venha repartida em campos
+  repetidos (soma de 16 KiB). A regra de linha é a da
+  `mailauth` (`parseHeaders`): nome sem espaços antes do `:` e linha que não abre campo soma no de cima. **Nome de campo com
+  espaço exótico antes do `:`** (`\f`, `\v`, NEL, NBSP, espaços Unicode, BOM, lidos em latin1 e UTF-8) **recusa** (T4.7d): a
+  `mailauth` junta `To\f:` ao campo de cima (teto de 8 KiB) e o PostalMime o lê como um `to` próprio — sete linhas de 8 KiB
+  furavam o teto. O pior campo que passa custa milissegundos (provado por medição, não por conta). Vale também
+  para o trilho da conversa (mensagem hostil: DKIM `absent`, sem anexos) e para a mensagem anexada que a prévia abre.
+- **Assinaturas com teto e prazo (T4.7c):** no máximo 8 `DKIM-Signature` e 3 conjuntos `ARC-*` (por instância
+  desdobrada) — a `mailauth` cria um hasher de corpo por combinação (canon, hash, `l=`) e consulta o DNS de cada
+  assinatura em **série**: 480 assinaturas com `l=` distintos eram CPU de corpo, 600 com DNS de 10 ms eram minutos.
+  Acima disso a barreira recusa antes do verificador. E a verificação inteira tem **prazo de 15 s**
+  (`DKIM_VERIFICATION_DEADLINE_MS`): estourou, o resultado é `unverifiable` (na prévia, o caminho que repete a
+  entrega e só grava `FORWARDER_DKIM_UNVERIFIABLE` na última; na conversa, o `dkim_result` que já existia), e passado
+  o prazo o resolvedor recusa na hora — o laço da `mailauth` que seguiria em segundo plano acaba sem sair para a rede.
+  Um DNS mudo não prende mais o consumidor por tempo de timeout vezes número de assinaturas.
+- **O `From` que se alinha é o que se lê (T4.7c, NOVO-1):** `From: <logistica"@evil.example>"@transportadora.com.br>`
+  era lido por nós como `logistica@transportadora.com.br` (as aspas saíam da string inteira antes do `<…>`) e pela
+  `mailauth` como `logistica"@evil.example` — alinhado com a chave do atacante, `accepted`. Duas camadas: o leitor
+  de remetente exige o endereço **literal** no fim do valor original (aspas dentro do `<…>` recusam), e o intake só
+  aceita quando o `headerFrom` que a PRÓPRIA `mailauth` devolveu é **um só** e é o mesmo endereço que o nosso leitor
+  tirou do MIME — divergência recusa `FORWARDER_FROM_MISMATCH` (código novo, no CHECK da migration ainda não
+  publicada). O `From` do provedor (Resend) segue só como checagem barata antes do download; a identidade que vale é a
+  do MIME alinhado.
+- **Partes e aninhadas têm teto (T4.7d):** as linhas que começam com `--` são contadas antes do PostalMime (mais de 1000 =
+  recusa; conversa devolve nenhuma parte, prévia trata como MIME ilegível) e as aninhadas abertas dividem um orçamento de 5 por
+  mensagem. Antes: 5000 aninhadas com `To`+`Cc` de 2 KiB = 25,5 s; 20 000 partes pequenas = 9 s; 200 000 pequenas > 180 s;
+  depois, 0–4 ms. O pior caso que PASSA (cinco aninhadas com `To`+`Cc` de 8 KiB do pior padrão) custa ~370 ms de laço — limitado,
+  não zero; a `worker_thread` com prazo (ADR-0053) fica como passo seguinte se doer.
+- **A mensagem anexada passa pela mesma barreira (T4.7c):** o PostalMime a abria sem limite (62 KiB de `Cc`
+  aninhado = 4 s; 256 KiB = 40 s de laço travado, no trilho da conversa e na prévia). A prévia só abre a anexada
+  depois da barreira de cabeçalho; a conversa não deixa o PostalMime abri-la (`forceRfc822Attachments`) — quem a abre é
+  o worker, depois da barreira e até 3 níveis, e os anexos de dentro entram na mesma posição de antes.
+- **`l=` nunca alinha (T4.7a):** assinatura DKIM que cobre só parte do corpo não conta como alinhada — nos dois
+  trilhos.
+- **DKIM sem veredito repete (T4.7a, T4.7d):** `unverifiable` (DNS fora) não é recusa permanente: a entrega repete e só a
+  última grava `FORWARDER_DKIM_UNVERIFIABLE`. Desde a T4.7d só vale a falha transitória de assinatura **alinhada** ao `From`
+  (a `mailauth` calcula `status.aligned` antes do DNS): assinatura com `d=` alheio e DNS mudo vira `not_aligned`, sem
+  repetir. Efeito no trilho da 143/183 (mesma política): mensagem com assinatura só de domínio alheio e DNS dele fora do
+  ar deixa de gravar `unverifiable` e grava `not_aligned` — nenhum dos dois alinha. Resta: um DNS lento até o prazo de 15 s
+  ainda estoura em `unverifiable` (o prazo não sabe de qual assinatura veio o atraso).
+- **A conversa vence (T4.7a):** e-mail com o endereço da prévia **e** o de uma conversa é resposta da conversa; a
+  prévia não é consultada.
+- **Sem eco e sem PII em log:** nenhuma resposta ao remetente; log só com ids, códigos e contagens. A recusa
+  fica em `cargo_preview_email_intakes` (append-only) sem endereço, nome, assunto, corpo nem cabeçalho.
+- **Idempotência:** `(company_id, provider_email_id)` único; o mesmo arquivo do contratante devolve a prévia
+  existente; o MIME bruto só é guardado do e-mail aceito (RF3), em chave opaca.
+
+**Pendências / limites conhecidos:**
+
+1. **O remetente original forjado por quem encaminha não é detectável** — é o risco aceito acima.
+2. **Retenção do MIME bruto:** `contractor_mail_raw` das mensagens da prévia contém a planilha e os
+   cabeçalhos. A T4.8 (retenção de 90 dias) **deve cobri-lo**, junto com o arquivo e as colunas de pessoa dos
+   itens; até lá o prazo não é cumprido.
+3. **Sem rate limit por IP/remetente** além da janela por contratante: quem tem o token e consegue passar a
+   lista do encaminhador é a própria equipe.
+4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012) e as listas/hash do token no perfil —
+   por SQL até a T4.6b (rota `PUT` e ficha). O código não configura DNS nem envia e-mail.
+5. **L3 — a lista do encaminhador por "endereço exato" só é tão forte quanto o DKIM do domínio** (T4.7a). O
+   alinhamento é **relaxado** (domínio organizacional) e o `i=` da assinatura não é verificado: quem assina por
+   `team.com`, ou por um subdomínio dele, passa o DKIM com `From: forwarder@team.com` e se faz passar por
+   `forwarder@team.com`. A lista barra quem **não** controla o domínio da equipe, não quem controla uma conta
+   qualquer dele.
+6. **L4 — o token aparece em claro no `raw.eml` guardado** (T4.7a): o MIME bruto do e-mail aceito tem o endereço de
+   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). Enquanto a T4.6b não gerar o token no
+   servidor, ele é **escolhido à mão por SQL** — o CHECK só confere o alfabeto (26 base32), então um padrão fraco
+   passa. Gerar com `openssl rand` (≥ 130 bits aleatórios) e nunca derivar de nome, data ou sequência.
+7. **Só se encaminha à mão** (T4.7a): a equipe **encaminha manualmente** a mensagem (inline ou como anexo). Regra ou
+   redirecionamento automático do Gmail/Outlook preserva o `From` do contratante e não cria bloco encaminhado — não é
+   suportado por esta versão. **[NEEDS CLARIFICATION]** decisão do usuário: se o encaminhamento automático for
+   necessário, é outro desenho (a lista passa a ser de quem assina, e a defesa deixa de ser o encaminhador).
+8. **Ordem de deploy:** `hasIntake` e a busca de perfil por token rodam para **toda** mensagem de conversa; se o
+   worker subir antes da migration, e-mail de conversa falha até ela existir. O `deploy.yml` garante `deploy-api`
+   (`preDeployCommand` + `assert-migrations`) antes de `deploy-worker`; reverter só a API quebra o trilho.
+9. **O trilho da CONVERSA alinhava pelo `From` da `mailauth` e identificava pelo `from` do Resend — corrigida na T4.7d,
+   decisão do usuário informada.** A conversa gravava o `dkim_result` da `mailauth` e o endereço do `from` do Resend, e a API
+   mostra o nome e os selos do contato cadastrado quando `dkim_result = 'aligned'`: quem tinha o endereço de resposta
+   aparecia como contato confirmado da contratante se o `From` assinado e o `from` do Resend divergiam. Agora o `aligned`
+   só é gravado quando o `From` que a `mailauth` alinhou é **um só** e é o mesmo endereço (sem distinguir caixa) do remetente
+   gravado; senão grava `not_aligned` (`conversation-sender-identity.policy.ts`, `verifyWithHeaderFrom`). **O que muda de
+   observável:** só a mensagem com `From` assinado diferente do `from` do provedor — ela continua na conversa, sem o selo de
+   verificada (o legítimo tem os dois iguais e fica `aligned`). Esta é a única mudança de comportamento da conversa na T4.7d além
+   dos tetos de cabeçalho/partes e da política de DKIM descritos acima.
+10. **Efeito remanescente dos tetos da janela (T4.7c, T4.7d):** 20 e-mails que o encaminhador PROVA por 5 minutos por
+    contratante fecham o download e o DKIM até a janela andar — o excedente é ignorado (ack, com o rastro `RATE_LIMITED`) e a
+    equipe reenvia depois; é o teto de custo, não um erro. Lixo endereçado a um token alheio ou a um perfil desligado **não**
+    tranca o legítimo, **nem** as recusas anteriores à lista do remetente original (inclusive as `aligned`, T4.7d). O custo
+    disso: nenhum contador fecha o download (2 MiB) e o DKIM (≤ 15 s) para quem só produz essas recusas — quem conhece o token
+    e uma mensagem assinada pelo encaminhador pode gastá-los, limitado pelos tetos de MIME e de DKIM, pelo prazo de 15 s e
+    pelo rate limit do Resend, e a tabela não cresce (acima de 100 recusas a linha deixa de ser gravada). Também resta o DNS
+    lento até o prazo de 15 s, que ainda estoura em `unverifiable` e repete a entrega.
+11. **Follow-up (T4.7c, T4.7d; MÉDIO):** o reenvio SMTP de mensagem assinada pelo encaminhador sem remetente original
+    deixou de trancar o legítimo (T4.7d: é recusa, não autenticado). O que ficou: o reenvio da mesma mensagem sai com
+    `provider_email_id` novo e é avaliado de novo (download, DKIM e leitura do MIME) a cada vez, sem dedupe. Deduplicar pelo hash
+    do `b=` da assinatura alinhada ou pelo `Message-ID`, dentro do contratante, pede coluna e índice em
+    `cargo_preview_email_intakes` — a migration ainda não foi publicada, mas o desenho do índice (por contratante, com a
+    retenção da T4.8) é decisão da T4.8, que edita a migration no lugar.
+
+### 2026-10-06 — spec 237 Fase 3 — avaria sem viagem: quem desfaz a devolução, a migration numa tabela central e o rollback destrutivo
+
+**Autorização (decidido, ADR-0094 §9.5 ajuste 8):** abrir a ocorrência de recebimento, marcar "devolver ao
+contratante" e concluir a devolução são `trip.manage` (separador e escritório); **desfazer a marcação é
+`occurrences.resolve`** — o separador que registrou a avaria não devolve a caixa avariada à rota sozinho
+(autoaprovação que a ADR-0067 e a 164 fecharam). Concluir exige a tratativa da ocorrência de origem `decided|closed`.
+Tudo filtrado pela empresa do contexto em toda junção (contrato `cargo-arrival-occurrence-tenant-safety`), chegada
+alheia é 404 na própria trava da chegada (integração com mutação). A foto entra pelo mesmo caminho da 161 (bytes
+conferidos, teto 512 KiB, bucket privado, URL assinada, cinco anos de retenção), com `rateLimit` 60/300 s no
+Postgres. Logs e auditoria só com ids.
+
+**Pendência operacional antes de produção (sem medida de agente):** a migration
+`20261006180700_cargo_arrival_receiving_occurrence` constrói o unique
+`(company_id, cargo_arrival_document_id, id)` sobre **toda** `trip_document_occurrences` (trava inserções de
+ocorrência enquanto dura; `lock_timeout` 3 s aborta em vez de enfileirar). Quem tem acesso ao banco mede
+`select count(*), pg_size_pretty(pg_total_relation_size('trip_document_occurrences')) from trip_document_occurrences;`
+e escolhe janela de pouco registro de ocorrência.
+
+**Rollback destrutivo:** o `rollback.sql` recusa (exceção) se houver ocorrência de recebimento ou nota marcada, e
+apaga os tipos `receiving` semeados. Rodar só com aprovação humana.
+
+**Risco aceito e registrado:** nota marcada ainda pode ser vinculada a uma viagem pelo fluxo de viagem (ela só sai
+da recomendação); a decisão do contratante no portal não mexe na marcação. Follow-ups em ADR-0094 §9.6.
+
+### 2026-10-06 — spec 237 Fase 2 — a migration da chegada trava a importação de NF-e sem medida de produção (pendência operacional do usuário)
+
+**Onde:** `apps/api-transportada/drizzle/20261003204733_cargo_arrivals/migration.sql`, já aplicada em staging.
+O `SET LOCAL lock_timeout = '3s'` cobre só o `CREATE INDEX "nfe_participants_company_role_tax_id_idx"`
+(`SHARE` em `nfe_participants`: a importação de NF-e espera enquanto o índice é construído, e o tempo cresce
+com a tabela). Os `ADD CONSTRAINT … FOREIGN KEY` para `nfe_documents`, `contractors`, `companies` e
+`user_company_memberships` pedem `SHARE ROW EXCLUSIVE` nessas tabelas **sem prazo**, na mesma transação.
+
+**Por que não se corrige no arquivo:** o drizzle confere o hash de `migration.sql` aplicada; editá-la
+quebra o deploy de staging. O hash está preso em `PRESERVED_MIGRATION_HASHES`
+(`test/database-migration/static-migration.contract.ts`). O `rollback.sql` (não conferido por hash) passou a
+pôr o `lock_timeout` **antes** dos `DROP TABLE` (revisão das Fases 1–2, M5).
+
+**Checagem OBRIGATÓRIA antes de promover a 237 a produção** — feita por quem tem acesso ao banco de
+produção, **nunca por agente** (leitura de produção é proibida a ele):
+
+```sql
+select count(*) as participants,
+       pg_size_pretty(pg_total_relation_size('nfe_participants')) as size
+from nfe_participants;
+```
+
+e a janela de importação de NF-e (cron e uploads) do horário escolhido para o deploy. Se a tabela for grande
+(o índice leva mais que poucos segundos), o deploy vai para uma janela de baixa importação. Se nem a janela
+servir, o caminho é tirar o índice desta migration e criá-lo numa migration própria com
+`CREATE INDEX CONCURRENTLY` fora de transação (o drizzle roda a pasta numa transação) — mas isso **muda o
+hash de uma migration já aplicada em staging** e é decisão do usuário, nunca do agente. Sem a medida, não
+promover.
+
+**Origem:** revisão de código das Fases 1–2 da spec 237 (M5), 2026-10-06. Emenda no ADR-0094 §6.
+
+### 2026-10-04 — spec 237 Fase 4a — a planilha de prévia entra por upload e é lida pelo worker
+
+**Onde:** `api-transportada`, `POST /cargo-previews` (`cargo-receiving/presentation/cargo-preview.schema.ts`,
+`domain/cargo-preview-upload.policy.ts`, `infrastructure/drizzle-cargo-preview-upload.repository.ts`);
+`worker-transportada`, `cargo-preview/` e o leitor copiado em `cargo-receiving/domain/` (ADR-0094 §7 e §8).
+
+**O que é:** um arquivo de terceiro (o `.xlsm` do contratante, com macro) entra pelo painel, fica no
+bucket e é aberto por código nosso no worker. É entrada hostil, e os itens guardam dado de pessoa
+(razão social do destinatário, endereço, CEP, valor por linha).
+
+**O que segura:**
+
+- **Quem envia é autenticado** (`trip.manage`, o separador tem); a empresa vem do contexto, e o
+  formulário é estrito (`companyId` no formulário é 400). Leitura com `fleet.read`; outra empresa é 404.
+- **Tamanho e tipo antes de tudo:** 960 KiB (o corpo da API para em 1 MiB) e `PK\x03\x04` nos bytes —
+  nunca `Content-Type` nem extensão. A API **não abre** o zip; quem abre é o worker, com os tetos do
+  leitor (zip, descompressão contada, entradas, `DOCTYPE`, linhas, tempo; ADR-0094 §7), macro e aba
+  `RESULTADO` nunca descomprimidas, fórmula nunca avaliada. Arquivo ruim vira prévia `failed` com o
+  código, nada parcial.
+- **Bucket privado, chave opaca:** `tenants/<empresa>/cargo-previews/<uuid>` — o nome do arquivo não
+  entra na chave; o nome guardado é só a base, sem caminho nem controle. O worker confere o sha256 do
+  objeto antes de ler (`PREVIEW_FILE_CORRUPTED`).
+- **Fila com referência, nunca bytes:** o envelope é estrito (`bucket`, `objectKey`, `previewId`).
+- **Sem PII em log:** API e worker logam ids, códigos e contagens; a linha recusada guarda coluna e
+  motivo, nunca o valor da célula; o evento de vínculo guarda ids de nota e evidências.
+- **Uma nota, uma prévia** e o operador acima da máquina: unique no vínculo e trava advisory comum.
+
+**Revisão de segurança da Fase 4a (2026-10-04) — o que passou a ser limitado, e como** (medições e
+contratos em `specs/237-…/evidence.md` § "Correções da revisão de segurança da Fase 4a"):
+
+- **S1/S4 — o "teto de 5 s" não existia.** O orçamento do leitor é cooperativo e o parse é síncrono:
+  87 KiB comprimidos (uma linha de ~760 mil células) travaram o event loop por 7,8–8,3 min e subiram a
+  2,27 GB; 123 KiB, 1,36 GB; 2 000 linhas apontando para um decimal de 32,7 mil dígitos, 22,9–23,7 s.
+  Agora: o cabeçalho é linear; decimal em texto acima de 40 caracteres é inválido antes do regex e do
+  `BigInt`; teto de **512 células por linha e 120 000 no total**, contado no texto antes do parser
+  (`PREVIEW_TOO_MANY_CELLS`); o orçamento é conferido por linha também no cabeçalho e nos itens; aba
+  até **8 MiB**, total lido **16 MiB**, última linha com dado **5 000** (a real: 3,39 MB, 3 036
+  células, linha 233). E **a leitura roda numa `worker_thread` terminada em 10 s**
+  (`PREVIEW_PARSE_TIMEOUT`, sem voltar à fila): o event loop do worker segue livre. ⚠️ O Bun 1.3.14
+  **ignora** `resourceLimits` (medido: thread com 64 MB de teto alocou ~500 MB): o teto de memória
+  real são os tetos acima, não a thread. A reentrega do broker de uma leitura já começada não relê
+  (`PREVIEW_PROCESSING_INTERRUPTED`).
+- **S2 — o vínculo sob a trava do contratante era quadrático.** 19 900 linhas num cliente: 9,9 s →
+  0,17 s. Orçamento cooperativo de 5 s por prévia e `statement_timeout` de 30 s na transação; a prévia
+  nova que estoura fica `PREVIEW_MATCH_TIMEOUT` sem itens, a pronta fica como estava.
+- **S3 — a expressão regular do usuário saiu.** O perfil guarda o TEXTO que antecede o número da
+  carga (`arrival_reference_label`, literal, 1..60, sem controle) e o motor monta
+  `literal + \s{0,5}([A-Za-z0-9]{1,30})`; nada do usuário vira expressão (antes: 2,7 s e 23,6 s com
+  padrões que passavam no filtro). `arrival_reference_pattern` fica no banco, sem leitor nem escritor.
+- **S5 — envio com teto:** 20 por 300 s por usuário (Postgres, `cargo-preview-upload`) e no máximo
+  5 prévias `queued`/`processing` por contratante (`CARGO_PREVIEW_TOO_MANY_OPEN`, sob trava advisory).
+- **S6 —** o vínculo reforçado que contradiz um alias o **invalida** (nunca o troca).
+- **S7 —** o worker monta a chave do objeto pela linha da prévia (nunca pela mensagem) e recusa acima
+  de 960 KiB pelo `Content-Length` antes de baixar, contando os bytes enquanto baixa.
+- **S9 —** `fflate` 0.8.3 e `fast-xml-parser` 5.10.1 fixados em versão exata nas duas apps.
+
+**Riscos aceitos / pendências:**
+
+1. **A memória da thread não tem teto do runtime** (o Bun ignora `resourceLimits`): o limite são os
+   tetos do leitor. Se o Bun passar a honrar a opção, ela já está passada (256 MiB).
+2. **Retenção dos itens e do arquivo — decidida pelo usuário em 2026-10-06: 90 dias.** Os itens guardam
+   razão social, endereço, CEP e valor por linha, e o arquivo fica no bucket. 90 dias depois de a prévia
+   ficar sem item em aberto, o arquivo é apagado e as colunas de pessoa (nome, endereço, bairro, CEP) dos
+   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementação pendente**
+   (T4.8 da spec 237): até lá, o prazo não é cumprido.
+3. O teto de 960 KiB é do transporte: planilha maior que isso é recusada (413) mesmo dentro dos 5 MiB
+   do leitor. As medidas reais estão em 0,80–0,82 MB.
+
+### 2026-10-03 — spec 234 — o relógio do aparelho vale mais para a nota
+
+**Onde:** `api-transportada`, `src/trips/domain/occurred-at.policy.ts` (`resolveOccurredAt`,
+`resolveRecordedEventClock`), `src/trips/domain/delivery-proof-punctuality.policy.ts` (D3a da spec 159
+T11, `resolveTimeReference`), `src/trips/presentation/me-trip.schema.ts` e `delivery-proof.schema.ts`
+(`tappedAt`, `clockOffsetMs`), `src/fleet/domain/driver-score.policy.ts` (prazo de "foto ausente").
+
+**A decisão (do usuário, 03/10/2026):** a rede e o relógio do aparelho não são culpa do motorista; o que
+vale para a nota é o momento em que o evento foi criado, não o momento em que ele chegou ao servidor.
+
+**O que mudou na regra da spec 159 T11 D3a:** o piso `recebimento − missingAfterHours` (24 h por padrão)
+sobre o `capturedAt` da foto **deixa de valer** para quem manda o desvio do relógio (`clockOffsetMs`) **e**
+tem posição na entrega. A foto vale pela hora corrigida (`tappedAt + clockOffsetMs`) mesmo chegando dias
+depois. O prazo de "foto ausente" passa a contar de `max(momento da entrega, recebimento da entrega)`, e o
+momento da entrega da nota e da pontualidade é a hora corrigida, quando há (`deliveredMomentSql`).
+
+**O limite, sem rodeio:** medir o desvio corrige o relógio **errado**; não impede adulterar o relógio
+**depois** do último contato com a API, e `clockOffsetMs` pode ser **forjado no corpo** — o PWA se forja
+pelo devtools, basta mandar `0` ou o valor que faz o `tappedAt` cair onde se quer. A nota continua sendo
+sinal de gestão, não prova (mesma premissa da spec 159).
+
+**O que sobra de defesa:**
+
+- A hora corrigida nunca é futura (tolerância de +2 min do recebimento) nem tem mais de 30 dias. Fora
+  disso a **correção é descartada** e o evento segue com a regra antiga; **o evento nunca é recusado** por
+  causa de relógio (um `422` aqui faria o app tratar como "recusado de negócio" e o motorista poderia
+  descartar a entrega).
+- A foto precisa estar no raio da entrega (a precisão soma no máximo um raio; acima de 10 km é recusada).
+- **Sem posição na entrega o relógio não vale** (D4b): vale o horário de envio e a entrega conta como
+  "longe". O mesmo para o evento: relato sem posição não grava `occurred_at` nem `clock_offset_ms`. Fecha
+  o furo de forjar `clockOffsetMs: 0` numa entrega sem prova de lugar.
+- **GPS desligado pune em todo cliente** (D4c, decisão do usuário em 2026-10-02): a entrega do app do
+  motorista (`trip_stop_events.channel = 'driver_app'`) sem posição conta como "longe" mande ou não o
+  desvio. A baixa do escritório (`office`) e a entrega pelo WhatsApp (`whatsapp`, com ponto só quando o motorista compartilha a localização)
+  não punem — o canal é gravado pelo servidor a partir da rota, o motorista não o escolhe. Limite: o
+  WhatsApp é uma via de entrega sem prova de lugar e sem punição; hoje ele não entra na nota (spec 159 T11
+  D2), e liberá-lo exige rever isto. **Pendência de decisão do usuário (2026-10-03, spec 196/ADR-0081 §3.1):**
+  o ponto da mensagem de localização do WhatsApp pode ser um pino escolhido no mapa, não GPS; decidir se o ponto
+  declarado entra na distância/pontualidade antes de subir os pacotes `meta-whatsapp-*`. Nada foi implementado.
+  **Decisão do usuário (2026-10-04):** o ponto do WhatsApp entra na distância e na pontualidade do canhoto, como o do app, sem filtro por canal (risco do pino escolhido no mapa aceito). `confirm-load` e `start-route` continuam aceitando e descartando `tappedAt`/`clockOffsetMs` (decisão do usuário, mesma data).
+  **Resposta do usuário (2026-10-03):** o bot deve **pedir a geolocalização** ao motorista no WhatsApp e gravar o
+  ponto como `captured`; o pedido ainda não existe no fluxo e só funciona após subir os pacotes. A relação do ponto
+  declarado com a distância/pontualidade da nota segue sem decisão.
+  A migration `20261002153258` (CHECK de coordenada) e a corretiva `20261003010806` tomam ACCESS EXCLUSIVE até
+  o COMMIT; aplicar fora do horário de campo.
+- Cliente que **não** manda o desvio segue com o piso antigo de tempo.
+- Com posição na entrega, a foto corrigida só vale se o evento de entrega também foi corrigido (senão a
+  entrega é hora crua e a comparação seria entre relógios diferentes); a foto segue a regra antiga.
+- A decisão é gravada (`trip_stop_events.occurred_at`/`clock_offset_ms`, `trip_delivery_proofs.clock_offset_ms`):
+  a linha da foto guarda o desvio que julgou esta foto, antes da fusão com a anterior (nulo quando a
+  correção não foi usada), e uma correção descartada não volta a valer na leitura.
+
+**Consequências aceitas pelo usuário:** a penalidade de "foto ausente" passa a ser **temporária e
+reversível** (a foto que chega fora do prazo, com prova de lugar, vira pontual e a nota se recalcula), e
+**some o incentivo** de mandar a foto no prazo — quem tem 3G fraco não é punido, e quem forja também não é
+barrado por isso.
+
+**O que falta (achado fora do escopo, apontado pelo arquiteto em 2026-10-03):** o `location.capturedAt` da
+entrega **não tem limite** — `me-trip.schema.ts` (~linhas 24-27, `locationSchema`) só valida o formato ISO
+e o valor é gravado cru em `trip_stop_events.captured_at`. Como a leitura do momento da entrega é
+`coalesce(occurred_at, captured_at, recorded_at)`, uma posição com 100 dias de idade tira a entrega da
+janela de 90 dias da nota. Pré-existente à spec 234 (a leitura anterior, `captured_at ?? recorded_at`,
+tinha o mesmo furo), mas a 234 dá mais motivo para fechar: aplicar a `resolveOccurredAt` (ou o mesmo
+teto de +2 min / 30 dias) ao `captured_at` da posição. Também não há atestado do aparelho.
+
+**Limites aceitos da revisão da Fase 1 (o item 2 segue com decisão pendente do usuário):**
+
+1. **Assimetria da D4b — DECIDIDA pela D4c (2026-10-02, spec 234 T1.8):** "sem posição na entrega =
+   longe" virou regra do canal do motorista para qualquer cliente; omitir `clockOffsetMs` não livra mais
+   da punição. Registro original, mantido para o histórico: a punição por "sem posição = longe" só vale para quem manda `clockOffsetMs`.
+   Cenário: o motorista com o app novo e honesto, numa entrega sem GPS, recebe `away`; o que tira o campo
+   do corpo (ou ainda usa o app antigo) cai no comportamento antigo, em que a distância sem posição na
+   entrega não pesa, e não é punido. Há incentivo a omitir o campo. Opção futura: tornar "sem posição na
+   entrega = longe" regra do canal do motorista para qualquer cliente (muda a nota do cliente antigo).
+2. **Desvio forjado empurra a entrega para trás.** Cenário: um motorista no local manda `clockOffsetMs`
+   perto de −(30 dias − 1 min); `occurred_at` cai em recebimento − 30 dias (dentro do teto que
+   `resolveOccurredAt` aceita). Como a janela de 90 dias, o `effectiveSince` e o `expiresAt` da nota
+   ancoram no momento da entrega, a entrega pode sair da nota inteira (se o `effectiveSince` foi ativado
+   há menos de 30 dias) ou a penalidade expirar até 30 dias antes. Mitigação futura: ancorar
+   janela, `effectiveSince` e `expiresAt` em `recorded_at` e usar o momento corrigido só para a
+   pontualidade.
+
+**Origem:** spec 234 (decisões D1–D6 e D4b; limite em "O que esta decisão NÃO protege"). Registrado em
+2026-10-03.
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
@@ -301,10 +654,12 @@ em resposta (a ficha mostra só motivo, pontos e datas) e cai aos 90 dias pelo e
 `trip.location.purge` do worker (latitude, longitude e precisão; `captured_at` fica). O `params:` do
 `DrizzleQueryError` é apagado antes de sair para o Sentry. **Resta:** a fila offline do PWA guarda a
 foto **com a posição** no IndexedDB do aparelho até conseguir subir — sem prazo de descarte no
-aparelho e legível por quem tiver o celular desbloqueado.
+aparelho e legível por quem tiver o celular desbloqueado. Desde a spec 227 isso é decisão, não
+pendência: o prazo de 7 dias foi removido de propósito.
 
-**O que falta:** prazo de descarte da fila offline no PWA (apagar anexo parado há mais de
-`missingAfterHours`, ou ao sair da conta); avaliar atestado do aparelho se a nota passar a pesar em
+**O que falta:** ~~prazo de descarte da fila offline no PWA~~ (removido pela spec 227 — a fila só
+esvazia sincronizando, descartando o recusado de negócio com confirmação, ou ao sair da conta);
+avaliar atestado do aparelho se a nota passar a pesar em
 dinheiro. Limitação conhecida da atribuição: o evento de entrega anterior à T11, sem
 `reported_by_driver_id`, ainda acha o motorista pelo vínculo atual da conta — se o acesso ao app for
 desligado, essa parte do histórico some da ficha (as entregas novas não dependem mais do vínculo).
@@ -380,7 +735,7 @@ deploy/restart** — é contenção de abuso casual, não garantia; garantia exi
 
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
 
-### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente)
+### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente, fechado em 2026-10-03)
 
 **Onde:** `api-transportada`, `delivery-clients/presentation/delivery-charge.routes.ts`
 (`CHARGE_READ_POLICY = trip.read`) → `delivery-charges.use-case.ts` (`list` filtra só por
@@ -391,11 +746,25 @@ leituras pedem `trip.read` e devolvem as cobranças e as regras da **empresa int
 ou agregado lê cobrança de viagem que não é dele (BOLA, API1:2023). As rotas `/me` que também pedem
 `trip.read` recortam pelo vínculo; estas não.
 
+**Ampliação (2026-10-03, spec 235):** o papel `helper` (ajudante) também tem só `trip.read` (D7) e,
+por isso, alcança as mesmas duas leituras — o público que lê cobrança de viagem alheia passou a incluir
+quem não dirige. A decisão pendente abaixo agora vale para os três papéis de campo.
+
 **O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
 cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
 
-**O que falta:** decidir se estas leituras são do escritório (trocar para `fleet.read`/`trip.manage`)
-ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativo.
+**Fechado em 2026-10-03 (spec 243 T1, D1):** a leitura de cobrança é do **escritório**.
+`CHARGE_READ_POLICY` passou de `trip.read` para `trip.financials` nas duas rotas
+(`GET /delivery-charges` e `GET /delivery-clients/:id/charge-rules`); as escritas seguem
+`trip.manage`. Leem: `company-admin`, `finance` e `operator` — os mesmos que abrem o workspace
+`extra-charges` do painel (`billing.create` ou `trip.financials`), único consumidor das rotas. Nenhuma
+tela do campo, do portal do contratante, do worker ou do cron as chama (busca em todas as apps). Achado
+de passagem: antes da troca o próprio escritório recebia `403` nelas — nenhum dos três papéis tinha
+`trip.read`. Se um dia o campo precisar ler cobrança, nasce rota `/me` própria, recortada pelo
+vínculo. Contrato negativo, um caso por papel e por rota:
+`apps/api-transportada/test/delivery-clients/charge-read-policy.contract.ts` (`driver`, `aggregate`,
+`separator`, `helper`, `viewer`, `fiscal`, `contractor`, `automation` → `403`; a tabela cobre
+`COMPANY_ROLES` inteiro) e `test/helper-role.contract.test.ts` (o ajudante alcança 7 rotas, não 9).
 
 **Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
 `CLAUDE.md` da API. Registrado em 2026-09-18.
@@ -1140,7 +1509,7 @@ garantia" transforma comprovante em passivo.
 `location: null` com o estado ao lado, não um `403`: eles precisam da linha do tempo, não da posição.
 A coordenada aparece **em texto** no tooltip do ícone de GPS, com a precisão e a distância até a
 parada (emenda §6.1, de 2026-10-01). O que **não** mudou: coordenada nunca em query string, nunca em
-URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles do próprio domínio — e nunca
+URL, nunca numa requisição a tile de terceiro — o mapa base é o PMTiles de um serviço nosso, que vê a região das telhas pedidas, não o ponto (ver abaixo) — e nunca
 em log, em nível nenhum, nem em `debug`. O que foi liberado é o que a tela mostra a quem tem a
 permissão, não o que sai da instalação.
 
@@ -1151,15 +1520,60 @@ naquele caminho). Sem o estado os quatro casos seriam o mesmo `null`, e a tela a
 onde não houve tentativa. O histórico sem coordenada fica `null`, não `unavailable`: o banco não sabe
 se o GPS falhou ou se o app daquela época nem pedia posição, e o palpite sairia em vermelho.
 
-**O que falta:** o `location_state` e o ponto existem hoje em `trip_stop_events` e
-`trip_delivery_proofs`. `trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences`
-ainda não carimbam — despachar, iniciar rota, conferir carga e as ocorrências aparecem como "não se
-aplica" até as Fases 1–3 e 5 da spec 196 rodarem, e o expurgo passa a varrer as cinco tabelas junto
-com elas. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
+**Retenção, nas cinco tabelas (atualizado em 2026-10-02):** `trip_stop_events`, `trip_delivery_proofs`,
+`trip_status_events`, `trip_stop_occurrences` e `trip_document_occurrences` carregam ponto e
+`location_state`. O job `trip.location.purge` do worker varre as cinco, uma por vez, com teto de lotes por
+tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` com 90 dias e grava
+`location_state = 'expired'`, preservando o evento. O rastro ao vivo (`trip_location_pings`) tem expurgo
+próprio, de horas, e **roda sempre** (decisão de 2026-10-03: fora do interruptor). ⚠️ **O expurgo de 90 dias
+nasce desligado** (cada empresa liga na tela, spec 239; sem linha de configuração nada expira, e a variável
+`TRIP_LOCATION_PURGE_ENABLED` deixou de existir): ver o achado de 2026-10-02 abaixo. O contrato de cabeçalhos guarda os dois sentidos (falha se `geolocation` voltar a `()` e
 falha se `microphone` deixar de ser `()`), e o expurgo tem teste de integração com relógio injetado —
 retenção escrita e não implementada é retenção que não existe.
 
+**O que o host do mapa base vê (2026-10-02):** o mapa da linha do tempo lê o PMTiles do serviço
+`map-tiles` (`map-tiles-production` em produção), que é nosso (`deploy/map-tiles/server.ts`) — não um
+terceiro. Ele recebe, por requisição de faixa de bytes (`Range`) ao `area.pmtiles`, o IP de quem abriu o
+mapa, o `User-Agent`, a origem do painel e **quais telhas foram pedidas**; como o diretório do PMTiles é
+público, as faixas dizem a região (telha de até zoom 14, ~2 km de lado) que a pessoa estava olhando. Não
+recebe a coordenada do evento, o id da viagem, nem a identidade do usuário. O servidor não escreve log
+de aplicação; o log de acesso é o da plataforma (ver o achado de 2026-10-02).
+
 **Origem:** spec 057, T001/T005/T012; ADR-0081 e spec 196 para a leitura e o estado.
+
+### 2026-10-02 — auditoria da spec 196: o expurgo de posição nasce desligado, e o log de acesso do mapa não foi verificado
+
+**Onde:** `apps/worker-transportada` (`company_location_retention_settings`, spec 239; antes, a variável
+`TRIP_LOCATION_PURGE_ENABLED`, que saiu);
+`.railway/railway.ts` (`VITE_MAP_TILES_URL: preserve()`); `deploy/map-tiles/server.ts`.
+
+**O que a auditoria (T7.3) encontrou:**
+
+1. **A retenção de 90 dias não está em vigor enquanto o job estiver desligado.** O padrão é `false` por
+   decisão de produto (apagar coordenada é irreversível; o controle vai virar configuração). **Emenda de
+   2026-10-03:** o interruptor suspende **só** o expurgo de 90 dias das cinco tabelas de evento; o expurgo de
+   36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre. O resultado, para as cinco tabelas, é
+   que a coordenada das cinco tabelas **não expira** até a empresa ligar o expurgo na tela (spec 239; a
+   variável `TRIP_LOCATION_PURGE_ENABLED` foi removida). É dado pessoal (LGPD, art. 5º, I) retido além do prazo escrito. **Pendência:**
+   ligar em staging, medir um ciclo, ligar em produção — decisão do usuário.
+2. **Origem do mapa base não verificável pelo repositório.** `VITE_MAP_TILES_URL` é `preserve()` nos dois
+   ambientes: o valor vive no painel do Railway e entra no bundle em tempo de build. A intenção declarada é
+   um domínio nosso (`map-tiles` em staging, `map-tiles-production` em produção); o `.env.example` aponta o
+   desenvolvimento para o de staging. **Pendência:** conferir os dois valores no painel — não foi lido
+   (produção não foi acessada) — e confirmar que nenhum aponta para provedor de terceiro.
+3. **Log de acesso do host do mapa: não sei.** O servidor não loga; o log HTTP da plataforma Railway guarda
+   caminho e faixa de bytes por requisição, e a retenção dele não está no repositório. **Pendência:**
+   conferir a retenção do log HTTP do serviço `map-tiles-production`. Enquanto isso vale o pior caso: IP +
+   telhas pedidas ficam guardados pelo tempo da plataforma.
+4. **O que se confirmou limpo:** nenhuma coordenada em `logger.`/`console.` dos arquivos `.ts`/`.tsx` tocados pela
+   spec (124, testes incluídos) nem na API de demonstração do motorista; nenhuma resposta fora da tabela do D7 carrega posição
+   (contrato `event-location-readers`, 222 testes do schema da API verdes, e varredura independente por
+   referência qualificada às cinco tabelas); a leitura da linha do tempo faz o mesmo número de consultas
+   com 1 e com 50 notas (9 e 9); o `EXPLAIN` do expurgo usa `Index Scan` no índice parcial nas cinco tabelas
+   (Postgres 17.10, `enable_seqscan` e `enable_bitmapscan` desligados na sessão, tabelas vazias — mede que o
+   índice casa com a consulta, não o tempo).
+
+**Origem:** spec 196, T7.3, 2026-10-02.
 
 ### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
 
@@ -1891,4 +2305,61 @@ estado compartilhado" segue aberto para o resto da API.
 
 **Origem:** spec 150, RF18, revisão de segurança da Fase 4. T406, 2026-09-15.
 
-_Nenhum ainda._
+### 2026-10-02 — expurgo da posição passa de interruptor para configuração por empresa (spec 239, ADR-0081 emenda)
+
+**Onde:**
+
+- `api-transportada`: rotas `GET`/`PUT /company-settings/location-retention` (`settings.manage`), tabela
+  `company_location_retention_settings` com `purge_enabled BOOLEAN DEFAULT false`, `retention_days INTEGER
+DEFAULT 90 CHECK (30–90)`, `purge_effective_at TIMESTAMPTZ` (carência), índices parciais
+  `(company_id, <coluna de tempo>) WHERE latitude IS NOT NULL` nas cinco tabelas; auditoria com IP em
+  `metadata.ipAddress` (adicionada por esta spec, junto com a tabela nova).
+- `worker-transportada`: redatores com junção (innerJoin) por `company_id` contra a tabela nova; pings do
+  rastro ao vivo (36 h) fora do interruptor.
+- `frontend-transportada`: aba **Localização** em `/trips` (`TripLocationRetentionPanel`, módulo `trip`);
+  campo `locationRetention` em `SETTINGS_PANEL_PLACEMENT`.
+
+**O que é:**
+
+- **Antes:** o expurgo das cinco tabelas de evento com ponto (latitude, longitude, precisão e timestamp
+  capturado) nascia **desligado** e só ligava por variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`, padrão
+  `false`, D11 da spec 196) — decisão de deploy, não de quem responde pelo dado. O prazo era constante de
+  código: 90 dias (ADR-0045 §3.3). Enquanto a variável não fosse ligada, a coordenada sobrevivia além do
+  prometido.
+- **Agora:** quem tem `settings.manage` liga, desliga e ajusta o prazo (30–90 dias, padrão 90) do expurgo
+  **da própria empresa**, na aba Localização, sem redeploy. Padrão do sistema: desligado (sem linha = desligado).
+  Ligar mostra, antes de confirmar, quantos pontos cairão. Toda mudança entra em `audit_logs` na mesma
+  transação da gravação (ator, empresa-alvo, antes/depois, IP e estimativa em `metadata`). O worker lê a
+  configuração a cada ciclo e apaga cada empresa pelo prazo dela (`CROSS JOIN LATERAL` por tabela, sem cruzar
+  empresas). Ligar ou encurtar o prazo abre uma carência de 24 h (D5) antes de a primeira linha ser apagada.
+- **Pings do rastro ao vivo** (36 h, `trip_location_pings`) ficam fora da configuração e **rodam sempre**; o
+  painel avisa isso na tela.
+
+**O que continua aberto:**
+
+- **Coordenada do transcript do WhatsApp** (`meta_whatsapp.messages.payload.location` e o rótulo em `content`,
+  achado da 196 T3.7). **Redigida na origem desde 2026-10-06 (spec 245, `meta-whatsapp-module@0.8.0`)** para
+  o que chegar **depois do deploy** da API com a opção ligada; o ponto vai só para o evento da viagem e segue o
+  prazo dele. ⚠️ **O legado ainda NÃO foi redigido** (Fase 3 da 245: dry-run com contagem, aprovação do usuário
+  e `--confirm`, por ambiente e por empresa) — até lá, a coordenada gravada antes do deploy **não expira**.
+
+**Pré-condições de publicação (spec 239, T4.6):**
+
+- **Gate A (antes do deploy do worker):** conferir que `TRIP_LOCATION_PURGE_ENABLED` **não** é `true` em
+  nenhum worker de nenhum ambiente — `railway variables --service <worker> --environment <env>`, olhando só a
+  chave. Se for `true`, o deploy desliga o expurgo daquele ambiente em silêncio (a variável deixa de existir e
+  a tabela não tem linha). Saída: criar **antes do deploy do worker** a linha de configuração da empresa (90
+  dias, já vigente) — escrita de dado, decisão do usuário.
+- **Gate B (painel não espera o worker):** o job do painel depende só de `deploy-api` (`deploy.yml`), então num
+  push único o painel pode subir antes do worker. Saída: pushes separados (worker antes do painel) ou worker
+  confirmado no ar antes de alguém ligar o expurgo na tela.
+- **Lock da migration em produção (outra pré-condição):** as migrations da spec 196 (`20261001123700`,
+  `20261002153258`, `20261003010806`) tomam `ACCESS EXCLUSIVE` nas mesmas cinco tabelas, e a migration da 239
+  cria um índice parcial em cada (`SHARE`: escrita do motorista espera). Promover a 196 em deploy **separado,
+  antes** da 239; medir `pg_total_relation_size` das cinco tabelas; aplicar fora do horário de campo.
+- **Follow-up (fora desta spec):** migration futura com `DROP INDEX` dos cinco índices só-por-tempo
+  (`<tabela>_located_<tempo>_idx`), depois de conferir `idx_scan` em produção.
+- Rollback da migration recusa (`RAISE EXCEPTION`) se `company_location_retention_settings` tiver qualquer
+  linha: apagar configuração de empresa é decisão humana.
+
+**Origem:** spec 239 (D3, D5, D9), T4.1. Registrado em 2026-10-03. Emenda correspondente na ADR-0081 §3.2.

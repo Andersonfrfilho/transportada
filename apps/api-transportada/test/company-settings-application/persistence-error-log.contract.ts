@@ -23,3 +23,18 @@ describe('company settings persistence failure in the log', () => {
     })
   })
 })
+
+describe('location retention persistence failure in the log', () => {
+  test('names the failure and carries our message, never data', () => {
+    const descriptor = describeErrorForLog(
+      new CompanySettingsPersistenceError(
+        COMPANY_SETTINGS_PERSISTENCE_FAILURE.locationRetentionNotPersisted,
+      ),
+    )
+
+    expect(descriptor).toEqual({
+      errorName: 'CompanySettingsPersistenceError',
+      message: 'Company location retention settings could not be persisted',
+    })
+  })
+})

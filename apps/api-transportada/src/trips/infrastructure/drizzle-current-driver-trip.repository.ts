@@ -4,6 +4,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
@@ -13,7 +14,12 @@ import {
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
-import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
+import {
+  nfeDocuments,
+  nfeParticipants,
+  nfeProducts,
+  nfeVolumes,
+} from '../../database/nfe.schema.js'
 import {
   tripDeliveryProofs,
   tripDocuments,
@@ -26,6 +32,8 @@ import {
 import { contractors, tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import { DRIVER_SCORE_WINDOW_DAYS } from '../../fleet/domain/driver-score.policy.js'
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
 import { FIELD_TRIP_TARGET_KIND } from '../application/field-trip-target.types.js'
 import type {
@@ -37,7 +45,15 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
-import { resolveFieldOccurrenceTypes } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  resolveFieldOccurrenceTypes,
+  selectFieldOccurrenceTypes,
+} from '../application/list-field-occurrence-types.use-case.js'
+import {
+  buildDriverDocumentProducts,
+  refineDeclaredAmountScopeForDocument,
+  type DriverDocumentProduct,
+} from '../domain/driver-document-products.policy.js'
 import {
   type CanhotoRecaptureState,
   isDeliveryProofSettled,
@@ -48,7 +64,7 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
 import {
   DrizzleOccurrenceAttachmentOverridesRepository,
   type OccurrenceTypeOverridesByType,
@@ -66,6 +82,7 @@ import {
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
+  EMITTER_PARTICIPANT_ROLE,
   PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
   REQUIRED_PROOF_FIELD_MODE,
@@ -75,6 +92,7 @@ import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -104,15 +122,21 @@ const RECENTLY_CONCLUDED_TRIP_WINDOW_MINUTES = 15
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
 /** Spec 218 RF-C3: o emitente da nota é o contratante (ADR-0048 §1) — resolvido para a exceção. */
-const EMITTER_ROLE = 'emitter'
+const EMITTER_ROLE = EMITTER_PARTICIPANT_ROLE
 /** O emitente entra pela segunda vez em `nfeParticipants`: sem alias, a junção casaria com o destinatário. */
 const emitterParticipants = alias(nfeParticipants, 'emitter_participants')
 
 /** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
 const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
 
+/** A leitura dos produtos do snapshot falhou e a nota saiu sem `products` (refinamento isolado). */
+export const DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE = 'driver_snapshot_products_read_failed'
+
 export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort {
-  public constructor(private readonly database: TripDatabase) {}
+  public constructor(
+    private readonly database: TripDatabase,
+    private readonly logger?: ApiLogger,
+  ) {}
 
   public async findDriverIdByMembership(input: {
     readonly companyId: string
@@ -216,6 +240,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    readonly locationStamp?: EventLocationStampColumns | undefined
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
@@ -240,6 +265,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         channel: input.channel,
         companyId: input.companyId,
         fromStatus: input.expectedStatus,
+        locationStamp: input.locationStamp,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: input.tripStatus,
         tripId: input.tripId,
@@ -257,6 +283,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const tripRows = await this.database
       .select({
         createdAt: trips.createdAt,
+        // Spec 243 D3: o papel sai da mesma linha que recorta a viagem — sem consulta por viagem.
+        crewRole: tripDrivers.role,
         id: trips.id,
         plate: fleetVehicles.plate,
         status: trips.status,
@@ -319,22 +347,33 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
      * três. Nota sem volume importado é caso normal — a NF-e é dado de terceiro, e nós não a
      * preenchemos.
      */
-    const [volumesByDocument, photoPresenceByDocument] = await Promise.all([
-      this.sumVolumes({
-        companyId: input.companyId,
-        nfeDocumentIds: documentRows
-          .map((row) => row.nfeDocumentId)
-          .filter((documentId): documentId is string => documentId !== null),
-      }),
+    const nfeDocumentIds = documentRows
+      .map((row) => row.nfeDocumentId)
+      .filter((documentId): documentId is string => documentId !== null)
+    const [volumesByDocument, photoPresenceByDocument, productsByNfeDocument] = await Promise.all([
+      this.sumVolumes({ companyId: input.companyId, nfeDocumentIds }),
       this.listDeliveryPhotoPresence({
         companyId: input.companyId,
         documentIds: documentRows.map((row) => row.id),
+      }),
+      /**
+       * Spec 247 (T4.6): uma consulta para todas as notas de todas as viagens do motorista, nunca uma
+       * por nota. Refinamento isolado do `Promise.all`, como `occurrenceTypes`: se falhar, a nota
+       * sai sem `products` e o app oferece a nota inteira — o caminho crítico não cai junto. A falha
+       * deixa rastro (só ids e contagem): sem ele o app degradaria calado para "a nota inteira".
+       */
+      this.listDocumentProducts({ companyId: input.companyId, nfeDocumentIds }).catch(() => {
+        this.warnProductsReadFailed({ companyId: input.companyId, nfeDocumentIds, tripIds })
+        return null
       }),
     ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
         ...row,
         hasDeliveryPhoto: photoPresenceByDocument.get(row.id) ?? false,
+        ...(productsByNfeDocument === null
+          ? {}
+          : { products: productsByNfeDocument.get(row.nfeDocumentId ?? '') ?? [] }),
         volumes: volumesByDocument.get(row.nfeDocumentId ?? '') ?? null,
       })),
       (row) => row.stopId,
@@ -343,6 +382,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
 
     return tripRows.map((trip) => ({
       createdAt: trip.createdAt.toISOString(),
+      crewRole: trip.crewRole,
       id: trip.id,
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
@@ -376,7 +416,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     ])
 
     return rows.flatMap((row) => {
-      const deliveredAt = row.capturedAt ?? row.recordedAt
+      const { deliveredAt } = row
       // Spec 159 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
       if (effectiveSince !== undefined && deliveredAt < effectiveSince) return []
       const isOwnDelivery =
@@ -473,19 +513,19 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     return this.database
       .selectDistinctOn([tripStopEvents.tripDocumentId], {
         actorUserId: tripStopEvents.actorUserId,
-        capturedAt: tripStopEvents.capturedAt,
         channel: tripStopEvents.channel,
         contractorId: contractors.id,
         canhotoReview: tripDeliveryProofs.canhotoReview,
         canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
         canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
+        /** Spec 234 D3: o mesmo instante da nota — os dois não discordam na fronteira. */
+        deliveredAt: deliveredMomentSql(tripStopEvents),
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
         recipientName: nfeParticipants.legalName,
         recipientTaxId: nfeParticipants.taxId,
         recipientTradeName: nfeParticipants.tradeName,
-        recordedAt: tripStopEvents.recordedAt,
         reportedByDriverId: tripStopEvents.reportedByDriverId,
         separationStatus: tripDocuments.separationStatus,
         tripDocumentId: tripDocuments.id,
@@ -546,10 +586,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripStopEvents.companyId, input.companyId),
           eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
-          gte(
-            sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
-            timestamptzParameter(input.windowStart),
-          ),
+          gte(deliveredMomentSql(tripStopEvents), timestamptzParameter(input.windowStart)),
           inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
           fieldTripTargetCondition({
             driverId: input.driverId,
@@ -773,14 +810,73 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     readonly companyId: string
   }): Promise<FieldOccurrenceTypesLookup> {
     const types = await listOccurrenceTypes(this.database, { companyId: input.companyId })
-    const deliveryTypeIds = types
-      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
-      .map((type) => type.id)
+    /** Spec 246 (RF0): as exceções só importam aos tipos do momento `document` — os do snapshot. */
+    const deliveryTypeIds = selectFieldOccurrenceTypes({
+      moment: OCCURRENCE_MOMENT.document,
+      types,
+    }).map((type) => type.id)
     const overrides = await new DrizzleOccurrenceAttachmentOverridesRepository(
       this.database,
     ).listOverridesForTypes({ companyId: input.companyId, occurrenceTypeIds: deliveryTypeIds })
 
     return { overrides, types }
+  }
+
+  private warnProductsReadFailed(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly tripIds: readonly string[]
+  }): void {
+    if (this.logger === undefined) return
+    safeLogWarn({
+      logger: this.logger,
+      message: DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE,
+      metadata: {
+        affectedDocumentCount: input.nfeDocumentIds.length,
+        companyId: input.companyId,
+        tripIds: input.tripIds,
+      },
+    })
+  }
+
+  /**
+   * Spec 247 (T4.6): os produtos de cada nota, já resolvidos por código, numa consulta só pelas notas
+   * fiscais do lote. O vínculo `trip_documents` já filtrou o que o motorista alcança.
+   */
+  private async listDocumentProducts(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<Map<string, readonly DriverDocumentProduct[]>> {
+    if (input.nfeDocumentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        code: nfeProducts.code,
+        commercialUnit: nfeProducts.commercialUnit,
+        description: nfeProducts.description,
+        documentId: nfeProducts.documentId,
+        ordinal: nfeProducts.ordinal,
+        quantity: nfeProducts.quantity,
+        unitValue: nfeProducts.unitValue,
+      })
+      .from(nfeProducts)
+      .where(
+        and(
+          eq(nfeProducts.companyId, input.companyId),
+          inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
+        ),
+      )
+      .orderBy(asc(nfeProducts.documentId), asc(nfeProducts.ordinal))
+
+    const byDocument = groupBy(rows, (row) => row.documentId)
+    return new Map(
+      [...byDocument].map(([documentId, documentRows]) => [
+        documentId,
+        buildDriverDocumentProducts(
+          documentRows.map((row) => ({ ...row, ordinal: Number(row.ordinal) })),
+        ),
+      ]),
+    )
   }
 
   /**
@@ -971,6 +1067,8 @@ type DocumentRow = {
   readonly hasDeliveryPhoto: boolean
   readonly id: string
   readonly number: string | null
+  /** Spec 247 (T4.6): ausente quando a leitura dos produtos falhou nesta chamada. */
+  readonly products?: readonly DriverDocumentProduct[]
   readonly recipientName: string | null
   readonly recipientTaxId: string | null
   readonly recipientTradeName: string | null
@@ -1035,10 +1133,15 @@ function toDriverDocument(
       ? null
       : resolveFieldOccurrenceTypes({
           contractorId: row.contractorId,
+          moment: OCCURRENCE_MOMENT.document,
           overrides: occurrenceTypes.overrides,
           recipientTaxId: row.recipientTaxId ?? '',
           types: occurrenceTypes.types,
-        }).filter((type) => type.flow === 'document')
+        }).map((type) =>
+          row.products === undefined
+            ? type
+            : refineDeclaredAmountScopeForDocument({ productCount: row.products.length, type }),
+        )
 
   return {
     accessKey: row.accessKey ?? '',
@@ -1056,6 +1159,7 @@ function toDriverDocument(
       row.deliveredAt !== null &&
       deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
       !row.hasDeliveryPhoto,
+    ...(row.products === undefined ? {} : { products: row.products }),
     recipientDisplayName: resolveRecipientDisplayName({
       legalName: row.recipientName ?? '',
       tradeName: row.recipientTradeName ?? '',

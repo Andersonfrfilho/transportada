@@ -4,10 +4,9 @@
  * Spec 144 T020 — a lista dinâmica (viagens, notas, emitentes, tipos de ocorrência) enviada pelas
  * FlowActions. Era copiada em três arquivos; a correção do B3 teria de entrar nas três cópias.
  *
- * ⚠️ `ChannelAdapterInterface` desta instalação é a 0.1.0 (`meta-whatsapp-message-sender.gateway.ts`
- * já registra isso): sem `sendInteractiveButtons`. Toda lista dinâmica sai como lista — inclusive
- * quando `planChoiceMessage` classificaria como botão — porque é o único formato interativo que o
- * canal de uma `FlowAction` sabe enviar.
+ * Toda lista dinâmica sai como lista — inclusive quando `planChoiceMessage` classificaria como botão —
+ * por decisão de produto mantida na subida dos pacotes: o canal já sabe enviar botão
+ * (`sendInteractiveButtons`), mas trocar o formato muda a conversa do motorista e não foi pedido.
  */
 import type { ChannelAdapterInterface } from '@adatechnology/meta-whatsapp-contracts'
 

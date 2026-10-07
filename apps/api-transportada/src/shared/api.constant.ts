@@ -54,6 +54,9 @@ export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
 /** Spec 143 D3: o valor geral de diária que a empresa paga sem valor combinado com o motorista. */
 export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
+export const API_COMPANY_SETTINGS_LOCATION_RETENTION_PATH = '/company-settings/location-retention'
+export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
+  '/company-settings/location-retention/impact'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
@@ -68,6 +71,40 @@ export const API_CONTRACTORS_PATH = '/contractors'
 /** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
 export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
+/** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
+export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
+export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'
+/** Spec 237 Fase 2: a chegada da carga e a primeira separação, antes da viagem (ADR-0094 §6). */
+export const API_CARGO_ARRIVALS_PATH = '/cargo-arrivals'
+export const API_CARGO_ARRIVAL_AVAILABLE_DOCUMENTS_PATH = '/cargo-arrivals/available-documents'
+export const API_CARGO_ARRIVAL_PATH = '/cargo-arrivals/:id'
+export const API_CARGO_ARRIVAL_DOCUMENT_RECEIVE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/receive'
+export const API_CARGO_ARRIVAL_DOCUMENT_SEPARATE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/separate'
+export const API_CARGO_ARRIVAL_BATCH_STATUS_PATH = '/cargo-arrivals/:id/documents/batch-status'
+export const API_CARGO_ARRIVAL_ROUTE_ASSIGNMENT_PATH = '/cargo-arrivals/:id/route-assignment'
+export const API_CARGO_ARRIVAL_CLOSE_PATH = '/cargo-arrivals/:id/close'
+/** Spec 237 Fase 3: a avaria sem viagem e a marcação "devolver ao contratante" (ADR-0094 §9). */
+export const API_CARGO_ARRIVAL_OCCURRENCE_TYPES_PATH = '/cargo-arrivals/occurrence-types'
+export const API_CARGO_ARRIVAL_OCCURRENCES_PATH = '/cargo-arrivals/:id/occurrences'
+export const API_CARGO_ARRIVAL_DOCUMENT_OCCURRENCES_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/occurrences'
+export const API_CARGO_ARRIVAL_DOCUMENT_PRODUCTS_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/products'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_MARK_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-mark'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_UNMARK_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-unmark'
+export const API_CARGO_ARRIVAL_DOCUMENT_RETURN_COMPLETE_PATH =
+  '/cargo-arrivals/:id/documents/:documentId/return-complete'
+export const API_CARGO_PREVIEWS_PATH = '/cargo-previews'
+export const API_CARGO_PREVIEW_PATH = '/cargo-previews/:id'
+export const API_CARGO_PREVIEW_TRIP_DRAFTS_PATH = '/cargo-previews/:id/trip-drafts'
+export const API_CARGO_PREVIEW_ITEM_CONFIRM_PATH = '/cargo-previews/:id/items/:itemId/confirm'
+export const API_CARGO_PREVIEW_ITEM_UNLINK_PATH = '/cargo-previews/:id/items/:itemId/unlink'
+export const API_CARGO_PREVIEW_ITEM_LINK_PATH = '/cargo-previews/:id/items/:itemId/link'
+export const API_CARGO_PREVIEW_PROPOSE_ARRIVAL_PATH = '/cargo-previews/:id/propose-arrival'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
@@ -200,6 +237,8 @@ export const HTTP_GET_METHOD = 'GET'
 export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
+/** `Date` não é seguro para leitura entre origens; o app do motorista mede o relógio por ele. */
+export const CORS_EXPOSE_HEADERS = 'Date'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
 /**

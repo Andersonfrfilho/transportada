@@ -9,8 +9,8 @@ import { createHmac } from 'node:crypto'
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { eq } from 'drizzle-orm'
+import { FlowGraphRepository, INBOUND_LOCATION_CONTENT } from '@adatechnology/meta-whatsapp-module'
+import { eq, sql } from 'drizzle-orm'
 
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -54,6 +54,9 @@ import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructu
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createDriverWhatsAppFlowActions } from '../../src/whatsapp-commands/application/register-driver-flow-actions.js'
+import { WHATSAPP_SHARED_LOCATION_REPLY } from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from '../../src/whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import {
   WHATSAPP_ROOT_FLOW_GRAPH,
@@ -261,6 +264,174 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
   )
 })
 
+describe('a mensagem de localização do motorista chega ao evento (spec 196 T3.6)', () => {
+  type Scenario = Awaited<ReturnType<typeof buildScenario>>
+
+  async function openDeliveryList(scenario: Scenario, world: SeededWorld): Promise<void> {
+    await scenario.receive({ from: world.phone, text: { body: 'oi' }, type: 'text' })
+    await scenario.receive({
+      from: world.phone,
+      interactive: { button_reply: { id: 'minha_viagem', title: '🚚' }, type: 'button_reply' },
+      type: 'interactive',
+    })
+    await scenario.receive({
+      from: world.phone,
+      interactive: { button_reply: { id: 'deliver', title: '📦' }, type: 'button_reply' },
+      type: 'interactive',
+    })
+  }
+
+  async function seedScenario(db: Database): Promise<{ scenario: Scenario; world: SeededWorld }> {
+    const world = await seedDispatchedTripWithOneDocument(db)
+    await new DrizzleWhatsAppPhoneRepository(db).saveVerified({
+      phone: world.phone,
+      userId: world.userId,
+      verifiedAt: new Date(),
+    })
+    await createDrizzleWhatsAppFlowGraphPublisher(db)({
+      companyId: world.companyId,
+      graph: WHATSAPP_ROOT_FLOW_GRAPH,
+      publishedBy: 'code',
+      source: 'code',
+    })
+
+    return { scenario: await buildScenario(db, world.companyId), world }
+  }
+
+  async function tapDocument(scenario: Scenario, world: SeededWorld): Promise<void> {
+    await scenario.receive({
+      from: world.phone,
+      interactive: { list_reply: { id: world.documentId, title: '1' }, type: 'list_reply' },
+      type: 'interactive',
+    })
+  }
+
+  /**
+   * O despachante guarda o ponto com `remember` quando a mensagem `location` chega; aqui o ponto é
+   * guardado direto; o teste seguinte faz o mesmo caminho pelo webhook real. O que se prova aqui é o
+   * toque até a linha do banco, sem depender do pacote.
+   */
+  testWithPostgres(
+    'o ponto guardado antes do toque vira captured com a coordenada, e vale para um toque só',
+    async () => {
+      const db = requireDatabase()
+      const { scenario, world } = await seedScenario(db)
+
+      await openDeliveryList(scenario, world)
+      scenario.sharedLocations.remember({
+        companyId: world.companyId,
+        location: {
+          accuracyMeters: null,
+          capturedAt: '2025-09-11T12:00:00.000Z',
+          latitude: '-23.5505200',
+          longitude: '-46.6333080',
+        },
+        whatsappNumber: world.phone,
+      })
+      await tapDocument(scenario, world)
+
+      const [event] = await db
+        .select()
+        .from(tripStopEvents)
+        .where(eq(tripStopEvents.tripDocumentId, world.documentId))
+      expect(event).toMatchObject({
+        channel: 'whatsapp',
+        latitude: '-23.5505200',
+        locationState: 'captured',
+        longitude: '-46.6333080',
+      })
+      expect(event?.capturedAt?.toISOString()).toBe('2025-09-11T12:00:00.000Z')
+      expect(event?.accuracyMeters).toBeNull()
+      expect(
+        scenario.sharedLocations.consume({
+          companyId: world.companyId,
+          whatsappNumber: world.phone,
+        }),
+      ).toBeNull()
+      expect(JSON.stringify(scenario.logged)).not.toContain('23.55')
+    },
+  )
+
+  /**
+   * Ponta a ponta pelo webhook real: o `meta-whatsapp-contracts` a partir da `0.4.0` traz `location`
+   * no schema da mensagem, então ela chega ao gancho, o despachante guarda o ponto e o toque seguinte
+   * o grava. A coordenada nunca é logada.
+   */
+  testWithPostgres(
+    'a localização enviada pelo webhook vira captured com a coordenada no toque seguinte',
+    async () => {
+      const db = requireDatabase()
+      const { scenario, world } = await seedScenario(db)
+
+      await openDeliveryList(scenario, world)
+      await scenario.receive({
+        from: world.phone,
+        location: {
+          address: 'Rua Sigilosa, 100',
+          latitude: -23.55052,
+          longitude: -46.633308,
+          name: 'Casa do Cliente',
+          url: 'https://maps.example/?q=-23.55052,-46.633308',
+        },
+        type: 'location',
+      })
+      expect(scenario.sentMessages().at(-1)?.body).toMatchObject({
+        text: { body: WHATSAPP_SHARED_LOCATION_REPLY },
+      })
+      await tapDocument(scenario, world)
+
+      const [event] = await db
+        .select()
+        .from(tripStopEvents)
+        .where(eq(tripStopEvents.tripDocumentId, world.documentId))
+      expect(event).toMatchObject({
+        channel: 'whatsapp',
+        latitude: '-23.5505200',
+        locationState: 'captured',
+        longitude: '-46.6333080',
+      })
+      expect(event?.capturedAt?.toISOString()).toBe('2025-09-11T12:00:00.000Z')
+      expect(JSON.stringify(scenario.logged)).not.toContain('23.55')
+
+      const transcriptRows = await db.execute(sql`
+        select content,
+               type,
+               payload is null or not (payload ? 'location') as has_no_location,
+               jsonb_typeof(payload) is distinct from 'string' as is_not_scalar_string
+        from meta_whatsapp.messages
+        where company_id = ${world.companyId} and direction = 'inbound' and type = 'location'
+      `)
+      expect(transcriptRows).toHaveLength(1)
+      expect(transcriptRows[0]).toMatchObject({
+        content: INBOUND_LOCATION_CONTENT,
+        has_no_location: true,
+        is_not_scalar_string: true,
+        type: 'location',
+      })
+    },
+  )
+
+  testWithPostgres('sem mensagem de localização o toque grava unavailable', async () => {
+    const db = requireDatabase()
+    const { scenario, world } = await seedScenario(db)
+
+    await openDeliveryList(scenario, world)
+    await tapDocument(scenario, world)
+
+    const [event] = await db
+      .select()
+      .from(tripStopEvents)
+      .where(eq(tripStopEvents.tripDocumentId, world.documentId))
+    expect(event).toMatchObject({
+      channel: 'whatsapp',
+      latitude: null,
+      locationState: 'unavailable',
+      longitude: null,
+    })
+    expect(event?.capturedAt).toBeNull()
+  })
+})
+
 type SeededWorld = {
   readonly companyId: string
   readonly documentId: string
@@ -424,7 +595,9 @@ async function buildScenario(db: Database, companyId: string) {
 
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(db)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db, 'test-bucket')
+  const sharedLocations = createInMemoryWhatsAppSharedLocationStore({ clock: () => new Date() })
   const driverFlowActions = createDriverWhatsAppFlowActions({
+    consumeSharedLocation: (key) => sharedLocations.consume(key),
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
         ...input,
@@ -436,18 +609,33 @@ async function buildScenario(db: Database, companyId: string) {
     registerOccurrence: (input) =>
       registerDriverOccurrence({
         ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
         repository: {
           findConfirmedUpload: async () => null,
           findOccurrenceType: (query) => findOccurrenceType(db, query),
+          findOccurrenceTypeOverrides: async () => ({
+            contractorOverrides: [],
+            recipientOverrides: [],
+          }),
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),
         },
         unitOfWork: driverFieldReports,
       }),
     reportDelivery: (input) =>
-      reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDocumentDelivery({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: driverFieldReports,
+      }),
     reportReturn: (input) =>
-      reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDocumentReturn({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: driverFieldReports,
+      }),
     resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
   })
 
@@ -456,9 +644,7 @@ async function buildScenario(db: Database, companyId: string) {
     appSecret: APP_SECRET,
     baseUrl,
     buildMessageHook: createWhatsAppCommandHookFactory({
-      apiVersion: API_VERSION,
       authorization: new AuthorizationService(),
-      baseUrl,
       clock: () => new Date(),
       flowActions: driverFlowActions,
       graphs: createModuleWhatsAppFlowGraphProvider({
@@ -467,6 +653,7 @@ async function buildScenario(db: Database, companyId: string) {
       }),
       logger,
       rateLimiter: createRateLimiter(),
+      sharedLocations,
       resolveActor: createResolveWhatsAppActorUseCase({
         memberships: new DrizzleMembershipRepository(db),
         phones: new DrizzleWhatsAppPhoneRepository(db),
@@ -542,7 +729,7 @@ async function buildScenario(db: Database, companyId: string) {
   const sentMessages = (): readonly GraphRequest[] =>
     graphRequests.filter((request) => request.path === `/${API_VERSION}/${phoneNumberId}/messages`)
 
-  return { logged, receive, sentMessages }
+  return { logged, receive, sentMessages, sharedLocations }
 }
 
 function randomPhone(): string {

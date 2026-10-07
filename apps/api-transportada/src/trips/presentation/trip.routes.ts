@@ -4,7 +4,11 @@
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceDeclaredAmountScope,
+  OccurrenceMoment,
+  OccurrenceTypeFlow,
+} from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
   DeliveryProofView,
@@ -26,6 +30,7 @@ import {
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
 import type { OccurrenceAttachmentOverridesBody } from './occurrence.schema.js'
+import type { ListOccurrenceAttachmentOverridesResult } from '../application/list-occurrence-attachment-overrides.use-case.js'
 import type { OccurrenceAttachmentOverridesResult } from '../application/occurrence-attachment-overrides.use-case.js'
 import type { CorrectedOccurrenceView } from '../application/occurrence-correction.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
@@ -86,6 +91,15 @@ import {
 } from './trip-financial.schema.js'
 import { parseTripDeliveryProofsQuery } from './trip-delivery-proofs.schema.js'
 import { parseTripTimelineQuery } from './trip-timeline.schema.js'
+import { redactTimelineCosts } from './trip-timeline-redaction.support.js'
+import {
+  parseTransferTripCrewRequest,
+  serializeTripCrewTransfer,
+} from './trip-crew-transfer.schema.js'
+import type {
+  TransferTripCrewInput,
+  TransferTripCrewResult,
+} from '../application/trip-crew-transfer.types.js'
 import type {
   ReadTripTimelineResult,
   TripTimelineCursor,
@@ -162,6 +176,7 @@ import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_CREW_PATH = `${API_TRIPS_PATH}/:id/crew`
+const TRIP_CREW_TRANSFERS_PATH = `${API_TRIPS_PATH}/:id/crew-transfers`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
@@ -187,6 +202,7 @@ const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
  * Spec 218 RF-B3: a exceção do `attachmentMode` deste tipo, por contratante e por destinatário —
  * mesmo padrão de `deliveryProofOverridesSchema`, substituição total, nunca PATCH incremental.
  */
+const OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/:occurrenceTypeId/attachment-overrides`
 
 type RegisterOccurrenceRouteInput = {
@@ -264,11 +280,15 @@ const OCCURRENCE_CORRECTION_RATE_LIMIT = {
 
 type CorrectOccurrenceItemsRouteInput = {
   readonly context: CompanyContext
+  /** Spec 247 (T4.8): ausente mantém, nulo limpa, texto passa a valer. */
+  readonly declaredAmount?: null | string | undefined
   readonly idempotencyKey: string
   readonly occurrenceId: string
   readonly productCodes: readonly string[]
+  readonly productDeclaredAmounts: readonly (null | string | undefined)[]
   readonly productQuantities: readonly string[]
   readonly productQuantityUnits: readonly string[]
+  readonly referenceNumber?: null | string | undefined
 }
 
 type CancelOccurrenceRouteInput = {
@@ -280,34 +300,55 @@ type CancelOccurrenceRouteInput = {
 
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
-  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
-  readonly allowsMultipleItems: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. Ausente é "não mexa". */
+  readonly allowsMultipleItems?: boolean | undefined
   /**
    * Spec 179 (RF1): se o registro do motorista exige comprovante. Ausente é "não mexa", nunca
    * `'off'` — ver `save-occurrence-type.use-case.ts`.
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
-  readonly emailBody: string
+  /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
+  readonly declaredAmountLabel?: string | undefined
+  readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
+  readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
+  readonly emailBody?: string | undefined
+  /** Spec 247 (RF6): o formato da linha de item; ausente é "não mexa". */
+  readonly emailItemLineTemplate?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
-  readonly emailSubject: string
+  readonly emailSubject?: string | undefined
   readonly emailTemplateKey: null | string
   /**
    * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver
    * `occurrence.schema.ts` (`FLOW_REQUIRED_ON_CREATE`) e `save-occurrence-type.use-case.ts`.
    */
   readonly flow?: OccurrenceTypeFlow | undefined
+  /** Spec 246 (RF1c2): ausente é "não mexa", nulo é "todos os itens" — ver o caso de uso. */
+  readonly itemsMinimumCount?: null | number | undefined
+  /** Spec 241 (RF4), spec 246 (RF1b): ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
+  readonly itemsMode?: DeliveryProofFieldMode | undefined
   /**
    * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
    * `save-occurrence-type.use-case.ts`.
    */
   readonly leavesDocumentBehind?: boolean | undefined
+  /** Spec 246 (T1b.1b): o conjunto de momentos; ausente é "não mexa" — ver o caso de uso. */
+  readonly moments?: readonly OccurrenceMoment[] | undefined
   readonly name: string
+  /** Spec 246 (RF1, RF3): ausente é "não mexa" — ver o caso de uso. */
+  readonly noteMode?: DeliveryProofFieldMode | undefined
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 246 (RF1c): ausente é "não mexa" — ver o caso de uso. */
+  readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 247 (RF1): o número do documento do cliente; ausente é "não mexa". */
+  readonly referenceNumberLabel?: string | undefined
+  readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
+  /** Spec 246 (RF1): ausente é "não mexa" — ver o caso de uso. */
+  readonly signatureMode?: DeliveryProofFieldMode | undefined
   readonly stage: 'delivery' | 'separation'
 }
 
@@ -423,7 +464,7 @@ const TRIP_FIELD_READ_POLICY = {
 } as const satisfies CompanyAnyPermissionPolicy
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
 /** Spec 079: ligar o aviso é configuração da empresa, e configuração é `settings.manage`. */
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
+export const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 /**
  * ADR-0047 §4: o escopo do service account é **esta rota e nada mais**. Ela não é `mdfe.manage` de
  * propósito — quem emite manifesto à mão não deveria ganhar o gatilho de máquina de carona, e um
@@ -495,6 +536,9 @@ type Dependencies = {
   readonly updateTripCrew: {
     execute(input: TenantInput<UpdateTripCrewInput>): Promise<TripDetail>
   }
+  readonly transferTripCrew: {
+    execute(input: TenantInput<TransferTripCrewInput>): Promise<TransferTripCrewResult>
+  }
   readonly createTripCteBatch: {
     execute(input: {
       readonly companyId: string
@@ -534,6 +578,11 @@ type Dependencies = {
   }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
+  }
+  readonly listOccurrenceAttachmentOverrides: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<ListOccurrenceAttachmentOverridesResult>
   }
   readonly readOccurrenceAttachmentOverrides: {
     execute(
@@ -741,6 +790,7 @@ type Dependencies = {
       readonly canReadEventLocation: boolean
       readonly context: CompanyContext
       readonly cursor: TripTimelineCursor | null
+      readonly documentId?: string
       readonly limit: number
       readonly tripId: string
     }): Promise<ReadTripTimelineResult>
@@ -1005,6 +1055,7 @@ export function createTripRoutes(
      */
     defineRoute<{
       readonly cursor: TripTimelineCursor | null
+      readonly documentId?: string
       readonly limit: number
       readonly tripId: string
     }>({
@@ -1013,12 +1064,21 @@ export function createTripRoutes(
           canReadEventLocation: context.scope.permissions.has(TRIP_EVENT_LOCATION_PERMISSION),
           context: context.scope,
           cursor: input.cursor,
+          ...(input.documentId === undefined ? {} : { documentId: input.documentId }),
           limit: input.limit,
           tripId: input.tripId,
         })
 
         return jsonResponse({
-          body: { data: { items: timeline.items, nextCursor: timeline.nextCursor } },
+          body: {
+            data: {
+              items: redactTimelineCosts({
+                canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+                items: timeline.items,
+              }),
+              nextCursor: timeline.nextCursor,
+            },
+          },
           status: 200,
         })
       },
@@ -1354,6 +1414,47 @@ export function createTripRoutes(
       },
       pathname: TRIP_CREW_PATH,
       policy: TRIP_MANAGE_POLICY,
+    }),
+    /**
+     * Spec 249 D3: passa a viagem que **já saiu** para outra tripulação, sem tocar em veículo, rota,
+     * valor de frete nem status. É a mesma permissão da baixa em nome do motorista (ADR-0067) — o
+     * separador monta a viagem, mas não a transfere. `PATCH /trips/:id/crew` e a janela da 217 seguem
+     * como eram.
+     */
+    defineRoute<Omit<TransferTripCrewInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const { transfer, trip } = await dependencies.transferTripCrew.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: {
+              transfer: serializeTripCrewTransfer(transfer),
+              trip: serializeTripDetail({
+                canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+                canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+                trip,
+              }),
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseTransferTripCrewRequest(request)
+        return {
+          correlationId,
+          driverIds: body.driverIds,
+          helperIds: body.helperIds,
+          ipAddress: dependencies.resolveClientIp(request),
+          reason: body.reason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_CREW_TRANSFERS_PATH,
+      policy: OFFICE_REPORT_POLICY,
     }),
     defineRoute<Omit<LinkTripDocumentInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -1787,6 +1888,18 @@ export function createTripRoutes(
         return parseOccurrenceTypeRequest(request)
       },
       pathname: OCCURRENCE_TYPES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const result = await dependencies.listOccurrenceAttachmentOverrides.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPES_ATTACHMENT_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<{ readonly occurrenceTypeId: string }>({
@@ -2275,6 +2388,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     nfeTotalValue: TripDocumentDetail['nfeTotalValue']
     openOccurrenceCase: TripDocumentDetail['openOccurrenceCase']
     proofPending: TripDocumentDetail['proofPending']
+    volumeCount: TripDocumentDetail['volumeCount']
   }>
 
 /**
@@ -2312,6 +2426,7 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   stopId: 'safe',
   tripId: 'safe',
   updatedAt: 'safe',
+  volumeCount: 'safe',
 } as const satisfies FieldPolicy<SerializedTripDocumentDetail>
 const TRIP_DOCUMENT_DETAIL_MONEY_FIELDS = moneyFieldsOf(TRIP_DOCUMENT_DETAIL_FIELD_POLICY)
 
@@ -2335,6 +2450,7 @@ function serializeTripDocumentDetail(input: {
     nfeTotalValue: document.nfeTotalValue,
     openOccurrenceCase: document.openOccurrenceCase,
     proofPending: document.proofPending,
+    volumeCount: document.volumeCount,
   }
   return redactMoneyFields({
     canReadFinancials: input.canReadFinancials,

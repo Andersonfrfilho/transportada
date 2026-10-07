@@ -8,6 +8,7 @@
  * mesmo `now` do caso de uso).
  */
 import type { EventLocationState } from '../../database/event-location.schema.js'
+import type { TripCrewEventMember } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceCancellationView } from './occurrence-correction.port.js'
 
@@ -36,6 +37,19 @@ export const TRIP_TIMELINE_KINDS = [
   'document.occurrence',
   'document.status_changed',
   'trip.created',
+  /**
+   * Spec 228 D6: a foto do canhoto (lida de trip_delivery_proofs) e a correção do endereço da parada
+   * (lida das trilhas de correção humana). Entram no fim da lista e, como os demais, antes de a fonte
+   * emitir, porque o painel é cópia por valor e publica primeiro (ADR-0081 §9).
+   */
+  'document.canhoto_photo',
+  'stop.address_corrected',
+  /**
+   * Spec 249 D6: a tripulação trocada com a viagem na rua. Entra no fim da lista e **antes** de o painel
+   * o conhecer (ADR-0081 §9: o painel publica primeiro; até lá ele descarta o item de `kind` que não
+   * conhece em vez de reprovar a página — spec 206 D12).
+   */
+  'crew_transfer',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -67,6 +81,12 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'document.status_changed': 5,
   'trip.dispatched': 6,
   'trip.status_changed': 7,
+  /** Spec 228 D6: logo abaixo de `document.delivered` (4) — foto e baixa saem da mesma transação e empatam. */
+  'document.canhoto_photo': 3,
+  /** Spec 228 D6: acima de `stop.occurrence` (1) — a correção é efeito do relato de endereço errado. */
+  'stop.address_corrected': 2,
+  /** Spec 249: não é causa nem efeito de outro evento; no empate de instante fica acima de todos. */
+  crew_transfer: 8,
 }
 
 export type TripTimelineStopReference = {
@@ -112,7 +132,36 @@ export type TripTimelineLocation = {
 /** As fontes que não carimbam posição (status, ocorrências, documentos) — "não se aplica". */
 export const NO_EVENT_LOCATION = { location: null, locationState: null } as const
 
+/** Spec 228 D8: quem mudou a coordenada do endereço; `refinement` é o refino de precisão pedido por pessoa. */
+export const TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS = [
+  'contractor',
+  'driver',
+  'operator',
+  'refinement',
+] as const
+export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS)[number]
+
+/** `displacementMeters` é `null` sem ponto anterior e no refino (que não guarda o anterior); metros não revelam onde. */
+export type TripTimelineAddressChange = {
+  readonly displacementMeters: number | null
+  readonly origin: TripTimelineAddressChangeOrigin
+}
+
+/**
+ * Spec 249 RF4: o que a transferência mostra. `costDifference` é dinheiro (`trip.financials`) e a rota
+ * o tira sem a permissão — a chave sai, nunca vira `null` (spec 153 D10).
+ */
+export type TripTimelineCrewTransfer = {
+  readonly costDifference: string
+  readonly mdfeDriverDivergence: boolean
+  readonly nextCrew: readonly TripCrewEventMember[]
+  readonly previousCrew: readonly TripCrewEventMember[]
+  readonly reason: string
+}
+
 export type TripTimelineItem = {
+  /** Spec 228 D8: a chave só existe em `stop.address_corrected` — em outro kind nem `null` aparece. */
+  readonly addressChange?: TripTimelineAddressChange
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   readonly channel: TripFieldChannel | null
@@ -122,6 +171,8 @@ export type TripTimelineItem = {
    * motivo: `close_reason` só é escrito por `POST /trips/:id/close`.
    */
   readonly closeReason: string | null
+  /** Spec 249: a chave só existe em `crew_transfer` — em outro kind nem `null` aparece. */
+  readonly crewTransfer?: TripTimelineCrewTransfer
   readonly document: TripTimelineDocumentReference | null
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null
@@ -168,6 +219,13 @@ export type TripTimelineCursor = {
 export type ReadTripTimelineParams = {
   readonly companyId: string
   readonly cursor: TripTimelineCursor | null
+  /**
+   * Spec 233 D7: só a nota pedida. O que não pertence a nota nenhuma (viagem, parada) passa; o de
+   * outra nota não. Ausente = a viagem inteira.
+   */
+  readonly documentId?: string
+  /** Parada da nota pedida; `null` = nota sem parada, logo nenhum evento de parada. Com `documentId`. */
+  readonly documentStopId?: string | null
   readonly limit: number
   readonly tripId: string
 }

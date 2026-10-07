@@ -8,6 +8,8 @@
  * mexer em dinheiro.
  */
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
+import type { StoredOccurrenceLineValues } from '../domain/occurrence-correction-values.policy.js'
+import type { TripDocumentProduct } from './read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
   TripOccurrence,
@@ -17,7 +19,11 @@ import type {
 
 export type LockedOccurrenceRow = {
   readonly cancelledAt: null | string
+  /** Spec 247 (T4.8): o valor pago da ocorrência, como o `numeric` o devolve. */
+  readonly declaredAmount: null | string
   readonly occurrenceTypeId: string
+  /** Spec 247 (T4.8): o número do documento do cliente gravado. */
+  readonly referenceNumber: null | string
   readonly tripDocumentId: string
   readonly tripId: string
 }
@@ -68,23 +74,31 @@ export type OccurrenceCorrectionTransactionPort = {
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
-  }): Promise<readonly { readonly code: string; readonly description: string }[]>
+  }): Promise<readonly TripDocumentProduct[]>
+  /** Spec 247 (T4.8): as linhas de hoje com o valor unitário copiado e o valor pago digitado. */
   listCurrentItems(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<readonly OccurrenceItemQuantity[]>
+  }): Promise<readonly StoredOccurrenceLineValues[]>
   /** Substitui o conjunto inteiro (RF2) e regrava `product_code` com o primeiro item, para quem ainda lê dela. */
   replaceItems(input: {
     readonly companyId: string
-    readonly items: readonly OccurrenceItemQuantity[]
+    readonly items: readonly StoredOccurrenceLineValues[]
     readonly occurrenceId: string
     readonly productCode: string
+  }): Promise<void>
+  /** Spec 247 (T4.8): o número e o valor pago da ocorrência; nulo limpa. */
+  writeDeclaredValues(input: {
+    readonly companyId: string
+    readonly declaredAmount: null | string
+    readonly occurrenceId: string
+    readonly referenceNumber: null | string
   }): Promise<void>
   insertCorrection(input: {
     readonly companyId: string
     readonly correctedByUserId: string
     readonly occurrenceId: string
-    readonly previousItems: readonly OccurrenceItemQuantity[]
+    readonly previousItems: readonly StoredOccurrenceLineValues[]
   }): Promise<void>
   writeCancellation(input: {
     readonly cancelledByUserId: string

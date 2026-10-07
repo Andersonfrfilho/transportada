@@ -1,0 +1,8 @@
+# `railway up` respeita .gitignore e .railwayignore, e NÃO o .dockerignore. Sem este arquivo o
+# upload leva specs/ inteira (177 MB de 198 MB, quase tudo PNG de revisão de design, que não
+# comprime) e passa do teto da Cloudflare: "413 Payload Too Large" e deploy-api vermelho.
+# Nenhum Dockerfile, script ou serviço lê estas pastas; o .dockerignore já as exclui do build.
+specs/
+graphify-out/
+example/
+tmp/

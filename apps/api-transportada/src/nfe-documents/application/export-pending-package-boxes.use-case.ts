@@ -3,6 +3,7 @@
  */
 import { PACKAGE_BOX_PENDING_EXPORT_MAX_ITEMS } from '../domain/package-box-measurement.constant.js'
 import type { ListPackageBoxes, ListPackageBoxesResult } from './list-package-boxes.use-case.js'
+import type { PackageBoxStatusFilter } from './package-box.port.js'
 
 export type ExportPendingPackageBoxesResult = {
   readonly items: ListPackageBoxesResult['items']
@@ -13,11 +14,13 @@ export type ExportPendingPackageBoxesResult = {
 export type ExportPendingPackageBoxes = {
   execute(input: {
     readonly context: { readonly companyId: string }
+    /** A situação que a tela está mostrando; sem ela, o que falta medir. */
+    readonly status?: PackageBoxStatusFilter
   }): Promise<ExportPendingPackageBoxesResult>
 }
 
 /**
- * Tudo o que falta medir, para o arquivo da aba Caixas. ⚠️ É a **mesma** fila de
+ * Tudo o que está na situação escolhida (padrão: o que falta medir), para o arquivo da aba Caixas. ⚠️ É a **mesma** fila de
  * `createListPackageBoxes` — mesma consulta, mesma ordem do que mais roda —, só que sem a janela de
  * 200 da tela: uma segunda ordenação aqui faria o arquivo discordar da fila que o conferente vê.
  *
@@ -38,7 +41,7 @@ export function createExportPendingPackageBoxes(dependencies: {
     async execute(input): Promise<ExportPendingPackageBoxesResult> {
       const queue = await dependencies.listPackageBoxes.execute({
         context: input.context,
-        filters: { status: 'pending' },
+        filters: { status: input.status ?? 'pending' },
         limit: maxItems + 1,
       })
 

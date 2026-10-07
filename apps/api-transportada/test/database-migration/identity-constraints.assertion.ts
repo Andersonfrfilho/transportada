@@ -48,6 +48,13 @@ export async function assertIdentityConstraints(database: SQL): Promise<Identity
   expect(withSeparator).toEqual([{ role: 'separator' }])
   await database`delete from membership_roles where membership_id = ${membershipId} and role = 'separator'`
 
+  await database`insert into membership_roles (membership_id, role) values (${membershipId}, 'helper')`
+  const withHelper = await database<Array<{ readonly role: string }>>`
+    select role from membership_roles where membership_id = ${membershipId} and role = 'helper'
+  `
+  expect(withHelper).toEqual([{ role: 'helper' }])
+  await database`delete from membership_roles where membership_id = ${membershipId} and role = 'helper'`
+
   await expectQueryToFail(
     database`
       insert into external_identities (user_id, issuer, subject)

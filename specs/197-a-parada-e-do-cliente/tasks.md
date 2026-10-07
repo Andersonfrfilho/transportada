@@ -1,7 +1,8 @@
 # Tasks — Spec 197
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**⚙️ = task que desce para `haiku`** (mecânica, aceite por comando) dentro de uma fase `sonnet`.
+**🧠 = task que sobe para `opus`** (produz decisão que outras tasks herdam). Escalada: gate falhou 2× em `haiku` → `sonnet`; em `sonnet` → `opus`; registrar em `evidence.md`.
 
 ## Regras de fechamento
 
@@ -40,7 +41,7 @@ Cada push sobe sozinho e deixa staging coerente.
 
 ## Fase 0 — ADR, premissas e o painel tolerar o campo
 
-> 🤖 Modelo: `opus` (T0.2 é `haiku`)
+> 🤖 Modelo: `sonnet` (T0.2 → ⚙️ `haiku`)
 
 - [ ] **T0.1** Conferir a ADR-0082 e as premissas do plano:
   - conferir a ADR-0082 (`Status: proposta`) contra o código e passá-la a `aceita` sem mudar decisão;
@@ -68,7 +69,7 @@ Cada push sobe sozinho e deixa staging coerente.
 
   Divergiu: pare e pergunte.
 
-- [ ] **T0.2** O painel tolera os campos novos:
+- [ ] ⚙️ **T0.2** O painel tolera os campos novos:
   - `recipientNames` em `TRIP_STOP_OPTIONAL_KEYS`
     (`apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts:234-241`);
   - `recipientNames?` em `TripStopDetail` (`trip.types.ts:370-391`);
@@ -121,12 +122,12 @@ Cada push sobe sozinho e deixa staging coerente.
 
 ## Fase 2 — App do motorista (passo 2)
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T2.1 e T2.3 → ⚙️ `haiku`)
 
 Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 (`DriverStopCard.component.tsx:230-275`, commits `8ba3e4b17` e `9ec97d683`).
 
-- [ ] **T2.1** Tipos e validação aditiva (RF19): `driverTrip.types.ts:47-62` e
+- [ ] ⚙️ **T2.1** Tipos e validação aditiva (RF19): `driverTrip.types.ts:47-62` e
       `driverTripResponse.validation.ts:133-151`. Ausentes viram `[]`. Contrato com snapshot antigo e
       novo, entrypoint `test/driver-trip.contract.test.ts`.
 - [ ] **T2.2** `driverStopSiblings.service.ts` (puro) e o cabeçalho (RF16, RF17, RF18):
@@ -139,9 +140,9 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
   Locales pt-BR e en. Contratos do serviço e do texto do cartão (entrypoint
   `test/driver-trip.contract.test.ts`). `touch-target` continua verde.
 
-- [ ] **T2.3** Romaneio e prévia de ocorrência (RF20): `DriverLoadSheet.component.tsx:95-98` e
+- [ ] ⚙️ **T2.3** Romaneio e prévia de ocorrência (RF20): `DriverLoadSheet.component.tsx:95-98` e
       `DriverStopCard.component.tsx:959`. Contrato de texto.
-- [ ] **T2.4** Fixtures e smoke.
+- [ ] **T2.4** Fixtures e smoke. (Mista: a lista de fixtures é mecânica e grande, mas o cenário de smoke pede decisão — fica em `sonnet`.)
   - `recipientNames` nas fixtures com `label`:
     - `test/driver-trip-smoke.helper.ts:98`;
     - `test/driver-trip/occurrence.contract.ts:207`;
@@ -225,9 +226,9 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 
 ## Fase 5 — Chave e migration (passo 3)
 
-> 🤖 Modelo: `opus` (chave, LGPD e migration)
+> 🤖 Modelo: `sonnet` (T5.1 e T5.2 já têm a decisão na ADR-0082 e no `plan.md` § "Dados"; sobem para `opus` só se o gate falhar 2×)
 
-- [ ] **T5.1** 🧠 `src/trips/domain/stop-recipient-key.ts`, `trip-stop-key.ts` e `sibling-eta.policy.ts`
+- [ ] **T5.1** `src/trips/domain/stop-recipient-key.ts`, `trip-stop-key.ts` e `sibling-eta.policy.ts`
       (RF4, D5, D6, D13). Contratos em `test/trip-stops/recipient-key.contract.ts` e
       `sibling-eta.contract.ts` (entrypoint `test/trip-stops.contract.test.ts`):
   - CNPJ com e sem máscara → mesma chave;
@@ -242,7 +243,7 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 
   Comentário de `stop-address-key.ts:5-9` atualizado.
 
-- [ ] **T5.2** 🧠 Migration `<timestamp>_trip_stop_recipient_key`, conforme `plan.md` § "Dados":
+- [ ] **T5.2** Migration `<timestamp>_trip_stop_recipient_key`, conforme `plan.md` § "Dados":
   - coluna, CHECK, unique parcial e `trip_stop_split_runs` com FK de `company_id`;
   - schema Drizzle (`trip.schema.ts:546-630`), `snapshot.json` e `rollback.sql` que aborta só com
     execução pendente que criou parada e cuja viagem ainda esteja em `draft`/`route_planned`;
@@ -257,9 +258,9 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 
 ## Fase 6 — API: vínculo, prévias, ETA e conclusão (passo 3)
 
-> 🤖 Modelo: `sonnet` (T6.1 e T6.2 são 🧠)
+> 🤖 Modelo: `sonnet` (T6.1 e T6.2 são execução difícil, com a decisão na ADR-0082: ficam em `sonnet`)
 
-- [ ] **T6.1** 🧠 Vínculo por (cliente, endereço) (RF5, RF6, D9, D17):
+- [ ] **T6.1** Vínculo por (cliente, endereço) (RF5, RF6, D9, D17):
   - port e use case de `reconcile-trip-stops`;
   - `drizzle-trip-stop-reconciliation.support.ts` (`findStopByKey`, `findLegacyStopForRecipient`,
     `assignRecipientKey`, `insertStopAfterSiblings` só em `draft`/`route_planned` com ETA de irmã,
@@ -275,7 +276,7 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
   - integração em `test/integration/trip-stop-recipient.integration.ts`: CA01, CA02, CA03, CA05,
     CA06, CA06b, CA07 (desvio e vínculo concorrentes), CA08.
 
-- [ ] **T6.2** 🧠 Prévias, ordem da prévia e composer (RF7, RF9, D13, D15):
+- [ ] **T6.2** Prévias, ordem da prévia e composer (RF7, RF9, D13, D15):
   - `buildTripStopKey` nos seis pontos de prévia;
   - `orderStopKeys` pelo prefixo `addressKey` com desempate pelo primeiro vínculo;
   - `trip-composer.adapter.ts:125-165`.
@@ -301,9 +302,9 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 
 ## Fase 7 — Worker, comando e medida (passo 3)
 
-> 🤖 Modelo: `sonnet` (T7.1 e T7.2 são 🧠)
+> 🤖 Modelo: `sonnet` (T7.3 → ⚙️ `haiku`)
 
-- [ ] **T7.1** 🧠 Worker (RF13, RF14, D10, D13):
+- [ ] **T7.1** Worker (RF13, RF14, D10, D13):
   - `src/routing/domain/place-grouping.policy.ts` e o uso em `drizzle-route-optimization.repository.ts:488-560`;
   - cópia por valor da canonicalização da identidade para o pool (`:873-903`, `:950-961`).
 
@@ -324,7 +325,7 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
   worker**. Rodar os dois comandos do worker, inclusive
   `bun --env-file=../../.env.test run test:integration`.
 
-- [ ] **T7.2** 🧠 Comando (RF11, RF12, D16):
+- [ ] **T7.2** Comando (RF11, RF12, D16):
   - `src/cli/split-stops-by-recipient.ts` e `src/cli/unsplit-stops.ts`, com o trabalho em
     `src/trips/application/*` e `drizzle-stop-split.repository.ts`;
   - os dois no `build` do `package.json` (`bun run build` gera `dist/cli/split-stops-by-recipient.js` e
@@ -345,7 +346,7 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
   - saída sem nome, documento ou chave;
   - o dry-run lista as antigas duplicadas.
 
-- [ ] **T7.3** 👤 Rodar em staging, depois do deploy das Fases 5–7. O executor escreve os comandos, o
+- [ ] ⚙️ **T7.3** 👤 Rodar em staging, depois do deploy das Fases 5–7. O executor escreve os comandos, o
       usuário roda, e o executor confere.
   1. `railway ssh --service api -- bun apps/api-transportada/dist/cli/split-stops-by-recipient.js`
      (dry-run). Colar a contagem no `evidence.md`.
@@ -371,9 +372,9 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
 
 ## Fase 8 — Documentação, revisão e publicação
 
-> 🤖 Modelo: `sonnet` (T8.2 é `opus`)
+> 🤖 Modelo: `sonnet` (T8.1 e T8.3 → ⚙️ `haiku`; T8.2 → `sonnet`)
 
-- [ ] **T8.1** Documentação viva:
+- [ ] ⚙️ **T8.1** Documentação viva:
   - `apps/api-transportada/CLAUDE.md:190-191`: "nunca pelo CNPJ" vira "pelo par (cliente `dest`,
     endereço), ADR-0082"; acrescentar os comandos de `src/cli`, a regra de que `recipient_key` nunca sai
     e a D13;
@@ -392,12 +393,12 @@ Antes da T2.1: rebase em `origin/staging` e conferir o cabeçalho do acordeão
     cita a ADR-0082 como revisora.
 
 - [ ] **T8.2** Revisão final:
-  - `code-reviewer` (`opus`) sobre a spec inteira;
+  - `code-reviewer` (`sonnet`) sobre a spec inteira;
   - `security-reviewer` sobre a chave do cliente, a exposição e o comando;
   - auditoria do `code-standart.md` §15: N+1 nos nomes e irmãs, `Set`/`Map` no agrupamento, logs sem
     PII, 500 sem stack;
   - achados corrigidos ou registrados.
-- [ ] **T8.3** Publicação em staging, pela ordem da D21:
+- [ ] ⚙️ **T8.3** Publicação em staging, pela ordem da D21:
   1. T0.2;
   2. Fase 1;
   3. Fases 2–3 (depois da T4.2);
@@ -418,10 +419,9 @@ apps/api-transportada/CLAUDE.md, apps/frontend-driver/CLAUDE.md e as specs 192 (
 que mexem nos mesmos arquivos). Uma task por vez, na ordem do tasks.md. Trabalhe em árvore própria
 (make worktree NAME=spec-197; se a sessão já estiver num worktree do Claude, branch própria nesta
 árvore) — nada de git stash.
-Modelos: Fase 0 → opus (T0.2 → executor model=haiku) · Fase 1 → executor model=sonnet ·
-Fases 2, 3, 4 → executor model=sonnet · Fase 5 → opus (T5.1, T5.2 🧠) ·
-Fase 6 → executor model=sonnet (T6.1 e T6.2 🧠 → opus) · Fase 7 → executor model=sonnet
-(T7.1 e T7.2 🧠 → opus) · Fase 8 → sonnet (T8.2 → code-reviewer e security-reviewer model=opus).
+Modelos: Fases 0–8 → executor model=sonnet, exceto as tasks ⚙️ → executor model=haiku (T0.2, T2.1, T2.3,
+T7.3, T8.1, T8.3); T8.2 → code-reviewer e security-reviewer model=sonnet. Nenhuma task 🧠/opus de saída.
+Escalada: gate falhou 2× em haiku → sonnet; em sonnet → opus; registrar em evidence.md.
 Cada task: teste/contrato antes (visto vermelho), typecheck + lint + testes da app; na API e no worker
 os DOIS comandos (bun --env-file=../../.env.test test --timeout 120000 e
 bun --env-file=../../.env.test run test:integration); suíte nova no entrypoint nomeado na task;

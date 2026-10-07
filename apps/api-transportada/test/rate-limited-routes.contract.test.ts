@@ -7,11 +7,14 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
+import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
+import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
+import { createLocationRetentionSettingsRoutes } from '../src/companies/presentation/location-retention-settings.routes'
 import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.routes'
 import { createPasswordResetRoutes } from '../src/identity/presentation/password-reset.routes'
 import { createUserActivationRoutes } from '../src/identity/presentation/user-activation.routes'
@@ -454,6 +457,69 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Spec 237, revisão de segurança da Fase 4a (S5): cada envio de prévia é uma planilha que o worker
+   * abre — o balde por usuário segura a rajada; a fila do contratante tem teto próprio.
+   */
+  test('o envio da prévia de carga conta no Postgres, no balde dele', () => {
+    const routes = createCargoPreviewRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 20,
+          scope: 'cargo-preview-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /cargo-previews',
+      },
+    ])
+  })
+
+  /**
+   * Spec 237 T3.2: a avaria sem viagem sobe foto — o mesmo teto da ocorrência de galpão, balde próprio.
+   * T3.4a: marcar, desfazer e concluir a devolução são transições do escritório, como a tratativa.
+   */
+  test('a ocorrência de recebimento e a devolução contam no Postgres, cada uma no seu balde', () => {
+    const routes = createCargoArrivalOccurrenceRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'cargo-arrival-occurrence',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /cargo-arrivals/:id/documents/:documentId/occurrences',
+      },
+      ...['return-mark', 'return-unmark', 'return-complete'].map((action) => ({
+        rateLimit: {
+          maxRequests: 120,
+          scope: 'cargo-arrival-return',
+          store: 'postgres' as const,
+          windowSeconds: 300,
+        },
+        signature: `POST /cargo-arrivals/:id/documents/:documentId/${action}`,
+      })),
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -464,6 +530,9 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
 
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
+      'cargo-receiving/presentation/cargo-arrival-occurrence.routes.ts',
+      'cargo-receiving/presentation/cargo-preview.routes.ts',
+      'companies/presentation/location-retention-settings.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
       'identity/presentation/login-hint.routes.ts',
@@ -615,5 +684,29 @@ describe('rotas anônimas de identidade com teto no Postgres (spec 191 T1.3)', (
       .catch(() => undefined)
 
     expect(targets).toEqual([expected])
+  })
+
+  /** Spec 239: a contagem de impacto varre cinco tabelas, então só ela da retenção da posição é limitada. */
+  test('a contagem de impacto da retenção da posição conta no Postgres, por empresa e usuário', () => {
+    const routes = createLocationRetentionSettingsRoutes(unusedDependencies() as never)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    expect(limited).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'location-retention-impact',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'GET /company-settings/location-retention/impact',
+      },
+    ])
   })
 })

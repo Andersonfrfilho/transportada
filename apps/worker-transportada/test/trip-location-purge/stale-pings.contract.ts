@@ -9,12 +9,27 @@ import { readFile } from 'node:fs/promises'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 import { createTripLocationPurgeRoutine } from '../../src/trip-location-purge/application/trip-location-purge.routine.js'
 import {
-  TRIP_LOCATION_RETENTION_DAYS,
   TRIP_TRACKING_MAX_AGE_HOURS,
   resolveTrackingPurgeCutoff,
 } from '../../src/trip-location-purge/domain/trip-location-purge.constant.js'
 
 const NOW = new Date('2026-09-03T18:00:00.000Z')
+
+const API_LOCATION_RETENTION_CONSTANT = new URL(
+  '../../../api-transportada/src/shared/location-retention.constant.ts',
+  import.meta.url,
+)
+
+/**
+ * Spec 239 D6: o piso do prazo que a empresa escolhe — o menor corte possível da coordenada de entrega.
+ * Lido do literal da API em vez de copiado: o piso que o teste usa é o que a API valida.
+ */
+async function readLocationRetentionFloorDays(): Promise<number> {
+  const source = await readFile(API_LOCATION_RETENTION_CONSTANT, 'utf8')
+  const floor = /LOCATION_RETENTION_MIN_DAYS\s*=\s*(\d+)/.exec(source)?.[1]
+  if (floor === undefined) throw new Error('LOCATION_RETENTION_MIN_DAYS não encontrado na API')
+  return Number(floor)
+}
 
 function buildContext(): JobRoutineContext {
   return {
@@ -33,11 +48,15 @@ function buildRoutine(input: {
   }) => Promise<number>
 }) {
   return createTripLocationPurgeRoutine({
+    countEligibleCompanies: async () => 1,
     logger: { error() {}, info() {}, warn() {} } as never,
     now: () => NOW,
     purgeStalePings: input.purgeStalePings,
     redact: async () => 0,
+    redactDocumentOccurrenceLocations: async () => 0,
     redactProofLocations: async () => 0,
+    redactStatusEventLocations: async () => 0,
+    redactStopOccurrenceLocations: async () => 0,
   })
 }
 
@@ -50,10 +69,11 @@ describe('o expurgo do rastro ao vivo', () => {
 
   /**
    * O ping é o trajeto, que a ADR-0050 §5 decidiu não guardar; a coordenada de entrega é o carimbo
-   * de um fato que se audita depois. Prazos iguais confundiriam as duas coisas.
+   * de um fato que se audita depois. Prazos iguais confundiriam as duas coisas — nem com o menor
+   * prazo que a empresa pode escolher.
    */
-  test('o prazo do rastro é muito mais curto que o da coordenada de entrega', () => {
-    expect(TRIP_TRACKING_MAX_AGE_HOURS / 24).toBeLessThan(TRIP_LOCATION_RETENTION_DAYS)
+  test('o prazo do rastro é mais curto que o piso do prazo da coordenada de entrega', async () => {
+    expect(TRIP_TRACKING_MAX_AGE_HOURS / 24).toBeLessThan(await readLocationRetentionFloorDays())
   })
 
   test('apaga em lotes até a tabela não ter mais ping vencido', async () => {

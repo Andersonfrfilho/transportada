@@ -105,6 +105,38 @@ describe('convite de usuário — vínculo com a ficha de frota', () => {
     expect(result.fleetLink).toBe('linked')
   })
 
+  // Spec 235 D8: o ajudante entra pela mesma porta, e a ficha dele é a de frota
+  test('o ajudante procura ficha pelo mesmo caminho do motorista', async () => {
+    const { result } = await invite({
+      input: {
+        channel: 'email',
+        contact: 'ajudante@empresa.test',
+        name: 'Ajudante Existente',
+        roles: ['helper'],
+        taxId: '12345678909',
+      },
+      linkedFleetDriverId: FLEET_DRIVER_ID,
+    })
+
+    expect(result.fleetLink).toBe('linked')
+  })
+
+  test('o ajudante sem ficha correspondente avisa em vez de falhar', async () => {
+    const { calls, result } = await invite({
+      input: {
+        channel: 'email',
+        contact: 'ajudante.novo@empresa.test',
+        name: 'Ajudante Sem Ficha',
+        roles: ['helper'],
+        taxId: '12345678909',
+      },
+      linkedFleetDriverId: null,
+    })
+
+    expect(result.fleetLink).toBe('no-driver-record')
+    expect(calls).toHaveLength(1)
+  })
+
   /** Fiscal e Financeiro não têm ficha de frota: procurar por eles seria ruído na tela. */
   test('papel sem frota não relata ausência de ficha', async () => {
     const { result } = await invite({

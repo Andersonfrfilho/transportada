@@ -161,6 +161,26 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       return driverIds.filter((driverId) => !available.has(driverId))
     },
 
+    /** Spec 235 D5: o gêmeo de `findIneligibleHelperIds` — quem **dirige** fica, o resto é a resposta. */
+    async findIneligibleDriverIds({ companyId, driverIds }) {
+      if (driverIds.length === 0) return []
+
+      const rows = await database
+        .select({ id: fleetDrivers.id })
+        .from(fleetDrivers)
+        .where(
+          and(
+            eq(fleetDrivers.companyId, companyId),
+            inArray(fleetDrivers.id, [...driverIds]),
+            eq(fleetDrivers.canDrive, true),
+          ),
+        )
+
+      const eligible = new Set(rows.map((row) => row.id))
+
+      return driverIds.filter((driverId) => !eligible.has(driverId))
+    },
+
     /**
      * Spec 149 (ADR-0065 D1): a mesma forma da conferência de disponibilidade — pergunta quem
      * **está** elegível e subtrai. `findUnavailableDriverIds` já cobre inexistente/inativo; esta

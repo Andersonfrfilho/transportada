@@ -1,0 +1,18 @@
+{
+  "declaredAmount": null,
+  "itemValues": [
+    {
+      "declaredAmount": "50.00",
+      "productCode": "P1",
+      "quantity": "2.000",
+      "unitValue": "19.9950"
+    },
+    {
+      "declaredAmount": "0.00",
+      "productCode": "P2",
+      "quantity": "1.000",
+      "unitValue": "57.2000"
+    }
+  ],
+  "referenceNumber": "NFD 45029"
+}

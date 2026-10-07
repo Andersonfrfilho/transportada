@@ -8,14 +8,21 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { tripDocumentOccurrenceProducts } from '../../database/trip.schema.js'
 import type { OccurrenceItemQuantityUnit } from '../../shared/trip-occurrence.constant.js'
+import type { DriverDocumentOccurrenceItem } from '../application/driver-document-occurrence.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type InsertOccurrenceProductsInput = {
   readonly companyId: string
   readonly occurrenceId: string
-  /** O item marcado, com a quantidade/unidade já resolvidas pela política (spec 166). */
-  readonly items: readonly OccurrenceItemQuantity[]
+  /**
+   * O item marcado, com a quantidade/unidade já resolvidas pela política (spec 166). Spec 247: o
+   * registro do motorista leva também o `vUnCom` copiado da nota e o valor pago digitado.
+   */
+  readonly items: readonly (OccurrenceItemQuantity & {
+    readonly declaredAmount?: null | string
+    readonly unitValue?: null | string
+  })[]
 }
 
 /**
@@ -40,8 +47,36 @@ export async function insertOccurrenceProductRows(
       productCode: item.code,
       quantity: item.quantity,
       quantityUnit: item.unit,
+      declaredAmount: item.declaredAmount ?? null,
+      unitValue: item.unitValue ?? null,
     })),
   )
+}
+
+/**
+ * Spec 247 (T4.4): as linhas de **uma** ocorrência com os valores — a resposta do registro do
+ * motorista e a do reenvio pela chave saem daqui, com o mesmo texto do `numeric`.
+ */
+export async function listOccurrenceProductLines(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly DriverDocumentOccurrenceItem[]> {
+  return queryable
+    .select({
+      declaredAmount: tripDocumentOccurrenceProducts.declaredAmount,
+      productCode: tripDocumentOccurrenceProducts.productCode,
+      quantity: tripDocumentOccurrenceProducts.quantity,
+      quantityUnit: tripDocumentOccurrenceProducts.quantityUnit,
+      unitValue: tripDocumentOccurrenceProducts.unitValue,
+    })
+    .from(tripDocumentOccurrenceProducts)
+    .where(
+      and(
+        eq(tripDocumentOccurrenceProducts.companyId, input.companyId),
+        eq(tripDocumentOccurrenceProducts.occurrenceId, input.occurrenceId),
+      ),
+    )
+    .orderBy(asc(tripDocumentOccurrenceProducts.position))
 }
 
 export type OccurrenceProductRow = {

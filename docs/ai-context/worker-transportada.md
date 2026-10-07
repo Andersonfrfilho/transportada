@@ -241,3 +241,213 @@ nunca recalculado no worker. 401/403 descartam o token em cache. 400/404/409 con
 ⚠️ O gateway não tem timeout de `fetch` — API pendurada poderia segurar um ciclo. Registrado,
 não corrigido aqui. `canhoto_review_by_user_id` fica nulo no caminho automático (CHECK o exige),
 e é no `audit_logs` que a identidade do serviço aparece como ator (ADR-0047 §6).
+
+## O expurgo de posição (spec 196, D8)
+
+`trip.location.purge` é um job só com **lista de tabelas**: `trip_stop_events`, `trip_delivery_proofs`,
+`trip_status_events`, `trip_stop_occurrences`, `trip_document_occurrences`. Para cada uma, em lotes de 500
+(`select id ... where latitude is not null and <tempo> < corte limit N`, depois `update ... where id in`), apaga as
+quatro colunas e marca `location_state = 'expired'`. Uma tabela por vez (não segura a escrita do motorista), teto de
+lotes e `exhausted` **por tabela**, falha isolada por tabela (`failedTables`). Os pings do rastro ao vivo têm corte
+próprio (horas, ADR-0056). A coluna de tempo é a de cada tabela (`created_at`, e `recorded_at` em
+`trip_status_events`), a mesma do índice parcial: `EXPLAIN` mostra `Index Scan` nos cinco índices
+(`evidence.md` T7.3).
+
+- ⚠️ **Desligado por padrão, e a empresa liga na tela** (spec 239): apagar coordenada é irreversível. A variável
+  `TRIP_LOCATION_PURGE_ENABLED` **saiu** (se sobrar no Railway é ignorada). O worker lê
+  `company_location_retention_settings` a cada ciclo: `CountEligibleCompanies` (no mesmo `now` dos redatores) e,
+  com ao menos uma empresa ligada e com a carência vencida, um `UPDATE` único por tabela com
+  `CROSS JOIN LATERAL`, cada linha comparada só com o prazo (`retention_days`, 30–90) **da própria empresa**.
+  Sem empresa elegível o ciclo fecha `succeeded` e o log `trip_location_purge_disabled` diz que foi de
+  propósito. O de 36 h dos pings do rastro ao vivo (`purgeStalePings`) roda sempre, antes da contagem.
+  Tabela de configuração ausente (deploy fora de ordem): a contagem lança e o ciclo falha inteiro, nada apagado.
+- O log do ciclo conta linhas por tabela. Nunca coordenada, evento ou pessoa.
+- Um contrato da API reprova tabela com coluna `*latitude*` que não esteja na lista do worker nem na lista de
+  exclusões com motivo.
+
+## A prévia da carga é lida e vinculada aqui (spec 237 Fase 4a, ADR-0094 §7/§8)
+
+Trilho `cargo-preview.v1` (main/retry/dead, retry 10 s × 5) com relay próprio sobre
+`cargo_preview_outbox` e consumidor `startCargoPreviewConsumer` com **prefetch 1** (a leitura roda numa
+`worker_thread` terminada em 10 s — revisão de segurança S1, abaixo). Duas mensagens:
+
+- **`cargo-preview.process`** (gravada pela API no envio): `processCargoPreview` baixa o objeto (ausente
+  = `PREVIEW_FILE_MISSING`), confere o sha256 (`PREVIEW_FILE_CORRUPTED`), lê com o perfil (mapa e aba;
+  sem perfil ligado = `PREVIEW_NOT_ENABLED`) e grava os itens — linha boa `awaiting_xml`, linha recusada
+  `invalid` com coluna e motivo — e o dia planejado (`RoutingDate` mais frequente). Erro do leitor é
+  prévia `failed` com o código e **ack**; banco ou bucket fora do ar é **retry**. A prévia é travada
+  `FOR UPDATE` e só a primeira entrega grava (reentrega é no-op). Estouro numérico no banco (22003)
+  vira `CargoPreviewValueOutOfRangeError` no adaptador e prévia `failed` `PREVIEW_VALUE_OUT_OF_RANGE`;
+  na **última tentativa** (`retryCount` = `maxRetries` da topologia) a prévia vira `failed`
+  `PREVIEW_PROCESSING_ABANDONED` antes da fila morta — nunca fica `processing` para sempre. Gravar os
+  itens vincula **todas** as prévias prontas do contratante, da mais antiga para a nova.
+- **`cargo-preview.reevaluate`** (por contratante): `matchContractorPreviews` vincula de novo os itens em
+  aberto **decididos pela máquina** (`awaiting_xml`/`suggested`/`ambiguous`, `matched_by` nulo ou
+  `system`) das prévias prontas ainda na janela, da mais antiga para a mais nova.
+
+**O vínculo** (`cargo-preview/infrastructure/cargo-preview-matching.writer.ts`) toma a trava advisory do
+contratante (a mesma das ações do operador na API), lê as notas candidatas (`cargo-preview-candidate.query.ts`:
+empresa, `authorized`, emitente = CNPJ do contratante em `nfe_participants`, `created_at` em
+`[received_at − janela, min(agora, received_at + janela)]`, sem vínculo), extrai o `NroCarga` do
+`additional_information` pelo padrão do perfil, roda `resolveCargoPreviewMatches` e grava **só o que
+mudou** (`diffPreviewMatches`): vínculo novo é `insert` puro (o unique da nota desfaz tudo se algo
+furou), evento por item mudado, pares roteiro ↔ carga **só pelos totais** (o par por votos vale só na
+leitura em que nasceu; linha `votes` antiga não volta como conhecida), aliases aprendidos
+(`onConflictDoNothing`; o conflito é contado e vai ao log `cargo_preview_alias_conflict`, nunca
+sobrescreve). O contexto (perfil, prévias, aliases) é lido em `cargo-preview-matching-context.query.ts`.
+
+**A reavaliação nasce na importação.** `writeDocumentChildren` (upload e distribuição) chama
+`requestCargoPreviewReevaluation` num `SAVEPOINT` (molde de `delivery-registry.writer.ts`): grava um
+pedido só se o emitente é contratante com perfil e prévia ligados e há prévia na fila ou pronta com item
+em aberto dentro de `match_window_days`, só se não há pedido pendente dele **com mais de 10 s de folga**
+(`clock_timestamp()`; o pedido prestes a sair pode ser lido antes de a importação comitar), e adiado
+30 s — um lote de 300 XMLs vira um pedido (medido na integração). Sem unique, de propósito: o conflito esperaria a transação de outra importação.
+Falha do pedido volta só o savepoint e vira o aviso `cargo_preview_reevaluation_request_failed`; a nota
+entra. Importação e distribuição passaram a mandar o logger que já tinham a `writeDocumentChildren`.
+
+**Cópia por valor:** o leitor e a política da API (21 arquivos de `cargo-receiving/domain/`) estão em
+`src/cargo-receiving/domain/` **idênticos**, com `src/shared/api.error.ts` e `api.types.ts` mínimos para
+os imports deles; `test/cargo-preview/domain-parity.contract.ts` compara byte a byte (e a lista, e a chave
+da trava, e `shared/cargo-preview.constant.ts`). Mudou na API, copie aqui. `fast-xml-parser` entrou como
+dependência do worker na mesma versão da API.
+
+**Revisão de segurança da Fase 4a (2026-10-04).**
+
+- **S1 — a leitura numa thread terminável.** `createThreadedCargoPreviewWorkbookReader`
+  (`cargo-preview/infrastructure/threaded-cargo-preview-workbook.gateway.ts` + `cargo-preview-workbook.worker.ts`,
+  molde do canhoto) roda parse + plano dos itens fora do event loop; passou de
+  `CARGO_PREVIEW_READ_THREAD_CEILING_MS` (10 s), `terminate()` e `PREVIEW_PARSE_TIMEOUT` (resultado, ack).
+  ⚠️ O Bun 1.3.14 **ignora** `resourceLimits` (medido): a opção vai passada (256 MiB), mas o teto real de
+  memória são os tetos do leitor (8 MiB por aba, 512 células por linha, 120 mil no total). A dependência do
+  caso de uso é `workbook: CargoPreviewWorkbookReaderPort` (em teste, `createInProcessCargoPreviewWorkbookReader`).
+  Reentrega do broker (`redelivered`) de prévia já `processing` falha com `PREVIEW_PROCESSING_INTERRUPTED`
+  sem reler — reler o que derrubou o processo é laço de queda; o reenvio do arquivo a reabre na API.
+- **S2 — o vínculo tem prazo sob a trava.** `SET LOCAL statement_timeout` de 30 s na transação do vínculo
+  e orçamento cooperativo de 5 s por prévia (`createMatchBudget`, `CargoPreviewMatchTimeoutError`): a prévia
+  nova que estoura volta inteira (`storeParsed` desfaz) e fica `failed` `PREVIEW_MATCH_TIMEOUT` sem itens; a
+  pronta que estoura numa reavaliação fica como estava e o log conta (`cargo_preview_match_timeout`).
+- **S3 — o `NroCarga` pelo texto literal** do perfil (`arrival_reference_label`), gramática fechada em
+  `load-reference.policy.ts`; nenhuma expressão do usuário roda aqui.
+- **S6 — alias contrariado é apagado** (banco e lista da passada), nunca trocado.
+- **S7 — o objeto pela linha.** A chave é `buildCargoPreviewObjectKey({ companyId, fileObjectId })` da linha
+  (cópia da API, `cargo-preview-object.policy.ts`, paridade) no bucket do worker; a mensagem não decide. O
+  leitor confere o `Content-Length` (`headObject`) e conta os bytes ao baixar: acima de 960 KiB, `failed`
+  `PREVIEW_FILE_TOO_LARGE`.
+
+⚠️ **`make worker-integration` reusa o banco `<db>_worker_integration`** e não o recria: em 2026-10-04 o
+local estava com o diário de migrations divergente (`column "latitude" ... already exists`). Os passos do
+alvo rodaram num banco novo de nome próprio (ver `specs/237-.../evidence.md`).
+
+⚠️ **Dezenas de consultas concorrentes no pool do Bun SQL 1.3.14 podem travar para sempre** (2026-10-06,
+`cargo-preview-corpus.integration.ts` estourou 120 s na CI, e o `afterAll` também). Com ~70+ cadeias de
+`INSERT` num `Promise.all`, a fila às vezes para de andar com as 10 conexões **ociosas**
+(`pg_stat_activity`: `idle`/`ClientRead`, nenhum lock, nada preso no banco); reproduzido sem Drizzle nem
+código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A fixture
+`graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
+(conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
+
+## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, T4.7a, T4.7c e T4.7d, ADR-0094 §10)
+
+Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` procura
+primeiro a **conversa** e só chama `previewIntake` (`cargo-preview-email/`) quando **nenhuma** thread casa
+(T4.7a: a conversa vence — um e-mail com o endereço da prévia e o da conversa, no `To` ou no `Cc`, é resposta
+da conversa e a prévia nem é consultada). `hasIntake` (por `provider_email_id`) é checado antes do Resend, para
+**toda** mensagem. Só a que casa o token de **um** perfil decide; token desconhecido, ausente ou de dois perfis
+devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como antes. Resultado do ramo:
+`accepted`, `replayed_existing`, `rejected`, `rate_limited` ou `already_recorded`.
+
+- **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:" + token)`
+  em `contractor_receiving_profiles.preview_inbound_token_hash` (distinto do hash de conversa; `+` recusado).
+  O hash e a função `hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
+- **Barreiras, em ordem:** perfil pronto → encaminhador do provedor na `preview_forwarder_allowlist` **antes** de
+  baixar → teto de e-mails **autenticados** da janela (T4.7c; só o download e o DKIM ficam atrás dele) → MIME até 2 MiB
+  (`downloadRawEmail({ maxBytes })`, só número finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM
+  do encaminhador `aligned`, com prazo → `From` do MIME **igual ao `headerFrom` da `mailauth`** (T4.7c,
+  `FORWARDER_FROM_MISMATCH`) e na lista → remetente original (cabeçalho da mensagem anexada ou primeiro bloco
+  encaminhado do texto) na `preview_sender_allowlist` → um anexo candidato (960 KiB, `PK\x03\x04`). Cada recusa grava
+  `cargo_preview_email_intakes` com o código e para (salvo janela de não autenticados cheia: abaixo).
+- **Janela de e-mails (T4.7a, T4.7c, T4.7d):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
+  (`recorded_at`, nunca `received_at`): os **autenticados** (teto 20) e as **recusas** (teto 100); o rastro `RATE_LIMITED`
+  fica fora dos dois. **Autenticado é o que o encaminhador prova** (`countsAsAuthenticatedIntake`, e o mesmo no SQL de
+  `countRecentIntakes`): `forwarder_dkim_result = 'aligned'` e o motivo fora de `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`
+  (`MIME_UNREADABLE`, `FORWARDER_FROM_MISMATCH`, `FORWARDER_NOT_ALLOWED`, `ORIGINAL_SENDER_MISSING | _AMBIGUOUS |
+_NOT_ALLOWED`). Essas seis ficam gravadas com `aligned` (o dado é verdadeiro) mas contam nas recusas: o `d=` pode ser do
+  atacante e uma resposta assinada pelo encaminhador, reenviada, vira `ORIGINAL_SENDER_MISSING/aligned` — contá-la
+  trancaria o legítimo com 20 reenvios. **20 autenticados** fecham o download e o DKIM: o excesso é ignorado e grava **uma**
+  linha `RATE_LIMITED` por contratante e janela (`recordRateLimited`, sob advisory própria). **100 recusas** só **param de
+  gravar**: a recusa continua avaliada e devolvida (`rejected` com o código), sem linha nova e com o mesmo rastro único
+  (`createPreviewEmailRejecter`, `isUnauthenticatedWindowFull`). Consequência assumida: nenhum contador fecha o download
+  e o DKIM para quem só produz as seis recusas (`SECURITY.md`, pendência 10).
+- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c, T4.7d):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
+  cabeçalho (`\r\n\r\n` ou `\n\n`) dentro de 64 KiB e limita cada **campo desdobrado** — lido por
+  `mime-header-fields.policy.ts` com a MESMA regra de linha da `mailauth` (`FIELD_START`; a linha que não abre campo
+  soma no de cima; nome sem espaços antes do `:`, minúsculo) — em 2 KiB nos que identificam (`from`, `sender`,
+  `reply-to`, `return-path`; a soma dos repetidos de mesmo nome também conta), **8 KiB por campo e 16 KiB na soma** nos
+  destinatários (`to`, `cc`, `bcc`, `delivered-to`; T4.7d: 8 KiB cobrem ~125 endereços com nome; 150 em um campo só, 9,3 KiB, ainda recusa) e
+  8 KiB nos outros; **linha cujo nome de campo tem espaço exótico antes do `:`** (`\f`, `\v`, NEL, NBSP, espaços Unicode,
+  BOM; latin1 e UTF-8) **recusa** (`hasDivergentFieldName`: a `mailauth` junta `To\f:` ao campo de cima, o PostalMime o
+  lê como `to`), e conta as assinaturas (8 `DKIM-Signature`; 3 `arc-seal`, 3 `arc-message-signature`, 3
+  `arc-authentication-results`). O `addressparser` do nodemailer, que a `mailauth` usa, é quadrático (400 KB de
+  `a,a,a…` travaram o laço por 58 s) e a `mailauth` faz um hasher de corpo por combinação (canon, hash, `l=`) e consulta
+  o DNS em série. O pior cabeçalho que passa (identidade em 1,9 KiB, `to`+`cc` em 8 KiB) custa ≤ 150 ms somando `mailauth` e PostalMime. Na prévia:
+  `MIME_UNREADABLE`, sem DKIM. **No trilho da conversa** (mesma função): a mensagem é gravada com DKIM `absent` (o que a
+  `mailauth` devolve para MIME que não parseia) e **sem extrair anexos**; mensagem comum não muda. A mensagem anexada
+  que a prévia abre (`parseLimited`) passa pela mesma barreira.
+- **Partes e aninhadas (T4.7d):** `contractor-mail/domain/mime-part-bounds.policy.ts` conta as linhas que começam com
+  `--` (as únicas que o PostalMime reconhece como fronteira) e recusa acima de `MIME_PART_LIMITS.maxBoundaryLines` (200),
+  na conversa (`readInboundMailParts`: nenhuma parte e `skippedNestedMessages: 1`) e na prévia (`parseLimited` →
+  `MIME_UNREADABLE`). As aninhadas **abertas** da conversa gastam um orçamento de `maxNestedMessages` (5) por mensagem,
+  compartilhado entre os níveis; o resto conta como recusa. Medido: 5000 aninhadas 25,5 s → 4 ms; 20 000 partes 9 s →
+  0 ms; o pior que passa (cinco aninhadas com `to`+`cc` de 8 KiB) ~370 ms.
+- **Prazo do DKIM (T4.7c):** `createDkimVerifierGateway({ deadlineMs })`, padrão `DKIM_VERIFICATION_DEADLINE_MS` = 15 s
+  para a verificação inteira; estourou = `unverifiable` (`headerFrom: []`), e o resolvedor recusa na hora dali em diante
+  (o laço da `mailauth` acaba sem sair para a rede). O gateway tem duas portas: `verify` (só o alinhamento, a conversa) e
+  `verifyWithHeaderFrom` (alinhamento **e** o `headerFrom` que a `mailauth` leu, a prévia).
+- **DKIM sem veredito (`unverifiable`, DNS fora):** a entrega **repete**. O ramo lança
+  `CargoPreviewEmailDkimUnverifiableError` (o consumidor devolve `retry`, log `reason: dkim_unverifiable`), sem gravar
+  nada; só a **última** entrega (`retryCount >= maxRetries` da topologia, 3) grava `FORWARDER_DKIM_UNVERIFIABLE`. O
+  consumidor repassa `delivery.isLastAttempt` ao ramo.
+- **Só falha transitória de assinatura alinhada repete (T4.7d):** `isTransientFailure` exige `status.aligned` (a `mailauth` o
+  calcula antes do DNS): `d=` alheio com DNS mudo é `not_aligned`. Mesma política da conversa. O prazo de 15 s ainda
+  estoura em `unverifiable` com DNS lento (resta, pendência 10).
+- **Identidade da conversa (T4.7d):** o trilho da conversa usa `verifyWithHeaderFrom` e
+  `resolveConversationDkimResult` (`conversation-sender-identity.policy.ts`): `aligned` só se o `headerFrom` da `mailauth`
+  é UM e igual ao remetente do `from` do Resend (sem distinguir caixa); senão grava `not_aligned` (a mensagem fica na
+  conversa, sem o selo). A porta da conversa é `VerifyDkimHeaderFromPort`.
+- **`l=` nunca alinha (T4.7a):** `dkim-alignment.policy.ts` ignora a assinatura com `canonBodyLengthLimited` (corpo só em
+  parte coberto). A política é a do trilho 143/183 também: uma resposta cuja única assinatura alinhada tem `l=`
+  passa a `not_aligned` e deixa de decidir a identidade.
+- **Remetente original:** `mailbox-address.policy.ts` aceita só `endereço` ou `nome <endereço>` (sem `mailto:`; T4.7c:
+  o endereço lido tem de estar **literalmente** no fim do valor original — as aspas só servem para achar o `<…>` —, e
+  `Silva, João <a@x>` sem aspas é uma caixa só),
+  desembrulha `Nome <a@x<mailto:a@x>>` e `Nome [mailto:a@x]` do Outlook (só quando repetem o mesmo endereço) e recusa
+  mais de um `<`/`@` fora de aspas, comentário, grupo e nome codificado sem endereço real.
+  `forwarded-original-sender.policy.ts` percorre os marcadores (Gmail, Thunderbird, Apple en/pt-BR, Outlook,
+  `____`) até o primeiro bloco com `From`/`De`, desdobra o cabeçalho dobrado e trata mais de um `From` no bloco como
+  `ambiguous`.
+- **Leitura do MIME:** `parseForwardedEmail` usa PostalMime com `maxNestingDepth` 6, cabeçalhos 64 KiB e
+  `forceRfc822Attachments`; abre a mensagem anexada **uma vez** (a de dentro dela nunca é aberta nem vira
+  candidata), depois de ela passar pela barreira de cabeçalho. Ilegível devolve `undefined` → `MIME_UNREADABLE`.
+  **A conversa lê o MIME do mesmo modo** (`occurrence-conversation/application/inbound-mail-parts.service.ts`): o
+  PostalMime não abre a `message/rfc822` aninhada (`forceRfc822Attachments`; antes, 256 KiB de `To` aninhado travavam o
+  laço por 40 s) — o worker a abre, depois da barreira e até 3 níveis, e os anexos de dentro entram na mesma posição;
+  aninhada hostil ou funda demais conta como **uma** recusa em `skipped`.
+- **Criação:** `createPreviewFromEmail` (`cargo-preview-email-create.writer.ts`, linhas em `…-rows.writer.ts`) é
+  cópia por valor do `insertPreview` da API (`preview-upload-file.policy.ts`, cobrada por
+  `test/cargo-preview-email/parity.contract.ts`, nos dois sentidos): toma a **mesma** advisory do upload, confere o
+  registro da mensagem, o arquivo do contratante (reenvio → `replayed`, com o **status** da prévia existente, que
+  **não** é reaberta), o teto de 5 abertas (registra `TOO_MANY_OPEN_PREVIEWS`) e grava prévia `source = 'email'` sem
+  quem enviou, evento `uploaded` no canal `worker`, `cargo_preview_outbox` e o registro `accepted` com o MIME bruto
+  (`stored_objects`, `contractor_mail_raw`). Os dois objetos sobem **antes** da transação. A planilha tem chave
+  aleatória **desta tentativa**; o MIME tem a chave da mensagem e é de **quem a registrou**: em `already_recorded` a
+  tentativa descarta só a planilha (e o MIME apenas quando nenhuma linha o referencia, `isRawKept = false`).
+- **Log:** `inbound_email_preview_accepted` (ids, DKIM, `replay`, e `previewStatus` no reenvio),
+  `inbound_email_preview_rejected` (código) e `inbound_email_preview_rate_limited`; nunca endereço, assunto,
+  corpo ou cabeçalho. Sem resposta ao remetente.
+- ⚠️ **A planilha nunca é aberta aqui:** os bytes entram na prévia e o trilho `cargo-preview.v1` a lê, com tetos e
+  `worker_thread`. ⚠️ Teste de integração semeia em série (o pool do Bun SQL trava com cadeias concorrentes de
+  INSERT). ⚠️ `bun test` de arquivo avulso: `./test/integration/cargo-preview-email-intake.integration.ts`.
+- ⚠️ **Ordem de deploy:** `hasIntake` roda para toda mensagem de conversa, então o worker novo falha em **todo**
+  e-mail de conversa se a migration `20261007040900_cargo_preview_email_intake` não existir. O `deploy.yml` já
+  garante a ordem (`deploy-api` com `preDeployCommand` e `assert-migrations` antes de `deploy-worker`, que `needs:
+deploy-api`); **reverter a API sem o worker** quebra o trilho de conversa até o worker voltar.

@@ -10,11 +10,11 @@
  * `where` errado num filtro de tenant é o defeito que ninguém vê até alguém ver a viagem de outra
  * empresa.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companyDeliveryProofSettings,
@@ -54,6 +54,7 @@ import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-p
 import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 import {
@@ -75,6 +76,7 @@ import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructu
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
+import { buildFieldOccurrenceType } from '../fixtures/field-occurrence-type.fixture.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -711,24 +713,23 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         )
 
         // A nota do contratante Alfa resolve `required`; a nota irmã, sem contratante, segue a
-        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista.
+        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista. As notas do
+        // cenário não têm produto: o valor pago, de escopo `item`, cai na ocorrência (spec 247 T4.6).
         expect(overriddenDocument?.occurrenceTypes).toEqual([
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'required',
-            flow: 'document',
+            declaredAmountScope: 'occurrence',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
-            stopKind: null,
-          },
+          }),
         ])
         expect(plainDocument?.occurrenceTypes).toEqual([
-          {
+          buildFieldOccurrenceType({
             attachmentMode: 'optional',
-            flow: 'document',
+            declaredAmountScope: 'occurrence',
             id: documentOccurrenceTypeId,
             name: 'Avaria parcial',
-            stopKind: null,
-          },
+          }),
         ])
       })
     },
@@ -849,6 +850,65 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       })
     },
   )
+
+  /**
+   * Spec 244 D2: quem entregou como motorista e hoje só tem `trip.read` (ajudante) não recebe a fila
+   * de fotos — o POST do comprovante pede `trip.report`; a conta que pode reportar a recebe como antes.
+   */
+  testWithPostgres('a pendência de foto só chega a quem pode reportar (spec 244)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedDispatchedTrip(database)
+      await database.db
+        .insert(companyDeliveryProofSettings)
+        .values({ companyId: world.companyId, photo: 'required' })
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const context = {
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        driverId: world.driverId,
+      }
+      for (const [index, stopId] of world.stopIds.entries()) {
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: `chegada-sem-resto-${String(index)}`,
+          location: null,
+          now: NOW,
+          stopId,
+          unitOfWork,
+        })
+      }
+      for (const [index, documentId] of world.documentIds.entries()) {
+        await reportDocumentDelivery({
+          ...context,
+          documentId,
+          idempotencyKey: `entrega-sem-resto-${String(index)}`,
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+      }
+      const ask = (canReportProofs: boolean) =>
+        findCurrentDriverTrip({
+          canReportProofs,
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: new Date(),
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+      const withReport = await ask(true)
+      const withoutReport = await ask(false)
+
+      expect(withReport.pendingProofs.length).toBeGreaterThan(0)
+      expect(withoutReport.pendingProofs).toEqual([])
+      expect(withoutReport.trips.map((trip) => trip.id)).toEqual(
+        withReport.trips.map((trip) => trip.id),
+      )
+      expect(withoutReport.isRegisteredDriver).toBe(true)
+    })
+  })
 
   /**
    * Spec 159 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
@@ -1078,11 +1138,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const stranger = await seedDriverOnly(database)
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
-      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+      const dispatch = (input: {
+        readonly actorUserId: string
+        readonly locationStamp: EventLocationStampColumns
+        readonly tripId: string
+      }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
           channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
+          locationStamp: input.locationStamp,
           repository: routeRepository,
           tripId: input.tripId,
         })
@@ -1104,6 +1169,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: stranger.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       await expect(foreign).rejects.toMatchObject({ code: 'TRIP_NOT_OF_DRIVER', status: 403 })
@@ -1116,6 +1182,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(first).toEqual({ tripStatus: 'dispatched' })
@@ -1128,6 +1195,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(second).toEqual({ tripStatus: 'dispatched' })
@@ -1149,11 +1217,13 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             actorUserId: input.actorUserId,
             channel: TRIP_FIELD_CHANNELS.driverApp,
             companyId: world.companyId,
+            locationStamp: input.locationStamp,
             repository: routeRepository,
             tripId: input.tripId,
           }),
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
 
@@ -1191,11 +1261,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       })
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
-      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+      const dispatch = (input: {
+        readonly actorUserId: string
+        readonly locationStamp: EventLocationStampColumns
+        readonly tripId: string
+      }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
           channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
+          locationStamp: input.locationStamp,
           repository: routeRepository,
           tripId: input.tripId,
         })
@@ -1206,6 +1281,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: helperId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       await expect(dispatchAttempt).rejects.toMatchObject({
@@ -1232,9 +1308,81 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch,
         driverId: world.driverId,
         linkage: reads,
+        location: null,
         tripId: world.tripId,
       })
       expect(driverDispatch).toEqual({ tripStatus: 'dispatched' })
+    })
+  })
+
+  /**
+   * Spec 243 D3: o papel vem da linha de `trip_drivers` de **cada** viagem, na mesma consulta que
+   * lista as viagens. A mesma pessoa dirige a primeira e acompanha a segunda.
+   */
+  testWithPostgres('crewRole é o papel da linha da tripulação de cada viagem', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedDispatchedTrip(database)
+      const [drivingTrip] = await database.db
+        .select({ vehicleId: trips.vehicleId })
+        .from(trips)
+        .where(eq(trips.id, world.tripId))
+      expect(drivingTrip).toBeDefined()
+      const otherDriverId = crypto.randomUUID()
+      const helpingTripId = crypto.randomUUID()
+      await database.db.insert(fleetDrivers).values({
+        companyId: world.companyId,
+        id: otherDriverId,
+        name: 'Outro Motorista',
+        taxId: '44444444444',
+      })
+      await database.db.insert(trips).values({
+        companyId: world.companyId,
+        id: helpingTripId,
+        status: 'dispatched',
+        vehicleId: drivingTrip?.vehicleId ?? '',
+      })
+      await database.db.insert(tripDrivers).values([
+        {
+          companyId: world.companyId,
+          driverId: otherDriverId,
+          driverName: 'Outro Motorista',
+          driverTaxId: '44444444444',
+          position: 1n,
+          role: 'driver',
+          tripId: helpingTripId,
+        },
+        {
+          companyId: world.companyId,
+          driverId: world.driverId,
+          driverName: 'Motorista de Campo',
+          driverTaxId: '11111111111',
+          position: 2n,
+          role: 'helper',
+          tripId: helpingTripId,
+        },
+      ])
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+
+      const opened = await findCurrentDriverTrip({
+        companyId: world.companyId,
+        membershipId: world.membershipId,
+        now: NOW,
+        repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
+      })
+      const otherDriverTrips = await reads.listActiveTrips({
+        companyId: world.companyId,
+        driverId: otherDriverId,
+      })
+
+      expect(opened.trips).toHaveLength(2)
+      expect(Object.fromEntries(opened.trips.map((trip) => [trip.id, trip.crewRole]))).toEqual({
+        [helpingTripId]: 'helper',
+        [world.tripId]: 'driver',
+      })
+      expect(otherDriverTrips.map((trip) => [trip.id, trip.crewRole])).toEqual([
+        [helpingTripId, 'driver'],
+      ])
     })
   })
 
@@ -1593,11 +1741,13 @@ describe('os códigos de erro do motorista removido da tripulação (spec 217 T6
               actorUserId: input.actorUserId,
               channel: TRIP_FIELD_CHANNELS.driverApp,
               companyId: world.companyId,
+              locationStamp: input.locationStamp,
               repository: routeRepository,
               tripId: input.tripId,
             }),
           driverId: world.driverId,
           linkage: reads,
+          location: null,
           tripId: world.tripId,
         })
         await expect(dispatchAttempt).rejects.toMatchObject({
@@ -2130,27 +2280,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_057_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_057',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

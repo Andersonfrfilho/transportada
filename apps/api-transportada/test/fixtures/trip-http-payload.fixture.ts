@@ -91,6 +91,10 @@ export function tripCrewPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/crew`
 }
 
+export function tripCrewTransfersPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/crew-transfers`
+}
+
 export function tripMdfeManifestsPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/mdfe-manifests`
 }
@@ -178,6 +182,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   nfeTotalValue: '1500.0000',
   openOccurrenceCase: false,
   proofPending: false,
+  volumeCount: 12,
 }
 
 export const TRIP_DETAIL: TripDetail = {

@@ -79,6 +79,10 @@ function createEffectFixture(options?: {
   readonly cancelOutcome?: NfseGatewayCancelOutcome
   readonly input?: NfseIssuanceExecutionInput | undefined
   readonly issueOutcome?: NfseGatewayIssueOutcome
+  readonly logs?: {
+    readonly message: string
+    readonly metadata?: Record<string, unknown> | undefined
+  }[]
 }): EffectFixture {
   const cancelled: Record<string, unknown>[] = []
   const issued: Record<string, unknown>[] = []
@@ -121,6 +125,11 @@ function createEffectFixture(options?: {
           options?.issueOutcome ?? { providerDocumentId: PROVIDER_DOCUMENT_ID, status: 'accepted' }
         )
       },
+    },
+    logger: {
+      error: () => undefined,
+      info: (message, metadata) => options?.logs?.push({ message, metadata }),
+      warn: (message, metadata) => options?.logs?.push({ message, metadata }),
     },
     writeBack,
   })
@@ -372,5 +381,32 @@ describe('NFS-e issuance effect contract', () => {
     )
     expect(JSON.stringify(fixture.writes)).not.toContain('cancellationMotive')
     expect(JSON.stringify(fixture.writes)).not.toContain('cancellationReason')
+  })
+})
+
+describe('NFS-e provider outcome log contract', () => {
+  test('logs the rejection code and a sanitized message, never long digit runs', async () => {
+    const logs: { message: string; metadata?: Record<string, unknown> | undefined }[] = []
+    const fixture = createEffectFixture({
+      issueOutcome: {
+        rejection: {
+          code: 'NOTA_RP_HTTP_403',
+          message: 'Empresa 12345678000190 não é válida para esta versão da API.',
+        },
+        status: 'rejected',
+      },
+      logs,
+    })
+
+    await expect(fixture.execute(ISSUE_ENVELOPE)).rejects.toThrow()
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0]?.message).toBe('nfse_issuance_provider_outcome')
+    expect(logs[0]?.metadata).toMatchObject({
+      attemptKind: 'issue',
+      rejectionCode: 'NOTA_RP_HTTP_403',
+      rejectionMessage: 'Empresa [REDACTED] não é válida para esta versão da API.',
+      status: 'rejected',
+    })
   })
 })

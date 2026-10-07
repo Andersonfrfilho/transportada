@@ -305,6 +305,7 @@ function serializeDriver(driver: FleetDriver): object {
     address: driver.address,
     anttCategory: driver.anttCategory,
     canActAsHelper: driver.canActAsHelper,
+    canDrive: driver.canDrive,
     helperDailyRate: driver.helperDailyRate,
     securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,

@@ -172,7 +172,7 @@ export type RouteGeometryView = {
    *
    * ⚠️ **Sempre os da rota selecionada** (spec 153 D1) — `options[selectedIndex]`, não mais sempre a
    * principal. Antes da 153 este campo travava em `options[0]` mesmo quando a viagem congelava uma
-   * alternativa; agora ele segue a escolha, com `cheapest` como critério padrão quando ninguém pede
+   * alternativa; agora ele segue a escolha, com `fastest` como critério padrão quando ninguém pede
    * uma rota específica.
    */
   readonly legs: readonly RouteGeometryLeg[]
@@ -200,7 +200,7 @@ export type RouteGeometryView = {
   /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor (D2). */
   readonly hasChoice: boolean
   /**
-   * Índice em `options` da rota escolhida (spec 153): `cheapest` por padrão, ou o critério/assinatura
+   * Índice em `options` da rota escolhida (spec 153): `fastest` por padrão, ou o critério/assinatura
    * do pedido. ⚠️ Distinto de `cheapestIndex` — este pode achar rota mesmo quando `cheapestIndex` é
    * `null` (custo desconhecido barra o rótulo, mas não a seleção por custo conhecido).
    */
@@ -228,7 +228,7 @@ export type ReadRouteGeometryInput = {
   /** Quantos eixos o veículo escolhido tem, e de onde o número veio (spec 090 D2). */
   readonly axles?: AxleCount | null
   /**
-   * Qual rota reproduzir (spec 153 D2/D3). Ausente é `{ criterion: 'cheapest', signature: null }`:
+   * Qual rota reproduzir (spec 153 D2/D3). Ausente é `{ criterion: 'fastest', signature: null }`:
    * sem escolha declarada, o campo de topo continua sendo o mais barato conhecido. A Fase 2
    * (T201/T204) é quem preenche este campo a partir do pedido HTTP — esta task só o desenha.
    */
@@ -266,7 +266,7 @@ export type ReadRouteGeometryInput = {
 }
 
 /** Sem escolha declarada, a rota de topo continua sendo a mais barata conhecida (spec 153 D1). */
-const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }
+const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'fastest', signature: null }
 
 const UNAVAILABLE_VIEW: RouteGeometryView = {
   cheapestIndex: null,

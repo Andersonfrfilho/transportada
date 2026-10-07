@@ -8,14 +8,24 @@
  * A `mailauth` já resolve o alinhamento relaxado (domínio organizacional) e classifica o veredito
  * em `status.result`/`status.aligned` — este gateway só chama `dkimVerify` e repassa o resultado
  * para `resolveDkimAlignment`, que é onde a decisão de negócio mora.
+ *
+ * Spec 237 T4.7c: a verificação inteira tem PRAZO (a `mailauth` consulta o DNS de cada assinatura em série; um
+ * DNS mudo prenderia o consumidor por tempo de timeout vezes número de assinaturas), e o `From` que a própria
+ * `mailauth` alinhou sai junto: quem decide por endereço compara com o dela, nunca com um segundo leitor.
  */
 import { resolveTxt } from 'node:dns/promises'
 
 import { dkimVerify } from 'mailauth'
 
-import { resolveDkimAlignment, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
+import {
+  DKIM_ALIGNMENT_RESULT,
+  resolveDkimAlignment,
+  type DkimAlignmentResult,
+} from '../domain/dkim-alignment.policy.js'
 
 const DEFAULT_DNS_TIMEOUT_MS = 5_000
+/** Cabe a mensagem mais lenta legítima (poucas assinaturas, DNS comum); o excesso é "sem veredito", e repete. */
+export const DKIM_VERIFICATION_DEADLINE_MS = 15_000
 
 export type DkimDnsResolver = (name: string, recordType: string) => Promise<string[][] | string[]>
 
@@ -29,13 +39,29 @@ export const resolveDkimDnsRecord: DkimDnsResolver = async (name, recordType) =>
   return resolveTxt(name)
 }
 
+/** `headerFrom`: os endereços que a `mailauth` leu nos cabeçalhos `From` — o que ela alinha ao `d=`. */
+export type DkimVerification = {
+  readonly alignment: DkimAlignmentResult
+  readonly headerFrom: readonly string[]
+}
+
 export type VerifyDkimAlignmentPort = {
   verify(rawMessage: Buffer): Promise<DkimAlignmentResult>
 }
 
+export type VerifyDkimHeaderFromPort = {
+  verifyWithHeaderFrom(rawMessage: Buffer): Promise<DkimVerification>
+}
+
 export type CreateDkimVerifierGatewayInput = {
-  readonly resolveDns: DkimDnsResolver
+  readonly deadlineMs?: number
   readonly dnsTimeoutMs?: number
+  readonly resolveDns: DkimDnsResolver
+}
+
+const NO_VERDICT: DkimVerification = {
+  alignment: DKIM_ALIGNMENT_RESULT.UNVERIFIABLE,
+  headerFrom: [],
 }
 
 function withTimeout<TResult>(promise: Promise<TResult>, timeoutMs: number): Promise<TResult> {
@@ -58,21 +84,50 @@ function withTimeout<TResult>(promise: Promise<TResult>, timeoutMs: number): Pro
  * `dnsTimeoutMs` existe porque a `mailauth` não impõe prazo ao resolvedor: um DNS lento travaria a
  * verificação por tanto tempo quanto o resolvedor demorar. Estourar o prazo vira rejeição, e a
  * `mailauth` trata isso como falha transitória (`temperror`) — o mesmo caminho de um resolvedor que
- * lança na hora.
+ * lança na hora. `deadlineMs` é o teto da verificação inteira; passado ele, o resolvedor recusa na hora, e o
+ * laço da `mailauth` que seguiria em segundo plano acaba sem sair para a rede.
  */
 export function createDkimVerifierGateway(
   input: CreateDkimVerifierGatewayInput,
-): VerifyDkimAlignmentPort {
+): VerifyDkimAlignmentPort & VerifyDkimHeaderFromPort {
   const dnsTimeoutMs = input.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS
+  const deadlineMs = input.deadlineMs ?? DKIM_VERIFICATION_DEADLINE_MS
+
+  async function verifyWithHeaderFrom(rawMessage: Buffer): Promise<DkimVerification> {
+    let isExpired = false
+    const verification = dkimVerify(rawMessage, {
+      resolver: (name, recordType) =>
+        isExpired
+          ? Promise.reject(new Error('dkim verification deadline exceeded'))
+          : withTimeout(input.resolveDns(name, recordType), dnsTimeoutMs),
+    })
+    // Passado o prazo ninguém mais espera por ela: uma rejeição tardia não pode virar rejeição não tratada.
+    verification.catch(() => undefined)
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<DkimVerification>((resolve) => {
+      timer = setTimeout(() => {
+        isExpired = true
+        resolve(NO_VERDICT)
+      }, deadlineMs)
+    })
+    try {
+      return await Promise.race([
+        verification.then((result) => ({
+          alignment: resolveDkimAlignment(result.results),
+          headerFrom: result.headerFrom,
+        })),
+        deadline,
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
   return {
     async verify(rawMessage) {
-      const result = await dkimVerify(rawMessage, {
-        resolver: (name, recordType) =>
-          withTimeout(input.resolveDns(name, recordType), dnsTimeoutMs),
-      })
-
-      return resolveDkimAlignment(result.results)
+      return (await verifyWithHeaderFrom(rawMessage)).alignment
     },
+    verifyWithHeaderFrom,
   }
 }

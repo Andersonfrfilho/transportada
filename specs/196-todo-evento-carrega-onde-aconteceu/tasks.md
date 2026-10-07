@@ -80,18 +80,25 @@ do usuário. A API não é revertida com a app nova no ar.
 > ficaram de fora: estado sem ponto não teria o que afirmar. A T1.3 (auditoria de leitura, RF12) não
 > foi feita.
 
-- [ ] **T1.1** Contrato de schema primeiro, em `test/trip-schema/events.contract.ts` (importado por
-      `test/trip-schema.contract.test.ts`):
+- [x] **T1.1** Contrato de schema primeiro, em `test/trip-schema/event-location.contract.ts`
+      (importado por `test/trip-schema.contract.test.ts` — o arquivo já existia pelo bloco de
+      `trip_stop_events`/`trip_delivery_proofs`, e as três tabelas novas entraram nele em vez de um
+      `events.contract.ts` separado):
   - nas três tabelas novas: as cinco colunas, os oito CHECKs do `plan.md` § Dados, com os nomes de lá,
     e o índice parcial;
   - em `trip_stop_events`: `location_state` e os três CHECKs de estado.
 
   Aceite: o contrato falha pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T1.2** `database/event-location.schema.ts` (helpers e `EVENT_LOCATION_STATES`),
-      `trip.schema.ts` e a migration `drizzle/<timestamp>_event_location_stamp/`:
-  - `migration.sql` com o `UPDATE ... SET location_state = 'captured' WHERE latitude IS NOT NULL` de
-    `trip_stop_events`;
+- [x] **T1.2** `database/event-location.schema.ts` (fábricas e `EVENT_LOCATION_STATES`),
+      `trip.schema.ts` e a migration `drizzle/20261002153258_occurrence_location_stamp/`:
+  - `migration.sql` com as cinco colunas, os oito CHECKs e o índice parcial das **três** tabelas
+    novas. ⚠️ **Sem `UPDATE` nenhum**: o `UPDATE ... SET location_state = 'captured'` de
+    `trip_stop_events` já saiu na migration irmã (`20261001123700_event_location_stamp`), e as três
+    tabelas desta task nascem sem uma linha com coordenada. ⚠️ A pasta **não** pode terminar em
+    `_event_location_stamp`: é por esse sufixo que
+    `test/database-migration/static-migration.contract.ts` recorta o bloco da migration irmã, e duas
+    pastas com ele fariam cada asserção valer para a pasta errada;
   - `rollback.sql`, com o aviso de perda de dado e de ordem (API revertida antes) no topo;
   - `snapshot.json` do `db:generate`.
 
@@ -101,24 +108,48 @@ do usuário. A API não é revertida com a app nova no ar.
   `db:generate` = `no_changes`, `test/database-migration/schema-snapshot.contract.ts` verde e
   **`make migration-test`** verde.
 
-- [ ] **T1.3** Auditoria de leitura (RF12), **antes** de qualquer escrita de ponto:
+- [x] **T1.3** Auditoria de leitura (RF12), **antes** de qualquer escrita de ponto:
   - os leitores listados no `plan.md` § API — leitura são conferidos contra `select()` sem projeção e
     contra spread da linha na resposta; quem devolver a linha inteira passa a projetar colunas;
   - `trips/application/event-location-readers.constant.ts` com a lista de leitores permitidos (D7) e
     `test/trip-schema/event-location-readers.contract.ts` (importado por
     `test/trip-schema.contract.test.ts`), que varre `src/` e reprova referência às colunas de posição
-    das cinco tabelas fora da lista;
+    das cinco tabelas fora da lista. ⚠️ A lista é **por coluna**, não por arquivo: o feed da 195 vê
+    `location_state` e não pode ver coordenada, e `captured_at` entra sozinho em quatro leitores onde
+    é **instante** (`coalesce(captured_at, recorded_at)`), não posição — lista por arquivo obrigaria a
+    liberar coordenada junto com tempo. ⚠️ A varredura casa **tabela qualificada**
+    (`tripStopEvents.latitude`): `latitude` solta aparece em 85 arquivos de `src/` que não são evento
+    (geocodificação, pedágio, centroide), e recorte largo viraria ruído desligado;
   - contrato negativo por resposta: portal (`contractor-occurrence.query.ts`), tratativa,
     demonstrativo, acerto e reentrega sem `latitude`, `longitude`, `accuracyMeters`, `capturedAt` ou
     `locationState`.
 
   Aceite: contratos verdes, os dois comandos da API verdes, a contagem subiu em N.
 
+- [x] **T1.4** 🔁 O canal `whatsapp` passa a carregar **ponto**, não só estado (D3 revisto em
+      2026-10-02). ⚠️ **Texto obsoleto:** a migration `20261002153258` já está em `origin/staging`
+      (decisão do usuário em 2026-10-02), então ela **não** é editada — a correção é a migration
+      corretiva `20261003010806_event_location_whatsapp_coordinate` (ver `evidence.md` § T1.4).
+  - `event-location.schema.ts`: `buildEventLocationChecks` passa a receber **lista** de canais que podem
+    gravar coordenada (`coordinateChannels`), não um canal só, e `trip.schema.ts` passa
+    `[driverApp, whatsapp]` nas três tabelas;
+  - a `migration.sql` e o `rollback.sql` da pasta `20261002153258_occurrence_location_stamp` passam a
+    dizer `"channel" in ('driver_app', 'whatsapp')` no CHECK de coordenada;
+  - `test/trip-schema/event-location.contract.ts` prende o texto novo do CHECK;
+  - `event-location-state.policy.ts`: `STATEFUL_CHANNELS` ganha `whatsapp` como canal que também grava
+    **ponto**, e `test/trip-domain/event-location-state.contract.ts` — que hoje **proíbe** isso — passa
+    a exigi-lo. ⚠️ Esse contrato está verde hoje: ele vai ficar vermelho pela razão certa, e afrouxá-lo
+    em vez de invertê-lo seria perder a asserção.
+
+  Aceite: `db:generate` = `no_changes`, `test/trip-schema.contract.test.ts` e
+  `test/trip-domain.contract.test.ts` verdes, `make migration-test` verde, e a migration **ainda não
+  publicada** conferida contra `origin/staging` antes de fechar.
+
 ## Fase 2 — O prazo de 90 dias vale para as cinco tabelas
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contratos primeiro, no worker (em `test/trip-location-purge/`, importados por
+- [x] **T2.1** Contratos primeiro, no worker (em `test/trip-location-purge/`, importados por
       `test/trip-location-purge.contract.test.ts`):
   - `trip-execution.schema.ts` **declara** as três tabelas novas (`id`, tempo, as quatro de posição,
     `location_state`) e `location_state` em `tripStopEvents` — cópia por valor;
@@ -129,7 +160,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T2.2** Redatores das três tabelas novas e `expired` no de `trip_stop_events`; a rotina roda
+- [x] **T2.2** Redatores das três tabelas novas e `expired` no de `trip_stop_events`; a rotina roda
       cada tabela com seu teto, captura o erro **por tabela** (a coluna ausente, `42703`, não derruba o
       processo nem as outras tabelas) e loga `redactedByTable`, `exhaustedTables` e a tabela que
       falhou — só contagens. Aceite: contratos verdes; `test/trip-location-purge.integration.test.ts`
@@ -137,16 +168,35 @@ do usuário. A API não é revertida com a app nova no ar.
       perde as quatro colunas e fica `expired`, o de 89 fica intacto, o evento continua existindo; a
       contagem subiu em N.
 
+- [x] **T2.3** O expurgo nasce desligado (D11; emenda 2026-10-03: o rastro ao vivo de 36 h roda sempre, fora do interruptor): `TRIP_LOCATION_PURGE_ENABLED` no schema de env do
+      worker (padrão `false`, ausente = desligada, só `true` liga), `enabled` **obrigatório** nas
+      dependências da rotina — opcional com padrão ligado faria uma fiação esquecida apagar coordenada
+      em silêncio —, saída antecipada antes de qualquer leitura, log `trip_location_purge_disabled`, e
+      a variável declarada no `.env.example`.
+
+  Aceite: contrato novo verde e **provado por mutação** (religar o padrão e remover a saída antecipada
+  têm de reprovar); o `toEqual` exato de `test/environment.contract.test.ts` atualizado; app inteira e
+  `make worker-integration` sem regressão.
+
+- [x] **T2.4** O detector do D8 reconhece coordenada de nome composto: a varredura passa de
+      `latitude` literal para qualquer coluna `*latitude*`, e `fleet_drivers` entra em
+      `TRIP_LOCATION_UNSTAMPED_TABLES` com o motivo (casa do motorista é cadastro, não posição num
+      instante).
+
+  Aceite: contrato verde e **provado por mutação** — tirar `fleet_drivers` da lista tem de reprovar
+  "toda tabela com `latitude` no schema da API está numa das duas listas", que antes do alargamento
+  passava sem ela.
+
 ## Fase 3 — A API grava o ponto de todo toque
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `event-location-stamp.policy.ts` e tipos, com o contrato primeiro
+- [x] **T3.1** `event-location-stamp.policy.ts` e tipos, com o contrato primeiro
       (`test/trip-domain/event-location-stamp.contract.ts`, importado por
       `test/trip-domain.contract.test.ts`): `driver_app`, `whatsapp` do motorista, `whatsapp` do
       operador, `office`, `backoffice` × com/sem ponto × toque/derivado. Aceite: verde; a contagem subiu
       em N.
-- [ ] **T3.2** Fronteira HTTP, contrato primeiro (`test/trip-http/event-location-request.contract.ts`,
+- [x] **T3.2** Fronteira HTTP, contrato primeiro (`test/trip-http/event-location-request.contract.ts`,
       importado por `test/trip-http.contract.test.ts`):
   - `dispatch` com `{ tripId, location? }`;
   - `start-route`/`confirm-load` com corpo opcional, e corpo vazio continua `200`;
@@ -157,14 +207,14 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: verde; a contagem subiu em N.
 
-- [ ] **T3.3** Levar o ponto até o banco: `dispatchTrip`/`startFieldTrip` → `recordTripStatusChange`
+- [x] **T3.3** Levar o ponto até o banco: `dispatchTrip`/`startFieldTrip` → `recordTripStatusChange`
       (`locationStamp` opcional; as chamadas derivadas não mudam), ocorrência da parada, ocorrência da
       nota, e o `location_state` em chegada/entrega/devolução. As três ações de
       `driverWhatsAppFlowActions` gravam `unavailable`; `operatorWhatsAppFlowActions`, escritório e
       backoffice gravam `null`. Aceite: contratos da aplicação verdes, e as suítes que exercitam as
       chamadas existentes de `recordTripStatusChange` seguem verdes sem mudança de expectativa —
       `trip-status-write-guard`, `trip-timeline`, `trip-lifecycle` e `trip-auto-dispatch`.
-- [ ] **T3.4** Contrato de inventário do D9 (`test/trip-http/driver-location-stamp-inventory.contract.ts`,
+- [x] **T3.4** Contrato de inventário do D9 (`test/trip-http/driver-location-stamp-inventory.contract.ts`,
       importado por `test/trip-http.contract.test.ts`), pelo comportamento descrito no `plan.md` §
       Exceções do inventário do D9:
   - a lista de rotas vem de `createMeTripRoutes`;
@@ -176,7 +226,7 @@ do usuário. A API não é revertida com a app nova no ar.
   Aceite: verde, e uma rota falsa sem `location` fora das duas listas reprova (provado no próprio
   teste); a contagem subiu em N.
 
-- [ ] **T3.5** Integração contra Postgres (`test/integration/event-location-stamp.integration.ts`,
+- [x] **T3.5** Integração contra Postgres (`test/integration/event-location-stamp.integration.ts`,
       **linha nova no script `test:integration`** do `package.json`):
   - CA01: cada rota de toque com e sem ponto;
   - CA02: troca derivada `null`;
@@ -185,6 +235,30 @@ do usuário. A API não é revertida com a app nova no ar.
   - isolamento por empresa.
 
   Aceite: **os dois comandos da API** verdes; a contagem da integração subiu em N.
+
+- [x] **T3.6** 🔁 O webhook aceita a **mensagem de localização** do WhatsApp (D3 revisto). Hoje
+      `register-driver-flow-actions.ts` crava `location: null` nos quatro caminhos (`:98`, `:106`,
+      `:301`, `:347`). A Cloud API entrega `messages[].location` com `latitude`/`longitude`; o fluxo do
+      motorista passa a lê-la e a gravar `captured` com a coordenada, mantendo `unavailable` quando ela
+      não vier.
+  - ⚠️ O fluxo do **operador** compartilha o canal e **não** grava coordenada, mesmo que a mensagem de
+    localização tenha chegado na conversa — contrato por rota prende isso (CA03);
+  - a coordenada entra pelo mesmo caminho de validação das outras rotas, com o teto de precisão da
+    T3.2;
+  - ⚠️ **nunca logar a coordenada** nem o corpo da mensagem do cliente, em nenhum nível.
+
+  Aceite: contrato por ação (as três do motorista e as do operador), os dois comandos da API verdes, e
+  a contagem subiu em N.
+
+- [x] **T3.7** 🔁 Subir `meta-whatsapp-module@0.7.0`, `-contracts@0.6.0` e `-provider@0.3.1` (API; worker só o
+      provider). `runMetaWhatsAppSchemaMigrations` injeta o `migrate` (com invólucro que transforma o
+      `MigratorInitFailResponse` em erro); `confirm` do nonce implementado; o teste que prendia o limite da
+      `0.1.0` virou ponta a ponta pelo webhook real (`captured` com a coordenada; `unavailable` sem ela).
+      Evidência: `evidence.md` § T3.7.
+- [x] **T3.8** O bot **pede a geolocalização** no fluxo do motorista (decisão do usuário, 2026-10-03):
+      texto nos nós `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry`, publicado por
+      `whatsapp-flow-publish`. Não bloqueia. A relação do ponto declarado com a distância/pontualidade segue
+      sem decisão (nenhum filtro implementado). Evidência: `evidence.md` § T3.8.
 
 ## Fase 4 — A linha do tempo devolve o ponto, para quem pode ver
 
@@ -242,16 +316,18 @@ do usuário. A API não é revertida com a app nova no ar.
   > `auth-me.integration.ts` compara com `toEqual`, que compara posição. Inferir a posição pelo
   > catálogo custou uma rodada vermelha.
 
-- [ ] **T4.2 — parcial** Integração: viagem com os quatro estados (`captured`, `unavailable`,
+- [x] **T4.2** Integração: viagem com os quatro estados (`captured`, `unavailable`,
       `expired`, `null`) nas quatro fontes; cursor com 250 eventos continua sem pular nem repetir;
       `test/trip-schema/trip-timeline-query-tenant-safety.contract.ts` cobre as colunas novas; outra
       empresa → `404`. Aceite: os dois comandos da API verdes; a contagem subiu em N.
 
-  > ⚠️ **Não tique.** Os quatro estados são exercitados **só na fonte dos eventos de parada**. As
-  > fontes de status, de ocorrência e de documento são afirmadas `null`/`null`, porque as três
-  > tabelas delas não ganharam coluna de posição nenhuma — a migration do recorte cobriu duas tabelas
-  > (`trip_stop_events` e `trip_delivery_proofs`), não as cinco que a spec descreve. Fechar esta task
-  > depende das Fases 1 (T1.3), 2 e 3, que não foram executadas.
+  > Fechada. O aviso "Não tique" valia enquanto as fontes de status, de ocorrência de parada e de
+  > ocorrência de nota devolviam `...NO_EVENT_LOCATION`; a Fase 3 passou a gravar as colunas e
+  > `trip-timeline-status.query.ts`, `trip-timeline-stop.query.ts` (ocorrência) e
+  > `trip-timeline-document.query.ts` (ocorrência de nota) passaram a lê-las. Seguem `null`/`null`, por
+  > não terem coluna: `trip.dispatched` (`trip_dispatch_snapshots` — o ponto do despacho está na troca
+  > de status que ele grava) e `document.status_changed` (`trip_document_events`). Evidência em
+  > `evidence.md` § T4.2 (leitura).
 
 - [ ] **T4.3** Push 2 e a sonda (`plan.md` § Ordem de deploy): gates da API e do worker, rebase limpo,
       push; conferir a migration aplicada e o ciclo do expurgo sem erro; rodar a sonda de `dispatch` e
@@ -262,12 +338,12 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.0** Versionar a API de demonstração: copiar a versão atual do scratchpad para
+- [x] **T5.0** Versionar a API de demonstração: copiar a versão atual do scratchpad para
       `apps/frontend-driver/scripts/driver-preview-api.ts` (fora do `src/` e do bundle), apontar o
       `motorista-api-demo` do `.claude/launch.json` para ela e registrar em `evidence.md` a origem da
       cópia e o aviso às sessões da 192 e da 193. Aceite: `motorista-local` sobe contra ela e a tela da
       viagem abre.
-- [ ] **T5.1** Contratos primeiro (`apps/frontend-driver/test/driver-trip/event-location-queue.contract.ts`
+- [x] **T5.1** Contratos primeiro (`apps/frontend-driver/test/driver-trip/event-location-queue.contract.ts`
       e `.../direct-tap-location.contract.ts`, importados por `test/driver-trip.contract.test.ts`):
   - corpo de `occurrence`, `documentOccurrence`, `dispatch` e `start-route` com `location`;
   - o item da fila nasce `null` e é completado pela chave nas duas ocorrências;
@@ -281,11 +357,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: falham pelo motivo certo; a contagem subiu em N.
 
-- [ ] **T5.2** Fila: tipos, `applyReportLocation` sem a exceção da ocorrência (e o comentário),
+- [x] **T5.2** Fila: tipos, `applyReportLocation` sem a exceção da ocorrência (e o comentário),
       `withLegacyLocation`, ocorrência da parada e ocorrência de nota direta por `reportWithLocation`,
       "Não entreguei" nas duas chaves, corpo do `send`, `registerDocumentOccurrence` removido do
       cliente. Aceite: contratos da fila verdes; o `check` de `apps/frontend-driver` verde.
-- [ ] **T5.3** Toque direto: `readDirectTapLocation` (`Promise.race` com o relógio da app de 3 s,
+- [x] **T5.3** Toque direto: `readDirectTapLocation` (`Promise.race` com o relógio da app de 3 s,
       `enableHighAccuracy: false`, `maximumAge` de 5 min) e "Despachar"/"Iniciar rota" com corpo.
       Aceite: contratos verdes; `check` verde.
 
@@ -301,7 +377,7 @@ do usuário. A API não é revertida com a app nova no ar.
   > - o `location` do Iniciar rota continua existindo, mas chega pelo corpo do item de fila, no caminho
   >   do "Cheguei", não pelo `readDirectTapLocation`.
 
-- [ ] **T5.4** Preview e smoke:
+- [x] **T5.4** Preview e smoke:
   - a API de demonstração aceita e guarda em memória, **sem imprimir**, o `location` das quatro rotas
     e o expõe numa rota de depuração local;
   - `motorista-local` na 53200, com GPS permitido e negado (emulação do navegador): o corpo sai com
@@ -343,11 +419,18 @@ do usuário. A API não é revertida com a app nova no ar.
   > ⚠️ **O código está pronto e nada subiu.** O preview da T6.3 com coordenada sintética e o ok do
   > usuário são pré-requisito de push, pela regra do `web.md` §15.
 
-- [ ] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
+- [x] **T6.3** Preview no painel local, com a API local desta árvore e uma viagem cujos eventos foram
       gravados **pelas rotas do motorista** (curl com token de motorista, ou a app apontada para a API
       local) — nunca `INSERT` cru —, com **coordenadas sintéticas** (um ponto de teste, não uma
       posição real). Mostrar os estados do RF10, o mapa expandido e a visão do `finance` (estado sem
       coordenada). Aceite: prints em 1280 e 375 px em `prints/` e o **ok do usuário** antes de subir.
+
+  > Fechada em 2026-10-02 (`3630dccfd`), **com API dublada** — o login real do painel redireciona para a origem
+  > fixa do `.env` (53000, que é de outra árvore), então a viagem não foi gravada pelas rotas do motorista contra
+  > o banco; essa metade está nas integrações da T3.5 e T4.2. Prints em `prints/196-linha-do-tempo-*`
+  > (1280/375 × escuro/claro). ⚠️ **O ok do usuário nos prints continua pendente** e segue sendo pré-requisito
+  > do push 3. Detalhe: `evidence.md` § "T6.3 / T7.1".
+
 - [x] **T6.4** O validador do painel passa a **exigir** `location` e `locationState` (a API já as
       manda desde o push 2). Aceite: contrato da T4.0 ajustado (item sem as chaves falha); `check`
       verde.
@@ -365,7 +448,7 @@ do usuário. A API não é revertida com a app nova no ar.
 
 > 🤖 Modelo: `sonnet` (revisão final com `code-reviewer` em `opus`)
 
-- [ ] **T7.1** Revisão de design (`web.md` §15) contra a própria página:
+- [x] **T7.1** Revisão de design (`web.md` §15) contra a própria página:
   - a linha de posição comparada com a linha de autoria e com o "ver foto" da spec 180 (fonte, cor
     secundária, espaçamento, ícone);
   - o mapa expandido comparado com a foto expandida;
@@ -374,7 +457,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Divergência consertada na mesma task. Aceite: prints finais em `prints/` e o ok do usuário.
 
-- [ ] **T7.2** Documentação viva:
+  > Fechada em `3630dccfd`: três divergências consertadas (fonte do botão de posição, altura do botão do
+  > mapa no detalhe, vírgula decimal no km), medidas por `getBoundingClientRect` e estilo computado.
+  > ⚠️ O ok do usuário nos prints segue pendente. Detalhe: `evidence.md`.
+
+- [x] **T7.2** Documentação viva:
   - `CLAUDE.md` da API, do worker, do painel e da app do motorista (parágrafo de posição de cada um);
   - `docs/SECURITY.md`: retenção lista as cinco tabelas e o `location_state`; a permissão
     `trip.event-location`; o que o host do mapa base vê;
@@ -384,7 +471,11 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: `bun run format:check` verde.
 
-- [ ] **T7.3** Auditoria (`code-standart.md` §15 e `security.md`):
+  > Fechada. A nota de emenda na 158 já existia (`spec.md` linhas 36 e 171); o resto foi escrito. Os trechos
+  > "migration ainda não publicada" da 196 foram corrigidos e o limite dos pacotes `meta-whatsapp-*` `0.1.0`
+  > foi registrado como decisão pendente do usuário. `format:check` verde.
+
+- [x] **T7.3** Auditoria (`code-standart.md` §15 e `security.md`):
   - coordenada em nenhum log (grep em `logger.`/`console.` dos arquivos tocados, e na API de
     demonstração);
   - nenhuma resposta fora da tabela do D7 com posição;
@@ -395,13 +486,17 @@ do usuário. A API não é revertida com a app nova no ar.
 
   Aceite: achados em `evidence.md` e, se houver, em `docs/SECURITY.md`.
 
+  > Fechada. Saídas literais em `evidence.md` § "T7.3". Achados em `docs/SECURITY.md` (2026-10-02): o expurgo
+  > nasce **desligado** e a retenção de 90 dias não está em vigor; a origem do mapa base e o log de acesso
+  > dele não são verificáveis pelo repositório (pendência explícita).
+
 - [ ] **T7.4** Gate completo e push 3: `make check`, `make migration-test`, os dois comandos da API,
       `make worker-integration`, `make smoke`. Publicação só com rebase limpo sobre `origin/staging`
       (fetch, rebase, `bun install --frozen-lockfile`, gates e push para `HEAD:staging`, encadeados com
       `&&`), migration renumerada se colidir com 192/193/195, `db:generate` = `no_changes` depois do
       rebase. O push 3 (app e tela) só sai com a sonda da T4.3 registrada e o ok do usuário nos
       prints. Aceite: gates verdes e a ordem dos três pushes em `evidence.md`.
-- [ ] **T7.5** Revisão final por `code-reviewer` (`opus`) sobre o diff inteiro da spec, com foco em
+- [ ] **T7.5** Revisão final por `code-reviewer` (`sonnet`) sobre o diff inteiro da spec, com foco em
       vazamento de posição, na permissão `trip.event-location` e no CHECK de canal. Achado bloqueante
       reabre a task de origem.
 - [ ] **T7.6** Medição do D5, uma semana depois do push 3: a consulta do `plan.md` § Observabilidade

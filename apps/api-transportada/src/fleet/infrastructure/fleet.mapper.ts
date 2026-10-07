@@ -193,6 +193,7 @@ export function mapDriver(record: DriverRecord): FleetDriver {
     homeLongitude: record.homeLongitude,
     anttCategory: record.anttCategory,
     canActAsHelper: record.canActAsHelper,
+    canDrive: record.canDrive,
     helperDailyRate: record.helperDailyRate,
     securesCargo: record.securesCargo,
     licenseCategory: record.licenseCategory,

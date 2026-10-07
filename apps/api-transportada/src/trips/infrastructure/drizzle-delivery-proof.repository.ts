@@ -10,6 +10,7 @@ import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import type { EventLocationState } from '../../database/event-location.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
@@ -41,6 +42,7 @@ import {
   type DeliveryProofPunctualitySettings,
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
+import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -208,6 +210,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
    * ADR-0070 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
    * ainda que rara). A posição é a do evento, nunca o pino da parada (emenda 2026-09-25 da ADR-0070).
+   * O quando é `deliveredMomentSql` (spec 234 D3), o mesmo instante que a nota lê. O canal diz se a
+   * entrega veio do app do motorista (spec 234 D4c).
    */
   public async findDeliveryContext(input: {
     readonly companyId: string
@@ -215,15 +219,18 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    readonly isDeliveryRecordedByDriver: boolean
+    readonly isEventClockCorrected: boolean
     readonly lateRegistration: boolean
   }> {
     const [record] = await this.database
       .select({
-        capturedAt: tripStopEvents.capturedAt,
+        channel: tripStopEvents.channel,
+        deliveredAt: deliveredMomentSql(tripStopEvents),
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
+        isEventClockCorrected: sql<boolean>`${tripStopEvents.occurredAt} is not null`,
         lateRegistration: tripStopEvents.lateRegistration,
-        recordedAt: tripStopEvents.recordedAt,
       })
       .from(tripStopEvents)
       .where(
@@ -234,8 +241,10 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     if (record === undefined) throw new DeliveryProofEventVanishedError()
 
     return {
-      deliveredAt: record.capturedAt ?? record.recordedAt,
+      deliveredAt: record.deliveredAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
+      isDeliveryRecordedByDriver: DRIVER_FIELD_CHANNELS.has(record.channel),
+      isEventClockCorrected: record.isEventClockCorrected,
       lateRegistration: record.lateRegistration,
     }
   }
@@ -410,6 +419,11 @@ type SaveProofInput = {
   readonly authorship: FieldAuthorship
   /** ADR-0070 §3: o que o aparelho diz ter tirado a foto. `null` quando ele não manda. */
   readonly capturedAt: Date | null
+  /**
+   * Spec 234 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada. Ausente no escritório, que
+   * não classifica; a recaptura grava o dela (ou `null`), nunca herda o da foto que saiu.
+   */
+  readonly clockOffsetMs?: number | null
   readonly companyId: string
   readonly eventId: string
   readonly id: string
@@ -467,6 +481,7 @@ export function buildProofInsertValues(input: SaveProofInput) {
     attachmentKey: input.attachmentKey,
     capturedAt: input.capturedAt,
     channel: input.authorship.channel,
+    clockOffsetMs: input.clockOffsetMs ?? null,
     companyId: input.companyId,
     id: input.id,
     kind: input.kind,
@@ -502,6 +517,7 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     attachmentKey: input.attachmentKey,
     capturedAt: input.capturedAt,
     channel: input.authorship.channel,
+    clockOffsetMs: input.clockOffsetMs ?? null,
     /** Spec 205 D5: a substituta não lava o registro tardio da foto anterior. */
     lateRegistration: sql`${tripDeliveryProofs.lateRegistration} or excluded.late_registration`,
     latitude: input.latitude,

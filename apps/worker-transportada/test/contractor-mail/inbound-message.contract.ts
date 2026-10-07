@@ -4,6 +4,8 @@
 import { createHash, generateKeyPairSync } from 'node:crypto'
 
 import { describe, expect, test } from 'bun:test'
+
+import { NOT_A_PREVIEW_INTAKE } from '../cargo-preview-email/not-a-preview.fixture.js'
 import { dkimSign } from 'mailauth'
 
 import {
@@ -101,6 +103,9 @@ async function signSyntheticMessage(input: {
 }
 
 type Deps = RecordContractorMailInboundMessageDependencies
+
+/** Spec 237 T4.7a: o cabeçalho é medido antes de tudo, então o MIME sintético precisa ter fim de cabeçalho. */
+const MINIMAL_MIME = Buffer.from('From: a@b.example\r\n\r\ncorpo')
 
 /** Spec 183 T702c1: sem conversa na thread, os anexos nem são extraídos. */
 const UNUSED_ATTACHMENTS: Deps['conversationAttachments'] = {
@@ -211,6 +216,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -248,8 +254,8 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     const recordCalls: RecordContractorMailInboundMessageInput[] = []
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
-          return 'absent'
+        async verifyWithHeaderFrom() {
+          return { alignment: 'absent' as const, headerFrom: [] }
         },
       },
       mailGateway: {
@@ -283,6 +289,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -302,7 +309,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     let downloadCalled = false
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not verify DKIM without a thread')
         },
       },
@@ -340,6 +347,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -360,7 +368,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     const recordCalls: RecordContractorMailInboundMessageInput[] = []
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not verify DKIM without a thread')
         },
       },
@@ -404,6 +412,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -420,7 +429,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     const otherThreadId = crypto.randomUUID()
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not verify DKIM when ambiguous')
         },
       },
@@ -468,6 +477,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -483,7 +493,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     let fetchCalled = false
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not run')
         },
       },
@@ -511,6 +521,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('should not store')
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -526,12 +537,12 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
   test('throws a typed permanent error when the company has no contractor mail settings', async () => {
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not run')
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new Error('should not fetch without settings')
         },
@@ -551,6 +562,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('should not store')
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -566,12 +578,12 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
   test('propagates a permanent provider error (unauthorized key) for the consumer to classify', async () => {
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not run')
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new ResendProviderUnauthorizedError()
         },
@@ -595,6 +607,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -607,12 +620,12 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
   test('propagates a transient network error for the consumer to retry', async () => {
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not run')
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new ResendProviderUnreachableError(new Error('ECONNRESET'))
         },
@@ -636,6 +649,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -649,7 +663,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
   test('propagates a permanent error when the download host is not on the allowlist', async () => {
     const dependencies: Deps = {
       dkimVerifier: {
-        async verify() {
+        async verifyWithHeaderFrom() {
           throw new Error('should not run')
         },
       },
@@ -689,6 +703,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           return undefined
         },
       },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }
@@ -732,9 +747,11 @@ describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
         discard: async (stored) => void input.discarded.push(...stored),
         store: async () => ({ skipped: 2, stored: STORED }),
       },
-      dkimVerifier: { verify: async () => 'absent' },
+      dkimVerifier: {
+        verifyWithHeaderFrom: async () => ({ alignment: 'absent' as const, headerFrom: [] }),
+      },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.from('mime'),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => ({
           from: 'financeiro@contratante.com.br',
           headers: {},
@@ -764,6 +781,7 @@ describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
         }),
       },
       storage: { storeObject: async () => undefined },
+      previewIntake: NOT_A_PREVIEW_INTAKE,
       storageBucket: 'transportada-private',
       storageProvider: 'minio',
     }

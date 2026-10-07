@@ -637,6 +637,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
         findDeliveryContext: async () => ({
           deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
           deliveryEventPosition: undefined,
+          isDeliveryRecordedByDriver: true,
         }),
         findProofIdByAttachmentKey: async () => null,
         countProofsForEvent: async () => 0,
@@ -681,6 +682,7 @@ describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spe
         findDeliveryContext: async () => ({
           deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
           deliveryEventPosition: undefined,
+          isDeliveryRecordedByDriver: true,
         }),
         findProofIdByAttachmentKey: async () => null,
         countProofsForEvent: async () => 0,

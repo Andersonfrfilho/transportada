@@ -50,6 +50,17 @@ export const WHATSAPP_MAX_CROSS_FLOW_HOPS = 5
  */
 export const WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY = 'whatsappIncomingImage'
 
+/**
+ * Spec 196 T3.6 (D3 revista): a localização que o motorista manda é lembrada só em memória, por
+ * número, e vale para **um** toque — a posição de cinco minutos atrás não é a da parada de agora, e
+ * gravá-la seria dado que mente. Nunca vai ao contexto da sessão (PII) nem a log.
+ */
+export const WHATSAPP_SHARED_LOCATION_TTL_MS = 5 * MINUTE_MS
+export const WHATSAPP_SHARED_LOCATION_MAX_ENTRIES = 5_000
+export const WHATSAPP_SHARED_LOCATION_PERMISSION = 'trip.report'
+export const WHATSAPP_SHARED_LOCATION_REPLY =
+  '📍 Localização recebida. Agora toque na nota que você vai registrar.'
+
 export const WHATSAPP_COMMAND_LOG = {
   denied: 'whatsapp.command.denied',
   failed: 'whatsapp.command.failed',

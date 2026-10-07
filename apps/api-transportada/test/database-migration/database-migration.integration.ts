@@ -9,22 +9,35 @@ import { assertCteProfileOutputConstraints } from './cte-profile-output-constrai
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
+import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
+import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
+import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
+import { assertCargoPreviewSecurityFailureCodes } from './cargo-preview-security-failure-codes.assertion.js'
+import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.assertion.js'
+import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
+import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
+import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
+import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
+import { assertOccurrenceTypeRequirementModesRollback } from './occurrence-type-requirement-modes.assertion.js'
+import { assertOccurrenceTypeQuantityMinimumsRollback } from './occurrence-type-quantity-minimums.assertion.js'
+import { assertOccurrenceTypeMomentsRollback } from './occurrence-type-moments.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
+import { assertTripCrewEvents } from './trip-crew-events.assertion.js'
 import { assertTripStatusEventRollbackRefusesRecordedHistory } from './trip-status-event-rollback.assertion.js'
 import {
   FISCAL_TABLES,
@@ -123,6 +136,15 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
 
+        await assertEventLocationWhatsappRollbackRefusesRecordedPoints({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
         await assertDeliveryProofCargoSumsAndGuardsRollback({
           companyId: identityFixture.companyId,
           database,
@@ -164,6 +186,40 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        // Ordem inversa do histórico: a 247 sai antes da 246, e a 241 derruba `items_mode` e, com
+        // ele, as CHECKs que o leem.
+        await assertOccurrenceDeclaredAmountRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeQuantityMinimumsRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeItemsModeBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeRequirementModesRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertOccurrenceTypeMomentsRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         await assertStopDepartureRollback({
@@ -220,6 +276,56 @@ describe('Drizzle migration integration', () => {
         await assertTollBoothExtractConstraints({
           database,
           directories: migrationDirectories,
+        })
+        await assertHelperRoleRollbackRefusesHelpers({
+          companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          driverId: fleetFixture.driverId,
+          membershipId: identityFixture.membershipId,
+          userId: identityFixture.userId,
+        })
+        await assertLocationRetentionRollbackRefusesRecordedSettings({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertCargoPreviewFailureCodes({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertCargoPreviewSecurityFailureCodes({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertArrivalReferenceLabel({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertCargoPreviewEmailIntake({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertTripCrewEvents({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
         })
 
         const postIdentityRollbacks = await Promise.all(

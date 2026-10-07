@@ -10,6 +10,7 @@ import {
 import {
   recordContractorMailInboundMessage,
   type RecordContractorMailInboundMessageDependencies,
+  type RecordContractorMailInboundMessageResult,
 } from '../contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import {
   ResendDownloadHostNotAllowedError,
@@ -18,7 +19,8 @@ import {
   ResendProviderUnauthorizedError,
 } from '../contractor-mail/domain/resend-provider.error.js'
 import { ContractorMailInboundSettingsMissingError } from '../contractor-mail/domain/contractor-mail-inbound.error.js'
-import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
+import { CargoPreviewEmailDkimUnverifiableError } from '../cargo-preview-email/domain/cargo-preview-email.error.js'
+import { safeLogError, safeLogInfo, safeLogWarn } from '../logging/safe-logger.service.js'
 import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
 
 /**
@@ -34,6 +36,11 @@ function isPermanentFailure(error: unknown): boolean {
     error instanceof ResendDownloadTooLargeError ||
     error instanceof ContractorMailInboundSettingsMissingError
   )
+}
+
+/** Spec 237 T4.7a: o DKIM sem veredito do encaminhador é transitório e tem motivo próprio no log. */
+function describeTransientFailure(error: unknown): string {
+  return error instanceof CargoPreviewEmailDkimUnverifiableError ? 'dkim_unverifiable' : 'transient'
 }
 
 function describePermanentFailure(error: unknown): string {
@@ -54,15 +61,20 @@ export async function startContractorMailInboundConsumer(params: {
   readonly config: WorkerEnvironment
   readonly dependencies: RecordContractorMailInboundMessageDependencies
   readonly logger: WorkerLogger
+  /** O `maxRetries` da topologia: a entrega que o atinge é a última, e o provedor a manda à fila morta. */
+  readonly maxRetries: number
   readonly provider: RabbitMqProvider
 }): Promise<RabbitMqConsumer> {
   return params.provider.consume<ContractorMailInboundEnvelopeV1>({
     decode: (value) => contractorMailInboundEnvelopeV1Schema.parse(value),
-    handler: async ({ payload }) => {
+    handler: async ({ payload, retryCount }) => {
       const baseMetadata = { companyId: payload.companyId, eventId: payload.eventId }
+      const attempt = typeof retryCount === 'number' ? retryCount : 0
 
       try {
-        const result = await recordContractorMailInboundMessage(payload, params.dependencies)
+        const result = await recordContractorMailInboundMessage(payload, params.dependencies, {
+          isLastAttempt: attempt >= params.maxRetries,
+        })
 
         if (result.outcome === 'discarded') {
           safeLogInfo({
@@ -70,6 +82,10 @@ export async function startContractorMailInboundConsumer(params: {
             message: 'inbound_email_token_unknown',
             metadata: { ...baseMetadata, reason: result.reason },
           })
+          return { type: 'ack' }
+        }
+        if (result.outcome === 'preview') {
+          logPreviewOutcome({ baseMetadata, logger: params.logger, preview: result.preview })
           return { type: 'ack' }
         }
         if (result.outcome === 'recorded') {
@@ -100,11 +116,51 @@ export async function startContractorMailInboundConsumer(params: {
         safeLogError({
           logger: params.logger,
           message: 'inbound_email_webhook_rejected',
-          metadata: { ...baseMetadata, reason: 'transient' },
+          metadata: { ...baseMetadata, reason: describeTransientFailure(error) },
         })
         return { type: 'retry' }
       }
     },
     prefetch: params.config.prefetch,
+  })
+}
+
+type PreviewOutcome = Extract<
+  RecordContractorMailInboundMessageResult,
+  { outcome: 'preview' }
+>['preview']
+
+/** Spec 237 T4.6: ids, códigos, o resultado do DKIM e o status da prévia reenviada — nunca endereço, assunto, corpo ou cabeçalho. */
+function logPreviewOutcome(input: {
+  readonly baseMetadata: Record<string, unknown>
+  readonly logger: WorkerLogger
+  readonly preview: PreviewOutcome
+}): void {
+  const { baseMetadata, logger, preview } = input
+  if (preview.kind === 'accepted' || preview.kind === 'replayed_existing') {
+    safeLogInfo({
+      logger,
+      message: 'inbound_email_preview_accepted',
+      metadata: {
+        ...baseMetadata,
+        contractorId: preview.contractorId,
+        dkimResult: preview.dkimResult,
+        previewId: preview.previewId,
+        ...(preview.kind === 'replayed_existing'
+          ? { previewStatus: preview.previewStatus, replay: true }
+          : { replay: false }),
+      },
+    })
+    return
+  }
+  const isRejected = preview.kind === 'rejected'
+  safeLogWarn({
+    logger,
+    message: isRejected ? 'inbound_email_preview_rejected' : 'inbound_email_preview_rate_limited',
+    metadata: {
+      ...baseMetadata,
+      contractorId: preview.contractorId,
+      ...(isRejected ? { reason: preview.reason } : {}),
+    },
   })
 }

@@ -10,6 +10,7 @@ import type {
 } from '../domain/delivery-event.constant.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import type {
   DriverDocumentReference,
@@ -30,25 +31,26 @@ export type ProofSettingsResolver = (input: {
   readonly documentId: string
 }) => Promise<DeliveryProofFieldSettings>
 
-export type ReportDocumentOutcomeInput = FieldTripLocator & {
-  readonly actorUserId: string
-  readonly companyId: string
-  readonly documentId: string
-  readonly idempotencyKey: string
-  /**
-   * Spec 205 RF4: a baixa veio pelo "Registrar entrega depois" da app do motorista. Só as rotas
-   * `/me` mandam; ausente é `false`. O replay nunca o reescreve (D5): o evento já gravado responde.
-   */
-  readonly lateRegistration?: boolean
-  readonly location: ReportedLocation | null
-  /** Quando aconteceu. O motorista manda agora; o escritório, a hora informada (ADR-0067 §3). */
-  readonly now: Date
-  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da baixa. */
-  readonly officeAudit?: OfficeAuditRequest
-  /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
-  readonly recordedAt?: Date
-  readonly unitOfWork: DriverFieldReportUnitOfWork
-}
+export type ReportDocumentOutcomeInput = FieldTripLocator &
+  EventClockFields & {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly documentId: string
+    readonly idempotencyKey: string
+    /**
+     * Spec 205 RF4: a baixa veio pelo "Registrar entrega depois" da app do motorista. Só as rotas
+     * `/me` mandam; ausente é `false`. O replay nunca o reescreve (D5): o evento já gravado responde.
+     */
+    readonly lateRegistration?: boolean
+    readonly location: ReportedLocation | null
+    /** Quando aconteceu. O motorista manda agora; o escritório, a hora informada (ADR-0067 §3). */
+    readonly now: Date
+    /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da baixa. */
+    readonly officeAudit?: OfficeAuditRequest
+    /** ADR-0067 §3: quando o registro foi gravado. Ausente cai em `now` — é o caso do motorista. */
+    readonly recordedAt?: Date
+    readonly unitOfWork: DriverFieldReportUnitOfWork
+  }
 
 /** Spec 156 T6: o canhoto que o escritório sobe junto com a entrega — `null` quando não veio. */
 export type OfficeDeliveryProofInput = OfficeDeliveryProofAttachment & {

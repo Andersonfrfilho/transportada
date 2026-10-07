@@ -13,6 +13,7 @@ import type {
 } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
 import type { OccurrenceCancellationView } from './occurrence-correction.port.js'
 import { buildOccurrenceAttachmentViews } from './occurrence-attachment.service.js'
@@ -109,12 +110,21 @@ export type TripOccurrenceFeedItem = {
   readonly invoiceSeries: null | string
   /** O tipo cadastrado avisa o embarcador quando a empresa ligou isso. Falso para parada. */
   readonly notifies: boolean
+  /**
+   * Spec 241 (RF5): o tipo da ocorrência de nota e o que o tipo ATUAL diz sobre itens. `null` nos
+   * três na parada (sem tipo cadastrado) e em tipo que a leitura não achou na empresa.
+   */
+  readonly occurrenceTypeId: null | string
   /** Spec 156 T9 (D3): só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
   readonly onBehalfOfDriverName: string | null
   readonly source: 'document' | 'stop'
   readonly stage: null | TripOccurrenceStage
   readonly stopLabel: null | string
   readonly tripId: string
+  /** Spec 241 (RF5): `false` é o tipo de um item só (`allows_multiple_items`). */
+  readonly typeAllowsMultipleItems: boolean | null
+  /** Spec 241 (RF5): `off`/`optional`/`required` do tipo atual — o painel decide Corrigir por ele. */
+  readonly typeItemsMode: DeliveryProofFieldMode | null
   /** Nome do tipo cadastrado, ou o `kind` do relato de parada. É o que a tela imprime. */
   readonly typeName: string
   readonly vehiclePlate: string

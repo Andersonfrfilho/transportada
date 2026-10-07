@@ -64,3 +64,10 @@ O texto **acrescenta**, nunca repete o rótulo ao lado. `Ver` com dica "Ver" é 
 "Abrir a viagem de ABC1D23" responde a pergunta que o rótulo curto deixa aberta — ver o quê, e de
 quem. Em tabela, prefira nomear a linha pelo dado que a distingue (a placa, o número da nota), não
 pelo identificador interno.
+
+## Dica sobre um `Select`
+
+Gatilho que abre uma lista por baixo da dica deixa as opções cobertas (a dica pinta com `z-index`
+maior). Só esse caso passa `dismissOnActivate`, que fecha a dica ao clicar, Enter, Espaço e setas;
+o padrão é **não** fechar, porque gatilho só-dica (pino, selo, ícone) precisa da dica aberta no
+toque. Contrato: `test/trip-hooks/tooltip-dismiss.contract.ts`.

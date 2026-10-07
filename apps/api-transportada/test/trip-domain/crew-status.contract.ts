@@ -8,10 +8,13 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { TRIP_STATUSES } from '../../src/database/trip.schema.js'
 import {
   TRIP_ACTION,
   TRIP_TRANSITION_BLOCK,
   checkTripTransition,
+  isCrewSwappable,
+  isCrewTransferable,
   resolveCrewStatus,
   type TripCrewComposition,
 } from '../../src/trips/domain/trip-state.policy.js'
@@ -215,6 +218,55 @@ describe('crew status is a function of the pair (spec 217 D1)', () => {
           tripStatus: 'completed',
         }),
       ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
+    }
+  })
+})
+
+/**
+ * Spec 249 D1: a janela da transferência é a rua — `dispatched`, `in_transit`, `on_delivery_route`.
+ * `isCrewTransferable` é a função única que a máquina de estados e `allowed-actions` leem, e a
+ * janela da 217 (`isCrewSwappable`) não se mexe.
+ */
+describe('crew transfer window (spec 249 D1)', () => {
+  test('only the road is transferable', () => {
+    expect(TRIP_STATUSES.filter((status) => isCrewTransferable(status))).toEqual([
+      'dispatched',
+      'in_transit',
+      'on_delivery_route',
+    ])
+  })
+
+  test('the swap window of spec 217 is untouched', () => {
+    expect(TRIP_STATUSES.filter((status) => isCrewSwappable(status))).toEqual([
+      'awaiting_crew',
+      'draft',
+      'route_planned',
+    ])
+  })
+
+  test('the state machine agrees with the window function on every status', () => {
+    for (const tripStatus of TRIP_STATUSES) {
+      const { outcome } = checkTripTransition({
+        action: TRIP_ACTION.transferCrew,
+        hasRoute: true,
+        tripStatus,
+      })
+
+      expect(outcome === 'unchanged').toBe(isCrewTransferable(tripStatus))
+    }
+  })
+
+  test('defineCrew still refuses the road with the separation reason', () => {
+    for (const tripStatus of ['dispatched', 'in_transit', 'on_delivery_route'] as const) {
+      expect(
+        checkTripTransition({
+          action: TRIP_ACTION.defineCrew,
+          crew: COMPLETE,
+          hasRoute: true,
+          tripStatus,
+          vehicleChanged: false,
+        }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripSeparationStarted })
     }
   })
 })

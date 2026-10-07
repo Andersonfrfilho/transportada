@@ -242,6 +242,8 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
        */
       'POST /trips/:id/close',
       'POST /trips/:id/confirm-load',
+      /** Spec 249 D3: transferir a tripulação da viagem na rua é `trip.report-on-behalf`, como a baixa. */
+      'POST /trips/:id/crew-transfers',
       'POST /trips/:id/documents/:documentId/field-delivery',
       'POST /trips/:id/documents/:documentId/field-proof',
       'POST /trips/:id/documents/:documentId/field-return',

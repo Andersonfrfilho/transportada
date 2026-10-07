@@ -242,7 +242,7 @@ consentimento, vem **depois da virada** e não a segura.
 
 ## Fase 5 — O painel manda o motorista para a casa nova (desligado até a Fase 6)
 
-> 🤖 Modelo: `sonnet` · T5.2 🧠 `opus`, com `code-reviewer` (`opus`) antes do push
+> 🤖 Modelo: `sonnet` · T5.3 `haiku` · `code-reviewer` (`sonnet`) antes do push da T5.2
 
 - [x] **T5.1** Contratos no painel:
   - `readDriverAppUrl`: ausente e vazia devolvem `undefined` sem lançar, e a presente passa por
@@ -263,14 +263,14 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** vermelhos.
 
-- [ ] **T5.2** 🧠 Implementação (plan D6):
+- [ ] **T5.2** Implementação (plan D6):
   - `identityEnvironment.config.ts`, `driverAppRedirect.service.ts` e `pendingQueue.service.ts`;
   - `main.tsx`, a tela de pendências e a tela "Instale o app novo". O painel não tem registro de
     capturas;
   - o beacon e a rota no `server.ts`;
   - o `ARG` no `Dockerfile` e `preserve()` no bloco do painel em `railway.ts`.
 
-  `code-reviewer` (`opus`) revisa antes do push.
+  `code-reviewer` (`sonnet`) revisa antes do push.
 
   **Aceite:**
   - T5.1 verde;
@@ -278,7 +278,7 @@ consentimento, vem **depois da virada** e não a segura.
   - publicado em staging **sem** a variável, com `/minha-viagem` igual a antes (print no
     `evidence.md`).
 
-- [ ] **T5.3** `DriverReturnReason` e `DRIVER_RETURN_REASONS` para
+- [ ] **T5.3** `haiku` `DriverReturnReason` e `DRIVER_RETURN_REASONS` para
       `modules/trip/shared/tripReturnReason.types.ts`, com os quatro imports trocados e o reexport em
       `driverTrip.types.ts`.
 
@@ -454,7 +454,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
 ## Fase 9 — Revisão
 
-> 🤖 Modelo: `sonnet` (prints) · `opus` (`code-reviewer` e `security-reviewer`)
+> 🤖 Modelo: `sonnet` (prints, `code-reviewer` e `security-reviewer`)
 
 - [ ] **T9.1** Revisão de design e usabilidade (web.md §15), com prints em **375 px e 768 px**, claro
       e escuro, em `prints/`. As telas:
@@ -471,7 +471,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
   **Aceite:** prints commitados; os achados corrigidos ou registrados.
 
-- [ ] **T9.2** `code-reviewer` e `security-reviewer` (`opus`) sobre a spec inteira. Em especial: CSP,
+- [ ] **T9.2** `code-reviewer` e `security-reviewer` (`opus`, gate de segurança do agent-strategy.md) sobre a spec inteira. Em especial: CSP,
       HSTS, bypass, snapshot e fila com dono, beacon sem PII, `PUT` completo da reconciliação e
       consentimento. Mais a auditoria de go-live (code-standart §15).
 
@@ -479,12 +479,12 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
 ## Fase 10 — Remoção do módulo antigo, pela medida
 
-> 🤖 Modelo: `sonnet` · abre só depois do 👤
+> 🤖 Modelo: `haiku` (remoção descrita por inteiro, aceite por `make check` e `git grep`) · abre só depois do 👤
 
 - [ ] **T10.1** 👤 O usuário confere em `railway logs --service transportada-frontend`
       (produção) **zero** `driver_legacy_served` nos últimos 14 dias seguidos e autoriza a remoção.
       Sem zero, a fase espera.
-- [ ] **T10.2** Remover do painel:
+- [ ] **T10.2** `haiku` Remover do painel:
   - `modules/driver-trip/` e os testes dele;
   - a tela de pendências, o beacon e a rota do `server.ts`.
 
@@ -503,10 +503,11 @@ plan.md, tasks.md e docs/adr/0075-o-motorista-tem-app-propria.md antes de começ
 vez, na ordem do tasks.md, num worktree próprio (make worktree NAME=spec-189).
 Modelos: Fase 1 → executor model=sonnet, T1.2 🧠 → opus · Fase 2 → executor model=sonnet ·
 Fase 3 → executor model=sonnet (T3.1 → haiku, T3.3a 🧠 → opus) · Fase 4 → executor model=sonnet ·
-Fase 5 → executor model=sonnet, T5.2 🧠 → opus + code-reviewer model=opus antes do push ·
-Fase 6 → executor model=sonnet · Fase 7 → executor model=sonnet, T7.4 🧠 → opus ·
+Fase 5 → executor model=sonnet (T5.3 → haiku) + code-reviewer model=sonnet antes do push da T5.2 ·
+Fase 6 → executor model=sonnet · Fase 7 → executor model=sonnet (T7.4 já fechada em opus) ·
 Fase 8 → executor model=haiku (T8.1 e T8.3 → sonnet) · T9.1 → executor model=sonnet ·
-T9.2 → code-reviewer e security-reviewer model=opus · Fase 10 → executor model=sonnet.
+T9.2 → code-reviewer e security-reviewer model=sonnet · Fase 10 → executor model=haiku.
+Escalada: gate falhou 2x em haiku → sonnet → opus, registrada em evidence.md.
 Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md. A T1.2 é UM commit
 com os Dockerfiles, o changed-targets e o contrato de pipeline. A T7.4 fecha com os DOIS comandos da
 API (contrato e `bun --env-file=../../.env.test run test:integration`, de dentro de

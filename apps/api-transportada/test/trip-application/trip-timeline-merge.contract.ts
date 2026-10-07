@@ -106,6 +106,32 @@ describe('mergeTripTimeline (spec 158 T5, D8)', () => {
     expect(result.items.map((item) => item.id)).toEqual(['status', 'arrival', 'created'])
   })
 
+  /** Spec 249: a transferência é fonte nova; o merge a ordena e a leva inteira, sem recortar o que ela carrega. */
+  test('crew_transfer entra no merge com o retrato da tripulação e vem acima da troca de status no empate', () => {
+    const sameInstant = '2026-10-07T12:00:00.000Z'
+    const transfer: TripTimelineRow = {
+      ...row({ id: 'transfer', kind: 'crew_transfer', occurredAt: sameInstant }),
+      crewTransfer: {
+        costDifference: '-540.00',
+        mdfeDriverDivergence: false,
+        nextCrew: [{ driverId: 'b', name: 'Bruno', position: 1, role: 'driver' }],
+        previousCrew: [{ driverId: 'a', name: 'Ana', position: 1, role: 'driver' }],
+        reason: 'Motorista passou mal',
+      },
+    }
+
+    const result = mergeTripTimeline({
+      limit: 10,
+      sources: [
+        [row({ id: 'status', kind: 'trip.status_changed', occurredAt: sameInstant })],
+        [transfer],
+      ],
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual(['transfer', 'status'])
+    expect(result.items[0]?.crewTransfer).toEqual(transfer.crewTransfer)
+  })
+
   test('id desempata quando occurredAt e prioridade do kind coincidem', () => {
     const sameInstant = '2026-09-18T15:00:00.000Z'
     const result = mergeTripTimeline({

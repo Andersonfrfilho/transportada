@@ -307,7 +307,8 @@ function buildProofWorld(input: {
   const repository: DeliveryProofPort = {
     findDeliveryContext: async () => ({
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: STOP_POSITION,
+      isDeliveryRecordedByDriver: true,
       ...(input.eventLateRegistration === undefined
         ? {}
         : { lateRegistration: input.eventLateRegistration }),

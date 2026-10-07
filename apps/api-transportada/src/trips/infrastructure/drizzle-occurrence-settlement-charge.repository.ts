@@ -68,6 +68,8 @@ export class DrizzleOccurrenceSettlementChargeRepository implements OccurrenceSe
       )
       .limit(1)
     if (occurrenceRow === undefined) throw new TripOccurrenceNotFoundError()
+    /** Spec 237 (ADR-0094 §9.6): ocorrência de recebimento não tem viagem a quem cobrar ainda. */
+    if (occurrenceRow.tripDocumentId === null) throw new OccurrenceChargePartiesUnresolvedError()
 
     const parties = await this.findChargeParties({
       companyId,

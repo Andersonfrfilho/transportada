@@ -52,6 +52,10 @@ export const DRIVER_FLOW_CONTEXT_KEY = {
   tripMenuChoice: 'driverTripMenuChoice',
 } as const
 
+/** Pedido não bloqueante: sem o ponto a baixa segue como `unavailable` (spec 196 T3.8). */
+export const DRIVER_LOCATION_REQUEST_TEXT =
+  '📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.'
+
 export const DRIVER_FLOW_STEP = {
   deliver: 'deliver',
   occurrence: 'occurrence',
