@@ -15,6 +15,8 @@ import {
 
 import {
   BRAZILIAN_STATE_IBGE_CODE_LIST,
+  BUSINESS_CALENDAR_MAX_YEAR,
+  BUSINESS_CALENDAR_MIN_YEAR,
   CITY_IBGE_CODE_SOURCE,
   HOLIDAY_NAME_MAX_LENGTH,
   MUNICIPAL_HOLIDAY_KINDS,
@@ -79,6 +81,10 @@ export const municipalHolidayRules = pgTable(
     check(
       'municipal_holiday_rules_name_check',
       sql`char_length(${table.name}) between 1 and ${sql.raw(String(HOLIDAY_NAME_MAX_LENGTH))}`,
+    ),
+    check(
+      'municipal_holiday_rules_materialized_through_year_check',
+      sql`${table.materializedThroughYear} between ${sql.raw(String(BUSINESS_CALENDAR_MIN_YEAR))} and ${sql.raw(String(BUSINESS_CALENDAR_MAX_YEAR))}`,
     ),
   ],
 )

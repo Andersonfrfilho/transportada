@@ -53,3 +53,8 @@ export const MUNICIPAL_HOLIDAY_KINDS = [
 export const CITY_IBGE_CODE_SOURCE = '^[1-5][0-9]{6}$'
 
 export const HOLIDAY_NAME_MAX_LENGTH = 120
+
+// A Páscoa de Meeus só vale no calendário gregoriano, adotado em 1582.
+export const BUSINESS_CALENDAR_MIN_YEAR = 1583
+
+export const BUSINESS_CALENDAR_MAX_YEAR = 9999

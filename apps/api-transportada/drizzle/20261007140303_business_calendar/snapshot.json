@@ -62281,6 +62281,13 @@
       "table": "municipal_holiday_rules"
     },
     {
+      "value": "\"materialized_through_year\" between 1583 and 9999",
+      "name": "municipal_holiday_rules_materialized_through_year_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "municipal_holiday_rules"
+    },
+    {
       "value": "\"state_ibge_code\" in ('11', '12', '13', '14', '15', '16', '17', '21', '22', '23', '24', '25', '26', '27', '28', '29', '31', '32', '33', '35', '41', '42', '43', '50', '51', '52', '53')",
       "name": "state_holidays_state_check",
       "entityType": "checks",

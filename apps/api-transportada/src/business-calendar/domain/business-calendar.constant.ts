@@ -3,12 +3,19 @@
  */
 import {
   BRAZILIAN_STATE_IBGE_CODE_LIST,
+  BUSINESS_CALENDAR_MAX_YEAR,
+  BUSINESS_CALENDAR_MIN_YEAR,
   CITY_IBGE_CODE_SOURCE,
   HOLIDAY_RECURRENCE,
   MUNICIPAL_HOLIDAY_KIND,
 } from '../../shared/business-calendar.constant.js'
 
-export { HOLIDAY_RECURRENCE, MUNICIPAL_HOLIDAY_KIND }
+export {
+  BUSINESS_CALENDAR_MAX_YEAR,
+  BUSINESS_CALENDAR_MIN_YEAR,
+  HOLIDAY_RECURRENCE,
+  MUNICIPAL_HOLIDAY_KIND,
+}
 
 /** O teto de 1–60 dias é do perfil do contratante; a política só barra o absurdo. */
 export const BUSINESS_CALENDAR_MAX_DAYS = 366
@@ -22,11 +29,6 @@ export const BUSINESS_CALENDAR_TIME_ZONE = 'America/Sao_Paulo'
 export const MUNICIPAL_HOLIDAY_MATERIALIZATION_YEARS = 10
 
 export const BUSINESS_CALENDAR_MAX_COVERAGE_SPAN_YEARS = 5
-
-// A Páscoa de Meeus só vale no calendário gregoriano, adotado em 1582.
-export const BUSINESS_CALENDAR_MIN_YEAR = 1583
-
-export const BUSINESS_CALENDAR_MAX_YEAR = 9999
 
 export const CITY_IBGE_CODE_PATTERN = new RegExp(CITY_IBGE_CODE_SOURCE, 'u')
 
