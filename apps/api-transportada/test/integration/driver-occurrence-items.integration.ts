@@ -281,7 +281,7 @@ describe('registro do motorista com itens, número e valor pago (spec 247 T4.4, 
           declaredAmountMode: 'optional',
           declaredAmountScope: 'item',
           itemsMode: 'optional',
-          referenceNumberMode: 'off',
+          referenceNumberMode: 'optional',
         })
 
         const saved = await registerStreetOccurrence(database, {
@@ -540,6 +540,60 @@ describe('registro do motorista com itens, número e valor pago (spec 247 T4.4, 
         const stored = await readOccurrence(database, saved.id)
         expect(stored.lines[0]?.unitValue).toBe('10.0000')
         expect(stored.lines[0]?.quantity).toBe('2.000')
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'com o modo efetivo off, número, valor da ocorrência e valor de linha são descartados, não recusados (T7.2 M2)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const itemTypeId = await seedType(database, {
+          company: world.company,
+          declaredAmountMode: 'off',
+          declaredAmountScope: 'item',
+          itemsMode: 'optional',
+          referenceNumberMode: 'off',
+        })
+        const occurrenceTypeId = await seedType(database, {
+          company: world.company,
+          declaredAmountMode: 'off',
+          declaredAmountScope: 'occurrence',
+          itemsMode: 'off',
+          referenceNumberMode: 'off',
+        })
+
+        const withLines = await registerStreetOccurrence(database, {
+          attachmentObjectId: null,
+          company: world.company,
+          items: [{ declaredAmount: '99.00', productCode: 'P1', quantity: '2' }],
+          referenceNumber: REFERENCE_NUMBER,
+          trip: world.trip,
+          typeId: itemTypeId,
+        })
+        const storedWithLines = await readOccurrence(database, withLines.id)
+        expect(storedWithLines.occurrence?.referenceNumber).toBeNull()
+        expect(storedWithLines.lines[0]).toMatchObject({
+          declaredAmount: null,
+          productCode: 'P1',
+          quantity: '2.000',
+          unitValue: '19.9950',
+        })
+        expect(withLines.items[0]?.declaredAmount).toBeNull()
+
+        const wholeOccurrence = await registerStreetOccurrence(database, {
+          attachmentObjectId: null,
+          company: world.company,
+          declaredAmount: '150.5',
+          referenceNumber: REFERENCE_NUMBER,
+          trip: world.trip,
+          typeId: occurrenceTypeId,
+        })
+        const storedWhole = await readOccurrence(database, wholeOccurrence.id)
+        expect(storedWhole.occurrence?.declaredAmount).toBeNull()
+        expect(storedWhole.occurrence?.referenceNumber).toBeNull()
       })
     },
     60_000,

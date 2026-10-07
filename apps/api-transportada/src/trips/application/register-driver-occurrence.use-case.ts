@@ -36,8 +36,16 @@ const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
 export async function registerDriverOccurrence(
   input: RegisterDriverOccurrenceInput,
 ): Promise<DriverDocumentOccurrence> {
-  const { attachmentObjectIds, lines, occurrenceType, scope, signatureObjectId, tripId } =
-    await assessDriverOccurrence(input)
+  const {
+    attachmentObjectIds,
+    declaredAmount,
+    lines,
+    occurrenceType,
+    referenceNumber,
+    scope,
+    signatureObjectId,
+    tripId,
+  } = await assessDriverOccurrence(input)
   const authorship = deriveFieldAuthorship(input)
 
   /**
@@ -65,7 +73,7 @@ export async function registerDriverOccurrence(
           attachmentObjectIds,
           authorship,
           companyId: input.companyId,
-          declaredAmount: input.declaredAmount ?? null,
+          declaredAmount,
           documentId: input.documentId,
           items: lines.map((line) => ({
             declaredAmount: line.declaredAmount,
@@ -81,7 +89,7 @@ export async function registerDriverOccurrence(
           note: input.note,
           occurrenceTypeId: occurrenceType.id,
           productCode: scope.productCode,
-          referenceNumber: input.referenceNumber ?? null,
+          referenceNumber,
           signatureObjectId,
           stage: TRIP_OCCURRENCE_STAGE.delivery,
           tripId,

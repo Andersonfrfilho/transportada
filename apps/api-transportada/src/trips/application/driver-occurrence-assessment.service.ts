@@ -10,7 +10,7 @@
  * respondem igual: inalcançável.** Distinguir diria a quem tenta qual barreira encontrou. "De rua e de
  * nota" é o momento fixo `document` do conjunto do tipo (RF0b), nunca o `stage`.
  */
-import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_ITEMS_MODE, OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
 import {
   TripDocumentNotReachableError,
   TripOccurrenceSignatureIsAttachmentError,
@@ -40,9 +40,13 @@ import { resolveOccurrenceUploadAttachment } from './resolve-occurrence-upload-a
 export type DriverOccurrenceAssessment = {
   /** Os anexos já conferidos, na ordem em que o motorista os mandou; vazio é "sem anexo". */
   readonly attachmentObjectIds: readonly string[]
+  /** O valor pago da ocorrência a gravar; nulo quando o modo efetivo é `off` (descartado, nunca recusado). */
+  readonly declaredAmount: null | string
   /** Spec 247 (T4.4): as linhas a gravar, com preço e unidade da nota; vazia é nenhuma linha. */
   readonly lines: readonly DriverOccurrenceLine[]
   readonly occurrenceType: OccurrenceTypeRecord
+  /** O número do documento do cliente a gravar; nulo quando o modo efetivo é `off`. */
+  readonly referenceNumber: null | string
   readonly scope: OccurrenceProductScope
   readonly signatureObjectId: null | string
   readonly tripId: string
@@ -165,6 +169,37 @@ async function resolveProducts(params: AssertProductsParams): Promise<ProductAss
   return { lines: [], scope }
 }
 
+type DiscardTurnedOffFieldsParams = {
+  readonly declaredAmount: null | string
+  readonly lines: readonly DriverOccurrenceLine[]
+  readonly referenceNumber: null | string
+  readonly requirements: OccurrenceRequirements
+}
+
+/**
+ * ⚠️ **Campo desligado no tipo efetivo não é gravado — e não é recusado.** O app com cache velho (ou um
+ * corpo forjado) ainda manda o valor; gravá-lo mudaria `{{valorDeclarado}}`/`{{valorItem}}` do e-mail
+ * de um tipo que diz não ter o campo, e recusá-lo travaria a fila offline quando a configuração muda.
+ */
+function discardTurnedOffFields(params: DiscardTurnedOffFieldsParams): {
+  readonly declaredAmount: null | string
+  readonly lines: readonly DriverOccurrenceLine[]
+  readonly referenceNumber: null | string
+} {
+  const { requirements } = params
+  const isDeclaredAmountOff = requirements.declaredAmountMode === OCCURRENCE_ITEMS_MODE.off
+  return {
+    declaredAmount: isDeclaredAmountOff ? null : params.declaredAmount,
+    lines: isDeclaredAmountOff
+      ? params.lines.map((line) => ({ ...line, declaredAmount: null }))
+      : params.lines,
+    referenceNumber:
+      requirements.referenceNumberMode === OCCURRENCE_ITEMS_MODE.off
+        ? null
+        : params.referenceNumber,
+  }
+}
+
 export async function assessDriverOccurrence(
   input: RegisterDriverOccurrenceInput,
 ): Promise<DriverOccurrenceAssessment> {
@@ -183,20 +218,27 @@ export async function assessDriverOccurrence(
     occurrenceType,
     repository: input.repository,
   })
-  const { lines, scope } = await resolveProducts({ input, occurrenceType, requirements, tripId })
+  const products = await resolveProducts({ input, occurrenceType, requirements, tripId })
+  const { scope } = products
 
   const requestedIds = requestedAttachmentIds(input)
   const requestedSignature = requestedSignatureIds(input)
   if (requestedSignature.some((objectId) => requestedIds.includes(objectId))) {
     throw new TripOccurrenceSignatureIsAttachmentError()
   }
+  const { declaredAmount, lines, referenceNumber } = discardTurnedOffFields({
+    declaredAmount: input.declaredAmount ?? null,
+    lines: products.lines,
+    referenceNumber: input.referenceNumber ?? null,
+    requirements,
+  })
   assertDriverOccurrenceRequirements({
     attachmentCount: requestedIds.length,
-    declaredAmount: input.declaredAmount ?? null,
+    declaredAmount,
     hasSignature: requestedSignature.length > 0,
     lines,
     note: input.note,
-    referenceNumber: input.referenceNumber ?? null,
+    referenceNumber,
     requirements,
   })
 
@@ -207,8 +249,10 @@ export async function assessDriverOccurrence(
 
   return {
     attachmentObjectIds,
+    declaredAmount,
     lines,
     occurrenceType,
+    referenceNumber,
     scope,
     signatureObjectId: signatureObjectIds[0] ?? null,
     tripId,
