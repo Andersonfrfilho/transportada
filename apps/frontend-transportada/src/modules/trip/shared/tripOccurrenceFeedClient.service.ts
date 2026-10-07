@@ -2,6 +2,7 @@
 import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceRequirements } from './tripOccurrenceRequirements.validation'
 import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse.validation'
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
@@ -302,7 +303,7 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
   const { actorName, channel, corrections, document, driver, items, onBehalfOfDriverName } = fields
-  const { declaredAmount, itemValues, referenceNumber } = fields
+  const { declaredAmount, itemValues, referenceNumber, requirements } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
@@ -318,6 +319,11 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
     !isNullableString(onBehalfOfDriverName) ||
     !(declaredAmount === undefined || isNullableDecimal(declaredAmount)) ||
     !(referenceNumber === undefined || isNullableString(referenceNumber)) ||
+    !(
+      requirements === undefined ||
+      requirements === null ||
+      isOccurrenceRequirements(requirements)
+    ) ||
     !(itemValues === undefined || (Array.isArray(itemValues) && itemValues.every(isItemValue)))
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
