@@ -2164,7 +2164,7 @@ function createApplicationRoutes({
     database,
     cargoLayoutLeaseOptions,
   )
-  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para

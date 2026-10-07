@@ -16,7 +16,11 @@ import {
   companyOccurrenceTypes,
   tripDocuments,
 } from '../../src/database/trip.schema.js'
-import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
+import type { ApiLogger } from '../../src/shared/api.types.js'
+import {
+  DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE,
+  DrizzleCurrentDriverTripRepository,
+} from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import {
   seedCompany,
   seedExtraDocument,
@@ -204,7 +208,69 @@ function countingDatabase(database: TestDatabase['db']): {
   return { counted, productSelectCount: () => productSelects }
 }
 
+function productsFailingDatabase(database: TestDatabase['db']): TestDatabase['db'] {
+  return new Proxy(database, {
+    get(target, property, receiver) {
+      if (property !== 'select') return Reflect.get(target, property, receiver)
+      const select = Reflect.get(target, property, receiver) as (...args: unknown[]) => object
+      return (...args: unknown[]) =>
+        new Proxy(select.apply(receiver, args), {
+          get(builder, key, builderReceiver) {
+            const value = Reflect.get(builder, key, builderReceiver) as unknown
+            if (key !== 'from' || typeof value !== 'function') return value
+            return (table: unknown, ...rest: unknown[]) =>
+              table === nfeProducts
+                ? { where: () => ({ orderBy: () => Promise.reject(new Error('boom')) }) }
+                : (value as (...parameters: unknown[]) => unknown).apply(builder, [table, ...rest])
+          },
+        })
+    },
+  })
+}
+
 describe('os produtos da nota no snapshot do motorista contra Postgres (spec 247 T4.6)', () => {
+  testWithPostgres(
+    'a leitura dos produtos que falha deixa rastro só com ids e contagem, e o snapshot segue (T7.2 M5)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const warnings: { readonly message: string; readonly metadata: unknown }[] = []
+        const logger: ApiLogger = {
+          error: () => undefined,
+          info: () => undefined,
+          warn: (message, metadata) => {
+            warnings.push({ message, metadata })
+          },
+        }
+        const repository = new DrizzleCurrentDriverTripRepository(
+          productsFailingDatabase(database.db),
+          logger,
+        )
+
+        const [snapshot] = await repository.listActiveTrips({
+          companyId: world.company.companyId,
+          driverId: world.company.firstDriverId,
+        })
+
+        const documents = snapshot?.stops.flatMap((stop) => stop.documents) ?? []
+        expect(documents.length).toBeGreaterThan(0)
+        expect(documents.every((document) => !('products' in document))).toBe(true)
+        expect(warnings).toEqual([
+          {
+            message: DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE,
+            metadata: {
+              affectedDocumentCount: 2,
+              companyId: world.company.companyId,
+              tripIds: [world.trip.tripId],
+            },
+          },
+        ])
+        expect(JSON.stringify(warnings)).not.toContain('boom')
+      })
+    },
+    60_000,
+  )
+
   testWithPostgres(
     'a nota com produtos traz um item por código; a nota sem produto traz lista vazia',
     async () => {

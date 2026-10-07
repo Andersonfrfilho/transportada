@@ -32,6 +32,8 @@ import {
 import { contractors, tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import { DRIVER_SCORE_WINDOW_DAYS } from '../../fleet/domain/driver-score.policy.js'
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
 import { FIELD_TRIP_TARGET_KIND } from '../application/field-trip-target.types.js'
 import type {
@@ -127,8 +129,14 @@ const emitterParticipants = alias(nfeParticipants, 'emitter_participants')
 /** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
 const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
 
+/** A leitura dos produtos do snapshot falhou e a nota saiu sem `products` (refinamento isolado). */
+export const DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE = 'driver_snapshot_products_read_failed'
+
 export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort {
-  public constructor(private readonly database: TripDatabase) {}
+  public constructor(
+    private readonly database: TripDatabase,
+    private readonly logger?: ApiLogger,
+  ) {}
 
   public async findDriverIdByMembership(input: {
     readonly companyId: string
@@ -351,9 +359,13 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       /**
        * Spec 247 (T4.6): uma consulta para todas as notas de todas as viagens do motorista, nunca uma
        * por nota. Refinamento isolado do `Promise.all`, como `occurrenceTypes`: se falhar, a nota
-       * sai sem `products` e o app oferece a nota inteira — o caminho crítico não cai junto.
+       * sai sem `products` e o app oferece a nota inteira — o caminho crítico não cai junto. A falha
+       * deixa rastro (só ids e contagem): sem ele o app degradaria calado para "a nota inteira".
        */
-      this.listDocumentProducts({ companyId: input.companyId, nfeDocumentIds }).catch(() => null),
+      this.listDocumentProducts({ companyId: input.companyId, nfeDocumentIds }).catch(() => {
+        this.warnProductsReadFailed({ companyId: input.companyId, nfeDocumentIds, tripIds })
+        return null
+      }),
     ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
@@ -808,6 +820,23 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     ).listOverridesForTypes({ companyId: input.companyId, occurrenceTypeIds: deliveryTypeIds })
 
     return { overrides, types }
+  }
+
+  private warnProductsReadFailed(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly tripIds: readonly string[]
+  }): void {
+    if (this.logger === undefined) return
+    safeLogWarn({
+      logger: this.logger,
+      message: DRIVER_SNAPSHOT_PRODUCTS_READ_FAILED_MESSAGE,
+      metadata: {
+        affectedDocumentCount: input.nfeDocumentIds.length,
+        companyId: input.companyId,
+        tripIds: input.tripIds,
+      },
+    })
   }
 
   /**
