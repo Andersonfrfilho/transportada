@@ -7,10 +7,12 @@
 
 export type RecordingSelectExecutor = {
   readonly executor: unknown
-  readonly stats: { maxInFlight: number; queryCount: number }
+  readonly stats: { maxInFlight: number; queryCount: number; tables: unknown[] }
 }
 
 type RecordingParams = {
+  /** Faz toda consulta falhar, como o banco indisponível. */
+  readonly rejectWith?: Error
   /** As linhas devolvidas por tabela; a que faltar devolve lista vazia. */
   readonly rowsByTable?: ReadonlyMap<unknown, readonly unknown[]>
 }
@@ -18,7 +20,7 @@ type RecordingParams = {
 export function createRecordingSelectExecutor(
   params: RecordingParams = {},
 ): RecordingSelectExecutor {
-  const stats = { maxInFlight: 0, queryCount: 0 }
+  const stats = { maxInFlight: 0, queryCount: 0, tables: [] as unknown[] }
   let inFlight = 0
 
   function createBuilder(table: { current?: unknown }): object {
@@ -27,13 +29,15 @@ export function createRecordingSelectExecutor(
       {
         get(_target, property) {
           if (property === 'then') {
-            return (resolve: (rows: unknown[]) => void) => {
+            return (resolve: (rows: unknown[]) => void, reject: (error: Error) => void) => {
               stats.queryCount += 1
+              stats.tables.push(table.current)
               inFlight += 1
               stats.maxInFlight = Math.max(stats.maxInFlight, inFlight)
               setTimeout(() => {
                 inFlight -= 1
-                resolve([...(params.rowsByTable?.get(table.current) ?? [])])
+                if (params.rejectWith !== undefined) reject(params.rejectWith)
+                else resolve([...(params.rowsByTable?.get(table.current) ?? [])])
               }, 0)
             }
           }
@@ -50,5 +54,11 @@ export function createRecordingSelectExecutor(
     return builder
   }
 
-  return { executor: { select: () => createBuilder({}) }, stats }
+  return {
+    executor: {
+      select: () => createBuilder({}),
+      selectDistinctOn: () => createBuilder({}),
+    },
+    stats,
+  }
 }
