@@ -132,6 +132,33 @@ describe('enviar a prévia por HTTP (spec 237 T4.2)', () => {
   })
 
   test.each([
+    ['em minúsculas', `email:${'a'.repeat(32)}`],
+    ['em maiúsculas', `EMAIL:${'a'.repeat(32)}`],
+  ])(
+    'a chave com o prefixo reservado da prévia por e-mail, %s, é 400 com o motivo',
+    async (_label, key) => {
+      const fixture = createFixture({})
+      const response = await fixture.handle(uploadRequest({ key }))
+
+      expect(response.status).toBe(400)
+      const payload = (await response.json()) as {
+        error: { details: { field: string; message: string }[] }
+      }
+      expect(payload.error.details).toEqual([
+        { field: 'Idempotency-Key', message: 'The "email:" prefix is reserved' },
+      ])
+      expect(fixture.calls.upload).toBeUndefined()
+    },
+  )
+
+  test('o prefixo reservado só vale no começo da chave', async () => {
+    const fixture = createFixture({})
+    const key = `chave-do-email:${'a'.repeat(32)}`
+    expect((await fixture.handle(uploadRequest({ key }))).status).toBe(201)
+    expect(fixture.calls.upload).toMatchObject([{ idempotencyKey: key }])
+  })
+
+  test.each([
     ['companyId no formulário', { companyId: CONTRACTOR_ID, contractorId: CONTRACTOR_ID }],
     ['contratante que não é uuid', { contractorId: 'abc' }],
     ['campo desconhecido', { contractorId: CONTRACTOR_ID, sheetName: 'X' }],

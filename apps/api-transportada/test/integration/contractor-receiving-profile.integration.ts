@@ -89,6 +89,79 @@ describe('o perfil de recebimento contra Postgres (spec 237 T1.3)', () => {
     })
   })
 
+  testWithPostgres(
+    'o hash do token e as listas do e-mail nunca saem pela API nem vão para a auditoria (spec 237 T4.7a)',
+    async () => {
+      await withDisposableDatabase(async (database, seed) => {
+        const handle = createHandler(database)
+        const path = `/contractors/${seed.contractorId}/receiving-profile`
+        const hash = 'c'.repeat(64)
+        const forwarderEntry = 'equipe@transportadora.example'
+        const senderEntry = 'contratante.example'
+        const lists = [forwarderEntry, senderEntry]
+        expect((await handle(jsonRequest({ body: RULES, method: 'PUT', path }))).status).toBe(200)
+        await database.db
+          .update(contractorReceivingProfiles)
+          .set({
+            previewForwarderAllowlist: [forwarderEntry],
+            previewInboundTokenHash: hash,
+            previewSenderAllowlist: [senderEntry],
+          })
+          .where(eq(contractorReceivingProfiles.contractorId, seed.contractorId))
+        const expectedKeys = [...Object.keys(RULES), 'contractorId', 'updatedAt'].sort()
+
+        const read = await responseData<Record<string, unknown>>(
+          await handle(jsonRequest({ method: 'GET', path })),
+        )
+        expect(Object.keys(read).sort()).toEqual(expectedKeys)
+
+        const changed = { ...RULES, separationWindowHours: 48 }
+        const saved = await responseData<Record<string, unknown>>(
+          await handle(jsonRequest({ body: changed, method: 'PUT', path })),
+        )
+        expect(Object.keys(saved).sort()).toEqual(expectedKeys)
+
+        const repository = new DrizzleContractorReceivingProfileRepository(database.db)
+        const page = await repository.list({
+          companyId: COMPANY_CONTEXT.companyId,
+          paging: { cursor: null, limit: 10 },
+        })
+        expect(page.items.map((item) => Object.keys(item).sort())).toEqual([
+          ['contractorId', 'isEnabled', 'previewEnabled'],
+        ])
+
+        const audits = await database.db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.entityType, 'contractor-receiving-profile'))
+        expect(audits).toHaveLength(2)
+        const metadata = audits.map((audit) => audit.metadata as Record<string, unknown>)
+        for (const entry of metadata) {
+          for (const side of [entry.before, entry.after]) {
+            if (side === null) continue
+            expect(Object.keys(side as object).sort()).toEqual(Object.keys(RULES).sort())
+          }
+        }
+        const everything = JSON.stringify([read, saved, page, audits])
+        for (const secret of [hash, ...lists]) expect(everything).not.toContain(secret)
+        for (const column of ['Hash', 'Allowlist', 'preview_inbound', 'preview_forwarder']) {
+          expect(everything).not.toContain(column)
+        }
+
+        // O PUT não toca nas colunas do e-mail: o hash e as listas seguem onde estavam.
+        const [row] = await database.db
+          .select({
+            forwarder: contractorReceivingProfiles.previewForwarderAllowlist,
+            hash: contractorReceivingProfiles.previewInboundTokenHash,
+            sender: contractorReceivingProfiles.previewSenderAllowlist,
+          })
+          .from(contractorReceivingProfiles)
+          .where(eq(contractorReceivingProfiles.contractorId, seed.contractorId))
+        expect(row).toEqual({ forwarder: [forwarderEntry], hash, sender: [senderEntry] })
+      })
+    },
+  )
+
   testWithPostgres('contratante de outra empresa é 404 na leitura e na gravação', async () => {
     await withDisposableDatabase(async (database, seed) => {
       const handle = createHandler(database)
