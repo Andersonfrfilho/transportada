@@ -499,7 +499,6 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       dkimVerifier: { verify: async () => 'aligned' as const },
       mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
       newId: () => crypto.randomUUID(),
-      now: () => new Date('2026-10-06T15:00:00.000Z'),
       repository,
       storage: {
         deleteObject: async () => undefined,
@@ -554,7 +553,6 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       dkimVerifier: { verify: async () => 'aligned' as const },
       mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
       newId: () => crypto.randomUUID(),
-      now: () => new Date('2026-10-06T15:00:00.000Z'),
       repository,
       storage: {
         deleteObject: async ({ key }: { readonly key: string }) => void present.delete(key),

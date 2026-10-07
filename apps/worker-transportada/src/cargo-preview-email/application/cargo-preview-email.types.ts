@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CargoPreviewEmailRejectionCode } from '../../shared/cargo-preview.constant.js'
+import type {
+  CargoPreviewEmailRejectionCode,
+  CargoPreviewStatus,
+} from '../../shared/cargo-preview.constant.js'
 import type { DkimAlignmentResult } from '../../contractor-mail/domain/dkim-alignment.policy.js'
 import type { VerifyDkimAlignmentPort } from '../../contractor-mail/infrastructure/dkim-verifier.gateway.js'
 import type {
@@ -55,18 +58,38 @@ export type AcceptedRecord = {
   readonly receivedAt: Date
 }
 
+/** `isRawKept`: o MIME no bucket pertence a quem registrou a mensagem — quem repete nunca o apaga. */
 export type CreatePreviewOutcome =
-  | { readonly kind: 'already_recorded' }
+  | { readonly isRawKept: boolean; readonly kind: 'already_recorded' }
   | { readonly kind: 'created'; readonly previewId: string }
-  | { readonly kind: 'replayed'; readonly previewId: string }
+  | {
+      readonly kind: 'replayed'
+      readonly previewId: string
+      readonly previewStatus: CargoPreviewStatus
+    }
   | { readonly kind: 'too_many_open' }
 
+/** Os e-mails da janela: os que passaram do DKIM do encaminhador e os que ficaram antes dele. */
+export type RecentIntakeCounts = {
+  readonly authenticated: number
+  readonly unauthenticated: number
+}
+
+export type RateLimitedRecord = {
+  readonly companyId: string
+  readonly contractorId: string
+  readonly providerEmailId: string
+  readonly receivedAt: Date
+  readonly windowSeconds: number
+}
+
 export type CargoPreviewEmailRepositoryPort = {
+  /** A janela é medida pelo relógio do banco (`recorded_at`), nunca pela data que o e-mail diz ter. */
   countRecentIntakes(input: {
     readonly companyId: string
     readonly contractorId: string
-    readonly since: Date
-  }): Promise<number>
+    readonly windowSeconds: number
+  }): Promise<RecentIntakeCounts>
   createPreview(input: AcceptedRecord): Promise<CreatePreviewOutcome>
   findProfilesByTokenHashes(input: {
     readonly companyId: string
@@ -76,6 +99,8 @@ export type CargoPreviewEmailRepositoryPort = {
     readonly companyId: string
     readonly providerEmailId: string
   }): Promise<boolean>
+  /** O excesso deixa uma linha por contratante e janela, no máximo. */
+  recordRateLimited(input: RateLimitedRecord): Promise<void>
   recordRejection(input: RejectionRecord): Promise<void>
 }
 
@@ -94,6 +119,8 @@ export type CargoPreviewEmailStoragePort = {
 export type CargoPreviewEmailIntakeInput = {
   readonly companyId: string
   readonly correlationId: string
+  /** Na última entrega da fila o DKIM sem veredito vira recusa; antes dela, a entrega é repetida. */
+  readonly delivery: { readonly isLastAttempt: boolean }
   readonly occurredAt: Date
   readonly providerEmailId: string
   readonly received: ReceivedResendEmail
@@ -106,7 +133,6 @@ export type CargoPreviewEmailIntakeResult =
       readonly kind: 'accepted'
       readonly contractorId: string
       readonly dkimResult: DkimAlignmentResult
-      readonly isReplay: boolean
       readonly previewId: string
     }
   | { readonly kind: 'already_recorded' }
@@ -116,6 +142,14 @@ export type CargoPreviewEmailIntakeResult =
       readonly kind: 'rejected'
       readonly contractorId: string
       readonly reason: CargoPreviewEmailRejectionCode
+    }
+  | {
+      /** O mesmo arquivo já era prévia do contratante: nada novo nasceu, e a prévia NÃO é reaberta. */
+      readonly kind: 'replayed_existing'
+      readonly contractorId: string
+      readonly dkimResult: DkimAlignmentResult
+      readonly previewId: string
+      readonly previewStatus: CargoPreviewStatus
     }
 
 export type CargoPreviewEmailIntakePort = {
@@ -130,7 +164,6 @@ export type IntakeCargoPreviewEmailDependencies = {
   readonly dkimVerifier: VerifyDkimAlignmentPort
   readonly mailGateway: Pick<ResendMailGateway, 'downloadRawEmail'>
   readonly newId: () => string
-  readonly now: () => Date
   readonly repository: CargoPreviewEmailRepositoryPort
   readonly storage: CargoPreviewEmailStoragePort
   readonly storageBucket: string

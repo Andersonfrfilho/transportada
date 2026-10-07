@@ -291,6 +291,8 @@ import type { NotificationModule } from '@adatechnology/notification-module'
 import type { WorkerLogger } from './shared/worker.types.js'
 
 const NFE_DISTRIBUTION_LEASE_MS = 30_000
+/** O provedor de objetos que o trilho de e-mail de entrada grava nas linhas de `stored_objects`. */
+const INBOUND_MAIL_STORAGE_PROVIDER = 'minio'
 const WORKER_PROJECT_NAME = 'transportada-worker'
 const WORKER_VERSION = '0.1.0'
 
@@ -454,6 +456,7 @@ type WorkerRuntimeDependencies = {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: RecordContractorMailInboundMessageDependencies
     readonly logger: WorkerLogger
+    readonly maxRetries: number
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
   readonly startCargoLayoutConsumer?: (
@@ -1078,7 +1081,7 @@ export async function startWorkerRuntime(
         /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
-          provider: 'minio',
+          provider: INBOUND_MAIL_STORAGE_PROVIDER,
           storage: storageGateway,
         }),
         dkimVerifier: inboundDkimVerifier,
@@ -1092,7 +1095,7 @@ export async function startWorkerRuntime(
           ),
           storage: storageGateway,
           storageBucket,
-          storageProvider: 'minio',
+          storageProvider: INBOUND_MAIL_STORAGE_PROVIDER,
         }),
         repository: createDrizzleContractorMailInboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
@@ -1102,9 +1105,10 @@ export async function startWorkerRuntime(
         }),
         storage: storageGateway,
         storageBucket,
-        storageProvider: 'minio',
+        storageProvider: INBOUND_MAIL_STORAGE_PROVIDER,
       },
       logger,
+      maxRetries: contractorMailInboundTopology.retry?.maxRetries ?? 0,
       provider: contractorMailInboundPublisher,
     })
     /**

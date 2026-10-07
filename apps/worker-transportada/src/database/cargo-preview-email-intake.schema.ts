@@ -29,4 +29,6 @@ export const cargoPreviewEmailIntakes = pgTable('cargo_preview_email_intakes', {
   originalSenderVerification: varchar('original_sender_verification', { length: 16 }),
   rawObjectId: uuid('raw_object_id'),
   receivedAt: timestamp('received_at', withTimezone).notNull(),
+  /** O relógio do banco: é por ele que a janela de e-mails por contratante anda. */
+  recordedAt: timestamp('recorded_at', withTimezone).notNull().defaultNow(),
 })

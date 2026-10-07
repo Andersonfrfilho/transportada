@@ -8,10 +8,8 @@
  */
 import type { CargoPreviewEmailRejectionCode } from '../../shared/cargo-preview.constant.js'
 import { CARGO_PREVIEW_OBJECT_MAX_BYTES } from '../../cargo-preview/domain/cargo-preview-object.policy.js'
-import {
-  PREVIEW_EMAIL_FALLBACK_FILE_NAME,
-  RFC822_MIME_TYPE,
-} from './cargo-preview-email.constant.js'
+import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { PREVIEW_EMAIL_FALLBACK_FILE_NAME } from './cargo-preview-email.constant.js'
 import { hasZipSignature, sanitizePreviewFileName } from './preview-upload-file.policy.js'
 
 export type CandidateAttachment = {
@@ -50,7 +48,7 @@ export function selectPreviewWorkbook(
 
 function isCandidate(attachment: CandidateAttachment): boolean {
   if (attachment.disposition === 'inline') return false
-  return attachment.mimeType.split(';')[0]?.trim().toLowerCase() !== RFC822_MIME_TYPE
+  return attachment.mimeType.split(';')[0]?.trim().toLowerCase() !== RAW_EMAIL_MIME_TYPE
 }
 
 function sanitizeName(rawName: string): string {

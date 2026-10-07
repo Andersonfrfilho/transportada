@@ -1,18 +1,56 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 T4.6: um cabeçalho de remetente só vira endereço quando é EXATAMENTE uma caixa. Lista,
- * grupo, nome sem endereço ou `a@b@c` são recusados — quem lê o remetente nunca adivinha qual dos
- * endereços valia. O nome de exibição é descartado: ele pode imitar o endereço permitido.
+ * Spec 237 T4.6/T4.7a: um cabeçalho de remetente só vira endereço quando é EXATAMENTE uma caixa — `endereço`
+ * ou `nome <endereço>`. Lista, grupo, comentário, mais de um `<`/`@` fora de aspas, prefixo `mailto:` e nome
+ * codificado sem endereço real são recusados: quem lê o remetente nunca adivinha qual dos endereços valia.
+ * O nome de exibição é descartado (ele pode imitar o endereço permitido). Os dois formatos do Outlook, que
+ * repetem o endereço em `<mailto:…>` ou `[mailto:…]`, são desembrulhados antes — e só quando repetem o mesmo.
  */
-import { addressParser } from 'postal-mime'
+const ADDRESS = /^[^\s<>[\]():;,"@]+@[^\s<>[\]():;,"@]+$/u
+const QUOTED_STRING = /"(?:[^"\\]|\\.)*"/gu
+const ANGLE_MAILBOX = /^([^<>]*)<([^<>]+)>\s*$/u
+const OUTLOOK_TEXT = /^([^<>]*)<([^<>\s]+)<mailto:([^<>\s]+)>>$/iu
+const OUTLOOK_CLASSIC = /^(.*?)\s*\[mailto:([^[\]\s]+)\]$/iu
+const NAME_FORBIDDEN = /[@()[\]:;,]/u
+const MAX_MAILBOX_LENGTH = 998
 
 export function readSingleMailboxAddress(value: string): string | undefined {
-  const parsed = addressParser(value, { flatten: true })
-  if (parsed.length !== 1) return undefined
-  const address = parsed[0]?.address?.trim().toLowerCase()
-  if (address === undefined || address.length === 0) return undefined
-  const parts = address.split('@')
-  if (parts.length !== 2 || parts.some((part) => part.length === 0)) return undefined
-  return address
+  const mailbox = unwrapOutlookMailto(value.trim())
+  if (mailbox === undefined || mailbox.length === 0 || mailbox.length > MAX_MAILBOX_LENGTH) {
+    return undefined
+  }
+  const outsideQuotes = mailbox.replace(QUOTED_STRING, '')
+  const address = outsideQuotes.includes('<')
+    ? readAngleAddress(outsideQuotes)
+    : readBareAddress(mailbox, outsideQuotes)
+  return address?.toLowerCase()
+}
+
+/** `Nome <a@x<mailto:a@x>>` e `Nome [mailto:a@x]`: o endereço repetido some; outro endereço recusa. */
+function unwrapOutlookMailto(value: string): string | undefined {
+  const text = OUTLOOK_TEXT.exec(value)
+  if (text !== null) {
+    const [, name = '', address = '', repeated = ''] = text
+    return address.toLowerCase() === repeated.toLowerCase() ? `${name}<${address}>` : undefined
+  }
+  const classic = OUTLOOK_CLASSIC.exec(value)
+  if (classic === null) return value
+  const [, name = '', address = ''] = classic
+  const displayName = name.trim().toLowerCase() === address.toLowerCase() ? '' : name
+  return `${displayName}<${address}>`
+}
+
+function readAngleAddress(outsideQuotes: string): string | undefined {
+  const match = ANGLE_MAILBOX.exec(outsideQuotes)
+  if (match === null) return undefined
+  const [, name = '', address = ''] = match
+  if (NAME_FORBIDDEN.test(name)) return undefined
+  return ADDRESS.test(address.trim()) ? address.trim() : undefined
+}
+
+/** Sem `<>`: o valor inteiro é o endereço — nome entre aspas ao lado dele não vale. */
+function readBareAddress(mailbox: string, outsideQuotes: string): string | undefined {
+  if (outsideQuotes !== mailbox) return undefined
+  return ADDRESS.test(mailbox) ? mailbox : undefined
 }

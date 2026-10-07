@@ -191,10 +191,10 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
         throw new ResendProviderUnexpectedResponseError()
       }
 
-      return readBoundedBody(
-        response,
-        Math.min(maxBytes ?? MAX_RAW_EMAIL_BYTES, MAX_RAW_EMAIL_BYTES),
-      )
+      /** `NaN` desligaria o teto (`total > NaN` é sempre falso): só número finito vale. */
+      const requestedMaxBytes =
+        maxBytes !== undefined && Number.isFinite(maxBytes) ? maxBytes : MAX_RAW_EMAIL_BYTES
+      return readBoundedBody(response, Math.min(requestedMaxBytes, MAX_RAW_EMAIL_BYTES))
     },
   }
 }

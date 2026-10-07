@@ -4,10 +4,15 @@
  * Spec 237 T4.6: os dois objetos (a planilha e o MIME bruto) sobem ao bucket ANTES da transação — o
  * bucket não participa dela — e o que a transação não deixar de pé sai do bucket. A prévia nasce pelo
  * mesmo contrato do upload (chave opaca, sha256, impressão do pedido); o resultado só leva ids e códigos.
+ * A planilha tem chave aleatória só desta tentativa; o MIME tem a chave da mensagem e é de quem a registrou.
  */
+import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
 import { buildRawEmailObjectKey } from '../../contractor-mail/domain/raw-email-object-key.policy.js'
 import { buildCargoPreviewObjectKey } from '../../cargo-preview/domain/cargo-preview-object.policy.js'
-import { PREVIEW_EMAIL_IDEMPOTENCY_PREFIX } from '../domain/cargo-preview-email.constant.js'
+import {
+  PREVIEW_EMAIL_IDEMPOTENCY_PREFIX,
+  PREVIEW_EMAIL_REJECTION,
+} from '../domain/cargo-preview-email.constant.js'
 import { buildPreviewRequestFingerprint, sha256Hex } from '../domain/preview-upload-file.policy.js'
 import type {
   AcceptedRecord,
@@ -19,7 +24,6 @@ import type {
   VerifiedPreviewEmail,
 } from './cargo-preview-email.types.js'
 
-const RAW_EMAIL_MIME_TYPE = 'message/rfc822'
 /** O tipo vem dos bytes, e o nome do arquivo é de quem mandou: o objeto não finge saber mais que isso. */
 const STORED_FILE_CONTENT_TYPE = 'application/octet-stream'
 
@@ -60,7 +64,7 @@ export async function storeAndCreatePreview(
     })
     stored.push(raw)
     const outcome = await dependencies.repository.createPreview(record)
-    await discard(leftover({ file, outcome, stored }))
+    await discard(leftover({ file, outcome, raw }))
     return toResult(context, outcome)
   } catch (error: unknown) {
     await discard(stored)
@@ -68,32 +72,46 @@ export async function storeAndCreatePreview(
   }
 }
 
-/** Prévia criada fica com os dois; o reenvio do mesmo arquivo fica só com o MIME; o resto, com nada. */
+/**
+ * Prévia criada fica com os dois objetos. Quem repete a mensagem perde só a planilha desta tentativa: o MIME
+ * pertence a quem a registrou — e só sai quando ninguém o registrou (recusa por teto de abertas, ou um
+ * registro anterior que também foi recusa).
+ */
 function leftover(input: {
   readonly file: Location
   readonly outcome: CreatePreviewOutcome
-  readonly stored: readonly Location[]
+  readonly raw: Location
 }): readonly Location[] {
-  if (input.outcome.kind === 'created') return []
-  return input.outcome.kind === 'replayed' ? [input.file] : input.stored
+  switch (input.outcome.kind) {
+    case 'created':
+      return []
+    case 'replayed':
+      return [input.file]
+    case 'already_recorded':
+      return input.outcome.isRawKept ? [input.file] : [input.file, input.raw]
+    case 'too_many_open':
+      return [input.file, input.raw]
+  }
 }
 
 function toResult(context: Context, outcome: CreatePreviewOutcome): CargoPreviewEmailIntakeResult {
   const { contractorId } = context.profile
+  const { dkimResult } = context.verified
   switch (outcome.kind) {
     case 'created':
+      return { contractorId, dkimResult, kind: 'accepted', previewId: outcome.previewId }
     case 'replayed':
       return {
         contractorId,
-        dkimResult: context.verified.dkimResult,
-        isReplay: outcome.kind === 'replayed',
-        kind: 'accepted',
+        dkimResult,
+        kind: 'replayed_existing',
         previewId: outcome.previewId,
+        previewStatus: outcome.previewStatus,
       }
     case 'already_recorded':
       return { kind: 'already_recorded' }
     case 'too_many_open':
-      return { contractorId, kind: 'rejected', reason: 'TOO_MANY_OPEN_PREVIEWS' }
+      return { contractorId, kind: 'rejected', reason: PREVIEW_EMAIL_REJECTION.tooManyOpenPreviews }
   }
 }
 

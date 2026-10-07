@@ -19,6 +19,8 @@ export type DkimSignatureStatus = {
 }
 
 export type DkimSignatureVerification = {
+  /** A assinatura declarou `l=`: só parte do corpo está coberta (a `mailauth` marca em cada resultado). */
+  readonly canonBodyLengthLimited?: boolean
   readonly status: DkimSignatureStatus
 }
 
@@ -33,8 +35,16 @@ export type DkimAlignmentResult = (typeof DKIM_ALIGNMENT_RESULT)[keyof typeof DK
 
 const TRANSIENT_FAILURE_RESULTS = new Set(['temperror', 'temperr'])
 
+/**
+ * Spec 237 T4.7a: assinatura com `l=` deixa o resto do corpo livre para quem encaminha ou acrescenta texto
+ * depois do trecho assinado — o hash confere e o conteúdo não é o que o domínio assinou. Nunca alinha.
+ */
 function isAlignedPass(signature: DkimSignatureVerification): boolean {
-  return signature.status.result === 'pass' && Boolean(signature.status.aligned)
+  return (
+    signature.status.result === 'pass' &&
+    Boolean(signature.status.aligned) &&
+    signature.canonBodyLengthLimited !== true
+  )
 }
 
 function isTransientFailure(signature: DkimSignatureVerification): boolean {

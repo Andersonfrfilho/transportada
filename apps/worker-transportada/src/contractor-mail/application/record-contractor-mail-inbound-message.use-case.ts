@@ -10,12 +10,14 @@
  */
 import { createHash } from 'node:crypto'
 
+import { RAW_EMAIL_MIME_TYPE } from '../domain/contractor-mail.constant.js'
+import { hasBoundedMimeHeaders } from '../domain/mime-header-bounds.policy.js'
 import { buildRawEmailObjectKey } from '../domain/raw-email-object-key.policy.js'
 import { hashReplyToken } from '../domain/reply-token.policy.js'
 import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
-import type { DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
+import { DKIM_ALIGNMENT_RESULT, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
 import type { VerifyDkimAlignmentPort } from '../infrastructure/dkim-verifier.gateway.js'
 import type {
   CargoPreviewEmailIntakePort,
@@ -23,14 +25,16 @@ import type {
 } from '../../cargo-preview-email/application/cargo-preview-email.types.js'
 import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
-import type { ContractorMailInboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
+import type {
+  ContractorMailInboundSettingsRecord,
+  ContractorMailInboundWorkerRepository,
+} from '../infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import type {
   ReceivedResendEmail,
   ResendMailGateway,
 } from '../infrastructure/resend-mail.gateway.js'
 import type { ContractorMailInboundEnvelopeV1 } from '../../messaging/contractor-mail-inbound-envelope.schema.js'
 
-const RAW_EMAIL_MIME_TYPE = 'message/rfc822'
 /** RF4/CHECK do banco: `body_text`/`subject` não podem ser vazios. */
 const FALLBACK_BODY_TEXT = '(sem corpo em texto simples)'
 const FALLBACK_SUBJECT = '(sem assunto)'
@@ -75,7 +79,7 @@ export type RecordContractorMailInboundMessageResult =
       readonly outcome: 'preview'
       readonly preview: Extract<
         CargoPreviewEmailIntakeResult,
-        { readonly kind: 'accepted' | 'rate_limited' | 'rejected' }
+        { readonly kind: 'accepted' | 'rate_limited' | 'rejected' | 'replayed_existing' }
       >
     }
   | {
@@ -86,9 +90,13 @@ export type RecordContractorMailInboundMessageResult =
       readonly threadId: string
     }
 
+/** Spec 237 T4.7a: sem a informação da fila, a entrega vale como a primeira (o DKIM sem veredito repete). */
+const FIRST_DELIVERY = { isLastAttempt: false } as const
+
 export async function recordContractorMailInboundMessage(
   envelope: ContractorMailInboundEnvelopeV1,
   dependencies: RecordContractorMailInboundMessageDependencies,
+  delivery: { readonly isLastAttempt: boolean } = FIRST_DELIVERY,
 ): Promise<RecordContractorMailInboundMessageResult> {
   const { companyId } = envelope
   const { providerEmailId } = envelope.payload
@@ -121,17 +129,6 @@ export async function recordContractorMailInboundMessage(
     emailId: providerEmailId,
   })
 
-  const preview = await dependencies.previewIntake.intake({
-    companyId,
-    correlationId: envelope.correlationId,
-    occurredAt: new Date(envelope.occurredAt),
-    providerEmailId,
-    received,
-    replyDomain: settings.replyDomain,
-  })
-  if (preview.kind === 'already_recorded') return { outcome: 'already_recorded' }
-  if (preview.kind !== 'not_a_preview') return { outcome: 'preview', preview }
-
   const candidateTokens = extractReplyTokenCandidates({
     ccAddresses: received.cc ?? [],
     replyDomain: settings.replyDomain,
@@ -146,7 +143,9 @@ export async function recordContractorMailInboundMessage(
         })
   const distinctThreads = dedupeById(threads)
 
-  if (distinctThreads.length === 0) return { outcome: 'discarded', reason: 'token_unknown' }
+  if (distinctThreads.length === 0) {
+    return decideWithoutConversation({ delivery, dependencies, envelope, received, settings })
+  }
   if (distinctThreads.length > 1) return { outcome: 'discarded', reason: 'multiple_matches' }
   const thread = distinctThreads[0]!
 
@@ -165,7 +164,15 @@ export async function recordContractorMailInboundMessage(
     sha256,
   })
 
-  const dkimResult = await dependencies.dkimVerifier.verify(rawMessage)
+  /**
+   * Spec 237 T4.7a: cabeçalho fora do limite nunca chega ao verificador de DKIM nem ao leitor de MIME — é a
+   * mensagem hostil que o `addressparser` quadrático travaria. Grava como "sem assinatura" (o mesmo que a
+   * `mailauth` devolve para MIME que não parseia) e sem anexos, como o MIME ilegível já vira.
+   */
+  const hasBoundedHeaders = hasBoundedMimeHeaders(rawMessage)
+  const dkimResult = hasBoundedHeaders
+    ? await dependencies.dkimVerifier.verify(rawMessage)
+    : DKIM_ALIGNMENT_RESULT.ABSENT
   /** Spec 183 T406 (RF16): endereço para casar com os contatos, nome para quem está fora deles. */
   const sender = parseSenderMailbox(received.from)
 
@@ -173,12 +180,14 @@ export async function recordContractorMailInboundMessage(
    * Spec 183 T702c1: os anexos vão ao bucket antes da transação (o bucket não participa dela) e só
    * quando a thread tem conversa da ocorrência. O que a transação não ligar é apagado aqui.
    */
-  const attachments = (await dependencies.repository.threadHasOccurrenceConversation({
-    companyId,
-    threadId: thread.id,
-  }))
-    ? await dependencies.conversationAttachments.store(new Uint8Array(rawMessage))
-    : { skipped: 0, stored: [] }
+  const attachments =
+    hasBoundedHeaders &&
+    (await dependencies.repository.threadHasOccurrenceConversation({
+      companyId,
+      threadId: thread.id,
+    }))
+      ? await dependencies.conversationAttachments.store(new Uint8Array(rawMessage))
+      : { skipped: 0, stored: [] }
 
   let recorded: { readonly linkedAttachments: number }
   try {
@@ -224,6 +233,34 @@ export async function recordContractorMailInboundMessage(
       toAddresses: received.to,
     })
   }
+}
+
+type PreviewDecision = Exclude<
+  RecordContractorMailInboundMessageResult,
+  { readonly outcome: 'recorded' }
+>
+
+/** Sem conversa casada: a prévia por e-mail encaminhado decide, e sem ela o endereço é desconhecido. */
+async function decideWithoutConversation(context: {
+  readonly delivery: { readonly isLastAttempt: boolean }
+  readonly dependencies: RecordContractorMailInboundMessageDependencies
+  readonly envelope: ContractorMailInboundEnvelopeV1
+  readonly received: ReceivedResendEmail
+  readonly settings: ContractorMailInboundSettingsRecord
+}): Promise<PreviewDecision> {
+  const { delivery, dependencies, envelope, received, settings } = context
+  const preview = await dependencies.previewIntake.intake({
+    companyId: envelope.companyId,
+    correlationId: envelope.correlationId,
+    delivery,
+    occurredAt: new Date(envelope.occurredAt),
+    providerEmailId: envelope.payload.providerEmailId,
+    received,
+    replyDomain: settings.replyDomain,
+  })
+  if (preview.kind === 'already_recorded') return { outcome: 'already_recorded' }
+  if (preview.kind !== 'not_a_preview') return { outcome: 'preview', preview }
+  return { outcome: 'discarded', reason: 'token_unknown' }
 }
 
 function dedupeById<TRecord extends { readonly id: string }>(

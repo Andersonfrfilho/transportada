@@ -104,6 +104,9 @@ async function signSyntheticMessage(input: {
 
 type Deps = RecordContractorMailInboundMessageDependencies
 
+/** Spec 237 T4.7a: o cabeçalho é medido antes de tudo, então o MIME sintético precisa ter fim de cabeçalho. */
+const MINIMAL_MIME = Buffer.from('From: a@b.example\r\n\r\ncorpo')
+
 /** Spec 183 T702c1: sem conversa na thread, os anexos nem são extraídos. */
 const UNUSED_ATTACHMENTS: Deps['conversationAttachments'] = {
   discard: async () => {
@@ -539,7 +542,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new Error('should not fetch without settings')
         },
@@ -580,7 +583,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new ResendProviderUnauthorizedError()
         },
@@ -622,7 +625,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
         },
       },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.alloc(0),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => {
           throw new ResendProviderUnreachableError(new Error('ECONNRESET'))
         },
@@ -746,7 +749,7 @@ describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
       },
       dkimVerifier: { verify: async () => 'absent' },
       mailGateway: {
-        downloadRawEmail: async () => Buffer.from('mime'),
+        downloadRawEmail: async () => MINIMAL_MIME,
         fetchReceivedEmail: async () => ({
           from: 'financeiro@contratante.com.br',
           headers: {},

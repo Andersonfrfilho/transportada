@@ -10,6 +10,7 @@ export function isForwarderAllowed(input: {
   readonly allowlist: readonly string[] | null
 }): boolean {
   const address = normalize(input.address)
+  if (address === undefined) return false
   return (input.allowlist ?? []).some((entry) => normalize(entry) === address)
 }
 
@@ -18,13 +19,21 @@ export function isOriginalSenderAllowed(input: {
   readonly allowlist: readonly string[] | null
 }): boolean {
   const address = normalize(input.address)
+  if (address === undefined) return false
   const domain = address.slice(address.lastIndexOf('@') + 1)
   return (input.allowlist ?? []).some((raw) => {
     const entry = normalize(raw)
+    if (entry === undefined) return false
     return entry.includes('@') ? entry === address : entry === domain
   })
 }
 
-function normalize(value: string): string {
-  return value.trim().toLowerCase()
+/**
+ * O banco já recusa entrada nula, vazia ou que não é texto (CHECK da lista); isto é a segunda barreira: o que
+ * não é texto utilizável é ignorado, nunca lança e nunca vira "vale tudo".
+ */
+function normalize(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  return normalized.length === 0 ? undefined : normalized
 }

@@ -95,7 +95,6 @@ export function runIntake(options: HarnessOptions = {}) {
       },
     },
     newId: () => FILE_OBJECT_ID,
-    now: () => new Date('2026-10-06T15:00:00.000Z'),
     repository: {
       countRecentIntakes: async (query) => {
         calls.counts.push(query)

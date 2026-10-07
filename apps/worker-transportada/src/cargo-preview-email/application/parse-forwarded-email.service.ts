@@ -8,10 +8,8 @@
  */
 import PostalMime, { type Attachment, type Email } from 'postal-mime'
 
-import {
-  PREVIEW_EMAIL_MIME_LIMITS,
-  RFC822_MIME_TYPE,
-} from '../domain/cargo-preview-email.constant.js'
+import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { PREVIEW_EMAIL_MIME_LIMITS } from '../domain/cargo-preview-email.constant.js'
 import {
   readOriginalSenderFromForwardedText,
   readOriginalSenderFromHeaders,
@@ -85,7 +83,7 @@ function readForwarderAddress(outer: Email): string | undefined {
 }
 
 function isForwardedMessage(attachment: Attachment): boolean {
-  return attachment.mimeType.split(';')[0]?.trim().toLowerCase() === RFC822_MIME_TYPE
+  return attachment.mimeType.split(';')[0]?.trim().toLowerCase() === RAW_EMAIL_MIME_TYPE
 }
 
 function toCandidate(attachment: Attachment): CandidateAttachment {
