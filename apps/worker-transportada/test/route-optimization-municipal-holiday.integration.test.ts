@@ -242,6 +242,25 @@ describeDatabase('o feriado municipal no roteirizador (spec 238 T1.2a)', () => {
     }
   })
 
+  /** Spec 238 T1.3: a regra "todo ano" é só a regra; o roteirizador casa a data fixa, e sem a linha gerada nada fecha. */
+  test('uma regra "todo ano" sem a data gerada para o ano do roteiro não fecha o cliente', async () => {
+    const ruleId = crypto.randomUUID()
+    const [year = '', month = '', day = ''] = today().split('-')
+
+    try {
+      await db.execute(sql`
+        insert into municipal_holiday_rules
+          (id, company_id, city_ibge_code, month, day, kind, name, materialized_through_year)
+        values (${ruleId}, ${companyId}, ${CITY_A.cityCode}, ${Number(month)}, ${Number(day)},
+          'city_anniversary', 'Aniversário da cidade', ${Number(year) - 1})
+      `)
+
+      expect(await closedAddressKeys([0])).toEqual([])
+    } finally {
+      await db.execute(sql`delete from municipal_holiday_rules where id = ${ruleId}`)
+    }
+  })
+
   async function insertHoliday(input: {
     readonly cityCode: string
     readonly holidayOn: string
