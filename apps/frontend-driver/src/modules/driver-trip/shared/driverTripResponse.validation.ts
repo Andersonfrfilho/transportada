@@ -212,9 +212,46 @@ function isEnRouteFieldPresent(value: Record<string, unknown>): boolean {
   return 'enRouteSince' in value || 'enRouteTappedAt' in value
 }
 
+/**
+ * Spec 252 T5.1b (ADR-0100 §6): ausente é API anterior; malformado vira lista vazia — o aviso é
+ * acessório, nunca quebra a viagem. Molde do motivo da recusa do canhoto (spec 220 RF29).
+ */
+function readHolidayWarnings(value: unknown): readonly Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly Readonly<{ scope: string; origin: string; name: string }>[]
+}>[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item: unknown) => {
+    if (!isRecord(item)) return []
+    if (typeof item.date !== 'string' || typeof item.cityIbgeCode !== 'number') return []
+    if (!Array.isArray(item.reasons)) return []
+    const reasons = item.reasons.filter((reason: unknown) => {
+      return (
+        isRecord(reason) &&
+        typeof reason.scope === 'string' &&
+        typeof reason.origin === 'string' &&
+        typeof reason.name === 'string'
+      )
+    })
+    if (reasons.length === 0) return []
+    return [
+      {
+        date: item.date,
+        cityIbgeCode: item.cityIbgeCode,
+        ...(typeof item.cityName === 'string' ? { cityName: item.cityName } : {}),
+        reasons,
+      },
+    ]
+  })
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
+
+  const holidayWarnings = readHolidayWarnings(value.holidayWarnings)
 
   return {
     arrivedAt: readNullableString(value.arrivedAt),
@@ -225,6 +262,7 @@ function toStop(value: unknown): DriverTripStop {
     documents: value.documents.map(toDocument),
     enRouteSince: readNullableString(value.enRouteSince),
     enRouteTappedAt: readNullableString(value.enRouteTappedAt),
+    ...(holidayWarnings.length > 0 ? { holidayWarnings } : {}),
     id: readString(value.id),
     label: readString(value.label),
     latitude: readNullableString(value.latitude),

@@ -16,6 +16,20 @@ export type DriverNfeProduct = Readonly<{
   unitValue: string
 }>
 
+/** Spec 252 (ADR-0100 §6): aviso de feriado numa parada. */
+export type HolidayReason = Readonly<{
+  scope: string
+  origin: string
+  name: string
+}>
+
+export type HolidayWarning = Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly HolidayReason[]
+}>
+
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
@@ -111,6 +125,8 @@ export type DriverTripStop = Readonly<{
   enRouteSince?: string | null
   /** Spec 206 D9: a hora do TOQUE no aparelho — a 207 usa como âncora, com `enRouteSince` de reserva. */
   enRouteTappedAt?: string | null
+  /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
+  holidayWarnings?: readonly HolidayWarning[]
   id: string
   label: string
   latitude: string | null

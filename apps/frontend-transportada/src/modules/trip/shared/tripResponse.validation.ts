@@ -435,13 +435,10 @@ function isAutoDispatchOutcome(value: unknown): value is AutoDispatchOutcome {
   )
 }
 
-function isHolidayReason(value: unknown): value is Readonly<{ scope: string; origin: string; name: string }> {
-  return (
-    isRecord(value) &&
-    isString(value.scope) &&
-    isString(value.origin) &&
-    isString(value.name)
-  )
+function isHolidayReason(
+  value: unknown,
+): value is Readonly<{ scope: string; origin: string; name: string }> {
+  return isRecord(value) && isString(value.scope) && isString(value.origin) && isString(value.name)
 }
 
 function isHolidayWarning(value: unknown): value is Readonly<{
