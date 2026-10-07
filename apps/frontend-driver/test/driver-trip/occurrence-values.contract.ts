@@ -20,7 +20,10 @@ import {
 } from '../../src/modules/driver-trip/shared/occurrenceDraftValues.service'
 import { formatBrazilianUnitValue } from '../../src/modules/driver-trip/shared/occurrenceMoneyFormat.service'
 import { listMissingOccurrenceFields } from '../../src/modules/driver-trip/shared/occurrenceRegistration.service'
-import { resolveOccurrenceRequirements } from '../../src/modules/driver-trip/shared/occurrenceRequirements.service'
+import {
+  resolveDeclaredAmountTarget,
+  resolveOccurrenceRequirements,
+} from '../../src/modules/driver-trip/shared/occurrenceRequirements.service'
 
 /**
  * Spec 247 (T5.3, RF11, CA07): a lista de produtos, a quantidade, a soma da linha e a geral, o valor
@@ -323,6 +326,50 @@ describe('o corpo que sai pela fila: strings, só o que o servidor aceita (CA06,
     })
 
     expect(values.payload.items).toBeUndefined()
+  })
+})
+
+describe('onde o valor pago se digita é o escopo efetivo, como no servidor', () => {
+  const requirements = (overrides: Partial<DriverOccurrenceType>) =>
+    resolveOccurrenceRequirements(buildType({ declaredAmountMode: 'optional', ...overrides }))
+
+  it('Produtos desligado manda o valor para a ocorrência, mesmo com linha marcada', () => {
+    expect(
+      resolveDeclaredAmountTarget({
+        itemsSelectedCount: 2,
+        itemsTotalCount: 3,
+        requirements: requirements({ itemsMode: 'off' }),
+      }),
+    ).toBe('occurrence')
+  })
+
+  it('escopo "item" com linha marcada fica na linha; sem linha cai na ocorrência', () => {
+    const optionalItems = requirements({ itemsMode: 'optional' })
+
+    expect(
+      resolveDeclaredAmountTarget({
+        itemsSelectedCount: 1,
+        itemsTotalCount: 3,
+        requirements: optionalItems,
+      }),
+    ).toBe('item')
+    expect(
+      resolveDeclaredAmountTarget({
+        itemsSelectedCount: 0,
+        itemsTotalCount: 3,
+        requirements: optionalItems,
+      }),
+    ).toBe('occurrence')
+  })
+
+  it('o escopo "ocorrência" do tipo vale sempre', () => {
+    expect(
+      resolveDeclaredAmountTarget({
+        itemsSelectedCount: 2,
+        itemsTotalCount: 3,
+        requirements: requirements({ declaredAmountScope: 'occurrence' }),
+      }),
+    ).toBe('occurrence')
   })
 })
 

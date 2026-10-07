@@ -101,7 +101,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 - [x] **T5.2** Bloco "E-mail à contratante": interruptor `emailsContractor`, assunto, corpo, linha de
       item, marcadores clicáveis por contexto, prévia do servidor com `debounce`, erro de marcador
       desconhecido no campo. "Notificação" vira "Aviso interno" com a dica corrigida.
-- [ ] **T5.3** App do motorista: lista de produtos, quantidade, soma da linha, soma geral, valor
+- [x] **T5.3** App do motorista: lista de produtos, quantidade, soma da linha, soma geral, valor
       pago (por linha ou ocorrência), número com o rótulo do tipo; botão bloqueado pelo exigido
       (CA07), sem rede; envio pela fila.
 - [x] **T5.4** Correção no painel com número e valores; acerto da 164 com sugestão (RF12).
