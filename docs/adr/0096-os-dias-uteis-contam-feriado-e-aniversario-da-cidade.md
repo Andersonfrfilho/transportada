@@ -67,6 +67,53 @@ em regra estadual ou municipal — dado corrompido não é ignorado), `_INVALID_
 (mais de 5000 regras somadas). Toda caminhada para no fim da cobertura: um calendário em que todo dia é
 feriado termina em `OUT_OF_COVERAGE`, não em laço.
 
+### 5. Modelo de dados (T1.2) — forma B1
+
+O desenho decidido na Q1, em tabelas. A migration é **aditiva** e a pasta é uma só
+(`apps/api-transportada/drizzle/20261007140303_business_calendar/`).
+
+**`municipal_holiday_rules`** — só as regras "todo ano". `id`, `company_id` (FK `RESTRICT`), `city_ibge_code`
+(CHECK `^[1-5][0-9]{6}$` **e** prefixo entre as 27 UFs), `month`, `day` (CHECK: mês de 1 a 12 e dia de 1 ao último dia
+do mês, com **29/02 válido**), `kind` (`holiday` | `city_anniversary`), `name` (1 a 120 caracteres),
+`materialized_through_year`, `created_at`, `updated_at`. Únicos: `(company_id, id)` — alvo da FK composta — e
+`(company_id, city_ibge_code, month, day)`.
+
+**`municipal_holidays`** (já publicada, lida pelo roteirizador) ganha **apenas**:
+
+1. `ADD COLUMN "kind" text DEFAULT 'holiday' NOT NULL` (catálogo; linhas antigas viram `holiday`);
+2. `ADD COLUMN "source_rule_id" uuid` (nulo = digitada à mão);
+3. `ADD CONSTRAINT "municipal_holidays_kind_check"` (`NOT VALID` + `VALIDATE`);
+4. `ADD CONSTRAINT "municipal_holidays_company_source_rule_fk"` — FK composta `(company_id, source_rule_id)` →
+   `municipal_holiday_rules (company_id, id)`, `ON DELETE CASCADE ON UPDATE CASCADE`, MATCH SIMPLE: com
+   `source_rule_id` nulo a chave não é conferida e a data digitada **nunca** é apagada;
+5. `CREATE INDEX "municipal_holidays_company_source_rule_idx"` parcial (`source_rule_id` não nulo).
+
+Nenhum INSERT, nenhum backfill; o unique `(company_id, city_ibge_code, holiday_on)`, `holiday_on`, o CHECK de cidade
+antigo e o nome da tabela não mudam. A cópia do schema no worker não muda.
+
+**`state_holidays`** — `recurrence` (`once` | `yearly`), `holiday_on` **ou** `month`+`day`, nome de 1 a 120
+caracteres, `state_ibge_code` entre as 27 UFs. CHECK de forma (`once` com data e sem mês/dia; `yearly` com mês e dia
+válidos e sem data) e dois únicos **parciais**, um por forma. Não é materializado: o roteiro não lê feriado estadual.
+
+**`company_business_calendar_settings`** — uma linha por empresa, `saturday_is_business_day boolean NOT NULL DEFAULT
+false`, `updated_by_user_id` sem FK (rastro que sobrevive ao usuário, como na retenção da posição). Sem linha, a
+leitura devolve `false`.
+
+**Materialização.** A rota gera as datas de **10 anos** ao gravar a regra, sem rotina agendada; a tela mostra até que
+ano foi gerado e oferece a ação idempotente "gerar próximos anos" (avança `materialized_through_year`). Data gerada que
+colide com uma digitada é ignorada. Apagar a regra apaga, em cascata, só as datas que ela gerou.
+
+**Rollback.** Tira a FK, o índice, as duas colunas e as três tabelas, e **deixa as datas materializadas em
+`municipal_holidays` como datas fixas comuns**: o roteiro continua respeitando-as. Perdem-se as regras, o rótulo de
+aniversário, o vínculo com a regra, os feriados estaduais e a configuração de sábado.
+
+**Por que não colunas em `municipal_holidays` (a opção A).** `recurrence`/`month`/`day` ali tornariam `holiday_on`
+anulável ou ganhariam o ano falso `2000-MM-DD` — o roteirizador nunca o casaria (medido na T1.2a) e o unique atual
+mudaria de significado. Tabela própria deixa a tabela publicada e o contrato do roteirizador intocados.
+
+**Armadilha de CHECK com coluna nula.** `month between 1 and 12` com `month` nulo dá NULL, e o CHECK aceita NULL: na
+ponta `yearly` de `state_holidays` as colunas são exigidas `is not null` à parte.
+
 ## Riscos aceitos
 
 - **Consciência Negra (20/11) é listada em todo ano**, por paridade com o painel, embora só seja feriado
@@ -82,11 +129,10 @@ feriado termina em `OUT_OF_COVERAGE`, não em laço.
 
 - **Q1 — DECIDIDA: o aniversário da cidade (e todo feriado anual) vira uma data fixa por ano, materializada
   automaticamente.** A política conhece a regra "todo ano" (`yearly`); o banco, para o roteirizador, recebe uma
-  linha de data fixa por ano em `municipal_holidays`, gerada por uma rotina. Assim o roteirizador continua lendo
+  linha de data fixa por ano em `municipal_holidays`, gerada na escrita da regra, sem rotina agendada (§5). Assim o roteirizador continua lendo
   só `holiday_on = data` e **não é alterado** (contrato dele segue congelado; a busca em
-  `drizzle-route-optimization.repository.ts` ≈1050–1060 não muda). O desenho exato dos dados e da rotina é da
-  T1.2/T1.3, e a migration em `municipal_holidays` (tabela existente) **exige aprovação humana específica** quando
-  chegar a hora; esta decisão aprova o desenho, não a migration.
+  `drizzle-route-optimization.repository.ts` ≈1050–1060 não muda). O desenho dos dados está em §5 (T1.2, só
+  staging; **produção continua exigindo aprovação humana específica**) e a geração das datas é da T1.3.
 - **Q2 — DECIDIDA: a cidade do feriado é sempre onde a carga será entregue**, isto é, o destino físico: o desvio
   manual (`delivery_address_overrides`, um por `trip_document`, vale o mais recente) por cima do que
   `resolvePhysicalDestination` decide (`<entrega>` → `<enderDest>`, spec 073; a função só conhece `delivery` e

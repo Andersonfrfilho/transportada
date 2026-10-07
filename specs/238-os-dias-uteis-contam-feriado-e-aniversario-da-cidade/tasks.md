@@ -10,10 +10,16 @@
       feriados nacionais por Páscoa; mutação.
 - [x] **T1.2a** Caracterização do roteirizador **antes** da migration: integração do worker contra Postgres fixando
       como `municipal_holidays` fecha (ou não) o cliente — data, cidade, empresa e `2000-MM-DD`; mutação.
-- [ ] **T1.2** Migration aditiva: `municipal_holidays.recurrence/kind/month/day`, `state_holidays`,
-      `saturday_is_business_day`; `rollback.sql`; `make migration-test`; `db:generate` = `no_changes`.
-- [ ] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4); integração contra
-      Postgres incluindo que o solver continua lendo as datas.
+- [x] **T1.2** Migration aditiva (forma B1, ADR-0096 §Modelo de dados): tabelas `municipal_holiday_rules`,
+      `state_holidays` e `company_business_calendar_settings`; em `municipal_holidays` só `kind`, `source_rule_id`,
+      o CHECK de `kind`, a FK composta com `ON DELETE CASCADE` e o índice parcial; `rollback.sql` (as datas
+      materializadas ficam); `make migration-test`; `db:generate` = `no_changes`; integração do roteirizador
+      continua verde, com o caso novo da data materializada. Lista linha a linha em `evidence.md` § T1.2.
+- [ ] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4): regra "todo ano" gera as
+      datas de 10 anos na escrita (29/02 só nos bissextos; colisão com data digitada é ignorada), ação idempotente
+      "gerar próximos anos", feriado estadual e configuração de sábado; a leitura da política usa as regras como
+      `yearly` e só as datas **sem** `source_rule_id` como `once`; integração contra Postgres incluindo que o solver
+      continua lendo as datas.
 - [ ] **T1.4** Revisão da fase com `code-reviewer` em `opus` (passada separada); publicar em staging com
       tudo verde e **confirmar o deploy**.
 

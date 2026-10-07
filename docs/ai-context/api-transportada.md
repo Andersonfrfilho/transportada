@@ -3037,6 +3037,25 @@ dia do vencimento é no prazo. Só informa: nada em `src/fleet/**`, `src/cte-*/*
 - Falta (T1.2): `loadRules` em série, guarda do painel, leitura no `readTripDetail`. Evidência e mutações:
   `specs/236-*/evidence.md`.
 
+## Spec 238 T1.2 — o calendário útil ganha dado (ADR-0096 §5)
+
+Migration aditiva `20261007140303_business_calendar` (só staging até aprovação específica). Três tabelas novas:
+`municipal_holiday_rules` (regra "todo ano": cidade, mês, dia, `kind`, nome, `materialized_through_year`),
+`state_holidays` (`once`/`yearly`, não materializa) e `company_business_calendar_settings` (sábado; sem linha = `false`).
+`municipal_holidays` segue **só com datas fixas** e ganha `kind` (padrão `holiday`) e `source_rule_id` (nulo = digitada;
+preenchido = gerada, FK composta `(company_id, source_rule_id)` com `ON DELETE CASCADE`). O roteirizador não muda.
+
+- ⚠️ **CHECK aceita NULL.** `month between 1 and 12` com `month` nulo não reprova. `state_holidays_shape_check` exige
+  `month`/`day` `is not null` na ponta `yearly` — retirar isso deixa o `yearly` sem mês passar (mutação provada).
+- ⚠️ **Constante das UFs mora em `src/shared/business-calendar.constant.ts`**, porque o schema não importa de domínio;
+  `business-calendar.constant.ts` (domínio) importa de lá. Mexer na lista num lugar só.
+- A regra duplicada (empresa, cidade, mês, dia) é `23505`; a data gerada que colide com uma digitada também — a T1.3
+  gera com `on conflict do nothing`. Horizonte de 10 anos na escrita, sem rotina agendada.
+- Rollback: as datas materializadas **ficam** como datas fixas; perdem-se regras, rótulo, vínculo, estaduais e sábado.
+- Contratos: `test/business-calendar-schema/`, `test/database-migration/business-calendar.static.contract.ts` (os seis
+  comandos em `municipal_holidays`) e `business-calendar*.assertion.ts` (dentro de `db:test`). Caso novo do roteirizador:
+  `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts`.
+
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
 `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**

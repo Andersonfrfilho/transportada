@@ -170,3 +170,147 @@ Remover só a do SQL não muda comportamento; por isso a prova do teste de data 
 - `make check` completo e `make migration-test`: não há migration nesta task.
 - Integração da API e frontend: não tocados.
 - Push: não é desta tarefa.
+
+## T1.2 — migration aditiva do calendário útil, schemas e contratos (2026-10-07)
+
+Executada com `sonnet` no worktree `angry-hamilton-090c30`, branch `work/spec-232-momento-do-evento`, a partir de
+`origin/staging` (`9e4837a43`; `fetch` e `rebase` com saída 0). Desenho **B1** fechado pelo `architect` (`opus`) e
+autorizado pelo usuário no chat (2026-10-07) **só para staging**; produção continua exigindo aprovação específica. Nada
+foi publicado (push é de quem orquestra).
+
+- **Contrato antes** (`858f7a745`, vermelho): schemas (`test/business-calendar-schema/`), migration estática
+  (`test/database-migration/business-calendar.static.contract.ts`), CHECKs e FK no banco
+  (`business-calendar*.assertion.ts`, ligado em `database-migration.integration.ts`) e o caso novo do roteirizador.
+  Vermelho pelo motivo certo: `SyntaxError: Export named 'municipalHolidayRules' not found` (schema), `business_calendar
+migration is required` (sete testes estáticos + a lista de pastas) e, no worker, `7 pass / 1 fail` num banco migrado
+  **sem** a T1.2 (o caso novo, porque a tabela ainda não existia).
+- **Migration + schemas** (`b134e60c5`): pasta única `drizzle/20261007140303_business_calendar/` (posterior a
+  `20261007133324_cargo_preview_retention`), `snapshot.json` encadeado (`prevIds` = id do snapshot da retenção) pelo
+  `db:generate --name business_calendar`, depois ajustada à mão (ordem, `NOT VALID` + `VALIDATE`, `lock_timeout`). O
+  `db:generate` seguinte devolve `{"status":"no_changes"}`.
+- **Constante neutra** `src/shared/business-calendar.constant.ts`: as 27 UFs, os vocabulários e o padrão de cidade
+  moram em `shared/` porque o schema não importa de domínio (molde da retenção); o domínio importa de lá e reexporta,
+  então a T1.1 não mudou (121 testes seguem verdes). `schema-check.constant.ts` ganhou `monthDayInRangeSql`, o CHECK de
+  dia do mês compartilhado pela regra municipal e pelo feriado estadual.
+
+### O que a migration toca em `municipal_holidays` (a tabela já publicada) — linha a linha
+
+Seis comandos, exatamente estes e nesta ordem (fixados por `business-calendar.static.contract.ts`):
+
+1. `ALTER TABLE "municipal_holidays" ADD COLUMN "kind" text DEFAULT 'holiday' NOT NULL;` — só catálogo (Postgres ≥ 11);
+   as linhas atuais viram `holiday`.
+2. `ALTER TABLE "municipal_holidays" ADD COLUMN "source_rule_id" uuid;` — nulo = digitada à mão.
+3. `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_kind_check" CHECK ("kind" in ('holiday',
+'city_anniversary')) NOT VALID;` e, no comando seguinte,
+   `ALTER TABLE "municipal_holidays" VALIDATE CONSTRAINT "municipal_holidays_kind_check";` (SHARE UPDATE EXCLUSIVE).
+4. `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_company_source_rule_fk" FOREIGN KEY
+("company_id","source_rule_id") REFERENCES "municipal_holiday_rules"("company_id","id") ON DELETE CASCADE ON UPDATE
+CASCADE;` — MATCH SIMPLE: nulo não é conferido; vem depois do `CREATE TABLE` das regras.
+5. `CREATE INDEX "municipal_holidays_company_source_rule_idx" ON "municipal_holidays" ("company_id","source_rule_id")
+WHERE "source_rule_id" is not null;` — SHARE na tabela enquanto constrói (o migrador aplica a pasta numa transação
+   só, sem `CONCURRENTLY`).
+
+**Nada mais**: nenhum INSERT, UPDATE, DELETE, backfill, DROP, RENAME ou `ALTER COLUMN` na migration inteira. O unique
+`(company_id, city_ibge_code, holiday_on)`, `holiday_on`, `municipal_holidays_city_check` (`^[0-9]{7}$`), o nome e a
+tabela em si não mudam. A cópia do schema no worker (`delivery-client.schema.ts`, `holidayOn notNull`) **não** foi tocada.
+`SET LOCAL lock_timeout = '3s'` abre a pasta e volta a `DEFAULT` no fim; o custo de lock está no cabeçalho do SQL.
+
+Tabelas novas (nascem vazias): `municipal_holiday_rules`, `state_holidays`, `company_business_calendar_settings`
+(campos, CHECKs, únicos e FKs: ADR-0096 §5). Todo identificador tem ≤ 63 bytes (checado no schema e no SQL).
+
+### Medir antes de levar a produção (passo do usuário/ops — **não** rodei: nunca leio banco de produção)
+
+O `ADD COLUMN`/`CREATE INDEX` pesam pelo tamanho da tabela, e as linhas existentes entram na leitura da T1.3. Em
+**staging primeiro**, depois em produção, com o usuário de leitura:
+
+```sql
+select count(*) from municipal_holidays;                                      -- custo do ALTER e do índice
+select count(*) from municipal_holidays where extract(year from holiday_on) = 2000;   -- resto do formato 2000-MM-DD
+select count(*) from municipal_holidays where city_ibge_code !~ '^[1-5][0-9]{6}$';    -- a política recusa essas cidades
+select count(*) from municipal_holidays
+  where substr(city_ibge_code, 1, 2) not in ('11','12','13','14','15','16','17','21','22','23','24','25','26','27',
+    '28','29','31','32','33','35','41','42','43','50','51','52','53');        -- UF fora das 27
+select count(*) from municipal_holidays where char_length(name) > 120;        -- a rota nova limita o nome a 120
+select company_id, count(*) from municipal_holidays group by 1 order by 2 desc limit 1;  -- maior empresa
+```
+
+Nenhum resultado bloqueia **esta** migration (os CHECKs novos são das tabelas novas; o de `kind` vê só o default
+`holiday`). Importam para a T1.3: cidade fora do padrão faria a política recusar o calendário daquela empresa
+(`BUSINESS_CALENDAR_INVALID_CITY`/`UNKNOWN_STATE`), e nome acima de 120 não editaria pela rota nova.
+
+### Banco: o que o contrato prova (`business-calendar*.assertion.ts`, dentro de `db:test`)
+
+Recusam: cidade de 6/8 dígitos, com 0 ou 6 na frente, com letra e vazia (`city_check`); UF inexistente com regex ok
+(`34`, `10`, `54`: `state_check`); mês 13/0, dia 0/32, 31/04, 31/06, 31/09, 31/11, 30/02 (`month_day_check`); `kind`
+inválido; nome vazio e de 121 caracteres; regra duplicada (empresa + cidade + dia). Aceitam: 29/02, 30/04, 31/12,
+nome de 120. A mesma cidade e dia em **outra empresa** é aceita (o unique inclui a empresa). `municipal_holidays`: o
+INSERT antigo, sem `kind`, vira `holiday` com origem nula; `kind` inválido é recusado; `source_rule_id` de regra de
+**outra empresa** é recusado pela FK composta (`23503`); data gerada colidindo com a digitada é `23505`; apagar a regra
+apaga só as datas dela e **a digitada (origem nula) fica**. `state_holidays`: `weekly`, UF `99`/`3`, nome vazio/121,
+`once` sem data, `once` com mês, `yearly` com data, `yearly` **sem mês, sem dia ou sem os dois** (o buraco do NULL),
+13/1, 31/04, 30/02, dia 0 — todos recusados; 29/02 `yearly` aceito; os dois únicos parciais recusam a repetição de cada
+forma e deixam `once` e `yearly` coexistirem. `company_business_calendar_settings`: nasce `false`, uma linha por
+empresa, FK recusa empresa que não existe.
+
+**Rollback e reaplicação:** com regra, duas datas geradas e uma digitada gravadas, o `rollback.sql` remove as três
+tabelas, as duas colunas, a FK, o índice e a linha do journal (verifica 1 linha), e as **três datas ficam** em
+`municipal_holidays` (`2026-07-14`, `2026-09-20`, `2027-07-14`); `runDatabaseMigrations` reaplica e as linhas antigas
+voltam `holiday` sem origem.
+
+### Roteirizador (T1.2a + caso novo)
+
+`apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts`, banco descartável **próprio**
+`t238_t12_worker_it` (criado no Postgres do `.env.test`, migrado com `db:migrate` desta árvore; nenhum banco compartilhado):
+
+| Banco                               | Resultado                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| migrado até a retenção (sem a T1.2) | 7 pass / **1 fail** — o caso novo, `municipal_holiday_rules` não existe |
+| migrado com a T1.2                  | **8 pass / 0 fail** — os 7 antigos, sem alteração, e o caso novo        |
+
+O caso novo: uma data com `source_rule_id` (e a regra que a gerou) fecha o cliente na data do roteiro, igual à digitada.
+`git diff --quiet` em `apps/worker-transportada/src/routing/` → 0 (nada alterado), e `resolveDeliveryWindow` idem.
+
+### Prova por mutação (cada uma derrubou teste; restaurada com `git checkout`; `git diff --quiet` limpo ao fim)
+
+Duas camadas: o SQL que roda (`migration.sql`, pelo `db:test`) e o schema TS (contrato de schema).
+
+| Mutação                                             | `migration.sql` (db:test)                                  | schema TS (contrato)                       |
+| --------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
+| sem o CHECK de dia/mês da regra                     | 1 fail — a integração (constraint ausente)                 | 1 fail — `month_day_check`                 |
+| CHECK de dia/mês afrouxado (`day between 1 and 31`) | 1 fail — a integração (31/04 aceito, esperava `23514`)     | —                                          |
+| sem `ON DELETE CASCADE` na FK composta              | 2 fail — estático (seis comandos) + integração             | 1 fail — `FK composta … CASCADE`           |
+| unique da regra sem a empresa                       | 1 fail — a integração (mesma cidade/dia em outra empresa)  | 1 fail — `única por empresa, cidade e dia` |
+| `kind` sem default                                  | 2 fail — estático + integração (INSERT antigo sem `kind`)  | 1 fail — `o tipo nasce holiday`            |
+| CHECK de UF removida                                | 1 fail — a integração (constraint ausente)                 | 1 fail — `UF que não existe`               |
+| UF `10` aceita na lista do CHECK                    | 1 fail — a integração (`1009502` aceito, esperava `23514`) | —                                          |
+| `yearly` sem `is not null` (buraco do NULL)         | 1 fail — a integração (`yearly` sem mês aceito)            | —                                          |
+| sábado útil por padrão (`DEFAULT true`)             | 1 fail — a integração                                      | —                                          |
+
+⚠️ A primeira tentativa da mutação "`kind` sem default" passou limpa (116 pass): o `replace` tinha atingido o
+**comentário** do cabeçalho, que cita o mesmo texto. O harness passou a mirar o comando com o `;` final.
+
+### Gates
+
+- `bun run typecheck` → 0; `bun run lint` → 0 (`--max-warnings=0`); `bun run format:check` na raiz → limpo.
+- Contratos da API (`bun --env-file=../../.env.test run test`, lista do `package.json`; e `test --timeout 120000`, descoberta
+  padrão) → **10523 pass / 25 skip / 0 fail**, 201 arquivos. Antes **10498 / 25 / 0** (derivado: 10523 − 18 do contrato de
+  schema − 7 do contrato estático; não medi a linha de base separadamente).
+- `db:test` com `DRIZZLE_TEST_DATABASE_URL` do `.env.test` → **153 pass / 0 fail**; `make migration-test` → **153 pass /
+  0 fail** (mesmo `db:test`, contra o Postgres local do compose). `migration-completeness.integration.ts` → 3 pass.
+- `bun run db:generate` → `no_changes`.
+
+### O que não rodou
+
+- `test:integration` da API inteira (~17 min): nenhuma integração da API toca `municipal_holidays` nem as tabelas novas;
+  rodei `migration-completeness` e o `db:test`. A integração completa do **worker** também não — só a do roteirizador.
+- `make check` completo (frontend, build de todas as apps).
+- As consultas de medição acima (passo do usuário/ops) e qualquer migration em staging/produção.
+- Push e deploy: de quem orquestra.
+
+### Para a T1.3 (herdado desta task)
+
+- `POST /municipal-holidays` hoje faz `ON CONFLICT (company_id, city_ibge_code, holiday_on) DO UPDATE SET name`: se o
+  operador redigitar uma data **gerada** por uma regra, o nome muda mas `source_rule_id` fica, e a data some junto com a
+  regra. Decidir na T1.3 se redigitar zera a origem.
+- O defeito do roteirizador da T1.2a (feriado de uma cidade fecha o cliente de outra no mesmo roteiro) segue de pé e agora
+  alcança até 10 linhas por regra "todo ano".

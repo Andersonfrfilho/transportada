@@ -60,6 +60,10 @@ docs/ai-context/api-transportada.md § "Spec 239" e `docs/SECURITY.md` § "2026-
 **Dias úteis por cidade** (spec 238 T1.1, ADR-0096): `src/business-calendar/domain/` — política pura
 (`buildBusinessCalendar`, `isBusinessDay`, `explainDay`, `addBusinessDays`, `countBusinessDays`), datas civis em texto,
 sem relógio nem fuso, recusa tipada `BUSINESS_CALENDAR_*`. Detalhe: docs/ai-context § "Spec 238 T1.1".
+Dado do calendário (T1.2, ADR-0096 §5): `municipal_holiday_rules` (regra "todo ano"), `state_holidays`,
+`company_business_calendar_settings`; `municipal_holidays` só com datas fixas e `kind`/`source_rule_id`. UFs e vocabulário
+em `src/shared/business-calendar.constant.ts` (o schema não importa de domínio). CHECK aceita NULL: exija `is not null`
+à parte. Detalhe: docs/ai-context § "Spec 238 T1.2".
 
 ## Banco
 
