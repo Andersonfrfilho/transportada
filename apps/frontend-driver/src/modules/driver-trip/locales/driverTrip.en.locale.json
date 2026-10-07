@@ -503,6 +503,7 @@
     "cancel": "Cancel",
     "declaredAmount": {
       "defaultLabel": "Amount paid",
+      "limit": "Field limit: the amount cannot exceed R$ 9,999,999,999.99.",
       "optional": "{{label}} · optional",
       "placeholder": "0.00",
       "required": "{{label}} · required"
@@ -517,6 +518,8 @@
       "quantityAboveNote": "The invoice has only {{quantity}} {{unit}}.",
       "quantityLabel": "Quantity returned ({{unit}})",
       "quantityMissing": "Enter the quantity, greater than zero.",
+      "quantityTooManyDecimals": "The quantity allows at most 3 decimal places.",
+      "quantityTooManyDigits": "The quantity allows at most 9 digits before the comma.",
       "title": "Products returned",
       "titleOptional": "Products returned (optional)",
       "titleRequired": "Products returned (required)",

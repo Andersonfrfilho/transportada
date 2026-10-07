@@ -514,6 +514,7 @@
     "cancel": "Cancelar",
     "declaredAmount": {
       "defaultLabel": "Valor pago",
+      "limit": "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99.",
       "optional": "{{label}} · opcional",
       "placeholder": "0,00",
       "required": "{{label}} · obrigatório"
@@ -528,6 +529,8 @@
       "quantityAboveNote": "A nota tem só {{quantity}} {{unit}}.",
       "quantityLabel": "Quantidade devolvida ({{unit}})",
       "quantityMissing": "Informe a quantidade, maior que zero.",
+      "quantityTooManyDecimals": "A quantidade aceita no máximo 3 casas depois da vírgula.",
+      "quantityTooManyDigits": "A quantidade aceita no máximo 9 dígitos antes da vírgula.",
       "title": "Produtos devolvidos",
       "titleOptional": "Produtos devolvidos (opcional)",
       "titleRequired": "Produtos devolvidos (obrigatório)",

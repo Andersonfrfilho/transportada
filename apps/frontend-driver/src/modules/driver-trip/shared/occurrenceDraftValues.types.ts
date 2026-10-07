@@ -17,7 +17,11 @@ export const EMPTY_OCCURRENCE_ITEM_DRAFT: OccurrenceItemDraft = {
   quantityText: '',
 }
 
-export type OccurrenceItemQuantityProblem = 'above-note' | 'missing'
+export type OccurrenceItemQuantityProblem =
+  | 'above-note'
+  | 'missing'
+  | 'too-many-decimals'
+  | 'too-many-digits'
 
 export type OccurrenceItemLine = Readonly<{
   /** O valor pago digitado, canônico — só quando o valor se digita por linha. */

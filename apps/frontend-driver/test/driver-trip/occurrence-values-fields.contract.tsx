@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'bun:test'
 
 import '@/modules/shared/i18n/i18n.service'
+import { OccurrenceMoneyField } from '@/modules/driver-trip/components/OccurrenceMoneyField.component'
 import { OccurrenceItemsField } from '@/modules/driver-trip/components/OccurrenceItemsField.component'
 import { OccurrenceRegisterAction } from '@/modules/driver-trip/components/OccurrenceRegisterAction.component'
 import type { OccurrenceValuesForm } from '@/modules/driver-trip/hooks/useOccurrenceValues.hook'
@@ -231,6 +232,62 @@ describe('quantidade inválida fica dita na linha', () => {
     })
 
     expect(html).toContain('Informe a quantidade, maior que zero.')
+  })
+})
+
+describe('quantidade com casas a mais: a tela marca, não corta (T7.2)', () => {
+  function renderQuantity(quantityText: string): string {
+    return renderItems({
+      drafts: { P2: { declaredAmountText: '', isSelected: true, quantityText } },
+      type: buildType({}),
+    })
+  }
+
+  test('4 casas: o texto digitado fica no campo, aria-invalid e a mensagem "no máximo 3 casas"', () => {
+    const html = renderQuantity('0,5555')
+
+    expect(html).toContain('value="0,5555"')
+    expect(html).toContain('aria-invalid="true"')
+    expect(html).toContain('no máximo 3 casas')
+  })
+
+  test('mais de 9 dígitos inteiros também é dito', () => {
+    expect(renderQuantity('1234567890')).toContain('no máximo 9 dígitos')
+  })
+
+  test('3 casas é válido: sem erro', () => {
+    expect(renderQuantity('0,555')).not.toContain('aria-invalid')
+  })
+})
+
+describe('o campo do valor pago (máscara de centavos, T7.2)', () => {
+  function renderMoney(value: string): string {
+    return renderToStaticMarkup(
+      <OccurrenceMoneyField
+        label="Valor pago"
+        onChange={() => undefined}
+        placeholder="0,00"
+        value={value}
+      />,
+    )
+  }
+
+  test('teclado numérico, e o texto mascarado é o que o campo mostra', () => {
+    const html = renderMoney('1.234,56')
+
+    expect(html).toContain('inputMode="numeric"')
+    expect(html).toContain('value="1.234,56"')
+  })
+
+  test('no teto a tela diz, em região viva — nunca ignora calada', () => {
+    const html = renderMoney('9.999.999.999,99')
+
+    expect(html).toContain('aria-live="polite"')
+    expect(html).toContain('Limite do campo')
+  })
+
+  test('abaixo do teto a região viva fica vazia', () => {
+    expect(renderMoney('15,00')).not.toContain('Limite do campo')
   })
 })
 

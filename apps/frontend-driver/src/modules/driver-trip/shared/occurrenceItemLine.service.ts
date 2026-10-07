@@ -6,12 +6,13 @@ import {
   parseAmountToCents,
   parseScaledDecimal,
 } from './occurrenceAmount.service'
-import { toCanonicalDecimal } from './occurrenceDecimalInput.service'
+import { QUANTITY_LIMITS, toCanonicalDecimal } from './occurrenceDecimalInput.service'
 import type {
   OccurrenceItemDraft,
   OccurrenceItemLine,
   OccurrenceItemQuantityProblem,
 } from './occurrenceDraftValues.types'
+import { unmaskMoneyText } from './occurrenceMoneyMask.service'
 import type { OccurrenceRequirements } from './occurrenceRequirements.service'
 
 /** O que `OCCURRENCE_ITEM_QUANTITY_DECIMAL` da API aceita: nove inteiros, três casas. */
@@ -39,7 +40,7 @@ export function resolveDefaultQuantityText(product: DriverNfeProduct): string {
 }
 
 export function readCanonicalAmount(text: string): string | undefined {
-  const canonical = toCanonicalDecimal(text)
+  const canonical = unmaskMoneyText(text)
   return canonical !== undefined && DECLARED_AMOUNT_PATTERN.test(canonical) ? canonical : undefined
 }
 
@@ -51,11 +52,20 @@ function tryParseScaled(value: string): bigint | undefined {
   }
 }
 
+function findQuantityExcess(canonical: string): OccurrenceItemQuantityProblem | undefined {
+  const [integer = '', decimals = ''] = canonical.split('.')
+  if (decimals.length > QUANTITY_LIMITS.maxDecimals) return 'too-many-decimals'
+  return integer.length > QUANTITY_LIMITS.maxIntegerDigits ? 'too-many-digits' : undefined
+}
+
 function resolveQuantity(input: { readonly product: DriverNfeProduct; readonly text: string }): {
   readonly problem: OccurrenceItemQuantityProblem | undefined
   readonly quantity: string | undefined
 } {
   const canonical = toCanonicalDecimal(input.text)
+  const excess = canonical === undefined ? undefined : findQuantityExcess(canonical)
+  if (excess !== undefined) return { problem: excess, quantity: undefined }
+
   const isValid =
     canonical !== undefined && QUANTITY_PATTERN.test(canonical) && NON_ZERO_DIGIT.test(canonical)
   if (!isValid) return { problem: 'missing', quantity: undefined }

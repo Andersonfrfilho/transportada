@@ -6,12 +6,9 @@ import type {
   DriverOccurrenceType,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
-  sanitizeDecimalInput,
   sanitizeReferenceNumberInput,
   toCanonicalDecimal,
   toReferenceNumber,
-  DECLARED_AMOUNT_INPUT,
-  QUANTITY_INPUT,
 } from '../../src/modules/driver-trip/shared/occurrenceDecimalInput.service'
 import {
   evaluateOccurrenceValues,
@@ -127,18 +124,6 @@ describe('o que o motorista digita vira o texto que o servidor aceita (nunca num
     expect(toCanonicalDecimal(',')).toBeUndefined()
   })
 
-  it('o campo não aceita o que o servidor recusaria', () => {
-    expect(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text: '12,345' })).toBe('12,34')
-    expect(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text: '1,2,3' })).toBe('1,23')
-    expect(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text: '-5' })).toBe('5')
-    expect(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text: 'R$ 5,00' })).toBe('5,00')
-    expect(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text: '12345678901' })).toBe(
-      '1234567890',
-    )
-    expect(sanitizeDecimalInput({ limits: QUANTITY_INPUT, text: '2,5555' })).toBe('2,555')
-    expect(sanitizeDecimalInput({ limits: QUANTITY_INPUT, text: '1234567890' })).toBe('123456789')
-  })
-
   it('o número do documento só leva o que o padrão da API aceita, até 30; vazio é ausente', () => {
     expect(sanitizeReferenceNumberInput('NFD-45029/1.A ç!')).toBe('NFD-45029/1.A ')
     expect(sanitizeReferenceNumberInput('A'.repeat(40))).toHaveLength(30)
@@ -208,7 +193,7 @@ describe('a lista, a soma da linha e a soma geral (RF11, os números do protóti
   })
 
   it('valor pago 0 é aceito e diferente de vazio', () => {
-    const drafts = { P2: { declaredAmountText: '0', isSelected: true, quantityText: '1' } }
+    const drafts = { P2: { declaredAmountText: '0,00', isSelected: true, quantityText: '1' } }
     const values = evaluate({
       drafts,
       type: buildType({ declaredAmountMode: 'required', declaredAmountScope: 'item' }),
@@ -216,7 +201,7 @@ describe('a lista, a soma da linha e a soma geral (RF11, os números do protóti
 
     expect(values.totals?.declaredAmountCents).toBe(0n)
     expect(values.payload.items).toEqual([
-      { declaredAmount: '0', productCode: 'P2', quantity: '1' },
+      { declaredAmount: '0.00', productCode: 'P2', quantity: '1' },
     ])
     expect(values.facts.lineAmountMissingCount).toBe(0)
   })
@@ -267,7 +252,7 @@ describe('o corpo que sai pela fila: strings, só o que o servidor aceita (CA06,
 
   it('escopo "item" sem nenhuma linha marcada cai na ocorrência — como o servidor', () => {
     const values = evaluate({
-      texts: { declaredAmount: '0', referenceNumber: '' },
+      texts: { declaredAmount: '0,00', referenceNumber: '' },
       type: buildType({
         declaredAmountMode: 'optional',
         declaredAmountScope: 'item',
@@ -276,18 +261,18 @@ describe('o corpo que sai pela fila: strings, só o que o servidor aceita (CA06,
     })
 
     expect(values.amountTarget).toBe('occurrence')
-    expect(values.payload).toEqual({ declaredAmount: '0' })
+    expect(values.payload).toEqual({ declaredAmount: '0.00' })
   })
 
   it('Produtos desligado pela exceção: só o campo da ocorrência, e nenhum item sai', () => {
     const values = evaluate({
       drafts: pick({ P1: '1' }),
-      texts: { declaredAmount: '10', referenceNumber: '' },
+      texts: { declaredAmount: '10,00', referenceNumber: '' },
       type: buildType({ declaredAmountMode: 'optional', itemsMode: 'off' }),
     })
 
     expect(values.amountTarget).toBe('occurrence')
-    expect(values.payload).toEqual({ declaredAmount: '10' })
+    expect(values.payload).toEqual({ declaredAmount: '10.00' })
   })
 
   it('o número do documento sai aparado; vazio some; tipo que o desliga não o manda', () => {
@@ -311,8 +296,8 @@ describe('o corpo que sai pela fila: strings, só o que o servidor aceita (CA06,
 
   it('valor pago de tipo que o desliga não sai, nem digitado antes de trocar de tipo', () => {
     const values = evaluate({
-      drafts: { P2: { declaredAmountText: '50', isSelected: true, quantityText: '1' } },
-      texts: { declaredAmount: '10', referenceNumber: '' },
+      drafts: { P2: { declaredAmountText: '50,00', isSelected: true, quantityText: '1' } },
+      texts: { declaredAmount: '10,00', referenceNumber: '' },
       type: buildType({ declaredAmountMode: 'off' }),
     })
 
@@ -455,8 +440,8 @@ describe('o botão só libera com o exigido, sem rede (CA07)', () => {
     expect(
       missing({
         drafts: {
-          P1: { declaredAmountText: '0', isSelected: true, quantityText: '1' },
-          P2: { declaredAmountText: '10', isSelected: true, quantityText: '1' },
+          P1: { declaredAmountText: '0,00', isSelected: true, quantityText: '1' },
+          P2: { declaredAmountText: '10,00', isSelected: true, quantityText: '1' },
         },
         type,
       }),
@@ -472,9 +457,9 @@ describe('o botão só libera com o exigido, sem rede (CA07)', () => {
     const drafts = pick({ P2: '1' })
 
     expect(missing({ drafts, type })).toEqual(['declaredAmount'])
-    expect(missing({ drafts, texts: { declaredAmount: '0', referenceNumber: '' }, type })).toEqual(
-      [],
-    )
+    expect(
+      missing({ drafts, texts: { declaredAmount: '0,00', referenceNumber: '' }, type }),
+    ).toEqual([])
   })
 
   it('valor pago opcional não segura; preço que varia na nota o exige na linha', () => {
@@ -488,7 +473,7 @@ describe('o botão só libera com o exigido, sem rede (CA07)', () => {
     expect(missing({ drafts: pick({ P3: '1' }), type })).toEqual(['itemDeclaredAmount'])
     expect(
       missing({
-        drafts: { P3: { declaredAmountText: '8', isSelected: true, quantityText: '1' } },
+        drafts: { P3: { declaredAmountText: '8,00', isSelected: true, quantityText: '1' } },
         type,
       }),
     ).toEqual([])
