@@ -54,3 +54,40 @@
 | Separador transferindo                                      | Permissão `trip.report-on-behalf`; `separator-role.contract.test.ts`       |
 | Motorista novo trava a viagem em curso                      | Teste de integração: novo motorista lê `/me/trips/current` e segue         |
 | Lista de testes do `package.json`                           | Teste novo entra na lista explícita da app                                 |
+
+## Contrato HTTP (API e painel constroem contra este formato)
+
+`POST /v1/trips/:id/crew-transfers` — permissão `trip.report-on-behalf`.
+
+```json
+// corpo
+{ "driverIds": ["uuid"], "helperIds": ["uuid"], "reason": "string 1..500" }
+
+// 201
+{
+  "data": {
+    "trip": { "...": "TripDetail, o mesmo de GET /trips/:id" },
+    "transfer": {
+      "id": "uuid",
+      "costBefore": "1200.00",
+      "costAfter": "1350.00",
+      "costDifference": "150.00",
+      "costHasGaps": false,
+      "mdfeDriverDivergence": true
+    }
+  }
+}
+```
+
+Erros (envelope padrão `{ error: { code, message } }`): `400` corpo inválido · `403` sem permissão
+· `404` viagem inexistente · `409 STATE_TRANSITION_NOT_ALLOWED` fora da janela (com `reason` do
+motivo: cancelada, concluída, ainda não despachada) · `409 TRIP_CREW_UNCHANGED` · `422` ficha
+inelegível (`TRIP_DRIVER_CANNOT_DRIVE` e equivalentes da 235).
+
+`allowed-actions` ganha a chave `transferCrew` (boolean), no mesmo objeto de `defineCrew`.
+
+Evento na linha do tempo da viagem: `kind: 'crew_transfer'`, com `occurredAt`, `actor`, `reason`,
+`previousCrew[]`, `nextCrew[]` (`{ driverId, name, role, position }`), `costDifference`,
+`mdfeDriverDivergence`.
+
+Decimais trafegam como string (regra do projeto: dinheiro nunca é float).
