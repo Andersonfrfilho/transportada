@@ -10,6 +10,7 @@ import {
 import {
   recordContractorMailInboundMessage,
   type RecordContractorMailInboundMessageDependencies,
+  type RecordContractorMailInboundMessageResult,
 } from '../contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import {
   ResendDownloadHostNotAllowedError,
@@ -18,7 +19,7 @@ import {
   ResendProviderUnauthorizedError,
 } from '../contractor-mail/domain/resend-provider.error.js'
 import { ContractorMailInboundSettingsMissingError } from '../contractor-mail/domain/contractor-mail-inbound.error.js'
-import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
+import { safeLogError, safeLogInfo, safeLogWarn } from '../logging/safe-logger.service.js'
 import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
 
 /**
@@ -72,6 +73,10 @@ export async function startContractorMailInboundConsumer(params: {
           })
           return { type: 'ack' }
         }
+        if (result.outcome === 'preview') {
+          logPreviewOutcome({ baseMetadata, logger: params.logger, preview: result.preview })
+          return { type: 'ack' }
+        }
         if (result.outcome === 'recorded') {
           safeLogInfo({
             logger: params.logger,
@@ -106,5 +111,43 @@ export async function startContractorMailInboundConsumer(params: {
       }
     },
     prefetch: params.config.prefetch,
+  })
+}
+
+type PreviewOutcome = Extract<
+  RecordContractorMailInboundMessageResult,
+  { outcome: 'preview' }
+>['preview']
+
+/** Spec 237 T4.6: ids, códigos e o resultado do DKIM — nunca endereço, assunto, corpo ou cabeçalho. */
+function logPreviewOutcome(input: {
+  readonly baseMetadata: Record<string, unknown>
+  readonly logger: WorkerLogger
+  readonly preview: PreviewOutcome
+}): void {
+  const { baseMetadata, logger, preview } = input
+  if (preview.kind === 'accepted') {
+    safeLogInfo({
+      logger,
+      message: 'inbound_email_preview_accepted',
+      metadata: {
+        ...baseMetadata,
+        contractorId: preview.contractorId,
+        dkimResult: preview.dkimResult,
+        isReplay: preview.isReplay,
+        previewId: preview.previewId,
+      },
+    })
+    return
+  }
+  const isRejected = preview.kind === 'rejected'
+  safeLogWarn({
+    logger,
+    message: isRejected ? 'inbound_email_preview_rejected' : 'inbound_email_preview_rate_limited',
+    metadata: {
+      ...baseMetadata,
+      contractorId: preview.contractorId,
+      ...(isRejected ? { reason: preview.reason } : {}),
+    },
   })
 }

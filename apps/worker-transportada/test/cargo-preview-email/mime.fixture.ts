@@ -17,6 +17,7 @@ export type MimeAttachment = {
 
 export type MimeBuild = {
   readonly attachments?: readonly MimeAttachment[]
+  readonly boundary?: string
   readonly extraHeaders?: readonly string[]
   readonly forwardedMessages?: readonly string[]
   readonly from: string
@@ -29,7 +30,7 @@ function boundaryFor(seed: string): string {
 }
 
 export function buildMime(input: MimeBuild): string {
-  const boundary = boundaryFor('outer')
+  const boundary = boundaryFor(input.boundary ?? 'outer')
   const parts: string[] = [
     ['Content-Type: text/plain; charset=utf-8', '', input.text ?? 'segue a previa', ''].join(CRLF),
   ]
@@ -81,6 +82,7 @@ export function buildOriginalMime(input: {
 }): string {
   return buildMime({
     attachments: input.attachments ?? [{ fileName: 'FR-06-10.xlsm' }],
+    boundary: 'inner',
     extraHeaders: input.extraHeaders ?? [],
     from: input.from,
     text: 'previa do dia',

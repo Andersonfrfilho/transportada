@@ -155,6 +155,8 @@ import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail
 import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
+import { createCargoPreviewEmailIntake } from './cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
+import { createDrizzleCargoPreviewEmailRepository } from './cargo-preview-email/infrastructure/drizzle-cargo-preview-email.repository.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
@@ -1066,6 +1068,10 @@ export async function startWorkerRuntime(
       logger,
       provider: contractorMailOutboundPublisher,
     })
+    const inboundDkimVerifier = createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord })
+    const inboundMailGateway = createResendMailGateway({
+      fetch: (target, init) => fetch(target, init),
+    })
     contractorMailInboundConsumer = await contractorMailInboundStarter({
       config,
       dependencies: {
@@ -1075,8 +1081,19 @@ export async function startWorkerRuntime(
           provider: 'minio',
           storage: storageGateway,
         }),
-        dkimVerifier: createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord }),
-        mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
+        dkimVerifier: inboundDkimVerifier,
+        mailGateway: inboundMailGateway,
+        /** Spec 237 T4.6: a prévia por e-mail encaminhado, antes do trilho da conversa. */
+        previewIntake: createCargoPreviewEmailIntake({
+          dkimVerifier: inboundDkimVerifier,
+          mailGateway: inboundMailGateway,
+          repository: createDrizzleCargoPreviewEmailRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+          storage: storageGateway,
+          storageBucket,
+          storageProvider: 'minio',
+        }),
         repository: createDrizzleContractorMailInboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),

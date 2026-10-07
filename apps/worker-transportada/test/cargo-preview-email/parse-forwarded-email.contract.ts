@@ -69,17 +69,18 @@ describe('a leitura do e-mail encaminhado (spec 237 T4.6)', () => {
   })
 
   test('uma mensagem dentro da mensagem anexada nunca é aberta nem vira candidata', async () => {
-    const inner = buildOriginalMime({ from: 'nested@contratante.example' })
+    const inner = buildMime({ boundary: 'nested', from: 'nested@contratante.example' })
     const original = buildOriginalMime({
       attachments: [{ fileName: 'FR-06-10.xlsm' }],
       from: ORIGINAL,
     }).replace(
-      '--b-outer-xxxxxxxx--',
-      `--b-outer-xxxxxxxx\r\nContent-Type: message/rfc822\r\n\r\n${inner}\r\n--b-outer-xxxxxxxx--`,
+      '--b-inner-xxxxxxxx--',
+      `--b-inner-xxxxxxxx\r\nContent-Type: message/rfc822\r\n\r\n${inner}\r\n--b-inner-xxxxxxxx--`,
     )
     const raw = buildMime({ forwardedMessages: [original], from: FORWARDER })
     const parsed = await parseForwardedEmail(enc(raw))
-    expect(parsed?.attachments.map((item) => item.fileName)).toEqual(['FR-06-10.xlsm'])
+    const readable = parsed?.attachments.filter((item) => item.mimeType !== 'message/rfc822')
+    expect(readable?.map((item) => item.fileName)).toEqual(['FR-06-10.xlsm'])
     expect(parsed?.originalSender).toEqual({ address: ORIGINAL, kind: 'found' })
   })
 

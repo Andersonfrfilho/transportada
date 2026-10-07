@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { CargoPreviewEmailRejectionCode } from '../../src/shared/cargo-preview.constant.js'
 import { ResendDownloadTooLargeError } from '../../src/contractor-mail/domain/resend-provider.error.js'
 import { CARGO_PREVIEW_OBJECT_MAX_BYTES } from '../../src/cargo-preview/domain/cargo-preview-object.policy.js'
 import {
@@ -26,7 +27,7 @@ import {
   type HarnessOptions,
 } from './intake.harness.js'
 
-async function expectRejected(options: HarnessOptions, reason: string) {
+async function expectRejected(options: HarnessOptions, reason: CargoPreviewEmailRejectionCode) {
   const run = runIntake(options)
   expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rejected', reason })
   expect(run.calls.created).toEqual([])

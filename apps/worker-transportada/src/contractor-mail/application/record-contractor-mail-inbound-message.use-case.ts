@@ -10,12 +10,17 @@
  */
 import { createHash } from 'node:crypto'
 
+import { buildRawEmailObjectKey } from '../domain/raw-email-object-key.policy.js'
 import { hashReplyToken } from '../domain/reply-token.policy.js'
 import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
 import type { DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
 import type { VerifyDkimAlignmentPort } from '../infrastructure/dkim-verifier.gateway.js'
+import type {
+  CargoPreviewEmailIntakePort,
+  CargoPreviewEmailIntakeResult,
+} from '../../cargo-preview-email/application/cargo-preview-email.types.js'
 import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type { ContractorMailInboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
@@ -47,6 +52,8 @@ export type RecordContractorMailInboundMessageDependencies = {
   readonly conversationAttachments: InboundConversationAttachmentsPort
   readonly dkimVerifier: VerifyDkimAlignmentPort
   readonly mailGateway: ResendMailGateway
+  /** Spec 237 T4.6: o ramo da prévia encaminhada; só decide a mensagem que casa o token de um perfil. */
+  readonly previewIntake: CargoPreviewEmailIntakePort
   readonly repository: ContractorMailInboundWorkerRepository
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: StoreRawEmailPort
@@ -63,6 +70,14 @@ export type RecordContractorMailInboundMessageDependencies = {
 export type RecordContractorMailInboundMessageResult =
   | { readonly outcome: 'already_recorded' }
   | { readonly outcome: 'discarded'; readonly reason: 'multiple_matches' | 'token_unknown' }
+  | {
+      /** Spec 237 T4.6: a prévia por e-mail encaminhado decidiu — aceita, recusada ou ignorada por excesso. */
+      readonly outcome: 'preview'
+      readonly preview: Extract<
+        CargoPreviewEmailIntakeResult,
+        { readonly kind: 'accepted' | 'rate_limited' | 'rejected' }
+      >
+    }
   | {
       /** Spec 183 T702c1: só contagem — o nome do arquivo nunca sai daqui. */
       readonly attachments: { readonly linked: number; readonly skipped: number }
@@ -85,6 +100,9 @@ export async function recordContractorMailInboundMessage(
     providerEmailId,
   })
   if (existingMessage !== undefined) return { outcome: 'already_recorded' }
+  if (await dependencies.previewIntake.hasIntake({ companyId, providerEmailId })) {
+    return { outcome: 'already_recorded' }
+  }
 
   const settings = await dependencies.repository.findSettingsByCompanyId({ companyId })
   if (settings === undefined) {
@@ -102,6 +120,17 @@ export async function recordContractorMailInboundMessage(
     apiKey: secret.apiKey,
     emailId: providerEmailId,
   })
+
+  const preview = await dependencies.previewIntake.intake({
+    companyId,
+    correlationId: envelope.correlationId,
+    occurredAt: new Date(envelope.occurredAt),
+    providerEmailId,
+    received,
+    replyDomain: settings.replyDomain,
+  })
+  if (preview.kind === 'already_recorded') return { outcome: 'already_recorded' }
+  if (preview.kind !== 'not_a_preview') return { outcome: 'preview', preview }
 
   const candidateTokens = extractReplyTokenCandidates({
     ccAddresses: received.cc ?? [],
@@ -125,7 +154,7 @@ export async function recordContractorMailInboundMessage(
     downloadUrl: received.raw.download_url,
   })
   const sha256 = createHash('sha256').update(rawMessage).digest('hex')
-  const objectKey = buildRawObjectKey({ companyId, providerEmailId })
+  const objectKey = buildRawEmailObjectKey({ companyId, providerEmailId })
 
   await dependencies.storage.storeObject({
     body: new Uint8Array(rawMessage),
@@ -215,17 +244,6 @@ function extractInReplyToHeader(received: ReceivedResendEmail): string | undefin
     ([name]) => name.toLowerCase() === IN_REPLY_TO_HEADER,
   )
   return normalizeOptional(entry?.[1]?.replaceAll(/[<>]/g, ''))
-}
-
-/**
- * Sem dado pessoal na chave (RF4/plan.md § Worker): nem endereço, nem assunto — só a referência
- * opaca do Resend, que já é única por empresa.
- */
-function buildRawObjectKey(input: {
-  readonly companyId: string
-  readonly providerEmailId: string
-}): string {
-  return `tenants/${input.companyId}/contractor-mail/${encodeURIComponent(input.providerEmailId)}/raw.eml`
 }
 
 function normalizeNonEmpty(value: string | null | undefined, fallback: string): string {

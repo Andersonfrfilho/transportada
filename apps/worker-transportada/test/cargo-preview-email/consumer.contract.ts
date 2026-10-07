@@ -125,17 +125,17 @@ describe('o ramo da prévia no e-mail de entrada (spec 237 T4.6)', () => {
     accepted,
     { contractorId: CONTRACTOR_ID, kind: 'rejected', reason: 'FORWARDER_NOT_ALLOWED' },
     { contractorId: CONTRACTOR_ID, kind: 'rate_limited' },
-  ] as CargoPreviewEmailIntakeResult[])(
-    'a prévia decide (%p) e o trilho da conversa não é tocado',
-    async (result) => {
-      const probe: Probe = { fetches: 0, hasIntake: false, intakes: 0, result }
-      expect(await recordContractorMailInboundMessage(ENVELOPE, buildDependencies(probe))).toEqual({
-        outcome: 'preview',
-        preview: result,
-      })
-      expect(probe.intakes).toBe(1)
-    },
-  )
+  ] as Extract<
+    CargoPreviewEmailIntakeResult,
+    { kind: 'accepted' | 'rate_limited' | 'rejected' }
+  >[])('a prévia decide (%p) e o trilho da conversa não é tocado', async (result) => {
+    const probe: Probe = { fetches: 0, hasIntake: false, intakes: 0, result }
+    expect(await recordContractorMailInboundMessage(ENVELOPE, buildDependencies(probe))).toEqual({
+      outcome: 'preview',
+      preview: result,
+    })
+    expect(probe.intakes).toBe(1)
+  })
 
   test('mensagem registrada por outra via na corrida vira already_recorded', async () => {
     const probe: Probe = {

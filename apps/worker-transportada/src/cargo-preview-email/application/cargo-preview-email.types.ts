@@ -3,7 +3,11 @@
  */
 import type { CargoPreviewEmailRejectionCode } from '../../shared/cargo-preview.constant.js'
 import type { DkimAlignmentResult } from '../../contractor-mail/domain/dkim-alignment.policy.js'
-import type { ReceivedResendEmail } from '../../contractor-mail/infrastructure/resend-mail.gateway.js'
+import type { VerifyDkimAlignmentPort } from '../../contractor-mail/infrastructure/dkim-verifier.gateway.js'
+import type {
+  ReceivedResendEmail,
+  ResendMailGateway,
+} from '../../contractor-mail/infrastructure/resend-mail.gateway.js'
 
 export type PreviewProfileRecord = {
   readonly contractorId: string
@@ -120,4 +124,22 @@ export type CargoPreviewEmailIntakePort = {
     readonly providerEmailId: string
   }): Promise<boolean>
   intake(input: CargoPreviewEmailIntakeInput): Promise<CargoPreviewEmailIntakeResult>
+}
+
+export type IntakeCargoPreviewEmailDependencies = {
+  readonly dkimVerifier: VerifyDkimAlignmentPort
+  readonly mailGateway: Pick<ResendMailGateway, 'downloadRawEmail'>
+  readonly newId: () => string
+  readonly now: () => Date
+  readonly repository: CargoPreviewEmailRepositoryPort
+  readonly storage: CargoPreviewEmailStoragePort
+  readonly storageBucket: string
+  readonly storageProvider: string
+}
+
+/** O que sobrou depois de todas as barreiras: o DKIM do encaminhador, a planilha e o MIME bruto. */
+export type VerifiedPreviewEmail = {
+  readonly dkimResult: DkimAlignmentResult
+  readonly file: { readonly bytes: Uint8Array; readonly fileName: string }
+  readonly raw: Buffer
 }

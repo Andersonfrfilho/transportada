@@ -12,9 +12,11 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
 import type { AcceptedRecord } from '../../src/cargo-preview-email/application/cargo-preview-email.types.js'
+import { intakeCargoPreviewEmail } from '../../src/cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
 import { hashPreviewInboundToken } from '../../src/cargo-preview-email/domain/preview-inbound-token.policy.js'
 import { createDrizzleCargoPreviewEmailRepository } from '../../src/cargo-preview-email/infrastructure/drizzle-cargo-preview-email.repository.js'
 import { FR_COLUMN_MAP } from '../fixtures/cargo-preview-workbook.fixture.js'
+import { REPLY_DOMAIN, validRawEmail } from '../cargo-preview-email/intake.harness.js'
 
 const databaseUrl = process.env.DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
@@ -351,13 +353,68 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     ).toBe(0)
   })
 
+  test('de ponta a ponta: o MIME encaminhado vira prévia na fila e o reenvio não duplica', async () => {
+    const graph = await seedCompany()
+    const stored: string[] = []
+    const dependencies = {
+      dkimVerifier: { verify: async () => 'aligned' as const },
+      mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
+      newId: () => crypto.randomUUID(),
+      now: () => new Date('2026-10-06T15:00:00.000Z'),
+      repository,
+      storage: {
+        deleteObject: async () => undefined,
+        storeObject: async ({ key }: { readonly key: string }) => void stored.push(key),
+      },
+      storageBucket: 'integration',
+      storageProvider: 'minio',
+    }
+    const input = (providerEmailId: string) => ({
+      companyId: graph.companyId,
+      correlationId: 'corr-e2e',
+      occurredAt: new Date('2026-10-06T14:59:00.000Z'),
+      providerEmailId,
+      received: {
+        from: 'Equipe <equipe@transportadora.example>',
+        headers: {},
+        message_id: '<outer@forwarder.example>',
+        raw: {
+          download_url: 'https://abc.cloudfront.net/raw/1',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        subject: 'Fwd: previa',
+        text: 'segue',
+        to: [`${TOKEN}@${REPLY_DOMAIN}`],
+      },
+      replyDomain: REPLY_DOMAIN,
+    })
+
+    const first = await intakeCargoPreviewEmail(input('email-z1'), dependencies)
+    expect(first).toMatchObject({ isReplay: false, kind: 'accepted' })
+    const second = await intakeCargoPreviewEmail(input('email-z2'), dependencies)
+    expect(second).toMatchObject({ isReplay: true, kind: 'accepted' })
+    expect(await intakeCargoPreviewEmail(input('email-z1'), dependencies)).toEqual({
+      kind: 'already_recorded',
+    })
+    expect(await count('cargo_previews', graph.companyId)).toBe(1)
+    expect(await count('cargo_preview_outbox', graph.companyId)).toBe(1)
+    expect(await count('cargo_preview_email_intakes', graph.companyId)).toBe(2)
+    const rejected = await intakeCargoPreviewEmail(input('email-z3'), {
+      ...dependencies,
+      dkimVerifier: { verify: async () => 'absent' as const },
+    })
+    expect(rejected).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_DKIM_NOT_ALIGNED' })
+    expect(await count('cargo_previews', graph.companyId)).toBe(1)
+  })
+
   test('o registro dos e-mails é append-only no banco', async () => {
     const graph = await seedCompany()
     await repository.createPreview(record({ ...graph, emailId: 'email-h' }))
-    await expect(
-      db.execute(
+    const update = async () => {
+      await db.execute(
         sql`update cargo_preview_email_intakes set is_replay = true where company_id = ${graph.companyId}`,
-      ),
-    ).rejects.toThrow()
+      )
+    }
+    await expect(update()).rejects.toThrow()
   })
 })

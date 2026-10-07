@@ -62,7 +62,7 @@ describe('as listas de remetentes da prévia (spec 237 T4.6)', () => {
     expect(isOriginalSenderAllowed({ address: 'x@logistica.example.evil', allowlist })).toBe(false)
   })
 
-  test.each([null, []])('lista %p recusa tudo', (allowlist) => {
+  test.each([[null], [[]]])('lista %p recusa tudo', (allowlist) => {
     expect(isForwarderAllowed({ address: 'a@b.example', allowlist })).toBe(false)
     expect(isOriginalSenderAllowed({ address: 'a@b.example', allowlist })).toBe(false)
   })
