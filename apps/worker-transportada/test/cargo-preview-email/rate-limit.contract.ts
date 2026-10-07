@@ -9,9 +9,12 @@
 import { describe, expect, test } from 'bun:test'
 
 import { PREVIEW_EMAIL_INTAKE_RATE_LIMIT } from '../../src/cargo-preview-email/domain/cargo-preview-email.constant.js'
+import { buildMime, buildOriginalMime, gmailForwardText } from './mime.fixture.js'
 import {
   COMPANY_ID,
   CONTRACTOR_ID,
+  FORWARDER,
+  ORIGINAL,
   PROVIDER_EMAIL_ID,
   READY_PROFILE,
   runIntake,
@@ -116,19 +119,19 @@ describe('o contador de não autenticados para de GRAVAR, não de AVALIAR (spec 
     expect(run.calls.rateLimited).toHaveLength(1)
   })
 
-  test('recusa DEPOIS do DKIM alinhado conta nos autenticados e continua gravando', async () => {
+  test('recusa DEPOIS de o remetente original passar na lista conta nos autenticados e continua gravando', async () => {
     const run = runIntake({
-      profiles: [{ ...READY_PROFILE, senderAllowlist: ['outro@contratante.example'] }],
+      rawEmail: buildMime({
+        attachments: [],
+        from: `Equipe <${FORWARDER}>`,
+        text: gmailForwardText({ from: `FR <${ORIGINAL}>` }),
+      }),
       recentIntakes: saturated,
     })
-    expect(await run.result).toMatchObject({
-      kind: 'rejected',
-      reason: 'ORIGINAL_SENDER_NOT_ALLOWED',
-    })
+    expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'ATTACHMENT_MISSING' })
     expect(run.calls.rejections).toHaveLength(1)
     expect(run.calls.rateLimited).toEqual([])
   })
-
   test('20 autenticados e encaminhador fora da lista: a checagem barata continua gravando a recusa', async () => {
     const run = runIntake({ received: junkSender, recentIntakes: { authenticated: 20 } })
     expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_NOT_ALLOWED' })
@@ -142,5 +145,65 @@ describe('o contador de não autenticados para de GRAVAR, não de AVALIAR (spec 
     expect(run.calls.downloads).toEqual([])
     expect(run.calls.dkimVerifications).toEqual([])
     expect(run.calls.rateLimited).toHaveLength(1)
+  })
+})
+
+describe('o DKIM alinhado a quem NÃO prova o encaminhador não consome a janela de autenticados (spec 237 T4.7d, D-B e D-C)', () => {
+  const forwardedFrom = (from: string) => gmailForwardText({ from })
+  const withText = (text: string) =>
+    buildMime({ attachments: [], from: `Equipe <${FORWARDER}>`, text })
+  const twoForwards = buildMime({
+    attachments: [],
+    forwardedMessages: [
+      buildOriginalMime({ from: `FR <${ORIGINAL}>` }),
+      buildOriginalMime({ from: `FR <${ORIGINAL}>` }),
+    ],
+    from: `Equipe <${FORWARDER}>`,
+  })
+  const CASES = [
+    [
+      'MIME_UNREADABLE (dois From)',
+      { rawEmail: buildMime({ extraHeaders: ['From: outro@x.example'], from: FORWARDER }) },
+    ],
+    ['FORWARDER_FROM_MISMATCH', { headerFrom: ['mallory@evil.example'] }],
+    [
+      'FORWARDER_NOT_ALLOWED (From do MIME alinhado a outro domínio)',
+      {
+        headerFrom: ['intruso@evil.example'],
+        rawEmail: buildMime({ attachments: [], from: 'Intruso <intruso@evil.example>' }),
+      },
+    ],
+    ['ORIGINAL_SENDER_MISSING (reenvio de mensagem assinada)', { rawEmail: withText('oi') }],
+    ['ORIGINAL_SENDER_AMBIGUOUS', { rawEmail: twoForwards }],
+    [
+      'ORIGINAL_SENDER_NOT_ALLOWED',
+      { rawEmail: withText(forwardedFrom('Outro <outro@alheio.example>')) },
+    ],
+  ] as const
+
+  test.each(CASES)(
+    '%s: com a janela de recusas cheia não grava linha, só o rastro',
+    async (_name, options) => {
+      const run = runIntake({ ...options, recentIntakes: { unauthenticated: 100 } })
+      expect((await run.result).kind).toBe('rejected')
+      expect(run.calls.rejections).toEqual([])
+      expect(run.calls.rateLimited).toHaveLength(1)
+    },
+  )
+
+  test.each(CASES)(
+    '%s: com a janela de recusas com espaço grava a linha com o código',
+    async (_name, options) => {
+      const run = runIntake({ ...options, recentIntakes: { unauthenticated: 99 } })
+      expect((await run.result).kind).toBe('rejected')
+      expect(run.calls.rejections).toHaveLength(1)
+      expect(run.calls.rateLimited).toEqual([])
+    },
+  )
+
+  test('a recusa por DKIM não alinhado e a por teto de abertas seguem como antes', async () => {
+    const notAligned = runIntake({ dkim: 'not_aligned', recentIntakes: { unauthenticated: 100 } })
+    expect((await notAligned.result).kind).toBe('rejected')
+    expect(notAligned.calls.rejections).toEqual([])
   })
 })

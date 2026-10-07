@@ -450,11 +450,11 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
 
     const window = { ...base, windowSeconds: 300 }
     expect(await repository.countRecentIntakes(window)).toEqual({
-      authenticated: 4,
-      unauthenticated: 4,
+      authenticated: 3,
+      unauthenticated: 5,
     })
     expect(await repository.countRecentIntakes({ ...window, windowSeconds: 30 * 60 * 60 })).toEqual(
-      { authenticated: 6, unauthenticated: 4 },
+      { authenticated: 5, unauthenticated: 5 },
     )
     expect(
       await repository.countRecentIntakes({ ...window, contractorId: other.contractorId }),
@@ -463,6 +463,91 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       authenticated: 0,
       unauthenticated: 0,
     })
+  })
+
+  test('só conta como autenticado o que o encaminhador prova: as seis recusas anteriores à lista do remetente original ficam de fora (spec 237 T4.7d)', async () => {
+    const graph = await seedCompany()
+    const base = { companyId: graph.companyId, contractorId: graph.contractorId }
+    const beforeSenderPass = [
+      'MIME_UNREADABLE',
+      'FORWARDER_FROM_MISMATCH',
+      'FORWARDER_NOT_ALLOWED',
+      'ORIGINAL_SENDER_MISSING',
+      'ORIGINAL_SENDER_AMBIGUOUS',
+      'ORIGINAL_SENDER_NOT_ALLOWED',
+    ]
+    for (const [index, reason] of beforeSenderPass.entries()) {
+      await seedIntake({ ...base, dkim: 'aligned', emailId: `bsp-${index}`, minutesAgo: 1, reason })
+    }
+    const window = { ...base, windowSeconds: 300 }
+    expect(await repository.countRecentIntakes(window)).toEqual({
+      authenticated: 0,
+      unauthenticated: 6,
+    })
+
+    for (const [index, reason] of [
+      'ATTACHMENT_MISSING',
+      'ATTACHMENT_AMBIGUOUS',
+      'ATTACHMENT_TOO_LARGE',
+      'ATTACHMENT_NOT_A_WORKBOOK',
+      'TOO_MANY_OPEN_PREVIEWS',
+    ].entries()) {
+      await seedIntake({ ...base, dkim: 'aligned', emailId: `asp-${index}`, minutesAgo: 1, reason })
+    }
+    expect(await repository.countRecentIntakes(window)).toEqual({
+      authenticated: 5,
+      unauthenticated: 6,
+    })
+  })
+
+  test('25 reenvios de mensagem assinada sem remetente original não trancam o encaminhador legítimo (spec 237 T4.7d, D-C)', async () => {
+    const graph = await seedCompany()
+    const base = { companyId: graph.companyId, contractorId: graph.contractorId }
+    for (let index = 0; index < 25; index += 1) {
+      await seedIntake({
+        ...base,
+        dkim: 'aligned',
+        emailId: `resend-${index}`,
+        minutesAgo: 1,
+        reason: 'ORIGINAL_SENDER_MISSING',
+      })
+    }
+    const counts = await repository.countRecentIntakes({ ...base, windowSeconds: 300 })
+    expect(counts).toEqual({ authenticated: 0, unauthenticated: 25 })
+    const dependencies = {
+      dkimVerifier: verifierFor('aligned'),
+      mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
+      newId: () => crypto.randomUUID(),
+      repository,
+      storage: { deleteObject: async () => undefined, storeObject: async () => undefined },
+      storageBucket: 'integration',
+      storageProvider: 'minio',
+    }
+    expect(
+      await intakeCargoPreviewEmail(
+        {
+          companyId: graph.companyId,
+          correlationId: 'corr-legit',
+          delivery: { isLastAttempt: false },
+          occurredAt: new Date('2026-10-06T14:59:00.000Z'),
+          providerEmailId: 'email-legit-after-resends',
+          received: {
+            from: 'Equipe <equipe@transportadora.example>',
+            headers: {},
+            message_id: '<outer@forwarder.example>',
+            raw: {
+              download_url: 'https://abc.cloudfront.net/raw/1',
+              expires_at: '2099-01-01T00:00:00Z',
+            },
+            subject: 'Fwd: previa',
+            text: 'segue',
+            to: [`${TOKEN}@${REPLY_DOMAIN}`],
+          },
+          replyDomain: REPLY_DOMAIN,
+        },
+        dependencies,
+      ),
+    ).toMatchObject({ kind: 'accepted' })
   })
 
   test('o excesso deixa um rastro por janela e contratante, sem virar outra inundação', async () => {

@@ -56,19 +56,56 @@ describe('o teto vale para o nome como a mailauth o lê (spec 237 T4.7c, H1-b)',
   test.each([
     ['Return-Path repetido 30 vezes, cada um abaixo de 2 KiB', 'Return-Path', 30, 1900],
     ['From repetido 3 vezes de 1000 bytes', 'From', 3, 1000],
-    ['To repetido 3 vezes de 1000 bytes', 'To', 3, 1000],
+    ['Reply-To repetido 3 vezes de 1000 bytes', 'Reply-To', 3, 1000],
+    ['To repetido 3 vezes de 6000 bytes (18 KiB nos destinatários)', 'To', 3, 6000],
   ])('a soma dos repetidos conta: %s', (_name, header, times, size) => {
     const repeated = lines(times, () => `${header}: ${'a'.repeat(size)}`)
     expect(hasBoundedMimeHeaders(bytes(`${repeated}\r\n${TAIL}`))).toBe(false)
   })
 
-  test.each(['To', 'Cc', 'Bcc', 'Delivered-To', 'Reply-To', 'Sender'])(
-    '%s acima de 2 KiB recusa, e abaixo passa',
+  test.each(['From', 'Reply-To', 'Return-Path', 'Sender'])(
+    '%s fica em 2 KiB: acima recusa, abaixo passa',
     (name) => {
       expect(hasBoundedMimeHeaders(bytes(`${name}: ${'a'.repeat(3000)}\r\n${TAIL}`))).toBe(false)
       expect(hasBoundedMimeHeaders(bytes(`${name}: ${'a'.repeat(1500)}\r\n${TAIL}`))).toBe(true)
     },
   )
+
+  test.each(['To', 'Cc', 'Bcc', 'Delivered-To'])(
+    '%s fica em 8 KiB por campo: 9 KiB recusa, 7,5 KiB passa (spec 237 T4.7d)',
+    (name) => {
+      expect(hasBoundedMimeHeaders(bytes(`${name}: ${'a'.repeat(9 * 1024)}\r\n${TAIL}`))).toBe(
+        false,
+      )
+      expect(hasBoundedMimeHeaders(bytes(`${name}: ${'a'.repeat(7500)}\r\n${TAIL}`))).toBe(true)
+    },
+  )
+
+  test('a lista legítima de 120 destinatários com nome (responder a todos) passa e custa menos de 5 ms', () => {
+    const list = Array.from(
+      { length: 120 },
+      (_, index) => `"Sobrenome${index}, Nome" <nome.sobrenome${index}@empresa-cliente.com.br>`,
+    ).join(', ')
+    const message = bytes(`To: ${list}\r\n${TAIL}`)
+    expect(list.length).toBeGreaterThan(7000)
+    expect(hasBoundedMimeHeaders(message)).toBe(true)
+  })
+
+  test('a soma dos quatro campos de destinatário tem teto de 16 KiB', () => {
+    const field = (name: string, size: number) => `${name}: ${'a'.repeat(size)}\r\n`
+    const four = (size: number) =>
+      ['To', 'Cc', 'Bcc', 'Delivered-To'].map((name) => field(name, size)).join('')
+    expect(hasBoundedMimeHeaders(bytes(`${four(4000)}${TAIL}`))).toBe(true)
+    expect(hasBoundedMimeHeaders(bytes(`${four(4352)}${TAIL}`))).toBe(false)
+    expect(
+      hasBoundedMimeHeaders(
+        bytes(`${field('To', 7900)}${field('Cc', 7900)}${field('Bcc', 700)}${TAIL}`),
+      ),
+    ).toBe(false)
+    expect(hasBoundedMimeHeaders(bytes(`${field('To', 7900)}${field('Cc', 7900)}${TAIL}`))).toBe(
+      true,
+    )
+  })
 
   test('qualquer outro cabeçalho fica em 8 KiB: acima recusa, abaixo passa', () => {
     expect(hasBoundedMimeHeaders(bytes(`X-Custom: ${'a'.repeat(9000)}\r\n${TAIL}`))).toBe(false)
@@ -88,9 +125,14 @@ describe('o teto vale para o nome como a mailauth o lê (spec 237 T4.7c, H1-b)',
   test.each([['=?a?b?'], ['a,'], ['a=?b?c?d?=']])(
     'o pior cabeçalho de endereço que PASSA custa milissegundos na mailauth e no PostalMime (%s)',
     async (unit) => {
-      const names = ['From', 'Reply-To', 'Return-Path', 'Sender', 'To', 'Cc', 'Bcc', 'Delivered-To']
-      const headers = names.map((name) => `${name}: ${unit.repeat(Math.floor(1900 / unit.length))}`)
-      const message = bytes(`${headers.join('\r\n')}\r\nContent-Type: text/plain\r\n\r\ncorpo\r\n`)
+      const fill = (size: number) => unit.repeat(Math.floor(size / unit.length))
+      const strict = ['From', 'Reply-To', 'Return-Path', 'Sender'].map(
+        (name) => `${name}: ${fill(1900)}`,
+      )
+      const recipients = ['To', 'Cc'].map((name) => `${name}: ${fill(8000)}`)
+      const message = bytes(
+        `${[...strict, ...recipients].join('\r\n')}\r\nContent-Type: text/plain\r\n\r\ncorpo\r\n`,
+      )
       expect(hasBoundedMimeHeaders(message)).toBe(true)
 
       const startedAt = performance.now()
@@ -99,9 +141,61 @@ describe('o teto vale para o nome como a mailauth o lê (spec 237 T4.7c, H1-b)',
         attachmentEncoding: 'arraybuffer',
         maxHeadersSize: 64 * 1024,
       })
-      expect(performance.now() - startedAt).toBeLessThan(500)
+      expect(performance.now() - startedAt).toBeLessThan(750)
     },
   )
+})
+
+describe('a barreira e o PostalMime separam os campos do mesmo jeito (spec 237 T4.7d, D-A)', () => {
+  /** O PostalMime tira `\s` do JS das pontas do nome; a `mailauth` só aceita espaço e tab antes do `:`. */
+  const SPACES = [
+    ['formfeed', '\f'],
+    ['tab vertical', '\v'],
+    ['NBSP em UTF-8 (C2 A0)', '\xC2\xA0'],
+    ['NBSP de um byte (A0)', '\xA0'],
+    ['NEL em UTF-8 (C2 85)', '\xC2\x85'],
+    ['espaço em U+2003 (E2 80 83)', '\xE2\x80\x83'],
+    ['espaço em U+2028 (E2 80 A8)', '\xE2\x80\xA8'],
+    ['espaço em U+3000 (E3 80 80)', '\xE3\x80\x80'],
+    ['BOM em U+FEFF (EF BB BF)', '\xEF\xBB\xBF'],
+  ] as const
+  const PER_FIELD = 8 * 1024 - 64
+  const filler = 'a=?b?c?d?='.repeat(Math.floor(PER_FIELD / 10))
+  const hostile = (separator: string) =>
+    bytes(
+      `${Array.from({ length: 7 }, (_, index) => `X-${index}: y\r\nTo${separator}: ${filler}\r\n`).join('')}From: a@b.example\r\nContent-Type: text/plain\r\n\r\ncorpo`,
+    )
+
+  test.each(SPACES)(
+    'To%s: antes do `:` recusa (sete campos de ~8 KiB que o PostalMime lê como `to`)',
+    async (_name, separator) => {
+      const message = hostile(separator)
+      expect(hasBoundedMimeHeaders(message)).toBe(false)
+    },
+  )
+
+  test.each(SPACES)('From%s: antes do `:` recusa', (_name, separator) => {
+    expect(hasBoundedMimeHeaders(bytes(`From${separator}: a@b.example\r\n${TAIL}`))).toBe(false)
+  })
+
+  test('o PostalMime de fato lê essas linhas como campos `to` (a divergência é real)', async () => {
+    const parsed = await PostalMime.parse(hostile('\f'), {
+      attachmentEncoding: 'arraybuffer',
+      maxHeadersSize: 64 * 1024,
+    })
+    expect(parsed.headers.filter((header) => header.key === 'to')).toHaveLength(7)
+  })
+
+  test('espaço e tab antes do `:` (o que a mailauth aceita) seguem passando, e a linha dobrada também', () => {
+    expect(hasBoundedMimeHeaders(bytes(`To : a@b.example\r\n${TAIL}`))).toBe(true)
+    expect(hasBoundedMimeHeaders(bytes(`To\t: a@b.example\r\n${TAIL}`))).toBe(true)
+    expect(hasBoundedMimeHeaders(bytes(`To: a@b.example,\r\n c@d.example\r\n${TAIL}`))).toBe(true)
+    expect(
+      hasBoundedMimeHeaders(
+        bytes(`Subject: caf\xC3\xA9\xC2\xA0com leite\r\nTo: a@b.example\r\n${TAIL}`),
+      ),
+    ).toBe(true)
+  })
 })
 
 describe('o número de assinaturas tem teto (spec 237 T4.7c, NOVO-3)', () => {

@@ -337,3 +337,67 @@ describe('o prazo total da verificação de DKIM (spec 237 T4.7c, NOVO-3)', () =
     expect(DKIM_VERIFICATION_DEADLINE_MS).toBe(15_000)
   })
 })
+
+describe('só a falha transitória de assinatura ALINHADA vale como "sem veredito" (spec 237 T4.7d)', () => {
+  test('temperror de assinatura que a mailauth já sabe não alinhada (d= de outro domínio): not_aligned', () => {
+    expect(resolveDkimAlignment([{ status: { aligned: false, result: 'temperror' } }])).toBe(
+      'not_aligned',
+    )
+    expect(resolveDkimAlignment([{ status: { result: 'temperror' } }])).toBe('not_aligned')
+  })
+
+  test('temperror de assinatura alinhada ao From continua unverifiable (a entrega repete)', () => {
+    expect(
+      resolveDkimAlignment([{ status: { aligned: 'contratante.com.br', result: 'temperror' } }]),
+    ).toBe('unverifiable')
+  })
+
+  test('uma assinatura alheia sem veredito ao lado de uma alinhada que passou: aligned', () => {
+    expect(
+      resolveDkimAlignment([
+        { status: { aligned: false, result: 'temperror' } },
+        { status: { aligned: 'contratante.com.br', result: 'pass' } },
+      ]),
+    ).toBe('aligned')
+  })
+
+  test('assinatura de domínio alheio com o DNS dele fora do ar: not_aligned, sem repetir', async () => {
+    const { privateKey } = generateTestKeyPair()
+    const message = buildSyntheticMessage({
+      body: 'APROVADO',
+      from: 'financeiro@contratante.com.br',
+    })
+    const signed = await signSyntheticMessage({
+      message,
+      privateKey,
+      signingDomain: 'atacante.example',
+    })
+    const gateway = createDkimVerifierGateway({
+      resolveDns: async () => {
+        throw new Error('DNS do atacante mudo')
+      },
+    })
+
+    expect(await gateway.verify(Buffer.from(signed))).toBe('not_aligned')
+  })
+
+  test('a do domínio do From com o DNS fora do ar segue unverifiable, mesmo ao lado de uma alheia', async () => {
+    const fromDomain = 'contratante.com.br'
+    const { privateKey: fromKey } = generateTestKeyPair()
+    const { privateKey: otherKey } = generateTestKeyPair()
+    const signed = await signSyntheticMessageWithMany({
+      message: buildSyntheticMessage({ body: 'APROVADO', from: `financeiro@${fromDomain}` }),
+      signers: [
+        { privateKey: otherKey, signingDomain: 'atacante.example' },
+        { privateKey: fromKey, signingDomain: fromDomain },
+      ],
+    })
+    const gateway = createDkimVerifierGateway({
+      resolveDns: async () => {
+        throw new Error('DNS fora do ar')
+      },
+    })
+
+    expect(await gateway.verify(Buffer.from(signed))).toBe('unverifiable')
+  })
+})

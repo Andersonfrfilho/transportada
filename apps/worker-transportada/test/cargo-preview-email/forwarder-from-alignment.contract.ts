@@ -197,3 +197,36 @@ describe('o From lido pela mailauth tem de ser o do encaminhador (spec 237 T4.7c
     expect(await run.result).toMatchObject({ kind: 'rejected', reason: 'MIME_UNREADABLE' })
   })
 })
+
+describe('assinatura de domínio alheio com o DNS mudo não repete a entrega (spec 237 T4.7d)', () => {
+  test('a mensagem é recusada como DKIM não alinhado na primeira entrega, sem lançar', async () => {
+    const { privateKey } = generateKeyPair()
+    const message = buildMime({
+      attachments: [{ fileName: 'FR-06-10.xlsm' }],
+      from: `Equipe <${FORWARDER}>`,
+      text: gmailForwardText({ from: `FR <${ORIGINAL}>` }),
+    })
+    const { signatures } = await dkimSign(Buffer.from(message), {
+      privateKey,
+      selector: SELECTOR,
+      signatureData: [{ privateKey, selector: SELECTOR, signingDomain: ATTACKER_DOMAIN }],
+      signingDomain: ATTACKER_DOMAIN,
+    })
+    const dkimVerifier = createDkimVerifierGateway({
+      resolveDns: async () => {
+        throw new Error('DNS do atacante mudo')
+      },
+    })
+    const run = runIntake({
+      dkimVerifier,
+      isLastAttempt: false,
+      rawEmail: signatures + message,
+    })
+
+    expect(await run.result).toEqual({
+      contractorId: CONTRACTOR_ID,
+      kind: 'rejected',
+      reason: 'FORWARDER_DKIM_NOT_ALIGNED',
+    })
+  })
+})
