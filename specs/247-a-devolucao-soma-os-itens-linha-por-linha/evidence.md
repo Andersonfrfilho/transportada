@@ -587,3 +587,28 @@ por variável de ambiente; nada de staging, produção nem do 65432.
 `toll booth catalog repository (spec 154)` por **timeout de 5 s** — contra o banco do `.env.test` (infra de E2E,
 inalcançável aqui), não contra o código desta task; o comando de contrato desta spec (com `--timeout 120000`) fecha
 verde como acima.
+
+### T4.2 — Mutação da CA05: devolver `emailBody: ''` no save
+
+Em `save-occurrence-type.use-case.ts`, o último `return input.save(values)` virou
+`return input.save({ ...values, emailBody: '' })`. Duas rodadas, as duas vermelhas:
+
+```text
+=== CONTRACT (mutation: emailBody '') ===
+Expected: "corpo digitado"
+Received: ""
+(fail) gravação do tipo com template do módulo > key válida grava a key e mantém assunto/corpo — são dois canais (spec 247 RF2)
+Expected: "corpo do SAC"
+Received: ""
+(fail) o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05) > salvar com email_template_key mantém assunto e corpo como vieram
+ 571 pass
+ 2 fail
+=== INTEGRATION (mutation) ===
+error: expect(received).toMatchObject(expected)
+(fail) o aviso interno e o e-mail à contratante são independentes (spec 247 RF2, CA05) > salvar o tipo com email_template_key mantém assunto e corpo, e o aviso automático sai com eles
+ 5 pass
+ 1 fail
+```
+
+Revertido (arquivo restaurado do original; `git diff` mostra só a mudança da T4.1): contrato `573 pass · 0 fail`,
+integração `6 pass · 0 fail`.
