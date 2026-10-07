@@ -554,7 +554,24 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
  * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
  * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
  */
-export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['addressChange', 'lateRegistration'] as const
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
+  'addressChange',
+  'crewTransfer',
+  'lateRegistration',
+] as const
+
+/** Spec 249 D6: `costDifference` é a única opcional — a rota a tira de quem não tem `trip.financials`. */
+export const TRIP_TIMELINE_CREW_TRANSFER_REQUIRED_KEYS = [
+  'mdfeDriverDivergence',
+  'nextCrew',
+  'previousCrew',
+  'reason',
+] as const
+export const TRIP_TIMELINE_CREW_TRANSFER_ALLOWED_KEYS = [
+  ...TRIP_TIMELINE_CREW_TRANSFER_REQUIRED_KEYS,
+  'costDifference',
+] as const
+export const TRIP_TIMELINE_CREW_MEMBER_KEYS = ['driverId', 'name', 'position', 'role'] as const
 
 /** Spec 228 D8: as duas chaves exatas do `addressChange`; metros, nunca endereço. */
 export const TRIP_TIMELINE_ADDRESS_CHANGE_KEYS = ['displacementMeters', 'origin'] as const

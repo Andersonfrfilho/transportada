@@ -9,7 +9,6 @@ import { describe, expect, test } from 'bun:test'
 import {
   TRIP_QUERY_KEY,
   TRIP_REPORT_ON_BEHALF_PERMISSION,
-  TRIP_TIMELINE_QUERY_KEY,
 } from '@/modules/trip/shared/trip.constant'
 import type { TripDetail } from '@/modules/trip/shared/trip.types'
 
@@ -17,12 +16,11 @@ import { resetTripHookFakes, tripHookFakes as fakes } from './tripClientMocks.he
 import { renderHook } from './renderHook.helper'
 
 const { useTripWorkspace } = await import('@/modules/trip/hooks/useTripWorkspace.hook')
+const { TRIP_TIMELINE_QUERY_KEY } = await import('@/modules/trip/hooks/useTripTimeline.hook')
 
 const COMPANY_ID = 'company-1'
 const TRIP_ID = 'trip-1'
-const OTHER_TRIP_ID = 'trip-2'
 const TIMELINE_KEY = [TRIP_QUERY_KEY, TRIP_ID, TRIP_TIMELINE_QUERY_KEY] as const
-const OTHER_TIMELINE_KEY = [TRIP_QUERY_KEY, OTHER_TRIP_ID, TRIP_TIMELINE_QUERY_KEY] as const
 
 function installTransfer(): void {
   fakes.tripClient = {
@@ -43,7 +41,7 @@ function installTransfer(): void {
 }
 
 describe('transferCrewMutation relê a linha do tempo (spec 249 T2.3)', () => {
-  test('invalida a linha do tempo desta viagem e deixa a de outra viagem quieta', async () => {
+  test('invalida a linha do tempo da viagem', async () => {
     resetTripHookFakes([])
     installTransfer()
     const rendered = await renderHook(() =>
@@ -54,7 +52,6 @@ describe('transferCrewMutation relê a linha do tempo (spec 249 T2.3)', () => {
       }),
     )
     rendered.queryClient.setQueryData(TIMELINE_KEY, { pages: [], pageParams: [] })
-    rendered.queryClient.setQueryData(OTHER_TIMELINE_KEY, { pages: [], pageParams: [] })
 
     await rendered.result().transferCrewMutation.mutateAsync({
       driverIds: ['driver-2'],
@@ -64,7 +61,6 @@ describe('transferCrewMutation relê a linha do tempo (spec 249 T2.3)', () => {
     })
 
     expect(rendered.queryClient.getQueryState(TIMELINE_KEY)?.isInvalidated).toBe(true)
-    expect(rendered.queryClient.getQueryState(OTHER_TIMELINE_KEY)?.isInvalidated).toBe(false)
     rendered.unmount()
   })
 

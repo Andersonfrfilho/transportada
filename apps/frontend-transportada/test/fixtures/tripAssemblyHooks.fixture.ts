@@ -74,6 +74,7 @@ export type FakeTripClient = Pick<
   | 'registerTripOccurrence'
   | 'replaceOccurrenceAttachmentOverrides'
   | 'saveOccurrenceType'
+  | 'transferTripCrew'
 >
 
 /** Toda chamada não combinada falha alto: um teste que a dispara está medindo outra coisa. */
@@ -100,6 +101,7 @@ export function createUnexpectedTripClient(): FakeTripClient {
     replaceOccurrenceAttachmentOverrides: () =>
       Promise.reject(new Error('UNEXPECTED_REPLACE_OCCURRENCE_OVERRIDES')),
     saveOccurrenceType: () => Promise.reject(new Error('UNEXPECTED_SAVE_OCCURRENCE_TYPE')),
+    transferTripCrew: () => Promise.reject(new Error('UNEXPECTED_TRANSFER_TRIP_CREW')),
   }
 }
 

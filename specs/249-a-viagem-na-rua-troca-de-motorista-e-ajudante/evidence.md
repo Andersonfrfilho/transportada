@@ -175,3 +175,54 @@ foi usado): `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0
 `DRIZZLE_TEST_DATABASE_URL` apontando para o banco nativo, **1163 pass / 1 skip / 0 fail** em 214
 arquivos (os 24 testes novos entre os que passaram — nenhum em skip; o skip é anterior à spec) ·
 `bun run db:check` ok. Não houve migration nova nesta parte.
+
+## T2.3 — Painel: a transferência de tripulação na linha do tempo
+
+**Commits**: contratos vermelhos `f86556d7c` · implementação (commit seguinte, com esta seção).
+
+**Vermelho medido antes da implementação**: `bun test ./test/trip.contract.test.ts` caía inteiro no
+import (`Cannot find module .../tripTimelineCrewTransfer.service`) e o `test:hooks` no
+`SyntaxError: Export named 'TRIP_TIMELINE_QUERY_KEY' not found`; o `tsc` reprovava `crew_transfer`
+fora de `TripTimelineKind` e a chave `crewTransfer` fora de `TripTimelineItem`. O contrato de paridade
+de `TRIP_TIMELINE_KINDS` com a API (o vermelho herdado da API parte 2) fica verde com `crew_transfer`.
+
+**Implementação** (só `apps/frontend-transportada/**`):
+
+- `TRIP_TIMELINE_KINDS` ganha `crew_transfer` no fim; `TripTimelineItem.crewTransfer?` com
+  `TripTimelineCrewTransfer` (`costDifference?` opcional) e `TripTimelineCrewMember` (as quatro chaves).
+- `tripTimelineCrewTransfer.validation.ts`: chave exata (`hasKeys` com `costDifference` como única
+  opcional; integrante com `hasExactKeys`; dinheiro só como string decimal; `mdfeDriverDivergence`
+  booleano). `crew_transfer` sem `crewTransfer` reprova a página; `crewTransfer` em outro kind também.
+  Kind desconhecido segue sendo descartado antes (spec 206 D12).
+- `tripTimelineCrewTransfer.service.ts`: uma frase por papel que mudou, motorista primeiro
+  ("Motorista: Maria → João"), pela diferença de `driverId` dentro do papel e ordenada pela `position`;
+  lado vazio vira "ninguém"; ajudante que assume o volante sai de um papel e entra no outro. A diferença
+  de custo sai com `formatAmount` (a mesma do diálogo), com `+` quando positiva e o `-` do próprio
+  número quando negativa; a linha some quando a chave não vem.
+- `TripTimelineCrewTransfer.component.tsx` (título "Tripulação transferida", ícone `workspace-users`,
+  tom neutro, fora do mapa): só classes que já existiam (`itemDetail`, `itemAddressChange`, `alert`).
+  Locales pt-BR e en em `eventTimeline.crewTransfer.*` e `eventTimeline.itemTitle.crewTransfer`.
+
+**Divergências em relação ao que foi pedido**:
+
+1. **A `transferCrewMutation` já relia a linha do tempo.** O `invalidate()` dela chama
+   `invalidateQueries({ queryKey: ['trips'] })` (`listKey`), prefixo de **toda** consulta da viagem —
+   a chave `['trips', tripId, 'timeline']` e a de `allowed-actions` entram nele (o `allowed-actions`
+   explícito que a T2.2 acrescentou também é redundante pelo mesmo motivo). Acrescentar uma terceira
+   chamada seria código sem efeito, então **não alterei o hook**; o contrato
+   (`crew-transfer-timeline-invalidation.contract.ts`) é de caracterização: prende que a linha do tempo
+   (e as ações permitidas) saem invalidadas depois da troca, e quebra se alguém estreitar o `listKey`.
+   Não prova por mutação da linha, justamente porque ela não existe.
+2. Dois testes anteriores acompanham o vocabulário novo, sem mudar o que provam:
+   `timeline.contract.ts` ("os dois kinds entram depois de trip.created") lia `slice(-3)` e passa a ler a
+   partir de `trip.created`; e o controle negativo de `addressChange` exclui `crew_transfer`, que agora
+   exige a própria chave.
+3. `FakeTripClient` (`test/fixtures/tripAssemblyHooks.fixture.ts`) ganhou `transferTripCrew`, para o
+   contrato de DOM trocar só a chamada que importa.
+4. Não houve revisão visual com print (sem servidor de preview nesta sessão): o contrato de DOM prova
+   texto, ordem e ausência de estilo inline; a comparação lado a lado com os vizinhos da linha do tempo
+   fica para a revisão de design da spec.
+
+**Gates** (`apps/frontend-transportada`): `bun run typecheck` limpo · `bun run lint` 0 erros, 16 avisos
+(todos anteriores; nenhum em arquivo desta tarefa) · `bun run test` 7280 pass / 0 fail, e o `test:hooks`
+embutido 855 pass / 0 fail.

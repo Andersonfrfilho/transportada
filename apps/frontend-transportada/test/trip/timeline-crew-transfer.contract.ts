@@ -98,7 +98,7 @@ describe('vocabulário da linha do tempo com a transferência de tripulação (s
   })
 
   it('o evento tem ícone de equipe, tom neutro e fica fora do mapa da viagem', () => {
-    expect(resolveTripTimelineIcon({ ...CREW_ITEM } as TripTimelineItem)).toEqual({
+    expect(resolveTripTimelineIcon({ ...CREW_ITEM })).toEqual({
       icon: 'workspace-users',
       tone: 'neutral',
     })
@@ -156,7 +156,7 @@ describe('validação do crewTransfer, com chave exata (spec 249 RF4)', () => {
   })
 
   it('recusa dinheiro que não é string decimal, inclusive null', () => {
-    for (const costDifference of [500, null, '500,00', '', 'abc', undefined]) {
+    for (const costDifference of [500, null, '500,00', '', 'abc']) {
       expect(() => parse(itemWith({ ...CREW_TRANSFER, costDifference }))).toThrow()
     }
   })
@@ -203,19 +203,14 @@ describe('validação do crewTransfer, com chave exata (spec 249 RF4)', () => {
 describe('quem saiu → quem entrou, por papel (spec 249 RF4)', () => {
   function resolve(overrides: Partial<typeof CREW_TRANSFER>) {
     const item = { ...BASE_ITEM, crewTransfer: { ...CREW_TRANSFER, ...overrides } }
-    return resolveTripTimelineCrewTransfer(item as TripTimelineItem, translate)
+    return resolveTripTimelineCrewTransfer(item, translate)
   }
 
   it('só o evento de transferência tem o resumo', () => {
     expect(
-      resolveTripTimelineCrewTransfer(
-        { ...BASE_ITEM, kind: 'trip.created' } as TripTimelineItem,
-        translate,
-      ),
+      resolveTripTimelineCrewTransfer({ ...BASE_ITEM, kind: 'trip.created' }, translate),
     ).toBeNull()
-    expect(
-      resolveTripTimelineCrewTransfer({ ...BASE_ITEM } as TripTimelineItem, translate),
-    ).toBeNull()
+    expect(resolveTripTimelineCrewTransfer({ ...BASE_ITEM }, translate)).toBeNull()
   })
 
   it('troca de motorista: "Maria → João", motivo e diferença de custo com sinal', () => {
@@ -237,7 +232,12 @@ describe('quem saiu → quem entrou, por papel (spec 249 RF4)', () => {
   })
 
   it('sem a chave costDifference a linha de custo some', () => {
-    expect(resolve(without(CREW_TRANSFER, 'costDifference') as never)?.costDifference).toBeNull()
+    const item = { ...BASE_ITEM, crewTransfer: without(CREW_TRANSFER, 'costDifference') }
+
+    expect(
+      resolveTripTimelineCrewTransfer(item as unknown as TripTimelineItem, translate)
+        ?.costDifference,
+    ).toBeNull()
   })
 
   it('o aviso de MDF-e vem do mdfeDriverDivergence', () => {

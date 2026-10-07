@@ -344,6 +344,8 @@ export const TRIP_TIMELINE_KINDS = [
   /** Spec 228 D6: a foto do canhoto e a correção do endereço da parada. Prioridades 3 e 2 na API. */
   'document.canhoto_photo',
   'stop.address_corrected',
+  /** Spec 249 D6: a troca de motorista/ajudante com a viagem na rua. Prioridade 8 na API. */
+  'crew_transfer',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -394,6 +396,26 @@ export type TripTimelineAddressChange = Readonly<{
   origin: TripTimelineAddressChangeOrigin
 }>
 
+export const TRIP_TIMELINE_CREW_ROLES = ['driver', 'helper'] as const
+export type TripTimelineCrewRole = (typeof TRIP_TIMELINE_CREW_ROLES)[number]
+
+/** Spec 249 D6: o retrato de quem estava na viagem — id, nome, papel e posição, nunca o CPF. */
+export type TripTimelineCrewMember = Readonly<{
+  driverId: string
+  name: string
+  position: number
+  role: TripTimelineCrewRole
+}>
+
+/** `costDifference` é dinheiro: a chave sai sem `trip.financials`, nunca vira `null`. */
+export type TripTimelineCrewTransfer = Readonly<{
+  costDifference?: string
+  mdfeDriverDivergence: boolean
+  nextCrew: readonly TripTimelineCrewMember[]
+  previousCrew: readonly TripTimelineCrewMember[]
+  reason: string
+}>
+
 export type TripTimelineItem = Readonly<{
   /** Spec 228 D8: só em `stop.address_corrected`. Ausente em qualquer outro kind. */
   addressChange?: TripTimelineAddressChange
@@ -402,6 +424,8 @@ export type TripTimelineItem = Readonly<{
   channel: null | TripFieldChannel
   /** Spec 158 T12: só em `trip.status_changed` para `completed` manual (encerramento pelo botão). */
   closeReason: null | string
+  /** Spec 249 D6: só em `crew_transfer`, e nele é obrigatória. */
+  crewTransfer?: TripTimelineCrewTransfer
   document: null | TripTimelineDocumentReference
   /** Só em `*.status_changed`. */
   fromStatus: null | string

@@ -815,6 +815,16 @@
     "attachmentCount_other": "{{count}} fotos anexadas",
     "closeReason": "Motivo do encerramento: {{reason}}",
     "collapse": "Recolher",
+    "crewTransfer": {
+      "change": {
+        "driver": "Motorista: {{from}} → {{to}}",
+        "helper": "Ajudante: {{from}} → {{to}}"
+      },
+      "costDifference": "Diferença de custo: {{amount}}",
+      "mdfeDivergence": "O MDF-e autorizado desta viagem segue com o condutor anterior: a troca não altera o manifesto.",
+      "nobody": "ninguém",
+      "reason": "Motivo: {{reason}}"
+    },
     "documentFilterOption": "Nota {{invoice}}",
     "day": {
       "count_one": "{{count}} evento",
@@ -837,6 +847,7 @@
       "addressCorrected": "Endereço da parada corrigido",
       "canhotoPhoto": "Foto do canhoto — NF-e {{invoice}}",
       "canhotoPhotoUnknownDocument": "Foto do canhoto",
+      "crewTransfer": "Tripulação transferida",
       "dispatched": "Viagem despachada",
       "documentDelivered": "{{document}} entregue",
       "documentLabel": "Nota {{invoice}}",

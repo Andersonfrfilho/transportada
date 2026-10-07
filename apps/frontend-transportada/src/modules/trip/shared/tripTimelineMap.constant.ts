@@ -22,6 +22,8 @@ export type TimelineMapCategory = (typeof TIMELINE_MAP_CATEGORIES)[number]
 export const TIMELINE_MAP_CATEGORY_BY_KIND: Readonly<
   Record<TripTimelineKind, null | TimelineMapCategory>
 > = {
+  /** Spec 249: a troca de tripulação não tem ponto e não é lugar por onde a viagem passou. */
+  crew_transfer: null,
   /**
    * Spec 228 T4.1: a foto é parte da entrega — mesma cor, e pinos do mesmo lugar viram um. Sozinha
    * ela leva o glifo e o rótulo próprios (`TIMELINE_MAP_PHOTO_*`) e não conta na legenda de entregas.

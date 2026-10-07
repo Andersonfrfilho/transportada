@@ -815,6 +815,16 @@
     "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",
     "collapse": "Collapse",
+    "crewTransfer": {
+      "change": {
+        "driver": "Driver: {{from}} → {{to}}",
+        "helper": "Helper: {{from}} → {{to}}"
+      },
+      "costDifference": "Cost difference: {{amount}}",
+      "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
+      "nobody": "nobody",
+      "reason": "Reason: {{reason}}"
+    },
     "documentFilterOption": "Invoice {{invoice}}",
     "day": {
       "count_one": "{{count}} event",
@@ -837,6 +847,7 @@
       "addressCorrected": "Stop address corrected",
       "canhotoPhoto": "Receipt photo — invoice {{invoice}}",
       "canhotoPhotoUnknownDocument": "Receipt photo",
+      "crewTransfer": "Crew transferred",
       "dispatched": "Trip dispatched",
       "documentDelivered": "{{document}} delivered",
       "documentLabel": "Invoice {{invoice}}",

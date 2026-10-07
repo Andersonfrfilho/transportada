@@ -20,6 +20,7 @@ const KNOWN_TRIP_STATUSES: ReadonlySet<string> = new Set(TRIP_STATUS)
 const KNOWN_DOCUMENT_STATUSES: ReadonlySet<string> = new Set(TRIP_DOCUMENT_SEPARATION_STATUS)
 
 const ICON_BY_KIND = {
+  crew_transfer: 'workspace-users',
   'document.canhoto_photo': 'camera',
   'document.delivered': 'check',
   'document.occurrence': 'alert',
@@ -36,6 +37,7 @@ const ICON_BY_KIND = {
 } as const satisfies Record<TripTimelineKind, IconName>
 
 const NEUTRAL_KINDS: ReadonlySet<TripTimelineKind> = new Set([
+  'crew_transfer',
   'document.canhoto_photo',
   'stop.address_corrected',
   'stop.arrived',

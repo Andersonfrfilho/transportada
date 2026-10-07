@@ -195,6 +195,8 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
       return resolveCanhotoPhotoTitle(item.document, t)
     case 'stop.address_corrected':
       return t('eventTimeline.itemTitle.addressCorrected')
+    case 'crew_transfer':
+      return t('eventTimeline.itemTitle.crewTransfer')
     case 'document.status_changed':
       return item.toStatus !== null && KNOWN_DOCUMENT_STATUSES.has(item.toStatus)
         ? t(`eventTimeline.itemTitle.documentStatus.${item.toStatus}`, {

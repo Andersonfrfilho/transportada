@@ -14,7 +14,7 @@ const CREW_TRANSFER_KEYS = [
 
 const DECIMAL_STRING_PATTERN = /^-?\d+(?:\.\d+)?$/
 
-function isDecimalString(value: unknown): value is string {
+export function isDecimalString(value: unknown): value is string {
   return isString(value) && DECIMAL_STRING_PATTERN.test(value)
 }
 

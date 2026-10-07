@@ -14,6 +14,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripStopDetail, TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
 import { resolveTripTimelineAddressChange } from '../shared/tripTimelineAddressChange.service'
+import { resolveTripTimelineCrewTransfer } from '../shared/tripTimelineCrewTransfer.service'
 import {
   hasTripTimelineExpandableDetail,
   resolveTimelineLocationView,
@@ -45,6 +46,7 @@ import {
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
+import { TripTimelineCrewTransfer } from './TripTimelineCrewTransfer.component'
 import { TripTimelineLocation } from './TripTimelineLocation.component'
 import {
   TripTimelineLocationMap,
@@ -394,6 +396,7 @@ export function TripTimelineEntry({
   const { icon, tone } = resolveTripTimelineIcon(item)
   const chips = resolveTripTimelineChips(item, translate, { shouldOmitStop: shouldOmitStopChip })
   const addressChange = resolveTripTimelineAddressChange(item, translate)
+  const crewTransfer = resolveTripTimelineCrewTransfer(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -541,6 +544,7 @@ export function TripTimelineEntry({
               {locationView === null ? null : <TripTimelineLocation view={locationView} />}
             </div>
           )}
+          {crewTransfer === null ? null : <TripTimelineCrewTransfer view={crewTransfer} />}
         </div>
       </div>
       {/**
