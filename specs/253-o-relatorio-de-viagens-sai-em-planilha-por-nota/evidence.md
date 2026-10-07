@@ -21,3 +21,11 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - `bun run typecheck` → limpo. `bun run lint` → limpo (0 warnings).
 - Arquivos: `src/trips/domain/resolve-trip-report-tone.policy.ts`, `test/trip-report-tone.contract.test.ts`, `test/trip-report-tone/policy.contract.ts`, registro em `package.json` (`test`).
 - Commit: ver `git log --grep "spec 253 T1.2"` (hash no relatório da task; um commit não contém o próprio hash).
+
+## T2.1 — schema, tipos e erros do relatório (sonnet)
+
+- `bun --env-file=../../.env.test test ./test/trip-report-schema.contract.test.ts --timeout 120000` (cwd=apps/api-transportada) → 20 pass, 0 fail.
+- `bun run typecheck` → limpo. `bun run lint` → limpo (0 warnings).
+- Arquivos: `src/trips/presentation/trip-report.schema.ts` (query), `trip-report-row.schema.ts` (linha e envelope), `src/trips/domain/trip-report.types.ts`, `trip-report.constant.ts` (tetos 5000/200), `TripReportTooLargeError`/`TripProofReportTooLargeError` em `trip.error.ts`, `test/trip-report-schema.contract.test.ts` + `test/trip-report/*.contract.ts`, registro em `package.json`.
+- Reuso: `parseAgainstSchema`, `parseListFilter` (`request-parsing.service.ts`) e `parseIsoDateTime` (`trip.schema.ts`) passaram a ser exportados; os parsers de `GET /trips` entram no Zod por `fromParser`, assim os erros saem juntos em `details`.
+- Commit: ver `git log --grep "spec 253 T2.1"`.
