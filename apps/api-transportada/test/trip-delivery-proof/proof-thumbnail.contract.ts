@@ -91,6 +91,7 @@ function buildWorld() {
       Promise.resolve({
         deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
         deliveryEventPosition: undefined,
+        isDeliveryRecordedByDriver: true,
       }),
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
     findProofIdByAttachmentKey: () => Promise.resolve(null),

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { runMetaWhatsAppMigrations } from '@adatechnology/meta-whatsapp-module'
+import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
 export const META_WHATSAPP_SCHEMA = 'meta_whatsapp'
 
@@ -26,6 +27,17 @@ export async function readMetaWhatsAppRollbackSql(): Promise<string> {
   return readFile(META_WHATSAPP_ROLLBACK_FILE, 'utf8')
 }
 
+/**
+ * O `migrate` do drizzle 1.0 devolve `MigratorInitFailResponse` em vez de lançar, e o runner do
+ * pacote descarta o retorno — sem este invólucro o pre-deploy fingiria sucesso.
+ */
+async function migrateOrThrow(...args: Parameters<typeof migrate>): Promise<void> {
+  const outcome = await migrate(...args)
+  if (outcome !== undefined) {
+    throw new Error(`Meta WhatsApp migrations failed: ${outcome.exitCode}`)
+  }
+}
+
 export async function runMetaWhatsAppSchemaMigrations({
   connectionString,
 }: RunMetaWhatsAppSchemaMigrationsParams): Promise<void> {
@@ -38,12 +50,10 @@ export async function runMetaWhatsAppSchemaMigrations({
   })
 
   try {
-    /**
-     * ⚠️ Assinatura diferente da do `notification-module`: a versão publicada deste pacote recebe a
-     * conexão direto e escolhe o migrator dela, em vez de receber o `migrate` por injeção. Não é
-     * lugar de uniformizar — mudar isso é changeset no pacote.
-     */
-    await runMetaWhatsAppMigrations(provider.db as never)
+    await runMetaWhatsAppMigrations({
+      db: provider.db as never,
+      migrate: migrateOrThrow as never,
+    })
   } finally {
     await provider.close()
   }

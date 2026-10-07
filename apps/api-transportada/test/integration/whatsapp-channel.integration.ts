@@ -12,7 +12,11 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companies, whatsappChannels } from '../../src/database/database.schema.js'
+import {
+  companies,
+  whatsappChannels,
+  whatsappWebhookNonces,
+} from '../../src/database/database.schema.js'
 import { DrizzleWhatsAppChannelRepository } from '../../src/whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createDrizzleWebhookNonceStore } from '../../src/whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 
@@ -197,6 +201,36 @@ describe('o nonce anti-replay do webhook (spec 062 T006)', () => {
 
       expect(await store.setIfAbsent(key, -1)).toBe(true)
       expect(await store.setIfAbsent(key, 300)).toBe(true)
+    })
+  })
+
+  /** O claim curto da entrega vira a janela cheia; sem isto a Meta reentregaria depois do claim. */
+  testWithPostgres('confirm estende o claim curto para a janela cheia', async () => {
+    await withSharedDatabase(async (database) => {
+      const store = createDrizzleWebhookNonceStore(database.db)
+      const key = `sha256=${crypto.randomUUID()}`
+
+      expect(await store.setIfAbsent(key, 1)).toBe(true)
+      await store.confirm?.(key, 3_600)
+
+      const [row] = await database.db
+        .select({ expiresAt: whatsappWebhookNonces.expiresAt })
+        .from(whatsappWebhookNonces)
+        .where(eq(whatsappWebhookNonces.key, key))
+      const remainingSeconds = ((row?.expiresAt.getTime() ?? 0) - Date.now()) / 1_000
+      expect(remainingSeconds).toBeGreaterThan(3_000)
+      expect(await store.setIfAbsent(key, 300)).toBe(false)
+    })
+  })
+
+  testWithPostgres('confirm de chave ausente a cria reivindicada', async () => {
+    await withSharedDatabase(async (database) => {
+      const store = createDrizzleWebhookNonceStore(database.db)
+      const key = `sha256=${crypto.randomUUID()}`
+
+      await store.confirm?.(key, 300)
+
+      expect(await store.setIfAbsent(key, 300)).toBe(false)
     })
   })
 })

@@ -62,6 +62,7 @@ function buildBox(
       isEstimated: false,
       lengthMm: input.measured === true ? 300 : null,
       measuredAt: input.measured === true ? '2026-09-16T12:00:00.000Z' : null,
+      measuredByName: null,
       measurementMarginMm: null,
       measurementSource: input.measured === true ? 'typed' : null,
       packagingSiblingCount: 0,
@@ -123,6 +124,19 @@ const BOXES = [
 ]
 
 describe('exportar as caixas pendentes — caso de uso', () => {
+  test('a situação escolhida na tela é a que sai no arquivo', async () => {
+    const { calls, repository } = buildRepository(BOXES)
+    const exportPending = createExportPendingPackageBoxes({
+      listPackageBoxes: createListPackageBoxes({ repository }),
+    })
+
+    await exportPending.execute({ context: { companyId: COMPANY_ID }, status: 'measured' })
+    await exportPending.execute({ context: { companyId: COMPANY_ID }, status: 'all' })
+    await exportPending.execute({ context: { companyId: COMPANY_ID } })
+
+    expect(calls.map((call) => call.filters.status)).toEqual(['measured', 'all', 'pending'])
+  })
+
   test('o teto do servidor é 10 000 caixas', () => {
     expect(PACKAGE_BOX_PENDING_EXPORT_MAX_ITEMS).toBe(10_000)
   })
@@ -323,8 +337,35 @@ describe('GET /nfe-package-boxes/pending-export — rota', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(await response.json()).toEqual({ data: { items: [], truncated: true } })
-    // Nenhum parâmetro do cliente chega ao caso de uso: nem teto, nem empresa.
-    expect(received).toEqual([{ context: { companyId: COMPANY_ID } }])
+    // Nenhum parâmetro do cliente chega ao caso de uso, além da situação — que tem padrão.
+    expect(received).toEqual([{ context: { companyId: COMPANY_ID }, status: 'pending' }])
+  })
+
+  test('a situação pedida na URL chega ao caso de uso, e a desconhecida é 400', async () => {
+    const received: unknown[] = []
+    const { router } = buildRouter({
+      context: companyContext(resolveCompanyPermissions(['separator'])),
+      exportPendingPackageBoxes: {
+        async execute(input) {
+          received.push(input)
+          return { items: [], truncated: false }
+        },
+      },
+    })
+
+    const measured = await router.handle(exportRequest(`${PENDING_EXPORT_PATH}?status=measured`))
+    const everything = await router.handle(exportRequest(`${PENDING_EXPORT_PATH}?status=all`))
+    const invalid = await captureRouterError(
+      router.handle(exportRequest(`${PENDING_EXPORT_PATH}?status=banana`)),
+    )
+
+    expect(measured.status).toBe(200)
+    expect(everything.status).toBe(200)
+    expect(invalid.status).toBe(400)
+    expect(received).toEqual([
+      { context: { companyId: COMPANY_ID }, status: 'measured' },
+      { context: { companyId: COMPANY_ID }, status: 'all' },
+    ])
   })
 
   test('não é engolida por um GET /nfe-package-boxes/:id registrado antes dela', async () => {

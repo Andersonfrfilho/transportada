@@ -72,13 +72,13 @@ describe('o cadastro do tipo aceita o interruptor de multi-item (spec 166 RF9)',
     })
   }
 
-  test('sem o campo, o padrão é true — nenhuma instalação muda de comportamento', async () => {
+  test('sem o campo, fica ausente ("não mexa", spec 246 T1c.3) — o padrão true é da coluna', async () => {
     const request = new Request('http://localhost/company-settings/occurrence-types', {
       body: baseBody(),
       headers: { 'content-type': 'application/json' },
       method: 'PUT',
     })
-    expect((await parseOccurrenceTypeRequest(request)).allowsMultipleItems).toBe(true)
+    expect((await parseOccurrenceTypeRequest(request)).allowsMultipleItems).toBeUndefined()
   })
 
   test('false é aceito e preservado', async () => {

@@ -16,6 +16,7 @@ import type {
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
 import type { TripDocumentFreightSource } from '../domain/trip-document-freight.policy.js'
+import type { TransferTripCrewParams, TransferTripCrewResult } from './trip-crew-transfer.types.js'
 
 /**
  * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
@@ -119,6 +120,11 @@ export type TripDocumentDetail = TripDocument & {
    * tem foto e a configuração resolvida do destinatário exige canhoto (foto ou assinatura).
    */
   readonly proofPending: boolean
+  /**
+   * Spec 233 D5/T2.3: soma de `nfe_volumes.quantity` da nota (`qVol` de cada `<vol>`). `null` quando a
+   * NF-e não tem linha de volume — desconhecido, nunca `0`: zero diria "a nota não tem volumes".
+   */
+  readonly volumeCount: null | number
   /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
@@ -447,6 +453,13 @@ export type TripRepositoryPort = {
     readonly tripId: string
     readonly vehicleId: string | null
   }): Promise<TripDetail | null>
+  /**
+   * Spec 249: troca a tripulação de uma viagem que já saiu — `null` quando a viagem não existe.
+   * Reconfere a janela e a tripulação atual sob `FOR NO KEY UPDATE`, grava o histórico na mesma
+   * transação e lança `TripCrewUnchangedError` quando o pedido não muda nada. Não toca em veículo,
+   * rota, status nem ETA.
+   */
+  transferCrew(input: TransferTripCrewParams): Promise<TransferTripCrewResult | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
     readonly companyId: string

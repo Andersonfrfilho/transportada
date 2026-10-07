@@ -3,6 +3,7 @@
  */
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { ResolveDispatchReadinessResult } from '../domain/dispatch-readiness.policy.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
   TRIP_ACTION,
@@ -60,6 +61,8 @@ export type DispatchTripWriteInput = {
   readonly hasRoute: boolean
   /** Spec 185 (RF5): liberadas sempre, sem `force`, com o motivo "Ocorrência: <tipo>". */
   readonly leftBehind: DispatchTripPreconditions['leftBehind']
+  /** Spec 196 T3.3: o ponto do toque do motorista; ausente grava tudo `null`. */
+  readonly locationStamp?: EventLocationStampColumns | undefined
   readonly onBehalfOfDriverId: string | null
   readonly tripId: string
   /** As não carregadas que o `force` libera — vazio sem `force`. */
@@ -86,6 +89,8 @@ export type DispatchTripInput = {
   readonly forceReason?: string | null
   /** Spec 185 (RF4, ADR-0074 §3): o botão "Despachar" leva todas — separa e carrega o que falta. */
   readonly loadRemaining?: boolean
+  /** Spec 196 T3.3: só o despacho que o motorista toca carimba; escritório e gatilho não passam. */
+  readonly locationStamp?: EventLocationStampColumns | undefined
   readonly onBehalfOfDriverId?: string | null
   readonly repository: DispatchTripPort
   readonly tripId: string
@@ -139,6 +144,7 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
     forceReason: forced ? (input.forceReason ?? null) : null,
     hasRoute: state.hasRoute,
     leftBehind: state.leftBehind,
+    locationStamp: input.locationStamp,
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     tripId: input.tripId,
     unloadedDocumentIds: isForce ? state.unloadedDocumentIds : [],

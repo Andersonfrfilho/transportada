@@ -48,6 +48,7 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
     expect(
       saveOccurrenceTypeWithTemplate({
         companyId: COMPANY,
+        findCurrentType: async () => null,
         save: async () => buildType({ stage: 'delivery' }),
         templates: { hasActiveEmailTemplate: async () => true },
         values: { ...BASE_VALUES, leavesDocumentBehind: true, stage: 'delivery' },
@@ -63,6 +64,7 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
     let savedValues: Record<string, unknown> = {}
     const saved = await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
+      findCurrentType: async () => null,
       save: async (values) => {
         savedValues = values
         return buildType({ leavesDocumentBehind: true })
@@ -78,6 +80,7 @@ describe('só separação pode "segue sem a nota" (spec 185 RF6)', () => {
   test('tipo de entrega sem o campo não é recusado', async () => {
     const saved = await saveOccurrenceTypeWithTemplate({
       companyId: COMPANY,
+      findCurrentType: async () => null,
       save: async () => buildType({ stage: 'delivery' }),
       templates: { hasActiveEmailTemplate: async () => true },
       values: { ...BASE_VALUES, stage: 'delivery' },

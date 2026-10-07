@@ -100,6 +100,8 @@ export function createMetaWhatsAppModuleResolver(
           ...(channel.wabaId === '' ? {} : { wabaId: channel.wabaId }),
         },
         db: params.database as never,
+        /** O ponto vai só para o evento da viagem (spec 245); o transcript guarda que houve localização. */
+        features: { redactInboundLocation: true },
         hooks,
         nonceStore: params.nonceStore,
       })

@@ -200,14 +200,14 @@ describe('allowedActions — por parada e por viagem', () => {
       capabilities: FINANCE,
       trip: snapshot({ status: 'dispatched' }),
     })
-    expect(dispatched.trip).toEqual(['startRoute'])
+    expect(dispatched.trip).toEqual(['startRoute', 'transferCrew'])
     expect(dispatched.trip).not.toContain('confirmLoad')
 
     const inTransit = resolveTripAllowedActions({
       capabilities: FINANCE,
       trip: snapshot({ status: 'in_transit' }),
     })
-    expect(inTransit.trip).toEqual(['startRoute'])
+    expect(inTransit.trip).toEqual(['startRoute', 'transferCrew'])
   })
 
   it('o barracão: roteiro, despacho e cancelamento pela máquina', () => {
@@ -290,6 +290,49 @@ describe('allowedActions — por parada e por viagem', () => {
       trip: snapshot({ documents: [documentIn('pending')], status: 'draft' }),
     })
     expect(finance.trip).not.toContain('defineCrew')
+  })
+
+  /**
+   * Spec 249 RF1: `transferCrew` é oferecido só na rua e só a quem tem `trip.report-on-behalf` — o
+   * separador (`trip.manage`) não o recebe. Como `defineCrew`, o desfecho `unchanged` da máquina é
+   * "pode", e a janela vem da mesma função que a máquina usa para recusar.
+   */
+  it('oferece transferCrew na rua, só para quem dá baixa em nome do motorista', () => {
+    for (const status of ['dispatched', 'in_transit', 'on_delivery_route'] as const) {
+      for (const capabilities of [OPERATOR, FINANCE]) {
+        const offered = resolveTripAllowedActions({ capabilities, trip: snapshot({ status }) })
+        expect(offered.trip).toContain('transferCrew')
+      }
+
+      for (const capabilities of [SEPARATOR, VIEWER]) {
+        const refused = resolveTripAllowedActions({ capabilities, trip: snapshot({ status }) })
+        expect(refused.trip).not.toContain('transferCrew')
+      }
+    }
+  })
+
+  it('não oferece transferCrew fora da rua, e a janela da troca da 217 continua separada', () => {
+    for (const status of [
+      'awaiting_crew',
+      'draft',
+      'route_planned',
+      'separating',
+      'loading',
+      'cancelled',
+      'completed',
+    ] as const) {
+      const refused = resolveTripAllowedActions({
+        capabilities: OPERATOR,
+        trip: snapshot({ documents: [documentIn('pending')], status }),
+      })
+      expect(refused.trip).not.toContain('transferCrew')
+    }
+
+    const onRoad = resolveTripAllowedActions({
+      capabilities: OPERATOR,
+      trip: snapshot({ status: 'in_transit' }),
+    })
+    expect(onRoad.trip).not.toContain('defineCrew')
   })
 
   it('o finance não recebe ação de viagem do barracão', () => {

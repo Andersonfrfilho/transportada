@@ -10,9 +10,14 @@ import { validateFlowGraphForWhatsApp } from '../../src/whatsapp-commands/domain
 import { WHATSAPP_MENU_OPTION_ID_PATTERN } from '../../src/whatsapp-commands/domain/whatsapp-menu.constant.js'
 import { WHATSAPP_ROOT_MENU_OPTION_PERMISSIONS } from '../../src/whatsapp-commands/domain/whatsapp-root-menu.policy.js'
 import {
+  DRIVER_FLOW_NODE,
+  DRIVER_LOCATION_REQUEST_TEXT,
+} from '../../src/whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
+import {
   ISSUANCE_FLOW_ACTION_KIND,
   ISSUANCE_FLOW_NODE,
 } from '../../src/whatsapp-commands/domain/whatsapp-issuance-flow.constant.js'
+import { OPERATOR_FLOW_NODE } from '../../src/whatsapp-commands/domain/whatsapp-operator-flow.constant.js'
 import {
   WHATSAPP_ROOT_FLOW_GRAPH,
   WHATSAPP_ROOT_FLOW_GRAPH_KEY,
@@ -110,5 +115,38 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
       if (node.type === 'action') continue
       expect(node.next).toBeDefined()
     }
+  })
+
+  /** Spec 196 T3.8 — o pedido de localização é texto (a Cloud API do pacote 0.7.0 não expõe pedido interativo). */
+  describe('pedido de geolocalização (spec 196 T3.8)', () => {
+    const driverNodesThatAsk: readonly string[] = [
+      DRIVER_FLOW_NODE.tripMenu,
+      DRIVER_FLOW_NODE.returnReasonMenu,
+      DRIVER_FLOW_NODE.noteEntry,
+    ]
+
+    test('o texto pede a localização e explica o caminho anexo → localização, sem número', () => {
+      expect(DRIVER_LOCATION_REQUEST_TEXT).toContain('📍')
+      expect(DRIVER_LOCATION_REQUEST_TEXT).toContain('localização')
+      expect(DRIVER_LOCATION_REQUEST_TEXT).toContain('anexo')
+      expect(DRIVER_LOCATION_REQUEST_TEXT).toContain('Localização')
+      expect(DRIVER_LOCATION_REQUEST_TEXT).not.toMatch(/\d/)
+    })
+
+    for (const nodeId of driverNodesThatAsk) {
+      test(`o nó do motorista ${nodeId} carrega o pedido`, () => {
+        expect(WHATSAPP_ROOT_FLOW_GRAPH.nodes[nodeId]?.question).toContain(
+          DRIVER_LOCATION_REQUEST_TEXT,
+        )
+      })
+    }
+
+    test('nenhum nó do operador nem da emissão pede localização', () => {
+      for (const [nodeId, node] of Object.entries(WHATSAPP_ROOT_FLOW_GRAPH.nodes)) {
+        if (driverNodesThatAsk.includes(nodeId)) continue
+        expect(node.question ?? '').not.toContain('localização')
+      }
+      expect(WHATSAPP_ROOT_FLOW_GRAPH.nodes[OPERATOR_FLOW_NODE.listTrips]).toBeDefined()
+    })
   })
 })

@@ -121,6 +121,14 @@ Todo veículo que carrega, exceto o cavalo, é obrigado a escolher a carroceria 
 reescrito e aparece na página `/pendencias` (`GET /pending-items`, `fleet.read`). Detalhe em
 `docs/ai-context/api-transportada.md` §093.
 
+**A exigência da ocorrência é do momento e da nota, e o servidor a cobra** (spec 246). O tipo declara um
+**conjunto de momentos** (`separation`, `document`, `stop`, `office`; `stage`/`flow` seguem gravados, derivados) e quatro
+modos (foto, observação, assinatura, produtos) mais os mínimos; a exceção de contratante/destinatário é **nula e herda campo
+a campo**. O registro do motorista lê contratante e destinatário **da nota no servidor** e cobra o efetivo — uma exceção
+menos estrita afrouxa de verdade desde o deploy da API (T3.0 mede antes de ir a `main`). A assinatura mora em
+`signature_object_id`, nunca como anexo; o cadastro mora na aba Tipos de `/ocorrencias`. Núcleo em
+`apps/api-transportada/CLAUDE.md` § "A exigência da ocorrência chega na rua".
+
 **O canhoto é lido sem ninguém abrir a viagem** (spec 220 + 222). A rotina agendada `trip.canhoto.read`
 no worker varredura comprovantes pendentes de cinco em cinco minutos, decodifica o código de barras em
 `worker_thread` e reporta o que leu à API. Quem decide é `resolveAutomaticCanhotoReview` (código que
@@ -185,6 +193,21 @@ propósito.
 A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derruba o serviço, está em
 `docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
 domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
+
+## Deploy trancado por job sem runner
+
+⚠️ Um job pode nascer `queued` e nunca receber runner (lado do GitHub — duas vezes em 02/10/2026).
+`timeout-minutes` só conta depois que o job começa, e a concorrência por branch
+(`deploy-<branch>`, `cancel-in-progress: false` de propósito: cancelar deploy no meio deixa os
+serviços em versões diferentes) faz o run preso segurar todos os seguintes, que ficam `pending` com
+**zero jobs**. O merge entra e o deploy não roda, sem erro nenhum.
+
+`deploy-watchdog.yml` (a cada 10 min, só dispara da `main`) cancela — com `force-cancel` quando o
+cancelamento comum não pega, o que aconteceu — o run cujo job está `queued` sem runner há mais de
+20 min, e refaz só se aquele era o commit mais novo da branch. **Nunca cancela run com job
+`in_progress`.** Decisão em `.github/scripts/deploy-watchdog.ts`, contrato em
+`test/deploy-watchdog.contract.test.ts`. Para destravar à mão: `gh run cancel <id>` e, se o run
+seguir `queued`, `gh api -X POST repos/<repo>/actions/runs/<id>/force-cancel`.
 
 ## Duas sessões, duas árvores
 

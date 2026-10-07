@@ -378,6 +378,8 @@ export const nfeParticipants = pgTable(
       table.documentId,
       table.role,
     ),
+    /** Spec 237 T2.2: as notas de um emitente (o contratante) sem varrer os participantes da empresa. */
+    index('nfe_participants_company_role_tax_id_idx').on(table.companyId, table.role, table.taxId),
     foreignKey({
       columns: [table.companyId, table.documentId],
       foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],

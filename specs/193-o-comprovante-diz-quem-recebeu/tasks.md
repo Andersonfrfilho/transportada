@@ -46,7 +46,7 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 1 — A fila tem lugar fixo no cabeçalho (só UI do motorista)
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `haiku` (T1.3 → `sonnet`)
 
 - [ ] **T1.1** Testes antes (CA13) em `test/driver-trip/queue-header.contract.ts`, importado em
       `test/driver-trip.contract.test.ts`. Casos:
@@ -61,7 +61,7 @@ A **R2 não sai** sem a R1 em produção.
 - [ ] **T1.2** Implementar conforme o plano, Fase 1, com locale pt-BR e en. Aceite: T1.1 verde e o
       `check` do motorista verde.
 
-- [ ] **T1.3** Preview e smoke.
+- [ ] **T1.3** `sonnet` Preview e smoke.
   - `PREVIEW_HOLD_QUEUE=1` na API de demonstração.
   - Três toques presos na fila.
   - `read_page` confirma "Fila de envio, 3 pendentes" em viagem, `/fotos`, `/fila` e `/perfil`, e
@@ -73,7 +73,7 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 2 — O banco guarda quem recebeu
 
-> 🤖 Modelo: `sonnet` (T2.2 🧠 `opus`)
+> 🤖 Modelo: `haiku` (T2.2 → `sonnet`)
 
 - [ ] **T2.1** Testes antes, em `test/trip-schema/received-by.contract.ts` (entrypoint
       `test/trip-schema.contract.test.ts`). Casos:
@@ -85,7 +85,7 @@ A **R2 não sai** sem a R1 em produção.
 
   Os dois contratos de tenant-safety do schema são atualizados. Aceite: os casos rodam e falham.
 
-- [ ] **T2.2** 🧠 Migration conforme o plano, Fase 2:
+- [ ] **T2.2** `sonnet` Migration conforme o plano, Fase 2:
   - verificação prévia de `cargo`, `office` e nome;
   - `rollback.sql` escrito à mão, que aborta com dado;
   - `static-migration.contract.ts` atualizado;
@@ -105,9 +105,9 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 3 — A API recebe, aplica a configuração e devolve
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T3.1 → `haiku`)
 
-- [ ] **T3.1** **R1 — o painel tolera.**
+- [ ] **T3.1** `sonnet` **R1 — o painel tolera.**
   - `isDeliveryProof` aceita os campos novos, presentes ou ausentes.
   - `deliveryProofsFromApi` descarta só o item inválido.
   - `isDeliveryProofFieldSettings` lê `receivedBy` ausente como `optional`.
@@ -154,9 +154,9 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 4 — O motorista diz quem recebeu, sem nunca perder a foto
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T4.0 → `haiku`)
 
-- [ ] **T4.0** **Conferir os pré-requisitos.** O **P0** ("o attach nunca descarta", criado pelo
+- [ ] **T4.0** `haiku` **Conferir os pré-requisitos.** O **P0** ("o attach nunca descarta", criado pelo
       orquestrador) e a **194 fases 1–3** precisam estar em `origin/staging`. Conferir com
       `git log origin/staging -- …DriverStopCard.component.tsx`. As decisões de tela já estão
       tomadas: select compacto (R1) e `required` como pendência não bloqueante (R2). Aceite: os
@@ -213,9 +213,9 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 6 — O motorista fala com o cliente
 
-> 🤖 Modelo: `sonnet` (T6.5 🧠 `opus`)
+> 🤖 Modelo: `sonnet` (T6.0 → `haiku`)
 
-- [ ] **T6.0** **Registrar o risco aceito.** O usuário decidiu Ligar + WhatsApp (R3) e "Ver contato"
+- [ ] **T6.0** `haiku` **Registrar o risco aceito.** O usuário decidiu Ligar + WhatsApp (R3) e "Ver contato"
       com auditoria (R4), e as decisões já estão na ADR-0079, Parte B, §4 e §5. O
       `docs/SECURITY.md` ganha a entrada datada: "número pessoal do motorista exposto ao cliente;
       número e e-mail do cliente retidos no aparelho do motorista, sem prazo — risco aceito pelo
@@ -253,7 +253,7 @@ A **R2 não sai** sem a R1 em produção.
       demonstração, que responde ao `contact-reveals` e manda com celular, fixo, `null` e nota entregue. O smoke cobre o card com contato.
       Aceite: `check` e smoke verdes, prints e o ok do usuário.
 
-- [ ] **T6.5** 🧠 E-mail do destinatário (CA20). Pode ficar aberta com motivo.
+- [ ] **T6.5** E-mail do destinatário (CA20). Pode ficar aberta com motivo. Plano já decidido: execução multi-passo, sem decisão nova.
   1. Merge e publicação do `adatechnology-packages#105`, **com pergunta ao usuário antes de
      publicar**.
   2. Bump na API e no worker (`0.3.0-rc.7` → `0.3.0`: ler o changelog).
@@ -269,7 +269,7 @@ A **R2 não sai** sem a R1 em produção.
 
 ## Fase 7 — Revisão de design, documentação viva e gates
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T7.2 e T7.3 → `haiku`)
 
 - [ ] **T7.1** Revisão de design (`web.md` §15) contra a própria página, nos dois apps. Itens:
   - a captura acima da dobra em 375 px;
@@ -281,7 +281,7 @@ A **R2 não sai** sem a R1 em produção.
 
   Aceite: os prints finais e o ok do usuário.
 
-- [ ] **T7.2** Documentação viva:
+- [ ] **T7.2** `haiku` Documentação viva:
   - o `CLAUDE.md` das apps tocadas;
   - o `docs/SECURITY.md`: detalhe livre, contato no aparelho, retenção pelos links e número do
     motorista;
@@ -291,7 +291,7 @@ A **R2 não sai** sem a R1 em produção.
 
   Aceite: `bun run format:check` verde.
 
-- [ ] **T7.3** Gates:
+- [ ] **T7.3** `haiku` Gates:
   - `make check`;
   - `make migration-test`;
   - os dois comandos da API;
@@ -306,10 +306,11 @@ A **R2 não sai** sem a R1 em produção.
 /oh-my-claudecode:autopilot Execute a spec specs/193-o-comprovante-diz-quem-recebeu/ (leia spec.md,
 plan.md, tasks.md e docs/adr/0079-quem-recebeu-e-o-contato-do-destinatario.md antes de começar).
 Uma task por vez, na ordem do tasks.md. O item 3 (três botões do canhoto) já foi entregue: não o refaça.
-Modelos: Fase 1 → executor model=sonnet · Fase 2 → executor model=sonnet, T2.2 🧠 → opus ·
-Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → executor model=sonnet ·
-Fase 6 → executor model=sonnet, T6.5 🧠 → opus · Fase 7 → executor model=sonnet ·
-revisão final → code-reviewer model=opus.
+Modelos: Fase 1 → executor model=haiku (T1.3 → sonnet) · Fase 2 → executor model=haiku (T2.2 → sonnet) ·
+Fase 3 → executor model=sonnet (T3.1 → haiku) · Fase 4 → executor model=sonnet (T4.0 → haiku) ·
+Fase 5 → executor model=sonnet · Fase 6 → executor model=sonnet (T6.0 → haiku) ·
+Fase 7 → executor model=sonnet (T7.2 e T7.3 → haiku) · revisão final → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + o entrypoint de teste indicado na task + commit isolado com caminhos
 explícitos, evidência em evidence.md. Migration fecha com `make migration-test`; integração da API
 com `bun --env-file=../../.env.test run test:integration` (sem a flag, pula).

@@ -37,6 +37,7 @@ import {
   type PackageBoxRow,
 } from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
+import { requestCargoPreviewReevaluation } from './cargo-preview-reevaluation.writer.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -347,6 +348,7 @@ export class DrizzleNfeImportConsumerRepository {
             companyId: item.companyId,
             document,
             documentId: created.id,
+            logger: this.#logger,
             tx,
           })
         }
@@ -506,6 +508,17 @@ export async function writeDocumentChildren(input: {
       })),
     )
   }
+
+  /**
+   * Spec 237: a nota nova pode ser a que uma prévia espera. Savepoint próprio — nunca derruba nem
+   * espera a importação (`cargo-preview-reevaluation.writer.ts`).
+   */
+  await requestCargoPreviewReevaluation({
+    companyId: input.companyId,
+    emitterTaxId: input.document.issuer.taxId,
+    ...(input.logger === undefined ? {} : { logger: input.logger }),
+    tx: input.tx,
+  })
 }
 
 /**

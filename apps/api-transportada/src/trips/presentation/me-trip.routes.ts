@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  parseOption,
+  parseUuidFilter,
+  parseUuidPathIdentifier,
+} from '../../http/request-parsing.service.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -16,8 +20,12 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
-import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
+import {
+  DRIVER_FIELD_MOMENTS,
+  type FieldOccurrenceType,
+} from '../application/list-field-occurrence-types.use-case.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import type { DriverOccurrenceItemInput } from '../application/register-driver-occurrence.types.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
@@ -33,6 +41,7 @@ import type {
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
 import {
@@ -121,10 +130,11 @@ type DriverActionInput = DriverContextInput & {
 }
 
 /** Spec 205 RF1/RF2: a baixa da nota diz se veio pelo "Registrar entrega depois". */
-type DriverDocumentOutcomeInput = DriverActionInput & {
-  readonly documentId: string
-  readonly lateRegistration: boolean
-}
+type DriverDocumentOutcomeInput = DriverActionInput &
+  EventClockFields & {
+    readonly documentId: string
+    readonly lateRegistration: boolean
+  }
 
 /**
  * O que resolve a viagem do upload: a nota da ocorrência de nota (179) ou a parada do "Deu
@@ -134,6 +144,8 @@ export type OccurrenceUploadTarget = { readonly documentId: string } | { readonl
 
 export type MeTripDependencies = {
   readonly findCurrentTrip: (input: {
+    /** Spec 244 D2: o POST do comprovante pede `trip.report`; sem ela a conta não recebe a fila de fotos. */
+    readonly canReportProofs: boolean
     readonly companyId: string
     readonly membershipId: string
   }) => Promise<FindCurrentDriverTripResult>
@@ -145,10 +157,12 @@ export type MeTripDependencies = {
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
     readonly contractorId?: string | null
+    /** Spec 246 T1b.2: só os momentos do motorista; ausente é nota e parada, como antes. */
+    readonly moment?: (typeof DRIVER_FIELD_MOMENTS)[number] | undefined
     readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
-    input: DriverActionInput & { readonly stopId: string },
+    input: DriverActionInput & EventClockFields & { readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
   /** Spec 206 D2: o primeiro toque em "Iniciar rota". */
   readonly reportDeparture: (
@@ -160,13 +174,17 @@ export type MeTripDependencies = {
   ) => Promise<CancelStopDepartureResult>
   /** ADR-0058: conferir a carga e iniciar o trajeto, os dois pelo mesmo caso de uso. */
   readonly startFieldTrip: (
-    input: DriverContextInput & { readonly step: FieldTripStep },
+    input: DriverContextInput & {
+      readonly location: ReportedLocation | null
+      readonly step: FieldTripStep
+    },
   ) => Promise<StartFieldTripResult>
   readonly reportDelivery: (
     input: DriverDocumentOutcomeInput,
   ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
     input: DriverContextInput &
+      EventClockFields &
       StopOccurrenceReference & {
         /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
         readonly attachmentObjectId: string | null
@@ -175,6 +193,7 @@ export type MeTripDependencies = {
         readonly distanceMeters: number | null
         readonly documentId: string | null
         readonly idempotencyKey: string
+        readonly location: ReportedLocation | null
         readonly stopId: string
       },
   ) => Promise<ReportStopOccurrenceResult>
@@ -185,13 +204,24 @@ export type MeTripDependencies = {
     readonly actorUserId: string
     /** Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado — nunca o arquivo. */
     readonly attachmentObjectId?: string | undefined
+    /** Spec 246 (T2.7): a lista de uploads confirmados (1 a 5); a rota recusa a lista junto do campo único. */
+    readonly attachmentObjectIds?: readonly string[] | undefined
     readonly companyId: string
+    /** Spec 247 (T4.4): o valor pago da ocorrência, texto. */
+    readonly declaredAmount?: string | undefined
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
+    /** Spec 247 (T4.4): os itens com quantidade — preço e unidade saem da nota no servidor. */
+    readonly items?: readonly DriverOccurrenceItemInput[] | undefined
+    readonly location: ReportedLocation | null
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /** Spec 247 (T4.4): o número do documento do cliente. */
+    readonly referenceNumber?: string | undefined
+    /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
+    readonly signatureObjectId?: string | null | undefined
   }) => Promise<TripOccurrence>
   /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
   readonly createOccurrenceUpload: (input: {
@@ -212,6 +242,7 @@ export type MeTripDependencies = {
     readonly actorUserId: string
     readonly companyId: string
     readonly driverId: string
+    readonly location: ReportedLocation | null
     readonly tripId: string
   }) => Promise<{ readonly tripStatus: string }>
   readonly attachProof: (
@@ -253,6 +284,7 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 function serializeTrip(trip: DriverTrip) {
   return {
     createdAt: trip.createdAt,
+    crewRole: trip.crewRole,
     id: trip.id,
     // `null` é o caso normal: a carga urbana não exige MDF-e, e o intermunicipal só ganha manifesto
     // depois de o lote de CT-e autorizar. A tela mostra o romaneio enquanto isso.
@@ -280,6 +312,7 @@ export function createMeTripRoutes(
     defineRoute<Record<string, never>>({
       async handle({ context }): Promise<Response> {
         const result = await dependencies.findCurrentTrip({
+          canReportProofs: context.scope.permissions.has(DRIVER_REPORT_POLICY.permission),
           companyId: context.scope.companyId,
           membershipId: context.scope.membershipId,
         })
@@ -345,18 +378,19 @@ export function createMeTripRoutes(
       policy: DRIVER_READ_POLICY,
     }),
     ...([FIELD_TRIP_STEP.confirmLoad, FIELD_TRIP_STEP.startRoute] as const).map((step) =>
-      defineRoute<undefined>({
+      defineRoute<{ readonly location: ReportedLocation | null }>({
         /**
          * `200`, e não `201`: nenhum recurso nasce aqui — a viagem já existia, e o que muda é o
          * estado dela. E o corpo devolve `changed`, porque repetir o toque é caso normal: a rede do
          * pátio cai e o motorista toca de novo, e isso converge em vez de dar conflito.
          */
-        async handle({ context }): Promise<Response> {
+        async handle({ context, input }): Promise<Response> {
           const driverId = await resolveDriver(context.scope)
           const result = await dependencies.startFieldTrip({
             actorUserId: context.scope.userId,
             companyId: context.scope.companyId,
             driverId,
+            location: input.location,
             step,
           })
 
@@ -366,26 +400,27 @@ export function createMeTripRoutes(
           })
         },
         method: 'POST',
-        parse: () => undefined,
+        /** Corpo opcional: o app antigo não manda nenhum, e continua `200`. */
+        parse: ({ request }) => parseFieldReportRequest(request),
         pathname:
           step === FIELD_TRIP_STEP.confirmLoad ? TRIP_CONFIRM_LOAD_PATH : TRIP_START_ROUTE_PATH,
         policy: DRIVER_REPORT_POLICY,
       }),
     ),
-    defineRoute<{
-      readonly idempotencyKey: string
-      readonly location: ReportedLocation | null
-      readonly stopId: string
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly idempotencyKey: string
+        readonly location: ReportedLocation | null
+        readonly stopId: string
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportArrival({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          location: input.location,
-          stopId: input.stopId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
@@ -394,8 +429,8 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseFieldReportRequest(request)
         return {
+          ...body,
           idempotencyKey: parseIdempotencyKey(request),
-          location: body.location,
           stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
         }
       },
@@ -474,22 +509,21 @@ export function createMeTripRoutes(
       pathname: STOP_CANCEL_DEPARTURE_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{
-      readonly documentId: string
-      readonly idempotencyKey: string
-      readonly lateRegistration: boolean
-      readonly location: ReportedLocation | null
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly documentId: string
+        readonly idempotencyKey: string
+        readonly lateRegistration: boolean
+        readonly location: ReportedLocation | null
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportDelivery({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          lateRegistration: input.lateRegistration,
-          location: input.location,
         })
 
         return jsonResponse({ body: { data: result }, status: 201 })
@@ -498,33 +532,30 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseDocumentDeliveryRequest(request)
         return {
+          ...body,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
-          lateRegistration: body.lateRegistration,
-          location: body.location,
         }
       },
       pathname: DOCUMENT_DELIVER_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{
-      readonly documentId: string
-      readonly idempotencyKey: string
-      readonly lateRegistration: boolean
-      readonly location: ReportedLocation | null
-      readonly reason: DriverReturnReason
-    }>({
+    defineRoute<
+      EventClockFields & {
+        readonly documentId: string
+        readonly idempotencyKey: string
+        readonly lateRegistration: boolean
+        readonly location: ReportedLocation | null
+        readonly reason: DriverReturnReason
+      }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportReturn({
+          ...input,
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          lateRegistration: input.lateRegistration,
-          location: input.location,
-          reason: input.reason,
         })
 
         return jsonResponse({ body: { data: result }, status: 201 })
@@ -533,32 +564,29 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseDocumentReturnRequest(request)
         return {
+          ...body,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
-          lateRegistration: body.lateRegistration,
-          location: body.location,
-          reason: body.reason,
         }
       },
       pathname: DOCUMENT_RETURN_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{ readonly tripId: string }>({
+    defineRoute<{ readonly location: ReportedLocation | null; readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.dispatchCurrentTrip({
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           driverId,
+          location: input.location,
           tripId: input.tripId,
         })
 
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'POST',
-      async parse({ request }) {
-        return { tripId: await parseDispatchCurrentTripRequest(request) }
-      },
+      parse: ({ request }) => parseDispatchCurrentTripRequest(request),
       pathname: TRIP_DISPATCH_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
@@ -617,24 +645,36 @@ export function createMeTripRoutes(
     }),
     defineRoute<{
       readonly attachmentObjectId?: string | undefined
+      readonly attachmentObjectIds?: readonly string[] | undefined
+      readonly declaredAmount?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
+      readonly items?: readonly DriverOccurrenceItemInput[] | undefined
+      readonly location: ReportedLocation | null
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
+      readonly referenceNumber?: string | undefined
+      readonly signatureObjectId?: string | null | undefined
     }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const occurrence = await dependencies.registerDriverOccurrence({
           actorUserId: context.scope.userId,
           attachmentObjectId: input.attachmentObjectId,
+          attachmentObjectIds: input.attachmentObjectIds,
           companyId: context.scope.companyId,
+          declaredAmount: input.declaredAmount,
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
+          items: input.items,
+          location: input.location,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
+          referenceNumber: input.referenceNumber,
+          signatureObjectId: input.signatureObjectId,
         })
 
         return jsonResponse({ body: { data: occurrence }, status: 201 })
@@ -644,11 +684,17 @@ export function createMeTripRoutes(
         const body = await parseRegisterOccurrenceRequest(request)
         return {
           attachmentObjectId: body.attachmentObjectId,
+          attachmentObjectIds: body.attachmentObjectIds,
+          declaredAmount: body.declaredAmount,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
+          items: body.items,
+          location: body.location,
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
+          referenceNumber: body.referenceNumber,
+          signatureObjectId: body.signatureObjectId,
         }
       },
       pathname: DOCUMENT_OCCURRENCE_PATH,
@@ -758,12 +804,17 @@ export function createMeTripRoutes(
       pathname: STOP_OCCURRENCE_UPLOAD_CONFIRM_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{ readonly contractorId: string | null; readonly recipientTaxId: string | null }>({
+    defineRoute<{
+      readonly contractorId: string | null
+      readonly moment: (typeof DRIVER_FIELD_MOMENTS)[number] | undefined
+      readonly recipientTaxId: string | null
+    }>({
       async handle({ context, input }): Promise<Response> {
         await resolveDriver(context.scope)
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
           contractorId: input.contractorId,
+          moment: input.moment,
           recipientTaxId: input.recipientTaxId,
         })
 
@@ -774,6 +825,7 @@ export function createMeTripRoutes(
         const url = new URL(request.url)
         return {
           contractorId: parseUuidFilter(url.searchParams.get('contractorId')) ?? null,
+          moment: parseOption(url.searchParams.get('moment'), DRIVER_FIELD_MOMENTS),
           recipientTaxId: url.searchParams.get('recipientTaxId'),
         }
       },

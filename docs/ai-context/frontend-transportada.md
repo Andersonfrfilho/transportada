@@ -1004,3 +1004,364 @@ frase: tela nova de cancelada entra pelo componente.
 - O kind `occurrence.cancelled` precisa estar no guard da linha do tempo da ocorrência
   (`tripOccurrenceTimeline.validation.ts`), que é estrito: kind desconhecido reprova a resposta.
 - Contrato: `test/trip/occurrence-cancellation.contract.tsx` (renderiza cada lugar e afirma o texto).
+
+## Spec 237 T1.4 — aba "Contratantes" em `/clientes`
+
+`delivery-clients` ganhou a primeira tela de contratante: lista (busca por nome/CNPJ, ordenação por
+cabeçalho, situação múltipla, estado na URL, selo lido do perfil) e ficha com os dados do `PATCH
+/contractors/:id` e o perfil de recebimento (`GET/PUT /contractors/:id/receiving-profile`, ADR-0094). Namespace
+i18n próprio `contractorDirectory`. O `PUT` leva sempre as 10 chaves (`null` = sem regra); as faixas são
+cópia por valor das do servidor (`receivingProfile.types.ts`), validadas em `receivingProfile.validation.ts`
+(o painel não tem zod). A recusa do servidor vira "Confira:" com atalhos (`receivingRefusal.service.ts` +
+`focusRefusedField.service.ts`, alvo por `data-field`). O selo da lista custa uma leitura de perfil por
+contratante (não há rota em lote). Evidência e prints: `specs/237-.../evidence.md`.
+
+## Spec 243 — O ajudante fecha as pontas
+
+**Arquivos-chave:** diária geral em `modules/fleet/components/DriverCrewSettingsPanel.component.tsx` e
+`hooks/useCrewSettings.hook.ts`, validação em `modules/fleet/shared/crewSettings.validation.ts`, sem acesso em
+`modules/identity/shared/noWorkspaceAccessVariant.service.ts` e `NoWorkspaceAccess.component.tsx`.
+Testes: `test/fleet/driver-crew-settings-panel.contract.tsx`, `test/identity/no-workspace-access-variant.contract.tsx`.
+
+Duas decisões do painel (ver ADR-0095): D2 — Diária geral do ajudante na aba de motoristas, sem entrada em
+`SETTINGS_PANEL_PLACEMENT` (permissão `fleet.read`/`fleet.manage` da API, não de settings, padrão do
+`EnergySettingsPanel`). D5 — Quem tem `trip.read` isolada vê no painel um texto de acompanhamento e botão
+para o app do motorista (quando `VITE_DRIVER_APP_URL` existe).
+
+**Pegadinhas:** Diária vazia + ajudante sem diária própria segue com lacuna HELPER_DAILY_RATE_MISSING,
+agora solucionável. Variante de acompanhamento só aparece sem workspace visível (D5 lê `!userHasAccessToWorkspace`
+da sessão, não da resposta da API). Nenhuma rota nova de painel; tudo pelo cliente de `crewSettingsClient.service.ts`
+já existente.
+
+## Spec 237 T2.4 — recebimento da carga e a primeira separação pelo celular
+
+Módulo novo `src/modules/cargo-receiving/` (rota `/recebimento`, namespace `cargoReceiving`, ícone
+`workspace-cargo-receiving`). Consome as rotas da T2.3 (`apps/api-transportada/src/cargo-receiving/presentation`):
+`GET/POST /cargo-arrivals`, `GET /cargo-arrivals/:id`, `GET /cargo-arrivals/available-documents`,
+`POST …/documents/batch-status`, `POST …/route-assignment`, `POST …/close`. Leitura `fleet.read`, escrita
+`trip.manage` (as mesmas da API).
+
+**Telas.** `CargoArrivalListPanel` (tabela com ordenação por cabeçalho, filtros múltiplos de contratante e
+situação, "limpar filtros" só com critério, estado na URL, "carregar mais" por cursor);
+`CargoArrivalRegistration` (contratante só com perfil LIGADO — uma leitura de perfil por contratante, sem rota
+em lote —, data com `DatePicker` + hora mascarada, paletes e referência opcionais, notas por checkbox com
+contador/limite 300, `Idempotency-Key` por tentativa); `CargoArrivalDetailScreen` (grupos rota × cidade, atribuir
+rota, receber/separar em lote, fechar); `CargoSeparationScreen` (celular, `/recebimento/:id`: grupos
+recolhíveis, o primeiro com pendência aberto, botão grande por nota com o próximo passo em texto, "separar tudo
+deste grupo", busca por número e leitura da chave de acesso pela câmera, banner de "sem conexão").
+
+**Decisões que valem lembrar.**
+
+- Estado do servidor é TanStack Query; a lista de chegadas é `useInfiniteQuery` e o filtro de UM contratante/UMA
+  situação vai ao servidor (a API só filtra por um valor), com vários o cliente filtra o que veio.
+- A atualização otimista do toque cancela a leitura em voo ANTES de gravar (cancelar depois reverteria a gravação
+  ao estado do começo do fetch) e só relê a chegada quando `isMutating === 1`.
+- O nome da cidade é o que a API devolve (`cityName`, endereço do destinatário); sem nome, o código IBGE; sem
+  nada, "Sem cidade". O painel não tem tabela de municípios.
+- A API não devolve o peso da nota nas disponíveis: a tela mostra valor, não peso (follow-up de API).
+- Fora desta task: fila offline do toque, rota em lote por selo, avaria na entrada (Fase 3).
+
+## Spec 237 T4.4 — As prévias de carga em `/recebimento/previas`
+
+**Arquivos-chave** (`modules/cargo-receiving/`): `shared/cargoPreview*.ts` (constantes, tipos, guardas, cliente, tabela, detalhe,
+ações, proposta, prefill, polling), `queries/useCargoPreviews.query.ts`, `mutations/*CargoPreview*`, `hooks/useCargoPreview*.hook.ts`,
+`components/CargoPreview*.component.tsx`, `styles/cargoPreview*.module.css`, namespace `cargoReceiving.preview.*`.
+
+- **Duas visões, um item de menu.** `CargoReceivingNav` (Chegadas | Prévias) mora dentro do `CargoReceivingShell` (`section`).
+  Rotas: `/recebimento/previas` (lista + envio) e `/recebimento/previas/:id`; id que não é UUID ou subcaminho cai na lista.
+  Leitura `fleet.read`; envio e ações `trip.manage` (`canManage`).
+- **Cliente próprio** (`cargoPreviewClient.service.ts`, `getCargoPreviewClient`): reaproveita só o transporte
+  (`requestCargoReceivingApi`, que ganhou `formData` — o `content-type` do multipart nunca é fixado à mão). Guardas de resposta com
+  chaves EXATAS no formato real da API; o erro de linha (`rowErrors`, jsonb sem tipo) só exige `column/field/message`.
+- **Envio:** extensão `.xlsx/.xlsm` e teto de **960 KiB** conferidos no cliente (o servidor confere os bytes). `Idempotency-Key` por tentativa
+  (`buildPreviewUploadFingerprint` = contratante + nome + tamanho + `lastModified`; mesma impressão reaproveita a chave). 200 = "essa
+  planilha já foi enviada" (aviso + botão "Abrir a prévia", não navega sozinho); 201 abre a prévia criada. 413/422 e códigos `PREVIEW_*`
+  saem em português (`resolvePreviewErrorKeys`: `preview.errors` → `preview.failure` → `errors` → genérico); `CARGO_PREVIEW_NOT_ENABLED`
+  e "nenhum contratante elegível" levam a `/clientes?tab=contractors`. Elegível = recebimento E prévia ligados (uma leitura de perfil por
+  contratante, cache dividido).
+- **Lista:** ordenação/filtros múltiplos/URL como a de chegadas (`cargoTableSort.service.ts` é o par genérico; `CargoSortHeader` virou
+  genérico). **Repolling** só enquanto há prévia `queued|processing` (`resolveCargoPreviewRefetchInterval`, 3 s; vira `false` sozinho). A
+  API NÃO devolve contagem por estado na lista (só no detalhe): a lista mostra `rowCount` e a situação da leitura (follow-up de API).
+- **Detalhe:** `useInfiniteQuery` onde cada página é o detalhe inteiro com a próxima fatia de linhas (cursor `afterRow`); cabeçalho da
+  primeira página; `placeholderData: keepPreviousData` (sem ele trocar o filtro derrubava os próprios filtros). Grupos por `routeName` na
+  ordem da API, "sem roteiro" por último. **"Esperando o XML" é tom neutro** (`data-tone`), nunca alerta — é o estado normal. Ações
+  (`resolveCargoPreviewItemActions`): confirmar só a sugerida; desvincular só a vinculada, **com aviso do grupo antes** (age em todas as
+  linhas da nota); vincular à mão (a lista `available-documents` da Fase 2, candidatas primeiro) para esperando/ambígua/sugerida; inválida
+  nenhuma. A API só devolve os **ids** das candidatas de uma ambígua: a tela mostra a contagem e destaca as candidatas no seletor.
+- **Proposta de chegada** (`POST …/propose-arrival`, não cria nada): sem nota vinculada o botão é trocado por uma frase. "Registrar chegada
+  com estas notas" grava o rascunho em `history.state` (`cargoArrivalPrefill`: contratante, notas, prévia, dia planejado) e abre
+  `/recebimento/nova`. **A data e a hora começam VAZIAS** (o operador confirma a hora, RF5b) e o dia planejado só aparece como referência;
+  as notas são marcadas por `usePreselection` (busca as páginas até achar as propostas; o que não aparece é "não está mais livre").
+- **Mobile:** abaixo de 40rem cada linha das tabelas de prévias vira cartão (`data-label` + `.stacked` em `cargoTable.module.css`).
+- **Dado de terceiros:** nome/endereço do destinatário só na célula; nunca em URL, título, log nem `localStorage`.
+- Fora desta task: `previewId` no `POST /cargo-arrivals`, contagem por estado na lista (API), fila offline, e-mail (Fase 4b).
+
+## Spec 244 — O ajudante sem resto
+
+**Arquivos-chave:** conversor em `modules/shared/decimalAmount.service.ts` (`toTypedAmountKeepingZero`), usado em
+`modules/fleet/shared/fleetForm.service.ts` (ficha, campos `helperDailyRate`/`dailyAllowanceAmount`) e
+`crewSettingsForm.service.ts` (diária geral).
+
+**T3:** Conversor novo `toTypedAmountKeepingZero` preserva zero em três campos: `helperDailyRate` e `dailyAllowanceAmount`
+da ficha, e `dailyAllowanceAmount` da diária geral. Exibição: `0.0000` → `0,00`; vazio segue `null`. Pegadinha: `toTypedAmount`
+(**não** tocado) continua devolvendo `''` para zero, então zero em custos de veículo, tabela de frete e outras telas não
+muda — conversor dual permite a diária manter seu significado (zero = "não recebe") sem impactar outras escalas.
+
+## Spec 237 — revisão de segurança da Fase 4a (2026-10-04)
+
+- A ficha do contratante (`delivery-clients`, seção "Avançado") trocou "Padrão do número da carga" (expressão
+  regular) por **"Texto que antecede o número da carga"** (`arrivalReferenceLabel`, até 60 caracteres, uma
+  linha só — `controlCharacter` é o código de campo novo), com ajuda em português simples. O `PUT` segue com
+  as 10 chaves. Prints da ficha refeitos (`specs/237-.../prints/contratante-ficha*`).
+- Recebimento › Prévias: textos para `CARGO_PREVIEW_TOO_MANY_OPEN` (envio recusado com 5 prévias na fila do
+  contratante) e para as falhas novas `PREVIEW_TOO_MANY_CELLS`, `PREVIEW_PROCESSING_INTERRUPTED` e
+  `PREVIEW_MATCH_TIMEOUT`.
+
+## Spec 241 — o tipo da ocorrência diz se ela carrega itens
+
+**Arquivos-chave:** `modules/trip/shared/occurrenceItemsMode.service.ts` (modo do tipo, `off` leva a seleção
+embora), `tripOccurrenceDetail.service.ts` (`resolveOccurrenceCorrectionActions`), `tripResponse.validation.ts`
+(guards tolerantes), `modules/trip/components/TripOccurrences.component.tsx` (registro),
+`TripOccurrenceCorrectionForm.component.tsx` (correção), `modules/company-settings/components/OccurrenceTypeItemsModeSelect.component.tsx`
+e `OccurrenceTypeCatalogPanel.component.tsx` (cadastro). Testes: `test/trip/occurrence-items-mode*.contract.ts`,
+`test/trip-hooks/occurrence-register-items-mode.contract.ts`, `occurrence-correction-single-item.contract.ts`,
+`occurrence-type-items-mode-panel.contract.ts`, `test/company-settings/occurrence-type-items-mode-body.contract.ts`.
+
+**Produtos no cadastro.** Cada tipo tem **Produtos**: `Sem produtos` (`off`) ou `Produtos opcionais` (`optional`) —
+as opções se explicam sozinhas, como `Sem foto` / `Foto opcional`, porque o controle não tem rótulo à vista.
+O controle só aparece quando a listagem traz `itemsMode`: sem o campo a API é anterior à 241 e não se oferece o que ela
+ignoraria. Com `Sem produtos` somem "Aceita vários itens" e a política de reentrega, e o `PUT` leva
+`redeliveryPolicy: 'unset'` no mesmo corpo (tipo sem itens não abre tratativa, CHECK do banco). `itemsMode` só vai no
+`PUT` quando o operador troca o seletor — ausente é "não mexe" na API. `required` é da 239 e o painel não o escreve.
+
+**Registro e correção por tipo.** O registro do galpão esconde o seletor de produtos e as quantidades quando o tipo é
+`off` e limpa a seleção ao trocar para ele; no envio a seleção é normalizada pelo tipo **vigente**, porque a recarga
+dos tipos pode escondê-lo com a tela aberta. O formulário de correção usa `typeAllowsMultipleItems` para a escolha
+única. **Corrigir** aparece por `typeItemsMode !== 'off' || hasItems || wasCorrected`: o primeiro termo traz de volta a
+avaria da nota inteira (WhatsApp e motorista gravam lista vazia); os outros dois cobrem a ocorrência antiga com itens
+num tipo que virou `off`.
+
+**Tolerância a API antiga.** `occurrenceTypeId`, `typeItemsMode`, `typeAllowsMultipleItems` (detalhe, feed, lista da
+nota) e `itemsMode` (cadastro) são opcionais nos guards; ausência lê `optional` / vários itens. Foi isso que permitiu
+publicar o painel (etapa 1) antes da API (etapa 2, ADR-0081 §9).
+
+**Pegadinhas.** (1) O guard de `OccurrenceType` é de chave exata: a API já manda `emailsContractor` (183) e `stopKind`
+(218) e o guard não os conhecia, então a lista inteira era recusada e a aba Tipos de ocorrência mostrava "Nenhum tipo
+cadastrado" com dados no banco — dois campos de tipo novos exigem a chave no guard antes da API. (2) Os dois `422`
+novos (`OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED`, `OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY`) viram texto por
+`TRIP_FEEDBACK_KEY_BY_ERROR`; o primeiro recarrega os tipos (`OCCURRENCE_TYPES_QUERY_KEY`) e o `PUT` do cadastro recarrega
+no erro também (`onSettled`). (3) O `Tooltip` da dica pinta por cima da lista do `Select` que ele envolve
+(`z-index` 80 contra 60); ele se fecha ao ativar o gatilho (clique, Enter, Espaço, setas) — não o reverta.
+Evidência e prints nas três larguras: `specs/241-o-tipo-da-ocorrencia-diz-se-ela-carrega-itens/evidence.md` e `prints/`.
+
+## Spec 237 T5.2 — "Recomendar viagens" na prévia (RF7)
+
+No detalhe da prévia (`/recebimento/previas/:id`), `CargoPreviewTripDraftsSection` (botão **"Recomendar viagens"**, de quem
+lê; prévia não lida explica em vez de oferecer o botão). Aberta, mostra `CargoTripDraftBoard`: o aviso das **notas de
+fora** (`CargoTripDraftOutside`, atalho que filtra o detalhe pelo estado), a visão 1 — um **cartão por roteiro**
+(`CargoTripDraftRouteCard`) — e a visão 2 — `CargoTripDraftSolver`, a proposta do roteirizador. Lado a lado a partir de
+64 rem, empilhadas abaixo disso. Dados de `GET /cargo-previews/:id/trip-drafts` (guarda de chaves exatas em
+`cargoPreviewTripDraftGuards.validation.ts`), lidos **só com a recomendação aberta**; a chave mora debaixo da do detalhe,
+então confirmar/desvincular uma linha relê os rascunhos. Estado na URL: `recommend=1` e `draftRoute=<roteiro>` (ao lado
+de `state`/`route` do detalhe).
+
+- **Nada vira viagem sem o aceite.** "Montar viagem com estas notas" é **navegação** para `/trips?createFromDocuments=…`
+  (o `navigateToTripCreation` que a tela de NF-e já usa e que o `useTripQuickCreate` já consome), só com as notas
+  **roteáveis** do roteiro; veículo e motorista continuam sendo escolhidos dentro daquele fluxo. "Gerar proposta" é o
+  `MultiVehicleSuggestionAction` existente (diálogo `MultiVehicleSuggestionDialog`, valuation, aceite) com as notas
+  roteáveis do escopo (todos os roteiros ou o escolhido). **A única mudança no módulo `routing` é a prop opcional
+  `label`** do `MultiVehicleSuggestionAction` (sem ela o texto é "Sugerir viagens"; contrato
+  `multi-vehicle-action-label.contract.ts`). O roteirizador tem teto de 500 notas: acima dele o botão fica desligado e a
+  tela pede um roteiro (`CARGO_TRIP_DRAFT_SOLVER_DOCUMENT_LIMIT`, cópia por valor da API).
+- **"Faltam N notas — esperando o XML" é informação** (`data-tone="neutral"`, borda tracejada, sem `role=alert`): é o
+  estado normal logo após o envio. Ação sem nota roteável fica `disabled`, com o motivo escrito e ligado por
+  `aria-describedby`. Quem só lê (sem `trip.manage`) vê as duas visões e nenhuma ação que crie viagem.
+- `CargoPreviewDetailScreen` ganhou `companyId`/`permissions` opcionais (a frota do roteirizador só é lida com a empresa);
+  `useCargoReceivingAccess` os expõe. Contratos: `test/cargo-receiving/preview-trip-draft-*.contract.ts` (puros) e
+  `test/trip-hooks/cargo-preview-trip-drafts*.contract.ts` (DOM). `tripClientMocks.helper.ts` ganhou, de forma aditiva,
+  `createMultiVehicle`/frota dublados (`tripHookFakes.multiVehicleRequests` é o que o roteirizador recebeu).
+- **Duas portas do roteirizador** (spec 110): usada a do módulo `routing` (a da seleção de NF-e), como pedido; a de
+  "Montar roteiro" (`TripRouteAssemblyDialog`) segue sendo da tela de Viagens.
+- Prints/medidas: `specs/237-.../prints/recomendar-viagens*` e `evidence.md` § "T5.3".
+
+## Spec 237 — correções da revisão das Fases 1–2, parte do painel (2026-10-06)
+
+Consome a API já corrigida (`71c2cb06d..b1d6b538e`): rotas e formatos novos entram no painel, sem tocar na API. Contratos
+novos em `test/trip-hooks/` (`cargo-arrival-detail-errors`, `cargo-separation-concurrency`, `receiving-profile-requests`) e
+em `test/cargo-receiving/` (`arrival-polling-and-overdue`); `cargoArrivalListDouble.helper.ts` é o servidor dublado de
+`GET /cargo-arrivals` (filtra, ordena e pagina com cursor que carrega a ordem, como a API).
+
+- **M2 — erro de rota e de lote no detalhe do escritório.** `useCargoArrivalDetail` expõe `routeErrorCode`,
+  `batchErrorCode` e `actionRefusal` (as notas/campos que o 422 nomeia, lidos pela SELEÇÃO ENVIADA — `documentIds.<n>` é a
+  posição no pedido, nunca na tela). `CargoActionFailure` renderiza o aviso traduzido (`errors.<code>` com `errors.unknown`)
+  e reaproveita `RegistrationRefusalSummary` (todas as notas de uma vez, deduplicadas, atalho que rola e foca; campo
+  desconhecido com o nome cru; silêncio sem campo). Editar a seleção (`toggleDocument`/`toggleGroup`/`clear`) limpa o
+  aviso; começar o lote limpa o da rota e vice-versa.
+- **L7 (lado do painel).** O 409 de fechamento põe o id em `details[].documentId` (`field: pendingDocumentIds.<n>`):
+  `CargoApiErrorDetail` ganhou `documentId?` e `describePendingDocuments` lê SÓ ele (nunca o texto da mensagem, nunca o
+  campo antigo `documentIds.<n>`).
+- **M3 — filtro e ordenação no servidor.** `resolveServerFilters` devolve `{ contractorIds, statuses, order }` inteiros
+  (mapa coluna→`sort`: `contractor`→`contractorName`, `dueAt`→`separationDueAt`); o cliente HTTP repete `contractorId` e
+  `status` e **repassa `sort`/`direction` junto com o cursor** (cursor de outra ordem é 400). A lista deixou de filtrar e
+  ordenar no cliente (`applyCargoArrivalTable` saiu). ⚠️ **Notas e Separadas deixaram de ser ordenáveis**: o servidor
+  não tem essas colunas, e ordenar só as páginas carregadas era o defeito; link antigo com `sort=documents|progress` cai
+  na ordem padrão. `CARGO_ARRIVAL_CURSOR_ORDER_MISMATCH` no "carregar mais" recarrega do início (`resetQueries`) com
+  `data-order-notice` (aviso neutro, `role=status`) que some quando o critério muda. O contador virou "N chegadas
+  carregadas" (com filtro no servidor "N de M" não diz nada).
+- **M4 — uma consulta de perfis.** `GET /contractor-receiving-profiles` (`{ data: [{ contractorId, isEnabled,
+previewEnabled }], nextCursor }`), uma guarda por módulo. Registro de chegada: `useEnabledContractors` cruza a lista
+  `enabled=true` com a de contratantes por `contractorId`. Envio da planilha: `usePreviewContractors` faz o mesmo exigindo
+  `previewEnabled` (`readProfileFlags` saiu do cliente da prévia). Aba Contratantes: `useReceivingProfileSummaries` lê a
+  lista inteira (sem `enabled`) e monta os selos; a ficha segue lendo o perfil COMPLETO de `GET
+/contractors/:id/receiving-profile`. O número de requisições segue as páginas, nunca o número de contratantes.
+- **L4 — uma raiz de chave.** `modules/shared/receivingProfileQueryKey.constant.ts` (`RECEIVING_PROFILES_QUERY_KEY`): as
+  duas listas vivem sob ela e `useSaveReceivingProfileMutation` invalida a raiz. Nenhum módulo conhece o cache do outro.
+- **L1/L2/L3 — separação com mais de uma pessoa.** "Separar tudo do grupo" desabilita com toque individual do mesmo grupo
+  em voo; a atualização otimista zera `isSeparationOverdue` quando `separated === total` (como a API); a chegada aberta é
+  relida a cada `CARGO_ARRIVAL_LIMITS.detailRefetchIntervalMs` (20 s) com a aba visível e sem toque em voo, e para ao fechar
+  (`resolveCargoArrivalRefetchInterval`; a chave do toque é `cargoArrivalTouchMutationKey`). A recusa
+  `CARGO_ARRIVAL_TRANSITION_NOT_ALLOWED` diz "a nota já avançou — outra pessoa pode ter separado". Limite conhecido: se o
+  servidor recusa um toque que zerou "Vencida", o rótulo só volta na releitura que o `onSettled` dispara.
+- **L6 — chegada com mais de 30 dias.** `CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeDays/Ms` (cópia por valor do piso da API): o
+  formulário recusa antes de enviar (`issues.tooOld`) e o 422 `CARGO_ARRIVAL_ARRIVED_AT_TOO_OLD` põe o motivo no campo da data
+  (`describeServerFieldIssues`).
+- **L9/L14.** `toRegisterResult`, `buildHeaders`, `withoutKeys`, `mergeOutcome`, `labelOf`, `applyToGroup` e o auxiliar de
+  resultado do grupo recebem objeto; `CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION` virou `CONTRACTOR_MANAGE_PERMISSION`.
+- Prints do erro de rota e de lote: `specs/237-.../prints/recebimento-erro-{rota,lote}-{375,1280}-{dark,light}.png`, gerados
+  por `test/spec-237-recebimento-erros-prints.smoke.spec.ts` (fora da CI; `PLAYWRIGHT_TEST_MATCH`). Detalhe e mutações:
+  `evidence.md` § "Correções da revisão das Fases 1–2 — painel".
+- **Tabelas cortadas a 375 px (2026-10-06).** Detalhe (grupos), lista de chegadas e notas livres do registro passaram a
+  `.stacked` com `data-label`; o `min-width: 40rem` do detalhe só vale a partir de 40 rem. A conferência de "sem rolagem" por
+  `scrollWidth` passava com o conteúdo recortado: `expectNoClipping` (`test/cargo-clipping-smoke.helper.ts`) mede
+  `getBoundingClientRect` contra o ancestral que recorta. A 768 px a lista e as prévias rolam dentro da região rotulada.
+
+## Spec 246 — terceira revisão (painel, 2026-10-06)
+
+- **`Select` (CSS global, `components/ui/select.module.css`) mudou para todas as telas, por contraste e alvo de toque.**
+  Antes (staging) → depois: (1) **desligado** apagava com `opacity: 0.6` e cor a 75%, o que levava o motivo ao lado abaixo de
+  4,5:1; agora é `border-style: dashed` + `--color-slate-muted`, sem `opacity`. (2) **Opção ativa** com véu de cobre de **16%**
+  → **10%**, e **escolhida + ativa** a **5%**: cobre sobre cobre translúcido media 4,4:1. (3) **Valor e placeholder** cortavam
+  com reticências (`nowrap`) e sumiam no toque, onde `title` não existe → `overflow-wrap: anywhere`, o gatilho cresce só quando
+  o texto não cabe; o detalhe (`triggerDescription`) segue em uma linha, com reticências e `title`. (4) **Gatilho compacto,
+  opção e busca** a 38 px → `min-height: var(--touch-target)` (44 px) só em `pointer: coarse`; o desktop não muda. (5) O painel
+  ganhou `max-width: calc(100vw - var(--space-4))` e a lista uma coluna `minmax(0, 1fr)`: uma opção de uma linha só abria o painel
+  além da borda. Medido: 0 painel fora da viewport (a staging tinha 4 a 320 px). Evidência: `specs/246-.../evidence.md`
+  § "Correções da terceira revisão" (M-4) e § "Varredura de regressão visual contra a staging".
+- **Cabeçalho da aplicação e título de `/ressarcimentos` (M-1, M-2).** `.application-wordmark` voltou a `2rem` em toda tela; o
+  nome comprido quebra (`min-width: 0` no contêiner, `overflow-wrap: anywhere`) em vez de encolher o de todas as telas. O `h1`
+  do módulo só difere do global abaixo de `40rem` e só na página de ressarcimentos (`.longTitle`); de `40rem` em diante repete o
+  `h1` global nos dois pontos em que ele muda (`clamp(3.5rem, 15vw, 9rem)` e, de `64rem`, `clamp(5rem, 11vw, 9rem)`), e o
+  contrato lê os valores do `index.css`. O projeto só aceita consulta `min-width` nos três pontos (`responsive.contract.ts`).
+- **Não corrigidos de propósito (registrados):** B-1, B-4 e B-5 da terceira revisão ficam como estão.
+
+## Spec 246 — a aba Tipos em `/ocorrencias` (T6.2)
+
+- **Endereço:** `TripOccurrencesWorkspace.page.tsx` ganhou `<Tabs>` (ocorrências | Tipos); a aba só existe com `settings.manage`
+  e vai para a URL. O `OccurrenceTypeCatalogPanel` e seus subcomponentes (`OccurrenceTypeRow`, `OccurrenceTypeSummary`,
+  `OccurrenceTypeFilters`) moram em `modules/trip`; `SETTINGS_PANEL_PLACEMENT`, `SETTINGS_PANEL_MODULES` e
+  `COMPANY_SETTINGS_TAB_IDS` perderam o painel antigo (um endereço só, provado por contrato). As traduções **continuam** no
+  namespace `companySettings` (mover ~120 chaves tocaria as duas apps e todos os contratos de locale).
+- **Dados:** a consulta em lote de exceções (`OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH`) é uma por tela; contratantes seguem o
+  cursor (até 30 páginas) e a lista de clientes tem teto de 3000 com aviso "pode estar incompleta"; os dois só carregam quando um
+  tipo abre ou há busca digitada. `buildOccurrenceTypeUpdate` monta o `PUT` e **ausente continua ausente** (API anterior recusa a chave).
+- **Escopo por momentos** (`readOccurrenceRequirementScope`): `document` cobra Foto, Observação, Assinatura, Produtos e o mínimo de fotos;
+  `stop` sem `document` só Foto; Produtos vale em `document`, `separation` e tipo sem `stop`; exceções existem em tipo com
+  `document`, `stop` ou `office`; tipo só de escritório mostra só Produtos. Tipo `{separation, document}` mostra os campos com a nota
+  "valem só nos momentos de rua".
+- **Exceção:** quatro seletores com a quarta opção **Igual ao tipo** (nulo), mais os dois mínimos; cliente escolhido em
+  `SearchableSelect` (nunca digitado); "Ao menos N itens" diz que o app do motorista ainda só marca "A nota inteira".
+- **Busca e filtros** (pílulas, molde de `TripOccurrenceFilters`): tipo, nome/CNPJ de exceção (CNPJ normalizado), momento,
+  ativo/inativo, exigência, avisa/não avisa, tem exceção.
+- **Verificação** (`SettingsResolutionPanel`): seis campos por tipo e a camada que decidiu cada um; o texto de apoio os diz.
+- **Geometria (varredura contra a staging, 33 telas × 4 larguras × 2 temas):** o painel só passou a corrigir o que estourava na
+  staging (placa da viagem, texto só-leitor da frota, `/recebimento` e `/ressarcimentos` a 320 px). **Medições pendentes:** nenhuma de
+  front; o smoke Playwright da 185 (`spec-185-prints`) segue sem execução. Evidência: `specs/246-…/evidence.md` § "T6.1" e § "Varredura".
+
+## Spec 237 T3.3 — a avaria na entrada e "devolver ao contratante" (2026-10-06)
+
+Mesmo módulo `cargo-receiving`, consumindo a API de staging (ADR-0094 §9; nada mudou nela). Textos em
+`locales/cargoOccurrence{,.en}.locale.json` (chave de topo `occurrence`, mesmo namespace `cargoReceiving`, juntados em
+`i18n.service.ts`); os três motivos novos de recusa (`DOCUMENT_RETURN_TO_CONTRACTOR`, `CARGO_ARRIVAL_DOCUMENT_MARKED_FOR_RETURN`,
+`CARGO_ARRIVAL_DOCUMENT_RETURNED`) entraram em `refusal.reasons`.
+
+- **Leitura.** A marcação por nota, as ocorrências e `returnCounts` vêm SÓ de `GET /cargo-arrivals/:id/occurrences`
+  (`useCargoOccurrencesQuery`, chave debaixo da do detalhe — toda ação que relê a chegada relê a marcação). A leitura da
+  chegada **não ganhou chave** (as guardas exatas do painel publicado). Tipos: `GET /cargo-arrivals/occurrence-types`; itens da
+  nota: `GET …/documents/:documentId/products`. Cliente próprio (`cargoOccurrenceClient.service.ts`), guardas de chaves
+  exatas (`cargoOccurrenceGuards.validation.ts`; o anexo é a única exceção, com `hasKeys`: três chaves opcionais).
+- **Máquina da nota pura** (`cargoNoteActions.service.ts`, espelha `cargo-arrival-occurrence.policy` e
+  `cargo-arrival-return.policy`): `trip.manage` abre/marca/conclui; **só `occurrences.resolve` desfaz** (a rota `…/return-unmark`
+  é dele — `canResolve` vem de `useCargoReceivingAccess`); concluir só com a tratativa da origem `decided|closed` (ou ocorrência
+  sem tratativa); a janela vale **só para abrir** (marcar/desfazer/concluir seguem depois dela); `returned` é terminal.
+  `listCloseBlockers` = notas `marked`.
+- **Estado por contexto.** `CargoOccurrenceProvider` (um por tela) monta `useCargoOccurrenceController` (leitura +
+  `useCargoReturnActions` + formulário aberto) e renderiza o diálogo uma vez. Cada nota lê `useCargoOccurrence().noteOf(doc)`.
+  O escritório mostra marcar/desfazer/concluir (`showOpen={false}`); só o celular abre a avaria.
+- **Formulário** (`CargoOccurrenceDialog`, tela cheia no celular, `useModalDialog`): tipo (`Select`), itens (checkbox por item,
+  quantidade opcional com vírgula, unidade comercial do item vem escolhida), observação até 500, foto (câmera traseira e
+  galeria; reduzida por `buildOccurrencePhotoAttachment`, **serviço puro importado de `trip/shared`**, atrás de
+  `cargoOccurrencePhoto.service.ts` para o teste trocá-lo; teto 512 KiB também validado no cliente). `Idempotency-Key`
+  **por tentativa** (`useOccurrenceSubmission`): mesmo envio → mesma chave; outro conteúdo (inclusive a ordem dos itens, que o
+  servidor imprime) → chave nova. Recusa nomeia TODOS os campos (`describeOccurrenceRefusal`, também pelo código sem `details`).
+- **Efeitos.** Nota `marked`/`returned` não oferece "Marcar como recebida/separada", o "Separar tudo do grupo" não a leva, e
+  "Fechar chegada" fica desabilitado com o motivo neutro (`data-close-blockers`) antes do clique. Abrir/marcar/desfazer/concluir
+  invalidam o detalhe (e a marcação debaixo dele), a lista e as prévias (`useRefreshCargoOccurrenceEffects`).
+- **Detalhe do escritório:** coluna "Avaria e devolução" (`data-label`, cartão abaixo de 40 rem; larguras 7/8/14 rem — a 768 px
+  18 rem fazia as colunas se sobreporem), contagens "Notas a devolver/devolvidas", lista das avarias (tipo, nota, itens, foto,
+  situação da tratativa). **Sem link para a tratativa**: o detalhe `/ocorrencias/:id` e o feed exigem viagem (ADR §9.6).
+- Contratos: `test/cargo-receiving/occurrence-*.contract.ts` e `test/trip-hooks/cargo-occurrence-*.contract.ts`
+  (+ `cargoOccurrenceHarness.helper.ts`, servidor dublado com as mesmas recusas da API; `stubVisibleLayout` — sem ele o `Select`
+  só abre quando outra suíte já instalou o remendo). Prints: `test/spec-237-avaria-prints.smoke.spec.ts` (fora da CI).
+
+## Spec 237 T3.4b — a tratativa da avaria de recebimento no painel e as correções da revisão (2026-10-06)
+
+Mesmo módulo `cargo-receiving`; nada mudou na API (T3.4a a deixou pronta). A leitura da avaria é `GET /cargo-arrivals/:id/occurrences`
+(com `case {id,status}`), as ações são as de `/trip-occurrences/:id/case/*` com o **`occurrence.id`** da avaria.
+
+- **Ações do escritório** (`resolveCargoCaseActions`, pura, `cargoOccurrenceCase.service.ts`; só `occurrences.resolve`, sem depender do
+  estado da chegada — o contratante decide dias depois do fechamento): `recorded` → Iniciar análise, Cancelar · `under_review` → Enviar
+  ao contratante, Devolver ao galpão, Cancelar · `awaiting_contractor` → Registrar decisão · `decided` → Encerrar · terminais nada.
+  Espelha `occurrence-case-state.policy.ts` (botão que a API recusa seria botão morto). Decisão só `other` e `goods_paid`
+  (`redelivery_authorized` é 422 com a política `blocked` e nunca é oferecida). Nota obrigatória em decidir, devolver ao galpão e cancelar.
+  Iniciar análise vai direto; as outras abrem `CargoCasePanel` (confirmação/motivo, `useRevealedPanel`); com uma ação em voo todos os
+  botões da avaria travam. Erro nomeia o motivo (`CargoCaseFailure`, mesmas chaves `occurrence.errors.*`) e a avaria é relida também na falha.
+- **O acerto (`goods_paid`).** A leitura das avarias **não traz a decisão**, só o estado. O formulário (`CargoCaseSettlementForm`/`Editor`,
+  versão enxuta própria — o `OccurrenceSettlementPanel` do `trip` traz ressarcimento não exercitado sobre recebimento e motorista) abre
+  quando a pessoa decide `goods_paid` aqui, ou quando "Encerrar" é recusado com 422 `OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS`; `other`
+  encerra direto. Sem motorista (sem viagem): pagador transportadora/contratante/seguradora, nunca `payerId`; `amountSource: 'manual'`;
+  um item por linha, escolhido entre os itens da avaria; valor com máscara pt-BR (`occurrenceSettlementMoney.service`, serviço puro
+  de `trip/shared`, como a foto da T3.3). Rascunho por gravar trava "Encerrar". PUT substitui a lista. Follow-up de API: expor `decision`
+  em `case` para abrir o acerto sem o 422.
+- **Origem cancelada:** `markableOccurrences` esconde avaria de tratativa `cancelled`; nota marcada cuja origem foi cancelada mostra
+  "Tratativa cancelada — desfaça a devolução" e não oferece "Concluir"; `case: null` **não** conclui mais (a API recusa desde a T3.4a).
+- **Miniaturas:** `structuralSharing` da query de ocorrências (`stabilizeOccurrenceAttachments`) herda a URL do mesmo anexo enquanto a
+  assinatura anterior tem mais de 2 min de folga; `replaceEqualDeep` mantém a referência e a tela nem repinta.
+- **Tipos vazios** (`hasNoTypes`): mensagem "Avise o suporte" e registrar desabilitado com o motivo (`aria-describedby`).
+- **Progresso:** `resolveSeparationProgress` conta nota a nota só as notas `none` (marcadas e devolvidas fora); cabeçalho do celular
+  ganha `CargoReturnCountFacts` e o grupo mostra "N em devolução". 9 separadas + 1 devolvida = 9 de 9.
+- **Corrida de fotos:** cada escolha leva um número; resultado ou falha de escolha antiga é ignorado (`useOccurrencePhoto`).
+- **Rótulos:** erros novos da T3.4a e `TOO_MANY_REQUESTS` em `occurrence.errors`; `OCCURRENCE_TYPE_NAME_TAKEN` no cadastro de tipos
+  (`trip.feedback.occurrenceTypeNameTaken`).
+- **Contratos:** `test/cargo-receiving/occurrence-case-*.contract.ts`, `occurrence-attachments-stable`, `separation-progress`,
+  `test/trip-hooks/cargo-occurrence-{case,settlement,photos-stable,types-empty,cancelled-origin,photo-race}.contract.ts` e
+  `cargo-separation-progress`. ⚠️ **`beforeEach` de nível de arquivo vale para o processo inteiro** (os contratos de DOM são importados numa
+  suíte só): leia o dublê por `currentCaseDouble()` dentro do teste, nunca de variável do arquivo; e o `mock.module` do cliente novo mora
+  em `cargoOccurrenceHarness.helper.ts` (`cargoCaseClientSlot`), que carrega antes de qualquer fonte. Prints:
+  `test/spec-237-tratativa-prints.smoke.spec.ts` + `test/spec-237-prints-smoke.helper.ts` (fora da CI).
+
+## Spec 237 T4.7b — a prévia por e-mail no painel (2026-10-07)
+
+A API passou a devolver `source: 'email'` (o worker cria a prévia pela caixa de entrada, sem autor). O painel só conhecia
+`['upload']` e `isPreviewSummary` recusava a linha, e `toPreviewPage` derrubava a **página inteira** (`RESPONSE_INVALID`); o
+detalhe da prévia por e-mail quebrava igual.
+
+- **`CARGO_PREVIEW_SOURCES = ['email', 'upload']`** (`cargoPreview.constant.ts`), cópia por valor da constante da API;
+  `test/cargo-receiving/preview-source.contract.ts` **lê** `api-transportada/src/shared/cargo-preview.constant.ts` e compara
+  (paridade), e prova a lista e o detalhe pelo cliente HTTP real (o dublê dos contratos de DOM não passa pelas guardas).
+- **Sem autor:** o resumo da API nunca carregou `uploadedBy…`; as chaves exatas seguem as mesmas nas duas origens, e uma chave de
+  autor continua recusada. Nada no painel assume quem enviou.
+- **Selo de origem** (`CargoPreviewSourceBadge`, `data-preview-source`, neutro, mesma classe `.badge` do selo de situação) na célula
+  do arquivo da lista e nos dados do detalhe; textos `preview.source.{email,upload}` nos dois idiomas, sem endereço de e-mail.
+  ⚠️ Na tabela empilhada o conteúdo da célula precisa de **um** filho (`<div>`): dois filhos viram dois itens do `grid` da célula e o
+  selo cai sob o rótulo da coluna (medido no print; `readBadgeMisalignment` no spec de prints).
+- Prints: `test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI), `prints/previa-origem-email-{lista,detalhe}-*`.

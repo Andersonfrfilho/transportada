@@ -8,6 +8,8 @@ import { describe, expect, test } from 'bun:test'
 
 import { createOccurrenceConversationWhatsAppStatusHook } from '../../src/occurrence-conversation/application/whatsapp-conversation-status.service.js'
 
+type StatusUpdate = Parameters<ReturnType<typeof createOccurrenceConversationWhatsAppStatusHook>>[0]
+
 const COMPANY_ID = '00000000-0000-4000-8000-000000183701'
 const NOW = new Date('2026-09-24T15:00:00.000Z')
 
@@ -44,8 +46,8 @@ describe('o status da Meta na conversa (spec 183 T502)', () => {
       logger: { error: () => undefined, info: () => undefined, warn: () => undefined },
     })
 
-    await hook({ id: 'wamid.out-2', status: 'delivered' }, null)
-    await hook({ status: 'delivered', timestamp: '1790000000' }, null)
+    await hook({ id: 'wamid.out-2', status: 'delivered' } as StatusUpdate, null)
+    await hook({ status: 'delivered', timestamp: '1790000000' } as StatusUpdate, null)
 
     expect(applied.map((input) => input.at)).toEqual([NOW])
   })
@@ -65,7 +67,10 @@ describe('o status da Meta na conversa (spec 183 T502)', () => {
       },
     })
 
-    await hook({ id: 'wamid.out-3', recipient_id: '5511987654321', status: 'read' }, null)
+    await hook(
+      { id: 'wamid.out-3', recipient_id: '5511987654321', status: 'read' } as StatusUpdate,
+      null,
+    )
 
     expect(JSON.stringify(logs)).not.toContain('5511987654321')
     expect(logs).toHaveLength(1)

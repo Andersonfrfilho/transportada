@@ -9,10 +9,8 @@ import type {
   RedactTripLocations,
 } from '../../src/trip-location-purge/application/trip-location.port.js'
 import {
-  resolveRetentionCutoff,
   TRIP_LOCATION_PURGE_BATCH_SIZE,
   TRIP_LOCATION_PURGE_MAX_BATCHES,
-  TRIP_LOCATION_RETENTION_DAYS,
 } from '../../src/trip-location-purge/domain/trip-location-purge.constant.js'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 
@@ -40,23 +38,21 @@ function buildRoutine(
   redactProofLocations: RedactDeliveryProofLocations = async () => 0,
 ) {
   return createTripLocationPurgeRoutine({
+    countEligibleCompanies: async () => 1,
     logger: SILENT_LOGGER as never,
     purgeStalePings: async () => 0,
     now: () => NOW,
     redact,
+    redactDocumentOccurrenceLocations: async () => 0,
     redactProofLocations,
+    redactStatusEventLocations: async () => 0,
+    redactStopOccurrenceLocations: async () => 0,
   })
 }
 
 describe('expurgo da coordenada de entrega', () => {
-  /** O prazo mora no código e em `docs/SECURITY.md`, e é o mesmo número. */
-  test('corta em noventa dias, contados do instante do ciclo', () => {
-    expect(TRIP_LOCATION_RETENTION_DAYS).toBe(90)
-    expect(resolveRetentionCutoff(NOW).toISOString()).toBe('2026-05-28T09:00:00.000Z')
-  })
-
   test('apaga em lotes até a tabela não ter mais coordenada vencida', async () => {
-    const asked: Array<{ readonly before: Date; readonly limit: number }> = []
+    const asked: Array<{ readonly limit: number; readonly now: Date }> = []
     const remaining = [TRIP_LOCATION_PURGE_BATCH_SIZE, TRIP_LOCATION_PURGE_BATCH_SIZE, 7, 0]
     const routine = buildRoutine(async (input) => {
       asked.push(input)
@@ -74,7 +70,8 @@ describe('expurgo da coordenada de entrega', () => {
     })
     expect(asked).toHaveLength(4)
     expect(asked[0]?.limit).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE)
-    expect(asked[0]?.before.toISOString()).toBe('2026-05-28T09:00:00.000Z')
+    /** Spec 239 D2: o corte é de cada empresa, então o redator recebe o relógio do ciclo, não uma data. */
+    expect(asked[0]?.now.toISOString()).toBe(NOW.toISOString())
   })
 
   /**
@@ -120,10 +117,10 @@ describe('expurgo da coordenada de entrega', () => {
   })
   /**
    * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0070 §4) é dado de localização
-   * como a do evento — cai no mesmo corte de 90 dias, em lotes, contada à parte.
+   * como a do evento — cai no mesmo prazo da empresa, em lotes, contada à parte.
    */
-  test('apaga a posição vencida da foto do comprovante no mesmo corte', async () => {
-    const asked: Array<{ readonly before: Date; readonly limit: number }> = []
+  test('apaga a posição vencida da foto do comprovante no mesmo prazo', async () => {
+    const asked: Array<{ readonly limit: number; readonly now: Date }> = []
     const remaining = [TRIP_LOCATION_PURGE_BATCH_SIZE, 3, 0]
     const routine = buildRoutine(
       async () => 0,
@@ -136,7 +133,7 @@ describe('expurgo da coordenada de entrega', () => {
     const result = await routine.run(buildContext())
 
     expect(result.counters.redactedProofs).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE + 3)
-    expect(asked[0]?.before.toISOString()).toBe('2026-05-28T09:00:00.000Z')
+    expect(asked[0]?.now.toISOString()).toBe(NOW.toISOString())
     expect(asked[0]?.limit).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE)
   })
 })

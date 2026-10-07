@@ -1,0 +1,2095 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Devolução — tipo e registro</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --color-asphalt: #10222c;
+        --color-copper: #d58a47;
+        --color-fog: #f0f2ee;
+        --color-graphite: #1c2b33;
+        --color-ready: #6aae8c;
+        --color-slate: #8fa3ad;
+        --color-slate-muted: #9aacb5;
+        --color-alert: #ff5f57;
+        --color-ink-on-accent: #10222c;
+        --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+        --font-utility: 'SFMono-Regular', Consolas, monospace;
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.25rem;
+        --space-6: 1.5rem;
+        --space-8: 2rem;
+        --touch: 2.75rem;
+        --layout-max-width: 78rem;
+        --line: color-mix(in srgb, var(--color-slate) 26%, transparent);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--color-asphalt);
+      }
+
+      body {
+        margin: 0;
+        min-width: 20rem;
+        color: var(--color-fog);
+        font-family: var(--font-body);
+        line-height: 1.4;
+        background: linear-gradient(125deg, var(--color-asphalt), var(--color-graphite));
+      }
+
+      .shell {
+        width: min(100% - var(--space-8), var(--layout-max-width));
+        margin-inline: auto;
+        padding-block: var(--space-6) var(--space-8);
+      }
+
+      .mockNotice {
+        margin-bottom: var(--space-5);
+        padding: var(--space-2) var(--space-3);
+        border: 1px dashed color-mix(in srgb, var(--color-copper) 55%, transparent);
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        overflow-wrap: anywhere;
+      }
+
+      .kicker,
+      .label,
+      .blockTitle {
+        margin: 0;
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: var(--space-1) 0 var(--space-2);
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+      }
+
+      .intro {
+        margin: 0 0 var(--space-5);
+        color: var(--color-slate-muted);
+        font-size: 0.9rem;
+        max-width: 48rem;
+      }
+
+      .tabList {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+        margin-bottom: var(--space-5);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        min-height: var(--touch);
+        padding: var(--space-2) var(--space-4);
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        color: var(--color-slate-muted);
+        font: inherit;
+        font-weight: 700;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .tab[aria-selected='true'] {
+        color: var(--color-fog);
+        border-bottom-color: var(--color-copper);
+      }
+
+      .tab:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--color-copper);
+        outline-offset: 2px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-5);
+      }
+
+      @media (min-width: 64rem) {
+        .layout {
+          grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+          align-items: start;
+        }
+
+        .aside {
+          position: sticky;
+          top: var(--space-4);
+        }
+      }
+
+      .panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-4);
+        min-width: 0;
+        padding: var(--space-4);
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+      }
+
+      .block {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+        min-width: 0;
+        padding-top: var(--space-4);
+        border-top: 1px solid var(--line);
+      }
+
+      .block:first-child {
+        padding-top: 0;
+        border-top: none;
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--color-slate-muted);
+        font-size: 0.82rem;
+        overflow-wrap: anywhere;
+      }
+
+      .field {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-1);
+        min-width: 0;
+      }
+
+      .fieldLabel {
+        font-size: 0.85rem;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      input[type='text']:not([role='combobox']),
+      input[type='number'],
+      input[inputmode],
+      textarea {
+        width: 100%;
+        min-width: 0;
+        min-height: var(--touch);
+        padding: var(--space-2) var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+        border-radius: 0;
+        color: var(--color-fog);
+        font: inherit;
+        font-size: 0.9rem;
+        background: var(--color-asphalt);
+      }
+
+      textarea {
+        min-height: 9rem;
+        font-family: var(--font-utility);
+        font-size: 0.82rem;
+        resize: vertical;
+      }
+
+      .mono {
+        font-family: var(--font-utility);
+      }
+
+      .chips {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+      }
+
+      @media (min-width: 40rem) {
+        .chips {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      .check {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: var(--space-1) var(--space-3);
+        align-items: start;
+        min-height: var(--touch);
+        padding: var(--space-2) var(--space-3);
+        border: 1px solid var(--line);
+        cursor: pointer;
+      }
+
+      .check input {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin: 0.1rem 0 0;
+        accent-color: var(--color-copper);
+      }
+
+      .check small {
+        grid-column: 2;
+        color: var(--color-slate-muted);
+        font-size: 0.78rem;
+        overflow-wrap: anywhere;
+      }
+
+      .reqGrid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+      }
+
+      .reqRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        min-width: 0;
+        padding: var(--space-3);
+        border: 1px solid var(--line);
+      }
+
+      @media (min-width: 40rem) {
+        .reqRow {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 11rem);
+          align-items: center;
+        }
+
+        .reqRow .sub {
+          grid-column: 1 / -1;
+        }
+      }
+
+      .reqRow .new {
+        margin-left: var(--space-2);
+        padding: 0 var(--space-1);
+        border: 1px solid var(--color-copper);
+        color: var(--color-copper);
+        font-family: var(--font-utility);
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .sub {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+      }
+
+      @media (min-width: 40rem) {
+        .sub.two {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        min-height: var(--touch);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .toggle input {
+        width: 1.25rem;
+        height: 1.25rem;
+        accent-color: var(--color-copper);
+        flex: none;
+      }
+
+      .markers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      .marker {
+        min-height: var(--touch);
+        padding: var(--space-1) var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+        color: var(--color-fog);
+        font-family: var(--font-utility);
+        font-size: 0.78rem;
+        background: transparent;
+        cursor: pointer;
+        overflow-wrap: anywhere;
+      }
+
+      .mail {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        min-width: 0;
+        padding: var(--space-4);
+        border: 1px solid var(--line);
+        background: var(--color-asphalt);
+      }
+
+      .mailSubject {
+        margin: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .mailBody {
+        margin: 0;
+        font-family: var(--font-utility);
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .meta {
+        color: var(--color-slate-muted);
+        font-size: 0.8rem;
+        overflow-wrap: anywhere;
+      }
+
+      .exception {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        padding: var(--space-3);
+        border: 1px solid var(--line);
+      }
+
+      @media (min-width: 40rem) {
+        .exception {
+          grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr));
+          align-items: end;
+        }
+      }
+
+      .items {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        min-width: 0;
+        padding: var(--space-3);
+        border: 1px solid var(--line);
+      }
+
+      .item[data-selected='true'] {
+        border-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
+      }
+
+      .itemNumbers {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+      }
+
+      @media (min-width: 30rem) {
+        .itemNumbers {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      .calc {
+        margin: 0;
+        font-family: var(--font-utility);
+        font-size: 0.82rem;
+        overflow-wrap: anywhere;
+      }
+
+      .calc strong {
+        color: var(--color-fog);
+      }
+
+      .totals {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--space-2) var(--space-4);
+        padding: var(--space-3);
+        border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+        font-family: var(--font-utility);
+        font-size: 0.85rem;
+      }
+
+      .totals dt {
+        color: var(--color-slate-muted);
+        overflow-wrap: anywhere;
+      }
+
+      .totals dd {
+        margin: 0;
+        text-align: right;
+        font-weight: 700;
+      }
+
+      .primary {
+        min-height: var(--touch);
+        padding: var(--space-2) var(--space-5);
+        border: none;
+        border-radius: 0;
+        color: var(--color-ink-on-accent);
+        font: inherit;
+        font-weight: 800;
+        background: var(--color-copper);
+        cursor: pointer;
+      }
+
+      .primary:disabled {
+        color: var(--color-fog);
+        background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+        cursor: not-allowed;
+      }
+
+      .missing {
+        margin: 0;
+        color: var(--color-copper);
+        font-size: 0.82rem;
+        overflow-wrap: anywhere;
+      }
+
+      .photo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 4.5rem;
+        border: 1px dashed color-mix(in srgb, var(--color-slate) 55%, transparent);
+        color: var(--color-slate-muted);
+        font-size: 0.85rem;
+        cursor: pointer;
+        background: transparent;
+        font-family: inherit;
+      }
+
+      .photo[data-done='true'] {
+        border-style: solid;
+        border-color: var(--color-ready);
+        color: var(--color-ready);
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      /* Só demonstra o anel que o :focus-visible desenha no teclado. */
+      .ui-trigger[data-demo-focus] {
+        outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+        outline-offset: 2px;
+      }
+
+      .stateGrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+        gap: var(--space-4);
+        align-items: start;
+      }
+
+      .stateCell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+        min-width: 0;
+        align-content: start;
+      }
+
+      /* ui-select:begin
+         Cópia fiel de apps/frontend-transportada/src/components/ui: select, multi-select,
+         searchable-select, checkbox, filter-pills e icon (módulos CSS + tokens de index.css).
+         Medido contra o componente real: ver evidence.md / plan.md, seção dos selects. */
+      :root {
+        --field-height: 3rem;
+        --field-height-compact: 2.4rem;
+        --field-padding: var(--space-3);
+        --field-padding-compact: var(--space-2) var(--space-3);
+        --field-font-size: 0.9rem;
+        --field-font-size-compact: 0.82rem;
+        --icon-size-sm: 0.9rem;
+        --icon-size-md: 1.1rem;
+        --touch-target: 2.75rem;
+        --space-10: 2.5rem;
+      }
+
+      /* index.css: ícone e rótulo no mesmo eixo, separados pelo token. */
+      button:has(svg) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+      }
+
+      .ui-icon {
+        flex: 0 0 auto;
+        width: var(--icon-size-md);
+        height: var(--icon-size-md);
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .ui-icon--sm {
+        width: var(--icon-size-sm);
+        height: var(--icon-size-sm);
+      }
+
+      /* A herança de line-height do protótipo não vale aqui: a aplicação usa `normal`. */
+      .ui-select,
+      .ui-multi,
+      .ui-panel {
+        line-height: normal;
+      }
+
+      .ui-select {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        min-width: 0;
+      }
+
+      .ui-select--compact {
+        min-width: 4.5rem;
+      }
+
+      .ui-multi {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        min-width: 0;
+      }
+
+      .ui-trigger {
+        display: inline-flex;
+        gap: var(--space-3);
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-width: 0;
+        min-height: var(--field-height);
+        padding: var(--field-padding);
+        appearance: none;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+        border-radius: 0;
+        color: var(--color-fog);
+        font: inherit;
+        font-size: var(--field-font-size);
+        text-align: left;
+        cursor: pointer;
+        background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+        transition: border-color 0.14s ease;
+      }
+
+      .ui-trigger:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
+      }
+
+      .ui-trigger:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+        outline-offset: 2px;
+      }
+
+      .ui-trigger[aria-expanded='true'] {
+        border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
+      }
+
+      .ui-trigger:disabled {
+        border-style: dashed;
+        color: var(--color-slate-muted);
+        cursor: not-allowed;
+      }
+
+      .ui-trigger--compact {
+        min-height: var(--field-height-compact);
+        padding: var(--field-padding-compact);
+        font-size: var(--field-font-size-compact);
+      }
+
+      .ui-selection {
+        display: inline-flex;
+        gap: var(--space-2);
+        align-items: center;
+        min-width: 0;
+      }
+
+      .ui-value,
+      .ui-placeholder {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .ui-placeholder {
+        color: var(--color-slate-muted);
+      }
+
+      .ui-chevron {
+        opacity: 0.7;
+        transition: transform 0.14s ease;
+      }
+
+      .ui-chevron--open {
+        transform: rotate(180deg);
+        opacity: 1;
+        color: var(--color-copper);
+      }
+
+      .ui-panel {
+        position: fixed;
+        z-index: 60;
+        top: var(--floating-layer-top, 0);
+        bottom: var(--floating-layer-bottom, auto);
+        left: var(--floating-layer-left, 0);
+        display: flex;
+        flex-direction: column;
+        min-width: var(--floating-layer-min-width, 0);
+        max-width: calc(100vw - var(--space-4));
+        max-height: min(16rem, var(--floating-layer-max-height, 16rem));
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+        background: var(--color-graphite);
+        box-shadow: 0 var(--space-2) var(--space-5)
+          color-mix(in srgb, var(--color-asphalt) 72%, transparent);
+      }
+
+      .ui-panel--multi {
+        min-width: var(--floating-layer-min-width, 18rem);
+        max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+      }
+
+      .ui-panel--searchable {
+        min-width: var(--floating-layer-min-width, 16rem);
+        max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+      }
+
+      /* Só no protótipo: painel aberto de forma estática, no fluxo, para a tela mostrar o desenho. */
+      .ui-panel--static {
+        position: relative;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        align-self: flex-start;
+        width: max-content;
+        max-width: 100%;
+        margin-top: 4px;
+      }
+
+      .ui-select[data-open='static'] {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .ui-search {
+        flex: 0 0 auto;
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        padding: var(--space-2) var(--space-3);
+        border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+      }
+
+      .ui-search-icon {
+        opacity: 0.7;
+      }
+
+      .ui-search-input {
+        flex: 1;
+        min-width: 0;
+        padding: var(--space-1) 0;
+        border: 0;
+        color: var(--color-fog);
+        font: inherit;
+        font-size: var(--field-font-size);
+        background: transparent;
+      }
+
+      .ui-search-input:focus {
+        outline: none;
+      }
+
+      .ui-search-input::placeholder {
+        color: var(--color-slate-muted);
+      }
+
+      .ui-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+        padding: var(--space-1);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        list-style: none;
+      }
+
+      .ui-list--grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .ui-empty {
+        margin: 0;
+        padding: var(--space-3);
+        color: var(--color-slate-muted);
+        font-size: 0.85rem;
+      }
+
+      .ui-option {
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        padding: var(--space-2) var(--space-3);
+        border-left: 2px solid transparent;
+        color: var(--color-fog);
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+
+      .ui-option-text {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        min-width: 0;
+      }
+
+      .ui-option--active {
+        border-left-color: color-mix(in srgb, var(--color-copper) 70%, transparent);
+        background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+      }
+
+      .ui-option--selected {
+        color: var(--color-copper);
+        font-weight: 600;
+      }
+
+      .ui-option--selected.ui-option--active {
+        background: color-mix(in srgb, var(--color-copper) 5%, transparent);
+      }
+
+      .ui-control {
+        flex: 0 0 auto;
+        display: inline-flex;
+        pointer-events: none;
+      }
+
+      .ui-checkbox {
+        position: relative;
+        display: inline-flex;
+        gap: var(--space-2);
+        align-items: center;
+        min-height: var(--space-6);
+        min-width: 0;
+        color: inherit;
+        font: inherit;
+        line-height: 1.2;
+        cursor: pointer;
+      }
+
+      .ui-checkbox-input {
+        position: absolute;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        appearance: none;
+        border: 0;
+        background: transparent;
+        opacity: 0;
+        cursor: inherit;
+        inset: 0;
+      }
+
+      .ui-checkbox-box {
+        position: relative;
+        display: inline-flex;
+        width: var(--space-5);
+        height: var(--space-5);
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+        border-radius: 0;
+        background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+        transition:
+          border-color 0.14s ease,
+          background-color 0.14s ease;
+      }
+
+      .ui-checkbox-input:checked + .ui-checkbox-box {
+        border-color: var(--color-copper);
+        background: var(--color-copper);
+      }
+
+      .ui-checkbox-mark {
+        width: var(--space-4);
+        height: var(--space-4);
+        fill: none;
+        stroke: var(--color-asphalt);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2.2;
+      }
+
+      .ui-checkbox-check,
+      .ui-checkbox-dash {
+        opacity: 0;
+      }
+
+      .ui-checkbox-input:checked + .ui-checkbox-box .ui-checkbox-check {
+        opacity: 1;
+      }
+
+      .ui-pills {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
+      }
+
+      .ui-pill,
+      .ui-pill-clear {
+        box-sizing: border-box;
+        min-height: calc(var(--space-5) + var(--space-2));
+      }
+
+      .ui-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+        padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+        border: 1px solid var(--color-copper);
+        border-radius: 0;
+        color: var(--color-fog);
+        font-size: 0.76rem;
+        background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+      }
+
+      .ui-pill-label {
+        color: var(--color-slate-muted);
+        font-family: var(--font-utility);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .ui-pill-value {
+        color: inherit;
+      }
+
+      .ui-pill-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--space-5);
+        height: var(--space-5);
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        color: inherit;
+        cursor: pointer;
+        background: transparent;
+      }
+
+      .ui-pill-remove:hover,
+      .ui-pill-clear:hover {
+        color: var(--color-copper);
+      }
+
+      .ui-pill-remove:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+        outline-offset: 1px;
+      }
+
+      .ui-pill-clear {
+        display: inline-flex;
+        align-items: center;
+        padding: var(--space-1) var(--space-2);
+        border: 1px solid var(--color-slate);
+        border-radius: 0;
+        color: var(--color-slate);
+        font-family: var(--font-utility);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        background: transparent;
+      }
+
+      .ui-pill-clear:hover {
+        border-color: var(--color-copper);
+      }
+
+      @media (pointer: coarse) {
+        .ui-trigger--compact,
+        .ui-option {
+          min-height: var(--touch-target);
+        }
+
+        .ui-search-input {
+          min-height: var(--touch-target);
+        }
+
+        .ui-pill-remove {
+          flex: 0 0 auto;
+          width: var(--touch-target);
+          height: var(--touch-target);
+        }
+
+        .ui-pill-clear {
+          min-height: var(--touch-target);
+        }
+
+        .ui-checkbox {
+          min-width: var(--touch-target);
+          min-height: var(--touch-target);
+          justify-content: center;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ui-chevron,
+        .ui-trigger {
+          transition: none;
+        }
+      }
+      /* ui-select:end */
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <p class="mockNotice">
+        Protótipo estático — spec 247. Dados de exemplo; a prévia real é renderizada pelo servidor.
+      </p>
+      <p class="kicker">Ocorrências</p>
+      <h1>Devolução: configurar o tipo e registrar</h1>
+      <p class="intro">
+        Tudo o que a devolução pede e o e-mail que ela manda saem da configuração do tipo. Troque a
+        configuração na primeira tela e veja a segunda obedecer.
+      </p>
+
+      <div class="tabList" role="tablist" aria-label="Telas do protótipo">
+        <button
+          class="tab"
+          role="tab"
+          id="tab-config"
+          aria-controls="view-config"
+          aria-selected="true"
+        >
+          Aba Tipos — configurar
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          id="tab-register"
+          aria-controls="view-register"
+          aria-selected="false"
+        >
+          Registro da devolução
+        </button>
+      </div>
+
+      <section id="view-config" role="tabpanel" aria-labelledby="tab-config">
+        <div class="layout">
+          <form class="panel" aria-label="Tipo de ocorrência" onsubmit="return false">
+            <div class="block">
+              <p class="blockTitle">Identificação</p>
+              <label class="field">
+                <span class="fieldLabel">Nome do tipo</span>
+                <input type="text" id="typeName" value="Devolução parcial" />
+              </label>
+            </div>
+
+            <fieldset class="block" style="border-inline: 0; border-bottom: 0; margin: 0">
+              <legend class="blockTitle">Quem registra, e onde</legend>
+              <div class="chips">
+                <label class="check"
+                  ><input type="checkbox" />Separador, no galpão<small
+                    >Caixa amassada achada na conferência, antes de a carga sair.</small
+                  ></label
+                >
+                <label class="check"
+                  ><input type="checkbox" checked />Motorista, numa nota<small
+                    >Na frente do cliente: o mercado devolveu dois fardos daquela NF.</small
+                  ></label
+                >
+                <label class="check"
+                  ><input type="checkbox" />Motorista, na parada<small
+                    >Sobre o lugar, sem nota: portão fechado.</small
+                  ></label
+                >
+                <label class="check"
+                  ><input type="checkbox" checked />Escritório, pelo motorista<small
+                    >O operador registra no painel em nome dele.</small
+                  ></label
+                >
+              </div>
+            </fieldset>
+
+            <div class="block">
+              <p class="blockTitle">O que exige · regra geral</p>
+              <div class="reqGrid">
+                <div class="reqRow">
+                  <span class="fieldLabel">Foto</span>
+                  <div
+                    data-select
+                    data-label="Foto"
+                    data-req="photo"
+                    data-set="requirement"
+                    data-value="required"
+                  ></div>
+                </div>
+                <div class="reqRow">
+                  <span class="fieldLabel">Observação</span>
+                  <div
+                    data-select
+                    data-label="Observação"
+                    data-req="note"
+                    data-set="requirement"
+                    data-value="required"
+                  ></div>
+                </div>
+                <div class="reqRow">
+                  <span class="fieldLabel">Produtos</span>
+                  <div
+                    data-select
+                    data-label="Produtos"
+                    data-req="items"
+                    data-set="requirement"
+                    data-value="required"
+                  ></div>
+                </div>
+                <div class="reqRow">
+                  <span class="fieldLabel"
+                    >Número do documento do cliente<span class="new">novo</span></span
+                  >
+                  <div
+                    data-select
+                    data-label="Número do documento do cliente"
+                    data-req="reference"
+                    data-set="requirement"
+                    data-value="required"
+                  ></div>
+                  <div class="sub">
+                    <label class="field">
+                      <span class="hint">Rótulo na tela de registro</span>
+                      <input type="text" id="referenceLabel" value="Número da NFD" maxlength="40" />
+                    </label>
+                  </div>
+                </div>
+                <div class="reqRow">
+                  <span class="fieldLabel">Valor pago<span class="new">novo</span></span>
+                  <div
+                    data-select
+                    data-label="Valor pago"
+                    data-req="amount"
+                    data-set="requirement"
+                    data-value="optional"
+                  ></div>
+                  <div class="sub two">
+                    <div class="field">
+                      <span class="hint">Digitado</span>
+                      <div
+                        data-select
+                        data-label="Onde se digita o valor pago"
+                        id="amountScope"
+                        data-options="item:Por linha de produto|occurrence:Um só, pela ocorrência"
+                        data-value="item"
+                      ></div>
+                    </div>
+                    <label class="field">
+                      <span class="hint">Rótulo na tela de registro</span>
+                      <input
+                        type="text"
+                        id="amountLabel"
+                        value="Valor pago pela loja"
+                        maxlength="40"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <p class="hint">
+                Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão
+                de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da
+                NF-e.
+              </p>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">E-mail à contratante</p>
+              <label class="toggle"
+                ><input type="checkbox" id="emailsContractor" checked />Mandar e-mail à contratante
+                da nota ao registrar</label
+              >
+              <label class="field">
+                <span class="fieldLabel">Assunto</span>
+                <input
+                  type="text"
+                  class="mono"
+                  id="subject"
+                  value="OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – DEVOLUÇÃO PARCIAL"
+                />
+              </label>
+              <label class="field">
+                <span class="fieldLabel">Corpo</span>
+                <textarea id="body">
+Por favor, verificar. A loja emitiu a NFD devido à divergência identificada no ato da entrega.
+
+NFD {{numeroReferencia}} – R$ {{valorDeclarado}}
+RAZÃO SOCIAL: {{razaoSocial}}
+NOTA FISCAL: {{numeroNotaSemSerie}}
+VALOR DA ENTREGA: R$ {{valorNota}}
+
+{{linhasItens}}</textarea
+                >
+              </label>
+              <label class="field">
+                <span class="fieldLabel">Linha de cada produto ({{linhasItens}})</span>
+                <input
+                  type="text"
+                  class="mono"
+                  id="line"
+                  value="{{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}} – {{observacao}}"
+                />
+              </label>
+              <p class="hint">Toque num marcador para inserir no campo em que o cursor está.</p>
+              <div class="markers" aria-label="Marcadores">
+                <button type="button" class="marker">{{contratante}}</button>
+                <button type="button" class="marker">{{numeroNotaSemSerie}}</button>
+                <button type="button" class="marker">{{razaoSocial}}</button>
+                <button type="button" class="marker">{{valorNota}}</button>
+                <button type="button" class="marker">{{numeroReferencia}}</button>
+                <button type="button" class="marker">{{valorDeclarado}}</button>
+                <button type="button" class="marker">{{somaItens}}</button>
+                <button type="button" class="marker">{{linhasItens}}</button>
+                <button type="button" class="marker">{{codigoItem}}</button>
+                <button type="button" class="marker">{{item}}</button>
+                <button type="button" class="marker">{{quantidadeItem}}</button>
+                <button type="button" class="marker">{{unidadeItem}}</button>
+                <button type="button" class="marker">{{valorUnitarioItem}}</button>
+                <button type="button" class="marker">{{somaItem}}</button>
+                <button type="button" class="marker">{{valorItem}}</button>
+                <button type="button" class="marker">{{observacao}}</button>
+              </div>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">Aviso interno</p>
+              <label class="toggle"><input type="checkbox" />Avisar quem despachou a viagem</label>
+              <p class="hint">
+                Vai ao usuário que despachou, pelo módulo de Notificações. Não é o e-mail à
+                contratante.
+              </p>
+            </div>
+
+            <div class="block">
+              <p class="blockTitle">Exceções · 1</p>
+              <div class="exception">
+                <div>
+                  <span class="fieldLabel">SPANI ALIMENTOS (contratante)</span>
+                  <p class="hint mono">12.345.678/0001-90</p>
+                </div>
+                <div class="field">
+                  <span class="hint">Número da NFD</span>
+                  <div
+                    data-select
+                    data-label="Número da NFD na exceção"
+                    data-set="exception"
+                    data-value="inherit"
+                    data-compact
+                  ></div>
+                </div>
+                <div class="field">
+                  <span class="hint">Valor pago pela loja</span>
+                  <div
+                    data-select
+                    data-label="Valor pago na exceção"
+                    data-set="exception"
+                    data-value="required"
+                    data-compact
+                  ></div>
+                </div>
+              </div>
+              <p class="hint">A exceção muda só as exigências. Rótulos e e-mail são do tipo.</p>
+            </div>
+          </form>
+
+          <aside class="aside panel" aria-label="Prévia do e-mail">
+            <p class="blockTitle">Prévia · dados de exemplo</p>
+            <div class="mail">
+              <span class="meta"
+                >Para: contatos da contratante da nota que recebem ocorrências</span
+              >
+              <p class="mailSubject" id="previewSubject"></p>
+              <pre class="mailBody" id="previewBody"></pre>
+            </div>
+            <p class="hint" id="previewNote"></p>
+          </aside>
+        </div>
+
+        <section class="panel" aria-labelledby="statesTitle" style="margin-top: var(--space-5)">
+          <p class="blockTitle" id="statesTitle">Seletor · estados do controle real</p>
+          <p class="hint">
+            Todo seletor desta tela é cópia do <strong>Select</strong> da aplicação
+            (<code>components/ui/select</code>): fechado com valor, aberto, desabilitado e com foco.
+          </p>
+          <div class="stateGrid">
+            <div class="stateCell">
+              <span class="hint">Fechado com valor</span>
+              <div data-select data-label="Foto" data-set="requirement" data-value="required"></div>
+            </div>
+            <div class="stateCell">
+              <span class="hint">Sem valor (placeholder)</span>
+              <div
+                data-select
+                data-label="Foto"
+                data-set="requirement"
+                data-value=""
+                data-placeholder="Escolha"
+              ></div>
+            </div>
+            <div class="stateCell">
+              <span class="hint">Desabilitado</span>
+              <div
+                data-select
+                data-label="Foto"
+                data-set="requirement"
+                data-value="optional"
+                data-disabled
+              ></div>
+            </div>
+            <div class="stateCell">
+              <span class="hint">Com foco</span>
+              <div
+                data-select
+                data-label="Foto"
+                data-set="requirement"
+                data-value="optional"
+                data-demo-focus
+              ></div>
+            </div>
+            <div class="stateCell">
+              <span class="hint">Aberto</span>
+              <div
+                data-select
+                data-label="Foto"
+                data-set="requirement"
+                data-value="optional"
+                data-open="static"
+              ></div>
+            </div>
+            <div class="stateCell">
+              <span class="hint">Compacto (exceção) · aberto</span>
+              <div
+                data-select
+                data-label="Foto"
+                data-set="exception"
+                data-value="inherit"
+                data-compact
+                data-open="static"
+              ></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="view-register" role="tabpanel" aria-labelledby="tab-register" hidden>
+        <div class="layout">
+          <form class="panel" aria-label="Registrar ocorrência" onsubmit="return false">
+            <div class="block">
+              <p class="label">NF 680481 · Parada 3</p>
+              <p class="fieldLabel">SUPERMERCADO TRIALBA LTDA</p>
+              <p class="hint">Tipo: <strong id="registerType">Devolução parcial</strong></p>
+            </div>
+
+            <div class="block" id="productsBlock">
+              <p class="blockTitle">Produtos devolvidos</p>
+              <ul class="items" id="items"></ul>
+              <dl class="totals">
+                <dt>Soma dos produtos (NF-e)</dt>
+                <dd id="sumItems">R$ 0,00</dd>
+                <dt id="declaredTitle">Valor pago pela loja</dt>
+                <dd id="declaredTotal">R$ 0,00</dd>
+              </dl>
+            </div>
+
+            <div class="block" id="occurrenceAmountBlock" hidden>
+              <label class="field">
+                <span class="fieldLabel" id="occurrenceAmountLabel">Valor pago pela loja</span>
+                <input inputmode="decimal" id="occurrenceAmount" placeholder="0,00" />
+              </label>
+            </div>
+
+            <div class="block" id="referenceBlock">
+              <label class="field">
+                <span class="fieldLabel" id="referenceFieldLabel">Número da NFD</span>
+                <input type="text" id="reference" maxlength="30" autocomplete="off" />
+              </label>
+            </div>
+
+            <div class="block">
+              <label class="field">
+                <span class="fieldLabel" id="noteLabel">Observação</span>
+                <textarea
+                  id="note"
+                  maxlength="500"
+                  style="min-height: 5rem; font-family: var(--font-body)"
+                >
+Avaria identificada no momento da conferência das mercadorias</textarea
+                >
+              </label>
+              <button type="button" class="photo" id="photo" data-done="false">
+                Tirar foto da mercadoria avariada
+              </button>
+            </div>
+
+            <div class="block">
+              <p class="missing" id="missing" aria-live="polite"></p>
+              <button type="submit" class="primary" id="submit">Registrar devolução</button>
+            </div>
+          </form>
+
+          <aside class="aside panel" aria-label="E-mail que sai ao registrar">
+            <p class="blockTitle">E-mail que sai ao registrar</p>
+            <div class="mail">
+              <span class="meta">Para: contatos da contratante SPANI ALIMENTOS</span>
+              <p class="mailSubject" id="liveSubject"></p>
+              <pre class="mailBody" id="liveBody"></pre>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      /* ui-select:begin
+         Monta Select, SearchableSelect e MultiSelect com a MESMA marcação dos componentes da
+         aplicação (apps/frontend-transportada/src/components/ui). Cada [data-select] vira:
+         raiz > gatilho (button aria-haspopup=listbox) + painel (role=listbox / role=option). */
+      ;(() => {
+        const CHEVRON =
+          '<svg class="ui-icon ui-chevron__CLASS__" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>'
+        const SEARCH_ICON =
+          '<svg class="ui-icon ui-search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z"></path><path d="M20 20l-4-4"></path></svg>'
+        const CLOSE_ICON =
+          '<svg class="ui-icon ui-icon--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>'
+        const CHECKBOX =
+          '<span class="ui-checkbox"><input class="ui-checkbox-input" type="checkbox" aria-label="__LABEL__" __CHECKED__ tabindex="-1"><span class="ui-checkbox-box" aria-hidden="true"><svg class="ui-checkbox-mark" viewBox="0 0 16 16"><path class="ui-checkbox-check" d="M3.6 8.4l2.9 2.9 5.9-6.2"></path><path class="ui-checkbox-dash" d="M4.2 8h7.6"></path></svg></span></span>'
+        const REQUIREMENT = 'off:Desligado|optional:Opcional|required:Obrigatório'
+        const OPTION_SETS = {
+          requirement: REQUIREMENT,
+          exception: 'inherit:Igual ao tipo|' + REQUIREMENT,
+        }
+        const GAP = 4
+        const MARGIN = 8
+        let sequence = 0
+        let openHost = null
+
+        const escapeHtml = (text) =>
+          text.replace(
+            /[&<>"]/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+          )
+        const normalize = (text) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+        function parseOptions(host) {
+          const source = OPTION_SETS[host.dataset.set] ?? host.dataset.options ?? ''
+          return source.split('|').map((entry) => {
+            const [value, ...label] = entry.split(':')
+            return { value, label: label.join(':') }
+          })
+        }
+
+        function createSelect(host) {
+          const kind = host.dataset.kind ?? 'select'
+          const options = parseOptions(host)
+          const baseId = 'ui-select-' + ++sequence
+          const isCompact = kind === 'searchable' || host.hasAttribute('data-compact')
+          const isDisabled = host.hasAttribute('data-disabled')
+          const isStatic = host.dataset.open === 'static'
+          const placeholder = host.dataset.placeholder ?? ''
+          const label = host.dataset.label ?? ''
+          const state = {
+            value: host.dataset.value ?? '',
+            values: (host.dataset.values ?? '').split(',').filter(Boolean),
+            isOpen: isStatic,
+            query: '',
+            activeIndex: 0,
+          }
+
+          host.classList.add(kind === 'multi' ? 'ui-multi' : 'ui-select')
+          if (kind === 'select' && isCompact) host.classList.add('ui-select--compact')
+          host.innerHTML =
+            '<button class="ui-trigger' +
+            (isCompact ? ' ui-trigger--compact' : '') +
+            '" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="' +
+            escapeHtml(label) +
+            '"' +
+            (isDisabled ? ' disabled' : '') +
+            '></button>'
+          const trigger = host.firstElementChild
+          if (host.hasAttribute('data-demo-focus')) trigger.setAttribute('data-demo-focus', '')
+          let panel = null
+          let pills = null
+          let openedAt = null
+
+          function isSelected(option) {
+            return kind === 'multi'
+              ? state.values.includes(option.value)
+              : option.value === state.value
+          }
+
+          function visibleOptions() {
+            if (kind === 'select' || state.query === '') return options
+            return options.filter((option) =>
+              normalize(option.label).includes(normalize(state.query)),
+            )
+          }
+
+          function summaryText() {
+            const count = state.values.length
+            if (count === 0) return null
+            const noun = count === 1 ? host.dataset.singular : host.dataset.plural
+            return count + ' ' + noun
+          }
+
+          function renderTrigger() {
+            const selected = options.find((option) => option.value === state.value)
+            const text = kind === 'multi' ? summaryText() : selected?.label
+            const textClass = text == null ? 'ui-placeholder' : 'ui-value'
+            const textHtml =
+              '<span class="' + textClass + '">' + escapeHtml(text ?? placeholder) + '</span>'
+            trigger.innerHTML =
+              (kind === 'select'
+                ? '<span class="ui-selection">' + textHtml + '</span>'
+                : textHtml) +
+              CHEVRON.replace(
+                '__CLASS__',
+                state.isOpen && kind === 'select' ? ' ui-chevron--open' : '',
+              )
+            trigger.setAttribute('aria-expanded', String(state.isOpen))
+            if (state.isOpen)
+              trigger.setAttribute('aria-activedescendant', baseId + '-' + state.activeIndex)
+            else trigger.removeAttribute('aria-activedescendant')
+          }
+
+          function renderPills() {
+            pills?.remove()
+            pills = null
+            if (kind !== 'multi' || state.values.length === 0) return
+            pills = document.createElement('div')
+            pills.className = 'ui-pills'
+            pills.innerHTML =
+              state.values
+                .map((value) => options.find((option) => option.value === value))
+                .filter(Boolean)
+                .map(
+                  (option) =>
+                    '<span class="ui-pill"><span class="ui-pill-label">' +
+                    escapeHtml(option.label) +
+                    '</span><span class="ui-pill-value"></span><button class="ui-pill-remove" type="button" data-remove="' +
+                    escapeHtml(option.value) +
+                    '" aria-label="Remover ' +
+                    escapeHtml(option.label) +
+                    '">' +
+                    CLOSE_ICON +
+                    '</button></span>',
+                )
+                .join('') + '<button class="ui-pill-clear" type="button" data-clear>Limpar</button>'
+            host.appendChild(pills)
+          }
+
+          function optionHtml(option, index) {
+            const classes = ['ui-option']
+            if (index === state.activeIndex) classes.push('ui-option--active')
+            if (isSelected(option)) classes.push('ui-option--selected')
+            const body =
+              kind === 'multi'
+                ? '<span class="ui-control">' +
+                  CHECKBOX.replace('__LABEL__', escapeHtml(option.label)).replace(
+                    '__CHECKED__',
+                    isSelected(option) ? 'checked' : '',
+                  ) +
+                  '</span><span class="ui-option-text"><span>' +
+                  escapeHtml(option.label) +
+                  '</span></span>'
+                : kind === 'select'
+                  ? '<span class="ui-option-text"><span>' +
+                    escapeHtml(option.label) +
+                    '</span></span>'
+                  : escapeHtml(option.label)
+            return (
+              '<li class="' +
+              classes.join(' ') +
+              '" role="option" aria-selected="' +
+              isSelected(option) +
+              '" id="' +
+              baseId +
+              '-' +
+              index +
+              '" data-index="' +
+              index +
+              '">' +
+              body +
+              '</li>'
+            )
+          }
+
+          function renderList() {
+            const list = panel.querySelector('[role=listbox]')
+            const visible = visibleOptions()
+            if (visible.length === 0) {
+              list.outerHTML = '<p class="ui-empty">Nada encontrado</p>'
+              return
+            }
+            list.innerHTML = visible.map(optionHtml).join('')
+          }
+
+          function renderPanel() {
+            panel?.remove()
+            panel = document.createElement('div')
+            panel.className = 'ui-panel ui-panel--' + kind + (isStatic ? ' ui-panel--static' : '')
+            const search =
+              kind === 'select'
+                ? ''
+                : '<div class="ui-search">' +
+                  SEARCH_ICON +
+                  '<input class="ui-search-input" type="text" role="combobox" aria-expanded="true" aria-controls="' +
+                  baseId +
+                  '-list" aria-label="' +
+                  escapeHtml(host.dataset.search ?? '') +
+                  '" placeholder="' +
+                  escapeHtml(host.dataset.search ?? '') +
+                  '" value="' +
+                  escapeHtml(state.query) +
+                  '"></div>'
+            panel.innerHTML =
+              search +
+              '<ul class="' +
+              (kind === 'select' ? 'ui-list ui-list--grid' : 'ui-list') +
+              '" id="' +
+              baseId +
+              '-list" role="listbox" aria-label="' +
+              escapeHtml(label) +
+              '"' +
+              (kind === 'multi' ? ' aria-multiselectable="true"' : '') +
+              '></ul>'
+            trigger.after(panel)
+            renderList()
+            positionPanel()
+          }
+
+          function positionPanel() {
+            const anchor = host.getBoundingClientRect()
+            panel.style.setProperty('--floating-layer-min-width', anchor.width + 'px')
+            if (isStatic) return
+            const spaceBelow = window.innerHeight - anchor.bottom - GAP
+            const spaceAbove = anchor.top - GAP
+            const isAbove = panel.scrollHeight > spaceBelow && spaceAbove > spaceBelow
+            const available = (isAbove ? spaceAbove : spaceBelow) - MARGIN
+            const maxHeight = Math.min(
+              Math.max(available, 96),
+              Math.max(window.innerHeight - MARGIN * 2, 96),
+            )
+            const width = Math.max(panel.offsetWidth, anchor.width)
+            const left = Math.min(
+              Math.max(anchor.left, MARGIN),
+              Math.max(window.innerWidth - width - MARGIN, MARGIN),
+            )
+            panel.style.setProperty('--floating-layer-max-height', maxHeight + 'px')
+            panel.style.setProperty('--floating-layer-left', left + 'px')
+            if (isAbove) {
+              panel.style.setProperty(
+                '--floating-layer-bottom',
+                window.innerHeight - anchor.top + GAP + 'px',
+              )
+              panel.style.setProperty('--floating-layer-top', 'auto')
+            } else {
+              panel.style.setProperty('--floating-layer-top', anchor.bottom + GAP + 'px')
+              panel.style.setProperty('--floating-layer-bottom', 'auto')
+            }
+          }
+
+          function open() {
+            if (isDisabled || state.isOpen) return
+            if (openHost && openHost !== host) openHost.dispatchEvent(new Event('ui-close'))
+            const selectedIndex = options.findIndex(isSelected)
+            state.query = ''
+            state.activeIndex = kind === 'select' ? Math.max(selectedIndex, 0) : 0
+            state.isOpen = true
+            openHost = host
+            renderPanel()
+            openedAt = host.getBoundingClientRect()
+            renderTrigger()
+            panel.querySelector('.ui-search-input')?.focus()
+          }
+
+          function close(shouldFocus) {
+            if (isStatic || !state.isOpen) return
+            state.isOpen = false
+            panel?.remove()
+            panel = null
+            if (openHost === host) openHost = null
+            renderTrigger()
+            if (shouldFocus) trigger.focus()
+          }
+
+          function commit(option) {
+            if (kind === 'multi') {
+              state.values = state.values.includes(option.value)
+                ? state.values.filter((value) => value !== option.value)
+                : [...state.values, option.value]
+              renderList()
+              renderTrigger()
+              renderPills()
+            } else {
+              state.value = option.value
+              host.dataset.value = option.value
+              renderTrigger()
+              if (state.isOpen && !isStatic) close(true)
+              else renderList()
+            }
+            host.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+
+          function setActive(index) {
+            const visible = visibleOptions()
+            state.activeIndex = Math.min(Math.max(index, 0), visible.length - 1)
+            renderList()
+            trigger.setAttribute('aria-activedescendant', baseId + '-' + state.activeIndex)
+            panel
+              .querySelector('[role=option][id$="-' + state.activeIndex + '"]')
+              ?.scrollIntoView({ block: 'nearest' })
+          }
+
+          Object.defineProperty(host, 'value', {
+            get: () => (kind === 'multi' ? state.values.join(',') : state.value),
+          })
+
+          trigger.addEventListener('click', () =>
+            state.isOpen && !isStatic ? close(false) : open(),
+          )
+          host.addEventListener('ui-close', () => close(false))
+          host.addEventListener('click', (event) => {
+            const optionElement = event.target.closest('[role=option]')
+            if (optionElement && panel?.contains(optionElement)) {
+              commit(visibleOptions()[Number(optionElement.dataset.index)])
+              return
+            }
+            const removeButton = event.target.closest('[data-remove]')
+            if (removeButton) commit({ value: removeButton.dataset.remove })
+            if (event.target.closest('[data-clear]')) {
+              state.values = []
+              renderTrigger()
+              renderPills()
+              host.dispatchEvent(new Event('change', { bubbles: true }))
+            }
+          })
+          host.addEventListener('mouseover', (event) => {
+            const optionElement = event.target.closest('[role=option]')
+            if (!optionElement || !panel?.contains(optionElement)) return
+            const index = Number(optionElement.dataset.index)
+            if (index === state.activeIndex) return
+            state.activeIndex = index
+            renderList()
+          })
+          host.addEventListener('input', (event) => {
+            if (!event.target.matches('.ui-search-input')) return
+            state.query = event.target.value
+            state.activeIndex = 0
+            renderList()
+          })
+          host.addEventListener('keydown', (event) => {
+            if (!state.isOpen) {
+              if (
+                ['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key) &&
+                event.target === trigger
+              ) {
+                event.preventDefault()
+                open()
+              }
+              return
+            }
+            if (event.key === 'Escape' || event.key === 'Tab') return close(event.key === 'Escape')
+            const moves = {
+              ArrowDown: state.activeIndex + 1,
+              ArrowUp: state.activeIndex - 1,
+              Home: 0,
+              End: Infinity,
+            }
+            if (event.key in moves) {
+              event.preventDefault()
+              return setActive(moves[event.key])
+            }
+            const isTyping = event.target.matches('.ui-search-input') && event.key === ' '
+            if ((event.key === 'Enter' || event.key === ' ') && !isTyping) {
+              event.preventDefault()
+              const option = visibleOptions()[state.activeIndex]
+              if (option) commit(option)
+            }
+          })
+          document.addEventListener('mousedown', (event) => {
+            if (state.isOpen && !host.contains(event.target)) close(false)
+          })
+          window.addEventListener('resize', () => {
+            if (panel) positionPanel()
+          })
+          window.addEventListener(
+            'scroll',
+            (event) => {
+              if (!state.isOpen || panel?.contains(event.target)) return
+              const current = host.getBoundingClientRect()
+              if (current.top === openedAt?.top && current.left === openedAt?.left) return
+              close(false)
+            },
+            true,
+          )
+
+          renderTrigger()
+          renderPills()
+          if (isStatic) {
+            state.activeIndex = Math.max(options.findIndex(isSelected), 0)
+            renderPanel()
+            renderTrigger()
+          }
+        }
+
+        document.querySelectorAll('[data-select]').forEach(createSelect)
+      })()
+      /* ui-select:end */
+    </script>
+
+    <script>
+      const NOTE = {
+        contractor: 'SPANI',
+        recipient: 'SUPERMERCADO TRIALBA LTDA',
+        number: '680481',
+        total: 784064n,
+      }
+      const PRODUCTS = [
+        {
+          code: '2073170 02',
+          description: 'MAC ADRIA OVOS 500G – PARAFUSO',
+          unit: 'FD',
+          noteQuantity: '10',
+          unitValue: '57.2000',
+        },
+        {
+          code: '2073188 01',
+          description: 'MAC ADRIA SEMOLA 500G – ESPAGUETE',
+          unit: 'FD',
+          noteQuantity: '6',
+          unitValue: '49.9950',
+        },
+        {
+          code: '4410023 01',
+          description: 'MOLHO TOMATE TRADICIONAL SACHE 300G CAIXA COM 24 UNIDADES',
+          unit: 'CX',
+          noteQuantity: '3',
+          unitValue: '61.3333',
+        },
+      ]
+      const state = PRODUCTS.map((product, index) => ({
+        selected: index === 0,
+        quantity: index === 0 ? '1' : '',
+        paid: '',
+      }))
+      let photoTaken = false
+
+      function parseScaled(text, scale) {
+        const clean = String(text).trim().replace(/\./g, '').replace(',', '.')
+        if (!/^\d+(\.\d+)?$/.test(clean)) return null
+        const [whole, fraction = ''] = clean.split('.')
+        if (fraction.length > scale) return null
+        return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.padEnd(scale, '0') || '0')
+      }
+
+      function unitTenThousandths(value) {
+        const [whole, fraction = ''] = value.split('.')
+        return BigInt(whole) * 10000n + BigInt(fraction.padEnd(4, '0'))
+      }
+
+      function lineCents(quantityMillis, unitValue) {
+        const product = quantityMillis * unitTenThousandths(unitValue)
+        return (product + 50000n) / 100000n
+      }
+
+      function formatCents(cents) {
+        const whole = (cents / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+        return `${whole},${(cents % 100n).toString().padStart(2, '0')}`
+      }
+
+      function formatQuantity(millis) {
+        const whole = millis / 1000n
+        const fraction = (millis % 1000n).toString().padStart(3, '0').replace(/0+$/, '')
+        return fraction === '' ? whole.toString() : `${whole},${fraction}`
+      }
+
+      function config() {
+        const req = (key) => document.querySelector(`[data-req="${key}"]`).value
+        return {
+          name: document.getElementById('typeName').value.trim() || 'Sem nome',
+          photo: req('photo'),
+          note: req('note'),
+          items: req('items'),
+          reference: req('reference'),
+          referenceLabel:
+            document.getElementById('referenceLabel').value.trim() ||
+            'Número do documento do cliente',
+          amount: req('amount'),
+          amountScope: document.getElementById('amountScope').value,
+          amountLabel: document.getElementById('amountLabel').value.trim() || 'Valor pago',
+          subject: document.getElementById('subject').value,
+          body: document.getElementById('body').value,
+          line: document.getElementById('line').value,
+          emails: document.getElementById('emailsContractor').checked,
+        }
+      }
+
+      function computeLines(cfg) {
+        return PRODUCTS.map((product, index) => {
+          const row = state[index]
+          const quantity = parseScaled(row.quantity, 3)
+          const sum = quantity === null ? null : lineCents(quantity, product.unitValue)
+          const paid =
+            cfg.amount !== 'off' && cfg.amountScope === 'item' ? parseScaled(row.paid, 2) : null
+          return { product, row, quantity, sum, paid, value: paid ?? sum }
+        })
+      }
+
+      function render(template, values) {
+        return template.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (marker, name) =>
+          Object.prototype.hasOwnProperty.call(values, name) ? values[name] : marker,
+        )
+      }
+
+      function buildMail(cfg, sample) {
+        const lines = computeLines(cfg).filter((line) => line.row.selected && line.sum !== null)
+        const note = document.getElementById('note').value.trim()
+        const occurrencePaid =
+          cfg.amount !== 'off' && cfg.amountScope === 'occurrence'
+            ? parseScaled(document.getElementById('occurrenceAmount').value, 2)
+            : null
+        const sumItems = lines.reduce((total, line) => total + line.sum, 0n)
+        const declared = occurrencePaid ?? lines.reduce((total, line) => total + line.value, 0n)
+        const base = {
+          contratante: NOTE.contractor,
+          numeroNota: `${NOTE.number}/1`,
+          numeroNotaSemSerie: NOTE.number,
+          razaoSocial: NOTE.recipient,
+          valorNota: formatCents(NOTE.total),
+          numeroReferencia: sample ? '45029' : document.getElementById('reference').value.trim(),
+          valorDeclarado: formatCents(declared),
+          somaItens: formatCents(sumItems),
+          observacao: sample
+            ? 'Avaria identificada no momento da conferência das mercadorias'
+            : note,
+        }
+        const itemLines = lines.map((line) =>
+          render(
+            cfg.line.trim() === ''
+              ? '{{codigoItem}} – {{item}} – {{quantidadeItem}} {{unidadeItem}} – R$ {{valorItem}}'
+              : cfg.line,
+            {
+              ...base,
+              codigoItem: line.product.code,
+              item: line.product.description,
+              quantidadeItem: formatQuantity(line.quantity),
+              unidadeItem: line.product.unit,
+              valorUnitarioItem: formatCents(lineCents(1000n, line.product.unitValue)),
+              somaItem: formatCents(line.sum),
+              valorItem: formatCents(line.value),
+            },
+          ),
+        )
+        const values = { ...base, linhasItens: itemLines.join('\n') }
+        return { subject: render(cfg.subject, values), body: render(cfg.body, values) }
+      }
+
+      function renderItems(cfg) {
+        const list = document.getElementById('items')
+        const lines = computeLines(cfg)
+        list.replaceChildren(
+          ...lines.map((line, index) => {
+            const item = document.createElement('li')
+            item.className = 'item'
+            item.dataset.selected = String(line.row.selected)
+            const unitText = formatCents(lineCents(1000n, line.product.unitValue))
+            const sumText = line.sum === null ? '—' : `R$ ${formatCents(line.sum)}`
+            const quantityText = line.quantity === null ? '—' : formatQuantity(line.quantity)
+            item.innerHTML = `
+              <label class="check"><input type="checkbox" ${line.row.selected ? 'checked' : ''} data-index="${index}" data-kind="select" />
+                <span><span class="mono">${line.product.code}</span> · ${line.product.description}</span>
+                <small>Na nota: ${line.product.noteQuantity} ${line.product.unit} × R$ ${unitText}</small></label>
+              <div class="itemNumbers" ${line.row.selected ? '' : 'hidden'}>
+                <label class="field"><span class="hint">Quantidade devolvida (${line.product.unit})</span>
+                  <input inputmode="decimal" value="${line.row.quantity}" data-index="${index}" data-kind="quantity" /></label>
+                <label class="field" ${cfg.amount !== 'off' && cfg.amountScope === 'item' ? '' : 'hidden'}><span class="hint">${cfg.amountLabel}${cfg.amount === 'required' ? ' · obrigatório' : ' · se diferente'}</span>
+                  <input inputmode="decimal" placeholder="${line.sum === null ? '0,00' : formatCents(line.sum)}" value="${line.row.paid}" data-index="${index}" data-kind="paid" /></label>
+              </div>
+              <p class="calc" ${line.row.selected ? '' : 'hidden'}>${quantityText} ${line.product.unit} × R$ ${unitText} = <strong>${sumText}</strong>${line.paid !== null ? ` · pago R$ ${formatCents(line.paid)}` : ''}</p>`
+            return item
+          }),
+        )
+      }
+
+      function missingFields(cfg) {
+        const lines = computeLines(cfg).filter((line) => line.row.selected)
+        const missing = []
+        if (
+          cfg.items === 'required' &&
+          !lines.some((line) => line.quantity !== null && line.quantity > 0n)
+        )
+          missing.push('ao menos um produto com quantidade')
+        if (
+          cfg.reference === 'required' &&
+          document.getElementById('reference').value.trim() === ''
+        )
+          missing.push(cfg.referenceLabel.toLowerCase())
+        if (cfg.amount === 'required') {
+          if (cfg.amountScope === 'item' && lines.some((line) => line.paid === null))
+            missing.push(`${cfg.amountLabel.toLowerCase()} de cada produto`)
+          if (
+            cfg.amountScope === 'occurrence' &&
+            parseScaled(document.getElementById('occurrenceAmount').value, 2) === null
+          )
+            missing.push(cfg.amountLabel.toLowerCase())
+        }
+        if (cfg.note === 'required' && document.getElementById('note').value.trim() === '')
+          missing.push('observação')
+        if (cfg.photo === 'required' && !photoTaken) missing.push('foto')
+        return missing
+      }
+
+      function refresh({ rebuildItems = true } = {}) {
+        const cfg = config()
+        const sample = buildMail(cfg, true)
+        document.getElementById('previewSubject').textContent = sample.subject
+        document.getElementById('previewBody').textContent = sample.body
+        document.getElementById('previewNote').textContent = cfg.emails
+          ? 'Sai automaticamente quando o tipo é registrado.'
+          : 'Desligado: o operador manda pela conversa da ocorrência, se quiser.'
+
+        document.getElementById('registerType').textContent = cfg.name
+        document.getElementById('productsBlock').hidden = cfg.items === 'off'
+        document.getElementById('referenceBlock').hidden = cfg.reference === 'off'
+        document.getElementById('referenceFieldLabel').textContent =
+          cfg.referenceLabel + (cfg.reference === 'required' ? ' · obrigatório' : ' · opcional')
+        document.getElementById('occurrenceAmountBlock').hidden = !(
+          cfg.amount !== 'off' && cfg.amountScope === 'occurrence'
+        )
+        document.getElementById('occurrenceAmountLabel').textContent = cfg.amountLabel
+        document.getElementById('declaredTitle').textContent =
+          cfg.amount === 'off' ? 'Valor no e-mail' : cfg.amountLabel
+        document.getElementById('noteLabel').textContent =
+          cfg.note === 'required' ? 'Observação · obrigatória' : 'Observação'
+        document.getElementById('photo').hidden = cfg.photo === 'off'
+        if (rebuildItems) renderItems(cfg)
+
+        const live = buildMail(cfg, false)
+        const lines = computeLines(cfg).filter((line) => line.row.selected && line.sum !== null)
+        document.getElementById('sumItems').textContent =
+          `R$ ${formatCents(lines.reduce((total, line) => total + line.sum, 0n))}`
+        document.getElementById('declaredTotal').textContent =
+          `R$ ${live.body.match(/NFD [^–]*– R\$ ([\d.,]+)/)?.[1] ?? formatCents(lines.reduce((total, line) => total + line.value, 0n))}`
+        document.getElementById('liveSubject').textContent = cfg.emails
+          ? live.subject
+          : '(este tipo não manda e-mail)'
+        document.getElementById('liveBody').textContent = cfg.emails ? live.body : ''
+
+        const missing = missingFields(cfg)
+        document.getElementById('submit').disabled = missing.length > 0
+        document.getElementById('missing').textContent =
+          missing.length > 0
+            ? `Falta: ${missing.join(', ')}.`
+            : 'Tudo o que o tipo pede está preenchido.'
+      }
+
+      let lastField = document.getElementById('body')
+      for (const id of ['subject', 'body', 'line']) {
+        document.getElementById(id).addEventListener('focus', (event) => {
+          lastField = event.target
+        })
+      }
+      document.querySelectorAll('.marker').forEach((button) => {
+        button.addEventListener('click', () => {
+          const field = lastField
+          const start = field.selectionStart ?? field.value.length
+          field.value =
+            field.value.slice(0, start) +
+            button.textContent +
+            field.value.slice(field.selectionEnd ?? start)
+          field.focus()
+          refresh()
+        })
+      })
+      document.getElementById('view-config').addEventListener('input', () => refresh())
+      document.getElementById('view-config').addEventListener('change', () => refresh())
+      document.getElementById('items').addEventListener('change', (event) => {
+        const target = event.target
+        if (target.dataset.kind === 'select') {
+          state[Number(target.dataset.index)].selected = target.checked
+          if (target.checked && state[Number(target.dataset.index)].quantity === '')
+            state[Number(target.dataset.index)].quantity = '1'
+          refresh()
+        }
+      })
+      document.getElementById('items').addEventListener('input', (event) => {
+        const target = event.target
+        if (target.dataset.kind === 'quantity')
+          state[Number(target.dataset.index)].quantity = target.value
+        if (target.dataset.kind === 'paid') state[Number(target.dataset.index)].paid = target.value
+        refresh({ rebuildItems: false })
+      })
+      document.getElementById('items').addEventListener('focusout', () => refresh())
+      for (const id of ['reference', 'note', 'occurrenceAmount']) {
+        document
+          .getElementById(id)
+          .addEventListener('input', () => refresh({ rebuildItems: false }))
+      }
+      document.getElementById('photo').addEventListener('click', (event) => {
+        photoTaken = !photoTaken
+        event.currentTarget.dataset.done = String(photoTaken)
+        event.currentTarget.textContent = photoTaken
+          ? 'Foto capturada · toque para refazer'
+          : 'Tirar foto da mercadoria avariada'
+        refresh({ rebuildItems: false })
+      })
+      document.querySelectorAll('[role="tab"]').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('[role="tab"]').forEach((other) => {
+            const selected = other === tab
+            other.setAttribute('aria-selected', String(selected))
+            document.getElementById(other.getAttribute('aria-controls')).hidden = !selected
+          })
+        })
+      })
+      refresh()
+    </script>
+  </body>
+</html>

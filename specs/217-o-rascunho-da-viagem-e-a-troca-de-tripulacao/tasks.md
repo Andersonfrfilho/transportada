@@ -5,11 +5,11 @@
 
 ## Modelo por task
 
-| Marca | Classe   | Quando                                                                                |
-| ----- | -------- | ------------------------------------------------------------------------------------- |
-| 🧠    | `opus`   | máquina de estados, regressão de status, limpeza dos campos congelados, revisão final |
-| —     | `sonnet` | implementação e teste comuns                                                          |
-| ⚙️    | `haiku`  | mecânico: tipos opcionais, textos, tradução de código de erro                         |
+| Marca | Classe   | Quando                                                                 |
+| ----- | -------- | ---------------------------------------------------------------------- |
+| 🧠    | `opus`   | máquina de estados, regressão de status, limpeza dos campos congelados |
+| —     | `sonnet` | implementação e teste comuns                                           |
+| ⚙️    | `haiku`  | mecânico: tipos opcionais, textos, tradução de código de erro          |
 
 ## Fase 1 — O status é função do par
 
@@ -60,7 +60,7 @@
 
 ## Fase 3A — Trocar o motorista de uma viagem planejada (URGENTE)
 
-> 🤖 Modelo: `opus` — mexe na máquina de estados
+> 🤖 Modelo: `sonnet` (só a T311 está aberta; as demais, fechadas, rodaram em `opus` — mexe na máquina de estados)
 >
 > **Cortada na frente por pedido do dono do produto em 2026-09-27**: é a necessidade operacional real
 > e imediata. E é a metade leve da troca: motorista não entra no cálculo da rota nem do pedágio
@@ -181,11 +181,11 @@
 
 ## Fase 7 — Fechamento
 
-> 🤖 Modelo: `opus`
+> 🤖 Modelo: `sonnet`
 
 - [ ] **T701** `sonnet` — Revisão de design e usabilidade das telas novas (botão de rascunho, tela de
       tripulação, selo, aviso do motorista), fechando com print de cada uma.
-- [ ] **T702** 🧠 `opus` — Revisão final: `make check` + `make migration-test` verdes; os dois
+- [ ] **T702** `sonnet` — Revisão final: `make check` + `make migration-test` verdes; os dois
       comandos de teste da API rodados separadamente (contrato **e** `test:integration` com
       `--env-file=../../.env.test`, porque um não cobre o outro); contratos de regressão da 081, 148,
       153, 178, MDF-e, valoração e cargo-placement passando; `evidence.md` consolidado com o modelo
@@ -197,9 +197,10 @@
 /oh-my-claudecode:autopilot Execute a spec specs/217-o-rascunho-da-viagem-e-a-troca-de-tripulacao/
 (leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 1 → executor model=sonnet (T101 e T103 🧠 → opus) · Fase 2 → executor model=sonnet ·
-Fase 3 inteira → opus · Fase 4 → executor model=sonnet (T401 🧠 → opus) · Fase 5 → executor
+Fase 3 → opus nas tasks fechadas, T311 → sonnet · Fase 4 → executor model=sonnet (T401 🧠 → opus) · Fase 5 → executor
 model=sonnet (T501 model=haiku) · Fase 6 → executor model=sonnet (T603 model=haiku) ·
-T701 → designer · T702 → opus (ou code-reviewer model=opus).
+T701 → designer · T702 → code-reviewer model=sonnet.
+Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md. Teste novo entra
 na lista explícita do package.json da app, senão não roda.
 Pare e pergunte antes de: deploy, migration destrutiva, e antes de implementar a T305 se a

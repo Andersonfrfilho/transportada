@@ -1,0 +1,44 @@
+{
+  "deliveryProof": {
+    "cargo": "off",
+    "cargoMinimumCount": 1,
+    "photo": "optional",
+    "receivedBy": "optional",
+    "receiverDocument": "off",
+    "receiverName": "optional",
+    "signature": "optional"
+  },
+  "occurrenceTypes": [
+    {
+      "declaredAmountLabel": "Valor pago",
+      "declaredAmountMode": "required",
+      "declaredAmountScope": "item",
+      "itemsMinimumCount": null,
+      "itemsMode": "optional",
+      "noteMode": "off",
+      "photoMinimumCount": 1,
+      "photoMode": "off",
+      "referenceNumberLabel": "Número da NFD",
+      "referenceNumberMode": "optional",
+      "signatureMode": "off",
+      "attachmentMode": "off",
+      "flow": "document",
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "name": "Qualquer nome",
+      "sources": {
+        "declaredAmountLabel": "type",
+        "declaredAmountMode": "contractor",
+        "declaredAmountScope": "type",
+        "itemsMinimumCount": "type",
+        "itemsMode": "type",
+        "noteMode": "type",
+        "photoMinimumCount": "type",
+        "photoMode": "contractor",
+        "referenceNumberLabel": "type",
+        "referenceNumberMode": "contractor",
+        "signatureMode": "type"
+      },
+      "stage": "delivery"
+    }
+  ]
+}

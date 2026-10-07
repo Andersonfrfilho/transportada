@@ -1117,3 +1117,1782 @@ cobre nada.
 **O vermelho veio antes do verde.** Com o contrato ajustado e o código ainda intacto, a suíte deu
 `1 fail` em `recusa o item sem as duas chaves`; depois das três camadas (lista de chaves, validador,
 tipo), `0 fail`.
+
+## T7.3 — a auditoria de log, metade feita: painel e API de demonstração
+
+Primeiro item do T7.3 ("coordenada em nenhum log"), nas duas superfícies que não dependem da
+reconciliação em curso. **Parcial de propósito** — API e worker ficam para depois, e a task não fecha
+com isto.
+
+⚠️ **O `grep` cru desta máquina passa por um filtro que omite linhas sem avisar.** Toda varredura
+abaixo foi feita com `rtk proxy grep`. A memória do projeto já registrou o estrago da versão
+filtrada: um `git log` que contou 50 de 73 commits.
+
+**Painel (`frontend-transportada`), módulos `trip/` e `shared/`:** três chamadas, todas em
+`AssemblyVectorMap.component.tsx`, e **nenhuma recebe coordenada**:
+
+| linha | chamada                             | o que carrega                          | em produção                         |
+| ----- | ----------------------------------- | -------------------------------------- | ----------------------------------- |
+| 233   | `console.warn('[route-layer]', …)`  | mensagem de erro do `setPaintProperty` | não executa — `!== 'production'`    |
+| 286   | `console.error('[basemap]', error)` | falha de construção do mapa            | não executa — `import.meta.env.DEV` |
+| 332   | `console.error('[basemap]', …)`     | `event.error?.message` do MapLibre     | não executa — `import.meta.env.DEV` |
+
+Os dois primeiros são erro de estilo e de basemap; o terceiro existe porque engoli-lo custou um dia
+inteiro de diagnóstico às cegas, e o comentário no arquivo registra isso. O pior caso fora de
+produção é a mensagem do MapLibre trazer a URL de um tile — índice `z/x/y`, quadrado do mapa derivado
+do enquadramento, não posição carimbada de evento. Não é dado pessoal e não é achado.
+
+**API de demonstração (`apps/frontend-driver/scripts/driver-preview-api.ts`, 487 linhas):** uma única
+chamada, linha 485 — faixa de inicialização com a porta e o endereço da API real. Sem coordenada.
+
+Faltam do T7.3: logs da API e do worker, respostas fora da tabela do D7, N+1 nas consultas da linha
+do tempo, `EXPLAIN` do expurgo nas cinco tabelas e o destino do `VITE_MAP_TILES_URL`.
+
+## Reconciliação — o que o worker e o app do motorista têm de verdade
+
+As caixas do `tasks.md` não são confiáveis: outra sessão fez parte do trabalho sem marcar, e há nomes
+no código que **parecem** entrega da 196 e são de outras specs. Mandei um agente conferir
+`apps/worker-transportada` e `apps/frontend-driver` contra o código, task por task. Resultado: **T2.1,
+T2.2 e T5.0–T5.4 continuam abertas**, e as caixas abertas delas estão certas.
+
+### Três nomes que não são da 196 — não tique por homonímia
+
+| Nome no código                  | Parece ser | É de fato                                                |
+| ------------------------------- | ---------- | -------------------------------------------------------- |
+| `applyReportLocation`           | T5.2       | spec 189 — e **com a exceção da ocorrência ainda lá**    |
+| `scripts/driver-preview-api.ts` | T5.0       | spec 206 T4.5 (o cabeçalho do arquivo diz isso, linha 3) |
+| `location` no `depart`          | T5.3       | spec 206 — o "Despachar" continua sem ponto              |
+
+Tiquar qualquer uma das três por achar o nome no `grep` fecharia task que não existe. É a mesma
+família do defeito que a 179 cometeu contra a 164 e a 161.
+
+### O que de 196 realmente entrou no worker
+
+Só o `location_state`/`expired` nas **duas** tabelas que já tinham ponto (`trip_stop_events`,
+`trip_delivery_proofs`), no commit `3cdbf9711`, escopo da Fase 1. E a rotina de expurgo **roda**:
+`trip-location-purge.routine.ts:44`, registrada em `main.ts:1208` como `TRIP_LOCATION_PURGE_JOB`, no
+catálogo com intervalo mínimo de um dia. Sobre três tabelas, não cinco.
+
+**A regra do `package.json` está cumprida**, ao contrário do que eu temia: os três contratos de
+`test/trip-location-purge/` rodam, porque o entrypoint `trip-location-purge.contract.test.ts` está na
+linha `"test"` da app. O problema da T2.1 não é encanamento — é conteúdo que não existe:
+`TRIP_LOCATION_STAMPED_TABLES` e `TRIP_LOCATION_UNSTAMPED_TABLES` não existem em lugar nenhum (0 hits
+na API e no worker), as três tabelas novas não são declaradas no schema do worker, e não há `exhausted`
+por tabela.
+
+### Por que T2.x não poderia estar feita
+
+**Não há coluna para redigir.** A migration `20261001123700_event_location_stamp` deixou as três
+tabelas sem ponto de fora — o próprio `tasks.md` da Fase 1 avisa isso. O expurgo das cinco tabelas
+depende da Fase 1 terminar, e ela não terminou.
+
+### O que falta, em uma linha cada
+
+- **T2.1/T2.2:** as três tabelas novas no schema do worker, os dois conjuntos de tabelas, paridade do
+  D8, teto de lotes e `exhausted` por tabela, redatores das três tabelas, `try/catch` por tabela
+  (hoje uma coluna ausente derruba o ciclo inteiro) e `redactedByTable`/`exhaustedTables` no log.
+- **T5.1:** os dois contratos não existem. O vizinho mais próximo, `offline-queue.contract.ts:221`,
+  afirma o **oposto** do que a 196 pede: `it('ocorrência não tem posição: fica como está')` — é da 189
+  e vai precisar mudar junto.
+- **T5.2:** a exceção da ocorrência está viva em `offlineQueue.service.ts:224-235`, e os tipos de
+  `occurrence`/`documentOccurrence` não têm `location`. `registerDocumentOccurrence` ainda faz `POST`
+  direto em dois lugares, em vez de virar item de fila.
+- **T5.3:** `readDirectTapLocation` não existe (0 hits). O que existe é `readCurrentLocation`, com
+  `enableHighAccuracy: true`, `maximumAge: 0` e `timeout: 8_000` — o contrário do que a task pede.
+- **T5.4:** não existe `prints/` na pasta da spec, e o `.claude/launch.json` não tem
+  `motorista-local` nem `motorista-api-demo`.
+
+## T1.1 (parte que faltava) — o contrato das três tabelas sem coluna de ponto
+
+A seção "T1.1 / T1.2 / T3.1" acima cobriu as **duas** tabelas que já tinham as quatro colunas de
+posição. As três que não tinham coluna nenhuma — `trip_status_events`, `trip_stop_occurrences`,
+`trip_document_occurrences` — ficaram de fora da migration `20261001123700_event_location_stamp`, e
+é esse buraco que a T1.1 fecha agora.
+
+### O contrato novo, e por que ele é vermelho
+
+`apps/api-transportada/test/trip-schema/event-location.contract.ts` ganhou um segundo bloco
+(`as três tabelas que ganham posição agora`) com cinco asserções por tabela: as cinco colunas
+anuláveis e sem default, os quatro CHECKs de coordenada, os dois de estado, os dois de canal, e o
+índice parcial pela coluna de tempo **da própria tabela**.
+
+```
+bun --env-file=../../.env.test test ./test/trip-schema.contract.test.ts --timeout 120000
+147 pass · 15 fail · 586 expect() calls · Ran 162 tests across 1 file. [559.00ms]
+```
+
+As 15 falhas são 5 asserções × 3 tabelas, todas dentro do bloco novo — o bloco antigo segue inteiro
+no verde. O aceite da task ("o contrato falha pelo motivo certo; a contagem subiu em N") fecha com
+**N = 15**. O motivo é estrutural, não de texto: `indexColumnsByName(table)[indexName]` devolve
+`undefined` contra `["recorded_at"]` / `["created_at"]`, e os CHECKs e colunas idem — nada existe
+ainda no schema.
+
+As cinco asserções, por nome:
+
+| Asserção                                                                            | O que ela prende                                                |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `ganha as cinco colunas de posição, todas anuláveis e sem default`                  | tipos SQL exatos, `notNull: false`, `hasDefault: false`         |
+| `amarra a coordenada: par completo, faixa do globo e precisão só com ponto`         | `_coordinates_check`, os dois `_range_check`, `_accuracy_check` |
+| `restringe o estado ao conjunto e amarra captured à coordenada, sem buraco de NULL` | `_location_state_check` e `_location_state_consistency_check`   |
+| `só aceita coordenada do app do motorista, e estado só de canal que pede posição`   | `_coordinates_channel_check` e `_location_state_channel_check`  |
+| `indexa só o que tem ponto, pela coluna de tempo da própria tabela`                 | o índice parcial, com `where` conferido                         |
+
+Cada tabela indexa pela **sua** coluna de tempo: `trip_status_events` não tem `created_at` (índice em
+`recorded_at`), e as duas de ocorrência não têm `recorded_at` (índice em `created_at`, append-only por
+desenho). Um índice copiado da tabela vizinha nem compila.
+
+### Um helper que faltava no arnês de schema
+
+`indexWhereSqlByName` (`test/fiscal-schema/support.ts`) devolve o `where` de **todo** índice. O irmão
+que já existia, `uniqueIndexWhereSqlByName`, filtra `config.unique` — e o índice de posição não é
+único. Pedir o `where` dele por aquele mapa devolveria `undefined`, e a asserção passaria **sem ter
+olhado nada**. É a mesma família de falso-verde do `test.each` que esconde a tabela de casos.
+
+### Os dois CHECKs de canal entram só nas três tabelas novas
+
+Isto não é preferência de escopo: é o que a composição dos CHECKs permite hoje.
+
+Em `trip_stop_events`, `_location_state_consistency_check` já está aplicado e força
+`coordenada ⇒ captured`. Somado a `_location_state_channel_check` (`estado ⇒ canal ∈ {driver_app,
+whatsapp}`), o par **proíbe qualquer coordenada fora desses dois canais**. Então adicionar o CHECK de
+estado àquela tabela reprova se existir uma linha histórica com coordenada em outro canal.
+
+Tentei a variante "migration que se defende" (`UPDATE … SET location_state = 'captured' WHERE
+latitude IS NOT NULL AND channel = 'driver_app'`) e ela não resolve: a linha com coordenada em outro
+canal ficaria com `location_state = null`, que é exatamente o que o CHECK de consistência rejeita. A
+contagem histórica é inevitável.
+
+As três tabelas novas não têm esse problema — elas nascem sem nenhuma linha com coordenada, então
+nada antigo pode reprovar, e os dois CHECKs entram juntos com as colunas.
+
+### A contagem em staging (nenhum segredo na sessão)
+
+O banco certo foi identificado por sondagem, não por adivinhação de nome: `to_regclass
+('trip_stop_events')` devolveu `t` no serviço `Postgres` e `f` no `Postgres-q0RQ`. As contagens
+rodaram **dentro do contêiner** por `railway ssh`, onde `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`
+já existem — nenhuma string de conexão foi extraída para a sessão, e só agregados saíram.
+
+| Medida                              | Valor              |
+| ----------------------------------- | ------------------ |
+| Linhas em `trip_stop_events`        | 39                 |
+| Com coordenada                      | 37                 |
+| Com coordenada fora de `driver_app` | **0**              |
+| Quebra por canal                    | `driver_app \| 37` |
+
+Muito abaixo do teto de 100 mil que o `plan.md` usa para decidir lote — se produção acompanhar, a
+migration é uma transação só.
+
+### O que está bloqueado, e por quem
+
+**Produção não foi medida.** `railway ssh --environment production --service Postgres-Hqfu -- psql
+-c "select count(*)…"` foi **recusado** pelo classificador de modo automático, motivo
+`[Production Reads]`. A recusa diz valer para o resultado, não só para aquele comando, então não
+tentei contorno nenhum — nem túnel, nem variável, nem MCP.
+
+Consequência prática, e é pequena: `_location_state_channel_check` **em `trip_stop_events`** fica
+fora da T1.2 até alguém com acesso rodar
+
+```sql
+select count(*) from trip_stop_events where latitude is not null and channel <> 'driver_app';
+```
+
+Zero → o CHECK entra junto. Diferente de zero → ou ele não entra naquela tabela, ou a migration
+precisa de uma decisão de produto sobre as linhas antigas. **Nada mais da Fase 1 depende disso**: as
+três tabelas novas e todo o resto da T1.2 seguem.
+
+### Gates desta task
+
+| Gate                                       | Resultado                                    |
+| ------------------------------------------ | -------------------------------------------- |
+| `bun run typecheck` (api)                  | exit 0                                       |
+| `bun run lint` (api)                       | exit 0                                       |
+| `prettier --check` nos dois arquivos       | "All matched files use Prettier code style!" |
+| `test ./test/trip-schema.contract.test.ts` | 147 pass / 15 fail — vermelho pretendido     |
+
+## T1.2 — as três tabelas de ocorrência e status passam a carimbar onde o evento aconteceu
+
+As cinco colunas, os oito CHECKs e o índice parcial entraram em `trip_status_events`,
+`trip_stop_occurrences` e `trip_document_occurrences`. A estrutura partilhada mora em
+`src/database/event-location.schema.ts` como **três fábricas**, não como constante de módulo:
+`buildEventLocationColumns()`, `buildEventLocationChecks({ columns, coordinateChannel,
+statefulChannels, tableName })` e `buildEventLocationIndex({ latitude, tableName, timeColumn })`.
+
+### Por que fábrica, e não uma constante espalhada com spread
+
+A primeira forma óbvia — um `const EVENT_LOCATION_COLUMNS = { latitude: numeric(...), ... }`
+espalhado nas três `pgTable` com `...` — é defeito silencioso. O builder do Drizzle é **mutável**:
+ele recebe o nome e o `build()` da tabela que o consumiu. Compartilhar a mesma instância entre três
+tabelas faz a terceira sobrescrever o que as duas primeiras configuraram, e nada falha em voz alta.
+A estrutura partilhada precisa ser função chamada uma vez por tabela.
+
+Dois detalhes do mesmo arquivo, pelo mesmo motivo de ciclo e de ordem de avaliação:
+
+- `tableName` entra como **texto**, não via `getTableName`: dentro do segundo argumento da
+  `pgTable` a tabela ainda não existe, e o nome volta vazio.
+- os canais entram por **parâmetro** (`coordinateChannel`, `statefulChannels`) em vez de um import
+  de `TRIP_FIELD_CHANNELS` — o import fecharia ciclo com `trip.schema.ts`.
+- `raw` é helper local, não import do Drizzle: `trip.schema.ts:213` já declara o seu, e importar de
+  lá fecharia o mesmo ciclo.
+
+### A migration não tem `UPDATE`, e o nome da pasta é deliberado
+
+`drizzle/20261002033125_occurrence_location_stamp/` — 98 linhas, 66 statements separados por
+`--> statement-breakpoint`, nessa ordem: 15 `ADD COLUMN` agrupados por tabela, 24 CHECKs cada um
+`ADD CONSTRAINT ... NOT VALID` seguido do seu `VALIDATE CONSTRAINT` em comando separado, e os 3
+`CREATE INDEX ... WHERE "latitude" is not null` por último.
+
+Duas coisas que o `plan.md` e o `tasks.md` diziam errado e foram corrigidas na mesma passada:
+
+1. **Nenhum `UPDATE`.** O `UPDATE ... SET location_state = 'captured'` de `trip_stop_events` já
+   saiu na migration irmã (`20261001123700_event_location_stamp`), e as três tabelas desta task
+   nascem sem uma linha com coordenada — não há o que carimbar.
+2. **A pasta não pode terminar em `_event_location_stamp`.** É por esse sufixo que
+   `test/database-migration/static-migration.contract.ts:1845-1928` recorta o bloco da migration
+   irmã; duas pastas com ele fariam cada asserção daquele bloco valer para a pasta errada. O
+   sufixo escolhido (`_occurrence_location_stamp`) mantém os dois recortes disjuntos.
+
+O CHECK de consistência ficou na forma **nula-segura**, e isso não é estilo:
+
+```sql
+CHECK (("location_state" is not distinct from 'captured') = ("latitude" is not null))
+```
+
+A redação anterior do `plan.md` abria com `location_state is null or (...)`. CHECK que avalia `NULL`
+**passa** em Postgres, então a forma antiga aceitava exatamente a linha que ela diz barrar —
+coordenada gravada com estado nulo. `test/trip-schema/event-location.contract.ts:78,150` prende isso
+com `expect(checkSql).not.toContain('is null or')` no CHECK de consistência.
+
+`NOT VALID` + `VALIDATE CONSTRAINT` separado também é escolha de lock: `ADD CONSTRAINT` que valida
+toma ACCESS EXCLUSIVE com varredura cheia, enquanto `VALIDATE CONSTRAINT` toma só SHARE UPDATE
+EXCLUSIVE e não bloqueia leitura nem escrita. `CREATE INDEX CONCURRENTLY` fica fora de alcance: não
+roda dentro de bloco de transação, e o migrador aplica cada pasta numa transação.
+
+O `rollback.sql` (85 linhas) desce na ordem inversa — índice, constraint, coluna — sem `CASCADE`,
+com o aviso de perda de dado e o de ordem (**reverter a API antes**, senão a escrita falha 42703) no
+topo, e fecha com o bloco `DO $$ ... GET DIAGNOSTICS ... IF deleted_migrations <> 1 THEN RAISE
+EXCEPTION` que o contrato estático exige para a remoção do registro de migration.
+
+### O Docker estava fora, e a substituição está declarada
+
+`make migration-test` é `postgres-up` + `db:test` (`Makefile:206-209`), e o `postgres-up` não subiu:
+`Cannot connect to the Docker daemon at unix:///Users/anderson.filho/.docker/run/docker.sock`. Rodei
+o `db:test` — os oito arquivos listados em `apps/api-transportada/package.json:24` — contra um
+cluster **nativo descartável** do Homebrew (`/opt/homebrew/opt/postgresql@18/bin`,
+`PostgreSQL 18.4 (Homebrew) on aarch64-apple-darwin25.4.0`) em `/private/tmp/claude-502/pg-mig-196`,
+porta `65490`, `--auth=trust`, banco `transportada_migration`. O cluster foi parado e apagado depois.
+
+Isso **não é** o caminho que o Makefile prescreve, e está escrito aqui para quem revisar não
+confundir: a suíte é a mesma e o Postgres é a mesma major, mas o contêiner do `compose.yaml` não
+participou desta medição.
+
+### Um defeito achado pela execução, de outra spec, commitado à parte
+
+A primeira execução do `db:test` deu **1 fail de 114**, e não era da 196:
+`test/database-migration/delivery-proof-contractor-overrides.assertion.ts:76` (spec 218) afirmava
+SQLSTATE `23503` para uma sonda de `ON DELETE RESTRICT`. O Postgres 18 responde `23001`
+(`restrict_violation`); versões anteriores, `23503`. O irmão
+`cte-profile-output-constraints.assertion.ts` já aceitava os dois — era o modelo, não o perigo.
+Corrigido para aceitar o par, commitado **sozinho** em `0659a481b`, fora do lote da T1.2.
+
+A falha disparou **depois** de `runDatabaseMigrations` passar, o que já dizia o principal: a migration
+da 196 aplicou, restringiu, reverteu e reaplicou corretamente desde a primeira execução.
+
+### Portões
+
+| Portão                                                      | Resultado                                                                               |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bun run typecheck` (api)                                   | exit 0                                                                                  |
+| `test ./test/trip-schema.contract.test.ts`                  | **162 pass · 0 fail · 649 expect()** — eram 147 pass / 15 fail na T1.1 vermelha         |
+| `DESTRUCTIVE_MIGRATION_PATTERN` sobre a `migration.sql`     | nenhuma correspondência, em 66 statements                                               |
+| `bun run db:generate`                                       | `{"status":"no_changes","dialect":"postgresql"}`                                        |
+| `test ./test/database-migration.contract.test.ts`           | **74 pass · 4 skip · 0 fail · 869 expect()** (os 4 skips são os dois `.integration.js`) |
+| `db:test` (equivalente do `make migration-test`, ver acima) | **114 pass · 0 fail · 1673 expect() · 8 arquivos · [26.19s]**                           |
+
+`schema-snapshot.contract.ts` está dentro da terceira linha — conferido no entrypoint, não presumido.
+O `no_changes` do `db:generate` apesar da ordem de statements escrita à mão tem explicação: o
+drizzle-kit compara o schema TS contra o `snapshot.json`, nunca contra o texto do SQL.
+
+### O que continua bloqueado, e por quem
+
+Inalterado desde a T1.1: `_location_state_channel_check` **em `trip_stop_events`** segue fora, à
+espera de alguém com acesso rodar em produção
+
+```sql
+select count(*) from trip_stop_events where latitude is not null and channel <> 'driver_app';
+```
+
+Staging deu zero (39 linhas, 37 com coordenada, 0 fora do `driver_app`). Produção foi recusada pelo
+classificador, motivo `[Production Reads]`. **Nada das três tabelas desta task depende disso.**
+
+### A pasta foi conferida contra `origin/staging`, e a ordem não importa aqui
+
+`git ls-tree origin/staging apps/api-transportada/drizzle/` não tem `20261002033125` nem qualquer
+pasta com o sufixo `_occurrence_location_stamp` — sem colisão de nome. Mas staging **já tem**
+`20261002120000_trip_canhoto_read_job`, de outra sessão, com timestamp **posterior** ao meu: depois do
+rebase a minha migration fica fora de ordem no meio da lista.
+
+Isso seria defeito no migrador antigo, que comparava `folderMillis` contra o `created_at` da última
+migration aplicada e **pularia em silêncio** a pasta com timestamp menor. Não é o caso aqui. No
+`drizzle-orm@1.0.0-rc.4`, `getMigrationsToRun` (`migrator.utils.js:11-15`) filtra por **conjunto de
+nomes**:
+
+```js
+const dbNamesSet = new Set(dbMigrations.map((m) => m.name).filter((n) => n !== null))
+return localMigrations.filter((lm) => !lm.name || !dbNamesSet.has(lm.name))
+```
+
+Pasta cujo nome não está no journal roda, qualquer que seja o timestamp. E `assertMigrationsAreComplete`
+(`migration-completeness.service.ts`) confere o mesmo conjunto depois do `migrate()`, então um pulo
+reprovaria o pre-deploy em voz alta em vez de passar com o banco pela metade. **Nenhum rename é
+necessário.**
+
+### Adendo — o `make migration-test` prescrito rodou, com o Docker de volta
+
+O daemon voltou com `open -a Docker` (10 s até responder, `28.5.1`), e aí o caminho do Makefile rodou
+inteiro, sem substituição nenhuma:
+
+```
+make migration-test
+ Container transportada-local-postgres-1  Healthy
+ 114 pass · 0 fail · 1673 expect() calls · 8 arquivos · [34.10s]
+```
+
+Mesmo número do cluster nativo, agora no Postgres do `compose.yaml`. A medição com cluster nativo
+acima fica registrada como o que foi feito antes, não como equivalência que ninguém conferiu.
+
+## T1.3 — a auditoria de leitura, antes de qualquer escrita de ponto
+
+### A auditoria dos onze leitores: nenhum devolve a linha inteira
+
+Os leitores que o `plan.md` § API — leitura manda conferir — `contractor-occurrence.query.ts`,
+`trip-occurrence-feed.query.ts`, `drizzle-occurrence-case.repository.ts`,
+`occurrence-case-marker.query.ts`, `drizzle-occurrence-statement.repository.ts`,
+`drizzle-occurrence-settlement.repository.ts`, `drizzle-occurrence-settlement-charge.repository.ts`,
+`drizzle-redelivery-proposal.repository.ts`, `drizzle-redelivery-application.repository.ts`,
+`drizzle-office-occurrence-batch.repository.ts`, `drizzle-occurrence-attachment.repository.ts` e
+`dispatch-readiness.query.ts` — foram varridos por `\.(select|selectDistinct)\(\)`: **nenhuma
+ocorrência**. Todos projetam coluna a coluna, então nenhum passa a projetar nada nesta task.
+
+Um spread de linha existe, e não está em nenhuma dessas respostas:
+`trip-occurrence-feed.query.ts:589` faz `rows.map(({ nfeDocumentId, totalValue, tripDocumentId,
+...row }) => ({ ...row, ... }))`. O feed é leitor permitido da 195 — e permitido **só para
+`location_state`**. Enquanto a projeção dele não nomear coordenada, o spread não tem o que vazar; e
+se alguém nomear, a lista por coluna reprova (provado por mutação abaixo).
+
+### A lista é por coluna, não por arquivo
+
+`src/trips/application/event-location-readers.constant.ts` declara
+`EVENT_LOCATION_POSITION_COLUMNS`, `EVENT_LOCATION_TABLE_IDENTIFIERS`, `EVENT_LOCATION_READERS`
+(caminho + colunas + motivo) e `EVENT_LOCATION_FORBIDDEN_RESPONSES`.
+
+Escopo por coluna porque arquivo não é a unidade certa do problema: o feed da 195 **vê o estado e não
+pode ver o ponto**, e uma lista por arquivo diria sim para os dois. A outra razão apareceu na
+varredura: `capturedAt` entra sozinho em quatro leitores
+(`drizzle-driver-field-report.repository.ts`, `drizzle-current-driver-trip.repository.ts`,
+`drizzle-driver-score.repository.ts` e parte do comprovante) porque ali ele é **instante**, não
+ponto — `coalesce(captured_at, recorded_at)` para ordenar e medir pontualidade. Lista por arquivo
+obrigaria a liberar coordenada junto com tempo, ou a reprovar código que não lê coordenada nenhuma.
+
+Os nove leitores permitidos hoje, e o que cada um pode ver:
+
+| leitor                                      | colunas               | por quê                                       |
+| ------------------------------------------- | --------------------- | --------------------------------------------- |
+| `trip-timeline-stop.query.ts`               | as cinco              | ponto do evento na linha do tempo             |
+| `trip-timeline-status.query.ts`             | as cinco              | idem (Fase 4)                                 |
+| `trip-timeline-document.query.ts`           | as cinco              | idem (Fase 4)                                 |
+| `delivery-proof-read.support.ts`            | as cinco              | comprovante: ponto do comprovante e da parada |
+| `drizzle-delivery-proof.repository.ts`      | lat, long, capturedAt | distância entre os dois pontos                |
+| `trip-occurrence-feed.query.ts`             | só `locationState`    | feed da 195 — estado, nunca ponto             |
+| `drizzle-driver-field-report.repository.ts` | só `capturedAt`       | instante do relato                            |
+| `drizzle-current-driver-trip.repository.ts` | só `capturedAt`       | instante da chegada                           |
+| `drizzle-driver-score.repository.ts`        | só `capturedAt`       | instante para pontualidade                    |
+
+A varredura é por **tabela qualificada** (`tripStopEvents.latitude`), e isso é decisão, não preguiça:
+`latitude` solta aparece em 85 arquivos de `src/` — geocodificação, pedágio, endereço de cliente,
+centroide de município, OSRM — nada disso é posição de evento. Recorte largo viraria ruído, e ruído
+em contrato estático acaba desligado.
+
+### Provado por mutação, cinco sondas
+
+Verde de primeira não prova detector nenhum, então cada asserção levou uma sonda e foi vista
+reprovar. Depois de cada uma, `git checkout` do arquivo:
+
+| sonda                                                                                            | asserção que pegou                                             |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `tripStatusEvents.longitude` em `trip-valuation.query.ts` (fora da lista)                        | "nenhum arquivo fora da lista referencia coluna de posição"    |
+| `tripStopOccurrences.latitude` em `trip-occurrence-feed.query.ts` (leitor de `locationState` só) | "leitor da lista só referencia as colunas que a lista lhe deu" |
+| `tripStopOccurrences.latitude` em `contractor-occurrence.query.ts`                               | "nenhuma delas referencia coluna de posição"                   |
+| `queryable.select()` em `occurrence-case-marker.query.ts`                                        | "nenhuma delas usa `select()` sem projeção"                    |
+| `{ ...row, extra: 1 }` em `occurrence-case-marker.query.ts`                                      | "nenhuma delas espalha a linha do banco"                       |
+
+As três primeiras rodaram juntas (**167 pass · 3 fail**), as duas últimas juntas (**168 pass ·
+2 fail**), cada falha com a mensagem nomeando arquivo e coluna. Sem sonda: **170 pass · 0 fail**, oito
+testes novos sobre os 162 da T1.2.
+
+O contrato negativo prova por **estrutura**, não por palavra: projeção explícita + nenhum `select()`
+cru + nenhum spread de linha, as três juntas, fazem a resposta não ter como carregar o ponto. Afirmar
+só "o arquivo não contém a palavra latitude" seria contrato de parede.
+
+### O `.env.test` não existia neste worktree, e a integração estava pulando
+
+Este worktree foi criado pelo app do Claude, não por `make worktree` — e por isso **não tinha `.env`
+nem `.env.test`**. A primeira execução de `bun --env-file=../../.env.test run test:integration`
+devolveu **91 pass · 721 skip · 3 fail**, com `A PostgreSQL test URL is required`: o
+`--env-file` apontava para arquivo inexistente, a URL vinha `undefined`, e 721 testes viraram
+`test.skip` — exatamente o "pular não é passar" que o `CLAUDE.md` avisa, por um caminho que o aviso
+não cobria (ele fala da flag ausente, não do arquivo ausente).
+
+Corrigido como o `make worktree` faz: link simbólico de `.env` e `.env.test` para o checkout
+principal. Os dois são `.gitignore` (`.env`, `.env.*`), então não entram em commit nenhum.
+
+Isso também diz o que **não** vale deste worktree até aqui: toda execução de contrato segue válida
+(não tocam banco), mas qualquer "integração verde" anterior a este ponto, nesta árvore, não exercitou
+o banco.
+
+### Portões da T1.3
+
+| Portão                                     | Resultado                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `bun run typecheck` (api)                  | exit 0                                                                      |
+| `bun run lint` (api)                       | exit 0                                                                      |
+| `prettier --write` nos três arquivos       | aplicado, sem pendência                                                     |
+| `test ./test/trip-schema.contract.test.ts` | **170 pass · 0 fail · 658 expect()** — +8 sobre os 162 da T1.2              |
+| contrato inteiro da API (`bun test`)       | **8503 pass · 32 skip · 0 fail · 27423 expect() · 192 arquivos · [18.67s]** |
+| integração da API (`run test:integration`) | **795 pass · 8 skip · 1 fail · 4913 expect() · 804 testes · [1154.37s]**    |
+
+O 1 fail da integração **não é verde disfarçado, e não é da T1.3**:
+`company-user-listing.integration.ts > publica a ficha de motorista e o veículo atribuído` estourou o
+teto de 120 s (`this test timed out after 120000ms`), sem asserção nenhuma falhando. O mesmo arquivo,
+sozinho, dá **10 pass · 0 fail · [16.95s]** — é a carga de 145 arquivos no mesmo Postgres, o padrão
+que `integracao-local-nao-e-evidencia-sob-disputa` já registrou. Listagem de usuário e vínculo de
+frota não encostam em nenhuma das cinco tabelas de evento nem na lista de leitores.
+
+A T1.3 não altera caminho de execução nenhum: o `constant.ts` é importado só pelo contrato. A
+integração entra aqui como prova de que nada regrediu, não como prova do que a task faz — essa é a
+mutação.
+
+## T2.1 — os contratos do expurgo nas cinco tabelas
+
+Executada por subagente `executor` em `sonnet`, como a Fase 2 pede, com os gates rodados por mim
+depois — relatório de agente não é evidência.
+
+### O que entrou
+
+Três arquivos em `apps/worker-transportada/test/trip-location-purge/`, importados pelo entrypoint
+`test/trip-location-purge.contract.test.ts` (o `package.json` já lista o entrypoint, então nada a
+registrar lá):
+
+- `stamped-schema.contract.ts` — as cinco tabelas na cópia por valor do worker, com os tipos SQL da
+  API (`numeric(10, 7)`, `numeric(10, 2)`, `timestamptz`, `varchar(16)`).
+- `stamped-tables.contract.ts` — `TRIP_LOCATION_STAMPED_TABLES` (as cinco, cada uma com sua coluna de
+  tempo) e `TRIP_LOCATION_UNSTAMPED_TABLES` (as sete exclusões do D8, cada uma com motivo), mais a
+  paridade.
+- `batch-ceiling.contract.ts` — teto por tabela e `exhaustedTables`/`redactedByTable` no log.
+
+O `batch-ceiling` **dirige a rotina real** (`createTripLocationPurgeRoutine`) com redatores
+roteirizados que contam chamadas, e lê o log `trip_location_purge_cycle_finished`. É contrato de
+comportamento, não de parede.
+
+A paridade lê o **texto** de `apps/api-transportada/src/database/*.schema.ts`, nunca importa a API —
+é o molde que `schema-parity.contract.ts:16` já usava para `TRIP_TRACKING_MAX_AGE_HOURS`.
+
+### O detector de posição é o que dá peso à paridade
+
+Paridade com detector cego passa vazia e não avisa nada. O detector casa
+`latitude: numeric(` **ou** `...buildEventLocationColumns()` — o spread que a T1.2 criou, sem o qual
+as três tabelas novas ficariam invisíveis. Dois testes o prendem: um sobre schema sintético (afirma
+que ele vê a coluna própria e o spread **e só eles**) e um sobre as tabelas reais.
+
+### Conferi a satisfatibilidade por mim, não pelo relatório
+
+Rodei o mesmo recorte do detector sobre `src/database/*.schema.ts` da API e cruzei com as doze
+tabelas das duas listas:
+
+```
+ok      estrito  client_delivery_addresses     ok      estrito  trip_delivery_proofs
+FORA    SÓ-LARGO fleet_drivers                 ok      estrito  trip_document_occurrences
+ok      SÓ-LARGO geocoded_address_corrections  ok      estrito  trip_location_pings
+ok      estrito  geocoded_addresses            ok      estrito  trip_status_events
+ok      estrito  municipality_centroids        ok      estrito  trip_stop_events
+ok      estrito  toll_booths                   ok      estrito  trip_stop_occurrences
+```
+
+Toda tabela que o detector estrito enxerga está coberta — a asserção de paridade é **satisfazível**,
+não vermelha para sempre.
+
+### Uma lacuna do D8, achada pela varredura e deixada aberta de propósito
+
+Com um detector **largo** (qualquer coluna cujo nome contenha `latitude`), aparece
+`fleet_drivers.home_latitude` — a coordenada da casa do motorista, PII, comentada como tal no schema
+— **fora das duas listas**. `geocoded_address_corrections` também só aparece no largo
+(`previous_latitude`, `new_latitude`), mas essa já está nas exclusões.
+
+Não mexi: o D8 diz "tabela com `latitude`", a casa do motorista é cadastro (como
+`client_delivery_addresses`, que está nas exclusões) e não tem prazo de noventa dias. Mas o guarda
+que o D8 quer ser — "coordenada nova que ninguém listou não passa em silêncio" — **não cobre** uma
+coluna futura chamada `pickup_latitude` ou `home_latitude`. Fechar isso é emenda ao D8: detector
+largo + `fleet_drivers` nas exclusões com motivo. Fica como pergunta ao usuário, não como decisão
+minha.
+
+### O que a T2.2 vai ter de mexer, e ninguém tinha anotado
+
+1. `schema-parity.contract.ts` afirma `workerColumns.length` **igual a 9** — número que muda com as
+   três tabelas novas. Teste verde hoje que fica vermelho pela razão certa amanhã.
+2. `purge.contract.ts` e `stale-pings.contract.ts` montam a rotina só com `redact`,
+   `redactProofLocations` e `purgeStalePings`; vão precisar dos três redatores novos quando a rotina
+   os exigir.
+3. O teto **já não era global**, ao contrário do que o `plan.md` diz: os três laços de
+   `trip-location-purge.routine.ts` já têm contador próprio. O que é global é o `exhausted` do log —
+   um booleano que olha só o laço de `trip_stop_events`.
+4. Os nomes das dependências novas ficaram pinados em `batch-ceiling.contract.ts`:
+   `redactStatusEventLocations`, `redactStopOccurrenceLocations`,
+   `redactDocumentOccurrenceLocations`, todos `RedactTripLocations`.
+5. `exhausted` por tabela ficou no **log** (`redactedByTable`, `exhaustedTables`), não em `counters`:
+   `JobRoutineResult.counters` só aceita número, e o `plan.md` fala do log.
+6. `location_state` em `tripStopEvents` **já existia** na cópia do worker
+   (`trip-execution.schema.ts:17`); o contrato cobre e está verde.
+
+### Portões
+
+| Portão                                             | Resultado                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `bun run typecheck` (worker)                       | exit 0                                                          |
+| `bun run lint` (worker)                            | exit 0                                                          |
+| `test ./test/trip-location-purge.contract.test.ts` | **17 pass · 13 fail · 82 expect()** — vermelho pretendido       |
+| app inteira (`bun run test`)                       | **1464 pass · 13 fail · 3853 expect() · 94 arquivos · [6.45s]** |
+
+As 13 falhas, uma a uma: três de schema (as tabelas novas não existem na cópia do worker), seis das
+listas (as duas constantes não existem), quatro de teto/log (a rotina não chama os redatores novos e
+o log não tem `exhaustedTables`/`redactedByTable`). Nenhuma é de import, de tipo ou de arquivo não
+registrado — o typecheck em exit 0 é a prova disso.
+
+## T2.2 — o expurgo passa a varrer as cinco tabelas
+
+Executada por subagente `executor` em `sonnet`; gates conferidos por mim depois.
+
+### O que entrou
+
+- `src/database/trip-execution.schema.ts`: as três tabelas novas, cópia por valor dos tipos da
+  migration da API. `location_state` em `tripStopEvents` já existia.
+- `trip-location-purge.constant.ts`: as duas listas do D8 e as constantes dos nomes das cinco tabelas
+  (a regra de string repetida 2+ vezes).
+- `trip-location.port.ts`: `RedactStatusEventLocations`, `RedactStopOccurrenceLocations`,
+  `RedactDocumentOccurrenceLocations`, no molde de `RedactDeliveryProofLocations`.
+- `drizzle-trip-location.repository.ts`: três redatores sobre um helper privado
+  `redactLocatedEventRows` — `id` em lote pelo índice parcial, zera as quatro colunas, marca
+  `expired`. O de `trip_stop_events` já marcava.
+- `trip-location-purge.routine.ts`: `redactTable` roda cada tabela com o próprio teto, em `try/catch`
+  por tabela. O log do ciclo traz `redactedByTable`, `exhaustedTables` e `failedTables`; tabela que
+  falha sai em `trip_location_purge_table_failed`, nível error, **só com `table` e `sqlState`**.
+- `main.ts`: fiação dos três redatores (não estava no plano, virou obrigatório).
+- `schema-parity.contract.ts`: o número esperado de colunas de **9 para 24** (5 + 4 + 3×5),
+  igualdade exata — não virou `toBeGreaterThan`.
+- `table-isolation.contract.ts` (novo) e `trip-location-purge.integration.test.ts` estendido.
+
+### A mensagem do banco não entra no log, e isso é a regra, não zelo
+
+O erro de CHECK do Postgres **cita a linha que violou** — inclusive a coordenada. Por isso o log de
+falha leva `table` e `sqlState` (lido de `error.code` ou `error.cause.code`) e nunca a mensagem.
+Coordenada é dado pessoal e não entra em log em nenhum nível, `debug` incluído.
+
+### O isolamento foi provado, não afirmado
+
+`table-isolation.contract.ts` faz `redactStatusEventLocations` **lançar** um erro com
+`cause: { code: '42703' }` cuja mensagem contém uma coordenada, e afirma: o ciclo termina
+`succeeded`; as outras quatro tabelas rodam (duas chamadas cada); `failedTables` é
+`['trip_status_events']`; `redactedByTable` mostra as demais; e a coordenada não aparece em log
+nenhum.
+
+### Portões, conferidos por mim
+
+| Portão                       | Resultado                                                      |
+| ---------------------------- | -------------------------------------------------------------- |
+| `bun run typecheck` (worker) | exit 0                                                         |
+| `bun run lint` (worker)      | exit 0                                                         |
+| `bun run test` (app inteira) | **1480 pass · 0 fail · 3958 expect() · 94 arquivos · [6.79s]** |
+| `make worker-integration`    | **146 pass · 1 fail · 682 expect() · 33 arquivos · [11.84s]**  |
+
+As 13 vermelhas da T2.1 ficaram verdes e os 1464 que já passavam continuam passando (1464 + 13 + 3
+novos de isolamento = 1480). Nenhum dos três contratos da T2.1 foi editado — `git status` confirma.
+
+**O 1 fail é do OSRM e não é da T2.2**, provado por grafo de imports, não por opinião:
+`osrm-routing-matrix.integration.test.ts` importa exatamente dois módulos de produção —
+`routing/infrastructure/osrm-routing-matrix.gateway.ts` e `routing/domain/routing-matrix.error.ts` — e
+`grep -c 'trip-location-purge\|trip-execution'` nos dois dá **0**. A asserção espera 4511,2 m (a grade
+sintética) e recebeu **1 143 650 m**: é um OSRM com extrato do mundo real respondendo na porta, não a
+grade — ambiente, de outra sessão. O Makefile diz que esses testes **pulam** sem
+`routing-fixture` + `routing-up`; aqui não pularam porque alguém subiu um.
+
+### Uma pegadinha de invocação, para quem repetir a medição
+
+`bun --env-file=../../.env test ./test/trip-location-purge.integration.test.ts` **falha**, com
+`column "latitude" of relation "trip_status_events" does not exist` (`42703`). Não é defeito: o
+`make worker-integration` provisiona um banco descartável e roda `db:migrate` da API nele antes de
+testar (`Makefile:341-348`); o comando solto usa o banco de dev, que não tem a migration. O aceite da
+T2.2 é o `make`, não o comando solto — e de passagem o erro é exatamente o `42703` que o isolamento
+por tabela tolera.
+
+### Decisões tomadas e deixadas abertas
+
+- `counters` **não** ganhou chave nova: `purge.contract.ts` e `stale-pings.contract.ts` fazem
+  `toEqual` exato em `{batches, purgedPings, redacted, redactedProofs}`, e os números das tabelas novas
+  vivem no log (`redactedByTable`), como o `plan.md` manda.
+- Falha de tabela **não muda o `outcome`** do job: o catálogo tem `failureOutcomes: []`, então a falha
+  aparece em `failedTables` e no log de erro. Fica anotado como item de observabilidade, não resolvido.
+
+## T2.3 — o expurgo nasce desligado (D11)
+
+Pedido do usuário em 2026-10-02, no meio da execução: "o expurgo por enquanto é para ficar desligado
+para tudo, isso deve ficar em uma página de configuração". "Para tudo" inclui o rastro ao vivo da
+spec 158, que já rodava em produção.
+
+> **Emenda de 2026-10-03 (decisão do usuário):** o rastro ao vivo **saiu** do interruptor. Desligado
+> suspende só o expurgo de 90 dias das cinco tabelas; `purgeStalePings` (36 h) roda sempre, antes do
+> desvio, e o ciclo desligado conta `purgedPings`. O texto abaixo descreve a primeira versão.
+
+⚠️ **Isto suspende a proteção de noventa dias que a LGPD motivou** (ADR-0045 §3.3). Está aqui por
+escrito porque é decisão de produto, não descuido de implementação, e porque quem auditar depois
+precisa achar a decisão e a data sem escavar histórico de conversa.
+
+### O que entrou
+
+- `src/config/environment.schema.ts`: `TRIP_LOCATION_PURGE_ENABLED`, `z.enum(['true','false'])`,
+  padrão `'false'`, no molde de `FOUNDATION_SYNTHETIC_CONSUMER_ENABLED`. Exposta como
+  `tripLocationPurgeEnabled`.
+- `src/shared/worker.types.ts`: o campo no tipo `WorkerEnvironment`.
+- `trip-location-purge.routine.ts`: `enabled` **obrigatório** nas dependências e saída antecipada
+  antes de qualquer leitura, com `trip_location_purge_disabled` e contadores zerados.
+- `src/main.ts`: `enabled: config.tripLocationPurgeEnabled`.
+- `.env.example`: a variável declarada, com o comentário do que ausente significa.
+- `test/trip-location-purge/disabled-switch.contract.ts` (novo, 6 testes) e os sete sítios que montam
+  a rotina passaram a declarar `enabled: true` — **nenhuma asserção tocada**.
+
+### Por que `enabled` é obrigatório, e não opcional com padrão
+
+Opcional com padrão ligado deixa uma fiação esquecida apagando coordenada em silêncio; opcional com
+padrão desligado faz o esquecimento virar "o expurgo não roda e ninguém sabe por quê". Obrigatório
+transforma os dois casos em erro de compilação. O custo é declarar `enabled: true` em sete sítios de
+teste, pago uma vez.
+
+### Desligado significa não ter lido, não "não ter achado"
+
+Uma rotina que roda tudo e não encontra linha venceria um contrato preguiçoso. O contrato conta
+**chamadas**: com `enabled: false`, a lista de redatores chamados tem de ser exatamente `[]` —
+inclusive `purgeStalePings`.
+
+### Provado por mutação, duas sondas
+
+| sonda                                          | o que reprovou                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| padrão do env de `'false'` para `'true'`       | "sem a variável no ambiente, o expurgo fica desligado"                  |
+| `if (!enabled)` virou `if (false && !enabled)` | os três testes de "desligado" (nenhum redator, contadores zerados, log) |
+
+As duas juntas: **35 pass · 4 fail**. Revertidas, **39 pass · 0 fail** no entrypoint do expurgo.
+
+### O contrato de ambiente quebrou por acerto
+
+`test/environment.contract.test.ts` faz `toEqual` **exato** no objeto de configuração inteiro, então
+chave nova reprova — é exatamente o que um contrato de ambiente deve fazer. Acrescentei
+`tripLocationPurgeEnabled: false` à expectativa; não afrouxei o `toEqual`.
+
+### Portões
+
+| Portão                    | Resultado                                                      |
+| ------------------------- | -------------------------------------------------------------- |
+| `bun run typecheck`       | exit 0                                                         |
+| `bun run lint`            | exit 0                                                         |
+| `bun run test` (app)      | **1486 pass · 0 fail · 3969 expect() · 94 arquivos · [6.36s]** |
+| `make worker-integration` | **146 pass · 1 fail** — o mesmo OSRM de ambiente, inalterado   |
+
+### Pendência que nasce daqui
+
+A **página de configuração do expurgo** (por empresa) é spec própria, a escrever **depois** da 196 —
+decisão do usuário na mesma conversa. Enquanto ela não existe, ligar o expurgo é mexer em variável de
+ambiente, e produção fica desligada.
+
+## T2.4 — o detector do D8 passa a enxergar coordenada de nome composto
+
+Aprovado pelo usuário em 2026-10-02, a partir da lacuna que a T2.1 registrou.
+
+O recorte era `latitude: numeric(` ao pé da letra, que é o que o D8 dizia. Ele via as doze tabelas das
+listas e **não via** `fleet_drivers.home_latitude` — a coordenada da casa do motorista, PII comentada
+como tal no schema. Agora o recorte é `[a-zA-Z]*[Ll]atitude\s*:\s*numeric\(` (mais o spread
+`...buildEventLocationColumns()`), e cobre `home_latitude`, `previous_latitude`, `new_latitude` e o
+`pickup_latitude` que alguém criar amanhã.
+
+`fleet_drivers` entrou em `TRIP_LOCATION_UNSTAMPED_TABLES` com motivo escrito: cadastro que vale
+enquanto o motorista está na frota, não o lugar onde ele esteve num instante — vive e morre com a
+ficha, não com prazo. Não entra no expurgo de noventa dias; entra na lista para que o guarda possa
+afirmar cobertura total.
+
+### Provado por mutação
+
+Tirando `fleet_drivers` da lista: **37 pass · 2 fail**, e a falha que importa é
+"toda tabela com `latitude` no schema da API está numa das duas listas", apontando `fleet_drivers`.
+Antes do alargamento essa mesma asserção **passava** sem ela — é exatamente o buraco fechado.
+
+O teste do detector sobre schema sintético também mudou de lado: antes afirmava que
+`withHomeCoordinate` **não** era enxergada; agora afirma que é. A asserção continua sendo igualdade
+exata de lista, não `toContain`.
+
+### Portões
+
+| Portão               | Resultado                                                      |
+| -------------------- | -------------------------------------------------------------- |
+| `bun run typecheck`  | exit 0                                                         |
+| `bun run lint`       | exit 0                                                         |
+| `bun run test` (app) | **1486 pass · 0 fail · 3972 expect() · 94 arquivos · [7.46s]** |
+
+## D3 revisto — o WhatsApp carrega ponto, não só estado
+
+Decisão do usuário em 2026-10-02, no meio da execução, respondendo à pergunta sobre o que o painel
+mostra quando o motorista avisa pelo WhatsApp: **"envia a localização pelo o whatsapp"**. Isso recusa a
+premissa da pergunta, não a escolhe — e desfaz a contradição que estava registrada como pendência.
+
+### O que a premissa antiga dizia, e por que estava errada
+
+O D3 afirmava que as três ações do WhatsApp do motorista gravam `unavailable` **sempre**, justificando
+com "o WhatsApp não envia a posição". Isso é falso sobre o protocolo — a Cloud API da Meta entrega
+mensagem do tipo `location` com latitude e longitude — e era falso sobre a intenção do produto.
+
+E **não** é defeito no código: hoje `register-driver-flow-actions.ts` crava `location: null` nos quatro
+caminhos (`:98`, `:106`, `:301`, `:347`). Aceitar a mensagem de localização é trabalho a fazer.
+
+### A contradição que isso resolve
+
+Estava registrada como pendência aberta: `event-location-state.policy.ts` recusava estado em
+`whatsapp`, `test/trip-domain/event-location-state.contract.ts:25-55` **proibia**, e
+`timeline-location.contract.ts:225` (painel) testava WhatsApp + `unavailable` em vermelho. Com o canal
+carregando ponto, o painel está certo nos dois casos — mapa quando a coordenada veio, vermelho quando
+não veio — e o contrato do domínio é que precisa inverter.
+
+### O custo, e por que ele é zero se for feito antes de publicar
+
+O CHECK de coordenada nasceu `"latitude" is null or "channel" = 'driver_app'` na migration
+`20261002033125_occurrence_location_stamp`. Conferido: ela **não está em `origin/staging`**. Corrigir o
+texto da migration não publicada é de graça; publicar antes custaria uma migration corretiva sobre um
+CHECK recém-criado.
+
+### Uma distinção que o banco não pode guardar
+
+Motorista e operador **compartilham o canal `whatsapp`**. Se o CHECK passa a permitir coordenada em
+`whatsapp`, ele deixa de ser o guarda de "o operador não grava ponto" — essa regra passa a viver no
+código, e precisa de contrato por rota (CA03). Trocar um guarda de banco por um guarda de código sem
+dizer é como a regra se perde.
+
+### Estado
+
+Documentação feita: D3, RF5, CA03 e CA04 revistos, e duas tasks abertas — **T1.4** (banco e domínio,
+antes de qualquer publicação) e **T3.6** (o webhook aceitando a mensagem de localização). Nenhum código
+alterado ainda.
+
+## A migration das três tabelas foi renomeada no rebase
+
+`20261002033125_occurrence_location_stamp` virou **`20261002153258_occurrence_location_stamp`**. As
+entradas **acima** deste ponto citam o nome antigo e são história: ficam como estão.
+
+Motivo: a migration `20261002120000_trip_canhoto_read_job` entrou em `origin/staging` com timestamp
+**posterior** ao da minha, e o `drizzle-kit` diffa contra o **último** snapshot — o de staging, sem as
+minhas colunas. O resultado era uma **bifurcação** (dois filhos do mesmo pai), e cinco contratos de cadeia
+de snapshots reprovaram, que é o trabalho deles.
+
+O conteúdo é o mesmo: o `migration.sql` e o `rollback.sql` escritos à mão (com `NOT VALID` +
+`VALIDATE CONSTRAINT`, que o gerador não sabe fazer) foram **copiados**, e só o `snapshot.json` é novo —
+gerado pelo `drizzle-kit` a partir do snapshot de staging, com `prevIds` = id dela. O `rollback.sql`
+ganhou o nome novo no `DELETE` do journal. `db:generate` = `no_changes`; `make migration-test` **115 pass ·
+0 fail**.
+
+## T3.1 — o carimbo inteiro sai de uma função só
+
+`trips/domain/event-location-stamp.policy.ts` (`resolveEventLocationStamp`, `NO_EVENT_LOCATION_STAMP`) e
+`event-location-stamp.types.ts`. A função recebe `{ channel, isDriverTap, location }` e devolve as cinco
+colunas prontas para o `INSERT`: `driver_app` e `whatsapp` **do motorista** com ponto → `captured` e as
+quatro colunas; sem ponto → `unavailable`; tudo o mais (derivado, operador pelo WhatsApp, `office`,
+`backoffice`, mesmo marcado como toque e com ponto na mão) → `null` nas cinco.
+
+⚠️ Divergência do plano, registrada: o `plan.md` dizia "`whatsapp` + toque do motorista → `unavailable`".
+Com o D3 revisto (2026-10-02) o WhatsApp também **carrega ponto**, então o ramo `whatsapp` com ponto
+devolve `captured`. O banco só passa a aceitar essa linha com a T1.4 (o CHECK de coordenada ainda é
+`channel = 'driver_app'`); nenhum chamador desta rodada manda ponto pelo WhatsApp (T3.6), e a política
+não depende da T1.4 para estar certa. `event-location-state.policy.ts` **não foi tocada** (é da T1.4).
+
+Vermelho registrado: com o contrato importado e a política ausente,
+`Cannot find module '../../src/trips/domain/event-location-stamp.policy.js'` — `0 pass · 1 fail · 1 error`.
+
+### A contagem subiu
+
+| Suíte                               | Antes | Depois | Subiu em |
+| ----------------------------------- | ----- | ------ | -------- |
+| `test/trip-domain.contract.test.ts` | 363   | 395    | **32**   |
+| `bun test` da API (193 arquivos)    | 8728  | 8760   | **32**   |
+
+### Provado por mutação (dez sondas, todas reprovadas)
+
+| Mutação na política                                 | Falhas | Primeira asserção que cai                                     |
+| --------------------------------------------------- | ------ | ------------------------------------------------------------- |
+| M1 tirar a guarda de toque                          | 3      | `driver_app derivado ... grava tudo null`                     |
+| M2 tirar a guarda de canal                          | 3      | `office nunca grava ponto nem estado`                         |
+| M3 sem ponto devolve `null` em vez de `unavailable` | 2      | `driver_app sem ponto grava unavailable`                      |
+| M4 `captured` vira `unavailable`                    | 5      | `driver_app com ponto grava captured e as quatro colunas`     |
+| M5 precisão ausente vira `'0.00'`                   | 1      | `a precisão ausente continua ausente — nunca zero`            |
+| M6 tirar `whatsapp` dos canais de toque             | 3      | `whatsapp com ponto grava captured`                           |
+| M7 truncar o milissegundo de `capturedAt`           | 1      | `a hora da leitura vira instante, preservando o milissegundo` |
+| M8 trocar latitude por longitude                    | 2      | `driver_app com ponto grava captured e as quatro colunas`     |
+| M9 carimbo vazio com estado                         | 2      | `o carimbo vazio tem as cinco colunas, todas null`            |
+| M10 `office` entra nos canais de toque              | 2      | `office nunca grava ponto nem estado`                         |
+
+As invariantes (`captured` ⇔ coordenada, lat ⇔ long, precisão só com coordenada, `expired` nunca na
+escrita) passam por construção e são cobradas contra as 20 combinações canal × toque × ponto; elas
+ficam como guarda do banco, e as sondas acima já reprovam o que as violaria.
+
+### Portões
+
+| Portão                                    | Resultado                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                           |
+| `bun run lint`                            | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...` | **8760 pass · 23 skip · 0 fail · 28186 expect() · 193 arquivos** |
+
+## T3.2 — a fronteira HTTP do ponto do toque
+
+As cinco rotas do motorista que não aceitavam `location` passam a aceitá-lo: `dispatch`
+(`{ tripId, location? }`), `start-route` e `confirm-load` (corpo opcional — o `parse` deixou de ser
+`() => undefined`), a ocorrência da parada e a ocorrência da nota. Quatro arquivos de apresentação e uma
+constante:
+
+- `presentation/reported-location.schema.ts` (novo): `locationSchema` e `toReportedLocation` saíram de
+  `me-trip.schema.ts` para serem compartilhados com `occurrence.schema.ts`, e a precisão passa por
+  `Math.min(value, EVENT_LOCATION_ACCURACY_MAX_METERS)` antes de `toFixed(2)`;
+- `database/event-location.schema.ts`: `EVENT_LOCATION_ACCURACY_MAX_METERS = 99_999_999.99`, o maior valor
+  de `numeric(10,2)`. A conta vale para **todas** as rotas com ponto, inclusive as três que já existiam
+  (chegada, entrega, devolução) — antes, `1e12` metros estourava a coluna e virava `500`.
+
+⚠️ **Divergência do plano:** o `plan.md` previa `parseFieldTripStepRequest` (novo). Não criei: o corpo
+`{ location? }` com `parseOptionalBody` é exatamente `parseFieldReportRequest`, e uma segunda função com o
+mesmo schema e outro nome seria abstração de uso único.
+
+⚠️ **O `400` de `location` parcial pedia mais do que o schema dava.** O corpo da ocorrência da parada era um
+`z.union` (tipo do catálogo **ou** `kind`), e erro de união chega com `path` vazio: `location` parcial
+respondia `400`, mas com `details[].field = ''`. Troquei a união por um objeto `.strict()` com os dois
+opcionais mais um `.transform` que exige exatamente um — o mesmo conjunto de corpos aceitos, e agora o erro
+aponta `location.longitude`, `location.capturedAt`. O escritório continua com a união dele
+(`trip-field-office.schema.ts`), que **não** aceita `location`, que é o que se quer.
+
+Vermelho registrado antes da implementação (com o contrato importado e a constante já existente): **38 fail ·
+223 pass** de 261, pelos motivos certos — `location` desconhecida recusada com `400`, ponto não chegando ao
+caso de uso, precisão sem teto.
+
+### A contagem subiu
+
+| Suíte                             | Antes | Depois | Subiu em |
+| --------------------------------- | ----- | ------ | -------- |
+| `test/trip-http.contract.test.ts` | 209   | 267    | **58**   |
+| `bun test` da API (193 arquivos)  | 8760  | 8818   | **58**   |
+
+### Provado por mutação (toda a superfície nova)
+
+| Mutação                                                         | Falhas | Primeira asserção que cai                                               |
+| --------------------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| S1 tirar o teto da precisão                                     | 6      | `dispatch grava 1e12 metros no teto`                                    |
+| S2 teto como `.max()` no schema (viraria `400`)                 | 7      | `dispatch grava 1e12 metros no teto`                                    |
+| S3 `capturedAt` opcional                                        | 5      | `dispatch recusa location pela metade`                                  |
+| S4 `longitude` opcional                                         | 5      | `dispatch recusa location pela metade`                                  |
+| S5 tirar o `.strict()` de `locationSchema`                      | 5      | `dispatch recusa latitude fora da faixa e chave extra`                  |
+| S6 precisão sem `toFixed(2)`                                    | 6      | `dispatch leva o ponto até o caso de uso`                               |
+| S7 latitude sem faixa                                           | 6      | `dispatch recusa latitude fora da faixa e chave extra`                  |
+| P1 `dispatch` perde a `location` no retorno                     | 4      | `dispatch leva o ponto até o caso de uso`                               |
+| P2 `dispatch` com `location` sem schema                         | 3      | `dispatch recusa location pela metade`                                  |
+| P3 ocorrência da parada perde a `location`                      | 2      | `ocorrência da parada leva o ponto até o caso de uso`                   |
+| P4 ocorrência da parada com `location` sem schema               | 2      | `ocorrência da parada recusa location pela metade`                      |
+| P5 aceitar `kind` e tipo juntos                                 | 1      | `os dois juntos é 400 e nada é gravado`                                 |
+| P6 aceitar nenhum dos dois                                      | 2      | `os dois juntos é 400 e nada é gravado`                                 |
+| O1 ocorrência da nota perde a `location`                        | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| O2 ocorrência da nota com `location` sem schema                 | 2      | `ocorrência da nota recusa location pela metade`                        |
+| R1 `start-route`/`confirm-load` voltam a ignorar o corpo        | 10     | `start-route leva o ponto até o caso de uso`                            |
+| R2 `start-route`/`confirm-load` não repassam                    | 4      | `start-route leva o ponto até o caso de uso`                            |
+| R3 `dispatch` não repassa ao caso de uso                        | 4      | `dispatch leva o ponto até o caso de uso`                               |
+| R4 ocorrência da nota não repassa                               | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| R5 ocorrência da nota perde no `parse`                          | 2      | `ocorrência da nota leva o ponto até o caso de uso`                     |
+| E1a escritório: ocorrência (tipo do catálogo) aceita `location` | 1      | `ocorrência da parada (tipo do catálogo) do escritório recusa location` |
+| E1b escritório: ocorrência (`kind`) aceita `location`           | 2      | `ocorrência da parada do escritório recusa location`                    |
+| E2 escritório: chegada aceita `location`                        | 2      | `chegada do escritório recusa location`                                 |
+| E3 escritório: `confirm-load`/`start-route` aceitam `location`  | 5      | `start-route do escritório recusa location`                             |
+| E4 escritório: despacho aceita `location`                       | 1      | `despacho do escritório recusa location`                                |
+
+⚠️ A primeira sonda do escritório (E1) **sobreviveu**: mutei só o ramo do tipo do catálogo, e o contrato
+mandava o corpo do ramo `kind`. Acrescentei a variante `occurrenceTypeId` ao contrato e mutei os dois
+ramos separados (E1a, E1b) — ambos reprovam agora. Cada teste "recusa location" tem o par "sem location
+passa do parse" (chega na dependência, que lança `ROUTE_DEPENDENCY_NOT_EXPECTED`), para o `400` nunca ser
+efeito de outro campo.
+
+Também coberto: o `400` não repete a coordenada que o aparelho mandou (nem em `details`, nem em
+`message`).
+
+### Portões
+
+| Portão                                    | Resultado                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                           |
+| `bun run lint`                            | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...` | **8818 pass · 23 skip · 0 fail · 28472 expect() · 193 arquivos** |
+
+## T3.3 — o ponto desce até o banco, e só o toque do motorista o leva
+
+O carimbo da T3.1 agora é decidido uma vez e chega a cada escritor:
+
+| Toque                                 | Quem decide o carimbo                                     | Quem grava                                                                    |
+| ------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Despachar                             | `dispatchDriverTrip` (canal `driver_app`, sempre toque)   | `dispatchTrip` → `DrizzleTripRouteRepository` → `recordTripStatusChange`      |
+| Conferir carga / Iniciar rota         | `startFieldTrip` (só quando o alvo é o motorista)         | `DrizzleCurrentDriverTripRepository.updateStatus` → `recordTripStatusChange`  |
+| Ocorrência da parada                  | `reportStopOccurrence` via `resolveFieldTapLocationStamp` | `recordOccurrence` → `trip_stop_occurrences`                                  |
+| Ocorrência da nota                    | `registerDriverOccurrence` via o mesmo serviço            | `saveDocumentOccurrence` → `saveTripOccurrence` → `trip_document_occurrences` |
+| Chegada / entrega / devolução / saída | `recordEvent` (todo chamador é toque)                     | `resolveEventLocationStamp` no próprio repositório                            |
+
+- `application/field-tap-location-stamp.service.ts` (novo): o motorista é quem toca quando a viagem foi
+  achada pelo vínculo dele (`{ driverId }`, app **ou** WhatsApp); o escritório chega com `{ target }`.
+  Três casos de uso precisavam da mesma conta, e é isso que justifica o arquivo.
+- `recordTripStatusChange` ganhou `locationStamp?`; **ausente grava tudo `null`** (D4), então as dez
+  chamadas derivadas existentes não mudaram uma linha. As suítes citadas na task — `trip-status-write-guard`,
+  `trip-timeline`, `trip-lifecycle`, `trip-auto-dispatch` — rodaram contra Postgres **sem mudar expectativa**.
+- WhatsApp: `registerOccurrence`, `reportDelivery` e `reportReturn` do motorista usam o mesmo locator
+  `{ driverId, channel: 'whatsapp' }`, então gravam `unavailable` sem tocar em `main.ts`; o operador
+  (`dispatchTrip` e a ocorrência de separação) não passa carimbo e grava `null`.
+
+⚠️ **`recordEvent` deixou de usar `resolveEventLocationState`.** Era ele quem decidia o estado dos eventos
+de parada, e recusava o WhatsApp (a T1.4 vai invertê-lo). Para o WhatsApp do motorista gravar
+`unavailable` já nesta task, `recordEvent` passa pela política de carimbo, e as cinco colunas (não só o
+estado) saem dela — o escritório com ponto na mão passa a gravar tudo `null` em vez de depender do CHECK
+recusar. `event-location-state.policy.ts` **não foi tocada**; a foto do canhoto
+(`drizzle-delivery-proof.repository.ts`) continua nela. Depois da T1.4 as duas decisões coincidem e uma
+das duas pode sair.
+
+⚠️ **`dispatchDriverTrip` ganhou `location` obrigatório**, e o `dispatch` recebe `locationStamp`. Isso
+mudou o texto de `test/driver-trip/dispatch.contract.ts` (cinco chamadas ganham `location: null`, e a
+expectativa `toEqual` do repasse passou a incluir `locationStamp: unavailable` — é exatamente a mudança
+da task) e de `test/integration/me-trip.integration.ts` (sete chamadas). Nos demais casos de uso
+`location` é opcional: o escritório não tem ponto, e o item antigo da fila também não.
+
+⚠️ `startFieldTrip` só passa `locationStamp` à porta quando quem toca é o motorista. A primeira versão
+passava o carimbo vazio também para o escritório, e `test/field-trip-target/use-cases.contract.ts:338`
+(`toEqual` do que `updateStatus` recebe) reprovou — foi o contrato certo reprovando, e o caminho do
+escritório ficou **byte a byte** o que era.
+
+### Vermelho registrado
+
+Com os contratos novos importados e a implementação ausente: `test/driver-trip.contract.test.ts` **15 fail ·
+138 pass** de 153, e `test/trip-schema.contract.test.ts` **10 fail · 204 pass** de 214 — todos pelo motivo
+certo (a porta recebia `undefined` no lugar do carimbo; o `INSERT` não levava as colunas).
+
+### A contagem subiu
+
+| Suíte                               | Antes | Depois | Subiu em |
+| ----------------------------------- | ----- | ------ | -------- |
+| `test/driver-trip.contract.test.ts` | 137   | 153    | **16**   |
+| `test/trip-schema.contract.test.ts` | 199   | 219    | **20**   |
+| `test/composition.contract.test.ts` | 4     | 7      | **3**    |
+| `bun test` da API (193 arquivos)    | 8818  | 8857   | **39**   |
+
+### Provado por mutação
+
+| Mutação                                                         | Falhas | Primeira asserção que cai                                         |
+| --------------------------------------------------------------- | ------ | ----------------------------------------------------------------- |
+| D1 despacho com carimbo vazio                                   | 3      | `o dispatch pelo motorista ... passa pela mesma transição`        |
+| D2 despacho ignora o ponto                                      | 1      | `com ponto, o despacho recebe captured`                           |
+| D3 despacho não é toque                                         | 3      | `o dispatch pelo motorista ... passa pela mesma transição`        |
+| F2 serviço: ninguém carimba                                     | 10     | `confirmLoad do motorista com ponto grava captured`               |
+| F4 serviço: ponto ignorado                                      | 5      | `confirmLoad do motorista com ponto grava captured`               |
+| F5 serviço: `location` ausente não carimba                      | 4      | `confirmLoad do motorista sem ponto grava unavailable`            |
+| G1 `startFieldTrip` com carimbo vazio                           | 4      | `confirmLoad do motorista com ponto grava captured`               |
+| G2 `startFieldTrip` ignora o `location`                         | 2      | `confirmLoad do motorista com ponto grava captured`               |
+| G3 `startFieldTrip` passa carimbo também ao escritório          | 2      | `confirmLoad pelo escritório não leva carimbo`                    |
+| H1 ocorrência da parada com carimbo vazio                       | 4      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| H2 ocorrência da parada ignora o `location`                     | 2      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| I1 ocorrência da nota com carimbo vazio                         | 2      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| I2 ocorrência da nota ignora o `location`                       | 1      | `app com ponto grava captured; sem ponto grava unavailable`       |
+| J1 `recordTripStatusChange` não grava o carimbo                 | 5      | `o carimbo captured desce até o INSERT`                           |
+| K1 `updateStatus` não repassa o carimbo                         | 3      | `o carimbo do motorista desce até trip_status_events`             |
+| L1 `recordEvent` nunca é toque                                  | 3      | `app com ponto grava captured e as quatro colunas`                |
+| L2 `recordEvent` não grava o carimbo                            | 5      | `app com ponto grava captured e as quatro colunas`                |
+| L3 `recordOccurrence` não grava o carimbo                       | 3      | `a ocorrência da parada grava as cinco colunas do carimbo`        |
+| L4 `saveDocumentOccurrence` não repassa ao `saveTripOccurrence` | 2      | `o repositório do motorista leva o carimbo da ocorrência da nota` |
+| L5 `recordEvent` decide pelo canal fixo `driver_app`            | 2      | `office grava tudo null, mesmo com ponto na mão`                  |
+| M1 `saveTripOccurrence` não grava o carimbo                     | 2      | `a ocorrência da nota grava as cinco colunas do carimbo`          |
+| N1 `main.ts` não repassa o carimbo do despacho                  | 1      | `e repassa o carimbo que recebeu ao dispatchTrip`                 |
+
+Três sondas **sobreviveram e são equivalentes, não lacunas**: F1 (`isDriverTap: true` no serviço também
+para o escritório) e F3 (canal fixo `driver_app` no serviço) sobrevivem porque a política **repete** a
+guarda de canal — o escritório já zera ali —, e a reescrita de `?? null` como `=== undefined ? null : …`
+é a mesma expressão. L4 foi uma sobrevivente real: o repositório do motorista não repassava o carimbo ao
+`saveTripOccurrence`, e nenhum teste enxergava; ganhou o teste do repositório e a sonda reprova agora.
+
+⚠️ O que esta task **não** prova, e a T3.5 prova: o `dispatch` interno de `DrizzleTripRouteRepository`
+(que passa `locationStamp` a `recordTripStatusChange` dentro da transação do despacho, com `FOR NO KEY
+UPDATE`, snapshot e deslocamento de ETA) é grande demais para um dublê de transação sem virar teste do
+dublê; fica para o SQL real. A fiação de `main.ts` é uma varredura de **texto** (molde de
+`occurrence-persistence-wiring.contract.ts`): ela prova que a linha existe, não que o servidor sobe com
+ela — o comportamento é o do caso de uso, coberto acima.
+
+### Portões
+
+| Portão                                                                                                                                                  | Resultado                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck`                                                                                                                                     | exit 0                                                           |
+| `bun run lint`                                                                                                                                          | exit 0                                                           |
+| `bun --env-file=../../.env.test test ...`                                                                                                               | **8857 pass · 23 skip · 0 fail · 28525 expect() · 193 arquivos** |
+| integração: `me-trip`, `trip-status-write-guard`, `whatsapp-driver-flow-actions`, `trip-field-authorship`, `field-trip-target`, `stop-occurrence-photo` | **44 pass · 0 fail** (6 arquivos, 78,8 s)                        |
+| integração: `trip-lifecycle`, `trip-auto-dispatch` (+ concorrência), `trip-timeline`, `trip-occurrence-timeline`                                        | **64 pass · 0 fail** (5 arquivos, 112 s)                         |
+
+As duas linhas de integração rodaram **antes** do ajuste do `startFieldTrip` (carimbo só para o motorista,
+G3); esse ajuste só tira um objeto do caminho do escritório, e a integração **completa** da T3.5 reexecuta
+tudo contra o código final.
+
+## T3.4 — o inventário do D9: toque novo sem ponto reprova
+
+`test/trip-http/driver-location-stamp-inventory.contract.ts` (importado por
+`test/trip-http.contract.test.ts`). A lista de rotas vem das fábricas — `createMeTripRoutes` e as duas
+irmãs que também montam caminho sob `/me/trips/current` (`createMeLocationRoutes`,
+`createMeProofReceiverRoutes`) —, filtrada por `POST` e prefixo; não há texto de rota copiado de
+`main.ts`. Cada `POST` está na **tabela de amostras** (dez rotas, com o corpo mínimo válido) ou nas
+**exceções com motivo** (`/location`, `proof`, os quatro `occurrence-uploads`/`confirm` das notas e das
+paradas, e `stop-order-suggestions` da 192, marcada `whenPresent`).
+
+Para cada amostra o contrato decide "aceita `location`" **pelo comportamento**, em três disparos contra a
+rota real: sem `location` (a amostra passa do `parse`), com `location` válido (idem) e com `location`
+parcial (`400` com `details[].field` começando em `location`). Os três juntos fecham o buraco que um
+deles sozinho deixaria: uma rota `.strict()` que não conhece `location` recusa o válido; uma que ignora o
+corpo aceita o parcial.
+
+⚠️ **Divergência do plano:** o `plan.md` listava só `createMeTripRoutes`. A exceção `/location` mora em
+`createMeLocationRoutes`, e um `POST` novo escrito lá escaparia de um inventário que só olhasse a
+primeira. As três fábricas entram; `createMeProofReceiverRoutes` só tem `PATCH` e o filtro por método a
+deixa de fora.
+
+⚠️ **Sem implementação a escrever, o vermelho é a mutação.** A T3.2 já tinha ligado as cinco rotas; este
+contrato nasce verde e só vale se reprovar quando a regra quebra. As sondas abaixo são o registro disso, e
+o próprio contrato traz as três provas internas pedidas: uma rota falsa fora das duas listas reprova
+(`findUninventoried`), uma rota que ignora o corpo não passa por aceitar `location`, e uma rota estrita
+sem `location` também não — ao lado da rota honesta, que passa.
+
+Também prende a higiene das listas: amostra e exceção não se sobrepõem, toda exceção tem motivo escrito, e
+nenhuma entrada aponta para rota que não existe (salvo a marcada `whenPresent`).
+
+Os helpers de pedido (`driverContext`, `findRoute`, `send`, `expectInvalidRequest`) saíram do contrato da
+T3.2 para `test/fixtures/driver-route-request.fixture.ts`, porque os dois contratos os usam; o da T3.2
+continua com os mesmos 58 testes.
+
+### A contagem subiu
+
+| Suíte                             | Antes | Depois | Subiu em |
+| --------------------------------- | ----- | ------ | -------- |
+| `test/trip-http.contract.test.ts` | 267   | 286    | **19**   |
+| `bun test` da API (193 arquivos)  | 8857  | 8876   | **19**   |
+
+### Provado por mutação (14 sondas, todas reprovadas)
+
+| Mutação                                                              | Falhas | Primeira asserção que cai (no inventário)                             |
+| -------------------------------------------------------------------- | ------ | --------------------------------------------------------------------- |
+| T1 `depart`/`cancel-departure` perdem `location`                     | 2      | `toda amostra aceita location ... /stops/:stopId/depart`              |
+| T2 `return` perde `location`                                         | 1      | `toda amostra aceita location ... /documents/:documentId/return`      |
+| T3 `arrive`/`deliver`/`start-route`/`confirm-load` perdem `location` | 4      | `toda amostra aceita location ... /confirm-load`                      |
+| T4 `dispatch` perde `location`                                       | 1      | `toda amostra aceita location ... /dispatch`                          |
+| T5 ocorrência da parada perde `location`                             | 1      | `toda amostra aceita location ... /stops/:stopId/occurrences`         |
+| T6 ocorrência da nota perde `location`                               | 1      | `toda amostra aceita location ... /documents/:documentId/occurrences` |
+| T7 rota `POST` nova (`.../stops/:stopId/pause`) sem inventário       | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T8 `start-route` volta a ignorar o corpo                             | 2      | `toda amostra aceita location ... /confirm-load`                      |
+| T9 exceção de `proof` esquecida                                      | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T10 amostra do `dispatch` esquecida                                  | 2      | `toda rota POST sob a viagem atual está na tabela de amostras ...`    |
+| T11 exceção da 192 sem `whenPresent`                                 | 1      | `nenhuma entrada das duas listas aponta para rota que não existe`     |
+| T12 exceção sem motivo                                               | 1      | `toda exceção traz o motivo escrito`                                  |
+| T13 amostra repetida nas exceções                                    | 1      | `amostra e exceção não se sobrepõem`                                  |
+| T14 classificador nunca vê o `400` em `location`                     | 11     | `toda amostra aceita location ... /dispatch`                          |
+
+### Portões
+
+| Portão                                    | Resultado                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| `bun run typecheck`                       | exit 0                                                                 |
+| `bun run lint`                            | exit 0                                                                 |
+| `bun --env-file=../../.env.test test ...` | **8876 pass · 23 skip · 0 fail · 193 arquivos** (3 execuções seguidas) |
+
+## T3.5 — o ponto de cada toque contra o Postgres
+
+⚠️ **Divergência do plano:** a task previa `test/integration/event-location-stamp.integration.ts` como
+arquivo novo e uma linha nova em `test:integration`. O arquivo **já existia** (6 testes do estado de
+`trip_stop_events` e `trip_delivery_proofs`, escritos na primeira metade da Fase 1) e já está no script.
+Estendi o mesmo arquivo em vez de abrir um segundo com o mesmo assunto; não há linha nova em
+`package.json`.
+
+Dezessete testes novos, nos moldes da fixture `trip-field-office-database.fixture.ts` e com os casos de
+uso e repositórios **reais** (a composição de `dispatchCurrentTrip` de `main.ts` é reproduzida à mão):
+
+| Bloco                     | O que prova, contra o banco                                                                                                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CA01 — status             | despachar, conferir a carga e iniciar a rota: com ponto → `captured` e as quatro colunas; sem ponto → `unavailable`; o toque repetido sem efeito não grava segundo evento nem segundo ponto     |
+| CA01 — ocorrência e campo | ocorrência da parada, ocorrência da nota, chegada, saída e devolução, com e sem ponto                                                                                                           |
+| CA02 — derivada           | a chegada que leva a viagem a `in_transit` e a baixa que a conclui gravam a troca de status **sem** ponto, ao lado do evento da parada com ponto                                                |
+| CA03 — canais             | escritório `null` (mesmo com ponto na mão); WhatsApp do motorista `unavailable` nas três ações; WhatsApp do operador `null` no despacho e na ocorrência de separação                            |
+| CA04 — CHECKs             | nas **três** tabelas novas, ponto com canal `office` reprova em `<tabela>_coordinates_channel_check` e estado com canal `backoffice` em `<tabela>_location_state_channel_check`; nada é gravado |
+| isolamento                | o ponto gravado na empresa A não existe para a B, nem pela viagem de A                                                                                                                          |
+
+### A contagem subiu
+
+| Suíte                                                                    | Antes | Depois | Subiu em |
+| ------------------------------------------------------------------------ | ----- | ------ | -------- |
+| `test/integration/event-location-stamp.integration.ts`                   | 6     | 23     | **17**   |
+| `bun run test:integration` (152 arquivos; antes = depois − 17, inferido) | 865   | 882    | **17**   |
+
+### Provado por mutação (16 sondas; 14 reprovaram de primeira, 2 eram equivalentes)
+
+| Mutação                                                                                | Falhas | Primeiro teste que cai                                                     |
+| -------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------- |
+| A1 o `dispatch` do repositório de rota não repassa o carimbo                           | 1      | CA01 `despachar com ponto grava captured`                                  |
+| A2 `updateStatus` não repassa o carimbo                                                | 3      | CA01 `conferir a carga ...`                                                |
+| A3 WhatsApp deixa de ser toque do motorista                                            | 1      | CA03 `o motorista pelo WhatsApp grava unavailable`                         |
+| A4 `recordEvent` nunca é toque                                                         | 5      | CA01 `chegada e saída com ponto ...`                                       |
+| A6 `saveTripOccurrence` não grava o carimbo                                            | 3      | CA01 `a ocorrência da nota ...`                                            |
+| A7 `recordOccurrence` não grava o carimbo                                              | 3      | CA01 `a ocorrência da parada ...`                                          |
+| A9 troca sem carimbo passa a gravar `unavailable`                                      | 4      | CA02 `a chegada leva a viagem a in_transit, e a troca fica null`           |
+| A10 as **duas** guardas do escritório removidas (serviço e política)                   | 1      | CA03 `o escritório não carimba ...`                                        |
+| C1 CHECK de coordenada de `trip_status_events` aceita `office`                         | 1      | CA04 `trip_status_events`                                                  |
+| C2 CHECK de estado de `trip_status_events` aceita `backoffice`                         | 1      | CA04 `trip_status_events`                                                  |
+| C3 CHECK de coordenada de `trip_stop_occurrences` aceita `office`                      | 1      | CA04 `trip_stop_occurrences`                                               |
+| C4 CHECK de estado de `trip_stop_occurrences` aceita `backoffice`                      | 1      | CA04 `trip_stop_occurrences`                                               |
+| C5 CHECK de coordenada de `trip_document_occurrences` aceita `office`                  | 1      | CA04 `trip_document_occurrences`                                           |
+| C6 CHECK de estado de `trip_document_occurrences` aceita `backoffice`                  | 1      | CA04 `trip_document_occurrences`                                           |
+| A8 `startFieldTrip` leva carimbo também ao escritório (guarda **do serviço** removida) | 0      | equivalente: a política ainda zera `office`                                |
+| A10' só a guarda do serviço removida (`isDriverTap: true`)                             | 0      | equivalente: a política ainda zera `office` — só as duas juntas caem (A10) |
+
+Duas guardas redundantes, de propósito: tirar uma não muda o resultado, tirar as duas faz o escritório
+tentar gravar coordenada e o CHECK recusar — e é isso que A10 prova. As mutações C1–C6 alteram o
+`migration.sql` da pasta `20261002153258_occurrence_location_stamp` (o banco descartável é migrado a
+partir dele) e o restauram.
+
+⚠️ **O isolamento por empresa não tem sonda de mutação.** O que ele afirma (a leitura filtrada por
+`company_id` não alcança a linha de outra empresa) é garantido pelo `where` de cada consulta e pela FK
+composta; não há mudança de uma linha em `src/` que o reprove sem reprovar antes outra suíte. Fica como
+guarda de regressão, dito como tal.
+
+### O que a integração achou e a task não pedia
+
+⚠️ **A linha do tempo ainda não lê o ponto de três das quatro fontes novas.** A primeira versão do teste
+de isolamento afirmava que a linha do tempo da empresa A devolve o despacho com `locationState:
+'captured'`. Reprovou: `trip-timeline-status.query.ts` e `trip-timeline-document.query.ts` ainda montam
+`...NO_EVENT_LOCATION`. É exatamente o resto da T4.2 ("parcial") — a escrita desta fase está pronta, a
+leitura das fontes de status, de ocorrência e de documento não. Troquei a asserção para a leitura direta
+da tabela (que é o que T3.5 prova) e deixo o achado aqui: **a T4.2 continua aberta, e agora por um motivo
+só — a leitura —, não mais pela falta das colunas e da escrita.**
+
+⚠️ **Não afirmado aqui:** coordenada com canal `whatsapp` (o CHECK ainda a recusa; é a T1.4, e a T3.6 só
+depois dela) e o contrato por rota do WhatsApp do operador (T3.6). O WhatsApp do operador está provado no
+nível das funções que a composição de `main.ts` chama, não da rota do webhook.
+
+### Portões (todos em primeiro plano, saídas literais)
+
+| Portão                                                               | Resultado                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun run typecheck` (API)                                            | exit 0                                                                                                 |
+| `bun run lint` (API)                                                 | exit 0                                                                                                 |
+| `bun --env-file=../../.env.test test --timeout 120000`               | **8876 pass · 23 skip · 0 fail · 193 arquivos**, em nove execuções seguidas (ver nota)                 |
+| `bun --env-file=../../.env.test run test:integration` — **completo** | **874 pass · 8 skip · 0 fail · 5275 expect() · 882 testes · 152 arquivos · [1269,14 s]** (21 min 09 s) |
+| `bun run typecheck` e `bun run test` (worker)                        | exit 0 · **1558 pass · 0 fail · 95 arquivos**                                                          |
+| `bun run format:check` (raiz)                                        | `All matched files use Prettier code style!`                                                           |
+
+O Postgres de `65432` respondeu a `pg_isready` antes da execução (`aceitando conexões`, container
+`transportada-test-postgres-1`, Postgres 18, saudável). Os 8 testes pulados são de infraestrutura que a
+máquina não tem (storage alcançável, recarga de pedágio) — nenhum é do arquivo desta task, cujos 23 rodaram.
+
+⚠️ **Uma falha avulsa, não reproduzida:** numa execução do `bun test` da API depois do commit da T3.4 saiu
+`8875 pass · 1 fail`. O nome do teste não foi capturado, e as nove execuções seguintes deram `8876 pass · 0
+fail`. Registro por honestidade: não consigo chamá-la de flake sem saber qual arquivo era, e também não
+tenho como atribuí-la a esta spec.
+
+## T4.2 (leitura) — status, ocorrência de parada e ocorrência de nota passam a devolver o ponto
+
+`trip-timeline-status.query.ts` (`trip.status_changed` e `trip.created`, ambos de `trip_status_events`),
+`trip-timeline-stop.query.ts` (`stop.occurrence`) e `trip-timeline-document.query.ts`
+(`document.occurrence`) leem agora `accuracy_meters`, `captured_at`, `latitude`, `location_state` e
+`longitude` e montam `location`/`locationState` pelo mesmo `toTimelineLocation` dos eventos de parada.
+O recorte por `trip.event-location` não mudou: ele vive em `read-trip-timeline.use-case.ts` e zera
+`location` de todo item, deixando o estado. Os três arquivos já estavam em `EVENT_LOCATION_READERS`
+com as cinco colunas, então a lista fechada não mudou.
+
+- `distanceMeters`: só a ocorrência de parada tem ponto de referência (junção por `address_key` de
+  `trip_stops`, igual à dos eventos de parada); status e ocorrência de nota saem `null`.
+- `capturedAt` recua para `occurred_at` (ocorrências) quando a coluna é nula, como já fazia nos eventos.
+- Ficam `null`/`null` por não terem coluna: `trip.dispatched` (`trip_dispatch_snapshots`) e
+  `document.status_changed` (`trip_document_events`). O painel não precisou mudar.
+
+Testes novos: dois de integração em `test/integration/trip-timeline.integration.ts` (os quatro estados
+nas três tabelas com o recorte e a distância; 250 eventos misturados das três tabelas paginados em 100
+sem pular nem repetir, com o estado preservado) e três contratos de leitura da fonte em
+`trip-timeline-query-tenant-safety.contract.ts` (colunas lidas por tabela; duas junções de
+`geocoded_addresses` ancoradas na `address_key`; só duas ocorrências de `...NO_EVENT_LOCATION`). A asserção
+de 404 de outra empresa e o filtro `?documentId=` já existentes seguem verdes.
+
+Mutações (todas reprovaram e foram restauradas): `locationState: null` em status, e em ocorrência de nota;
+`location: null` em status e em ocorrência de parada (integração, 2 falhas cada); referência da distância
+anulada (1 falha); coluna `latitude` de ocorrência de nota removida, junção de `geocoded_addresses` da
+ocorrência de parada removida e status devolvido a `...NO_EVENT_LOCATION` (contrato, 1 falha cada).
+Coordenada em log: as consultas não registram nada; nenhum `log` novo.
+
+Portões da T4.2 (leitura), todos em API, saídas literais:
+
+| Portão                                                               | Resultado                                                                                                   |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck`                                                  | exit 0                                                                                                      |
+| `bun run lint`                                                       | exit 0                                                                                                      |
+| `bun --env-file=../../.env.test test --timeout 120000`               | **8879 pass · 23 skip · 0 fail** (subiu em 3: era 8876), 193 arquivos                                       |
+| `bun --env-file=../../.env.test run test:integration` — **completo** | **876 pass · 8 skip · 0 fail · 5836 expect() · 884 testes · 152 arquivos** (subiu em 2: era 874; 1385,83 s) |
+| `bun run format:check` (raiz)                                        | `All matched files use Prettier code style!`                                                                |
+
+Postgres de `65432` respondeu a `pg_isready -h 127.0.0.1` (aceitando conexões).
+
+## T1.4 — o canal `whatsapp` carrega ponto (migration corretiva)
+
+A `20261002153258_occurrence_location_stamp` já estava em `origin/staging`; por decisão do usuário
+(2026-10-02) ela não foi editada. A correção é aditiva e nova:
+`drizzle/20261003010806_event_location_whatsapp_coordinate/` (`migration.sql`, `rollback.sql`,
+`snapshot.json` com `prevIds = ['0447297e-…']`, o `id` da migration anterior; cadeia sem bifurcação).
+
+- **O que muda:** só o CHECK `<tabela>_coordinates_channel_check` de `trip_status_events`,
+  `trip_stop_occurrences` e `trip_document_occurrences`, de `"channel" = 'driver_app'` para
+  `"channel" in ('driver_app', 'whatsapp')`. `trip_stop_events` e `trip_delivery_proofs` nunca tiveram esse
+  CHECK. O de estado já aceitava `whatsapp`. Nenhuma coluna, índice ou tabela muda.
+- **Lock:** `DROP` + `ADD ... NOT VALID` num `ALTER` só (sem janela sem CHECK) e `VALIDATE CONSTRAINT` à
+  parte, no padrão da casa. O novo é mais frouxo, então todo valor aceito antes continua aceito.
+- **Estratégia do rollback: recusar, não apagar.** Antes de tocar em qualquer CHECK, um bloco `DO $$` conta
+  por tabela as linhas `channel <> 'driver_app'` com `latitude is not null` e, havendo qualquer uma, levanta
+  `Rollback recusado: existe coordenada fora do canal driver_app (trip_status_events=N ...)`. A alternativa
+  (anular a coordenada e voltar o estado a `unavailable`) foi descartada: é posição de pessoa (LGPD) e
+  perdê-la é irreversível, então destruir é decisão de quem opera — o `UPDATE` manual vem documentado no
+  cabeçalho do script. Linha `whatsapp` sem coordenada não bloqueia. Tem o mesmo molde de
+  `driver-allowance-rollback` e `trip-status-event-rollback`.
+- **Código:** `buildEventLocationChecks` recebe `coordinateChannels` (lista) em vez de `coordinateChannel`;
+  `trip.schema.ts` passa `[driverApp, whatsapp]` nas três tabelas; `STATEFUL_CHANNELS` de
+  `event-location-state.policy.ts` ganha `whatsapp`. O contrato `event-location-state.contract.ts`, que
+  proibia isto, foi **invertido**, não afrouxado: agora exige `unavailable` para o WhatsApp sem ponto.
+  O carimbo do operador não passa por essa função (sai de `resolveEventLocationStamp` com
+  `isDriverTap: false`, tudo `null`).
+- **Testes:** `test/trip-schema/event-location.contract.ts` prende o texto novo; `static-migration.contract.ts`
+  lista a pasta nova na ordem exaustiva e ganhou um teste da corretiva (só CHECK muda, `NOT VALID` +
+  `VALIDATE`, a recusa vem antes do primeiro `ALTER TABLE`, o rollback não tem `UPDATE`);
+  `event-location-whatsapp-rollback.assertion.ts` (no encadeamento de `database-migration.integration.ts`)
+  prova contra Postgres: ponto de WhatsApp entra, ponto de `backoffice` ainda cai em
+  `trip_status_events_coordinates_channel_check`, o rollback recusa com `trip_status_events=1` sem nomear as
+  outras tabelas e a linha continua lá. O encadeamento então aplica e desfaz a pasta nova junto com todas.
+- `bun run db:generate --name x` → `{"status":"no_changes"}` depois da pasta nova.
+
+Mutações (todas reprovaram e foram restauradas): lista de canais de coordenada sem `whatsapp` em
+`trip.schema.ts` (3 falhas no contrato de schema); `whatsapp` fora de `STATEFUL_CHANNELS` (1 falha);
+`migration.sql` com o texto antigo do CHECK (2 falhas: estática e de banco); `IF report <> ''` trocado por
+`IF false` no rollback (1 falha na integração de migration).
+
+## T3.6 — o WhatsApp do motorista carrega o ponto
+
+- **Desenho.** A mensagem `location` da Cloud API é um turno próprio; o toque que a usa (entregar,
+  devolver, ocorrência) é outro. `acknowledgeSharedLocation` (`whatsapp-command-driver.service.ts`), logo
+  depois de autorizado o ator e antes do fluxo, lê a mensagem com `extractWhatsAppIncomingLocation`,
+  guarda o ponto em `WhatsAppSharedLocationStore` por `(empresa, número)` e responde "Localização
+  recebida" **sem coordenada** — a mensagem não conta como resposta inválida nem mexe na posição do
+  fluxo. As três ações (`documentRouter`/entregar, `completeReturn`, `completeOccurrence`) chamam
+  `consumeSharedLocation` e passam o `ReportedLocation` ao caso de uso, que já o transforma em carimbo
+  (`resolveFieldTapLocationStamp`, T3.1/T3.3): ponto → `captured`; sem ponto → `null` → `unavailable`.
+- **Mesmo caminho de validação.** `extractWhatsAppIncomingLocation` monta o objeto e o passa por
+  `locationSchema` + `toReportedLocation` (`trips/presentation/reported-location.schema.ts`), os mesmos
+  das rotas HTTP: faixa do globo, 7 casas, teto de precisão. O WhatsApp não manda precisão
+  (`accuracyMeters = null`); `capturedAt` é o `timestamp` da mensagem (ilegível cai na hora do servidor).
+  Nome, endereço e url do pino (texto do motorista) são descartados.
+- **Decisões, e o porquê.** (1) **Memória, não `context` da sessão:** a regra do núcleo proíbe PII no
+  contexto, e posição de pessoa persistida sem prazo seria pior que perdê-la num reinício — o pior caso é
+  `unavailable`, nunca dado falso. (2) **Um toque e 5 min:** a posição de uma parada atrás não é a da
+  parada de agora; cada toque exige localização nova (a constante é `WHATSAPP_SHARED_LOCATION_TTL_MS`).
+  (3) **Só `trip.report`:** o operador compartilha o canal, mas nem o despachante lembra o ponto dele nem
+  as ações dele recebem o armazém. (4) Teto de 5 000 entradas, expulsa a mais antiga.
+- **Nunca em log.** Nenhum `log` novo; o contrato percorre logs e respostas do bot e exige ausência da
+  coordenada.
+
+### ⚠️ Limite que bloqueia a ponta a ponta — pacotes `0.1.0`
+
+O módulo `meta-whatsapp-module@0.1.0` valida o webhook com `whatsAppWebhookPayloadSchema` de
+`meta-whatsapp-contracts@0.1.0`, cujo schema de mensagem **não tem `location`**: o zod descarta a chave
+antes do gancho `onMessageReceived`. Provado por execução: o teste de integração pelo webhook real mostra
+a mensagem de localização caindo no fluxo como texto fora do menu ("Toque numa nota da lista acima.") e o
+toque seguinte gravando `unavailable`. O `contracts@0.4.0` já traz `whatsAppLocationSchema`; a saída é
+subir `meta-whatsapp-module`/`-contracts`/`-provider` (a instalação fica na `0.1.0` por dívida de formato
+de migration do pacote — decisão fora desta task). Enquanto isso, o código está pronto e provado por
+contrato e por integração com o ponto entregue ao armazém; o teste
+`com os pacotes 0.1.0 a mensagem de localização não chega ao gancho` **deve ficar vermelho** quando os
+pacotes subirem, e é o sinal para trocá-lo por um que mande a mensagem pelo webhook e espere `captured`.
+
+### Testes
+
+- `test/whatsapp-commands/shared-location.contract.ts`: extração (formato, campos descartados, 8 entradas
+  recusadas, só o tipo `location`, hora ilegível), armazém (um toque, substituição, vencimento em 5 min
+  com fronteira, isolamento por empresa/número, teto) e despachante (motorista lembra e confirma sem
+  coordenada, não mexe no fluxo, operador não lembra, sem armazém não intercepta, fora da faixa não
+  lembra, nenhuma coordenada em log nem resposta).
+- `driver-flow-actions.contract.ts`: as três ações levam o ponto e a chave `(empresa, número)`; sem ponto
+  mandam `null`; um toque só; ponto de outra empresa/número não vale.
+- `operator-flow-actions.contract.ts`: a fonte do operador não menciona ponto; despachar, separar,
+  carregar e ocorrência de separação entregam ao domínio entrada sem coordenada, com ponto à espera.
+- `integration/whatsapp-driver-flow-actions.integration.ts` (Postgres): ponto no armazém → linha
+  `trip_stop_events` do canal `whatsapp` com `captured`, coordenada e `captured_at`, e o armazém vazio
+  depois; sem ponto → `unavailable`; e o teste do limite dos pacotes acima.
+
+## Fase 5 (T5.0–T5.4) — a app do motorista manda o ponto de todo toque
+
+### T5.0 — a API de demonstração já estava versionada
+
+O caminho do scratchpad antigo (`.../pensive-borg-f59971/.../scratchpad/driver-preview-api.ts`) **não
+existe mais**. Não houve cópia a fazer: `apps/frontend-driver/scripts/driver-preview-api.ts` já está no
+repositório desde a spec 206 T4.5 (`7445f412e`), e é a versão que as portas e as origens parametrizam
+por `DRIVER_PREVIEW_*`. O que faltava era o `.claude/launch.json`: **nenhuma das duas entradas**
+(`motorista-local`, `motorista-api-demo`) existia nele, em nenhuma árvore. Entraram agora:
+`motorista-api-demo` roda `bun run apps/frontend-driver/scripts/driver-preview-api.ts` (53901) e
+`motorista-local` roda o `vite` da app (53200) com `VITE_API_URL=http://localhost:53901`.
+
+- A 53200 estava **ocupada por outra sessão** (um `vite` de `transportada-wt/fleet-route-fix`); não a
+  derrubei. A verificação foi na 53112 (a origem do smoke), com a demonstração subida com
+  `DRIVER_PREVIEW_ORIGIN=http://localhost:53112`.
+- Aceite "a tela da viagem abre contra ela": provado por `test/spec-196-prints.smoke.spec.ts` (login
+  real no Keycloak local pelo helper do projeto, **sem dublê de rota**, `VITE_API_URL` na demonstração):
+  a tela abre com duas viagens, "3 paradas" e "0 de 6 notas resolvidas". Prints em
+  `prints/viagem-demonstracao-gps-permitido-375.png` e `...-gps-negado-375.png` — abertos e conferidos:
+  são idênticos, tema claro, faixa "Ambiente de desenvolvimento", sem mudança visual nenhuma.
+- ⚠️ **Aviso às sessões da 192 e da 193: não enviado.** Nenhuma das sessões ativas tem esse nome; fica
+  para quem coordena avisar que o `launch.json` ganhou as duas entradas e que a demonstração agora
+  responde `GET/DELETE /__debug/locations`.
+
+### Divergências do plano (a spec andou antes da Fase 5)
+
+| O plano diz                                                  | O código já era                                                                                                  | O que fiz                                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| "Despachar" e "Iniciar rota" são toque direto                | spec 230 e 206: os dois são itens da **fila** (`dispatch`, `depart`); `startRoute` não existe mais no cliente    | `location` entrou no item `dispatch`; `depart` já tinha. `start-route` ficou **fora** do contrato             |
+| `registerDocumentOccurrence` sai do cliente                  | já tinha saído (spec 226); a tela já enfileira `documentOccurrence`                                              | só `location: null` no item e no corpo                                                                        |
+| `readDirectTapLocation({ now?, timer? })`                    | —                                                                                                                | `{ geolocation?, timer? }`: `now` não tinha uso; a Geolocation injetada é o que o contrato precisa            |
+| "a mesma função de `clampProofAccuracyMeters`, generalizada" | a função já é genérica (devolve `undefined` acima de 10 km)                                                      | reutilizada como está                                                                                         |
+| RF8 (≤ 3 s) vale para toque direto                           | a fila espera `readCurrentLocation` (8 s, **sem prazo nenhum** com o pedido de permissão aberto) antes de drenar | `usesDirectTapLocation`: `dispatch` e `depart` completam o ponto por `readDirectTapLocation` (relógio de 3 s) |
+
+O último é a única mudança de comportamento fora da letra da task, e o smoke "GPS mudo" a provou
+necessária: **sem ela** o POST do despacho nem sai (mutação: timeout de 30 s). Os demais toques da
+fila mantêm a leitura de 8 s.
+
+### T5.1 — contratos primeiro (vermelho, pelo motivo certo)
+
+`test/driver-trip/event-location-queue.contract.ts` (12 testes) e `direct-tap-location.contract.ts`
+(5 + 2 do RF8), ambos importados por `test/driver-trip.contract.test.ts`. Antes da implementação:
+
+```text
+SyntaxError: Export named 'readDirectTapLocation' not found in module '.../driverLocation.service.ts'.
+ 120 pass / 1 fail / 1 error   (a suíte nem carrega)
+```
+
+### T5.2 / T5.3 — implementação
+
+- `driverTrip.types.ts`: `location: DriverReportedLocation | null` em `occurrence`, `documentOccurrence` e
+  `dispatch`.
+- `offlineQueue.service.ts`: `applyReportLocation` sem a exceção (e sem o comentário que a dizia);
+  `completeReportLocations` (várias chaves, uma leitura), `listLocatedReportKeys` (a foto da ocorrência não
+  é evento), `withLegacyLocation` (item antigo sem o campo sai com `null`, aplicado no `send`).
+- `driverTripClient.service.ts`: o corpo de `occurrence`, `dispatch` e `documentOccurrence` leva `location`.
+- `useDriverTrip.hook.ts`: `completeLocations` — uma leitura completa **todas** as chaves do toque
+  ("Não entreguei" completa a ocorrência e a devolução; a ocorrência da parada completa a dela).
+- `DriverTripWorkspace.page.tsx`: o despacho passa por `reportWithLocation`; a ocorrência de nota nasce
+  `location: null`.
+- `driverLocation.service.ts`: `readDirectTapLocation` (`Promise.race` com o relógio de 3 s,
+  `enableHighAccuracy: false`, `maximumAge` de 300 000, precisão acima de 10 km sai sem
+  `accuracyMeters`) e `usesDirectTapLocation`.
+
+Coordenada em log/console/telemetria: nenhum `console.*` novo, e o contrato percorre os três arquivos.
+A demonstração só guarda em memória e não imprime (`grep -c latitude` no log dela: 0).
+
+### Provado por mutação (15 sondas, todas reprovadas)
+
+Editei e restaurei regravando o arquivo (nenhum `git checkout`). Número = testes que reprovaram.
+
+| Sonda                                                   | Falhas |
+| ------------------------------------------------------- | ------ |
+| M1 exceção da ocorrência volta em `applyReportLocation` | 2      |
+| M2 corpo da ocorrência da parada sem `location`         | 5      |
+| M3 corpo do `dispatch` sem `location`                   | 4      |
+| M4 corpo da ocorrência de nota sem `location`           | 4      |
+| M5 relógio de 3 s vira 5 s                              | 1      |
+| M6 relógio não é cancelado ao responder                 | 1      |
+| M7 sem o teto de precisão                               | 1      |
+| M8 `enableHighAccuracy: true`                           | 1      |
+| M9 `withLegacyLocation` devolve o item como veio        | 2      |
+| M10 "Não entreguei" completa só a devolução             | 1      |
+| M11 a ocorrência da parada não completa o ponto         | 1      |
+| M12 despacho sem `location` na tela                     | 1      |
+| M13 a ocorrência de nota perde a forma do item          | 1      |
+| M14 `usesDirectTapLocation` sem o `depart`              | 1      |
+| M15 `usesDirectTapLocation` aceita lista vazia          | 1      |
+
+Mais uma, no smoke: com o hook sempre pedindo a leitura de 8 s (`false && usesDirectTapLocation`), o
+teste "GPS mudo" reprova com `page.waitForRequest: Test timeout of 30000ms exceeded`.
+
+### T5.4 — smoke e preview
+
+`driver-app.smoke.spec.ts` ganhou três testes (`tracksEnRoute` no cenário do `mockDriverTripApi`, para a
+API nova mandar `enRouteSince` e a tela mostrar "Iniciar rota"; o mock do `/dispatch` passou a registrar o
+corpo):
+
+- **GPS permitido** (`grantPermissions` + `setGeolocation`): despacho, ocorrência da parada e ocorrência
+  da nota saem com `location: { latitude: -23.5505, longitude: -46.6333 }`.
+- **GPS negado** (sem a permissão): os mesmos saem com `location: null`, sem travar.
+- **GPS mudo** (`getCurrentPosition` que nunca chama de volta): o `POST` do despacho sai **3 033 ms** e o
+  de "Iniciar rota" **3 091 ms** depois do clique (limite 3 200), ambos com `location: null`. A folga é de
+  ~110 ms sobre o relógio de 3 s — apertada de propósito, é o que a spec pediu.
+- Um teste antigo (foto obrigatória da ocorrência da parada) comparava o corpo inteiro com `toEqual`; virou
+  `toMatchObject` com o ponto, e o **reenvio da foto continua sem `location`** (ver "Não verificado").
+
+Preview contra a demonstração (`test/spec-196-prints.smoke.spec.ts`, fora da CI): as quatro rotas
+(`dispatch`, `start-route`, ocorrência de nota, ocorrência de parada) gravam o `location` em memória;
+por `curl`, `dispatch` e a ocorrência da parada com ponto → `ponto`; `start-route` e a ocorrência de nota com
+`null` → `null`. Pelo Playwright, ocorrência de nota contra a demonstração: GPS permitido grava o ponto,
+GPS negado grava `null`.
+
+### A contagem subiu
+
+- Contratos da app: **1048 → 1067** (`bun run test`: 1067 pass / 0 fail / 2236 expect()). Subiu em 19:
+  5 de `readDirectTapLocation`, 2 do RF8, 12 da fila.
+- Smoke: **33 → 36** no `driver-app` (+ 2 do service worker): `bun run smoke` → `2 passed` e `36 passed`.
+
+### Portões (apps/frontend-driver, primeiro plano)
+
+```text
+$ bun run typecheck   → tsc --noEmit            (sem saída de erro)
+$ bun run lint        → eslint .                (sem saída de erro)
+$ bun run test        → 1067 pass / 0 fail
+$ bun run smoke       → 2 passed (8.7s) · 36 passed (43.4s)
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+### Não verificado
+
+- **Preview manual no navegador do painel** (`motorista-local` na 53200): a 53200 é de outra sessão e o
+  login do app é sempre o Keycloak real — não digitei senha em formulário; a verificação foi pelo
+  Playwright do projeto, que lê a conta local do `.env` por conta própria.
+- `build` do app (`bun run build`) só rodou como `webServer` do Playwright (passou: 6 testes do `dist`).
+- O reenvio da foto da ocorrência da parada (`stopOccurrencePhoto`) repete o corpo **sem** `location`:
+  se a ocorrência original nunca tiver chegado, a criada por esse reenvio fica sem ponto. A fila manda a
+  ocorrência antes e a foto atrás, então só acontece se a ocorrência for recusada e a foto, não. Não coberto
+  pela spec; anotado aqui.
+- A margem de ~110 ms do teste de 3,2 s pode ficar flaky em CI lenta.
+- `readDirectTapLocation` só tem consumidor via `usesDirectTapLocation` (despacho e "Iniciar rota").
+
+## T6.3 / T7.1 — preview refeito com a posição de todos os toques, e a revisão de design
+
+**Ambiente, dito sem rodeio.** A API é **dublê**: `mockTripWorkspaceApi` mais a rota da linha do tempo,
+dentro de `test/spec-196-prints.smoke.spec.ts` (fora da CI: `PLAYWRIGHT_TEST_MATCH`). Não é a API desta
+árvore com a viagem gravada pelas rotas do motorista, como a T6.3 descreve. O que impediu: o login real do
+painel monta o `redirectUri` do Keycloak a partir de `VITE_APP_URL=http://localhost:53000` (o `.env` da
+raiz é link simbólico compartilhado), e a 53000 é o dev server de **outra árvore** (PID 38348, `cwd` em
+`.../fervent-sutherland-937527-wt/reconcile-spec-145`, conferido com `lsof`); não digitei senha em
+formulário. A API desta árvore não estava no ar (53001 livre). Usei portas próprias, `53120` (painel de
+`vite preview` do Playwright, com `VITE_SMOKE_AUTH_BYPASS=true`) e `53141` (servidor mudo só para a
+prontidão da API do `webServer`). A metade "gravado pelas rotas do motorista, lido pela linha do tempo" está
+provada contra o Postgres pelas integrações da T3.5 e da T4.2, não aqui. Os pontos são **sintéticos** (praça
+da Sé), e os tiles vieram de `map-tiles-staging` — o serviço nosso (ver T7.3).
+
+**Estados mostrados** (um evento por estado, 9 eventos): `captured` com precisão e distância
+(chegada, entrega, devolução, ocorrência), `captured` **sem coordenada** (a visão do `finance`: "Posição
+registrada", sem "Ver no mapa"), `unavailable` (rótulo vermelho "Posição indisponível"), `expired`,
+`null` (despacho: nenhuma marca) e o **endereço corrigido** com pino próprio. Expandidos: devolução com
+motivo + mapa em segundo gesto, ocorrência com observação + mapa + foto, entrega só com mapa, endereço.
+
+**Prints** (`prints/196-linha-do-tempo-<estado>-<1280|375>-<dark|light>.png`, 20 arquivos):
+`fechada`, `devolucao-mapa-aberto`, `ocorrencia-foto-e-mapa`, `entrega-so-mapa`, `endereco-pino-proprio`.
+
+### O que a revisão achou (web.md §15) e consertou
+
+Medidas por `getBoundingClientRect` / `getComputedStyle` no smoke, antes → depois:
+
+| Medida                                                          | Antes                                                     | Depois                                                                 |
+| --------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Botão de posição, fonte (linha de autoria: Avenir Next 12,8 px) | Arial 13,33 px (padrão do navegador, `button` sem herdar) | Avenir Next 12,8 px                                                    |
+| Rótulo vermelho "Posição indisponível", fonte                   | Arial 13,33 px, ao lado de texto Avenir                   | Avenir Next 12,8 px                                                    |
+| "Ocultar mapa" (detalhe), altura em 1280                        | 44 px                                                     | 38,4 px (`--control-height-compact`), igual a "Ver no mapa"/"Recolher" |
+| "Ocultar mapa", altura em 375                                   | 44 px                                                     | 44 px (igual aos irmãos, que ali já são 44)                            |
+| Distância de 4,2 km                                             | "a 4.2 km do ponto"                                       | "a 4,2 km do ponto" (o resto do painel formata em pt-BR)               |
+
+Correções: `.locationButton { font: inherit }`; `.detailMapToggle` passa a `min-height:
+var(--control-height-compact)` com `var(--touch-target)` sob `pointer: coarse` (mesmo par do `.itemToggle`);
+`formatTripTimelineDistance` formata com `toLocaleString('pt-BR')` — o mesmo seam serve ao deslocamento do
+endereço corrigido (spec 228), cujo contrato de hook foi atualizado de "1.5 km" para "1,5 km".
+
+Conferido e **sem divergência**: alvo do pino `::after` 44×44 px nos dois tamanhos; cor secundária do pino =
+cor da autoria (`--color-slate-muted`); `gap` do rótulo vermelho 4 px; "Ver no mapa"/"Ocultar mapa" 44 px
+em 375; sem rolagem horizontal.
+
+Contraste (razão calculada sobre o fundo composto, `color-mix` normalizado por canvas), mínimo 4,5:
+
+| Elemento                               | escuro | claro |
+| -------------------------------------- | ------ | ----- |
+| título do evento                       | 14,48  | 12,66 |
+| hora / autoria / pino neutro           | 6,95   | 5,27  |
+| rótulo vermelho "Posição indisponível" | 5,46   | 4,69  |
+| texto do detalhe expandido             | 11,81  | 10,88 |
+| botão "Ocultar mapa" no detalhe        | 12,05  | 10,47 |
+
+375 px: `scrollWidth` = `innerWidth` = 375 e nenhum elemento da seção ultrapassa a borda direita, nos dois
+temas, fechada e expandida. (O estouro de 47 px da placa do veículo, anotado antes, não aparece neste recorte.)
+
+### O que vi nos prints
+
+- **fechada, 1280/375, escuro e claro:** a linha de posição é só o ícone ao fim da linha de meta ("5 min
+  após o evento anterior · 📍"); só "Posição indisponível" é vermelho e com palavra. Nada compete com o
+  título. No 375 o ícone cai numa linha própria sob o "após o evento anterior" — consistente com a
+  autoria, que também empilha, mas gasta uma linha por evento. **Não consertei** (decisão de design: o
+  ícone ao lado da frase exigiria mudar o `.itemMeta` do celular, que a spec 180 desenhou empilhado).
+- **devolução / ocorrência, mapa aberto:** o detalhe tem a moldura de cobre; "Ocultar mapa" fica entre o
+  texto e o mapa, o mapa mostra o pino liso no centro e a legenda "Pino liso: onde o motorista tocou. A
+  parada não tem coordenada cadastrada." (a parada do dublê não tem coordenada). A foto vem **depois** do
+  mapa, com a mesma largura de grade; não há duplo botão.
+- **endereço corrigido:** mesma moldura e mesmo pino liso, com a legenda "Pino liso: novo ponto do endereço
+  da parada." — o pino próprio do endereço é o **rótulo e a legenda**, não a cor (a cor é a mesma do pino do
+  toque). Compatível com a 233: o evento de status/ocorrência segue o texto "Posição registrada".
+- Artefato: no recorte de elemento do 375 o cabeçalho "HOJE · 9 eventos" (sticky) aparece sobreposto no
+  meio da lista; é a captura de um elemento rolado, não um defeito da tela.
+- **Não há mapa do evento da ocorrência da parada com a parada** nem o pino numerado: o dublê não manda
+  coordenada da parada. O pino numerado foi coberto nas fases anteriores.
+
+### Portões (apps/frontend-transportada, primeiro plano)
+
+```text
+$ bun run typecheck → tsc --noEmit (sem saída de erro)
+$ bun run lint      → ✖ 16 problems (0 errors, 16 warnings)   [os 16 avisos pré-existentes]
+$ bun run test      → 6431 pass / 0 fail  ·  hooks: 327 pass / 0 fail
+$ bun run format:check (raiz) → All matched files use Prettier code style!
+```
+
+`bun test ./test/trip.contract.test.ts` → 2327 pass / 0 fail; o contrato de distância ganhou a vírgula nos três valores (`1,0`, `1,2`, `9,9`).
+
+## T7.3 — auditoria (saídas literais)
+
+**1. Coordenada em log.** Varredura de `logger.` / `console.` / `safeLog*` com 6 linhas de contexto, nos
+arquivos `.ts`/`.tsx` tocados pela spec (124, testes incluídos; 4 não-teste têm chamada de log):
+
+```text
+apps/api-transportada/src/main.ts                      → só chaves de contagem/razão; "reason: 'missing_coordinate'" é texto
+apps/api-transportada/src/whatsapp-commands/.../whatsapp-command-driver.service.ts → phone: turn.maskedPhone (mascarado), companyId
+apps/worker-transportada/src/main.ts                   → sem coordenada
+apps/frontend-driver/scripts/driver-preview-api.ts     → um único console.log: "API de demonstração do motorista em http://localhost:PORT (repassa o resto para REAL_API)"
+worker trip-location-purge.routine.ts → metadata: batches, exhausted(Tables), failedTables, pingBatches, purgedPings, redacted(ByTable), redactedProofs, retentionDays, correlationId, executionId
+```
+
+Nenhuma ocorrência de `latitude|longitude|location|coordinate` como valor logado (a única linha que casa é
+`reason: 'missing_coordinate'`, que é o motivo, e `retentionDays`).
+
+**2. Respostas fora da tabela do D7.** `bun test ./test/trip-schema.contract.test.ts` → **222 pass / 0 fail**
+(inclui `event-location-readers.contract.ts`); `bun test ./test/trip-http/event-location-redaction.contract.ts`
+→ **7 pass / 0 fail**. Varredura independente por referência **qualificada** às colunas de posição das cinco
+tabelas, arquivos de `apps/api-transportada/src`:
+
+```text
+   2 src/fleet/infrastructure/drizzle-driver-score.repository.ts          (só capturedAt, em coalesce com recorded_at)
+   7 src/trips/infrastructure/delivery-proof-read.support.ts
+   2 src/trips/infrastructure/drizzle-current-driver-trip.repository.ts   (só capturedAt, em coalesce)
+   3 src/trips/infrastructure/drizzle-delivery-proof.repository.ts
+   1 src/trips/infrastructure/drizzle-driver-field-report.repository.ts   (só capturedAt, em coalesce)
+   5 src/trips/infrastructure/trip-timeline-document.query.ts
+   6 src/trips/infrastructure/trip-timeline-proof.query.ts
+  10 src/trips/infrastructure/trip-timeline-status.query.ts
+  10 src/trips/infrastructure/trip-timeline-stop.query.ts
+```
+
+Os nove arquivos são exatamente os de `EVENT_LOCATION_READERS` (mais o feed, que só lê `locationState` por
+outro caminho): nenhum leitor fora da lista, e os três não-painel leem só o **instante** (`capturedAt`).
+
+**3. N+1.** Teste novo `196 T7.3` em `test/integration/trip-timeline.integration.ts` (conta `select`,
+`selectDistinct` e `execute` de `listTripTimeline`, com 1 nota e com 50 notas, todas com ponto):
+
+```text
+trip-timeline consultas: 1 nota = 9 · 50 notas = 9 (itens: 2 / 51)
+ 45 pass / 0 fail  (arquivo inteiro, Postgres 65432)
+```
+
+Mesmo número nos dois tamanhos: sem N+1. (Não provei esse teste por mutação: não há como fabricar um N+1
+aqui sem reescrever a consulta; a contagem 9 > 0 mostra que o contador enxerga as consultas.)
+
+**4. `EXPLAIN` do expurgo, nas cinco tabelas.** Banco descartável migrado em `pg_isready -h 127.0.0.1 -p
+65432` → _aceitando conexões_; Postgres **17.10**; SQL gerado pelo Drizzle com o corte e o `limit 500` do
+worker; sessão com `SET enable_seqscan = off` e `SET enable_bitmapscan = off`. ⚠️ **Tabelas vazias**: prova
+que o índice parcial casa com a consulta, não o tempo nem o custo real (sem `bitmapscan` desligado o plano é
+`Bitmap Index Scan` no mesmo índice).
+
+```text
+
+```
+
+**5. Onde `VITE_MAP_TILES_URL` aponta.** `.railway/railway.ts:231` declara `VITE_MAP_TILES_URL: preserve()`
+nos dois ambientes — o valor vive no painel do Railway e entra no bundle no build. Intenção declarada em
+`.railway/railway.ts:223-228` e `:498-510`: serviço **nosso** (`map-tiles` em staging,
+`map-tiles-production` em produção, `deploy/map-tiles/server.ts`); `.env.example:274` aponta o
+desenvolvimento para `map-tiles-staging.up.railway.app`. **Não verificado:** o valor real nos dois painéis
+(produção não foi acessada) e se o log HTTP da plataforma guarda caminho/faixa e por quanto tempo.
+`server.ts` não escreve log de aplicação (nenhum `console`). Registrado como pendência explícita em
+`docs/SECURITY.md`.
+
+### Achados novos (todos em `docs/SECURITY.md`, 2026-10-02)
+
+1. **O expurgo de posição nasce desligado** (`TRIP_LOCATION_PURGE_ENABLED=false`) — a retenção de 90 dias
+   não está em vigor em ambiente nenhum até alguém ligar.
+2. Origem do mapa base e log de acesso do host: **pendência de conferência** no painel do Railway.
+3. O host do mapa vê as telhas pedidas (região de ~2 km), não o ponto — registrado na entrada de 2026-08-26.
+
+## T7.2 — documentação viva
+
+- `CLAUDE.md` da API, do worker, do painel e da app do motorista: um parágrafo curto cada, apontando
+  `docs/ai-context/*.md`; as quatro seções de `docs/ai-context` foram escritas.
+- `docs/SECURITY.md`: retenção nas cinco tabelas + `location_state`, permissão `trip.event-location`,
+  o que o host do mapa vê, e o achado novo.
+- Spec 158: a emenda para a ADR-0081 **já existia** (`spec.md` linhas 36 e 171) — nada a acrescentar.
+- `spec.md`/`plan.md` da 196: "migration ainda não publicada" substituído pela corretiva
+  `20261003010806_event_location_whatsapp_coordinate`; limitação dos pacotes `meta-whatsapp-*` `0.1.0`
+  (descartam `messages[].location`) registrada como **decisão pendente do usuário**.
+
+### Não verificado nesta rodada
+
+- Ok do usuário nos prints (T6.3, T7.1): **pendente**.
+- Viagem gravada pelas rotas do motorista lida pela tela real (login real bloqueado, ver acima).
+- Valor de `VITE_MAP_TILES_URL` em staging e produção, e a retenção do log HTTP do `map-tiles`.
+- `EXPLAIN` com volume real (tabelas vazias).
+- API: só o typecheck e a integração da linha do tempo (a API foi tocada apenas por um teste novo).
+
+## Rebase sobre a 234
+
+Data: 2026-10-03. Antes: 18 commits à frente e 43 atrás de `origin/staging` (topo
+`5cf6874a2`, spec 234 — o relógio do evento). Rebase commit a commit, sem `-X ours/theirs`.
+Backup local da ponta anterior: `backup/196-pre-rebase-234`.
+
+### Conflitos e como foram fundidos
+
+| Arquivo                                                                                       | Decisão                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/trips/presentation/me-trip.schema.ts`                                                    | Fica o `toEventClock` e o `eventClockFields` da 234; sai o `locationSchema`/`toReportedLocation` local sem teto — os dois vêm só de `reported-location.schema.ts` (196, com o teto de precisão). `occurrenceBodySchema` tem `...eventClockFields` **e** `location`; `StopOccurrenceRequest` tem `location` **e** `EventClockFields`. |
+| `src/trips/application/driver-field-report.port.ts`                                           | Os dois imports (`EventLocationStampColumns` da 196, `CorrectedClock` da 234).                                                                                                                                                                                                                                                       |
+| `src/trips/infrastructure/drizzle-driver-field-report.repository.ts`                          | `recordEvent` grava `...stamp` (política única da 196) **e** `occurredAt` da correção aceita (234).                                                                                                                                                                                                                                  |
+| `test/trip-schema.contract.test.ts`, `apps/frontend-driver/test/driver-trip.contract.test.ts` | União dos imports das duas specs.                                                                                                                                                                                                                                                                                                    |
+| `test/database-migration/static-migration.contract.ts`                                        | Lista exaustiva com `20261002213734_delivered_moment_clock` antes de `20261003010806_event_location_whatsapp_coordinate`.                                                                                                                                                                                                            |
+| `frontend-driver/.../driverTripClient.service.ts`                                             | `send({ report: queuedReport, stamp })` (234) seguido de `withLegacyLocation(queuedReport)` (196).                                                                                                                                                                                                                                   |
+| `frontend-driver/test/driver-trip/dispatch*.contract.ts`                                      | Envelope `{ report, stamp }` da 234 com `location: null` da 196 no relato e no corpo esperado.                                                                                                                                                                                                                                       |
+| `frontend-driver/test/driver-app.smoke.spec.ts`                                               | Os dois blocos de smoke (relógio da 234 e ponto da 196); o `findReport` duplicado da 196 saiu, fica o da 234.                                                                                                                                                                                                                        |
+| `frontend-driver/test/driver-trip-smoke.helper.ts`                                            | O despacho guarda o corpo (196) e `formFields: null` (234).                                                                                                                                                                                                                                                                          |
+
+Quebras semânticas sem conflito textual (só o typecheck as viu), corrigidas em
+`test(driver): funde os contratos do relógio (234) com o ponto em todo toque (196)`:
+`event-clock-fields.contract.ts` (fixtures sem `location`; o despacho continua sem relógio e agora
+leva o ponto) e `event-location-queue.contract.ts` (chamadas pelo envelope `{ report, stamp }`).
+
+### Snapshot
+
+`20261003010806_event_location_whatsapp_coordinate/snapshot.json`: id `eb960c28-…` (mantido),
+`prevIds` `["b91168e2-3f91-4dcc-947e-b4e940dda6a4"]` (a `20261002213734`, última de staging). O
+corpo é o snapshot da 234 com só os três CHECKs `*_coordinates_channel_check` trocados para
+`in ('driver_app', 'whatsapp')` (diferença de DDL contra o da 234: 3 entradas). A pasta já era
+posterior à da 234 — sem renomear. `bun run db:generate --name x` → `{"status":"no_changes","dialect":"postgresql"}`.
+
+### Gates
+
+- `bun run format:check` → `All matched files use Prettier code style!`
+- `bun run lint` → exit 0, `0 errors, 16 warnings` (avisos preexistentes do painel)
+- `bun run typecheck` → exit 0, sete apps
+- `bun run build` → exit 0
+- `bun run test` → exit 0; API 9098 pass / 0 fail (9130 testes, 193 arquivos); worker 1558/0; cron
+  101/0; painel 6441/0; 327/0; cliente 89/0; motorista 1146/0; landing 131/0
+- `bun run db:test` (`DRIZZLE_TEST_DATABASE_URL` = `DATABASE_URL` do `.env.test`) → 117 pass / 0 fail
+- `bun --env-file=../../.env.test run test:integration` → 905 pass / 8 skip / **1 fail**, 914 testes
+  em 154 arquivos, 1282 s. A falha: `event-location-stamp.integration.ts` CA01 "despachar com ponto"
+  estourou 120 s — é o primeiro teste do arquivo, que cria e migra o banco descartável. Havia outro
+  `bun --env-file=../../.env.test test` rodando na máquina no mesmo Postgres durante a execução.
+  Arquivo isolado, três vezes: 23 pass / 0 fail (≈39 s cada).
+
+### Não verificado
+
+- A integração completa não teve uma rodada inteira verde: o único vermelho foi o timeout acima,
+  verde isolado ×3, mas sob disputa de banco.
+- Os 8 `skip` da integração não foram listados um a um.
+- Smoke Playwright do `frontend-driver` (os blocos fundidos de `driver-app.smoke.spec.ts`) não rodou.
+- `confirm-load`/`start-route` usam `parseFieldReportRequest`, que agora também aceita `tappedAt` e
+  `clockOffsetMs` (da 234) e os descarta nessas rotas — aceito sem gravar, não `400`.
+
+### Segunda passada (staging andou durante os portões)
+
+`origin/staging` ganhou seis commits da 234 (T2.7/T2.8, D4d: aviso de localização negada antes do
+"Entreguei"; só `frontend-driver`, painel e specs — nenhum arquivo de API, worker, cron ou
+migration). Novo rebase: um conflito só, `driver-app.smoke.spec.ts`, fundido mantendo os dois
+blocos (aviso D4d da 234 e ponto da 196). A API não mudou entre as duas passadas
+(`git diff --stat` vazio em `apps/api-transportada`), então a integração e o `db:test` acima valem
+para ela. Portões refeitos: `format:check` ok; `lint` exit 0 (0 errors, 16 warnings); `typecheck`
+exit 0; `build` exit 0; `test` exit 0 — motorista 1165/0, resto igual ao acima;
+`db:generate` → `no_changes`.
+
+## Revisão final opus (2026-10-03) — roteiro da sonda da T4.3 e observações
+
+### Sonda da T4.3: roteiro correto (não executada)
+
+O roteiro antigo (`dispatch` com `location` e leitura do `400`) não separava API antiga de API nova com
+segurança. O correto, também em `plan.md` § Ordem de deploy:
+
+1. Alvo: `POST /me/trips/current/stops/<uuid aleatório>/occurrences`, token de motorista de teste.
+2. Cabeçalhos: `Content-Type: application/json` e `Idempotency-Key: <UUID canônico aleatório>`.
+3. Corpo: `{ "kind": "other", "location": { "capturedAt": "<ISO>", "latitude": -23.55, "longitude": -46.63 } }`.
+4. Leitura: `404`/`409`/`422` = a API nova passou do parse. `400` = ler `details[].message` e procurar
+   `location` (chave desconhecida no parse estrito); **nunca** `field`.
+5. **Controle:** a mesma requisição **sem** `location`, com `stopId` falso, tem de dar `404`. Sem o
+   controle, um `400` por corpo ou cabeçalho torto seria lido como "API antiga".
+
+### Observações registradas, sem correção (decisão do usuário pendente)
+
+- **`confirm-load` e `start-route` aceitam e descartam `tappedAt`/`clockOffsetMs` da 234.** Achado da revisão
+  final; o esquema da 234 aceita os campos (`me-trip.schema.ts`) e o descarte no caso de uso não foi reverificado aqui. Decisão pendente: aceitar-sem-gravar
+  (como está) ou responder `400`.
+- **`captured_at` apagado pelo expurgo afeta métricas antigas quando o expurgo for ligado.** O expurgo de
+  90 dias zera `captured_at` junto com a coordenada, e o momento do evento (`deliveredMomentSql`, pontualidade)
+  lê essa coluna. Ao ligar `TRIP_LOCATION_PURGE_ENABLED`, a leitura histórica de mais de 90 dias muda.
+  Decisão de produto pendente.
+
+## Rebase sobre a 235
+
+Rebase sobre `origin/staging` (spec 235, o ajudante é um perfil, migration `20261002230234_helper_role_and_can_drive`).
+
+- Conflitos fundidos, ambos os lados mantidos: `static-migration.contract.ts` (lista exaustiva ganhou as duas pastas, 235 antes da corretiva da 196) e as seções de spec 235 e spec 196 em `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` e `docs/ai-context/frontend-transportada.md`.
+- Snapshot da corretiva `20261003010806_event_location_whatsapp_coordinate` refeito a partir do da 235: `id` `eb960c28-…` mantido, `prevIds` = `0c09292d-a294-4743-92eb-60578a376866`, e só os três CHECKs `*_coordinates_channel_check` trocados para `in ('driver_app', 'whatsapp')`. `db:generate` devolve `no_changes`.
+- Gates: `format:check`, `lint` (0 erros), `typecheck`, `build`, `test` raiz (inclui contrato de shards e `static-migration`), `db:test` (118 pass) e integração dos 10 arquivos tocados pela 196 ou pela 235 (121 pass, 0 fail, 0 skip). A integração completa não foi reexecutada.
+
+## T3.7 — pacotes `meta-whatsapp-*` subidos (2026-10-03)
+
+- `module@0.7.0` (deps exatas: `contracts@0.6.0`, `provider@0.3.1`, `meta-graph-core@0.3.0`); `bun install --frozen-lockfile` verde.
+- **Só 0004–0010 rodam nos bancos existentes** (Postgres nativo descartável, porta 55999): migrations do tarball `0.1.0` (4 pastas) aplicadas
+  pelo runner antigo; depois `runMetaWhatsAppSchemaMigrations` novo. Journal `drizzle.meta_whatsapp_migrations`: 4 nomes antes, 11 depois (as 4
+  originais intactas, 7 aditivas acrescentadas, sem erro de "já existe"). Contrato permanente em `test/whatsapp/module-migration.contract.ts`
+  ("banco com as quatro originais aplicadas só roda as aditivas"). O `assertMigrationsAreComplete` do pre-deploy lê só o journal do `public`:
+  **não cobre** `meta_whatsapp`. Rollback `drizzle-meta-whatsapp/rollback.sql` continua válido (as 11 migrations só tocam o schema `meta_whatsapp`).
+- Ponta a ponta da localização: `whatsapp-driver-flow-actions.integration.ts` (webhook real → `captured` `-23.5505200`/`-46.6333080`, `capturedAt`
+  `2025-09-11T12:00:00Z`; sem localização → `unavailable`); nenhuma coordenada em log nosso. ⚠️ O pacote não loga, mas **persiste** a mensagem crua em
+  `meta_whatsapp.messages.payload.location` e o rótulo em `content`.
+- `confirm` do nonce: mutação (no-op) reprova os 2 testes novos de `whatsapp-channel.integration.ts`; restaurado, 10/10.
+- Gates: format:check, lint (0 erros), typecheck (0), build, `bun run test` (9153 pass na API), `db:test` 119/0, integração WhatsApp 57/0.
+
+## T3.8 — o bot pede a geolocalização (2026-10-03)
+
+- **Texto, não mensagem interativa.** O `.d.ts` de `meta-whatsapp-contracts`/`-module`/`-provider` `0.7.0` não tem `location_request_message`; o provider só expõe `sendLocation` (enviar). Não inventei API.
+- `DRIVER_LOCATION_REQUEST_TEXT` (`whatsapp-driver-flow.constant.ts`) compõe a `question` de `driver_trip_menu`, `driver_return_reason_menu` e `driver_note_entry` (`whatsapp-flow-graph.constant.ts`). Sem coordenada nem dado pessoal; não bloqueia (sem toque, a baixa grava `unavailable`). Nenhum nó do operador/emissão.
+- Contrato: `test/whatsapp-commands/flow-graph.contract.ts` (grafo segue válido em `validateFlowGraphForWhatsApp`; 3 nós do motorista pedem; texto sem dígito; nenhum outro nó cita localização).
+- Mutação (restaurado após cada uma):
+
+| Mutação                              | Resultado                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| tirar o pedido de `driver_trip_menu` | reprova "driver_trip_menu carrega o pedido"                                                                                                                  |
+| tirar de `driver_return_reason_menu` | reprova o teste do nó                                                                                                                                        |
+| tirar de `driver_note_entry`         | reprova o teste do nó                                                                                                                                        |
+| pôr o pedido num nó do operador      | reprova "nenhum nó do operador nem da emissão pede localização" (esta pegou, de fato, um erro meu: a primeira substituição em lote atingiu o nó do operador) |
+
+- **Passo operacional manual do usuário (NÃO executado aqui):** o despachante lê a versão publicada no banco, então a mudança só tem efeito após, por empresa: `cd apps/api-transportada && bun run scripts/whatsapp-flow-publish.ts --company <id>` (diff) e depois com `--confirm`.
+
+## Decisões do usuário (2026-10-04)
+
+- **Ponto do WhatsApp × distância/pontualidade:** entra nos dois, como o do app; nenhum filtro por canal.
+- **`confirm-load` e `start-route`:** aceitam e descartam `tappedAt`/`clockOffsetMs` (comportamento atual mantido).
+- **Bancos órfãos:** 96 bancos `transportada_*` com mais de 24 h e sem conexão foram dropados do Postgres de integração (65432); restaram 6, todos do dia.

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { OCCURRENCE_DECLARED_AMOUNT_FIELD } from '../../shared/trip-occurrence.constant.js'
 import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import type { TripTransitionBlock } from './trip-state.policy.js'
 
@@ -132,6 +133,33 @@ export class TripCrewHelperNotEligibleError extends ApiError {
       code: 'TRIP_CREW_HELPER_NOT_ELIGIBLE',
       details: driverIds.map((driverId) => ({ field: 'helperIds', message: driverId })),
       message: 'One or more helpers are not marked as able to help in their driver record.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 249 D5: transferir para a tripulação que a viagem já tem não tem efeito — nada é gravado. */
+export class TripCrewUnchangedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_UNCHANGED',
+      message: 'The requested crew is already the crew of this trip.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 235 D5: a ficha não dirige (`can_drive = false`) e foi escalada como condutor — os ids vão em
+ * `details`. Não confundir com `TRIP_CREW_HELPER_CANNOT_DRIVE` (403): aquele é o ajudante já na
+ * viagem tentando despachar; este é a montagem da tripulação.
+ */
+export class TripDriverCannotDriveError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'TRIP_DRIVER_CANNOT_DRIVE',
+      details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
+      message: 'One or more drivers of the crew are not able to drive in their driver record.',
       status: 409,
     })
   }
@@ -598,6 +626,68 @@ export class OccurrenceTypeSingleItemError extends ApiError {
     super({
       code: 'OCCURRENCE_TYPE_SINGLE_ITEM',
       message: 'This occurrence type accepts a single item.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 241 (RF6, CA03): tipo com Produtos desligado (`itemsMode = 'off'`) não aceita produto. */
+export class OccurrenceTypeItemsNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_NOT_ALLOWED',
+      message: 'This occurrence type does not carry items.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 241 (RF11, CA09): tipo sem produto não abre tratativa — `off` pede política `unset`. */
+export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_OFF_REDELIVERY_POLICY',
+      message: 'An occurrence type without items cannot decide redelivery.',
+      status: 422,
+    })
+  }
+}
+
+/** O nome é único por empresa em qualquer etapa, inclusive entre os tipos de recebimento que o painel não lista. */
+export class OccurrenceTypeNameTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NAME_TAKEN',
+      details: [{ field: 'name', message: 'An occurrence type with this name already exists' }],
+      message: 'An occurrence type with this name already exists',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c2): a quantidade mínima de produtos só existe com Produtos obrigatório — com outro
+ * modo ela seria dado morto que um `PUT` futuro religaria sem ninguém ver.
+ */
+export class OccurrenceTypeItemsMinimumRequiresRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_ITEMS_MINIMUM_REQUIRES_REQUIRED',
+      message: 'The items minimum count only applies when items are required.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 247 (RF1): valor pago digitado por item exige produtos no tipo — sem linha não há onde
+ * digitar. Pela ocorrência, ou com o valor pago desligado, `items_mode = 'off'` continua valendo.
+ */
+export class OccurrenceTypeDeclaredAmountNeedsItemsError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS',
+      message: 'A declared amount per item requires the occurrence type to carry items.',
       status: 422,
     })
   }
@@ -1155,6 +1245,79 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
 }
 
 /**
+ * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
+ * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
+ * colhe assinatura e devolve este mesmo erro (RF13).
+ */
+export class TripOccurrenceSignatureRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_REQUIRED',
+      message: 'This occurrence type requires a signature.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (revisão final, M1): o mesmo upload mandado como assinatura e como anexo. A assinatura mora
+ * só em `signature_object_id` (RF9); virar também linha de anexo a contaria no mínimo de fotos, no
+ * demonstrativo e no expurgo. 400, como o conflito entre os dois campos de anexo no schema.
+ */
+export class TripOccurrenceSignatureIsAttachmentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_SIGNATURE_IS_ATTACHMENT',
+      message: 'The signature cannot also be sent as an attachment.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1b, RF8): o tipo efetivo da nota exige produtos (`items_mode = 'required'`) e o registro
+ * não apontou nenhum — nem a nota inteira, que numa nota sem item algum não cobre nada. Código estável
+ * próprio por campo: a tela diz que faltam produtos.
+ */
+export class TripOccurrenceItemsRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_REQUIRED',
+      message: 'This occurrence type requires at least one item of the document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c2, RF8): produtos obrigatórios e a seleção ficou abaixo do exigido — "todos os itens da
+ * nota" (mínimo nulo) recusa a seleção parcial, e o mínimo numérico recusa o que fica abaixo dele.
+ */
+export class TripOccurrenceItemsMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ITEMS_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more items of the document than were selected.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 246 (RF1c, RF8): a foto é obrigatória e veio, mas abaixo de `photo_minimum_count`. Código
+ * próprio, distinto de `TRIP_OCCURRENCE_ATTACHMENT_REQUIRED` (nenhuma foto): a tela diz quantas faltam.
+ */
+export class TripOccurrencePhotoMinimumNotMetError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_PHOTO_MINIMUM_NOT_MET',
+      message: 'This occurrence type requires more photos than were attached.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 167 (RF4/RF8): a tratativa já abriu — o número já está valendo dinheiro e não muda por trás
  * da cobrança. 409, o mesmo padrão de `OccurrenceCaseTransitionNotAllowedError`.
  */
@@ -1209,6 +1372,74 @@ export class OccurrenceCancellationReasonTooLongError extends ApiError {
       code: 'OCCURRENCE_CANCELLATION_REASON_TOO_LONG',
       message: 'The cancellation reason must be at most 500 characters.',
       status: 400,
+    })
+  }
+}
+
+/**
+ * Spec 247 (casos extremos): a quantidade devolvida de um código passa da **soma** das linhas da nota
+ * com esse código. `400`: o número não pode existir, como a quantidade zero da 166.
+ */
+export class OccurrenceItemQuantityAboveDocumentError extends ApiError {
+  public constructor(field: string) {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT',
+      details: [{ field, message: 'The quantity is above the quantity of the document.' }],
+      message: 'An item quantity cannot be above the quantity of the document.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Spec 247 (T4.8): o valor pago da ocorrência e o de uma linha ao mesmo tempo — o registro recusa no
+ * corpo (`DECLARED_AMOUNT_SELECTION_CONFLICT`); a correção, que mantém o gravado quando o campo vem
+ * ausente, recusa o estado final.
+ */
+export class OccurrenceDeclaredAmountLevelConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DECLARED_AMOUNT_SELECTION_CONFLICT',
+      details: [
+        {
+          field: OCCURRENCE_DECLARED_AMOUNT_FIELD,
+          message: 'Use the occurrence amount or the item amounts, not both.',
+        },
+      ],
+      message: 'The paid amount is either on the occurrence or on its items, never on both.',
+      status: 400,
+    })
+  }
+}
+
+const REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE = 'Required by the occurrence type.'
+
+/**
+ * Spec 247 (RF14, CA06): o tipo **efetivo** da nota exige o número do documento do cliente e o
+ * registro chegou sem ele. Código próprio, com o campo: a tela diz o que falta.
+ */
+export class TripOccurrenceReferenceNumberRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED',
+      details: [{ field: 'referenceNumber', message: REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE }],
+      message: 'This occurrence type requires the customer document number.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 247 (RF14, CA06): falta o valor pago que o tipo efetivo exige — na ocorrência
+ * (`declaredAmount`) ou numa linha (`items[i].declaredAmount`), conforme onde ele se digita.
+ */
+export class TripOccurrenceDeclaredAmountRequiredError extends ApiError {
+  public constructor(field: string) {
+    super({
+      code: 'TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED',
+      details: [{ field, message: REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE }],
+      message: 'This occurrence type requires the declared amount.',
+      status: 422,
     })
   }
 }

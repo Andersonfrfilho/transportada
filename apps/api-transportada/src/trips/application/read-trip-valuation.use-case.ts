@@ -1,6 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { apportionDocumentCosts } from '../domain/document-cost-apportionment.policy.js'
+import type {
+  ApportionmentLeg,
+  ApportionmentStop,
+  DocumentCostFigures,
+} from '../domain/document-cost-apportionment.types.js'
 import {
   calculatePercentageFreight,
   createFreightRuleSnapshot,
@@ -13,22 +19,13 @@ import {
   VALUATION_GAPS,
   type TripCostParcel,
   type TripRevenueLine,
+  type TripRevenueLineFigures,
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
-import {
-  DAILY_ALLOWANCE_DAYS_ORIGIN,
-  suggestAllowanceDays,
-} from '../domain/daily-allowance.policy.js'
-import {
-  buildTripDriverCost,
-  type TripCrewMember,
-  type TripDriverCostDays,
-} from '../domain/trip-driver-cost.policy.js'
-import {
-  buildTripHelperCost,
-  type TripHelperCostMember,
-} from '../domain/trip-helper-cost.policy.js'
+import { buildCrewCostParcels } from '../domain/trip-crew-cost.policy.js'
+import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import type { TripHelperCostMember } from '../domain/trip-helper-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
@@ -36,6 +33,10 @@ import {
 } from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js'
+import {
+  applyDraftTripLiveRoute,
+  type DraftTripLiveRoute,
+} from './draft-trip-live-route.service.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
 import {
   readRouteGeometry,
@@ -70,6 +71,8 @@ export type TripValuationDocument = {
    */
   readonly recipientTaxId?: null | string
   readonly senderTaxId: null | string
+  /** Spec 232: em que parada a nota desce. Ausente ou `null`, ela só entra no rateio da viagem. */
+  readonly stopId?: null | string
   readonly tripDocumentId: string
 }
 
@@ -136,10 +139,19 @@ export type TripValuationContext = {
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
   /**
+   * Spec 232 D5: os trechos congelados, na forma do rateio — `legs[i]` chega a `stops[i]`. Ausente ou
+   * vazio é "roteiro ainda não calculado", e o gasto por nota sai ausente, nunca zero.
+   */
+  readonly legs?: readonly ApportionmentLeg[]
+  /**
    * Spec 143 D6: os avulsos lançados na viagem (`kind = 'other'`), separados do pedágio. `null`
    * quando ninguém lançou nada — ausência de lançamento, não gratuidade.
    */
   readonly manualCostTotal?: null | string
+  /** Spec 232 D3: o retorno ao ponto de término, que nenhuma nota tem a bordo. */
+  readonly returnDistanceMetres?: null | number
+  /** Spec 232 D9: as paradas na ordem da rota, cada uma com a espera medida. */
+  readonly stops?: readonly ApportionmentStop[]
   /**
    * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
    * `distanceMeters` na prévia; congelada no momento do planejamento na viagem já criada (T11), e
@@ -201,6 +213,8 @@ export type TripValuationPort = {
 
 export type ReadTripValuationInput = {
   readonly companyId: string
+  /** Só para exibir: rascunho sem rota congelada ganha combustível e pedágio estimados na hora. */
+  readonly liveRoute?: DraftTripLiveRoute
   readonly repository: TripValuationPort
   readonly tripId: string
 }
@@ -221,7 +235,15 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
 
   return buildValuationFromContext({
     companyId: input.companyId,
-    context,
+    context:
+      input.liveRoute === undefined
+        ? context
+        : await applyDraftTripLiveRoute({
+            companyId: input.companyId,
+            context,
+            liveRoute: input.liveRoute,
+            tripId: input.tripId,
+          }),
     repository: input.repository,
   })
 }
@@ -478,10 +500,72 @@ export async function buildValuationFromContext(input: {
     revenueSource: valuation.revenueSource,
   })
 
-  return buildTripValuation({
-    costParcels: [...buildCostParcels(context), ...taxParcels],
-    revenueLines,
+  return attachDocumentCostFigures({
+    context,
+    valuation: buildTripValuation({
+      costParcels: [...buildCostParcels(context), ...taxParcels],
+      revenueLines,
+    }),
   })
+}
+
+/**
+ * Spec 232 D8: o gasto por nota é o **mesmo** `totalCost` repartido, nunca uma segunda conta. O
+ * `amount` da linha é o frete; `freightAmount` é só o nome que a política dá a ele.
+ */
+function attachDocumentCostFigures(input: {
+  readonly context: TripValuationContext
+  readonly valuation: TripValuation
+}): TripValuation {
+  const { context, valuation } = input
+  const stopIdByDocument = new Map(
+    context.documents.map((document) => [document.tripDocumentId, document.stopId]),
+  )
+  const apportioned = apportionDocumentCosts({
+    costParcels: valuation.costParcels.map((parcel) => ({
+      amount: parcel.amount,
+      kind: parcel.kind,
+    })),
+    documents: valuation.revenueLines.map((line) => ({
+      freightAmount: line.amount,
+      stopId: stopIdByDocument.get(line.tripDocumentId) ?? null,
+      tripDocumentId: line.tripDocumentId,
+    })),
+    legs: context.legs ?? [],
+    returnDistanceMetres: context.returnDistanceMetres ?? null,
+    stops: context.stops ?? [],
+  })
+  const figuresByDocument = new Map(
+    apportioned.documents.map((figures) => [figures.tripDocumentId, toLineFigures(figures)]),
+  )
+
+  return {
+    ...valuation,
+    revenueLines: valuation.revenueLines.map((line) => ({
+      ...line,
+      ...figuresByDocument.get(line.tripDocumentId),
+      ...toStopFlag(stopIdByDocument.get(line.tripDocumentId)),
+    })),
+  }
+}
+
+/** Spec 232 RF7: `stopId` ausente é "o contexto não disse" — nada sai, em vez de um `false` inventado. */
+function toStopFlag(stopId: null | string | undefined): { readonly hasStop?: boolean } {
+  return stopId === undefined ? {} : { hasStop: stopId !== null }
+}
+
+/** O frete já é o `amount` da linha, e o id é a chave dela: nenhum dos dois se repete na resposta. */
+function toLineFigures(figures: DocumentCostFigures): TripRevenueLineFigures {
+  return {
+    costAmount: figures.costAmount,
+    costBasis: figures.costBasis,
+    legCostAmount: figures.legCostAmount,
+    marginAmount: figures.marginAmount,
+    marginPercentage: figures.marginPercentage,
+    taxAmount: figures.taxAmount,
+    timeBasis: figures.timeBasis,
+    tripShareCostAmount: figures.tripShareCostAmount,
+  }
 }
 
 /**
@@ -564,13 +648,7 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
   const hasDistance = distance !== null && distance > 0
 
   return [
-    buildDriverParcel(context),
-    buildTripHelperCost({
-      companyDailyRate: context.helperCompanyDailyRate ?? null,
-      helpers: context.helperCrew ?? [],
-      journeyIncludesReturn: context.journeyIncludesReturn ?? null,
-      journeySeconds: context.journeySeconds ?? null,
-    }),
+    ...buildCrewCostParcels(context),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),
@@ -586,36 +664,6 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
       kind: 'delivery_charges',
     }),
   ]
-}
-
-/**
- * Spec 143 D4: **dias informados vencem a sugestão** — quem lançou a viagem sabe o que ela vai
- * durar melhor do que a duração estimada do roteiro, e é essa diferença que separa a parcela medida
- * da prevista.
- */
-function buildDriverParcel(context: TripValuationContext): TripCostParcel {
-  return buildTripDriverCost({
-    companyDailyAmount: context.companyDailyAllowanceAmount ?? null,
-    crew: context.crew ?? [],
-    days: resolveAllowanceDays(context),
-  })
-}
-
-/**
- * ⚠️ Roteiro sem duração **não é viagem de um dia**: é viagem de duração desconhecida, e a política
- * responde por ela com lacuna. Tratar a ausência como zero segundo sugeria um dia calado, e a
- * viagem de três dias saía por um terço do custo do motorista numa margem de aparência fechada.
- */
-function resolveAllowanceDays(context: TripValuationContext): TripDriverCostDays {
-  const informedDays = context.dailyAllowanceDays ?? null
-  if (informedDays !== null) {
-    return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: informedDays }
-  }
-
-  const durationSeconds = context.estimatedDurationSeconds ?? null
-  if (durationSeconds === null) return { of: 'unknown' }
-
-  return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: suggestAllowanceDays(durationSeconds) }
 }
 
 /**

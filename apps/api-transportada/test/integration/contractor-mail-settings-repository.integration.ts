@@ -12,12 +12,12 @@
  * continuava sendo o do vencedor). Os dois testes de corrida abaixo prendem exatamente isso: o
  * perdedor recebe `409` e nada dele é persistido, e o vencedor abre com o próprio segredo.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createSecretEnvelopeProvider, type SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { createContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { ContractorMailSettingsVersionConflictError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
 import {
@@ -611,27 +611,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_cmail_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_cmail',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

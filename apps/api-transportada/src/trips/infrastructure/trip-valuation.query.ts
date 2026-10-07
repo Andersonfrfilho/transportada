@@ -34,13 +34,30 @@ import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
-import { tripDocuments, tripDrivers, trips } from '../../database/trip.schema.js'
+import {
+  tripDocuments,
+  tripDrivers,
+  tripStopEvents,
+  tripStops,
+  trips,
+} from '../../database/trip.schema.js'
+import { readApportionmentLegs } from '../domain/apportionment-route-legs.policy.js'
+import {
+  EVENT_CLOCKS,
+  resolveStopDwells,
+  STOP_DWELL_EVENT_KINDS,
+  type StopDwellEvent,
+  type StopDwellEventKind,
+} from '../domain/stop-dwell.policy.js'
+import type { ApportionmentStop } from '../domain/document-cost-apportionment.types.js'
 import type {
   TripValuationContext,
   TripValuationDocument,
 } from '../application/read-trip-valuation.use-case.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const DWELL_EVENT_KINDS: readonly StopDwellEventKind[] = Object.values(STOP_DWELL_EVENT_KINDS)
 
 const recipientParticipant = aliasedTable(nfeParticipants, 'valuation_recipient_participant')
 const recipientAddress = aliasedTable(nfeAddresses, 'valuation_recipient_address')
@@ -51,6 +68,7 @@ const emitterParticipant = aliasedTable(nfeParticipants, 'valuation_emitter_part
  * serve para rastrear a diferença de margem, não para publicar quem dirige.
  */
 const PREVIEW_CREW_DRIVER_NOT_FOUND = 'trip.valuation.preview_crew_driver_not_found'
+const STOP_DWELLS_UNAVAILABLE = 'trip.valuation.stop_dwells_unavailable'
 
 export class DrizzleTripValuationQuery {
   public constructor(
@@ -212,6 +230,9 @@ export class DrizzleTripValuationQuery {
         plannedDurationSeconds: trips.plannedDurationSeconds,
         plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
         plannedJourneySeconds: trips.plannedJourneySeconds,
+        plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
+        /** Spec 232: o jsonb inteiro, para os trechos do rateio — o parse é da política. */
+        plannedRoute: trips.plannedRoute,
         plannedToll: trips.plannedToll,
         /**
          * ⚠️ A coluna que distingue os dois nulos: veículo **não escolhido** (`null`) de veículo
@@ -246,6 +267,7 @@ export class DrizzleTripValuationQuery {
       federalRates,
       profiles,
       companyDailyAllowanceAmount,
+      stops,
     ] = await Promise.all([
       this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
       this.readDocuments(input),
@@ -258,6 +280,7 @@ export class DrizzleTripValuationQuery {
       this.readFederalRates({ companyId: input.companyId }),
       this.readIcmsProfiles(input.companyId),
       this.readCompanyDailyAllowanceAmount(input.companyId),
+      this.readStopDwellsOrNone(input),
     ])
 
     return {
@@ -276,7 +299,11 @@ export class DrizzleTripValuationQuery {
       helperCrew,
       journeyIncludesReturn: trip.plannedJourneyIncludesReturn,
       journeySeconds: trip.plannedJourneySeconds,
+      /** Spec 232 D5: ausente quando o roteiro não foi congelado; a política trata como ausência. */
+      legs: readApportionmentLegs(trip.plannedRoute),
       manualCostTotal,
+      returnDistanceMetres: trip.plannedReturnDistanceMeters,
+      stops,
       /**
        * Spec 090 T11: o congelado do momento do planejamento — nunca recalculado aqui (ver o
        * comentário em `TripValuationContext.toll`). `parseTollRouteCost` é a fronteira: forma
@@ -292,6 +319,74 @@ export class DrizzleTripValuationQuery {
               otherCostsPerKilometer: trip.otherCostsPerKilometer,
             },
     }
+  }
+
+  /**
+   * Spec 232 D9: as paradas na ordem da rota com a espera de cada uma. **Uma consulta** para a viagem
+   * inteira — as paradas e os eventos que medem a espera vêm juntos, e nenhuma delas é lida por
+   * parada nem por nota. Coordenada não entra: só o instante do evento.
+   */
+  /**
+   * A espera na parada é refinamento da conta por nota — os totais da viagem não dependem dela, e esta
+   * mesma leitura alimenta o recálculo do resultado congelado. Uma falha aqui não pode derrubar o caminho
+   * crítico: sem paradas a política devolve `unavailable` (spec 232 D5), que é o comportamento declarado.
+   * ⚠️ Só o nome do erro vai para o log: a mensagem do banco pode citar a linha.
+   */
+  private async readStopDwellsOrNone(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly ApportionmentStop[]> {
+    return this.readStopDwells(input).catch((error: unknown) => {
+      this.logger.warn(STOP_DWELLS_UNAVAILABLE, {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : 'unknown',
+        tripId: input.tripId,
+      })
+      return []
+    })
+  }
+
+  private async readStopDwells(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly ApportionmentStop[]> {
+    const rows = await this.database
+      .select({
+        channel: tripStopEvents.channel,
+        createdAt: tripStopEvents.createdAt,
+        kind: tripStopEvents.kind,
+        stopId: tripStops.id,
+        tappedAt: tripStopEvents.tappedAt,
+      })
+      .from(tripStops)
+      .leftJoin(
+        tripStopEvents,
+        and(
+          eq(tripStopEvents.companyId, tripStops.companyId),
+          eq(tripStopEvents.stopId, tripStops.id),
+          inArray(tripStopEvents.kind, [...DWELL_EVENT_KINDS]),
+        ),
+      )
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+      .orderBy(asc(tripStops.sequence))
+
+    const stopIds = [...new Set(rows.map((row) => row.stopId))]
+    const events = rows.flatMap((row): StopDwellEvent[] =>
+      row.kind === null || row.createdAt === null
+        ? []
+        : [
+            {
+              channel: row.channel,
+              clock: row.tappedAt === null ? EVENT_CLOCKS.server : EVENT_CLOCKS.device,
+              kind: row.kind as StopDwellEventKind,
+              /** A hora do toque vence a do servidor: a fila offline chega depois do fato. */
+              occurredAt: row.tappedAt ?? row.createdAt,
+              stopId: row.stopId,
+            },
+          ],
+    )
+
+    return resolveStopDwells({ events, stopIds })
   }
 
   /**
@@ -744,6 +839,7 @@ export class DrizzleTripValuationQuery {
         nfeTotalAmount: nfeDocuments.totalValue,
         recipientTaxId: recipientParticipant.taxId,
         senderTaxId: emitterParticipant.taxId,
+        stopId: tripDocuments.stopId,
         tripDocumentId: tripDocuments.id,
       })
       .from(tripDocuments)
@@ -815,6 +911,7 @@ export class DrizzleTripValuationQuery {
       nfeTotalAmount: row.nfeTotalAmount,
       recipientTaxId: row.recipientTaxId,
       senderTaxId: row.senderTaxId,
+      stopId: row.stopId,
       tripDocumentId: row.tripDocumentId,
     }))
   }

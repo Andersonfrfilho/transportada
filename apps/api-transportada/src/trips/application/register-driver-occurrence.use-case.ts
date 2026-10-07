@@ -9,72 +9,21 @@
  * viagem, ele alcançaria qualquer viagem. Aqui não há id de viagem no caminho: o escopo é a viagem
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
-import {
-  OCCURRENCE_TYPE_FLOWS,
-  TRIP_OCCURRENCE_STAGE,
-} from '../../shared/trip-occurrence.constant.js'
-import {
-  TripDocumentNotReachableError,
-  TripOccurrenceAttachmentRequiredError,
-  TripOccurrenceNoteRequiredError,
-} from '../domain/trip.error.js'
-import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
-import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
-import {
-  deriveFieldAuthorship,
-  toFieldTripTarget,
-  type FieldTripLocator,
-  type FieldTripTarget,
-} from './field-trip-target.types.js'
-import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
-import type { OccurrenceUploadAttachmentPort } from './resolve-occurrence-upload-attachment.use-case.js'
-import { resolveOccurrenceUploadAttachment } from './resolve-occurrence-upload-attachment.use-case.js'
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { TripDocumentNotReachableError } from '../domain/trip.error.js'
+import { assessDriverOccurrence } from './driver-occurrence-assessment.service.js'
+import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
+import { deriveFieldAuthorship } from './field-trip-target.types.js'
+import type { DriverDocumentOccurrence } from './driver-document-occurrence.types.js'
+import type { RegisterDriverOccurrenceInput } from './register-driver-occurrence.types.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
-/**
- * Spec 179 T200: só as três leituras — a escrita passou a viver na transação da chave (T203).
- * `findConfirmedUpload` (T203/RF2b) entrou na mesma leitura: confere o anexo referenciado antes de
- * abrir a transação, exatamente como as outras três já conferem tipo, nota e produto.
- */
-export type DriverOccurrenceReadPort = OccurrenceUploadAttachmentPort & {
-  findOccurrenceType(input: {
-    readonly companyId: string
-    readonly occurrenceTypeId: string
-  }): Promise<null | OccurrenceTypeRecord>
-  /** `null` quando a nota não é de uma viagem ativa do alvo — inalcançável, não proibida. */
-  findReachableDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly target: FieldTripTarget
-  }): Promise<null | { readonly tripId: string }>
-  listDocumentProducts(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<readonly { readonly code: string; readonly description: string }[]>
-}
+export type {
+  DriverOccurrenceReadPort,
+  RegisterDriverOccurrenceInput,
+} from './register-driver-occurrence.types.js'
 
 const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
-
-export type RegisterDriverOccurrenceInput = FieldTripLocator & {
-  readonly actorUserId: string
-  /**
-   * Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado (`trip_occurrence_uploads`) —
-   * nunca o arquivo. `undefined`/`null` é "sem anexo", válido para todo tipo que não seja
-   * `required`. Quando presente, é sempre conferido contra empresa e viagem, mesmo em tipo
-   * `optional` — o cliente nunca escolhe qual objeto anexar sem essa conferência (RF2b).
-   */
-  readonly attachmentObjectId?: string | null | undefined
-  readonly companyId: string
-  readonly documentId: string
-  readonly idempotencyKey: string
-  readonly note: string
-  readonly occurrenceTypeId: string
-  /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
-  readonly productCode: string
-  readonly repository: DriverOccurrenceReadPort
-  readonly unitOfWork: DriverFieldReportUnitOfWork
-}
 
 /**
  * ⚠️ **O motorista registra só o que acontece na rua.** `item_faltante` é do galpão — ele não
@@ -86,86 +35,26 @@ export type RegisterDriverOccurrenceInput = FieldTripLocator & {
  */
 export async function registerDriverOccurrence(
   input: RegisterDriverOccurrenceInput,
-): Promise<TripOccurrence> {
-  const occurrenceType = await input.repository.findOccurrenceType({
-    companyId: input.companyId,
-    occurrenceTypeId: input.occurrenceTypeId,
-  })
-
-  /**
-   * ⚠️ Tipo de galpão, tipo aposentado, tipo de outra empresa, tipo de parada (`flow: stop` — a
-   * lista que a tela oferece aqui já filtra por `flow: document`, mas a API não confia só nisso,
-   * spec 218 evidence.md "Limites que ficam") e nota fora da viagem dele respondem **igual**:
-   * inalcançável. Distinguir os cinco diria a quem tenta qual barreira encontrou.
-   */
-  if (
-    occurrenceType === null ||
-    !occurrenceType.active ||
-    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery ||
-    (occurrenceType.flow ?? OCCURRENCE_TYPE_FLOWS.document) !== OCCURRENCE_TYPE_FLOWS.document
-  ) {
-    throw new TripDocumentNotReachableError()
-  }
-
-  const reachable = await input.repository.findReachableDocument({
-    companyId: input.companyId,
-    documentId: input.documentId,
-    target: toFieldTripTarget(input),
-  })
-  if (reachable === null) throw new TripDocumentNotReachableError()
-
-  const scope = resolveOccurrenceProductScope({
-    productCode: input.productCode,
-    products: await input.repository.listDocumentProducts({
-      companyId: input.companyId,
-      documentId: input.documentId,
-      tripId: reachable.tripId,
-    }),
-  })
-  if (scope === null) throw new TripDocumentNotReachableError()
-
+): Promise<DriverDocumentOccurrence> {
+  const {
+    attachmentObjectIds,
+    declaredAmount,
+    lines,
+    occurrenceType,
+    referenceNumber,
+    scope,
+    signatureObjectId,
+    tripId,
+  } = await assessDriverOccurrence(input)
   const authorship = deriveFieldAuthorship(input)
-  const tripId = reachable.tripId
-
-  /**
-   * Spec 179 T203 (RF3/CA02/CA03): a exigência é do **tipo**, nunca do nome que a empresa deu a ele
-   * (`duplicacao.md`) — `attachmentMode` vem do cadastro (T101/T103), não de "o tipo se chama
-   * recusa". Ausente (dado legado sem a coluna preenchida na leitura) é `'off'`, o comportamento de
-   * sempre (CA07/CA08).
-   */
-  const attachmentMode = occurrenceType.attachmentMode ?? 'off'
-  if (attachmentMode === 'required') {
-    if (input.note.trim() === '') throw new TripOccurrenceNoteRequiredError()
-    if (input.attachmentObjectId === undefined || input.attachmentObjectId === null) {
-      throw new TripOccurrenceAttachmentRequiredError()
-    }
-  }
-
-  /**
-   * Spec 179 T203 (RF2b): qualquer referência recebida é conferida — existe, é desta empresa e veio
-   * desta viagem —, mesmo em tipo que não exige. O cliente nunca escolhe qual objeto anexar sem essa
-   * conferência; `resolveOccurrenceUploadAttachment` lança `TripOccurrenceUploadNotReachableError`
-   * quando não bate.
-   */
-  const attachmentObjectId =
-    input.attachmentObjectId === undefined || input.attachmentObjectId === null
-      ? null
-      : (
-          await resolveOccurrenceUploadAttachment({
-            companyId: input.companyId,
-            objectId: input.attachmentObjectId,
-            repository: input.repository,
-            tripId,
-          })
-        ).id
 
   /**
    * Spec 179 T200: a chave de idempotência que esta rota não tinha (ADR-0045 §5, revisão de
    * arquitetura de 23/09). Reserva e escrita na **mesma transação** — o reenvio da fila offline
    * (Fase 3) não pode duplicar a ocorrência.
    */
-  const saved = await input.unitOfWork.execute((transaction) =>
-    withFieldReport<TripOccurrence>({
+  return input.unitOfWork.execute((transaction) =>
+    withFieldReport<DriverDocumentOccurrence>({
       guard: {
         actorUserId: input.actorUserId,
         authorship,
@@ -180,13 +69,28 @@ export async function registerDriverOccurrence(
       perform: async () => {
         const result = await transaction.saveDocumentOccurrence({
           actorUserId: input.actorUserId,
-          attachmentObjectId,
+          attachmentObjectId: attachmentObjectIds[0] ?? null,
+          attachmentObjectIds,
           authorship,
           companyId: input.companyId,
+          declaredAmount,
           documentId: input.documentId,
+          items: lines.map((line) => ({
+            declaredAmount: line.declaredAmount,
+            productCode: line.productCode,
+            quantity: line.quantity,
+            quantityUnit: line.quantityUnit,
+            unitValue: line.unitValue,
+          })),
+          locationStamp: resolveFieldTapLocationStamp({
+            location: input.location,
+            locator: input,
+          }),
           note: input.note,
           occurrenceTypeId: occurrenceType.id,
           productCode: scope.productCode,
+          referenceNumber,
+          signatureObjectId,
           stage: TRIP_OCCURRENCE_STAGE.delivery,
           tripId,
           typeName: occurrenceType.name,
@@ -199,6 +103,4 @@ export async function registerDriverOccurrence(
         transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
     }),
   )
-
-  return saved
 }

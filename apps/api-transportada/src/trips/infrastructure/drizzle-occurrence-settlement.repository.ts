@@ -132,13 +132,16 @@ export class DrizzleOccurrenceSettlementRepository
           })),
         )
 
-        await this.charges.applyOccurrenceSettlementCharge({
-          actorUserId,
-          amount: resolved.total,
-          companyId,
-          occurrenceId: locked.occurrenceId,
-          transaction,
-        })
+        /** Ocorrência de recebimento (spec 237) não tem viagem a quem cobrar: o acerto vale sem cobrança. */
+        if (locked.hasTrip) {
+          await this.charges.applyOccurrenceSettlementCharge({
+            actorUserId,
+            amount: resolved.total,
+            companyId,
+            occurrenceId: locked.occurrenceId,
+            transaction,
+          })
+        }
       }
 
       return { items: resolved.items, total: resolved.total }
@@ -237,7 +240,11 @@ export class DrizzleOccurrenceSettlementRepository
 async function lockWritableCase(
   transaction: TripTransaction,
   input: { readonly caseId: string; readonly companyId: string },
-): Promise<{ readonly occurrenceId: string; readonly occurrenceProductCode: string }> {
+): Promise<{
+  readonly hasTrip: boolean
+  readonly occurrenceId: string
+  readonly occurrenceProductCode: string
+}> {
   const [lockedCase] = await transaction
     .select({
       decisionKind: tripOccurrenceCases.decisionKind,
@@ -259,7 +266,10 @@ async function lockWritableCase(
   }
 
   const [occurrenceRow] = await transaction
-    .select({ productCode: tripDocumentOccurrences.productCode })
+    .select({
+      productCode: tripDocumentOccurrences.productCode,
+      tripDocumentId: tripDocumentOccurrences.tripDocumentId,
+    })
     .from(tripDocumentOccurrences)
     .where(
       and(
@@ -270,5 +280,9 @@ async function lockWritableCase(
     .limit(1)
   if (occurrenceRow === undefined) throw new OccurrenceCaseNotFoundError()
 
-  return { occurrenceId: lockedCase.occurrenceId, occurrenceProductCode: occurrenceRow.productCode }
+  return {
+    hasTrip: occurrenceRow.tripDocumentId !== null,
+    occurrenceId: lockedCase.occurrenceId,
+    occurrenceProductCode: occurrenceRow.productCode,
+  }
 }

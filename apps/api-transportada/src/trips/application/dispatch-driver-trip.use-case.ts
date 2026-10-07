@@ -2,6 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { DispatchTripResult } from './dispatch-trip.use-case.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import { resolveEventLocationStamp } from '../domain/event-location-stamp.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import type { ReportedLocation } from './driver-field-report.port.js'
 import { TripCrewHelperCannotDriveError, TripNotOfDriverError } from '../domain/trip.error.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 
@@ -24,10 +28,14 @@ export type DispatchDriverTripInput = {
    */
   readonly dispatch: (input: {
     readonly actorUserId: string
+    /** Spec 196 T3.3: o ponto do toque, que o `dispatchTrip` leva até `trip_status_events`. */
+    readonly locationStamp: EventLocationStampColumns
     readonly tripId: string
   }) => Promise<DispatchTripResult>
   readonly driverId: string
   readonly linkage: DriverTripLinkagePort
+  /** Spec 196 T3.3: `null` é o toque sem ponto — carimba `unavailable`, não some. */
+  readonly location: ReportedLocation | null
   readonly tripId: string
 }
 
@@ -49,5 +57,13 @@ export async function dispatchDriverTrip(
   if (role === null) throw new TripNotOfDriverError()
   if (role !== 'driver') throw new TripCrewHelperCannotDriveError()
 
-  return input.dispatch({ actorUserId: input.actorUserId, tripId: input.tripId })
+  return input.dispatch({
+    actorUserId: input.actorUserId,
+    locationStamp: resolveEventLocationStamp({
+      channel: TRIP_FIELD_CHANNELS.driverApp,
+      isDriverTap: true,
+      location: input.location,
+    }),
+    tripId: input.tripId,
+  })
 }

@@ -205,7 +205,7 @@ async function parseJsonBody(request: Request): Promise<unknown> {
   }
 }
 
-function parseLimit(value: string | null): number {
+export function parseLimit(value: string | null): number {
   if (value === null) return DEFAULT_PAGE_LIMIT
   if (!PAGE_LIMIT.test(value)) throw invalidRequest()
   return Number(value)

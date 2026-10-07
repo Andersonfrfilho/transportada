@@ -59,6 +59,11 @@ sistema no meio do fluxo.
 - Valor desconhecido no parâmetro é **ausência**, não erro — cai no espelho, e depois no sistema.
 - `localStorage` indisponível (aba anônima, armazenamento bloqueado) não quebra nada: o parâmetro
   ainda pinta a primeira tela, e as seguintes seguem o sistema.
+- **O app do motorista (`frontend-driver`) participa desde a spec 231 (03/10/2026).** Ele ganhou tema
+  claro e botão no Perfil, e repassa a escolha pelo mesmo `createLoginUrl`. As duas apps escrevem no
+  mesmo espelho do Keycloak, e vale a última entrada — o que o texto acima já descreve ("reescrita a
+  cada entrada"). Quem usa o painel claro e o app do motorista escuro vê o login seguir o app por
+  onde entrou.
 - **O portal do contratante (`frontend-client`) não participa.** Ele não tem botão de tema, então não
   tem escolha a repassar; quem entrar por lá continua obedecendo ao sistema.
 - Contrato em `apps/frontend-transportada/test/design-system/login-theme-handoff.contract.ts`: as

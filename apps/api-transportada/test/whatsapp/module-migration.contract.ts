@@ -7,7 +7,17 @@
  * nosso em `drizzle/`. O que este contrato guarda é a **fronteira** — o schema entra inteiro, o
  * `public` não é tocado, e o rollback devolve o banco ao estado anterior.
  */
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect } from 'bun:test'
+import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import {
+  META_WHATSAPP_MIGRATIONS_TABLE,
+  metaWhatsAppMigrationsFolder,
+} from '@adatechnology/meta-whatsapp-module'
+import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -21,6 +31,8 @@ import {
   testWithPostgres,
   withDisposableDatabase,
 } from '../database-migration/support.js'
+
+const ORIGINAL_MIGRATION_COUNT = 4
 
 async function readSchemaTables(
   database: { <T>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T> },
@@ -84,5 +96,46 @@ describe('as migrations do módulo de conversa (spec 062 T006)', () => {
     expect(rollbackSql).toMatch(/drop schema (if exists )?"?meta_whatsapp"?/i)
     /** Sem esta linha o rollback é uma armadilha: some o schema e o journal continua marcado. */
     expect(rollbackSql).toMatch(/meta_whatsapp_migrations/i)
+  })
+
+  /**
+   * ⚠️ O migrator decide pelo NOME da migration: banco que já rodou as quatro originais (pacote
+   * `0.1.0`) só pode executar as aditivas. Reaplicar uma original recriaria tabela existente e
+   * derrubaria o pre-deploy.
+   */
+  testWithPostgres('banco com as quatro originais aplicadas só roda as aditivas', async () => {
+    await withDisposableDatabase(async (database, connectionString) => {
+      const packageFolder = metaWhatsAppMigrationsFolder()
+      const allNames = readdirSync(packageFolder).toSorted()
+      const originalNames = allNames.slice(0, ORIGINAL_MIGRATION_COUNT)
+      const originalsFolder = mkdtempSync(join(tmpdir(), 'meta-whatsapp-originals-'))
+      try {
+        for (const name of originalNames) {
+          cpSync(join(packageFolder, name), join(originalsFolder, name), { recursive: true })
+        }
+        const provider = createDrizzleProvider({
+          connection: { adapter: 'postgres', max: 1, url: connectionString },
+        })
+        try {
+          await migrate(provider.db as never, {
+            migrationsFolder: originalsFolder,
+            migrationsTable: META_WHATSAPP_MIGRATIONS_TABLE,
+          })
+        } finally {
+          await provider.close()
+        }
+        const readJournal = async () =>
+          database<Array<{ readonly name: string }>>`
+            select name from drizzle.meta_whatsapp_migrations order by id
+          `
+        expect((await readJournal()).map((row) => row.name)).toEqual(originalNames)
+
+        await runMetaWhatsAppSchemaMigrations({ connectionString })
+
+        expect((await readJournal()).map((row) => row.name)).toEqual(allNames)
+      } finally {
+        rmSync(originalsFolder, { force: true, recursive: true })
+      }
+    })
   })
 })

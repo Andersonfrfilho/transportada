@@ -1,19 +1,36 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ApiLogger } from '../shared/api.types.js'
 import {
   OCCURRENCE_TYPE_CATALOG,
+  RECEIVING_OCCURRENCE_TYPE_CATALOG,
   type OccurrenceTypeCatalogEntry,
 } from '../shared/occurrence-type-catalog.constant.js'
+import {
+  TRIP_BOUND_OCCURRENCE_STAGES,
+  TRIP_OCCURRENCE_STAGE,
+  type TripOccurrenceStage,
+} from '../shared/trip-occurrence.constant.js'
 
 export type OccurrenceTypeCatalogSeedPort = {
   listCompanyIds(): Promise<readonly string[]>
-  /** Qualquer linha, ativa ou não — é só a presença que decide se a empresa já tem catálogo. */
-  hasAnyOccurrenceType(input: { readonly companyId: string }): Promise<boolean>
+  /**
+   * Qualquer linha das etapas pedidas, ativa ou não — é só a presença que decide se a empresa já
+   * tem aquele catálogo (spec 237: o de viagem e o de recebimento são bootstraps separados).
+   */
+  hasAnyOccurrenceType(input: {
+    readonly companyId: string
+    readonly stages: readonly TripOccurrenceStage[]
+  }): Promise<boolean>
+  /**
+   * Devolve quantos nasceram: nome já usado na empresa (em qualquer etapa — o unique de nome não olha
+   * a etapa) é pulado, nunca derruba o pre-deploy.
+   */
   insertOccurrenceTypes(input: {
     readonly companyId: string
     readonly types: readonly OccurrenceTypeCatalogEntry[]
-  }): Promise<void>
+  }): Promise<number>
 }
 
 /**
@@ -33,10 +50,44 @@ export async function seedOccurrenceTypeCatalog({
 }: {
   readonly port: OccurrenceTypeCatalogSeedPort
 }): Promise<number> {
-  const companyIds = await port.listCompanyIds()
+  return seedCatalog({
+    port,
+    stages: TRIP_BOUND_OCCURRENCE_STAGES,
+    types: OCCURRENCE_TYPE_CATALOG,
+  })
+}
+
+/** Spec 237 T3.2 (ADR-0094 §9.2): a mesma regra de bootstrap, só para a etapa `receiving`. */
+export async function seedReceivingOccurrenceTypeCatalog({
+  logger,
+  port,
+}: {
+  readonly logger: Pick<ApiLogger, 'warn'>
+  readonly port: OccurrenceTypeCatalogSeedPort
+}): Promise<number> {
+  return seedCatalog({
+    // Os três nomes podem estar tomados (único por empresa, em qualquer etapa): sem tipo, sem avaria.
+    onNoneCreated: (companyId) => logger.warn(RECEIVING_SEED_NONE_CREATED_LOG, { companyId }),
+    port,
+    stages: [TRIP_OCCURRENCE_STAGE.receiving],
+    types: RECEIVING_OCCURRENCE_TYPE_CATALOG,
+  })
+}
+
+const RECEIVING_SEED_NONE_CREATED_LOG = 'occurrence_type_seed.receiving_none_created'
+
+type SeedCatalogParams = {
+  readonly onNoneCreated?: (companyId: string) => void
+  readonly port: OccurrenceTypeCatalogSeedPort
+  readonly stages: readonly TripOccurrenceStage[]
+  readonly types: readonly OccurrenceTypeCatalogEntry[]
+}
+
+async function seedCatalog(params: SeedCatalogParams): Promise<number> {
+  const companyIds = await params.port.listCompanyIds()
 
   const createdPerCompany = await Promise.all(
-    companyIds.map((companyId) => bootstrapCompanyOccurrenceTypes({ companyId, port })),
+    companyIds.map((companyId) => bootstrapCompanyOccurrenceTypes({ ...params, companyId })),
   )
 
   return createdPerCompany.reduce((total, count) => total + count, 0)
@@ -44,14 +95,15 @@ export async function seedOccurrenceTypeCatalog({
 
 async function bootstrapCompanyOccurrenceTypes({
   companyId,
+  onNoneCreated,
   port,
-}: {
-  readonly companyId: string
-  readonly port: OccurrenceTypeCatalogSeedPort
-}): Promise<number> {
-  const hasAny = await port.hasAnyOccurrenceType({ companyId })
+  stages,
+  types,
+}: SeedCatalogParams & { readonly companyId: string }): Promise<number> {
+  const hasAny = await port.hasAnyOccurrenceType({ companyId, stages })
   if (hasAny) return 0
 
-  await port.insertOccurrenceTypes({ companyId, types: OCCURRENCE_TYPE_CATALOG })
-  return OCCURRENCE_TYPE_CATALOG.length
+  const created = await port.insertOccurrenceTypes({ companyId, types })
+  if (created === 0) onNoneCreated?.(companyId)
+  return created
 }

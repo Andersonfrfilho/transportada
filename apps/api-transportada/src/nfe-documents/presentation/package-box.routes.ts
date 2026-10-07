@@ -14,13 +14,17 @@ import type { ExportPendingPackageBoxes } from '../application/export-pending-pa
 import type { ListPackageBoxes } from '../application/list-package-boxes.use-case.js'
 import type { ListPackageBoxSiblings } from '../application/list-package-box-siblings.use-case.js'
 import type { MeasurePackageBox } from '../application/measure-package-box.use-case.js'
-import type { PackageBoxMeasurement } from '../application/package-box.port.js'
+import type {
+  PackageBoxMeasurement,
+  PackageBoxStatusFilter,
+} from '../application/package-box.port.js'
 import type { RecordPackageBoxUnit } from '../application/record-package-box-unit.use-case.js'
 import type { ReplicatePackageBoxMeasurement } from '../application/replicate-package-box-measurement.use-case.js'
 import {
   parsePackageBoxList,
   parsePackageBoxMeasurement,
   parsePackageBoxReplication,
+  parsePackageBoxExportStatus,
   parsePackageBoxUnit,
 } from './package-box.schema.js'
 import type { PackageBoxListInput, PackageBoxUnitInput } from './package-box.schema.js'
@@ -97,19 +101,20 @@ export function createPackageBoxRoutes(dependencies: {
       policy: CARGO_MEASURE_POLICY,
     }),
     /**
-     * Tudo o que falta medir, na ordem da fila, para o arquivo da aba Caixas. Nenhum parâmetro do
+     * O que a aba Caixas está mostrando, na ordem da fila, para o arquivo. Só a situação vem do
      * cliente: a empresa vem do token e o teto é do servidor. ⚠️ O caminho estático não cai em
      * `/:id` — o roteador prefere a rota exata, e o contrato `pending-export` confere.
      */
-    defineRoute<undefined>({
-      async handle({ context }): Promise<Response> {
+    defineRoute<PackageBoxStatusFilter>({
+      async handle({ context, input }): Promise<Response> {
         const result = await dependencies.exportPendingPackageBoxes.execute({
           context: { companyId: context.scope.companyId },
+          status: input,
         })
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => parsePackageBoxExportStatus(new URL(request.url)),
       pathname: API_NFE_PACKAGE_BOX_PENDING_EXPORT_PATH,
       policy: CARGO_MEASURE_POLICY,
       rateLimit: PACKAGE_BOX_PENDING_EXPORT_RATE_LIMIT,

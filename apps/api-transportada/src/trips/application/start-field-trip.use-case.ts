@@ -3,6 +3,7 @@
  */
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import {
@@ -11,6 +12,8 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import { TripStatusWriteConflictError } from '../domain/trip-field-office.error.js'
+import type { ReportedLocation } from './driver-field-report.port.js'
+import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
 import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
 import {
   buildOfficeAuditEntry,
@@ -58,6 +61,8 @@ export type StartFieldTripPort = {
     readonly channel: TripFieldChannel
     readonly companyId: string
     readonly expectedStatus: TripStatus
+    /** Spec 196 T3.3: o ponto do toque do motorista; ausente quando quem toca é o escritório. */
+    readonly locationStamp?: EventLocationStampColumns
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
     readonly tripStatus: TripStatus
@@ -67,6 +72,8 @@ export type StartFieldTripPort = {
 export type StartFieldTripInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 196 T3.3: o ponto do toque do motorista; o escritório não manda, e se mandar é ignorado. */
+  readonly location?: ReportedLocation | null | undefined
   /** Spec 156 T15 M11: só o escritório manda — o toque repetido (`changed: false`) não audita. */
   readonly officeAudit?: OfficeAuditRequest
   readonly repository: StartFieldTripPort
@@ -162,6 +169,11 @@ async function applyFieldStep(params: ApplyFieldStepParams): Promise<StartFieldT
     channel: authorship.channel,
     companyId: input.companyId,
     expectedStatus: tripStatus,
+    ...(input.target === undefined
+      ? {
+          locationStamp: resolveFieldTapLocationStamp({ location: input.location, locator: input }),
+        }
+      : {}),
     onBehalfOfDriverId: authorship.onBehalfOfDriverId,
     tripId,
     tripStatus: transition.nextStatus,

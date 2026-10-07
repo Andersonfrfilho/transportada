@@ -25,6 +25,7 @@ import { NO_EVENT_LOCATION } from '../application/trip-timeline.types.js'
 import type { ReadTripTimelineParams } from '../application/trip-timeline.types.js'
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { toTimelineLocation } from './trip-timeline-stop.query.js'
 import {
   constantPriority,
   formatTimelineTimestampKey,
@@ -45,6 +46,7 @@ export async function listDocumentOccurrenceRows(
     eq(tripDocumentOccurrences.companyId, params.companyId),
     eq(tripDocuments.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(eq(tripDocuments.id, params.documentId))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(
@@ -59,7 +61,9 @@ export async function listDocumentOccurrenceRows(
 
   const rows = await queryable
     .select({
+      accuracyMeters: tripDocumentOccurrences.accuracyMeters,
       actorName: timelineActorProfile.name,
+      capturedAt: tripDocumentOccurrences.capturedAt,
       /**
        * Spec 161 T11 (RF12): a contagem da tabela nova (D2) quando existe, senão 1 quando a
        * coluna antiga (D6) tem anexo, senão 0 — o mesmo desempate de RF15, sem trazer nenhuma
@@ -85,6 +89,9 @@ export async function listDocumentOccurrenceRows(
       documentId: tripDocuments.id,
       id: tripDocumentOccurrences.id,
       invoiceNumber: nfeDocuments.number,
+      latitude: tripDocumentOccurrences.latitude,
+      locationState: tripDocumentOccurrences.locationState,
+      longitude: tripDocumentOccurrences.longitude,
       invoiceSeries: nfeDocuments.series,
       note: tripDocumentOccurrences.note,
       occurredAt: tripDocumentOccurrences.createdAt,
@@ -154,7 +161,13 @@ export async function listDocumentOccurrenceRows(
     id: row.id,
     kind: 'document.occurrence' as const,
     lateRegistration: false,
-    ...NO_EVENT_LOCATION,
+    location: toTimelineLocation({
+      ...row,
+      recordedAt: row.occurredAt,
+      referenceLatitude: null,
+      referenceLongitude: null,
+    }),
+    locationState: row.locationState ?? null,
     occurrence: {
       attachmentCount: Number(row.attachmentCount),
       cancellation: cancellations.get(row.id) ?? null,
@@ -180,6 +193,7 @@ export async function listDocumentStatusChangedRows(
     eq(tripDocumentEvents.companyId, params.companyId),
     eq(tripDocuments.tripId, params.tripId),
   ]
+  if (params.documentId !== undefined) conditions.push(eq(tripDocuments.id, params.documentId))
   if (params.cursor !== null) {
     conditions.push(
       timelineKeysetCondition(

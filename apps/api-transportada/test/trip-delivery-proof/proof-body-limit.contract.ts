@@ -46,6 +46,7 @@ function buildHandler() {
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-26T12:00:00.000Z'),
       deliveryEventPosition: undefined,
+      isDeliveryRecordedByDriver: true,
       stopPosition: undefined,
     }),
     findDeliveryEventId: async () => EVENT_ID,

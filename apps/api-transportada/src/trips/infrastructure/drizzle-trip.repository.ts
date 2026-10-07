@@ -95,6 +95,7 @@ import {
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
+import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
 import { resolveDispatchReadiness } from '../domain/dispatch-readiness.policy.js'
 import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
@@ -119,6 +120,11 @@ import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
+import { applyTripCrewTransfer } from './trip-crew-transfer.persistence.js'
+import type {
+  TransferTripCrewParams,
+  TransferTripCrewResult,
+} from '../application/trip-crew-transfer.types.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -414,6 +420,26 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         companyId: input.companyId,
         tripId: input.tripId,
       })
+    })
+  }
+
+  /**
+   * Spec 249: a transferência de tripulação de uma viagem na rua. A escrita inteira (lock, janela,
+   * custo antes/depois, troca, histórico, auditoria) mora em `applyTripCrewTransfer`; aqui só se abre
+   * a transação e se lê o detalhe na mesma conexão.
+   */
+  public async transferCrew(input: TransferTripCrewParams): Promise<TransferTripCrewResult | null> {
+    return this.database.transaction(async (transaction) => {
+      const transfer = await applyTripCrewTransfer(transaction, input)
+      if (transfer === null) return null
+
+      const trip = await readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        companyId: input.companyId,
+        packageBoxLookup: this.packageBoxLookup,
+        tripId: input.tripId,
+      })
+      return trip === null ? null : { transfer, trip }
     })
   }
 
@@ -832,6 +858,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database
       .select({
         canActAsHelper: fleetDrivers.canActAsHelper,
+        canDrive: fleetDrivers.canDrive,
         id: fleetDrivers.id,
         name: fleetDrivers.name,
         status: fleetDrivers.status,
@@ -1400,6 +1427,13 @@ async function readTripDetail(
       (document) => document.tripDocumentId,
     ),
   )
+  /** Spec 233 T2.3: uma consulta agregada para as N notas (`GROUP BY document_id`) — nunca por nota. */
+  const volumeCountByNfeDocumentId = await loadTripDocumentVolumeCounts(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
@@ -1425,6 +1459,10 @@ async function readTripDetail(
       leavesBehindOnDispatch: leavesBehindOnDispatchIds.has(row.document.id),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
       proofPending: proofPendingDocumentIds.has(row.document.id),
+      volumeCount:
+        row.document.nfeDocumentId === null
+          ? null
+          : (volumeCountByNfeDocumentId.get(row.document.nfeDocumentId) ?? null),
     }),
   )
 

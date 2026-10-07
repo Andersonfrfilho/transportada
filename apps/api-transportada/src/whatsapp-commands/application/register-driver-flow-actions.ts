@@ -42,7 +42,8 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../../trips/domain/trip.error.js'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../../trips/domain/occurrence-moment.policy.js'
 import {
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
@@ -55,7 +56,10 @@ import {
 } from '../domain/whatsapp-driver-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
+import { describeOccurrenceRequirementRefusal } from './driver-occurrence-refusal.service.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
+import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
 import {
   rejectListAnswer,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
@@ -73,6 +77,8 @@ type ReportOutcome = {
 }
 
 export type DriverFlowActionDependencies = {
+  /** Spec 196 T3.6: o ponto que o motorista mandou antes do toque; `null` é `unavailable`. */
+  readonly consumeSharedLocation: WhatsAppSharedLocationStore['consume']
   readonly findCurrentTrip: (input: {
     readonly companyId: string
     readonly membershipId: string
@@ -86,6 +92,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
+    readonly location: ReportedLocation | null
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -96,7 +103,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
-    readonly location: null
+    readonly location: ReportedLocation | null
   }) => Promise<ReportOutcome>
   readonly reportReturn: (input: {
     readonly actorUserId: string
@@ -104,7 +111,7 @@ export type DriverFlowActionDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly idempotencyKey: string
-    readonly location: null
+    readonly location: ReportedLocation | null
     readonly reason: DriverReturnReason
   }) => Promise<ReportOutcome>
   readonly resolveDriverId: (input: {
@@ -162,6 +169,17 @@ export function createDriverWhatsAppFlowActions(
         (trip) => !(TRIP_TERMINAL_STATUSES as readonly string[]).includes(trip.status),
       ),
     }
+  }
+
+  /** Só as três ações do motorista chamam isto; a do operador não recebe o armazém. */
+  function consumeLocation(input: {
+    readonly actor: Parameters<WhatsAppAuthorizedActionHandler>[0]['actor']
+    readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
+  }): ReportedLocation | null {
+    return deps.consumeSharedLocation({
+      companyId: input.actor.scope.companyId,
+      whatsappNumber: input.session.whatsappNumber,
+    })
   }
 
   const currentTrip: WhatsAppAuthorizedActionHandler = async ({ actor, channel, session }) => {
@@ -313,7 +331,7 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
-        location: null,
+        location: consumeLocation({ actor, session }),
       })
       await channel.sendText(
         session.whatsappNumber,
@@ -359,7 +377,7 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
-        location: null,
+        location: consumeLocation({ actor, session }),
         reason,
       })
       await channel.sendText(
@@ -379,9 +397,7 @@ export function createDriverWhatsAppFlowActions(
     session,
   }) => {
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const options = catalog.filter(
-      (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-    )
+    const options = catalog.filter(isOfferedToDriver)
     if (options.length === 0) {
       await channel.sendText(
         session.whatsappNumber,
@@ -425,9 +441,7 @@ export function createDriverWhatsAppFlowActions(
     }
 
     const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
-    const offered = catalog.some(
-      (type) => type.id === answer && type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
-    )
+    const offered = catalog.some((type) => type.id === answer && isOfferedToDriver(type))
     if (!offered) {
       return rejectListAnswer({
         channel,
@@ -499,12 +513,19 @@ export function createDriverWhatsAppFlowActions(
         documentId,
         driverId,
         idempotencyKey: randomUUID(),
+        location: consumeLocation({ actor, session }),
         note,
         occurrenceTypeId,
         productCode: '',
       })
       await channel.sendText(session.whatsappNumber, 'Ocorrência registrada. ⚠️')
     } catch (error) {
+      /** Spec 246 (RF13): exigência de campo que o canal não colhe vira a frase do campo que falta. */
+      const refusal = describeOccurrenceRequirementRefusal(error)
+      if (refusal !== undefined) {
+        await channel.sendText(session.whatsappNumber, refusal.message)
+        return { next: refusal.next }
+      }
       await channel.sendText(session.whatsappNumber, describeDocumentError(error))
     }
     return { next: DRIVER_FLOW_NODE.tripMenu }
@@ -566,4 +587,13 @@ function describeDocumentError(error: unknown): string {
     return 'Essa nota não está mais disponível na sua viagem.'
   }
   throw error
+}
+
+/**
+ * Spec 246 (RF0b, T1b.2): o WhatsApp do motorista registra pela rota de nota
+ * (`registerDriverOccurrence`), momento `document` — a lista perde os tipos de parada, que o canal
+ * nunca conseguiu registrar.
+ */
+function isOfferedToDriver(type: OccurrenceTypeRecord): boolean {
+  return type.active && occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.document, type })
 }

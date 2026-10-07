@@ -92,3 +92,52 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
     179, com `skip locked`.
   - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
   - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".
+
+- **A prévia da carga é lida e vinculada aqui** (spec 237, ADR-0094 §8) — trilho `cargo-preview.v1`,
+  prefetch 1. A leitura roda numa `worker_thread` terminada em 10 s (`PREVIEW_PARSE_TIMEOUT`; o Bun
+  ignora `resourceLimits`, o teto de memória são os tetos do leitor); reentrega de prévia já `processing`
+  não relê; o vínculo tem 5 s por prévia e `statement_timeout` de 30 s; o objeto é achado pela linha,
+  nunca pela mensagem, e acima de 960 KiB nem é baixado (revisão de segurança, ADR-0094 §8). O leitor e a política de vínculo da API estão em `src/cargo-receiving/domain/` por
+  **cópia por valor idêntica** (contrato de paridade byte a byte): mudou lá, copie aqui. O vínculo toma a
+  trava advisory do contratante (a mesma da API) e grava só o que mudou; item decidido pelo operador
+  nunca é relido. **Toda nota nova pede a reavaliação** em `writeDocumentChildren`, num `SAVEPOINT` que
+  nunca derruba nem espera a importação, coalescida e adiada 30 s. Detalhe: docs/ai-context § "A prévia
+  da carga é lida e vinculada aqui".
+
+- **A prévia também chega por e-mail encaminhado** (spec 237 T4.6/T4.7a/T4.7c/T4.7d, ADR-0094 §10) — ramo `previewIntake`
+  (`src/cargo-preview-email/`) dentro de `contractor-mail-inbound.v1`, consultado **só quando nenhuma conversa casa**
+  (**a conversa vence** se o e-mail traz os dois endereços); só entra a mensagem que casa o token de um perfil (hash em
+  `contractor_receiving_profiles`, espaço distinto do das conversas), o resto segue o trilho da 143/183. Encaminhador e
+  remetente original em listas **separadas** do perfil; DKIM só do encaminhador (o do contratante se perde:
+  `docs/SECURITY.md`, 2026-10-06) e **`l=` nunca alinha** (vale para a conversa também). **O cabeçalho do MIME é medido
+  antes de qualquer `dkimVerify`** (`mime-header-bounds.policy.ts`, regra de linha da `mailauth`: 64 KiB a seção, 2 KiB
+  por campo que identifica — `from`, `sender`, `reply-to`, `return-path`, soma dos repetidos —, 8 KiB por destinatário e 16 KiB na
+  soma deles, 8 KiB os outros, 8 `DKIM-Signature` e 3 `ARC-*`; nome de campo com espaço exótico antes do `:` recusa; o
+  `addressparser` é quadrático e a `mailauth` faz um hasher por assinatura) — na conversa a mensagem hostil vira DKIM
+  `absent`, sem anexos; a mensagem anexada que a prévia abre passa pela mesma barreira, e **a conversa não deixa o PostalMime
+  abrir a `message/rfc822` aninhada** (`inbound-mail-parts.service.ts`): mais de 1000 linhas `--` recusa
+  (`mime-part-bounds.policy.ts`) e as aninhadas abertas dividem um orçamento de 5. **O DKIM tem prazo de 15 s**
+  (`DKIM_VERIFICATION_DEADLINE_MS`; estourou = `unverifiable`) e **o `From` do MIME tem de ser o `headerFrom` que a
+  `mailauth` alinhou** (`verifyWithHeaderFrom`; divergência = `FORWARDER_FROM_MISMATCH`: o leitor de remetente exige o
+  endereço literal no fim do valor, as aspas não escondem um segundo `<…>`). Janela por contratante com dois contadores
+  pelo relógio do banco: 20 autenticados fecham download e DKIM (rastro `RATE_LIMITED`) — **autenticado é o que o
+  encaminhador prova**: as seis recusas anteriores à lista do remetente original (`PREVIEW_EMAIL_UNPROVEN_REJECTIONS`) não
+  contam, mesmo gravadas `aligned`; 100 recusas só param de **gravar** — a checagem barata continua e o encaminhador
+  legítimo não fica trancado. DKIM sem veredito repete a entrega (só de assinatura **alinhada**; `d=` alheio com DNS mudo é
+  `not_aligned`) e só a última grava `FORWARDER_DKIM_UNVERIFIABLE`; **a conversa só grava `aligned` com o `From` assinado
+  igual ao remetente gravado** (`conversation-sender-identity.policy.ts`); o MIME da mensagem é de quem a registrou (reentrega descarta só a
+  planilha da tentativa). Anexo com o teto e o critério do upload; recusa vira linha em `cargo_preview_email_intakes`
+  (só código), sem corpo nem eco. A criação da prévia é **cópia por valor** do upload da API
+  (`preview-upload-file.policy.ts`, paridade nos dois sentidos). A planilha nunca é aberta aqui. Detalhe:
+  docs/ai-context § "A prévia por e-mail encaminhado".
+
+## O expurgo de posição (spec 196, ADR-0081)
+
+`trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e
+com teto de lotes por tabela, apaga `latitude`, `longitude`, `accuracy_meters` e `captured_at` pelo prazo da empresa e
+marca `location_state = 'expired'`, preservando o evento; os pings ao vivo têm corte próprio (36 h) e **rodam sempre**. ⚠️ Quem liga o expurgo das
+cinco tabelas é a **empresa, na tela** (spec 239): o worker lê `company_location_retention_settings` a cada ciclo, num
+`UPDATE` único com `CROSS JOIN LATERAL` por tabela, e cada empresa vale pelo próprio prazo (30–90 dias) depois da
+carência de 24 h. Sem linha ou desligada, nada é apagado; não existe variável de ambiente (`TRIP_LOCATION_PURGE_ENABLED`
+saiu e, se sobrar no Railway, é ignorada). O log conta linhas por tabela e `companies`, nunca coordenada, evento ou pessoa. Detalhe:
+docs/ai-context/worker-transportada.md § "O expurgo de posição".

@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+
+import { NOT_A_PREVIEW_INTAKE } from '../cargo-preview-email/not-a-preview.fixture.js'
 import type { RabbitMqConsumer, RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 
 import { startContractorMailInboundConsumer } from '../../src/runtime/contractor-mail-inbound-consumer.service.js'
@@ -76,6 +78,7 @@ async function captureHandler(input: {
     config: { prefetch: 5 } as never,
     dependencies: input.dependencies,
     logger: input.logger,
+    maxRetries: 3,
     provider,
   })
 
@@ -95,8 +98,8 @@ function buildDependenciesStub(overrides?: {
       store: async () => ({ skipped: 0, stored: [] }),
     },
     dkimVerifier: {
-      async verify() {
-        return 'aligned'
+      async verifyWithHeaderFrom() {
+        return { alignment: 'aligned' as const, headerFrom: ['financeiro@contratante.com.br'] }
       },
     },
     mailGateway: {
@@ -147,6 +150,7 @@ function buildDependenciesStub(overrides?: {
         return undefined
       },
     },
+    previewIntake: NOT_A_PREVIEW_INTAKE,
     storageBucket: 'transportada-private',
     storageProvider: 'minio',
   }

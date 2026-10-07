@@ -12,10 +12,15 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import type { CorrectedClock } from '../domain/occurred-at.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type {
+  DriverDocumentOccurrence,
+  DriverDocumentOccurrenceLineInput,
+} from './driver-document-occurrence.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
-import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
@@ -258,8 +263,18 @@ export type DriverFieldReportTransactionPort = {
      */
     readonly reportedByDriverId?: string
     readonly stopId: string
-    /** Spec 206 D3: a hora do aparelho no toque, só em `departed`/`departure_cancelled`. */
+    /**
+     * Spec 206 D3: a hora crua do aparelho no toque — em `departed`/`departure_cancelled` e, desde a
+     * spec 234 D2, em `arrived`/`delivered`/`returned` quando o app a manda (mesmo com a correção
+     * descartada). Nunca é a hora do evento: essa é `correctedClock`.
+     */
     readonly tappedAt?: Date | null
+    /**
+     * Spec 234 D3: a hora do toque corrigida pelo desvio do relógio, **só** quando `resolveOccurredAt`
+     * a aceitou — grava `occurred_at` e `clock_offset_ms`. Não é `occurredAt` (acima), que sobrescreve
+     * `created_at` e é do escritório.
+     */
+    readonly correctedClock?: CorrectedClock
   }): Promise<{ readonly id: string }>
   /**
    * Spec 156 T6: o comprovante da entrega **na mesma transação** da entrega — ao contrário do
@@ -375,6 +390,8 @@ export type DriverFieldReportTransactionPort = {
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
     readonly occurrenceTypeId: string | null
     readonly stopId: string
@@ -405,21 +422,40 @@ export type DriverFieldReportTransactionPort = {
   saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    /**
+     * Spec 246 (T2.7): todas as fotos já conferidas, na ordem — uma linha em
+     * `trip_document_occurrence_attachments` por posição (1..N). `attachmentObjectId` leva a primeira
+     * (a coluna antiga, escrita dupla da T1d.5). Ausente é a escrita do único.
+     */
+    readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly documentId: string
+    /** Spec 196 T3.3: o ponto do toque e o estado dele, já decididos pela política. */
+    readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /**
+     * Spec 246 (RF9): o objeto da assinatura, já conferido — gravado em `signature_object_id`, nunca
+     * como linha de anexo de foto. Ausente é "sem assinatura".
+     */
+    readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence>
+    /** Spec 247 (T4.4): o valor pago da ocorrência; ausente/nulo é não digitado. */
+    readonly declaredAmount?: null | string
+    /** Spec 247 (T4.4): as linhas, gravadas na mesma transação; ausente/vazia é nenhuma linha. */
+    readonly items?: readonly DriverDocumentOccurrenceLineInput[]
+    /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo é não informado. */
+    readonly referenceNumber?: null | string
+  }): Promise<null | DriverDocumentOccurrence>
   /** O reenvio da fila offline: a ocorrência de nota já gravada por esta chave. */
   findDocumentOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<null | TripOccurrence>
+  }): Promise<null | DriverDocumentOccurrence>
 }
 
 export type DriverFieldReportUnitOfWork = {

@@ -1,9 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './driver-trip/clock-fields-schema.contract.js'
+import './driver-trip/crew-role.contract.js'
 import './driver-trip/current-trip.contract.js'
+import './driver-trip/delivery-proof-clock-corrected.contract.js'
 import './driver-trip/delivery-proof.contract.js'
 import './driver-trip/dispatch.contract.js'
+import './driver-trip/event-location-stamp.contract.js'
 import './driver-trip/field-report.contract.js'
 import './driver-trip/me-routes.contract.js'
 import './driver-trip/office-field-delivery.contract.js'

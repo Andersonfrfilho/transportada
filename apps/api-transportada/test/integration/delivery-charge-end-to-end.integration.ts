@@ -9,11 +9,11 @@
  * portões que não se veem de fora: o despacho recusando por agendamento pendente, e a entrega
  * propondo a taxa sozinha.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
@@ -397,27 +397,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_060_e2e_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_060_e2e',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

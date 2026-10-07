@@ -45,6 +45,15 @@ type OccurrenceBatchInput = {
   readonly occurrenceIds: readonly string[]
 }
 
+/**
+ * Spec 247 (T4.8): a correção guarda também o valor unitário copiado e o valor pago, mas o painel
+ * publicado recusa chave que não conhece em cada item — a API continua publicando só as três de sempre
+ * até ele as tolerar (ADR-0081 §9).
+ */
+function toPublishedItem(item: OccurrenceItemQuantity): OccurrenceItemQuantity {
+  return { code: item.code, quantity: item.quantity, unit: item.unit }
+}
+
 /** Mais antiga primeiro; ocorrência sem correção não tem entrada no mapa. */
 export async function listOccurrenceCorrectionsByIds(
   queryable: TripQueryable,
@@ -86,7 +95,7 @@ export async function listOccurrenceCorrectionsByIds(
     entries.push({
       correctedAt: row.correctedAt.toISOString(),
       correctedByName: row.correctedByName,
-      previousItems: row.previousItems as readonly OccurrenceItemQuantity[],
+      previousItems: (row.previousItems as readonly OccurrenceItemQuantity[]).map(toPublishedItem),
     })
     correctionsByOccurrence.set(row.occurrenceId, entries)
   }

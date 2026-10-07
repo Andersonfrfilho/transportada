@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { createPreviewCteBatchUseCase } from '../../src/cte-batches/application/preview-cte-batch.use-case'
 import { DrizzleCteBatchPreviewRepository } from '../../src/cte-batches/infrastructure/drizzle-cte-batch-preview.repository'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
@@ -104,27 +104,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_t019_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_t019',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

@@ -146,6 +146,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('aggregateAttachment.cancel')
           },
         }),
+        startCargoPreviewConsumer: async () => ({
+          cancel: async () => {
+            calls.push('cargoPreview.cancel')
+          },
+        }),
         startContractorMailOutboundConsumer: async () => ({
           cancel: async () => {
             calls.push('contractorMailOutbound.cancel')
@@ -206,6 +211,7 @@ describe('NF-e worker runtime contract', () => {
       'invitationDelivery.cancel',
       'passwordResetDelivery.cancel',
       'aggregateAttachment.cancel',
+      'cargoPreview.cancel',
       'contractorMailOutbound.cancel',
       'contractorMailInbound.cancel',
       'cargoLayout.cancel',
@@ -226,6 +232,9 @@ describe('NF-e worker runtime contract', () => {
        * a única que enumera o que fecha; trilho novo entra nela junto com o `cancel` dele.
        */
       'provider.close:transportada.runtime.contract.aggregate-attachment.v1.main.queue',
+      // Spec 237 Fase 4a: o trilho da prévia, com o mesmo cuidado do anexo — fecha junto, ou o
+      // processo não sai no SIGTERM.
+      'provider.close:transportada.runtime.contract.cargo-preview.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-outbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-inbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.cargo-layout.v1.main.queue',
@@ -291,6 +300,7 @@ describe('NF-e worker runtime contract', () => {
         startInvitationDeliveryConsumer: async () => undefined,
         startPasswordResetDeliveryConsumer: async () => undefined,
         startAggregateAttachmentConsumer: async () => undefined,
+        startCargoPreviewConsumer: async () => undefined,
         startContractorMailOutboundConsumer: async () => undefined,
         startContractorMailInboundConsumer: async () => undefined,
         startCargoLayoutConsumer: async () => undefined,

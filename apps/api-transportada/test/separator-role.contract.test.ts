@@ -4,6 +4,13 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createCargoArrivalDocumentProductsRoute } from '../src/cargo-receiving/presentation/cargo-arrival-document-products.routes'
+import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
+import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
+import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/cargo-arrival.routes'
+import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
+import { createCargoPreviewTripDraftRoutes } from '../src/cargo-receiving/presentation/cargo-preview-trip-draft.routes'
+import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
@@ -91,6 +98,17 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
+    // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
+    // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
+    ...createCargoArrivalRoutes(dependencies),
+    ...createCargoArrivalSeparationRoutes(dependencies),
+    ...createCargoArrivalOccurrenceRoutes(dependencies),
+    createCargoArrivalDocumentProductsRoute(dependencies),
+    // Spec 237 T4.2: a prévia vira a chegada (RF5b), e quem confere a chegada é o separador — ele
+    // envia a planilha e decide o vínculo com as mesmas `fleet.read`/`trip.manage`.
+    ...createCargoPreviewRoutes(dependencies),
+    ...createCargoPreviewActionRoutes(dependencies),
+    ...createCargoPreviewTripDraftRoutes(dependencies),
   ]
 
   return routes
@@ -118,6 +136,32 @@ describe('separator role contract', () => {
       'DELETE /trips/:id/costs/:entryId',
       'DELETE /trips/:id/documents/:documentId',
       'DELETE /trips/:id/revenues/:entryId',
+      /**
+       * Spec 237 T2.3 (ADR-0094 §6): a chegada da carga e a primeira separação, antes da viagem. O
+       * separador confere e separa no celular: lê com `fleet.read` e escreve com `trip.manage`, as
+       * permissões que já tinha. Nada de frota, faturamento nem fiscal; o vínculo com a viagem
+       * continua do fluxo de viagem.
+       */
+      'GET /cargo-arrivals',
+      'GET /cargo-arrivals/:id',
+      /** Spec 237 T3.2b (ADR-0094 §9): os itens da nota da chegada para a avaria, `fleet.read`. */
+      'GET /cargo-arrivals/:id/documents/:documentId/products',
+      /** Spec 237 T3.2 (ADR-0094 §9): a ocorrência de recebimento e os tipos dela, `fleet.read`. */
+      'GET /cargo-arrivals/:id/occurrences',
+      'GET /cargo-arrivals/available-documents',
+      'GET /cargo-arrivals/occurrence-types',
+      /**
+       * Spec 237 T4.2: a prévia da carga é a chegada antes de chegar (RF5b). O separador lê, envia a
+       * planilha e confirma/desvincula/vincula a linha à nota — nada de frota, faturamento nem
+       * fiscal; propor a chegada não cria nada.
+       */
+      'GET /cargo-previews',
+      'GET /cargo-previews/:id',
+      /**
+       * Spec 237 T5.1 (RF7): os rascunhos de viagem da prévia são só leitura (`fleet.read`); nada vira
+       * viagem sem o aceite do fluxo de roteirização, que o separador já alcança.
+       */
+      'GET /cargo-previews/:id/trip-drafts',
       /**
        * Spec 149: a diária geral do ajudante entra na conta que o separador já monta ao escolher a
        * tripulação da viagem — mesma razão do vínculo motorista↔veículo logo abaixo. Ele lê o
@@ -285,6 +329,25 @@ describe('separator role contract', () => {
       /** Spec 167 (RF2/RF10): mesma permissão do registro — corrigir o conjunto de itens. */
       'PATCH /trips/:id/documents/:documentId/occurrences/:occurrenceId/items',
       'PATCH /trips/:id/stops/order',
+      'POST /cargo-arrivals',
+      'POST /cargo-arrivals/:id/close',
+      /**
+       * Spec 237 T3.2 (ADR-0094 §9.5, ajuste 8): o separador abre a avaria, marca e conclui a
+       * devolução (`trip.manage`), mas NÃO desfaz a marcação — `return-unmark` é
+       * `occurrences.resolve`, e a ausência dele aqui é a prova.
+       */
+      'POST /cargo-arrivals/:id/documents/:documentId/occurrences',
+      'POST /cargo-arrivals/:id/documents/:documentId/receive',
+      'POST /cargo-arrivals/:id/documents/:documentId/return-complete',
+      'POST /cargo-arrivals/:id/documents/:documentId/return-mark',
+      'POST /cargo-arrivals/:id/documents/:documentId/separate',
+      'POST /cargo-arrivals/:id/documents/batch-status',
+      'POST /cargo-arrivals/:id/route-assignment',
+      'POST /cargo-previews',
+      'POST /cargo-previews/:id/items/:itemId/confirm',
+      'POST /cargo-previews/:id/items/:itemId/link',
+      'POST /cargo-previews/:id/items/:itemId/unlink',
+      'POST /cargo-previews/:id/propose-arrival',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
       // Spec 183 T404 (RF15): marcar a conversa como lida é registro do próprio usuário (`fleet.read`).
@@ -415,6 +478,31 @@ describe('separator role contract', () => {
     const context = companyContext(['separator'])
 
     expect(() => service.authorize(context, OFFICE_REPORT_POLICY)).toThrow()
+  })
+})
+
+/**
+ * Spec 249 D3: transferir a tripulação de uma viagem que já saiu é do escritório que dá baixa em nome
+ * do motorista (`trip.report-on-behalf`). O separador monta a viagem; ele não a passa para outra
+ * pessoa depois que ela saiu — a lista exaustiva acima já prova a ausência, e aqui está a razão.
+ */
+describe('a transferência de tripulação na rua (spec 249)', () => {
+  const TRANSFER_ROUTE = 'POST /trips/:id/crew-transfers'
+
+  test('o separador e o leitor não alcançam a rota', () => {
+    expect(reachableRoutes(['separator'])).not.toContain(TRANSFER_ROUTE)
+    expect(reachableRoutes(['viewer'])).not.toContain(TRANSFER_ROUTE)
+  })
+
+  test('quem dá baixa em nome do motorista alcança', () => {
+    for (const role of ['company-admin', 'operator', 'finance'] as const) {
+      expect(reachableRoutes([role])).toContain(TRANSFER_ROUTE)
+    }
+  })
+
+  test('é a permissão de dar baixa que barra, não um acidente de composição', () => {
+    expect(resolveCompanyPermissions(['separator'])).toContain('trip.manage')
+    expect(resolveCompanyPermissions(['separator'])).not.toContain('trip.report-on-behalf')
   })
 })
 

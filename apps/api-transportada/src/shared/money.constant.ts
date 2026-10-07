@@ -8,3 +8,9 @@
  * afrouxaria uma fronteira sem tocar no arquivo que parecia ser a regra.
  */
 export const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
+
+/**
+ * Spec 247 (RF14): o valor pago digitado — até duas casas, sem sinal, sempre texto. `MONEY_DECIMAL`
+ * exige as quatro casas do banco e recusaria `"50"`; aqui mais de duas casas é que é `400`.
+ */
+export const DECLARED_AMOUNT_DECIMAL = /^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/

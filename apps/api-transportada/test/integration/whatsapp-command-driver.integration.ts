@@ -246,9 +246,7 @@ async function buildScenario(db: Database) {
     appSecret: APP_SECRET,
     baseUrl,
     buildMessageHook: createWhatsAppCommandHookFactory({
-      apiVersion: API_VERSION,
       authorization: new AuthorizationService(),
-      baseUrl,
       clock: () => new Date(),
       flowActions: [],
       graphs: createStaticWhatsAppFlowGraphProvider({

@@ -5,13 +5,13 @@
  * que só vem com a migração completa) e o histórico da nossa `whatsapp_flow_graph_versions` gravando
  * na mesma transação, mais o trigger append-only recusando `UPDATE`/`DELETE`.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { asc, eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies, whatsappFlowGraphVersions } from '../../src/database/database.schema.js'
 import { previewWhatsAppFlowGraphPublication } from '../../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
@@ -174,28 +174,12 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_flowpub_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    /** O schema `meta_whatsapp` (flow_graphs) só vem com a migração completa. */
-    await runAllDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_flowpub',
+    // O schema `meta_whatsapp` (flow_graphs) só vem com a migração completa.
+    migrate: (connectionString) => runAllDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

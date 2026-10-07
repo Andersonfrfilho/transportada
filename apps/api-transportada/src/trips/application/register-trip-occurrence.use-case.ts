@@ -3,8 +3,10 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceDeclaredAmountScope,
+  OccurrenceMoment,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
@@ -14,9 +16,11 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
+import { assertOccurrenceTypeAcceptsProducts } from '../domain/occurrence-items-mode.policy.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
   OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
@@ -119,8 +123,17 @@ export type OccurrenceTypeRecord = {
    * implementação real (`findOccurrenceType`) sempre grava.
    */
   readonly attachmentMode?: DeliveryProofFieldMode
+  /**
+   * Spec 247 (RF1): o valor pago digitado — modo (`'off'` ausente), escopo (`'item'` ausente) e
+   * rótulo. Opcionais só para os dublês de teste; a leitura real (`findOccurrenceType`) sempre grava.
+   */
+  readonly declaredAmountLabel?: string
+  readonly declaredAmountMode?: DeliveryProofFieldMode
+  readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
+  /** Spec 247 (RF6): o formato da linha de item; vazio usa a linha padrão. Opcional só em dublê. */
+  readonly emailItemLineTemplate?: string
   readonly emailSubject: string
   /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
   readonly emailTemplateKey: null | string
@@ -132,13 +145,40 @@ export type OccurrenceTypeRecord = {
   readonly flow?: OccurrenceTypeFlow
   readonly id: string
   /**
+   * Spec 241 (RF1): se o tipo carrega produtos. Ausente é tratado como `'optional'` — existe como
+   * opcional só para os dublês de teste; a implementação real (`findOccurrenceType`,
+   * `listOccurrenceTypes`) sempre grava.
+   */
+  readonly itemsMode?: DeliveryProofFieldMode
+  /**
+   * Spec 246 (RF1c2): a quantidade mínima de produtos, lida só com `itemsMode = 'required'`; nulo é
+   * "todos os itens da nota". Opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly itemsMinimumCount?: null | number
+  /**
    * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
    * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
    * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
    */
   readonly leavesDocumentBehind?: boolean
+  /**
+   * Spec 246 (RF0): os momentos em que o tipo pode ser registrado, já resolvidos pela leitura
+   * tolerante (`resolveOccurrenceTypeMoments`). Opcional só para os dublês de teste — ausente cai nos
+   * derivados de `stage`/`flow`, e é por isso que toda guarda passa pelo resolvedor.
+   */
+  readonly moments?: readonly OccurrenceMoment[]
   readonly name: string
+  /**
+   * Spec 246 (RF1, RF3): a exigência da observação, separada da foto. Ausente é `'optional'` — a
+   * observação de hoje — e existe como opcional só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly noteMode?: DeliveryProofFieldMode
   readonly notifies: boolean
+  /**
+   * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
+   * para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
   /**
@@ -147,6 +187,11 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 247 (RF1): o número do documento do cliente — modo (`'off'` ausente) e rótulo. */
+  readonly referenceNumberLabel?: string
+  readonly referenceNumberMode?: DeliveryProofFieldMode
+  /** Spec 246 (RF1): a exigência da assinatura. Ausente é `'off'`; só os dublês de teste a omitem. */
+  readonly signatureMode?: DeliveryProofFieldMode
   readonly stage: TripOccurrenceStage
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — nulo em tipo de nota.
@@ -183,6 +228,8 @@ export type TripOccurrencePort = {
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    /** Spec 247 (T4.7): a ocorrência já gravada — o leitor lê dela o que o registro guardou. */
+    readonly occurrenceId?: string | undefined
     readonly occurredOn: string
     readonly productCodes: readonly string[]
     readonly tripId: string
@@ -312,10 +359,23 @@ export async function registerTripOccurrence(
   })
   if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
 
-  /** Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele. */
-  if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
+  /**
+   * Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele.
+   * Spec 246 (RF0b): o momento deste caso de uso é fixo, `separation`, conferido contra o conjunto do
+   * tipo — nunca pelo `stage`, e nunca por "algum momento que o papel cobre".
+   */
+  if (
+    !occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.separation, type: occurrenceType })
+  ) {
     throw new OccurrenceTypeNotSeparationError()
   }
+
+  /** Spec 241 (RF6, CA03): tipo sem itens recusa produto antes de qualquer leitura ou efeito. */
+  assertOccurrenceTypeAcceptsProducts({
+    itemsMode: occurrenceType.itemsMode,
+    productCode,
+    productCodes: input.productCodes,
+  })
 
   /**
    * ⚠️ Spec 161 D1/RF4: a foto passa a ser obrigatória **aqui**, no caso de uso, e não na rota
@@ -373,7 +433,8 @@ export async function registerTripOccurrence(
     ...(occurrenceType.redeliveryPolicy === undefined
       ? {}
       : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
-    stage: occurrenceType.stage,
+    /** Spec 246: a ocorrência grava onde aconteceu — o momento deste caso de uso, não o par do tipo. */
+    stage: TRIP_OCCURRENCE_STAGE.separation,
     tripId,
     typeName: occurrenceType.name,
   })
@@ -413,7 +474,7 @@ export async function registerTripOccurrence(
     ...saved,
     ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
-    email: await renderEmail({ input, occurrenceType, scope }),
+    email: await renderEmail({ input, occurrenceId: saved.id, occurrenceType, scope }),
     productCodes: scope.productCodes,
     products: items,
   }
@@ -428,17 +489,18 @@ export async function registerTripOccurrence(
  */
 async function renderEmail(params: {
   readonly input: RegisterTripOccurrenceInput
+  readonly occurrenceId: string
   readonly occurrenceType: OccurrenceTypeRecord
   readonly scope: { readonly productCodes: readonly string[] }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
-  /** Com template do módulo, o aviso sai pelo trilho de notificação — não há e-mail a montar aqui. */
-  if (params.occurrenceType.emailTemplateKey !== null) return null
+  /** Spec 247 (RF2): a chave é do aviso interno; o e-mail à contratante só depende do assunto. */
   if (params.occurrenceType.emailSubject === '') return null
 
   const values = await params.input.repository.readTemplateValues({
     companyId: params.input.companyId,
     documentId: params.input.documentId,
     note: params.input.note,
+    occurrenceId: params.occurrenceId,
     occurredOn: params.input.occurredOn,
     productCodes: params.scope.productCodes,
     tripId: params.input.tripId,

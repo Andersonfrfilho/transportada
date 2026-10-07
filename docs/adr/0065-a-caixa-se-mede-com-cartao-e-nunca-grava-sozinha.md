@@ -182,3 +182,11 @@ toda resposta; Chromium headless (Playwright 1.58.2), Mac arm64, arquivo local.
 - Um OpenCV.js oficial compilado sem execução dinâmica: o build próprio vira dependência fixada.
 - Um segundo produto precisar do motor: o artefato e o script vão para `adatechnology-packages`.
 - A validação (T15) reprovar a abordagem A.
+
+## Emenda (02/10/2026): `worker-src` agora é `'self' blob:`
+
+As linhas desta ADR que dizem "`worker-src` é `'self'`" descrevem a CSP à época. Em 02/10/2026
+`worker-src` passou a `'self' blob:` para a exportação em Excel (o `fflate` cria worker a partir de
+`Blob` em planilha grande). Para a medida pela câmera nada muda: o worker do OpenCV continua
+empacotado na própria origem, `script-src` segue `'self' 'wasm-unsafe-eval'` e `unsafe-eval` segue
+ausente. O motivo, a medição e o contrato estão na emenda da ADR-0042.

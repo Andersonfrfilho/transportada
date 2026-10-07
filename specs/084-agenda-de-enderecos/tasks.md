@@ -8,6 +8,8 @@ o que precisa de decisão → o que precisa de gente.
 
 ### Bloco 1 — fundação que não espera decisão nenhuma
 
+> 🤖 Modelo: `sonnet` (G1–G3)
+
 - [ ] **G1 (= T1e)** — O `PATCH /geocoded-addresses/:key`, **já em produção** sob
       `TRIP_MANAGE_POLICY`, grava `geocoded_address_corrections` na mesma transação.
       ⚠️ Única task que conserta buraco existente: hoje o produto tem correção sem histórico e
@@ -18,6 +20,8 @@ o que precisa de decisão → o que precisa de gente.
       **contra uma nota**. É o que tira o ⚠️ da T03.
 
 ### Bloco 2 — medir os 149, e olhar o resultado
+
+> 🤖 Modelo: `sonnet` (G7)
 
 - [x] **G4** — ✅ [ADR-0061](../../docs/adr/0061-o-lote-de-medicao-compra-precisao-uma-vez.md): o
       lote é **terceiro gatilho** do degrau 2 (decidido, escopo e custo declarados), não escalada
@@ -41,6 +45,8 @@ o que precisa de decisão → o que precisa de gente.
 
 ### Bloco 3 — o relatório, que é o que dá para testar
 
+> 🤖 Modelo: `sonnet` (G9)
+
 - [x] **G8 (= T08/T09)** — ✅ `GET /address-report` (`settings.manage`), agrupado por contratante e
       ordenado por gravidade. ⚠️ **A separação grafia × lugar foi o achado da task:** das 45
       divergências de rua, **seis** eram lugar diferente; as outras 39 eram `DR`/`Doutor`,
@@ -58,6 +64,8 @@ o que precisa de decisão → o que precisa de gente.
       uma acusação.
 
 ### Bloco 4 — consertar com quem sabe (precisa de decisão)
+
+> 🤖 Modelo: `sonnet` (G11–G13; dentro do G11, a T11 e a T15 são 🧠 `opus` na Fase 4)
 
 - [ ] **G11 (D2)** — 🚧 Portal do contratante corrige texto e CEP.
       ⚠️ **T11 é pré-requisito duro**: esta API não tem limitador de taxa, e seria a primeira escrita
@@ -127,12 +135,12 @@ erro do provedor é incalculável.
 
 ## Fase 1b — O que as revisões deixaram como bloqueio
 
-> 🤖 Modelo: `sonnet` (T1c é 🧠 — decisão de dado pessoal)
+> 🤖 Modelo: `sonnet` (T1c e T1d são 🧠 — `opus`: decisão de dado pessoal e de ativo compartilhado que as demais herdam)
 
 Três revisões independentes (segurança, arquitetura, código) rodaram sobre a Fase 1. O que foi
 corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fase 2**:
 
-- [ ] 🧠 **T1a** — **Autorização por objeto para `origin: 'contractor'`.** A FK composta prova que o
+- [ ] **T1a** — **Autorização por objeto para `origin: 'contractor'`.** A FK composta prova que o
       ator é membro da empresa; ela **não** prova que aquele contratante tem direito àquele endereço.
       Sem `resolveContractorScope` na rota, um contratante autenticado corrige a coordenada de cliente
       alheio — e a correção é o degrau 1 da escada, então ela vence tudo e redireciona carga de
@@ -202,13 +210,13 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
 
 ## Fase 4 — O portal do contratante
 
-> 🤖 Modelo: `opus` 🧠 — primeira escrita externa que afeta operação
+> 🤖 Modelo: `sonnet` (T11 e T15 são 🧠 — `opus`: o limitador e a ADR da primeira escrita externa que afeta operação são decisões que as demais herdam)
 
 - [ ] 🧠 **T11** — ⚠️ **PRÉ-REQUISITO: limitador de taxa.** Esta API não tem nenhum, achado já
       registrado em `docs/SECURITY.md`. Abrir escrita externa que influencia roteirização sem limite
       é convite. **Não subir T12–T14 sem isto.**
 
-- [ ] 🧠 **T12** — Permissão `deliveries.address.suggest`, separada de `deliveries.track` pelo mesmo
+- [ ] **T12** — Permissão `deliveries.address.suggest`, separada de `deliveries.track` pelo mesmo
       motivo que `charges.decide` é separada.
       _Aceite:_ o contrato de autorização lista por extenso as rotas que ela alcança.
 
@@ -220,11 +228,11 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
       ⚠️ **Precisa dizer que CEP `-000` já está certo** — cidade de CEP único tem um CEP só, e quem
       tentar corrigi-lo vai concluir que o sistema está quebrado.
 
-- [ ] **T15** — ADR: a primeira escrita do portal que move caminhão, junto da decisão de D2.
+- [ ] 🧠 **T15** — ADR: a primeira escrita do portal que move caminhão, junto da decisão de D2.
 
 ## Fase 5 — Quem entrega diz se o ponto está certo
 
-> 🤖 Modelo: `sonnet` (T18 é 🧠 — a decisão de aceitar o pino direto)
+> 🤖 Modelo: `sonnet` (a decisão do pino já está na ADR-0080; T18b → `sonnet`)
 
 - [ ] **T16** — Uma pergunta, sim/não, na confirmação de entrega — **só onde a precisão é baixa**.
       Formulário no fim de cada parada para de ser respondido na terceira.
@@ -237,7 +245,7 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
       responde "estava certo" para seguir adiante, e a base fica pior do que se ninguém perguntasse.
       _Aceite:_ contrato que **falha** se a confirmação exigir coordenada para registrar a recusa.
 
-- [ ] 🧠 **T18b (D4 ✅ ADR-0080)** — **Vai para a spec 195** (sugestão aplicada pelo escritório, `origin = 'driver'`, precisão ≤ 100 m). O pino vira `rooftop`. ⚠️ Decidir antes se ele é aceito direto ou entra como
+- [ ] **T18b (D4 ✅ ADR-0080)** — **Vai para a spec 195** (sugestão aplicada pelo escritório, `origin = 'driver'`, precisão ≤ 100 m). O pino vira `rooftop`. ⚠️ Decidir antes se ele é aceito direto ou entra como
       sugestão que o operador confirma: é a fonte que esteve na porta, mas também é um toque numa
       tela pequena, e pino errado é indistinguível de pino certo.
       ⚠️ Coordenada é dado pessoal: nada em log (`security.md` §1).

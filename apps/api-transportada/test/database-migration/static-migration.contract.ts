@@ -15,6 +15,13 @@ import {
   migrationsDirectory,
 } from './support.js'
 
+/** Só os comandos: o cabeçalho explica o lock citando `CREATE INDEX`/`DROP INDEX`, e posição em comentário não prova ordem. */
+const stripSqlComments = (sqlText: string): string =>
+  sqlText
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n')
+
 const PRESERVED_MIGRATION_HASHES = {
   '20260718224814_baseline/migration.sql':
     '49a0fa6e06db91f39903f070ad7a4ae2760463f8710ee67ee5848275d3ed7d53',
@@ -26,6 +33,9 @@ const PRESERVED_MIGRATION_HASHES = {
     '428b9a2cd60c62f6ec31d11feb0d19da3aad0d6f9f40f310580689d28b858fbc',
   '20260719025322_tenant_identity/snapshot.json':
     'a355fadb6096062f8839f4456e44a6c05be1a13518927aaa76dce8dcc3133c91',
+  // Já aplicada em staging: o drizzle confere o hash, e a correção de lock vai no rollback (spec 237 M5).
+  '20261003204733_cargo_arrivals/migration.sql':
+    '5f1056c5b69452dec2af34da82b41dd460516b829dbb33aae979b542abbb756c',
 } as const
 
 const FISCAL_ROLLBACK_ORDER = [
@@ -324,6 +334,27 @@ describe('Drizzle migrations', () => {
       '20260930145144_delivery_proof_canhoto_review',
       '20261001123700_event_location_stamp',
       '20261002120000_trip_canhoto_read_job',
+      '20261002153258_occurrence_location_stamp',
+      '20261002213734_delivered_moment_clock',
+      '20261002230234_helper_role_and_can_drive',
+      '20261003010806_event_location_whatsapp_coordinate',
+      '20261003170340_contractor_receiving_profiles',
+      '20261003190847_location_retention_settings',
+      '20261003204733_cargo_arrivals',
+      '20261004140624_cargo_previews',
+      '20261004165112_cargo_preview_failure_codes',
+      '20261004174001_cargo_preview_security_failure_codes',
+      '20261004180153_contractor_receiving_arrival_reference_label',
+      '20261006033752_occurrence_type_items_mode',
+      '20261006144825_cargo_arrival_check_null_holes',
+      '20261006180700_cargo_arrival_receiving_occurrence',
+      '20261006205139_occurrence_type_requirement_modes',
+      '20261006205158_occurrence_type_moments',
+      '20261006205209_occurrence_type_quantity_minimums',
+      '20261006205232_street_occurrence_attachment_backfill',
+      '20261007033420_occurrence_declared_amount',
+      '20261007040900_cargo_preview_email_intake',
+      '20261007114250_trip_crew_events',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1928,6 +1959,57 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).not.toContain('CASCADE')
   })
   /**
+   * A corretiva da T1.4: a migration anterior já está em staging e não se edita. O que ela precisa
+   * garantir é que só o CHECK de canal da coordenada muda — nada de coluna — e que o rollback
+   * recusa em vez de apagar posição de pessoa.
+   */
+  test('widens only the coordinate channel check and refuses a rollback that would drop whatsapp points', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_event_location_whatsapp_coordinate'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    const tables = ['trip_status_events', 'trip_stop_occurrences', 'trip_document_occurrences']
+    for (const table of tables) {
+      const constraint = `${table}_coordinates_channel_check`
+      expect(statements).toContain(
+        `ALTER TABLE "${table}" DROP CONSTRAINT "${constraint}", ADD CONSTRAINT "${constraint}" CHECK ("latitude" is null or "channel" in ('driver_app', 'whatsapp')) NOT VALID;`,
+      )
+      expect(statements).toContain(`ALTER TABLE "${table}" VALIDATE CONSTRAINT "${constraint}";`)
+      expect(rollbackSql).toContain(
+        `ADD CONSTRAINT "${constraint}" CHECK ("latitude" is null or "channel" = 'driver_app');`,
+      )
+      expect(rollbackSql).toContain(`FROM "${table}"`)
+    }
+
+    // Só CHECK muda: nenhuma coluna, índice ou tabela entra ou sai.
+    expect(statements).not.toMatch(
+      /\b(ADD COLUMN|DROP COLUMN|CREATE INDEX|DROP INDEX|DROP TABLE)\b/u,
+    )
+    expect([...statements.matchAll(/ADD CONSTRAINT/gu)]).toHaveLength(3)
+    expect(statements).not.toContain('NOT NULL')
+
+    // O rollback aborta antes de alterar qualquer CHECK, e nunca anula a coordenada por conta própria.
+    const refusalPosition = rollbackSql.indexOf('Rollback recusado')
+    const firstAlterPosition = rollbackSql.indexOf('ALTER TABLE')
+    expect(refusalPosition).toBeGreaterThan(-1)
+    expect(firstAlterPosition).toBeGreaterThan(refusalPosition)
+    expect(rollbackSql).not.toMatch(/^\s*UPDATE\b/imu)
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+  })
+
+  /**
    * Três decisões da spec 222 que o teste de banco não protege, porque o plano de consulta só muda
    * com volume: o predicado do índice é literal, não carrega `kind` e a chave é só `created_at`.
    */
@@ -2000,5 +2082,391 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 234 T1.5: a hora corrigida do evento e o índice do momento da entrega. O teste de banco roda
+   * contra base vazia e não vê três coisas: o índice velho continua (para o rollback, a API velha o
+   * usa), a expressão do novo é a da consulta, e o desvio é `bigint` (`integer` estoura em 24,8 dias).
+   */
+  test('adds the corrected event clock and the delivered moment index without touching the old one', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_delivered_moment_clock'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements).toContain(
+      'ALTER TABLE "trip_stop_events" ADD COLUMN "occurred_at" timestamp with time zone;',
+    )
+    for (const table of ['trip_stop_events', 'trip_delivery_proofs']) {
+      expect(statements).toContain(`ALTER TABLE "${table}" ADD COLUMN "clock_offset_ms" bigint;`)
+    }
+    // Sem backfill: o evento antigo não tem desvio medido, e o veredito gravado não é recalculado.
+    expect(statements).not.toContain('NOT NULL')
+    expect(statements).not.toContain('DEFAULT')
+    expect(statements).not.toContain('UPDATE ')
+    expect(statements).not.toContain('trip_stop_events_company_delivered_at_idx')
+
+    const indexStatement = statements.match(
+      /CREATE INDEX "trip_stop_events_company_delivered_moment_idx"[^;]*;/u,
+    )
+    expect(indexStatement?.[0]).toContain(
+      `("company_id",coalesce("occurred_at", "captured_at", "recorded_at")) WHERE "kind" = 'delivered'`,
+    )
+
+    const droppedIndex = rollbackSql.indexOf(
+      'DROP INDEX IF EXISTS "trip_stop_events_company_delivered_moment_idx"',
+    )
+    expect(droppedIndex).toBeGreaterThan(-1)
+    expect(rollbackSql.indexOf('DROP COLUMN IF EXISTS "occurred_at"')).toBeGreaterThan(droppedIndex)
+    expect(rollbackSql.indexOf('DROP COLUMN IF EXISTS "clock_offset_ms"')).toBeGreaterThan(
+      droppedIndex,
+    )
+    expect(rollbackSql).not.toContain('trip_stop_events_company_delivered_at_idx')
+
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 196 T1.4: a pasta roda numa transação e o DROP + ADD toma ACCESS EXCLUSIVE até o COMMIT.
+   * Sem `lock_timeout`, uma transação longa à frente enfileira o tráfego do motorista atrás da migration.
+   */
+  test('bounds the lock wait of the WhatsApp coordinate check migration and its rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) =>
+      name.endsWith('_event_location_whatsapp_coordinate'),
+    )
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const firstAlter = migrationSql.indexOf('ALTER TABLE')
+    const migrationTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(firstAlter).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeLessThan(firstAlter)
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+
+    const rollbackBegin = rollbackSql.indexOf('BEGIN;')
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackBegin).toBeGreaterThan(-1)
+    expect(rollbackTimeout).toBeGreaterThan(rollbackBegin)
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('ALTER TABLE'))
+  })
+
+  /**
+   * Spec 237 T1.2 (ADR-0094): o perfil de recebimento é tabela nova e nada mais — nenhuma tabela
+   * existente é alterada, e o rollback apaga só ela, sem CASCADE.
+   */
+  test('creates the contractor receiving profile table without touching existing tables', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_contractor_receiving_profiles'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    expect(migrationSql).toContain('CREATE TABLE "contractor_receiving_profiles"')
+    expect(migrationSql.match(/ALTER TABLE "([a-z_]+)"/gu) ?? []).toEqual([
+      'ALTER TABLE "contractor_receiving_profiles"',
+      'ALTER TABLE "contractor_receiving_profiles"',
+    ])
+    expect(migrationSql).not.toMatch(/\bDROP\b/u)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(rollbackSql).toContain('DROP TABLE IF EXISTS "contractor_receiving_profiles";')
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 239 D1: tabela nova e cinco índices parciais por empresa, nada mais. O CHECK do prazo é a
+   * última barreira da faixa 30–90, e o rollback recusa enquanto alguma empresa tiver decidido —
+   * apagar essa decisão é escolha humana, não do script.
+   */
+  test('creates the location retention settings additively, with one company index per event table', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_location_retention_settings'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = stripSqlComments(migrationSql)
+
+    expect(statements).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(statements).not.toMatch(
+      /\b(ALTER COLUMN|DROP COLUMN|DROP INDEX|DROP TABLE|CREATE TYPE)\b/u,
+    )
+    expect(statements).toContain('CREATE TABLE "company_location_retention_settings"')
+    expect(statements).toContain('"purge_enabled" boolean DEFAULT false NOT NULL')
+    expect(statements).toContain('"retention_days" integer DEFAULT 90 NOT NULL')
+    expect(statements).toContain('"purge_effective_at" timestamp with time zone,')
+    expect(statements).toContain(
+      'CONSTRAINT "company_location_retention_settings_retention_days_check" CHECK ("retention_days" between 30 and 90)',
+    )
+    expect(statements).toContain(
+      'CONSTRAINT "company_location_retention_settings_effective_at_check" CHECK (not "purge_enabled" or "purge_effective_at" is not null)',
+    )
+    expect(statements).toContain(
+      'ADD CONSTRAINT "company_location_retention_settings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
+    )
+
+    const companyIndexes = [
+      ['trip_delivery_proofs', 'created_at'],
+      ['trip_document_occurrences', 'created_at'],
+      ['trip_status_events', 'recorded_at'],
+      ['trip_stop_events', 'created_at'],
+      ['trip_stop_occurrences', 'created_at'],
+    ] as const
+    for (const [table, timeColumn] of companyIndexes) {
+      const index = `${table}_company_located_${timeColumn}_idx`
+      expect(statements).toContain(
+        `CREATE INDEX "${index}" ON "${table}" ("company_id","${timeColumn}") WHERE "latitude" is not null;`,
+      )
+      expect(rollbackSql).toContain(`DROP INDEX IF EXISTS "${index}";`)
+    }
+    expect([...statements.matchAll(/CREATE INDEX/gu)]).toHaveLength(companyIndexes.length)
+    expect(statements).not.toContain('CONCURRENTLY')
+
+    // O rollback aborta antes de derrubar qualquer coisa, e nunca apaga a configuração sozinho.
+    const rollbackStatements = stripSqlComments(rollbackSql)
+    const refusalPosition = rollbackStatements.indexOf('Rollback recusado')
+    expect(refusalPosition).toBeGreaterThan(-1)
+    expect(rollbackStatements.indexOf('DROP INDEX')).toBeGreaterThan(refusalPosition)
+    expect(rollbackStatements.indexOf('DROP TABLE')).toBeGreaterThan(refusalPosition)
+    expect(rollbackStatements).not.toMatch(
+      /\b(DELETE|TRUNCATE)\s+(FROM\s+)?"company_location_retention_settings"/iu,
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * `CREATE INDEX` comum toma SHARE nas cinco tabelas de evento e o segura até o COMMIT. Sem
+   * `lock_timeout`, uma transação longa à frente enfileira toda escrita do motorista atrás dela.
+   */
+  test('bounds the lock wait of the location retention migration and its rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_location_retention_settings'))
+    expect(directory).toBeString()
+
+    const migrationSql = stripSqlComments(await readMigrationFile(directory ?? '', 'migration.sql'))
+    const rollbackSql = stripSqlComments(await readMigrationFile(directory ?? '', 'rollback.sql'))
+    const migrationTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(migrationTimeout).toBeGreaterThan(-1)
+    expect(migrationTimeout).toBeLessThan(migrationSql.indexOf('CREATE TABLE'))
+    expect(migrationTimeout).toBeLessThan(migrationSql.indexOf('CREATE INDEX'))
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('DROP INDEX'))
+
+    // Sem o lock da tabela de configuração, um `PUT` entre a contagem e o `DROP TABLE` sumiria em silêncio.
+    const tableLock = rollbackSql.indexOf(
+      'LOCK TABLE "company_location_retention_settings" IN ACCESS EXCLUSIVE MODE;',
+    )
+    expect(tableLock).toBeGreaterThan(rollbackTimeout)
+    expect(tableLock).toBeLessThan(rollbackSql.indexOf('Rollback recusado'))
+  })
+
+  /**
+   * Spec 237 T2.2 (ADR-0094 §6): a chegada, as notas e a trilha são tabelas novas; a única coisa
+   * existente que muda é um índice em `nfe_participants`, com espera de lock limitada. A trilha é
+   * append-only por trigger, e o rollback apaga na ordem inversa das FKs, sem CASCADE.
+   */
+  test('creates the cargo arrival tables, an append-only trail and one bounded index', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_cargo_arrivals'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    for (const table of ['cargo_arrivals', 'cargo_arrival_documents', 'cargo_arrival_events']) {
+      expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    }
+    expect(
+      new Set([...migrationSql.matchAll(/ALTER TABLE "([a-z_]+)"/gu)].map((match) => match[1])),
+    ).toEqual(new Set(['cargo_arrivals', 'cargo_arrival_documents', 'cargo_arrival_events']))
+    expect(migrationSql).not.toMatch(/\bDROP\b/u)
+    expect(migrationSql).toMatch(
+      /create trigger\s+"cargo_arrival_events_append_only_trigger"[\s\S]*before update or delete on "cargo_arrival_events"[\s\S]*execute function "reject_cargo_arrival_events_mutation"\s*\(\)/iu,
+    )
+    const participantsIndex = migrationSql.indexOf('ON "nfe_participants"')
+    const lockTimeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(lockTimeout).toBeGreaterThan(-1)
+    expect(lockTimeout).toBeLessThan(participantsIndex)
+    expect(migrationSql.indexOf('SET LOCAL lock_timeout = DEFAULT')).toBeGreaterThan(
+      participantsIndex,
+    )
+
+    const dropOrder = ['cargo_arrival_events', 'cargo_arrival_documents', 'cargo_arrivals'].map(
+      (table) => rollbackSql.indexOf(`DROP TABLE IF EXISTS "${table}";`),
+    )
+    expect(dropOrder.every((position) => position > -1)).toBeTrue()
+    expect(dropOrder).toEqual(dropOrder.toSorted((left, right) => left - right))
+    expect(
+      rollbackSql.indexOf('DROP FUNCTION IF EXISTS "reject_cargo_arrival_events_mutation"'),
+    ).toBeGreaterThan(-1)
+    expect(rollbackSql).toContain(
+      'DROP INDEX IF EXISTS "nfe_participants_company_role_tax_id_idx";',
+    )
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('DROP TRIGGER'))
+    expect(rollbackTimeout).toBeLessThan(Math.min(...dropOrder))
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 237 T4.2 (ADR-0094 §3/§4/§7): a prévia é feita só de tabelas novas — nenhuma existente é
+   * alterada (a FK para `cargo_arrivals` e `nfe_documents` é criada do lado novo). A trilha é
+   * append-only por trigger, e o rollback apaga na ordem inversa das FKs, sem CASCADE.
+   */
+  test('creates the cargo preview tables additively, with an append-only trail', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_cargo_previews'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const tables = [
+      'cargo_preview_outbox',
+      'cargo_preview_events',
+      'contractor_recipient_aliases',
+      'cargo_preview_items',
+      'cargo_preview_route_loads',
+      'cargo_preview_document_links',
+      'cargo_previews',
+    ]
+    for (const table of tables) expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
+    expect(
+      new Set([...migrationSql.matchAll(/ALTER TABLE "([a-z_]+)"/gu)].map((match) => match[1])),
+    ).toEqual(new Set(tables))
+    expect(stripSqlComments(migrationSql)).not.toMatch(/\bDROP\b|\bCREATE TYPE\b/u)
+    expect(migrationSql).toMatch(
+      /create trigger\s+"cargo_preview_events_append_only_trigger"[\s\S]*before update or delete on "cargo_preview_events"[\s\S]*execute function "reject_cargo_preview_events_mutation"\s*\(\)/iu,
+    )
+
+    const dropOrder = tables.map((table) => rollbackSql.indexOf(`DROP TABLE IF EXISTS "${table}";`))
+    expect(dropOrder.every((position) => position > -1)).toBeTrue()
+    expect(dropOrder).toEqual(dropOrder.toSorted((left, right) => left - right))
+    expect(
+      rollbackSql.indexOf('DROP FUNCTION IF EXISTS "reject_cargo_preview_events_mutation"'),
+    ).toBeGreaterThan(-1)
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+})
+
+describe('os CHECKs da chegada tratam NULL (spec 237, revisão das Fases 1–2, M1)', () => {
+  /**
+   * A correção troca só os três CHECKs que viravam NULL, com `lock_timeout` antes do primeiro lock e
+   * de volta ao padrão no fim; o rollback devolve as formas antigas sem apagar nada.
+   */
+  test('swaps the three null-blind checks under a bounded lock and restores them on rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_cargo_arrival_check_null_holes'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const constraints = [
+      'cargo_arrivals_separation_due_at_check',
+      'cargo_arrival_documents_state_dates_check',
+      'cargo_arrival_events_state_shape_check',
+    ]
+    const statements = stripSqlComments(migrationSql)
+    expect(
+      [...statements.matchAll(/ADD CONSTRAINT "([a-z_]+)"/gu)].map((match) => match[1]),
+    ).toEqual(constraints)
+    expect(
+      [...statements.matchAll(/VALIDATE CONSTRAINT "([a-z_]+)"/gu)].map((match) => match[1]),
+    ).toEqual(constraints)
+    expect(statements).not.toMatch(
+      /\bDROP (TABLE|COLUMN|INDEX)\b|\bCREATE\b|\bINSERT\b|\bUPDATE\b/u,
+    )
+    const timeout = migrationSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(timeout).toBeGreaterThan(-1)
+    expect(timeout).toBeLessThan(migrationSql.indexOf('ALTER TABLE'))
+    expect(migrationSql.trimEnd()).toEndWith('SET LOCAL lock_timeout = DEFAULT;')
+    expect(migrationSql).toContain('"separated_at" is not null and "separated_at" >= "received_at"')
+    expect(migrationSql).toContain(
+      '("separation_window_hours" is null) = ("separation_due_at" is null)',
+    )
+
+    const rollbackTimeout = rollbackSql.indexOf("SET LOCAL lock_timeout = '3s'")
+    expect(rollbackTimeout).toBeGreaterThan(rollbackSql.indexOf('BEGIN;'))
+    expect(rollbackTimeout).toBeLessThan(rollbackSql.indexOf('ALTER TABLE'))
+    for (const constraint of constraints) {
+      expect(rollbackSql).toContain(`DROP CONSTRAINT IF EXISTS "${constraint}"`)
+    }
+    expect(rollbackSql).toContain(
+      '"separation_state" = \'separated\' and "received_at" is not null and "separated_at" >= "received_at"',
+    )
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).not.toMatch(/\bDROP (TABLE|COLUMN)\b|CASCADE/u)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+  })
+})
+
+describe('a segunda via sai sem itens antes da CHECK da forma (spec 241)', () => {
+  /**
+   * Spec 241 (RF2, RF11): a ordem é a decisão. A CHECK da forma só entra depois do `UPDATE` que põe
+   * a segunda via em `off` + `unset` na mesma instrução — antes dele, a linha `off` + `blocked`
+   * derrubaria a migration. O rollback derruba as duas CHECKs antes da coluna que elas leem.
+   */
+  test('orders the items_mode column, its backfill and the shape check, and reverses it', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_occurrence_type_items_mode'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const addColumn = migrationSql.indexOf(
+      `ALTER TABLE "company_occurrence_types" ADD COLUMN "items_mode" varchar(16) DEFAULT 'optional' NOT NULL;`,
+    )
+    const vocabularyCheck = migrationSql.indexOf(
+      `ADD CONSTRAINT "company_occurrence_types_items_mode_check" CHECK ("items_mode" in ('required', 'optional', 'off'))`,
+    )
+    const backfill = migrationSql.search(
+      /UPDATE "company_occurrence_types"\s+SET "items_mode" = 'off', "redelivery_policy" = 'unset'\s+WHERE "name" = 'Cliente pediu segunda via do boleto'\s+AND "stage" = 'delivery'\s+AND "flow" = 'document';/u,
+    )
+    const shapeCheck = migrationSql.indexOf(
+      `ADD CONSTRAINT "company_occurrence_types_items_off_shape_check" CHECK ("items_mode" <> 'off' or "redelivery_policy" = 'unset')`,
+    )
+    expect(addColumn).toBeGreaterThanOrEqual(0)
+    expect(vocabularyCheck).toBeGreaterThan(addColumn)
+    expect(backfill).toBeGreaterThan(vocabularyCheck)
+    expect(shapeCheck).toBeGreaterThan(backfill)
+    expect(migrationSql).not.toMatch(/\bDROP\b|\bINSERT\b/u)
+
+    const dropShape = rollbackSql.indexOf('"company_occurrence_types_items_off_shape_check"')
+    const dropVocabulary = rollbackSql.indexOf('"company_occurrence_types_items_mode_check"')
+    const dropColumn = rollbackSql.indexOf('DROP COLUMN IF EXISTS "items_mode"')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/u)
+    expect(dropShape).toBeGreaterThan(0)
+    expect(dropVocabulary).toBeGreaterThan(dropShape)
+    expect(dropColumn).toBeGreaterThan(dropVocabulary)
+    expect(rollbackSql).toContain(`WHERE "name" = '${directory ?? ''}'`)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
   })
 })

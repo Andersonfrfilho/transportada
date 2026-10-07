@@ -6,7 +6,7 @@ import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import type { WhatsAppFlowGraphVersionSource } from '../../database/whatsapp-flow-graph-version.schema.js'
 
 /**
- * O recorte da `FlowGraphRepository` do `@adatechnology/meta-whatsapp-module@0.1.0` que o
+ * O recorte da `FlowGraphRepository` do `@adatechnology/meta-whatsapp-module` que o
  * publicador usa. `create`/`save` seguem a assinatura do pacote — `create` recebe o grafo sem
  * `version` (a linha nasce em 1), `save` recebe o grafo completo e o `expectedVersion` da trava
  * otimista; o `version` do grafo passado não é lido por `save` — o pacote grava `expectedVersion + 1`

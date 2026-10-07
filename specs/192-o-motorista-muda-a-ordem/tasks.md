@@ -1,7 +1,8 @@
 # Tasks — Spec 192
 
 **👤 = ação humana.** O executor para, descreve o passo exato, espera o "feito" e confere o efeito.
-**🧠 = task que sobe para `opus`** dentro de uma fase mais barata.
+**🧠 = task que sobe para `opus`** dentro de uma fase mais barata (nesta spec nenhuma task sobe: a ADR-0077 e o `plan.md` já fecharam as decisões).
+**`haiku`** marcado na task = mecânica com aceite por comando; sem marca, vale o modelo da fase.
 
 ## Regras que valem para todas as tasks
 
@@ -30,7 +31,7 @@ ver.
 
 ## Fase 0 — ADR, premissas e tolerância do painel
 
-> 🤖 Modelo: `opus` (T0.2 é `sonnet`)
+> 🤖 Modelo: `sonnet`
 
 - [ ] **T0.1** Conferir a ADR-0077 contra o código e passá-la a `aceita`, sem mudar decisão.
   - Conferir as cinco premissas de `plan.md` § "Contexto e premissas".
@@ -53,9 +54,9 @@ ver.
 
 ## Fase 1 — Dados, trava, planta e domínio
 
-> 🤖 Modelo: `opus`
+> 🤖 Modelo: `sonnet` (modelo de dados e ordem de trava já decididos no `plan.md`; execução com decisão local)
 
-- [ ] **T1.1** 🧠 Migration `<ts>_driver_stop_order`, conforme `plan.md` § "Dados".
+- [ ] **T1.1** Migration `<ts>_driver_stop_order`, conforme `plan.md` § "Dados".
   - Tabelas: `trips.stop_order_version`, `trip_stop_order_events` (com o carimbo da ADR-0081 e
     `channel`), `trip_stop_order_outcomes` e `trip_loaded_cargo_layouts`.
   - Schemas Drizzle da API e o espelho no worker.
@@ -66,7 +67,7 @@ ver.
     - o trigger **aceita** o `UPDATE` do expurgo (posição para `NULL`, `captured → expired`);
     - os CHECKs recusam valor fora do vocabulário;
     - o `rollback.sql` volta ao estado anterior.
-- [ ] **T1.2** 🧠 `unload-blocking.policy.ts` (ADR-0077 §8). **Aceite numérico:**
+- [ ] **T1.2** `unload-blocking.policy.ts` (ADR-0077 §8). **Aceite numérico:**
   - Fixture de 4 caixas (baú 4 m, porta em x = 4). Caixa A da parada 1 em x 0–1, y 0–1, z 0–1.
     - Caixa B da parada 2 em x 1–2, y 0–1, z 0–1: cobre A por (b).
     - Caixa C da parada 3 em x 0–1, y 0–1, z 1–2: cobre A por (a).
@@ -83,7 +84,7 @@ ver.
   - Fixture real `real-mixed-cargo`: toda caixa com `coversStops: [s]` aparece na matriz cobrindo uma
     nota da parada `s` (recall de 100 % sobre as marcas da 148 D5).
   - Tempo com ~1.400 caixas: `buildCoverMatrix` ≤ 2 s e `resolveBlockedStops` ≤ 5 ms, anotados.
-- [ ] **T1.3** 🧠 Cópia fixada (RF7).
+- [ ] **T1.3** Cópia fixada (RF7).
   - `pin-loaded-cargo-layout.service.ts` roda em `dispatch()`, depois de `releaseUnloadedDocuments`.
   - O worker fixa quando a planta fica `ready`.
   - Na primeira reordenação, fixa com `first_reorder`.
@@ -94,7 +95,7 @@ ver.
     - **CA11 (despacho forçado com nota deixada para trás)**;
     - **CA12 (planta `queued` fixada pelo worker)**;
     - o expurgo de `trip_cargo_layouts` não afeta a cópia.
-- [ ] **T1.4** 🧠 Trava e versão.
+- [ ] **T1.4** Trava e versão.
   - `lockTripForStopOrder` trava `trip_stops FOR UPDATE ORDER BY id` e depois
     `trips FOR NO KEY UPDATE`. Escritório, motorista e reentrega usam a mesma trava (a reentrega hoje
     trava `trips` primeiro).
@@ -111,15 +112,15 @@ ver.
 
 ## Fase 2 — API do motorista
 
-> 🤖 Modelo: `opus` (T2.4 e T2.5 podem ir a `sonnet`, validadas por `architect`)
+> 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** 🧠 Fase 1 da reordenação: `reorder-field-stops.use-case.ts`.
+- [ ] **T2.1** Fase 1 da reordenação: `reorder-field-stops.use-case.ts`.
   - Checagens na ordem do RF3: posse, estado, conjunto (parada com chegada e sem conclusão entra),
     mesma ordem, versão e bloqueios novos contra a cópia.
   - Exige a confirmação exata.
   - Grava ordem, versão e evento sob a trava.
   - Integração: CA01, CA03, CA04, CA07 (parte "mesma ordem"), CA08 e CA09.
-- [ ] **T2.2** 🧠 Fase 2: `complete-stop-order-outcome.service.ts`.
+- [ ] **T2.2** Fase 2: `complete-stop-order-outcome.service.ts`.
   - Congelador com `keepPreviousOnUnavailable` e `criterion` reproduzido.
   - ETA das não concluídas e âncora em agora.
   - Pernas.
@@ -130,7 +131,7 @@ ver.
     - **CA15 (ETA, portal, e reordenar em `dispatched` seguido de "Iniciar rota" não desloca)**;
     - CA16.
   - Conferir com a 198: o congelamento grava `depot.endKind` se ela já estiver em staging.
-- [ ] **T2.3** 🧠 Rota `PUT /me/trips/current/stop-order`.
+- [ ] **T2.3** Rota `PUT /me/trips/current/stop-order`.
   - Schema `.strict()` com `location?`; ledger `stop_order` com `recall` do estado atual; erros e
     códigos do RF2.
   - Contratos:
@@ -203,7 +204,7 @@ e `useDriverTrip.hook.ts` contra `origin/staging`. As specs 179, 193, 195, 196 e
 
 ## Fase 5 — Revisão de design, documentação e publicação
 
-> 🤖 Modelo: `sonnet` (T5.3 é `opus`)
+> 🤖 Modelo: `sonnet` (T5.2 e T5.4 são `haiku`)
 
 - [ ] **T5.1** 👤 **Preview local antes de staging.**
   - Subir `motorista-api-demo` (53901) e `motorista-local` (53200) de `.claude/launch.json`.
@@ -218,7 +219,7 @@ e `useDriverTrip.hook.ts` contra `origin/staging`. As specs 179, 193, 195, 196 e
   - Prints em 375 e 768: modo de ordem, aviso, selo, botão desabilitado; no painel, a linha do tempo.
   - Revisão de design e usabilidade (tokens, contraste, alvo, foco, texto), com os achados corrigidos.
   - **O usuário vê e diz "pode subir".** Anotar no `evidence.md` (CA23).
-- [ ] **T5.2** Documentação viva.
+- [ ] `haiku` **T5.2** Documentação viva.
   - `apps/frontend-driver/CLAUDE.md`: modo de ordem, `'stop-order'`, sem rede e com fila.
   - `apps/frontend-transportada/CLAUDE.md`: tolerância do validador, tipo novo, marcas do
     carregamento.
@@ -226,11 +227,11 @@ e `useDriverTrip.hook.ts` contra `origin/staging`. As specs 179, 193, 195, 196 e
     planta, versão.
   - Prettier nos `.md`.
 - [ ] **T5.3** Revisão final.
-  - `code-reviewer` (`opus`) na spec inteira.
+  - `code-reviewer` (`sonnet`) na spec inteira.
   - `security-reviewer` em posse, idempotência e carimbo.
   - Auditoria do `code-standart.md` §15: N+1 na matriz e na linha do tempo, `Set`/`Map`, logs sem PII,
     500 sem stack.
-- [ ] **T5.4** Publicação em staging, na ordem:
+- [ ] `haiku` **T5.4** Publicação em staging, na ordem:
   1. T0.2;
   2. Fases 1–2 (API e worker);
   3. Fase 3 e T4.1, **só depois da T5.1**.
@@ -247,10 +248,9 @@ apps/frontend-driver/CLAUDE.md, a seção de trip/routing de apps/frontend-trans
 specs 196 e 198). Uma task por vez, na ordem do tasks.md.
 Árvore própria (make worktree NAME=spec-192; se a sessão já estiver num worktree do Claude, branch própria
 nesta árvore) — nada de git stash.
-Modelos: Fase 0 → opus (T0.2 → executor model=sonnet) · Fase 1 → opus (T1.1–T1.4 🧠) ·
-Fase 2 → opus (T2.4 e T2.5 → executor model=sonnet, validados por architect opus) ·
-Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet · Fase 5 → sonnet
-(T5.3 → code-reviewer e security-reviewer model=opus).
+Modelos: Fases 0 a 4 → executor model=sonnet · Fase 5 → executor model=sonnet (T5.2 e T5.4 → haiku;
+T5.3 → code-reviewer e security-reviewer model=sonnet). Escalada: gate falhou 2x em haiku → sonnet →
+só então opus, registrada em evidence.md.
 Cada task: teste antes (visto vermelho), typecheck + lint + testes; na API os DOIS comandos (contrato e
 test:integration com --env-file=../../.env.test); no worker make worker-integration com a contagem de
 testes executados; teste novo registrado no entrypoint, no package.json e no test-registry; evidência em

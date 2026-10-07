@@ -10,6 +10,21 @@
       "name": "painel-worktree",
       "url": "http://localhost:53010",
       "port": 53010
+    },
+    {
+      "name": "motorista-local",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/frontend-driver && VITE_API_URL=http://localhost:53901 VITE_SMOKE_AUTH_BYPASS=true bun run dev"
+      ],
+      "port": 53200
+    },
+    {
+      "name": "motorista-api-demo",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "apps/frontend-driver/scripts/driver-preview-api.ts"],
+      "port": 53901
     }
   ]
 }

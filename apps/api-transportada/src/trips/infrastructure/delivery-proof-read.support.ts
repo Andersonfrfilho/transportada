@@ -7,7 +7,7 @@
  * aparece na tela de outra.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
@@ -28,11 +28,12 @@ import {
   tripDrivers,
   tripStopEvents,
   tripStops,
-  trips,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type {
   DeliveryProofLocation,
   DeliveryProofRecord,
@@ -45,21 +46,41 @@ import type {
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type {
+  OccurrenceMoment,
+  OccurrenceDeclaredAmountScope,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
+  OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
+  OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
+  OCCURRENCE_TYPE_NAME_UNIQUE,
+  TRIP_BOUND_OCCURRENCE_STAGES,
+} from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
-import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
-import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
+import {
+  OccurrenceTypeDeclaredAmountNeedsItemsError,
+  OccurrenceTypeItemsMinimumRequiresRequiredError,
+  OccurrenceTypeItemsOffRedeliveryPolicyError,
+  OccurrenceTypeNameTakenError,
+  TripDocumentNotFoundError,
+} from '../domain/trip.error.js'
+import {
+  violatedCheckConstraint,
+  violatedUniqueConstraint,
+} from '../../database/postgres-error.support.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
-import { fieldTripTargetCondition } from './field-trip-target.query.js'
-import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import { mirrorStreetOccurrenceAttachments } from './street-occurrence-attachment.persistence.js'
+import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
+import { buildOccurrenceTemplateLines } from '../domain/occurrence-template-lines.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import { readStoredOccurrenceTemplateSource } from './occurrence-template-source.query.js'
 import type {
   OccurrenceCancellationView,
   OccurrenceCorrectionEntry,
@@ -69,7 +90,16 @@ import {
   listOccurrenceCancellationsByIds,
   listOccurrenceCorrectionsByIds,
 } from './occurrence-correction-read.query.js'
+import {
+  buildOccurrenceTypeItemsView,
+  listOccurrenceTypeItemsShapesOrEmpty,
+} from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  replaceOccurrenceTypeMoments,
+  withOccurrenceTypeMoments,
+} from './occurrence-type-moments.query.js'
+import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -354,6 +384,7 @@ export async function listTripOccurrences(
   input: {
     readonly companyId: string
     readonly documentId: string
+    readonly logger?: ApiLogger
     readonly tripId: string
   },
 ): Promise<
@@ -365,6 +396,9 @@ export async function listTripOccurrences(
       readonly productCodes: readonly string[]
       /** Spec 166 (RF5): a mesma lista de `productCodes`, com quantidade/unidade por item. */
       readonly products: readonly OccurrenceItemQuantity[]
+      /** Spec 241 (RF5): o modo de itens e o teto de um item do tipo ATUAL, `null` se o tipo não for da empresa. */
+      readonly typeAllowsMultipleItems: boolean | null
+      readonly typeItemsMode: DeliveryProofFieldMode | null
     })[]
 > {
   const rows = await queryable
@@ -435,9 +469,14 @@ export async function listTripOccurrences(
 
   /** Spec 240 RF9: correções e cancelamento da nota inteira em uma leitura cada, nunca por linha. */
   const occurrenceIds = rows.map((row) => row.id)
-  const [correctionsByOccurrence, cancellations] = await Promise.all([
+  const [correctionsByOccurrence, cancellations, typeShapes] = await Promise.all([
     listOccurrenceCorrectionsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
     listOccurrenceCancellationsByIds(queryable, { companyId: input.companyId, occurrenceIds }),
+    listOccurrenceTypeItemsShapesOrEmpty(queryable, {
+      companyId: input.companyId,
+      ...(input.logger === undefined ? {} : { logger: input.logger }),
+      occurrenceTypeIds: rows.map((row) => row.occurrenceTypeId),
+    }),
   ])
 
   return rows.map((row) => {
@@ -455,6 +494,11 @@ export async function listTripOccurrences(
         ? storedProducts
         : productCodes.map((code) => ({ code, quantity: null, unit: null }))
 
+    const typeView = buildOccurrenceTypeItemsView({
+      occurrenceTypeId: row.occurrenceTypeId,
+      shapes: typeShapes,
+    })
+
     return {
       actorName: row.actorName ?? null,
       cancellation: cancellations.get(row.id) ?? null,
@@ -469,6 +513,8 @@ export async function listTripOccurrences(
       productCodes,
       products,
       stage: row.stage,
+      typeAllowsMultipleItems: typeView.typeAllowsMultipleItems,
+      typeItemsMode: typeView.typeItemsMode,
       typeName: row.typeName,
     }
   })
@@ -490,16 +536,32 @@ export async function saveTripOccurrence(
     readonly authorship?: FieldAuthorship
     /** Spec 156 T7b: o objeto único da foto do lote, referenciado por cada nota. */
     readonly attachmentObjectId?: string | null
+    /**
+     * Spec 246 (T2.7): todas as fotos da ocorrência de nota do motorista, na ordem — posições 1..N da
+     * tabela de anexos. Ausente é o objeto único acima (posição 1). A coluna leva sempre a primeira.
+     */
+    readonly attachmentObjectIds?: readonly string[]
     readonly companyId: string
     readonly documentId: string
+    /**
+     * Spec 196 T3.3: o ponto do toque do motorista. Ausente — galpão, operador, lote do escritório —
+     * grava tudo `null`.
+     */
+    readonly locationStamp?: EventLocationStampColumns
     readonly note: string
     readonly productCode: string
     readonly occurrenceTypeId: string
+    /** Spec 247 (T4.4): o valor pago da ocorrência; ausente/nulo grava nulo. */
+    readonly declaredAmount?: null | string
+    /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo grava nulo. */
+    readonly referenceNumber?: null | string
     /**
      * Spec 164 T4 (RF3): a política do tipo, copiada para a tratativa no registro. Ausente (ou
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 246 (RF9): a assinatura, na coluna própria — nunca linha de anexo de foto. */
+    readonly signatureObjectId?: string | null
     readonly stage: TripOccurrence['stage']
     readonly tripId: string
     readonly typeName: string
@@ -522,11 +584,15 @@ export async function saveTripOccurrence(
     .insert(tripDocumentOccurrences)
     .values({
       actorUserId: input.actorUserId,
-      attachmentObjectId: input.attachmentObjectId ?? null,
+      attachmentObjectId: input.attachmentObjectIds?.[0] ?? input.attachmentObjectId ?? null,
       companyId: input.companyId,
+      declaredAmount: input.declaredAmount ?? null,
+      ...input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      referenceNumber: input.referenceNumber ?? null,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,
       ...(input.authorship === undefined
@@ -538,6 +604,19 @@ export async function saveTripOccurrence(
     })
     .returning()
   if (saved === undefined) return null
+
+  /** Spec 246 T1d.5, T2.7: a foto de rua ganha também as linhas da 161, na mesma transação. */
+  const storedObjectIds =
+    input.attachmentObjectIds ??
+    (saved.attachmentObjectId === null ? [] : [saved.attachmentObjectId])
+  if (storedObjectIds.length > 0) {
+    await mirrorStreetOccurrenceAttachments(queryable, {
+      companyId: saved.companyId,
+      createdAt: saved.createdAt,
+      occurrenceId: saved.id,
+      storedObjectIds,
+    })
+  }
 
   /**
    * Spec 164 T4 (RF3): a abertura mora na **mesma transação** desta escrita — `unset` (ou
@@ -746,50 +825,7 @@ export async function readOccurrenceLabels(
   }
 }
 
-/**
- * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
- * nota da viagem que ele resolveu.
- *
- * ⚠️ O recorte é o mesmo de `findReachableDocumentIds`: o alvo (`fieldTripTargetCondition`), viagem
- * em estado ativo e **só as vivas** — nota liberada (`released_at`) não está mais na viagem, mesmo
- * que a viagem continue ativa (spec 156 T8b.1). Nota de outra viagem, de viagem que já fechou, ou já
- * liberada desta mesma viagem, responde `null`, e o caso de uso a trata como inalcançável. É a
- * consulta que estreita o `trip.report` da empresa inteira para a carga que ele tem nas mãos; a
- * permissão sozinha não estreita nada.
- *
- * ⚠️ `findDeliveryEventId` (`drizzle-delivery-proof.repository.ts`) **não** filtra `released_at` —
- * ela busca o evento de uma entrega que já aconteceu, e o comprovante continua válido mesmo que a
- * nota seja liberada depois. Os dois têm o mesmo alvo e o mesmo recorte de viagem ativa, mas não o
- * mesmo recorte de `released_at`; o comentário anterior os igualava por engano.
- */
-export async function findDriverReachableDocument(
-  queryable: TripQueryable,
-  input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly target: FieldTripTarget
-  },
-): Promise<null | { readonly tripId: string }> {
-  const [row] = await queryable
-    .select({ tripId: tripDocuments.tripId })
-    .from(tripDocuments)
-    .innerJoin(
-      trips,
-      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
-    )
-    .where(
-      and(
-        eq(tripDocuments.companyId, input.companyId),
-        eq(tripDocuments.id, input.documentId),
-        isNull(tripDocuments.releasedAt),
-        fieldTripTargetCondition(input.target),
-        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
-      ),
-    )
-    .limit(1)
-
-  return row === undefined ? null : { tripId: row.tripId }
-}
+export { findDriverReachableDocument } from './driver-reachable-document.query.js'
 
 /**
  * O tipo cadastrado, conferido contra a empresa. ⚠️ `active` **não** entra no `where`: o caso de
@@ -805,7 +841,12 @@ export async function findOccurrenceType(
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       attachmentMode: companyOccurrenceTypes.attachmentMode,
+      /** Spec 247 (RF1): o valor pago digitado e o número do documento do cliente. */
+      declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
+      declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
+      declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       emailBody: companyOccurrenceTypes.emailBody,
+      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
@@ -814,12 +855,24 @@ export async function findOccurrenceType(
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
       stopKind: companyOccurrenceTypes.stopKind,
       id: companyOccurrenceTypes.id,
+      /** Spec 241 (RF1): se o tipo carrega produtos — a guarda do registro e da correção lê daqui. */
+      itemsMode: companyOccurrenceTypes.itemsMode,
+      /** Spec 246 (RF1c2): nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. */
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      /** Spec 246 (RF1, RF3): a exigência da observação, separada da foto. */
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
+      /** Spec 246 (RF1c): a quantidade mínima de fotos, lida só com a foto `required`. */
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
+      referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
+      /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -831,7 +884,13 @@ export async function findOccurrenceType(
     )
     .limit(1)
 
-  return row ?? null
+  if (row === undefined) return null
+  /** Spec 246 (RF0): a guarda de cada caso de uso decide pelo conjunto, resolvido na leitura. */
+  const [withMoments] = await withOccurrenceTypeMoments(queryable, {
+    companyId: input.companyId,
+    records: [row],
+  })
+  return withMoments ?? null
 }
 
 /**
@@ -934,42 +993,123 @@ export async function listOccurrenceTypes(
   queryable: TripQueryable,
   input: { readonly companyId: string },
 ): Promise<readonly OccurrenceTypeRecord[]> {
-  return queryable
+  const records = await queryable
     .select({
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
       attachmentMode: companyOccurrenceTypes.attachmentMode,
+      declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
+      declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
+      declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
       emailBody: companyOccurrenceTypes.emailBody,
+      emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
+      itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
+      itemsMode: companyOccurrenceTypes.itemsMode,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
+      noteMode: companyOccurrenceTypes.noteMode,
       notifies: companyOccurrenceTypes.notifies,
+      photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
+      referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
+      signatureMode: companyOccurrenceTypes.signatureMode,
       stage: companyOccurrenceTypes.stage,
       stopKind: companyOccurrenceTypes.stopKind,
     })
     .from(companyOccurrenceTypes)
-    .where(eq(companyOccurrenceTypes.companyId, input.companyId))
+    .where(
+      and(
+        eq(companyOccurrenceTypes.companyId, input.companyId),
+        /** Spec 237 (ADR-0094 §9.5, ajuste 1): o tipo de recebimento é da chegada, não do painel. */
+        inArray(companyOccurrenceTypes.stage, [...TRIP_BOUND_OCCURRENCE_STAGES]),
+      ),
+    )
     .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
+  /** Spec 246 (RF0): o conjunto de cada tipo, numa consulta só para a lista inteira. */
+  return withOccurrenceTypeMoments(queryable, { companyId: input.companyId, records })
 }
 
+/**
+ * Spec 241 (RF11): dois `PUT` concorrentes (um `off`, outro com política) passam a validação do caso
+ * de uso, que lê fora da transação do `UPDATE`, e só a CHECK os pega — 422 do domínio, não 500.
+ * Spec 237: o nome de um tipo de recebimento escondido também bate no índice único — 409. Spec 247:
+ * desligar os produtos enquanto outro `PUT` grava valor pago por item bate na forma — 422. Qualquer
+ * outra violação segue propagando.
+ */
+function rethrowOccurrenceTypeViolation(error: unknown): never {
+  const violated = violatedCheckConstraint(error)
+  if (violated === OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK) {
+    throw new OccurrenceTypeItemsOffRedeliveryPolicyError()
+  }
+  if (violated === OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK) {
+    throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
+  }
+  if (violated === OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK) {
+    throw new OccurrenceTypeDeclaredAmountNeedsItemsError()
+  }
+  if (violatedUniqueConstraint(error) === OCCURRENCE_TYPE_NAME_UNIQUE) {
+    throw new OccurrenceTypeNameTakenError()
+  }
+  throw error
+}
+
+/**
+ * Spec 246 (T1b.1b): o tipo e o conjunto de momentos numa transação só. `moments` ausente na edição é
+ * "não mexa" (o caso de uso já re-derivou quando o par mudou); na criação vale o derivado de
+ * `stage`/`flow`, para todo tipo novo nascer com linha. A resposta traz o conjunto resolvido.
+ */
 export async function saveOccurrenceType(
+  queryable: TripQueryable,
+  input: Parameters<typeof writeOccurrenceTypeRow>[1] & {
+    readonly moments?: readonly OccurrenceMoment[] | undefined
+  },
+): Promise<OccurrenceTypeRecord> {
+  return queryable.transaction(async (transaction) => {
+    const saved = await writeOccurrenceTypeRow(transaction, input)
+    const moments =
+      input.moments ??
+      (input.occurrenceTypeId === null ? deriveOccurrenceMomentsFromStageAndFlow(saved) : undefined)
+    if (moments !== undefined) {
+      await replaceOccurrenceTypeMoments(transaction, {
+        companyId: input.companyId,
+        moments,
+        occurrenceTypeId: saved.id,
+      })
+    }
+    const [withMoments] = await withOccurrenceTypeMoments(transaction, {
+      companyId: input.companyId,
+      records: [saved],
+    })
+    return withMoments ?? saved
+  })
+}
+
+async function writeOccurrenceTypeRow(
   queryable: TripQueryable,
   input: {
     readonly active: boolean
-    readonly allowsMultipleItems: boolean
+    /** Spec 246 T1c.3: ausente é "não mexa" — o INSERT usa o padrão da coluna (`true`). */
+    readonly allowsMultipleItems?: boolean | undefined
     /**
      * Spec 179 (RF1): ausente é `'off'` — o padrão da coluna. Opcional só para os chamadores que
      * ainda não conhecem a exigência (seeder da bancada, dublês de teste); a rota HTTP sempre grava.
      */
     readonly attachmentMode?: DeliveryProofFieldMode | undefined
     readonly companyId: string
-    readonly emailBody: string
-    readonly emailSubject: string
+    /** Spec 247 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly declaredAmountLabel?: string | undefined
+    readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
+    readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
+    /** Spec 247 RF2: ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly emailBody?: string | undefined
+    readonly emailItemLineTemplate?: string | undefined
+    readonly emailSubject?: string | undefined
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
@@ -978,6 +1118,10 @@ export async function saveOccurrenceType(
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
      */
     readonly flow?: OccurrenceTypeFlow | undefined
+    /** Spec 246 (RF1c2): ausente é "não mexa"; nulo grava "todos os itens da nota". */
+    readonly itemsMinimumCount?: null | number | undefined
+    /** Spec 241 (RF4): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
+    readonly itemsMode?: DeliveryProofFieldMode | undefined
     /**
      * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
      * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
@@ -985,13 +1129,21 @@ export async function saveOccurrenceType(
      */
     readonly leavesDocumentBehind?: boolean | undefined
     readonly name: string
+    /** Spec 246 (RF1, RF3): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'optional'`). */
+    readonly noteMode?: DeliveryProofFieldMode | undefined
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
+    /** Spec 246 (RF1c): ausente é "não mexa" — o INSERT usa o padrão da coluna (1). */
+    readonly photoMinimumCount?: number | undefined
     /**
      * Spec 164 T1/RF1 (spec 242): ausente é "não mexa" — o INSERT usa o padrão da coluna
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    readonly referenceNumberLabel?: string | undefined
+    readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
+    /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
+    readonly signatureMode?: DeliveryProofFieldMode | undefined
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1004,10 +1156,7 @@ export async function saveOccurrenceType(
    */
   const values = {
     active: input.active,
-    allowsMultipleItems: input.allowsMultipleItems,
     companyId: input.companyId,
-    emailBody: input.emailBody,
-    emailSubject: input.emailSubject,
     emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
@@ -1015,10 +1164,42 @@ export async function saveOccurrenceType(
   }
 
   const attachmentModeChange = {
+    ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
+    ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
+    ...(input.allowsMultipleItems === undefined
+      ? {}
+      : { allowsMultipleItems: input.allowsMultipleItems }),
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
+    ...(input.declaredAmountLabel === undefined
+      ? {}
+      : { declaredAmountLabel: input.declaredAmountLabel }),
+    ...(input.declaredAmountMode === undefined
+      ? {}
+      : { declaredAmountMode: input.declaredAmountMode }),
+    ...(input.declaredAmountScope === undefined
+      ? {}
+      : { declaredAmountScope: input.declaredAmountScope }),
+    ...(input.emailItemLineTemplate === undefined
+      ? {}
+      : { emailItemLineTemplate: input.emailItemLineTemplate }),
+    ...(input.referenceNumberLabel === undefined
+      ? {}
+      : { referenceNumberLabel: input.referenceNumberLabel }),
+    ...(input.referenceNumberMode === undefined
+      ? {}
+      : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
+    ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
+    ...(input.itemsMinimumCount === undefined
+      ? {}
+      : { itemsMinimumCount: input.itemsMinimumCount }),
+    ...(input.photoMinimumCount === undefined
+      ? {}
+      : { photoMinimumCount: input.photoMinimumCount }),
+    ...(input.noteMode === undefined ? {} : { noteMode: input.noteMode }),
     ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
+    ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
@@ -1031,9 +1212,9 @@ export async function saveOccurrenceType(
         ? {}
         : { leavesDocumentBehind: input.leavesDocumentBehind }
 
-  const [saved] =
+  const [saved] = await (
     input.occurrenceTypeId === null
-      ? await queryable
+      ? queryable
           .insert(companyOccurrenceTypes)
           .values({
             ...values,
@@ -1042,7 +1223,7 @@ export async function saveOccurrenceType(
             ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
           })
           .returning()
-      : await queryable
+      : queryable
           .update(companyOccurrenceTypes)
           .set({
             ...values,
@@ -1058,9 +1239,12 @@ export async function saveOccurrenceType(
             and(
               eq(companyOccurrenceTypes.companyId, input.companyId),
               eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+              /** Spec 237: o cadastro não converte tipo de recebimento em tipo de viagem — 404. */
+              inArray(companyOccurrenceTypes.stage, [...TRIP_BOUND_OCCURRENCE_STAGES]),
             ),
           )
           .returning()
+  ).catch(rethrowOccurrenceTypeViolation)
 
   if (saved === undefined) throw new TripDocumentNotFoundError()
 
@@ -1068,31 +1252,43 @@ export async function saveOccurrenceType(
     active: saved.active,
     allowsMultipleItems: saved.allowsMultipleItems,
     attachmentMode: saved.attachmentMode,
+    declaredAmountLabel: saved.declaredAmountLabel,
+    declaredAmountMode: saved.declaredAmountMode,
+    declaredAmountScope: saved.declaredAmountScope,
     emailBody: saved.emailBody,
+    emailItemLineTemplate: saved.emailItemLineTemplate,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
     flow: saved.flow,
     id: saved.id,
+    itemsMinimumCount: saved.itemsMinimumCount,
+    itemsMode: saved.itemsMode,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
+    noteMode: saved.noteMode,
     notifies: saved.notifies,
+    photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    referenceNumberLabel: saved.referenceNumberLabel,
+    referenceNumberMode: saved.referenceNumberMode,
+    signatureMode: saved.signatureMode,
     stage: saved.stage,
     stopKind: saved.stopKind,
   }
 }
 
 /**
- * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta.
+ * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta da nota e as da ocorrência.
  *
- * ⚠️ **Uma consulta, e só quando alguém registra ocorrência** — ação manual, nunca em laço. Os
- * campos vêm de onde já estavam: a nota, o participante destinatário, a parada, o motorista da
- * viagem e o contratante cadastrado.
+ * ⚠️ **Só quando alguém registra ocorrência** — ação manual, nunca em laço. Os campos vêm de onde já
+ * estavam: a nota, o participante destinatário, a parada, o motorista da viagem e o contratante
+ * cadastrado.
  *
- * ⚠️ **A NFD não está aqui**, e é decisão: o número da nota de devolução nasce no balcão do cliente
- * e não existe na nossa base. Quem registra a ocorrência o digita, e ele chega ao modelo por
- * `{{observacao}}`.
+ * Spec 247 (T4.7): com `occurrenceId`, o que o registro gravou entra de verdade — o número do documento
+ * do cliente (`{{numeroReferencia}}`), o valor pago, a quantidade, a unidade e o valor unitário de cada
+ * linha, e o formato da linha de item do tipo. Sem ele (a prévia de cadastro e dublês), as linhas são os
+ * códigos marcados, inteiros da nota, e a quantidade cai na da NF-e.
  */
 export async function readOccurrenceTemplateValues(
   queryable: TripQueryable,
@@ -1100,6 +1296,8 @@ export async function readOccurrenceTemplateValues(
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    /** Spec 247: a ocorrência já gravada — de onde saem o número, o valor pago e as linhas. */
+    readonly occurrenceId?: string | undefined
     readonly occurredOn: string
     /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
     readonly productCodes: readonly string[]
@@ -1144,39 +1342,59 @@ export async function readOccurrenceTemplateValues(
     .limit(1)
 
   const nfeDocumentId = row?.nfeDocumentId ?? null
-  const [contatos, produtos] = await Promise.all([
+  const [contatos, stored] = await Promise.all([
     nfeDocumentId === null
       ? new Map()
       : listDeliveryContacts(queryable, {
           companyId: input.companyId,
           nfeDocumentIds: [nfeDocumentId],
         }),
-    input.productCodes.length === 0
+    input.occurrenceId === undefined
+      ? null
+      : readStoredOccurrenceTemplateSource(queryable, {
+          companyId: input.companyId,
+          occurrenceId: input.occurrenceId,
+        }),
+  ])
+  const storedLines = stored?.lines ?? []
+  const produtos =
+    storedLines.length === 0 && input.productCodes.length === 0
       ? []
-      : listDocumentProducts(queryable, {
+      : await listDocumentProducts(queryable, {
           companyId: input.companyId,
           documentId: input.documentId,
           tripId: input.tripId,
-        }),
-  ])
+        })
 
   const contato = nfeDocumentId === null ? undefined : contatos.get(nfeDocumentId)
   /** A ordem é a que o conferente marcou; o texto do e-mail os cita nela. */
-  const itens = input.productCodes.flatMap((code) => {
-    const encontrado = produtos.find((candidate) => candidate.code.trim() === code.trim())
-    return encontrado === undefined ? [] : [encontrado]
+  const lines = buildOccurrenceTemplateLines({
+    nfeProducts: produtos,
+    productCodes: input.productCodes,
+    storedLines,
   })
   const numero = row?.nfeNumber ?? ''
   const serie = row?.nfeSeries ?? ''
 
   return {
     contractorName: contato?.contractorName ?? '',
+    declaredAmount: stored?.declaredAmount ?? null,
     documentLabel: numero === '' ? '' : serie === '' ? numero : `${numero}/${serie}`,
+    documentNumber: numero,
     driverName: row?.driverName ?? '',
-    ...buildOccurrenceItemValues(itens),
+    ...buildOccurrenceItemValues(
+      lines.map((line) => ({
+        code: line.code,
+        description: line.description,
+        quantity: line.quantity ?? line.nfeQuantity,
+      })),
+    ),
+    itemLineTemplate: stored?.emailItemLineTemplate,
+    lines,
     note: input.note,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
+    ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),
     stopLabel: row?.stopLabel ?? '',
     totalValue: row?.totalValue ?? '',
   }

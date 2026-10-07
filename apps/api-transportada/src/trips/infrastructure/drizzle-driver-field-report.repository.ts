@@ -32,17 +32,26 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
+import type {
+  DriverDocumentOccurrence,
+  DriverDocumentOccurrenceLineInput,
+} from '../application/driver-document-occurrence.types.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
-import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
+import {
+  insertOccurrenceProductRows,
+  listOccurrenceProductLines,
+} from './drizzle-occurrence-product.repository.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
   DRIVER_RECEIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
-import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
+import { withOccurrenceTypeMoments } from './occurrence-type-moments.query.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
@@ -53,7 +62,8 @@ import {
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
-import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
+import { resolveEventLocationStamp } from '../domain/event-location-stamp.policy.js'
+import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
@@ -775,24 +785,25 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   }
 
   public async recordEvent(input: Parameters<DriverFieldReportTransactionPort['recordEvent']>[0]) {
+    /** ADR-0081 §3: todo `recordEvent` é toque do motorista; o escritório e o backoffice ficam `null`. */
+    const stamp = resolveEventLocationStamp({
+      channel: input.authorship.channel,
+      isDriverTap: true,
+      location: input.location,
+    })
     const [event] = await this.transaction
       .insert(tripStopEvents)
       .values({
-        accuracyMeters: input.location?.accuracyMeters ?? null,
         actorUserId: input.actorUserId,
-        capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
         channel: input.authorship.channel,
+        clockOffsetMs: input.correctedClock?.clockOffsetMs ?? null,
         companyId: input.companyId,
         ...(input.occurredAt === undefined ? {} : { createdAt: input.occurredAt }),
         kind: input.kind,
-        latitude: input.location?.latitude ?? null,
         lateRegistration: input.lateRegistration ?? false,
-        /** ADR-0081 §3: o estado é do toque do motorista; o escritório e o backoffice ficam `null`. */
-        locationState: resolveEventLocationState({
-          channel: input.authorship.channel,
-          hasCoordinate: input.location !== null,
-        }),
-        longitude: input.location?.longitude ?? null,
+        ...stamp,
+        /** Spec 234 D3: só a correção aceita — não é o `createdAt` que o escritório sobrescreve. */
+        occurredAt: input.correctedClock?.occurredAt ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
         reportedByDriverId: input.reportedByDriverId ?? null,
@@ -1041,20 +1052,30 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async findStopOccurrenceType(
     input: Parameters<DriverFieldReportTransactionPort['findStopOccurrenceType']>[0],
   ) {
-    const [type] = await this.transaction
-      .select({ stopKind: companyOccurrenceTypes.stopKind })
+    const rows = await this.transaction
+      .select({
+        flow: companyOccurrenceTypes.flow,
+        id: companyOccurrenceTypes.id,
+        stage: companyOccurrenceTypes.stage,
+        stopKind: companyOccurrenceTypes.stopKind,
+      })
       .from(companyOccurrenceTypes)
       .where(
         and(
           eq(companyOccurrenceTypes.companyId, input.companyId),
           eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
-          eq(companyOccurrenceTypes.flow, OCCURRENCE_TYPE_FLOWS.stop),
           eq(companyOccurrenceTypes.active, true),
         ),
       )
       .limit(1)
-
-    return type ?? null
+    /** Spec 246 (RF0b): o momento da parada é fixo, `stop`, conferido no conjunto do tipo. */
+    const [type] = await withOccurrenceTypeMoments(this.transaction, {
+      companyId: input.companyId,
+      records: rows,
+    })
+    if (type === undefined) return null
+    if (!occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.stop, type })) return null
+    return { stopKind: type.stopKind }
   }
 
   public async recordOccurrence(
@@ -1069,6 +1090,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        ...input.locationStamp,
         occurrenceTypeId: input.occurrenceTypeId,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
@@ -1134,46 +1156,79 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return occurrence ?? null
   }
 
-  /** Spec 179 T200: a mesma escrita que o galpão usa (`saveTripOccurrence`), dentro desta transação. */
+  /**
+   * Spec 179 T200: a mesma escrita que o galpão usa (`saveTripOccurrence`), dentro desta transação.
+   * Spec 247 (T4.4): as linhas entram na **mesma** transação, e a resposta é relida do banco — igual,
+   * byte a byte, à do reenvio pela chave.
+   */
   public async saveDocumentOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
+    readonly attachmentObjectIds?: readonly string[]
     readonly authorship: FieldAuthorship
     readonly companyId: string
+    readonly declaredAmount?: null | string
     readonly documentId: string
+    readonly items?: readonly DriverDocumentOccurrenceLineInput[]
+    readonly locationStamp: EventLocationStampColumns
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly referenceNumber?: null | string
+    readonly signatureObjectId?: string | null
     readonly stage: 'delivery'
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence> {
-    return saveTripOccurrence(this.transaction, {
+  }): Promise<null | DriverDocumentOccurrence> {
+    const saved = await saveTripOccurrence(this.transaction, {
       actorUserId: input.actorUserId,
       attachmentObjectId: input.attachmentObjectId,
+      ...(input.attachmentObjectIds === undefined
+        ? {}
+        : { attachmentObjectIds: input.attachmentObjectIds }),
       authorship: input.authorship,
       companyId: input.companyId,
+      declaredAmount: input.declaredAmount ?? null,
       documentId: input.documentId,
+      locationStamp: input.locationStamp,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
+      referenceNumber: input.referenceNumber ?? null,
+      signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripId: input.tripId,
       typeName: input.typeName,
     })
+    if (saved === null) return null
+
+    await insertOccurrenceProductRows(this.transaction, {
+      companyId: input.companyId,
+      items: (input.items ?? []).map((line) => ({
+        code: line.productCode,
+        declaredAmount: line.declaredAmount,
+        quantity: line.quantity,
+        unit: line.quantityUnit,
+        unitValue: line.unitValue,
+      })),
+      occurrenceId: saved.id,
+    })
+    return this.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId: saved.id })
   }
 
   public async findDocumentOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<null | TripOccurrence> {
+  }): Promise<null | DriverDocumentOccurrence> {
     const [occurrence] = await this.transaction
       .select({
         createdAt: tripDocumentOccurrences.createdAt,
+        declaredAmount: tripDocumentOccurrences.declaredAmount,
         id: tripDocumentOccurrences.id,
         note: tripDocumentOccurrences.note,
         occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
         productCode: tripDocumentOccurrences.productCode,
+        referenceNumber: tripDocumentOccurrences.referenceNumber,
         stage: tripDocumentOccurrences.stage,
         typeName: companyOccurrenceTypes.name,
       })
@@ -1196,10 +1251,13 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
     return {
       createdAt: occurrence.createdAt.toISOString(),
+      declaredAmount: occurrence.declaredAmount,
       id: occurrence.id,
+      items: await listOccurrenceProductLines(this.transaction, input),
       note: occurrence.note,
       occurrenceTypeId: occurrence.occurrenceTypeId,
       productCode: occurrence.productCode,
+      referenceNumber: occurrence.referenceNumber,
       stage: occurrence.stage,
       typeName: occurrence.typeName,
     }

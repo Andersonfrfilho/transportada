@@ -6,11 +6,11 @@
  * caminho paralelo. O molde de `withDisposableDatabase`/`seedCompany`/`seedTrip` é o mesmo de
  * `field-trip-target.integration.ts` (T3), reduzido ao que esta prova precisa.
  */
-import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
+import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
@@ -216,6 +216,10 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           repository: {
             findConfirmedUpload: async () => null,
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+            findOccurrenceTypeOverrides: async () => ({
+              contractorOverrides: [],
+              recipientOverrides: [],
+            }),
             findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
           },
@@ -253,6 +257,8 @@ describe('a exigência de comprovante no registro do motorista contra o Postgres
           companyId: company.companyId,
           id: occurrenceTypeId,
           name: 'Recusa total',
+          /** Spec 246 (RF3): a observação obrigatória é dado — a migration a grava onde a foto é `required`. */
+          noteMode: 'required',
           stage: 'delivery',
         })
 
@@ -260,6 +266,10 @@ describe('a exigência de comprovante no registro do motorista contra o Postgres
         const repository: DriverOccurrenceReadPort = {
           findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          findOccurrenceTypeOverrides: async () => ({
+            contractorOverrides: [],
+            recipientOverrides: [],
+          }),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         }
@@ -481,27 +491,11 @@ async function withDisposableDatabase(
   operation: (database: TestDatabase) => Promise<void>,
 ): Promise<void> {
   if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
-  const admin = new SQL(databaseUrl, { max: 1 })
-  const databaseName = `transportada_156_t4_${crypto.randomUUID().replaceAll('-', '')}`
-  const disposableUrl = new URL(databaseUrl)
-  disposableUrl.pathname = `/${databaseName}`
-  disposableUrl.search = ''
-  let database: TestDatabase | undefined
-  try {
-    // Disposable database identifiers cannot be parameterized.
-    await admin.unsafe(`create database "${databaseName}"`)
-    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
-    database = createDrizzleProvider({ connection: disposableUrl.toString() })
-    await operation(database)
-  } finally {
-    try {
-      await database?.close()
-    } finally {
-      try {
-        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
-      } finally {
-        await admin.close({ timeout: 0 })
-      }
-    }
-  }
+  await withDisposableDatabaseLifecycle({
+    adminUrl: databaseUrl,
+    namePrefix: 'transportada_156_t4',
+    migrate: (connectionString) => runDatabaseMigrations({ connectionString }),
+    open: (connectionString) => createDrizzleProvider({ connection: connectionString }),
+    operation,
+  })
 }

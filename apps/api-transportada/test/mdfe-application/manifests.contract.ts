@@ -19,6 +19,7 @@ import type {
   MdfeManifestVehicle,
 } from '../../src/mdfe-manifests/application/mdfe-manifest.port.js'
 import type { ApiError } from '../../src/shared/api.error.js'
+import { TripDriverCannotDriveError } from '../../src/trips/domain/trip.error.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_COMPANY_ID = '22222222-2222-4222-8222-222222222222'
@@ -84,8 +85,20 @@ const VEHICLE: MdfeManifestVehicle = {
 }
 
 const DRIVERS: readonly MdfeManifestDriver[] = [
-  { id: FIRST_DRIVER_ID, name: 'Ana Souza', status: 'active', taxId: '12345678909' },
-  { id: SECOND_DRIVER_ID, name: 'Bruno Lima', status: 'active', taxId: '98765432100' },
+  {
+    canDrive: true,
+    id: FIRST_DRIVER_ID,
+    name: 'Ana Souza',
+    status: 'active',
+    taxId: '12345678909',
+  },
+  {
+    canDrive: true,
+    id: SECOND_DRIVER_ID,
+    name: 'Bruno Lima',
+    status: 'active',
+    taxId: '98765432100',
+  },
 ]
 
 const DETAIL = { id: MANIFEST_ID } as unknown as MdfeManifestDetail
@@ -386,6 +399,46 @@ describe('create MDF-e manifest', () => {
     expect(duplicated.code).toBe('MDFE_MANIFEST_DRIVER_DUPLICATED')
     expect(duplicated.status).toBe(422)
     expect(repeated.createCalls).toEqual([])
+  })
+
+  // Spec 235 D5: o manifesto avulso monta a lista de condutores por conta própria, e o ajudante-puro
+  // não entra nela — o mesmo erro (409, ids em `details`) de `resolveTripCrew`
+  test('refuses a driver that cannot drive, naming every one, with the trip error', async () => {
+    const helperOnly = { ...(DRIVERS[1] as MdfeManifestDriver), canDrive: false }
+    const fixture = createFixture({ drivers: [DRIVERS[0] as MdfeManifestDriver, helperOnly] })
+
+    const failure = await refusal(() =>
+      fixture.useCase.create({
+        context: CONTEXT,
+        correlationId: 'correlation-1',
+        manifest: fields({
+          destinationState: 'SP',
+          driverIds: [FIRST_DRIVER_ID, SECOND_DRIVER_ID],
+        }),
+      }),
+    )
+
+    expect(failure).toBeInstanceOf(TripDriverCannotDriveError)
+    expect(failure.code).toBe('TRIP_DRIVER_CANNOT_DRIVE')
+    expect(failure.status).toBe(409)
+    expect(failure.details).toEqual([{ field: 'driverIds', message: SECOND_DRIVER_ID }])
+    expect(fixture.createCalls).toEqual([])
+  })
+
+  test('answers an inactive driver before one that cannot drive', async () => {
+    const fixture = createFixture({
+      drivers: [{ ...(DRIVERS[0] as MdfeManifestDriver), canDrive: false, status: 'inactive' }],
+    })
+
+    const failure = await refusal(() =>
+      fixture.useCase.create({
+        context: CONTEXT,
+        correlationId: 'correlation-1',
+        manifest: fields({ destinationState: 'SP' }),
+      }),
+    )
+
+    expect(failure.code).toBe('MDFE_MANIFEST_DRIVER_NOT_AVAILABLE')
   })
 
   test('asks the operator to choose the destination when the CT-es unload in more than one state', async () => {

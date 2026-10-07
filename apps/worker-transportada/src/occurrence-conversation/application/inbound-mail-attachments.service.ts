@@ -12,10 +12,9 @@
  * - Recusa só conta. Nome de arquivo, tipo e tamanho nunca vão a log.
  * - MIME ilegível não derruba a resposta: vira "sem anexo". A evidência do e-mail é o MIME bruto,
  *   que já está gravado.
+ * - A leitura do MIME é limitada (`inbound-mail-parts.service`): mensagem aninhada hostil não trava o laço.
  */
 import { createHash, randomBytes } from 'node:crypto'
-
-import PostalMime from 'postal-mime'
 
 import {
   CONVERSATION_ATTACHMENTS_PER_MESSAGE,
@@ -24,6 +23,7 @@ import {
   maxConversationAttachmentBytes,
   normalizeConversationAttachmentFileName,
 } from '../domain/conversation-attachment.policy.js'
+import { readInboundMailParts, type InboundMailParts } from './inbound-mail-parts.service.js'
 
 export type InboundMailAttachment = {
   readonly bytes: Uint8Array
@@ -63,16 +63,16 @@ function toBytes(content: ArrayBuffer | Uint8Array | string): Uint8Array {
 export async function extractInboundMailAttachments(
   raw: Uint8Array,
 ): Promise<{ readonly accepted: readonly InboundMailAttachment[]; readonly skipped: number }> {
-  let parts: Awaited<ReturnType<typeof PostalMime.parse>>['attachments']
+  let read: InboundMailParts
   try {
-    parts = (await PostalMime.parse(raw, { attachmentEncoding: 'arraybuffer' })).attachments
+    read = await readInboundMailParts(raw)
   } catch {
     return { accepted: [], skipped: 0 }
   }
 
   const accepted: InboundMailAttachment[] = []
-  let skipped = 0
-  for (const part of parts) {
+  let skipped = read.skippedNestedMessages
+  for (const part of read.parts) {
     if (part.disposition === 'inline') continue
     const contentType = canonicalContentType(part.mimeType)
     const bytes = toBytes(part.content)

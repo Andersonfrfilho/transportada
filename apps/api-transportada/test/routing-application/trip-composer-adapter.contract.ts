@@ -37,6 +37,7 @@ const VEHICLE: TripVehicleCandidate = {
 }
 const DRIVER: TripDriverCandidate = {
   canActAsHelper: false,
+  canDrive: true,
   id: DRIVER_ID,
   name: 'Ana Souza',
   status: 'active',
@@ -96,6 +97,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
   function buildComposer(params: { readonly vehicle?: TripVehicleCandidate | null } = {}) {
     const repository: TripRepositoryPort = {
       async close() {
+        throw new Error('not used by this contract')
+      },
+      async transferCrew() {
         throw new Error('not used by this contract')
       },
       async create(input) {
@@ -179,6 +183,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
     const repositoryCreateCalls: object[] = []
     const repository: TripRepositoryPort = {
       async close() {
+        throw new Error('not used')
+      },
+      async transferCrew() {
         throw new Error('not used')
       },
       async create(input) {

@@ -12,14 +12,23 @@ import type {
   FlowActionResult,
 } from '@adatechnology/meta-whatsapp-contracts'
 
+import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
+import type { ReportedLocation } from '../../src/trips/application/driver-field-report.port.js'
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import type { FindCurrentDriverTripResult } from '../../src/trips/application/find-current-driver-trip.use-case.js'
+import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
   TripDocumentNotReachableError,
+  TripOccurrenceSignatureRequiredError,
   TripStateTransitionNotAllowedError,
 } from '../../src/trips/domain/trip.error.js'
+import {
+  createFieldReportState,
+  createFieldReportUnitOfWork,
+} from '../driver-trip/field-report.double.js'
 import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
@@ -83,6 +92,7 @@ function buildDeps(
   overrides: Partial<DriverFlowActionDependencies> = {},
 ): DriverFlowActionDependencies {
   return {
+    consumeSharedLocation: () => null,
     // T020 (B5): o roteador de nota relê a viagem; o padrão é a viagem do teste, com a nota dentro.
     findCurrentTrip: async () => buildDriverTrip({}),
     listOccurrenceTypes: async () => [],
@@ -108,7 +118,9 @@ function buildSession(context: Record<string, unknown> = {}): ConversationSessio
     companyId: COMPANY_ID,
     context,
     createdAt: NOW.toISOString(),
+    currentNodeId: null,
     currentState: 'start',
+    flowKey: null,
     humanRequestedAt: null,
     id: 'session-driver-1',
     lastActivity: NOW.toISOString(),
@@ -669,6 +681,36 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
   })
 
+  /**
+   * Spec 246 T1b.2: o WhatsApp do motorista registra pela rota de nota (momento `document`) — tipo de
+   * parada sai da lista; tipo de galpão + nota entra, embora o `stage` gravado seja `separation`.
+   */
+  test('a lista é a do momento document: perde o tipo de parada, ganha o de galpão + nota', async () => {
+    const stopOnly = buildChannel()
+    await callAction({
+      channel: stopOnly.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [
+          buildOccurrenceType({ flow: 'stop', moments: ['stop', 'office'] }),
+        ],
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+    const warehouseAndNote = buildChannel()
+    await callAction({
+      channel: warehouseAndNote.channel,
+      deps: buildDeps({
+        listOccurrenceTypes: async () => [
+          buildOccurrenceType({ moments: ['separation', 'document'], stage: 'separation' }),
+        ],
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes,
+    })
+
+    expect(stopOnly.sent[0]?.body).toContain('Ainda não há tipos de ocorrência')
+    expect(warehouseAndNote.sent[0]?.kind).toBe('list')
+  })
+
   test('catálogo com tipo de entrega ativo vira lista dinâmica', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({
@@ -740,6 +782,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         documentId: DOCUMENT_ID,
         driverId: DRIVER_ID,
         idempotencyKey: expect.any(String),
+        location: null,
         note: '',
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         productCode: '',
@@ -800,5 +843,260 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
 
     expect((calls[0] as { note: string }).note).toBe('Cliente recusou por avaria')
     expect(sent).toEqual([{ body: 'Ocorrência registrada. ⚠️', kind: 'text' }])
+  })
+})
+
+/**
+ * Spec 196 T3.6 (D3 revista, CA03): as três ações do motorista levam o ponto que ele mandou antes do
+ * toque; sem ponto, `null` (a política de carimbo transforma em `unavailable`). O armazém é consumido
+ * por um toque só.
+ */
+describe('o ponto da mensagem de localização desce nas três ações do motorista (spec 196 T3.6)', () => {
+  const SHARED_LOCATION: ReportedLocation = {
+    accuracyMeters: null,
+    capturedAt: '2026-09-11T11:59:30.000Z',
+    latitude: '-23.5505200',
+    longitude: '-46.6333080',
+  }
+
+  type ActionCase = {
+    readonly context: Record<string, unknown>
+    readonly kind: string
+    readonly name: string
+    readonly overrideKey: 'registerOccurrence' | 'reportDelivery' | 'reportReturn'
+  }
+
+  const ACTION_CASES: ActionCase[] = [
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.documentRouter,
+      name: 'entregar',
+      overrideKey: 'reportDelivery',
+    },
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.returnReason]: 'recipient_absent',
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.completeReturn,
+      name: 'devolver',
+      overrideKey: 'reportReturn',
+    },
+    {
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+      name: 'registrar ocorrência',
+      overrideKey: 'registerOccurrence',
+    },
+  ]
+
+  async function runAction(
+    actionCase: ActionCase,
+    consumeSharedLocation: DriverFlowActionDependencies['consumeSharedLocation'],
+  ): Promise<{ readonly location: unknown; readonly callCount: number }> {
+    const locations: unknown[] = []
+    const record = (input: { readonly location: unknown }) => {
+      locations.push(input.location)
+      return {
+        alreadySettled: false,
+        createdAt: '',
+        id: 'x',
+        note: '',
+        occurrenceTypeId: '',
+        productCode: '',
+        stage: 'delivery',
+        typeName: '',
+      }
+    }
+    await callAction({
+      context: actionCase.context,
+      deps: buildDeps({
+        consumeSharedLocation,
+        [actionCase.overrideKey]: async (input: { readonly location: unknown }) => record(input),
+      }),
+      kind: actionCase.kind,
+    })
+
+    return { callCount: locations.length, location: locations[0] }
+  }
+
+  test.each(ACTION_CASES)('$name leva o ponto que o motorista mandou', async (actionCase) => {
+    const keys: unknown[] = []
+    const outcome = await runAction(actionCase, (key) => {
+      keys.push(key)
+      return SHARED_LOCATION
+    })
+
+    expect(outcome).toEqual({ callCount: 1, location: SHARED_LOCATION })
+    expect(keys).toEqual([{ companyId: COMPANY_ID, whatsappNumber: PHONE }])
+  })
+
+  test.each(ACTION_CASES)(
+    '$name sem ponto manda null, que vira unavailable',
+    async (actionCase) => {
+      expect(await runAction(actionCase, () => null)).toEqual({ callCount: 1, location: null })
+    },
+  )
+
+  test('o ponto vale para um toque só: o segundo toque sem nova localização manda null', async () => {
+    const store = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
+    store.remember({ companyId: COMPANY_ID, location: SHARED_LOCATION, whatsappNumber: PHONE })
+    const [deliver] = ACTION_CASES
+    if (deliver === undefined) throw new Error('caso de entrega ausente')
+
+    const first = await runAction(deliver, (key) => store.consume(key))
+    const second = await runAction(deliver, (key) => store.consume(key))
+
+    expect(first.location).toEqual(SHARED_LOCATION)
+    expect(second.location).toBeNull()
+  })
+
+  test('o ponto de outra empresa ou de outro número não é do motorista', async () => {
+    const store = createInMemoryWhatsAppSharedLocationStore({ clock: () => NOW })
+    store.remember({
+      companyId: COMPANY_ID,
+      location: SHARED_LOCATION,
+      whatsappNumber: '5516000000001',
+    })
+    store.remember({ companyId: 'outra-empresa', location: SHARED_LOCATION, whatsappNumber: PHONE })
+    const [deliver] = ACTION_CASES
+    if (deliver === undefined) throw new Error('caso de entrega ausente')
+
+    expect((await runAction(deliver, (key) => store.consume(key))).location).toBeNull()
+  })
+})
+
+/**
+ * Spec 246 T2.6 (RF13): o WhatsApp do motorista não colhe foto nem assinatura. Um tipo com assinatura
+ * efetiva `required` **não é registrável** por esse canal: o servidor devolve o erro estável da
+ * assinatura (a mesma `registerDriverOccurrence` do app), e a conversa diz ao motorista qual campo
+ * falta. A lista **não** é filtrada por exigência — quem quiser esconder esses tipos do canal abre spec
+ * própria.
+ */
+describe('o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 246 T2.6, RF13)', () => {
+  const REGISTRATION = {
+    actorUserId: USER_ID,
+    companyId: COMPANY_ID,
+    documentId: DOCUMENT_ID,
+    driverId: DRIVER_ID,
+    idempotencyKey: crypto.randomUUID(),
+    location: null,
+    note: 'cliente recusou',
+    occurrenceTypeId: OCCURRENCE_TYPE_ID,
+    productCode: '',
+  } as const
+
+  /** O caso de uso **real** do app, com dublês de leitura: o canal é só outro chamador dele. */
+  function buildRealDeps(type: Partial<OccurrenceTypeRecord>) {
+    const state = createFieldReportState({
+      documents: new Map([
+        [
+          DOCUMENT_ID,
+          { separationStatus: 'loaded', stopId: null, tripId: '', tripStatus: 'on_delivery_route' },
+        ],
+      ]),
+    })
+    const deps = buildDeps({
+      listOccurrenceTypes: async () => [buildOccurrenceType(type)],
+      registerOccurrence: (input) =>
+        registerDriverOccurrence({
+          ...input,
+          channel: TRIP_FIELD_CHANNELS.whatsapp,
+          repository: {
+            findConfirmedUpload: async () => null,
+            findOccurrenceType: async () => buildOccurrenceType(type),
+            findOccurrenceTypeOverrides: async () => ({
+              contractorOverrides: [],
+              recipientOverrides: [],
+            }),
+            findReachableDocument: async () => ({ tripId: TRIP_ID }),
+            listDocumentProducts: async () => [],
+          },
+          unitOfWork: createFieldReportUnitOfWork(state),
+        }),
+    })
+    return { deps, state }
+  }
+
+  const COMPLETE_CONTEXT = {
+    [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+    [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'cliente recusou',
+    [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+  }
+
+  test('o caso de uso devolve o erro estável da assinatura, sem gravar', async () => {
+    const { deps, state } = buildRealDeps({ signatureMode: 'required' })
+
+    const error = await deps.registerOccurrence(REGISTRATION).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    )
+
+    expect(error).toBeInstanceOf(TripOccurrenceSignatureRequiredError)
+    expect((error as TripOccurrenceSignatureRequiredError).code).toBe(
+      'TRIP_OCCURRENCE_SIGNATURE_REQUIRED',
+    )
+    expect(state.documentOccurrences.size).toBe(0)
+  })
+
+  test('a conversa diz que falta a assinatura e volta ao menu, sem gravar', async () => {
+    const { channel, sent } = buildChannel()
+    const { deps, state } = buildRealDeps({ signatureMode: 'required' })
+
+    const result = await callAction({
+      channel,
+      context: COMPLETE_CONTEXT,
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(sent[0]?.body).toContain('assinatura')
+    expect(result).toEqual({ next: DRIVER_FLOW_NODE.tripMenu })
+    expect(state.documentOccurrences.size).toBe(0)
+  })
+
+  test('observação obrigatória e "Pular": a conversa pede a observação de novo', async () => {
+    const { channel, sent } = buildChannel()
+    const { deps, state } = buildRealDeps({ noteMode: 'required' })
+
+    const result = await callAction({
+      channel,
+      context: { ...COMPLETE_CONTEXT, [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip' },
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(sent[0]?.body).toContain('observação')
+    expect(result).toEqual({ next: DRIVER_FLOW_NODE.notePrompt })
+    expect(state.documentOccurrences.size).toBe(0)
+  })
+
+  test('tipo sem exigência segue registrando pelo canal', async () => {
+    const { deps, state } = buildRealDeps({})
+
+    await callAction({
+      context: COMPLETE_CONTEXT,
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(state.documentOccurrences.size).toBe(1)
+  })
+
+  test('a lista do WhatsApp não é filtrada pela assinatura obrigatória', async () => {
+    const { channel, sent } = buildChannel()
+    const { deps } = buildRealDeps({ signatureMode: 'required' })
+
+    await callAction({ channel, deps, kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes })
+
+    expect(sent[0]).toMatchObject({ kind: 'list', rows: [{ id: OCCURRENCE_TYPE_ID }] })
   })
 })

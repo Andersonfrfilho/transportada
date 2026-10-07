@@ -621,6 +621,7 @@ async function dispatch(
     channel: input.channel,
     companyId: input.companyId,
     fromStatus: tripRow.status,
+    locationStamp: input.locationStamp,
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     toStatus: updated.status,
     tripId: input.tripId,

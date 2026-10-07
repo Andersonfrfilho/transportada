@@ -19,13 +19,20 @@ import {
   checkTripDocumentTransition,
   checkTripTransition,
   isCrewSwappable,
+  isCrewTransferable,
   isTripDispatched,
   type TripAction,
   type TripDocumentAction,
 } from './trip-state.policy.js'
 
-/** Spec 217 D1: as ações que cabem numa lista — `defineCrew` precisa do par e fica de fora. */
-type OfferableTripAction = Exclude<TripAction, typeof TRIP_ACTION.defineCrew>
+/**
+ * Spec 217 D1: as ações que cabem numa lista — `defineCrew` precisa do par e fica de fora. Spec 249:
+ * `transferCrew` também, porque para ela `unchanged` é "pode" e o filtro só aceita `applied`.
+ */
+type OfferableTripAction = Exclude<
+  TripAction,
+  typeof TRIP_ACTION.defineCrew | typeof TRIP_ACTION.transferCrew
+>
 
 export const STOP_ALLOWED_ACTION = { arrive: 'arrive', occurrence: 'occurrence' } as const
 
@@ -170,7 +177,16 @@ function resolveTripLevelActions(input: {
       ? [TRIP_ACTION.defineCrew]
       : []
 
-  return [...offerable, ...crewSwap]
+  /**
+   * Spec 249 RF1: a transferência na rua é de quem dá baixa em nome do motorista (`trip.report-on-behalf`,
+   * a mesma porta de `startRoute`), e a janela é a função que a máquina usa para liberar.
+   */
+  const crewTransfer: readonly TripAction[] =
+    canReportInField(input) && isCrewTransferable(input.trip.status)
+      ? [TRIP_ACTION.transferCrew]
+      : []
+
+  return [...offerable, ...crewSwap, ...crewTransfer]
 }
 
 /**

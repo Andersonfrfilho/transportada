@@ -1,0 +1,72 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 237 T4.6 (ADR-0094 §10): os limites do ramo "prévia" do e-mail encaminhado. O teto do anexo é o
+ * do upload (`CARGO_PREVIEW_OBJECT_MAX_BYTES`); o do e-mail inteiro é o do anexo em base64 mais folga.
+ */
+import { MIME_HEADER_LIMITS } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import type { CargoPreviewEmailRejectionCode } from '../../shared/cargo-preview.constant.js'
+
+export const PREVIEW_INBOUND_TOKEN_PATTERN = /^[a-z2-7]{26}$/u
+
+/** O mesmo HMAC/derivação do token de conversa não vale aqui: o propósito entra no hash. */
+export const PREVIEW_INBOUND_TOKEN_PURPOSE = 'transportada:cargo-preview-inbound:v1'
+
+/** 960 KiB de planilha em base64 (+33%) e os cabeçalhos do encaminhamento cabem com folga em 2 MiB. */
+export const PREVIEW_EMAIL_MAX_RAW_BYTES = 2 * 1024 * 1024
+
+/**
+ * A janela de e-mails por contratante tem dois contadores. Os que passaram do DKIM do encaminhador custam
+ * leitura de planilha e prévia: 20 em 5 minutos, e é ele que fecha o download e o DKIM. Os que ficaram antes
+ * dele custam só uma linha de recusa: passado o teto, 100 em 5 minutos, a recusa continua sendo AVALIADA e
+ * devolvida, mas deixa de ser GRAVADA (a tabela não vira alvo de inundação, e o encaminhador legítimo não fica
+ * trancado do lado de fora por lixo endereçado ao token). O excesso deixa uma única linha `RATE_LIMITED` por janela.
+ * T4.7d: "passou do DKIM" não basta para ser autenticado — ver `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`.
+ */
+export const PREVIEW_EMAIL_INTAKE_RATE_LIMIT = {
+  maxAuthenticated: 20,
+  maxUnauthenticated: 100,
+  windowSeconds: 300,
+} as const
+
+export const PREVIEW_EMAIL_MIME_LIMITS = {
+  maxHeadersSize: MIME_HEADER_LIMITS.maxSectionBytes,
+  maxNestingDepth: 6,
+} as const
+
+/** O bloco encaminhado de um cliente de e-mail: o marcador está perto do topo e o cabeçalho é curto. */
+export const FORWARDED_BLOCK_LIMITS = { maxHeaderLines: 12, maxScanLines: 200 } as const
+
+export const PREVIEW_EMAIL_FALLBACK_FILE_NAME = 'previa.xlsx'
+
+/** Os códigos de recusa que mais de um ponto do ramo grava; o resto mora ao lado de quem o decide. */
+export const PREVIEW_EMAIL_REJECTION = {
+  forwarderDkimNotAligned: 'FORWARDER_DKIM_NOT_ALIGNED',
+  forwarderDkimUnverifiable: 'FORWARDER_DKIM_UNVERIFIABLE',
+  forwarderFromMismatch: 'FORWARDER_FROM_MISMATCH',
+  forwarderNotAllowed: 'FORWARDER_NOT_ALLOWED',
+  mimeUnreadable: 'MIME_UNREADABLE',
+  originalSenderAmbiguous: 'ORIGINAL_SENDER_AMBIGUOUS',
+  originalSenderMissing: 'ORIGINAL_SENDER_MISSING',
+  originalSenderNotAllowed: 'ORIGINAL_SENDER_NOT_ALLOWED',
+  previewNotEnabled: 'PREVIEW_NOT_ENABLED',
+  rateLimited: 'RATE_LIMITED',
+  rawEmailTooLarge: 'RAW_EMAIL_TOO_LARGE',
+  tooManyOpenPreviews: 'TOO_MANY_OPEN_PREVIEWS',
+} as const satisfies Record<string, CargoPreviewEmailRejectionCode>
+
+/**
+ * Spec 237 T4.7d: recusas gravadas com o DKIM do encaminhador `aligned` que o encaminhador NÃO prova — o alinhamento
+ * pode ser do domínio do atacante (`From` divergente, encaminhador fora da lista, MIME ilegível) ou de uma mensagem
+ * assinada pelo encaminhador que o atacante só reenviou (resposta de `logistica@` sem remetente original). Só a
+ * recusa DEPOIS de o remetente original passar na lista (anexo inválido, teto de abertas) exige o arquivo certo, e
+ * é a única que consome a janela de autenticados; estas contam na de recusas, que só impede a inundação de linhas.
+ */
+export const PREVIEW_EMAIL_UNPROVEN_REJECTIONS = [
+  PREVIEW_EMAIL_REJECTION.forwarderFromMismatch,
+  PREVIEW_EMAIL_REJECTION.forwarderNotAllowed,
+  PREVIEW_EMAIL_REJECTION.mimeUnreadable,
+  PREVIEW_EMAIL_REJECTION.originalSenderAmbiguous,
+  PREVIEW_EMAIL_REJECTION.originalSenderMissing,
+  PREVIEW_EMAIL_REJECTION.originalSenderNotAllowed,
+] as const

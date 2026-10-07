@@ -40,6 +40,7 @@ import type {
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
@@ -53,6 +54,10 @@ import type {
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
+import {
+  buildOccurrenceTypeItemsView,
+  listOccurrenceTypeItemsShapesOrEmpty,
+} from './occurrence-type-items-read.query.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -70,7 +75,12 @@ const EMITTER_ROLE = 'emitter'
  */
 type FeedRow = Omit<
   TripOccurrenceFeedItem,
-  'cancellation' | 'conversation' | 'createdAt' | 'document'
+  | 'cancellation'
+  | 'conversation'
+  | 'createdAt'
+  | 'document'
+  | 'typeAllowsMultipleItems'
+  | 'typeItemsMode'
 > & {
   readonly createdAt: Date
   readonly nfeDocumentId: null | string
@@ -236,6 +246,7 @@ async function listDocumentOccurrenceRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       notifies: companyOccurrenceTypes.notifies,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       onBehalfOfDriverName: feedOnBehalfDriver.name,
       stage: tripDocumentOccurrences.stage,
       stopLabel: tripStops.label,
@@ -334,6 +345,7 @@ async function listDocumentOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: row.notifies,
+    occurrenceTypeId: row.occurrenceTypeId,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'document' as const,
     stage: row.stage,
@@ -509,6 +521,7 @@ async function listStopOccurrenceRows(
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
     notifies: false,
+    occurrenceTypeId: null,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     source: 'stop' as const,
     stage: null,
@@ -532,6 +545,7 @@ async function toFeedItems(
   companyId: string,
   rows: readonly FeedRow[],
   viewerUserId?: string,
+  logger?: ApiLogger,
 ): Promise<TripOccurrenceFeedItem[]> {
   const nfeDocumentIds = [
     ...new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId]))),
@@ -590,16 +604,34 @@ async function toFeedItems(
     ...(viewerUserId === undefined ? {} : { viewerUserId }),
   })
 
-  /** Spec 240 RF9: o cancelamento da página inteira numa leitura só; a parada nunca é cancelada. */
-  const cancellations = await listOccurrenceCancellationsByIds(queryable, {
-    companyId,
-    occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
-  })
+  /**
+   * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
+   * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
+   */
+  const [cancellations, typeShapes] = await Promise.all([
+    listOccurrenceCancellationsByIds(queryable, {
+      companyId,
+      occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
+    }),
+    listOccurrenceTypeItemsShapesOrEmpty(queryable, {
+      companyId,
+      ...(logger === undefined ? {} : { logger }),
+      occurrenceTypeIds: rows.flatMap((row) =>
+        row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
+      ),
+    }),
+  ])
 
   return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
+    const { typeAllowsMultipleItems, typeItemsMode } = buildOccurrenceTypeItemsView({
+      occurrenceTypeId: row.occurrenceTypeId,
+      shapes: typeShapes,
+    })
     return {
       ...row,
+      typeAllowsMultipleItems,
+      typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
@@ -630,6 +662,7 @@ async function toFeedItems(
 export async function listTripOccurrenceFeed(
   queryable: TripQueryable,
   query: TripOccurrenceFeedQuery,
+  dependencies: { readonly logger?: ApiLogger } = {},
 ): Promise<TripOccurrenceFeedPage> {
   const cursor = decodeKeysetCursor(query.cursor)
   const { documentStages, includeDocuments, includeStops } = stageSelects(query.filters)
@@ -651,7 +684,13 @@ export async function listTripOccurrenceFeed(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: await toFeedItems(queryable, query.companyId, merged.items, query.viewerUserId),
+    items: await toFeedItems(
+      queryable,
+      query.companyId,
+      merged.items,
+      query.viewerUserId,
+      dependencies.logger,
+    ),
     nextCursor:
       merged.hasMore && last !== undefined
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
