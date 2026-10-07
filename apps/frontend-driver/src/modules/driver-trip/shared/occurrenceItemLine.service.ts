@@ -14,6 +14,7 @@ import type {
 } from './occurrenceDraftValues.types'
 import { unmaskMoneyText } from './occurrenceMoneyMask.service'
 import type { OccurrenceRequirements } from './occurrenceRequirements.service'
+import { OCCURRENCE_FIELD_MODE, OCCURRENCE_QUANTITY_PROBLEM } from './occurrenceValues.constant'
 
 /** O que `OCCURRENCE_ITEM_QUANTITY_DECIMAL` da API aceita: nove inteiros, três casas. */
 const QUANTITY_PATTERN = /^\d{1,9}(\.\d{1,3})?$/u
@@ -54,8 +55,11 @@ function tryParseScaled(value: string): bigint | undefined {
 
 function findQuantityExcess(canonical: string): OccurrenceItemQuantityProblem | undefined {
   const [integer = '', decimals = ''] = canonical.split('.')
-  if (decimals.length > QUANTITY_LIMITS.maxDecimals) return 'too-many-decimals'
-  return integer.length > QUANTITY_LIMITS.maxIntegerDigits ? 'too-many-digits' : undefined
+  if (decimals.length > QUANTITY_LIMITS.maxDecimals)
+    return OCCURRENCE_QUANTITY_PROBLEM.tooManyDecimals
+  return integer.length > QUANTITY_LIMITS.maxIntegerDigits
+    ? OCCURRENCE_QUANTITY_PROBLEM.tooManyDigits
+    : undefined
 }
 
 function resolveQuantity(input: { readonly product: DriverNfeProduct; readonly text: string }): {
@@ -68,12 +72,12 @@ function resolveQuantity(input: { readonly product: DriverNfeProduct; readonly t
 
   const isValid =
     canonical !== undefined && QUANTITY_PATTERN.test(canonical) && NON_ZERO_DIGIT.test(canonical)
-  if (!isValid) return { problem: 'missing', quantity: undefined }
+  if (!isValid) return { problem: OCCURRENCE_QUANTITY_PROBLEM.missing, quantity: undefined }
 
   const typed = tryParseScaled(canonical)
   const onNote = tryParseScaled(input.product.quantity)
   if (typed !== undefined && onNote !== undefined && typed > onNote) {
-    return { problem: 'above-note', quantity: undefined }
+    return { problem: OCCURRENCE_QUANTITY_PROBLEM.aboveNote, quantity: undefined }
   }
   return { problem: undefined, quantity: canonical }
 }
@@ -94,7 +98,8 @@ export function buildItemLine(params: ItemLineParams): OccurrenceItemLine {
   const { draft, isAmountOnLine, product, requirements } = params
   const isDeclaredAmountRequired =
     isAmountOnLine &&
-    (requirements.declaredAmountMode === 'required' || product.hasVaryingUnitValue)
+    (requirements.declaredAmountMode === OCCURRENCE_FIELD_MODE.required ||
+      product.hasVaryingUnitValue)
   const declaredAmount = isAmountOnLine ? readCanonicalAmount(draft.declaredAmountText) : undefined
   const base = {
     declaredAmount,

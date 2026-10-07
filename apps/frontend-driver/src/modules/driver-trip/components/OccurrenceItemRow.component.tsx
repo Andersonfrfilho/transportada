@@ -11,6 +11,7 @@ import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
 import styles from '../styles/occurrenceValues.module.css'
 import { OccurrenceMoneyField } from './OccurrenceMoneyField.component'
 import { OccurrenceTextField } from './OccurrenceTextField.component'
+import { OCCURRENCE_QUANTITY_PROBLEM } from '../shared/occurrenceValues.constant'
 
 type OccurrenceItemRowProps = Readonly<{
   declaredAmountLabel: string
@@ -40,19 +41,19 @@ export function OccurrenceItemRow({
       : formatBrazilianAmount(lineCents)
 
   function describeQuantityProblem(): string | undefined {
-    if (line.quantityProblem === 'too-many-decimals') {
+    if (line.quantityProblem === OCCURRENCE_QUANTITY_PROBLEM.tooManyDecimals) {
       return t('occurrenceRegistration.items.quantityTooManyDecimals')
     }
-    if (line.quantityProblem === 'too-many-digits') {
+    if (line.quantityProblem === OCCURRENCE_QUANTITY_PROBLEM.tooManyDigits) {
       return t('occurrenceRegistration.items.quantityTooManyDigits')
     }
-    if (line.quantityProblem === 'above-note') {
+    if (line.quantityProblem === OCCURRENCE_QUANTITY_PROBLEM.aboveNote) {
       return t('occurrenceRegistration.items.quantityAboveNote', {
         quantity: formatBrazilianQuantity(product.quantity),
         unit: product.unit,
       })
     }
-    return line.quantityProblem === 'missing'
+    return line.quantityProblem === OCCURRENCE_QUANTITY_PROBLEM.missing
       ? t('occurrenceRegistration.items.quantityMissing')
       : undefined
   }

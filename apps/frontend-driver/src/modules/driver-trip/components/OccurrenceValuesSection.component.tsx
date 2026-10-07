@@ -9,6 +9,7 @@ import { OccurrenceMoneyField } from './OccurrenceMoneyField.component'
 import { OccurrenceItemsField } from './OccurrenceItemsField.component'
 import { OccurrenceProductsField } from './OccurrenceProductsField.component'
 import { OccurrenceTextField } from './OccurrenceTextField.component'
+import { OCCURRENCE_AMOUNT_SCOPE, OCCURRENCE_FIELD_MODE } from '../shared/occurrenceValues.constant'
 
 export type OccurrenceValueLabels = Readonly<{
   declaredAmount: string
@@ -38,8 +39,8 @@ export function OccurrenceValuesSection({
 
   const isDeclaredAmountOn = visibility.rendersDeclaredAmount
   const isOccurrenceAmountVisible =
-    isDeclaredAmountOn && valuesForm.values.amountTarget === 'occurrence'
-  const isAmountRequired = requirements.declaredAmountMode === 'required'
+    isDeclaredAmountOn && valuesForm.values.amountTarget === OCCURRENCE_AMOUNT_SCOPE.occurrence
+  const isAmountRequired = requirements.declaredAmountMode === OCCURRENCE_FIELD_MODE.required
 
   return (
     <>
@@ -47,7 +48,7 @@ export function OccurrenceValuesSection({
         <OccurrenceItemsField
           declaredAmountLabel={isDeclaredAmountOn ? labels.declaredAmount : undefined}
           form={valuesForm}
-          isRequired={requirements.itemsMode === 'required'}
+          isRequired={requirements.itemsMode === OCCURRENCE_FIELD_MODE.required}
         />
       ) : null}
       {visibility.rendersProducts ? (
@@ -80,7 +81,7 @@ export function OccurrenceValuesSection({
             }
             inputMode="text"
             label={t(
-              requirements.referenceNumberMode === 'required'
+              requirements.referenceNumberMode === OCCURRENCE_FIELD_MODE.required
                 ? 'occurrenceRegistration.referenceNumber.required'
                 : 'occurrenceRegistration.referenceNumber.optional',
               { label: labels.referenceNumber },

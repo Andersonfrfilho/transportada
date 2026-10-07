@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeclaredAmountScope, OccurrenceRequirements } from './occurrenceRequirements.service'
+import { OCCURRENCE_AMOUNT_SCOPE, OCCURRENCE_FIELD_MODE } from './occurrenceValues.constant'
 
 /**
  * `photoMinimum` é a foto que já existe, mas não chega ao mínimo — o texto diz quantas faltam. Spec 247:
@@ -69,12 +70,15 @@ export function resolveDeclaredAmountTarget(input: {
   readonly requirements: OccurrenceRequirements
 }): DeclaredAmountScope {
   const { itemsSelectedCount, itemsTotalCount, requirements } = input
-  if (requirements.declaredAmountScope !== 'item') return requirements.declaredAmountScope
+  if (requirements.declaredAmountScope !== OCCURRENCE_AMOUNT_SCOPE.item)
+    return requirements.declaredAmountScope
   const isWaitingForLines =
-    requirements.itemsMode === 'required' && itemsTotalCount > 0 && itemsSelectedCount === 0
-  if (isWaitingForLines) return 'item'
-  const hasNoLine = itemsSelectedCount === 0 || requirements.itemsMode === 'off'
-  return hasNoLine ? 'occurrence' : 'item'
+    requirements.itemsMode === OCCURRENCE_FIELD_MODE.required &&
+    itemsTotalCount > 0 &&
+    itemsSelectedCount === 0
+  if (isWaitingForLines) return OCCURRENCE_AMOUNT_SCOPE.item
+  const hasNoLine = itemsSelectedCount === 0 || requirements.itemsMode === OCCURRENCE_FIELD_MODE.off
+  return hasNoLine ? OCCURRENCE_AMOUNT_SCOPE.occurrence : OCCURRENCE_AMOUNT_SCOPE.item
 }
 
 function listMissingPhotoField(input: {
@@ -82,7 +86,7 @@ function listMissingPhotoField(input: {
   readonly requirements: OccurrenceRequirements
 }): readonly OccurrenceMissingField[] {
   const { photoCount, requirements } = input
-  if (requirements.photoMode !== 'required') return []
+  if (requirements.photoMode !== OCCURRENCE_FIELD_MODE.required) return []
   if (photoCount === 0) return ['photo']
   return photoCount < requirements.photoMinimumCount ? ['photoMinimum'] : []
 }
@@ -101,7 +105,7 @@ function listMissingItemsField(input: {
   readonly requirements: OccurrenceRequirements
 }): readonly OccurrenceMissingField[] {
   const { facts, requirements } = input
-  if (requirements.itemsMode !== 'required') return []
+  if (requirements.itemsMode !== OCCURRENCE_FIELD_MODE.required) return []
   const values = facts.values ?? NO_VALUES_FACTS
   if (values.itemsTotalCount === 0) return facts.hasProducts ? [] : ['products']
   if (values.itemsSelectedCount === 0) return ['products']
@@ -117,14 +121,15 @@ function listMissingAmountField(input: {
   readonly values: OccurrenceValuesFacts
 }): readonly OccurrenceMissingField[] {
   const { requirements, values } = input
-  if (requirements.declaredAmountMode === 'off') return []
+  if (requirements.declaredAmountMode === OCCURRENCE_FIELD_MODE.off) return []
   const target = resolveDeclaredAmountTarget({
     itemsSelectedCount: values.itemsSelectedCount,
     itemsTotalCount: values.itemsTotalCount,
     requirements,
   })
-  if (target === 'item') return values.lineAmountMissingCount > 0 ? ['itemDeclaredAmount'] : []
-  const isRequired = requirements.declaredAmountMode === 'required'
+  if (target === OCCURRENCE_AMOUNT_SCOPE.item)
+    return values.lineAmountMissingCount > 0 ? ['itemDeclaredAmount'] : []
+  const isRequired = requirements.declaredAmountMode === OCCURRENCE_FIELD_MODE.required
   return isRequired && !values.hasDeclaredAmount ? ['declaredAmount'] : []
 }
 
@@ -134,7 +139,9 @@ function listMissingReferenceNumberField(input: {
 }): readonly OccurrenceMissingField[] {
   const { requirements, values } = input
   if (values.hasInvalidReferenceNumber) return ['referenceNumberInvalid']
-  const isMissing = requirements.referenceNumberMode === 'required' && !values.hasReferenceNumber
+  const isMissing =
+    requirements.referenceNumberMode === OCCURRENCE_FIELD_MODE.required &&
+    !values.hasReferenceNumber
   return isMissing ? ['referenceNumber'] : []
 }
 
@@ -150,9 +157,11 @@ export function listMissingOccurrenceRequirements(input: {
     ...(values.hasInvalidItemQuantity ? (['productQuantity'] as const) : []),
     ...listMissingAmountField({ requirements, values }),
     ...listMissingReferenceNumberField({ requirements, values }),
-    ...(requirements.noteMode === 'required' && !facts.hasNote ? (['note'] as const) : []),
+    ...(requirements.noteMode === OCCURRENCE_FIELD_MODE.required && !facts.hasNote
+      ? (['note'] as const)
+      : []),
     ...listMissingPhotoField({ photoCount: facts.photoCount, requirements }),
-    ...(requirements.signatureMode === 'required' && !facts.hasSignature
+    ...(requirements.signatureMode === OCCURRENCE_FIELD_MODE.required && !facts.hasSignature
       ? (['signature'] as const)
       : []),
   ]

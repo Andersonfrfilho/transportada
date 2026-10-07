@@ -19,7 +19,8 @@ export function shouldHintAllItemsRule(
   const asksAmount =
     type.declaredAmountMode === OCCURRENCE_ATTACHMENT_MODE.optional ||
     type.declaredAmountMode === OCCURRENCE_ATTACHMENT_MODE.required
-  const isByLine = (type.declaredAmountScope ?? CORRECTION_AMOUNT_SCOPE.item) === 'item'
+  const isByLine =
+    (type.declaredAmountScope ?? CORRECTION_AMOUNT_SCOPE.item) === CORRECTION_AMOUNT_SCOPE.item
   return (
     asksAmount &&
     isByLine &&

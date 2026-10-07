@@ -31,6 +31,7 @@ export {
   type OccurrenceValues,
   type OccurrenceValuesPayload,
 } from './occurrenceDraftValues.types'
+import { OCCURRENCE_AMOUNT_SCOPE, OCCURRENCE_FIELD_MODE } from './occurrenceValues.constant'
 
 /**
  * Spec 247 (T5.3, RF11): o que o motorista marcou e digitou — produtos, quantidades, valor pago e
@@ -97,8 +98,8 @@ export function evaluateOccurrenceValues(input: {
   readonly texts: Readonly<{ declaredAmount: string; referenceNumber: string }>
 }): OccurrenceValues {
   const { requirements } = input
-  const hasItems = requirements.itemsMode !== 'off'
-  const isAmountOn = requirements.declaredAmountMode !== 'off'
+  const hasItems = requirements.itemsMode !== OCCURRENCE_FIELD_MODE.off
+  const isAmountOn = requirements.declaredAmountMode !== OCCURRENCE_FIELD_MODE.off
 
   /** Primeiro as marcações: o escopo efetivo depende de quantas linhas há (`resolveDeclaredAmountTarget`). */
   const selectedCount = hasItems
@@ -109,7 +110,7 @@ export function evaluateOccurrenceValues(input: {
     itemsTotalCount: hasItems ? input.products.length : 0,
     requirements,
   })
-  const isAmountOnLine = isAmountOn && amountTarget === 'item'
+  const isAmountOnLine = isAmountOn && amountTarget === OCCURRENCE_AMOUNT_SCOPE.item
 
   const lines = input.products.map((product) =>
     buildItemLine({
@@ -122,15 +123,15 @@ export function evaluateOccurrenceValues(input: {
     }),
   )
   const declaredAmount =
-    isAmountOn && amountTarget === 'occurrence'
+    isAmountOn && amountTarget === OCCURRENCE_AMOUNT_SCOPE.occurrence
       ? readCanonicalAmount(input.texts.declaredAmount)
       : undefined
   const referenceNumber =
-    requirements.referenceNumberMode === 'off'
+    requirements.referenceNumberMode === OCCURRENCE_FIELD_MODE.off
       ? undefined
       : toReferenceNumber(input.texts.referenceNumber)
   const hasInvalidReferenceNumber =
-    requirements.referenceNumberMode !== 'off' &&
+    requirements.referenceNumberMode !== OCCURRENCE_FIELD_MODE.off &&
     !isReferenceNumberValid(input.texts.referenceNumber)
   const selected = lines.filter((line) => line.isSelected)
 
