@@ -407,7 +407,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         }
       }
     }
-    expect(cells).toBe(140)
+    expect(cells).toBe(160)
   })
 
   /**
@@ -503,6 +503,73 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         tripStatus: 'completed',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
+  })
+
+  /**
+   * Spec 249 D1: a viagem que já saiu troca de motorista e de ajudante por uma ação **própria**. A
+   * janela da `defineCrew` (217) não se mexe — as duas janelas nunca se sobrepõem, e o resultado
+   * de status é sempre `unchanged`: transferir tripulação não é uma transição de viagem.
+   */
+  test('transferCrew is released on the road and never changes the status', () => {
+    for (const tripStatus of DISPATCHED_STATUSES) {
+      for (const hasRoute of [true, false]) {
+        expect(
+          checkTripTransition({ action: TRIP_ACTION.transferCrew, hasRoute, tripStatus }),
+        ).toEqual({ outcome: 'unchanged' })
+      }
+    }
+  })
+
+  test('transferCrew names why a dead trip refuses it', () => {
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.transferCrew,
+        hasRoute: true,
+        tripStatus: 'cancelled',
+      }),
+    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
+
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.transferCrew,
+        hasRoute: true,
+        tripStatus: 'completed',
+      }),
+    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
+  })
+
+  test('transferCrew before the dispatch is refused as not dispatched, even without a crew', () => {
+    for (const tripStatus of [
+      'awaiting_crew',
+      'draft',
+      'route_planned',
+      'separating',
+      'loading',
+    ] as const) {
+      for (const hasRoute of [true, false]) {
+        expect(
+          checkTripTransition({ action: TRIP_ACTION.transferCrew, hasRoute, tripStatus }),
+        ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched })
+      }
+    }
+  })
+
+  test('transferCrew and defineCrew windows never overlap', () => {
+    for (const tripStatus of TRIP_STATUSES) {
+      const transferable =
+        checkTripTransition({ action: TRIP_ACTION.transferCrew, hasRoute: true, tripStatus })
+          .outcome !== 'blocked'
+      const swappable =
+        checkTripTransition({
+          action: TRIP_ACTION.defineCrew,
+          crew: COMPLETE_CREW,
+          hasRoute: true,
+          tripStatus,
+          vehicleChanged: false,
+        }).outcome !== 'blocked'
+
+      expect(transferable && swappable).toBe(false)
+    }
   })
 
   // spec 158 T12 (PERGUNTAS-ABERTAS #28): `close` sai da máquina de estados, não de um `if` solto —
