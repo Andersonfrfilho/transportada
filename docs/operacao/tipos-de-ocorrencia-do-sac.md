@@ -1,96 +1,94 @@
 # Cadastro dos tipos de ocorrência do SAC: Devolução parcial e Devolução total
 
-Este roteiro descreve como cadastrar (ou renomear) os dois tipos de ocorrência que o SAC da Spani exige: **Devolução parcial** e **Devolução total**. O cadastro é feito manualmente pela tela no painel, aba Tipos de `/ocorrencias`, sem seed ou script que altere tipos existentes.
+Este roteiro descreve como configurar, pela tela do painel, os dois tipos de ocorrência que o SAC exige: **Devolução parcial** e **Devolução total**. Tudo é digitado na aba **Tipos** da tela **Ocorrências**. Não há seed, migration nem script: os textos abaixo são dado que o operador digita.
 
-Pré-requisito: conta com permissão `settings.manage` no painel.
+Pré-requisito: conta com a permissão `companies.settings`. Sem ela a aba **Tipos** não aparece.
 
-## Preparação: verificar se os tipos já existem
+## Onde fica e como a tela salva
 
-Os tipos "Recusa parcial" e "Recusa total" podem já estar cadastrados na empresa (criados automaticamente pelo sistema em empresas novas, ou presentes em empresas antigas). O roteiro abaixo cobre duas situações:
+1. No menu, abra **Ocorrências** (`/ocorrencias`).
+2. Clique na aba **Tipos**.
+3. Os tipos aparecem agrupados em **No galpão** e **Na rua**. Cada tipo é uma linha com o nome; clicar na linha abre o tipo (seta ▸ vira ▾). Um tipo aberto tem os blocos, nesta ordem: **Identificação**, **Quem registra, e onde**, **O que exige**, **E-mail à contratante**, **Aviso interno** e **Exceções por cliente**.
+4. O tipo novo se cadastra no bloco **Novo tipo**, no fim da lista da aba.
 
-- **Os tipos existem:** renomee "Recusa parcial" para "Devolução parcial" e "Recusa total" para "Devolução total", depois configure os campos.
-- **Os tipos não existem:** crie dois tipos novos com os nomes "Devolução parcial" e "Devolução total" e configure conforme o roteiro.
+Cada controle salva de um jeito, e o roteiro diz qual em cada passo:
 
-Para verificar, abra o painel, navegue até **Configurações > Tipos de ocorrência** (`/company-settings/occurrence-types`). Se não vir nenhum dos dois nomes (nem "Recusa" nem "Devolução"), todos os tipos precisam ser criados do zero.
+- Caixas de marcar e listas (Desligado, Opcional, Obrigatório e semelhantes) gravam na hora, ao escolher.
+- Campos de texto curtos (**Nome**, os dois rótulos) gravam ao apertar Enter ou ao sair do campo.
+- **Quem registra, e onde** só grava ao clicar em **Aplicar momentos**.
+- Os três textos do e-mail só gravam ao clicar em **Salvar e-mail**.
+
+## Passo 0: ver quais tipos a empresa já tem
+
+Na aba **Tipos**, procure por **Recusa parcial** e **Recusa total** (o catálogo de bootstrap cria os dois em empresa sem nenhum tipo). A spec 247 decide: a empresa **configura os tipos que já tem**, e pode renomear **Recusa parcial** para **Devolução parcial** e **Recusa total** para **Devolução total**. O identificador do tipo não muda, então o histórico e os relatórios continuam somando juntos. Criar um tipo novo ao lado parte o relatório em dois, por isso só se cria quando o tipo não existe.
+
+- Se **Recusa parcial** existe, siga a opção "Renomear" do Passo 1 do Tipo 1. Se não existe, siga "Criar".
+- Mesma regra para **Recusa total** no Tipo 2.
 
 ## Tipo 1: Devolução parcial
 
-### Passo 1: Abrir ou criar o tipo
+### Passo 1: Renomear ou criar
 
-**Se o tipo "Recusa parcial" existe:**
+**Renomear** (o tipo **Recusa parcial** existe):
 
-1. Clique no nome "Recusa parcial" para abri-lo.
-2. Clique no ícone de edição ou no nome para passar a editável.
-3. Apague o texto e escreva **Devolução parcial**.
+1. Clique na linha **Recusa parcial** para abri-lo.
+2. No bloco **Identificação**, no campo **Nome**, apague o texto e escreva `Devolução parcial`.
+3. Aperte Enter. O nome grava ao sair do campo e a linha passa a mostrar **Devolução parcial**.
 
-**Se o tipo não existe:**
+**Criar** (o tipo não existe), no bloco **Novo tipo**:
 
-1. Clique no botão "Criar tipo" (ou ícone de "+").
-2. No campo de nome, escreva **Devolução parcial**.
-3. Prossiga para a próxima seção.
+1. No campo **Nome do tipo**, escreva `Devolução parcial`.
+2. No seletor de momentos (**Quem registra, e onde**), clique em **Tirar momento Separador, no galpão** (o tipo novo nasce com esse momento) e escolha **Motorista, numa nota**.
+3. Em **Foto**, escolha **Obrigatório**. Em **Observação**, escolha **Obrigatório**. Em **Assinatura**, deixe **Desligado**. Em **Produtos**, escolha **Obrigatório**.
+4. Deixe **Aceita vários itens** marcada. Deixe **Avisar quando acontecer** desmarcada (é o aviso interno, não o e-mail à contratante).
+5. Em **Modelo de e-mail**, deixe **Sem e-mail**.
+6. Clique em **Cadastrar tipo**. O tipo aparece em **Na rua**; clique na linha **Devolução parcial** para abri-lo e continue no Passo 2.
 
-### Passo 2: Configurar os momentos
+### Passo 2: Identificação
 
-No bloco **"Quem registra, e onde"** (ou "Em que momento pode acontecer", se ainda não foi atualizado):
+No bloco **Identificação** do tipo aberto, confira que **Aceita vários itens** está marcada (grava na hora). Deixe **Devolução** (reentrega) como está: a política de reentrega é a que a operação já usa para recusa parcial e esta spec não a muda.
 
-1. Marque **"Motorista, numa nota"** (valor padrão, já marcado).
-2. Opcionalmente marque também **"Escritório, pelo motorista"** se quiser permitir que operadores registrem em nome do motorista.
+### Passo 3: Momentos
 
-### Passo 3: Configurar as exigências de registro
+No bloco **Quem registra, e onde**:
 
-No bloco **"Dados do registro"** ou **"Exigências"**, configure assim:
+1. O seletor deve mostrar **Motorista, numa nota**. Se mostrar outro momento, abra o seletor, marque **Motorista, numa nota** e tire os outros que não forem os desejados.
+2. Se o SAC quiser que o escritório registre em nome do motorista, marque também **Escritório, pelo motorista**. É opcional.
+3. Se houve qualquer mudança, clique em **Aplicar momentos**. O botão só aparece enquanto há mudança pendente; **Desfazer** descarta a mudança.
 
-| Campo          | Configurar para                                      |
-| -------------- | ---------------------------------------------------- |
-| **Foto**       | Obrigatório (mínimo: 1)                              |
-| **Observação** | Obrigatório                                          |
-| **Assinatura** | Desligado                                            |
-| **Produtos**   | Obrigatório, "Ao menos 1 item", múltiplos permitidos |
+### Passo 4: O que exige
 
-### Passo 4: Configurar o número do documento do cliente
+No bloco **O que exige** (a etiqueta ao lado do título diz **regra geral**), configure nesta ordem. Cada escolha grava na hora.
 
-No bloco **"Dados do registro"**, na linha **"Número do documento do cliente"**:
+| Campo                              | Escolher                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| **Foto**                           | **Obrigatório**; em **Quantidade mínima de fotos**, escolha `1`         |
+| **Observação**                     | **Obrigatório**                                                         |
+| **Assinatura**                     | **Desligado**                                                           |
+| **Produtos**                       | **Obrigatório**; em **Produtos exigidos**, escolha **Ao menos N itens** |
+| **Número do documento do cliente** | **Obrigatório**                                                         |
+| **Valor pago**                     | **Opcional**; em **Digitado**, escolha **Por linha de produto**         |
 
-1. Clique no seletor (primeira coluna).
-2. Escolha **Obrigatório**.
-3. No campo de rótulo (segunda coluna), apague o texto padrão e escreva: **Número da NFD**
+Detalhes:
 
-### Passo 5: Configurar o valor pago
+1. **Produtos exigidos**: depois de escolher **Ao menos N itens**, o campo **Quantidade mínima de produtos** aparece; escreva `1` e aperte Enter. Com **Produtos** em **Obrigatório** e **Aceita vários itens** marcada, o motorista aponta vários produtos e a ocorrência só sai com pelo menos um.
+2. **Número do documento do cliente**: no campo **Rótulo do número na tela de registro**, apague o texto e escreva `Número da NFD`. Aperte Enter.
+3. **Valor pago**: no campo **Rótulo do valor na tela de registro**, apague o texto e escreva `Valor pago pela loja`. Aperte Enter.
+4. Ordem importa para o **Valor pago**: **Por linha de produto** exige **Produtos** ligado. Com **Produtos** em **Desligado** a tela recusa a escolha, não grava nada e mostra o aviso "Valor pago por linha precisa de produtos".
 
-No bloco **"Dados do registro"**, na linha **"Valor pago"**:
+### Passo 5: E-mail à contratante
 
-1. Clique no primeiro seletor (modo).
-2. Escolha **Opcional**.
-3. Clique no segundo seletor (escopo).
-4. Escolha **por linha**.
-5. No campo de rótulo, apague o texto padrão e escreva: **Valor pago pela loja**
+No bloco **E-mail à contratante**, preencha antes de ligar: a tela avisa que, sem assunto, o e-mail automático não sai.
 
-### Passo 6: Ativar o e-mail à contratante
+1. No campo **Assunto**, escreva exatamente:
 
-No bloco **"E-mail à contratante"**:
-
-1. Clique no interruptor para ligar ("ligado" deve aparecer ou estar visível).
-2. Prossiga para configurar o conteúdo.
-
-### Passo 7: Configurar o assunto do e-mail
-
-No campo **"Assunto"** do bloco de e-mail:
-
-1. Apague qualquer texto existente.
-2. Escreva exatamente:
-   ```
+   ```text
    OCORRÊNCIA: {{contratante}} – NF {{numeroNotaSemSerie}} – DEVOLUÇÃO PARCIAL
    ```
-3. Não insira quebras de linha no assunto.
 
-### Passo 8: Configurar o corpo do e-mail
+2. No campo **Corpo**, escreva exatamente:
 
-No campo **"Corpo"** do bloco de e-mail:
-
-1. Apague qualquer texto existente.
-2. Escreva exatamente:
-
-   ```
+   ```text
    Por favor, verificar. A loja emitiu a NFD devido à divergência identificada no ato da entrega.
 
    NFD {{numeroReferencia}} – R$ {{valorDeclarado}}
@@ -101,149 +99,149 @@ No campo **"Corpo"** do bloco de e-mail:
    {{linhasItens}}
    ```
 
-### Passo 9: Configurar a linha de item
+3. No campo **Linha de cada produto**, escreva exatamente:
 
-No campo **"Linha de item"** do bloco de e-mail:
-
-1. Apague qualquer texto existente.
-2. Escreva exatamente:
-   ```
+   ```text
    {{codigoItem}} – {{item}} – {{quantidadeItem}}{{unidadeItem}} – {{observacao}}
    ```
-3. Nenhuma quebra de linha dentro deste campo.
 
-### Passo 10: Verificar a prévia
+4. Se a tela mostrar "Este marcador não existe neste campo", o texto tem um marcador fora da lista daquele campo (a lista clicável logo abaixo do campo mostra os válidos); corrija e nada será gravado até lá.
+5. Clique em **Salvar e-mail**. **Desfazer** descarta o que foi digitado desde o último salvamento.
+6. Marque a caixa **Mandar e-mail à contratante da nota ao registrar**. Grava na hora.
 
-Na coluna ao lado (ou abaixo), procure pela **seção "Prévia do e-mail"**:
+### Passo 6: Conferir a prévia
 
-1. A prévia renderiza um exemplo com dados fictícios.
-2. Verifique que:
-   - O assunto contém "OCORRÊNCIA: [Nome da contratante] – NF [número] – DEVOLUÇÃO PARCIAL"
-   - O corpo contém "Por favor, verificar..."
-   - As linhas de itens estão bem formatadas (uma linha por item, com código, descrição, quantidade e unidade, e motivo)
-   - Os valores estão no formato brasileiro (ex: `7.840,64`, não `7840.6400`)
-   - Não há marcadores desconhecidos (ex: `{{marcadorErrado}}` em vermelho)
+A **Prévia · dados de exemplo** fica ao lado dos campos e usa dados **fixos de exemplo** (não os de uma nota real). Com os textos acima ela deve mostrar exatamente:
 
-### Passo 11: Guardar
+```text
+OCORRÊNCIA: Contratante Exemplo – NF 123456 – DEVOLUÇÃO PARCIAL
 
-1. Clique no botão "Guardar" ou "Salvar" no final da página.
-2. Se houver erro de marcador desconhecido, o painel recusará e listará qual marcador está errado. Corrija e tente novamente.
-3. Se guardar com sucesso, o tipo aparecerá na lista (ou será atualizado se já existia).
+Por favor, verificar. A loja emitiu a NFD devido à divergência identificada no ato da entrega.
+
+NFD 45029 – R$ 117,19
+RAZÃO SOCIAL: Supermercado Exemplo Ltda
+NOTA FISCAL: 123456
+VALOR DA ENTREGA: R$ 7.840,64
+
+7000001 01 – PRODUTO EXEMPLO A 500G – 1FD – Avaria identificada no momento da conferência das mercadorias
+7000002 02 – PRODUTO EXEMPLO B 1KG – 3CX – Avaria identificada no momento da conferência das mercadorias
+```
+
+Embaixo da prévia deve constar "Sai automaticamente quando o tipo é registrado." Se constar "Desligado: o operador manda pela conversa da ocorrência", a caixa do Passo 5, item 6, não foi marcada.
 
 ## Tipo 2: Devolução total
 
-### Passo 1: Abrir ou criar o tipo
+### Passo 1: Renomear ou criar
 
-**Se o tipo "Recusa total" existe:**
+**Renomear** (o tipo **Recusa total** existe):
 
-1. Clique no nome "Recusa total" para abri-lo.
-2. Clique no ícone de edição ou no nome para passar a editável.
-3. Apague o texto e escreva **Devolução total**.
+1. Clique na linha **Recusa total** para abri-lo.
+2. No bloco **Identificação**, no campo **Nome**, escreva `Devolução total` e aperte Enter.
 
-**Se o tipo não existe:**
+**Criar** (o tipo não existe), no bloco **Novo tipo**:
 
-1. Clique no botão "Criar tipo" (ou ícone de "+").
-2. No campo de nome, escreva **Devolução total**.
-3. Prossiga para a próxima seção.
+1. No campo **Nome do tipo**, escreva `Devolução total`.
+2. Troque o momento: **Tirar momento Separador, no galpão** e escolha **Motorista, numa nota**.
+3. Em **Foto**, escolha **Obrigatório**. Em **Observação**, escolha **Obrigatório**. Em **Assinatura**, deixe **Desligado**. Em **Produtos**, escolha **Desligado**.
+4. Deixe **Avisar quando acontecer** desmarcada e **Modelo de e-mail** em **Sem e-mail**.
+5. Clique em **Cadastrar tipo**, depois abra a linha **Devolução total** (em **Na rua**).
 
-### Passo 2: Configurar os momentos
+### Passo 2: Momentos
 
-No bloco **"Quem registra, e onde"**:
+Mesmos momentos da Devolução parcial: no bloco **Quem registra, e onde**, deixe **Motorista, numa nota** e, opcionalmente, **Escritório, pelo motorista**. Clique em **Aplicar momentos** se houve mudança.
 
-1. Marque **"Motorista, numa nota"** (valor padrão, já marcado).
-2. Opcionalmente marque também **"Escritório, pelo motorista"**.
+### Passo 3: O que exige
 
-### Passo 3: Configurar as exigências de registro
+No bloco **O que exige**:
 
-No bloco **"Dados do registro"** ou **"Exigências"**, configure assim:
+| Campo                              | Escolher                                                                           |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| **Foto**                           | **Obrigatório**; em **Quantidade mínima de fotos**, escolha `1`                    |
+| **Observação**                     | **Obrigatório** (é o "Motivo" do e-mail)                                           |
+| **Assinatura**                     | **Desligado**                                                                      |
+| **Produtos**                       | **Desligado**                                                                      |
+| **Número do documento do cliente** | **Opcional**; em **Rótulo do número na tela de registro**, escreva `Número da NFD` |
+| **Valor pago**                     | **Desligado**                                                                      |
 
-| Campo          | Configurar para                                 |
-| -------------- | ----------------------------------------------- |
-| **Foto**       | Obrigatório (mínimo: 1)                         |
-| **Observação** | Obrigatório (este é o "Motivo" que o SAC pediu) |
-| **Assinatura** | Desligado                                       |
-| **Produtos**   | Desligado                                       |
+A Devolução total **não usa linha de item**: com **Produtos** em **Desligado** o registro não mostra o seletor de produtos e o campo **Linha de cada produto** do e-mail não é usado. Com **Valor pago** em **Desligado** a tela de registro não mostra o campo.
 
-### Passo 4: Configurar o número do documento do cliente
+### Passo 4: E-mail à contratante (ligado)
 
-No bloco **"Dados do registro"**, na linha **"Número do documento do cliente"**:
+A Devolução total **também manda e-mail à contratante ao registrar**. No bloco **E-mail à contratante**:
 
-1. Clique no seletor (primeira coluna).
-2. Escolha **Opcional**.
-3. No campo de rótulo (segunda coluna), apague o texto padrão e escreva: **Número da NFD**
+1. No campo **Assunto**, escreva exatamente:
 
-### Passo 5: Configurar o valor pago
+   ```text
+   DEVOLUÇÃO TOTAL – NF {{numeroNotaSemSerie}}
+   ```
 
-No bloco **"Dados do registro"**, na linha **"Valor pago"**:
+2. No campo **Corpo**, escreva exatamente:
 
-1. Clique no seletor (primeira coluna).
-2. Escolha **Desligado**.
-3. Os outros campos (escopo, rótulo) ficarão desabilitados; ignore-os.
+   ```text
+   Cliente devolveu a nota.
+   Motivo: {{observacao}}
 
-### Passo 6: Desativar o e-mail à contratante
+   RAZÃO SOCIAL: {{razaoSocial}}
+   NOTA FISCAL: {{numeroNotaSemSerie}}
+   VALOR DA ENTREGA: R$ {{valorNota}}
+   ```
 
-**Nesta spec, o SAC não pediu e-mail automático para "Devolução total".** Se o bloco **"E-mail à contratante"** está ligado de uma edição anterior:
+3. Deixe **Linha de cada produto** como está: este tipo não imprime linhas de item.
+4. Clique em **Salvar e-mail**.
+5. Marque a caixa **Mandar e-mail à contratante da nota ao registrar**. Grava na hora.
 
-1. Clique no interruptor para desligar.
-2. Os campos de assunto, corpo e linha de item ficarão desabilitados.
+### Passo 5: Conferir a prévia
 
-Se ainda não houver sido configurado, deixe desligado.
+Com os textos acima, a **Prévia · dados de exemplo** deve mostrar exatamente:
 
-### Passo 7: Guardar
+```text
+DEVOLUÇÃO TOTAL – NF 123456
 
-1. Clique no botão "Guardar" ou "Salvar" no final da página.
-2. Se guardar com sucesso, o tipo aparecerá na lista (ou será atualizado se já existia).
+Cliente devolveu a nota.
+Motivo: Avaria identificada no momento da conferência das mercadorias
 
-## Referência: marcadores válidos
+RAZÃO SOCIAL: Supermercado Exemplo Ltda
+NOTA FISCAL: 123456
+VALOR DA ENTREGA: R$ 7.840,64
+```
 
-A lista abaixo mostra quais marcadores o sistema reconhece. Se escrever um marcador que não esteja aqui, o painel recusará ao guardar.
+Embaixo da prévia deve constar "Sai automaticamente quando o tipo é registrado."
 
-### Marcadores válidos em assunto, corpo e linha de item
+### Resultado esperado numa nota real (exemplo do SAC)
 
-- `{{numeroNota}}` — número com série (ex: 680481/1)
-- `{{numeroNotaSemSerie}}` — número só (ex: 680481)
-- `{{razaoSocial}}` — nome legal do cliente
-- `{{valorNota}}` — valor total da nota, formatado (ex: 7.840,64)
-- `{{contratante}}` — nome da transportadora (contratante cadastrada)
-- `{{motorista}}` — nome do motorista
-- `{{parada}}` — nome da parada
-- `{{data}}` — data de hoje (ex: 07/10/2026)
-- `{{item}}` — nome completo do item (descrição)
-- `{{codigoItem}}` — código do item (cProd)
-- `{{quantidadeItem}}` — quantidade registrada na ocorrência (ex: 1, 2,5)
-- `{{observacao}}` — texto de observação digitado no registro
-- `{{numeroReferencia}}` — número do documento do cliente (ex: número da NFD) — só aparece se o tipo exige/permite
-- `{{somaItens}}` — soma arredondada de todas as linhas (ex: 207,19)
-- `{{valorDeclarado}}` — valor total pago (o digitado, ou a soma das linhas se não foi digitado)
+Os valores abaixo são de exemplo (fixture do SAC), não de uma nota de produção. Registrando **Devolução total** na nota 677002, de FARMA LÍDER SANTA ISABEL LTDA, valor R$ 2.612,88, com a **Observação** "o cliente já havia recebido" (o SAC escreveu "Observação: o cliente já havia recebido…" como exemplo de motivo; o texto digitado no campo **Observação** é o que entra depois de "Motivo:"), a contratante da nota recebe:
 
-### Marcadores extras: só no corpo e na linha de item
+```text
+DEVOLUÇÃO TOTAL – NF 677002
 
-- `{{linhasItens}}` — imprime uma linha por item (só no corpo, não no assunto; não vale na linha de item)
+Cliente devolveu a nota.
+Motivo: o cliente já havia recebido
 
-### Marcadores extras: só dentro de "Linha de item"
+RAZÃO SOCIAL: FARMA LÍDER SANTA ISABEL LTDA
+NOTA FISCAL: 677002
+VALOR DA ENTREGA: R$ 2.612,88
+```
 
-- `{{unidadeItem}}` — unidade de medida (ex: FD, UN)
-- `{{valorUnitarioItem}}` — preço por unidade da nota (ex: 57,20)
-- `{{somaItem}}` — quantidade vezes preço unitário, arredondado (ex: 57,20)
-- `{{valorItem}}` — valor pago pelo item (o digitado, ou a soma se não foi digitado)
+O assunto e o corpo da Devolução parcial seguem a mesma regra: `{{contratante}}` vira o nome da contratante **da nota** (no exemplo do SAC, a Spani). O nome da contratante nunca é digitado no modelo.
 
-## Exemplo: resultado esperado
+## Marcadores usados e onde cada um vale
 
-Com a nota de exemplo da spec (nota 680481, cliente Supermercado Trialba):
+A lista é fechada (`apps/api-transportada/src/shared/occurrence-template.constant.ts`). Marcador fora dela é recusado ao salvar, com a mensagem listando qual.
 
-**Devolução parcial**, marca 1 item (código 2073170 02, descrição "MAC ADRIA OVOS 500G – PARAFUSO", 1 FD, valor unitário R$ 57,20), não digita valor pago:
+| Contexto                  | Marcadores deste roteiro                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Assunto**               | `{{contratante}}`, `{{numeroNotaSemSerie}}`                                                                                                     |
+| **Corpo**                 | `{{numeroReferencia}}`, `{{valorDeclarado}}`, `{{razaoSocial}}`, `{{numeroNotaSemSerie}}`, `{{valorNota}}`, `{{observacao}}`, `{{linhasItens}}` |
+| **Linha de cada produto** | `{{codigoItem}}`, `{{item}}`, `{{quantidadeItem}}`, `{{unidadeItem}}`, `{{observacao}}`                                                         |
 
-- **Assunto do e-mail:** `OCORRÊNCIA: [Nome da Spani cadastrada] – NF 680481 – DEVOLUÇÃO PARCIAL`
-- **Corpo:** começa com "Por favor, verificar..." e inclui a linha de item formatada como `2073170 02 – MAC ADRIA OVOS 500G – PARAFUSO – 1FD – Avaria identificada no momento da conferência das mercadorias`
-- **Soma geral:** R$ 57,20
+- `{{linhasItens}}` só vale no **Corpo**. `{{unidadeItem}}` só vale em **Linha de cada produto**.
+- Valores em reais saem no padrão brasileiro, sem símbolo (`7.840,64`); o `R$ ` é texto do modelo.
+
+## Duas notas que evitam erro
+
+- **`{{numeroNotaSemSerie}}` e `{{numeroNota}}` não são o mesmo marcador.** `{{numeroNota}}` imprime número e série quando há série (`680481/1`) e já tinha modelos gravados que dependem dele, por isso não mudou. O SAC escreve só o número, então o roteiro usa `{{numeroNotaSemSerie}}` (`680481`).
+- **Zero à esquerda do "01FD".** O SAC escreveu `01FD` no exemplo; zero à esquerda não é exigência do formato e não se imita. O modelo imprime a quantidade como ela foi registrada (`1FD`).
 
 ## Prorrogação do boleto
 
-A prorrogação do boleto é abordada na spec 248 e ainda não foi implementada. Quando implementada, será possível cadastrar um tipo "Prorrogação do boleto" com configuração semelhante.
-
-## Notas
-
-- Os marcadores `{{` e `}}` são sensíveis e devem ser escritos exatamente como mostrado (sem espaços, sem variações).
-- O painel mostra uma lista clicável de marcadores válidos enquanto você escreve; use-a como referência.
-- A prévia é renderizada pelo servidor e é sempre um exemplo com dados fictícios, para validar o formato.
-- Valores monetários (`{{valorNota}}`, `{{somaItens}}`, `{{valorDeclarado}}`, `{{valorUnitarioItem}}`, `{{somaItem}}`, `{{valorItem}}`) são formatados automaticamente no padrão brasileiro (separador de milhar: ponto; separador decimal: vírgula), sem símbolo. Se quiser exibir "R$", escreva `R$ {{marcador}}` no modelo.
+A prorrogação do boleto é assunto da spec 248 e este roteiro não traz instruções para ela.
