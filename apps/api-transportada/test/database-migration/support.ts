@@ -185,6 +185,10 @@ export const DELIVERY_CLIENT_TABLES = [
   'delivery_charges',
   'delivery_charge_events',
   'extra_charge_batches',
+  /** Spec 238 T1.2: o feriado "todo ano", o estadual e a configuração de sábado. */
+  'municipal_holiday_rules',
+  'state_holidays',
+  'company_business_calendar_settings',
 ] as const
 
 /**

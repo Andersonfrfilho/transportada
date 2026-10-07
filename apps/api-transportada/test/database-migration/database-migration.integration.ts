@@ -4,6 +4,7 @@ import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
+import { assertBusinessCalendar } from './business-calendar.assertion.js'
 import { assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
@@ -326,6 +327,12 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+        await assertBusinessCalendar({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         const postIdentityRollbacks = await Promise.all(
