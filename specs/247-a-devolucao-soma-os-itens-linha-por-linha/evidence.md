@@ -658,3 +658,32 @@ dados — mais as mutações abaixo, porque igualdade de saída sozinha não imp
 não acha nada): a tabela de rotas é o código (`defineRoute`), então não há documento gerado a que a rota nova
 precise entrar nem teste "toda rota aparece no documento" a manter verde. O teste existente que lista os arquivos
 com `store: 'postgres'` (`rate-limited-routes`) segue verde, porque a rota nova usa o balde em memória.
+
+### Fechamento das T4.1–T4.3 — integração completa
+
+A integração completa (202 arquivos da lista `test:integration`) foi rodada em **quatro lotes em primeiro plano**
+(o teto de uma chamada em primeiro plano é de 10 min e a suíte leva ~14), todos com
+`DATABASE_URL=postgres://postgres@127.0.0.1:56247/postgres` (Postgres 18 nativo descartável) e
+`bun --env-file=../../.env.test test --timeout 120000 <arquivos>` de `apps/api-transportada`:
+
+```text
+lote 1 (51 arquivos): 362 pass · 0 fail   [324.43s]
+lote 2 (51 arquivos): 197 pass · 3 skip · 0 fail   [165.69s]
+lote 3 (51 arquivos): 238 pass · 0 fail   [183.90s]
+lote 4 (49 arquivos): 184 pass · 1 skip · 1 fail   [172.70s]
+(fail) exceções de exigência em lote (spec 246 T5.3-api, RF11c) > agrupa por tipo, inclui o inativo e o tipo sem exceção, e não vaza para outra empresa
+```
+
+A falha era legítima e vinha desta fase: `occurrence-attachment-overrides-batch.integration.ts` esperava, por
+`toEqual`, as exceções lidas **sem** os dois modos novos; a leitura passou a devolver
+`declaredAmountMode: null` e `referenceNumberMode: null` (RF1, D8). Corrigido o teste (e só ele); reexecutado com
+os dois vizinhos de exceção:
+
+```text
+$ bun ... test ./test/integration/occurrence-attachment-overrides-batch.integration.ts \
+    ./test/integration/occurrence-override-minimum-shape.integration.ts ./test/integration/occurrence-type-requirement-modes.integration.ts
+ 5 pass · 0 fail
+```
+
+Os 25 `skip` do contrato (rodado sem `DATABASE_URL`) e os 4 da integração não foram investigados um a um nesta
+fase; nenhum é teste novo desta fase.
