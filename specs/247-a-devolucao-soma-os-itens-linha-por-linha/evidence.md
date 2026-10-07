@@ -1260,3 +1260,69 @@ $ bun run --cwd apps/frontend-transportada test
  7222 pass · 0 fail   Ran 7222 tests across 36 files.
  854 pass · 0 fail    Ran 854 tests across 1 file.   (test:hooks)
 ```
+
+### T5.2 — Bloco "E-mail à contratante" e "Aviso interno" (2026-10-07)
+
+**Contrato antes do código** (`test/trip-hooks/occurrence-type-contractor-mail.contract.ts`, 15 casos): monta a
+linha do tipo (`OccurrenceTypeRow`) de verdade com o cliente dublado (`previewOccurrenceTypeEmail`), procura nos
+controles o que cada um mostra e conta as chamadas à prévia. Vermelho antes de qualquer arquivo de `src/`:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-contractor-mail.contract.ts
+ 0 pass
+ 15 fail
+Ran 15 tests across 1 file.
+```
+
+**O que a tela faz** (`preview.html` 1143–1208 e 1242–1253):
+
+- Bloco entre "O que exige" e "Aviso interno": interruptor `emailsContractor` ("Mandar e-mail à contratante da nota ao
+  registrar", grava na hora), **Assunto**, **Corpo**, **Linha de cada produto** e a prévia ao lado (empilha abaixo de
+  64rem). Só aparece quando a API manda `emailsContractor` (API anterior: nada que ela recusaria).
+- Os três textos são **rascunho** (mesmo padrão dos momentos): nada grava a cada tecla; "Salvar e-mail" manda os três
+  de uma vez e só liga com mudança e sem marcador errado; "Desfazer" volta ao gravado.
+- **Marcadores por contexto** (`occurrenceMailTemplate.constant.ts`, cópia por valor da API, uma só declaração):
+  o campo em foco decide a lista — assunto (15), corpo (15 + `{{linhasItens}}`), linha (15 + 4 de linha). O clique
+  insere no cursor (ou no lugar da seleção), devolve o foco e o cursor ao campo, e não passa do teto do campo.
+- **Marcador desconhecido** (mesmo recorte do servidor, `/\{\{\s*([a-zA-Z]+)\s*\}\}/`) fica **no próprio campo**:
+  `aria-invalid`, aviso `role="alert"` ligado por `aria-describedby` nomeando o marcador (`{{numeroNfd}}`), Salvar
+  travado e **nenhuma chamada à prévia**. Vale também para marcador de outro contexto (`{{linhasItens}}` na linha,
+  `{{valorItem}}` no assunto — CA04).
+- **Prévia = resposta do servidor** (`POST /company-settings/occurrence-types/email-preview`, `settings.manage`),
+  sem segunda implementação no painel: cada texto assenta separado 400 ms depois da última tecla
+  (`useDebouncedValue`), o anterior fica na tela enquanto o novo chega, falha diz "Não foi possível gerar a prévia" e
+  não toca no que foi digitado. A nota diz se o e-mail sai sozinho, que sem assunto o automático não sai, e que
+  `{{linhasItens}}` em tipo sem produtos sai vazio.
+- **RF2 no painel:** o `PUT` sem `emailSubject`/`emailBody` grava texto vazio (default da API), então **toda** edição de
+  um tipo existente leva os dois como estão; `emailItemLineTemplate` e `emailsContractor` só vão quando editados.
+- **"Notificação" → "Aviso interno"**, com a dica corrigida visível (não mais só no tooltip): _"Aviso a quem
+  despachou a viagem, pelo módulo de Notificações…"_; o motivo do desabilitado idem.
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 15 pass):
+
+```text
+M1 — o save deixa de levar emailSubject/emailBody (RF2):
+     2 fail — "o interruptor grava emailsContractor e leva assunto e corpo como estão",
+              "uma edição que nada tem a ver com o e-mail também leva o assunto e o corpo gravados"
+M2 — todo campo valida contra a lista do corpo (contexto ignorado):
+     6 fail — salvar com marcador de linha, marcador errado, marcador de outro contexto e as três da prévia
+```
+
+**Testes existentes ajustados de propósito** (a edição de tipo agora leva assunto e corpo): `occurrence-type-update`,
+`occurrence-type-row-edits`, `occurrence-type-items-mode-panel`, `occurrence-type-identity` (ordem: "Aviso interno").
+Novos casos no contrato do cliente (`occurrence-requirement-catalog-client`): PUT só leva o e-mail quando informado;
+prévia por POST em `/email-preview`; resposta sem assunto ou corpo é recusada.
+
+**Fora do que a task pediu, deixado como estava:** o trecho "modelo próprio (legado)" dentro de "Aviso interno" (mostra
+`emailSubject` de tipo sem chave) descreve agora o e-mail à contratante — vale uma revisão na T7.1.
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os mesmos 16 de antes, fora desta task]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7226 pass · 0 fail   Ran 7226 tests across 36 files.
+ 869 pass · 0 fail    Ran 869 tests across 1 file.   (test:hooks)
+```

@@ -98,7 +98,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 - [x] **T5.1** Aba Tipos: linhas "Número do documento do cliente" e "Valor pago" no bloco de
       exigências (mesmo `Select` de três estados, rótulo editável, escopo), exceções com "Igual ao
       tipo". Contrato de componente.
-- [ ] **T5.2** Bloco "E-mail à contratante": interruptor `emailsContractor`, assunto, corpo, linha de
+- [x] **T5.2** Bloco "E-mail à contratante": interruptor `emailsContractor`, assunto, corpo, linha de
       item, marcadores clicáveis por contexto, prévia do servidor com `debounce`, erro de marcador
       desconhecido no campo. "Notificação" vira "Aviso interno" com a dica corrigida.
 - [ ] **T5.3** App do motorista: lista de produtos, quantidade, soma da linha, soma geral, valor
