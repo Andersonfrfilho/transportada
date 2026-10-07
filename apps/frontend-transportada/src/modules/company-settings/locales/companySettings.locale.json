@@ -294,7 +294,6 @@
     "emailTemplate": "Modelo de e-mail",
     "emailTemplateNone": "Sem e-mail",
     "editTemplates": "Editar modelos de e-mail",
-    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "allowsMultipleItems": "Aceita vários itens",
     "itemsMode": "Produtos",
@@ -489,7 +488,7 @@
     "notification": {
       "title": "Aviso interno",
       "template": "Modelo da notificação",
-      "templateHint": "Aviso a quem despachou a viagem, pelo módulo de Notificações. O texto se edita em Notificações; aqui só se escolhe qual modelo vale. O e-mail à contratante fica no bloco ao lado.",
+      "templateHint": "Aviso a quem despachou a viagem, pelo módulo de Notificações. O texto se edita em Notificações; aqui só se escolhe qual modelo vale. O e-mail à contratante se configura no bloco acima.",
       "subject": "Assunto:",
       "disabledReason": "O modelo só vale quando o tipo avisa quem despachou a viagem. Ligue \"Avisar quando acontecer\" para escolher.",
       "loading": "Carregando os modelos de e-mail…",
