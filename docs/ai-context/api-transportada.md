@@ -3194,3 +3194,38 @@ ocorrência ganhou `referenceNumber`, `declaredAmount` (`"0.00"` nunca `null`), 
 **Decisões pendentes e riscos abertos.** (a) O registro do motorista não abre a tratativa da 164. (b) `previous_items` não guarda número/valor da
 ocorrência. (c) T0.2 (tipos com `email_template_key` e `emails_contractor`) não medida em staging. (d) `requirements: null` por tipo inexistente sem
 integração. (e) M4: `{{quantidadeItem}}` com vírgula em modelo antigo. Gates e vermelhos: specs/247-\*/evidence.md.
+
+## Spec 236 T1.2 — o prazo de entrega por nota no detalhe da viagem
+
+**O que sai.** `GET /trips/:id` (e toda escrita que devolve o detalhe) traz `documents[].deliveryDeadline` — e o mesmo objeto em
+`stops[].documents[]` —: `{ state, dueOn, businessDaysRemaining? | businessDaysLate? , deliveredOn? } | null`, com `state` em `on_time`,
+`due_today`, `overdue`, `delivered_on_time`, `delivered_late` e as chaves exatas de cada estado (JSON de referência
+`test/fixtures/trip-document-delivery-deadline.golden.json`, cópia idêntica no painel, conferida por
+`test/trip-http/delivery-deadline.contract.ts`). `not_applicable` da política sai como `null`. **Só no `TripDocumentDetail`**: o painel lê o
+`TripDocument` com chaves exatas. `dueOn`/`deliveredOn` são **datas civis** `YYYY-MM-DD`, nunca instantes. **Ordem de publicação: o painel
+tolerante (T1.2b) antes da API.**
+
+**De onde vem cada coisa, sem consulta nova por nota.** A chegada e o prazo copiado (`cargo_arrivals.delivery_deadline_business_days`, ADR-0094:
+nunca o perfil atual) e `cargo_arrival_documents.return_to_contractor` entram por dois `leftJoin` no `documentRecords` do `readTripDetail`
+(`unique (company_id, nfe_document_id)`: uma linha por nota; o contratante nem é lido). A cidade é a do **destino físico**
+(`stopAddresses`, que `listStopAddresses` já resolvia e foi antecipada para antes do `map` das notas) com o **desvio manual por cima**
+(`delivery_address_overrides`, o mais recente por nota: a política de destino físico não o conhece); desvio **sem cidade** deixa a nota sem
+prazo, em vez de cair no cadastro que o operador acabou de trocar. A entrega é `deliveredMomentSql` (`selectDistinctOn` por nota, desempate
+`created_at desc, id desc`), com `trip_documents.delivered_at` só se nenhum evento a mede, e sem nenhum dos dois a nota fica sem prazo.
+
+**Custo fixo.** `readTripDeliveryDeadlines` (`trip-delivery-deadline.support.ts`): **+0** consultas se nenhuma nota tem chegada e prazo;
+senão **desvio + entrega** (+2) e, se alguma nota tem cidade válida, as **quatro** leituras do calendário (+4, `loadBusinessCalendarRules`,
+em série) — exatamente **+6**, com 1 ou 200 notas, 1 ou 40 cidades. `loadRules` da 238 foi extraído para essa função porque o `readTripDetail`
+roda dentro de transação nos caminhos de escrita (`close`, vínculo, cancelamento…), que também pagam as seis consultas: aceito.
+Cobertura do calendário (`resolveDeadlineCoverage`): do menor ano entre chegadas, entregas e hoje até o maior entre hoje e a última chegada + 1
+(chegada em 30/12), com corte do começo acima de cinco anos de vão — a nota que ficou de fora vira "sem prazo".
+
+**Degradação.** Falha de banco **propaga** (503 como as outras leituras). `BusinessCalendarError` (`INVALID_CITY`, `UNKNOWN_STATE`,
+`TOO_MANY_RULES`, `INVALID_RULE`, `OUT_OF_COVERAGE`…) vira `null` para as notas afetadas, com um `warn` por código
+(`trip_delivery_deadline_unavailable`: só `code`, `companyId`, `tripId` e `tripDocumentIds`). O "hoje" é um `clock` injetado em
+`DrizzleTripRepository` (só `main.ts` o monta; `test/composition/trip-delivery-deadline-wiring.contract.ts` segura isso) e, sem ele, o campo não
+é calculado e nenhuma consulta é feita.
+
+**Provas.** Contratos sem banco com executor de mentira (`test/trip-infrastructure/delivery-deadline-read.contract.ts`, `…/recording-select-executor.fixture.ts`)
+e integrações `test/integration/trip-detail-delivery-deadline*.integration.ts` (cópia vs perfil, desvio, 30/12, `occurredAt` vs `recordedAt`,
+notas encerradas, isolamento, contagem +0/+6/+2 e `close` dentro da transação). Evidência e mutações: specs/236-\*/evidence.md § T1.2.

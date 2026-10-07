@@ -166,7 +166,11 @@ para a tela avisar quando ficar abaixo do ano corrente + 2.
 digitadas (`source_rule_id IS NULL` e `holiday_on` dentro da cobertura; a gerada é a mesma causa que a regra), feriados
 estaduais da UF (dois primeiros dígitos das cidades; `yearly` ou `once` na cobertura) e a configuração da empresa (sem
 linha = `false`) —, cada uma com `limit(BUSINESS_CALENDAR_MAX_RULES + 1)` para a política recusar com `TOO_MANY_RULES`.
-`Promise.all` está certo ali: calendário parcial é prazo errado, falhar é o comportamento correto.
+**Em série, não em `Promise.all`** (spec 236 T1.2a): as quatro leituras moram em `loadBusinessCalendarRules(executor, params)`
+(`business-calendar-rules.query.ts`), que aceita banco ou transação, e `DrizzleBusinessCalendarRepository.loadRules` só delega. O
+detalhe da viagem (`readTripDetail`) roda dentro de transação nos caminhos de escrita, e consulta concorrente numa transação do Bun
+SQL pode nunca voltar; a função entra em `test/transaction-serial-queries.contract.test.ts`. Calendário parcial continua sendo
+prazo errado: falhar é o comportamento correto, e o consumidor que não pode cair (o selo da 236) converte a recusa em "sem prazo".
 
 **Rotas.** `settings.manage` para ler e escrever em todas as novas; Zod `.strict()`; `companyId` do contexto
 autenticado, nunca do corpo; IP por `resolveClientIp`; toda escrita grava `audit_logs` **na mesma transação**, sob um

@@ -74,6 +74,11 @@ Correções da revisão (T1.3b): `POST /municipal-holidays` devolve `adoptedFrom
 `typedHolidaysKept` (a digitada que a regra não conhece mais); editar a regra só apaga as geradas do ano corrente em diante;
 auditoria só quando muda; `POST /state-holidays` idêntico é 200. A migration foi editada no lugar (não publicada) e os
 comandos de `municipal_holidays` vão no fim do lote. Detalhe: docs/ai-context § "Spec 238 T1.3b".
+O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
+derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
+por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
+injetado (`clock` em `DrizzleTripRepository`, só em `main.ts`); sem ele o campo não é calculado. Recusa do calendário vira `null` com
+`warn` só de ids e código. Detalhe: docs/ai-context § "Spec 236 T1.2".
 
 ## Banco
 
