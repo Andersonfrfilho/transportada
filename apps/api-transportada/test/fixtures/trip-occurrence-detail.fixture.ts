@@ -10,6 +10,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   cancellation: null,
   case: null,
   corrections: [],
+  declaredAmount: null,
   conversation: { contractorState: 'none', driverUnreadCount: 0 },
   channel: 'driver_app',
   createdAt: '2026-09-24T14:12:00.000Z',
@@ -41,6 +42,10 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
     whatsappPhone: '5511999990001',
   },
   items: [{ code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' }],
+  itemValues: [
+    { declaredAmount: '50.00', productCode: 'ZG-4410', quantity: '3.500', unitValue: '14.9000' },
+  ],
+  referenceNumber: 'NFD 45029',
   driverName: 'Motorista A',
   hasAttachment: true,
   id: '00000000-0000-4000-8000-00000000d001',

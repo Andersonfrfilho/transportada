@@ -294,9 +294,10 @@ const FIXTURE_COPIES = [
   ['driver-snapshot-document.golden.json', 'frontend-driver'],
   ['driver-snapshot-document.golden.json', 'frontend-transportada'],
   ['settings-resolution.golden.json', 'frontend-transportada'],
+  ['occurrence-detail-values.golden.json', 'frontend-transportada'],
 ] as const
 
-describe('os JSONs de referência são os mesmos nas três apps (spec 247 T4.6)', () => {
+describe('os JSONs de referência são os mesmos nas apps (spec 247 T4.6, T7.2 R2)', () => {
   test.each(FIXTURE_COPIES)('%s na %s é igual ao da API', async (name, app) => {
     const own = await Bun.file(new URL(`../fixtures/${name}`, import.meta.url)).text()
     const copy = await Bun.file(

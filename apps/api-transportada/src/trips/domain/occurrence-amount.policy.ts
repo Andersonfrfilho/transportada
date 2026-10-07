@@ -106,6 +106,12 @@ export function resolveOccurrenceAmounts(input: {
   return { declaredAmountCents, itemsSumCents, lines }
 }
 
+/** `5720n` → `57.20`: o valor pago como as telas o devolvem, duas casas e ponto, sem agrupamento. */
+export function formatAmountCents(cents: bigint): string {
+  const fraction = (cents % CENTS_DIVISOR).toString().padStart(2, '0')
+  return `${(cents / CENTS_DIVISOR).toString()}.${fraction}`
+}
+
 function groupThousands(digits: string): string {
   return digits.replace(THOUSANDS_BOUNDARY, '.')
 }

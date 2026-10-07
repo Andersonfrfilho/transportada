@@ -37,12 +37,31 @@ export type TripOccurrenceDetailItem = {
   readonly unit: string | null
 }
 
+/**
+ * Spec 247 (T7.2 R2): o que o registro gravou em cada linha — quantidade, o valor unitário **copiado** da
+ * nota no registro (4 casas, como a nota o traz) e o valor pago digitado (2 casas; `"0.00"` é a loja não
+ * ter pago, `null` é não digitado). Fica em lista ao lado de `items`, nunca dentro dele: o painel
+ * publicado confere cada `items[]` com as quatro chaves de sempre.
+ */
+export type TripOccurrenceDetailItemValues = {
+  readonly declaredAmount: null | string
+  readonly productCode: string
+  readonly quantity: null | string
+  readonly unitValue: null | string
+}
+
 export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   /** Spec 240 RF9: mais antiga primeiro; `[]` quando nunca foi corrigida. */
   readonly corrections: readonly OccurrenceCorrectionEntry[]
+  /** Spec 247 (T7.2 R2): o valor pago da ocorrência, duas casas; `null` quando não foi digitado. */
+  readonly declaredAmount: null | string
   readonly driver: TripOccurrenceDetailDriver | null
   /** Vazia na ocorrência da nota inteira e na de parada, que não aponta item. */
   readonly items: readonly TripOccurrenceDetailItem[]
+  /** Spec 247 (T7.2 R2): vazia na nota inteira, na parada e na ocorrência anterior à 247. */
+  readonly itemValues: readonly TripOccurrenceDetailItemValues[]
+  /** Spec 247 (T7.2 R2): o número do documento do cliente; `null` quando não foi registrado. */
+  readonly referenceNumber: null | string
 }
 
 export type TripOccurrenceDetailReaderPort = {
