@@ -2427,3 +2427,221 @@ reverter só a API quebraria o trilho.
 ### Não rodou
 
 DNS, MX, Resend e qualquer envio ou recebimento real; o painel (não foi tocado — T4.7b); push; staging e produção.
+
+## T4.7b — o painel aceita `source: 'email'` na prévia (2026-10-07)
+
+Só `apps/frontend-transportada` e docs/prints desta spec; API e worker intocados. **Sem push**: há tela visível, e a publicação espera os
+prints aprovados. Commits: `c54939b8b` (contratos vermelhos), `8a5419528` (implementação) e o commit de prints e evidência.
+
+### O defeito (HIGH-1 da revisão de código, confirmado)
+
+A API grava `source = 'email'` nas prévias que o worker cria pela caixa de entrada. O painel conhecia só `CARGO_PREVIEW_SOURCES = ['upload']`:
+`isPreviewSummary` recusava a linha e `toPreviewPage` lançava `RESPONSE_INVALID` para a **página inteira** de `/recebimento/previas`; o detalhe
+da prévia por e-mail quebrava igual. **O formato real da resposta** (lido em `cargo-preview-view.mapper.ts` e `cargo-preview.types.ts` da API): o
+resumo nunca carregou autor (`uploadedByUserId` não está em `CargoPreviewSummary`, só no banco, onde é nulo para e-mail). Portanto as chaves
+exatas do painel **não mudam** entre as duas origens, e nada no painel assumia usuário que enviou (`grep` por `uploaded`/`uploader` no módulo: zero).
+A única divergência era o valor de `source`.
+
+### O que mudou
+
+- `cargoPreview.constant.ts`: `CARGO_PREVIEW_SOURCES = ['email', 'upload']`; as guardas usam a lista, sem mudança de chaves.
+- `CargoPreviewSourceBadge` (neutro, mesma classe `.badge` do selo de situação, `data-preview-source`) na célula do arquivo da lista e nos dados
+  do detalhe; textos `preview.source.email` ("Enviada por e-mail" / "Sent by email") e `preview.source.upload` ("Enviada no painel" / "Sent in the
+  panel"). Sem endereço de e-mail nem nome: a prévia por e-mail não tem autor.
+- A célula do arquivo ganhou um `<div>` e `data-file-name` (na tabela empilhada, dois filhos viram dois itens do `grid` e o selo cai sob o rótulo da
+  coluna — achado no primeiro print, corrigido, e o spec de prints ganhou `readBadgeMisalignment`). O helper `rowFiles` do contrato da lista lê
+  `[data-file-name]` em vez do texto da célula inteira.
+
+### Contratos (vermelhos antes, comitados)
+
+`test/cargo-receiving/preview-source.contract.ts` (paridade lendo a constante da API; lista com as duas origens; detalhe por e-mail; chave de autor
+continua recusada; origem desconhecida recusada nas duas respostas; `upload` como antes; **cliente HTTP real** com as duas origens, porque o dublê
+dos contratos de DOM não passa pelas guardas; rótulos nos dois idiomas, curtos e sem `@`) e `test/trip-hooks/cargo-preview-source.contract.ts` (DOM:
+lista com as duas origens, cada linha com o seu rótulo, sem `@`; detalhe por e-mail e por envio; instala `stubVisibleLayout()`; nenhum
+`expect(nó).toBeNull()` dentro de `waitFor`). Vermelho pelo motivo certo: 9 e 3 falhas, todas por origem desconhecida ou rótulo ausente.
+
+### Gates
+
+| Gate                                    | Antes (T4.7a)      | Depois                          |
+| --------------------------------------- | ------------------ | ------------------------------- |
+| `bun run test` (contratos, 36 arquivos) | 7214 pass          | 7225 pass                       |
+| `bun run test:hooks` (DOM)              | 838 pass           | 842 pass                        |
+| `bun run typecheck`                     | 0 erros            | 0 erros                         |
+| `bun run lint`                          | 0 erros, 16 avisos | 0 erros, 16 avisos (os antigos) |
+
+### Estabilidade do DOM
+
+`bun run test:hooks`: **10 execuções seguidas, todas 842 pass / 0 fail**, e mais **4 com a CPU ocupada** por 11 processos `yes` (um por núcleo,
+encerrados pelo PID que esta sessão iniciou): 4 de 4 verdes.
+
+### Mutações (contratos de contrato / DOM, falhas por execução)
+
+| #   | Mutação                                                                                          | Contratos | DOM |
+| --- | ------------------------------------------------------------------------------------------------ | --------- | --- |
+| M1  | `CARGO_PREVIEW_SOURCES = ['upload']` (guarda só `upload`)                                        | 7         | 0   |
+| M2  | rótulo de e-mail trocado pelo do painel                                                          | 1         | 2   |
+| M3  | `uploadedByUserId` exigido nas chaves (autor nulo quebra)                                        | 16        | 0   |
+| M4  | guarda local `isOneOf(value.source, ['upload'])` (uma linha por e-mail derruba a página inteira) | 5         | 0   |
+| M5  | detalhe sem o selo de origem                                                                     | 0         | 2   |
+| M6  | lista sem o selo de origem                                                                       | 0         | 1   |
+| M7  | guarda aceita qualquer `string` como origem                                                      | 1         | 0   |
+
+As 7 reprovaram ao menos um contrato; cada uma restaurada (`git diff --quiet` verde). O DOM não pega M1/M3/M4 de propósito: o dublê do cliente
+dispensa as guardas, e quem as cobre é o contrato com o cliente HTTP real.
+
+### Revisão de design (prints, `getComputedStyle`, geometria)
+
+12 PNGs em `specs/237-.../prints/` (`previa-origem-email-{lista,detalhe}-{375,768,1280}-{dark,light}.png`), gerados por
+`test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI): build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview` na
+porta 53431 (encerrado pelo PID iniciado aqui, sem `pkill`), config do Playwright descartável e build apagados, API 100% dublada, dados fictícios.
+13 testes verdes.
+
+- **Vizinho (375, escuro):** o selo de origem e o selo de situação da mesma linha são **idênticos** por estilo calculado: `SFMono-Regular`
+  11,52 px, peso 400, caixa alta, borda 1 px, altura 24 px (mesma classe `.badge`).
+- **Contraste (WCAG, mínimo por elemento nos 12 prints):** selo de origem **5,62:1 no escuro** e **5,36:1 no claro**; selo de situação 5,88 / 5,50;
+  dados do cabeçalho 6,95 / 5,27; célula 14,48 / 12,66 — todos ≥ 4,5:1 (o teste reprova abaixo).
+- **Alvo de toque a 375 px:** nenhum botão da tabela nem da navegação abaixo de 44 px, nas duas telas e nos dois temas.
+- **Geometria:** nenhuma rolagem horizontal da página nos 12 prints; `expectNoClipping` a 375 px nas duas telas; selo inteiro dentro da célula/item;
+  nenhuma célula invadindo a vizinha; selo alinhado ao nome do arquivo na lista empilhada.
+- Olhado nos PNGs: lista 375 escuro e claro, lista 768 escuro, detalhe 1280 claro.
+
+### Pendência registrada (anterior a esta tarefa, não consertada)
+
+A tabela de prévias tem larguras fixas que somam 71 rem (`table-layout: fixed`, `--stacked-min-width: 56rem`): a 768 px as colunas Linhas,
+Situação e Ações ficam atrás da rolagem **da região da tabela** (`role="region"`, focável), não da página — por isso o corte aparece no recorte
+do print 768 e `expectNoClipping` só roda a 375 px, como nos prints da T4.4. Esta tarefa não mexeu em nenhuma largura de coluna (o selo mora na
+coluna Arquivo, de 14 rem, que ele não excede). Reduzir as larguras é decisão de design própria.
+
+### Decisões que divergiram do texto do pedido
+
+1. **Sem coluna nova "Origem":** o selo vai na célula do arquivo. Uma coluna a mais empurraria a tabela, que já excede a largura a 768 px, para mais
+   longe; o rótulo "Origem" também não tem ordenação no servidor.
+2. **Sem contrato de "autor nulo/ausente":** a API não manda autor em nenhuma origem, então o contrato afirma o formato real (mesmas chaves, chave de
+   autor recusada), em vez de um autor nulo que nunca chega.
+
+### Não rodou
+
+Push, staging e produção; `make check` completo, `make smoke`/smoke da CI e `make migration-test` (nada de schema); API e worker (não foram
+tocados); leitura de qualquer banco; envio ou recebimento real de e-mail.
+
+## T4.7c — correções da segunda passada de segurança `opus` sobre a T4.7a (2026-10-07)
+
+A migration `20261007040900_cargo_preview_email_intake` **continua não publicada**: foi editada **no lugar** (só o
+CHECK de `reason_code` ganhou `FORWARDER_FROM_MISMATCH`, na migration e no `snapshot.json`; `rollback.sql` não muda,
+ele derruba a tabela inteira). `db:generate` = `no_changes`. Painel não tocado.
+
+### O que mudou, por achado
+
+| #   | Achado                                                | Correção                                                                                                                                                                                                                                                                                                                      |
+| --- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [ALTO] NOVO-1: o `From` lido ≠ o `From` alinhado      | (a) `mailbox-address.policy.ts`: o endereço lido tem de estar **literalmente** no fim do valor original (`<a"@evil.example>"@t.example>` recusa); (b) `verifyWithHeaderFrom` devolve o `headerFrom` da `mailauth` e `passPreviewContentGates` exige **um só** igual ao endereço lido do MIME, senão `FORWARDER_FROM_MISMATCH` |
+| 2   | [ALTO] NOVO-2: leitor de MIME da conversa sem limite  | `inbound-mail-parts.service.ts`: PostalMime com `forceRfc822Attachments`, `maxHeadersSize` 64 KiB, `maxNestingDepth` 6; a `message/rfc822` aninhada é aberta **pelo worker**, depois de `hasBoundedMimeHeaders` e até 3 níveis (ver "Decisões"); a prévia aplica a barreira à mensagem anexada                                |
+| 3   | [ALTO] NOVO-3: assinaturas sem teto                   | barreira: 8 `DKIM-Signature` e 3 de cada `ARC-*`; gateway: prazo de 15 s (`DKIM_VERIFICATION_DEADLINE_MS`, `Promise.race` com o timer limpo), `unverifiable` ao estourar e resolvedor que recusa na hora depois do prazo; a rejeição tardia da `mailauth` não vira rejeição não tratada                                       |
+| 4   | [MÉDIO] H1-b: o teto por linha era contornável        | `mime-header-fields.policy.ts` lê campos pela regra da `mailauth` (`FIELD_START`, linha que não abre campo soma no de cima, nome sem espaços); 2 KiB nos 8 campos de endereço (soma dos repetidos) e 8 KiB nos outros                                                                                                         |
+| 5   | [MÉDIO] M2: o contador de recusas trancava o legítimo | autenticados (20) fecham download e DKIM depois das checagens baratas; não autenticados (100) só param de **gravar** (`createPreviewEmailRejecter`: sem linha, só o rastro `RATE_LIMITED` único) — a avaliação continua                                                                                                       |
+| 6   | [BAIXO] vírgula no nome de exibição sem aspas         | `NAME_FORBIDDEN` deixa de proibir `,`; `Silva, João <a@x>` é uma caixa, `a@x, b@y` e `Silva, João <a@x>, <b@y>` seguem recusa                                                                                                                                                                                                 |
+
+### Contrato antes do código (commits)
+
+`9bf4cd938` (worker: **53 vermelhos** — 47 na entrada de prévia, 5 no verificador e 1 na conversa —, cada um pelo motivo do achado — os de barreira recusavam
+nada, o PoC do NOVO-1 era `accepted` com o `From` do Resend limpo e com o literal, a `verify` da conversa levava 1,2 s
+para 8 consultas em série, a aninhada de 62 KiB levava ~1,8 s, e a janela cheia de não autenticados trancava o
+legítimo) → `486e9ca4a` (API: código e CHECK; **vermelho em `db:test`** ao tirar o código da migration) → `8bce6bc58`
+(worker: código, harness e mocks de integração para a porta nova).
+
+### Medições (ms, esta máquina)
+
+| Caso                                                                                | Antes                   | Depois                                    |
+| ----------------------------------------------------------------------------------- | ----------------------- | ----------------------------------------- |
+| `To` aninhado de 62 / 128 / 256 KiB no leitor da conversa                           | 4 900 / 19 300 / 84 000 | 1 / 1 / 1                                 |
+| mensagem anexada da prévia com `Cc` de ~56 KiB (contrato)                           | 1 745                   | recusa (`undefined`) em < 1 000           |
+| 8 assinaturas, DNS que nunca responde (`dnsTimeoutMs` 150)                          | 1 211 (8 × 150, série)  | 300 (o prazo do teste); sem consulta nova |
+| pior cabeçalho que PASSA (8 campos de endereço de 1,9 KiB, três padrões do revisor) | —                       | `mailauth` 5–10; `PostalMime` 9–18        |
+| barreira sobre esse pior caso                                                       | —                       | 0,1–0,4                                   |
+
+### Gates (rodados nesta sessão)
+
+| Gate                                                                                                                     | Resultado                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| worker `bun run typecheck && bun run lint`                                                                               | verdes                                                                                                                               |
+| script `test` do worker                                                                                                  | **1926 passam / 0 falham** (antes 1848: +78)                                                                                         |
+| `./test/integration/cargo-preview-email-intake.integration.ts` (Postgres 18 nativo descartável)                          | 13 passam (antes 12) — banco impresso: `t47c_worker`, porta 56437, `DATABASE_URL` sobrescrito sobre `.env.test`                      |
+| `test:integration` completo do worker, **uma vez** (Postgres 18 nativo, banco novo `t47c_full`, `DATABASE_URL` impresso) | **203 passam / 4 pulam / 0 falham** (sem `osrm-routing-matrix` falhando nem o flaky `contractor-mail-inbound-outbox` nesta execução) |
+| API `bun run typecheck && bun run lint`                                                                                  | verdes                                                                                                                               |
+| `bun --env-file=../../.env.test test --timeout 120000` (API)                                                             | **10185 passam / 0 falham** (25 pulados, os de Postgres sem URL), igual a antes                                                      |
+| `bun run db:test` (nativo) e `make migration-test` (Docker)                                                              | 141 passam nos dois (a asserção nova insere `FORWARDER_FROM_MISMATCH`)                                                               |
+| `bun run db:generate`                                                                                                    | `no_changes`                                                                                                                         |
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout`; `git diff --quiet` limpo depois)
+
+| Mutação                                                     | Testes que caem          |
+| ----------------------------------------------------------- | ------------------------ |
+| leitor de remetente sem a âncora do `<…>` literal           | 6                        |
+| `,` proibida de novo no nome de exibição                    | 1                        |
+| sem a conferência do `headerFrom`                           | 4                        |
+| leitor da conversa sem `forceRfc822Attachments`             | 1 (a aninhada de 62 KiB) |
+| leitor da conversa sem a barreira da aninhada               | 1                        |
+| prévia: mensagem anexada sem a barreira                     | 1                        |
+| barreira sem o teto de assinaturas                          | 10                       |
+| sem o prazo total (prazo de 1e9 ms)                         | 3                        |
+| prazo sem recusar o DNS depois de vencido                   | 1                        |
+| barreira com a regra de linha antiga (`[ \t]` no começo)    | 4                        |
+| barreira sem a soma dos repetidos                           | 3                        |
+| barreira sem o teto de 8 KiB dos outros campos              | 1                        |
+| contador de não autenticados volta a parar a avaliação      | 5                        |
+| rejecter grava mesmo com a janela de não autenticados cheia | 3                        |
+| `FORWARDER_FROM_MISMATCH` fora do CHECK da migration        | 1 (`db:test`)            |
+
+### O formato real de `received.from` do Resend
+
+O schema (`resend-mail.gateway.ts`) declara `from: z.string().min(1)`, e a documentação do `GET
+/emails/receiving/{id}` mostra `"Acme <onboarding@resend.dev>"` — uma **string já no formato `Nome <endereço>`**, não um
+objeto. O código não diz (e sem rede não se confirma) se é o cabeçalho literal ou a caixa re-serializada pelo Resend. Por
+isso o contrato prova os **dois**: o literal do PoC, o formato sem `<>` e o do cabeçalho limpo com o MIME hostil. Nos dois
+o ataque é recusado (`FORWARDER_NOT_ALLOWED` quando o leitor recusa o `from` do provedor; `MIME_UNREADABLE` quando o
+`from` é limpo e o MIME é hostil; `FORWARDER_FROM_MISMATCH` quando só o `headerFrom` denuncia).
+
+### O que muda de observável no trilho da 143/183
+
+- **Barreira de cabeçalho (compartilhada):** além dos 64 KiB, cada campo desdobrado de **`from`, `reply-to`,
+  `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`** passa a ter teto de **2 KiB** (soma dos repetidos) e os
+  outros **8 KiB**; mais de 8 `DKIM-Signature` ou 3 `ARC-*` do mesmo nome também recusam. Mensagem recusada é gravada
+  como DKIM `absent`, sem verificar e **sem anexos**. ⚠️ **Falso positivo possível:** um `To`/`Cc` com mais de ~60
+  endereços (resposta a todos de uma lista grande) passa de 2 KiB e perderia anexos e DKIM. O pedido fixou o 2 KiB; fica
+  registrado para a decisão do usuário.
+- **Prazo do DKIM:** `verify` da conversa também passa a ter 15 s; estourou, `dkim_result = 'unverifiable'` (já era um
+  valor possível). Mensagem comum não muda.
+- **Anexos da conversa:** o resultado é o de antes para mensagem comum e para `message/rfc822` aninhada **comum** (os
+  anexos de dentro entram na mesma posição). Muda só para a aninhada **hostil** (cabeçalho fora da barreira) ou **funda
+  demais** (> 3 níveis; o PostalMime aceitava 10): conta como uma recusa em `skipped` e o resto da mensagem é lido (antes
+  o `parse` inteiro lançava e **todos** os anexos se perdiam). MIME aninhado com mais de 6 níveis de `multipart` deixa de
+  parsear (`maxNestingDepth` 6; o PostalMime aceitava 256).
+- O trilho da conversa **não** passou a conferir o `headerFrom` (ver "Decisões" e `SECURITY.md`, pendência 9).
+
+### Decisões que divergiram do texto do pedido
+
+- **Item 2: `forceRfc822Attachments` sozinho mudaria o resultado visível dos anexos da conversa** — a `message/rfc822`
+  sem disposição (ou `inline`) deixaria de ter os anexos de dentro extraídos e viraria uma recusa. Em vez de parar,
+  mantive o efeito visível e tirei o custo: o PostalMime não abre a aninhada e o worker a abre depois da MESMA barreira
+  de cabeçalho, até 3 níveis (arquivo novo `inbound-mail-parts.service.ts`, contrato com PDF dentro de uma aninhada
+  comum, igual antes). Diferenças reais: profundidade 3 (era 10), `maxNestingDepth` 6 (era 256) e a aninhada hostil
+  conta como recusa sem derrubar o resto.
+- **Item 4: a soma dos repetidos só vale nos campos de endereço.** Nos "outros" ficou o teto de 8 KiB por campo, sem
+  soma: uma cadeia legítima de `Received` (10–20 saltos) passa de 8 KiB somada, e o custo que o teto cobre
+  (`addressparser`) não existe nesses campos.
+- **Item 1(b): a conferência está em `passPreviewContentGates`**, depois de o MIME ser lido e **antes** da lista do
+  encaminhador (um `From` que a `mailauth` leu diferente é `FORWARDER_FROM_MISMATCH`, mesmo que o endereço nosso esteja
+  na lista). O `From` do provedor segue só como checagem barata antes do download; não se exige igualdade dele com o do
+  MIME (risco de falso positivo sem ganho: o que o DKIM cobre é o do MIME).
+- **A porta do verificador ganhou um método** (`verifyWithHeaderFrom`) em vez de mudar o retorno de `verify`: a
+  conversa continua com `verify`, e os ~15 dublês dela não mudam.
+- **Contador de não autenticados cheio devolve `rejected` (com o código real)**, não `rate_limited`: a mensagem foi
+  avaliada; só a linha não é gravada. `rate_limited` fica para o teto de autenticados.
+- **[BAIXO] dedupe por `Message-ID` não foi feito:** pede coluna e índice em `cargo_preview_email_intakes` (migration
+  ainda não publicada, mas o desenho do índice — por contratante, com a retenção da T4.8 — é decisão que merece a
+  T4.8). Registrado como follow-up em `SECURITY.md` (pendência 11).
+
+### Não rodou
+
+DNS, MX, Resend e qualquer envio ou recebimento real; o painel; push; staging e produção. O `format:check` da raiz foi
+conferido (ver abaixo); nada leu banco de produção.

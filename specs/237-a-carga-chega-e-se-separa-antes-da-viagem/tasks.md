@@ -155,9 +155,17 @@
 - [ ] **T4.7b** Painel: aceitar `source: 'email'` na lista/detalhe da prévia + rótulo de origem + contrato do guard
       (hoje o guard de resposta da prévia no painel só conhece `upload`; a prévia por e-mail nasce com `source =
 'email'` e `uploaded_by_user_id` nulo). `sonnet`.
+- [x] **T4.7c** Correções da **segunda** passada de segurança `opus` sobre a T4.7a, **antes da publicação**: o `From` que
+      lemos é o que a `mailauth` alinha (leitor exige o endereço literal no fim do valor + conferência do `headerFrom`
+      da própria `mailauth`, código novo `FORWARDER_FROM_MISMATCH` no CHECK da migration ainda não publicada), leitor
+      de MIME da conversa limitado (a `message/rfc822` aninhada é aberta pelo worker, depois da barreira, até 3 níveis;
+      a prévia aplica a barreira à mensagem anexada), teto de assinaturas (8 DKIM, 3 ARC) e prazo de 15 s no DKIM, a
+      barreira de cabeçalho com a regra de linha da `mailauth` (todo campo: 2 KiB os de endereço, 8 KiB os outros, soma
+      dos repetidos), o contador de não autenticados para de GRAVAR e não de AVALIAR, nome de exibição com vírgula sem
+      aspas. Contratos vermelhos antes, 15 mutações. `evidence.md` § T4.7c; **sem push**. `sonnet`.
 - [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
       original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar. _(Os achados da primeira
-      revisão estão na T4.7a; esta é a revisão do que mudou, depois da T4.7b.)_
+      revisão estão na T4.7a e os da segunda na T4.7c; esta é a revisão do que mudou, depois da T4.7b e da T4.7c.)_
 
 ## Fase 4c — Retenção dos dados da planilha (decisão do usuário: 90 dias)
 

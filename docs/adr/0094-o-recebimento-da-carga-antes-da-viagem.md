@@ -604,27 +604,43 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
   token de **um** perfil entra no ramo; token desconhecido, sem token ou ligado a mais de um perfil devolve
   `not_a_preview` e a mensagem é descartada como antes (contrato de regressão). `hasIntake` roda antes do Resend
   para toda mensagem.
-- **As barreiras, da mais barata à mais cara**, cada uma com código estável: janela de e-mails do contratante
-  (abaixo) → perfil pronto (`PREVIEW_NOT_ENABLED`) → encaminhador do provedor na lista, **antes de baixar**
-  (`FORWARDER_NOT_ALLOWED`) → MIME até **2 MiB** (`RAW_EMAIL_TOO_LARGE`; o gateway ganhou `maxBytes`, que nunca sobe
-  os 25 MiB) → **cabeçalho medido** (`MIME_UNREADABLE`, T4.7a) → DKIM do encaminhador alinhado
-  (`FORWARDER_DKIM_NOT_ALIGNED`, também para `absent`; **`unverifiable` repete a entrega** e só a última grava
-  `FORWARDER_DKIM_UNVERIFIABLE`) → o `From` **do próprio MIME** (o que o DKIM cobre) na lista → remetente original
-  (`ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) → um único anexo candidato, até **960 KiB**, assinatura zip
-  nos bytes (`ATTACHMENT_*`) → teto de 5 prévias abertas (`TOO_MANY_OPEN_PREVIEWS`, dentro da transação).
-- **A janela de e-mails (T4.7a).** Dois contadores por contratante em 300 s, pelo **relógio do banco**
-  (`recorded_at`, nunca a data do e-mail): os que passaram do DKIM do encaminhador (teto **20**) e os que ficaram
-  antes dele (teto **100**, só para a tabela não ser inundada por quem sabe o endereço). Fechada a janela, o excesso
-  não baixa nada e deixa **uma** linha `RATE_LIMITED` por contratante e janela; o rastro não entra nos contadores.
-- **O cabeçalho é medido antes do DKIM (T4.7a).** O `addressparser` do nodemailer, que a `mailauth` usa para
-  `From`/`Return-Path`, é quadrático: 400 KB de `a,a,a…` travaram o laço de eventos por 58 s. Antes de qualquer
-  `dkimVerify` a seção de cabeçalhos tem de caber em 64 KiB (com fim de cabeçalho) e cada linha desdobrada de `From`,
-  `Return-Path`, `Sender` e `Reply-To` em 2 KiB. A mesma função guarda o trilho da conversa (mensagem hostil: DKIM
-  `absent` e sem anexos).
+- **As barreiras, da mais barata à mais cara**, cada uma com código estável: perfil pronto (`PREVIEW_NOT_ENABLED`)
+  → encaminhador do provedor na lista, **antes de baixar** (`FORWARDER_NOT_ALLOWED`) → teto de e-mails
+  **autenticados** da janela (abaixo; fecha o download e o DKIM) → MIME até **2 MiB** (`RAW_EMAIL_TOO_LARGE`; o
+  gateway ganhou `maxBytes`, que nunca sobe os 25 MiB) → **cabeçalho medido** (`MIME_UNREADABLE`, T4.7a/T4.7c) → DKIM
+  do encaminhador alinhado, com **prazo** (`FORWARDER_DKIM_NOT_ALIGNED`, também para `absent`; **`unverifiable`
+  repete a entrega**, inclusive o prazo estourado, e só a última grava `FORWARDER_DKIM_UNVERIFIABLE`) → o `From` **do
+  próprio MIME** (o que o DKIM cobre) igual ao `headerFrom` que a `mailauth` alinhou (`FORWARDER_FROM_MISMATCH`,
+  T4.7c) e na lista → remetente original (`ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) → um único anexo
+  candidato, até **960 KiB**, assinatura zip nos bytes (`ATTACHMENT_*`) → teto de 5 prévias abertas
+  (`TOO_MANY_OPEN_PREVIEWS`, dentro da transação).
+- **A janela de e-mails (T4.7a, T4.7c).** Dois contadores por contratante em 300 s, pelo **relógio do banco**
+  (`recorded_at`, nunca a data do e-mail): os que passaram do DKIM do encaminhador (teto **20**, que fecha o download
+  e o DKIM) e os que ficaram antes dele (teto **100**). Passado o teto de **autenticados**, o excesso não baixa nada
+  e deixa **uma** linha `RATE_LIMITED` por contratante e janela; passado o de **não autenticados**, a recusa anterior
+  ao DKIM continua sendo avaliada e devolvida, mas **não grava linha** (só o mesmo rastro) — o contador para de
+  gravar, não de avaliar, e lixo endereçado ao token não tranca o encaminhador legítimo. O rastro não entra nos
+  contadores.
+- **O cabeçalho é medido antes do DKIM (T4.7a, T4.7c).** O `addressparser` do nodemailer, que a `mailauth` usa para os
+  endereços, é quadrático: 400 KB de `a,a,a…` travaram o laço de eventos por 58 s. Antes de qualquer `dkimVerify` a
+  seção de cabeçalhos tem de caber em 64 KiB (com fim de cabeçalho) e cada **campo desdobrado**, lido pela regra de
+  linha da `mailauth` (nome sem espaços antes do `:`; a linha que não abre campo soma no de cima), em 2 KiB nos de
+  endereço (`from`, `reply-to`, `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`, somando os repetidos) e
+  8 KiB nos outros. As assinaturas têm teto de quantidade (8 `DKIM-Signature`, 3 conjuntos `ARC-*`) porque a
+  `mailauth` faz um hasher de corpo por combinação e consulta o DNS em série; e a verificação inteira tem **prazo de
+  15 s** (estourou: `unverifiable`, e o resolvedor recusa na hora dali em diante). A mesma barreira guarda o trilho
+  da conversa (mensagem hostil: DKIM `absent` e sem anexos) e a mensagem anexada que a prévia abre.
+- **O `From` alinhado é o `From` lido (T4.7c).** O leitor de remetente (`readSingleMailboxAddress`) retira as aspas só
+  para localizar o `<…>`, e o endereço lido tem de estar **literalmente** no fim do valor original: sem isso,
+  `<a"@evil.example>"@t.example>` era `a@t.example` para nós e `a"@evil.example` para a `mailauth`, que o alinhava com a
+  chave do atacante. Além do leitor, o verificador devolve o `headerFrom` que a própria `mailauth` leu, e o intake só
+  segue com **um** `From` igual ao endereço lido do MIME (`FORWARDER_FROM_MISMATCH`). Nome de exibição com vírgula sem
+  aspas (`Silva, João <a@x>`) é um endereço só; lista de endereços de verdade continua recusa.
 - **`l=` nunca alinha (T4.7a).** Assinatura DKIM que declara só parte do corpo (`l=`) deixa o resto livre para quem
   encaminha; a política de alinhamento — a mesma do trilho 143/183 — não a conta como alinhada.
 - **O remetente original.** PostalMime limitado (`maxNestingDepth` 6, cabeçalhos 64 KiB,
-  `forceRfc822Attachments`) abre a mensagem anexada **uma vez, sem recursão**; sem ela, vale o **primeiro**
+  `forceRfc822Attachments`) abre a mensagem anexada **uma vez, sem recursão**, e só depois de a mensagem anexada
+  passar pela barreira de cabeçalho (T4.7c); sem ela, vale o **primeiro**
   bloco encaminhado do texto (marcadores Gmail/Thunderbird/Apple en e pt-BR/Outlook, até 200 linhas, cabeçalho de
   até 12, `De:` dobrado; percorre os marcadores até achar um bloco com `From`/`De`, então a assinatura com `____` não
   esconde o remetente). `From` duplicado, lista de endereços ou mais de um `From` no bloco são `ambiguous`; nada é

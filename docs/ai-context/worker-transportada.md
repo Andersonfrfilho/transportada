@@ -346,7 +346,7 @@ código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A 
 `graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
 (conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
 
-## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6 e T4.7a, ADR-0094 §10)
+## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, T4.7a e T4.7c, ADR-0094 §10)
 
 Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` procura
 primeiro a **conversa** e só chama `previewIntake` (`cargo-preview-email/`) quando **nenhuma** thread casa
@@ -359,23 +359,37 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
 - **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:" + token)`
   em `contractor_receiving_profiles.preview_inbound_token_hash` (distinto do hash de conversa; `+` recusado).
   O hash e a função `hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
-- **Barreiras, em ordem:** janela de e-mails do contratante → perfil pronto → encaminhador do provedor na
-  `preview_forwarder_allowlist` **antes** de baixar → MIME até 2 MiB (`downloadRawEmail({ maxBytes })`, só número
-  finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM do encaminhador `aligned` → `From` do MIME
-  na lista → remetente original (cabeçalho da mensagem anexada ou primeiro bloco encaminhado do texto) na
-  `preview_sender_allowlist` → um anexo candidato (960 KiB, `PK\x03\x04`). Cada recusa grava
-  `cargo_preview_email_intakes` com o código e para.
-- **Janela de e-mails (T4.7a):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
-  (`recorded_at`, nunca `received_at`): os que passaram do DKIM do encaminhador (`forwarder_dkim_result =
-'aligned'`, teto 20) e os que ficaram antes dele (teto 100, só para a tabela não ser inundada); o rastro
-  `RATE_LIMITED` fica fora dos dois. Atingido um dos tetos, o excesso não baixa nada e grava **uma** linha
-  `RATE_LIMITED` por contratante e janela (`recordRateLimited`, sob advisory própria).
-- **Cabeçalho medido antes do DKIM (T4.7a):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
-  cabeçalho (`\r\n\r\n` ou `\n\n`) dentro de 64 KiB e cada linha **desdobrada** de `From`, `Return-Path`,
-  `Sender` e `Reply-To` em 2 KiB — o `addressparser` do nodemailer, que a `mailauth` usa, é quadrático (400 KB de
-  `a,a,a…` travaram o laço por 58 s). Na prévia: `MIME_UNREADABLE`, sem DKIM. **No trilho da conversa** (mesma
-  função): a mensagem é gravada com DKIM `absent` (o que a `mailauth` devolve para MIME que não parseia) e **sem
-  extrair anexos**; mensagem comum não muda.
+- **Barreiras, em ordem:** perfil pronto → encaminhador do provedor na `preview_forwarder_allowlist` **antes** de
+  baixar → teto de e-mails **autenticados** da janela (T4.7c; só o download e o DKIM ficam atrás dele) → MIME até 2 MiB
+  (`downloadRawEmail({ maxBytes })`, só número finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM
+  do encaminhador `aligned`, com prazo → `From` do MIME **igual ao `headerFrom` da `mailauth`** (T4.7c,
+  `FORWARDER_FROM_MISMATCH`) e na lista → remetente original (cabeçalho da mensagem anexada ou primeiro bloco
+  encaminhado do texto) na `preview_sender_allowlist` → um anexo candidato (960 KiB, `PK\x03\x04`). Cada recusa grava
+  `cargo_preview_email_intakes` com o código e para (salvo janela de não autenticados cheia: abaixo).
+- **Janela de e-mails (T4.7a, T4.7c):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
+  (`recorded_at`, nunca `received_at`): os que passaram do DKIM do encaminhador (`forwarder_dkim_result = 'aligned'`,
+  teto 20) e os que ficaram antes dele (teto 100); o rastro `RATE_LIMITED` fica fora dos dois. **20 autenticados**
+  fecham o download e o DKIM: o excesso é ignorado e grava **uma** linha `RATE_LIMITED` por contratante e janela
+  (`recordRateLimited`, sob advisory própria). **100 não autenticados** só **param de gravar**: a recusa anterior ao
+  DKIM continua avaliada e devolvida (`rejected` com o código), sem linha nova e com o mesmo rastro único
+  (`createPreviewEmailRejecter`, `isUnauthenticatedWindowFull`) — recusa depois do DKIM alinhado grava como sempre.
+  Antes da T4.7c o contador de não autenticados fechava a janela inteira e o encaminhador legítimo ficava de fora.
+- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
+  cabeçalho (`\r\n\r\n` ou `\n\n`) dentro de 64 KiB e limita cada **campo desdobrado** — lido por
+  `mime-header-fields.policy.ts` com a MESMA regra de linha da `mailauth` (`FIELD_START`; a linha que não abre campo
+  soma no de cima; nome sem espaços antes do `:`, minúsculo) — em 2 KiB nos de endereço (`from`, `reply-to`,
+  `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`; a soma dos repetidos de mesmo nome também conta) e 8 KiB
+  nos outros, e conta as assinaturas (8 `DKIM-Signature`; 3 `arc-seal`, 3 `arc-message-signature`, 3
+  `arc-authentication-results`). O `addressparser` do nodemailer, que a `mailauth` usa, é quadrático (400 KB de
+  `a,a,a…` travaram o laço por 58 s) e a `mailauth` faz um hasher de corpo por combinação (canon, hash, `l=`) e consulta
+  o DNS em série. O pior cabeçalho que passa custa ~10 ms na `mailauth` e ~20 ms no PostalMime. Na prévia:
+  `MIME_UNREADABLE`, sem DKIM. **No trilho da conversa** (mesma função): a mensagem é gravada com DKIM `absent` (o que a
+  `mailauth` devolve para MIME que não parseia) e **sem extrair anexos**; mensagem comum não muda. A mensagem anexada
+  que a prévia abre (`parseLimited`) passa pela mesma barreira.
+- **Prazo do DKIM (T4.7c):** `createDkimVerifierGateway({ deadlineMs })`, padrão `DKIM_VERIFICATION_DEADLINE_MS` = 15 s
+  para a verificação inteira; estourou = `unverifiable` (`headerFrom: []`), e o resolvedor recusa na hora dali em diante
+  (o laço da `mailauth` acaba sem sair para a rede). O gateway tem duas portas: `verify` (só o alinhamento, a conversa) e
+  `verifyWithHeaderFrom` (alinhamento **e** o `headerFrom` que a `mailauth` leu, a prévia).
 - **DKIM sem veredito (`unverifiable`, DNS fora):** a entrega **repete**. O ramo lança
   `CargoPreviewEmailDkimUnverifiableError` (o consumidor devolve `retry`, log `reason: dkim_unverifiable`), sem gravar
   nada; só a **última** entrega (`retryCount >= maxRetries` da topologia, 3) grava `FORWARDER_DKIM_UNVERIFIABLE`. O
@@ -383,7 +397,9 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
 - **`l=` nunca alinha (T4.7a):** `dkim-alignment.policy.ts` ignora a assinatura com `canonBodyLengthLimited` (corpo só em
   parte coberto). A política é a do trilho 143/183 também: uma resposta cuja única assinatura alinhada tem `l=`
   passa a `not_aligned` e deixa de decidir a identidade.
-- **Remetente original:** `mailbox-address.policy.ts` aceita só `endereço` ou `nome <endereço>` (sem `mailto:`),
+- **Remetente original:** `mailbox-address.policy.ts` aceita só `endereço` ou `nome <endereço>` (sem `mailto:`; T4.7c:
+  o endereço lido tem de estar **literalmente** no fim do valor original — as aspas só servem para achar o `<…>` —, e
+  `Silva, João <a@x>` sem aspas é uma caixa só),
   desembrulha `Nome <a@x<mailto:a@x>>` e `Nome [mailto:a@x]` do Outlook (só quando repetem o mesmo endereço) e recusa
   mais de um `<`/`@` fora de aspas, comentário, grupo e nome codificado sem endereço real.
   `forwarded-original-sender.policy.ts` percorre os marcadores (Gmail, Thunderbird, Apple en/pt-BR, Outlook,
@@ -391,7 +407,11 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
   `ambiguous`.
 - **Leitura do MIME:** `parseForwardedEmail` usa PostalMime com `maxNestingDepth` 6, cabeçalhos 64 KiB e
   `forceRfc822Attachments`; abre a mensagem anexada **uma vez** (a de dentro dela nunca é aberta nem vira
-  candidata). Ilegível devolve `undefined` → `MIME_UNREADABLE`.
+  candidata), depois de ela passar pela barreira de cabeçalho. Ilegível devolve `undefined` → `MIME_UNREADABLE`.
+  **A conversa lê o MIME do mesmo modo** (`occurrence-conversation/application/inbound-mail-parts.service.ts`): o
+  PostalMime não abre a `message/rfc822` aninhada (`forceRfc822Attachments`; antes, 256 KiB de `To` aninhado travavam o
+  laço por 40 s) — o worker a abre, depois da barreira e até 3 níveis, e os anexos de dentro entram na mesma posição;
+  aninhada hostil ou funda demais conta como **uma** recusa em `skipped`.
 - **Criação:** `createPreviewFromEmail` (`cargo-preview-email-create.writer.ts`, linhas em `…-rows.writer.ts`) é
   cópia por valor do `insertPreview` da API (`preview-upload-file.policy.ts`, cobrada por
   `test/cargo-preview-email/parity.contract.ts`, nos dois sentidos): toma a **mesma** advisory do upload, confere o

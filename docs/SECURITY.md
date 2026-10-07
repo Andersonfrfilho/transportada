@@ -315,14 +315,40 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
   bytes (`PK\x03\x04`), **um** anexo candidato; MIME lido com PostalMime limitado (profundidade 6,
   cabeçalhos 64 KiB) e a mensagem anexada aberta uma vez, sem recursão. O worker **nunca abre a planilha** no
   consumidor de e-mail: ela segue para o leitor com tetos, `worker_thread` e orçamento (§7).
-- **Abuso (T4.7a):** janela por contratante em 300 s com **dois contadores** pelo relógio do banco — 20 e-mails
-  que passaram do DKIM do encaminhador e 100 que ficaram antes dele (só para a tabela não ser inundada); o excesso
-  não baixa nada e deixa **uma** linha `RATE_LIMITED` por janela. No máximo 5 prévias `queued`/`processing` por
-  contratante, sob a mesma trava advisory do upload.
-- **Cabeçalho medido antes do DKIM (T4.7a):** seção de cabeçalhos em 64 KiB e cada linha desdobrada de `From`,
-  `Return-Path`, `Sender` e `Reply-To` em 2 KiB, **antes** do `dkimVerify` — o `addressparser` do nodemailer é
-  quadrático (400 KB de `Return-Path: a,a,a…` travaram o worker por 58 s). Vale também para o trilho da conversa
-  (mensagem hostil: DKIM `absent`, sem anexos).
+- **Abuso (T4.7a, T4.7c):** janela por contratante em 300 s com **dois contadores** pelo relógio do banco — 20 e-mails
+  que passaram do DKIM do encaminhador e 100 que ficaram antes dele. O teto de **autenticados** fecha o download e o
+  DKIM (deixa **uma** linha `RATE_LIMITED` por janela); o de **não autenticados** só **para de gravar** recusa — a
+  checagem barata (perfil ligado, encaminhador na lista) continua sendo avaliada e devolvida, sem linha nova, e o
+  encaminhador legítimo não fica trancado do lado de fora por lixo endereçado ao token. No máximo 5 prévias
+  `queued`/`processing` por contratante, sob a mesma trava advisory do upload.
+- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c):** seção de cabeçalhos em 64 KiB e **cada campo desdobrado** em
+  2 KiB (`from`, `reply-to`, `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`, e a **soma** dos repetidos de
+  mesmo nome) ou 8 KiB (os outros), **antes** do `dkimVerify` — o `addressparser` do nodemailer é quadrático (400 KB
+  de `Return-Path: a,a,a…` travaram o worker por 58 s). A regra de linha é a da `mailauth` (`parseHeaders`): nome sem
+  espaços antes do `:` e linha que não abre campo soma no de cima, então `Return-Path : …`, o nome dobrado antes do
+  `:` e as linhas sem `:` ou iniciadas por NBSP contam no mesmo campo (T4.7a olhava só `[ \t]` no começo e o
+  `:` colado ao nome). O pior campo que passa custa milissegundos (provado por medição, não por conta). Vale também
+  para o trilho da conversa (mensagem hostil: DKIM `absent`, sem anexos) e para a mensagem anexada que a prévia abre.
+- **Assinaturas com teto e prazo (T4.7c):** no máximo 8 `DKIM-Signature` e 3 conjuntos `ARC-*` (por instância
+  desdobrada) — a `mailauth` cria um hasher de corpo por combinação (canon, hash, `l=`) e consulta o DNS de cada
+  assinatura em **série**: 480 assinaturas com `l=` distintos eram CPU de corpo, 600 com DNS de 10 ms eram minutos.
+  Acima disso a barreira recusa antes do verificador. E a verificação inteira tem **prazo de 15 s**
+  (`DKIM_VERIFICATION_DEADLINE_MS`): estourou, o resultado é `unverifiable` (na prévia, o caminho que repete a
+  entrega e só grava `FORWARDER_DKIM_UNVERIFIABLE` na última; na conversa, o `dkim_result` que já existia), e passado
+  o prazo o resolvedor recusa na hora — o laço da `mailauth` que seguiria em segundo plano acaba sem sair para a rede.
+  Um DNS mudo não prende mais o consumidor por tempo de timeout vezes número de assinaturas.
+- **O `From` que se alinha é o que se lê (T4.7c, NOVO-1):** `From: <logistica"@evil.example>"@transportadora.com.br>`
+  era lido por nós como `logistica@transportadora.com.br` (as aspas saíam da string inteira antes do `<…>`) e pela
+  `mailauth` como `logistica"@evil.example` — alinhado com a chave do atacante, `accepted`. Duas camadas: o leitor
+  de remetente exige o endereço **literal** no fim do valor original (aspas dentro do `<…>` recusam), e o intake só
+  aceita quando o `headerFrom` que a PRÓPRIA `mailauth` devolveu é **um só** e é o mesmo endereço que o nosso leitor
+  tirou do MIME — divergência recusa `FORWARDER_FROM_MISMATCH` (código novo, no CHECK da migration ainda não
+  publicada). O `From` do provedor (Resend) segue só como checagem barata antes do download; a identidade que vale é a
+  do MIME alinhado.
+- **A mensagem anexada passa pela mesma barreira (T4.7c):** o PostalMime a abria sem limite (62 KiB de `Cc`
+  aninhado = 4 s; 256 KiB = 40 s de laço travado, no trilho da conversa e na prévia). A prévia só abre a anexada
+  depois da barreira de cabeçalho; a conversa não deixa o PostalMime abri-la (`forceRfc822Attachments`) — quem a abre é
+  o worker, depois da barreira e até 3 níveis, e os anexos de dentro entram na mesma posição de antes.
 - **`l=` nunca alinha (T4.7a):** assinatura DKIM que cobre só parte do corpo não conta como alinhada — nos dois
   trilhos.
 - **DKIM sem veredito repete (T4.7a):** `unverifiable` (DNS fora) não é recusa permanente: a entrega repete e só a
@@ -360,6 +386,22 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
 8. **Ordem de deploy:** `hasIntake` e a busca de perfil por token rodam para **toda** mensagem de conversa; se o
    worker subir antes da migration, e-mail de conversa falha até ela existir. O `deploy.yml` garante `deploy-api`
    (`preDeployCommand` + `assert-migrations`) antes de `deploy-worker`; reverter só a API quebra o trilho.
+9. **O trilho da CONVERSA alinha pelo `From` da `mailauth`, mas identifica pelo `from` do Resend** (T4.7c, achado
+   pré-existente da segunda revisão): a conversa grava o `dkim_result` da `mailauth` e o endereço do `from` que o
+   Resend entrega; os dois leitores podem discordar do mesmo modo que o NOVO-1 (a conversa não confere o `headerFrom`).
+   A T4.7c **não** mudou o trilho da conversa além do prazo/teto de assinaturas e da leitura limitada do MIME.
+   **[NEEDS CLARIFICATION]** decisão do usuário: levar a conferência `headerFrom` à conversa (muda quem a API
+   reconhece como contratante em casos limite) ou aceitar o risco.
+10. **Efeito remanescente do teto de autenticados (T4.7c):** 20 e-mails alinhados por 5 minutos por contratante fecham
+    o download e o DKIM até a janela andar — o e-mail excedente é ignorado (ack, com o rastro `RATE_LIMITED`) e a
+    equipe reenvia depois da janela; é o teto de custo, não um erro. Lixo endereçado a um token alheio ou a um perfil desligado **não** tranca mais o
+    legítimo (só deixa de gravar linha acima de 100). Quem conhece o token **e** um endereço da lista do encaminhador
+    pode, depois de 100 recusas, gastar download (2 MiB) e DKIM (≤ 15 s) sem deixar linha: o custo por mensagem é
+    limitado pelos tetos acima e pelo rate limit do próprio Resend, mas não há mais contador que feche esse caminho.
+11. **Follow-up (T4.7c, BAIXO):** o reenvio SMTP da mesma mensagem sai com `provider_email_id` novo e conta como
+    autenticado, gravando o MIME de novo. Deduplicar por `Message-ID` dentro do contratante pede coluna e índice em
+    `cargo_preview_email_intakes` — fica para a T4.8 (junto da retenção do MIME), editando a migration ainda não
+    publicada.
 
 ### 2026-10-06 — spec 237 Fase 3 — avaria sem viagem: quem desfaz a devolução, a migration numa tabela central e o rollback destrutivo
 
