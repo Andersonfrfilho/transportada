@@ -35,10 +35,17 @@ const TYPE: OccurrenceType = {
 }
 
 const NEW_FIELD_KEYS = [
+  'declaredAmountLabel',
+  'declaredAmountMode',
+  'declaredAmountScope',
+  'emailItemLineTemplate',
+  'emailsContractor',
   'itemsMinimumCount',
   'moments',
   'noteMode',
   'photoMinimumCount',
+  'referenceNumberLabel',
+  'referenceNumberMode',
   'signatureMode',
 ] as const
 
@@ -59,6 +66,8 @@ describe('buildOccurrenceTypeUpdate', () => {
       active: true,
       allowsMultipleItems: false,
       attachmentMode: 'required',
+      emailBody: '',
+      emailSubject: '',
       emailTemplateKey: 'trip.occurrence',
       leavesDocumentBehind: true,
       name: 'Avaria',
@@ -69,6 +78,26 @@ describe('buildOccurrenceTypeUpdate', () => {
     })
     expect(update).not.toHaveProperty('itemsMode')
     expect(update).not.toHaveProperty('flow')
+  })
+
+  test('o e-mail à contratante vai como está em toda edição: o PUT sem ele gravaria vazio (spec 247 RF2)', () => {
+    const withMail: OccurrenceType = {
+      ...TYPE,
+      emailBody: 'Corpo gravado',
+      emailItemLineTemplate: '{{item}}',
+      emailSubject: 'Assunto gravado',
+      emailsContractor: true,
+    }
+    for (const edit of EDITS) {
+      const update = buildOccurrenceTypeUpdate(withMail, edit)
+      expect(update.emailBody).toBe('Corpo gravado')
+      expect(update.emailSubject).toBe('Assunto gravado')
+      expect(update).not.toHaveProperty('emailItemLineTemplate')
+      expect(update).not.toHaveProperty('emailsContractor')
+    }
+    expect(buildOccurrenceTypeUpdate(withMail, { emailsContractor: false }).emailsContractor).toBe(
+      false,
+    )
   })
 
   test('cada edição troca só o campo editado e nunca manda itemsMode', () => {

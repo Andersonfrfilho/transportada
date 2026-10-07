@@ -47,6 +47,8 @@ function expectedBase(overrides: Partial<OccurrenceTypeSaveInput> = {}): Occurre
     active: true,
     allowsMultipleItems: true,
     attachmentMode: 'off',
+    emailBody: '',
+    emailSubject: '',
     emailTemplateKey: null,
     leavesDocumentBehind: false,
     name: 'Avaria',

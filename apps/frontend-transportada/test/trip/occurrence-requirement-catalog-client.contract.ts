@@ -213,6 +213,87 @@ describe('cliente: PUT do cadastro só manda o que a edição mudou (spec 246 RF
   })
 })
 
+describe('cliente: o e-mail à contratante e a prévia do servidor (spec 247 RF2, RF4)', () => {
+  const MAIL = {
+    active: true,
+    allowsMultipleItems: true,
+    attachmentMode: 'optional',
+    emailTemplateKey: null,
+    leavesDocumentBehind: false,
+    name: 'Devolução parcial',
+    notifies: false,
+    occurrenceTypeId: TYPE_ID,
+    redeliveryPolicy: 'unset',
+    stage: 'delivery',
+  } as const
+
+  test('o PUT leva assunto, corpo, linha e interruptor só quando informados', async () => {
+    const without: Request[] = []
+    await createClient({
+      requests: without,
+      response: Response.json({ data: buildRawType() }),
+    }).saveOccurrenceType(MAIL)
+    const withoutBody: unknown = await without[0]?.json()
+    for (const key of ['emailBody', 'emailSubject', 'emailItemLineTemplate', 'emailsContractor']) {
+      expect(withoutBody).not.toHaveProperty(key)
+    }
+
+    const withMail: Request[] = []
+    await createClient({
+      requests: withMail,
+      response: Response.json({ data: buildRawType() }),
+    }).saveOccurrenceType({
+      ...MAIL,
+      emailBody: 'Corpo',
+      emailItemLineTemplate: '{{item}}',
+      emailSubject: 'Assunto',
+      emailsContractor: true,
+    })
+    expect(await withMail[0]?.json()).toMatchObject({
+      emailBody: 'Corpo',
+      emailItemLineTemplate: '{{item}}',
+      emailSubject: 'Assunto',
+      emailsContractor: true,
+    })
+  })
+
+  test('a prévia vai por POST em /email-preview com os três textos, e devolve assunto e corpo', async () => {
+    const requests: Request[] = []
+    const preview = await createClient({
+      requests,
+      response: Response.json({
+        data: { body: 'Corpo renderizado', subject: 'Assunto renderizado' },
+      }),
+    }).previewOccurrenceTypeEmail({
+      emailBody: 'b',
+      emailItemLineTemplate: 'l',
+      emailSubject: 's',
+    })
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.url).toBe(`${TYPES_URL}/email-preview`)
+    expect(await requests[0]?.json()).toEqual({
+      emailBody: 'b',
+      emailItemLineTemplate: 'l',
+      emailSubject: 's',
+    })
+    expect(preview).toEqual({ body: 'Corpo renderizado', subject: 'Assunto renderizado' })
+  })
+
+  test('resposta sem assunto ou corpo é recusada, não vira prévia vazia', async () => {
+    const client = createClient({
+      requests: [],
+      response: Response.json({ data: { subject: 'só assunto' } }),
+    })
+    const outcome = await client
+      .previewOccurrenceTypeEmail({ emailBody: '', emailItemLineTemplate: '', emailSubject: '' })
+      .then(
+        () => 'resolved',
+        () => 'rejected',
+      )
+    expect(outcome).toBe('rejected')
+  })
+})
+
 describe('cliente: contratantes do seletor de exceção (revisão do painel M7)', () => {
   const FULL = { closingPeriod: 'monthly', notes: '', reportEmail: '', status: 'active' }
   const PAGES = [

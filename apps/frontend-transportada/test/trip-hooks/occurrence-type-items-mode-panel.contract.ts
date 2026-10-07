@@ -174,6 +174,8 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
           active: true,
           allowsMultipleItems: true,
           attachmentMode: 'off',
+          emailBody: '',
+          emailSubject: '',
           emailTemplateKey: null,
           itemsMode: 'off',
           leavesDocumentBehind: false,
