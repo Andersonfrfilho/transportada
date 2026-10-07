@@ -27,6 +27,7 @@ function makeRow(overrides: Partial<CanhotoPhotoQueryRow> = {}): CanhotoPhotoQue
     id: '00000000-0000-4000-8000-0000000000f1',
     invoiceNumber: '9000',
     invoiceSeries: '1',
+    isSystemActor: false,
     lateRegistration: false,
     latitude: '-23.5505000',
     locationState: 'captured',

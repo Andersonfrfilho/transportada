@@ -26,6 +26,7 @@ import {
   constantPriority,
   formatTimelineTimestampKey,
   timelineActorMembership,
+  timelineActorIsSystem,
   timelineActorProfile,
   timelineKeysetCondition,
   timelineOnBehalfDriver,
@@ -46,6 +47,7 @@ export type CanhotoPhotoQueryRow = {
   readonly id: string
   readonly invoiceNumber: string | null
   readonly invoiceSeries: string | null
+  readonly isSystemActor: boolean
   readonly lateRegistration: boolean
   readonly latitude: string | null
   readonly locationState: TripTimelineRow['locationState']
@@ -62,6 +64,7 @@ export function toCanhotoPhotoTimelineRow(row: CanhotoPhotoQueryRow): TripTimeli
   const occurredAt = row.capturedAt ?? row.createdAt
   return {
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     document:
@@ -116,6 +119,7 @@ export async function listCanhotoPhotoRows(
     .select({
       accuracyMeters: tripDeliveryProofs.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       capturedAt: tripDeliveryProofs.capturedAt,
       channel: tripDeliveryProofs.channel,
       createdAt: tripDeliveryProofs.createdAt,

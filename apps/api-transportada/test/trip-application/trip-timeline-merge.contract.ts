@@ -35,6 +35,7 @@ function row(input: {
     document: null,
     fromStatus: null,
     id: input.id,
+    isSystemActor: false,
     kind: input.kind,
     lateRegistration: false,
     location: null,
