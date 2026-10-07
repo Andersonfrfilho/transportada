@@ -2076,3 +2076,123 @@ de `/trip-occurrences/:id/case/*`. Nenhum `UPDATE` direto.
 Push/deploy; `make check` completo; `make migration-test`/`db:generate` (nada de schema nem migration); a integração inteira da API (só as listadas);
 o painel e o `frontend-client` (nada mudou); `reimbursement`, `redelivery-*` e o feed `GET /trip-occurrences` sobre ocorrência de recebimento;
 leitura de staging ou de produção.
+
+## T3.4b — o painel conduz a tratativa da avaria de recebimento e as correções da revisão (2026-10-06)
+
+Commits (só `apps/frontend-transportada`, docs e prints; **sem push**, API intocada): `f24b56503` (contrato vermelho), `fdd458c34`
+(implementação) e o desta seção (prints, evidência, docs). Detalhe técnico: `docs/ai-context/frontend-transportada.md` § "Spec 237 T3.4b".
+
+### O que foi construído
+
+- **Tratativa no detalhe do escritório** (`CargoOccurrenceCaseActions`, só com `occurrences.resolve`): Iniciar análise (direto) · Enviar ao
+  contratante, Registrar decisão, Encerrar tratativa, Devolver ao galpão, Cancelar tratativa (painel com confirmação, motivo obrigatório onde
+  a API exige, foco no campo). Cada estado oferece EXATAMENTE o que a máquina da API aceita (`resolveCargoCaseActions`), com todos os botões
+  da avaria travados enquanto uma ação está em voo; a avaria é relida (detalhe, lista, prévias) também quando a ação falha.
+- **Acerto `goods_paid`** (versão enxuta em `cargo-receiving`, sem motorista nem ressarcimento): abre ao decidir `goods_paid` aqui ou quando
+  "Encerrar" é recusado com 422; `PUT` sem `payerId`, `amountSource: 'manual'`.
+- **Correções da revisão:** origem cancelada (esconde do "Devolver", aviso "Tratativa cancelada — desfaça a devolução", sem "Concluir"),
+  `src` estável da miniatura, tipos vazios, progresso com notas devolvidas, corrida de fotos, rótulos dos 409 novos, do 429 e de
+  `OCCURRENCE_TYPE_NAME_TAKEN` (cadastro de tipos).
+
+### Contrato antes do código
+
+`f24b56503`: 6 arquivos puros + 7 de DOM + 2 harness/helper; os puros caem em `Cannot find module …` e os de DOM em `CASE_BUTTON_NOT_FOUND` /
+asserções (a funcionalidade não existia). Corpo exato das ações verificado contra `occurrence-case.schema.ts`, `occurrence-settlement.schema.ts` e
+a integração `cargo-arrival-occurrence-case.integration.ts` — o corpo era o descrito, nenhuma ação falhou.
+
+### Gates (rodados nesta sessão, em primeiro plano)
+
+- `bun run typecheck` limpo; `bun run lint` **0 erros** (16 avisos antigos); `bun run format:check` na raiz limpo.
+- `bun run test` (painel): **7122 pass / 0 fail** (antes 7057; +65) e `test:hooks`: **773 pass / 0 fail** (antes 716; +57 contratos de DOM).
+- **Estabilidade do DOM:** `bun run test:hooks` **10 execuções limpas (773/0) e 3 com CPU ocupada (11 `yes`, um por núcleo, mortos pelo PID depois):
+  3 de 3 verdes**; os 7 arquivos novos de DOM passam também isolados (24, 10, 6, 2, 7, 4 e 4). Todos instalam `stubVisibleLayout()`; nenhum
+  `expect(nó).toBeNull()` dentro de `waitFor`. ⚠️ Achado: `beforeEach` de nível de arquivo vale para o processo inteiro (as suítes de DOM são
+  importadas juntas) — o dublê da tratativa vira função (`currentCaseDouble()`), e o `mock.module` do cliente novo mora no harness antigo,
+  que carrega antes de qualquer fonte.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout --`; `git diff --quiet` limpo depois de cada uma)
+
+| #   | Regra                                             | Mutação                                      | Vermelho (puro / DOM) |
+| --- | ------------------------------------------------- | -------------------------------------------- | --------------------- |
+| M1  | ação só com `occurrences.resolve`                 | `canReview` sem `canResolve`                 | 1 / 1                 |
+| M2  | reentrega nunca oferecida                         | `redelivery_authorized` na lista de decisões | 1 / 1                 |
+| M3  | nota obrigatória                                  | `isCaseNoteRequired` devolve `false`         | 1 / 7                 |
+| M4a | acerto abre quando o servidor recusa (422)        | ramo `settlementWithoutItems` desligado      | 0 / 7                 |
+| M4b | acerto abre ao decidir `goods_paid`               | `setSettlementRequired` removido             | 0 / 2                 |
+| M5a | `src` estável entre leituras                      | sem `structuralSharing`                      | 0 / 3                 |
+| M5b | `src` troca quando a assinatura é nova            | `isStillSafe` sempre `false`                 | 1 / 3                 |
+| M5c | `src` troca perto de vencer                       | `isStillSafe` sempre `true`                  | 1 / 1                 |
+| M6  | origem cancelada não é motivo                     | filtro só por `cancelledAt`                  | 2 / 2                 |
+| M7  | corrida de fotos                                  | sem a guarda da escolha corrente             | 0 / 2                 |
+| M8  | invalidação                                       | sem `onSettled`                              | 0 / 13                |
+| M8b | invalidação também na falha                       | `onSuccess` no lugar de `onSettled`          | 0 / 1                 |
+| M9  | erro nunca mudo                                   | `CargoCaseFailure` não renderizado           | 0 / 7                 |
+| M10 | aviso da origem cancelada                         | `isReturnCaseCancelled` sempre `false`       | 1 / 2                 |
+| M11 | progresso sem as devolvidas                       | notas devolvidas contam no total             | 4 / 2                 |
+| M12 | tipos vazios explicados                           | `hasNoTypes` sempre `false`                  | 0 / 1                 |
+| M13 | item repetido no acerto                           | ramo `productCodeDuplicated` removido        | 1 / 0                 |
+| M14 | uma ação por vez                                  | botões não travam em voo                     | 0 / 1                 |
+| M15 | rascunho do acerto trava "Encerrar"               | `isBlocked` sempre `false`                   | 0 / 1                 |
+| M16 | permissão no container                            | `canResolve: true` fixo                      | 0 / 1                 |
+| M17 | sem tratativa não conclui                         | `case === null` volta a decidir              | 1 / 0                 |
+| M18 | caminho certo do encerramento                     | `closure` → `close`                          | 1 / 0                 |
+| M19 | motorista não é pagador                           | `driver` na lista de pagadores               | 2 / 0                 |
+| M20 | confirmar só com o motivo                         | confirmar sem `isNoteMissing`                | 0 / 3                 |
+| M21 | nota com `trim`                                   | sem `trim`                                   | 0 / 2                 |
+| M22 | tratativa cancelada (status) conta como cancelada | só `cancelledAt`                             | 3 / 4                 |
+
+As 25 mutações reprovaram ao menos um contrato.
+
+### Revisão de design (prints, `getComputedStyle`, geometria)
+
+42 PNGs em `specs/237-.../prints/` (`tratativa-recebimento-{analise,decisao,acerto,concluir,cancelada}`, `avaria-tipos-vazio`,
+`avaria-progresso-completo`, cada um em 375/768/1280, escuro e claro), gerados por `test/spec-237-tratativa-prints.smoke.spec.ts` (+
+`spec-237-prints-smoke.helper.ts`, também usado agora pelo spec da T3.3): build com `VITE_SMOKE_AUTH_BYPASS=true` e `VITE_API_URL` na origem do
+preview (mesma origem, sem CORS), `vite preview` na porta 53421, config do Playwright descartável e build apagados, API 100% dublada, dados e
+foto sintéticos. 44 testes verdes.
+
+- **Geometria real:** `expectNoClipping` (main) em todos os 3 larguras, diálogo sem elemento além da borda, nenhuma célula invadindo a vizinha,
+  rolagem horizontal ≤ 0.
+- **Vizinhos (375, escuro):** "Encerrar tratativa" mede **44 px**, Arial 13,33 px, borda 1 px — idêntico a "Concluir devolução" da mesma
+  linha; no acerto, item (`Select`), valor (campo) e pagador (`Select`) medem **48 px**, mesma fonte (14,4 px). Um rótulo ("Valor") saiu maior
+  que os vizinhos na primeira passada visual: corrigido (`.settlementRow label` a 0,85 rem) e os prints refeitos.
+- **Contraste (WCAG, todos os selos, botões, avisos, rótulos, campo, total e progresso medidos):** mínimo **4,87:1 no escuro** e **4,83:1 no
+  claro** (limite 4,5).
+- **Alvo de toque a 375 px:** lista vazia de problemas nas telas novas e nos dois temas (todo botão ≥ 44 px).
+- Olhado nos PNGs: análise 375 escuro, acerto 375 escuro, decisão 768 claro, tipos vazio 375 escuro e progresso 375 escuro. Pendência de
+  design registrada, não consertada: com o painel de decisão aberto o botão "Registrar decisão" que o abriu continua à vista (o painel tem o
+  mesmo título e o mesmo botão de confirmar).
+- A execução de sanidade do spec da T3.3 refatorado (`avaria-devolver` 375 escuro + as duas revisões de vizinhos) passou 8 de 8 e o PNG tocado
+  foi restaurado (`git checkout`).
+
+### Decisões que divergiram do texto do pedido
+
+1. **"Devolver ao galpão" só em `under_review`, "Cancelar" em `recorded|under_review`** (o pedido dizia "qualquer estado aberto"): a API recusa
+   o resto com 409; botão que sempre falha é botão morto (mesmo critério da 164). Divergência verificada em `occurrence-case-state.policy.ts`.
+2. **A leitura das avarias não traz a decisão** (`case {id,status}`): "se `goods_paid`, o formulário do acerto antes" é reativo — abre ao decidir
+   `goods_paid` na própria tela e quando o 422 do encerramento chega (decidido pelo contratante no portal). Follow-up de API: expor `decision`
+   em `case`.
+3. **Formulário do acerto escrito em `cargo-receiving`**, não reaproveitado: o `OccurrenceSettlementPanel` do `trip` (418 linhas) traz motorista
+   (`payerId`, `fleet`) e ressarcimento, que sobre recebimento não foi exercitado. Reaproveitado só o serviço puro de dinheiro
+   (`occurrenceSettlementMoney.service`, de `trip/shared`, como a foto da T3.3); pagadores: transportadora, contratante, seguradora.
+4. **Ações da tratativa não dependem do estado da chegada** (a chegada fechada continua oferecendo-as): o contratante decide dias depois do
+   fechamento; só as ações da NOTA (marcar/concluir) seguem presas à chegada aberta.
+5. **`case: null` deixou de concluir a devolução** (um contrato da T3.3 dizia o contrário): a API recusa desde a T3.4a (`CARGO_ARRIVAL_RETURN_DECISION_PENDING`).
+6. **Textos de erro compartilhados** entre marcar e concluir: `CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP` e `CARGO_ARRIVAL_RETURN_DECISION_PENDING`
+   foram reescritos para valer nos dois casos (a chave é a mesma).
+7. **Guarda da resposta das ações:** chaves exatas (`kind`, `status`) como o resto do painel — a resposta real é `{ kind, status }`, não a visão
+   completa da tratativa.
+8. `useCargoOccurrencesQuery` ganhou `structuralSharing` próprio em vez de `select`: só ele vê a leitura anterior.
+
+### Follow-ups
+
+- ⚠️ **Suspeita no módulo `trip` (não tocado):** `tripOccurrenceFeedClient.readCaseView` exige a visão completa da tratativa
+  (`redeliveryPolicy`, `updatedAt`…) e as rotas das ações respondem só `{ kind, status }` (`occurrence-case.use-case.ts`); se confirmado, o painel de
+  tratativa da viagem lê o sucesso como `RESPONSE_INVALID` e não invalida o feed. Sem teste de cliente para essas rotas no painel.
+- API: expor `decision` em `case` de `GET /cargo-arrivals/:id/occurrences`; N+1 de anexos (T3.4a).
+- Esconder o botão que abriu o painel enquanto o painel está aberto; fila offline das ações; reembolso do acerto sobre recebimento.
+
+### Não rodou
+
+Push/deploy; rebase (staging andou 53 commits); `make check` completo, `make smoke`/smoke da CI, `make migration-test` (nada de schema); a API e suas
+suítes (nada mudou); o `frontend-client`; teste em aparelho/câmera reais; leitura de staging ou produção.

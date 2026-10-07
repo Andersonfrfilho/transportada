@@ -119,8 +119,8 @@
       assina; nome de tipo colidindo é 409; erros tipados, aviso da semente e teto de requisições nas três rotas da
       devolução; **a tratativa da avaria de recebimento conduzida pelas rotas reais (o acerto `goods_paid` não fechava)**.
       _(2026-10-06: `evidence.md` § T3.4a; **sem push**.)_
-- [ ] **T3.4b** Painel: conduzir a tratativa da avaria de recebimento (ações do escritório) + correções do painel da
-      revisão.
+- [x] **T3.4b** Painel: conduzir a tratativa da avaria de recebimento (ações do escritório) + correções do painel da
+      revisão. _(2026-10-06: `evidence.md` § T3.4b; **sem push**.)_
 - [ ] **T3.4** Revisão `opus`, print aprovado, publicar e confirmar.
 
 ## Fase 4b — Prévia por e-mail encaminhada _(D6 respondida: vocês encaminham)_

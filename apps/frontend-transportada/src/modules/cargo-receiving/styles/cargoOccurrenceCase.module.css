@@ -39,7 +39,8 @@
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
 }
 
-.settlementLabel {
+.settlementLabel,
+.settlementRow label {
   font-size: 0.85rem;
 }
 

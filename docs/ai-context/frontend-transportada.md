@@ -1312,3 +1312,39 @@ Mesmo módulo `cargo-receiving`, consumindo a API de staging (ADR-0094 §9; nada
 - Contratos: `test/cargo-receiving/occurrence-*.contract.ts` e `test/trip-hooks/cargo-occurrence-*.contract.ts`
   (+ `cargoOccurrenceHarness.helper.ts`, servidor dublado com as mesmas recusas da API; `stubVisibleLayout` — sem ele o `Select`
   só abre quando outra suíte já instalou o remendo). Prints: `test/spec-237-avaria-prints.smoke.spec.ts` (fora da CI).
+
+## Spec 237 T3.4b — a tratativa da avaria de recebimento no painel e as correções da revisão (2026-10-06)
+
+Mesmo módulo `cargo-receiving`; nada mudou na API (T3.4a a deixou pronta). A leitura da avaria é `GET /cargo-arrivals/:id/occurrences`
+(com `case {id,status}`), as ações são as de `/trip-occurrences/:id/case/*` com o **`occurrence.id`** da avaria.
+
+- **Ações do escritório** (`resolveCargoCaseActions`, pura, `cargoOccurrenceCase.service.ts`; só `occurrences.resolve`, sem depender do
+  estado da chegada — o contratante decide dias depois do fechamento): `recorded` → Iniciar análise, Cancelar · `under_review` → Enviar
+  ao contratante, Devolver ao galpão, Cancelar · `awaiting_contractor` → Registrar decisão · `decided` → Encerrar · terminais nada.
+  Espelha `occurrence-case-state.policy.ts` (botão que a API recusa seria botão morto). Decisão só `other` e `goods_paid`
+  (`redelivery_authorized` é 422 com a política `blocked` e nunca é oferecida). Nota obrigatória em decidir, devolver ao galpão e cancelar.
+  Iniciar análise vai direto; as outras abrem `CargoCasePanel` (confirmação/motivo, `useRevealedPanel`); com uma ação em voo todos os
+  botões da avaria travam. Erro nomeia o motivo (`CargoCaseFailure`, mesmas chaves `occurrence.errors.*`) e a avaria é relida também na falha.
+- **O acerto (`goods_paid`).** A leitura das avarias **não traz a decisão**, só o estado. O formulário (`CargoCaseSettlementForm`/`Editor`,
+  versão enxuta própria — o `OccurrenceSettlementPanel` do `trip` traz ressarcimento não exercitado sobre recebimento e motorista) abre
+  quando a pessoa decide `goods_paid` aqui, ou quando "Encerrar" é recusado com 422 `OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS`; `other`
+  encerra direto. Sem motorista (sem viagem): pagador transportadora/contratante/seguradora, nunca `payerId`; `amountSource: 'manual'`;
+  um item por linha, escolhido entre os itens da avaria; valor com máscara pt-BR (`occurrenceSettlementMoney.service`, serviço puro
+  de `trip/shared`, como a foto da T3.3). Rascunho por gravar trava "Encerrar". PUT substitui a lista. Follow-up de API: expor `decision`
+  em `case` para abrir o acerto sem o 422.
+- **Origem cancelada:** `markableOccurrences` esconde avaria de tratativa `cancelled`; nota marcada cuja origem foi cancelada mostra
+  "Tratativa cancelada — desfaça a devolução" e não oferece "Concluir"; `case: null` **não** conclui mais (a API recusa desde a T3.4a).
+- **Miniaturas:** `structuralSharing` da query de ocorrências (`stabilizeOccurrenceAttachments`) herda a URL do mesmo anexo enquanto a
+  assinatura anterior tem mais de 2 min de folga; `replaceEqualDeep` mantém a referência e a tela nem repinta.
+- **Tipos vazios** (`hasNoTypes`): mensagem "Avise o suporte" e registrar desabilitado com o motivo (`aria-describedby`).
+- **Progresso:** `resolveSeparationProgress` conta nota a nota só as notas `none` (marcadas e devolvidas fora); cabeçalho do celular
+  ganha `CargoReturnCountFacts` e o grupo mostra "N em devolução". 9 separadas + 1 devolvida = 9 de 9.
+- **Corrida de fotos:** cada escolha leva um número; resultado ou falha de escolha antiga é ignorado (`useOccurrencePhoto`).
+- **Rótulos:** erros novos da T3.4a e `TOO_MANY_REQUESTS` em `occurrence.errors`; `OCCURRENCE_TYPE_NAME_TAKEN` no cadastro de tipos
+  (`trip.feedback.occurrenceTypeNameTaken`).
+- **Contratos:** `test/cargo-receiving/occurrence-case-*.contract.ts`, `occurrence-attachments-stable`, `separation-progress`,
+  `test/trip-hooks/cargo-occurrence-{case,settlement,photos-stable,types-empty,cancelled-origin,photo-race}.contract.ts` e
+  `cargo-separation-progress`. ⚠️ **`beforeEach` de nível de arquivo vale para o processo inteiro** (os contratos de DOM são importados numa
+  suíte só): leia o dublê por `currentCaseDouble()` dentro do teste, nunca de variável do arquivo; e o `mock.module` do cliente novo mora
+  em `cargoOccurrenceHarness.helper.ts` (`cargoCaseClientSlot`), que carrega antes de qualquer fonte. Prints:
+  `test/spec-237-tratativa-prints.smoke.spec.ts` + `test/spec-237-prints-smoke.helper.ts` (fora da CI).

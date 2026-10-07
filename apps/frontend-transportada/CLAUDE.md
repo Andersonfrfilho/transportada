@@ -468,3 +468,13 @@ chegada **não ganhou chave** (guardas exatas). **Desfazer é só `occurrences.r
 nem hook do `trip`); `Idempotency-Key` por tentativa. Nota marcada sai do passo de separar, do "Separar tudo" e trava "Fechar
 chegada" (motivo antes do clique). ⚠️ O `Select` não abre em teste de DOM sem `stubVisibleLayout()`. Detalhe: docs/ai-context §
 "Spec 237 T3.3".
+
+## A tratativa da avaria de recebimento no painel (spec 237 T3.4b)
+
+No detalhe do escritório (`/recebimento/:id/detalhe`), cada avaria ganha as ações da tratativa para quem tem `occurrences.resolve`
+(`CargoOccurrenceCaseActions`): só o que a máquina da API aceita em cada estado (`resolveCargoCaseActions`), confirmação/motivo onde
+a ação não se desfaz, decisão só `other`/`goods_paid` (nunca reentrega), e o acerto sem motorista/`payerId` antes de encerrar
+`goods_paid` (a leitura não traz a decisão: o formulário abre ao decidir aqui ou no 422 do encerramento). Independe do estado da chegada.
+Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniaturas ficam estáveis entre leituras; progresso do celular
+só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
+`currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".
