@@ -183,7 +183,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.8** Rotina agendada (cron → fila → worker, no molde das rotinas existentes) que, 90 dias depois de
+- [x] **T4.8** Rotina agendada (cron → fila → worker, no molde das rotinas existentes) que, 90 dias depois de
       a prévia ficar sem item em aberto (`awaiting_xml`/`suggested`/`ambiguous`), **apaga o arquivo do
       bucket** e **anonimiza** `recipient_name`, `address`, `neighborhood` e `postal_code` dos itens, mantendo
       valor, peso, roteiro, vínculo, estado e trilha; idempotente, com evento append-only, sem PII em log,
@@ -199,10 +199,7 @@
       em aberto e com o último movimento (`greatest` entre a prévia e os itens) em 90+ dias; bytes saem antes de
       qualquer escrita, `stored_objects` vira `deleted` (a linha fica), as quatro colunas viram `NULL`, e o evento
       `retention_applied` é o marcador; lote 25, 200 lotes, 50 objetos por prévia; trava do contratante sem esperar;
-      9 mutações mortas. `evidence.md` § T4.8; `docs/SECURITY.md` 2026-10-07; ADR-0094 §11. **Falta para fechar:** a
-      edição à mão de `migration.sql` (NOT VALID + VALIDATE e o `INSERT` da linha do relógio) e o `rollback.sql` da
-      migration `20261007133324_cargo_preview_retention` — a permissão do ambiente negou a escrita; os quatro
-      contratos da API que a cobram estão vermelhos de propósito. **Sem push.** `sonnet`.
+      9 mutações mortas. `evidence.md` § T4.8; `docs/SECURITY.md` 2026-10-07; ADR-0094 §11. **Migration fechada (2026-10-07):** `20261007133324_cargo_preview_retention` (NOT VALID + VALIDATE nas quatro CHECK, linha do relógio, `rollback.sql` que recusa com evento `retention_applied` existente); `db:test` 146 pass; migration autorizada pelo usuário no chat, só para staging. `sonnet`.
 
 ## Prompt de execução
 
