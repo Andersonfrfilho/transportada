@@ -26,7 +26,7 @@ const STATEMENTS_ON_MUNICIPAL_HOLIDAYS = [
   `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_kind_check" CHECK ("kind" in ('holiday', 'city_anniversary')) NOT VALID`,
   `ALTER TABLE "municipal_holidays" VALIDATE CONSTRAINT "municipal_holidays_kind_check"`,
   `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_company_source_rule_fk" FOREIGN KEY ("company_id","source_rule_id") REFERENCES "municipal_holiday_rules"("company_id","id") ON DELETE CASCADE ON UPDATE CASCADE`,
-  `CREATE INDEX "municipal_holidays_company_source_rule_idx" ON "municipal_holidays" ("company_id","source_rule_id") WHERE "source_rule_id" IS NOT NULL`,
+  `CREATE INDEX "municipal_holidays_company_source_rule_idx" ON "municipal_holidays" ("company_id","source_rule_id") WHERE "source_rule_id" is not null`,
 ]
 
 async function findDirectory(): Promise<string> {
@@ -42,7 +42,7 @@ async function readFileText(file: string): Promise<string> {
   return Bun.file(path).text()
 }
 
-const stripComments = (text: string): string => text.replaceAll(/^--.*$/gmu, '')
+const stripComments = (text: string): string => text.replaceAll(/--.*$/gmu, '')
 
 const splitStatements = (text: string): readonly string[] =>
   stripComments(text)
@@ -73,7 +73,7 @@ describe('a migration do calendário útil entra aditiva (spec 238 T1.2)', () =>
   test('nenhum dado é escrito e nada existente é apagado, renomeado ou alterado', async () => {
     const sqlText = stripComments(await readFileText('migration.sql'))
 
-    expect(sqlText).not.toMatch(/\b(insert|update|delete|truncate)\b/iu)
+    expect(sqlText).not.toMatch(/(^|;)\s*(insert|update|delete|truncate)\b/imu)
     expect(sqlText).not.toMatch(/\b(drop|rename)\b/iu)
     expect(sqlText).not.toMatch(/alter\s+column/iu)
     expect(sqlText).not.toMatch(/create\s+type/iu)

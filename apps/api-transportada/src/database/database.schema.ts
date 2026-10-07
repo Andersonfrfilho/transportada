@@ -83,6 +83,9 @@ import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
 import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
+import { companyBusinessCalendarSettings } from './company-business-calendar-settings.schema.js'
+import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
+import { stateHolidays } from './state-holiday.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -195,6 +198,9 @@ import {
 
 export * from './company-driver-allowance-settings.schema.js'
 export * from './company-location-retention-settings.schema.js'
+export * from './company-business-calendar-settings.schema.js'
+export * from './municipal-holiday-rule.schema.js'
+export * from './state-holiday.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -280,6 +286,9 @@ export const databaseSchema = {
   companyDistributionSettings,
   companyDriverAllowanceSettings,
   companyLocationRetentionSettings,
+  companyBusinessCalendarSettings,
+  municipalHolidayRules,
+  stateHolidays,
   companyCrewSettings,
   deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,

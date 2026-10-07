@@ -1,6 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  BRAZILIAN_STATE_IBGE_CODE_LIST,
+  CITY_IBGE_CODE_SOURCE,
+  HOLIDAY_RECURRENCE,
+  MUNICIPAL_HOLIDAY_KIND,
+} from '../../shared/business-calendar.constant.js'
+
+export { HOLIDAY_RECURRENCE, MUNICIPAL_HOLIDAY_KIND }
 
 /** O teto de 1–60 dias é do perfil do contratante; a política só barra o absurdo. */
 export const BUSINESS_CALENDAR_MAX_DAYS = 366
@@ -14,50 +22,14 @@ export const BUSINESS_CALENDAR_MIN_YEAR = 1583
 
 export const BUSINESS_CALENDAR_MAX_YEAR = 9999
 
-export const CITY_IBGE_CODE_PATTERN = /^[1-5][0-9]{6}$/
+export const CITY_IBGE_CODE_PATTERN = new RegExp(CITY_IBGE_CODE_SOURCE, 'u')
 
 export const STATE_IBGE_CODE_LENGTH = 2
 
-/** As 27 unidades da federação pelo código IBGE, que é o prefixo do código do município. */
-export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set([
-  '11',
-  '12',
-  '13',
-  '14',
-  '15',
-  '16',
-  '17',
-  '21',
-  '22',
-  '23',
-  '24',
-  '25',
-  '26',
-  '27',
-  '28',
-  '29',
-  '31',
-  '32',
-  '33',
-  '35',
-  '41',
-  '42',
-  '43',
-  '50',
-  '51',
-  '52',
-  '53',
-])
-
-export const HOLIDAY_RECURRENCE = {
-  ONCE: 'once',
-  YEARLY: 'yearly',
-} as const
-
-export const MUNICIPAL_HOLIDAY_KIND = {
-  CITY_ANNIVERSARY: 'city_anniversary',
-  HOLIDAY: 'holiday',
-} as const
+/** A lista mora em `shared/` porque o schema do banco a usa no CHECK e não importa de domínio. */
+export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set(
+  BRAZILIAN_STATE_IBGE_CODE_LIST,
+)
 
 export const BUSINESS_CALENDAR_ERROR_CODE = {
   COVERAGE_TOO_WIDE: 'BUSINESS_CALENDAR_COVERAGE_TOO_WIDE',

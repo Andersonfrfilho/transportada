@@ -20,7 +20,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+import {
+  MUNICIPAL_HOLIDAY_KIND,
+  MUNICIPAL_HOLIDAY_KINDS,
+} from '../shared/business-calendar.constant.js'
 import { companies } from './identity.schema.js'
+import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { tripDocumentOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -241,6 +246,10 @@ export const municipalHolidays = pgTable(
     holidayOn: date('holiday_on').notNull(),
     name: text().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Spec 238: `city_anniversary` é rótulo para a tela; a data é fixa de qualquer jeito. */
+    kind: text().notNull().default(MUNICIPAL_HOLIDAY_KIND.HOLIDAY),
+    /** Nulo = digitada à mão. Preenchido = gerada de uma regra "todo ano", que a leva ao ser apagada. */
+    sourceRuleId: uuid('source_rule_id'),
   },
   (table) => [
     foreignKey({
@@ -260,6 +269,21 @@ export const municipalHolidays = pgTable(
       sql`${table.cityIbgeCode} ~ ${sql.raw(`'${IBGE_CITY_PATTERN}'`)}`,
     ),
     check('municipal_holidays_name_check', sql`length(${table.name}) > 0`),
+    check(
+      'municipal_holidays_kind_check',
+      sql`${table.kind} in (${sql.raw(inList(MUNICIPAL_HOLIDAY_KINDS))})`,
+    ),
+    /** MATCH SIMPLE: com `source_rule_id` nulo a chave não é conferida, e a data digitada nunca é apagada. */
+    foreignKey({
+      columns: [table.companyId, table.sourceRuleId],
+      foreignColumns: [municipalHolidayRules.companyId, municipalHolidayRules.id],
+      name: 'municipal_holidays_company_source_rule_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('municipal_holidays_company_source_rule_idx')
+      .on(table.companyId, table.sourceRuleId)
+      .where(sql`${table.sourceRuleId} is not null`),
   ],
 )
 

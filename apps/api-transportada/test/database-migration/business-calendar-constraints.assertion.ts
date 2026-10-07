@@ -9,9 +9,10 @@ import { expect } from 'bun:test'
 
 import { expectQueryToFail } from './support.js'
 
-const CHECK_VIOLATION = '23514'
-const UNIQUE_VIOLATION = '23505'
-const FOREIGN_KEY_VIOLATION = '23503'
+const CHECK_VIOLATION = '23514' as const
+const UNIQUE_VIOLATION = '23505' as const
+const FOREIGN_KEY_VIOLATION = '23503' as const
+type ViolationCode = typeof CHECK_VIOLATION | typeof UNIQUE_VIOLATION | typeof FOREIGN_KEY_VIOLATION
 const CAMPINAS = '3509502'
 const HORIZON_YEAR = 2036
 
@@ -47,8 +48,11 @@ export async function insertRule(
 }
 
 export async function assertRuleConstraints(fixture: CalendarFixture): Promise<void> {
-  const rejected = (values: RuleValues, constraint: string, code = CHECK_VIOLATION) =>
-    expectQueryToFail(insertRule(fixture, values), code, `municipal_holiday_rules_${constraint}`)
+  const rejected = (
+    values: RuleValues,
+    constraint: string,
+    code: ViolationCode = CHECK_VIOLATION,
+  ) => expectQueryToFail(insertRule(fixture, values), code, `municipal_holiday_rules_${constraint}`)
 
   for (const cityIbgeCode of ['350950', '35095021', '0509502', '6509502', '3A09502', '']) {
     await rejected({ cityIbgeCode }, 'city_check')
@@ -163,8 +167,11 @@ function insertStateHoliday(fixture: CalendarFixture, values: StateHolidayValues
 }
 
 export async function assertStateHolidayConstraints(fixture: CalendarFixture): Promise<void> {
-  const rejected = (values: StateHolidayValues, constraint: string, code = CHECK_VIOLATION) =>
-    expectQueryToFail(insertStateHoliday(fixture, values), code, `state_holidays_${constraint}`)
+  const rejected = (
+    values: StateHolidayValues,
+    constraint: string,
+    code: ViolationCode = CHECK_VIOLATION,
+  ) => expectQueryToFail(insertStateHoliday(fixture, values), code, `state_holidays_${constraint}`)
   const yearly = (month: number | null, day: number | null) => ({
     day,
     month,

@@ -81,8 +81,8 @@ describe('as regras de feriado municipal "todo ano" (spec 238 T1.2)', () => {
     expect(checks.municipal_holiday_rules_city_check).toBe('"city_ibge_code" ~ \'^[1-5][0-9]{6}$\'')
     const stateCheck = checks.municipal_holiday_rules_state_check ?? ''
     expect(stateCheck).toContain('substr("city_ibge_code", 1, 2) in (')
-    const codes = [...stateCheck.matchAll(/'(\d{2})'/gu)].map((match) => match[1])
-    expect(new Set(codes)).toEqual(BRAZILIAN_STATE_IBGE_CODES)
+    const codes = [...stateCheck.matchAll(/'(\d{2})'/gu)].map((match) => match[1] ?? '')
+    expect(new Set(codes)).toEqual(new Set(BRAZILIAN_STATE_IBGE_CODES))
     expect(codes).toHaveLength(27)
   })
 
