@@ -5,6 +5,8 @@
  * banco, com as mesmas regras do CHECK (3–254 caracteres, sem controle, espaço, vírgula, `<>` ou `|`, até 20).
  * Quem encaminha é endereço exato; o remetente original é endereço ou domínio exato, nunca padrão.
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { normalizePreviewAllowlist } from '../../src/cargo-receiving/domain/preview-email-allowlist.policy.js'
@@ -77,6 +79,45 @@ describe('a normalização das listas da prévia por e-mail (spec 237 T4.6b)', (
       kind: 'sender',
     })
     expect(refused.issues.map((issue) => issue.index)).toEqual([0, 1, 2, 3])
+  })
+
+  /**
+   * Revisão de segurança (L1, L3): o CHECK do banco conta CARACTERES e o JS contava unidades UTF-16 (`"a😀"` valia 3 aqui e
+   * 2 lá: a API aceitava e o upsert estourava 23514); e homógrafo, caractere invisível e bidi passavam. Só ASCII visível entra.
+   */
+  test.each([
+    ['emoji (2 caracteres no banco, 3 em UTF-16)', 'a😀', 'nonAscii'],
+    ['homógrafo cirílico (а de acme)', 'аcme.com', 'nonAscii'],
+    ['zero-width no meio do domínio', 'a​cme.com', 'nonAscii'],
+    ['bidi (RLO) no fim do domínio', 'acme.com‮', 'nonAscii'],
+    ['acento (IDN sem punycode)', 'pão.example.test', 'nonAscii'],
+  ] as const)('recusa %s, nos dois tipos de lista', (_name, entry, reason) => {
+    for (const kind of ['forwarder', 'sender'] as const) {
+      const text = kind === 'forwarder' ? `x@${entry}` : entry
+      const result = normalizePreviewAllowlist({ entries: [text], kind })
+
+      expect(result.entries).toEqual([])
+      expect(result.issues).toEqual([{ entry: text.toLowerCase(), index: 0, reason }])
+    }
+  })
+
+  test('domínio internacional entra em punycode (xn--), que é ASCII', () => {
+    expect(
+      normalizePreviewAllowlist({ entries: ['xn--po-1ma.example.test'], kind: 'sender' }),
+    ).toEqual({ entries: ['xn--po-1ma.example.test'], hasTooManyEntries: false, issues: [] })
+  })
+
+  test('o piso e o teto de caracteres são medidos em pontos de código, como o banco', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/cargo-receiving/domain/preview-email-allowlist.policy.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(source).toContain('[...entry].length')
+    expect(source).toContain('/^[\\x21-\\x7e]+$/u')
   })
 
   test('o teto de 20 vale depois de tirar as duplicatas', () => {

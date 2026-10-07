@@ -345,6 +345,32 @@ describe('as listas da prévia por e-mail contra Postgres (spec 237 T4.6b)', () 
     })
   })
 
+  /** Revisão de segurança (L1): o CHECK conta caracteres; o que a política deixasse passar vira 422 estável, não 500. */
+  testWithPostgres(
+    'lista que o CHECK do banco recusa é um desfecho tipado, sem linha nem auditoria',
+    async () => {
+      await withDisposableDatabase(async (database, seed) => {
+        const repository = new DrizzleContractorPreviewEmailRepository(database.db)
+
+        const outcome = await repository.saveAllowlists({
+          actor: {
+            companyId: COMPANY_CONTEXT.companyId,
+            correlationId: CORRELATION_ID,
+            ipAddress: CLIENT_IP,
+            userId: COMPANY_CONTEXT.userId,
+          },
+          contractorId: seed.contractorId,
+          forwarderAllowlist: ['a😀'],
+          senderAllowlist: ['contratante.test'],
+        })
+
+        expect(outcome).toEqual({ status: 'allowlists_invalid' })
+        expect(await database.db.select().from(contractorReceivingProfiles)).toEqual([])
+        expect(await countAudits(database, ALLOWLISTS_ACTION)).toBe(0)
+      })
+    },
+  )
+
   testWithPostgres('sem endereço ativo, esvaziar a lista a deixa nula', async () => {
     await withDisposableDatabase(async (database, seed) => {
       const handle = createHandler(database)

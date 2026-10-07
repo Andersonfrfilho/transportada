@@ -73,6 +73,7 @@ function createFixture(permissions?: CompanyContext['permissions']) {
     rotate: [],
     save: [],
   }
+  const logged: unknown[][] = []
   const routes = createContractorPreviewEmailRoutes({
     getSettings: {
       async execute(params) {
@@ -103,14 +104,14 @@ function createFixture(permissions?: CompanyContext['permissions']) {
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigins: [FRONTEND_ORIGIN],
-    logger: { error() {}, info() {}, warn() {} },
+    logger: { error() {}, info() {}, warn: (...entry: unknown[]) => void logged.push(entry) },
     requestTimeoutSeconds: 10,
     router: createTestRouter({
       context: authenticatedContext(permissions ?? COMPANY_CONTEXT.permissions),
       routes,
     }),
   })
-  return { calls, handle: (request: Request) => handleRequest(request, { timeout() {} }) }
+  return { calls, handle: (request: Request) => handleRequest(request, { timeout() {} }), logged }
 }
 
 async function putRefusal(
@@ -256,6 +257,41 @@ describe('a edição das listas da entrada por e-mail (spec 237 T4.6b)', () => {
       }),
     )
     expect(empty.status).toBe(200)
+  })
+
+  /**
+   * Revisão de segurança (L2): 150 mil entradas `"ab"` (~750 KB, abaixo do teto do corpo) geravam 150 mil recusas, uma
+   * resposta de ~16 MB e um log com 150 mil nomes de campo. O tamanho da lista e de cada entrada tem teto ANTES da validação
+   * por entrada, e as recusas listadas são poucas.
+   */
+  test('150 mil entradas: 400 pequeno, e o log não carrega a lista inteira', async () => {
+    const fixture = createFixture()
+    const body = {
+      forwarderAllowlist: Array.from({ length: 150_000 }, () => 'ab'),
+      senderAllowlist: [],
+    }
+
+    const response = await fixture.handle(jsonRequest({ body, method: 'PUT', path: SETTINGS_PATH }))
+
+    expect(response.status).toBe(400)
+    const text = await response.text()
+    expect(text.length).toBeLessThan(4_096)
+    expect(JSON.stringify(fixture.logged).length).toBeLessThan(4_096)
+    expect(fixture.calls.save).toEqual([])
+  })
+
+  test('entrada gigante e muitas entradas inválidas: no máximo 25 recusas listadas', async () => {
+    const manyInvalid = await putRefusal({
+      ...BODY,
+      forwarderAllowlist: Array.from({ length: 100 }, (_, index) => `sem-arroba-${index}`),
+    })
+    expect(manyInvalid.status).toBe(400)
+    expect(manyInvalid.fields.length).toBeLessThanOrEqual(25)
+
+    const huge = await putRefusal({ ...BODY, senderAllowlist: ['a'.repeat(5_000)] })
+    expect(huge.status).toBe(400)
+    expect(huge.fields).toEqual(['senderAllowlist.0'])
+    expect(huge.messages.join('').length).toBeLessThan(400)
   })
 
   test('chave omitida, desconhecida e companyId no corpo são 400', async () => {

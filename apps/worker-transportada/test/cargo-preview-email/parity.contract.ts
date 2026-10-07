@@ -306,6 +306,8 @@ describe('o token da entrada por e-mail é gerado na API e lido no worker com a 
     'export const PREVIEW_INBOUND_TOKEN_PATTERN = /^[a-z2-7]{26}$/u',
     "export const PREVIEW_INBOUND_TOKEN_PURPOSE = 'transportada:cargo-preview-inbound:v1'",
     "createHash('sha256').update(`${PREVIEW_INBOUND_TOKEN_PURPOSE}:${token}`).digest('hex')",
+    /** Revisão de segurança (i4): o domínio de entrada é aparado e passado para minúsculas dos dois lados. */
+    'replyDomain.trim().toLowerCase()',
   ] as const
 
   test.each([...tokenSnippets])('o trecho %# existe na API e no worker', async (snippet) => {

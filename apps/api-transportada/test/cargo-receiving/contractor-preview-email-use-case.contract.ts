@@ -205,6 +205,27 @@ describe('editar as listas da prévia por e-mail (spec 237 T4.6b)', () => {
     expect(error.details?.map((detail) => detail.field)).toEqual(['senderAllowlist'])
   })
 
+  /** Revisão de segurança (L1): o CHECK do banco recusou o que a política deixou passar — 422 estável, nunca 500. */
+  test('lista que o CHECK do banco recusa é 422 com código estável', async () => {
+    const { repository } = createRepository({
+      async saveAllowlists() {
+        return { status: 'allowlists_invalid' }
+      },
+    })
+    const useCases = createContractorPreviewEmailUseCases({ repository })
+
+    const error = await failureOf(() =>
+      useCases.saveAllowlists.execute({
+        ...ROTATE_INPUT,
+        forwarderAllowlist: ['equipe@transportadora.test'],
+        senderAllowlist: ['contratante.test'],
+      }),
+    )
+
+    expect(error.status).toBe(422)
+    expect(error.code).toBe('RECEIVING_PROFILE_ALLOWLISTS_INVALID')
+  })
+
   test('grava com o ator e o IP do contexto e devolve o que o repositório devolveu', async () => {
     const { calls, repository } = createRepository({})
     const useCases = createContractorPreviewEmailUseCases({ repository })
