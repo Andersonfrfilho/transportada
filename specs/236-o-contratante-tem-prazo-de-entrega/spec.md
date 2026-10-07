@@ -79,8 +79,11 @@ aparece e nada quebra.
   úteis"), `due_today`, `overdue` (com `businessDaysLate`), `delivered_on_time`, `delivered_late`,
   `not_applicable` (motivos: cancelada, devolvida, a devolver ao contratante, liberada, sem chegada, sem prazo,
   sem cidade do destino físico).
-- **RF3 — Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca pela chegada ao servidor; sem
-  entrega, o relógio do servidor.
+- **RF3 — Entrega medida pelo momento da 234** (`deliveredMomentSql`), nunca pela chegada ao servidor. Nota
+  entregue **sem evento** de entrega (`trip_stop_events`) **não é medida**: sai `null`, sem
+  selo. `trip_documents.delivered_at` não entra como plano B — nos caminhos do barracão ele é o `now()` do
+  clique (T1.2e, decisão do usuário: os dias são de ENTREGA, nunca da chegada ao servidor). Pendente continua
+  medida contra o "hoje" (relógio injetado).
 - **RF4 — Cidade do calendário:** onde a carga **será entregue** — o destino físico (`resolvePhysicalDestination`:
   desvio manual → `<entrega>` → `<enderDest>`, spec 073), **não** o endereço cadastrado do destinatário. Decidido
   pelo usuário em 2026-10-06 (revoga a decisão de 2026-10-03 "cidade do destinatário").

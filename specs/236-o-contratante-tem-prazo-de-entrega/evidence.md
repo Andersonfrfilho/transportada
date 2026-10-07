@@ -181,3 +181,101 @@ Os caminhos de escrita que devolvem o detalhe (`close`, vínculo, cancelamento�
 
 `make smoke`/Playwright e qualquer verificação de tela (não há tela nesta task); `make migration-test` (sem migration); `make worker-integration`;
 as ~20 integrações que não tocam o repositório de viagens nem o calendário; `make check` completo; nenhuma leitura de banco de produção.
+
+## T1.2e — correções da revisão `opus` da Fase 1 (2026-10-07)
+
+Executada com `sonnet` no worktree `angry-hamilton-090c30` (rebase sobre `origin/staging` sem conflito: o commit do painel `baf9abe51` caiu
+como patch idêntico — já publicado como `d2d1837ca`; `bun install --frozen-lockfile` limpo). Sem migration, sem tela, sem push. Banco de integração:
+o Postgres do `.env.test` (`localhost:65432`), **um banco descartável por teste** (`withDisposableDatabase`); nenhum dado de produção lido.
+
+| Commit      | Parte                                                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `228cf2327` | contratos e integrações vermelhos: entrega sem evento, viagem entregue lida em 2032, formatador, 2 contratantes, prazo nulo, desvio mais recente, 5 leituras em série |
+| `5c11716fb` | o código: itens 1, 2, 3, 4 e 7                                                                                                                                        |
+| `97949ce07` | T1.3 (teste de comportamento) + painel: `openOccurrenceCase` sobrevive a `deliveryDeadline` malformado                                                                |
+
+Vermelhos antes do código (pelo motivo certo): `entregue sem evento não é medida` (recebia 1, esperava 0), `viagem toda entregue lida anos depois`
+(`undefined` no lugar de `delivered_on_time`: a cobertura 2027–2032 deixava a chegada de 2026 de fora), `cem chamadas constroem o formatador` (100 > 1),
+as duas integrações equivalentes (entregue pelo servidor sem evento; viagem entregue em 2032). As do item 6 já passavam: eram lacunas de prova, não
+defeitos.
+
+- **1. Entrega só pelo evento.** `documentDeliveredAt` saiu do tipo da nota, do mapper e do `??` do locate. Nota entregue sem evento: `null`
+  (`not_applicable`). **Decisão:** nos caminhos do barracão `trip_documents.delivered_at` é o `now()` do clique
+  (`drizzle-trip-document.repository.ts`, `drizzle-trip-document-batch.repository.ts`); medir por ele contrariava "os 3 dias são de ENTREGA, medida pelo
+  momento do evento (234)" e o resto do sistema (nota do motorista e comprovante medem só por `trip_stop_events`). Spec RF3 atualizado. Custo
+  aceito: a entrega antiga sem evento fica sem selo.
+- **2. Cobertura.** `todayYear: number | null`: o ano de hoje só entra se alguma candidata está **pendente** (as entregues são medidas pela chegada e
+  pela entrega). Sem hoje, `toYear` passa a cobrir também os anos de entrega (antes o hoje os cobria). Viagem toda entregue lida anos depois mantém o
+  selo e não gera `warn`.
+- **3. Constantes (§16).** `DELIVERED_EVENT_KIND`, `DELIVERED_DOCUMENT_STATUS`/`RETURNED_DOCUMENT_STATUS` e `BUSINESS_CALENDAR_TIME_ZONE` importadas
+  (cópias apagadas, inclusive `DELIVERY_DEADLINE_TIME_ZONE`: cobertura e calendário dependem de ser o MESMO fuso); `separationStatus` tipado
+  `TripDocumentSeparationStatus`; a mensagem do log foi para `trip-delivery-deadline.constant.ts`; `(n) =>` virou `(candidate) =>`.
+- **4. `toCivilDate`.** Formatador guardado por fuso num `Map` de módulo com teto de 16 entradas (esvazia ao estourar; o conjunto real é 1 fuso). Os 121
+  contratos da 238 T1.1 e o da borda da 236 seguem verdes **sem alteração**.
+- **5. Leituras em série.** `readTripDeliveryDeadlines`, `locateNotes`, `loadCityCalendars`, `loadDeliveryAddressOverrideCities` e
+  `loadDeliveredMoments` entraram em `test/transaction-serial-queries.contract.test.ts` (12 → 17 entradas).
+- **6. Lacunas.** (a) `trip-detail-delivery-deadline-edge.integration.ts`: dois contratantes na MESMA viagem (o sem chegada `null`, o outro mantém),
+  prazo copiado nulo → `null`; (b) três desvios gravados fora de ordem: vale o de `created_at` mais recente; (c) painel: `openOccurrenceCase`
+  sobrevive a `deliveryDeadline` malformado, na lista e na parada (11 casos).
+- **7. `warn` por leitura.** Volume esperado antes: o painel relê o detalhe a cada 30 s (3 s com a planta pendente) — uma regra ruim geraria 2
+  linhas/min por espectador, até 20/min com a planta pendente, por código. `trip-delivery-deadline-warn-throttle.support.ts`: **um aviso por
+  viagem e código a cada 5 min**, em memória, com teto de 2000 chaves (esvazia ao estourar). Reiniciar o processo só repete um aviso. Risco que sobra
+  a medir em staging: o limite é por processo (hoje 1 réplica).
+
+### Mutações (T1.2e) — cada uma derrubou o contrato, e o arquivo foi restaurado
+
+| Mutação                                                 | Arquivo                                           | Falhas | O que derrubou                                                           |
+| ------------------------------------------------------- | ------------------------------------------------- | -----: | ------------------------------------------------------------------------ |
+| plano B da entrega de volta (`deliveredAt = arrivedAt`) | `trip-delivery-deadline-locate.support.ts`        |      1 | "entregue sem evento não é medida"                                       |
+| ano de hoje sempre na cobertura                         | `trip-delivery-deadline.support.ts`               |      1 | "viagem toda entregue lida anos depois mantém o selo, sem aviso"         |
+| `new Intl.DateTimeFormat` por chamada                   | `civil-date.service.ts`                           |      1 | "cem chamadas … no máximo uma vez"                                       |
+| `Promise.all` em `locateNotes`                          | `trip-delivery-deadline.support.ts`               |      3 | contrato estático de série + "+6" + "uma nota ou duzentas" (maxInFlight) |
+| aviso a cada leitura (sem a janela)                     | `trip-delivery-deadline-warn-throttle.support.ts` |      1 | "um por viagem e código a cada cinco minutos"                            |
+| descartar tudo menos `id` do detalhe malformado         | `tripDeliveryDeadline.validation.ts` (painel)     |     11 | os 11 "descarta só o campo … openOccurrenceCase ficam"                   |
+
+### Gates (T1.2e)
+
+- API: `bun run typecheck` → 0; `bun run lint` (`--max-warnings=0`) → 0; contratos `bun --env-file=<.env.test> test --timeout 120000` →
+  **10720 pass / 25 skip / 0 fail** (antes: 10708 / 25 / 0; +12). Integrações da 236, **uma por vez**: `trip-detail-delivery-deadline` 4,
+  `-moments` 4, `-return` 1, `-count` 3, `-transaction` 1, `-edge` 5 (nova) e `delivery-deadline-driver-independence` 1 (nova, T1.3): todas verdes.
+  As 13 do calendário (11 `business-calendar-*` + 2 `municipal-holiday-*`) verdes **sem alteração**.
+- Painel: `bun run typecheck` → 0; `bun run lint` → 0 erros (16 avisos que já existiam); `bun run test` e `bun run test:hooks` → **956 pass / 0 fail**
+  cada (sumário final do runner).
+
+### Não rodado (T1.2e)
+
+`make smoke`/Playwright e tela (não há tela); `make migration-test` (sem migration); `make worker-integration`; `make check` completo; nenhuma leitura de banco
+de produção; a medição do volume real do `warn` em staging (fica para depois do deploy).
+
+## T1.3 — não-regressão (CA6), a prova de comportamento (2026-10-07)
+
+Nenhuma suíte abaixo foi alterada. Contratos por agregador (`bun --env-file=<.env.test> test ./test/<arquivo>`):
+
+| Suíte                                                                                                     | Resultado                                  |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `fleet-domain` (inclui `driver-score*.contract.ts`)                                                       | 152 pass / 0 fail                          |
+| `trip-delivery-proof` (inclui `punctuality*.contract.ts` e `late-registration.contract.ts`)               | 349 pass / 0 fail                          |
+| `settings-resolution.contract.test.ts`                                                                    | 8 pass / 0 fail                            |
+| `trip-allowed-actions` (spec 164, `allowed-actions` byte a byte)                                          | 26 pass / 0 fail                           |
+| `cte-batch-{schema,domain,application,http,infrastructure}` (onde vive o `delivery_days`)                 | 12 + 25 + 58 + 80 + 31 = 206 pass / 0 fail |
+| `trip-http` (inclui `allowed-actions` e o contrato do prazo) · `fleet-application` · `fleet-http`         | 319 · 113 · 129 pass / 0 fail              |
+| `trip-occurrence` (inclui `driver-snapshot-products` com o golden `driver-snapshot-document.golden.json`) | 704 pass / 0 fail                          |
+
+Integrações (uma por vez, banco descartável próprio): `driver-score` 10, `me-trip` 21, `me-trip-departure` 12, `driver-snapshot-products` 5,
+`trip-detail-occurrence-marker` (a regressão de `allowed-actions` com tratativa aberta) 1, `cte-batch-name-conflict` 1, `cte-batch-suggested-name` 1 — **todas verdes, 0 fail**.
+
+**O teste de comportamento novo** — `test/integration/delivery-deadline-driver-independence.integration.ts`: dois motoristas, quatro notas iguais
+(uma entregue há 72 h com foto `late`, uma há 25 h sem foto, em cada motorista); o motorista A tem chegada e prazo de 1 dia útil nas suas duas
+notas (lidas como `delivered_late`), o B não tem nada (selo `null`). Resultado: a nota é **85 nos dois**, as penalidades (`missing_proof` 10 e
+`late_proof` 5, com as mesmas datas) são iguais, e `classifyProofPunctuality` dá o mesmo veredito (`late_and_away`) — o `missingAfterHours` de 24 h decide a
+foto ausente igual nos dois cenários.
+
+Mutações de CA6:
+
+| Mutação                                                                        | Contrato que derrubou                                                               |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| a nota do motorista ignora entregas de notas com chegada (prazo ligado à nota) | o novo de comportamento: A recebe `null`, esperava 85                               |
+| import de `delivery-deadline` em `driver-score.policy.ts`                      | o estático `delivery-deadline-isolation` ("nenhum arquivo vigiado importa o prazo") |
+
+Limite honesto: `computeDriverScore` e `classifyProofPunctuality` são puros e não têm entrada de prazo; a prova que importa é a da leitura do banco
+(`DrizzleDriverScoreRepository`), que é onde o prazo poderia ser ligado, e o contrato estático segura os imports.

@@ -3211,21 +3211,31 @@ nunca o perfil atual) e `cargo_arrival_documents.return_to_contractor` entram po
 (`stopAddresses`, que `listStopAddresses` já resolvia e foi antecipada para antes do `map` das notas) com o **desvio manual por cima**
 (`delivery_address_overrides`, o mais recente por nota: a política de destino físico não o conhece); desvio **sem cidade** deixa a nota sem
 prazo, em vez de cair no cadastro que o operador acabou de trocar. A entrega é `deliveredMomentSql` (`selectDistinctOn` por nota, desempate
-`created_at desc, id desc`), com `trip_documents.delivered_at` só se nenhum evento a mede, e sem nenhum dos dois a nota fica sem prazo.
+`created_at desc, id desc`), **só pelo evento**: nota entregue sem evento fica sem prazo (`trip_documents.delivered_at` é o `now()` do clique no
+barracão — T1.2e).
 
 **Custo fixo.** `readTripDeliveryDeadlines` (`trip-delivery-deadline.support.ts`): **+0** consultas se nenhuma nota tem chegada e prazo;
 senão **desvio + entrega** (+2) e, se alguma nota tem cidade válida, as **quatro** leituras do calendário (+4, `loadBusinessCalendarRules`,
 em série) — exatamente **+6**, com 1 ou 200 notas, 1 ou 40 cidades. `loadRules` da 238 foi extraído para essa função porque o `readTripDetail`
 roda dentro de transação nos caminhos de escrita (`close`, vínculo, cancelamento…), que também pagam as seis consultas: aceito.
-Cobertura do calendário (`resolveDeadlineCoverage`): do menor ano entre chegadas, entregas e hoje até o maior entre hoje e a última chegada + 1
-(chegada em 30/12), com corte do começo acima de cinco anos de vão — a nota que ficou de fora vira "sem prazo".
+Cobertura do calendário (`resolveDeadlineCoverage`): do menor ano entre chegadas, entregas e (só com nota **pendente**) hoje até o maior entre
+entregas, hoje e a última chegada + 1 (chegada em 30/12), com corte do começo acima de cinco anos de vão — a nota que ficou de fora vira "sem
+prazo". Sem pendente o hoje não entra: viagem toda entregue lida anos depois mantém o selo.
 
 **Degradação.** Falha de banco **propaga** (503 como as outras leituras). `BusinessCalendarError` (`INVALID_CITY`, `UNKNOWN_STATE`,
 `TOO_MANY_RULES`, `INVALID_RULE`, `OUT_OF_COVERAGE`…) vira `null` para as notas afetadas, com um `warn` por código
-(`trip_delivery_deadline_unavailable`: só `code`, `companyId`, `tripId` e `tripDocumentIds`). O "hoje" é um `clock` injetado em
+(`trip_delivery_deadline_unavailable`: só `code`, `companyId`, `tripId` e `tripDocumentIds`), **coalescido: um por viagem e código a cada 5 min**,
+em memória e por processo (`trip-delivery-deadline-warn-throttle.support.ts`; o painel relê a cada 30 s). O "hoje" é um `clock` injetado em
 `DrizzleTripRepository` (só `main.ts` o monta; `test/composition/trip-delivery-deadline-wiring.contract.ts` segura isso) e, sem ele, o campo não
 é calculado e nenhuma consulta é feita.
 
 **Provas.** Contratos sem banco com executor de mentira (`test/trip-infrastructure/delivery-deadline-read.contract.ts`, `…/recording-select-executor.fixture.ts`)
 e integrações `test/integration/trip-detail-delivery-deadline*.integration.ts` (cópia vs perfil, desvio, 30/12, `occurredAt` vs `recordedAt`,
 notas encerradas, isolamento, contagem +0/+6/+2 e `close` dentro da transação). Evidência e mutações: specs/236-\*/evidence.md § T1.2.
+
+**Revisão da Fase 1 (T1.2e).** Fuso e tipos são os da 238 (`BUSINESS_CALENDAR_TIME_ZONE`, `DELIVERED_EVENT_KIND`/`*_DOCUMENT_STATUS` de
+`delivery-event.constant.ts`): a cópia local do fuso saiu. `toCivilDate` guarda o `Intl.DateTimeFormat` por fuso (16 entradas no máximo;
+construir custava ~22 µs por chamada, ~5 por nota). Lacunas conhecidas: nota vinculada por cálculo de frete (`nfe_document_id` nulo) nunca
+recebe prazo, e uma regra de calendário ruim derruba o prazo de todas as cidades da viagem (sai `null` com `warn`). **A 236 só vai a produção
+junto com ou depois das migrations da 237 Fase 2 e da 238** (a consulta das notas lê essas tabelas mesmo sem o relógio). Evidência:
+specs/236-\*/evidence.md § T1.2e e § T1.3.

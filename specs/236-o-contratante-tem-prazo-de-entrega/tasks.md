@@ -27,10 +27,25 @@ trip_document_id` em `delivery_address_overrides`); entrega (`selectDistinctOn` 
         `BusinessCalendarError` vira `not_applicable` com `warn` só com ids. Campo só no
         `TripDocumentDetail`, nunca no `TripDocument`.
   - [x] **T1.2d** Integração contra Postgres (CA2) e contrato de contagem de consultas (CA5).
-- [ ] **T1.3** Não-regressão (CA6): `computeDriverScore`, `missingAfterHours` e CT-e intactos. O contrato estático de isolamento já existe (T1.1); falta a prova de comportamento sobre a leitura nova. Depende da 238 T1.2/T1.3 publicadas.
+  - [x] **T1.2e** Correções da revisão `opus` da Fase 1: entrega só pelo evento (sem o plano B de
+        `trip_documents.delivered_at`), cobertura sem o ano de hoje quando nada está pendente, constantes únicas
+        (§16), `toCivilDate` com formatador guardado, as cinco leituras novas no contrato de consultas em série,
+        lacunas de teste (dois contratantes, prazo copiado nulo, desvio mais recente, painel), `warn` coalescido
+        (1 por viagem e código a cada 5 min). Evidência em `evidence.md` § T1.2e.
+- [x] **T1.3** Não-regressão (CA6): `computeDriverScore`, `missingAfterHours` e CT-e intactos. O contrato estático de isolamento já existe (T1.1); a prova de comportamento sobre a leitura nova é `test/integration/delivery-deadline-driver-independence.integration.ts` (mesma nota entregue tarde com e sem prazo: mesma nota, pontualidade e foto ausente). Números em `evidence.md` § T1.3.
 - [ ] **T1.4** (depende da 238 T1.2/T1.3 publicadas) Revisão final da fase com `code-reviewer` em `opus` (passada separada); publicar em staging
       só com tudo verde (fetch + rebase limpo + `bun install --frozen-lockfile` + typecheck) e **confirmar o
       deploy** antes da Fase 2.
+      ⚠️ **Regra de promoção para produção:** a 236 só sobe **junto com, ou depois de,** as migrations da 237
+      Fase 2 e da 238 — a consulta das notas lê `cargo_arrivals`/`cargo_arrival_documents` e as tabelas do
+      calendário mesmo quando o relógio não está ligado, e `origin/main` não as tem: uma promoção por
+      cherry-pick sozinha derruba todo `GET /trips/:id` com 500. O `preDeployCommand` precisa ter rodado as
+      migrations **antes** da API nova receber tráfego.
+      **Lacunas conhecidas (decisões, não esquecimentos):** (1) nota vinculada por cálculo de frete
+      (`trip_documents.nfe_document_id` nulo) nunca recebe prazo — o prazo nasce da chegada, que é por NF-e;
+      (2) uma regra de calendário ruim derruba o prazo de **todas** as cidades da viagem, não só a da regra
+      (o calendário é construído com as regras de todas as cidades para manter a guarda `TOO_MANY_RULES`); sai
+      `null` com `warn`, e o detalhe nunca cai.
 
 ## Fase 2 — Painel: selo e filtro
 
