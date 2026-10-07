@@ -5,16 +5,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
-import {
-  buildOccurrenceEmailTemplateOptions,
-  type OccurrenceEmailTemplatesState,
-} from '@/modules/trip/shared/occurrenceTemplate.service'
-import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
-import { useOccurrenceAttachmentOverridesBatchQuery } from '@/modules/trip/queries/useOccurrenceAttachmentOverridesBatch.query'
-import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
-import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
 import {
   createOccurrenceMailDraftStore,
   OccurrenceMailDraftStoreContext,
@@ -23,6 +15,7 @@ import {
   createOccurrenceMomentsDraftStore,
   OccurrenceMomentsDraftStoreContext,
 } from '../hooks/useOccurrenceMomentsDraftStore.hook'
+import { useOccurrenceTypeCatalogData } from '../hooks/useOccurrenceTypeCatalogData.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
 import type { OccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
@@ -33,11 +26,6 @@ import { OccurrenceTypeFilterEmpty } from './OccurrenceTypeFilterEmpty.component
 import { OccurrenceTypeFilters } from './OccurrenceTypeFilters.component'
 import { OccurrenceTypeList } from './OccurrenceTypeList.component'
 import { OccurrenceTypeLoadState } from './OccurrenceTypeLoadState.component'
-
-function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
-  if (query.isError) return 'error' as const
-  return query.isSuccess ? ('ready' as const) : ('loading' as const)
-}
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -97,31 +85,10 @@ export function OccurrenceTypeCatalogPanel({
     })
   }
 
-  /**
-   * Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por
-   * tipo. As duas listas grandes só vêm quando alguém abre um tipo ou busca por quem tem exceção.
-   */
-  const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
-  const people = useOccurrenceExceptionPeople({
-    enabled: canManage && (expandedIds.size > 0 || filtersController.filters.query.trim() !== ''),
+  const { exceptionsOf, overridesQuery, people, templates } = useOccurrenceTypeCatalogData({
+    canManage,
+    isPeopleNeeded: expandedIds.size > 0 || filtersController.filters.query.trim() !== '',
   })
-
-  function exceptionsOf(type: OccurrenceType): OccurrenceTypeExceptionsState {
-    if (overridesQuery.isError) return { overrides: undefined, people, status: 'error' }
-    if (!overridesQuery.isSuccess) return { overrides: undefined, people, status: 'loading' }
-    const found = overridesQuery.data.find((entry) => entry.occurrenceTypeId === type.id)
-    return {
-      overrides: found ?? { contractorOverrides: [], recipientOverrides: [] },
-      people,
-      status: 'ready',
-    }
-  }
-
-  const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
-  const templates: OccurrenceEmailTemplatesState = {
-    options: buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? []),
-    status: toLoadStatus(emailTemplates),
-  }
 
   const exceptionsByTypeId = overridesQuery.isSuccess
     ? new Map(overridesQuery.data.map((entry) => [entry.occurrenceTypeId, entry]))

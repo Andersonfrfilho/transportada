@@ -14,7 +14,10 @@ const PANEL_FILES = [
   'OccurrenceTypeCreateForm.component.tsx',
 ] as const
 
-const HOOK_FILES = ['useOccurrenceTypeCreateDraft.hook.ts'] as const
+const HOOK_FILES = [
+  'useOccurrenceTypeCreateDraft.hook.ts',
+  'useOccurrenceTypeCatalogData.hook.ts',
+] as const
 
 export function readOccurrenceTypePanelSource(): string {
   const components = PANEL_FILES.map((fileName) =>
