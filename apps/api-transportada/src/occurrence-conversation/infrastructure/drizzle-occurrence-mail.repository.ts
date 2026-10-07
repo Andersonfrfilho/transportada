@@ -216,6 +216,7 @@ export function createOccurrenceSuggestedMailReader(
         companyId: params.companyId,
         documentId: row.tripDocumentId,
         note: row.note,
+        occurrenceId: params.occurrenceId,
         occurredOn: row.createdAt.toLocaleDateString('pt-BR'),
         productCodes: resolveOccurrenceProductCodes({
           productCode: row.productCode,

@@ -78,7 +78,9 @@ import { mirrorStreetOccurrenceAttachments } from './street-occurrence-attachmen
 import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
+import { buildOccurrenceTemplateLines } from '../domain/occurrence-template-lines.policy.js'
 import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import { readStoredOccurrenceTemplateSource } from './occurrence-template-source.query.js'
 import type {
   OccurrenceCancellationView,
   OccurrenceCorrectionEntry,
@@ -1276,15 +1278,16 @@ async function writeOccurrenceTypeRow(
 }
 
 /**
- * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta.
+ * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta da nota e as da ocorrência.
  *
- * ⚠️ **Uma consulta, e só quando alguém registra ocorrência** — ação manual, nunca em laço. Os
- * campos vêm de onde já estavam: a nota, o participante destinatário, a parada, o motorista da
- * viagem e o contratante cadastrado.
+ * ⚠️ **Só quando alguém registra ocorrência** — ação manual, nunca em laço. Os campos vêm de onde já
+ * estavam: a nota, o participante destinatário, a parada, o motorista da viagem e o contratante
+ * cadastrado.
  *
- * ⚠️ **A NFD não está aqui**, e é decisão: o número da nota de devolução nasce no balcão do cliente
- * e não existe na nossa base. Quem registra a ocorrência o digita, e ele chega ao modelo por
- * `{{observacao}}`.
+ * Spec 247 (T4.7): com `occurrenceId`, o que o registro gravou entra de verdade — o número do documento
+ * do cliente (`{{numeroReferencia}}`), o valor pago, a quantidade, a unidade e o valor unitário de cada
+ * linha, e o formato da linha de item do tipo. Sem ele (a prévia de cadastro e dublês), as linhas são os
+ * códigos marcados, inteiros da nota, e a quantidade cai na da NF-e.
  */
 export async function readOccurrenceTemplateValues(
   queryable: TripQueryable,
@@ -1292,6 +1295,8 @@ export async function readOccurrenceTemplateValues(
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    /** Spec 247: a ocorrência já gravada — de onde saem o número, o valor pago e as linhas. */
+    readonly occurrenceId?: string | undefined
     readonly occurredOn: string
     /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
     readonly productCodes: readonly string[]
@@ -1336,39 +1341,59 @@ export async function readOccurrenceTemplateValues(
     .limit(1)
 
   const nfeDocumentId = row?.nfeDocumentId ?? null
-  const [contatos, produtos] = await Promise.all([
+  const [contatos, stored] = await Promise.all([
     nfeDocumentId === null
       ? new Map()
       : listDeliveryContacts(queryable, {
           companyId: input.companyId,
           nfeDocumentIds: [nfeDocumentId],
         }),
-    input.productCodes.length === 0
+    input.occurrenceId === undefined
+      ? null
+      : readStoredOccurrenceTemplateSource(queryable, {
+          companyId: input.companyId,
+          occurrenceId: input.occurrenceId,
+        }),
+  ])
+  const storedLines = stored?.lines ?? []
+  const produtos =
+    storedLines.length === 0 && input.productCodes.length === 0
       ? []
-      : listDocumentProducts(queryable, {
+      : await listDocumentProducts(queryable, {
           companyId: input.companyId,
           documentId: input.documentId,
           tripId: input.tripId,
-        }),
-  ])
+        })
 
   const contato = nfeDocumentId === null ? undefined : contatos.get(nfeDocumentId)
   /** A ordem é a que o conferente marcou; o texto do e-mail os cita nela. */
-  const itens = input.productCodes.flatMap((code) => {
-    const encontrado = produtos.find((candidate) => candidate.code.trim() === code.trim())
-    return encontrado === undefined ? [] : [encontrado]
+  const lines = buildOccurrenceTemplateLines({
+    nfeProducts: produtos,
+    productCodes: input.productCodes,
+    storedLines,
   })
   const numero = row?.nfeNumber ?? ''
   const serie = row?.nfeSeries ?? ''
 
   return {
     contractorName: contato?.contractorName ?? '',
+    declaredAmount: stored?.declaredAmount ?? null,
     documentLabel: numero === '' ? '' : serie === '' ? numero : `${numero}/${serie}`,
+    documentNumber: numero,
     driverName: row?.driverName ?? '',
-    ...buildOccurrenceItemValues(itens),
+    ...buildOccurrenceItemValues(
+      lines.map((line) => ({
+        code: line.code,
+        description: line.description,
+        quantity: line.quantity ?? line.nfeQuantity,
+      })),
+    ),
+    itemLineTemplate: stored?.emailItemLineTemplate,
+    lines,
     note: input.note,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
+    ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),
     stopLabel: row?.stopLabel ?? '',
     totalValue: row?.totalValue ?? '',
   }

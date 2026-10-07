@@ -228,6 +228,8 @@ export type TripOccurrencePort = {
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    /** Spec 247 (T4.7): a ocorrência já gravada — o leitor lê dela o que o registro guardou. */
+    readonly occurrenceId?: string | undefined
     readonly occurredOn: string
     readonly productCodes: readonly string[]
     readonly tripId: string
@@ -472,7 +474,7 @@ export async function registerTripOccurrence(
     ...saved,
     ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
-    email: await renderEmail({ input, occurrenceType, scope }),
+    email: await renderEmail({ input, occurrenceId: saved.id, occurrenceType, scope }),
     productCodes: scope.productCodes,
     products: items,
   }
@@ -487,6 +489,7 @@ export async function registerTripOccurrence(
  */
 async function renderEmail(params: {
   readonly input: RegisterTripOccurrenceInput
+  readonly occurrenceId: string
   readonly occurrenceType: OccurrenceTypeRecord
   readonly scope: { readonly productCodes: readonly string[] }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
@@ -497,6 +500,7 @@ async function renderEmail(params: {
     companyId: params.input.companyId,
     documentId: params.input.documentId,
     note: params.input.note,
+    occurrenceId: params.occurrenceId,
     occurredOn: params.input.occurredOn,
     productCodes: params.scope.productCodes,
     tripId: params.input.tripId,
