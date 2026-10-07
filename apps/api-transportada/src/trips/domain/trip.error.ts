@@ -668,6 +668,20 @@ export class OccurrenceTypeItemsMinimumRequiresRequiredError extends ApiError {
 }
 
 /**
+ * Spec 247 (RF1): valor pago digitado por item exige produtos no tipo — sem linha não há onde
+ * digitar. Pela ocorrência, ou com o valor pago desligado, `items_mode = 'off'` continua valendo.
+ */
+export class OccurrenceTypeDeclaredAmountNeedsItemsError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS',
+      message: 'A declared amount per item requires the occurrence type to carry items.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em
  * vez de "nada para hoje", que esconderia o problema até alguém reclamar.

@@ -51,6 +51,7 @@ import type {
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import {
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_NAME_UNIQUE,
@@ -59,6 +60,7 @@ import {
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
+  OccurrenceTypeDeclaredAmountNeedsItemsError,
   OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
   OccurrenceTypeNameTakenError,
@@ -1014,7 +1016,8 @@ export async function listOccurrenceTypes(
 /**
  * Spec 241 (RF11): dois `PUT` concorrentes (um `off`, outro com política) passam a validação do caso
  * de uso, que lê fora da transação do `UPDATE`, e só a CHECK os pega — 422 do domínio, não 500.
- * Spec 237: o nome de um tipo de recebimento escondido também bate no índice único — 409. Qualquer
+ * Spec 237: o nome de um tipo de recebimento escondido também bate no índice único — 409. Spec 247:
+ * desligar os produtos enquanto outro `PUT` grava valor pago por item bate na forma — 422. Qualquer
  * outra violação segue propagando.
  */
 function rethrowOccurrenceTypeViolation(error: unknown): never {
@@ -1024,6 +1027,9 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
   }
   if (violated === OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK) {
     throw new OccurrenceTypeItemsMinimumRequiresRequiredError()
+  }
+  if (violated === OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK) {
+    throw new OccurrenceTypeDeclaredAmountNeedsItemsError()
   }
   if (violatedUniqueConstraint(error) === OCCURRENCE_TYPE_NAME_UNIQUE) {
     throw new OccurrenceTypeNameTakenError()

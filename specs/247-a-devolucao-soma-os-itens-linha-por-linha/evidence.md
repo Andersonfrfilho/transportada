@@ -178,3 +178,40 @@ e `…_recipient_…` (71). O contrato estático também afirma `≤ 63` em todo
 - `db:test` (Postgres nativo descartável): `141 pass · 0 fail · Ran 141 tests across 8 files`.
 - `migration-completeness` + `occurrence-type-minimum-counts` + `occurrence-type-items-mode`
   (integração, Postgres nativo): `12 pass · 0 fail`.
+
+### T2.3 — Integração da migration e das CHECKs
+
+**Status**: ✅ Completo
+
+- `test/integration/occurrence-declared-amount.integration.ts` (na lista explícita de
+  `test:integration` do `package.json`), cinco testes contra Postgres real:
+  1. tipo novo nasce com `OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS` e linha de item `''`; exceção por
+     contratante e por destinatário (pelo repositório real) nasce com os dois modos **nulos**; modo
+     fora do vocabulário na exceção recusado (`…_reference_mode_check`,
+     `…_declared_amount_mode_check`), modo válido aceito;
+  2. `declared_amount_scope = 'item'` com `items_mode = 'off'` e modo `optional`/`required` →
+     `company_occurrence_types_declared_amount_items_check`; escopo `occurrence`, modo `off`, ou
+     produtos ligados → aceito;
+  3. vocabulário do tipo, rótulos em branco e linha de item com 401 caracteres recusados (cada CHECK
+     pelo nome); 400 aceito;
+  4. ocorrência: `-0.01` e `10.005` recusados (`>= 0` e `round(…, 2)`); número `45029;`, `NFD_1`,
+     `Nº 12`, `'   '`, `''` recusados; `NFD 45029` + `199.99` aceitos e lidos como `199.9900`;
+     produtos: valor pago `-1` e `0.001`, `unit_value` `-0.0001` recusados; válidos aceitos;
+  5. **ajuste 5** — corrida do `PUT`: com valor pago por item gravado por fora, `saveOccurrenceType`
+     com `itemsMode: 'off'` rejeita com `OccurrenceTypeDeclaredAmountNeedsItemsError` (422
+     `OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`) e `items_mode` fica `optional`.
+- Tipo semeado **antes** da migration recebendo os padrões: na asserção da T2.2 (rollback → semeia
+  dois tipos, um com `items_mode = 'off'` → reaplica → padrões nos dois).
+- Vermelho primeiro: sem a classe, `SyntaxError: Export named 'OccurrenceTypeDeclaredAmountNeedsItemsError'
+not found` (`0 pass 1 fail 1 error`); com a classe e sem a tradução, o teste 5 falha com o erro cru do
+  Postgres (`Expected constructor: OccurrenceTypeDeclaredAmountNeedsItemsError` — seria 500): `4 pass 1 fail`.
+- Implementação: `OccurrenceTypeDeclaredAmountNeedsItemsError` em `src/trips/domain/trip.error.ts`;
+  `rethrowOccurrenceTypeViolation` (`src/trips/infrastructure/delivery-proof-read.support.ts`) traduz
+  `OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK`, no padrão da 241/246. Depois: `5 pass · 0 fail`.
+
+**Gates**:
+
+- `bun run typecheck` (raiz): exit 0.
+- Contrato da API: `10061 pass · 25 skip · 0 fail · Ran 10086 tests across 199 files`.
+- `db:test` (Postgres nativo): `141 pass · 0 fail · Ran 141 tests across 8 files`.
+- Integração do arquivo novo (Postgres nativo): `5 pass · 0 fail · Ran 5 tests across 1 file`.

@@ -41,7 +41,7 @@ explícita do `package.json` da app.
       colunas nulas nas exceções, colunas da ocorrência e dos produtos, CHECKs geradas das
       constantes (nomes ≤ 63), CHECK `declared_amount_items`. `rollback.sql` que só derruba o que
       esta spec cria. `db:generate`; `make migration-test` verde.
-- [ ] **T2.3** Integração da migration (`test/integration/occurrence-declared-amount.integration.ts`,
+- [x] **T2.3** Integração da migration (`test/integration/occurrence-declared-amount.integration.ts`,
       na lista do `package.json`): tipo semeado antes recebe os defaults; exceção recebe nulo; CHECKs
       recusam `declared_amount_scope='item'` com `items_mode='off'`, valor negativo, número inválido.
 - [ ] **T2.4** Mutações da T2.3, cada uma vermelha registrada: (1) default `'optional'` em
