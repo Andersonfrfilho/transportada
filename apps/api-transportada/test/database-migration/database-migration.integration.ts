@@ -25,6 +25,7 @@ import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
+import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
@@ -185,7 +186,15 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
 
-        // Ordem inversa do histórico: a 241 derruba `items_mode` e, com ele, a CHECK que o lê.
+        // Ordem inversa do histórico: a 247 sai antes da 246, e a 241 derruba `items_mode` e, com
+        // ele, as CHECKs que o leem.
+        await assertOccurrenceDeclaredAmountRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
         await assertOccurrenceTypeQuantityMinimumsRollback({
           connectionString,
           database,

@@ -2,14 +2,22 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  OCCURRENCE_DECLARED_AMOUNT_SCOPE,
+  OCCURRENCE_DECLARED_AMOUNT_SCOPES,
+  OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH,
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_REFERENCE_NUMBER_PATTERN,
+  OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS,
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
   TRIP_OCCURRENCE_STAGE,
 } from '../shared/trip-occurrence.constant.js'
 import type {
+  OccurrenceDeclaredAmountScope,
   OccurrenceItemQuantityUnit,
   OccurrenceTypeFlow,
   TripOccurrenceStage,
@@ -2164,6 +2172,16 @@ export const tripDocumentOccurrences = pgTable(
      */
     signatureObjectId: uuid('signature_object_id'),
     /**
+     * Spec 247 (RF8): o número do documento do cliente (ex.: a NFD), quando o tipo o pede. Nulo na
+     * ocorrência antiga e no tipo com `reference_number_mode = 'off'`.
+     */
+    referenceNumber: varchar('reference_number', { length: 30 }),
+    /**
+     * Spec 247 (RF9): o valor pago digitado pela ocorrência inteira (`declared_amount_scope =
+     * 'occurrence'`). Dinheiro em `numeric`, nunca float; nulo cai na soma das linhas.
+     */
+    declaredAmount: numeric('declared_amount', { precision: 14, scale: 4 }),
+    /**
      * Spec 167 (RF6): cancelamento é três colunas, não tabela nova — no máximo uma linha por
      * ocorrência, e uma tabela 1-para-0..1 pagaria join em toda leitura para representar isto. O
      * CHECK abaixo casa a presença dos três: existem juntos ou nenhum existe.
@@ -2268,6 +2286,14 @@ export const tripDocumentOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    check(
+      'trip_document_occurrences_reference_number_check',
+      sql`${table.referenceNumber} is null or (${table.referenceNumber} ~ ${raw(`'${OCCURRENCE_REFERENCE_NUMBER_PATTERN}'`)} and length(btrim(${table.referenceNumber})) > 0)`,
+    ),
+    check(
+      'trip_document_occurrences_declared_amount_check',
+      sql`${table.declaredAmount} is null or (${table.declaredAmount} >= 0 and ${table.declaredAmount} = round(${table.declaredAmount}, 2))`,
+    ),
     check(
       'trip_document_occurrences_cancellation_presence_check',
       sql`(${table.cancelledAt} is null) = (${table.cancelledByUserId} is null)
@@ -2527,6 +2553,14 @@ export const tripDocumentOccurrenceProducts = pgTable(
      * XML) sem virar `text` sem teto.
      */
     quantityUnit: varchar('quantity_unit', { length: 20 }).$type<OccurrenceItemQuantityUnit>(),
+    /**
+     * Spec 247 (D9): cópia do `vUnCom` da nota no registro — a ocorrência aponta o produto por
+     * código, e a nota pode repetir o código em duas linhas; a cópia fixa o valor que o registro
+     * usou. Nula nas linhas antigas.
+     */
+    unitValue: numeric('unit_value', { precision: 19, scale: 4 }),
+    /** Spec 247 (RF9): o valor pago digitado na linha (`declared_amount_scope = 'item'`). */
+    declaredAmount: numeric('declared_amount', { precision: 14, scale: 4 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -2580,6 +2614,14 @@ export const tripDocumentOccurrenceProducts = pgTable(
     check(
       'trip_document_occurrence_products_quantity_unit_check',
       sql`${table.quantityUnit} is null or length(btrim(${table.quantityUnit})) > 0`,
+    ),
+    check(
+      'trip_document_occurrence_products_unit_value_check',
+      sql`${table.unitValue} is null or ${table.unitValue} >= 0`,
+    ),
+    check(
+      'trip_document_occurrence_products_declared_amount_check',
+      sql`${table.declaredAmount} is null or (${table.declaredAmount} >= 0 and ${table.declaredAmount} = round(${table.declaredAmount}, 2))`,
     ),
   ],
 )
@@ -2704,6 +2746,35 @@ export const companyOccurrenceTypes = pgTable(
      * Nulo = todos os itens da nota (a recusa total).
      */
     itemsMinimumCount: smallint('items_minimum_count'),
+    /**
+     * Spec 247 (RF1): se o registro pede o número do documento do cliente, e com que rótulo. Padrão
+     * `'off'`: nenhum tipo existente passa a pedir nada ao aplicar a migration.
+     */
+    referenceNumberMode: varchar('reference_number_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.referenceNumberMode),
+    referenceNumberLabel: varchar('reference_number_label', {
+      length: OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
+    })
+      .notNull()
+      .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.referenceNumberLabel),
+    /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
+    declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.declaredAmountMode),
+    declaredAmountScope: varchar('declared_amount_scope', { length: 16 })
+      .$type<OccurrenceDeclaredAmountScope>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.declaredAmountScope),
+    declaredAmountLabel: varchar('declared_amount_label', {
+      length: OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
+    })
+      .notNull()
+      .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.declaredAmountLabel),
+    /** Spec 247 (RF6): o modelo de cada linha de `{{linhasItens}}`; vazio é a linha padrão. */
+    emailItemLineTemplate: text('email_item_line_template').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2772,6 +2843,39 @@ export const companyOccurrenceTypes = pgTable(
       OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
       sql`${table.itemsMode} <> 'off' or ${table.redeliveryPolicy} = 'unset'`,
     ),
+    check(
+      'company_occurrence_types_reference_number_mode_check',
+      sql`${table.referenceNumberMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_reference_number_label_check',
+      sql`length(btrim(${table.referenceNumberLabel})) > 0`,
+    ),
+    check(
+      'company_occurrence_types_declared_amount_mode_check',
+      sql`${table.declaredAmountMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_declared_amount_scope_check',
+      sql`${table.declaredAmountScope} in (${raw(inList(OCCURRENCE_DECLARED_AMOUNT_SCOPES))})`,
+    ),
+    check(
+      'company_occurrence_types_declared_amount_label_check',
+      sql`length(btrim(${table.declaredAmountLabel})) > 0`,
+    ),
+    check(
+      'company_occurrence_types_email_item_line_template_check',
+      sql`char_length(${table.emailItemLineTemplate}) <= ${raw(String(OCCURRENCE_ITEM_LINE_TEMPLATE_MAX_LENGTH))}`,
+    ),
+    /**
+     * Spec 247 (RF1): valor pago por item exige linha para digitar. Três termos — com o modo `off` a
+     * forma não se aplica, senão o `ADD CONSTRAINT` recusaria todo tipo existente com `items_mode =
+     * 'off'` (o padrão do escopo é `item`).
+     */
+    check(
+      OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
+      sql`${table.declaredAmountMode} = ${raw(`'${OCCURRENCE_ITEMS_MODE.off}'`)} or ${table.declaredAmountScope} = ${raw(`'${OCCURRENCE_DECLARED_AMOUNT_SCOPE.occurrence}'`)} or ${table.itemsMode} <> ${raw(`'${OCCURRENCE_ITEMS_MODE.off}'`)}`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],
 )
@@ -2803,6 +2907,13 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     itemsMode: varchar('items_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     photoMinimumCount: smallint('photo_minimum_count'),
     itemsMinimumCount: smallint('items_minimum_count'),
+    /** Spec 247 (D8): só os dois modos novos têm exceção; nulo herda do tipo, sem padrão. */
+    referenceNumberMode: varchar('reference_number_mode', {
+      length: 16,
+    }).$type<DeliveryProofFieldMode>(),
+    declaredAmountMode: varchar('declared_amount_mode', {
+      length: 16,
+    }).$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2862,6 +2973,18 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
       'occurrence_type_contractor_overrides_items_minimum_shape_check',
       sql`${table.itemsMinimumCount} is null or coalesce(${table.itemsMode}, '') = 'required'`,
     ),
+    /**
+     * Spec 247: `reference_mode`, não `reference_number_mode` — com o nome inteiro a CHECK passaria
+     * de 63 caracteres (o Postgres truncaria em silêncio).
+     */
+    check(
+      'occurrence_type_contractor_overrides_reference_mode_check',
+      sql`${table.referenceNumberMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_declared_amount_mode_check',
+      sql`${table.declaredAmountMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
   ],
 )
 
@@ -2892,6 +3015,13 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
     itemsMode: varchar('items_mode', { length: 16 }).$type<DeliveryProofFieldMode>(),
     photoMinimumCount: smallint('photo_minimum_count'),
     itemsMinimumCount: smallint('items_minimum_count'),
+    /** Spec 247 (D8): só os dois modos novos têm exceção; nulo herda do tipo, sem padrão. */
+    referenceNumberMode: varchar('reference_number_mode', {
+      length: 16,
+    }).$type<DeliveryProofFieldMode>(),
+    declaredAmountMode: varchar('declared_amount_mode', {
+      length: 16,
+    }).$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2950,6 +3080,18 @@ export const companyOccurrenceTypeRecipientOverrides = pgTable(
     check(
       'occurrence_type_recipient_overrides_items_minimum_shape_check',
       sql`${table.itemsMinimumCount} is null or coalesce(${table.itemsMode}, '') = 'required'`,
+    ),
+    /**
+     * Spec 247: `reference_mode`, não `reference_number_mode` — com o nome inteiro a CHECK passaria
+     * de 63 caracteres (o Postgres truncaria em silêncio).
+     */
+    check(
+      'occurrence_type_recipient_overrides_reference_mode_check',
+      sql`${table.referenceNumberMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_recipient_overrides_declared_amount_mode_check',
+      sql`${table.declaredAmountMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
   ],
 )

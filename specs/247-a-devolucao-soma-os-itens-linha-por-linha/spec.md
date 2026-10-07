@@ -131,7 +131,8 @@ migration.sql:14`, `WHERE "name" = 'Cliente pediu segunda via do boleto'`).
 | `declared_amount_label`    | texto, 1–40 caracteres                                         | `Valor pago`                     | o rótulo do valor na tela de registro                                    |
 | `email_item_line_template` | texto, 0–400 caracteres, marcadores de linha                   | `''` (vazio = linha padrão, RF6) | o formato de **cada linha de item** quando o corpo usa `{{linhasItens}}` |
 
-CHECKs: `declared_amount_scope = 'item'` exige `items_mode <> 'off'` (não há linha para digitar);
+CHECKs: `declared_amount_scope = 'item'` com `declared_amount_mode <> 'off'` exige `items_mode <> 'off'`
+(não há linha para digitar);
 `reference_number_label` e `declared_amount_label` não vazios depois de `trim`.
 
 ### Campos que já existem e passam a ser editáveis na tela (sem duplicar)
@@ -239,8 +240,9 @@ anterior (`previous_items`, 167).
 
 - **RF1** O tipo ganha os seis campos da tabela "Campos novos do tipo", com CHECK no banco gerada da
   constante (nada de lista literal), validação no `PUT /company-settings/occurrence-types` e leitura
-  em todo `GET` que já devolve o tipo. Escrever `declared_amount_scope = 'item'` em tipo com
-  `items_mode = 'off'` volta `422 OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`.
+  em todo `GET` que já devolve o tipo. Escrever `declared_amount_scope = 'item'` com
+  `declared_amount_mode <> 'off'` em tipo com `items_mode = 'off'` volta
+  `422 OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`.
 - **RF2** `email_template_key` (aviso interno) e `email_subject`/`email_body` (e-mail à contratante)
   passam a ser **independentes**: salvar um não apaga o outro. `renderEmail` do registro
   (`register-trip-occurrence.use-case.ts:481`) deixa de pular o modelo próprio quando há chave.

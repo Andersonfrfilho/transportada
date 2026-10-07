@@ -109,3 +109,72 @@ gates: **Postgres nativo descartável** (Homebrew 18.4, cluster em scratchpad, p
   `10058 pass · 25 skip · 0 fail · Ran 10083 tests across 199 files`.
 - `db:test` (equivalente ao `make migration-test`, contra o Postgres nativo):
   `138 pass · 0 fail · Ran 138 tests across 8 files`.
+
+### T2.2 — Schema e migration `20261007033420_occurrence_declared_amount`
+
+**Status**: ✅ Completo (desenho validado pelo `architect`/opus antes; ajustes 1–3, 6–8 aplicados)
+
+- `src/database/trip.schema.ts`: colunas e CHECKs do `plan.md` § Modelo de dados, geradas das
+  constantes (`DELIVERY_PROOF_FIELD_MODES` importado de `company-delivery-proof-settings.schema.ts`,
+  `OCCURRENCE_DECLARED_AMOUNT_SCOPES`, padrões, padrão do número, tetos, nome da CHECK de forma).
+  Exceções: nomes encurtados `…_reference_mode_check` com o comentário do motivo (como o da 246).
+- Opcionais do ajuste 8, **feitos**: `trip_document_occurrence_products_unit_value_check`
+  (`unit_value is null or >= 0`); nas duas `declared_amount` a CHECK inclui `= round(declared_amount, 2)`;
+  `reference_number` também `length(btrim(..)) > 0`.
+- CHECK de forma com **três termos** (ajuste 3):
+  `"declared_amount_mode" = 'off' or "declared_amount_scope" = 'occurrence' or "items_mode" <> 'off'`.
+  `spec.md` § Campos novos e RF1 corrigidos para "com `declared_amount_mode <> 'off'`".
+- `migration.sql`: 14 `ADD COLUMN` (exceções nulas sem padrão; tipo com padrão constante; ocorrência e
+  produtos nulos, `numeric(14,4)`/`numeric(19,4)`), depois 15 `ADD CONSTRAINT`. Nenhum `UPDATE`.
+- `rollback.sql`: `BEGIN; … COMMIT;`, CHECKs → colunas das 5 tabelas → `DELETE` do journal pelo nome
+  da pasta com `ROW_COUNT = 1`; sem `CASCADE`; não toca nada da 241/246; cabeçalho registra o que se perde.
+- Cadeia de snapshots: `prevIds` do novo = `['4aafa5e2-6d07-4537-b98c-a70a943aaa79']` = `id` de
+  `20261006205232_street_occurrence_attachment_backfill` (o último antes). `bun run db:generate`
+  depois de gerada: `{"status":"no_changes","dialect":"postgresql"}`.
+
+**Nomes medidos (script, ≤ 63):**
+
+| Nome                                                              | Tam. |
+| ----------------------------------------------------------------- | ---- |
+| `company_occurrence_types_reference_number_mode_check`            | 52   |
+| `company_occurrence_types_reference_number_label_check`           | 53   |
+| `company_occurrence_types_declared_amount_mode_check`             | 51   |
+| `company_occurrence_types_declared_amount_scope_check`            | 52   |
+| `company_occurrence_types_declared_amount_label_check`            | 52   |
+| `company_occurrence_types_email_item_line_template_check`         | 55   |
+| `company_occurrence_types_declared_amount_items_check`            | 52   |
+| `occurrence_type_contractor_overrides_reference_mode_check`       | 57   |
+| `occurrence_type_contractor_overrides_declared_amount_mode_check` | 63   |
+| `occurrence_type_recipient_overrides_reference_mode_check`        | 56   |
+| `occurrence_type_recipient_overrides_declared_amount_mode_check`  | 62   |
+| `trip_document_occurrences_reference_number_check`                | 48   |
+| `trip_document_occurrences_declared_amount_check`                 | 47   |
+| `trip_document_occurrence_products_unit_value_check`              | 50   |
+| `trip_document_occurrence_products_declared_amount_check`         | 55   |
+
+Descartados por tamanho: `company_occurrence_type_contractor_overrides_reference_number_mode_check` (72)
+e `…_recipient_…` (71). O contrato estático também afirma `≤ 63` em todos.
+
+**Testes antes** (padrão da 246):
+
+- `test/database-migration/occurrence-declared-amount.static.contract.ts` (importado em
+  `test/database-migration.contract.test.ts`): nomes ≤ 63, colunas antes das CHECKs, sem
+  `UPDATE/DROP/DELETE`, CHECK de forma com os três termos, rollback na ordem e sem tocar 241/246, sem
+  `CASCADE`.
+- `test/database-migration/occurrence-declared-amount.assertion.ts`, ligado em
+  `database-migration.integration.ts` **antes** de `assertOccurrenceTypeQuantityMinimumsRollback`
+  (ordem inversa): roda o rollback, confere que as 15 CHECKs e as 14 colunas somem e que as CHECKs
+  da 241/246 ficam; semeia dois tipos **antes** da reaplicação (um com `items_mode = 'off'`), reaplica
+  e confere os padrões nos dois.
+- Vermelho primeiro (sem migration): `101 pass · 3 fail` — `error: occurrence_declared_amount is required`
+  nos dois testes estáticos e em `applies, constrains, rolls back, and reapplies…`.
+- Depois: o `static-migration.contract.ts` (lista explícita de pastas) também precisou da pasta nova
+  (`+ "20261007033420_occurrence_declared_amount"`); então `104 pass · 0 fail`.
+
+**Gates**:
+
+- `bun run typecheck` (raiz): exit 0.
+- Contrato da API: `10061 pass · 25 skip · 0 fail · Ran 10086 tests across 199 files`.
+- `db:test` (Postgres nativo descartável): `141 pass · 0 fail · Ran 141 tests across 8 files`.
+- `migration-completeness` + `occurrence-type-minimum-counts` + `occurrence-type-items-mode`
+  (integração, Postgres nativo): `12 pass · 0 fail`.
