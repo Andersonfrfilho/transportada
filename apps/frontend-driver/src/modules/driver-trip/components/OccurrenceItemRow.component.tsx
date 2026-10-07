@@ -9,6 +9,7 @@ import type { OccurrenceItemLine } from '../shared/occurrenceDraftValues.service
 import { formatBrazilianUnitValue } from '../shared/occurrenceMoneyFormat.service'
 import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
 import styles from '../styles/occurrenceValues.module.css'
+import { OccurrenceMoneyField } from './OccurrenceMoneyField.component'
 import { OccurrenceTextField } from './OccurrenceTextField.component'
 
 type OccurrenceItemRowProps = Readonly<{
@@ -39,6 +40,12 @@ export function OccurrenceItemRow({
       : formatBrazilianAmount(lineCents)
 
   function describeQuantityProblem(): string | undefined {
+    if (line.quantityProblem === 'too-many-decimals') {
+      return t('occurrenceRegistration.items.quantityTooManyDecimals')
+    }
+    if (line.quantityProblem === 'too-many-digits') {
+      return t('occurrenceRegistration.items.quantityTooManyDigits')
+    }
     if (line.quantityProblem === 'above-note') {
       return t('occurrenceRegistration.items.quantityAboveNote', {
         quantity: formatBrazilianQuantity(product.quantity),
@@ -84,8 +91,7 @@ export function OccurrenceItemRow({
               value={line.draft.quantityText}
             />
             {isAmountVisible ? (
-              <OccurrenceTextField
-                inputMode="decimal"
+              <OccurrenceMoneyField
                 label={t(
                   line.isDeclaredAmountRequired
                     ? 'occurrenceRegistration.items.amountRequired'

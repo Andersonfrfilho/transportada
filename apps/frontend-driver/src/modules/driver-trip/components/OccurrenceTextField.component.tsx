@@ -8,8 +8,10 @@ import styles from '../styles/occurrenceValues.module.css'
 type OccurrenceTextFieldProps = Readonly<{
   error?: string | undefined
   hint?: string | undefined
-  inputMode: 'decimal' | 'text'
+  inputMode: 'decimal' | 'numeric' | 'text'
   label: string
+  /** Região viva do campo: o aviso que muda enquanto se digita (ex.: o teto do valor). */
+  liveMessage?: string | undefined
   maxLength?: number | undefined
   onChange: (text: string) => void
   placeholder?: string | undefined
@@ -25,6 +27,7 @@ export function OccurrenceTextField({
   hint,
   inputMode,
   label,
+  liveMessage,
   maxLength,
   onChange,
   placeholder,
@@ -58,6 +61,11 @@ export function OccurrenceTextField({
       {hint === undefined ? null : (
         <p className={styles.fieldHint} id={hintId}>
           {hint}
+        </p>
+      )}
+      {liveMessage === undefined ? null : (
+        <p aria-live="polite" className={styles.liveMessage}>
+          {liveMessage}
         </p>
       )}
       {error === undefined ? null : (
