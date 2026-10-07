@@ -54,7 +54,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 - [x] **T3.1** 🧠 Contratos vermelhos do `nota-rp-v3.client` a partir das respostas do swagger
       (fixtures): emitir 200/409/422/403/429, listar por status, cancelar, pdf/xml.
-- [ ] **T3.2** Porta: `issue` recebe a chave do provedor e `id_nota` opcional; `NfseCredentialAccess`
+- [x] **T3.2** (cliente + limitador; porta e credencial seguem na T3.3) Porta: `issue` recebe a chave do provedor e `id_nota` opcional; `NfseCredentialAccess`
       ganha `taxId` (os dois repositórios do worker o carregam). `nota-rp-v3.client.ts` (token+CNPJ+IM,
       origem + `/api/v3`, mapeamento do plan, saneamento, `Falha`→`NOTA_RP_FALHA`, `not_found`→`error`).
 - [ ] **T3.3** Gateways (emissão, status pull, cancelamento, documentos) roteiam pela

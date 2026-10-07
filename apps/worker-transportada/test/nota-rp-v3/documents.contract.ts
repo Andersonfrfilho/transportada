@@ -84,6 +84,15 @@ describe('Nota RP v3 client — documentos', () => {
     expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
   })
 
+  test('base64_file vazio é malformed_response', async () => {
+    const { outcome } = await documentWith({
+      kind: 'pdf',
+      respond: () => jsonResponse({ base64_file: '', success: true }),
+    })
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
+
   test('success:false é rejected', async () => {
     const { outcome } = await documentWith({
       kind: 'xml',

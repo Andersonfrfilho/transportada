@@ -276,3 +276,36 @@ Comandos (de `apps/worker-transportada`):
   mutações-alvo: (1) usar `baseUrl` cru em vez da origem — derruba "baseUrl com /api/v2, só com a origem…";
   (2) `not_found` → `rejected` — derruba os dois de "nota ausente adia"; (3) não sanear o token — derruba os
   de saneamento e de rede sem vazar segredo.
+
+## E16 — T3.2: cliente Nota RP v3 e limitador de taxa (07/10/2026)
+
+Arquivos novos (`apps/worker-transportada/src/nfse-issuance/infrastructure/`): `nota-rp-v3.client.ts`
+(`createNotaRpV3Client({clock, config, fetch})`), `nota-rp-v3.types.ts`, `nota-rp-v3-transport.ts` (origem +
+`/api/v3`, cabeçalhos `X-Auth-*`, pontuação removida sem tocar nas letras), `nota-rp-v3-envelope.ts`
+(saneamento, 500 caracteres), `nota-rp-v3-issue-body.mapper.ts` (zod + tabela do plan),
+`nota-rp-v3-status.mapper.ts`, `nota-rp-v3-document.reader.ts`, `nota-rp-rate-limit.ts` (+ `.types.ts`,
+objeto único `{fetch, minIntervalMilliseconds, clock, sleep}`). `toIssRatePercentage` saiu do
+`nfse-fiscal-gateway.ts` para `nfse-iss-rate-percentage.ts` (mesmo código, importado pelos dois).
+
+Ajustes do architect, todos com teste vermelho antes: `authorizedAt` vem de `data_competencia` (reserva
+`data_emissao`) como `AAAA-MM-DDT00:00:00-03:00`; cliente nunca lança (payload fora do formato →
+`NFSE_PAYLOAD_INVALID` sem HTTP; sem `taker.address` o tomador vai com `documento` e `nome`); `id_nota`
+diferente do pedido → `not_found`; 409 sem `id_nota` → `NOTA_RP_HTTP_409`; CNPJ alfanumérico preserva letras;
+`hash_pedido` acompanha o `id_nota` na reedição. Extras: `webhook_url` omitido sem `https://`, `base64_file`
+vazio → malformed, descrição > 2000 → `NFSE_DESCRIPTION_TOO_LONG_FOR_PROVIDER`. Testes: 77 → 87.
+
+Gates (de `apps/worker-transportada`): `bun run typecheck` 0 erros; `nota-rp-v3-client` 87 pass / 0 fail;
+`nota-rp-v2-client` 48 pass; `nfse-fiscal-gateway` 13 pass; `bun run lint` limpo; `prettier --check` limpo.
+
+Prova por mutação (aplicada à mão, revertida):
+
+- (a) `baseUrl` cru em vez da origem: 6 falhas — emite em POST…/emitir; baseUrl com /api/v2, só origem ou barra
+  final; consulta GET listar; cancela em POST…/cancelar; pdf GET; xml GET.
+- (b) `not_found` como `rejected`: 3 falhas — "results vazio é error not_found"; "results[0] com id_nota
+  diferente do pedido…"; "documentos > 404 é error not_found" (o 404 do listar não foi mutado).
+- (c) token sem saneamento: 3 falhas — "mensagem de recusa sai sem token nem callback token e com até 500
+  caracteres"; "success:false em 200 também é saneado"; "cancelamento > 200 com success:false… saneada".
+
+Decisões desta task: `success:false` na **consulta** vira `error unexpected_status` (não `rejected`, como na
+v2): recusa do listar não prova nada sobre a nota (ADR 0098 §7). 4xx do cancelar além do 409 →
+`unexpected_status`. O 409 do cancelar segue `rejected NOTA_RP_HTTP_409` até a T3.4 (consulta de confirmação).

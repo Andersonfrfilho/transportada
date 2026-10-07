@@ -13,14 +13,12 @@ import { describe, expect, test } from 'bun:test'
 type FetchStub = (input: string, init: RequestInit) => Promise<Response>
 
 type RateLimitModule = {
-  createRateLimitedFetch(
-    fetchImplementation: FetchStub,
-    options: {
-      clock: () => number
-      minIntervalMilliseconds: number
-      sleep: (milliseconds: number) => Promise<void>
-    },
-  ): FetchStub
+  createRateLimitedFetch(params: {
+    clock: () => number
+    fetch: FetchStub
+    minIntervalMilliseconds: number
+    sleep: (milliseconds: number) => Promise<void>
+  }): FetchStub
 }
 
 const MIN_INTERVAL = 1000
@@ -67,8 +65,9 @@ async function createLimited(input: { fetch: FetchStub; time: FakeTime }): Promi
   const module = (await import(
     '../../src/nfse-issuance/infrastructure/nota-rp-rate-limit.js'
   )) as RateLimitModule
-  return module.createRateLimitedFetch(input.fetch, {
+  return module.createRateLimitedFetch({
     clock: input.time.clock,
+    fetch: input.fetch,
     minIntervalMilliseconds: MIN_INTERVAL,
     sleep: input.time.sleep,
   })

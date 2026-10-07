@@ -168,12 +168,86 @@ describe('Nota RP v3 client — emissão: corpo a partir do payload congelado', 
     const reissue = await issueWith({ providerDocumentId: PROVIDER_DOCUMENT_ID })
     const first = await issueWith({})
 
-    expect(parseBody(reissue.calls[0])).toMatchObject({ id_nota: Number(PROVIDER_DOCUMENT_ID) })
+    expect(parseBody(reissue.calls[0])).toMatchObject({
+      flags: { hash_pedido: PROVIDER_REQUEST_KEY },
+      id_nota: Number(PROVIDER_DOCUMENT_ID),
+    })
     expect(Object.keys(parseBody(first.calls[0]) as object)).not.toContain('id_nota')
   })
 })
 
+describe('Nota RP v3 client — emissão: documentos e endereço', () => {
+  test('CNPJ alfanumérico perde só a pontuação, no cabeçalho e no tomador', async () => {
+    const { calls, fetch } = recordingFetch(issuedBody)
+    const client = await createNotaRpV3ClientFixture({
+      config: { taxId: '1A.B2C.3D4/0001-95' },
+      fetch,
+    })
+
+    await client.issue({
+      payload: payloadWith({ taker: { ...FROZEN_PAYLOAD.taker, taxId: 'AB.CDE.FGH/0001-12' } }),
+      providerRequestKey: PROVIDER_REQUEST_KEY,
+    })
+
+    expect(calls[0]?.headers['x-auth-cnpj']).toBe('1AB2C3D4000195')
+    expect(parseBody(calls[0])).toMatchObject({ tomador: { documento: 'ABCDEFGH000112' } })
+  })
+
+  test('sem taker.address o tomador vai só com documento e nome', async () => {
+    const { taker } = FROZEN_PAYLOAD
+    const { calls, outcome } = await issueWith({
+      payload: payloadWith({ taker: { legalName: taker.legalName, taxId: taker.taxId } }),
+    })
+
+    expect(outcome.status).toBe('accepted')
+    expect(parseBody(calls[0])).toMatchObject({
+      tomador: { documento: '98765432000110', nome: 'Comercial Exemplo Ltda' },
+    })
+    expect(Object.keys((parseBody(calls[0]) as { tomador: object }).tomador)).toEqual([
+      'documento',
+      'nome',
+    ])
+  })
+
+  test('callbackBaseUrl sem https omite flags.webhook_url', async () => {
+    const { calls, fetch } = recordingFetch(issuedBody)
+    const client = await createNotaRpV3ClientFixture({
+      config: { callbackBaseUrl: 'http://api.transportada.invalid' },
+      fetch,
+    })
+
+    await client.issue({ payload: FROZEN_PAYLOAD, providerRequestKey: PROVIDER_REQUEST_KEY })
+
+    const { flags } = parseBody(calls[0]) as { flags: Record<string, unknown> }
+    expect(Object.keys(flags)).not.toContain('webhook_url')
+  })
+})
+
 describe('Nota RP v3 client — emissão: recusa local antes do provedor', () => {
+  test('payload fora do formato é recusa NFSE_PAYLOAD_INVALID, sem HTTP e sem exceção', async () => {
+    for (const payload of [
+      payloadWith({ serviceAmount: 2601.95 }),
+      payloadWith({ taker: 'sem tomador' }),
+      payloadWithout('description'),
+      payloadWithout('taker'),
+    ]) {
+      const { calls, outcome } = await issueWith({ payload })
+
+      expect(calls).toHaveLength(0)
+      expect(outcome.status).toBe('rejected')
+      expect(outcome.rejection?.code).toBe('NFSE_PAYLOAD_INVALID')
+    }
+  })
+
+  test('descrição acima de 2000 caracteres é recusa nomeada, sem HTTP', async () => {
+    const { calls, outcome } = await issueWith({
+      payload: payloadWith({ description: 'x'.repeat(2001) }),
+    })
+
+    expect(calls).toHaveLength(0)
+    expect(outcome.rejection?.code).toBe('NFSE_DESCRIPTION_TOO_LONG_FOR_PROVIDER')
+  })
+
   test('sem nationalTaxationCode é recusa fatal nomeada, sem chamada HTTP', async () => {
     const { calls, outcome } = await issueWith({ payload: payloadWithout('nationalTaxationCode') })
 
@@ -229,6 +303,15 @@ describe('Nota RP v3 client — emissão: respostas', () => {
     const { outcome } = await issueWith({ respond: duplicateRequestBody })
 
     expect(outcome).toEqual({ providerDocumentId: PROVIDER_DOCUMENT_ID, status: 'accepted' })
+  })
+
+  test('409 sem id_nota no corpo é recusa NOTA_RP_HTTP_409', async () => {
+    const { outcome } = await issueWith({
+      respond: () => errorBody({ message: 'Nota não pode ser reeditada', status: 409 }),
+    })
+
+    expect(outcome.status).toBe('rejected')
+    expect(outcome.rejection?.code).toBe('NOTA_RP_HTTP_409')
   })
 
   for (const status of REJECTED_CLIENT_STATUSES) {

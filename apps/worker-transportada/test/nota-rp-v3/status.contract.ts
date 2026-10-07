@@ -23,7 +23,7 @@ import {
 } from './fixture.js'
 
 const PENDING_STATUSES = ['Criada', 'Enviando', 'Pendente'] as const
-const REQUIRED_AUTHORIZATION_FIELDS = ['numero', 'data_emissao', 'chave_acesso'] as const
+const REQUIRED_AUTHORIZATION_FIELDS = ['numero', 'chave_acesso'] as const
 
 async function statusWith(
   respond: () => Response,
@@ -68,7 +68,7 @@ describe('Nota RP v3 client — consulta: classificação por status', () => {
 
     expect(outcome).toEqual({
       document: {
-        authorizedAt: '2024-01-15',
+        authorizedAt: '2024-01-15T00:00:00-03:00',
         fiscalNumber: '123',
         providerDocumentId: PROVIDER_DOCUMENT_ID,
         verificationCode: 'ABC123XYZ789',
@@ -87,6 +87,46 @@ describe('Nota RP v3 client — consulta: classificação por status', () => {
       expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
     })
   }
+
+  // data_emissao é campo depreciado do swagger e não é obrigatório: a competência é a fonte.
+  test('o instante autorizado vem de data_competencia, ancorado em -03:00', async () => {
+    const note = Object.fromEntries(
+      Object.entries(noteListItem({ data_competencia: '2024-01-15' })).filter(
+        ([key]) => key !== 'data_emissao',
+      ),
+    )
+    const { outcome } = await statusWith(() => listBody([note]))
+
+    const authorizedAt = outcome.document?.authorizedAt ?? ''
+    expect(authorizedAt).toBe('2024-01-15T00:00:00-03:00')
+    expect(
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(
+        new Date(authorizedAt),
+      ),
+    ).toBe('2024-01-15')
+  })
+
+  test('sem data_competencia, data_emissao serve de reserva', async () => {
+    const note = Object.fromEntries(
+      Object.entries(noteListItem({ data_emissao: '2024-02-20' })).filter(
+        ([key]) => key !== 'data_competencia',
+      ),
+    )
+    const { outcome } = await statusWith(() => listBody([note]))
+
+    expect(outcome.document?.authorizedAt).toBe('2024-02-20T00:00:00-03:00')
+  })
+
+  test('Sucesso sem nenhuma das duas datas é malformed_response', async () => {
+    const note = Object.fromEntries(
+      Object.entries(noteListItem()).filter(
+        ([key]) => key !== 'data_competencia' && key !== 'data_emissao',
+      ),
+    )
+    const { outcome } = await statusWith(() => listBody([note]))
+
+    expect(outcome).toEqual({ cause: 'malformed_response', status: 'error' })
+  })
 
   // O listar não traz o motivo da Falha; sem código sintético a reconciliação a tomaria por MALFORMED.
   test('Falha é rejected NOTA_RP_FALHA com mensagem fixa em pt-BR', async () => {
@@ -129,6 +169,14 @@ describe('Nota RP v3 client — consulta: nota ausente adia, nunca recusa', () =
     const { outcome } = await statusWith(() =>
       errorBody({ message: 'Recurso não encontrado', status: 404 }),
     )
+
+    expect(outcome).toEqual({ cause: 'not_found', status: 'error' })
+  })
+})
+
+describe('Nota RP v3 client — consulta: nota de outro id', () => {
+  test('results[0] com id_nota diferente do pedido é error not_found, nunca authorized', async () => {
+    const { outcome } = await statusWith(() => listBody([noteListItem({ id_nota: 99999 })]))
 
     expect(outcome).toEqual({ cause: 'not_found', status: 'error' })
   })
