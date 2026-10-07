@@ -1749,3 +1749,52 @@ bun run lint (API)                      exit=0
 bun run typecheck (raiz)                exit=0
 bun run format:check (raiz)             exit=0
 ```
+
+### R2 — o detalhe da ocorrência publica o que foi gravado (A2, M3)
+
+`GET /trip-occurrences/:id` (`findTripOccurrenceDetail`) passa a devolver, **no nível da ocorrência** e sem tocar nos objetos de
+`items[]`:
+
+| Campo novo        | Tipo                                                     | Origem                                                                                                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `referenceNumber` | `string \| null`                                         | `trip_document_occurrences.reference_number`                                                                                                                                                                                                                                             |
+| `declaredAmount`  | `string \| null`                                         | valor pago da ocorrência, duas casas (`"150.50"`; zero é `"0.00"`, nunca `null`)                                                                                                                                                                                                         |
+| `itemValues`      | `{ productCode, quantity, unitValue, declaredAmount }[]` | linhas gravadas, na ordem de `position`: `quantity` como o `numeric(12,3)` (`"2.000"`), `unitValue` é a **cópia** do `vUnCom` no registro (4 casas, como a nota: `"19.9950"` — arredondar a duas casas perderia o centavo da soma, D9), `declaredAmount` do item em duas casas ou `null` |
+
+Ocorrência de parada, nota inteira e ocorrência anterior à 247 devolvem `null`, `null` e `[]`. Dinheiro é `bigint` (centavos) até o
+texto, sem `number`. `occurrence-detail-values.golden.json` (API) e a cópia idêntica em `apps/frontend-transportada/test/fixtures/`
+são o JSON de referência dos três campos; `driver-snapshot-products.contract.ts` prova que as cópias são iguais, e a integração
+prova que o detalhe real serializa igual ao JSON.
+
+**Vermelho antes do código** (`occurrence-detail-values.integration.ts`): 3 fail (dois itens com valor pago e número; valor pago
+da ocorrência com `0.00`; correção troca os valores), 1 pass (outra empresa já era 404).
+
+**Mutações** (cada uma sozinha, revertida): zero virar `null` → 2 fail; `unitValue` forçado a `0.0000` → 3 fail.
+
+**Casos cobertos** (integração, Postgres real): registrar com 2 itens e valor pago → o detalhe devolve os campos; a correção troca
+valores e número → o detalhe reflete e o `unit_value` copiado sobrevive à alteração do preço na nota; escopo `occurrence` com
+`150.5` → `"150.50"`; valor pago `0` → `"0.00"`; sem valor → `null`; empresa B recebe `TripOccurrenceNotFoundError` (404), igual
+a ocorrência inexistente; as chaves de cada `items[]` seguem exatamente `code`, `description`, `quantity`, `unit`.
+
+**Parsers do painel publicado (origin/staging) conferidos — nenhum precisa ficar tolerante antes desta publicação.**
+`readDetail` (`modules/trip/shared/tripOccurrenceFeedClient.service.ts`) valida a resposta com `isFeedItem` (`isRecord`, não
+`hasExactKeys`), `isDetailDriver` e `isDetailItem` (ambos `isRecord`) e devolve `{ ...toFeedItem(raw), ... }`, que espalha as chaves
+desconhecidas — elas passam sem recusa. Por isso os três nomes (`referenceNumber`, `declaredAmount`, `itemValues`) entram sem erro. O
+que **recusaria** chave nova é `isTripOccurrence` (`modules/trip/shared/tripResponse.validation.ts`, `hasKeys` com lista) e
+`isOccurrenceCorrection`/`isOccurrenceProduct` (`hasExactKeys`), que leem o detalhe da **viagem** e `corrections[].previousItems[]` — a
+R2 não toca nenhum dos dois (as correções seguem publicando `code`/`quantity`/`unit`). O painel só passa a **usar** os campos quando
+`TripOccurrenceDetail` (`tripOccurrenceFeed.service.ts`) e `readDetail` os declararem; isso é trabalho de painel, fora desta task.
+
+**Gates R2** (fresh, código de saída conferido):
+
+```text
+contrato (apps/api-transportada)        exit=0 · 10368 pass · 25 skip · 0 fail (200 arquivos)
+integração, 4 lotes em primeiro plano   exit=0 · 377 pass | 308 pass 7 skip | 242 pass | 205 pass 1 skip · 0 fail (211 arquivos)
+bun run lint (API)                      exit=0
+bun run typecheck (raiz)                exit=0
+bun run format:check (raiz)             exit=0
+```
+
+**O que não foi rodado:** nenhuma tela (a task não toca o painel além dos JSONs de referência); `make migration-test` (nenhuma
+migration); suíte do `frontend-transportada` (só ganhou um fixture, sem consumidor); o caminho do escritório
+(`register-trip-occurrence`) não recebe número nem valor pago, então M2 não o alcança.
