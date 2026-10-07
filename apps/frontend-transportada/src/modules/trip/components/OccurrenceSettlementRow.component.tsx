@@ -17,6 +17,7 @@ import {
   type OccurrenceSettlementPayerKind,
 } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { AmountLimitNotice } from './AmountLimitNotice.component'
 
 export type OccurrenceSettlementRowProps = Readonly<{
   driverOptions: DriverOptionsController
@@ -86,6 +87,7 @@ export function OccurrenceSettlementRow({
           type="text"
           value={row.amount}
         />
+        <AmountLimitNotice value={row.amount} />
         {amountInvalid ? (
           <span className={styles.settlementFieldError}>
             {t('occurrenceSettlement.amountRequired')}

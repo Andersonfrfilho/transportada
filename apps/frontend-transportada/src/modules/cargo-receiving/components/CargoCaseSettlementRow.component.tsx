@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { AmountLimitNotice } from '@/modules/trip/components/AmountLimitNotice.component'
 import { maskAmountInput } from '@/modules/trip/shared/occurrenceSettlementMoney.service'
 
 import { CARGO_SETTLEMENT_PAYER_KINDS } from '../shared/cargoOccurrenceCase.constant'
@@ -74,6 +75,7 @@ function AmountField(props: FieldProps & Readonly<{ hasIssue: boolean }>): JSX.E
           value={props.row.amount}
         />
       </label>
+      <AmountLimitNotice value={props.row.amount} />
       {props.hasIssue ? (
         <p className={styles.settlementIssue} role="alert">
           {t('occurrence.settlement.issues.amountRequired')}

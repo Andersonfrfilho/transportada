@@ -1,4 +1,5 @@
 {
+  "amountLimit": "Limite de 10 dígitos antes da vírgula: a próxima tecla não entra.",
   "actions": {
     "backToList": "Voltar às viagens",
     "close": "Encerrar viagem",
