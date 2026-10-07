@@ -27,7 +27,13 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
+      "declaredAmountRequired": "o valor pago é exigido por este tipo de ocorrência",
+      "itemDeclaredAmountRequired": "o valor pago de cada produto é exigido por este tipo de ocorrência",
+      "itemQuantityAboveNote": "a quantidade devolvida passou da quantidade da nota",
+      "itemsMinimumNotMet": "faltou marcar mais produtos da nota",
+      "itemsRequired": "faltou marcar os produtos da nota",
       "notOfDriver": "esta viagem foi transferida; peça ao escritório para registrar",
+      "referenceNumberRequired": "o número do documento do cliente é exigido por este tipo de ocorrência",
       "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
@@ -506,12 +512,42 @@
       "required": "Foto obrigatória"
     },
     "cancel": "Cancelar",
+    "declaredAmount": {
+      "defaultLabel": "Valor pago",
+      "optional": "{{label}} · opcional",
+      "placeholder": "0,00",
+      "required": "{{label}} · obrigatório"
+    },
+    "items": {
+      "amountOptional": "{{label}} · se diferente",
+      "amountRequired": "{{label}} · obrigatório",
+      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
+      "money": "R$ {{value}}",
+      "onNote": "Na nota: {{quantity}} {{unit}} × R$ {{unitValue}}",
+      "paid": "· pago R$ {{value}}",
+      "quantityAboveNote": "A nota tem só {{quantity}} {{unit}}.",
+      "quantityLabel": "Quantidade devolvida ({{unit}})",
+      "quantityMissing": "Informe a quantidade, maior que zero.",
+      "title": "Produtos devolvidos",
+      "titleOptional": "Produtos devolvidos (opcional)",
+      "titleRequired": "Produtos devolvidos (obrigatório)",
+      "totals": {
+        "inMail": "Valor no e-mail",
+        "sum": "Soma dos produtos (NF-e)"
+      },
+      "varyingUnitValue": "O valor unitário varia nesta nota: informe o valor pago desta linha."
+    },
     "legend": "Qual ocorrência?",
     "missing": {
+      "declaredAmount": "“{{label}}”",
+      "itemDeclaredAmount": "“{{label}}” de cada produto marcado",
       "note": "a observação",
       "photo": "a foto",
       "photoMinimum": "mais fotos (mínimo de {{count}})",
+      "productQuantity": "a quantidade dos produtos marcados",
       "products": "a marcação dos produtos",
+      "productsMinimum": "mais produtos (mínimo de {{count}})",
+      "referenceNumber": "“{{label}}”",
       "signature": "a assinatura"
     },
     "missingLead": "Para registrar, falta: {{fields}}.",
@@ -523,6 +559,11 @@
     "photoRemoveLast": "Remover a última foto",
     "products": {
       "title": "Produtos da nota (obrigatório)"
+    },
+    "referenceNumber": {
+      "defaultLabel": "Número do documento do cliente",
+      "optional": "{{label}} · opcional",
+      "required": "{{label}} · obrigatório"
     },
     "signature": {
       "redo": "Colher a assinatura de novo",

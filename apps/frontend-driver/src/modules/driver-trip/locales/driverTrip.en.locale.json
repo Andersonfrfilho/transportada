@@ -40,7 +40,13 @@
     "attachments_other": "{{count}} attachments",
     "back": "Back",
     "cause": {
+      "declaredAmountRequired": "the amount paid is required by this occurrence type",
+      "itemDeclaredAmountRequired": "the amount paid for each product is required by this occurrence type",
+      "itemQuantityAboveNote": "the quantity returned is above the quantity on the invoice",
+      "itemsMinimumNotMet": "more products of the invoice had to be marked",
+      "itemsRequired": "the products of the invoice had to be marked",
       "notOfDriver": "this trip was transferred; ask the office to record it",
+      "referenceNumberRequired": "the customer document number is required by this occurrence type",
       "stopNotReachable": "this stop was removed from the trip; ask the office to record it",
       "tooLarge": "the photo is larger than the server accepts"
     },
@@ -495,12 +501,42 @@
       "required": "Photo required"
     },
     "cancel": "Cancel",
+    "declaredAmount": {
+      "defaultLabel": "Amount paid",
+      "optional": "{{label}} · optional",
+      "placeholder": "0.00",
+      "required": "{{label}} · required"
+    },
+    "items": {
+      "amountOptional": "{{label}} · if different",
+      "amountRequired": "{{label}} · required",
+      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
+      "money": "R$ {{value}}",
+      "onNote": "On the invoice: {{quantity}} {{unit}} × R$ {{unitValue}}",
+      "paid": "· paid R$ {{value}}",
+      "quantityAboveNote": "The invoice has only {{quantity}} {{unit}}.",
+      "quantityLabel": "Quantity returned ({{unit}})",
+      "quantityMissing": "Enter the quantity, greater than zero.",
+      "title": "Products returned",
+      "titleOptional": "Products returned (optional)",
+      "titleRequired": "Products returned (required)",
+      "totals": {
+        "inMail": "Amount in the e-mail",
+        "sum": "Sum of the products (invoice)"
+      },
+      "varyingUnitValue": "The unit price varies on this invoice: enter the amount paid for this line."
+    },
     "legend": "Which occurrence?",
     "missing": {
+      "declaredAmount": "“{{label}}”",
+      "itemDeclaredAmount": "“{{label}}” for each marked product",
       "note": "the note",
       "photo": "the photo",
       "photoMinimum": "more photos (at least {{count}})",
+      "productQuantity": "the quantity of the marked products",
       "products": "the products",
+      "productsMinimum": "more products (at least {{count}})",
+      "referenceNumber": "“{{label}}”",
       "signature": "the signature"
     },
     "missingLead": "To register, still missing: {{fields}}.",
@@ -512,6 +548,11 @@
     "photoRemoveLast": "Remove the last photo",
     "products": {
       "title": "Invoice products (required)"
+    },
+    "referenceNumber": {
+      "defaultLabel": "Customer document number",
+      "optional": "{{label}} · optional",
+      "required": "{{label}} · required"
     },
     "signature": {
       "redo": "Collect the signature again",
