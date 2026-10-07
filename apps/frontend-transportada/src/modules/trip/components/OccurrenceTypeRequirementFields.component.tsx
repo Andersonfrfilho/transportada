@@ -17,9 +17,12 @@ import styles from '@/modules/trip/styles/occurrenceTypeRequirement.module.css'
 
 import { OccurrenceRequirementModeSelect } from './OccurrenceRequirementModeSelect.component'
 import { OccurrenceTypeMinimums } from './OccurrenceTypeMinimums.component'
+import { OccurrenceTypeRecordFields } from './OccurrenceTypeRecordFields.component'
 
 type OccurrenceTypeRequirementFieldsProps = Readonly<{
   disabled: boolean
+  /** Spec 247 RF1: a última escolha pedia valor pago por linha sem produtos — foi impedida e a tela diz por quê. */
+  hasAmountWithoutItems: boolean
   onEdit: (edit: OccurrenceTypeEdit) => void
   type: OccurrenceType
 }>
@@ -38,6 +41,7 @@ function buildEdit(field: OccurrenceRequirementField, mode: OccurrenceAttachment
  */
 export function OccurrenceTypeRequirementFields({
   disabled,
+  hasAmountWithoutItems,
   onEdit,
   type,
 }: OccurrenceTypeRequirementFieldsProps) {
@@ -72,6 +76,13 @@ export function OccurrenceTypeRequirementFields({
           />
         ))}
       </div>
+      <OccurrenceTypeRecordFields
+        disabled={disabled}
+        fields={scope.recordFields}
+        hasAmountWithoutItems={hasAmountWithoutItems}
+        onEdit={onEdit}
+        type={type}
+      />
       <p className={styles.legend}>{t('occurrenceTypeCatalog.requirements.legend')}</p>
       <OccurrenceTypeMinimums
         disabled={disabled}

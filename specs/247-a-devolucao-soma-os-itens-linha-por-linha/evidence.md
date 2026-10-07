@@ -1798,3 +1798,4 @@ bun run format:check (raiz)             exit=0
 **O que não foi rodado:** nenhuma tela (a task não toca o painel além dos JSONs de referência); `make migration-test` (nenhuma
 migration); suíte do `frontend-transportada` (só ganhou um fixture, sem consumidor); o caminho do escritório
 (`register-trip-occurrence`) não recebe número nem valor pago, então M2 não o alcança.
+

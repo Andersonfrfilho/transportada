@@ -83,3 +83,43 @@
     min-height: var(--touch-target);
   }
 }
+
+/* Spec 247 RF3: as linhas do registro (número e valor pago), cada uma com o seletor e os campos que o acompanham. */
+.records {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.record {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: end;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.recordText {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.alert {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-alert);
+  color: var(--color-fog);
+  font-size: 0.82rem;
+}
+
+@media (min-width: 40rem) {
+  .record {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  }
+}
