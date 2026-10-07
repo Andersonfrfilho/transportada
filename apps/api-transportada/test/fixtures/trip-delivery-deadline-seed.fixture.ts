@@ -172,7 +172,7 @@ export type SeedArrivalParams = {
   readonly arrivedAt: Date
   readonly companyId: string
   readonly contractorId: string
-  readonly deadlineBusinessDays: number
+  readonly deadlineBusinessDays: number | null
   readonly documentIds: readonly string[]
 }
 
@@ -225,6 +225,7 @@ export async function seedAddressOverride(
   database: TestDatabase,
   params: {
     readonly companyId: string
+    readonly createdAt?: Date
     readonly newCityCode: string | null
     readonly tripDocumentId: string
   },
@@ -232,6 +233,7 @@ export async function seedAddressOverride(
   await database.db.insert(deliveryAddressOverrides).values({
     actorUserId: ACTOR_USER_ID,
     companyId: params.companyId,
+    ...(params.createdAt === undefined ? {} : { createdAt: params.createdAt }),
     newCityCode: params.newCityCode,
     newLabel: 'Novo endereço',
     previousLabel: 'Endereço antigo',

@@ -61,6 +61,26 @@ const TRANSACTION_REACHABLE_FUNCTIONS = [
     file: 'business-calendar/infrastructure/business-calendar-rules.query.ts',
     signature: 'export async function loadBusinessCalendarRules(',
   },
+  {
+    file: 'trips/infrastructure/trip-delivery-deadline.support.ts',
+    signature: 'export async function readTripDeliveryDeadlines(',
+  },
+  {
+    file: 'trips/infrastructure/trip-delivery-deadline.support.ts',
+    signature: 'async function locateNotes(',
+  },
+  {
+    file: 'trips/infrastructure/trip-delivery-deadline-calendar.support.ts',
+    signature: 'export async function loadCityCalendars(',
+  },
+  {
+    file: 'trips/infrastructure/trip-delivery-deadline.query.ts',
+    signature: 'export async function loadDeliveryAddressOverrideCities(',
+  },
+  {
+    file: 'trips/infrastructure/trip-delivery-deadline.query.ts',
+    signature: 'export async function loadDeliveredMoments(',
+  },
 ] as const
 
 const NEXT_DECLARATION =

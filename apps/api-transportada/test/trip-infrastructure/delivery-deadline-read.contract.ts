@@ -188,10 +188,10 @@ describe('spec 236 T1.2c — a leitura do prazo de entrega, sem banco', () => {
     })
   })
 
-  test('entregue sem evento usa a hora gravada na nota; sem nenhuma, fica sem prazo', async () => {
+  test('entregue sem evento não é medida, nem pela hora que o servidor gravou na nota', async () => {
     const { executor } = createRecordingSelectExecutor()
 
-    const withMoment = await read(
+    const result = await read(
       executor,
       buildInput({
         notes: [
@@ -202,13 +202,40 @@ describe('spec 236 T1.2c — a leitura do prazo de entrega, sem banco', () => {
         ],
       }),
     )
-    const withoutMoment = await read(
+
+    expect(result.size).toBe(0)
+  })
+
+  test('viagem toda entregue lida anos depois mantém o selo, sem aviso de cobertura', async () => {
+    const warnings: Warning[] = []
+    const delivered = new Map([
+      [
+        tripStopEvents,
+        [{ deliveredAt: new Date('2026-10-14T15:00:00.000Z'), tripDocumentId: 'doc-1' }],
+      ],
+    ])
+    const { executor } = createRecordingSelectExecutor({ rowsByTable: delivered })
+
+    const result = await read(
       executor,
-      buildInput({ notes: [note({ outcomeKind: 'delivered' })] }),
+      buildInput(
+        {
+          context: {
+            clock: { now: () => new Date('2032-06-10T15:00:00.000Z') },
+            logger: {
+              error: () => undefined,
+              info: () => undefined,
+              warn: (message, metadata) => void warnings.push({ message, metadata }),
+            },
+          },
+          notes: [note({ outcomeKind: 'delivered' })],
+        },
+        warnings,
+      ),
     )
 
-    expect(withMoment.get('doc-1')?.state).toBe('delivered_on_time')
-    expect(withoutMoment.size).toBe(0)
+    expect(result.get('doc-1')?.state).toBe('delivered_on_time')
+    expect(warnings).toHaveLength(0)
   })
 
   test('nota devolvida, cancelada ou liberada não aparece; as outras da viagem seguem', async () => {
