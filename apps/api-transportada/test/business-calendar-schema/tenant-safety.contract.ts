@@ -16,6 +16,7 @@ const SUPPORT_ONLY = [
   'business-calendar-audit.support.ts',
   'business-calendar-database.types.ts',
   'business-calendar-lock.support.ts',
+  'business-calendar-persistence.support.ts',
   'business-calendar-rule.mapper.ts',
 ]
 

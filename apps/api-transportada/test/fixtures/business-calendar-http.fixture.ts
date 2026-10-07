@@ -6,7 +6,6 @@ import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
   authenticatedContext,
-  COMPANY_CONTEXT,
   CORRELATION_ID,
   createTestRouter,
   FRONTEND_ORIGIN,
