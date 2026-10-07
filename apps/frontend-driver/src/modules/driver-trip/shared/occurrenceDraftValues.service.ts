@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverNfeProduct } from './driverTrip.types'
 import { resolveOccurrenceAmounts } from './occurrenceAmount.service'
-import { toReferenceNumber } from './occurrenceDecimalInput.service'
+import { isReferenceNumberValid, toReferenceNumber } from './occurrenceDecimalInput.service'
 import {
   EMPTY_OCCURRENCE_ITEM_DRAFT,
   type OccurrenceItemDrafts,
@@ -129,12 +129,16 @@ export function evaluateOccurrenceValues(input: {
     requirements.referenceNumberMode === 'off'
       ? undefined
       : toReferenceNumber(input.texts.referenceNumber)
+  const hasInvalidReferenceNumber =
+    requirements.referenceNumberMode !== 'off' &&
+    !isReferenceNumberValid(input.texts.referenceNumber)
   const selected = lines.filter((line) => line.isSelected)
 
   return {
     amountTarget,
     facts: {
       hasDeclaredAmount: declaredAmount !== undefined,
+      hasInvalidReferenceNumber,
       hasInvalidItemQuantity: selected.some((line) => line.quantityProblem !== undefined),
       hasReferenceNumber: referenceNumber !== undefined,
       itemsSelectedCount: selected.length,

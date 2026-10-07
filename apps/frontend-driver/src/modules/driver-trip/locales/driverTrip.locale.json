@@ -536,6 +536,7 @@
       "titleRequired": "Produtos devolvidos (obrigatório)",
       "totals": {
         "inMail": "Total que vai no e-mail",
+        "none": "Sem valor",
         "origin": {
           "calculated": "Calculado pela nota (quantidade × valor unitário).",
           "mixed": "{{typed}} de {{total}} linhas com valor pago digitado; as outras, calculadas pela nota.",
@@ -556,6 +557,7 @@
       "productQuantity": "a quantidade dos produtos marcados",
       "products": "a marcação dos produtos",
       "productsMinimum": "mais produtos (mínimo de {{count}})",
+      "referenceNumberInvalid": "“{{label}}” com letras, números, espaço, ponto, barra e hífen apenas",
       "referenceNumber": "“{{label}}”",
       "signature": "a assinatura"
     },
@@ -573,6 +575,7 @@
     "referenceNumber": {
       "defaultLabel": "Número do documento do cliente",
       "optional": "{{label}} · opcional",
+      "invalid": "Use só letras, números, espaço, ponto, barra e hífen, até {{max}} caracteres. Nada foi cortado: corrija o texto.",
       "required": "{{label}} · obrigatório"
     },
     "signature": {

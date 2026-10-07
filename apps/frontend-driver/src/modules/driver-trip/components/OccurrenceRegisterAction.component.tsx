@@ -54,7 +54,7 @@ export function OccurrenceRegisterAction({
       count:
         field === 'productsMinimum' ? (missingContext?.itemsMinimumCount ?? 1) : photoMinimumCount,
       label:
-        field === 'referenceNumber'
+        field === 'referenceNumber' || field === 'referenceNumberInvalid'
           ? (missingContext?.referenceNumberLabel ?? '')
           : (missingContext?.declaredAmountLabel ?? ''),
     }

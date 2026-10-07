@@ -16,6 +16,7 @@ export type OccurrenceMissingField =
   | 'products'
   | 'productsMinimum'
   | 'referenceNumber'
+  | 'referenceNumberInvalid'
   | 'signature'
 
 /**
@@ -28,6 +29,8 @@ export type OccurrenceValuesFacts = Readonly<{
   hasDeclaredAmount: boolean
   /** Uma linha marcada sem quantidade válida (vazia, zero ou acima da nota). */
   hasInvalidItemQuantity: boolean
+  /** O número do documento tem caractere ou tamanho que a API recusa — o campo guarda o texto e se marca. */
+  hasInvalidReferenceNumber: boolean
   hasReferenceNumber: boolean
   /** Linhas a que falta o valor pago exigido (o tipo o exige, ou o preço varia na nota). */
   lineAmountMissingCount: number
@@ -40,6 +43,7 @@ export type OccurrenceValuesFacts = Readonly<{
 const NO_VALUES_FACTS: OccurrenceValuesFacts = {
   hasDeclaredAmount: false,
   hasInvalidItemQuantity: false,
+  hasInvalidReferenceNumber: false,
   hasReferenceNumber: false,
   itemsSelectedCount: 0,
   itemsTotalCount: 0,
@@ -124,6 +128,16 @@ function listMissingAmountField(input: {
   return isRequired && !values.hasDeclaredAmount ? ['declaredAmount'] : []
 }
 
+function listMissingReferenceNumberField(input: {
+  readonly requirements: OccurrenceRequirements
+  readonly values: OccurrenceValuesFacts
+}): readonly OccurrenceMissingField[] {
+  const { requirements, values } = input
+  if (values.hasInvalidReferenceNumber) return ['referenceNumberInvalid']
+  const isMissing = requirements.referenceNumberMode === 'required' && !values.hasReferenceNumber
+  return isMissing ? ['referenceNumber'] : []
+}
+
 /** Quem falta, na ordem em que o formulário pergunta. `off` e `optional` nunca faltam. */
 export function listMissingOccurrenceRequirements(input: {
   readonly facts: OccurrenceDraftFacts
@@ -135,9 +149,7 @@ export function listMissingOccurrenceRequirements(input: {
     ...listMissingItemsField({ facts, requirements }),
     ...(values.hasInvalidItemQuantity ? (['productQuantity'] as const) : []),
     ...listMissingAmountField({ requirements, values }),
-    ...(requirements.referenceNumberMode === 'required' && !values.hasReferenceNumber
-      ? (['referenceNumber'] as const)
-      : []),
+    ...listMissingReferenceNumberField({ requirements, values }),
     ...(requirements.noteMode === 'required' && !facts.hasNote ? (['note'] as const) : []),
     ...listMissingPhotoField({ photoCount: facts.photoCount, requirements }),
     ...(requirements.signatureMode === 'required' && !facts.hasSignature

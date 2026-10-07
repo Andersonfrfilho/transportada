@@ -2,10 +2,7 @@
 import { useState } from 'react'
 
 import type { DriverNfeProduct, DriverOccurrenceType } from '../shared/driverTrip.types'
-import {
-  sanitizeQuantityInput,
-  sanitizeReferenceNumberInput,
-} from '../shared/occurrenceDecimalInput.service'
+import { sanitizeQuantityInput } from '../shared/occurrenceDecimalInput.service'
 import {
   EMPTY_OCCURRENCE_ITEM_DRAFT,
   evaluateOccurrenceValues,
@@ -98,8 +95,7 @@ export function useOccurrenceValues(params: {
         }),
       }),
     handleItemToggle,
-    handleReferenceNumberChange: (text) =>
-      setReferenceNumberText(sanitizeReferenceNumberInput(text)),
+    handleReferenceNumberChange: setReferenceNumberText,
     referenceNumberText,
     values,
   }

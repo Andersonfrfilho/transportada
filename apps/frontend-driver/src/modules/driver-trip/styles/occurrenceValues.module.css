@@ -216,3 +216,15 @@
   height: 0;
   margin-top: calc(var(--space-1) * -1);
 }
+
+/* Texto só para leitor de tela: o traço visual não diz "sem valor". */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
