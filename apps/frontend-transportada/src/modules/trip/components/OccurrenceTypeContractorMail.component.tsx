@@ -11,6 +11,7 @@ import {
   OCCURRENCE_ITEMS_MODE,
   type OccurrenceType,
 } from '@/modules/trip/shared/occurrence.constant'
+import { useOccurrenceMailDraftStore } from '@/modules/trip/hooks/useOccurrenceMailDraftStore.hook'
 import {
   hasOccurrenceMailProblems,
   insertOccurrenceMailMarker,
@@ -54,7 +55,10 @@ export function OccurrenceTypeContractorMail({
   type,
 }: OccurrenceTypeContractorMailProps) {
   const { t } = useTranslation('companySettings')
-  const [draft, setDraft] = useState<null | OccurrenceMailDraft>(null)
+  const draftStore = useOccurrenceMailDraftStore()
+  const [draft, setDraftState] = useState<null | OccurrenceMailDraft>(
+    () => draftStore.read(type.id) ?? null,
+  )
   const [activeContext, setActiveContext] = useState<OccurrenceMailContext>(
     OCCURRENCE_MAIL_CONTEXT.body,
   )
@@ -62,6 +66,13 @@ export function OccurrenceTypeContractorMail({
     Partial<Record<OccurrenceMailContext, null | OccurrenceMailFieldElement>>
   >({})
   const pendingCaret = useRef<null | PendingCaret>(null)
+
+  /** O rascunho também vai para o guardião da página: recolher a linha do tipo desmonta este componente. */
+  function setDraft(next: null | OccurrenceMailDraft) {
+    setDraftState(next)
+    if (next === null) draftStore.discard(type.id)
+    else draftStore.write(type.id, next)
+  }
 
   const saved: OccurrenceMailDraft = {
     emailBody: type.emailBody,
@@ -100,6 +111,7 @@ export function OccurrenceTypeContractorMail({
 
   function handleSave() {
     if (pending === null || isBlocked) return
+    draftStore.discard(type.id)
     onEdit(pending)
   }
 

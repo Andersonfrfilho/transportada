@@ -15,6 +15,10 @@ import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurr
 import styles from '@/modules/trip/styles/trip.module.css'
 
 import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
+import {
+  createOccurrenceMailDraftStore,
+  OccurrenceMailDraftStoreContext,
+} from '../hooks/useOccurrenceMailDraftStore.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
 import { countActiveOccurrenceTypeFilters } from '../shared/occurrenceTypeFilterChips.service'
@@ -71,6 +75,7 @@ export function OccurrenceTypeCatalogPanel({
 
   const filtersController = useOccurrenceTypeFilters()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+  const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
 
   function handleToggle(typeId: string) {
     setExpandedIds((current) => {
@@ -144,16 +149,18 @@ export function OccurrenceTypeCatalogPanel({
           query={filtersController.filters.query}
         />
       ) : (
-        <OccurrenceTypeList
-          canManage={canManage}
-          exceptionsOf={exceptionsOf}
-          expandedIds={expandedIds}
-          isSaving={isSaving}
-          onSave={onSave}
-          onToggle={handleToggle}
-          templates={templates}
-          types={visibleTypes}
-        />
+        <OccurrenceMailDraftStoreContext.Provider value={mailDraftStore}>
+          <OccurrenceTypeList
+            canManage={canManage}
+            exceptionsOf={exceptionsOf}
+            expandedIds={expandedIds}
+            isSaving={isSaving}
+            onSave={onSave}
+            onToggle={handleToggle}
+            templates={templates}
+            types={visibleTypes}
+          />
+        </OccurrenceMailDraftStoreContext.Provider>
       )}
 
       {canManage ? (
