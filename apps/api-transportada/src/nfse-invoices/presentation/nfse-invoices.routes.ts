@@ -358,9 +358,15 @@ function serializeLastPayload(payload: NfseLastIssuancePayload): object {
     issWithheld: payload.issWithheld,
     municipalTaxationCode: payload.municipalTaxationCode,
     municipalityIbgeCode: payload.municipalityIbgeCode,
+    ...(payload.nationalTaxationCode === undefined
+      ? {}
+      : { nationalTaxationCode: payload.nationalTaxationCode }),
     nbsCode: payload.nbsCode,
     serviceAmount: payload.serviceAmount,
     serviceListItem: payload.serviceListItem,
+    ...(payload.simplesNationalRate === undefined
+      ? {}
+      : { simplesNationalRate: payload.simplesNationalRate }),
     takerLegalName: payload.takerLegalName,
     takerTaxId: payload.takerTaxId,
   }

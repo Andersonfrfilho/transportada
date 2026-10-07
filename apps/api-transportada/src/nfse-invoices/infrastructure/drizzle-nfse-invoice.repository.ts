@@ -709,9 +709,11 @@ async function findProfile(
       municipalTaxationCode: nfseEmissionProfiles.municipalTaxationCode,
       municipalityIbgeCode: nfseEmissionProfiles.municipalityIbgeCode,
       municipalityName: nfseEmissionProfiles.municipalityName,
+      nationalTaxationCode: nfseEmissionProfiles.nationalTaxationCode,
       nbsCode: nfseEmissionProfiles.nbsCode,
       observations: nfseEmissionProfiles.observations,
       serviceListItem: nfseEmissionProfiles.serviceListItem,
+      simplesNationalRate: nfseEmissionProfiles.simplesNationalRate,
       status: nfseEmissionProfiles.status,
       taker: nfseEmissionProfiles.taker,
     })

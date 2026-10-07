@@ -1364,6 +1364,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
   const whatsappNfseInvoices = createNfseInvoiceUseCase({
     now: () => new Date(),
+    providerApiVersion: config.nfseProviderApiVersion,
     repository: whatsappNfseInvoiceRepository,
   })
   /**
@@ -1563,6 +1564,7 @@ export function bootstrap(): Bun.Server<undefined> {
         idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
         keycloak: config.keycloak,
         logger,
+        nfseProviderApiVersion: config.nfseProviderApiVersion,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -1909,6 +1911,8 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
+  /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
+  readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -1969,6 +1973,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   logger,
+  nfseProviderApiVersion,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -2604,6 +2609,7 @@ function createApplicationRoutes({
   })
   const nfseInvoices = createNfseInvoiceUseCase({
     now: () => new Date(),
+    providerApiVersion: nfseProviderApiVersion,
     repository: nfseInvoiceRepository,
   })
   const nfseInvoiceQuery = createNfseInvoiceQueryUseCase({
@@ -2620,6 +2626,7 @@ function createApplicationRoutes({
   })
   const reissueNfseInvoice = createNfseInvoiceReissueUseCase({
     now: () => new Date(),
+    providerApiVersion: nfseProviderApiVersion,
     repository: nfseInvoiceRepository,
   })
   const exportNfseDocuments = createExportNfseDocumentsUseCase({

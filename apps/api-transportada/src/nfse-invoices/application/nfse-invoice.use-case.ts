@@ -3,7 +3,12 @@
  */
 import type { FreightRuleSnapshot } from '../../freight-calculations/domain/freight-calculation-engine.service.js'
 import { NfseEmissionProfileNotFoundError } from '../../nfse-profiles/domain/nfse-profile.error.js'
+import type { NfseProviderApiVersion } from '../../shared/nfse-provider-api-version.constant.js'
 import { NfseInvoiceCreateSpansMultipleTakersError } from '../domain/nfse-issuance.error.js'
+import {
+  requiresNationalTaxation,
+  resolveNationalTaxation,
+} from '../domain/nfse-national-taxation.policy.js'
 import {
   assertNoNfseBlocks,
   assertProfileIsActive,
@@ -59,9 +64,10 @@ export type NfseInvoiceUseCase = {
 
 export function createNfseInvoiceUseCase(dependencies: {
   readonly now: () => Date
+  readonly providerApiVersion?: NfseProviderApiVersion
   readonly repository: NfseInvoiceRepositoryPort
 }): NfseInvoiceUseCase {
-  const { now, repository } = dependencies
+  const { now, providerApiVersion, repository } = dependencies
 
   return {
     async create(input) {
@@ -82,6 +88,7 @@ export function createNfseInvoiceUseCase(dependencies: {
         if (replay !== null) return replay
 
         const profile = assertProfileIsActive(await loadProfile(transaction, input))
+        if (requiresNationalTaxation(providerApiVersion)) resolveNationalTaxation(profile)
         const credential = await loadNfseCredential(transaction, input.context.companyId)
         const resolved = await resolveSingleInvoice({ input, profile, reader: transaction })
 
@@ -90,6 +97,7 @@ export function createNfseInvoiceUseCase(dependencies: {
           input,
           now,
           profile,
+          providerApiVersion,
           requestFingerprint,
           transaction,
           ...resolved,
@@ -165,6 +173,7 @@ async function persistInvoice({
   invoice,
   now,
   profile,
+  providerApiVersion,
   requestFingerprint,
   ruleSnapshot,
   transaction,
@@ -173,6 +182,7 @@ async function persistInvoice({
   readonly input: CreateNfseInvoiceInput
   readonly now: () => Date
   readonly profile: NfseInvoiceProfile
+  readonly providerApiVersion: NfseProviderApiVersion | undefined
   readonly requestFingerprint: string
   readonly transaction: NfseInvoiceTransactionPort
 }): Promise<NfseInvoiceSummary> {
@@ -214,6 +224,7 @@ async function persistInvoice({
       invoice,
       invoiceId: record.invoiceId,
       profile,
+      providerApiVersion,
     }),
   )
 

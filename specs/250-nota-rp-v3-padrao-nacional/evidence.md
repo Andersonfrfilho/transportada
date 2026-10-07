@@ -118,3 +118,25 @@ Numeração conferida contra `origin/staging` (última: `20261007140303_business
 - `bunx eslint` nos arquivos tocados e `bunx prettier --check` limpos.
 - `bun run typecheck` segue com os mesmos 22 erros da T2.1 (só em `test/`, símbolos da T2.3/T2.4); nenhum
   erro em `src/`.
+
+## E11 — T2.3: perfil, payload congelado, env e erro nomeado (07/10/2026)
+
+- Perfil: `nationalTaxationCode` (`^\d{6}$`) e `simplesNationalRate` (percentual 0–100, até 6 casas; `2.000000`
+  = 2,00%) em mapper, Zod (criação e PATCH; ausente vira `null`, `null` explícito limpa), repositórios, rotas e
+  respostas; `NfseInvoiceProfile` os lê. Semente local com `null`.
+- `NFSE_PROVIDER_API_VERSION` (`v2`|`v3`, em branco/ausente = `v2`, valor desconhecido derruba o boot) no
+  `environment.schema.ts`, em `ApiEnvironment.nfseProviderApiVersion`, em `.env.example` (`=v2`) e injetada em
+  `createNfseInvoiceUseCase` (rota e WhatsApp) e `createNfseInvoiceReissueUseCase` pelo `main.ts`.
+- `freezeNfseIssuancePayload` leva os dois campos (strings, sem aritmética) só quando a versão é `v3`; com `v2`
+  o payload e o hash ficam byte a byte como antes (contrato cobre). `buildNfseProviderConfig` grava
+  `providerApiVersion`. Quando a dependência não é passada (testes antigos) nada é gravado: ausente = v2.
+- Erro `NfseNationalTaxationCodeMissingError` (409 `NFSE_NATIONAL_TAXATION_CODE_MISSING`), lançado na criação
+  logo depois de o perfil ser validado como ativo (nada é gravado). `FrozenPayloadShape`, `NfseLastIssuancePayload`
+  e o `lastPayload` da resposta carregam os campos quando existem (pré-preenchimento da Fase 4).
+- `bunx eslint` e `bunx prettier --check` nos arquivos tocados limpos.
+- `bun test` de nfse-schema, nfse-invoices-application, nfse-profiles, nfse-invoices-http, nfse-callbacks,
+  env-example, composition e test-registry -> 331 pass / 3 fail; os 3 são contratos da T2.4 (correção do
+  código nacional na reemissão + 409 da reemissão e herança da chave).
+- `bun run typecheck`: 11 erros, **todos em `test/` e todos de símbolos da T2.4**
+  (`nfse-provider-request-key.policy`, `findLatestIssueAttempt`, `providerRequestKey`, `correction.nationalTaxationCode`);
+  `src/` sem erro.

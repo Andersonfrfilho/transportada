@@ -107,6 +107,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             logLevel: 'error',
             messaging: undefined,
             nfseCallbackBaseUrl: undefined,
+            nfseProviderApiVersion: 'v2',
             notificationWebhookSecret: undefined,
             port: 0,
             routingMatrixUrl: undefined,

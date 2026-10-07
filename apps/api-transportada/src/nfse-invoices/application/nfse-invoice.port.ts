@@ -51,9 +51,11 @@ export type NfseInvoiceProfile = {
   readonly municipalityIbgeCode: string
   readonly municipalityName: string
   readonly municipalTaxationCode: string
+  readonly nationalTaxationCode: string | null
   readonly nbsCode: string
   readonly observations: string
   readonly serviceListItem: string
+  readonly simplesNationalRate: string | null
   readonly status: NfseEmissionProfileStatus
   readonly taker: NfseTaker
 }
@@ -294,9 +296,11 @@ export type NfseLastIssuancePayload = {
   readonly issWithheld: boolean
   readonly municipalTaxationCode: string
   readonly municipalityIbgeCode: string
+  readonly nationalTaxationCode?: string
   readonly nbsCode: string
   readonly serviceAmount: string
   readonly serviceListItem: string
+  readonly simplesNationalRate?: string
   readonly takerLegalName: string
   readonly takerTaxId: string
 }

@@ -8,6 +8,7 @@ import type { CompanyRole, FiscalEnvironment } from '../database/database.schema
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
 import type { IdentityRateLimits } from '../identity/shared/identity-rate-limit.constant'
 import type { ClientIpPolicy } from './client-ip.constant'
+import type { NfseProviderApiVersion } from './nfse-provider-api-version.constant'
 
 export type DatabasePoolConfiguration = {
   readonly connectTimeoutSeconds: number
@@ -74,6 +75,8 @@ export type ApiEnvironment = {
    */
   readonly driverAddressLookupUrl: string | undefined
   readonly nfseCallbackBaseUrl: string | undefined
+  /** Versão da API da Nota RP das emissões novas (ADR 0098); a tentativa guarda a que usou. */
+  readonly nfseProviderApiVersion: NfseProviderApiVersion
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined
   readonly port: number

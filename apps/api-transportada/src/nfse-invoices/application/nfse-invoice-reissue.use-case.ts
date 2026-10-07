@@ -6,6 +6,7 @@ import {
   NFSE_INVOICE_ACTION,
   checkNfseInvoiceTransition,
 } from '../domain/nfse-invoice-state.policy.js'
+import type { NfseProviderApiVersion } from '../../shared/nfse-provider-api-version.constant.js'
 import { applyNfseIssuanceCorrection } from '../domain/nfse-issuance-correction.policy.js'
 import type { NfseInvoiceCorrectionInput } from '../domain/nfse-issuance-correction.policy.js'
 import {
@@ -65,9 +66,10 @@ export type NfseInvoiceReissueUseCase = {
  */
 export function createNfseInvoiceReissueUseCase(dependencies: {
   readonly now: () => Date
+  readonly providerApiVersion?: NfseProviderApiVersion
   readonly repository: NfseInvoiceRepositoryPort
 }): NfseInvoiceReissueUseCase {
-  const { now, repository } = dependencies
+  const { now, providerApiVersion, repository } = dependencies
 
   return {
     async execute(input) {
@@ -95,6 +97,7 @@ export function createNfseInvoiceReissueUseCase(dependencies: {
           invoice,
           nextStatus,
           now,
+          providerApiVersion,
           requestFingerprint,
           transaction,
         })
@@ -169,6 +172,7 @@ async function requestReissue({
   invoice,
   nextStatus,
   now,
+  providerApiVersion,
   requestFingerprint,
   transaction,
 }: {
@@ -178,6 +182,7 @@ async function requestReissue({
   readonly invoice: NfseInvoiceCancellationTarget
   readonly nextStatus: NfseServiceInvoiceStatus
   readonly now: () => Date
+  readonly providerApiVersion: NfseProviderApiVersion | undefined
   readonly requestFingerprint: string
   readonly transaction: NfseInvoiceTransactionPort
 }): Promise<NfseInvoiceReissueSummary> {
@@ -211,7 +216,7 @@ async function requestReissue({
     invoiceId: invoice.invoiceId,
     payload: corrected.payload,
     payloadSha256: corrected.payloadSha256,
-    providerConfig: buildNfseProviderConfig(credential),
+    providerConfig: buildNfseProviderConfig(credential, providerApiVersion),
   })
   await scheduleNfseIssuance({
     attemptId: attempt.attemptId,

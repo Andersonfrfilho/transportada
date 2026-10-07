@@ -222,9 +222,11 @@ export const nfseLastIssuancePayloadResponseSchema = z
     issWithheld: z.boolean(),
     municipalTaxationCode: z.string(),
     municipalityIbgeCode: z.string(),
+    nationalTaxationCode: z.string().optional(),
     nbsCode: z.string(),
     serviceAmount: z.string(),
     serviceListItem: z.string(),
+    simplesNationalRate: z.string().optional(),
     takerLegalName: z.string(),
     takerTaxId: z.string(),
   })

@@ -176,3 +176,19 @@ export class NfseInvoiceCreateSpansMultipleTakersError extends ApiError {
     })
   }
 }
+
+/**
+ * Na API v3 da Nota RP o código de tributação nacional e a alíquota do Simples seguem no payload, e a
+ * prefeitura recusa a nota sem eles. Barrar na criação evita uma nota que nasce condenada à recusa
+ * assíncrona — e a correção está no perfil ou no corpo da reemissão.
+ */
+export class NfseNationalTaxationCodeMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'NFSE_NATIONAL_TAXATION_CODE_MISSING',
+      message:
+        'The national taxation code and the Simples Nacional rate are required by the provider API version in use.',
+      status: CONFLICT_STATUS,
+    })
+  }
+}

@@ -40,7 +40,7 @@ Teste novo entra na lista explícita do `package.json` da app.
       `providerApiVersion`.
 - [x] **T2.2** Migration `nfse_emission_profiles.national_taxation_code` (nullable, check `^\d{6}$`) + `rollback.sql` + snapshot + schema Drizzle. `make migration-test` verde.
       Escopo real: também `simples_national_rate` (perfil) e `nfse_issuance_attempts.provider_request_key` (ADR 0098).
-- [ ] **T2.3** Perfil (mapper, schema Zod, rotas), `freezeNfseIssuancePayload` e `FrozenPayloadShape`
+- [x] **T2.3** Perfil (mapper, schema Zod, rotas), `freezeNfseIssuancePayload` e `FrozenPayloadShape`
       com os dois campos; `NFSE_PROVIDER_API_VERSION` no schema de env da API e em `providerConfig`;
       erro de bloqueio nomeado (spec 044).
 - [ ] **T2.4** Reemissão: `correction.nationalTaxationCode` e `correction.simplesNationalRate` na API e
