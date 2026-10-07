@@ -38,10 +38,12 @@ export function CargoPreviewRow({ onOpen, preview }: CargoPreviewRowProps): JSX.
     <tr>
       <td data-label={t('preview.table.contractor')}>{contractorName}</td>
       <td data-label={t('preview.table.fileName')} className={previewStyles.fileName}>
-        {preview.fileName}
-        <span className={previewStyles.sourceLine}>
-          <CargoPreviewSourceBadge source={preview.source} />
-        </span>
+        <div>
+          <span data-file-name="">{preview.fileName}</span>
+          <span className={previewStyles.sourceLine}>
+            <CargoPreviewSourceBadge source={preview.source} />
+          </span>
+        </div>
       </td>
       <td data-label={t('preview.table.receivedAt')}>{formatMoment(preview.receivedAt)}</td>
       <td data-label={t('preview.table.plannedDate')}>

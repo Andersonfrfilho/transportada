@@ -1348,3 +1348,20 @@ Mesmo módulo `cargo-receiving`; nada mudou na API (T3.4a a deixou pronta). A le
   suíte só): leia o dublê por `currentCaseDouble()` dentro do teste, nunca de variável do arquivo; e o `mock.module` do cliente novo mora
   em `cargoOccurrenceHarness.helper.ts` (`cargoCaseClientSlot`), que carrega antes de qualquer fonte. Prints:
   `test/spec-237-tratativa-prints.smoke.spec.ts` + `test/spec-237-prints-smoke.helper.ts` (fora da CI).
+
+## Spec 237 T4.7b — a prévia por e-mail no painel (2026-10-07)
+
+A API passou a devolver `source: 'email'` (o worker cria a prévia pela caixa de entrada, sem autor). O painel só conhecia
+`['upload']` e `isPreviewSummary` recusava a linha, e `toPreviewPage` derrubava a **página inteira** (`RESPONSE_INVALID`); o
+detalhe da prévia por e-mail quebrava igual.
+
+- **`CARGO_PREVIEW_SOURCES = ['email', 'upload']`** (`cargoPreview.constant.ts`), cópia por valor da constante da API;
+  `test/cargo-receiving/preview-source.contract.ts` **lê** `api-transportada/src/shared/cargo-preview.constant.ts` e compara
+  (paridade), e prova a lista e o detalhe pelo cliente HTTP real (o dublê dos contratos de DOM não passa pelas guardas).
+- **Sem autor:** o resumo da API nunca carregou `uploadedBy…`; as chaves exatas seguem as mesmas nas duas origens, e uma chave de
+  autor continua recusada. Nada no painel assume quem enviou.
+- **Selo de origem** (`CargoPreviewSourceBadge`, `data-preview-source`, neutro, mesma classe `.badge` do selo de situação) na célula
+  do arquivo da lista e nos dados do detalhe; textos `preview.source.{email,upload}` nos dois idiomas, sem endereço de e-mail.
+  ⚠️ Na tabela empilhada o conteúdo da célula precisa de **um** filho (`<div>`): dois filhos viram dois itens do `grid` da célula e o
+  selo cai sob o rótulo da coluna (medido no print; `readBadgeMisalignment` no spec de prints).
+- Prints: `test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI), `prints/previa-origem-email-{lista,detalhe}-*`.

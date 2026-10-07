@@ -153,8 +153,11 @@
       `20261007040900_cargo_preview_email_intake` **editada no lugar** (ainda não publicada). Docs: ADR-0094 §10,
       `SECURITY.md` (L3, L4, encaminhamento só manual, ordem de deploy). `evidence.md` § T4.7a; **sem push**.
 - [ ] **T4.7b** Painel: aceitar `source: 'email'` na lista/detalhe da prévia + rótulo de origem + contrato do guard
-      (hoje o guard de resposta da prévia no painel só conhece `upload`; a prévia por e-mail nasce com `source =
-'email'` e `uploaded_by_user_id` nulo). `sonnet`.
+      (o guard de resposta da prévia no painel só conhecia `upload`; a prévia por e-mail nasce com `source =
+'email'` e `uploaded_by_user_id` nulo — a API nunca expõe o autor, então o formato da resposta é o mesmo). `sonnet`.
+      Feito: lista de origens `['email', 'upload']` com paridade lida da constante da API, selo de origem
+      neutro na lista e no detalhe ("Enviada por e-mail" / "Enviada no painel", sem endereço nem nome), contratos
+      vermelhos antes, 7 mutações. `evidence.md` § T4.7b; **feito, ainda não publicado** (tela visível: espera os prints aprovados).
 - [x] **T4.7c** Correções da **segunda** passada de segurança `opus` sobre a T4.7a, **antes da publicação**: o `From` que
       lemos é o que a `mailauth` alinha (leitor exige o endereço literal no fim do valor + conferência do `headerFrom`
       da própria `mailauth`, código novo `FORWARDER_FROM_MISMATCH` no CHECK da migration ainda não publicada), leitor

@@ -425,6 +425,8 @@ Cliente, guardas (chaves exatas) e refusal **próprios** (`shared/cargoPreview*`
 - **Proposta de chegada** leva a `/recebimento/nova` por `history.state` (`cargoArrivalPrefill`) e **nunca assume data nem hora**: os campos vêm
   vazios. Contratos: `test/cargo-receiving/preview-*.contract.ts` e `test/trip-hooks/cargo-preview-*.contract.ts` (+ `cargoPreviewHarness.helper.ts`).
 - A lista de prévias não traz contagem por estado (a API só a dá no detalhe). Nome/endereço do destinatário nunca em URL, título ou `localStorage`.
+- **Origem da prévia** (T4.7b): `CARGO_PREVIEW_SOURCES = ['email', 'upload']`, com contrato de paridade que lê a constante da API. A prévia por e-mail
+  **não tem autor**: só o selo neutro "Enviada por e-mail" (`CargoPreviewSourceBadge`), nunca endereço nem nome. Célula empilhada com selo = **um** filho.
 
 Detalhe e decisões: docs/ai-context/frontend-transportada.md § "Spec 237 T4.4".
 
