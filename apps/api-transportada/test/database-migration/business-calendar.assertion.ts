@@ -19,6 +19,7 @@ import {
   assertSettingsConstraints,
   assertStateHolidayConstraints,
 } from './business-calendar-state.assertion.js'
+import { rollbackHolidayProviderImportIfApplied } from './holiday-provider-import-rollback.assertion.js'
 import { migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_business_calendar'
@@ -143,6 +144,8 @@ export async function assertBusinessCalendar(probe: BusinessCalendarProbe): Prom
   await database`delete from company_business_calendar_settings where company_id = ${companyId}`
   await database`delete from municipal_holidays where company_id = ${companyId}`
 
+  // Ordem inversa: a importação de feriados (spec 252) marca `provider_entry_id` nas mesmas tabelas e sai antes.
+  await rollbackHolidayProviderImportIfApplied(database, probe.directories)
   await assertRollbackKeepsFixedDates(probe, directory)
 
   await runDatabaseMigrations({ connectionString: probe.connectionString })
