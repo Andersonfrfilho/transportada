@@ -86,10 +86,6 @@ export function runIntake(options: HarnessOptions = {}) {
   }
   const raw = Buffer.from(options.rawEmail ?? validRawEmail())
   const countingVerifier = {
-    verify: async (rawMessage: Buffer) => {
-      calls.dkimVerifications.push(rawMessage)
-      return options.dkim ?? 'aligned'
-    },
     verifyWithHeaderFrom: async (rawMessage: Buffer) => {
       calls.dkimVerifications.push(rawMessage)
       return {

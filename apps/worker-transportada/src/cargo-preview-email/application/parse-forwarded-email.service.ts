@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 237 T4.6: lê o MIME do encaminhamento com PostalMime LIMITADO (profundidade e cabeçalhos) e abre
+ * Spec 237 T4.6/T4.7c: lê o MIME do encaminhamento com PostalMime LIMITADO (profundidade e cabeçalhos) e abre
  * a mensagem anexada uma única vez, sem recursão — a de dentro nunca é aberta e nunca vira candidata.
  * Só sai o que a política do ramo precisa: o `From` de fora (o que o DKIM do encaminhador cobre), o
  * remetente original e os anexos candidatos. MIME ilegível devolve `undefined`; nunca estoura.
@@ -9,6 +9,7 @@
 import PostalMime, { type Attachment, type Email } from 'postal-mime'
 
 import { RAW_EMAIL_MIME_TYPE } from '../../contractor-mail/domain/contractor-mail.constant.js'
+import { hasBoundedMimeHeaders } from '../../contractor-mail/domain/mime-header-bounds.policy.js'
 import { PREVIEW_EMAIL_MIME_LIMITS } from '../domain/cargo-preview-email.constant.js'
 import {
   readOriginalSenderFromForwardedText,
@@ -67,7 +68,9 @@ export async function parseForwardedEmail(
   }
 }
 
+/** A mensagem anexada nunca passou pela barreira do DKIM: os endereços dela custam o mesmo `addressparser`. */
 async function parseLimited(raw: Uint8Array): Promise<Email | undefined> {
+  if (!hasBoundedMimeHeaders(raw)) return undefined
   try {
     return await PostalMime.parse(raw, PARSE_OPTIONS)
   } catch {

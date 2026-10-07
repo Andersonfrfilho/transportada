@@ -3,9 +3,9 @@
  *
  * Spec 237 T4.6 (ADR-0094 §10, D6): o ramo "prévia" do e-mail de entrada, para mensagem ENCAMINHADA.
  * As barreiras vão da mais barata à mais cara, e cada recusa registra um código estável e para ali:
- * token e perfil → janela de e-mails → encaminhador na lista (antes de baixar) → MIME com teto e com o
- * cabeçalho medido → DKIM do encaminhador → `From` do MIME (o que o DKIM cobre) → remetente original na
- * lista → um anexo planilha. O DKIM do contratante se perde no encaminhamento (risco aceito,
+ * token e perfil → encaminhador na lista (antes de baixar) → janela de e-mails autenticados → MIME com teto
+ * e com o cabeçalho medido → DKIM do encaminhador → `From` do MIME igual ao que a `mailauth` alinhou → remetente
+ * original na lista → um anexo planilha. Só o download e o DKIM ficam atrás do contador de autenticados. O DKIM do contratante se perde no encaminhamento (risco aceito,
  * `SECURITY.md`): o remetente original é informação, nunca autenticação. A planilha nunca é aberta aqui —
  * os bytes entram na prévia pelo mesmo contrato do upload e o worker de prévia a lê, com os tetos e a
  * `worker_thread`.
@@ -31,9 +31,14 @@ import type {
   CargoPreviewEmailRepositoryPort,
   IntakeCargoPreviewEmailDependencies,
   PreviewProfileRecord,
+  RecentIntakeCounts,
 } from './cargo-preview-email.types.js'
 import { storeAndCreatePreview } from './create-cargo-preview-from-email.service.js'
-import { createPreviewEmailRejecter } from './create-preview-email-rejecter.service.js'
+import {
+  createPreviewEmailRejecter,
+  recordRateLimitedTrace,
+  type PreviewEmailRejecter,
+} from './create-preview-email-rejecter.service.js'
 import {
   passPreviewContentGates,
   type PreviewContentGate,
@@ -48,11 +53,12 @@ export async function intakeCargoPreviewEmail(
   const profile = await resolveProfile(input, dependencies.repository)
   if (profile === undefined) return { kind: 'not_a_preview' }
 
-  if (await isRateLimited(input, profile, dependencies.repository)) {
-    return { contractorId: profile.contractorId, kind: 'rate_limited' }
-  }
-
-  const gate = await passGates(input, profile, dependencies)
+  const counts = await dependencies.repository.countRecentIntakes({
+    companyId: input.companyId,
+    contractorId: profile.contractorId,
+    windowSeconds: PREVIEW_EMAIL_INTAKE_RATE_LIMIT.windowSeconds,
+  })
+  const gate = await passGates({ counts, dependencies, input, profile })
   if (gate.kind !== 'passed') return gate
   return storeAndCreatePreview({ dependencies, input, profile, verified: gate.verified })
 }
@@ -74,33 +80,23 @@ async function resolveProfile(
   return profiles.length === 1 ? profiles[0] : undefined
 }
 
-/** Fechada a janela, o excesso deixa um rastro (uma linha por janela) e nada mais é feito com a mensagem. */
-async function isRateLimited(
-  input: CargoPreviewEmailIntakeInput,
-  profile: PreviewProfileRecord,
-  repository: CargoPreviewEmailRepositoryPort,
-): Promise<boolean> {
-  const { maxAuthenticated, maxUnauthenticated, windowSeconds } = PREVIEW_EMAIL_INTAKE_RATE_LIMIT
-  const scope = { companyId: input.companyId, contractorId: profile.contractorId }
-  const counts = await repository.countRecentIntakes({ ...scope, windowSeconds })
-  if (counts.authenticated < maxAuthenticated && counts.unauthenticated < maxUnauthenticated) {
-    return false
-  }
-  await repository.recordRateLimited({
-    ...scope,
-    providerEmailId: input.providerEmailId,
-    receivedAt: input.occurredAt,
-    windowSeconds,
-  })
-  return true
+type GateContext = {
+  readonly counts: RecentIntakeCounts
+  readonly dependencies: IntakeCargoPreviewEmailDependencies
+  readonly input: CargoPreviewEmailIntakeInput
+  readonly profile: PreviewProfileRecord
 }
 
-async function passGates(
-  input: CargoPreviewEmailIntakeInput,
-  profile: PreviewProfileRecord,
-  dependencies: IntakeCargoPreviewEmailDependencies,
-): Promise<PreviewContentGate> {
-  const reject = createPreviewEmailRejecter({ input, profile, repository: dependencies.repository })
+/** As checagens baratas (perfil e encaminhador) rodam sempre; o teto de autenticados fecha o que custa. */
+async function passGates(context: GateContext): Promise<PreviewContentGate> {
+  const { counts, dependencies, input, profile } = context
+  const { maxAuthenticated, maxUnauthenticated } = PREVIEW_EMAIL_INTAKE_RATE_LIMIT
+  const reject = createPreviewEmailRejecter({
+    input,
+    isUnauthenticatedWindowFull: counts.unauthenticated >= maxUnauthenticated,
+    profile,
+    repository: dependencies.repository,
+  })
   if (!profile.isPreviewReady) return reject(PREVIEW_EMAIL_REJECTION.previewNotEnabled)
 
   const providerFrom = readSingleMailboxAddress(input.received.from)
@@ -111,20 +107,31 @@ async function passGates(
     return reject(PREVIEW_EMAIL_REJECTION.forwarderNotAllowed)
   }
 
+  if (counts.authenticated >= maxAuthenticated) {
+    await recordRateLimitedTrace({ input, profile, repository: dependencies.repository })
+    return { contractorId: profile.contractorId, kind: 'rate_limited' }
+  }
+  return passMessageGates({ ...context, reject })
+}
+
+async function passMessageGates(
+  context: GateContext & { readonly reject: PreviewEmailRejecter },
+): Promise<PreviewContentGate> {
+  const { dependencies, input, profile, reject } = context
   const raw = await downloadRaw(input, dependencies)
   if (raw === undefined) return reject(PREVIEW_EMAIL_REJECTION.rawEmailTooLarge)
   if (!hasBoundedMimeHeaders(raw)) return reject(PREVIEW_EMAIL_REJECTION.mimeUnreadable)
 
-  const dkimResult = await dependencies.dkimVerifier.verify(raw)
-  if (dkimResult === 'unverifiable') {
+  const { alignment, headerFrom } = await dependencies.dkimVerifier.verifyWithHeaderFrom(raw)
+  if (alignment === 'unverifiable') {
     if (!input.delivery.isLastAttempt) throw new CargoPreviewEmailDkimUnverifiableError()
-    return reject(PREVIEW_EMAIL_REJECTION.forwarderDkimUnverifiable, { dkimResult })
+    return reject(PREVIEW_EMAIL_REJECTION.forwarderDkimUnverifiable, { dkimResult: alignment })
   }
-  if (dkimResult !== 'aligned') {
-    return reject(PREVIEW_EMAIL_REJECTION.forwarderDkimNotAligned, { dkimResult })
+  if (alignment !== 'aligned') {
+    return reject(PREVIEW_EMAIL_REJECTION.forwarderDkimNotAligned, { dkimResult: alignment })
   }
 
-  return passPreviewContentGates({ dkimResult, profile, raw, reject })
+  return passPreviewContentGates({ dkimResult: alignment, headerFrom, profile, raw, reject })
 }
 
 async function downloadRaw(

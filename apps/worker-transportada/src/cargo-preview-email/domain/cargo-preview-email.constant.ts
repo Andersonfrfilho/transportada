@@ -17,10 +17,10 @@ export const PREVIEW_EMAIL_MAX_RAW_BYTES = 2 * 1024 * 1024
 
 /**
  * A janela de e-mails por contratante tem dois contadores. Os que passaram do DKIM do encaminhador custam
- * leitura de planilha e prévia: 20 em 5 minutos. Os que ficaram antes dele custam só uma linha de recusa, e
- * só este teto, mais alto, impede que a tabela seja inundada por quem conhece o endereço: 100 em 5 minutos
- * (no máximo ~29 mil linhas por dia por contratante, contra as 5 760 do outro contador). O excesso deixa uma
- * única linha `RATE_LIMITED` por janela.
+ * leitura de planilha e prévia: 20 em 5 minutos, e é ele que fecha o download e o DKIM. Os que ficaram antes
+ * dele custam só uma linha de recusa: passado o teto, 100 em 5 minutos, a recusa continua sendo AVALIADA e
+ * devolvida, mas deixa de ser GRAVADA (a tabela não vira alvo de inundação, e o encaminhador legítimo não fica
+ * trancado do lado de fora por lixo endereçado ao token). O excesso deixa uma única linha `RATE_LIMITED` por janela.
  */
 export const PREVIEW_EMAIL_INTAKE_RATE_LIMIT = {
   maxAuthenticated: 20,
@@ -42,6 +42,7 @@ export const PREVIEW_EMAIL_FALLBACK_FILE_NAME = 'previa.xlsx'
 export const PREVIEW_EMAIL_REJECTION = {
   forwarderDkimNotAligned: 'FORWARDER_DKIM_NOT_ALIGNED',
   forwarderDkimUnverifiable: 'FORWARDER_DKIM_UNVERIFIABLE',
+  forwarderFromMismatch: 'FORWARDER_FROM_MISMATCH',
   forwarderNotAllowed: 'FORWARDER_NOT_ALLOWED',
   mimeUnreadable: 'MIME_UNREADABLE',
   originalSenderAmbiguous: 'ORIGINAL_SENDER_AMBIGUOUS',

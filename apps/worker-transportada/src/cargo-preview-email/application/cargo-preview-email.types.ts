@@ -6,7 +6,7 @@ import type {
   CargoPreviewStatus,
 } from '../../shared/cargo-preview.constant.js'
 import type { DkimAlignmentResult } from '../../contractor-mail/domain/dkim-alignment.policy.js'
-import type { VerifyDkimAlignmentPort } from '../../contractor-mail/infrastructure/dkim-verifier.gateway.js'
+import type { VerifyDkimHeaderFromPort } from '../../contractor-mail/infrastructure/dkim-verifier.gateway.js'
 import type {
   ReceivedResendEmail,
   ResendMailGateway,
@@ -161,7 +161,7 @@ export type CargoPreviewEmailIntakePort = {
 }
 
 export type IntakeCargoPreviewEmailDependencies = {
-  readonly dkimVerifier: VerifyDkimAlignmentPort
+  readonly dkimVerifier: VerifyDkimHeaderFromPort
   readonly mailGateway: Pick<ResendMailGateway, 'downloadRawEmail'>
   readonly newId: () => string
   readonly repository: CargoPreviewEmailRepositoryPort

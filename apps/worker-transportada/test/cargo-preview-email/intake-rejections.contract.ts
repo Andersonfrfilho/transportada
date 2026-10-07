@@ -138,7 +138,10 @@ describe('as recusas depois de baixar o e-mail (spec 237 T4.6, CA2)', () => {
       from: 'mallory@evil.example',
       text: gmailForwardText({ from: ORIGINAL }),
     })
-    await expectRejected({ rawEmail: forged }, 'FORWARDER_NOT_ALLOWED')
+    await expectRejected(
+      { headerFrom: ['mallory@evil.example'], rawEmail: forged },
+      'FORWARDER_NOT_ALLOWED',
+    )
   })
 
   test('MIME ilegível', async () => {

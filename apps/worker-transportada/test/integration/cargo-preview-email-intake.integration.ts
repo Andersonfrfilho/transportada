@@ -19,6 +19,10 @@ import { FR_COLUMN_MAP } from '../fixtures/cargo-preview-workbook.fixture.js'
 import { REPLY_DOMAIN, validRawEmail } from '../cargo-preview-email/intake.harness.js'
 
 const databaseUrl = process.env.DATABASE_URL
+const verifierFor = (alignment: 'absent' | 'aligned') => ({
+  verifyWithHeaderFrom: async () => ({ alignment, headerFrom: ['equipe@transportadora.example'] }),
+})
+
 const describeDatabase = databaseUrl ? describe : describe.skip
 const TOKEN = 'previewtoken234567abcdefgh'
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -513,7 +517,7 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     const graph = await seedCompany()
     const stored: string[] = []
     const dependencies = {
-      dkimVerifier: { verify: async () => 'aligned' as const },
+      dkimVerifier: verifierFor('aligned'),
       mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
       newId: () => crypto.randomUUID(),
       repository,
@@ -557,7 +561,7 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     expect(await count('cargo_preview_email_intakes', graph.companyId)).toBe(2)
     const rejected = await intakeCargoPreviewEmail(input('email-z3'), {
       ...dependencies,
-      dkimVerifier: { verify: async () => 'absent' as const },
+      dkimVerifier: verifierFor('absent'),
     })
     expect(rejected).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_DKIM_NOT_ALIGNED' })
     expect(await count('cargo_previews', graph.companyId)).toBe(1)
@@ -567,7 +571,7 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     const graph = await seedCompany()
     const present = new Set<string>()
     const dependencies = {
-      dkimVerifier: { verify: async () => 'aligned' as const },
+      dkimVerifier: verifierFor('aligned'),
       mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
       newId: () => crypto.randomUUID(),
       repository,
@@ -615,6 +619,88 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     ]
     expect(raw).toEqual({ object_key: rawKey, status: 'final' })
     expect(await count('cargo_previews', graph.companyId)).toBe(1)
+  })
+
+  test('o From da mailauth diferente do encaminhador grava só o código, e com a janela cheia nem isso (spec 237 T4.7c)', async () => {
+    const graph = await seedCompany()
+    const dependencies = {
+      dkimVerifier: {
+        verifyWithHeaderFrom: async () => ({
+          alignment: 'aligned' as const,
+          headerFrom: ['mallory@evil.example'],
+        }),
+      },
+      mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
+      newId: () => crypto.randomUUID(),
+      repository,
+      storage: { deleteObject: async () => undefined, storeObject: async () => undefined },
+      storageBucket: 'integration',
+      storageProvider: 'minio',
+    }
+    const input = (providerEmailId: string, from: string) => ({
+      companyId: graph.companyId,
+      correlationId: 'corr-mismatch',
+      delivery: { isLastAttempt: false },
+      occurredAt: new Date('2026-10-06T14:59:00.000Z'),
+      providerEmailId,
+      received: {
+        from,
+        headers: {},
+        message_id: '<outer@forwarder.example>',
+        raw: {
+          download_url: 'https://abc.cloudfront.net/raw/1',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        subject: 'Fwd: previa',
+        text: 'segue',
+        to: [`${TOKEN}@${REPLY_DOMAIN}`],
+      },
+      replyDomain: REPLY_DOMAIN,
+    })
+
+    expect(
+      await intakeCargoPreviewEmail(
+        input('email-mismatch', 'Equipe <equipe@transportadora.example>'),
+        dependencies,
+      ),
+    ).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_FROM_MISMATCH' })
+    expect(await count('cargo_previews', graph.companyId)).toBe(0)
+    const [stored] = [
+      ...(await db.execute<Record<string, unknown>>(
+        sql`select reason_code, forwarder_dkim_result from cargo_preview_email_intakes where company_id = ${graph.companyId}`,
+      )),
+    ]
+    expect(stored).toEqual({
+      forwarder_dkim_result: 'aligned',
+      reason_code: 'FORWARDER_FROM_MISMATCH',
+    })
+
+    await db.execute(sql`
+      insert into cargo_preview_email_intakes
+        (company_id, provider_email_id, contractor_id, outcome, reason_code, forwarder_dkim_result,
+         received_at, recorded_at)
+      select ${graph.companyId}, 'junk-' || series, ${graph.contractorId}, 'rejected',
+        'FORWARDER_NOT_ALLOWED', null, now(), now() - make_interval(mins => 1)
+      from generate_series(1, 100) as series`)
+    const junk = await intakeCargoPreviewEmail(
+      input('email-junk', 'Intruso <intruso@evil.example>'),
+      dependencies,
+    )
+    expect(junk).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_NOT_ALLOWED' })
+    const afterJunk = await db.execute<{ reason_code: string }>(
+      sql`select reason_code from cargo_preview_email_intakes where company_id = ${graph.companyId} and provider_email_id = 'email-junk'`,
+    )
+    expect([...afterJunk]).toEqual([{ reason_code: 'RATE_LIMITED' }])
+    const trace = await db.execute<{ reason_code: string }>(
+      sql`select reason_code from cargo_preview_email_intakes where company_id = ${graph.companyId} and reason_code = 'RATE_LIMITED'`,
+    )
+    expect([...trace]).toHaveLength(1)
+    expect(
+      await intakeCargoPreviewEmail(
+        input('email-legit', 'Equipe <equipe@transportadora.example>'),
+        { ...dependencies, dkimVerifier: verifierFor('aligned') },
+      ),
+    ).toMatchObject({ kind: 'accepted' })
   })
 
   test('o registro dos e-mails é append-only no banco', async () => {

@@ -104,7 +104,9 @@ describe('o From do PoC nunca vira o encaminhador permitido (spec 237 T4.7c, NOV
     expect(verification.headerFrom).toEqual([`equipe"@${ATTACKER_DOMAIN}`])
   })
 
-  test.each([
+  const endToEndCases: ReadonlyArray<
+    readonly [string, string, 'FORWARDER_NOT_ALLOWED' | 'MIME_UNREADABLE']
+  > = [
     ['o From do Resend limpo', `Equipe <${FORWARDER}>`, 'MIME_UNREADABLE'],
     ['o From do Resend igual ao cabeçalho literal', POC_FROM, 'FORWARDER_NOT_ALLOWED'],
     [
@@ -112,16 +114,21 @@ describe('o From do PoC nunca vira o encaminhador permitido (spec 237 T4.7c, NOV
       `equipe"@${ATTACKER_DOMAIN}>"@${FORWARDER_DOMAIN}`,
       'FORWARDER_NOT_ALLOWED',
     ],
-  ])('de ponta a ponta, com %s: recusa e não cria prévia', async (_name, resendFrom, reason) => {
-    const { dkimVerifier, raw } = await signedForward({
-      from: POC_FROM,
-      signingDomain: ATTACKER_DOMAIN,
-    })
-    const run = runIntake({ dkimVerifier, rawEmail: raw, received: { from: resendFrom } })
-    expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rejected', reason })
-    expect(run.calls.created).toEqual([])
-    expect(run.calls.stored).toEqual([])
-  })
+  ]
+
+  test.each(endToEndCases)(
+    'de ponta a ponta, com %s: recusa e não cria prévia',
+    async (_name, resendFrom, reason) => {
+      const { dkimVerifier, raw } = await signedForward({
+        from: POC_FROM,
+        signingDomain: ATTACKER_DOMAIN,
+      })
+      const run = runIntake({ dkimVerifier, rawEmail: raw, received: { from: resendFrom } })
+      expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rejected', reason })
+      expect(run.calls.created).toEqual([])
+      expect(run.calls.stored).toEqual([])
+    },
+  )
 
   test.each([
     ['o cabeçalho completo', `Equipe <${FORWARDER}>`],
@@ -145,7 +152,7 @@ describe('o From lido pela mailauth tem de ser o do encaminhador (spec 237 T4.7c
     contractorId: CONTRACTOR_ID,
     kind: 'rejected',
     reason: 'FORWARDER_FROM_MISMATCH',
-  }
+  } as const
 
   test.each([
     ['outro endereço', ['mallory@evil.example']],
