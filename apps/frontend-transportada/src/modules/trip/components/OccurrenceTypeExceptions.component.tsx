@@ -23,6 +23,7 @@ import {
   describeExceptionKey,
   type OccurrenceTypeExceptionsState,
 } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import type { OccurrenceRecordLabels } from '@/modules/trip/shared/occurrenceRecordFields.service'
 import { useReplaceOccurrenceAttachmentOverridesMutation } from '@/modules/trip/queries/useOccurrenceAttachmentOverrides.query'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
@@ -34,6 +35,7 @@ type OccurrenceTypeExceptionsProps = Readonly<{
   exceptions: OccurrenceTypeExceptionsState
   isDisabled: boolean
   occurrenceTypeId: string
+  recordLabels: OccurrenceRecordLabels | undefined
   scope: OccurrenceRequirementScope
   typeAttachmentMode: OccurrenceAttachmentMode
 }>
@@ -47,6 +49,7 @@ export function OccurrenceTypeExceptions({
   exceptions,
   isDisabled,
   occurrenceTypeId,
+  recordLabels,
   scope,
   typeAttachmentMode,
 }: OccurrenceTypeExceptionsProps) {
@@ -98,6 +101,9 @@ export function OccurrenceTypeExceptions({
     <section aria-label={t('occurrenceTypeCatalog.exceptions.title')} className={styles.block}>
       <p className={styles.title}>{t('occurrenceTypeCatalog.exceptions.titleCount', { count })}</p>
       <p className={styles.legend}>{t('occurrenceTypeCatalog.exceptions.intro')}</p>
+      {recordLabels !== undefined && scope.recordFields.length > 0 ? (
+        <p className={styles.legend}>{t('occurrenceTypeCatalog.exceptions.recordNote')}</p>
+      ) : null}
       {canManage ? null : (
         <p className={styles.legend}>{t('occurrenceTypeCatalog.exceptions.readOnly')}</p>
       )}
@@ -119,6 +125,7 @@ export function OccurrenceTypeExceptions({
               key={'contractorId' in entry ? `c:${entry.contractorId}` : `r:${entry.taxId}`}
               onEdit={handleEdit}
               onRemove={handleRemove}
+              recordLabels={recordLabels}
               scope={scope}
               subject={describeExceptionKey(key, exceptions.people)}
             />

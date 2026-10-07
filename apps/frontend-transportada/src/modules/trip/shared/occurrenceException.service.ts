@@ -19,10 +19,12 @@ export type OccurrenceExceptionKey =
 
 export type OccurrenceExceptionEdit = Readonly<{
   attachmentMode?: OccurrenceAttachmentMode
+  declaredAmountMode?: null | OccurrenceAttachmentMode
   itemsMinimumCount?: null | number
   itemsMode?: null | OccurrenceItemsMode
   noteMode?: null | OccurrenceAttachmentMode
   photoMinimumCount?: null | number
+  referenceNumberMode?: null | OccurrenceAttachmentMode
   signatureMode?: null | OccurrenceAttachmentMode
 }>
 
@@ -91,10 +93,12 @@ export function removeException(
 }
 
 const INHERITING_FIELDS = {
+  declaredAmountMode: null,
   itemsMinimumCount: null,
   itemsMode: null,
   noteMode: null,
   photoMinimumCount: null,
+  referenceNumberMode: null,
   signatureMode: null,
 } as const
 

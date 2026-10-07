@@ -9,14 +9,19 @@ import {
   OCCURRENCE_ATTACHMENT_MODES,
   type OccurrenceAttachmentMode,
 } from '@/modules/trip/shared/occurrence.constant'
-import type { OccurrenceRequirementField } from '@/modules/trip/shared/occurrenceRequirement.constant'
+import type {
+  OccurrenceRecordField,
+  OccurrenceRequirementField,
+} from '@/modules/trip/shared/occurrenceRequirement.constant'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
 const INHERIT = 'inherit'
 
 type OccurrenceExceptionModeSelectProps = Readonly<{
   disabled: boolean
-  field: OccurrenceRequirementField
+  field: OccurrenceRecordField | OccurrenceRequirementField
+  /** O nome que o tipo deu ao campo (ex.: "Número da NFD"); sem ele vale o nome padrão. */
+  label?: string
   /** `undefined` é a foto: declarada na exceção, sem a opção de herdar do tipo. */
   onChange: (mode: null | OccurrenceAttachmentMode) => void
   value: null | OccurrenceAttachmentMode | undefined
@@ -28,11 +33,12 @@ export function OccurrenceExceptionModeSelect({
   canInherit = true,
   disabled,
   field,
+  label: customLabel,
   onChange,
   value,
 }: OccurrenceExceptionModeSelectProps) {
   const { t } = useTranslation('companySettings')
-  const label = t(`occurrenceTypeCatalog.requirements.fields.${field}`)
+  const label = customLabel ?? t(`occurrenceTypeCatalog.requirements.fields.${field}`)
   const modeOptions = OCCURRENCE_ATTACHMENT_MODES.map((mode) => ({
     label: t(`occurrenceTypeCatalog.requirements.modes.${mode}`),
     value: mode,

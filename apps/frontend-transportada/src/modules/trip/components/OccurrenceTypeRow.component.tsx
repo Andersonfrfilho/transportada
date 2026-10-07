@@ -1,8 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import {
+  hasDeclaredAmountWithoutItems,
+  readOccurrenceRecordLabels,
+} from '@/modules/trip/shared/occurrenceRecordFields.service'
 import { readOccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import type { OccurrenceEmailTemplatesState } from '@/modules/trip/shared/occurrenceTemplate.service'
 import styles from '@/modules/trip/styles/trip.module.css'
@@ -36,10 +43,22 @@ export function OccurrenceTypeRow({
   templates,
   type,
 }: OccurrenceTypeRowProps) {
+  const { t } = useTranslation('companySettings')
   const isDisabled = !canManage || isSaving
   const scope = readOccurrenceRequirementScope(type)
+  /** A recusa vale para o tipo como estava: recarregado do servidor (outro objeto), o aviso some sozinho. */
+  const [blockedType, setBlockedType] = useState<null | OccurrenceType>(null)
+  const recordLabels = readOccurrenceRecordLabels(type, {
+    declaredAmount: t('occurrenceTypeCatalog.requirements.fields.declaredAmount'),
+    referenceNumber: t('occurrenceTypeCatalog.requirements.fields.referenceNumber'),
+  })
 
   function handleEdit(edit: OccurrenceTypeEdit) {
+    if (hasDeclaredAmountWithoutItems(type, edit)) {
+      setBlockedType(type)
+      return
+    }
+    setBlockedType(null)
     onSave(buildOccurrenceTypeUpdate(type, edit))
   }
 
@@ -49,7 +68,12 @@ export function OccurrenceTypeRow({
       {type.moments === undefined ? null : (
         <OccurrenceTypeMoments disabled={isDisabled} moments={type.moments} onEdit={handleEdit} />
       )}
-      <OccurrenceTypeRequirementFields disabled={isDisabled} onEdit={handleEdit} type={type} />
+      <OccurrenceTypeRequirementFields
+        disabled={isDisabled}
+        hasAmountWithoutItems={blockedType === type}
+        onEdit={handleEdit}
+        type={type}
+      />
       <OccurrenceTypeNotification
         disabled={isDisabled}
         onEdit={handleEdit}
@@ -64,6 +88,7 @@ export function OccurrenceTypeRow({
           scope={scope}
           isDisabled={isSaving}
           occurrenceTypeId={type.id}
+          recordLabels={recordLabels}
           typeAttachmentMode={type.attachmentMode}
         />
       ) : null}

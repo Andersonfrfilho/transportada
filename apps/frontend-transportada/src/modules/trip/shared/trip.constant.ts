@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { OCCURRENCE_CORRECTION_ERROR } from './occurrence.constant'
-import { OCCURRENCE_TYPE_MOMENTS_ERROR } from './occurrenceMoment.constant'
+import {
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_ERROR,
+  OCCURRENCE_TYPE_MOMENTS_ERROR,
+} from './occurrenceMoment.constant'
 
 export const TRIPS_PATH = '/trips'
 
@@ -195,6 +198,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_TYPE_MOMENTS_ERROR.REQUIRED]: 'occurrenceTypeMomentsRequired',
   [OCCURRENCE_TYPE_MOMENTS_ERROR.DOCUMENT_AND_STOP]: 'occurrenceTypeMomentsDocumentAndStop',
   [OCCURRENCE_TYPE_MOMENTS_ERROR.STAGE_CONFLICT]: 'occurrenceTypeMomentsStageConflict',
+  /** Spec 247 RF1: valor pago por linha em tipo sem produtos — a tela antecipa, o servidor é a rede de segurança. */
+  [OCCURRENCE_TYPE_DECLARED_AMOUNT_ERROR.NEEDS_ITEMS]: 'occurrenceTypeDeclaredAmountNeedsItems',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */

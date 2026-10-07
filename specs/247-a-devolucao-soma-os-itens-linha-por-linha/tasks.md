@@ -95,7 +95,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 
 > 🤖 Modelo: `sonnet`; T5.5 → `haiku`
 
-- [ ] **T5.1** Aba Tipos: linhas "Número do documento do cliente" e "Valor pago" no bloco de
+- [x] **T5.1** Aba Tipos: linhas "Número do documento do cliente" e "Valor pago" no bloco de
       exigências (mesmo `Select` de três estados, rótulo editável, escopo), exceções com "Igual ao
       tipo". Contrato de componente.
 - [ ] **T5.2** Bloco "E-mail à contratante": interruptor `emailsContractor`, assunto, corpo, linha de

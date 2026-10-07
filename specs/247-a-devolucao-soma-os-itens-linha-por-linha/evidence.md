@@ -1198,3 +1198,65 @@ lote 4 (51 arquivos): 198 pass · 1 skip · 0 fail   [184.54s]
 ```
 
 Os `skip` não são testes desta task (nenhum arquivo novo pula). Sem migration nesta task: `make migration-test` não se aplica.
+
+## Fase 5 — Telas do painel (etapa 3)
+
+### T5.1 — Aba Tipos: número do documento do cliente e valor pago (2026-10-07)
+
+**Contrato antes do código** (`apps/frontend-transportada/test/trip-hooks/occurrence-type-record-fields.contract.ts`,
+15 casos, entra por `test/trip-hooks.contract.test.ts`): monta o `OccurrenceTypeCatalogPanel` de verdade e
+**procura no controle** o que cada linha mostra (texto do gatilho do `Select`, valor do `input`, `role="alert"`).
+Vermelho antes de qualquer arquivo de `src/`:
+
+```text
+$ bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks/occurrence-type-record-fields.contract.ts
+ 2 pass
+ 13 fail
+Ran 15 tests across 1 file.
+```
+
+**O que a tela faz** (decisões sobre o desenho aprovado, `preview.html` 1054–1141 e 1210–1238):
+
+- As duas linhas moram na seção "O que exige", abaixo da grade de Foto/Observação/Assinatura/Produtos, no
+  **mesmo `Select` de três estados** (`OccurrenceRequirementModeSelect`, sem `Select` novo e sem tocar o CSS do
+  `Select`). O nome do controle é fixo ("Número do documento do cliente", "Valor pago"); o **rótulo da tela de
+  registro** é um `input` à parte (máx. 40, grava ao sair, vazio ou igual ao gravado volta sem gravar, como o nome do tipo).
+- O valor pago ganha "Digitado": "Por linha de produto" · "Um só, pela ocorrência" (`declaredAmountScope`).
+- Só aparecem as linhas que a API trouxe (`referenceNumberMode`/`declaredAmountMode` presentes) **e** que o momento
+  cobra: nota ou escritório (`scope.recordFields`); parada sozinha e galpão não mostram nada.
+- **Regra do 422 antecipada** (`hasDeclaredAmountWithoutItems`, predicado de três termos:
+  `declaredAmountMode <> 'off' AND scope = 'item' AND itemsMode = 'off'`), avaliado sobre o estado **depois** da
+  edição. A escolha inválida **não grava** e a linha do valor pago mostra `role="alert"` ligado ao grupo por
+  `aria-describedby`: _"Valor pago por linha precisa de produtos…"_. O aviso some na edição válida seguinte ou quando
+  o tipo é recarregado. Rede de segurança: o código estável `OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS` do servidor
+  vira a mesma frase pelo alerta da aba (`trip.feedback.occurrenceTypeDeclaredAmountNeedsItems`).
+- **Exceções (D8):** contratante e destinatário ganham as duas linhas, com o rótulo que o tipo deu ("Número da NFD"),
+  "Igual ao tipo" (nulo herda); a exceção nova nasce com os **dois nulos explícitos**; rótulos e e-mail continuam do tipo
+  (nota na lista).
+- O `PUT` manda só o que a edição mudou (`undefined` é "não mexa"): `saveOccurrenceType` agora recebe
+  `OccurrenceTypeSaveInput` (um só tipo, no lugar da cópia inline).
+
+**Mutações do contrato** (cada uma vermelha, depois revertida; base restaurada → 15 pass):
+
+```text
+M1 — predicado de três termos arrancado (hasDeclaredAmountWithoutItems devolve sempre false):
+     4 fail — "ligar o valor pago sem produtos não grava e diz por quê", "desligar Produtos com valor pago por linha...",
+              "trocar o escopo para por linha...", "uma edição válida depois da recusa tira o aviso"
+M2 — as linhas valem em qualquer momento (scope.recordFields sem olhar document/office):
+     2 fail — "API sem os campos, tipo só de parada e tipo de galpão não oferecem as linhas",
+              "tipo de parada e API sem os campos não mostram as duas linhas na exceção"
+```
+
+**Teste existente ajustado de propósito:** `test/trip/occurrence-exception-service.contract.ts` — a exceção nova passa
+a nascer com sete nulos (os dois modos novos), não cinco.
+
+**Gates:**
+
+```text
+$ bun run typecheck                                (raiz) → tsc --noEmit ×4, sem erro
+$ bun run --cwd apps/frontend-transportada lint    → ✖ 16 problems (0 errors, 16 warnings)   [os 16 já existiam, em arquivos que esta task não tocou]
+$ bun run format:check                             (raiz) → All matched files use Prettier code style!
+$ bun run --cwd apps/frontend-transportada test
+ 7222 pass · 0 fail   Ran 7222 tests across 36 files.
+ 854 pass · 0 fail    Ran 854 tests across 1 file.   (test:hooks)
+```
