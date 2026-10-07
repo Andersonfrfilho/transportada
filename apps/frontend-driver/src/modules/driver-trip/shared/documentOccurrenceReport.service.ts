@@ -19,7 +19,9 @@ export function buildDocumentOccurrenceReport(input: {
 }): DocumentOccurrenceReport {
   const { occurrence } = input
   return {
-    ...(occurrence.declaredAmount === undefined ? {} : { declaredAmount: occurrence.declaredAmount }),
+    ...(occurrence.declaredAmount === undefined
+      ? {}
+      : { declaredAmount: occurrence.declaredAmount }),
     documentId: occurrence.documentId,
     ...(occurrence.extraPhotos === undefined ? {} : { extraPhotos: occurrence.extraPhotos }),
     idempotencyKey: input.idempotencyKey,
