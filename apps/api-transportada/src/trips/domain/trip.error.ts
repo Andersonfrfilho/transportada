@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { OCCURRENCE_DECLARED_AMOUNT_FIELD } from '../../shared/trip-occurrence.constant.js'
 import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import type { TripTransitionBlock } from './trip-state.policy.js'
 
@@ -1390,7 +1391,7 @@ export class OccurrenceDeclaredAmountLevelConflictError extends ApiError {
       code: 'DECLARED_AMOUNT_SELECTION_CONFLICT',
       details: [
         {
-          field: 'declaredAmount',
+          field: OCCURRENCE_DECLARED_AMOUNT_FIELD,
           message: 'Use the occurrence amount or the item amounts, not both.',
         },
       ],

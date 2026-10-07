@@ -13,6 +13,7 @@ import type { ReportedLocation } from '../application/driver-field-report.port.j
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
 import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
+  OCCURRENCE_DECLARED_AMOUNT_FIELD,
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
@@ -49,7 +50,6 @@ const OCCURRENCE_ITEM_QUANTITY_DECIMAL = /^\d{1,9}(\.\d{1,3})?$/
 const NON_ZERO_DIGIT = /[1-9]/
 
 const ITEMS_FIELD = 'items'
-const DECLARED_AMOUNT_FIELD = 'declaredAmount'
 
 /** Spec 247 (RF14): valor pago é texto com até duas casas — negativo, três casas ou número é `400`. */
 const declaredAmountSchema = z.string().regex(DECLARED_AMOUNT_DECIMAL)
@@ -153,7 +153,7 @@ function refineItemSelection(
     context.addIssue({
       code: 'custom',
       message: 'DECLARED_AMOUNT_SELECTION_CONFLICT',
-      path: [DECLARED_AMOUNT_FIELD],
+      path: [OCCURRENCE_DECLARED_AMOUNT_FIELD],
     })
   }
 }

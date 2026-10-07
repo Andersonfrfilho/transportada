@@ -21,6 +21,7 @@
  */
 import { REQUIRED_PROOF_FIELD_MODE } from './delivery-event.constant.js'
 import {
+  OCCURRENCE_DECLARED_AMOUNT_FIELD,
   OCCURRENCE_DECLARED_AMOUNT_SCOPE,
   OCCURRENCE_ITEMS_MODE,
 } from '../../shared/trip-occurrence.constant.js'
@@ -34,8 +35,6 @@ import {
   TripOccurrenceReferenceNumberRequiredError,
   TripOccurrenceSignatureRequiredError,
 } from './trip.error.js'
-
-const OCCURRENCE_DECLARED_AMOUNT_FIELD = 'declaredAmount'
 
 /** O que o guarda precisa de cada linha: o valor digitado e se o preço varia na nota. */
 export type RequirementGuardLine = {

@@ -454,7 +454,7 @@ const TRIP_FIELD_READ_POLICY = {
 } as const satisfies CompanyAnyPermissionPolicy
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
 /** Spec 079: ligar o aviso é configuração da empresa, e configuração é `settings.manage`. */
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
+export const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 /**
  * ADR-0047 §4: o escopo do service account é **esta rota e nada mais**. Ela não é `mdfe.manage` de
  * propósito — quem emite manifesto à mão não deveria ganhar o gatilho de máquina de carona, e um

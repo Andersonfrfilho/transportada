@@ -210,6 +210,9 @@ export const OCCURRENCE_DECLARED_AMOUNT_SCOPES = [
 
 export type OccurrenceDeclaredAmountScope = (typeof OCCURRENCE_DECLARED_AMOUNT_SCOPES)[number]
 
+/** O nome do campo do valor pago da ocorrência, nos corpos e nos detalhes dos erros. */
+export const OCCURRENCE_DECLARED_AMOUNT_FIELD = 'declaredAmount'
+
 /**
  * Spec 247 (RF1): os padrões das colunas novas do tipo — os dois modos desligados, para nenhum tipo
  * existente mudar de comportamento ao aplicar a migration. Nas exceções as colunas são nulas (herdam).

@@ -11,10 +11,9 @@ import {
   parseOccurrenceTypeEmailPreviewRequest,
   type OccurrenceTypeEmailPreviewBody,
 } from './occurrence-type-email-preview.schema.js'
+import { SETTINGS_MANAGE_POLICY } from './trip.routes.js'
 
 export const OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH = '/company-settings/occurrence-types/email-preview'
-
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 
 /**
  * A tela pede a prévia a cada pausa na digitação; sem teto, um cliente com defeito vira busy-loop
