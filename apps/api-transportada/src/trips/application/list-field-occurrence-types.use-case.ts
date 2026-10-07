@@ -19,8 +19,12 @@ import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceMoment, OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import { resolveOccurrenceRequirements } from '../domain/occurrence-requirements.policy.js'
+import {
+  pickCoreRequirements,
+  resolveOccurrenceRequirements,
+} from '../domain/occurrence-requirements.policy.js'
 import type {
+  OccurrenceCoreRequirements,
   OccurrenceRequirementDeclaration,
   OccurrenceRequirements,
   OccurrenceRequirementSources,
@@ -29,7 +33,11 @@ import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.j
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
-export type FieldOccurrenceType = OccurrenceRequirements & {
+/**
+ * Spec 247: só os seis campos da 246 — o painel (escritório) recusa chave que não conhece, e os modos
+ * do número e do valor pago só entram aqui depois de ele tolerá-los (ADR-0081 §9, T4.6).
+ */
+export type FieldOccurrenceType = OccurrenceCoreRequirements & {
   /**
    * Spec 179 T304: se o registro do motorista exige comprovante. Igual a `photoMode`, mantido no
    * corpo por um ciclo para o app anterior à spec 246. `type.attachmentMode` é ausente só para dado
@@ -57,6 +65,8 @@ export type FieldOccurrenceType = OccurrenceRequirements & {
 
 /** Spec 246 (RF12): o tipo resolvido e a camada que decidiu cada campo — a verificação mostra as duas. */
 export type FieldOccurrenceTypeResolution = {
+  /** Spec 247: a exigência efetiva inteira — o registro no servidor cobra também número e valor pago. */
+  readonly requirements: OccurrenceRequirements
   readonly sources: OccurrenceRequirementSources
   readonly type: FieldOccurrenceType
 }
@@ -157,7 +167,7 @@ function toFieldOccurrenceType(params: {
 }): FieldOccurrenceType {
   const { requirements, type } = params
   return {
-    ...requirements,
+    ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
     flow: type.flow ?? 'document',
     id: type.id,
@@ -200,7 +210,7 @@ export function resolveFieldOccurrenceTypeResolutions(
       }),
       type,
     })
-    return { sources, type: toFieldOccurrenceType({ requirements, type }) }
+    return { requirements, sources, type: toFieldOccurrenceType({ requirements, type }) }
   })
 }
 

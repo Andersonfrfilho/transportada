@@ -49,7 +49,8 @@ export type OccurrenceAmountSummary = {
   readonly lines: readonly OccurrenceAmountLineResult[]
 }
 
-function parseScaled(value: string): bigint {
+/** O texto do `numeric` (até 4 casas) em décimos de milésimo, exato. */
+export function parseScaledDecimal(value: string): bigint {
   const match = DECIMAL_PATTERN.exec(value)
   if (match === null) throw new RangeError(INVALID_DECIMAL_MESSAGE)
 
@@ -57,9 +58,15 @@ function parseScaled(value: string): bigint {
   return BigInt(match[1] ?? '0') * SCALE_FACTOR + BigInt(fraction)
 }
 
+/** O inverso de `parseScaledDecimal`: décimos de milésimo no texto do `numeric(…,4)`. */
+export function formatScaledDecimal(units: bigint): string {
+  const fraction = (units % SCALE_FACTOR).toString().padStart(SCALE_DIGITS, '0')
+  return `${(units / SCALE_FACTOR).toString()}.${fraction}`
+}
+
 /** O `numeric` do banco (até 4 casas) em centavos, meio para cima. */
 export function parseAmountToCents(value: string): bigint {
-  return (parseScaled(value) + HALF_CENT) / CENTS_DIVISOR
+  return (parseScaledDecimal(value) + HALF_CENT) / CENTS_DIVISOR
 }
 
 export function calculateItemLineAmount(input: {
@@ -69,7 +76,7 @@ export function calculateItemLineAmount(input: {
 }): bigint {
   if (input.quantity === null) return parseAmountToCents(input.totalValue)
 
-  const product = parseScaled(input.quantity) * parseScaled(input.unitValue)
+  const product = parseScaledDecimal(input.quantity) * parseScaledDecimal(input.unitValue)
   return (product + PRODUCT_HALF_CENT) / PRODUCT_CENTS_DIVISOR
 }
 

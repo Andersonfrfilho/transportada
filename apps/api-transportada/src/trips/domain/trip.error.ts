@@ -1363,3 +1363,50 @@ export class OccurrenceCancellationReasonTooLongError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 247 (casos extremos): a quantidade devolvida de um código passa da **soma** das linhas da nota
+ * com esse código. `400`: o número não pode existir, como a quantidade zero da 166.
+ */
+export class OccurrenceItemQuantityAboveDocumentError extends ApiError {
+  public constructor(field: string) {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT',
+      details: [{ field, message: 'The quantity is above the quantity of the document.' }],
+      message: 'An item quantity cannot be above the quantity of the document.',
+      status: 400,
+    })
+  }
+}
+
+const REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE = 'Required by the occurrence type.'
+
+/**
+ * Spec 247 (RF14, CA06): o tipo **efetivo** da nota exige o número do documento do cliente e o
+ * registro chegou sem ele. Código próprio, com o campo: a tela diz o que falta.
+ */
+export class TripOccurrenceReferenceNumberRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED',
+      details: [{ field: 'referenceNumber', message: REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE }],
+      message: 'This occurrence type requires the customer document number.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 247 (RF14, CA06): falta o valor pago que o tipo efetivo exige — na ocorrência
+ * (`declaredAmount`) ou numa linha (`items[i].declaredAmount`), conforme onde ele se digita.
+ */
+export class TripOccurrenceDeclaredAmountRequiredError extends ApiError {
+  public constructor(field: string) {
+    super({
+      code: 'TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED',
+      details: [{ field, message: REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE }],
+      message: 'This occurrence type requires the declared amount.',
+      status: 422,
+    })
+  }
+}

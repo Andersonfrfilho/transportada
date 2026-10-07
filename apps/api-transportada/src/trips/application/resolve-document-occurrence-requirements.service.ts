@@ -64,5 +64,5 @@ export async function resolveDocumentOccurrenceRequirements(
   })
   if (resolution === undefined) throw new TripDocumentNotReachableError()
 
-  return resolution.type
+  return resolution.requirements
 }

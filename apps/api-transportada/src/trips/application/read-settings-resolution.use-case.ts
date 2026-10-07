@@ -28,21 +28,27 @@ import {
 } from './list-field-occurrence-types.use-case.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
-  OccurrenceRequirements,
+  OccurrenceCoreRequirements,
+  OccurrenceRequirementLayer,
   OccurrenceRequirementSources,
 } from '../domain/occurrence-requirements.policy.js'
+
+/** Spec 247: a camada dos seis campos da 246 — a tela de verificação ainda não conhece os novos. */
+type SettingsResolutionSources = Readonly<
+  Record<keyof OccurrenceCoreRequirements, OccurrenceRequirementLayer>
+>
 
 /**
  * Spec 246 (RF12, P5): os seis campos resolvidos de cada tipo e a camada (`type`, `contractor`,
  * `recipient` ou `default`) que decidiu cada um — o mesmo resolvedor do snapshot e do registro.
  */
-export type SettingsResolutionOccurrenceType = OccurrenceRequirements &
+export type SettingsResolutionOccurrenceType = OccurrenceCoreRequirements &
   Readonly<{
     attachmentMode: DeliveryProofFieldMode
     flow: OccurrenceTypeFlow
     id: string
     name: string
-    sources: OccurrenceRequirementSources
+    sources: SettingsResolutionSources
     /** Todo item vem de `listFieldOccurrenceTypes`, que já filtra `stage: 'delivery'` — nunca outra. */
     stage: typeof TRIP_OCCURRENCE_STAGE.delivery
   }>
@@ -93,7 +99,18 @@ function toFieldSettings(input: DeliveryProofFieldSettings): DeliveryProofFieldS
   }
 }
 
-function pickRequirements(type: FieldOccurrenceType): OccurrenceRequirements {
+function pickSources(sources: OccurrenceRequirementSources): SettingsResolutionSources {
+  return {
+    itemsMinimumCount: sources.itemsMinimumCount,
+    itemsMode: sources.itemsMode,
+    noteMode: sources.noteMode,
+    photoMinimumCount: sources.photoMinimumCount,
+    photoMode: sources.photoMode,
+    signatureMode: sources.signatureMode,
+  }
+}
+
+function pickRequirements(type: FieldOccurrenceType): OccurrenceCoreRequirements {
   return {
     itemsMinimumCount: type.itemsMinimumCount,
     itemsMode: type.itemsMode,
@@ -145,7 +162,7 @@ export async function readSettingsResolution(
       flow: type.flow,
       id: type.id,
       name: type.name,
-      sources,
+      sources: pickSources(sources),
       stage: TRIP_OCCURRENCE_STAGE.delivery,
     })),
   }

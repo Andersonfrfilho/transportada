@@ -2,16 +2,19 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 246 (RF13, T2.6): o WhatsApp do motorista registra pela mesma `registerDriverOccurrence` do app,
- * mas **não colhe foto, assinatura nem produtos** — só a observação. Quando o tipo efetivo da nota exige
+ * mas **não colhe foto, assinatura nem produtos** — só a observação (nem número e valor pago, 247). Quando o tipo efetivo da nota exige
  * um desses campos, o servidor recusa com o erro estável do campo, e a conversa traduz a recusa na frase
  * que diz o que falta (a lista de tipos do canal não é filtrada por exigência: o erro é o aviso).
  */
 import {
+  OccurrenceItemQuantityAboveDocumentError,
   TripOccurrenceAttachmentRequiredError,
+  TripOccurrenceDeclaredAmountRequiredError,
   TripOccurrenceItemsMinimumNotMetError,
   TripOccurrenceItemsRequiredError,
   TripOccurrenceNoteRequiredError,
   TripOccurrencePhotoMinimumNotMetError,
+  TripOccurrenceReferenceNumberRequiredError,
   TripOccurrenceSignatureRequiredError,
 } from '../../trips/domain/trip.error.js'
 import { DRIVER_FLOW_NODE } from '../domain/whatsapp-driver-flow.constant.js'
@@ -54,6 +57,22 @@ export function describeOccurrenceRequirementRefusal(
   ) {
     return {
       message: `Essa ocorrência exige apontar os produtos da nota, e o WhatsApp não aponta produtos. ${USE_THE_APP}`,
+      next: DRIVER_FLOW_NODE.tripMenu,
+    }
+  }
+  /** Spec 247 (T4.4): o WhatsApp não colhe número do documento, valor pago nem quantidade. */
+  if (error instanceof TripOccurrenceReferenceNumberRequiredError) {
+    return {
+      message: `Essa ocorrência exige o número do documento do cliente, e o WhatsApp não o envia. ${USE_THE_APP}`,
+      next: DRIVER_FLOW_NODE.tripMenu,
+    }
+  }
+  if (
+    error instanceof TripOccurrenceDeclaredAmountRequiredError ||
+    error instanceof OccurrenceItemQuantityAboveDocumentError
+  ) {
+    return {
+      message: `Essa ocorrência exige o valor pago e as quantidades, e o WhatsApp não os envia. ${USE_THE_APP}`,
       next: DRIVER_FLOW_NODE.tripMenu,
     }
   }

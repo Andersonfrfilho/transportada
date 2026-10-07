@@ -12,8 +12,10 @@
 import {
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_PHOTO_MINIMUM_COUNT,
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
 } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceDeclaredAmountScope } from '../../shared/trip-occurrence.constant.js'
 import { resolveWithOverrides } from '../../shared/resolve-with-overrides.policy.js'
 import type { DeliveryProofFieldMode } from './delivery-proof-settings.policy.js'
 
@@ -27,7 +29,8 @@ export const OCCURRENCE_REQUIREMENT_LAYER = {
 export type OccurrenceRequirementLayer =
   (typeof OCCURRENCE_REQUIREMENT_LAYER)[keyof typeof OCCURRENCE_REQUIREMENT_LAYER]
 
-export type OccurrenceRequirements = {
+/** Os seis campos da 246 — o recorte que o snapshot, o escritório e a verificação publicam hoje. */
+export type OccurrenceCoreRequirements = {
   /** Nulo é "todos os itens da nota"; só vale com `itemsMode = 'required'`. */
   readonly itemsMinimumCount: null | number
   readonly itemsMode: DeliveryProofFieldMode
@@ -35,6 +38,18 @@ export type OccurrenceRequirements = {
   readonly photoMinimumCount: number
   readonly photoMode: DeliveryProofFieldMode
   readonly signatureMode: DeliveryProofFieldMode
+}
+
+/**
+ * Spec 247 (RF1, RF14, D8): o número do documento do cliente e o valor pago. Os dois **modos** têm
+ * exceção por contratante/destinatário; o escopo do valor pago e os dois rótulos são só do tipo.
+ */
+export type OccurrenceRequirements = OccurrenceCoreRequirements & {
+  readonly declaredAmountLabel: string
+  readonly declaredAmountMode: DeliveryProofFieldMode
+  readonly declaredAmountScope: OccurrenceDeclaredAmountScope
+  readonly referenceNumberLabel: string
+  readonly referenceNumberMode: DeliveryProofFieldMode
 }
 
 export type OccurrenceRequirementSources = Readonly<
@@ -47,10 +62,15 @@ export type OccurrenceRequirementSources = Readonly<
  */
 export type OccurrenceRequirementDeclaration = {
   readonly attachmentMode?: DeliveryProofFieldMode | null | undefined
+  readonly declaredAmountLabel?: null | string | undefined
+  readonly declaredAmountMode?: DeliveryProofFieldMode | null | undefined
+  readonly declaredAmountScope?: null | OccurrenceDeclaredAmountScope | undefined
   readonly itemsMinimumCount?: null | number | undefined
   readonly itemsMode?: DeliveryProofFieldMode | null | undefined
   readonly noteMode?: DeliveryProofFieldMode | null | undefined
   readonly photoMinimumCount?: null | number | undefined
+  readonly referenceNumberLabel?: null | string | undefined
+  readonly referenceNumberMode?: DeliveryProofFieldMode | null | undefined
   readonly signatureMode?: DeliveryProofFieldMode | null | undefined
 }
 
@@ -98,7 +118,12 @@ function toItemsPair(declaration: null | OccurrenceRequirementDeclaration): Item
   return { minimum: declaration.itemsMinimumCount ?? null, mode: declaration.itemsMode }
 }
 
-type ModeField = 'attachmentMode' | 'noteMode' | 'signatureMode'
+type ModeField =
+  | 'attachmentMode'
+  | 'declaredAmountMode'
+  | 'noteMode'
+  | 'referenceNumberMode'
+  | 'signatureMode'
 
 type ResolveModeParams = {
   readonly fallback: DeliveryProofFieldMode
@@ -116,33 +141,61 @@ function resolveMode(params: ResolveModeParams): Layered<DeliveryProofFieldMode>
   })
 }
 
-type ResolvedLayers = {
-  readonly items: Layered<ItemsPair>
-  readonly noteMode: Layered<DeliveryProofFieldMode>
-  readonly photoMinimumCount: Layered<number>
-  readonly photoMode: Layered<DeliveryProofFieldMode>
-  readonly signatureMode: Layered<DeliveryProofFieldMode>
+/** O que só o tipo declara (D8): nenhuma exceção o muda, e a camada é `type` (ou `default` num dublê). */
+function resolveTypeOnly<TValue>(value: null | TValue | undefined, fallback: TValue) {
+  return resolveField<TValue>({ contractor: null, fallback, recipient: null, type: value })
 }
 
+type SingleLayers = Omit<
+  { readonly [TKey in keyof OccurrenceRequirements]: Layered<OccurrenceRequirements[TKey]> },
+  'itemsMinimumCount' | 'itemsMode'
+>
+
+type ResolvedLayers = SingleLayers & { readonly items: Layered<ItemsPair> }
+
 function toRequirementsResult(resolved: ResolvedLayers): ResolveOccurrenceRequirementsResult {
-  const { items, noteMode, photoMinimumCount, photoMode, signatureMode } = resolved
+  const { items, ...single } = resolved
   return {
     requirements: {
+      declaredAmountLabel: single.declaredAmountLabel.value,
+      declaredAmountMode: single.declaredAmountMode.value,
+      declaredAmountScope: single.declaredAmountScope.value,
       itemsMinimumCount: items.value.minimum,
       itemsMode: items.value.mode,
-      noteMode: noteMode.value,
-      photoMinimumCount: photoMinimumCount.value,
-      photoMode: photoMode.value,
-      signatureMode: signatureMode.value,
+      noteMode: single.noteMode.value,
+      photoMinimumCount: single.photoMinimumCount.value,
+      photoMode: single.photoMode.value,
+      referenceNumberLabel: single.referenceNumberLabel.value,
+      referenceNumberMode: single.referenceNumberMode.value,
+      signatureMode: single.signatureMode.value,
     },
     sources: {
+      declaredAmountLabel: single.declaredAmountLabel.layer,
+      declaredAmountMode: single.declaredAmountMode.layer,
+      declaredAmountScope: single.declaredAmountScope.layer,
       itemsMinimumCount: items.layer,
       itemsMode: items.layer,
-      noteMode: noteMode.layer,
-      photoMinimumCount: photoMinimumCount.layer,
-      photoMode: photoMode.layer,
-      signatureMode: signatureMode.layer,
+      noteMode: single.noteMode.layer,
+      photoMinimumCount: single.photoMinimumCount.layer,
+      photoMode: single.photoMode.layer,
+      referenceNumberLabel: single.referenceNumberLabel.layer,
+      referenceNumberMode: single.referenceNumberMode.layer,
+      signatureMode: single.signatureMode.layer,
     },
+  }
+}
+
+/** O recorte da 246, para quem publica os tipos a uma tela que ainda não tolera os campos novos. */
+export function pickCoreRequirements(
+  requirements: OccurrenceCoreRequirements,
+): OccurrenceCoreRequirements {
+  return {
+    itemsMinimumCount: requirements.itemsMinimumCount,
+    itemsMode: requirements.itemsMode,
+    noteMode: requirements.noteMode,
+    photoMinimumCount: requirements.photoMinimumCount,
+    photoMode: requirements.photoMode,
+    signatureMode: requirements.signatureMode,
   }
 }
 
@@ -174,5 +227,34 @@ export function resolveOccurrenceRequirements(
     type: toItemsPair(type),
   })
 
-  return toRequirementsResult({ items, noteMode, photoMinimumCount, photoMode, signatureMode })
+  const declarations = OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS
+  return toRequirementsResult({
+    declaredAmountLabel: resolveTypeOnly(
+      type.declaredAmountLabel,
+      declarations.declaredAmountLabel,
+    ),
+    declaredAmountMode: resolveMode({
+      fallback: declarations.declaredAmountMode,
+      field: 'declaredAmountMode',
+      layers: params,
+    }),
+    declaredAmountScope: resolveTypeOnly<OccurrenceDeclaredAmountScope>(
+      type.declaredAmountScope,
+      declarations.declaredAmountScope,
+    ),
+    items,
+    noteMode,
+    photoMinimumCount,
+    photoMode,
+    referenceNumberLabel: resolveTypeOnly(
+      type.referenceNumberLabel,
+      declarations.referenceNumberLabel,
+    ),
+    referenceNumberMode: resolveMode({
+      fallback: declarations.referenceNumberMode,
+      field: 'referenceNumberMode',
+      layers: params,
+    }),
+    signatureMode,
+  })
 }
