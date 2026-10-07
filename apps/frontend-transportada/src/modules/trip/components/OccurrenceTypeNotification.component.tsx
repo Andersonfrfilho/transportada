@@ -39,7 +39,6 @@ export function OccurrenceTypeNotification({
   const { t } = useTranslation('companySettings')
   const reasonId = useId()
   const selected = templates.options.find((option) => option.key === type.emailTemplateKey)
-  const hasLegacyText = type.emailTemplateKey === null && type.emailSubject !== ''
   const isMissing =
     type.emailTemplateKey !== null && templates.status === 'ready' && selected === undefined
 
@@ -67,22 +66,13 @@ export function OccurrenceTypeNotification({
 
   function renderPreview() {
     if (!type.notifies) return null
-    if (selected !== undefined || hasLegacyText) {
-      const subject = selected?.subject ?? type.emailSubject
-      const body = selected?.body ?? type.emailBody
+    if (selected !== undefined) {
       return (
-        <>
-          {hasLegacyText ? (
-            <p className={styles.templateNote}>
-              {t('occurrenceTypeCatalog.legacyTemplate', { subject: type.emailSubject })}
-            </p>
-          ) : null}
-          <p className={styles.templatePreview}>
-            <strong>{t('occurrenceTypeCatalog.notification.subject')}</strong> {subject}
-            {'\n'}
-            {body}
-          </p>
-        </>
+        <p className={styles.templatePreview}>
+          <strong>{t('occurrenceTypeCatalog.notification.subject')}</strong> {selected.subject}
+          {'\n'}
+          {selected.body}
+        </p>
       )
     }
     if (type.emailTemplateKey === null) {

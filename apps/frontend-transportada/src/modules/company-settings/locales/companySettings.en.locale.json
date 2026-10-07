@@ -294,7 +294,6 @@
     "emailTemplate": "Email template",
     "emailTemplateNone": "No email",
     "editTemplates": "Edit email templates",
-    "legacyTemplate": "{{subject}} — own template (legacy)",
     "withoutTemplate": "No email: this type is only logged on the trip.",
     "allowsMultipleItems": "Allows multiple items",
     "itemsMode": "Products",
@@ -489,7 +488,7 @@
     "notification": {
       "title": "Internal notice",
       "template": "Notification template",
-      "templateHint": "A notice to whoever dispatched the trip, through the Notifications module. The text is edited under Notifications; here you only pick which template applies. The contractor e-mail is in the block beside it.",
+      "templateHint": "A notice to whoever dispatched the trip, through the Notifications module. The text is edited under Notifications; here you only pick which template applies. The contractor e-mail is set in the block above.",
       "subject": "Subject:",
       "disabledReason": "The template only applies when the type notifies whoever dispatched the trip. Turn on \"Notify when it happens\" to choose one.",
       "loading": "Loading the e-mail templates…",
