@@ -3,6 +3,7 @@
  */
 import './trip-application/trip-use-case.contract.js'
 import './trip-application/trip-crew-service.contract.js'
+import './trip-application/trip-crew-transfer.contract.js'
 import './trip-application/route-geometry.contract.js'
 import './trip-application/route-geometry-toll.contract.js'
 import './trip-application/route-geometry-options.contract.js'

@@ -482,6 +482,31 @@ describe('separator role contract', () => {
 })
 
 /**
+ * Spec 249 D3: transferir a tripulação de uma viagem que já saiu é do escritório que dá baixa em nome
+ * do motorista (`trip.report-on-behalf`). O separador monta a viagem; ele não a passa para outra
+ * pessoa depois que ela saiu — a lista exaustiva acima já prova a ausência, e aqui está a razão.
+ */
+describe('a transferência de tripulação na rua (spec 249)', () => {
+  const TRANSFER_ROUTE = 'POST /trips/:id/crew-transfers'
+
+  test('o separador e o leitor não alcançam a rota', () => {
+    expect(reachableRoutes(['separator'])).not.toContain(TRANSFER_ROUTE)
+    expect(reachableRoutes(['viewer'])).not.toContain(TRANSFER_ROUTE)
+  })
+
+  test('quem dá baixa em nome do motorista alcança', () => {
+    for (const role of ['company-admin', 'operator', 'finance'] as const) {
+      expect(reachableRoutes([role])).toContain(TRANSFER_ROUTE)
+    }
+  })
+
+  test('é a permissão de dar baixa que barra, não um acidente de composição', () => {
+    expect(resolveCompanyPermissions(['separator'])).toContain('trip.manage')
+    expect(resolveCompanyPermissions(['separator'])).not.toContain('trip.report-on-behalf')
+  })
+})
+
+/**
  * Spec 085 G005: medir a caixa é trabalho de galpão, e ele precisa de permissão própria.
  * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
  * da prefeitura — e é o que o conferente teria de receber se a medição pegasse carona nela.

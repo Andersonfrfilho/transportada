@@ -40,6 +40,7 @@ type RouteDependencies = {
   readonly closeTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly createTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly updateTripCrew: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
+  readonly transferTripCrew: { execute(input: ExecuteCall): Promise<unknown> }
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
@@ -84,6 +85,9 @@ type CreateFixtureParams = {
   readonly closeTripError?: Error
   readonly createTripError?: Error
   readonly updateTripCrewError?: Error
+  readonly transferTripCrewError?: Error
+  /** Spec 249: o que a transferência devolve; ausente é a viagem em trânsito e o resumo do contrato. */
+  readonly transferTripCrewResult?: unknown
   readonly createTripMdfeManifestError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
@@ -141,6 +145,19 @@ export const COMPANY_CONTEXT: CompanyContext = {
   ]),
 }
 
+/** Spec 249: o resumo que o caso de uso devolve ao lado da viagem — o contrato HTTP o recorta. */
+const DEFAULT_CREW_TRANSFER_RESULT = {
+  transfer: {
+    costAfter: '1350.00',
+    costBefore: '1200.00',
+    costDifference: '150.00',
+    costHasGaps: false,
+    id: '00000000-0000-4000-8000-000000000b01',
+    mdfeDriverDivergence: true,
+  },
+  trip: { ...TRIP_DETAIL, status: 'in_transit' },
+}
+
 export const NO_PERMISSIONS: CompanyContext['permissions'] = new Set([])
 
 /** Quem administra frota deixou de administrar viagem: é o ponto da permissão nova. */
@@ -184,6 +201,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly closeTripCalls: ExecuteCall[]
   readonly createTripCalls: ExecuteCall[]
   readonly updateTripCrewCalls: ExecuteCall[]
+  readonly transferTripCrewCalls: ExecuteCall[]
   readonly createTripMdfeManifestCalls: ExecuteCall[]
   readonly dispatchTripCalls: ExecuteCall[]
   readonly getTripCalls: ExecuteCall[]
@@ -216,6 +234,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const closeTripCalls: ExecuteCall[] = []
   const createTripCalls: ExecuteCall[] = []
   const updateTripCrewCalls: ExecuteCall[] = []
+  const transferTripCrewCalls: ExecuteCall[] = []
   const createTripMdfeManifestCalls: ExecuteCall[] = []
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
@@ -292,6 +311,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         updateTripCrewCalls.push(structuredClone(input))
         if (params.updateTripCrewError) throw params.updateTripCrewError
         return { ...TRIP_DETAIL, status: 'draft' }
+      },
+    },
+    transferTripCrew: {
+      async execute(input) {
+        transferTripCrewCalls.push(structuredClone(input))
+        if (params.transferTripCrewError) throw params.transferTripCrewError
+        return params.transferTripCrewResult ?? DEFAULT_CREW_TRANSFER_RESULT
       },
     },
     createTripMdfeManifest: {
@@ -552,6 +578,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     closeTripCalls,
     createTripCalls,
     updateTripCrewCalls,
+    transferTripCrewCalls,
     createTripMdfeManifestCalls,
     dispatchTripCalls,
     getTripCalls,

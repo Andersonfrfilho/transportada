@@ -138,6 +138,17 @@ export class TripCrewHelperNotEligibleError extends ApiError {
   }
 }
 
+/** Spec 249 D5: transferir para a tripulação que a viagem já tem não tem efeito — nada é gravado. */
+export class TripCrewUnchangedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CREW_UNCHANGED',
+      message: 'The requested crew is already the crew of this trip.',
+      status: 409,
+    })
+  }
+}
+
 /**
  * Spec 235 D5: a ficha não dirige (`can_drive = false`) e foi escalada como condutor — os ids vão em
  * `details`. Não confundir com `TRIP_CREW_HELPER_CANNOT_DRIVE` (403): aquele é o ajudante já na
