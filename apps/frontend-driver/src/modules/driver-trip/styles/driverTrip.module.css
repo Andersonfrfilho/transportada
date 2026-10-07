@@ -1571,6 +1571,12 @@
   margin: 0;
 }
 
+/* O botão liberou: o verde de "pronto", misturado ao tom do texto para passar de 4,5:1 nos dois temas. */
+.readyToRegister {
+  color: color-mix(in srgb, var(--color-ready) 70%, var(--color-fog));
+  margin: 0;
+}
+
 /* Na fila é cobre (ainda não subiu), enviado é verde, recusado é o vermelho da recusa. */
 .notDeliveredStatus {
   align-items: center;

@@ -17,6 +17,7 @@ import type {
   DriverTripStop,
 } from '../shared/driverTrip.types'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
+import { hasRequiredOccurrenceField } from '../shared/occurrenceRequiredFields.service'
 import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
 import {
   resolveOccurrenceRequirements,
@@ -190,6 +191,7 @@ export function DriverOccurrenceRegistrationForm({
 
       <OccurrenceRegisterAction
         canRegister={form.canRegister}
+        hasRequiredFields={hasRequiredOccurrenceField(requirements)}
         missingContext={{
           declaredAmountLabel: valueLabels.declaredAmount,
           itemsMinimumCount: resolveRequiredItemsCount({

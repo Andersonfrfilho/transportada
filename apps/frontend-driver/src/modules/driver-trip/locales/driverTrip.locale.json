@@ -514,7 +514,7 @@
     "cancel": "Cancelar",
     "declaredAmount": {
       "defaultLabel": "Valor pago",
-      "limit": "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99.",
+      "limit": "Limite do campo: o valor não pode passar de R$\u00a09.999.999.999,99.",
       "optional": "{{label}} · opcional",
       "placeholder": "0,00",
       "required": "{{label}} · obrigatório"
@@ -522,10 +522,10 @@
     "items": {
       "amountOptional": "{{label}} · se diferente",
       "amountRequired": "{{label}} · obrigatório",
-      "calculation": "{{quantity}} {{unit}} × R$ {{unitValue}} =",
-      "money": "R$ {{value}}",
-      "onNote": "Na nota: {{quantity}} {{unit}} × R$ {{unitValue}}",
-      "paid": "· pago R$ {{value}}",
+      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "money": "R$\u00a0{{value}}",
+      "onNote": "Na nota: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
+      "paid": "· pago R$\u00a0{{value}}",
       "quantityAboveNote": "A nota tem só {{quantity}} {{unit}}.",
       "quantityLabel": "Quantidade devolvida ({{unit}})",
       "quantityMissing": "Informe a quantidade, maior que zero.",
@@ -535,7 +535,13 @@
       "titleOptional": "Produtos devolvidos (opcional)",
       "titleRequired": "Produtos devolvidos (obrigatório)",
       "totals": {
-        "inMail": "Valor no e-mail",
+        "inMail": "Total que vai no e-mail",
+        "origin": {
+          "calculated": "Calculado pela nota (quantidade × valor unitário).",
+          "mixed": "{{typed}} de {{total}} linhas com valor pago digitado; as outras, calculadas pela nota.",
+          "occurrence": "Valor pago digitado para a ocorrência inteira.",
+          "typed": "Valor pago digitado em todas as linhas."
+        },
         "sum": "Soma dos produtos (NF-e)"
       },
       "varyingUnitValue": "O valor unitário varia nesta nota: informe o valor pago desta linha."
@@ -563,6 +569,7 @@
     "products": {
       "title": "Produtos da nota (obrigatório)"
     },
+    "readyToRegister": "Tudo o que o tipo pede está preenchido.",
     "referenceNumber": {
       "defaultLabel": "Número do documento do cliente",
       "optional": "{{label}} · opcional",
