@@ -435,6 +435,31 @@ function isAutoDispatchOutcome(value: unknown): value is AutoDispatchOutcome {
   )
 }
 
+function isHolidayReason(value: unknown): value is Readonly<{ scope: string; origin: string; name: string }> {
+  return (
+    isRecord(value) &&
+    isString(value.scope) &&
+    isString(value.origin) &&
+    isString(value.name)
+  )
+}
+
+function isHolidayWarning(value: unknown): value is Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly Readonly<{ scope: string; origin: string; name: string }>[]
+}> {
+  return (
+    isRecord(value) &&
+    isString(value.date) &&
+    typeof value.cityIbgeCode === 'number' &&
+    (value.cityName === undefined || isString(value.cityName)) &&
+    Array.isArray(value.reasons) &&
+    value.reasons.every(isHolidayReason)
+  )
+}
+
 function isStopDetail(value: unknown): value is TripStopDetail {
   if (
     !hasKeys(value, {
@@ -454,7 +479,9 @@ function isStopDetail(value: unknown): value is TripStopDetail {
     isString(value.id) &&
     isString(value.label) &&
     isUnsignedInteger(value.sequence) &&
-    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence))
+    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence)) &&
+    (value.holidayWarnings === undefined ||
+      (Array.isArray(value.holidayWarnings) && value.holidayWarnings.every(isHolidayWarning)))
   )
 }
 

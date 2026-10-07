@@ -322,6 +322,8 @@ export const TRIP_STOP_OPTIONAL_KEYS = [
   'latitude',
   'longitude',
   'state',
+  /** Spec 252 (ADR-0100 §6): avisos de feriado nas paradas. Campo novo nasce ausente (spec 078 D2). */
+  'holidayWarnings',
 ] as const
 
 export const TRIP_STOP_KEYS = [

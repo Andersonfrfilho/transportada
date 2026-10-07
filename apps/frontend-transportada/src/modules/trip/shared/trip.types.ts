@@ -535,6 +535,20 @@ export type TripDocumentDetail = TripDocument &
 /** O mesmo vocabulário de `TripAmounts.revenueSource` (spec 065 D7). */
 export type TripDocumentFreightSource = 'estimated' | 'measured' | 'missing'
 
+/** Spec 252 (ADR-0100 §6): aviso de feriado numa parada. */
+export type HolidayWarning = Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly HolidayReason[]
+}>
+
+export type HolidayReason = Readonly<{
+  scope: string
+  origin: string
+  name: string
+}>
+
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
 export type TripStopDetail = Readonly<{
@@ -546,6 +560,8 @@ export type TripStopDetail = Readonly<{
    */
   cityCode?: string
   state?: string
+  /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Ausente é API anterior (spec 078 D2). */
+  holidayWarnings?: readonly HolidayWarning[]
   addressKey: string
   /** Spec 079 T012: de `geocoded_addresses`; `null` é endereço ainda não geocodificado. */
   latitude?: null | string
