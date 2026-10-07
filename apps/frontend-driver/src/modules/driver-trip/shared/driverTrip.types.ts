@@ -353,6 +353,14 @@ export type DriverFieldReport =
       /** Vazio é a nota inteira. */
       productCode: string
       /**
+       * Spec 247 (T5.3): o que o motorista marcou e digitou. Tudo `string` — dinheiro e quantidade nunca
+       * viram `number` —, e nada de preço, unidade ou escopo: o servidor lê da nota. Ausente é o item
+       * gravado antes da spec (ou o tipo sem produtos, número e valor).
+       */
+      declaredAmount?: string
+      items?: readonly DriverOccurrenceItem[]
+      referenceNumber?: string
+      /**
        * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
        * o aviso para um fato só. Sobe pelo mesmo par de upload e vira `signatureObjectId`; nunca
        * passa pelo comprovante da nota.
@@ -390,6 +398,13 @@ export type DriverFieldReport =
       idempotencyKey: string
       kind: 'proofReceiver'
     }>
+
+/** Spec 247: um produto devolvido — código, quantidade e, só no escopo "por produto", o valor pago. */
+export type DriverOccurrenceItem = Readonly<{
+  declaredAmount?: string
+  productCode: string
+  quantity: string
+}>
 
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
 export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
