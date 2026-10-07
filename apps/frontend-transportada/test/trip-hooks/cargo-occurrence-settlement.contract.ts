@@ -13,11 +13,13 @@ import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/car
 
 import { buildOccurrence } from '../fixtures/cargoOccurrence.fixture'
 import { documentIdOf } from '../fixtures/cargoReceiving.fixture'
-import { installCargoCaseDouble, type CargoCaseDouble } from './cargoOccurrenceCaseHarness.helper'
+import {
+  currentCaseDouble as caseDouble,
+  installCargoCaseDouble,
+} from './cargoOccurrenceCaseHarness.helper'
 import {
   alertsOf,
   caseButton,
-  confirm,
   itemOf,
   openPanel,
   pickOption,
@@ -42,17 +44,16 @@ const decidedBy = (kind: 'goods_paid' | 'other') => {
     ],
     nfeDocumentId: DOC,
   })
-  caseDouble.decisions.set(OCCURRENCE, kind)
+  caseDouble().decisions.set(OCCURRENCE, kind)
   return origin
 }
 
 let restoreLayout: () => void = () => undefined
-let caseDouble: CargoCaseDouble
 
 beforeEach(() => {
   document.body.innerHTML = ''
   restoreLayout = stubVisibleLayout()
-  caseDouble = installCargoCaseDouble()
+  installCargoCaseDouble()
 })
 
 afterEach(() => restoreLayout())
@@ -113,7 +114,7 @@ describe('decidiu "mercadoria paga" agora: o acerto se abre sozinho', () => {
     await click(save())
     await settle()
 
-    expect(caseDouble.calls.recordSettlement).toEqual([
+    expect(caseDouble().calls.recordSettlement).toEqual([
       {
         items: [
           { amount: '120.00', amountSource: 'manual', payerKind: 'carrier', productCode: 'P-100' },
@@ -157,7 +158,7 @@ describe('decidida pelo contratante (o painel não sabe a decisão): o servidor 
     await click(save())
     await settle()
 
-    expect(caseDouble.calls.recordSettlement[0]?.items).toEqual([
+    expect(caseDouble().calls.recordSettlement[0]?.items).toEqual([
       { amount: '1234.56', amountSource: 'manual', payerKind: 'carrier', productCode: 'P-200' },
       { amount: '5.00', amountSource: 'manual', payerKind: 'carrier', productCode: 'P-100' },
     ])
@@ -168,7 +169,7 @@ describe('decidida pelo contratante (o painel não sabe a decisão): o servidor 
   })
 
   test('o acerto que já estava gravado volta ao formulário, com o valor mascarado', async () => {
-    caseDouble.settlements.set(OCCURRENCE, [
+    caseDouble().settlements.set(OCCURRENCE, [
       { amount: '45.5000', amountSource: 'manual', payerKind: 'insurer', productCode: 'P-100' },
     ])
     const origin = buildOccurrence({
@@ -205,7 +206,7 @@ describe('decisão `other`: encerra direto, sem acerto', () => {
 
     await waitForStatus({ occurrenceId: OCCURRENCE, text: 'Encerrada' })
     expect(form()).toBeNull()
-    expect(caseDouble.calls.readSettlement).toHaveLength(0)
+    expect(caseDouble().calls.readSettlement).toHaveLength(0)
     rendered.unmount()
   })
 })
@@ -226,7 +227,7 @@ describe('o formulário do acerto não deixa passar linha incompleta nem repetid
     await click(save())
     await settle()
 
-    expect(caseDouble.calls.recordSettlement).toHaveLength(0)
+    expect(caseDouble().calls.recordSettlement).toHaveLength(0)
     expect(alertsOf(OCCURRENCE)).toContain('Escolha o item')
     expect(alertsOf(OCCURRENCE)).toContain('valor maior que zero')
     expect(amountField(0).getAttribute('aria-invalid')).toBe('true')
@@ -277,7 +278,7 @@ describe('o formulário do acerto não deixa passar linha incompleta nem repetid
   test('a recusa do servidor ao gravar nomeia o motivo e guarda o que foi digitado', async () => {
     const { rendered } = await openForm()
     await fillRow({ amount: '1000', index: 0, label: 'P-100' })
-    caseDouble.failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
+    caseDouble().failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
 
     await click(save())
     await settle()

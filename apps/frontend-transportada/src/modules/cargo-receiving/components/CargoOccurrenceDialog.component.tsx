@@ -8,6 +8,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useCargoOccurrenceForm } from '../hooks/useCargoOccurrenceForm.hook'
 import type { OpenedOccurrenceForm } from '../hooks/useCargoOccurrence.hook'
+import styles from '../styles/cargoOccurrence.module.css'
 import dialogStyles from '../styles/cargoOccurrenceDialog.module.css'
 import { CargoOccurrenceDialogFooter } from './CargoOccurrenceDialogFooter.component'
 import { CargoOccurrenceDialogHeader } from './CargoOccurrenceDialogHeader.component'
@@ -34,6 +35,7 @@ export function CargoOccurrenceDialog({
 }: CargoOccurrenceDialogProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
   const titleId = useId()
+  const blockedReasonId = useId()
   const form = useCargoOccurrenceForm({ arrivalId, documentId: note.documentId, onSaved: onClose })
 
   function handleClose(): void {
@@ -72,7 +74,13 @@ export function CargoOccurrenceDialog({
           </>
         )}
         <CargoOccurrenceDialogFeedback form={form} panelRef={dialogRef} />
+        {form.hasNoTypes ? (
+          <p className={styles.fieldError} data-submit-blocked="" id={blockedReasonId}>
+            {t('occurrence.dialog.submitBlockedNoTypes')}
+          </p>
+        ) : null}
         <CargoOccurrenceDialogFooter
+          blockedReasonId={form.hasNoTypes ? blockedReasonId : undefined}
           isLoading={form.isLoading}
           isSubmitting={form.isSubmitting}
           onCancel={handleClose}

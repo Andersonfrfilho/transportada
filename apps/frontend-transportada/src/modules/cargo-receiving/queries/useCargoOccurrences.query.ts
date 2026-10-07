@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useQuery } from '@tanstack/react-query'
+import { replaceEqualDeep, useQuery } from '@tanstack/react-query'
 
 import type { CargoArrivalStatus } from '../shared/cargoArrival.types'
 import { resolveCargoArrivalRefetchInterval } from '../shared/cargoArrivalPolling.service'
+import { stabilizeOccurrenceAttachments } from '../shared/cargoOccurrenceAttachments.service'
+import { isOccurrencesView } from '../shared/cargoOccurrenceGuards.validation'
 import { CARGO_OCCURRENCE_QUERY_SEGMENT } from '../shared/cargoOccurrence.constant'
 import { getCargoOccurrenceClient } from '../shared/cargoOccurrenceClient.service'
 import { CARGO_RECEIVING_QUERY_KEY } from '../shared/cargoReceiving.constant'
@@ -35,6 +37,21 @@ export function cargoDocumentProductsQueryKey(
   ] as const
 }
 
+/**
+ * Cada leitura traz URLs assinadas novas: mantê-las trocaria o `src` da miniatura a cada 20 s. A leitura nova herda
+ * a URL anterior do mesmo anexo enquanto ela vive com folga, e o resto é sempre o novo (`replaceEqualDeep` devolve a
+ * mesma referência quando nada mudou, e a tela nem repinta).
+ */
+function stabilizeOccurrencesRead(previous: unknown, next: unknown): unknown {
+  if (!isOccurrencesView(next)) return next
+  const stabilized = stabilizeOccurrenceAttachments({
+    next,
+    now: Date.now(),
+    previous: isOccurrencesView(previous) ? previous : undefined,
+  })
+  return replaceEqualDeep(previous, stabilized)
+}
+
 /** Marcação por nota, avarias e contagens: mais de uma pessoa trabalha a chegada, e a leitura traz o colega. */
 export function useCargoOccurrencesQuery(
   input: Readonly<{ arrivalId: string; status: CargoArrivalStatus | undefined }>,
@@ -42,6 +59,7 @@ export function useCargoOccurrencesQuery(
   return useQuery({
     queryFn: () => getCargoOccurrenceClient().listOccurrences(input.arrivalId),
     queryKey: cargoOccurrencesQueryKey(input.arrivalId),
+    structuralSharing: stabilizeOccurrencesRead,
     refetchInterval: () =>
       resolveCargoArrivalRefetchInterval({
         isTouchInFlight: false,

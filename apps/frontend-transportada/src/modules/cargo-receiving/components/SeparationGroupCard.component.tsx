@@ -35,8 +35,9 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
   const { noteOf } = useCargoOccurrence()
   // A nota a devolver ou devolvida não se separa: o lote leva só as que o servidor aceitaria.
   const separable = group.documents.filter((item) => noteOf(item).returnState === 'none')
-  const isComplete =
-    separable.length > 0 && separable.every((item) => item.separationState === 'separated')
+  const separatedCount = separable.filter((item) => item.separationState === 'separated').length
+  const isComplete = separable.length > 0 && separatedCount === separable.length
+  const asideCount = group.documents.length - separable.length
   // Um toque individual em voo já mexe numa nota do grupo: o lote em cima dele mandaria a mesma nota duas vezes.
   const hasTouchInFlight = group.documents.some((item) => props.pendingIds.has(item.nfeDocumentId))
 
@@ -53,7 +54,8 @@ export function SeparationGroupCard(props: SeparationGroupCardProps): JSX.Elemen
         <span className={styles.groupTitle}>
           <span className={styles.groupName}>{title}</span>
           <span className={styles.groupCounts}>
-            {t('group.counts', { done: group.counts.separated, total: group.counts.total })}
+            {t('group.counts', { done: separatedCount, total: separable.length })}
+            {asideCount === 0 ? '' : ` · ${t('group.aside', { count: asideCount })}`}
           </span>
         </span>
         <Icon name={props.isOpen ? 'chevron-up' : 'chevron-down'} />

@@ -20,12 +20,17 @@ export function CargoOccurrenceTypeField({ form }: CargoOccurrenceTypeFieldProps
       <span className={styles.fieldTitle}>{t('occurrence.dialog.typeLabel')}</span>
       <Select
         ariaLabel={t('occurrence.dialog.typeLabel')}
-        disabled={form.isSubmitting}
+        disabled={form.isSubmitting || form.hasNoTypes}
         onChange={form.draft.setTypeId}
         options={form.types.map((type) => ({ label: type.name, value: type.id }))}
         placeholder={t('occurrence.dialog.typePlaceholder')}
         value={form.draft.draft.typeId}
       />
+      {form.hasNoTypes ? (
+        <p className={styles.fieldError} data-types-empty="" role="status">
+          {t('occurrence.dialog.typesEmpty')}
+        </p>
+      ) : null}
       {issue === undefined ? null : (
         <p className={styles.fieldError} role="alert">
           {t(`occurrence.issues.${issue.code}`, { max: issue.max })}

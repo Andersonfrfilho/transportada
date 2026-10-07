@@ -25,6 +25,8 @@ export function useOccurrencePhoto(
   const [failure, setFailure] = useState<OccurrencePhotoFailure | undefined>(undefined)
   const [isPreparing, setIsPreparing] = useState(false)
   const latestPreviewUrl = useRef<string | undefined>(undefined)
+  /** Cada escolha leva o próprio número: o preparo de uma escolha antiga, mais lento, não sobrescreve a última. */
+  const latestChoice = useRef(0)
 
   useEffect(
     () => () => {
@@ -40,20 +42,24 @@ export function useOccurrencePhoto(
   }
 
   async function prepare(file: File): Promise<void> {
+    latestChoice.current += 1
+    const choice = latestChoice.current
     setFailure(undefined)
     if (!file.type.startsWith(CARGO_OCCURRENCE_IMAGE_MIME_PREFIX)) {
+      setIsPreparing(false)
       setFailure('photoNotImage')
       return
     }
     setIsPreparing(true)
     try {
       const photo = { id: crypto.randomUUID(), ...(await prepareOccurrencePhoto(file)) }
+      if (choice !== latestChoice.current) return
       showPreview(photo)
       onPrepared(photo)
     } catch {
-      setFailure('photoUnreadable')
+      if (choice === latestChoice.current) setFailure('photoUnreadable')
     } finally {
-      setIsPreparing(false)
+      if (choice === latestChoice.current) setIsPreparing(false)
     }
   }
 

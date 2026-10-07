@@ -20,7 +20,8 @@
     "noCity": "Sem cidade",
     "title": "{{route}} · {{city}}",
     "counts": "{{done}} de {{total}} separadas",
-    "stateCounts": "Esperadas {{expected}} · Recebidas {{received}} · Separadas {{separated}}"
+    "stateCounts": "Esperadas {{expected}} · Recebidas {{received}} · Separadas {{separated}}",
+    "aside": "{{count}} em devolução"
   },
   "document": {
     "number": "NF {{number}}",

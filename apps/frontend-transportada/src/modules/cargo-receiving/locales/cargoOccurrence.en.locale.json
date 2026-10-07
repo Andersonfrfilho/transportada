@@ -21,7 +21,8 @@
     "hints": {
       "windowClosed": "The separation window for this arrival is over: damage can no longer be reported.",
       "windowClosedShort": "Damage window closed.",
-      "awaitingDecision": "Waiting for the contractor's decision to complete the return."
+      "awaitingDecision": "Waiting for the contractor's decision to complete the return.",
+      "returnCaseCancelled": "Case cancelled — undo the return"
     },
     "failure": "Could not complete: {{reason}}",
     "loadFailed": "Could not load the damage reports of this arrival.",
@@ -46,7 +47,9 @@
       "noteLabel": "Note (optional)",
       "cancel": "Cancel",
       "submit": "Report damage",
-      "submitting": "Reporting…"
+      "submitting": "Reporting…",
+      "typesEmpty": "No receiving damage type is set up. Tell support.",
+      "submitBlockedNoTypes": "Cannot register: there is no damage type set up."
     },
     "items": {
       "itemLabel": "Item {{code}} — {{description}}",
@@ -106,10 +109,22 @@
       "CARGO_ARRIVAL_DOCUMENT_NOT_FOUND": "This invoice is not part of this arrival.",
       "CARGO_ARRIVAL_RETURN_ALREADY_MARKED": "This invoice is already marked with another damage report.",
       "CARGO_ARRIVAL_RETURN_OCCURRENCE_INVALID": "Choose a damage report of this invoice that is not cancelled.",
-      "CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP": "The invoice is already on a trip: returning it is a street occurrence.",
-      "CARGO_ARRIVAL_RETURN_DECISION_PENDING": "The return only completes after the contractor's decision.",
+      "CARGO_ARRIVAL_DOCUMENT_IN_LIVE_TRIP": "The invoice is already on a trip: its return is no longer the arrival's and becomes a road occurrence.",
+      "CARGO_ARRIVAL_RETURN_DECISION_PENDING": "The return only completes after the contractor's decision (or the office's, on their behalf) on the damage case.",
       "CARGO_ARRIVAL_RETURN_NOT_MARKED": "The invoice is not marked for return.",
-      "FORBIDDEN": "Your access does not allow this action."
+      "FORBIDDEN": "Your access does not allow this action.",
+      "CARGO_ARRIVAL_RETURN_CASE_CANCELLED": "The case for this damage was cancelled. Undo the return (if the invoice is marked) and choose another damage.",
+      "OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED": "The case already moved to another step on another screen. The list was reloaded: check the state before trying again.",
+      "OCCURRENCE_CASE_NOTE_REQUIRED": "Write the reason to continue.",
+      "OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS": "The decision was “goods paid”: record the settlement before closing.",
+      "OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED": "This damage type does not allow redelivery.",
+      "OCCURRENCE_CASE_REDELIVERY_BLOCKED_HAS_NO_QUESTION": "This damage has no item pointed out: there is nothing to ask the contractor.",
+      "OCCURRENCE_CASE_DECISION_CONFLICT": "The case was already decided another way. Reload the screen to see the decision.",
+      "OCCURRENCE_CASE_NOT_FOUND": "This damage has no open case.",
+      "OCCURRENCE_SETTLEMENT_ITEM_UNKNOWN": "One of the settlement items is not part of this damage.",
+      "OCCURRENCE_SETTLEMENT_AMOUNT_INVALID": "Use an amount greater than zero on every item.",
+      "OCCURRENCE_SETTLEMENT_PAYER_INVALID": "The chosen payer is not valid for this item.",
+      "TOO_MANY_REQUESTS": "Too many actions in a short time. Wait a minute and try again."
     },
     "case": {
       "none": "No handling",
@@ -136,6 +151,91 @@
       "itemWithQuantity": "{{code}} — {{description}} ({{quantity}})",
       "photoAlt": "Damage photo",
       "photoGone": "The photo is no longer available."
+    },
+    "caseActions": {
+      "title": "Case",
+      "review": "Start review",
+      "reviewLabel": "Start review — {{type}} (invoice {{number}})",
+      "submit": "Send to the contractor",
+      "submitLabel": "Send to the contractor — {{type}} (invoice {{number}})",
+      "decide": "Record decision",
+      "decideLabel": "Record decision — {{type}} (invoice {{number}})",
+      "close": "Close case",
+      "closeLabel": "Close case — {{type}} (invoice {{number}})",
+      "warehouseReturn": "Return to the warehouse",
+      "warehouseReturnLabel": "Return to the warehouse — {{type}} (invoice {{number}})",
+      "cancel": "Cancel case",
+      "cancelLabel": "Cancel case — {{type}} (invoice {{number}})",
+      "closeBlockedByDraft": "Save the settlement before closing.",
+      "settlementRequired": "The decision was “goods paid”: record the settlement before closing.",
+      "working": "Sending…",
+      "dismiss": "Back",
+      "noteRequired": "Write the reason to continue.",
+      "panel": {
+        "submit": {
+          "title": "Send this damage to the contractor?",
+          "body": "The contractor will see the damage in the portal and decide what to do. Once sent, the case only moves on with their decision or the office's.",
+          "confirm": "Send to the contractor"
+        },
+        "close": {
+          "title": "Close the case?",
+          "body": "Once closed it no longer changes.",
+          "confirm": "Close case"
+        },
+        "decide": {
+          "title": "Record the decision on behalf of the contractor",
+          "body": "The decision is recorded as the carrier's, in place of the contractor, and cannot be changed later.",
+          "confirm": "Record decision",
+          "kindLabel": "Decision",
+          "noteLabel": "Reason for the decision",
+          "kind": {
+            "other": "Other decision",
+            "goods_paid": "Goods paid by the carrier"
+          }
+        },
+        "warehouseReturn": {
+          "title": "Return the damage to the warehouse",
+          "body": "The case ends and the goods go back to stock. This cannot be undone.",
+          "confirm": "Return to the warehouse",
+          "noteLabel": "Why does it go back to the warehouse?"
+        },
+        "cancel": {
+          "title": "Cancel the case",
+          "body": "Use it when the damage was opened by mistake. This cannot be undone.",
+          "confirm": "Cancel case",
+          "noteLabel": "Reason for the cancellation"
+        }
+      }
+    },
+    "settlement": {
+      "title": "Goods settlement",
+      "hint": "Enter, per item, how much was paid and by whom. The damage has no trip: the settlement is recorded without a charge.",
+      "itemField": "Item",
+      "itemAria": "Settlement item",
+      "itemPlaceholder": "Choose the item",
+      "amountField": "Amount",
+      "amountPlaceholder": "0.00",
+      "payerField": "Who pays",
+      "payerAria": "Who pays the settlement item",
+      "payer": {
+        "carrier": "Carrier",
+        "contractor": "Contractor",
+        "insurer": "Insurer"
+      },
+      "add": "Add item",
+      "remove": "Remove",
+      "removeLabel": "Remove settlement item {{position}}",
+      "save": "Save settlement",
+      "saving": "Saving…",
+      "total": "Total",
+      "saved": "Settlement saved: {{total}}",
+      "loading": "Loading the settlement",
+      "loadFailed": "Could not read the saved settlement. What you save here replaces it.",
+      "issues": {
+        "productCodeRequired": "Choose the item.",
+        "productCodeDuplicated": "This item is already in the settlement.",
+        "amountRequired": "Enter an amount greater than zero."
+      }
     }
   }
 }

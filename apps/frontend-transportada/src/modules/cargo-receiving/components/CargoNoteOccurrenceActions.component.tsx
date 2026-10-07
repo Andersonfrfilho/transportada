@@ -54,6 +54,9 @@ export function CargoNoteOccurrenceActions({
       {actions.isAwaitingDecision ? (
         <p className={styles.noteHint}>{t('occurrence.hints.awaitingDecision')}</p>
       ) : null}
+      {actions.isReturnCaseCancelled ? (
+        <p className={styles.noteHint}>{t('occurrence.hints.returnCaseCancelled')}</p>
+      ) : null}
       {isMarking && actions.canMark ? (
         <CargoReturnMarkPanel
           isPending={isPending}

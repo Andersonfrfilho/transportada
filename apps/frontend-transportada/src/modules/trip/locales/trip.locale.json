@@ -978,7 +978,8 @@
     "occurrenceCaseNoteRequired": "Informe o motivo da decisão.",
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
     "occurrenceTypeMomentsDocumentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
-    "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado."
+    "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
+    "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",

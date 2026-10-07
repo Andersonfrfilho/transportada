@@ -15,9 +15,9 @@ import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/car
 import { buildOccurrence } from '../fixtures/cargoOccurrence.fixture'
 import { documentIdOf } from '../fixtures/cargoReceiving.fixture'
 import {
+  currentCaseDouble as caseDouble,
   installCargoCaseDouble,
   releaseCaseGate,
-  type CargoCaseDouble,
 } from './cargoOccurrenceCaseHarness.helper'
 import {
   alertsOf,
@@ -64,12 +64,11 @@ const occurrenceIn = (status: (typeof CARGO_OCCURRENCE_CASE_STATUSES)[number]) =
 const ALL_STATUSES = CARGO_OCCURRENCE_CASE_STATUSES.map((status) => occurrenceIn(status))
 
 let restoreLayout: () => void = () => undefined
-let caseDouble: CargoCaseDouble
 
 beforeEach(() => {
   document.body.innerHTML = ''
   restoreLayout = stubVisibleLayout()
-  caseDouble = installCargoCaseDouble()
+  installCargoCaseDouble()
 })
 
 afterEach(() => restoreLayout())
@@ -86,7 +85,7 @@ describe('cada estado oferece exatamente as ações da máquina, só a quem tem 
 
     for (const status of CARGO_OCCURRENCE_CASE_STATUSES) {
       expect({ actions: offeredActions(`occ-${status}`), status }).toEqual({
-        actions: EXPECTED_ACTIONS[status] ?? [],
+        actions: [...(EXPECTED_ACTIONS[status] ?? [])],
         status,
       })
     }
@@ -148,7 +147,7 @@ describe('o caminho feliz, uma ação por vez', () => {
     await openPanel({ action: 'review', occurrenceId: 'occ-recorded' })
     await settle()
 
-    expect(caseDouble.calls.change).toEqual([
+    expect(caseDouble().calls.change).toEqual([
       { action: 'review', kind: undefined, note: undefined, occurrenceId: 'occ-recorded' },
     ])
     await waitForStatus({ occurrenceId: 'occ-recorded', text: 'Em análise' })
@@ -162,9 +161,9 @@ describe('o caminho feliz, uma ação por vez', () => {
     await openPanel({ action: 'submit', occurrenceId: 'occ-under_review' })
 
     expect(panelOf('occ-under_review')).not.toBeNull()
-    expect(caseDouble.calls.change).toHaveLength(0)
+    expect(caseDouble().calls.change).toHaveLength(0)
     await confirm('occ-under_review')
-    expect(caseDouble.calls.change.map((call) => call.action)).toEqual(['submit'])
+    expect(caseDouble().calls.change.map((call) => call.action)).toEqual(['submit'])
     await waitForStatus({ occurrenceId: 'occ-under_review', text: 'Aguardando o contratante' })
     expect(panelOf('occ-under_review')).toBeNull()
     rendered.unmount()
@@ -180,7 +179,7 @@ describe('o caminho feliz, uma ação por vez', () => {
     await settle()
 
     expect(panelOf('occ-under_review')).toBeNull()
-    expect(caseDouble.calls.change).toHaveLength(0)
+    expect(caseDouble().calls.change).toHaveLength(0)
     rendered.unmount()
   })
 
@@ -189,7 +188,7 @@ describe('o caminho feliz, uma ação por vez', () => {
 
     await runAction({ action: 'close', occurrenceId: 'occ-decided' })
 
-    expect(caseDouble.calls.change.map((call) => call.action)).toEqual(['close'])
+    expect(caseDouble().calls.change.map((call) => call.action)).toEqual(['close'])
     await waitForStatus({ occurrenceId: 'occ-decided', text: 'Encerrada' })
     expect(offeredActions('occ-decided')).toEqual([])
     rendered.unmount()
@@ -209,13 +208,13 @@ describe('a nota é obrigatória onde a API a exige', () => {
       expect(confirmButton(id).disabled).toBe(true)
       await writeNote({ occurrenceId: id, text: '   ' })
       expect(confirmButton(id).disabled).toBe(true)
-      expect(caseDouble.calls.change).toHaveLength(0)
+      expect(caseDouble().calls.change).toHaveLength(0)
 
       await writeNote({ occurrenceId: id, text: 'caixa voltou ao estoque' })
       expect(confirmButton(id).disabled).toBe(false)
       await confirm(id)
 
-      expect(caseDouble.calls.change).toEqual([
+      expect(caseDouble().calls.change).toEqual([
         { action, kind: undefined, note: 'caixa voltou ao estoque', occurrenceId: id },
       ])
       rendered.unmount()
@@ -244,7 +243,7 @@ describe('a decisão do escritório no lugar do contratante', () => {
     await writeNote({ occurrenceId: id, text: 'a transportadora paga' })
     await confirm(id)
 
-    expect(caseDouble.calls.change).toEqual([
+    expect(caseDouble().calls.change).toEqual([
       { action: 'decide', kind: 'goods_paid', note: 'a transportadora paga', occurrenceId: id },
     ])
     await waitForStatus({ occurrenceId: id, text: 'Decidida' })
@@ -278,7 +277,7 @@ describe('o erro nomeia o motivo e a tela nunca fica muda', () => {
   for (const { code, reason } of FAILURES) {
     test(`${code} aparece com o motivo, e o painel continua aberto para tentar de novo`, async () => {
       const { rendered } = await mountWith('under_review')
-      caseDouble.failures.push(new CargoReceivingRequestError(code))
+      caseDouble().failures.push(new CargoReceivingRequestError(code))
       await openPanel({ action: 'submit', occurrenceId: 'occ-under_review' })
 
       await confirm('occ-under_review')
@@ -292,7 +291,7 @@ describe('o erro nomeia o motivo e a tela nunca fica muda', () => {
 
   test('o erro some quando a pessoa tenta de novo e dá certo', async () => {
     const { rendered } = await mountWith('under_review')
-    caseDouble.failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
+    caseDouble().failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
     await openPanel({ action: 'submit', occurrenceId: 'occ-under_review' })
     await confirm('occ-under_review')
     expect(alertsOf('occ-under_review')).toContain('Aguarde')
@@ -306,7 +305,7 @@ describe('o erro nomeia o motivo e a tela nunca fica muda', () => {
 
   test('ação de "Iniciar análise" que falha também diz o motivo (não tem painel para abrir)', async () => {
     const { rendered } = await mountWith('recorded')
-    caseDouble.failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
+    caseDouble().failures.push(new CargoReceivingRequestError('TOO_MANY_REQUESTS'))
 
     await openPanel({ action: 'review', occurrenceId: 'occ-recorded' })
     await settle()
@@ -319,7 +318,7 @@ describe('o erro nomeia o motivo e a tela nunca fica muda', () => {
 describe('uma ação por vez, sem toque duplo', () => {
   test('com a ação em voo, todos os botões da avaria ficam travados e só um pedido sai', async () => {
     const { rendered } = await mountWith('recorded')
-    caseDouble.isGated = true
+    caseDouble().isGated = true
 
     await openPanel({ action: 'review', occurrenceId: 'occ-recorded' })
     for (const action of offeredActions('occ-recorded')) {
@@ -327,9 +326,9 @@ describe('uma ação por vez, sem toque duplo', () => {
     }
     caseButton('occ-recorded', 'review')?.click()
     await settle()
-    expect(caseDouble.calls.change).toHaveLength(1)
+    expect(caseDouble().calls.change).toHaveLength(1)
 
-    await releaseCaseGate(caseDouble)
+    await releaseCaseGate(caseDouble())
     await waitForStatus({ occurrenceId: 'occ-recorded', text: 'Em análise' })
     rendered.unmount()
   })
@@ -356,7 +355,7 @@ describe('o que cada ação refaz', () => {
 
   test('relê também quando a ação falha: a recusa pode ser porque a tratativa mudou em outra tela', async () => {
     const { occurrence, rendered } = await mountWith('recorded')
-    caseDouble.failures.push(
+    caseDouble().failures.push(
       new CargoReceivingRequestError('OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED'),
     )
     const readsBefore = occurrence.calls.listOccurrences

@@ -93,7 +93,14 @@ describe('o `src` da miniatura entre leituras equivalentes', () => {
   })
 
   test('sem prazo conhecido na assinatura anterior, a nova vale: não dá para saber se ainda vive', () => {
-    const { expiresAt: _unused, ...withoutExpiry } = attachment()
+    const withoutExpiry: CargoOccurrenceAttachment = {
+      downloadUrl: 'https://files.test/a.jpg?sig=1',
+      expired: false,
+      id: 'att-1',
+      mimeType: 'image/jpeg',
+      position: 1,
+      thumbnailUrl: 'https://files.test/a-thumb.jpg?sig=1',
+    }
     const previous = viewOf(withoutExpiry)
     const next = viewOf(attachment({ thumbnailUrl: 'https://files.test/a-thumb.jpg?sig=2' }))
 

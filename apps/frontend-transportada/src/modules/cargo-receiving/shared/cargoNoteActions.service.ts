@@ -28,9 +28,11 @@ export type CargoNoteActions = Readonly<{
   canUnmark: boolean
   /** A nota está marcada e a tratativa da origem ainda não foi decidida: a tela diz que espera. */
   isAwaitingDecision: boolean
+  /** A nota está marcada, mas a tratativa da origem foi cancelada: não há decisão a esperar, só desfazer a devolução. */
+  isReturnCaseCancelled: boolean
   /** Dentro das regras de abrir, mas o prazo acabou: a tela explica em vez de oferecer o botão. */
   isWindowClosed: boolean
-  /** As avarias vivas da nota: as origens que "devolver ao contratante" pode escolher. */
+  /** As avarias vivas da nota (nem a ocorrência nem a tratativa canceladas): as origens que "devolver ao contratante" pode escolher. */
   markableOccurrences: readonly CargoOccurrenceView[]
 }>
 
@@ -50,9 +52,13 @@ function resolveBadge(
   return input.hasLiveOccurrence ? 'occurrenceOpen' : 'none'
 }
 
-/** `null` é "esta ocorrência não abre tratativa": o tipo não a conduz, e a devolução não espera por ela. */
+function isOriginCancelled(origin: CargoOccurrenceView): boolean {
+  return origin.cancelledAt !== null || origin.case?.status === 'cancelled'
+}
+
+/** Sem tratativa (`null`) a API recusa concluir (`CARGO_ARRIVAL_RETURN_DECISION_PENDING`, T3.4a): nunca está "decidida". */
 function isCaseDecided(origin: CargoOccurrenceView): boolean {
-  return origin.case === null || CARGO_DECIDED_CASE_STATUSES.includes(origin.case.status)
+  return origin.case !== null && CARGO_DECIDED_CASE_STATUSES.includes(origin.case.status)
 }
 
 /**
@@ -62,19 +68,19 @@ function isCaseDecided(origin: CargoOccurrenceView): boolean {
  */
 export function resolveCargoNoteActions(context: CargoNoteContext): CargoNoteActions {
   const { document, returnState } = context
-  const markableOccurrences = context.occurrences.filter((item) => item.cancelledAt === null)
+  const markableOccurrences = context.occurrences.filter((item) => !isOriginCancelled(item))
   const isOpen = context.arrivalStatus === 'open'
   const isEditable = isOpen && returnState !== 'returned'
   const canWrite = context.canManage && isEditable
   const isReceived = document.separationState !== 'expected'
   const isWindowOpen = isOccurrenceWindowOpen(context)
-  const origin = markableOccurrences.find((item) => item.id === context.returnOccurrenceId)
+  const origin = context.occurrences.find((item) => item.id === context.returnOccurrenceId)
   const isMarked = returnState === 'marked'
-  const canComplete = canWrite && isMarked && origin !== undefined && isCaseDecided(origin)
+  const isOriginLive = origin !== undefined && !isOriginCancelled(origin)
 
   return {
     badge: resolveBadge({ hasLiveOccurrence: markableOccurrences.length > 0, returnState }),
-    canComplete,
+    canComplete: canWrite && isMarked && isOriginLive && isCaseDecided(origin),
     canMark:
       canWrite &&
       returnState === 'none' &&
@@ -82,7 +88,8 @@ export function resolveCargoNoteActions(context: CargoNoteContext): CargoNoteAct
       !document.isInLiveTrip,
     canOpenOccurrence: canWrite && isReceived && isWindowOpen,
     canUnmark: context.canResolve && isOpen && isMarked,
-    isAwaitingDecision: canWrite && isMarked && origin !== undefined && !isCaseDecided(origin),
+    isAwaitingDecision: canWrite && isMarked && isOriginLive && !isCaseDecided(origin),
+    isReturnCaseCancelled: canWrite && isMarked && origin !== undefined && !isOriginLive,
     isWindowClosed: canWrite && isReceived && !isWindowOpen,
     markableOccurrences,
   }

@@ -6,7 +6,7 @@ import { ProgressBar } from '@/components/ui/progress'
 
 import type { CargoStateCounts } from '../shared/cargoArrival.types'
 
-type CargoArrivalProgressProps = Readonly<{ counts: CargoStateCounts }>
+type CargoArrivalProgressProps = Readonly<{ counts: Pick<CargoStateCounts, 'separated' | 'total'> }>
 
 /** Separadas sobre o total da chegada: em barra para o olho, e em texto para o leitor de tela. */
 export function CargoArrivalProgress({ counts }: CargoArrivalProgressProps): JSX.Element {

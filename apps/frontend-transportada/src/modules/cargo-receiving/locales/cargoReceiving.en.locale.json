@@ -20,7 +20,8 @@
     "noCity": "No city",
     "title": "{{route}} · {{city}}",
     "counts": "{{done}} of {{total}} separated",
-    "stateCounts": "Expected {{expected}} · Received {{received}} · Separated {{separated}}"
+    "stateCounts": "Expected {{expected}} · Received {{received}} · Separated {{separated}}",
+    "aside": "{{count}} being returned"
   },
   "document": {
     "number": "Invoice {{number}}",

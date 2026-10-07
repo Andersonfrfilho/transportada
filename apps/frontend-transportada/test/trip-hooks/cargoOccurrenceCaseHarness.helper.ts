@@ -6,21 +6,21 @@
  * ações (`TRANSITIONS`), nota obrigatória, `redelivery_authorized` recusada com a política `blocked`, `closure` de
  * `goods_paid` sem acerto recusada, o acerto só gravável em `decided` + `goods_paid`, o item do acerto conferido
  * contra os itens da ocorrência. Mexe nas mesmas `occurrences` do dublê da avaria (o `case.status` muda de
- * verdade). ⚠️ `mock.module` não se desfaz: o cliente novo é trocado UMA vez, aqui.
+ * verdade). ⚠️ O `mock.module` do cliente novo mora em `cargoOccurrenceHarness.helper.ts` (ver `cargoCaseClientSlot`).
  */
-import { mock } from 'bun:test'
 import { act } from 'react'
 
 import type { CargoOccurrenceCaseClient } from '@/modules/cargo-receiving/shared/cargoOccurrenceCaseClient.service'
 import type {
   CargoCaseAction,
+  CargoCaseResult,
   CargoCaseDecisionKind,
   CargoSettlementItem,
 } from '@/modules/cargo-receiving/shared/cargoOccurrenceCase.types'
 import type { CargoOccurrenceCaseStatus } from '@/modules/cargo-receiving/shared/cargoOccurrence.types'
 import { CargoReceivingRequestError } from '@/modules/cargo-receiving/shared/cargoReceivingRequest.service'
 
-import { cargoOccurrenceFakes } from './cargoOccurrenceHarness.helper'
+import { cargoCaseClientSlot, cargoOccurrenceFakes } from './cargoOccurrenceHarness.helper'
 
 export type RecordedCaseChange = {
   action: CargoCaseAction
@@ -96,7 +96,7 @@ function decideChange(
   if (NOTE_REQUIRED.includes(input.action) && (input.note ?? '').trim() === '') {
     return refuse('OCCURRENCE_CASE_NOTE_REQUIRED')
   }
-  if (input.action === 'decide' && input.kind === 'redelivery_authorized') {
+  if (input.action === 'decide' && String(input.kind) === 'redelivery_authorized') {
     return refuse('OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED')
   }
   const isGoodsPaid = double.decisions.get(input.occurrenceId) === 'goods_paid'
@@ -114,7 +114,7 @@ async function afterFailures<TValue>(double: CargoCaseDouble, run: () => Promise
   return run()
 }
 
-function changeCase(double: CargoCaseDouble, input: RecordedCaseChange) {
+function changeCase(double: CargoCaseDouble, input: RecordedCaseChange): Promise<CargoCaseResult> {
   const refusal = decideChange(double, input)
   if (refusal !== undefined) return refusal
   const status = findOccurrence(input.occurrenceId)?.case?.status ?? 'recorded'
@@ -181,6 +181,13 @@ function buildClient(double: CargoCaseDouble): CargoOccurrenceCaseClient {
   }
 }
 
+/**
+ * ⚠️ O `beforeEach` de nível de arquivo vale para TODOS os testes do processo (os contratos de DOM são importados numa
+ * suíte só): cada arquivo instala o seu dublê e o último ganha. Por isso os testes leem o dublê de AGORA por esta
+ * função, dentro do corpo do teste, nunca de uma variável guardada no `beforeEach` do próprio arquivo.
+ */
+export const currentCaseDouble = (): CargoCaseDouble => cargoCaseFakes.double
+
 /** O dublê da tratativa: chame DEPOIS de montar a tela só se precisar do estado; a tela lê o cliente na hora de usar. */
 export function installCargoCaseDouble(overrides: Partial<CargoCaseDouble> = {}): CargoCaseDouble {
   const double: CargoCaseDouble = {
@@ -194,6 +201,7 @@ export function installCargoCaseDouble(overrides: Partial<CargoCaseDouble> = {})
   }
   cargoCaseFakes.double = double
   cargoCaseFakes.client = buildClient(double)
+  cargoCaseClientSlot.client = cargoCaseFakes.client
   return double
 }
 
@@ -203,7 +211,3 @@ export async function releaseCaseGate(double: CargoCaseDouble): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
-
-void mock.module('@/modules/cargo-receiving/shared/cargoOccurrenceCaseClient.service', () => ({
-  getCargoOccurrenceCaseClient: () => cargoCaseFakes.client,
-}))

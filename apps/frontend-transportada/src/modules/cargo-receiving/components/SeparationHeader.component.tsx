@@ -6,17 +6,24 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
-import type { CargoArrivalSummary } from '../shared/cargoArrival.types'
+import { useCargoOccurrence } from '../hooks/useCargoOccurrence.hook'
+import type { CargoArrivalDetail } from '../shared/cargoArrival.types'
+import { resolveSeparationProgress } from '../shared/cargoSeparationProgress.service'
 import styles from '../styles/cargoSeparation.module.css'
 import { CargoArrivalProgress } from './CargoArrivalProgress.component'
+import { CargoReturnCountFacts } from './CargoReturnCountFacts.component'
 
 type SeparationHeaderProps = Readonly<{
-  arrival: CargoArrivalSummary
+  arrival: CargoArrivalDetail
   onOpenList: () => void
   onOpenOffice: () => void
 }>
 
-/** O cabeçalho compacto do celular: quem chegou, quanto falta separar e até quando. */
+/**
+ * O cabeçalho compacto do celular: quem chegou, quanto falta separar e até quando. O progresso conta só as notas que
+ * ainda se separam (as a devolver e as devolvidas ficam de fora e aparecem ao lado): 9 separadas + 1 devolvida é
+ * completo, não 90%.
+ */
 export function SeparationHeader({
   arrival,
   onOpenList,
@@ -24,6 +31,11 @@ export function SeparationHeader({
 }: SeparationHeaderProps): JSX.Element {
   const { t } = useTranslation('cargoReceiving')
   const formatMoment = useMomentFormatter()
+  const { returns } = useCargoOccurrence()
+  const progress = resolveSeparationProgress({
+    documents: arrival.groups.flatMap((group) => group.documents),
+    returns,
+  })
 
   return (
     <header className={styles.top}>
@@ -60,8 +72,9 @@ export function SeparationHeader({
         {arrival.reference === null ? null : (
           <li>{t('facts.reference', { reference: arrival.reference })}</li>
         )}
+        <CargoReturnCountFacts />
       </ul>
-      <CargoArrivalProgress counts={arrival.counts} />
+      <CargoArrivalProgress counts={{ separated: progress.done, total: progress.total }} />
     </header>
   )
 }

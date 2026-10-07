@@ -11,6 +11,7 @@ import { mock } from 'bun:test'
 import { act } from 'react'
 
 import type { CargoArrivalDetail } from '@/modules/cargo-receiving/shared/cargoArrival.types'
+import type { CargoOccurrenceCaseClient } from '@/modules/cargo-receiving/shared/cargoOccurrenceCaseClient.service'
 import type { CargoOccurrenceClient } from '@/modules/cargo-receiving/shared/cargoOccurrenceClient.service'
 import type {
   CargoDocumentProduct,
@@ -375,6 +376,19 @@ export async function chooseFile(input: HTMLInputElement, file: File): Promise<v
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
+
+/**
+ * O cliente da tratativa é trocado AQUI, onde o `mock.module` roda antes de qualquer fonte ser importada (todo teste de
+ * recebimento passa por este arquivo): registrado num arquivo que carrega depois, o dublê não pegava nas suítes que já
+ * tinham importado o cliente de verdade. O dublê da tratativa só ocupa a vaga (`cargoOccurrenceCaseHarness.helper.ts`).
+ */
+export const cargoCaseClientSlot: { client: CargoOccurrenceCaseClient } = {
+  client: undefined as unknown as CargoOccurrenceCaseClient,
+}
+
+void mock.module('@/modules/cargo-receiving/shared/cargoOccurrenceCaseClient.service', () => ({
+  getCargoOccurrenceCaseClient: () => cargoCaseClientSlot.client,
+}))
 
 void mock.module('@/modules/cargo-receiving/shared/cargoOccurrenceClient.service', () => ({
   getCargoOccurrenceClient: () => cargoOccurrenceFakes.client,

@@ -9,6 +9,7 @@ import { formatOccurrenceItemQuantity } from '../shared/cargoOccurrenceFormat.se
 import styles from '../styles/cargoOccurrence.module.css'
 import officeStyles from '../styles/cargoOccurrenceOffice.module.css'
 import receivingStyles from '../styles/cargoReceiving.module.css'
+import { CargoOccurrenceCaseActions } from './CargoOccurrenceCaseActions.component'
 
 type CargoOccurrenceListItemProps = Readonly<{
   noteNumber: string | undefined
@@ -77,7 +78,7 @@ function OccurrenceItemLines({
   )
 }
 
-/** Uma avaria da chegada: o tipo, a nota, os itens com a contagem, a foto e a situação da tratativa. */
+/** Uma avaria da chegada: o tipo, a nota, os itens com a contagem, a foto, a situação da tratativa e as ações que a conduzem. */
 export function CargoOccurrenceListItem({
   noteNumber,
   occurrence,
@@ -89,7 +90,7 @@ export function CargoOccurrenceListItem({
     <li className={officeStyles.occurrenceItem} data-occurrence-id={occurrence.id}>
       <div className={officeStyles.occurrenceHead}>
         <span className={officeStyles.occurrenceType}>{occurrence.typeName}</span>
-        <span className={receivingStyles.badge}>
+        <span className={receivingStyles.badge} data-case-status="">
           {occurrence.case === null
             ? t('occurrence.case.none')
             : t(`occurrence.case.${occurrence.case.status}`)}
@@ -108,6 +109,7 @@ export function CargoOccurrenceListItem({
       </ul>
       <OccurrenceItemLines occurrence={occurrence} />
       <OccurrencePhotos occurrence={occurrence} />
+      <CargoOccurrenceCaseActions noteNumber={noteNumber} occurrence={occurrence} />
     </li>
   )
 }

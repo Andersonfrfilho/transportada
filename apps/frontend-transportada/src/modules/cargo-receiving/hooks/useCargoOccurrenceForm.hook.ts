@@ -13,6 +13,8 @@ export type CargoOccurrenceFormController = Readonly<{
   draft: OccurrenceDraftController
   errorCode: string | undefined
   feedback: CargoFieldFeedback
+  /** A empresa não tem nenhum tipo de recebimento ativo (a semente não gravou): ninguém consegue registrar avaria. */
+  hasNoTypes: boolean
   isLoading: boolean
   isSubmitting: boolean
   loadFailed: boolean
@@ -91,6 +93,7 @@ export function useCargoOccurrenceForm(
     draft: draftController,
     errorCode: submission.errorCode,
     feedback,
+    hasNoTypes: typesQuery.isSuccess && types.length === 0,
     isLoading: typesQuery.isLoading || productsQuery.isLoading,
     isSubmitting: submission.isSubmitting,
     loadFailed: typesQuery.isError || productsQuery.isError,

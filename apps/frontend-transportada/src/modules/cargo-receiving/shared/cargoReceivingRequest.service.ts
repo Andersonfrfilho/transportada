@@ -35,7 +35,7 @@ type RequestInput = Readonly<{
   /** Multipart: o navegador escolhe o `content-type` com o boundary, nunca se fixa à mão. */
   formData?: FormData
   idempotencyKey?: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PUT'
   path: string
 }>
 

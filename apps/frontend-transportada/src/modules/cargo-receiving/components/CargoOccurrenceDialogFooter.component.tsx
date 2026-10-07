@@ -8,6 +8,8 @@ import { Icon } from '@/components/ui/icon'
 import dialogStyles from '../styles/cargoOccurrenceDialog.module.css'
 
 type CargoOccurrenceDialogFooterProps = Readonly<{
+  /** O `id` do texto que explica por que registrar está desabilitado; sem ele, o botão só espera o formulário. */
+  blockedReasonId: string | undefined
   isLoading: boolean
   isSubmitting: boolean
   onCancel: () => void
@@ -15,6 +17,7 @@ type CargoOccurrenceDialogFooterProps = Readonly<{
 }>
 
 export function CargoOccurrenceDialogFooter({
+  blockedReasonId,
   isLoading,
   isSubmitting,
   onCancel,
@@ -27,7 +30,12 @@ export function CargoOccurrenceDialogFooter({
       <Button disabled={isSubmitting} onClick={onCancel} type="button" variant="ghost">
         {t('occurrence.dialog.cancel')}
       </Button>
-      <Button disabled={isSubmitting || isLoading} onClick={onSubmit} type="button">
+      <Button
+        aria-describedby={blockedReasonId}
+        disabled={isSubmitting || isLoading || blockedReasonId !== undefined}
+        onClick={onSubmit}
+        type="button"
+      >
         <Icon name="check" />
         {isSubmitting ? t('occurrence.dialog.submitting') : t('occurrence.dialog.submit')}
       </Button>
