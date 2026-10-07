@@ -2280,3 +2280,31 @@ make check (literal)                               exit=0   API 10484 pass · 34
 
 **O que não rodou:** `make migration-test` (sobe o Postgres do Docker); `db:test` rodou direto contra o Postgres nativo descartável, o mesmo script que o make chama. `make smoke`, `make worker-integration`,
 `make e2e-up`. Nenhum gate revelou defeito de código.
+
+## T7.3x — botão de quantidade total do item (pedido do usuário)
+
+Pedido: na linha do produto marcado (`P1 · Biscoito · Na nota: 3 CX × R$ 19,995`), um botão que preenche
+"Quantidade devolvida" com tudo o que a nota tem do produto, em vez de digitar. Só `apps/frontend-driver`.
+
+- `shared/occurrenceTotalQuantity.service.ts`: `resolveTotalQuantityText` (texto da nota → `3`, `2,5`, `0,333`, `1000`;
+  `bigint`/string, sem `number`; sem botão para vazio, zero, inválido, mais de 3 casas ou 9 dígitos) e
+  `isTotalQuantityText` (`3`, `3,0` e `3,00` valem o total). Contrato de tabela: `occurrence-total-quantity.contract.ts`.
+- `OccurrenceItemRow.component.tsx`: botão "Total da nota" (`aria-label` "Devolver tudo: 3 CX", `aria-pressed`)
+  ao lado do campo, via `handleFillTotalQuantity` → o mesmo `form.handleItemQuantityChange` do campo. Quantidade já
+  total: botão pressionado, mesmo rótulo, sem sumir. Chaves `occurrenceRegistration.items.fillTotal` e `fillTotalAria`
+  (pt-BR e en).
+- Teste de comportamento: `occurrence-fill-total.contract.tsx` renderiza com o hook real e chama o `onClick` do
+  `<button>` real (sem DOM nesta app, o arnês chama a linha dentro do render e dispara o clique).
+
+**Mutação (vermelho, revertida).** (1) O botão preenche a quantidade de outro produto (`code: 'P1'` fixo):
+`o clique de um produto não mexe no campo do outro` — `Expected to contain: "value=\"2\""`, `Received: … value="5" … A nota tem só 3 CX.`
+(1 fail, 6 pass). (2) O clique não passa pelo caminho de edição (handler sem chamar o formulário): falham
+`o clique põe 3 no campo e a conta, a soma da linha e a soma geral seguem` e `o clique de um produto não mexe no campo do outro` (2 fail, 5 pass).
+
+**Navegador** (arnês descartável, `DriverOccurrenceRegistrationForm` real, Vite 53210, cwd conferido): P1 com `1` →
+"1 CX × R$ 19,995 = R$ 20,00", soma R$ 20,00, botão `aria-pressed="false"`; clique em "Total da nota" → campo `3`,
+"3 CX × R$ 19,995 = R$ 59,99", soma e total R$ 59,99, `aria-pressed="true"`. Medidas 375/768/1280: sem estouro horizontal,
+botão 118 x 48 px (alvo >= 44), contraste do texto 13,6:1, foco por Tab com contorno cobre de 2 px (`:focus-visible`).
+Servidor encerrado por PID, arnês apagado, porta 53210 livre.
+
+**Não rodado:** fluxo com login real (Keycloak) e fila real; `make smoke`; um print só (375 px) foi visto, não anexado.
