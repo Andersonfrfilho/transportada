@@ -6,6 +6,7 @@ import {
   TRIP_CREW_ROLES,
   type CanhotoRejection,
   type DriverDeliveryProofSettings,
+  type DriverNfeProduct,
   type DriverOccurrenceType,
   type DriverStopSchedule,
   type DriverTrip,
@@ -82,8 +83,35 @@ function readDocumentOccurrenceTypes(value: unknown): readonly DriverOccurrenceT
   return value.filter(isDriverOccurrenceType)
 }
 
+function toProduct(value: unknown): DriverNfeProduct | undefined {
+  if (!isRecord(value)) return undefined
+  const { code, description, hasVaryingUnitValue, quantity, unit, unitValue } = value
+  const isComplete =
+    typeof code === 'string' &&
+    typeof description === 'string' &&
+    typeof quantity === 'string' &&
+    typeof unit === 'string' &&
+    typeof unitValue === 'string'
+  if (!isComplete) return undefined
+  return {
+    code,
+    description,
+    hasVaryingUnitValue: hasVaryingUnitValue === true,
+    quantity,
+    unit,
+    unitValue,
+  }
+}
+
+/** Spec 247 (T5.3): ausente é o snapshot antigo (a tela só oferece "A nota inteira"); item malformado some. */
+function readDocumentProducts(value: unknown): readonly DriverNfeProduct[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.flatMap((item) => toProduct(item) ?? [])
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
+  const products = readDocumentProducts(value.products)
 
   /**
    * Toda ausência vira vazio: a NF-e é dado de terceiro, e a tela do motorista não pode quebrar
@@ -99,6 +127,7 @@ function toDocument(value: unknown): DriverTripDocument {
     id: readString(value.id),
     number: readOptionalText(value.number),
     occurrenceTypes: readDocumentOccurrenceTypes(value.occurrenceTypes),
+    ...(products === undefined ? {} : { products }),
     proofPending: readProofPending(value.proofPending),
     recipientDisplayName: readOptionalText(value.recipientDisplayName),
     recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
