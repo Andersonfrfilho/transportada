@@ -24,57 +24,93 @@ NOTA FISCAL: 717795
 VALOR DA NOTA:
 ```
 
-O usuário pediu (2026-10-06): _"a prorrogação deve ir diretamente para a Spani e devemos observar o
-retorno do boleto atualizado e já responder o motorista"_. E, antes: _"tem ocorrências de pedido de
-alteração de vencimento de boleto que não interferem em nada na entrega"_.
+O que o usuário pediu, nas palavras dele (2026-10-06):
 
-Ao fim: o motorista registra a prorrogação (sem foto, sem produtos, sem soltar a nota, sem
-tratativa); o e-mail sai sozinho à contratante **da nota** no formato do SAC; quando ela responde ao
-mesmo e-mail com o boleto em PDF, o produto reconhece a resposta pela conversa da ocorrência, guarda
-o PDF e o entrega ao motorista na conversa dele — sozinho ou depois de um toque do operador, **como o
-tipo estiver configurado** —; e a ocorrência mostra em que pé está: aguardando a contratante, boleto
-recebido, aguardando o operador, enviado ao motorista, ou falhou, com o motivo.
+- _"a prorrogação deve ir diretamente para a Spani e devemos observar o retorno do boleto atualizado
+  e já responder o motorista"_;
+- _"tem ocorrências de pedido de alteração de vencimento de boleto que não interferem em nada na
+  entrega"_;
+- _"geralmente é entre 5 – 6 horas de resposta; se não responder nesse tempo, ir alarmando a
+  operação"_;
+- _"vai automático, com opções de enviar para o e-mail do cliente que está cadastrado na nota e também
+  opções de encaminhar o boleto atualizado por e-mail informado"_;
+- _"vamos utilizar mais nosso chat próprio"_; antes disso, sobre o WhatsApp: _"não vamos precisar de
+  modelo, pois só vamos trabalhar com a sessão ligada às 24 horas"_ e _"sempre será iniciado pelo
+  motorista"_;
+- e a regra que vale para tudo: _"isso deve ser tudo configuração na criação do tipo de ocorrência"_.
+
+Ao fim:
+
+1. O motorista registra a prorrogação (no app ou pelo WhatsApp), sem foto, sem produtos, sem soltar a
+   nota e sem tratativa.
+2. O e-mail sai sozinho à contratante **da nota**, no formato do SAC.
+3. A contratante devolve o boleto **respondendo ao e-mail com o PDF anexo** — ou escrevendo com o PDF
+   no **portal** dela, que vale igual.
+4. Se ela não responde no prazo do tipo (6 h no roteiro), a operação é **alertada de novo a cada
+   intervalo** até a resposta chegar, a ocorrência ser encerrada ou alguém marcar "tratado".
+5. O PDF chega ao motorista **na conversa da ocorrência no chat do próprio produto**, sozinho, e o
+   WhatsApp é canal opcional do tipo.
+6. Da página da ocorrência, o operador pode mandar o boleto **ao e-mail do cliente que está na nota**
+   e **a um e-mail que ele informa**.
+7. A linha da ocorrência mostra em que pé está cada coisa.
+
+Protótipo das três telas (aba Tipos, painel do retorno, chat do motorista) em [`preview.html`](preview.html),
+no tema real do painel e com os seletores copiados do `Select` da aplicação.
 
 ## O que já existe, o que falta
 
-Levantado no código de `origin/staging` (`687473e1f`), 2026-10-06. Detalhe e linhas em `plan.md`.
+Levantado no código de `origin/staging` (`221b58400`), 2026-10-06. Linhas e detalhe em `plan.md`.
 
-| Ponta                                       | Existe                                                                                                                                                                                                                                                      | Falta                                                                                                                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tipo sem itens, sem foto, sem soltar a nota | 241 (`items_mode = off` ⇒ `redelivery_policy = unset`), 246 (exigências por campo); `unset` não abre tratativa (`occurrence-case.policy.ts:23`)                                                                                                             | nada                                                                                                                                                              |
-| E-mail automático à contratante da nota     | 183: `emails_contractor` + `email_subject`/`email_body`, disparado depois do commit (`automatic-occurrence-mail.hook.ts:48-86`), contatos de `contractor_contacts` com `receives_occurrences`, Resend pelo worker, idempotência `occurrence-auto-mail:<id>` | o painel não edita o modelo nem a chave (a **247** entrega); o disparo é em memória — processo que cai entre o commit e o hook perde o e-mail                     |
-| Resposta da contratante                     | 143/183: webhook Resend assinado (Svix), token de resposta HMAC por conversa (`reply-token.policy.ts:31-52`), worker grava o MIME bruto no bucket e a mensagem `inbound` na conversa da contratante                                                         | nada para chegar; falta **reagir** a ela                                                                                                                          |
-| Anexo da resposta                           | 183 T702c1: `inbound-mail-attachments.service.ts` extrai, confere o tipo pelos bytes, ≤ 10 MB, ≤ 5 por mensagem, grava em `stored_objects` + `occurrence_conversation_attachments`                                                                          | saber **qual** anexo é o retorno                                                                                                                                  |
-| Conversa com o motorista                    | 183: canal `app` com anexos e aviso na caixa (`driver-conversation.use-case.ts`)                                                                                                                                                                            | levar o anexo da conversa da contratante à do motorista (hoje só o sentido inverso, no portal: `forwardDriverAttachments`)                                        |
-| WhatsApp ao motorista                       | entrada (comandos e conversa), gateway com `sendText`/`sendTemplate` (`meta-whatsapp-sending.gateway.ts:35-51`), política de janela (`whatsapp-window-expiry.policy.ts`)                                                                                    | envio na conversa da ocorrência (bloqueado pela **183 T002/T503**: modelos da Meta não submetidos), `sendMedia`/documento no gateway, checagem de janela no envio |
-| Estado do retorno                           | estados da mensagem (`queued`…`bounced`)                                                                                                                                                                                                                    | estado do **retorno** por ocorrência e na linha do tempo                                                                                                          |
-| Prazo e lembrete                            | —                                                                                                                                                                                                                                                           | nenhum job de cobrança de resposta (`cron-transportada/src/shared/job-catalog.constant.ts`)                                                                       |
-| Auditoria da ação automática                | rastro em `contractor_mail_messages`, `occurrence_conversation_messages.automatic`                                                                                                                                                                          | `audit_logs.actor_user_id` é `NOT NULL` (`fiscal-operation.schema.ts:37-63`): ação sem usuário não cabe                                                           |
-| Antivírus                                   | —                                                                                                                                                                                                                                                           | não existe no produto                                                                                                                                             |
+| Ponta                                          | Existe                                                                                                                                                                                                                                                                                                    | Falta                                                                                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tipo sem itens, sem foto, sem soltar a nota    | 241 (`items_mode = off` ⇒ `redelivery_policy = unset`), 246 (exigências por campo); `unset` não abre tratativa (`occurrence-case.policy.ts:23`)                                                                                                                                                           | nada                                                                                                                                                                         |
+| Registro pelo WhatsApp do motorista            | menu → nota → tipo → observação (`whatsapp-commands/application/register-driver-flow-actions.ts:393-532`), tipos do momento `document` (`:597-599`), mesmo `registerDriverOccurrence` do app; a prorrogação (sem foto, sem produtos) é registrável por ali                                                | nada                                                                                                                                                                         |
+| E-mail automático à contratante da nota        | 183: `emails_contractor` + `email_subject`/`email_body`, hook depois do commit (`automatic-occurrence-mail.hook.ts:48-86`), contatos de `contractor_contacts`                                                                                                                                             | o editor na tela (**247**); o hook é em memória — processo que cai entre o commit e o hook perde o e-mail                                                                    |
+| Resposta por e-mail, com anexo                 | 143/183: webhook Svix, token por conversa (`reply-token.policy.ts:31-52`), worker grava a mensagem `inbound` e os anexos conferidos pelos bytes (`inbound-mail-attachments.service.ts`)                                                                                                                   | reagir à resposta                                                                                                                                                            |
+| Resposta pelo portal da contratante, com anexo | `POST /client/me/occurrence-conversations/:ref/messages` com `attachmentIds` (`client-occurrence-conversation.routes.ts:107-139`), grava `channel 'portal'`, `inbound` (`drizzle-contractor-portal-conversation.repository.ts:244-262`)                                                                   | reagir à resposta; avisar o operador (hoje ninguém é avisado, `contractor-portal-conversation.use-case.ts:163-170`)                                                          |
+| Chat do motorista no produto (API)             | conversa `driver` com canal `app`, anexos até 25 MB (documento), aviso no sino `trip.conversation-message` (`driver-conversation.use-case.ts:69-161`; `driver-conversation-notifier.gateway.ts:33-49`); rotas `/me/trips/current/occurrences/:id/messages` (`me-occurrence-conversation.routes.ts:28-33`) | levar o anexo da conversa da contratante à do motorista (só existe o sentido inverso, `forwardDriverAttachments`, `contractor-portal-message.use-case.ts:142-153`)           |
+| Chat do motorista no **app do motorista**      | **não existe** em `apps/frontend-driver`: a conversa só está no PWA antigo dentro do painel (`frontend-transportada/src/modules/driver-trip/pages/DriverOccurrenceConversations.page.tsx`), e o motorista redirecionado ao app próprio (`frontend-transportada/src/main.tsx:451-490`) não a vê            | a tela de conversa da ocorrência no app do motorista                                                                                                                         |
+| WhatsApp ao motorista                          | `SendMessageUseCase` do pacote `meta-whatsapp-module` 0.8.0 com `sendMedia` e `assertWithinWindow` de 24 h (`dist/index.js:1029-1033`); provider 0.4.0 com `sendMedia` (documento) e `WhatsAppWindowExpiredError`; última inbound por número em `meta_whatsapp.sessions.last_inbound_at`                  | o produto não chama nada disso: gateway só `sendText`/`sendTemplate` (`meta-whatsapp-sending.gateway.ts:35-51`); nenhum gatilho entrega pendência quando o motorista escreve |
+| E-mail do cliente da nota                      | **não existe**: o parser não expõe `<dest><email>` (`fiscal-provider` 0.3.2, `types.d.ts:816-822`, `NfeXmlParty` sem e-mail), `nfe.schema.ts` não tem coluna, e `delivery_clients` não guarda contato (ADR-0048 §2)                                                                                       | guardar o e-mail que a NF-e já traz                                                                                                                                          |
+| E-mail a endereço livre                        | **não existe**: os destinatários só saem de `contractor_contacts` (`drizzle-occurrence-mail.repository.ts:410-428`)                                                                                                                                                                                       | o envio a terceiro, com validação e auditoria                                                                                                                                |
+| Alarme repetido ao operador                    | sino (`notification` com INBOX e EMAIL), aviso a quem despachou a viagem (`occurrence-notifier.gateway.ts:32-83`); dedupe **permanente** por chave (`notification.notifications`, índice único `(company_id, dedupe_key)`)                                                                                | job de prazo; chave por alerta para repetir                                                                                                                                  |
+| Auditoria da ação automática                   | rastro nas mensagens (`automatic = true`)                                                                                                                                                                                                                                                                 | `audit_logs.actor_user_id` é `NOT NULL` (`fiscal-operation.schema.ts:37-63`): ação sem usuário não cabe                                                                      |
 
 ## Tudo é configuração do tipo
 
-Restrição do usuário (2026-10-06): _"isso deve ser tudo configuração na criação do tipo de
-ocorrência"_. A prorrogação é **uma linha** de `company_occurrence_types` criada ou editada na aba
-Tipos; nenhum código pergunta pelo nome. O nome do catálogo
-(`BILL_EXTENSION_OCCURRENCE_TYPE_NAME`) só serve ao bootstrap de empresa vazia e continua assim. O
-contraexemplo a não repetir é a migration da 241 que casa a segunda via por nome exato
-(`20261006033752_occurrence_type_items_mode/migration.sql:14`).
+A prorrogação é **uma linha** de `company_occurrence_types`, criada ou editada na aba Tipos. Nenhum
+código pergunta pelo nome. O nome do catálogo (`BILL_EXTENSION_OCCURRENCE_TYPE_NAME`) só serve ao
+bootstrap de empresa vazia e continua assim. Contraexemplo que **não** se repete: a migration da 241
+casou a segunda via por nome exato (`20261006033752_occurrence_type_items_mode/migration.sql:14`).
 
 ### Campos novos do tipo (`company_occurrence_types`)
 
-| Campo                              | Vocabulário                                                      | Default | O que governa                                                                                                                                         |
-| ---------------------------------- | ---------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contractor_reply_mode`            | `off` · `forward_after_approval` · `forward_automatic`           | `off`   | o que fazer com a resposta da contratante: nada (só aparece na conversa, como hoje); levar ao motorista depois de um toque do operador; levar sozinho |
-| `contractor_reply_attachment_kind` | `pdf` · `pdf_or_image`                                           | `pdf`   | qual anexo da resposta vale como retorno                                                                                                              |
-| `driver_reply_template`            | texto, 1–1000 caracteres, marcadores da lista fechada da 079/247 | `''`    | a mensagem que acompanha o anexo na conversa do motorista                                                                                             |
-| `contractor_reply_wait_hours`      | inteiro 1–168, ou nulo                                           | nulo    | prazo de espera da resposta; nulo = sem prazo                                                                                                         |
-| `contractor_reply_reminder`        | `off` · `notify_operator` · `remind_contractor`                  | `off`   | o que acontece quando o prazo vence                                                                                                                   |
+| Campo                                     | Vocabulário                                            | Default             | O que governa                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `contractor_reply_mode`                   | `off` · `forward_after_approval` · `forward_automatic` | `off`               | o que fazer com a resposta: nada além de mostrá-la; levar ao motorista depois de um toque; levar sozinho |
+| `contractor_reply_attachment_kind`        | `pdf` · `pdf_or_image`                                 | `pdf`               | qual anexo da resposta vale como retorno                                                                 |
+| `driver_reply_channel`                    | `app_chat` · `whatsapp` · `both`                       | `app_chat`          | por onde o motorista recebe                                                                              |
+| `driver_reply_window_closed_action`       | `fallback_app_chat` · `wait_for_driver`                | `fallback_app_chat` | com `whatsapp` e a janela de 24 h fechada: entregar no chat do app, ou esperar o motorista escrever      |
+| `driver_reply_template`                   | texto, 1–1000, marcadores da lista fechada (079/247)   | `''`                | a mensagem que acompanha o PDF ao motorista                                                              |
+| `contractor_reply_wait_hours`             | inteiro 1–168, ou nulo                                 | nulo                | prazo de espera; nulo = sem prazo                                                                        |
+| `contractor_reply_alert_mode`             | `off` · `alert_operator`                               | `off`               | se o atraso alarma a operação                                                                            |
+| `contractor_reply_alert_interval_minutes` | inteiro 15–1440                                        | `60`                | de quanto em quanto tempo o alarme repete                                                                |
+| `contractor_reply_alert_max_count`        | inteiro 1–96                                           | `24`                | teto de alertas por ocorrência (protege o sino de enchente)                                              |
+| `forward_to_note_recipient`               | `off` · `manual` · `automatic`                         | `off`               | mandar o boleto ao e-mail do cliente que está na nota                                                    |
+| `forward_to_informed_email`               | `off` · `manual`                                       | `off`               | mandar o boleto a um e-mail que o operador informa                                                       |
+| `forward_email_subject`                   | texto, 0–200, marcadores                               | `''`                | assunto do e-mail ao cliente / ao e-mail informado                                                       |
+| `forward_email_body`                      | texto, 0–4000, marcadores                              | `''`                | corpo desse e-mail                                                                                       |
 
-CHECKs: `contractor_reply_mode <> 'off'` exige `emails_contractor = true` (sem e-mail, não há
-resposta a observar) **e** `btrim(driver_reply_template) <> ''`; `contractor_reply_reminder <> 'off'`
-exige `contractor_reply_wait_hours IS NOT NULL`. Todas geradas de constantes. Escrita fora disso →
-`422` com código estável por regra.
+CHECKs (todas geradas de constantes; escrita fora delas → `422` com código estável por regra):
+
+- `contractor_reply_mode <> 'off'` exige `emails_contractor = true` e `btrim(driver_reply_template) <> ''`.
+- `contractor_reply_alert_mode <> 'off'` exige `contractor_reply_wait_hours IS NOT NULL`.
+- `forward_to_note_recipient = 'automatic'` exige `contractor_reply_mode <> 'off'` (sem retorno
+  reconhecido não há o que mandar sozinho).
+- `forward_to_note_recipient <> 'off' OR forward_to_informed_email <> 'off'` exige
+  `btrim(forward_email_subject) <> ''` e `btrim(forward_email_body) <> ''`.
+- **Mandar ao cliente da nota sozinho é sempre escolha explícita**: o default é `off`, e nenhuma
+  migration liga isso em tipo existente.
 
 ### Campos que já existem e esta spec usa (sem duplicar)
 
@@ -84,176 +120,297 @@ unset` (164/241).
 
 ### Exceção por contratante (camada da 246)
 
-O comportamento do retorno é **da contratante** — uma responde com PDF em minutos, outra não responde
-por e-mail. **Decidido por delegação em 2026-10-06 — reversível:** entram na exceção **por
-contratante** (`company_occurrence_type_contractor_overrides`), nulas e sem default, herdando do tipo:
-`contractor_reply_mode` e `contractor_reply_wait_hours`. **Não entram:** na exceção por destinatário
-(quem responde é a contratante, não o mercado), nem o modelo de mensagem, o tipo de anexo e o
-lembrete — seriam segundo mecanismo. Custo de reverter: colunas nulas, migration aditiva.
+A exceção declara **o que muda**, nula herda do tipo (`resolve-with-overrides.policy.ts`). **Decidido
+por delegação em 2026-10-06 — reversível:** entram na exceção **por contratante**
+(`company_occurrence_type_contractor_overrides`), nulas e sem default:
+
+- `contractor_reply_mode` e `contractor_reply_wait_hours` — o comportamento do retorno é da
+  contratante (uma devolve em 5–6 h com PDF, outra não devolve por e-mail);
+- `forward_to_note_recipient` — uma contratante pode querer que o cliente receba o boleto sozinho e
+  outra não.
+
+**Não entram:** a exceção por **destinatário** (quem responde é a contratante), os textos, o canal
+do motorista, o tipo de anexo e a cadência do alarme — seriam segundo mecanismo. Custo de reverter:
+colunas nulas, migration aditiva.
 
 ## O que é o momento
 
 Mesma explicação da [spec 247](../247-a-devolucao-soma-os-itens-linha-por-linha/spec.md) § "O que é o
 momento": o momento diz **quem registra e sobre o quê**. A prorrogação é registrada pelo **motorista,
-numa nota** (hoje rotulado "Entrega da nota") e, se a operação quiser, pelo **escritório, pelo
-motorista**. A troca de rótulos proposta é da 247.
+numa nota** (hoje rotulado "Entrega da nota", proposta da 247: "Motorista, numa nota") e, se a
+operação quiser, pelo **escritório, pelo motorista**.
+
+## Decisões do usuário (fechadas em 2026-10-06)
+
+| #   | Pergunta                                               | Resposta                                                                                                                                                                                                  | O que ela substitui                                                                                                                                                          |
+| --- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Como a contratante devolve o boleto?                   | **Respondendo ao e-mail com o PDF anexo.**                                                                                                                                                                | link no corpo, outro canal                                                                                                                                                   |
+| Q2  | Prazo e o que fazer sem resposta?                      | **5–6 h; passado isso, alarmar a operação repetidamente.** Roteiro: 6 h, alerta a cada 60 min, até 24 alertas (decidido por delegação, abaixo).                                                           | lembrete único                                                                                                                                                               |
+| Q3  | O boleto vai sozinho ao motorista?                     | **Sim, automático**, com as **opções** de mandar ao e-mail do cliente que está na nota e a um e-mail informado.                                                                                           | aprovação do operador                                                                                                                                                        |
+| Q4  | Canal ao motorista                                     | **O chat do próprio produto é o principal** ("vamos utilizar mais nosso chat próprio"); o WhatsApp é opcional e **sem modelo da Meta**, só mensagem livre dentro da janela de 24 h aberta pelo motorista. | WhatsApp como canal principal, com modelo aprovado pela Meta. Custo de reverter: a fase de modelo (submissão à Meta, `sendTemplate` fora da janela) — nada desta spec impede |
+| Q6  | O motorista só mostra ou o produto repassa ao cliente? | **O produto manda ao cliente por e-mail** (resposta da Q3).                                                                                                                                               | o motorista compartilhar do aparelho                                                                                                                                         |
+
+**Q5** (texto do modelo da Meta) **deixa de existir**: sem modelo, não há texto a submeter nem passo
+humano na Meta, e esta spec **não depende** da 183 T002/T503.
+
+**Consequência derivada da Q4 (regra, não pergunta):** a janela de 24 h abre quando o motorista
+**manda mensagem** ao número da empresa, não quando registra no app. Por isso:
+
+- O chat do app (`app_chat`) não tem janela: o PDF fica na conversa e o motorista é avisado no sino.
+  É o default e o valor do roteiro.
+- Com `whatsapp` ou `both`, o envio só sai se a última mensagem do motorista ao número tiver menos de
+  24 h (`meta_whatsapp.sessions.last_inbound_at`, por número). O registro **pelo WhatsApp** abre a
+  janela; o registro **pelo app** não. Com a resposta da contratante em 5–6 h, o registro pelo
+  WhatsApp chega folgado; uma resposta depois de 24 h (fim de semana) encontra a janela fechada.
+- Janela fechada: com `fallback_app_chat` o PDF vai ao chat do app na hora (e ao WhatsApp quando ele
+  escrever); com `wait_for_driver` a entrega fica **pendente**, o estado diz "aguardando o motorista
+  escrever no WhatsApp", e o alarme da operação vale para esse estado também. Em ambos, **quando o
+  motorista escrever de novo** ao número, o gatilho da mensagem recebida entrega o pendente na hora,
+  uma vez só.
+- Alternativa descartada: modelo aprovado pela Meta para abrir a conversa (decisão do usuário). Custo
+  de reverter: a fase de modelo, com submissão do texto à Meta.
+
+**Consequência derivada do chat próprio:** a resposta da contratante pelo **portal**, com PDF, vale
+como a resposta por e-mail — mesma regra de anexo, mesmo estado. O retorno principal continua sendo a
+resposta ao e-mail (Q1).
 
 ## Fora do escopo
 
 - Pagar, emitir, calcular ou validar boleto; ler linha digitável ou vencimento de dentro do PDF.
 - Mudar a regra da tratativa (164): a prorrogação não abre tratativa e não muda o estado da nota.
-- Interpretar o texto da resposta (a 183 D4 vale: a conversa não decide). O retorno é reconhecido
-  pelo **anexo** na conversa certa, nunca por palavra no corpo.
+- Interpretar o texto da resposta (183 D4: a conversa não decide). O retorno é reconhecido pelo
+  **anexo** na conversa certa, nunca por palavra.
+- Modelo de WhatsApp aprovado pela Meta (Q4).
 - O canal WhatsApp **à contratante** (183 T002).
-- Antivírus (ver D6).
-- Encaminhar ao cliente final pelo produto: o motorista mostra ou compartilha do próprio aparelho
-  (ver pergunta Q6).
+- Contato do cliente de entrega em `delivery_clients` (ADR-0048 §2 continua: o cliente não vira CRM).
+  O e-mail usado é **o que está na NF-e**, dado do documento fiscal.
+- Antivírus (D6).
+- Aviso ao operador para toda mensagem do portal (só a resposta que mexe no retorno avisa).
 
 ## Histórias priorizadas
 
 ### P1 — O pedido sai sozinho, no formato do SAC
 
-**Given** o tipo "Cliente pediu prorrogação do boleto" com `emails_contractor` ligado e o modelo do
-SAC
-**When** o motorista registra a prorrogação da NF 717795
-**Then** o e-mail sai à contratante da nota sem ninguém no escritório tocar, com o assunto
-`OCORRÊNCIA -{{contratante}} - NF - {{numeroNotaSemSerie}} -MOT - {{motorista}} - MOTIVO - PRORROGAÇÃO`
-renderizado
-**And** a ocorrência mostra **"Aguardando a contratante"** desde o envio, com o prazo se o tipo tiver
+**Given** o tipo de prorrogação com `emails_contractor` ligado e o modelo do SAC
+**When** o motorista registra a prorrogação da NF 717795, no app ou pelo WhatsApp
+**Then** o e-mail sai à contratante da nota sem ninguém no escritório tocar
+**And** a ocorrência mostra **"Aguardando a contratante · responde até 16:40"**
 **And** a nota continua na viagem, sem tratativa e sem foto.
 
-### P2 — O boleto chega ao motorista sem o operador procurar
+### P2 — Passou do prazo, a operação é alarmada até resolver
 
-**Given** o tipo com `contractor_reply_mode = forward_automatic` e anexo `pdf`
-**When** a contratante responde ao e-mail com um PDF
-**Then** a ocorrência passa a **"Boleto recebido"** e, em seguida, **"Enviado ao motorista"**
-**And** o motorista vê, na conversa da ocorrência no app, a mensagem do tipo com o PDF, e recebe o
-aviso na caixa.
+**Given** prazo de 6 h, alerta a cada 60 min, teto 24
+**When** passam 6 h sem resposta
+**Then** a ocorrência vira **"Atrasada · 1 alerta"** e quem despachou a viagem recebe o alerta no sino
+(e por e-mail interno, como os avisos de ocorrência)
+**And** a cada 60 min sai um novo alerta, com o selo contando ("Atrasada · 3 alertas")
+**And** o alarme para quando a resposta chega, quando a ocorrência é cancelada ou encerrada, quando
+alguém toca **"Marcar como tratado"**, ou no teto
+**And** no painel o operador tem **"Reenviar o pedido à contratante"**, os contatos dela (e-mail e
+telefone já cadastrados em `contractor_contacts`) para ligar, e **"Marcar como tratado"** com uma nota.
 
-### P3 — Com aprovação, o operador confere antes
+### P3 — O boleto chega ao motorista no chat do app
 
-**Given** o tipo com `forward_after_approval`
-**When** chega a resposta com PDF
-**Then** a ocorrência fica em **"Aguardando o operador"**, o painel mostra o PDF e o botão **"Enviar
-ao motorista"** (`occurrences.resolve`)
-**And** ao tocar, o envio acontece e o estado vira **"Enviado ao motorista"**, com quem aprovou.
+**Given** o tipo com `forward_automatic` e canal `app_chat`
+**When** a contratante responde ao e-mail (ou escreve no portal) com um PDF
+**Then** a ocorrência passa a **"Boleto recebido"** e, em seguida, **"Enviado ao motorista pelo chat"**
+**And** o motorista recebe o aviso no sino do app, abre a conversa da ocorrência e baixa o PDF.
 
-### P4 — O que dá errado aparece com o motivo
+### P4 — O operador manda ao cliente da nota e a um e-mail informado
 
-**Given** a resposta não traz PDF (só texto, ou só uma imagem num tipo `pdf`), ou traz dois PDFs
+**Given** o tipo com `forward_to_note_recipient = manual` e `forward_to_informed_email = manual`
+**When** o operador abre a ocorrência com o boleto recebido
+**Then** vê **"Enviar ao cliente da nota"** com o e-mail mascarado (`f***@m***.com.br`), ou o botão
+indisponível com o motivo "a nota não traz e-mail do destinatário"
+**And** vê **"Encaminhar para um e-mail"** com um campo de **um** endereço
+**And** cada envio aparece na linha do tempo ("Enviado ao cliente por e-mail", "Enviado a e-mail
+informado"), com quem enviou e quando; repetir o toque não manda duas vezes.
+
+### P5 — WhatsApp com janela fechada não perde o boleto
+
+**Given** canal `whatsapp` com `wait_for_driver`, e o motorista registrou pelo app há 30 h
+**When** o boleto chega
+**Then** a ocorrência mostra **"Boleto recebido · aguardando o motorista escrever no WhatsApp"** e o
+alarme da operação vale
+**And** quando o motorista manda qualquer mensagem ao número, o boleto sai na hora, uma vez só.
+
+### P6 — O que dá errado aparece com o motivo
+
+**Given** a resposta não traz PDF, ou traz dois
 **When** ela chega
-**Then** o estado vira **"Precisa do operador"** com o motivo ("resposta sem PDF", "mais de um PDF")
-e nada vai ao motorista sozinho; o operador escolhe o anexo ou responde à contratante
-**And** se o prazo vence sem resposta, o estado mostra **"Sem resposta no prazo"** e o lembrete do
-tipo acontece uma vez.
+**Then** o estado vira **"Precisa do operador"** com o motivo, nada vai sozinho, e o operador escolhe o
+anexo ou responde à contratante.
 
 ## Requisitos funcionais
 
-- **RF1** Os cinco campos do tipo (tabela acima), com CHECKs geradas das constantes, validação no
-  `PUT /company-settings/occurrence-types`, leitura nos `GET`, e o bloco **"Retorno da contratante"**
-  na aba Tipos, dentro de "E-mail à contratante" da 247, só habilitado com o e-mail ligado.
-- **RF2** O envio do pedido continua sendo o aviso automático da 183, sem segundo caminho. Para não
-  perder o pedido quando o processo cai entre o commit e o hook em memória, um **varredor** (job do
-  `cron-transportada`) reenvia, pela mesma chave de idempotência, as ocorrências de tipo com
-  `emails_contractor` sem mensagem automática depois de 10 minutos.
-- **RF3** Toda ocorrência de tipo com `contractor_reply_mode` efetivo `<> off` ganha, **na mesma
-  transação do envio do pedido**, um **retorno** em `awaiting_contractor`, com `deadline_at` quando
-  houver prazo. Um retorno por ocorrência (`UNIQUE (company_id, occurrence_id)`).
-- **RF4** O worker, depois de gravar uma resposta `inbound` na conversa da contratante
-  (`recordOccurrenceConversationMailReply`), publica o evento de resposta no outbox; um consumidor
-  aplica a **política pura** `decideContractorReply` sobre o retorno aberto daquela ocorrência:
-  - exatamente **um** anexo do tipo aceito → `reply_received`, e então `forwarding` (automático) ou
-    `awaiting_operator` (com aprovação);
-  - **nenhum** anexo aceito → `needs_operator` com motivo `no_accepted_attachment`;
-  - **mais de um** → `needs_operator` com `multiple_attachments`;
-  - retorno já `sent_to_driver` → nada muda; a resposta fica na conversa, e o operador pode
-    encaminhar à mão (RF7).
-    O tipo de anexo é o **conferido pelos bytes** pela 183 (`conversation-attachment.policy.ts`),
-    nunca o nome nem o `Content-Type` declarado.
-- **RF5** O envio ao motorista é um caso de uso único (`forwardContractorReplyToDriver`), chamado pelo
-  automático e pelo toque do operador: cria a mensagem na conversa **do motorista** com o texto
-  renderizado de `driver_reply_template` e **o mesmo `stored_object`** do anexo (sem copiar bytes),
-  pelo canal decidido em Q4. Idempotente por `contractor-reply:<retornoId>`.
-- **RF6** Falha no envio ao motorista → `failed` com motivo fechado: `driver_without_account`,
-  `driver_unreachable`, `whatsapp_window_closed`, `whatsapp_template_missing`, `send_failed`. O
-  painel mostra o motivo e o botão **"Tentar de novo"**.
-- **RF7** O operador pode, a qualquer momento, encaminhar **qualquer** anexo da conversa da
-  contratante à do motorista pelo mesmo caso de uso (`occurrences.resolve`), inclusive fora do fluxo
-  automático. Isso cobre a resposta duplicada e a resposta que chega depois do envio.
-- **RF8** Prazo: com `contractor_reply_wait_hours`, o job `occurrence.contractor-reply.remind` passa o
-  retorno vencido a `expired` e executa o lembrete do tipo **uma vez**: `notify_operator` → aviso na
-  caixa de quem despachou a viagem (mesmo destinatário do aviso interno, `occurrence-notifier.gateway.ts`);
-  `remind_contractor` → resposta na mesma conversa de e-mail com o texto fixo de cobrança do produto
-  ("Reenvio do pedido abaixo."), pelo trilho da 183. Resposta que chega depois de `expired` volta o
-  retorno ao fluxo normal.
-- **RF9** **Estado à vista.** O retorno aparece na linha da ocorrência (lista e detalhe) como selo:
-  Aguardando a contratante (com prazo) · Boleto recebido · Aguardando o operador · Precisa do operador
-  (motivo) · Enviado ao motorista · Falhou (motivo) · Sem resposta no prazo. No app do motorista, a
-  ocorrência mostra "Pedido enviado à contratante" e, depois, o anexo.
-- **RF10** **Histórico imutável:** cada transição grava uma linha em
-  `occurrence_contractor_reply_events` (`from`, `to`, `reason`, `actor_kind` `system` | `user`,
-  `actor_user_id` nulo quando `system`, mensagem e anexo envolvidos). É a auditoria da ação automática
-  — `audit_logs` não aceita ator nulo (D5).
-- **RF11** O retorno nunca escreve na tratativa nem na nota (183 D4; contrato
+- **RF1** Os campos do tipo (tabela acima), com CHECKs, validação no `PUT
+/company-settings/occurrence-types`, leitura nos `GET`, e o bloco **"Retorno da contratante"** na aba
+  Tipos, dentro de "E-mail à contratante" (247), habilitado só com o e-mail ligado. Os seletores são
+  o `Select` da aplicação, como na 246/247.
+- **RF2** O pedido é o aviso automático da 183, sem segundo caminho. Um **varredor**
+  (`occurrence.automatic-mail.sweep`, cron) reenvia pela mesma chave de idempotência
+  (`occurrence-auto-mail:<id>`) a ocorrência de tipo com `emails_contractor` sem mensagem automática
+  10 minutos depois do registro.
+- **RF3** Toda ocorrência de tipo com `contractor_reply_mode` **efetivo** `<> off` ganha, na mesma
+  transação do envio do pedido, um **retorno** (`awaiting_contractor`) com a configuração efetiva
+  **copiada** (modo, prazo, canal, alarme, encaminhamentos) e `deadline_at`. Um por ocorrência.
+- **RF4** **Entrada da resposta, por dois caminhos com a mesma regra.** Depois de gravada uma
+  mensagem `inbound` na conversa da contratante — por e-mail (worker, depois de
+  `recordOccurrenceConversationMailReply`) ou pelo portal (API, depois do commit de
+  `contractor-portal-conversation.use-case.ts`) —, a política pura `decideContractorReply` decide
+  sobre o retorno aberto:
+  - exatamente **um** anexo do tipo aceito → `reply_received`, e então entrega automática ou
+    `awaiting_operator`;
+  - **nenhum** anexo aceito → `needs_operator` / `no_accepted_attachment` (o alarme de atraso para;
+    o operador recebe **um** alerta);
+  - **mais de um** → `needs_operator` / `multiple_attachments`;
+  - retorno já entregue → nada muda; a resposta fica na conversa (RF9).
+    O tipo é o **conferido pelos bytes** (`conversation-attachment.policy.ts:121-154`), nunca o nome nem
+    o `Content-Type` declarado.
+- **RF5** **Alarme escalonado.** O job `occurrence.contractor-reply.alert` passa o retorno vencido a
+  `overdue` e manda um alerta a cada `alert_interval_minutes`, até `alert_max_count`, enquanto o
+  retorno estiver em `overdue` (ou em entrega pendente de janela, RF7). Cada alerta:
+  - incrementa `alert_count` e grava evento;
+  - notifica pelo módulo de notificações (sino + e-mail interno) **quem despachou a viagem** — a
+    mesma regra de destinatário do aviso interno (`occurrence-notifier.gateway.ts:24-27`) —, com
+    template novo `trip.occurrence-contractor-reply-overdue` e `dedupeKey` que inclui o número do
+    alerta (o dedupe do módulo é permanente por chave);
+  - viagem sem despacho: só o selo e o filtro "Atrasadas" na lista de ocorrências.
+    Para quando: resposta chega (RF4), ocorrência cancelada (240) ou encerrada, **"Marcar como
+    tratado"** (`handled`, com nota e autor), ou teto. Job rodando duas vezes não manda alerta duplicado
+    (transição condicional por `alert_count`).
+- **RF6** **Ações do operador no alarme** (`occurrences.resolve`): **Reenviar o pedido à contratante**
+  (resposta na mesma conversa de e-mail, texto do produto "Reenvio do pedido abaixo.", no máximo uma
+  vez por intervalo de alarme); **Marcar como tratado** (nota obrigatória, 1–500); a lista de contatos
+  da contratante com e-mail e telefone já cadastrados, para ligar.
+- **RF7** **Entrega ao motorista**, caso de uso único `deliverContractorReplyToDriver`:
+  - `app_chat`: mensagem na conversa **do motorista**, canal `app`, com `driver_reply_template`
+    renderizado e o **mesmo `stored_object`** do anexo da resposta (referência, como o encaminhamento
+    do portal já faz, `drizzle-contractor-portal-message.repository.ts:111-137`), e o aviso no sino que
+    já existe (`trip.conversation-message`).
+  - `whatsapp`: `SendMessageUseCase.sendMedia` do pacote `meta-whatsapp-module` (documento, com a
+    janela conferida pelo próprio pacote), ao telefone verificado do motorista
+    (`user_whatsapp_phones.verified_at`); a mensagem também fica gravada na conversa do motorista,
+    canal `whatsapp`. Janela fechada → `driver_reply_window_closed_action`.
+  - `both`: os dois; o estado é "enviado" quando o primeiro sai.
+    Idempotente por `(retorno, alvo)`.
+- **RF8** **Retomada pelo motorista.** O gatilho da mensagem recebida no WhatsApp
+  (`createOccurrenceConversationWhatsAppHook`, que fica antes do despachante de comandos,
+  `main.ts:1688-1695`) passa a consultar, para o motorista daquele telefone, entregas
+  `pending_window`, e as entrega na hora — **sem consumir** a mensagem (ela segue para a conversa ou
+  para o fluxo de comandos, como hoje). Trava por linha (`FOR UPDATE SKIP LOCKED`) e transição
+  condicional: duas mensagens seguidas não mandam o boleto duas vezes.
+- **RF9** **Encaminhar à mão.** O operador pode levar **qualquer** anexo da conversa da contratante à
+  do motorista pelo mesmo caso de uso (`occurrences.resolve`): cobre resposta duplicada, resposta
+  depois da entrega, `needs_operator` e `awaiting_operator`.
+- **RF10** **Ao cliente da nota.** `nfe_documents` passa a guardar `recipient_email` (o
+  `<dest><email>` da NF-e; o parser do pacote fiscal passa a expô-lo — mudança no
+  `adatechnology-packages`). Com `forward_to_note_recipient`:
+  - `manual`: botão na página da ocorrência;
+  - `automatic`: sai junto com a entrega ao motorista;
+  - **sem e-mail na nota** (ou nota importada antes da coluna): o botão fica indisponível com o
+    motivo à vista; no automático, o envio vira `skipped` / `note_without_recipient_email` na linha do
+    tempo, **nunca** falha calada e **nunca** cai para outro endereço.
+    Nota antiga: um job de backfill (`nfe.recipient-email.backfill`, molde de `identity.document.backfill`)
+    relê o XML original guardado e preenche — só com autorização do usuário em produção.
+- **RF11** **A um e-mail informado.** Com `forward_to_informed_email = manual`, um campo de **um**
+  endereço: `trim`, ≤ 254, `z.string().email()`, recusa de `\r`, `\n`, `,`, `;`, `<`, `>` (injeção de
+  cabeçalho e lista — o envio da 183 já recusa `/[\r\n,<>]/u`, `send-occurrence-mail.use-case.ts:44`).
+  Nunca automático (D10).
+- **RF12** **Envio de e-mail a terceiro.** Novo trilho no outbox de e-mail da 143 (Resend pelo
+  worker), **sem** thread de conversa e **sem** token de resposta (resposta do cliente não pode cair
+  na conversa da contratante): remetente da empresa, `Reply-To` = endereço de contato da empresa
+  quando houver, assunto e corpo de `forward_email_subject`/`forward_email_body`, o PDF **como anexo**
+  (base64, como o worker já faz, `send-contractor-mail-outbound-message.use-case.ts:157-180`; teto do
+  canal e-mail 10 MB por arquivo, `conversation-attachment.policy.ts:44`: PDF maior vira `failed` /
+  `attachment_too_large_for_email`). Idempotência por chave do cliente (`Idempotency-Key`) e por
+  `(retorno, alvo, endereço normalizado)` no automático.
+- **RF13** **Estado e linha do tempo.** Selo na lista e no detalhe: Aguardando a contratante (prazo) ·
+  Atrasada · N alertas · Boleto recebido · Aguardando o operador · Precisa do operador (motivo) ·
+  Enviado ao motorista pelo chat · Enviado ao motorista pelo WhatsApp · Aguardando o motorista escrever
+  no WhatsApp · Enviado ao cliente por e-mail · Enviado a e-mail informado · Falhou (motivo) · Tratado.
+  No app do motorista: "Pedido enviado à contratante" e, depois, a conversa com o PDF.
+- **RF14** **Chat no app do motorista.** `apps/frontend-driver` ganha a conversa da ocorrência: lista
+  das conversas da viagem com não lidas, leitura, resposta com anexo e download do anexo por URL
+  assinada, sobre as rotas `/me/...` que já existem; o aviso do sino (`trip.conversation-message`)
+  abre a conversa. Sem cache offline de API (o `sw.ts` não tem): sem rede, a tela diz isso.
+- **RF15** **Histórico imutável:** cada transição e cada envio gravam evento
+  (`occurrence_contractor_reply_events`) com `actor_kind` `system` | `user`, `actor_user_id` nulo só
+  quando `system`. É a auditoria da ação automática e do envio a terceiro.
+- **RF16** O retorno nunca escreve na tratativa nem na nota (183 D4; contrato
   `conversation-never-decides.contract.ts` estendido).
 
 ## Requisitos não funcionais
 
-- **O PDF é entrada não confiável.** Vale o que a 183 já faz e não se afrouxa: tipo pelos bytes,
-  ≤ 10 MB, ≤ 5 por mensagem, objeto em bucket privado, chave opaca (`occurrence-conversations/<token>`)
-  sem CNPJ nem nome, download só por URL assinada de 300 s com `Content-Disposition: attachment`,
-  nunca aberto, convertido ou executado no servidor. Nenhum byte no banco.
-- Nenhum CNPJ, nome, e-mail, telefone, número de nota ou nome de arquivo em log — só ids e o motivo.
-- `companyId` vem do webhook já conferido (Svix) e da conversa; o retorno é buscado por
-  `(company_id, occurrence_id)`. Contrato negativo entre empresas.
-- Idempotência em três pontos: evento de resposta por `provider_email_id` (já existe), transição por
-  `(retorno, mensagem)`, envio ao motorista por `contractor-reply:<retornoId>`.
-- Rate limit: o automático manda **no máximo um** anexo por retorno; o encaminhamento manual usa o
-  limite da rota de mensagem da 183 (30 / 300 s).
+- **Segurança do PDF** (entrada não confiável): tipo pelos bytes, tetos da 183, bucket privado, chave
+  opaca (`occurrence-conversations/<token>`) sem CNPJ, e-mail ou nome; download por URL assinada de
+  300 s com `Content-Disposition: attachment`; nunca aberto, convertido ou executado no servidor;
+  nenhum byte no banco.
+- **Dado pessoal de terceiro (LGPD, security.md §1):** o e-mail do cliente da nota e o informado são
+  guardados só onde a auditoria precisa (`recipient_email` na nota; o endereço do envio na linha de
+  entrega). **Nunca** em log, nome de objeto, URL ou métrica: log leva o id e o endereço **mascarado**
+  pela função central (`maskEmailAddress`, hoje privada em `identity/domain/company-user.policy.ts:177`,
+  promovida a `shared/`). Tela mostra mascarado até o operador abrir o detalhe.
+- **Permissão:** encaminhar, reenviar, marcar tratado e mandar a terceiro exigem `occurrences.resolve`
+  (company-admin, finance, operator, `authorization.policy.ts:110`); ver exige `fleet.read`. Nenhuma
+  permissão nova.
+- **Limite de taxa** (store `postgres`, por `companyId:userId`): envio a terceiro 10 / 3600 s
+  (escopo próprio); reenvio do pedido e encaminhamento usam o escopo da conversa da 183 (30 / 300 s).
+  Por ocorrência, no máximo 5 envios a e-mail informado (regra no caso de uso, com erro estável).
+- `companyId` vem do contexto (rotas) ou do webhook já conferido (worker); toda busca é por
+  `(company_id, …)`. Contratos negativos entre empresas.
+- Idempotência: resposta por `provider_email_id` (existe); transição condicional por estado; entrega
+  por `(retorno, alvo)`; envio manual por `Idempotency-Key`.
 - Migration aditiva com `rollback.sql`; sem ENUM nativo; CHECKs nomeadas ≤ 63.
-- Ordem de publicação (ADR-0081 §9): painel e app tolerantes às chaves e ao selo novos → banco,
-  worker e API → telas que escrevem.
+- Ordem de publicação (ADR-0081 §9): painel e apps tolerantes → banco, worker, API e cron → telas.
 
 ## Casos extremos e falhas
 
-| Caso                                                        | Comportamento                                                                                                             |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Contratante sem contato que receba ocorrências              | o pedido não sai (`no_recipient`, 183); o retorno **não** é criado; a ocorrência mostra "Pedido não enviado: sem contato" |
-| E-mail da empresa não configurado                           | idem, motivo `mail_not_ready`                                                                                             |
-| Resposta sem anexo                                          | `needs_operator` / `no_accepted_attachment`; segue aguardando outra resposta                                              |
-| Anexo que não é PDF (tipo `pdf`)                            | não conta; se não houver outro, `needs_operator`                                                                          |
-| Vários PDFs                                                 | `needs_operator` / `multiple_attachments`; o operador escolhe (RF7)                                                       |
-| PDF acima de 10 MB                                          | a 183 já o descarta (conta em `skipped`); vira "sem anexo aceito"                                                         |
-| Resposta duplicada (reenvio do mesmo e-mail)                | idempotente por `provider_email_id`                                                                                       |
-| Segunda resposta depois do envio                            | fica na conversa; nada automático; RF7                                                                                    |
-| Resposta de outra ocorrência                                | o token é por conversa; casa só a conversa dela                                                                           |
-| Token inválido ou desconhecido                              | o worker descarta (`token_unknown`, 143); nenhum retorno muda                                                             |
-| Motorista sem conta                                         | `failed` / `driver_without_account`                                                                                       |
-| Motorista sem WhatsApp verificado (se o canal for WhatsApp) | cai para o app (Q4) ou `failed` / `driver_unreachable`                                                                    |
-| Fora da janela de 24 h da Meta                              | só com modelo aprovado (183 D5); sem ele, `failed` / `whatsapp_template_missing` ou app (Q4)                              |
-| Ocorrência cancelada (240) antes da resposta                | o retorno vira `cancelled`; resposta posterior só aparece na conversa                                                     |
-| Tipo reconfigurado no meio                                  | o retorno guarda o modo **efetivo do registro** (cópia); mudança vale para as próximas                                    |
+| Caso                                                       | Comportamento                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Contratante sem contato que receba ocorrências             | pedido não sai (`no_recipient`, 183); retorno não é criado; selo "Pedido não enviado: sem contato" |
+| E-mail da empresa não configurado                          | idem, `mail_not_ready`                                                                             |
+| Resposta sem anexo aceito                                  | `needs_operator`; o alarme de atraso para; um alerta                                               |
+| Vários PDFs                                                | `needs_operator` / `multiple_attachments`; o operador escolhe (RF9)                                |
+| PDF > 10 MB pelo e-mail                                    | a 183 já descarta; vira "sem anexo aceito"                                                         |
+| PDF > 10 MB pelo portal (até 25 MB)                        | vai ao motorista; envio a terceiro por e-mail falha com `attachment_too_large_for_email`           |
+| Resposta duplicada                                         | idempotente por `provider_email_id`                                                                |
+| Segunda resposta depois da entrega                         | fica na conversa; RF9                                                                              |
+| Resposta de outra ocorrência / token inválido              | o token é por conversa; o worker descarta o desconhecido (`token_unknown`, 143)                    |
+| Motorista sem conta                                        | `failed` / `driver_without_account`                                                                |
+| Canal WhatsApp e motorista sem telefone verificado         | `fallback_app_chat` → chat; `wait_for_driver` → `failed` / `driver_unreachable`                    |
+| Janela fechada (> 24 h da última mensagem do motorista)    | RF7/RF8: chat na hora ou pendente até ele escrever                                                 |
+| Meta recusa por janela mesmo dentro do cálculo             | `WhatsAppWindowExpiredError` → mesmo tratamento de janela fechada                                  |
+| Nota sem e-mail do destinatário                            | botão indisponível com motivo; automático vira `skipped`, nunca outro endereço                     |
+| E-mail informado inválido, múltiplo ou com quebra de linha | `400` com código estável; nada sai                                                                 |
+| Ocorrência cancelada (240)                                 | retorno `cancelled`; alarme para; entrega pendente é descartada                                    |
+| Tipo reconfigurado no meio                                 | vale a cópia do retorno; a mudança vale para as próximas                                           |
 
 ## Critérios de aceite
 
-- **CA01** Registro do tipo configurado → e-mail com o assunto e o corpo do SAC renderizados, e
-  retorno `awaiting_contractor` com prazo — integração.
-- **CA02** Resposta com um PDF → `sent_to_driver` (automático) ou `awaiting_operator` (aprovação), e a
-  mensagem do motorista referencia o mesmo `stored_object` — integração do worker e da API.
-- **CA03** Política `decideContractorReply` cobre a tabela de casos — contrato, com mutações (aceitar
-  pelo nome do arquivo; enviar com dois PDFs; reenviar depois de `sent_to_driver`).
-- **CA04** **Só a configuração decide:** dois tipos de mesmo nome com `contractor_reply_mode`
-  diferentes se comportam diferente; uma exceção por contratante muda o modo só para ela — contrato e
+- **CA01** Registro do tipo configurado (pelo app e pelo fluxo de WhatsApp) → e-mail com o assunto e o
+  corpo do SAC renderizados, e retorno `awaiting_contractor` com prazo — integração.
+- **CA02** Resposta com um PDF, por e-mail **e** pelo portal → entregue ao motorista no chat
+  referenciando o mesmo `stored_object` — integração do worker e da API.
+- **CA03** `decideContractorReply` cobre a tabela de casos, idêntica na API e no worker — contrato,
+  com mutações.
+- **CA04** **Só a configuração decide:** dois tipos de mesmo nome com campos diferentes se comportam
+  diferente; a exceção por contratante muda modo, prazo e encaminhamento só para ela — contrato e
   integração, com mutação (`if` pelo nome).
-- **CA05** Prazo vencido → `expired` e um lembrete só, mesmo com o job rodando duas vezes —
-  integração.
-- **CA06** Empresa B não vê nem move retorno da A; resposta com token de outra empresa não casa —
-  integração.
-- **CA07** Nenhum log com dado pessoal ou nome de arquivo — contrato de parede **e** mutação.
-- **CA08** `make migration-test` verde com `rollback.sql`.
-- **CA09** Revisão de design e usabilidade com print em 375, 768 e 1280 (selo na lista, detalhe com
-  "Enviar ao motorista", bloco "Retorno da contratante" na aba Tipos, conversa no app do motorista).
-- **CA10** Passada independente de funcionalidade, usabilidade e design por `code-reviewer`.
+- **CA05** Alarme: o primeiro alerta no prazo, um por intervalo, nenhum duplicado com o job em dobro,
+  parada nas quatro condições e no teto — integração.
+- **CA06** Janela: com `wait_for_driver`, a entrega fica pendente e sai **uma vez** quando o motorista
+  escreve, mesmo com duas mensagens seguidas — integração com o pacote dublê.
+- **CA07** Envio a terceiro: e-mail informado inválido/múltiplo/com cabeçalho recusado; nota sem
+  e-mail deixa a opção indisponível; repetir com a mesma `Idempotency-Key` não duplica; limite de
+  taxa responde `429` — contrato e integração.
+- **CA08** Nenhum log com e-mail, nome de arquivo, CNPJ ou número de nota nos arquivos novos — contrato
+  de parede **e** mutação.
+- **CA09** Empresa B não vê nem move retorno da A — integração.
+- **CA10** `make migration-test` verde com `rollback.sql`.
+- **CA11** Revisão de design e usabilidade com print em 375, 768 e 1280, comparando com o
+  `preview.html`.
+- **CA12** Passada independente de funcionalidade, usabilidade e design por `code-reviewer`.
 
 ## Modelo do SAC (valores exatos do roteiro)
 
@@ -262,7 +419,7 @@ Dado que o operador digita na aba Tipos — nada disso entra no código, seed ou
 - Tipo: o que a empresa já tem, "Cliente pediu prorrogação do boleto" (241), ou um criado na tela.
 - Momentos: **Motorista, numa nota** (+ **Escritório, pelo motorista**, se quiser).
 - Foto **Desligado** · Observação **Opcional** · Assinatura **Desligado** · Produtos **Desligado** ·
-  sem política de reentrega (`unset`).
+  sem política de reentrega.
 - Mandar e-mail à contratante ao registrar: **ligado**.
 - Assunto:
   `OCORRÊNCIA -{{contratante}} - NF - {{numeroNotaSemSerie}} -MOT - {{motorista}} - MOTIVO - PRORROGAÇÃO`
@@ -279,61 +436,38 @@ Dado que o operador digita na aba Tipos — nada disso entra no código, seed ou
   VALOR DA NOTA: R$ {{valorNota}}
   ```
 
-  O SAC deixou "VALOR DA NOTA" em branco; o modelo o preenche. `{{numeroNotaSemSerie}}` e o valor
-  formatado vêm da 247.
+- Retorno da contratante: **Levar ao motorista sozinho**, anexo **PDF**.
+- Motorista recebe por: **Chat do app**.
+- Mensagem ao motorista: `Boleto atualizado da NF {{numeroNotaSemSerie}} ({{razaoSocial}}). Mostre ao
+cliente; se ele quiser por e-mail, avise o escritório.`
+- Prazo: **6 h** · Alarmar a operação: **ligado** · a cada **60 min** · até **24** alertas.
+- Mandar ao cliente da nota: **manual** · Encaminhar a e-mail informado: **manual**.
+- Assunto ao cliente: `Boleto atualizado – NF {{numeroNotaSemSerie}}`
+- Corpo ao cliente:
 
-- Retorno da contratante: **conforme Q3** (recomendado `forward_automatic`), anexo **PDF**, prazo
-  **conforme Q2**, lembrete **conforme Q2**.
-- Mensagem ao motorista: **conforme Q5** (proposta: `Boleto atualizado da NF {{numeroNotaSemSerie}}
-({{razaoSocial}}). Mostre ou repasse ao cliente.`).
+  ```text
+  Olá,
 
-## Dúvidas
+  Segue o boleto atualizado da nota fiscal {{numeroNotaSemSerie}}, conforme pedido de prorrogação.
 
-### [NEEDS CLARIFICATION] — fatos de negócio que o código não responde
+  Em caso de dúvida, responda a este e-mail.
+  ```
 
-- **Q1 — Como a contratante devolve o boleto prorrogado?**
-  (a) respondendo ao mesmo e-mail, com o PDF anexo; (b) respondendo ao e-mail com um link (banco ou
-  portal) no corpo, sem anexo; (c) por outro canal (WhatsApp, telefone, portal dela); (d) não devolve
-  — só confirma e o banco reemite.
-  **Recomendada: (a).** É a única que o trilho existente observa sem ler texto. Com (b) o produto
-  ficaria em "Precisa do operador" a cada resposta (não se interpreta link, 183 D4); com (c) ou (d) o
-  `contractor_reply_mode` fica `off` e esta spec se reduz ao RF2.
-- **Q2 — Em quanto tempo a contratante costuma responder, e o que fazer quando não responde?**
-  Prazo: 2 h · 4 h · 24 h · sem prazo. Lembrete: avisar o operador · reenviar à contratante ·
-  nenhum. **Recomendada: 4 h e avisar o operador** — o motorista está esperando na rua; reenviar à
-  contratante sem ninguém ver repete o pedido sem resolver.
-- **Q3 — O boleto vai ao motorista sozinho ou o operador confere antes?** (a) sozinho quando há
-  exatamente um PDF; (b) sempre com o toque do operador. **Recomendada: (a)**, que é o "já responder o
-  motorista" do pedido; (b) fica disponível no mesmo campo para outra contratante. Esta pergunta só
-  fixa o **valor do roteiro**; o mecanismo é configurável de qualquer forma.
-- **Q4 — Por qual canal o motorista recebe?** O WhatsApp na conversa da ocorrência depende dos
-  modelos da Meta que **ainda não foram submetidos** (183 T002/T503), e enviar documento fora da janela
-  de 24 h só com modelo aprovado. Opções: (a) pelo **app do motorista** (conversa da ocorrência + aviso
-  na caixa) agora, e pelo WhatsApp quando os modelos estiverem aprovados; (b) só pelo WhatsApp,
-  esperando a 183 T002; (c) WhatsApp dentro da janela, app fora dela.
-  **Recomendada: (a).** Entrega hoje pelo que existe; a fase de WhatsApp desta spec fica atrás da
-  183 T002.
-- **Q5 — O texto da mensagem ao motorista, e o do modelo da Meta.** A mensagem é campo do tipo (o
-  operador escreve); falta a **aprovação do texto do modelo de WhatsApp**, que é submetido à Meta pelo
-  dono da conta. Proposta do modelo (utilidade, pt-BR, um documento no cabeçalho): `Boleto atualizado
-da nota {{1}}. Mostre ou repasse ao cliente.` Aprova, ou qual texto?
-- **Q6 — O motorista só mostra o boleto ou precisa repassá-lo ao cliente?** (a) mostra na tela; (b)
-  repassa pelo próprio WhatsApp do aparelho (botão "Compartilhar" do sistema); (c) o produto manda
-  direto ao cliente. **Recomendada: (b)** — sem guardar contato do cliente; (c) traria telefone de
-  terceiro para o produto (LGPD, 183) e é spec à parte.
+## Decididas por delegação em 2026-10-06 — o usuário pode reverter antes da execução
 
-Sem estas respostas a spec **não ganha prompt de execução** (ver `tasks.md`).
-
-### Decididas por delegação em 2026-10-06 — o usuário pode reverter antes da execução
-
-| #   | Decisão                                                                                                                                                                     | Alternativa descartada                                       | Custo de reverter                                                                                                                          |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | O retorno é reconhecido pelo **anexo** na conversa da ocorrência (token da 143), nunca por assunto ou texto                                                                 | casar pelo assunto "PRORROGAÇÃO"; ler o PDF                  | baixo para acrescentar; ler texto contraria a 183 D4                                                                                       |
-| D2  | Estado do retorno em tabela própria por ocorrência, com eventos imutáveis                                                                                                   | reaproveitar `trip_occurrence_cases` (`awaiting_contractor`) | alto: a prorrogação **não** abre tratativa (241, `occurrence-case.policy.ts:23`); usar a tratativa mudaria a regra da 164                  |
-| D3  | Varredor do pedido não enviado (RF2) em vez de mover o hook para outbox                                                                                                     | outbox transacional no registro                              | médio: o varredor usa a idempotência que já existe; outbox mexe nos cinco caminhos de registro (`apps/api-transportada/CLAUDE.md:491-496`) |
-| D4  | O anexo vai ao motorista como **referência ao mesmo `stored_object`**                                                                                                       | copiar o objeto                                              | baixo; cópia duplicaria expurgo e custo                                                                                                    |
-| D5  | Auditoria em `occurrence_contractor_reply_events`, não em `audit_logs`                                                                                                      | afrouxar `audit_logs.actor_user_id`                          | médio: mexer na tabela fiscal de auditoria é decisão maior                                                                                 |
-| D6  | **Sem antivírus**: o arquivo nunca é aberto pelo produto, é servido como download com URL de 300 s, e é o mesmo arquivo que a contratante já mandaria ao motorista por fora | ClamAV em container                                          | médio: um serviço novo no compose e no Railway; registrar em `docs/SECURITY.md` como risco aceito                                          |
-| D7  | Exceção por contratante para modo e prazo do retorno; nada por destinatário                                                                                                 | tudo por exceção; nada por exceção                           | baixo: colunas nulas                                                                                                                       |
-| D8  | O modo efetivo é copiado no retorno no registro                                                                                                                             | reler o tipo a cada resposta                                 | baixo                                                                                                                                      |
-| D9  | O selo da prorrogação mora na linha da ocorrência, sem nova aba                                                                                                             | aba "Boletos"                                                | baixo                                                                                                                                      |
+| #   | Decisão                                                                                                                                                                                       | Alternativa descartada                    | Custo de reverter                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| D1  | O retorno é reconhecido pelo **anexo** na conversa da ocorrência (token da 143 ou portal), nunca por assunto ou texto                                                                         | casar pelo assunto; ler o PDF             | ler texto contraria a 183 D4                                                           |
+| D2  | Estado do retorno em tabela própria, com entregas e eventos                                                                                                                                   | reaproveitar `trip_occurrence_cases`      | alto: a prorrogação não abre tratativa (`occurrence-case.policy.ts:23`)                |
+| D3  | Varredor do pedido não enviado (RF2)                                                                                                                                                          | outbox transacional no registro           | médio: mexe nos cinco caminhos de registro (`apps/api-transportada/CLAUDE.md:491-496`) |
+| D4  | O PDF vai ao motorista por **referência** ao mesmo `stored_object`                                                                                                                            | copiar                                    | baixo                                                                                  |
+| D5  | Auditoria em `occurrence_contractor_reply_events`                                                                                                                                             | afrouxar `audit_logs.actor_user_id`       | médio                                                                                  |
+| D6  | **Sem antivírus**: o produto nunca abre o arquivo; ele sai como download de 300 s ou anexo de e-mail, o mesmo arquivo que a contratante mandaria por fora; risco aceito em `docs/SECURITY.md` | ClamAV em container                       | médio: serviço novo no compose e no Railway                                            |
+| D7  | Exceção por contratante para modo, prazo e envio ao cliente da nota                                                                                                                           | tudo por exceção; nada                    | baixo                                                                                  |
+| D8  | A configuração efetiva é copiada no retorno no registro                                                                                                                                       | reler o tipo a cada passo                 | baixo                                                                                  |
+| D9  | Alarme vai a **quem despachou a viagem** (regra do aviso interno), com chave por alerta                                                                                                       | todos com `occurrences.resolve`           | baixo: troca o destinatário no gateway                                                 |
+| D10 | E-mail informado é **só manual**                                                                                                                                                              | automático com endereço fixo no tipo      | médio: guardaria endereço de terceiro na configuração                                  |
+| D11 | E-mail do cliente = `<dest><email>` da NF-e, guardado na nota; sem contato em `delivery_clients`                                                                                              | contato no cadastro do cliente de entrega | alto: contraria a ADR-0048 §2                                                          |
+| D12 | E-mail a terceiro **sem** token de resposta                                                                                                                                                   | responder pela conversa                   | médio                                                                                  |
+| D13 | Valores do roteiro: 6 h, 60 min, 24 alertas, chat do app, envios manuais                                                                                                                      | 5 h; 30 min; sem teto                     | baixo: configuração                                                                    |
+| D14 | A conversa da ocorrência entra no app do motorista nesta spec                                                                                                                                 | spec à parte                              | médio: sem ela o chat próprio não chega ao motorista que usa o app novo                |
