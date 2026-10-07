@@ -263,8 +263,8 @@ os testes seguram a regra é a mutação abaixo.
 - **App do motorista** (`driverTripResponse.validation.ts`, `driverTrip.types.ts`): `readHolidayWarnings` lê o campo como
   acessório — ausente ou malformado vira lista vazia, item sem motivo é descartado, nunca `DriverTripResponseError`; o
   campo só entra na parada quando há aviso. Tipos duplicados por valor (ADR-0075, nada importado do painel).
-- **Gates (conferidos por mim, fora do relato do executor):** painel `typecheck` 0, `lint` 0, `bun run test` 7580 pass
-  antes da mutação e `test:hooks` 1104 pass; app do motorista `typecheck` 0, `lint` 0, `bun run test` 1411 pass / 0 fail.
+- **Gates (conferidos por mim, fora do relato do executor):** painel `typecheck` 0, `lint` 0, `bun run test` 7581 pass / 0 fail
+  e `test:hooks` 1104 pass / 0 fail; app do motorista `typecheck` 0, `lint` 0, `bun run test` 1411 pass / 0 fail.
 - **Mutação:** tirar `'holidayWarnings'` de `TRIP_STOP_OPTIONAL_KEYS` → 1 teste do painel falha (7580 pass / 1 fail);
   tirar o spread de `holidayWarnings` em `toStop` → 1 teste do motorista falha (1410 pass / 1 fail); restaurado,
   `git diff --quiet` verde.
