@@ -29,3 +29,12 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - Arquivos: `src/trips/presentation/trip-report.schema.ts` (query), `trip-report-row.schema.ts` (linha e envelope), `src/trips/domain/trip-report.types.ts`, `trip-report.constant.ts` (tetos 5000/200), `TripReportTooLargeError`/`TripProofReportTooLargeError` em `trip.error.ts`, `test/trip-report-schema.contract.test.ts` + `test/trip-report/*.contract.ts`, registro em `package.json`.
 - Reuso: `parseAgainstSchema`, `parseListFilter` (`request-parsing.service.ts`) e `parseIsoDateTime` (`trip.schema.ts`) passaram a ser exportados; os parsers de `GET /trips` entram no Zod por `fromParser`, assim os erros saem juntos em `details`.
 - Commit: ver `git log --grep "spec 253 T2.1"`.
+
+## T2.2 — consulta e use case do relatório (sonnet)
+
+- `bun --env-file=../../.env.test test ./test/trip-report-list.contract.test.ts --timeout 120000` (cwd=apps/api-transportada) → 14 pass, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-report.integration.ts` → 6 pass, 0 fail, contra o Postgres de teste (executou, não pulou): filtros no SQL, cursor entre páginas, nota liberada e viagem cancelada fora, nota por frete, contratante sem cadastro, empresa isolada.
+- `bun run typecheck` → limpo. `bun run lint` → limpo (0 warnings).
+- Arquivos: `src/trips/application/trip-report.port.ts`, `list-trip-report.use-case.ts`, `src/trips/infrastructure/trip-report.query.ts`, `drizzle-trip-report.repository.ts`, `test/trip-report-list/*`, `test/integration/trip-report.integration.ts`, `test/fixtures/trip-report-database.fixture.ts`, registro em `package.json` (`test` e `test:integration`).
+- Tom por viagem com as notas da viagem inteira (uma consulta em lote, sem N+1); `total`/`excludedWithoutTrip` só na primeira página; teto 5000 → `TripReportTooLargeError`; sem `trip.financials` a chave `amount` some.
+- Commit: ver `git log --grep "spec 253 T2.2"`.
