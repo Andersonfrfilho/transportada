@@ -70,6 +70,10 @@ se mexe pela regra (409). `loadRules` lê as digitadas (`source_rule_id IS NULL`
 `/municipal-holiday-rules`, `/state-holidays`, `/company-settings/business-calendar` e as antigas `/municipal-holidays`
 (`settings.manage` para escrever; auditoria na mesma transação, lock por empresa). Sem OpenAPI nesta API. Detalhe:
 docs/ai-context § "Spec 238 T1.3".
+Correções da revisão (T1.3b): `POST /municipal-holidays` devolve `adoptedFromRuleId`; `PATCH`/`GET` da regra devolvem
+`typedHolidaysKept` (a digitada que a regra não conhece mais); editar a regra só apaga as geradas do ano corrente em diante;
+auditoria só quando muda; `POST /state-holidays` idêntico é 200. A migration foi editada no lugar (não publicada) e os
+comandos de `municipal_holidays` vão no fim do lote. Detalhe: docs/ai-context § "Spec 238 T1.3b".
 
 ## Banco
 

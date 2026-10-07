@@ -20,8 +20,14 @@
       "gerar próximos anos", feriado estadual e configuração de sábado; a leitura da política usa as regras como
       `yearly` e só as datas **sem** `source_rule_id` como `once`; integração contra Postgres incluindo que o solver
       continua lendo as datas.
-- [ ] **T1.4** Revisão da fase com `code-reviewer` em `opus` (passada separada); publicar em staging com
-      tudo verde e **confirmar o deploy**.
+- [x] **T1.3b** Correções da revisão `opus` da Fase 1 (migration editada no lugar, ainda não publicada): lock da
+      `municipal_holidays` no fim do lote e cabeçalho honesto; CHECK de `materialized_through_year`; adoção sinalizada
+      (`adoptedFromRuleId`) e `typedHolidaysKept` (PATCH/GET, e no `metadata` do DELETE); editar a regra só do ano
+      corrente em diante; corpo estrito em `…/materializations`; auditoria só na mudança; alvo coerente na geração;
+      `POST /state-holidays` idempotente; definições únicas (política, filtro, cidade) e tipos de visão; limites no
+      ADR-0096. Lista linha a linha em `evidence.md` § T1.3b.
+- [x] **T1.4** Revisão da fase com `code-reviewer` em `opus` (passada separada) — feita, veredito COMMENT (corrigido
+      na T1.3b); publicar em staging com tudo verde e **confirmar o deploy** é do orquestrador (nada foi publicado).
 
 ## Fase 2 — Tela
 

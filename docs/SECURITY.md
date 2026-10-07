@@ -85,6 +85,10 @@ empresa, sem dado pessoal; o nome (até 120 caracteres) é texto livre do operad
   (a data fixa) e muda a conta de dias úteis. O controle é a permissão e a trilha acima, não validação de conteúdo.
 - O feriado municipal das rotas antigas segue aceitando sete dígitos de qualquer UF (o CHECK do banco antigo); só as
   rotas novas exigem município de UF existente.
+- **Fechado na T1.3b:** a adoção de uma data gerada pelo `POST /municipal-holidays` deixava a data digitada valendo para o
+  roteirizador sem aviso depois que a regra mudava. Hoje a resposta traz `adoptedFromRuleId`, `PATCH`/`GET` da regra trazem
+  `typedHolidaysKept` e o `DELETE` da regra grava a contagem na auditoria. Geração sem efeito, `PUT` do sábado igual e
+  `POST` igual deixaram de poluir `audit_logs`.
 
 **Origem:** spec 238 T1.3. Registrado em 2026-10-07.
 

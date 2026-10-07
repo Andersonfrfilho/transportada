@@ -439,3 +439,107 @@ consulta vizinha); quem a pega é o teste com dois tenants. O contrato de fonte 
 - `test:integration` da API inteiro (~17 min): rodei as 11 novas, as quatro vizinhas e `migration-completeness`.
 - `make check` completo, frontend e `make migration-test` (não há migration; `db:test` rodou, 153 pass).
 - Push, deploy, qualquer banco de produção.
+
+## T1.3b — correções da revisão `opus` da Fase 1 (2026-10-07)
+
+Executada com `sonnet` no worktree `angry-hamilton-090c30`, branch `work/spec-232-momento-do-evento`. `git fetch origin` e `git rebase
+origin/staging` com saída 0 (staging avançou ~50 commits, nenhuma migration nova depois da `20261007133324_cargo_preview_retention`);
+`bun install --frozen-lockfile` sem mudança. Nada publicado: os commits `(spec 238 T1.2)`, `(T1.3)` e estes seguem só locais.
+
+A migration `20261007140303_business_calendar` **não foi publicada**, então foi **editada no lugar** (migration.sql, snapshot.json,
+schema TS, contratos), autorizado pelo usuário só para staging. `rollback.sql` não mudou (`DROP TABLE` leva o CHECK novo). Nenhuma
+migration nova; `bun run db:generate` → `no_changes`; o snapshot continua encadeado ao da `…133324`. Nada de roteirizador,
+`resolveDeliveryWindow` nem cópia do schema do worker.
+
+### O que mudou, item a item
+
+| #   | Achado                                 | Correção                                                                                                                                                                                                                          |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | lock da `municipal_holidays` (MÉDIO)   | os seis comandos foram para o **fim** do arquivo (mesmos seis, mesma ordem entre si); o cabeçalho diz a verdade: ACCESS EXCLUSIVE retido até o COMMIT do lote inteiro, `NOT VALID` não encurta, `lock_timeout` só limita a espera |
+| 2   | adoção silenciosa (MÉDIO)              | `POST /municipal-holidays` devolve `adoptedFromRuleId`; `PATCH`/`GET` da regra devolvem `typedHolidaysKept`; `DELETE` da regra grava a contagem no `metadata` (ver decisão 1)                                                     |
+| 3   | editar apaga ano passado (MÉDIO)       | o `DELETE` das geradas só alcança `holiday_on >= '<ano corrente>-01-01'`; limite para a 236 registrado no ADR-0096                                                                                                                |
+| 4   | `…/materializations` não lia o corpo   | `parseOptionalBody(z.object({}).strict())`: vazio ou ausente vale, campo desconhecido é 400                                                                                                                                       |
+| 5   | auditoria de não-mudança               | geração sem linha nova e sem regra avançada, `PUT` do sábado com o mesmo valor e `POST` do mesmo nome/tipo não gravam `audit_logs`                                                                                                |
+| 6   | alvo incoerente da geração             | alvo `municipal_holiday_rules` (coleção), `entityId` = empresa                                                                                                                                                                    |
+| 7   | idempotência do estadual               | idêntico → 200 com a existente; mesma data com outro nome → 409 `STATE_HOLIDAY_CONFLICT`; criação → 201                                                                                                                           |
+| 8   | `materialized_through_year` sem CHECK  | `CHECK (… between 1583 and 9999)` na migration, no snapshot e no schema TS; os limites moraram em `shared/business-calendar.constant.ts` (o domínio os reexporta)                                                                 |
+| 9   | repetições e tipos                     | um `readFilter`; `BUSINESS_CALENDAR_MANAGE_POLICY`/`_READ_POLICY` em `presentation/business-calendar-policy.constant.ts`; `LEGACY_CITY_IBGE_CODE_SOURCE` em `shared/`; visões tipadas; guarda `isMunicipalHolidayKind` no mapper  |
+| 10  | `helper-role.contract.test.ts` com 202 | a lista de fábricas foi para `test/fixtures/role-contract-routes.fixture.ts`; o teste ficou com 145 linhas                                                                                                                        |
+| 11  | só registro                            | rollback+reaplicação, uma ocorrência não suprimível, parâmetro desconhecido em `GET /municipal-holidays` e leituras sem paginação estão em ADR-0096 § Riscos aceitos                                                              |
+
+### O que mudou de observável nas respostas (só acréscimo de chaves, mais três comportamentos)
+
+- `POST /municipal-holidays` (201): `data` ganhou `adoptedFromRuleId` (`string | null`). `GET`, `PATCH` e as demais não ganham a chave.
+- `PATCH /municipal-holiday-rules/:id` e `GET /municipal-holiday-rules`: cada regra ganhou `typedHolidaysKept` (`number`). O `POST` da
+  regra segue com as nove chaves de sempre (contrato prova a lista). `DELETE` segue **204 sem corpo**.
+- `POST /municipal-holiday-rules/materializations` passou a **ler o corpo**: antes ignorava qualquer coisa, agora campo desconhecido é 400.
+- `POST /state-holidays` idêntico passou de 409 para **200** com a linha existente; o 409 ficou para o mesmo dia com outro nome.
+- `audit_logs`: sem linha nos três no-ops; `municipal-holiday-rule.materialized` agora tem `targetType = 'municipal_holiday_rules'`
+  (antes `municipal_holiday_rule` com o id da empresa) e `metadata.rulesAdvanced`; `municipal-holiday.saved` ganhou
+  `metadata.adoptedFromRuleId`; `municipal-holiday-rule.updated`/`deleted` ganharam `metadata.typedHolidaysKept`.
+- `PATCH` da regra não apaga mais as geradas de anos que já passaram; a política (236) segue lendo a regra `yearly` em todo ano da cobertura.
+
+### Contrato antes (vermelho, comitado) e depois
+
+- Vermelho (`47269e07e`, `2a9ea23d5`): static da migration (ordem, cabeçalho, CHECK) → 3 fail pelo motivo certo; contratos HTTP e
+  casos de uso → 15 fail (`typedHolidaysKept` ausente, `adoptedFromRuleId` ausente, `create` sem `{created, holiday}`…); integração
+  nova (`rule-typed-dates` 6 fail, `audit-on-change` 4 fail de 7).
+- Verde: `ed5018260` (migration), `730a13ca8` (código), `78f2b352b` (helper do ajudante).
+
+### Gates
+
+- `bun run typecheck` → 0; `bun run lint` → 0 (`--max-warnings=0`); `bun run build` → ok; `bun run db:generate` → `no_changes`;
+  `bun run format:check` (raiz) → limpo.
+- Contratos (`bun --env-file=../../.env.test run test`): **10591 pass / 25 skip / 0 fail**, 202 arquivos. Antes (T1.3): 10575 / 25 / 0
+  (+16: contratos novos da adoção, da contagem, do corpo, do estadual idempotente e das definições únicas).
+- `db:test` (`DRIZZLE_TEST_DATABASE_URL` = `DATABASE_URL` do `.env.test`): **156 pass / 0 fail** (antes 153; +3 da migration: ordem,
+  cabeçalho, CHECK). `make migration-test`: 156 pass, saída 0. `migration-completeness`: 3 pass (com a variável; sem ela
+  pula — o sinal de que a variável precisa estar exportada).
+- Integrações, **um arquivo por vez**, banco descartável de cada teste: `business-calendar-rules` 3, `-rule-conflicts` 3,
+  `-rule-edit` 3, `-rule-validation` 2, `-load-rules` 4, `-load-limits` 2, `-tenant-safety` 2, `-tenant-writes` 3,
+  `-state-and-settings` 6, `municipal-holiday-interplay` 6 (eram 5), `municipal-holiday-generated` 4, e as duas novas
+  `-rule-typed-dates` 6 e `-audit-on-change` 7 → **51 pass / 0 fail**. Vizinhas: `delivery-charge-end-to-end` 1,
+  `contractor-receiving-profile` 4, `company-settings-repository` 3, `location-retention-settings` 7.
+- **Roteirizador do worker**, banco migrado **próprio** `t238_t13b_worker_it` (criado com `psql … create database`, migrado com
+  `db:migrate` desta árvore, derrubado ao fim): `route-optimization-municipal-holiday.integration.test.ts` → **9 pass / 0 fail**,
+  iguais à T1.3. `git diff` de `apps/worker-transportada/src` vazio.
+
+### Prova por mutação (cada uma derrubou teste; restaurada com `git checkout`; `git diff --quiet` → 0 depois de cada)
+
+| Mutação                                                         | Vermelho                                                                                                             |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| M1 (item 2) `adoptedFromRuleId` sempre `null`                   | 2 fail — "adotar a data gerada…" (interplay) e "adotar com o mesmo nome e tipo… continua sendo adoção" (typed-dates) |
+| M2 (item 2) contagem sem o corte do ano corrente                | 2 fail — a contagem do `PATCH` e a do `GET`                                                                          |
+| M3 (item 3) editar a regra apaga também o ano passado           | 1 fail — "regra criada em 2026 e editada em 2027 mantém a linha de 2026 e regenera de 2027 em diante"                |
+| M4 (item 5) geração audita sempre                               | 1 fail — "sem data nova e sem regra avançada, nenhuma linha de auditoria"                                            |
+| M5 (item 5) `PUT` do sábado sem o curto-circuito do mesmo valor | 1 fail — "o mesmo valor de novo não grava linha, nem mexe em updated_at"                                             |
+| M6 (item 5) `POST` idêntico sem o curto-circuito                | 1 fail — "recadastrar a mesma data com o mesmo nome e tipo não muda nada e não audita"                               |
+| M7 (item 7) estadual idêntico volta a ser conflito              | 1 fail — "repetir igual devolve o existente, sem auditar; nome diferente é conflito"                                 |
+| M8 (item 6) alvo da geração volta a `municipal_holiday_rule`    | 1 fail — "com data nova, audita contra a coleção de regras da empresa"                                               |
+| M9 (item 4) rota sem `parseMaterializationBody`                 | 1 fail — "gerar os próximos anos aceita corpo vazio ou ausente e recusa campo desconhecido"                          |
+| M10 (item 8) migration sem o CHECK do ano                       | 1 fail — "o ano até onde a regra foi gerada é limitado ao intervalo do domínio (1583 a 9999)"                        |
+
+### Decisões que divergiram ou completaram o enunciado
+
+1. **`DELETE` da regra segue 204 sem corpo** (o enunciado mandava parar e relatar antes de mudar o status). A contagem sai no `PATCH`,
+   no `GET` por regra e no `metadata` da auditoria do `DELETE`. **Decisão aberta do usuário**: se a tela precisar da contagem ao
+   apagar, ela lê o `GET` antes (ou o `DELETE` passa a 200 com corpo, mudança de contrato do verbo).
+2. **`typedHolidaysKept` conta no dia ANTIGO da regra mesmo quando o `PATCH` só muda nome ou tipo** (a digitada segue lá, valendo).
+3. **`PUT` do sábado com o mesmo valor devolve a linha guardada sem escrever**: `updated_at` e `updated_by_user_id` não mudam.
+   O primeiro `PUT`, mesmo com o valor padrão (`false`), grava a linha e audita (é mudança: a linha passa a existir).
+4. **Adotar com o mesmo nome e tipo que a regra gerou continua sendo adoção** (muda `source_rule_id`): audita e sinaliza.
+5. **`BUSINESS_CALENDAR_MANAGE_POLICY` lê a permissão de `BUSINESS_CALENDAR_AUDIT_PERMISSION`**: a trilha registra a que a rota exigiu,
+   uma constante só.
+6. `LEGACY_CITY_IBGE_CODE_SOURCE` entrou em `shared/` e `database/delivery-client.schema.ts` passou a usá-la (a regex literal saiu
+   dali): schema publicado tocado, `db:generate` → `no_changes` prova que o CHECK é o mesmo.
+7. O mapper agora **lança** `BusinessCalendarPersistenceError` com tipo fora do vocabulário (antes um `as` deixava a política
+   recusar depois, com 422). O CHECK do banco já impede o caso; é defeito, não entrada.
+
+### O que NÃO rodou / limites
+
+- `test:integration` da API inteiro (~17 min), `make check` completo, frontend, `make smoke` — rodei as 13 do calendário, as quatro
+  vizinhas e `migration-completeness`.
+- O "sem N+1" do `GET` é por construção (uma consulta de regras, uma agregada); **não medi contagem de consultas** num teste.
+- `withoutUndefined(...) as MunicipalHolidayRuleChanges` (e o do estadual) continuam como `as`: o item 9 pedia o type guard no mapper.
+- `PATCH` da regra sem mudança de valor ainda apaga e regenera as geradas do ano corrente em diante (novos ids) e audita; não pedido.
+- Push, deploy, qualquer banco de produção, migration em staging.

@@ -3090,6 +3090,28 @@ tabelas da T1.2.
   - `municipal-holiday-*.integration.ts` (Postgres, dois tenants). Roteirizador: o caso novo em
     `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts` (regra sem linha gerada não fecha).
 
+## Spec 238 T1.3b — correções da revisão da Fase 1 (ADR-0096 §5, §6 e Riscos aceitos)
+
+A migration `20261007140303_business_calendar` ainda não estava publicada e foi **editada no lugar** (só staging).
+
+- ⚠️ **Os seis comandos de `municipal_holidays` ficam no fim do arquivo**, e o cabeçalho diz o que o migrador faz: todas as
+  pendentes numa transação só, ACCESS EXCLUSIVE retido até o COMMIT do **lote**; `NOT VALID` não encurta e `lock_timeout` só
+  limita a espera. Produção: deploy sem migration longa atrás, medir a duração do lote. `materialized_through_year` ganhou
+  `CHECK … between 1583 and 9999` (os limites moram em `shared/business-calendar.constant.ts`).
+- ⚠️ **A adoção é sinalizada e a regra não conhece mais a data digitada.** `POST /municipal-holidays` devolve
+  `adoptedFromRuleId` (e o grava no `metadata`); `PATCH`/`GET` de `/municipal-holiday-rules` devolvem `typedHolidaysKept`
+  (digitadas no dia da regra, do ano corrente em diante; no `GET` uma consulta agregada, `municipal-holiday-typed.queries.ts`);
+  `DELETE` da regra segue 204 e grava a contagem no `metadata`.
+- ⚠️ **Editar a regra só apaga as geradas do ano corrente em diante**; as de anos passados ficam (o roteirizador não as relê).
+  A política (236) lê a regra `yearly` em todo ano da cobertura: editar o dia recalcula prazos de anos passados — aceito.
+- **Auditoria só quando muda**: geração sem linha nova nem regra avançada, `PUT` do sábado igual e `POST` igual não gravam.
+  A geração audita o alvo `municipal_holiday_rules` (`entityId` = empresa). `POST …/materializations` lê o corpo (`.strict()`).
+- `POST /state-holidays` idêntico é 200 com a existente; outro nome na mesma data, 409. `create` devolve `{ created, holiday }`.
+- Definições únicas: `readFilter`, `BUSINESS_CALENDAR_{MANAGE,READ}_POLICY` (`presentation/business-calendar-policy.constant.ts`),
+  `LEGACY_CITY_IBGE_CODE_SOURCE` em `shared/`; `isMunicipalHolidayKind` guarda o mapper (tipo fora do vocabulário é
+  `BusinessCalendarPersistenceError`). Contrato: `test/business-calendar-schema/single-definitions.contract.ts`.
+- A lista de fábricas do contrato do ajudante vive em `test/fixtures/role-contract-routes.fixture.ts`.
+
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
 `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**

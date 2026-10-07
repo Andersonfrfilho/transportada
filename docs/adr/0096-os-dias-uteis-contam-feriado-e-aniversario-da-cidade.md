@@ -75,8 +75,8 @@ O desenho decidido na Q1, em tabelas. A migration é **aditiva** e a pasta é um
 **`municipal_holiday_rules`** — só as regras "todo ano". `id`, `company_id` (FK `RESTRICT`), `city_ibge_code`
 (CHECK `^[1-5][0-9]{6}$` **e** prefixo entre as 27 UFs), `month`, `day` (CHECK: mês de 1 a 12 e dia de 1 ao último dia
 do mês, com **29/02 válido**), `kind` (`holiday` | `city_anniversary`), `name` (1 a 120 caracteres),
-`materialized_through_year`, `created_at`, `updated_at`. Únicos: `(company_id, id)` — alvo da FK composta — e
-`(company_id, city_ibge_code, month, day)`.
+`materialized_through_year` (CHECK entre 1583 e 9999, o intervalo do domínio), `created_at`, `updated_at`. Únicos:
+`(company_id, id)` — alvo da FK composta — e `(company_id, city_ibge_code, month, day)`.
 
 **`municipal_holidays`** (já publicada, lida pelo roteirizador) ganha **apenas**:
 
@@ -90,6 +90,14 @@ do mês, com **29/02 válido**), `kind` (`holiday` | `city_anniversary`), `name`
 
 Nenhum INSERT, nenhum backfill; o unique `(company_id, city_ibge_code, holiday_on)`, `holiday_on`, o CHECK de cidade
 antigo e o nome da tabela não mudam. A cópia do schema no worker não muda.
+
+**Lock (revisão da T1.3b).** Os seis comandos em `municipal_holidays` ficam no **fim** do arquivo, depois de todo
+`CREATE TABLE` e CHECK das tabelas novas. O `ADD COLUMN` toma `ACCESS EXCLUSIVE` nela e o Postgres só o solta no
+`COMMIT`; o `migrate()` do drizzle aplica **todas as migrations pendentes numa transação só**, então o lock fica retido
+até o `COMMIT` do **lote inteiro**, não até o fim do arquivo. `NOT VALID` + `VALIDATE` não encurta isso (roda na mesma
+transação) e `lock_timeout` só limita a **espera** para adquirir, não quanto o lock fica retido. Em produção: aplicar
+num deploy sem migration longa enfileirada atrás desta, e medir a duração do lote antes. A migration ainda não foi
+publicada, então a revisão foi feita **no lugar** (autorizada só para staging).
 
 **`state_holidays`** — `recurrence` (`once` | `yearly`), `holiday_on` **ou** `month`+`day`, nome de 1 a 120
 caracteres, `state_ibge_code` entre as 27 UFs. CHECK de forma (`once` com data e sem mês/dia; `yearly` com mês e dia
@@ -122,15 +130,31 @@ ponta `yearly` de `state_holidays` as colunas são exigidas `is not null` à par
 1. A geração (`INSERT … ON CONFLICT (company_id, city_ibge_code, holiday_on) DO NOTHING`) nunca sobrescreve: a data que
    o operador já digitou naquele dia fica, com o nome dele e `source_rule_id` nulo.
 2. Excluir a regra apaga em cascata só as linhas com `source_rule_id` dela; a digitada nunca.
-3. Editar a regra (mês, dia, nome, tipo; **a cidade não se edita**) apaga as linhas geradas dela e as gera de novo, na
-   mesma transação.
+3. Editar a regra (mês, dia, nome, tipo; **a cidade não se edita**) apaga as linhas geradas dela **do ano corrente em
+   diante** (`holiday_on >= '<ano corrente de São Paulo>-01-01'`, relógio injetado) e as gera de novo, na mesma
+   transação. A linha de um ano que já passou fica como estava: é a data que o roteiro daquele ano usou.
 4. `POST /municipal-holidays` numa data gerada é **adoção**: nome, tipo e `source_rule_id = NULL`; a linha vira do
-   operador e sobrevive à exclusão da regra. Sem `kind` no corpo, o recadastro mantém o tipo da linha.
+   operador e sobrevive à exclusão da regra. Sem `kind` no corpo, o recadastro mantém o tipo da linha. **A adoção é
+   sinalizada**: a resposta do `POST` ganha `adoptedFromRuleId` (id da regra, ou `null`) e a auditoria o grava no
+   `metadata`. O mesmo cadastro de novo (digitada, mesmo nome, mesmo tipo ou tipo ausente) não grava nem audita.
+   **Depois da adoção, a regra não conhece mais a data**: editar ou excluir a regra a deixa no dia antigo e ela segue
+   valendo para o roteirizador. Por isso `PATCH /municipal-holiday-rules/:id` e `GET /municipal-holiday-rules` devolvem
+   `typedHolidaysKept` (quantas datas digitadas ficaram no dia da regra — empresa, cidade, mês/dia,
+   `source_rule_id IS NULL`, do ano corrente em diante; no `GET` uma consulta agregada para a lista, sem N+1) e o
+   `DELETE`, que responde 204 sem corpo, grava a mesma contagem em `audit_logs.metadata.typedHolidaysKept`. Mudar o
+   status do `DELETE` para devolver a contagem é decisão do produto, não feita aqui.
 5. `DELETE`/`PATCH /municipal-holidays/:id` de linha **gerada** é 409 `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE`: o caminho é
    editar ou excluir a regra. Apagar o que não existe segue no-op. `PATCH` muda só `name` e `kind` (a data e a cidade
    são a identidade da linha).
 6. `DELETE` de linha **digitada** sobre o dia de uma regra gera de novo a linha da regra daquela data — só dentro do
    horizonte (do ano corrente até `materialized_through_year`), senão o roteiro perderia a data.
+
+**Auditoria só quando muda** (como o `PUT` do perfil da 237): gerar os próximos anos sem data nova e sem regra avançada,
+`PUT` do sábado com o mesmo valor e `POST` da mesma data com o mesmo nome não gravam `audit_logs`. A geração, quando
+audita, mira a **coleção** (`municipal_holiday_rules`, `entityId` = a empresa), não uma regra que não existe. O
+`POST /municipal-holiday-rules/materializations` lê o corpo: vazio ou ausente vale; qualquer campo é 400. O
+`POST /state-holidays` idêntico (mesma UF, forma, data e nome) devolve 200 com a linha existente, como o municipal;
+a mesma data com outro nome é 409 `STATE_HOLIDAY_CONFLICT`.
 
 **Geração.** Na escrita da regra, do ano corrente até o corrente + 10 (11 anos), ano corrente em `America/Sao_Paulo` pelo
 relógio **injetado** no caso de uso; 29/02 só nos bissextos. **Sem rotina agendada** (custaria um job novo nos quatro
@@ -167,6 +191,20 @@ rotas") fica registrado como divergência; a tabela acima e `docs/ai-context/api
 das rotas até existir o gerador.
 
 ## Riscos aceitos
+
+- **Limite para a spec 236 (T1.3b): a regra `yearly` na política vale em todo ano da cobertura, sem ano inicial.** A
+  edição preserva as datas geradas de anos passados em `municipal_holidays` (o roteirizador não as relê), mas a política
+  lê a regra, não as linhas: **editar o dia recalcula os prazos de anos passados** com o dia novo. É decisão aceita, não
+  bug; quem precisar do dia antigo num ano passado tem de digitar a data (ela vira `once` e vence).
+- **Rollback seguido de reaplicação vira as datas geradas em digitadas.** O `rollback.sql` deixa as linhas como datas
+  fixas comuns (§5); ao reaplicar a migration elas continuam sem `source_rule_id`. É coerente com o CA3 (a digitada
+  nunca é apagada pela regra) e significa que uma regra recriada depois não as reconhece como suas.
+- **Não há como suprimir UMA ocorrência de uma regra.** `DELETE` da data gerada é 409 e adotar e apagar regenera a da
+  regra; para um ano sem o feriado, só excluir a regra (e digitar as datas que ficam) ou aceitar a data.
+- **`GET /municipal-holidays` aceita parâmetro desconhecido** (compatibilidade com o contrato antigo, spec 060); as rotas
+  novas recusam. Assimetria conhecida.
+- **As leituras do calendário não têm paginação.** O volume é de cadastro à mão e a política recusa acima de
+  `BUSINESS_CALENDAR_MAX_RULES`; se a tela passar a listar milhares de datas, pagina-se.
 
 - **Consciência Negra (20/11) é listada em todo ano**, por paridade com o painel, embora só seja feriado
   nacional desde 2024 (Lei 14.759/2023). Afeta só contas sobre datas anteriores a 2024.
