@@ -3016,6 +3016,27 @@ bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
   aprovação humana); a cidade é a do **destino físico**, resolvida pelo chamador com `resolvePhysicalDestination`, nunca
   o endereço cadastrado do destinatário (Q2); fuso fixo de São Paulo (Q3).
 
+## Spec 236 T1.1 — o prazo de entrega da nota (só a política; sem consulta, rota ou tela)
+
+`src/trips/domain/delivery-deadline.policy.ts` (`resolveDeliveryDeadline`) é pura: datas civis em texto, sem relógio,
+sem fuso, sem I/O. `dueOn = addBusinessDays(chegada, N)` da 238, com o **N copiado de `cargo_arrivals`** (não o perfil
+atual); a janela de 24 h de separação **não existe na assinatura** (corre dentro dos dias úteis). Estados: `on_time`
+(com `businessDaysRemaining`), `due_today`, `overdue` (com `businessDaysLate`, que pode ser 0), `delivered_on_time`,
+`delivered_late` (os dois terminais: ignoram o `today`) e `not_applicable` com motivo (precedência: cancelada,
+devolvida, a devolver ao contratante, liberada; depois sem chegada, sem prazo, sem cidade do destino físico). Entrega no
+dia do vencimento é no prazo. Só informa: nada em `src/fleet/**`, `src/cte-*/**`, `delivery-proof-*.ts`,
+`proof-pending.query.ts` e `drizzle-current-driver-trip.repository.ts` pode importá-la (contrato estático
+`delivery-deadline-isolation.contract.ts`).
+
+- A borda `application/delivery-deadline-input.service.ts` (`resolveDeliveryDeadlineFromInstants`) converte chegada,
+  entrega e "agora" em **dia civil de São Paulo** (`toCivilDate`, fuso fixo). A hora não conta: chegar às 23:30 de
+  segunda é chegar na segunda. Quem chama passa o instante da entrega de `deliveredMomentSql`, nunca a chegada ao
+  servidor.
+- ⚠️ `dueOn` é **data**, não instante: `new Date('2026-10-15')` vira 14/10 em São Paulo. Nunca converter de volta.
+- A fixture da 238 inventa um aniversário em BH (29/02); o contrato da 236 usa a própria (`delivery-deadline-calendar`).
+- Falta (T1.2): `loadRules` em série, guarda do painel, leitura no `readTripDetail`. Evidência e mutações:
+  `specs/236-*/evidence.md`.
+
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
 `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**

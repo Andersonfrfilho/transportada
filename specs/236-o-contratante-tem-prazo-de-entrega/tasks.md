@@ -20,14 +20,14 @@
   - [ ] **T1.2c** Leitura em `drizzle-trip.repository.ts` ~1307–1383: join de `cargo_arrival_documents` /
         `cargo_arrivals` pelo `nfe_document_id`; cidade do destino físico do `stopAddresses`
         (`listStopAddresses` ~1529) com o desvio manual por cima (uma consulta `selectDistinctOn
-    trip_document_id` em `delivery_address_overrides`); entrega (`selectDistinctOn` em `trip_stop_events`
+trip_document_id` em `delivery_address_overrides`); entrega (`selectDistinctOn` em `trip_stop_events`
         `kind = 'delivered'` com `deliveredMomentSql`); calendário **uma vez por viagem**. Contrato de contagem
         de consultas: **+0** sem chegada, **exatamente +6** com candidatas (1 ou 200 notas, 1 ou 40 cidades).
         `BusinessCalendarError` vira `not_applicable` com `warn` só com ids. Campo só no
         `TripDocumentDetail`, nunca no `TripDocument`.
   - [ ] **T1.2d** Integração contra Postgres (CA2) e contrato de contagem de consultas (CA5).
-- [ ] **T1.3** Não-regressão (CA6): `computeDriverScore`, `missingAfterHours` e CT-e intactos.
-- [ ] **T1.4** Revisão final da fase com `code-reviewer` em `opus` (passada separada); publicar em staging
+- [ ] **T1.3** Não-regressão (CA6): `computeDriverScore`, `missingAfterHours` e CT-e intactos. O contrato estático de isolamento já existe (T1.1); falta a prova de comportamento sobre a leitura nova. Depende da 238 T1.2/T1.3 publicadas.
+- [ ] **T1.4** (depende da 238 T1.2/T1.3 publicadas) Revisão final da fase com `code-reviewer` em `opus` (passada separada); publicar em staging
       só com tudo verde (fetch + rebase limpo + `bun install --frozen-lockfile` + typecheck) e **confirmar o
       deploy** antes da Fase 2.
 
