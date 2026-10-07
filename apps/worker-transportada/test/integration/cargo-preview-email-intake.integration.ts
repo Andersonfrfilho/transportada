@@ -252,12 +252,24 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     })
     expect(await count('cargo_previews', graph.companyId)).toBe(1)
     expect(await count('cargo_preview_outbox', graph.companyId)).toBe(1)
+    // O reenvio devolve a prévia no estado em que ela está, sem reabri-la.
+    await db.execute(
+      sql`update cargo_previews set status = 'processing' where company_id = ${graph.companyId}`,
+    )
+    expect(
+      await repository.createPreview(record({ ...graph, emailId: 'email-c3', fileSha256: file })),
+    ).toEqual({
+      kind: 'replayed',
+      previewId: first.kind === 'created' ? first.previewId : '',
+      previewStatus: 'processing',
+    })
+    expect(await count('cargo_preview_outbox', graph.companyId)).toBe(1)
     const rows = [
       ...(await db.execute<{ is_replay: boolean }>(
         sql`select is_replay from cargo_preview_email_intakes where company_id = ${graph.companyId} order by is_replay`,
       )),
     ]
-    expect(rows.map((row) => row.is_replay)).toEqual([false, true])
+    expect(rows.map((row) => row.is_replay)).toEqual([false, true, true])
   })
 
   test('duas mensagens com o mesmo arquivo ao mesmo tempo criam uma prévia só', async () => {
@@ -409,31 +421,36 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       reason: 'ATTACHMENT_MISSING',
     })
     // Data de recebimento antiga, mas gravado agora: conta (o remetente não escolhe a janela).
-    await seedIntake({
-      ...base,
-      dkim: 'aligned',
-      emailId: 'w9',
-      minutesAgo: 1,
-      receivedMinutesAgo: 1440,
-      reason: 'ATTACHMENT_MISSING',
-    })
+    for (const [emailId, receivedMinutesAgo] of [
+      ['w9', 1440],
+      ['w11', 2000],
+    ] as const) {
+      await seedIntake({
+        ...base,
+        dkim: 'aligned',
+        emailId,
+        minutesAgo: 1,
+        reason: 'ATTACHMENT_MISSING',
+        receivedMinutesAgo,
+      })
+    }
     // Data de recebimento de agora, mas gravado há 10 minutos: não conta.
     await seedIntake({
       ...base,
       dkim: 'aligned',
       emailId: 'w10',
       minutesAgo: 10,
-      receivedMinutesAgo: 0,
       reason: 'ATTACHMENT_MISSING',
+      receivedMinutesAgo: 0,
     })
 
     const window = { ...base, windowSeconds: 300 }
     expect(await repository.countRecentIntakes(window)).toEqual({
-      authenticated: 3,
+      authenticated: 4,
       unauthenticated: 4,
     })
     expect(await repository.countRecentIntakes({ ...window, windowSeconds: 30 * 60 * 60 })).toEqual(
-      { authenticated: 5, unauthenticated: 4 },
+      { authenticated: 6, unauthenticated: 4 },
     )
     expect(
       await repository.countRecentIntakes({ ...window, contractorId: other.contractorId }),
