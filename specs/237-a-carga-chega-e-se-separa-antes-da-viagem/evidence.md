@@ -2755,3 +2755,86 @@ PostalMime aceita `boundary*0=` RFC 2231 e `boundary=""`, e uma regex que não e
 Contrato novo: "300 réguas `-----` + PDF anexado ⇒ 1 anexo". O pior caso que passa foi medido em ~500–650 ms (não
 370 ms): `worker_thread` com prazo fica como passo seguinte, não agora (o trecho só roda depois de a thread casar pelo
 token de resposta e não cresce com o tamanho da mensagem).
+
+## T2.6 — a cidade do grupo é onde a carga será entregue (2026-10-07)
+
+Branch `work/237-t26` (de `origin/staging`), sem push. Commits: `602201f04` (contrato vermelho), `e4fc26197`
+(implementação), mais o commit de docs. Decisão do usuário (2026-10-06, M6): o grupo `(rota, cidade)` usa o destino
+físico da nota (`resolvePhysicalDestination`, spec 073), não o `<enderDest>`.
+
+### O que mudou
+
+- `cargo-arrival-destination.query.ts` (novo): `selectArrivalDestinationCities` traz, numa consulta em lote filtrada
+  pela empresa, as linhas `delivery`/`recipient` de `nfe_participants` ⋈ `nfe_addresses` (ordem `created_at, id`) e
+  escolhe por `pickPhysicalDestinationByDocument` — a política compartilhada, sem precedência reimplementada.
+- Leitores trocados: o detalhe da chegada (código **e** nome, lidos de agora — o `city_ibge_code` gravado deixou de
+  decidir o grupo), a lista de notas disponíveis (código, nome, UF) e o registro (grava o código físico).
+  `selectArrivalCandidateRows` deixou de trazer a cidade do destinatário (nenhum consumidor a usava além do registro).
+- **Forma da resposta intacta:** conjunto exato de chaves de grupo (4), documento (12) e nota disponível (10) afirmado
+  em integração; `toDocumentView` continua campo a campo.
+
+### Prova
+
+| Camada                                                                 | Antes (vermelho)                                        | Depois                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------ |
+| `cargo-arrival-physical-destination.integration.ts` (Postgres próprio) | 1 pass / 5 fail (pelo motivo certo: cidade do cadastro) | 6 pass / 0 fail                                  |
+| 17 outros `cargo-arrival*`/`cargo-preview*.integration.ts`, um por vez | —                                                       | todos verdes (`cargo-arrival` 6, `-return` 8, …) |
+| contratos da API (`bun test`)                                          | —                                                       | 10493 pass / 25 skip / 0 fail                    |
+
+Casos do contrato: `<entrega>` em Guarulhos × `<enderDest>` em São Carlos → grupo de Guarulhos (nome `Guarulhos`);
+sem `<entrega>` → `<enderDest>`; `<entrega>` sem CEP de 8 dígitos (inutilizável para a política) → `<enderDest>`; nota
+sem endereço algum → grupo sem cidade (`null`/`null`, por último); mesma rota em duas cidades físicas → dois grupos
+(e a nota com `<entrega>` na mesma cidade de outra se junta a ela); a leitura segue o destino de agora (`<entrega>`
+inserido depois do registro move a nota; o código gravado fica em São Carlos); dados de outra empresa não entram.
+
+### Mutações (cada arquivo restaurado por `checkout`; `diff --quiet` = 0 depois de cada uma)
+
+| #   | Mutação                                                 | Resultado                                                         |
+| --- | ------------------------------------------------------- | ----------------------------------------------------------------- |
+| M1  | ignorar `<entrega>` (só o papel `recipient` na escolha) | vermelho — 1 pass / 5 fail                                        |
+| M2  | o detalhe volta a ler o `city_ibge_code` gravado        | vermelho — 5 pass / 1 fail ("a leitura segue o destino de agora") |
+| M3  | o registro grava `null` em vez do código físico         | vermelho — 4 pass / 2 fail                                        |
+| M4  | o mapeador do documento ganha uma chave (`state`)       | vermelho — 5 pass / 1 fail (chaves exatas)                        |
+| M5  | a lista de disponíveis perde `state`                    | vermelho — 5 pass / 1 fail                                        |
+| M6  | a consulta sem o filtro `company_id`                    | **verde (6 pass)** — ver abaixo                                   |
+| M7  | a lista de disponíveis não aplica a cidade física       | vermelho — 5 pass / 1 fail                                        |
+
+⚠️ **M6 não é pegável por teste de comportamento:** `nfe_participants` tem FK composta `(company_id, document_id)`,
+então uma linha de outra empresa nunca carrega o `document_id` de uma nota nossa. O filtro é defesa em profundidade
+(`company_id` na própria consulta, regra do `CLAUDE.md` da raiz), mantido por convenção e revisão, não por este contrato.
+
+### Decisões que divergiram do pedido
+
+- **Desvio manual não entra no grupo.** O pedido listava "desvio manual → `<entrega>` → `<enderDest>`" e um caso de
+  teste "o desvio vence". Mas `resolvePhysicalDestination` não tem o desvio (só `delivery`/`recipient`) e
+  `delivery_address_overrides` é histórico de `trip_documents` — o vínculo da viagem, que **só nasce depois** da
+  chegada (a nota em viagem viva é recusada no registro). Não há desvio a vencer na hora de separar. Se o produto
+  quiser o desvio na chegada, é spec nova: ele só guarda código IBGE (sem nome nem UF) e nasce por vínculo, não por nota.
+- **A lista de disponíveis também mudou** (código, nome e UF): é a cidade que a nota levará ao grupo; mostrar o
+  cadastro ali e o destino físico no grupo faria a mesma nota parecer estar em duas cidades.
+- **Leitura de agora, não o gravado:** conserta também as chegadas já abertas (sem migration, sem backfill) e acompanha
+  a correção de endereço (spec 057). Custo: uma consulta a mais por leitura do detalhe (em lote, nunca por nota).
+- `toIbgeCityCode` agora vale nos três leitores (código fora do formato IBGE vira ausência); antes só o registro e o
+  rascunho o aplicavam.
+
+### Relatado, não alterado
+
+- **Rascunho de viagem da prévia** (`cargo-preview-trip-draft.query.ts`, `cityIbgeCode`/`cityName`/`state` do
+  destinatário em `buildTripDraftCities`) segue pela cidade do destinatário: não é "cidade do grupo de separação da
+  chegada", e a linha ainda sem XML casa a cidade por **nome normalizado da planilha**. Efeito: o rascunho pode listar
+  "São Paulo" enquanto a chegada separa em "Guarulhos" para a mesma nota. Decisão de produto pendente.
+- **Vínculo prévia↔nota** (`match_group_key`, CEP/nome do destinatário da planilha) e `cargo-preview-item.query.ts`
+  não leem cidade de destinatário — intactos.
+- **Painel:** só consome `groups[].cityIbgeCode` e `documents[].cityName` (guardas de chave exata em
+  `cargoArrivalGuards.validation.ts`); não calcula o grupo localmente. Nada mudou lá.
+
+### Gates
+
+`bun run typecheck` e `bun run lint` (`--max-warnings=0`) na API: 0 erros. Contratos: 10493 pass / 25 skip / 0 fail.
+Integração: Postgres 18 nativo descartável próprio (`127.0.0.1:55937`, fora do Docker), um arquivo por vez.
+
+### Não rodou
+
+Push e deploy; `make check` completo (build do painel, smoke); `make migration-test` (não há migration); a integração
+inteira da API (só os 18 arquivos de chegada e prévia, um por vez); o painel (nada tocado); nenhuma leitura de staging
+nem de produção.

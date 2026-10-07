@@ -2488,9 +2488,8 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
   `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`,
   `test/cargo-receiving-schema/{cargo-arrival,tenant-safety}.contract.ts` e
   `test/separator-role.contract.test.ts`; integração `test/integration/cargo-arrival.integration.ts`.
-- **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
-  `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
-  checagem e o commit da chegada (a leitura mostra "já em viagem").
+- **Follow-ups:** ~~a cidade do grupo vem do destinatário~~ (resolvido na T2.6, abaixo); corrida aceita — a
+  nota pode entrar numa viagem entre a checagem e o commit da chegada (a leitura mostra "já em viagem").
 
 ### Correções da revisão das Fases 1–2 (2026-10-06)
 
@@ -2522,9 +2521,26 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
   (`CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs`); a proposta da prévia registra pela mesma rota.
 - **L7:** o `409 CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` traz `details[{ field: 'pendingDocumentIds.<n>',
 message: 'The document is not separated yet', documentId }]` — o id saiu do `message`.
-- **Pendente de decisão do usuário (M6):** a cidade do grupo é a do `<enderDest>`, não a do destino
-  físico `<entrega>` (spec 073, `resolvePhysicalDestination`): nota cadastrada em SP com entrega em
-  Guarulhos cai na pilha de SP. ADR-0094 §6.
+- **M6, decidido em 2026-10-06 (T2.6):** a cidade do grupo é o **destino físico** da nota
+  (`resolvePhysicalDestination`, spec 073: `<entrega>` → `<enderDest>`), não o cadastro. Nota cadastrada em
+  SP com entrega em Guarulhos cai no grupo de Guarulhos; sem destino resolvível, no grupo sem cidade.
+  ADR-0094 §6.
+
+### T2.6 — a cidade do grupo é onde a carga será entregue (2026-10-07)
+
+- **Código:** `src/cargo-receiving/infrastructure/cargo-arrival-destination.query.ts` →
+  `selectArrivalDestinationCities`: uma consulta em lote (`nfe_participants` ⋈ `nfe_addresses`, papéis
+  `delivery`/`recipient`, `company_id` na própria consulta) e a escolha por `pickPhysicalDestinationByDocument`
+  — a **mesma** política da parada e do MDF-e; nada de precedência reimplementada. Três leitores a usam: o
+  detalhe `GET /cargo-arrivals/:id` (código **e** nome da cidade, lidos de agora), a lista
+  `GET /cargo-arrivals/available-documents` (código, nome e UF) e o registro (que grava o código físico).
+- ⚠️ **O `cargo_arrival_documents.city_ibge_code` não decide mais o grupo:** é só o registro do momento da
+  chegada (migrations não mudaram). Ler o gravado deixaria a chegada já aberta no grupo errado.
+- ⚠️ **O desvio manual não entra** — `delivery_address_overrides` pertence a `trip_documents` (vínculo da
+  viagem, que nasce depois da chegada) e nem o MDF-e nem o roteirizador o leem do `nfe_documents`.
+- **Não mudou:** as chaves da resposta (o painel confere chave exata; `toDocumentView` é campo a campo), o
+  rascunho de viagem da prévia (`cargo-preview-trip-draft.query.ts` segue pela cidade do destinatário) e o
+  vínculo prévia↔nota (CEP/nome da planilha). Integração: `cargo-arrival-physical-destination.integration.ts`.
 
 ## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
 

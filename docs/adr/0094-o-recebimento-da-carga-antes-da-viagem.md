@@ -205,7 +205,8 @@ de `delivery-clients`.
   (nulo sem janela). Perfil ausente ou desligado não abre chegada (`CARGO_RECEIVING_NOT_ENABLED`).
   "Vencida" é leitura: prazo passado **e** nota ainda não separada.
 - **O grupo é `(rota, cidade)`**, leitura e nunca estado: a rota é texto livre do operador (a prévia a
-  preencherá na Fase 4a) e a cidade é o código IBGE do endereço do **destinatário**.
+  preencherá na Fase 4a) e a cidade é o código IBGE do **destino físico** da nota (emenda de 2026-10-06 abaixo; até lá era o do
+  destinatário).
 - **Uma nota entra em no máximo uma chegada, para sempre** (`unique (company_id, nfe_document_id)`).
   Consequência aceita: nota posta por engano numa chegada não tem conserto nesta fase, e nota que
   volta (reentrega) não entra em outra chegada. Se uma história pedir, a troca por índice parcial com
@@ -224,12 +225,17 @@ de `delivery-clients`.
     staging e não se edita. **Antes de promover a produção**, quem tem acesso ao banco mede
     `select count(*), pg_size_pretty(pg_total_relation_size('nfe_participants')) from nfe_participants;` e
     escolhe janela de baixa importação; o passo e a alternativa estão em `docs/SECURITY.md` (2026-10-06).
-  - **Pendência de produto, NÃO decidida (M6).** A cidade do grupo `(rota, cidade)` sai do endereço
-    cadastral do destinatário (`<enderDest>`), não do destino físico da nota (`<entrega>`, spec 073 — o
-    seam `resolvePhysicalDestination` que parada, roteirizador e MDF-e já seguem). Efeito físico: nota com
-    `<enderDest>` em São Paulo e `<entrega>` em Guarulhos é separada na pilha de São Paulo, e o caminhão de
-    Guarulhos sai sem ela. Trocar para o destino físico muda o que o separador vê e o que a recomendação de
-    viagens agrupa — é decisão do usuário (`tasks.md`, T2.6, bloqueada), e nada foi mudado no código.
+  - **Decidido em 2026-10-06 (M6, T2.6).** A cidade do grupo `(rota, cidade)` é **sempre onde a carga será
+    entregue**: o destino físico da nota, pelo mesmo seam `resolvePhysicalDestination` que parada,
+    roteirizador e MDF-e já seguem (`<entrega>` → `<enderDest>`, spec 073), e não o cadastro do
+    destinatário. Nota com `<enderDest>` em São Paulo e `<entrega>` em Guarulhos entra no grupo de
+    Guarulhos; sem destino resolvível, no grupo sem cidade. A cidade é lida **de agora**
+    (`cargo-arrival-destination.query.ts`, uma consulta em lote), nunca do `city_ibge_code` gravado no
+    registro — que continua sendo gravado, com o código físico, mas não decide mais o grupo; assim a nota
+    de uma chegada já aberta também se corrige. O **desvio manual não entra**: `delivery_address_overrides`
+    é histórico do vínculo `trip_documents`, que nasce depois da chegada (e nenhum consumidor de "lugar"
+    fora da própria parada o lê do `nfe_documents`). Fora do escopo: o rascunho de viagem da prévia
+    (`cargo-preview-trip-draft.query.ts`) segue agrupando pela cidade do destinatário.
 
 ### 7. A leitura da planilha de prévia (Fase 4a, T4.1)
 

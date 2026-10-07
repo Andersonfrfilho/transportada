@@ -42,9 +42,10 @@
       correções da T1.5 — a migration nova `20261006144825_cargo_arrival_check_null_holes` e as rotas novas
       ainda **não** foram publicadas (sem push nesta rodada). ⚠️ O aprovo do print pelo usuário não está
       registrado no `evidence.md`. **Produção: não** — só com o usuário.)_
-- [ ] **T2.6** ⛔ **Bloqueada por decisão do usuário (M6 da revisão):** a cidade do grupo vem do `<enderDest>`
-      (cadastro), não do destino físico `<entrega>` (spec 073); nota cadastrada em SP com entrega em Guarulhos
-      cai na pilha de SP. Decidir se o grupo segue `resolvePhysicalDestination` — ADR-0094 §6.
+- [x] **T2.6** A cidade do grupo de separação é o destino físico da nota (`resolvePhysicalDestination`, spec 073),
+      não o `<enderDest>` do cadastro. _(Decidido pelo usuário em 2026-10-06 — M6 da revisão. Nota cadastrada em SP
+      com `<entrega>` em Guarulhos cai no grupo de Guarulhos; sem destino resolvível, no grupo sem cidade. O
+      desvio manual não entra: ele nasce no vínculo da viagem, depois da chegada — `evidence.md` § T2.6.)_
 
 ## Fase 4a — Prévia por upload: ler, vincular e propor a chegada
 

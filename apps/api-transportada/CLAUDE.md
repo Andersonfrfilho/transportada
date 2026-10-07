@@ -790,7 +790,9 @@ juntos — `20261006144825_cargo_arrival_check_null_holes`). Uma nota entra em n
 chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (escrita), as duas do
 `separator` — e todas listadas em `test/separator-role.contract.test.ts`. ⚠️ Escrita nova trava a chegada
 primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
-Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
+Detalhe: docs/ai-context § "Spec 237" → "Fase 2". ⚠️ A cidade do grupo `(rota, cidade)` é o **destino
+físico** da nota (`selectArrivalDestinationCities` → `resolvePhysicalDestination`, T2.6), lida de agora e
+nunca do `cargo_arrival_documents.city_ibge_code` nem do `<enderDest>`.
 
 **Revisão das Fases 1–2** (2026-10-06): `GET /cargo-arrivals` filtra por `contractorId`/`status` **repetidos**
 e ordena no servidor (`sort`/`direction`, lista fechada); o cursor carrega a ordem e, noutra, é `400
