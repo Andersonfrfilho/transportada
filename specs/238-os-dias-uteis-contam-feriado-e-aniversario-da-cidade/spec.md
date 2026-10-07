@@ -93,8 +93,10 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 
 ## Critérios de aceite
 
-- **CA1** `addBusinessDays(2026-10-09 sexta, 3, cidade)` pula o fim de semana e um feriado municipal que cai
-  na terça seguinte (caso de contrato em tabela).
+- **CA1** `addBusinessDays(2026-10-09 sexta, 3, Campinas)` pula o fim de semana, o feriado nacional da segunda
+  (12/10, Nossa Senhora Aparecida) e um feriado municipal na terça (13/10), e devolve **2026-10-16** (sexta) —
+  sem o municipal (São Paulo), **2026-10-15**. Caso de contrato em tabela, linhas 1 e 2. _(Corrigido na T1.1: a
+  redação anterior esquecia que 12/10 é feriado nacional e levava a 15/10; evidence.md § T1.1.)_
 - **CA2** Aniversário `yearly` vale em 2026 e 2027 sem recadastro; `once` só no ano gravado.
 - **CA3** Migration sobe e desce; `db:generate` = `no_changes`; linhas antigas continuam valendo.
 - **CA4** Rotas validam, recusam campo desconhecido (400) e nunca aceitam `companyId` do corpo.

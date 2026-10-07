@@ -2979,3 +2979,21 @@ Decisões D-a a D-d e a ordem de publicação: `specs/246-a-exigencia-da-ocorren
 - **Erros do módulo:** `CargoArrivalOccurrence{NotReadBack,ReplayUnreadable,NotSaved}Error` são `DiagnosableError`.
   A semente de recebimento avisa `occurrence_type_seed.receiving_none_created` (`{ companyId }`, stderr do pre-deploy) quando
   grava 0 numa empresa sem tipo `receiving`.
+
+## Spec 238 T1.1 — o calendário de dias úteis por cidade (ADR-0096)
+
+Módulo `src/business-calendar/` (só domínio + um helper de borda; sem rota, sem tabela, sem consumidor no worker nem
+no cron). `buildBusinessCalendar({ cityIbgeCode, coverage, municipalRules, stateRules, saturdayIsBusinessDay })`
+monta nacionais ∪ estaduais da UF (prefixo de 2 dígitos do IBGE) ∪ municipais da cidade para no máximo 5 anos e
+congela; `isBusinessDay`, `explainDay`, `addBusinessDays` (`{ date, dayZero }`) e `countBusinessDays` (`from < d ≤ to`)
+contam sobre ele. Detalhe da semântica (dia 0 que avança, feriado de fim de semana não transferido, 29/02 só em ano
+bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
+
+- **Data civil é texto** `YYYY-MM-DD`, contada com `Date.UTC`/`getUTC*`. A política não lê relógio nem fuso;
+  `toCivilDate({ instant, timeZone })` (`application/civil-date.service.ts`) é a borda.
+- ⚠️ **`bun test` roda o processo em UTC**: trocar `getUTCDay` por `getDay` passa em todos os testes do processo. Só o
+  subprocesso com `TZ=America/Sao_Paulo` (`test/business-calendar/time-zone-probe.ts`) pega — medido por mutação.
+- **Paridade com o painel** por conjunto de datas, 1900–2199 (`national-holiday-parity.contract.ts`, carrega
+  `brazilianHoliday.service.ts` por URL de arquivo). Mudou feriado no painel? Mude aqui, ou o contrato reprova.
+- Pendente (ADR-0096): o roteirizador casa `holiday_on = input.date` e nunca verá um `yearly` (Q1, desenho da T1.2);
+  cidade do destinatário × destino físico (Q2); fuso fixo de São Paulo (Q3).

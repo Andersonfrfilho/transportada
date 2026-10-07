@@ -12,7 +12,7 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `address-correction`, `billing`, `cargo-receiving`, `companies`, `contractor-mail`,
+Módulos: `addresses`, `address-correction`, `billing`, `business-calendar`, `cargo-receiving`, `companies`, `contractor-mail`,
 `contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
 `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
@@ -56,6 +56,10 @@ docs/ai-context/api-transportada.md § "Spec 239" e `docs/SECURITY.md` § "2026-
 `tenantContext.resolveCompany` busca membership ativo; sem membership → 403. Todo repositório recebe
 `context.companyId` e filtra por ele. Testes de isolamento em
 `test/*-schema/tenant-safety.contract.ts` são **obrigatórios** em qualquer mudança de query.
+
+**Dias úteis por cidade** (spec 238 T1.1, ADR-0096): `src/business-calendar/domain/` — política pura
+(`buildBusinessCalendar`, `isBusinessDay`, `explainDay`, `addBusinessDays`, `countBusinessDays`), datas civis em texto,
+sem relógio nem fuso, recusa tipada `BUSINESS_CALENDAR_*`. Detalhe: docs/ai-context § "Spec 238 T1.1".
 
 ## Banco
 

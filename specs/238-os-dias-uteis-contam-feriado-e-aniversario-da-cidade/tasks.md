@@ -6,7 +6,7 @@
 
 > 🤖 Modelo: `sonnet` (T1.1 é 🧠 — validar com `opus` antes)
 
-- [ ] **T1.1** 🧠 `business-calendar.policy.ts` + contrato em tabela **antes** (CA1, CA2, extremos);
+- [x] **T1.1** 🧠 `business-calendar.policy.ts` + contrato em tabela **antes** (CA1, CA2, extremos);
       feriados nacionais por Páscoa; mutação.
 - [ ] **T1.2** Migration aditiva: `municipal_holidays.recurrence/kind/month/day`, `state_holidays`,
       `saturday_is_business_day`; `rollback.sql`; `make migration-test`; `db:generate` = `no_changes`.
