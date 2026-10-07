@@ -2444,3 +2444,21 @@ Relato: na aba Tipos, o rótulo "Valor pago pela loja" digitado + Enter voltou a
 **Não provado pelo DOM de teste:** o foco real do Chrome (`document.activeElement` após Tab); o DOM só prova que o campo seguinte segue habilitado e com o texto. O coordenador valida no navegador. Limites conhecidos: se o `PUT` do 2º campo pousar enquanto o operador ainda digita nele, o `key={value}` remonta o campo (não tratado); edição recusada pela regra "valor pago por linha sem produtos" não entra no acumulado.
 
 **Auditoria** (`void invalidateQueries` em mutações; nada corrigido sem prova). Mesmo risco (envio montado do estado em cache, conjunto inteiro): `useDeliveryProofSettings.query.ts:47` (settings), `:64` (quatro modos correntes + interruptor OCR), `:76` e `:96` (substitui todas as exceções), `useOccurrenceAttachmentOverrides.query.ts:18` (substitui as exceções de um tipo), `delivery-clients/mutations/useUpdateContractor.mutation.ts:15` (`ContractorWrite`). Risco baixo ou nulo: `nfse-invoice/hooks/useNfseSettings.hook.ts:106,117` (`expectedVersion` → 409), `useCompanyEntryKindCatalogPanel.hook.ts:28,36` (criar/desativar), `trip-financials/*`, `identity/*` e demais criações/exclusões. Não verifiquei, uma a uma, se a tela desabilita campos durante o `PUT` (mesmo defeito de foco).
+
+## T7.7 — junção das correções da aba Tipos (D1–D6 + fila de edições) (2026-10-07)
+
+Junção, nesta branch, dos dois commits da outra frente (`ed8a7a798` janela de atualização; `fdc327d7e` fila de edições) sobre as correções D1–D6 (T7.6), por `git cherry-pick` um de cada vez.
+
+**Conflitos e decisões**
+
+- `evidence.md` (nos dois picks): seções novas diferentes dos dois lados; mantidos ambos (T7.6 e T7.5x), sem marcador sobrando. No segundo pick o título T7.5x do primeiro commit foi substituído pelo título do segundo (a outra frente o renomeou), sem duplicar a seção.
+- `TripOccurrenceTypesTab.component.tsx`: D1 trouxe `loadStatus`/`onRetry`; a fila trouxe `isSaving`/`saveType` do hook. Resolvido com todos: `isSaving={isSaving}`, `loadStatus`, `onRetry`, `onSave={saveType}`; `saveMutation.error` segue virando o alerta.
+- `trip-hooks.contract.test.ts`: auto-mesclado, importam-se as suítes dos dois lados (conferido por grep). `OccurrenceTypeRow` e `useOccurrenceTypeCatalogPanel` mesclaram sem conflito (`isDisabled = !canManage`, acumulação de edições, PUTs serializados).
+- Nenhum teste alterado.
+
+**Gates** (códigos de saída por `$?`): `bun install --frozen-lockfile` 0; `bun run typecheck` 0; `bun run --cwd apps/frontend-transportada test` 0 (956 pass, 0 fail); lint 0 (0 erros, 16 avisos antigos); `format:check` 0. Suítes nomeadas sozinhas, todas exit 0: salvamentos seguidos 3 pass; digitar durante o salvamento 2; D1 carregando/erro/vazio 4; D2 dica 5; D3 momentos 3; D4 tipo novo 2; D6 grupos 2.
+
+**Mutações** (revertidas; `git status` limpo):
+
+- (a) `isDisabled = !canManage || isSaving` na linha: `(fail) digitar enquanto o tipo salva > o campo seguinte segue habilitado...` e `> um salvamento recusado mostra o erro...` (3 pass, 2 fail).
+- (b) aviso de vazio sem exigir `loadStatus === 'ready'`: `(fail) aba Tipos: carregando... (D1) > carregando: ... NÃO afirma que não há tipos` e `> erro: estado próprio com "Tentar de novo"...` (2 pass, 2 fail).
