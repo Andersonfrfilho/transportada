@@ -38,5 +38,5 @@ export function buildSelection(): TripDocumentSelectionController {
     selectedIds: new Set<string>(),
     toggle: () => undefined,
     toggleMany: () => undefined,
-  } as unknown as TripDocumentSelectionController
+  }
 }

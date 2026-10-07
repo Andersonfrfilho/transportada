@@ -1,0 +1,71 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * Spec 236 RF6: o selo do prazo de entrega. Mesma altura, borda e tipografia de `.separationStatusBadge` ao lado;
+ * o tom só muda cor, e o texto diz o estado — nunca só a cor. Os três pares (tinta, borda, fundo) usam as tintas
+ * `-ink` já medidas nos dois temas; o alerta usa `--color-alert`, a mesma do marcador de ocorrência aberta.
+ */
+.deadlineBadge {
+  --deadline-ink: var(--color-slate-ink);
+  --deadline-border: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  --deadline-fill: transparent;
+
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  min-height: var(--control-height-dense);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--deadline-border);
+  color: var(--deadline-ink);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--deadline-fill);
+}
+
+.deadlineBadge[data-tone='success'] {
+  --deadline-ink: var(--color-ready-ink);
+  --deadline-border: color-mix(in srgb, var(--color-ready) 40%, transparent);
+  --deadline-fill: color-mix(in srgb, var(--color-ready) 14%, transparent);
+}
+
+.deadlineBadge[data-tone='warning'] {
+  --deadline-ink: var(--color-copper-ink);
+  --deadline-border: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  --deadline-fill: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.deadlineBadge[data-tone='alert'] {
+  --deadline-ink: var(--color-alert);
+  --deadline-border: color-mix(in srgb, var(--color-alert) 55%, transparent);
+  --deadline-fill: color-mix(in srgb, var(--color-alert) 12%, transparent);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* O filtro mora na cabeça da seção de cargas, ao lado da caixa de "marcar todas": quebra em vez de apertar. */
+.deadlineFilter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.deadlineFilterField {
+  min-width: min(100%, 16rem);
+  flex: 0 1 18rem;
+}
+
+.deadlineFilterCount {
+  margin: 0;
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}

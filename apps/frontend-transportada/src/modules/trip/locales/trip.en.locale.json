@@ -1185,6 +1185,44 @@
     "withoutVolume": "{{count}} invoice without volume was left out of the calculation.",
     "withoutVolume_other": "{{count}} invoices without volume were left out of the calculation."
   },
+  "deadlineFilter": {
+    "ariaLabel": "Delivery deadline",
+    "clear": "Clear filters",
+    "clearAll": "Clear selection",
+    "empty": "No status found",
+    "option": {
+      "delivered": "Delivered",
+      "due_today": "Due today",
+      "none": "No deadline",
+      "on_time": "On time",
+      "overdue": "Overdue"
+    },
+    "optionWithCount": "{{label}} ({{count}})",
+    "placeholder": "All notes",
+    "remove": "Remove deadline status",
+    "searchPlaceholder": "Search status",
+    "shownCount_one": "{{shown}} of {{count}} note",
+    "shownCount_other": "{{shown}} of {{count}} notes",
+    "stopEmpty": "No note in this stop matches the filter.",
+    "summary_one": "{{count}} status",
+    "summary_other": "{{count}} statuses"
+  },
+  "deliveryDeadline": {
+    "dueOnHint": "Delivery deadline: {{date}}",
+    "field": "Delivery deadline",
+    "label": {
+      "deliveredLate": "Delivered after the deadline",
+      "deliveredLateWithDays_one": "Delivered {{count}} business day late",
+      "deliveredLateWithDays_other": "Delivered {{count}} business days late",
+      "deliveredOnTime": "Delivered on time",
+      "dueToday": "Due today",
+      "onTime_one": "Due in {{count}} business day",
+      "onTime_other": "Due in {{count}} business days",
+      "overdue": "Overdue",
+      "overdueWithDays_one": "Overdue by {{count}} business day",
+      "overdueWithDays_other": "Overdue by {{count}} business days"
+    }
+  },
   "proofPending": {
     "badge": "Receipt pending",
     "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."

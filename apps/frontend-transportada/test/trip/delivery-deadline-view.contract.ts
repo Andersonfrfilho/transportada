@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import type { TripDocumentDeliveryDeadline } from '@/modules/trip/shared/trip.types'
+import type { DeliveryDeadlineTone } from '@/modules/trip/shared/tripDeliveryDeadline.constant'
 import {
   formatDeliveryDeadlineDate,
   resolveDeliveryDeadlineView,
@@ -22,7 +23,7 @@ type ViewCase = Readonly<{
   deadline: TripDocumentDeliveryDeadline
   labelKey: string
   name: string
-  tone: string
+  tone: DeliveryDeadlineTone
 }>
 
 const VIEW_CASES: readonly ViewCase[] = [
@@ -162,7 +163,7 @@ describe('a data de vencimento é uma data civil (spec 236 RF5/RF6)', () => {
     const kiritimati = formatUnderTimeZone('Pacific/Kiritimati')
     const pagoPago = formatUnderTimeZone('Pacific/Pago_Pago')
 
-    expect(JSON.parse(saoPaulo)[0]).toEqual(['15/10/2026', '10/15/2026'])
+    expect((JSON.parse(saoPaulo) as string[][])[0]).toEqual(['15/10/2026', '10/15/2026'])
     expect(kiritimati).toBe(saoPaulo)
     expect(pagoPago).toBe(saoPaulo)
   })

@@ -16,8 +16,10 @@ const DETAIL_SOURCE = readFileSync(
 )
 
 describe('o filtro do prazo no detalhe da viagem (spec 236 P2)', () => {
-  it('o detalhe monta o recorte uma vez, sobre as notas da viagem', () => {
-    expect(DETAIL_SOURCE).toContain('useTripDeliveryDeadlineScope(trip.documents)')
+  it('o detalhe monta o recorte uma vez, sobre as notas da viagem (antes dos return condicionais, viagem ainda não carregada = nenhuma nota)', () => {
+    expect(DETAIL_SOURCE).toMatch(
+      /useTripDeliveryDeadlineScope\(\s*workspace\.trip\?\.documents \?\? NO_DOCUMENTS\s*\)/u,
+    )
   })
 
   it('o seletor fica depois do título das cargas e antes da lista de paradas', () => {
