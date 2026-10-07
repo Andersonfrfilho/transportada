@@ -13,7 +13,10 @@ import '@/modules/shared/i18n/i18n.service'
 
 import { OccurrenceSettlementPanel } from '@/modules/trip/components/OccurrenceSettlementPanel.component'
 import type { TripDocumentProduct } from '@/modules/trip/shared/trip.types'
-import type { TripOccurrenceDetailItem } from '@/modules/trip/shared/tripOccurrenceFeed.service'
+import type {
+  TripOccurrenceDetailItem,
+  TripOccurrenceItemValue,
+} from '@/modules/trip/shared/tripOccurrenceFeed.service'
 
 import { click } from './occurrenceCorrectionHarness.helper'
 import {
@@ -80,13 +83,22 @@ function scenario(body: () => Promise<void>): () => Promise<void> {
   }
 }
 
-async function mount(items: readonly TripOccurrenceDetailItem[] = ITEMS, withSource = true) {
+type RecordedValues = Readonly<{
+  declaredAmount?: null | string
+  itemValues?: readonly TripOccurrenceItemValue[]
+}>
+
+async function mount(
+  items: readonly TripOccurrenceDetailItem[] = ITEMS,
+  withSource = true,
+  recorded: RecordedValues = {},
+) {
   mounted.push(
     await renderWithQueryClient(
       createElement(OccurrenceSettlementPanel, {
         canResolve: true,
         occurrenceId: 'occurrence-1',
-        ...(withSource ? { suggestionSource: { ...SOURCE, items } } : {}),
+        ...(withSource ? { suggestionSource: { ...SOURCE, items, ...recorded } } : {}),
       }),
     ),
   )
@@ -223,6 +235,75 @@ describe('o acerto sugere o valor a partir do registro (spec 247 RF12)', () => {
       await mount([{ code: '999', description: 'Sem nota', quantity: '1.000', unit: 'CX' }])
       await settle()
       expect(pageText()).not.toContain('Sugestão pelo registro')
+      expect(button('Usar a sugestão do registro')).toBeUndefined()
+    }),
+  )
+})
+
+describe('a sugestão do acerto usa o valor copiado e o pago do registro (spec 247 T7.2, M3)', () => {
+  /** O preço da nota subiu depois do registro: 57,20 → 70,00. A cópia do registro é a que vale. */
+  const REPRICED = PRODUCTS.map((candidate) =>
+    candidate.code === '696' ? { ...candidate, unitValue: '70.0000' } : candidate,
+  )
+  const THREE_UNITS: readonly TripOccurrenceDetailItem[] = [
+    { code: '696', description: 'Ovos', quantity: '3.000', unit: 'CX' },
+  ]
+  const COPIED: readonly TripOccurrenceItemValue[] = [
+    { declaredAmount: null, productCode: '696', quantity: '3.000', unitValue: '19.9950' },
+  ]
+
+  function reprice(): void {
+    tripHookFakes.tripClient = {
+      ...tripHookFakes.tripClient,
+      readTripDocumentProducts: () => Promise.resolve(REPRICED),
+    }
+  }
+
+  test(
+    '3 × 19,995 do valor copiado sugere 59,99, e não 3 × 70,00 do preço atual',
+    scenario(async () => {
+      installSettlementDouble()
+      reprice()
+      await mount(THREE_UNITS, true, { itemValues: COPIED })
+      await waitFor(() => expect(button('Usar a sugestão do registro')).toBeDefined())
+      await click(button('Usar a sugestão do registro') as HTMLElement)
+      expect(amountInputs()).toEqual(['59,99'])
+    }),
+  )
+
+  test(
+    'o valor pago da ocorrência, num código só, vira a sugestão (manual) e vence a soma',
+    scenario(async () => {
+      installSettlementDouble()
+      await mount(THREE_UNITS, true, { declaredAmount: '40.00', itemValues: COPIED })
+      await waitFor(() => expect(button('Usar a sugestão do registro')).toBeDefined())
+      await click(button('Usar a sugestão do registro') as HTMLElement)
+      expect(amountInputs()).toEqual(['40,00'])
+      await click(button('Salvar acerto') as HTMLElement)
+      await settle()
+      expect(settlementFakes.recorded[0]?.[0]?.amountSource).toBe('manual')
+    }),
+  )
+
+  test(
+    'valor pago da ocorrência zero: "a loja não pagou", sem botão e nada preenchido',
+    scenario(async () => {
+      installSettlementDouble()
+      await mount(THREE_UNITS, true, { declaredAmount: '0.00', itemValues: COPIED })
+      await waitFor(() => expect(pageText()).toContain('A loja não pagou, sem valor a acertar'))
+      expect(button('Usar a sugestão do registro')).toBeUndefined()
+      expect(amountInputs()).toEqual([''])
+    }),
+  )
+
+  test(
+    'valor pago da ocorrência com vários códigos: avisa que é da ocorrência inteira e não inventa linhas',
+    scenario(async () => {
+      installSettlementDouble()
+      await mount(ITEMS, true, { declaredAmount: '40.00' })
+      await waitFor(() =>
+        expect(pageText()).toContain('A loja pagou R$ 40,00 pela ocorrência inteira'),
+      )
       expect(button('Usar a sugestão do registro')).toBeUndefined()
     }),
   )

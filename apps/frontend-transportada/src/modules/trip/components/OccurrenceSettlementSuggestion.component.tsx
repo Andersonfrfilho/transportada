@@ -55,6 +55,13 @@ export function OccurrenceSettlementSuggestion({
           </li>
         ))}
       </ul>
+      {suggestion.unsplitAmountCents === null ? null : (
+        <p className={styles.hint}>
+          {t('occurrenceSettlement.suggestion.unsplit', {
+            amount: formatBrazilianAmount(suggestion.unsplitAmountCents),
+          })}
+        </p>
+      )}
       {suggestion.rows.length === 0 ? null : (
         <div className={styles.occurrenceFormActions}>
           <Button onClick={onUse} size="sm" type="button" variant="secondary">

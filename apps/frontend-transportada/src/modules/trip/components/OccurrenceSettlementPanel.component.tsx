@@ -14,7 +14,10 @@ import {
   buildSettlementSuggestion,
   buildSettlementSuggestionLines,
 } from '../shared/occurrenceSettlementSuggestion.service'
-import type { TripOccurrenceDetailItem } from '../shared/tripOccurrenceFeed.service'
+import type {
+  TripOccurrenceDetailItem,
+  TripOccurrenceItemValue,
+} from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
 import { OccurrenceSettlementRow } from './OccurrenceSettlementRow.component'
 import { OccurrenceSettlementSaved } from './OccurrenceSettlementSaved.component'
@@ -31,7 +34,11 @@ export type OccurrenceSettlementPanelProps = Readonly<{
    */
   suggestionSource?: Readonly<{
     companyId?: string
+    /** Spec 247 T7.2: o valor pago da ocorrência inteira (escopo ocorrência); ausente ou `null` é não digitado. */
+    declaredAmount?: null | string
     documentId: string
+    /** Spec 247 T7.2: o que o registro copiou por linha — a sugestão parte daqui, não do preço atual da nota. */
+    itemValues?: readonly TripOccurrenceItemValue[]
     items: readonly TripOccurrenceDetailItem[]
     tripId: string
   }>
@@ -81,10 +88,17 @@ export function OccurrenceSettlementPanel({
   const suggestion = buildSettlementSuggestion(
     buildSettlementSuggestionLines({
       items: suggestionSource?.items ?? [],
+      ...(suggestionSource?.itemValues === undefined
+        ? {}
+        : { itemValues: suggestionSource.itemValues }),
       products: productsQuery.data ?? [],
     }),
+    { occurrenceAmount: suggestionSource?.declaredAmount ?? null },
   )
-  const hasSuggestion = suggestion.rows.length > 0 || suggestion.unpaid.length > 0
+  const hasSuggestion =
+    suggestion.rows.length > 0 ||
+    suggestion.unpaid.length > 0 ||
+    suggestion.unsplitAmountCents !== null
 
   /** O operador confirma ao salvar: usar a sugestão só preenche as linhas, sem gravar nada. */
   function handleUseSuggestion(): void {
