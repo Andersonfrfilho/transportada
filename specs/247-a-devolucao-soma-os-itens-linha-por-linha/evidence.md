@@ -2269,3 +2269,71 @@ Servidores: painel (PID 77449, cwd `.../spec-247/apps/frontend-transportada`), V
 **Correções (contrato antes, commit isolado):** `9f0d8ede2` dica de Produtos exigidos; `896d58354` Aviso interno; `c5f6ab7f5` Salvar/Desfazer; `a8c8b02eb` campos do acerto; `83006aef1` observação do motorista. Detalhe: dica de Produtos exigidos (vermelho: "1 fail" do contrato M3, depois 2 pass); Aviso interno sem texto legado e "bloco acima" (vermelho 1 fail); `Salvar e-mail`/`Desfazer` a 44 px sob toque (vermelho 2 fail, medido 44 px a 768 px com toque); campos do acerto (vermelho 2 fail, medido 48 px); observação do motorista (vermelho 1 fail).
 
 **O que não foi verificado:** o login e a fila reais do app do motorista e a moldura de página do app; o tipo aberto com os dados reais da API (o painel usa API dublada, então "Salvar" fala com um dublê); tema escuro do painel nesta rodada (vale a medição da T5.x: 5,55); prints a 375 px do tipo aberto foram só geradas, não revistas uma a uma.
+
+## T7.2 — correções da revisão: painel
+
+Reprovação da revisão independente (T7.2): achados A1, A2, M3 e B1 do painel, mais a higiene de tamanho. A API (R2) já publica `referenceNumber`,
+`declaredAmount` e `itemValues` no detalhe. Cinco commits no painel (`798babc14`, `a9a22c1c1`, `b5ec95ca4`, `d26536974`, `4454131da`); nenhum arquivo da API
+nem do `frontend-driver` foi tocado. Sem push nem deploy.
+
+| Item | O que mudou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `TripOccurrenceDetail` declara `referenceNumber`, `declaredAmount` e `itemValues` (opcionais: ausente é API ou ocorrência antiga); `readDetail` valida com guards (dinheiro só em texto decimal; forma errada recusa a resposta). O golden `occurrence-detail-values.golden.json` entra em `test/trip/occurrence-detail-values.contract.ts`, com e sem as chaves.                                                                                                                                                                                                        |
+| 2/A2 | A correção nasce preenchida: número, valor pago da ocorrência ou da linha vêm do detalhe (`occurrenceRecordedAmounts.service.ts`); rótulos do **tipo** (`referenceNumberLabel`/`declaredAmountLabel`, lidos de `GET /company-settings/occurrence-types` pelo `useOccurrenceTypeRecordConfig`), com fallback genérico. Sem valor gravado o campo diz "Nada gravado."; **Limpar** é botão explícito (envia `null`) e o campo vazio com gravado diz "Será limpo ao salvar.". "Valor que vai no e-mail" aparece ao lado da "Soma geral" (regra de RF9 sobre o estado final). |
+| 3/A1 | O nível do valor pago nasce onde está gravado (linhas, ocorrência; senão o escopo do tipo; senão por linha). Valor digitado num nível com o outro gravado manda o outro `null` no mesmo corpo; trocar de nível **sem** valor novo não apaga nada. `DECLARED_AMOUNT_SELECTION_CONFLICT`, `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED` têm mensagem própria (pt/en), dizendo o que fazer.                                                                                                                                      |
+| 4/M3 | A sugestão do acerto usa o `unitValue` **copiado** (`itemValues`), soma todas as linhas do mesmo código, deixa o valor pago (linha ou ocorrência) vencer a soma e nunca sugere 0 ("A loja não pagou, sem valor a acertar"). Valor pago da ocorrência com vários códigos não tem como ser atribuído a um item: aparece o aviso "A loja pagou R$ X pela ocorrência inteira…" e nenhuma linha é inventada. Sem `itemValues` volta ao comportamento anterior, sem erro.                                                                                                      |
+| 5/B1 | O rascunho do "Salvar e-mail" (assunto/corpo/linha de item) é guardado por tipo num contexto da página (`useOccurrenceMailDraftStore`, criado pelo `OccurrenceTypeCatalogPanel`): recolher e reabrir a linha do tipo o devolve. Escolhida a solução mais simples (guardar), e não a de avisar antes de descartar: não exige perguntar nada ao operador. Trocar de aba da página desmonta o painel e descarta o rascunho (fora do escopo pedido).                                                                                                                         |
+| 6    | `OccurrenceSettlementPanel.component.tsx` (485 linhas) passou a 169, dividido em `OccurrenceSettlementRow`, `OccurrenceSettlementSaved`, `useOccurrenceSettlementDraft` e `occurrenceSettlementDraft.service`, em **commit separado e antes** da mudança funcional (`a9a22c1c1`); o contrato de parede `occurrence-settlement-panel.contract.ts` passou a ler as cinco partes. `OccurrenceCasePanel.component.tsx` (335) não foi tocado e não foi dividido.                                                                                                              |
+
+**Decisão de commits.** A2 e A1 dividem os mesmos arquivos (o rascunho, o serviço de resolução e o componente de valores) e nasceram juntos: um commit só
+(`b5ec95ca4`), em vez de dois que não compilariam isolados.
+
+### Vermelho antes do código e mutações
+
+Os contratos de B1 e de M3 (tabela) foram escritos antes do código e viram vermelho (`B1`: reabrir devolvia o assunto gravado; `M3`: 8 fail). Em A1/A2, o
+serviço puro foi escrito antes do contrato desta rodada (o contrato dos componentes veio depois, sobre o componente já montado): a prova de que os
+contratos mordem é a mutação, cada uma sozinha e revertida (cópia do arquivo restaurada, `diff` vazio):
+
+```text
+A1-1  não limpar o outro nível ao trocar (clearsOccurrence/clearsLines = false)
+      puro:   3 fail — (a) "um só" · (b) "por linha" · "trocar de nível sem valor novo…zero é valor e apaga o outro nível"
+      painel: 2 fail — (a) PATCH sem as linhas nulas · (b) PATCH sem declaredAmount: null     (Expected path: "declaredAmount")
+A1-2  o nível nasce sempre "por linha" (resolveCorrectionAmountScope ignora o gravado e o tipo)
+      puro:   1 fail — "o nível nasce onde está gravado; sem gravado, no do tipo; sem tipo, por linha"
+      painel: 5 fail — valor da ocorrência gravado (inclusive zero) · (b) · (c) limpar tudo · nível do tipo · e-mail da ocorrência
+M3-1  o valor unitário vem da nota, não da cópia: puro 3 fail (3 × 19,995 · código repetido · código repetido com valor pago) + painel 1 fail
+M3-2  valor pago 0 vira sugestão: puro 2 fail ("a loja não pagou" no contrato antigo e no novo)
+```
+
+### Navegador (painel desta árvore, Vite 7 na porta 53010, API dublada por `page.route`, Chromium headless)
+
+Servidor: PID 59923, `cwd` conferido por `lsof -d cwd` = `.../transportada-wt/spec-247/apps/frontend-transportada` antes de qualquer afirmação; binário da app
+(`./node_modules/.bin/vite`), `VITE_API_URL` apontando para uma porta sem servidor (qualquer rota sem dublê voltava 404 em vez de tocar a API de outra
+sessão); 53000/53001/53911 intocadas; sem o `preview_start` do harness. Verificação por texto (`innerText`, `inputValue`, corpo capturado do `PATCH`, geometria
+com `getBoundingClientRect`); um recorte da seção como prova (não commitado).
+
+```text
+(a) gravado 50,00 na linha P1 e NFD 45029, tipo com "Número da NFD" / "Valor pago pela loja"
+    campos: "NFD 45029" · P1 "50,00" · P2 vazio com "Nada gravado." · nível "Por linha de produto" · "Valor que vai no e-mail: R$ 107,20" (50,00 + vProd 57,20)
+    "Um só, pela ocorrência" + 4000 → aviso das linhas; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2","declaredAmount":null}],"declaredAmount":"40.00"}
+(b) gravado 40,00 na ocorrência → nasce "Um só, pela ocorrência" com "40,00"; "Valor que vai no e-mail: R$ 40,00"
+    "Por linha de produto" + 5000 na P1 → PATCH {"items":[{"code":"P1","declaredAmount":"50.00",…},{"code":"P2"}],"declaredAmount":null}
+(c) Limpar na linha e no número → "Será limpo ao salvar." ×2; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2"}],"referenceNumber":null} (sem declaredAmount)
+Acerto (decidida goods_paid), preço atual da nota 25,00 e cópia 19,995: "P1 — R$ 59,99 · soma da linha R$ 59,99" e "P2 — R$ 57,20 · soma da linha R$ 57,20"
+
+                 375 px (toque)   768 px (toque)   1280 px (ponteiro fino)
+estouro horiz.         0                0                  0
+controles < 44 px      nenhum           nenhum             2 (Limpar, 38,4 px — Button sm do design system, só com ponteiro fino)
+```
+
+Os mesmos três cenários e a sugestão passaram nas três larguras. Os 404 do console são rotas sem dublê (sino, atalhos), não das telas verificadas. Servidor
+encerrado por PID, porta 53010 livre, harness e recorte apagados, `git status` limpo.
+
+### Limitações
+
+1. A **soma da linha** e a **Soma geral** da correção continuam calculadas sobre a nota carregada (preço atual) e a quantidade editada; o "valor que vai no e-mail"
+   com o pago digitado não depende disso, mas sem valor pago ele usa a mesma conta da nota, enquanto o servidor usa o `unit_value` copiado. Só diverge se o preço da
+   nota mudou depois do registro (o aviso do acerto, esse sim, parte da cópia).
+2. Os rótulos do tipo só chegam a quem tem `settings.manage` (a lista de tipos é dessa permissão); os demais operadores veem os rótulos genéricos.
+3. Código repetido na seleção da correção não é um caso do formulário (a seleção é por código): o valor gravado por linha usa a primeira linha do código.
+4. Vários códigos com valor pago da ocorrência: não há atribuição por item, o acerto mostra só o aviso (decisão acima), e o operador distribui o valor ao preencher.
