@@ -291,7 +291,7 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
 (`record-contractor-mail-inbound-message.use-case.ts`); `api-transportada`, migration
-`20261007024527_cargo_preview_email_intake` (ADR-0094 §10).
+`20261007040900_cargo_preview_email_intake` (ADR-0094 §10).
 
 **O que é:** o usuário encaminha o e-mail do contratante ao endereço de entrada do sistema; o worker lê a
 planilha anexa e cria a prévia pelo mesmo contrato do upload. O e-mail e a planilha são entrada hostil.

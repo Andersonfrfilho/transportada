@@ -3002,7 +3002,7 @@ bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
 
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
-`20261007024527_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**
+`20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**
 enquanto existir prévia por e-mail):
 
 - `contractor_receiving_profiles`: `preview_inbound_token_hash char(64)` (hash do token do endereço de entrada,

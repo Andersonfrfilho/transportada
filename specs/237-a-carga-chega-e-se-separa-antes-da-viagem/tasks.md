@@ -133,7 +133,7 @@
       perfil no endereço, remetente do encaminhamento na allow-list do perfil, **remetente original** lido do
       cabeçalho e também na allow-list, MIME bruto guardado, DKIM do encaminhador verificado e o do contratante
       tratado como perdido (risco aceito no `SECURITY.md`); limite de tamanho do anexo igual ao do upload; o anexo cai no mesmo caso de uso do upload; contratos (CA1, CA2); `security-reviewer`.
-      _(2026-10-07: migration `20261007024527_cargo_preview_email_intake` (aprovada pelo usuário: 3 colunas nulas no
+      _(2026-10-07: migration `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário: 3 colunas nulas no
       perfil, `source = 'email'` sem quem enviou e a tabela append-only `cargo_preview_email_intakes`), ramo
       `cargo-preview-email/` no worker, cópia por valor da criação da prévia com paridade, SECURITY (DKIM do
       contratante perdido = risco aceito) e ADR-0094 §10 — `evidence.md` § T4.6; **sem push**. Token e listas
@@ -150,11 +150,11 @@
       nunca é apagado pela reentrega, parser do remetente original (Outlook, Apple pt-BR, `De:` dobrado, hostis),
       DKIM `unverifiable` repete a entrega, reenvio com o status da prévia, CHECK das listas, prefixo `email:` reservado
       no upload, contrato de que hash e listas não saem, paridade nos dois sentidos. Migration
-      `20261007024527_cargo_preview_email_intake` **editada no lugar** (ainda não publicada). Docs: ADR-0094 §10,
+      `20261007040900_cargo_preview_email_intake` **editada no lugar** (ainda não publicada). Docs: ADR-0094 §10,
       `SECURITY.md` (L3, L4, encaminhamento só manual, ordem de deploy). `evidence.md` § T4.7a; **sem push**.
 - [ ] **T4.7b** Painel: aceitar `source: 'email'` na lista/detalhe da prévia + rótulo de origem + contrato do guard
       (hoje o guard de resposta da prévia no painel só conhece `upload`; a prévia por e-mail nasce com `source =
-    'email'` e `uploaded_by_user_id` nulo). `sonnet`.
+'email'` e `uploaded_by_user_id` nulo). `sonnet`.
 - [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
       original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar. _(Os achados da primeira
       revisão estão na T4.7a; esta é a revisão do que mudou, depois da T4.7b.)_

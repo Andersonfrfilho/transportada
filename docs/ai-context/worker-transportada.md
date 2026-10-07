@@ -408,6 +408,6 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
   `worker_thread`. ⚠️ Teste de integração semeia em série (o pool do Bun SQL trava com cadeias concorrentes de
   INSERT). ⚠️ `bun test` de arquivo avulso: `./test/integration/cargo-preview-email-intake.integration.ts`.
 - ⚠️ **Ordem de deploy:** `hasIntake` roda para toda mensagem de conversa, então o worker novo falha em **todo**
-  e-mail de conversa se a migration `20261007024527_cargo_preview_email_intake` não existir. O `deploy.yml` já
+  e-mail de conversa se a migration `20261007040900_cargo_preview_email_intake` não existir. O `deploy.yml` já
   garante a ordem (`deploy-api` com `preDeployCommand` e `assert-migrations` antes de `deploy-worker`, que `needs:
 deploy-api`); **reverter a API sem o worker** quebra o trilho de conversa até o worker voltar.

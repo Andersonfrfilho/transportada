@@ -2201,7 +2201,7 @@ suítes (nada mudou); o `frontend-client`; teste em aparelho/câmera reais; leit
 
 ### O que foi construído
 
-- **Migration `20261007024527_cargo_preview_email_intake`** (aprovada pelo usuário no chat — "Sim, pode criar"),
+- **Migration `20261007040900_cargo_preview_email_intake`** (aprovada pelo usuário no chat — "Sim, pode criar"),
   aditiva, com `rollback.sql` e `snapshot.json` encadeado ao último de staging: três colunas nulas em
   `contractor_receiving_profiles` (`preview_inbound_token_hash`, `preview_forwarder_allowlist`,
   `preview_sender_allowlist`, CHECK de que o token exige as duas listas e índice único parcial do hash por empresa),
@@ -2312,9 +2312,15 @@ segurança (T4.7).
 
 ## T4.7a — correções das revisões `opus` (código e segurança) da T4.6 (2026-10-07)
 
-A migration `20261007024527_cargo_preview_email_intake` **ainda não foi publicada**: foi editada **no lugar**
-(migration, `rollback.sql`, `snapshot.json` e schemas TS), sem migration nova. `git fetch` + `rebase origin/staging`
-(sem migration nova em staging; snapshot continua encadeado ao último, `db:generate` = `no_changes`).
+A migration **ainda não foi publicada**: foi editada **no lugar** (migration, `rollback.sql`, `snapshot.json` e
+schemas TS), sem migration nova. Entre a T4.6 e a T4.7a o `origin/staging` ganhou
+`20261007033420_occurrence_declared_amount`, **posterior** ao nome original (`20261007024527`): com o runner do drizzle
+(ordem por data da pasta) ela seria pulada num banco que já aplicou a de staging, e o snapshot formaria um fork.
+Por isso, depois do `rebase origin/staging` (conflitos só em listas de testes de `package.json` e de migrations), a
+pasta foi **renomeada** para `20261007040900_cargo_preview_email_intake`, o `snapshot.json` foi regenerado
+(`prevIds` = o de `20261007033420`, `db:generate` = `no_changes`, o SQL gerado é o mesmo da migration escrita à mão) e
+as referências (rollback, lista estática, docs) acompanharam. A decisão de renomear é da T4.7a; se a T4.6 já tivesse
+sido publicada, seria migration nova.
 
 ### O que mudou, por achado
 
