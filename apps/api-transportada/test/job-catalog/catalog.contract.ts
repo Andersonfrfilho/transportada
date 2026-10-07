@@ -139,6 +139,12 @@ const CATALOG = [
     job: 'trip.canhoto.read',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 237 T4.8: a retenção dos dados da planilha só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'cargo-preview.retention.apply',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 /**
@@ -160,6 +166,7 @@ const SEED_MIGRATIONS = [
   '20260924033423_lumpy_scalphunter',
   '20260925152805_occurrence_conversation_upload_expire_job',
   '20261002120000_trip_canhoto_read_job',
+  '20261007180000_cargo_preview_retention',
 ] as const
 
 describe('job catalog', () => {

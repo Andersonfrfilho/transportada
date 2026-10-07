@@ -63,6 +63,7 @@ export const CARGO_PREVIEW_EVENT_KIND = {
   itemSuggested: 'item_suggested',
   itemUnlinked: 'item_unlinked',
   parsed: 'parsed',
+  retentionApplied: 'retention_applied',
   uploaded: 'uploaded',
 } as const
 export type CargoPreviewEventKind =
@@ -75,6 +76,7 @@ export const CARGO_PREVIEW_WIDE_EVENT_KINDS = [
   CARGO_PREVIEW_EVENT_KIND.parsed,
   CARGO_PREVIEW_EVENT_KIND.failed,
   CARGO_PREVIEW_EVENT_KIND.arrivalProposed,
+  CARGO_PREVIEW_EVENT_KIND.retentionApplied,
 ] as const
 
 /** O painel age por `backoffice`; o vínculo automático por `worker`, sempre sem ator humano. */
