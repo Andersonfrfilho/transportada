@@ -2308,3 +2308,27 @@ botão 118 x 48 px (alvo >= 44), contraste do texto 13,6:1, foco por Tab com con
 Servidor encerrado por PID, arnês apagado, porta 53210 livre.
 
 **Não rodado:** fluxo com login real (Keycloak) e fila real; `make smoke`; um print só (375 px) foi visto, não anexado.
+
+## T7.4x — moldura real do registro do motorista (espaçamento)
+
+Queixa do usuário: "essa tela ta sem espaçamento internas, esta grudada nas extremidades", vista em
+`harness.html`. Esse arnês renderizava só o `DriverOccurrenceRegistrationForm`, sem o cartão `.document` nem a
+página; as medidas anteriores eram do arnês. Desta vez o arnês descartável (não versionado, `apps/frontend-driver/harness.{html,tsx}`)
+monta a página REAL `DriverTripWorkspacePage` (header, lista, `DriverStopCard`, CSS e i18n reais) sobre a API de demonstração, com o
+formulário aberto no documento com produtos (tipo "Devolução parcial", 3 produtos, valor pago por linha, "Total da nota").
+Vite do próprio worktree (cwd conferido por `lsof`), Chromium, `getBoundingClientRect`/`getComputedStyle`, tema escuro e claro.
+
+| Elemento (estados: recém-aberto, produtos marcados + quantidade + "Total da nota", erro `aria-invalid`, botão bloqueado com motivo, nota resolvida) | Distância à borda interna do cartão (375 / 768 / 1280)                                                                                  | Distância à janela (375 / 768 / 1280) | Veredito |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | -------- |
+| Cartão `.document` (borda 1 px, `padding: var(--space-3)`)                                                                                          | recuo 12 px nos três                                                                                                                    | 33 / 97 / 353 px                      | correto  |
+| Título, aviso, chips de tipo, produtos, totais, NFD, observação, foto, "Registrar", "Cancelar", mensagem do motivo                                  | 12 px (esq.) e >= 12 px (dir.), nenhum <= 4 px                                                                                          | >= 45 px                              | correto  |
+| Campos de quantidade e valor pago, "Total da nota", cálculo da linha, mensagem de erro                                                              | 12 + recuo da linha (>= 12)                                                                                                             | >= 45 px                              | correto  |
+| Estouro horizontal (formulário, cartão, página)                                                                                                     | `scrollWidth == clientWidth` em todos                                                                                                   | idem                                  | nenhum   |
+| Alvos: botões e campos                                                                                                                              | >= 45 px de altura (Registrar 48, Tirar foto/Anexar 48, campo 45, textarea 83); rótulos de 19 px são legenda do campo, o alvo é o campo |                                       | correto  |
+
+Resultado: no app real o formulário tem 12 px de recuo interno em todos os estados, larguras e temas; nenhum elemento encosta
+(<= 4 px) nem ultrapassa o cartão ou a janela. O defeito visto era do arnês antigo (sem o cartão). Nenhum código do app foi alterado.
+Contrato novo `test/driver-trip/occurrence-frame-padding.contract.ts` trava a regra CSS resolvida do cartão (`.document`: borda e
+`padding: var(--space-3)`; `.occurrenceForm` sem margem negativa); provado por mutação (`padding: 0` no cartão derruba o teste).
+
+**Não verificado:** login real (Keycloak) e API real (autenticação do arnês é um stub de token; dados da demo); aparelho físico.
