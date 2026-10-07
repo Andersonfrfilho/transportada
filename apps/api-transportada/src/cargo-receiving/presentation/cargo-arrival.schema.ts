@@ -16,7 +16,7 @@ import {
 import type { RegisterCargoArrivalInput } from '../application/cargo-arrival-request.types.js'
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,256}$/
-const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key'
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key'
 /** O teto da coluna `integer`: além disso o banco recusaria com 500. */
 const PALLET_COUNT_MAX = 2_147_483_647
 

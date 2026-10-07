@@ -18,6 +18,7 @@ import {
 } from '../../http/request-parsing.service.js'
 import type { ApiErrorDetail } from '../../shared/api.types.js'
 import {
+  CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX,
   CARGO_PREVIEW_ITEM_STATES,
   CARGO_PREVIEW_STATUSES,
 } from '../../shared/cargo-preview.constant.js'
@@ -32,7 +33,7 @@ import {
 } from '../domain/cargo-preview-upload.policy.js'
 import { CargoPreviewWorkbookError } from '../domain/cargo-preview-workbook.error.js'
 import { PREVIEW_TEXT_FIELD_MAX_LENGTH } from '../domain/cargo-preview-workbook.constant.js'
-import { readIdempotencyKey } from './cargo-arrival.schema.js'
+import { IDEMPOTENCY_KEY_HEADER, readIdempotencyKey } from './cargo-arrival.schema.js'
 
 const CONTRACTOR_FIELD = 'contractorId'
 const FILE_FIELD = 'file'
@@ -71,10 +72,24 @@ function readFormIssues(form: RequestFormData): {
   return { contractorId, file, issues }
 }
 
+/** O prefixo das chaves da prévia por e-mail é reservado: o upload não pode colidir com uma mensagem. */
+function readUploadKey(request: Request): ReturnType<typeof readIdempotencyKey> {
+  const key = readIdempotencyKey(request)
+  if (key.issue !== undefined) return key
+  if (!key.value.toLowerCase().startsWith(CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX)) return key
+  return {
+    issue: {
+      field: IDEMPOTENCY_KEY_HEADER,
+      message: `The "${CARGO_PREVIEW_EMAIL_IDEMPOTENCY_PREFIX}" prefix is reserved`,
+    },
+    value: key.value,
+  }
+}
+
 export async function parseUploadCargoPreviewRequest(
   request: Request,
 ): Promise<UploadCargoPreviewRequest> {
-  const key = readIdempotencyKey(request)
+  const key = readUploadKey(request)
   const form = await request.formData().catch(() => {
     throw invalidRequest(key.issue === undefined ? [] : [key.issue])
   })
