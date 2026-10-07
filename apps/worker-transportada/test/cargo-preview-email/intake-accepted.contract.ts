@@ -27,7 +27,6 @@ describe('a prévia por e-mail encaminhado aceita (spec 237 T4.6, CA1)', () => {
     expect(await result).toEqual({
       contractorId: CONTRACTOR_ID,
       dkimResult: 'aligned',
-      isReplay: false,
       kind: 'accepted',
       previewId: 'preview-1',
     })
@@ -81,16 +80,34 @@ describe('a prévia por e-mail encaminhado aceita (spec 237 T4.6, CA1)', () => {
     expect(calls.deleted).toEqual([])
   })
 
-  test('o mesmo arquivo do contratante devolve a prévia que já existe e não guarda arquivo novo', async () => {
+  test('o mesmo arquivo do contratante devolve a prévia que já existe, com o status dela, sem arquivo novo', async () => {
+    for (const previewStatus of ['queued', 'processing', 'ready', 'failed'] as const) {
+      const { calls, result } = runIntake({
+        createOutcome: { kind: 'replayed', previewId: 'preview-0', previewStatus },
+      })
+      expect(await result).toEqual({
+        contractorId: CONTRACTOR_ID,
+        dkimResult: 'aligned',
+        kind: 'replayed_existing',
+        previewId: 'preview-0',
+        previewStatus,
+      })
+      expect(calls.deleted).toEqual([`tenants/${COMPANY_ID}/cargo-previews/${FILE_OBJECT_ID}`])
+    }
+  })
+
+  test('reprocessar a mesma mensagem descarta só a planilha desta tentativa e nunca o MIME de quem registrou', async () => {
     const { calls, result } = runIntake({
-      createOutcome: { kind: 'replayed', previewId: 'preview-0' },
+      createOutcome: { kind: 'already_recorded', isRawKept: true },
     })
-    expect(await result).toMatchObject({ isReplay: true, kind: 'accepted', previewId: 'preview-0' })
+    expect(await result).toEqual({ kind: 'already_recorded' })
     expect(calls.deleted).toEqual([`tenants/${COMPANY_ID}/cargo-previews/${FILE_OBJECT_ID}`])
   })
 
-  test('reprocessar a mesma mensagem não cria prévia e não deixa objeto para trás', async () => {
-    const { calls, result } = runIntake({ createOutcome: { kind: 'already_recorded' } })
+  test('se ninguém referencia o MIME (o registro anterior foi uma recusa), a tentativa o apaga', async () => {
+    const { calls, result } = runIntake({
+      createOutcome: { kind: 'already_recorded', isRawKept: false },
+    })
     expect(await result).toEqual({ kind: 'already_recorded' })
     expect(calls.deleted.sort()).toEqual([
       `tenants/${COMPANY_ID}/cargo-previews/${FILE_OBJECT_ID}`,

@@ -10,6 +10,8 @@ import type {
   CargoPreviewEmailIntakeInput,
   CreatePreviewOutcome,
   PreviewProfileRecord,
+  RateLimitedRecord,
+  RecentIntakeCounts,
   RejectionRecord,
 } from '../../src/cargo-preview-email/application/cargo-preview-email.types.js'
 import {
@@ -44,9 +46,12 @@ export function validRawEmail(): string {
 }
 
 export type Calls = {
+  readonly counts: unknown[]
   readonly created: AcceptedRecord[]
   readonly deleted: string[]
+  readonly dkimVerifications: Buffer[]
   readonly downloads: { readonly maxBytes: number | undefined }[]
+  readonly rateLimited: RateLimitedRecord[]
   readonly rejections: RejectionRecord[]
   readonly stored: { readonly body: Uint8Array; readonly key: string }[]
 }
@@ -55,18 +60,34 @@ export type HarnessOptions = {
   readonly createOutcome?: CreatePreviewOutcome | (() => never)
   readonly dkim?: DkimAlignmentResult
   readonly download?: () => Promise<Buffer>
+  /** Última entrega da fila: a recusa por DKIM sem veredito só é gravada aqui. */
+  readonly isLastAttempt?: boolean
   readonly profiles?: readonly PreviewProfileRecord[]
   readonly rawEmail?: string
-  readonly recentIntakes?: number
+  readonly recentIntakes?: Partial<RecentIntakeCounts>
   readonly received?: Partial<CargoPreviewEmailIntakeInput['received']>
   readonly storeFails?: boolean
 }
 
 export function runIntake(options: HarnessOptions = {}) {
-  const calls: Calls = { created: [], deleted: [], downloads: [], rejections: [], stored: [] }
+  const calls: Calls = {
+    counts: [],
+    created: [],
+    deleted: [],
+    dkimVerifications: [],
+    downloads: [],
+    rateLimited: [],
+    rejections: [],
+    stored: [],
+  }
   const raw = Buffer.from(options.rawEmail ?? validRawEmail())
   const dependencies: IntakeCargoPreviewEmailDependencies = {
-    dkimVerifier: { verify: async () => options.dkim ?? 'aligned' },
+    dkimVerifier: {
+      verify: async (rawMessage) => {
+        calls.dkimVerifications.push(rawMessage)
+        return options.dkim ?? 'aligned'
+      },
+    },
     mailGateway: {
       downloadRawEmail: async (input) => {
         calls.downloads.push({ maxBytes: input.maxBytes })
@@ -76,7 +97,10 @@ export function runIntake(options: HarnessOptions = {}) {
     newId: () => FILE_OBJECT_ID,
     now: () => new Date('2026-10-06T15:00:00.000Z'),
     repository: {
-      countRecentIntakes: async () => options.recentIntakes ?? 0,
+      countRecentIntakes: async (query) => {
+        calls.counts.push(query)
+        return { authenticated: 0, unauthenticated: 0, ...options.recentIntakes }
+      },
       createPreview: async (record) => {
         calls.created.push(record)
         const outcome = options.createOutcome ?? { kind: 'created', previewId: 'preview-1' }
@@ -84,6 +108,9 @@ export function runIntake(options: HarnessOptions = {}) {
       },
       findProfilesByTokenHashes: async () => options.profiles ?? [READY_PROFILE],
       hasIntake: async () => false,
+      recordRateLimited: async (record) => {
+        calls.rateLimited.push(record)
+      },
       recordRejection: async (record) => {
         calls.rejections.push(record)
       },
@@ -103,6 +130,7 @@ export function runIntake(options: HarnessOptions = {}) {
   const input: CargoPreviewEmailIntakeInput = {
     companyId: COMPANY_ID,
     correlationId: 'corr-0001',
+    delivery: { isLastAttempt: options.isLastAttempt ?? false },
     occurredAt: new Date('2026-10-06T14:59:00.000Z'),
     providerEmailId: PROVIDER_EMAIL_ID,
     received: {

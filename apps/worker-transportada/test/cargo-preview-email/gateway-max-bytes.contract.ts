@@ -37,4 +37,16 @@ describe('o teto do download do MIME bruto (spec 237 T4.6)', () => {
       }),
     ).rejects.toBeInstanceOf(ResendDownloadTooLargeError)
   })
+
+  test.each([[Number.NaN], [Number.POSITIVE_INFINITY]])(
+    'teto pedido %p não desliga o do gateway',
+    async (maxBytes) => {
+      await expect(
+        gatewayWith(25 * 1024 * 1024 + 1).downloadRawEmail({ downloadUrl: URL_OK, maxBytes }),
+      ).rejects.toBeInstanceOf(ResendDownloadTooLargeError)
+      expect(
+        (await gatewayWith(3000).downloadRawEmail({ downloadUrl: URL_OK, maxBytes })).byteLength,
+      ).toBe(3000)
+    },
+  )
 })

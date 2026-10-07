@@ -218,7 +218,10 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       repository.createPreview(accepted),
     ])
     expect(outcomes.map((item) => item.kind).sort()).toEqual(['already_recorded', 'created'])
-    expect(await repository.createPreview(accepted)).toEqual({ kind: 'already_recorded' })
+    expect(await repository.createPreview(accepted)).toEqual({
+      isRawKept: true,
+      kind: 'already_recorded',
+    })
     expect(
       await repository.hasIntake({ companyId: graph.companyId, providerEmailId: 'email-b' }),
     ).toBe(true)
@@ -245,6 +248,7 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     expect(second).toEqual({
       kind: 'replayed',
       previewId: first.kind === 'created' ? first.previewId : '',
+      previewStatus: 'queued',
     })
     expect(await count('cargo_previews', graph.companyId)).toBe(1)
     expect(await count('cargo_preview_outbox', graph.companyId)).toBe(1)
@@ -291,11 +295,15 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       raw_object_id: null,
       reason_code: 'TOO_MANY_OPEN_PREVIEWS',
     })
+    // A reentrega dessa mensagem recusada não tem MIME registrado: quem a repete pode apagar o seu.
+    expect(await repository.createPreview(record({ ...graph, emailId: 'email-e5' }))).toEqual({
+      isRawKept: false,
+      kind: 'already_recorded',
+    })
   })
 
-  test('a recusa é registrada uma vez só, com o motivo e sem endereço, e conta na janela do contratante', async () => {
+  test('a recusa é registrada uma vez só, com o motivo e sem endereço', async () => {
     const graph = await seedCompany()
-    const other = await seedCompany()
     const rejection = {
       companyId: graph.companyId,
       contractorId: graph.contractorId,
@@ -322,35 +330,166 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
         reason_code: 'FORWARDER_DKIM_NOT_ALIGNED',
       },
     ])
-    await repository.recordRejection({
-      ...rejection,
-      isOriginalSenderRead: true,
-      providerEmailId: 'email-g',
+  })
+
+  /** Semeia a janela direto: `recorded_at` é o relógio do banco, e o teste o escolhe para provar isso. */
+  async function seedIntake(input: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly dkim: string | null
+    readonly emailId: string
+    readonly minutesAgo: number
+    readonly reason: string
+    readonly receivedMinutesAgo?: number
+  }): Promise<void> {
+    const receivedAgo = input.receivedMinutesAgo ?? input.minutesAgo
+    await db.execute(sql`
+      insert into cargo_preview_email_intakes
+        (company_id, provider_email_id, contractor_id, outcome, reason_code, forwarder_dkim_result,
+         received_at, recorded_at)
+      values (${input.companyId}, ${input.emailId}, ${input.contractorId}, 'rejected', ${input.reason},
+        ${input.dkim}, now() - make_interval(mins => ${receivedAgo}),
+        now() - make_interval(mins => ${input.minutesAgo}))`)
+  }
+
+  test('a janela conta os que passaram do DKIM à parte dos anteriores a ele, pelo relógio do banco', async () => {
+    const graph = await seedCompany()
+    const other = await seedCompany()
+    const base = { companyId: graph.companyId, contractorId: graph.contractorId }
+    await seedIntake({
+      ...base,
+      dkim: 'aligned',
+      emailId: 'w1',
+      minutesAgo: 1,
+      reason: 'ATTACHMENT_MISSING',
+    })
+    await seedIntake({
+      ...base,
+      dkim: 'aligned',
+      emailId: 'w2',
+      minutesAgo: 2,
       reason: 'ORIGINAL_SENDER_NOT_ALLOWED',
     })
+    await seedIntake({
+      ...base,
+      dkim: 'not_aligned',
+      emailId: 'w3',
+      minutesAgo: 1,
+      reason: 'FORWARDER_DKIM_NOT_ALIGNED',
+    })
+    await seedIntake({
+      ...base,
+      dkim: 'unverifiable',
+      emailId: 'w4',
+      minutesAgo: 1,
+      reason: 'FORWARDER_DKIM_UNVERIFIABLE',
+    })
+    await seedIntake({
+      ...base,
+      dkim: null,
+      emailId: 'w5',
+      minutesAgo: 1,
+      reason: 'FORWARDER_NOT_ALLOWED',
+    })
+    await seedIntake({
+      ...base,
+      dkim: null,
+      emailId: 'w6',
+      minutesAgo: 1,
+      reason: 'MIME_UNREADABLE',
+    })
+    // O rastro do excesso não é e-mail processado: fica fora dos dois contadores.
+    await seedIntake({ ...base, dkim: null, emailId: 'w7', minutesAgo: 1, reason: 'RATE_LIMITED' })
+    // Fora da janela de 5 minutos.
+    await seedIntake({
+      ...base,
+      dkim: 'aligned',
+      emailId: 'w8',
+      minutesAgo: 10,
+      reason: 'ATTACHMENT_MISSING',
+    })
+    // Data de recebimento antiga, mas gravado agora: conta (o remetente não escolhe a janela).
+    await seedIntake({
+      ...base,
+      dkim: 'aligned',
+      emailId: 'w9',
+      minutesAgo: 1,
+      receivedMinutesAgo: 1440,
+      reason: 'ATTACHMENT_MISSING',
+    })
+    // Data de recebimento de agora, mas gravado há 10 minutos: não conta.
+    await seedIntake({
+      ...base,
+      dkim: 'aligned',
+      emailId: 'w10',
+      minutesAgo: 10,
+      receivedMinutesAgo: 0,
+      reason: 'ATTACHMENT_MISSING',
+    })
 
-    const since = new Date('2026-10-06T14:55:00.000Z')
+    const window = { ...base, windowSeconds: 300 }
+    expect(await repository.countRecentIntakes(window)).toEqual({
+      authenticated: 3,
+      unauthenticated: 4,
+    })
+    expect(await repository.countRecentIntakes({ ...window, windowSeconds: 30 * 60 * 60 })).toEqual(
+      { authenticated: 5, unauthenticated: 4 },
+    )
     expect(
-      await repository.countRecentIntakes({
-        companyId: graph.companyId,
-        contractorId: graph.contractorId,
-        since,
-      }),
-    ).toBe(2)
-    expect(
-      await repository.countRecentIntakes({
-        companyId: graph.companyId,
-        contractorId: graph.contractorId,
-        since: new Date('2026-10-06T15:01:00.000Z'),
-      }),
-    ).toBe(0)
-    expect(
-      await repository.countRecentIntakes({
-        companyId: other.companyId,
-        contractorId: other.contractorId,
-        since,
-      }),
-    ).toBe(0)
+      await repository.countRecentIntakes({ ...window, contractorId: other.contractorId }),
+    ).toEqual({ authenticated: 0, unauthenticated: 0 })
+    expect(await repository.countRecentIntakes({ ...window, companyId: other.companyId })).toEqual({
+      authenticated: 0,
+      unauthenticated: 0,
+    })
+  })
+
+  test('o excesso deixa um rastro por janela e contratante, sem virar outra inundação', async () => {
+    const graph = await seedCompany()
+    const other = await seedCompany()
+    const marker = (emailId: string, target = graph) => ({
+      companyId: target.companyId,
+      contractorId: target.contractorId,
+      providerEmailId: emailId,
+      receivedAt: new Date('2026-10-06T15:00:00.000Z'),
+      windowSeconds: 300,
+    })
+    await repository.recordRateLimited(marker('r1'))
+    await repository.recordRateLimited(marker('r2'))
+    await repository.recordRateLimited(marker('r1'))
+    await repository.recordRateLimited(marker('r3', other))
+    const rows = (companyId: string) =>
+      db.execute<Record<string, unknown>>(
+        sql`select provider_email_id, outcome, reason_code, forwarder_dkim_result, preview_id, raw_object_id
+            from cargo_preview_email_intakes where company_id = ${companyId}`,
+      )
+    expect([...(await rows(graph.companyId))]).toEqual([
+      {
+        forwarder_dkim_result: null,
+        outcome: 'rejected',
+        preview_id: null,
+        provider_email_id: 'r1',
+        raw_object_id: null,
+        reason_code: 'RATE_LIMITED',
+      },
+    ])
+    expect([...(await rows(other.companyId))]).toHaveLength(1)
+
+    // Passada a janela, o próximo excesso deixa um novo rastro.
+    const third = await seedCompany()
+    await seedIntake({
+      companyId: third.companyId,
+      contractorId: third.contractorId,
+      dkim: null,
+      emailId: 'r-old',
+      minutesAgo: 10,
+      reason: 'RATE_LIMITED',
+    })
+    await repository.recordRateLimited(marker('r4', third))
+    expect([...(await rows(third.companyId))].map((row) => row.provider_email_id).sort()).toEqual([
+      'r-old',
+      'r4',
+    ])
   })
 
   test('de ponta a ponta: o MIME encaminhado vira prévia na fila e o reenvio não duplica', async () => {
@@ -372,6 +511,7 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     const input = (providerEmailId: string) => ({
       companyId: graph.companyId,
       correlationId: 'corr-e2e',
+      delivery: { isLastAttempt: false },
       occurredAt: new Date('2026-10-06T14:59:00.000Z'),
       providerEmailId,
       received: {
@@ -390,9 +530,9 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
     })
 
     const first = await intakeCargoPreviewEmail(input('email-z1'), dependencies)
-    expect(first).toMatchObject({ isReplay: false, kind: 'accepted' })
+    expect(first).toMatchObject({ kind: 'accepted' })
     const second = await intakeCargoPreviewEmail(input('email-z2'), dependencies)
-    expect(second).toMatchObject({ isReplay: true, kind: 'accepted' })
+    expect(second).toMatchObject({ kind: 'replayed_existing', previewStatus: 'queued' })
     expect(await intakeCargoPreviewEmail(input('email-z1'), dependencies)).toEqual({
       kind: 'already_recorded',
     })
@@ -404,6 +544,61 @@ describeDatabase('a prévia por e-mail encaminhado (integration, spec 237 T4.6)'
       dkimVerifier: { verify: async () => 'absent' as const },
     })
     expect(rejected).toMatchObject({ kind: 'rejected', reason: 'FORWARDER_DKIM_NOT_ALIGNED' })
+    expect(await count('cargo_previews', graph.companyId)).toBe(1)
+  })
+
+  test('reentrega concorrente da mesma mensagem: a vencedora mantém o MIME no bucket e a linha final', async () => {
+    const graph = await seedCompany()
+    const present = new Set<string>()
+    const dependencies = {
+      dkimVerifier: { verify: async () => 'aligned' as const },
+      mailGateway: { downloadRawEmail: async () => Buffer.from(validRawEmail()) },
+      newId: () => crypto.randomUUID(),
+      now: () => new Date('2026-10-06T15:00:00.000Z'),
+      repository,
+      storage: {
+        deleteObject: async ({ key }: { readonly key: string }) => void present.delete(key),
+        storeObject: async ({ key }: { readonly key: string }) => void present.add(key),
+      },
+      storageBucket: 'integration',
+      storageProvider: 'minio',
+    }
+    const input = {
+      companyId: graph.companyId,
+      correlationId: 'corr-race',
+      delivery: { isLastAttempt: false },
+      occurredAt: new Date('2026-10-06T14:59:00.000Z'),
+      providerEmailId: 'email-race',
+      received: {
+        from: 'Equipe <equipe@transportadora.example>',
+        headers: {},
+        message_id: '<outer@forwarder.example>',
+        raw: {
+          download_url: 'https://abc.cloudfront.net/raw/1',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        subject: 'Fwd: previa',
+        text: 'segue',
+        to: [`${TOKEN}@${REPLY_DOMAIN}`],
+      },
+      replyDomain: REPLY_DOMAIN,
+    }
+
+    const results = await Promise.all([
+      intakeCargoPreviewEmail(input, dependencies),
+      intakeCargoPreviewEmail(input, dependencies),
+    ])
+    expect(results.map((result) => result.kind).sort()).toEqual(['accepted', 'already_recorded'])
+
+    const rawKey = `tenants/${graph.companyId}/contractor-mail/email-race/raw.eml`
+    expect(present.has(rawKey)).toBe(true)
+    expect([...present].filter((key) => key.includes('cargo-previews'))).toHaveLength(1)
+    const [raw] = [
+      ...(await db.execute<Record<string, unknown>>(
+        sql`select status, object_key from stored_objects where company_id = ${graph.companyId}`,
+      )),
+    ]
+    expect(raw).toEqual({ object_key: rawKey, status: 'final' })
     expect(await count('cargo_previews', graph.companyId)).toBe(1)
   })
 

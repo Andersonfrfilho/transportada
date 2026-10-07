@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { CargoPreviewEmailRejectionCode } from '../../src/shared/cargo-preview.constant.js'
+import { CargoPreviewEmailDkimUnverifiableError } from '../../src/cargo-preview-email/domain/cargo-preview-email.error.js'
 import { ResendDownloadTooLargeError } from '../../src/contractor-mail/domain/resend-provider.error.js'
 import { CARGO_PREVIEW_OBJECT_MAX_BYTES } from '../../src/cargo-preview/domain/cargo-preview-object.policy.js'
 import {
@@ -57,13 +58,6 @@ describe('o que a prévia por e-mail não é (spec 237 T4.6)', () => {
       expect(run.calls.stored).toEqual([])
     }
   })
-
-  test('acima do limite de e-mails do contratante na janela, ignora sem registrar nem baixar', async () => {
-    const run = runIntake({ recentIntakes: 20 })
-    expect(await run.result).toEqual({ contractorId: CONTRACTOR_ID, kind: 'rate_limited' })
-    expect(run.calls.downloads).toEqual([])
-    expect(run.calls.rejections).toEqual([])
-  })
 })
 
 describe('as recusas antes de baixar o e-mail (spec 237 T4.6, CA2)', () => {
@@ -108,7 +102,7 @@ describe('as recusas depois de baixar o e-mail (spec 237 T4.6, CA2)', () => {
     expect(run.calls.downloads).toHaveLength(1)
   })
 
-  test.each(['not_aligned', 'absent', 'unverifiable'] as const)(
+  test.each(['not_aligned', 'absent'] as const)(
     'DKIM do encaminhador %s: recusa com o resultado registrado',
     async (dkim) => {
       const run = await expectRejected({ dkim }, 'FORWARDER_DKIM_NOT_ALIGNED')
@@ -118,6 +112,25 @@ describe('as recusas depois de baixar o e-mail (spec 237 T4.6, CA2)', () => {
       })
     },
   )
+
+  test('DKIM sem veredito (DNS fora) não grava nada e devolve o erro que a fila repete', async () => {
+    const run = runIntake({ dkim: 'unverifiable' })
+    await expect(run.result).rejects.toBeInstanceOf(CargoPreviewEmailDkimUnverifiableError)
+    expect(run.calls.rejections).toEqual([])
+    expect(run.calls.stored).toEqual([])
+    expect(run.calls.created).toEqual([])
+  })
+
+  test('na última entrega, DKIM sem veredito vira recusa própria, não NOT_ALIGNED', async () => {
+    const run = await expectRejected(
+      { dkim: 'unverifiable', isLastAttempt: true },
+      'FORWARDER_DKIM_UNVERIFIABLE',
+    )
+    expect(run.calls.rejections[0]).toMatchObject({
+      dkimResult: 'unverifiable',
+      isOriginalSenderRead: false,
+    })
+  })
 
   test('o From do MIME (o que o DKIM cobre) fora da lista recusa, mesmo que o do provedor esteja', async () => {
     const forged = buildMime({

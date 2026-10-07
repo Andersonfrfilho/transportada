@@ -68,6 +68,38 @@ describe('o remetente original no bloco encaminhado do texto (spec 237 T4.6)', (
       'segue\n________________________________\nDe: FR <fr@contratante.example>\nEnviado: terça\nPara: x\n\ncorpo',
     ],
     [
+      'Outlook texto, com o endereço repetido em <mailto:>',
+      'segue\n________________________________\nFrom: Fulano <fr@contratante.example<mailto:fr@contratante.example>>\nSent: Tuesday\nTo: x\n\ncorpo',
+    ],
+    [
+      'Outlook clássico, com [mailto:]',
+      '-----Original Message-----\nFrom: Fulano [mailto:fr@contratante.example]\nSent: Tuesday\nTo: x\n\ncorpo',
+    ],
+    [
+      'Outlook em português com a mensagem original',
+      '----- Mensagem original -----\nDe: Fulano <fr@contratante.example>\nEnviada em: terça\nPara: x\n\ncorpo',
+    ],
+    [
+      'Apple Mail em português',
+      'Início da mensagem encaminhada:\n\nDe: FR <fr@contratante.example>\nAssunto: x\n\ncorpo',
+    ],
+    [
+      'Apple Mail em inglês, endereço sem nome',
+      'Begin forwarded message:\n\nFrom: fr@contratante.example\nSubject: x\n\ncorpo',
+    ],
+    [
+      'De dobrado em duas linhas',
+      '---------- Mensagem encaminhada ---------\nDe: Fulano de Tal da Silva\n <fr@contratante.example>\nData: x\n\ncorpo',
+    ],
+    [
+      'De dobrado dentro de uma citação',
+      'nota\n> ---------- Forwarded message ---------\n> From: Fulano\n>  <fr@contratante.example>\n> Date: x\n>\n> corpo',
+    ],
+    [
+      'assinatura com ____ antes do bloco encaminhado',
+      'Att,\nEquipe\n________________________________\nTelefone: 11 9999-9999\n\n---------- Forwarded message ---------\nFrom: FR <fr@contratante.example>\nDate: x\n\ncorpo',
+    ],
+    [
       'citado com >',
       'nota\n> ---------- Forwarded message ---------\n> From: fr@contratante.example\n>\n> corpo',
     ],
@@ -93,6 +125,32 @@ describe('o remetente original no bloco encaminhado do texto (spec 237 T4.6)', (
       address: 'fr@contratante.example',
       kind: 'found',
     })
+  })
+
+  test('a assinatura com ____ sem bloco algum depois dela é ausente, não um erro', () => {
+    expect(
+      readOriginalSenderFromForwardedText('Att,\n________________________________\nTel: 1'),
+    ).toEqual({
+      kind: 'missing',
+    })
+  })
+
+  test.each([
+    ['dois pares de <>', 'x <fr@contratante.example> <mallory@evil.example>'],
+    ['comentário com outro endereço', 'fr@contratante.example (mallory@evil.example)'],
+    ['grupo', 'grupo: fr@contratante.example;'],
+    ['nome codificado que só decodifica para endereço', '=?utf-8?q?fr=40contratante.example?='],
+    [
+      'Outlook com mailto de outro endereço',
+      'x <fr@contratante.example<mailto:mallory@evil.example>>',
+    ],
+    ['mailto: no endereço', 'mailto:fr@contratante.example'],
+  ])('From hostil no bloco (%s) nunca vira o endereço permitido', (_name, value) => {
+    const text = `---------- Forwarded message ---------\nFrom: ${value}\nDate: x\n\ncorpo`
+    const result = readOriginalSenderFromForwardedText(text)
+    expect(result.kind).not.toBe('found')
+    const headers = readOriginalSenderFromHeaders([header('from', value)])
+    expect(headers.kind).not.toBe('found')
   })
 
   test('dois From no mesmo bloco são ambíguos', () => {

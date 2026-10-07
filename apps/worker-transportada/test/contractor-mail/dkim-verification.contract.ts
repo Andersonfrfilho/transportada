@@ -9,6 +9,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
 import { dkimSign } from 'mailauth'
 
+import { resolveDkimAlignment } from '../../src/contractor-mail/domain/dkim-alignment.policy.js'
 import { createDkimVerifierGateway } from '../../src/contractor-mail/infrastructure/dkim-verifier.gateway.js'
 
 const SELECTOR = 'teste'
@@ -208,5 +209,43 @@ describe('a mailauth verifica DKIM sob o Bun', () => {
     })
 
     expect(await gateway.verify(Buffer.from(signed))).toBe('unverifiable')
+  })
+
+  test('assinatura com l= (corpo só em parte coberto): not_aligned, mesmo que o hash confira', async () => {
+    const domain = 'contratante.com.br'
+    const { privateKey, publicKey } = generateTestKeyPair()
+    const message = buildSyntheticMessage({ from: `financeiro@${domain}`, body: 'APROVADO' })
+    const { signatures } = await dkimSign(Buffer.from(message), {
+      privateKey,
+      selector: SELECTOR,
+      signatureData: [{ maxBodyLength: 4, privateKey, selector: SELECTOR, signingDomain: domain }],
+      signingDomain: domain,
+    })
+    const gateway = createDkimVerifierGateway({
+      resolveDns: dnsRecordsFor({ [`${SELECTOR}._domainkey.${domain}`]: dkimTxtRecord(publicKey) }),
+    })
+
+    expect(await gateway.verify(Buffer.from(signatures + message))).toBe('not_aligned')
+  })
+})
+
+describe('a política de alinhamento com assinatura de corpo limitado (spec 237 T4.7a)', () => {
+  const aligned = { status: { aligned: 'contratante.com.br', result: 'pass' } }
+
+  test('l= nunca conta como alinhada, e o resultado vira not_aligned', () => {
+    expect(resolveDkimAlignment([{ ...aligned, canonBodyLengthLimited: true }])).toBe('not_aligned')
+  })
+
+  test('uma assinatura inteira alinhada ao lado de uma com l= ainda alinha', () => {
+    expect(
+      resolveDkimAlignment([
+        { ...aligned, canonBodyLengthLimited: true },
+        { ...aligned, canonBodyLengthLimited: false },
+      ]),
+    ).toBe('aligned')
+  })
+
+  test('sem o campo, a assinatura alinhada segue valendo (mensagens que a mailauth não marca)', () => {
+    expect(resolveDkimAlignment([aligned])).toBe('aligned')
   })
 })

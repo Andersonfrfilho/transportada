@@ -78,6 +78,7 @@ async function captureHandler(input: {
     config: { prefetch: 5 } as never,
     dependencies: input.dependencies,
     logger: input.logger,
+    maxRetries: 3,
     provider,
   })
 
