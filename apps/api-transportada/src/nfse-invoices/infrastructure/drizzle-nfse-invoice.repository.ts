@@ -870,7 +870,7 @@ const ATTEMPT_COLUMNS = {
   createdAt: nfseIssuanceAttempts.createdAt,
   id: nfseIssuanceAttempts.id,
   invoiceId: nfseIssuanceAttempts.invoiceId,
-  requestFingerprint: nfseIssuanceAttempts.requestFingerprint,
+  requestFingerprint: nfseIssuanceAttempts.idempotencyFingerprint,
 } as const
 
 type AttemptRow = {
@@ -909,18 +909,21 @@ async function createAttempt(
   companyId: string,
   input: CreateNfseIssuanceAttemptInput,
 ): Promise<NfseIssuanceAttemptRecord> {
+  const attemptNumber = sql`coalesce((select max(${nfseIssuanceAttempts.attemptNumber}) from ${nfseIssuanceAttempts} where ${nfseIssuanceAttempts.companyId} = ${companyId} and ${nfseIssuanceAttempts.invoiceId} = ${input.invoiceId}), 0) + 1`
+  // A coluna única tem de distinguir tentativas: reemitir duas vezes o mesmo pedido é legítimo.
+  const uniqueRequestFingerprint = sql<string>`encode(sha256(convert_to(${input.requestFingerprint} || ':' || (${attemptNumber})::text, 'UTF8')), 'hex')`
   const [record] = await transaction
     .insert(nfseIssuanceAttempts)
     .values({
       attemptKind: input.attemptKind,
-      attemptNumber: sql`coalesce((select max(${nfseIssuanceAttempts.attemptNumber}) from ${nfseIssuanceAttempts} where ${nfseIssuanceAttempts.companyId} = ${companyId} and ${nfseIssuanceAttempts.invoiceId} = ${input.invoiceId}), 0) + 1`,
+      attemptNumber,
       companyId,
       correlationId: input.correlationId,
       fiscalEnvironment: input.fiscalEnvironment,
       idempotencyFingerprint: input.requestFingerprint,
       idempotencyKey: input.idempotencyKey,
       invoiceId: input.invoiceId,
-      requestFingerprint: input.requestFingerprint,
+      requestFingerprint: uniqueRequestFingerprint,
       status: PENDING_ATTEMPT_STATUS,
     })
     .returning(ATTEMPT_COLUMNS)
