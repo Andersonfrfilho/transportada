@@ -12,32 +12,23 @@ const SEPARATOR = /[.,]/u
 const EVERY_SEPARATOR = /[.,]/gu
 const REFERENCE_NUMBER_FORBIDDEN = /[^A-Za-z0-9 ./-]/gu
 
-/** O teto do `numeric(14,4)` da API para o valor pago: dez dígitos inteiros e duas casas. */
-export const DECLARED_AMOUNT_INPUT = { maxDecimals: 2, maxIntegerDigits: 10 } as const
-
 /** A quantidade devolvida é `numeric(12,3)`: nove dígitos inteiros e três casas. */
-export const QUANTITY_INPUT = { maxDecimals: 3, maxIntegerDigits: 9 } as const
+export const QUANTITY_LIMITS = { maxDecimals: 3, maxIntegerDigits: 9 } as const
 
 /** `OCCURRENCE_REFERENCE_NUMBER_PATTERN` da API: até 30 caracteres. */
 export const REFERENCE_NUMBER_MAX_LENGTH = 30
 
-export type DecimalInputLimits = Readonly<{ maxDecimals: number; maxIntegerDigits: number }>
-
-/** Mantém só dígitos e **um** separador, dentro dos limites — digitar além disso simplesmente não entra. */
-export function sanitizeDecimalInput(input: {
-  readonly limits: DecimalInputLimits
-  readonly text: string
-}): string {
-  const cleaned = input.text.replace(NON_DECIMAL_CHARACTER, '')
+/**
+ * Quantidade: só dígitos e **um** separador — `.` vale como `,` e o campo mostra a vírgula. Dígito
+ * além do permitido NÃO é cortado: fica como digitado e a tela marca o campo (`quantityProblem`).
+ */
+export function sanitizeQuantityInput(text: string): string {
+  const cleaned = text.replace(NON_DECIMAL_CHARACTER, '')
   const separatorIndex = cleaned.search(SEPARATOR)
-  if (separatorIndex < 0) return cleaned.slice(0, input.limits.maxIntegerDigits)
-
-  const integer = cleaned.slice(0, separatorIndex).slice(0, input.limits.maxIntegerDigits)
-  const decimals = cleaned
-    .slice(separatorIndex + 1)
-    .replace(EVERY_SEPARATOR, '')
-    .slice(0, input.limits.maxDecimals)
-  return `${integer}${cleaned.charAt(separatorIndex)}${decimals}`
+  if (separatorIndex < 0) return cleaned
+  const integer = cleaned.slice(0, separatorIndex)
+  const decimals = cleaned.slice(separatorIndex + 1).replace(EVERY_SEPARATOR, '')
+  return `${integer},${decimals}`
 }
 
 /**

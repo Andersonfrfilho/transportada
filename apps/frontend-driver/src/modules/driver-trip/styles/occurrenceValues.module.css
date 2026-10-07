@@ -197,3 +197,15 @@
   margin: 0;
   text-align: right;
 }
+
+.liveMessage {
+  color: var(--occurrence-muted);
+  font-size: 0.82rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.liveMessage:empty {
+  height: 0;
+  margin-top: calc(var(--space-1) * -1);
+}

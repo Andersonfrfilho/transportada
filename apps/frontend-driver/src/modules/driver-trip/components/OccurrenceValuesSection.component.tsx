@@ -5,6 +5,7 @@ import type { OccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistrat
 import { REFERENCE_NUMBER_MAX_LENGTH } from '../shared/occurrenceDecimalInput.service'
 import type { OccurrenceRequirements } from '../shared/occurrenceRequirements.service'
 import styles from '../styles/occurrenceValues.module.css'
+import { OccurrenceMoneyField } from './OccurrenceMoneyField.component'
 import { OccurrenceItemsField } from './OccurrenceItemsField.component'
 import { OccurrenceProductsField } from './OccurrenceProductsField.component'
 import { OccurrenceTextField } from './OccurrenceTextField.component'
@@ -54,8 +55,7 @@ export function OccurrenceValuesSection({
       ) : null}
       {isOccurrenceAmountVisible ? (
         <div className={styles.block}>
-          <OccurrenceTextField
-            inputMode="decimal"
+          <OccurrenceMoneyField
             label={t(
               isAmountRequired
                 ? 'occurrenceRegistration.declaredAmount.required'

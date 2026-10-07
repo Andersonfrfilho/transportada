@@ -3,9 +3,7 @@ import { useState } from 'react'
 
 import type { DriverNfeProduct, DriverOccurrenceType } from '../shared/driverTrip.types'
 import {
-  DECLARED_AMOUNT_INPUT,
-  QUANTITY_INPUT,
-  sanitizeDecimalInput,
+  sanitizeQuantityInput,
   sanitizeReferenceNumberInput,
 } from '../shared/occurrenceDecimalInput.service'
 import {
@@ -16,6 +14,7 @@ import {
   type OccurrenceItemDrafts,
   type OccurrenceValues,
 } from '../shared/occurrenceDraftValues.service'
+import { maskMoneyInput } from '../shared/occurrenceMoneyMask.service'
 import { resolveOccurrenceRequirements } from '../shared/occurrenceRequirements.service'
 
 /** Sem tipo escolhido ainda não há o que cobrar: o formulário nem mostra estes campos. */
@@ -81,13 +80,13 @@ export function useOccurrenceValues(params: {
   return {
     declaredAmountText,
     handleDeclaredAmountChange: (text) =>
-      setDeclaredAmountText(sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text })),
+      setDeclaredAmountText((previousText) => maskMoneyInput({ previousText, text })),
     handleItemAmountChange: ({ code, text }) =>
       updateDraft({
         code,
         update: (draft) => ({
           ...draft,
-          declaredAmountText: sanitizeDecimalInput({ limits: DECLARED_AMOUNT_INPUT, text }),
+          declaredAmountText: maskMoneyInput({ previousText: draft.declaredAmountText, text }),
         }),
       }),
     handleItemQuantityChange: ({ code, text }) =>
@@ -95,7 +94,7 @@ export function useOccurrenceValues(params: {
         code,
         update: (draft) => ({
           ...draft,
-          quantityText: sanitizeDecimalInput({ limits: QUANTITY_INPUT, text }),
+          quantityText: sanitizeQuantityInput(text),
         }),
       }),
     handleItemToggle,
