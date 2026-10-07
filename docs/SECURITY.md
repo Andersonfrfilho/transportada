@@ -287,6 +287,67 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-07 — spec 237 T4.8 — a retenção de 90 dias dos dados da planilha: o que sai, o que fica e o dado pessoal que sobra (decisão do usuário)
+
+**Onde:** `worker-transportada`, `cargo-preview-retention/` (rotina `cargo-preview.retention.apply`, diária);
+`api-transportada`, migration `20261007133324_cargo_preview_retention` (vocabulário de quatro CHECK e a linha
+do relógio); ADR-0094 §11.
+
+**Decisão do usuário (2026-10-06, implementada em 2026-10-07):** 90 dias depois de a prévia ficar sem item em
+aberto (`awaiting_xml`, `suggested`, `ambiguous`), o arquivo da planilha e o MIME bruto do e-mail encaminhado
+saem do bucket e o dado pessoal dos itens é anulado. A constante é `CARGO_PREVIEW_RETENTION_DAYS = 90`.
+
+**O que sai:**
+
+- O objeto da planilha (`cargo_previews.file_object_id`) e, nas prévias por e-mail, **todo** MIME bruto de
+  `cargo_preview_email_intakes.raw_object_id` aceito para a prévia (a reentrega guarda o dela). O objeto sai do
+  bucket e `stored_objects` passa a `status = 'deleted'` com `deleted_at`; **a linha fica** — a FK `RESTRICT` e o
+  trigger append-only de `cargo_preview_email_intakes` não deixam anulá-la nem apagá-la, e `raw_object_id`
+  continua apontando para a linha.
+- Em `cargo_preview_items`: `recipient_name`, `address`, `neighborhood` e `postal_code` viram `NULL`.
+
+**O que fica:** valor, peso, volume, roteiro, data de roteirização, estado, vínculo com a nota, quem decidiu e
+quando, evidência do vínculo, a trilha (`cargo_preview_events`) e `cargo_previews` por inteiro. Item decidido pelo
+operador e vínculo não mudam.
+
+**Quando, e como se sabe que já foi:** a prévia entra quando está `ready` ou `failed` (a que ainda está na fila
+ou sendo lida nunca perde o arquivo), **não tem nenhum item em aberto, qualquer que seja a idade**, e o último
+movimento — o maior entre o `updated_at` da prévia e o dos itens — tem 90 dias ou mais. O item não tem coluna de
+"fechado em"; `updated_at` se move a cada decisão, desvínculo e reavaliação, e é o instante fiel que existe.
+O marcador de "já retida" é o evento append-only `retention_applied` (canal `worker`, só contagens: itens
+anulados, objetos apagados, prazo) — sem coluna nova. Uma prévia só recebe o evento **depois** de o último
+objeto sair do bucket; falha de bucket desfaz a unidade e ela volta na próxima execução.
+
+**Como roda:** lotes de 25 prévias, teto de 200 lotes por ciclo e de 50 objetos por prévia por passada (o resto
+continua na execução seguinte); uma transação por prévia, com os bytes apagados **antes** de qualquer escrita; a
+trava do contratante (a do vínculo e das ações do operador) é tomada sem esperar — com o operador na prévia, ela
+espera a próxima execução. Falha de bucket ou erro imprevisto numa prévia não derruba as outras, e ela não repete
+no mesmo ciclo. Log só com contagens e ids da execução, nunca id de prévia, chave do objeto, nome ou endereço.
+
+**Dado pessoal que a decisão não manda anular (pendência, decisão do usuário):**
+
+- `cargo_preview_items.city`, `state`, `recipient_code`, `contractor_reference` e `match_group_key` (o último é
+  id de nota, não pessoa) e `cargo_previews.file_name` (nome que o contratante deu ao arquivo) ficam. A cidade e o
+  código do destinatário identificam pouco sozinhos, mas **junto com o valor e o peso que ficam** podem reidentificar
+  uma entrega. Anular qualquer uma é uma linha na rotina e um contrato; fica para o usuário decidir.
+- `match_evidence` e `row_error` **foram conferidos no escritor e não carregam dado pessoal**: o primeiro guarda
+  ids de nota e rótulos fixos de evidência (`value`, `weight`, `postal_code`…), e o segundo guarda o nome da
+  coluna da planilha, o campo e uma mensagem de texto fixo. Por isso não são anulados.
+- O MIME bruto de e-mail **recusado** (`outcome = 'rejected'`, sem prévia) não entra na retenção: ela é da
+  prévia. Enquanto não houver prazo próprio, o objeto de uma recusa continua no bucket.
+- A trilha `cargo_preview_events` é append-only e não guarda nome nem endereço (`details` só carrega ids e
+  contagens, desde a T4.2); nada a anular ali.
+
+**Limites que o desenho aceita:** (1) reabrir um item depois da retenção (desvincular a nota) o devolve a
+`awaiting_xml` **sem nome, endereço, bairro e CEP** — o operador ainda decide, mas sem o dado que o casaria; a
+prévia não é retida de novo (o evento só sai uma vez) e o arquivo já não existe. (2) Em passada parcial (mais de
+50 objetos) o evento conta só os objetos da última passada. (3) A migration é aditiva e só mexe em vocabulário de
+CHECK e na linha do relógio; o rollback devolve as listas de antes e apaga a rotina, **mas não apaga os eventos
+`retention_applied` já gravados** (a trilha é append-only) — com o evento gravado, voltar a migration exige antes
+trocar o `kind` dessas linhas à mão, e por isso o rollback recusa se houver alguma.
+
+**Origem:** decisão do usuário em 2026-10-06 (spec 237 RF/SECURITY item 2 da Fase 4a); implementação T4.8.
+
 ### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
 
 **Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
@@ -545,8 +606,8 @@ contratos em `specs/237-…/evidence.md` § "Correções da revisão de seguran�
 2. **Retenção dos itens e do arquivo — decidida pelo usuário em 2026-10-06: 90 dias.** Os itens guardam
    razão social, endereço, CEP e valor por linha, e o arquivo fica no bucket. 90 dias depois de a prévia
    ficar sem item em aberto, o arquivo é apagado e as colunas de pessoa (nome, endereço, bairro, CEP) dos
-   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementação pendente**
-   (T4.8 da spec 237): até lá, o prazo não é cumprido.
+   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementada na T4.8**
+   (2026-10-07): ver "2026-10-07 — spec 237 T4.8" abaixo.
 3. O teto de 960 KiB é do transporte: planilha maior que isso é recusada (413) mesmo dentro dos 5 MiB
    do leitor. As medidas reais estão em 0,80–0,82 MB.
 

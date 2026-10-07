@@ -195,6 +195,14 @@
       ⚠️ **Só pode marcar `stored_objects.status = 'deleted'` e apagar o objeto do bucket** (T4.7a): a tabela de
       e-mails é append-only e a FK `RESTRICT` de `raw_object_id` impede anular a referência ou apagar
       `cargo_previews`/`stored_objects` referenciados — a linha do MIME **fica**, só o conteúdo some.
+      **Feito (2026-10-07):** rotina `cargo-preview.retention.apply` (worker, diária) — prévia `ready`/`failed` sem item
+      em aberto e com o último movimento (`greatest` entre a prévia e os itens) em 90+ dias; bytes saem antes de
+      qualquer escrita, `stored_objects` vira `deleted` (a linha fica), as quatro colunas viram `NULL`, e o evento
+      `retention_applied` é o marcador; lote 25, 200 lotes, 50 objetos por prévia; trava do contratante sem esperar;
+      9 mutações mortas. `evidence.md` § T4.8; `docs/SECURITY.md` 2026-10-07; ADR-0094 §11. **Falta para fechar:** a
+      edição à mão de `migration.sql` (NOT VALID + VALIDATE e o `INSERT` da linha do relógio) e o `rollback.sql` da
+      migration `20261007133324_cargo_preview_retention` — a permissão do ambiente negou a escrita; os quatro
+      contratos da API que a cobram estão vermelhos de propósito. **Sem push.** `sonnet`.
 
 ## Prompt de execução
 

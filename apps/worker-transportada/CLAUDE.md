@@ -131,6 +131,14 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   (`preview-upload-file.policy.ts`, paridade nos dois sentidos). A planilha nunca é aberta aqui. Detalhe:
   docs/ai-context § "A prévia por e-mail encaminhado".
 
+- **A retenção da planilha é rotina daqui** (spec 237 T4.8, ADR-0094 §11) — `cargo-preview.retention.apply`, diária:
+  90 dias depois de a prévia (`ready`/`failed`) ficar **sem item em aberto**, apaga do bucket a planilha e o MIME
+  bruto do e-mail encaminhado, marca `stored_objects` como `deleted` (nunca apaga a linha, nunca anula
+  `raw_object_id`) e anula `recipient_name`, `address`, `neighborhood`, `postal_code` dos itens. O marcador é o
+  evento `retention_applied` (sem coluna nova); uma transação por prévia, bytes **antes** de qualquer escrita,
+  trava do contratante sem esperar. Prévia com item em aberto nunca é tocada. `CARGO_PREVIEW_RETENTION_DAYS` é
+  cópia byte a byte da API. Detalhe: docs/ai-context § "A retenção de 90 dias dos dados da planilha".
+
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e

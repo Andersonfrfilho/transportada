@@ -2838,3 +2838,81 @@ Integração: Postgres 18 nativo descartável próprio (`127.0.0.1:55937`, fora 
 Push e deploy; `make check` completo (build do painel, smoke); `make migration-test` (não há migration); a integração
 inteira da API (só os 18 arquivos de chegada e prévia, um por vez); o painel (nada tocado); nenhuma leitura de staging
 nem de produção.
+
+## T4.8 — a retenção de 90 dias dos dados da planilha (2026-10-07)
+
+Decisão do usuário (2026-10-06): 90 dias depois de a prévia ficar sem item em aberto, o arquivo e o dado pessoal dos
+itens saem. A migration (vocabulário de quatro CHECK e a linha do relógio) foi aprovada pelo usuário **só para
+staging**. Desenho, o que fica e as pendências: `docs/SECURITY.md` (2026-10-07), ADR-0094 §11, `docs/ai-context/
+worker-transportada.md` § "A retenção de 90 dias dos dados da planilha".
+
+### O que existe
+
+- `apps/worker-transportada/src/cargo-preview-retention/`: política do corte (`resolveCargoPreviewRetentionCutoff`,
+  relógio injetado), unidade por prévia com porta de gateway (`applyCargoPreviewRetentionUnit` e
+  `settleCargoPreviewRetentionUnit`), rotina `cargo-preview.retention.apply`, consulta de elegibilidade única e
+  gateway/repositório Drizzle. Registrada em `main.ts`.
+- `CARGO_PREVIEW_RETENTION_DAYS = 90` e `CARGO_PREVIEW_OPEN_ITEM_STATES` em `shared/cargo-preview.constant.ts`,
+  byte a byte nas duas apps; `retention_applied` entre os eventos da trilha (e entre os da prévia inteira).
+- Catálogo de jobs com a entrada nas quatro cópias (API, worker, cron e painel; uma entrada, sem tela).
+- Migration `20261007133324_cargo_preview_retention` (gerada por `db:generate`; `db:generate` seguinte =
+  `no_changes`).
+
+### Decisões que divergiram do texto do pedido
+
+1. **Instante de referência:** `greatest(prévia.updated_at, max(itens.updated_at))`. Não há "fechado em" por item; o
+   `updated_at` do item se move com decisão, desvínculo e reavaliação (conferido no escritor), e a reavaliação só lê
+   itens em aberto — prévia sem item aberto não é reescrita. O `updated_at` da prévia entra como piso para a prévia
+   sem itens.
+2. **Prévia `failed` também entra** (o texto falava só de "sem item em aberto"): ela não tem item e o arquivo com a
+   planilha segue no bucket; `queued`/`processing` nunca entram.
+3. **`match_evidence` e `row_error` não são anulados:** conferidos nos escritores (`cargo-preview-match.store.ts`,
+   `cargo-preview-row.parser.ts`), carregam ids de nota, rótulos fixos de evidência, nome de coluna e mensagem fixa —
+   sem dado pessoal. `city`, `state`, `recipient_code`, `contractor_reference` e `file_name` ficam (pendência,
+   `docs/SECURITY.md`).
+4. **Trava do contratante** (não pedida): a unidade toma `pg_try_advisory_xact_lock` da chave do vínculo, sem esperar,
+   para não anular a prévia que o operador está reabrindo.
+5. **Item de objeto sem `skip locked`:** objeto pulado por lock pareceria "já apagado" e a prévia fecharia com bytes no
+   bucket.
+
+### Passes antes e depois
+
+| Suíte                                               | Antes                                  | Depois                                                                                                                      |
+| --------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Contratos da retenção (política, unidade, ciclo)    | 5 pass, 17 fail (valor errado do stub) | 23 pass, 0 fail                                                                                                             |
+| Integração da retenção (Postgres próprio, 14 casos) | 2 pass, 11 fail (stub devolvendo zero) | 14 pass, 0 fail                                                                                                             |
+| `bun run test` do worker                            | —                                      | 2014 pass, 0 fail                                                                                                           |
+| `test:integration` do worker (uma vez, completo)    | —                                      | 212 pass, 15 skip, 1 fail (o flaky `contractor-mail-inbound-outbox`; `osrm`, RabbitMQ e SIGTERM pulados por falta de infra) |
+| `bun run test` do cron                              | —                                      | 101 pass, 0 fail                                                                                                            |
+| Contrato do catálogo do painel                      | —                                      | 6 pass, 0 fail                                                                                                              |
+| `bun run test` da API                               | —                                      | 10485 pass, 34 skip, **4 fail** — todos da migration (ver "Pendente")                                                       |
+
+Banco de integração: Postgres 18 nativo descartável próprio (`127.0.0.1:56481/transportada_t48`), não o
+`transportada_worker_integration`; bucket em memória no teste. `typecheck` e `lint` limpos em worker, API e cron.
+
+### Mutações (todas vermelhas, restauradas com `git checkout`)
+
+| #   | Mutação                                            | Resultado                                                                                                                                                            |
+| --- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | sem a guarda de item em aberto                     | morta: "prévia com item em aberto NUNCA é tocada"                                                                                                                    |
+| M2  | prazo de 89 dias                                   | morta: 5 testes (constante, corte, 90/89 dias)                                                                                                                       |
+| M3  | anonimiza `city` além das quatro                   | morta: "preserva o resto"                                                                                                                                            |
+| M4  | apaga a linha de `stored_objects` em vez de marcar | morta: 12 testes                                                                                                                                                     |
+| M5  | sem o anti-join do evento (reprocessa)             | morta: 9 testes                                                                                                                                                      |
+| M6  | erro imprevisto de uma prévia derruba o lote       | morta: `settleCargoPreviewRetentionUnit` (a primeira versão da mutação, sobre o repositório, sobreviveu: o isolamento foi movido para a aplicação e ganhou contrato) |
+| M7  | marca retida mesmo com falha de bucket             | morta: contrato da unidade e integração                                                                                                                              |
+| M8  | sem teto de objetos por prévia                     | morta: contrato e integração                                                                                                                                         |
+| M9  | sem a trava do contratante                         | morta: "com o operador na prévia…"                                                                                                                                   |
+
+### Pendente (precisa da mão do usuário ou de quem tem a permissão)
+
+O `migration.sql` gerado por `db:generate` ficou **sem a edição à mão**: as CHECK não entram `NOT VALID` +
+`VALIDATE`, falta o `INSERT INTO "job_schedules"` da rotina e **não existe `rollback.sql`**. A permissão do
+ambiente negou a escrita nesses arquivos. O contrato estático (`cargo-preview-retention.static.contract.ts`) e o do
+catálogo da API ("accepts every interval the migration already seeded") ficam **vermelhos de propósito** até a
+edição; são os quatro testes que reprovam na API.
+
+### Não rodou
+
+Push, staging e produção; `make migration-test` e `db:test` (a pasta da migration não está completa); leitura de
+qualquer banco de produção; DNS, MX, Resend e e-mail real; MinIO real (dublê em memória).

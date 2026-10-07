@@ -710,6 +710,30 @@ null)` amarra os dois), `idempotency_key = 'email:' + sha256(providerEmailId)`, 
   por SQL o hash do token e as duas listas no perfil (o token deve ter ≥ 130 bits aleatórios, `openssl rand`; o
   CHECK só confere o alfabeto). Nada disso é feito pelo código.
 
+### 11. A retenção de 90 dias dos dados da planilha (Fase 4c, T4.8)
+
+Decisão do usuário (2026-10-06): 90 dias depois de a prévia ficar sem item em aberto, a planilha e o MIME bruto saem
+do bucket e o dado pessoal dos itens é anulado. A rotina é `cargo-preview.retention.apply` (worker, diária, molde
+das varreduras de retenção): **o que a dispara** é a batida do agendador; **quem entra** é a prévia `ready` ou
+`failed`, sem nenhum item em `awaiting_xml`/`suggested`/`ambiguous` e com o último movimento (o maior entre o
+`updated_at` da prévia e o dos itens, o único instante fiel que existe) em 90 dias ou mais; **o marcador** é o evento
+append-only `retention_applied` na trilha, que só sai depois do último objeto apagado — sem coluna nova.
+
+- **Sai:** o objeto da planilha e todo MIME bruto aceito da prévia (bucket + `stored_objects.status = 'deleted'`,
+  nunca a linha: a FK `RESTRICT` e o trigger append-only de `cargo_preview_email_intakes` a prendem), e
+  `recipient_name`, `address`, `neighborhood`, `postal_code` dos itens. **Fica:** valor, peso, roteiro, estado,
+  vínculo, trilha. Item decidido pelo operador e prévia com item em aberto nunca mudam.
+- **Desenho:** uma transação por prévia, bytes apagados **antes** de qualquer escrita, trava do contratante tomada
+  sem esperar (a mesma do vínculo), lotes de 25, teto de 200 lotes por ciclo e de 50 objetos por prévia por passada;
+  falha de bucket ou erro imprevisto numa prévia não derruba as outras e ela volta na próxima execução. O prazo é a
+  constante nomeada `CARGO_PREVIEW_RETENTION_DAYS`, cópia byte a byte na API e no worker (contrato de paridade).
+- **Migration (aprovada pelo usuário só para staging):** aditiva, sem coluna, índice ou tabela — vocabulário de
+  `job_executions_job_check`, `job_schedules_job_check`, `cargo_preview_events_kind_check` e
+  `cargo_preview_events_item_scope_check`, e a linha do relógio. O catálogo de jobs ganha a entrada nas quatro
+  cópias (API, worker, cron e painel).
+- **Limites e pendências:** o que a decisão não manda anular (`city`, `state`, `recipient_code`,
+  `contractor_reference`, `file_name`) e o MIME de e-mail recusado estão em `docs/SECURITY.md` (2026-10-07).
+
 ## Consequências
 
 - Contratante novo com regra diferente é cadastro, não deploy.

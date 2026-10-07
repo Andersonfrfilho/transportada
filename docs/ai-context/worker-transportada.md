@@ -457,3 +457,36 @@ _NOT_ALLOWED`). Essas seis ficam gravadas com `aligned` (o dado é verdadeiro) m
   e-mail de conversa se a migration `20261007040900_cargo_preview_email_intake` não existir. O `deploy.yml` já
   garante a ordem (`deploy-api` com `preDeployCommand` e `assert-migrations` antes de `deploy-worker`, que `needs:
 deploy-api`); **reverter a API sem o worker** quebra o trilho de conversa até o worker voltar.
+
+## A retenção de 90 dias dos dados da planilha (spec 237 Fase 4c, T4.8, ADR-0094 §11)
+
+`cargo-preview.retention.apply` (`src/cargo-preview-retention/`, diária, vocabulário de falha vazio) cumpre a decisão do
+usuário de 2026-10-06. Detalhe de segurança, o que fica e as pendências: `docs/SECURITY.md`, 2026-10-07.
+
+- **Quem entra:** `cargo_previews` em `ready` ou `failed`, **sem nenhum item** em `awaiting_xml`/`suggested`/`ambiguous`
+  (`CARGO_PREVIEW_OPEN_ITEM_STATES`, a mesma lista da reavaliação), sem o evento `retention_applied` e com
+  `greatest(prévia.updated_at, max(itens.updated_at)) <= now − 90 dias`. Não existe coluna "fechado em"; o
+  `updated_at` do item é o instante fiel (decisão, desvínculo e reavaliação o movem). A condição é uma só
+  (`cargo-preview-retention-eligibility.query.ts`) para a consulta de candidatas e para a reconferência sob lock.
+- **O marcador é o evento**, não coluna: `cargo_preview_events` kind `retention_applied` (canal `worker`, `details`
+  com `itemsAnonymized`, `objectsDeleted`, `retentionDays`). Só sai depois do último objeto apagado; anti-join no
+  evento é o que impede reprocessar. **Reabrir um item depois não "desfaz" a retenção** (o arquivo já não existe).
+- **A unidade é a prévia**, numa transação (`applyCargoPreviewRetentionUnit`): trava do contratante sem esperar
+  (`pg_try_advisory_xact_lock`, a mesma do vínculo e das ações do operador) → `for update` na prévia reconferindo a
+  elegibilidade → `for update` nos objetos vivos (planilha + MIME bruto de **todo** intake aceito da prévia), **sem
+  `skip locked`** (objeto pulado pareceria apagado) → bytes saem do bucket **antes** de qualquer escrita → anula as
+  quatro colunas → marca `stored_objects` `deleted` (nunca apaga a linha; a FK `RESTRICT` e o trigger append-only
+  dos intakes a prendem) → evento. Delete do bucket com prazo de 10 s; falha desfaz a unidade (`failed`).
+- **Tetos:** lote 25, 200 lotes por ciclo, 50 objetos por prévia por passada (`partial`: anula e marca, mas não grava
+  o evento; continua na próxima execução), 5 falhas de bucket seguidas encerram o ciclo. Prévia `failed`/`partial`
+  entra em `excludedPreviewIds` e não repete no mesmo ciclo. Erro imprevisto de uma prévia vira `failed`
+  (`settleCargoPreviewRetentionUnit`), log só com o tipo do erro.
+- **Anula só** `recipient_name`, `address`, `neighborhood`, `postal_code`; `updated_at` do item **não** se move.
+  `match_evidence`/`row_error` não têm dado pessoal (conferido no escritor). `city`, `state`, `recipient_code`,
+  `contractor_reference` e `cargo_previews.file_name` ficam — pendência em `docs/SECURITY.md`.
+- **Cópia por valor:** `CARGO_PREVIEW_RETENTION_DAYS` e `CARGO_PREVIEW_OPEN_ITEM_STATES` estão em
+  `shared/cargo-preview.constant.ts`, **byte a byte** com a API (`test/cargo-preview/domain-parity.contract.ts`); o
+  catálogo de jobs tem a entrada nas quatro cópias (API, worker, cron, painel).
+- **Provas:** `test/cargo-preview-retention/` (política, unidade com portas falsas, ciclo) e
+  `test/integration/cargo-preview-retention.integration.ts` (Postgres, bucket em memória, semeia em série). ⚠️
+  `bun test` de arquivo avulso: `./test/integration/cargo-preview-retention.integration.ts`.
