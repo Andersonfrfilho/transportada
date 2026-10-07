@@ -130,6 +130,7 @@ export function OccurrenceCorrectionActions({
           documentId={tripDocumentId}
           id={formId}
           items={occurrence.items}
+          itemValues={occurrence.itemValues}
           occurrenceId={occurrence.id}
           onClose={handleCorrectionClose}
           recorded={buildCorrectionRecordedAmounts(occurrence)}
