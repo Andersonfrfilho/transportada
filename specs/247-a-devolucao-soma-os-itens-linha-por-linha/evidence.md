@@ -2166,71 +2166,33 @@ Integração em Postgres 18 nativo descartável (porta própria, derrubado ao fi
 
 **Status**: ✅ Completo
 
-**Criado**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
+**Arquivo**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
 
-**Conteúdo**:
+**O que foi corrigido na reescrita** (a primeira versão foi reprovada na conferência):
 
-- Instruções passo a passo para cadastrar "Devolução parcial" e "Devolução total" pela tela
-- Guia para renomear "Recusa parcial" e "Recusa total" (tipos existentes no bootstrap)
-- Configuração de campos: momentos, exigências, número do documento, valor pago, e-mail à contratante
-- Assunto, corpo e linha de item com valores EXATOS da spec § "Modelos do SAC"
-- Tabela de marcadores válidos com referência completa
-- Exemplo esperado (nota 680481, cliente Supermercado Trialba)
-- Nota sobre prorrogação de boleto (spec 248, não implementada)
+1. **Erro de conteúdo grave**: a versão anterior mandava desligar o e-mail à contratante na Devolução total e dizia que o SAC não pediu e-mail automático. A spec (§ "Modelos do SAC") define o contrário: assunto `DEVOLUÇÃO TOTAL – NF {{numeroNotaSemSerie}}` e corpo com `Motivo: {{observacao}}`. O roteiro agora traz os passos de assunto, corpo, **Salvar e-mail**, ligar a caixa e conferir a prévia, e o resultado esperado do exemplo do SAC (NF 677002, FARMA LÍDER SANTA ISABEL LTDA, R$ 2.612,88; valores de exemplo). Diz que a Devolução total não usa linha de item (Produtos Desligado).
+2. **Rótulos chutados**: todo nome de tela, bloco, campo e botão foi trocado pelo texto real do painel (tabela abaixo). Não há mais "ou" nem "se ainda não foi atualizado". A rota errada `/company-settings/occurrence-types` saiu: a aba é **Tipos** em **Ocorrências** (`/ocorrencias`), permissão `companies.settings` (a versão anterior dizia `settings.manage`).
+3. **Fluxo real**: renomear é editar o campo **Nome** do bloco **Identificação** do tipo aberto (grava ao Enter/sair do campo); criar é o bloco **Novo tipo** (nasce com o momento **Separador, no galpão**, que precisa ser trocado); o formulário de criação não tem número do documento, valor pago nem e-mail, então estes se configuram depois, no tipo aberto. Texto do e-mail grava só com **Salvar e-mail**; momentos só com **Aplicar momentos**.
+4. **Campo a campo contra a spec**: parcial (momentos, Foto Obrigatório mínimo 1, Observação Obrigatório, Assinatura Desligado, Produtos Obrigatório "Ao menos N itens" com N=1 e **Aceita vários itens**, Número Obrigatório "Número da NFD", Valor pago Opcional "Por linha de produto" rótulo "Valor pago pela loja", e-mail ligado, assunto/corpo/linha exatos); total (foto como a parcial, Observação Obrigatório, Produtos Desligado, Número Opcional "Número da NFD", Valor pago Desligado, e-mail ligado). Ordem do **Valor pago** por linha documentada (exige Produtos ligado; a tela recusa sem gravar).
+5. **Prévia**: os resultados esperados vieram de `renderOccurrenceEmailPreview` executado (dados fixos de `occurrence-template-preview.policy.ts`: "Contratante Exemplo", NF 123456, "Supermercado Exemplo Ltda", NFD 45029, soma 117,19), não escritos de memória. A prévia nunca mostra a NF 677002; o exemplo do SAC é o resultado numa nota real.
+6. Mantidas: nota `{{numeroNotaSemSerie}}` vs `{{numeroNota}}`; zero à esquerda do "01FD"; decisão da spec de configurar/renomear "Recusa parcial/total" (id não muda); a Spani entra por `{{contratante}}`, nunca cravada; seção final da spec 248 sem instruções.
 
-**Marcadores verificados por grep** (constante `occurrence-template.constant.ts`):
+**Rótulos reais usados e arquivo de origem**:
 
-| Marcador                 | Contexto               | Usado no roteiro | Status |
-| ------------------------ | ---------------------- | ---------------- | ------ |
-| `{{contratante}}`        | assunto/corpo          | ✅ assunto       | ✅     |
-| `{{numeroNotaSemSerie}}` | assunto/corpo          | ✅ assunto/corpo | ✅     |
-| `{{numeroReferencia}}`   | corpo                  | ✅ corpo         | ✅     |
-| `{{valorDeclarado}}`     | corpo                  | ✅ corpo         | ✅     |
-| `{{razaoSocial}}`        | corpo                  | ✅ corpo         | ✅     |
-| `{{valorNota}}`          | corpo                  | ✅ corpo         | ✅     |
-| `{{linhasItens}}`        | corpo (não no assunto) | ✅ corpo         | ✅     |
-| `{{codigoItem}}`         | linha                  | ✅ linha         | ✅     |
-| `{{item}}`               | linha                  | ✅ linha         | ✅     |
-| `{{quantidadeItem}}`     | linha                  | ✅ linha         | ✅     |
-| `{{unidadeItem}}`        | linha                  | ✅ linha         | ✅     |
-| `{{observacao}}`         | linha                  | ✅ linha         | ✅     |
+| Rótulo na tela                                                                                                                                                                                                    | Origem                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Ocorrências (menu)                                                                                                                                                                                                | `src/modules/shared/workspaceNavigation.constant.ts:13`                                           |
+| Tipos (aba)                                                                                                                                                                                                       | `trip/locales/trip.locale.json` `occurrenceFeed.tabs.types`                                       |
+| No galpão · Na rua; Novo tipo; Nome do tipo; Cadastrar tipo; Avisar quando acontecer; Aceita vários itens; Modelo de e-mail; Sem e-mail                                                                           | `company-settings/locales/companySettings.locale.json` `occurrenceTypeCatalog.*`                  |
+| Identificação; Nome; Devolução                                                                                                                                                                                    | `occurrenceTypeCatalog.identity.*`; `OccurrenceTypeIdentity.component.tsx`                        |
+| Quem registra, e onde; Motorista, numa nota; Escritório, pelo motorista; Separador, no galpão; Tirar momento {{label}}; Aplicar momentos; Desfazer                                                                | `occurrenceTypeCatalog.moments.*`; `OccurrenceTypeMoments` e `OccurrenceTypeCreateMoments`        |
+| O que exige; regra geral; Foto; Observação; Assinatura; Produtos; Número do documento do cliente; Valor pago; Desligado/Opcional/Obrigatório                                                                      | `occurrenceTypeCatalog.requirements.*`                                                            |
+| Rótulo do número na tela de registro; Rótulo do valor na tela de registro; Digitado; Por linha de produto                                                                                                         | `requirements.record.*`; `OccurrenceTypeRecordFields.component.tsx`                               |
+| Quantidade mínima de fotos; Produtos exigidos; Ao menos N itens; Quantidade mínima de produtos                                                                                                                    | `requirements.photoMinimum` e `requirements.itemsMinimum`; `OccurrenceTypeMinimums.component.tsx` |
+| E-mail à contratante; Mandar e-mail à contratante da nota ao registrar; Assunto; Corpo; Linha de cada produto; Salvar e-mail; Desfazer; Prévia · dados de exemplo; Sai automaticamente quando o tipo é registrado | `occurrenceTypeCatalog.mail.*`; `OccurrenceTypeContractorMail.component.tsx`                      |
+| Ordem dos blocos do tipo aberto; clique na linha para abrir                                                                                                                                                       | `OccurrenceTypeRow.component.tsx`, `OccurrenceTypeSummary.component.tsx`                          |
+| Permissão `companies.settings`                                                                                                                                                                                    | `TripOccurrenceTypesTab.component.tsx` (comentário)                                               |
 
-**Conferência por grep** (arquivo `occurrence-template.constant.ts`):
+**Marcadores**: só os das listas fechadas de `apps/api-transportada/src/shared/occurrence-template.constant.ts`, por contexto: assunto (`contratante`, `numeroNotaSemSerie`), corpo (`numeroReferencia`, `valorDeclarado`, `razaoSocial`, `numeroNotaSemSerie`, `valorNota`, `observacao`, `linhasItens`), linha (`codigoItem`, `item`, `quantidadeItem`, `unidadeItem`, `observacao`).
 
-```bash
-$ grep -E "numeroNotaSemSerie|numeroReferencia|valorDeclarado|contratante|razaoSocial|valorNota|linhasItens|codigoItem|quantidadeItem|unidadeItem|observacao" \
-    apps/api-transportada/src/shared/occurrence-template.constant.ts | grep -v "^//" | head -30
-```
-
-✅ Todos os marcadores estão presentes na lista `OCCURRENCE_TEMPLATE_PLACEHOLDERS` e/ou `OCCURRENCE_ITEM_LINE_PLACEHOLDERS`.
-
-**Nenhum marcador novo introduzido no roteiro** — todos validados contra a constante.
-
-**Prettier**:
-
-```text
-$ bun run format:check
-Checking formatting...
-All matched files use Prettier code style!
-```
-
-✅ Passou na primeira rodada (após `prettier --write`).
-
-**Verificação de estrutura**:
-
-- ✅ Não contém seed, migration ou script que crie/altere tipo
-- ✅ Apenas instruções manuais pela tela
-- ✅ Pt-BR, sem emoji
-- ✅ Segue padrão de documentação do projeto (técnico, estruturado, sem emoji)
-
-**Gates**:
-
-```text
-$ bun run format:check (raiz) → All matched files use Prettier code style!
-```
-
-Commit: passo seguinte.
-
-```
-
-```
+**O que não foi conferido**: o roteiro não foi executado na tela (nenhum navegador aberto); os rótulos vêm da leitura do código e dos `locale.json`. O texto exato do motivo do SAC ("o cliente já havia recebido…") veio truncado na spec, então o exemplo usa "o cliente já havia recebido". A dica da tela em **Produtos exigidos** ainda diz que o app do motorista só marca "A nota inteira" e que "Ao menos N" não muda o que ele cobra; o `frontend-driver` hoje lê `itemsMinimumCount`, então a dica pode estar defasada (fora do escopo desta task). Não confirmei se o servidor aceita ligar o e-mail com assunto vazio, por isso o roteiro manda salvar os textos antes de ligar.
