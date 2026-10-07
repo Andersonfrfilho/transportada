@@ -284,6 +284,10 @@
     "title": "Occurrence types",
     "hint": "Each type declares in which moments it can be logged and what proof it requires. The tax-ID exception overrides the general rule: recipient first, then contractor. The contractor alert only goes out for checked types.",
     "empty": "No type registered yet. Register the first one to be able to log occurrences.",
+    "hiddenFields": {
+      "itemsOff": "Redelivery and “Accepts several items” only appear when Products is Optional or Required.",
+      "separationOnly": "“The trip proceeds without the invoice” only exists for types logged at the warehouse (Separator moment): on the road the invoice never leaves the trip."
+    },
     "loading": "Loading types…",
     "loadError": "Could not load the occurrence types. The list may not be empty: try again.",
     "retry": "Try again",

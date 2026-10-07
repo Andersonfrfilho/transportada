@@ -32,3 +32,14 @@
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
+
+.hiddenHint {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+}
+
+.hiddenHint p {
+  margin: 0;
+}

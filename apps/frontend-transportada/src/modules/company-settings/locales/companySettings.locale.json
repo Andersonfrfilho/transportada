@@ -284,6 +284,10 @@
     "title": "Tipos de ocorrência",
     "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "hiddenFields": {
+      "itemsOff": "Reentrega e “Aceita vários itens” só aparecem quando Produtos está Opcional ou Obrigatório.",
+      "separationOnly": "“A viagem segue sem a nota” só existe para tipos registrados no galpão (momento Separador): na rua a nota não sai da viagem."
+    },
     "loading": "Carregando tipos…",
     "loadError": "Não foi possível carregar os tipos de ocorrência. A lista pode não estar vazia: tente de novo.",
     "retry": "Tentar de novo",
