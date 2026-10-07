@@ -531,6 +531,7 @@ import { createTripRoutes } from './trips/presentation/trip.routes'
 import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
+import { createOccurrenceTypeEmailPreviewRoutes } from './trips/presentation/occurrence-type-email-preview.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
 import { listFieldOccurrenceTypes } from './trips/application/list-field-occurrence-types.use-case.js'
 import { registerOfficeDocumentOccurrences } from './trips/application/register-office-document-occurrences.use-case.js'
@@ -3812,6 +3813,7 @@ function createApplicationRoutes({
         startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       targets: fieldTripTargetRepository,
     }),
+    ...createOccurrenceTypeEmailPreviewRoutes(),
     ...createTripFieldOfficeOccurrenceRoutes({
       resolveClientIp,
       listFieldOccurrenceTypes: (input) =>

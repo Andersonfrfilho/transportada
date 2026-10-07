@@ -612,3 +612,49 @@ error: expect(received).toMatchObject(expected)
 
 Revertido (arquivo restaurado do original; `git diff` mostra só a mudança da T4.1): contrato `573 pass · 0 fail`,
 integração `6 pass · 0 fail`.
+
+### T4.3 — `POST /company-settings/occurrence-types/email-preview`
+
+**O que há** (`apps/api-transportada/src/trips`): `presentation/occurrence-type-email-preview.routes.ts` (rota,
+`settings.manage`, teto **em memória** de 60/min — o mesmo desenho da prévia de modelos de e-mail da contratante;
+um teto no Postgres obrigaria a entrar na lista de `rate-limited-routes.contract.test.ts`, e a rota não toca o
+banco nem tem custo externo), `presentation/occurrence-type-email-preview.schema.ts` (corpo `strict()` com
+`emailSubject`, `emailBody` e `emailItemLineTemplate`, conferidos pelas **mesmas** listas de marcadores do cadastro)
+e `domain/occurrence-template-preview.policy.ts` (dados de exemplo **fixos** — contratante, razão social, número,
+duas linhas de item — e a chamada a `renderOccurrenceTemplate`, a função de `renderEmail` do registro). Resposta
+200 no envelope `{ data: { subject, body } }`; corpo inválido 400; `companyId` não é aceito no corpo (`strict`).
+Ligada em `main.ts` junto das demais rotas do módulo.
+
+**Contrato** (`test/trip-occurrence/occurrence-type-email-preview.contract.ts`, 8 casos, no entrypoint): roteador
+**real** com `AuthorizationService` — sem `settings.manage` (lista vazia e só `trip.manage`) é 403 `FORBIDDEN`;
+com a permissão, o modelo do SAC sai exatamente (`NFD 45029 – R$ 117,19`, `1FD`, `3CX`, `VALOR DA ENTREGA: R$
+7.840,64`: `57,20 + round(3 × 19,995) = 57,20 + 59,99`); o endereço fixo não é lido como `:occurrenceTypeId`;
+marcador desconhecido, de linha no corpo, `{{linhasItens}}` no assunto e na linha, linha com 401 caracteres e
+`companyId` no corpo são 400. **Prova de que a prévia é a mesma função:** seis modelos (vazio, SAC, espaços dentro
+das chaves, marcadores legados, os de linha, mistura) comparados com `renderOccurrenceTemplate` sobre os mesmos
+dados — mais as mutações abaixo, porque igualdade de saída sozinha não impede uma reimplementação que coincida.
+
+**Mutações** (vermelhas, depois revertidas):
+
+```text
+=== MUTATION A: prévia com substituição própria (regex só de {{contratante}}) em vez de renderOccurrenceTemplate ===
+(fail) a rota da prévia do e-mail do tipo (spec 247 RF4) > com settings.manage responde 200 no envelope { data: { subject, body } }
+(fail) a prévia é a função do envio, com dados de exemplo fixos (spec 247 RF4) > devolve exatamente o que renderOccurrenceTemplate devolve para os mesmos dados
+(fail) a prévia é a função do envio, com dados de exemplo fixos (spec 247 RF4) > a linha de item é a do corpo da requisição, e vazia usa a linha padrão
+ 578 pass
+ 3 fail
+=== MUTATION B: permissão da rota trocada para trip.manage ===
+(fail) a rota da prévia do e-mail do tipo (spec 247 RF4) > exige settings.manage e tem teto em memória
+(fail) a rota da prévia do e-mail do tipo (spec 247 RF4) > sem settings.manage é 403, mesmo com outra permissão da empresa
+(fail) ... > com settings.manage responde 200 ... · o endereço fixo ... · marcador desconhecido ... (5 falhas no total)
+ 576 pass
+ 5 fail
+=== REVERTIDAS ===
+ 581 pass
+ 0 fail
+```
+
+⚠️ **Não existe documento OpenAPI/Scalar neste repositório** (`grep -ril openapi|scalar` em `apps/api-transportada`
+não acha nada): a tabela de rotas é o código (`defineRoute`), então não há documento gerado a que a rota nova
+precise entrar nem teste "toda rota aparece no documento" a manter verde. O teste existente que lista os arquivos
+com `store: 'postgres'` (`rate-limited-routes`) segue verde, porque a rota nova usa o balde em memória.

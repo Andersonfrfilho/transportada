@@ -75,7 +75,7 @@ explícita do `package.json` da app.
 OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gravados. Contrato
       e integração (CA05) **antes**.
 - [x] **T4.2** Mutação da CA05: devolver `emailBody: ''` no save; vermelho registrado.
-- [ ] **T4.3** Rota `POST /company-settings/occurrence-types/email-preview` (`settings.manage`, rate
+- [x] **T4.3** Rota `POST /company-settings/occurrence-types/email-preview` (`settings.manage`, rate
       limit) com dados de exemplo fixos e a mesma função do envio; contrato de permissão negativa.
 - [ ] **T4.4** 🧠 Registro do motorista: itens (`productCode`, `quantity`, `declaredAmount?`),
       `referenceNumber?`, `declaredAmount?`; exigência efetiva por `resolveWithOverrides`
