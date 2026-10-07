@@ -324,7 +324,10 @@ anterior (`previous_items`, 167).
   unitário vem da linha de menor `ordinal` com esse código; se as linhas tiverem valores diferentes,
   a tela mostra o aviso "valor unitário varia na nota" e o valor pago passa a ser obrigatório naquela
   linha.
-- **Quantidade devolvida maior que a da nota** — recusada (`400`), como hoje na 166.
+- **Quantidade devolvida maior que a da nota** — recusada (`400 OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT`),
+  comparada com a **soma** das linhas da nota com o código. Correção de 2026-10-07 (T4.4): o texto dizia
+  "como hoje na 166", mas a política da 166 (`occurrence-item-quantity.policy.ts`) só recusa zero, negativo
+  e unidade desconhecida — nunca comparou com a nota. A recusa nasce nesta spec.
 - **Nota sem `nfe_products`** (nota manual) — soma vazia; o tipo com valor pago `required` ainda
   funciona por digitação.
 - **Modelo usa `{{linhasItens}}` em tipo com `items_mode = off`** — aceito, imprime vazio; a prévia

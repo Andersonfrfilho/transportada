@@ -77,7 +77,7 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 - [x] **T4.2** Mutação da CA05: devolver `emailBody: ''` no save; vermelho registrado.
 - [x] **T4.3** Rota `POST /company-settings/occurrence-types/email-preview` (`settings.manage`, rate
       limit) com dados de exemplo fixos e a mesma função do envio; contrato de permissão negativa.
-- [ ] **T4.4** 🧠 Registro do motorista: itens (`productCode`, `quantity`, `declaredAmount?`),
+- [x] **T4.4** 🧠 Registro do motorista: itens (`productCode`, `quantity`, `declaredAmount?`),
       `referenceNumber?`, `declaredAmount?`; exigência efetiva por `resolveWithOverrides`
       (contratante e destinatário lidos da nota no servidor); `unit_value` lido de `nfe_products`;
       códigos `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `..._DECLARED_AMOUNT_REQUIRED`.

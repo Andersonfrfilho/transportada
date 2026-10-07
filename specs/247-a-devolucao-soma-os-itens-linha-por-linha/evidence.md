@@ -687,3 +687,141 @@ $ bun ... test ./test/integration/occurrence-attachment-overrides-batch.integrat
 
 Os 25 `skip` do contrato (rodado sem `DATABASE_URL`) e os 4 da integração não foram investigados um a um nesta
 fase; nenhum é teste novo desta fase.
+
+## T4.4 🧠 — registro do motorista com itens, número e valor pago (2026-10-07)
+
+Contrato do `architect` (opus) aplicado; onde divergiu do plan/spec, ele prevaleceu. Diagnóstico confirmado no
+código: o registro do motorista é `register-driver-occurrence.use-case.ts` + `driver-occurrence-assessment.service.ts`
+(não o `register-trip-occurrence`, que é o galpão), e antes desta task ele aceitava um `productCode`, não conferia
+`allowsMultipleItems` e **não gravava linha** em `trip_document_occurrence_products`.
+
+**O que mudou** (`apps/api-transportada/src`):
+
+- `shared/money.constant.ts`: `DECLARED_AMOUNT_DECIMAL` (até 2 casas; `MONEY_DECIMAL` exige 4 e recusaria `"50"`).
+- `trips/domain/occurrence-requirements.policy.ts` (resolvedor **único**): `referenceNumberMode` e
+  `declaredAmountMode` por `resolveMode` (exceção do contratante/destinatário vale); `declaredAmountScope` e os dois
+  rótulos só do tipo (D8), camada `type` em `sources`. `OccurrenceCoreRequirements` = os seis da 246.
+- `trips/domain/occurrence-declared-amount-target.policy.ts` (novo, puro): `resolveDeclaredAmountTarget`.
+- `trips/domain/occurrence-product-pricing.policy.ts` (novo, puro): `resolveDocumentProductPricing` — por código,
+  `unitValue` da linha de menor `ordinal`, `hasVaryingUnitValue`, `totalQuantity` (soma), `commercialUnit`. Em
+  `bigint` (`parseScaledDecimal`/`formatScaledDecimal`, exportados de `occurrence-amount.policy.ts`). A T4.6 reaproveita.
+- `trips/domain/driver-occurrence-items.policy.ts` (novo): código fora da nota (422) → item único (422) → quantidade
+  acima da soma da nota (`400 OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT`, novo).
+- `trips/domain/occurrence-requirement-guard.policy.ts`: depois de observação, foto e assinatura —
+  `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED` (422), com
+  `details[].field` = `referenceNumber` | `declaredAmount` | `items[i].declaredAmount`; preço que varia na nota exige
+  o valor da linha com modo ≠ `off`.
+- `trips/presentation/occurrence.schema.ts`: `items`, `referenceNumber`, `declaredAmount` opcionais no `.strict()`;
+  `refineItemSelection` (`ITEM_SELECTION_CONFLICT`, `ITEM_DUPLICATED`, `DECLARED_AMOUNT_SELECTION_CONFLICT`). Item
+  `.strict()` — `unitValue`/`quantityUnit` no corpo é 400.
+- `assessment` + `use-case` + `drizzle-driver-field-report.repository.ts`: uma consulta a `listDocumentProducts`;
+  linhas `{ productCode, position, quantity, quantity_unit = uCom, unit_value = vUnCom, declared_amount }` gravadas
+  **dentro** do `perform` (mesma transação da chave); a resposta é relida do banco (`findDocumentOccurrenceById`),
+  igual à do reenvio: `referenceNumber`, `declaredAmount`, `items[]`.
+- `whatsapp-commands/application/driver-occurrence-refusal.service.ts`: as três recusas novas → "Registre pelo aplicativo."
+
+**Decisões locais registradas:**
+
+1. **O tipo publicado ao painel continua com os seis campos da 246.** O painel recusa chave desconhecida em
+   `fieldOccurrenceTypesFromApi` (`tripResponse.validation.ts:1491`, `hasKeys`) e na verificação
+   (`settingsResolution.service.ts`). Por isso `FieldOccurrenceType` e a resposta da verificação usam
+   `pickCoreRequirements`/`pickSources`; a exigência inteira sai por `FieldOccurrenceTypeResolution.requirements`,
+   que só o servidor lê. **Expor os modos novos no snapshot (T4.6) exige antes o painel tolerá-los nesses dois
+   parsers** (a T1.1 cobriu só `/company-settings/occurrence-types`).
+2. Sem `items`, o contrato anterior (`productCode`) segue byte a byte — inclusive sem gravar linha. O alvo do valor
+   pago para ele é `occurrence` (zero linhas).
+3. O mínimo de produtos com `items` conta códigos distintos da nota (`pricing.size`); nota com código repetido
+   tornaria "todos os itens" impossível se contasse linhas.
+4. O driver Bun devolve o zero do `numeric` como `'0'` (sem casas); os demais valores saem com a escala do banco
+   (`'150.5000'`). O teste aceita as duas grafias do zero.
+5. Spec corrigida (§ Casos extremos): "como hoje na 166" era falso — a 166 nunca comparou com a nota.
+
+**Confirmado por teste:** os dois `select` de `listOverridesForTypes` trazem `referenceNumberMode` e
+`declaredAmountMode` (mutação 3 abaixo); `findOccurrenceType` (`delivery-proof-read.support.ts`) traz os modos do
+tipo — sem eles o caso "exigido e ausente" não recusaria.
+
+### Vermelho antes do código (`c53b02605`)
+
+```text
+$ DATABASE_URL=postgres://postgres@127.0.0.1:56247/transportada_test \
+  bun --env-file=../../.env.test test --timeout 120000 ./test/integration/driver-occurrence-items.integration.ts
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > exigido e ausente recusa; exceção de outro contratante não vale; a do contratante da nota afrouxa [1001.26ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > preço forjado no valor pago é gravado como valor pago; unit_value e unidade saem da nota [951.33ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > items_mode off da exceção leva o valor pago à ocorrência; itens enviados são recusados [1008.16ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > nota inteira com produtos opcionais: o valor pago exigido é da ocorrência, e zero vale [954.72ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > reenvio pela mesma chave devolve o mesmo corpo sem duplicar as linhas [951.36ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > quantidade acima da soma da nota é 400; código repetido na nota soma e usa o menor ordinal [931.37ms]
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > código fora da nota e dois itens em tipo de item único são recusados [1113.36ms]
+ 1 pass
+ 7 fail
+Ran 8 tests across 1 file. [8.20s]
+```
+
+(O "1 pass" é o caso da empresa B, que já era 409 antes.)
+
+### Verde
+
+```text
+$ (mesmo comando)
+ 8 pass
+ 0 fail
+Ran 8 tests across 1 file. [8.15s]
+```
+
+### Mutações (cada uma aplicada sozinha, rodada e revertida com `git checkout --`)
+
+M1 — ler o modo do **tipo** em vez do efetivo (o guarda recebe `occurrenceType.referenceNumberMode/declaredAmountMode`):
+
+```text
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > exigido e ausente recusa; exceção de outro contratante não vale; a do contratante da nota afrouxa [1019.80ms]
+ 7 pass
+ 1 fail
+```
+
+M2 — `unit_value` lido do payload (o preço forjado vai no campo aceito `items[].declaredAmount`):
+
+```text
+error: expect(received).toEqual(expected)
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > preço forjado no valor pago é gravado como valor pago; unit_value e unidade saem da nota [936.78ms]
+error: expect(received).toBe(expected)
+Expected: "10.0000"
+Received: "22.0000"
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > quantidade acima da soma da nota é 400; código repetido na nota soma e usa o menor ordinal [951.11ms]
+ 6 pass
+ 2 fail
+```
+
+M3 — tirar `referenceNumberMode`/`declaredAmountMode` dos dois `select` de `listOverridesForTypes`:
+
+```text
+(fail) registro do motorista com itens, número e valor pago (spec 247 T4.4, CA06) > exigido e ausente recusa; exceção de outro contratante não vale; a do contratante da nota afrouxa [1029.74ms]
+ 7 pass
+ 1 fail
+```
+
+Depois das três: `git status --short` vazio.
+
+### Gates
+
+```text
+$ bun run typecheck                      (raiz)  → tsc --noEmit ×3, sem erro
+$ bun run lint                           (apps/api-transportada) → eslint --max-warnings=0, sem saída
+$ bun --env-file=../../.env.test test --timeout 120000   (contrato, apps/api-transportada)
+ 10175 pass
+ 25 skip
+ 0 fail
+ 34072 expect() calls
+Ran 10200 tests across 199 files. [42.60s]
+```
+
+Integração completa (206 arquivos da lista `test:integration`), quatro lotes em primeiro plano, Postgres 18 nativo
+descartável (`127.0.0.1:56247`, diretório no scratchpad), `DATABASE_URL` por variável de ambiente:
+
+```text
+lote 1 (52 arquivos): 364 pass · 0 fail            [279.58s]
+lote 2 (52 arquivos): 307 pass · 7 skip · 0 fail   [164.01s]
+lote 3 (52 arquivos): 245 pass · 0 fail            [184.70s]
+lote 4 (50 arquivos): 193 pass · 1 skip · 0 fail   [183.32s]
+```
+
+Os `skip` não são testes desta task (nenhum arquivo novo pula).
