@@ -429,3 +429,25 @@ M3b — `(Number(q) * Number(v)).toFixed(2)`:
 Antes das mutações, o teste do valor além de 2^53 usava `99999999999999999.9999`, que o `Number` acerta
 por acaso (`1e19`); entrou `12345678901234567.8901`, que ele erra — foi a primeira mutação M3a que
 mostrou isso. Revertidas todas, mesmo comando: `525 pass · 0 fail`.
+
+### T3.4 — Contrato do modelo de e-mail, antes da implementação
+
+`apps/api-transportada/test/trip-occurrence/template.contract.ts` ampliado (já estava na lista, via
+`test/trip-occurrence.contract.test.ts`). Cobre: as três listas fechadas (corpo, assunto, linha de item);
+**CA04** (marcador de linha no corpo, marcador de linha e `{{linhasItens}}` no assunto, `{{linhasItens}}`
+dentro da linha, marcador desconhecido com o nome); **CA01** (assunto e corpo exatos do modelo do SAC,
+`SPANI` vindo de `contractorName` da fixture, e uma segunda contratante provando que o nome não é do
+código); `numeroNotaSemSerie`; linha padrão; uma linha por item na ordem marcada; sete marcadores da
+linha; quantidade da ocorrência (D5); somas e valor pago vencendo; ocorrência sem item; teto de 200 com
+"e mais N itens"; `{{` na descrição, na observação, na razão social e no código sai literal; `valorNota`
+formatado (D4); contrato de parede de que a política e a constante não citam `SPANI` nem "devolução".
+
+Vermelho esperado (constantes e política ainda sem os símbolos novos) — o commit desta task é vermelho de
+propósito; typecheck/lint fecham na T3.5:
+
+```text
+$ bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts --timeout 120000
+error: Cannot find module '../../src/shared/occurrence-template.constant.js' from '.../test/trip-occurrence/template.contract.ts'
+ 0 pass
+ 1 fail
+```
