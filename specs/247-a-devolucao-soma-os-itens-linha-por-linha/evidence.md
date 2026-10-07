@@ -2036,3 +2036,130 @@ bun run format:check (raiz)                exit=0  — All matched files use Pre
 
 `make check` completo, smoke Playwright do app do motorista, integração da API (fora do escopo; outro executor cuida
 da API), e o fluxo com login e fila reais (o arnês usa fila em memória). Revisão independente (T7.2) a repetir.
+
+## T7.2b — API: requisitos efetivos no detalhe e correção sob o modo do tipo (2026-10-07)
+
+Segunda revisão independente (T7.2) aprovou com ressalvas; os médios N1, N2 e N10 são da API.
+
+### N1 — a correção segue o modo EFETIVO do tipo
+
+`correctOccurrenceItems` agora lê o contratante e o destinatário DA NOTA (`findDocumentSubject`) e as exceções
+do tipo (`findOccurrenceTypeOverrides`), resolve pelo ponto único (`resolveDocumentOccurrenceRequirements`, por
+`resolveStoredOccurrenceRequirements`, que não aplica o filtro "tipo ativo do momento": tipo desativado depois do
+registro não trava a correção) e passa o resultado por `applyCorrectionRequirements`:
+
+- modo efetivo `off`: número, valor pago da ocorrência e valor pago de linha enviados são DESCARTADOS (voltam a
+  "mantém"), sem 4xx. Decisão: o `null` explícito (limpar) segue valendo; descartar não apaga o que já estava
+  gravado (ocorrência de antes de o tipo virar `off`);
+- modo efetivo `required`: só a limpeza EXPLÍCITA (`null`) é 422 (`TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` /
+  `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED`, `details[].field` = `declaredAmount` ou `items[i].declaredAmount`);
+  ausente mantém, então a ocorrência anterior à 247 continua corrigível;
+- o lugar do valor pago é `resolveDeclaredAmountTarget` com o `itemsMode` efetivo e o nº de linhas da correção;
+  valor por linha com escopo efetivo `occurrence` segue na regra de conflito de nível.
+
+Vermelho antes do código (`test/trip-occurrence/correction-effective-requirements.contract.ts`, 10 falhas):
+
+```text
+(fail) a correção descarta o campo desligado no modo efetivo número com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago da ocorrência com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago de linha com modo off: a linha é gravada sem o valor
+(fail) a correção descarta o campo desligado no modo efetivo a exceção do contratante da nota desliga o número que o tipo exigia
+(fail) a correção descarta o campo desligado no modo efetivo a exceção de OUTRO contratante não vale para a nota
+(fail) a correção não deixa limpar o campo exigido número exigido: nulo explícito é 422 TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRE
+(fail) a correção não deixa limpar o campo exigido valor pago exigido na ocorrência: nulo explícito é 422 com o campo declaredAm
+(fail) a correção não deixa limpar o campo exigido valor pago exigido por linha: nulo explícito é 422 com o campo da linha
+(fail) a correção não deixa limpar o campo exigido escopo item sem linha cai na ocorrência: o nulo explícito do valor da ocorrên
+(fail) a correção não deixa limpar o campo exigido Produtos desligado pela exceção leva o escopo item para a ocorrência
+```
+
+Mutação 1 — gravar mesmo com `off` (contrato 5 falhas, integração 3), depois revertida:
+
+```text
+(fail) a correção descarta o campo desligado no modo efetivo número com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago da ocorrência com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago de linha com modo off: a linha é gravada sem o valor
+(fail) a correção descarta o campo desligado no modo efetivo a exceção do contratante da nota desliga o número que o tipo exigia
+(fail) a correção descarta o campo desligado no modo efetivo a exceção de OUTRO contratante não vale para a nota
+(fail) a correção sob o modo efetivo do tipo contra Postgres tipo que virou off depois do registro: número e valor novos são des
+(fail) a correção sob o modo efetivo do tipo contra Postgres valor pago por linha com o modo off: a linha é gravada sem o valor
+(fail) a correção sob o modo efetivo do tipo contra Postgres exceção do contratante da nota desliga o que o tipo exigia: descart
+```
+
+Mutação 2 — aceitar limpar o campo `required` (contrato 5 falhas, integração 1), depois revertida:
+
+```text
+(fail) a correção não deixa limpar o campo exigido número exigido: nulo explícito é 422 TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRE
+(fail) a correção não deixa limpar o campo exigido valor pago exigido na ocorrência: nulo explícito é 422 com o campo declaredAm
+(fail) a correção não deixa limpar o campo exigido valor pago exigido por linha: nulo explícito é 422 com o campo da linha
+(fail) a correção não deixa limpar o campo exigido escopo item sem linha cai na ocorrência: o nulo explícito do valor da ocorrên
+(fail) a correção não deixa limpar o campo exigido Produtos desligado pela exceção leva o escopo item para a ocorrência
+(fail) a correção sob o modo efetivo do tipo contra Postgres tipo exigido: limpar com nulo é 422 e não grava; ausente mantém; ou
+```
+
+### N2 — `requirements` no detalhe da ocorrência (aditivo, nível da ocorrência)
+
+`findTripOccurrenceDetail` passa a devolver `requirements`, resolvido pelo servidor com as exceções do contratante e
+do destinatário da NOTA; `null` na ocorrência de parada (sem nota) e no tipo que não existe mais. Nenhuma chave
+existente mudou. Formato (contrato com o painel; dinheiro não passa por aqui, rótulos são texto):
+
+```json
+"requirements": {
+  "referenceNumberMode": "off | optional | required",
+  "referenceNumberLabel": "string",
+  "declaredAmountMode": "off | optional | required",
+  "declaredAmountScope": "item | occurrence",
+  "declaredAmountLabel": "string",
+  "itemsMode": "off | optional | required"
+}
+```
+
+`declaredAmountScope` é o EFETIVO: `resolveDeclaredAmountTarget` com o `itemsMode` efetivo e a contagem de produtos
+distintos da nota. O golden `occurrence-detail-values.golden.json` ganhou `requirements` (a cópia do painel é igual;
+o teste de cópias da API segue verde). Vermelho antes do código:
+
+```text
+(fail) o detalhe publica o requisito efetivo do tipo sem exceção: os modos, o escopo e os rótulos do tipo
+(fail) o detalhe publica o requisito efetivo do tipo exceção do contratante e do destinatário da NOTA vale; Produtos desligado l
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+(fail) o detalhe da ocorrência (spec 183 T202) > itens da ocorrência: código, descrição da nota, quantidade como string decimal e unidade
+```
+
+Mutação 3 — `declaredAmountScope` cru do tipo (contrato + integração, 3 falhas), depois revertida:
+
+```text
+(fail) o requisito efetivo do detalhe da ocorrência escopo item com Produtos desligado no efetivo vira ocorrência
+(fail) o requisito efetivo do detalhe da ocorrência escopo item numa nota sem produto vira ocorrência
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+```
+
+Mutação 4 — `requirements` sem as exceções do contratante/destinatário (integração, 2 falhas), depois revertida:
+
+```text
+(fail) o detalhe publica o requisito efetivo do tipo exceção do contratante e do destinatário da NOTA vale; Produtos desligado l
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+```
+
+### N10 — logger no repositório do canal WhatsApp
+
+`main.ts` instanciava `DrizzleCurrentDriverTripRepository(database.db)` sem logger; agora recebe `logger`. Contrato
+`driver-repository-logger-wiring.contract.ts` (toda instância em `main.ts` leva `logger`) estava vermelho antes
+(`n10-red`: 1 falha) e verde depois. A leitura de produtos NÃO foi cortada no canal WhatsApp: ele chama
+`findCurrentDriverTrip`, que monta o snapshot inteiro, e não há prova de que nenhum fluxo use os produtos — não é
+seguro tirar sem teste.
+
+### Divisão de arquivo (commit de refactor anterior, sem mudar comportamento)
+
+`trip-occurrence-detail.query.ts` estava em 200 linhas; `findRecordedValues` foi para
+`trip-occurrence-detail-values.query.ts` (testes do detalhe verdes antes e depois: 10 pass).
+
+### Gates (exit code conferido com `$?`)
+
+```text
+bun run typecheck (raiz)                         exit=0
+contrato da API (bun --env-file test)            exit=0  — 10388 pass · 25 skip · 0 fail
+bun run lint (API)                               exit=0
+bun run format:check (raiz)                      exit=0
+integração da API, 6 lotes em primeiro plano     exit=0 em todos — 208+250+230+180+178+94 pass · 0 fail · 8 skip
+```
+
+Integração em Postgres 18 nativo descartável (porta própria, derrubado ao fim).
