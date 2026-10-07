@@ -73,3 +73,23 @@ reemissões e `not_found` nunca `rejected`. Todos incorporados no ADR 0098, `pla
 payload})` sem chave (`nfse-fiscal-gateway.ts:140`), `NfseCredentialAccess` sem `taxId`, recusa sem
 `rejection` → `MALFORMED` (`nfse-reconciliation-outcome.policy.ts:84`), motivo `'2'|'4'`
 (`nfse-issuance-execution.schema.ts:23`).
+
+## E9 — T2.1: contratos vermelhos da Fase 2 (07/10/2026)
+
+Contratos novos (todos registrados nos entrypoints já listados no `package.json`, nenhum arquivo de
+entrada novo): `test/nfse-domain/provider-request-key.contract.ts` (chave do provedor: primeira,
+rejeitada, ambígua por timeout e por transporte, ambígua sem chave, com `providerDocumentId`, outra
+causa, outro status), `test/nfse-invoices-application/invoice-national-taxation.contract.ts`
+(`409 NFSE_NATIONAL_TAXATION_CODE_MISSING` na v3, congelamento, `providerApiVersion`, v2 sem mudança de
+hash, correção na reemissão, herança da chave), `test/nfse-callbacks/provider-api-version.contract.ts`
+(env), mais casos em `test/nfse-profiles/emission-profiles.contract.ts`,
+`test/nfse-invoices-http/invoice-reissue-correction.contract.ts` e `test/nfse-schema/nfse.contract.ts`.
+
+Vermelho medido (de `apps/api-transportada`):
+`bun test ./test/nfse-schema.contract.test.ts ./test/nfse-domain.contract.test.ts ./test/nfse-invoices-application.contract.test.ts ./test/nfse-profiles.contract.test.ts ./test/nfse-invoices-http.contract.test.ts`
+-> 167 pass / 17 fail (domínio e aplicação nem carregam: `Cannot find module ...nfse-provider-request-key.policy`
+e `Export named 'NfseNationalTaxationCodeMissingError' not found`);
+`bun test ./test/nfse-callbacks.contract.test.ts` -> 41 pass / 7 fail.
+
+`bun run typecheck` fica **vermelho por construção** nesta task (22 erros TS: símbolos que a T2.2/T2.3/T2.4
+criam). Fecha verde na T2.3, quando os símbolos existem.

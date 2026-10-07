@@ -67,6 +67,35 @@ describe('nfse emission profile schema', () => {
   })
 })
 
+describe('nfse national taxation columns', () => {
+  test('the profile carries a nullable six digit national code and a non-negative Simples rate', () => {
+    const profiles = requireSchemaTable('nfseEmissionProfiles')
+    const checks = checkSqlByName(profiles)
+
+    expect(columnNames(profiles)).toContainAllValues([
+      'national_taxation_code',
+      'simples_national_rate',
+    ])
+    expect(columnSqlTypes(profiles)).toMatchObject({
+      national_taxation_code: 'text',
+      simples_national_rate: 'numeric(9, 6)',
+    })
+    expect(requiredColumnNames(profiles)).not.toContainValues([
+      'national_taxation_code',
+      'simples_national_rate',
+    ])
+    expect(checks['nfse_emission_profiles_national_taxation_code_check']).toContain('[0-9]{6}')
+    expect(checks['nfse_emission_profiles_simples_national_rate_check']).toContain('>= 0')
+  })
+
+  test('the attempt keeps the nullable provider request key', () => {
+    const attempts = requireSchemaTable('nfseIssuanceAttempts')
+
+    expect(columnSqlTypes(attempts)).toMatchObject({ provider_request_key: 'text' })
+    expect(requiredColumnNames(attempts)).not.toContainValues(['provider_request_key'])
+  })
+})
+
 describe('nfse provider credential schema', () => {
   test('stores the provider secret sealed and never as a readable column', () => {
     const credentials = requireSchemaTable('nfseProviderCredentials')

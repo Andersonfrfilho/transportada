@@ -29,6 +29,7 @@ import type {
   ReleaseNfseInvoiceLinksInput,
   SaveNfseIssuancePayloadInput,
 } from '../../src/nfse-invoices/application/nfse-invoice.port'
+import type { NfseIssuanceAttemptHistory } from '../../src/nfse-invoices/domain/nfse-provider-request-key.policy'
 import type { NfseSelectionDocument } from '../../src/nfse-invoices/domain/nfse-selection.policy'
 import type { NfsePartyAddress } from '../../src/nfse-invoices/domain/nfse-taker-address.policy'
 
@@ -61,11 +62,19 @@ export const PROFILE: NfseInvoiceProfile = {
   municipalTaxationCode: '',
   municipalityIbgeCode: '3543402',
   municipalityName: 'Ribeirão Preto',
+  nationalTaxationCode: null,
   nbsCode: '',
   observations: '',
   serviceListItem: '16.01',
+  simplesNationalRate: null,
   status: 'active',
   taker: '3',
+}
+
+export const NATIONAL_PROFILE: NfseInvoiceProfile = {
+  ...PROFILE,
+  nationalTaxationCode: '160201',
+  simplesNationalRate: '2.000000',
 }
 
 export const RULE_VERSION: NfseFreightRuleVersion = {
@@ -249,6 +258,7 @@ export type NfseRepositoryState = {
   readonly invoiceLinks: readonly NfseInvoiceDocumentLink[]
   readonly invoicePage: NfseInvoicePage
   readonly invoiceStatus: NfseServiceInvoiceStatus
+  readonly latestIssueAttempt: NfseIssuanceAttemptHistory | null
   readonly linkedDocumentIds: readonly string[]
   readonly profile: NfseInvoiceProfile | null
   readonly ruleVersion: NfseFreightRuleVersion | null
@@ -289,6 +299,7 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     invoiceLinks: [],
     invoicePage: { items: [INVOICE_DETAIL], nextCursor: null },
     invoiceStatus: 'authorized',
+    latestIssueAttempt: null,
     linkedDocumentIds: [DOCUMENT_ID],
     profile: PROFILE,
     ruleVersion: RULE_VERSION,
@@ -399,6 +410,9 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
         invoiceId: INVOICE_ID,
         requestFingerprint: attempt.requestFingerprint,
       }
+    },
+    async findLatestIssueAttempt() {
+      return state.latestIssueAttempt
     },
     async findInvoiceForUpdate(input) {
       if (state.invoiceDetail === null) return null

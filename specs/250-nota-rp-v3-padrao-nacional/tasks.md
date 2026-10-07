@@ -34,7 +34,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contratos vermelhos: perfil aceita/rejeita `nationalTaxationCode` e
+- [x] **T2.1** Contratos vermelhos: perfil aceita/rejeita `nationalTaxationCode` e
       `simplesNationalRate`; payload congelado leva os dois; sem eles, com `NFSE_PROVIDER_API_VERSION=v3`
       na **API**, a criação dá `409 NFSE_NATIONAL_TAXATION_CODE_MISSING`; `providerConfig` grava
       `providerApiVersion`.
