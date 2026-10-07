@@ -33,7 +33,7 @@ export async function materializeRules({
     rules: rows.map((row) => ({ ...toRuleRecord(row), companyId })),
     transaction,
   })
-  await transaction
+  const advanced = await transaction
     .update(municipalHolidayRules)
     .set({ materializedThroughYear: years.toYear })
     .where(
@@ -46,15 +46,18 @@ export async function materializeRules({
         ),
       ),
     )
+    .returning({ id: municipalHolidayRules.id })
   const summary = { holidaysCreated, rulesProcessed: rows.length }
+  if (holidaysCreated === 0 && advanced.length === 0) return summary
+
   await appendBusinessCalendarAudit({
     action: BUSINESS_CALENDAR_AUDIT_ACTION.MUNICIPAL_HOLIDAY_RULE_MATERIALIZED,
     actor: input,
     after: null,
     before: null,
     entityId: companyId,
-    metadata: { ...summary, throughYear: years.toYear },
-    target: BUSINESS_CALENDAR_AUDIT_TARGET.MUNICIPAL_HOLIDAY_RULE,
+    metadata: { ...summary, rulesAdvanced: advanced.length, throughYear: years.toYear },
+    target: BUSINESS_CALENDAR_AUDIT_TARGET.MUNICIPAL_HOLIDAY_RULES,
     transaction,
   })
 

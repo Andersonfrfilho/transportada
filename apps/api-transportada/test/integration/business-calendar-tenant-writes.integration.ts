@@ -49,7 +49,7 @@ async function seedTwoTenants(database: TestDatabase) {
     holidayOn: '2026-12-08',
     name: 'Padroeira',
   })
-  const state = await states.create({
+  const { holiday: state } = await states.create({
     ...actorOf(tenantA, 'a-state'),
     holidayOn: '2026-08-01',
     name: 'Estadual',

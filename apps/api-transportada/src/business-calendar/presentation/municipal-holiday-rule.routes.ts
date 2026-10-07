@@ -19,15 +19,16 @@ import type {
   MunicipalHolidayRuleChanges,
   MunicipalHolidayRuleFields,
 } from '../application/municipal-holiday-rule.port.js'
+import { BUSINESS_CALENDAR_MANAGE_POLICY } from './business-calendar-policy.constant.js'
 import { jsonData, noContent } from './business-calendar-response.support.js'
 import {
   parseCreateRuleBody,
+  parseMaterializationBody,
   parseRuleListQuery,
   parseUpdateRuleBody,
   toRuleView,
 } from './municipal-holiday-rule.schema.js'
 
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const RULE_PATH = `${API_MUNICIPAL_HOLIDAY_RULES_PATH}/:id`
 
 type Dependencies = MunicipalHolidayRulesUseCases & { readonly resolveClientIp: ClientIpResolver }
@@ -60,7 +61,7 @@ export function createMunicipalHolidayRuleRoutes(
       method: 'GET',
       parse: ({ request }) => parseRuleListQuery(request),
       pathname: API_MUNICIPAL_HOLIDAY_RULES_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & MunicipalHolidayRuleFields>({
       async handle({ context, input }) {
@@ -77,7 +78,7 @@ export function createMunicipalHolidayRuleRoutes(
         ...(await parseCreateRuleBody(params.request)),
       }),
       pathname: API_MUNICIPAL_HOLIDAY_RULES_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta>({
       async handle({ context, input }) {
@@ -89,9 +90,12 @@ export function createMunicipalHolidayRuleRoutes(
         return jsonData({ data: summary })
       },
       method: 'POST',
-      parse: (params) => meta(params),
+      parse: async (params) => {
+        await parseMaterializationBody(params.request)
+        return meta(params)
+      },
       pathname: API_MUNICIPAL_HOLIDAY_RULES_MATERIALIZATIONS_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<UpdateInput>({
       async handle({ context, input }) {
@@ -109,7 +113,7 @@ export function createMunicipalHolidayRuleRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: RULE_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & { readonly id: string }>({
       async handle({ context, input }) {
@@ -126,7 +130,7 @@ export function createMunicipalHolidayRuleRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: RULE_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
   ]
 }

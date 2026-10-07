@@ -52,6 +52,9 @@ export const MUNICIPAL_HOLIDAY_KINDS = [
 /** Mesma forma do CHECK do banco e da política de domínio: município IBGE de UF de 1 a 5. */
 export const CITY_IBGE_CODE_SOURCE = '^[1-5][0-9]{6}$'
 
+/** O CHECK antigo de `municipal_holidays`: sete dígitos, sem conferir a UF (as rotas novas conferem). */
+export const LEGACY_CITY_IBGE_CODE_SOURCE = '^[0-9]{7}$'
+
 export const HOLIDAY_NAME_MAX_LENGTH = 120
 
 // A Páscoa de Meeus só vale no calendário gregoriano, adotado em 1582.

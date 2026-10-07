@@ -8,7 +8,9 @@ import type { stateHolidays } from '../../database/state-holiday.schema.js'
 import type { MunicipalHolidayRuleRecord } from '../application/municipal-holiday-rule.port.js'
 import type { MunicipalHoliday } from '../application/municipal-holiday.port.js'
 import type { StateHolidayRecord } from '../application/state-holiday.port.js'
+import { BusinessCalendarPersistenceError } from '../domain/business-calendar-rule.error.js'
 import { HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
+import { isMunicipalHolidayKind } from '../domain/holiday-rule.policy.js'
 import type {
   MunicipalHolidayKind,
   MunicipalHolidayRule,
@@ -19,8 +21,11 @@ type RuleRow = typeof municipalHolidayRules.$inferSelect
 type HolidayRow = typeof municipalHolidays.$inferSelect
 type StateHolidayRow = typeof stateHolidays.$inferSelect
 
-// O CHECK `*_kind_check` do banco é o vocabulário; a política confere de novo ao montar o calendário.
-const asKind = (value: string): MunicipalHolidayKind => value as MunicipalHolidayKind
+/** O CHECK `*_kind_check` do banco é o vocabulário: um tipo fora dele na linha é defeito, não um tipo. */
+function readKind(value: string): MunicipalHolidayKind {
+  if (!isMunicipalHolidayKind(value)) throw new BusinessCalendarPersistenceError()
+  return value
+}
 
 export function toRuleRecord(row: RuleRow): MunicipalHolidayRuleRecord {
   return {
@@ -28,7 +33,7 @@ export function toRuleRecord(row: RuleRow): MunicipalHolidayRuleRecord {
     createdAt: row.createdAt,
     day: row.day,
     id: row.id,
-    kind: asKind(row.kind),
+    kind: readKind(row.kind),
     materializedThroughYear: row.materializedThroughYear,
     month: row.month,
     name: row.name,
@@ -42,7 +47,7 @@ export function toHolidayRecord(row: HolidayRow): MunicipalHoliday {
     generatedByRuleId: row.sourceRuleId,
     holidayOn: row.holidayOn,
     id: row.id,
-    kind: asKind(row.kind),
+    kind: readKind(row.kind),
     name: row.name,
   }
 }
@@ -51,7 +56,7 @@ export function toHolidayRecord(row: HolidayRow): MunicipalHoliday {
 export function toYearlyMunicipalRule(row: RuleRow): MunicipalHolidayRule {
   return {
     cityIbgeCode: row.cityIbgeCode,
-    kind: asKind(row.kind),
+    kind: readKind(row.kind),
     name: row.name,
     occurrence: { day: row.day, month: row.month, recurrence: HOLIDAY_RECURRENCE.YEARLY },
   }
@@ -61,7 +66,7 @@ export function toYearlyMunicipalRule(row: RuleRow): MunicipalHolidayRule {
 export function toOnceMunicipalRule(row: HolidayRow): MunicipalHolidayRule {
   return {
     cityIbgeCode: row.cityIbgeCode,
-    kind: asKind(row.kind),
+    kind: readKind(row.kind),
     name: row.name,
     occurrence: { date: row.holidayOn, recurrence: HOLIDAY_RECURRENCE.ONCE },
   }

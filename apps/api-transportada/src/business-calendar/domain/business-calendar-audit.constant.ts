@@ -9,6 +9,7 @@ export const BUSINESS_CALENDAR_AUDIT_PERMISSION = 'settings.manage'
 export const BUSINESS_CALENDAR_AUDIT_TARGET = {
   MUNICIPAL_HOLIDAY: 'municipal_holiday',
   MUNICIPAL_HOLIDAY_RULE: 'municipal_holiday_rule',
+  MUNICIPAL_HOLIDAY_RULES: 'municipal_holiday_rules',
   SETTINGS: 'company_business_calendar_settings',
   STATE_HOLIDAY: 'state_holiday',
 } as const

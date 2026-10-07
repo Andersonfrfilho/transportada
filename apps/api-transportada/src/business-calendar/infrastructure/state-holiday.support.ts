@@ -6,6 +6,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { stateHolidays } from '../../database/state-holiday.schema.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type {
+  CreateStateHolidayResult,
   StateHolidayChanges,
   StateHolidayInput,
   StateHolidayRecord,
@@ -15,6 +16,7 @@ import { StateHolidayConflictError } from '../domain/business-calendar-rule.erro
 import { HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
 import { appendBusinessCalendarAudit } from './business-calendar-audit.support.js'
 import type { BusinessCalendarTransaction } from './business-calendar-database.types.js'
+import { toStateRecord } from './business-calendar-rule.mapper.js'
 
 type StateHolidayRow = typeof stateHolidays.$inferSelect
 type Candidate = StateHolidayInput & { readonly companyId: string }
@@ -33,11 +35,11 @@ export async function findRow(input: {
 }
 
 /** Mesma UF e mesma data, na mesma forma: é o que os dois únicos parciais do banco já recusam. */
-export async function assertNoConflict(input: {
+export async function findSameDate(input: {
   readonly candidate: Candidate
   readonly ignoreId?: string
   readonly transaction: BusinessCalendarTransaction
-}): Promise<void> {
+}): Promise<StateHolidayRow | undefined> {
   const { candidate } = input
   const sameDate =
     candidate.recurrence === HOLIDAY_RECURRENCE.ONCE
@@ -51,7 +53,7 @@ export async function assertNoConflict(input: {
           eq(stateHolidays.day, candidate.day),
         )
   const [existing] = await input.transaction
-    .select({ id: stateHolidays.id })
+    .select()
     .from(stateHolidays)
     .where(
       and(
@@ -62,7 +64,24 @@ export async function assertNoConflict(input: {
       ),
     )
     .limit(1)
-  if (existing !== undefined) throw new StateHolidayConflictError()
+  return existing
+}
+
+export async function assertNoConflict(input: {
+  readonly candidate: Candidate
+  readonly ignoreId?: string
+  readonly transaction: BusinessCalendarTransaction
+}): Promise<void> {
+  if ((await findSameDate(input)) !== undefined) throw new StateHolidayConflictError()
+}
+
+/** O mesmo feriado de novo é a mesma escrita; a mesma data com outro nome é conflito. */
+export function resolveExistingStateHoliday(input: {
+  readonly existing: StateHolidayRow
+  readonly name: string
+}): CreateStateHolidayResult {
+  if (input.existing.name !== input.name) throw new StateHolidayConflictError()
+  return { created: false, holiday: toStateRecord(input.existing) }
 }
 
 export function toInsertValues(

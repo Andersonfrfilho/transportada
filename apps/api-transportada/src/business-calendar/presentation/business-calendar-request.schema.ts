@@ -76,7 +76,7 @@ export function readStateFilter(url: URL, key: string): string | undefined {
   return readFilter({ key, schema: stateIbgeCodeSchema, url })
 }
 
-function readFilter(input: {
+export function readFilter(input: {
   readonly key: string
   readonly schema: z.ZodType<string>
   readonly url: URL

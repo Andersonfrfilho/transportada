@@ -28,9 +28,15 @@ export type StateHolidayChanges =
       readonly recurrence: 'yearly'
     }
 
+/** `created: false`: o mesmo feriado já existia, e a escrita é a mesma (idempotente). */
+export type CreateStateHolidayResult = {
+  readonly created: boolean
+  readonly holiday: StateHolidayRecord
+}
+
 /** Não é materializado: o roteiro não lê feriado estadual, a política expande o `yearly`. */
 export type StateHolidayPort = {
-  create(input: BusinessCalendarActor & StateHolidayInput): Promise<StateHolidayRecord>
+  create(input: BusinessCalendarActor & StateHolidayInput): Promise<CreateStateHolidayResult>
   list(input: {
     readonly companyId: string
     readonly stateIbgeCode?: string

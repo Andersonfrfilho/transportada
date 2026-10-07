@@ -11,6 +11,7 @@ import { API_STATE_HOLIDAYS_PATH } from '../../shared/api.constant.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type { StateHolidayChanges, StateHolidayInput } from '../application/state-holiday.port.js'
 import type { StateHolidaysUseCases } from '../application/state-holidays.use-case.js'
+import { BUSINESS_CALENDAR_MANAGE_POLICY } from './business-calendar-policy.constant.js'
 import { jsonData, noContent } from './business-calendar-response.support.js'
 import {
   parseCreateStateHolidayBody,
@@ -19,7 +20,6 @@ import {
   toStateHolidayView,
 } from './state-holiday.schema.js'
 
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const ITEM_PATH = `${API_STATE_HOLIDAYS_PATH}/:id`
 
 type Dependencies = StateHolidaysUseCases & { readonly resolveClientIp: ClientIpResolver }
@@ -48,16 +48,16 @@ export function createStateHolidayRoutes(
       method: 'GET',
       parse: ({ request }) => parseStateHolidayListQuery(request),
       pathname: API_STATE_HOLIDAYS_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & StateHolidayInput>({
       async handle({ context, input }) {
-        const holiday = await dependencies.create.execute({
+        const { created, holiday } = await dependencies.create.execute({
           ...input,
           companyId: context.scope.companyId,
           userId: context.scope.userId,
         })
-        return jsonData({ data: toStateHolidayView(holiday), status: 201 })
+        return jsonData({ data: toStateHolidayView(holiday), status: created ? 201 : 200 })
       },
       method: 'POST',
       parse: async (params) => ({
@@ -65,7 +65,7 @@ export function createStateHolidayRoutes(
         ...(await parseCreateStateHolidayBody(params.request)),
       }),
       pathname: API_STATE_HOLIDAYS_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & { readonly changes: StateHolidayChanges; readonly id: string }>({
       async handle({ context, input }) {
@@ -83,7 +83,7 @@ export function createStateHolidayRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: ITEM_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & { readonly id: string }>({
       async handle({ context, input }) {
@@ -100,7 +100,7 @@ export function createStateHolidayRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: ITEM_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
   ]
 }

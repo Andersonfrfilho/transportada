@@ -10,8 +10,8 @@ import type {
   MaterializationSummary,
   MunicipalHolidayRuleChanges,
   MunicipalHolidayRuleFields,
+  MunicipalHolidayRuleOverview,
   MunicipalHolidayRulePort,
-  MunicipalHolidayRuleRecord,
 } from '../application/municipal-holiday-rule.port.js'
 import type {
   BusinessCalendarDatabase,
@@ -19,6 +19,7 @@ import type {
 } from './business-calendar-database.types.js'
 import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js'
 import { toRuleRecord } from './business-calendar-rule.mapper.js'
+import { buildTypedDayKey, countTypedHolidaysByDay } from './municipal-holiday-typed.queries.js'
 import { materializeRules } from './municipal-holiday-rule.materialize.js'
 import { updateRule } from './municipal-holiday-rule.update.js'
 import { createRule, removeRule } from './municipal-holiday-rule.writes.js'
@@ -33,7 +34,8 @@ export class DrizzleMunicipalHolidayRuleRepository implements MunicipalHolidayRu
   public async list(input: {
     readonly cityIbgeCode?: string
     readonly companyId: string
-  }): Promise<readonly MunicipalHolidayRuleRecord[]> {
+    readonly currentYear: number
+  }): Promise<readonly MunicipalHolidayRuleOverview[]> {
     const rows = await this.database
       .select()
       .from(municipalHolidayRules)
@@ -51,7 +53,13 @@ export class DrizzleMunicipalHolidayRuleRepository implements MunicipalHolidayRu
         asc(municipalHolidayRules.day),
       )
 
-    return rows.map(toRuleRecord)
+    if (rows.length === 0) return []
+
+    const typedByDay = await countTypedHolidaysByDay({ ...input, executor: this.database })
+    return rows.map((row) => ({
+      ...toRuleRecord(row),
+      typedHolidaysKept: typedByDay.get(buildTypedDayKey(row)) ?? 0,
+    }))
   }
 
   public create(
@@ -66,11 +74,13 @@ export class DrizzleMunicipalHolidayRuleRepository implements MunicipalHolidayRu
       readonly currentYear: number
       readonly id: string
     },
-  ): Promise<MunicipalHolidayRuleRecord | null> {
+  ): Promise<MunicipalHolidayRuleOverview | null> {
     return this.inTransaction(input.companyId, (transaction) => updateRule({ input, transaction }))
   }
 
-  public async remove(input: BusinessCalendarActor & { readonly id: string }): Promise<void> {
+  public async remove(
+    input: BusinessCalendarActor & { readonly currentYear: number; readonly id: string },
+  ): Promise<void> {
     await this.inTransaction(input.companyId, (transaction) => removeRule({ input, transaction }))
   }
 

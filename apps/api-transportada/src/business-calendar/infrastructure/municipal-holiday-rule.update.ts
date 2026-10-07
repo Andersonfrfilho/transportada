@@ -3,15 +3,17 @@
  */
 /**
  * Spec 238 T1.3: editar a regra apaga as datas que ela gerou e as gera de novo no dia novo; a data
- * digitada na data antiga fica, porque só as linhas com `source_rule_id` desta regra são dela.
+ * digitada na data antiga fica, porque só as linhas com `source_rule_id` desta regra são dela. Só as
+ * do ano corrente em diante: a de um ano que já passou é o que o roteiro daquele ano já usou.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte } from 'drizzle-orm'
 
 import { municipalHolidays } from '../../database/delivery-client.schema.js'
 import { municipalHolidayRules } from '../../database/municipal-holiday-rule.schema.js'
 import { buildMaterializationYears } from '../application/municipal-holiday-materialization.service.js'
 import type {
   MunicipalHolidayRuleChanges,
+  MunicipalHolidayRuleOverview,
   MunicipalHolidayRuleRecord,
 } from '../application/municipal-holiday-rule.port.js'
 import {
@@ -22,13 +24,14 @@ import {
   MunicipalHolidayRuleConflictError,
   MunicipalHolidayRuleInvalidDayError,
 } from '../domain/business-calendar-rule.error.js'
-import { isValidMonthDay } from '../domain/civil-date.policy.js'
+import { formatCivilDate, isValidMonthDay } from '../domain/civil-date.policy.js'
 import { appendBusinessCalendarAudit } from './business-calendar-audit.support.js'
 import type { BusinessCalendarTransaction } from './business-calendar-database.types.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toRuleRecord } from './business-calendar-rule.mapper.js'
 import { insertGeneratedHolidays } from './municipal-holiday-generation.support.js'
 import { findRuleByDay, findRuleById, type RuleRow } from './municipal-holiday-rule.queries.js'
+import { countTypedHolidaysOnDay } from './municipal-holiday-typed.queries.js'
 import type { Write } from './municipal-holiday-rule.writes.js'
 
 export async function updateRule({
@@ -38,7 +41,7 @@ export async function updateRule({
   readonly changes: MunicipalHolidayRuleChanges
   readonly currentYear: number
   readonly id: string
-}>): Promise<MunicipalHolidayRuleRecord | null> {
+}>): Promise<MunicipalHolidayRuleOverview | null> {
   const { companyId } = input
   const previous = await findRuleById({ companyId, id: input.id, transaction })
   if (previous === undefined) return null
@@ -55,21 +58,29 @@ export async function updateRule({
     previous,
     transaction,
   })
+  const typedHolidaysKept = await countTypedHolidaysOnDay({
+    cityIbgeCode: previous.cityIbgeCode,
+    companyId,
+    currentYear: input.currentYear,
+    day: previous.day,
+    executor: transaction,
+    month: previous.month,
+  })
   await appendBusinessCalendarAudit({
     action: BUSINESS_CALENDAR_AUDIT_ACTION.MUNICIPAL_HOLIDAY_RULE_UPDATED,
     actor: input,
     after: rule,
     before: toRuleRecord(previous),
     entityId: rule.id,
-    metadata: { holidaysCreated },
+    metadata: { holidaysCreated, typedHolidaysKept },
     target: BUSINESS_CALENDAR_AUDIT_TARGET.MUNICIPAL_HOLIDAY_RULE,
     transaction,
   })
 
-  return rule
+  return { ...rule, typedHolidaysKept }
 }
 
-/** Apaga as datas que a regra gerou e as gera de novo no dia novo; a digitada na data antiga fica. */
+/** Apaga as datas que a regra gerou do ano corrente em diante e as gera de novo; a digitada fica. */
 async function rewriteRule(input: {
   readonly companyId: string
   readonly currentYear: number
@@ -84,6 +95,10 @@ async function rewriteRule(input: {
       and(
         eq(municipalHolidays.companyId, companyId),
         eq(municipalHolidays.sourceRuleId, previous.id),
+        gte(
+          municipalHolidays.holidayOn,
+          formatCivilDate({ day: 1, month: 1, year: input.currentYear }),
+        ),
       ),
     )
   const years = buildMaterializationYears({ currentYear: input.currentYear })

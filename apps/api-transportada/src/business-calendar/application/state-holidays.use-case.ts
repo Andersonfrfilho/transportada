@@ -4,6 +4,7 @@
 import { StateHolidayNotFoundError } from '../domain/business-calendar-rule.error.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
 import type {
+  CreateStateHolidayResult,
   StateHolidayChanges,
   StateHolidayInput,
   StateHolidayPort,
@@ -13,7 +14,7 @@ import type {
 type Execution<TInput, TResult> = { readonly execute: (input: TInput) => Promise<TResult> }
 
 export type StateHolidaysUseCases = {
-  readonly create: Execution<BusinessCalendarActor & StateHolidayInput, StateHolidayRecord>
+  readonly create: Execution<BusinessCalendarActor & StateHolidayInput, CreateStateHolidayResult>
   readonly list: Execution<
     { readonly companyId: string; readonly stateIbgeCode?: string },
     readonly StateHolidayRecord[]

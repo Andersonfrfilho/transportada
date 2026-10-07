@@ -6,6 +6,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { stateHolidays } from '../../database/state-holiday.schema.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type {
+  CreateStateHolidayResult,
   StateHolidayChanges,
   StateHolidayInput,
   StateHolidayPort,
@@ -22,6 +23,8 @@ import {
   applyChanges,
   assertNoConflict,
   findRow,
+  findSameDate,
+  resolveExistingStateHoliday,
   toInsertValues,
   toSetValues,
 } from './state-holiday.support.js'
@@ -55,10 +58,14 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
     return rows.map(toStateRecord)
   }
 
-  public create(input: BusinessCalendarActor & StateHolidayInput): Promise<StateHolidayRecord> {
+  public create(
+    input: BusinessCalendarActor & StateHolidayInput,
+  ): Promise<CreateStateHolidayResult> {
     return this.database.transaction(async (transaction) => {
       await acquireBusinessCalendarLock({ companyId: input.companyId, transaction })
-      await assertNoConflict({ candidate: input, transaction })
+      const existing = await findSameDate({ candidate: input, transaction })
+      if (existing !== undefined) return resolveExistingStateHoliday({ existing, name: input.name })
+
       const row = requirePersistedRow(
         (
           await transaction
@@ -76,7 +83,7 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
         transaction,
       })
 
-      return toStateRecord(row)
+      return { created: true, holiday: toStateRecord(row) }
     })
   }
 

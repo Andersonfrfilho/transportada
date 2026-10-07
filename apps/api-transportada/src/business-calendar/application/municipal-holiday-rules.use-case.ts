@@ -12,8 +12,8 @@ import type {
   MaterializationSummary,
   MunicipalHolidayRuleChanges,
   MunicipalHolidayRuleFields,
+  MunicipalHolidayRuleOverview,
   MunicipalHolidayRulePort,
-  MunicipalHolidayRuleRecord,
 } from './municipal-holiday-rule.port.js'
 
 type Dependencies = {
@@ -30,7 +30,7 @@ export type MunicipalHolidayRulesUseCases = {
   >
   readonly list: Execution<
     { readonly cityIbgeCode?: string; readonly companyId: string },
-    readonly MunicipalHolidayRuleRecord[]
+    readonly MunicipalHolidayRuleOverview[]
   >
   readonly materialize: Execution<BusinessCalendarActor, MaterializationSummary>
   readonly remove: Execution<BusinessCalendarActor & { readonly id: string }, void>
@@ -39,7 +39,7 @@ export type MunicipalHolidayRulesUseCases = {
       readonly changes: MunicipalHolidayRuleChanges
       readonly id: string
     },
-    MunicipalHolidayRuleRecord
+    MunicipalHolidayRuleOverview
   >
 }
 
@@ -53,11 +53,11 @@ export function createMunicipalHolidayRulesUseCases({
     create: {
       execute: (input) => repository.create({ ...input, currentYear: currentYear() }),
     },
-    list: { execute: (input) => repository.list(input) },
+    list: { execute: (input) => repository.list({ ...input, currentYear: currentYear() }) },
     materialize: {
       execute: (input) => repository.materialize({ ...input, currentYear: currentYear() }),
     },
-    remove: { execute: (input) => repository.remove(input) },
+    remove: { execute: (input) => repository.remove({ ...input, currentYear: currentYear() }) },
     update: {
       execute: async (input) => {
         const updated = await repository.update({ ...input, currentYear: currentYear() })

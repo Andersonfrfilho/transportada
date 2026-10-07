@@ -3,12 +3,13 @@
  */
 import { z } from 'zod'
 
-import { parseBody, readListQuery } from '../../http/request-parsing.service.js'
+import { parseBody, parseOptionalBody, readListQuery } from '../../http/request-parsing.service.js'
 import type {
   MunicipalHolidayRuleChanges,
   MunicipalHolidayRuleFields,
   MunicipalHolidayRuleRecord,
 } from '../application/municipal-holiday-rule.port.js'
+import type { MunicipalHolidayKind } from '../domain/business-calendar.types.js'
 import {
   cityIbgeCodeSchema,
   daySchema,
@@ -46,12 +47,19 @@ const updateSchema = z
   .superRefine(requireAnyField)
   .superRefine(refineMonthDay)
 
+const materializationSchema = z.object({}).strict()
+
 export async function parseCreateRuleBody(request: Request): Promise<MunicipalHolidayRuleFields> {
   return parseBody(createSchema, request)
 }
 
 export async function parseUpdateRuleBody(request: Request): Promise<MunicipalHolidayRuleChanges> {
   return withoutUndefined(await parseBody(updateSchema, request))
+}
+
+/** O corpo, quando vem, é recusado se trouxer qualquer campo: o horizonte é do relógio, não do cliente. */
+export function parseMaterializationBody(request: Request): Promise<Record<string, never>> {
+  return parseOptionalBody(materializationSchema, request)
 }
 
 export function parseRuleListQuery(request: Request): { readonly cityIbgeCode?: string } {
@@ -61,7 +69,23 @@ export function parseRuleListQuery(request: Request): { readonly cityIbgeCode?: 
   return cityIbgeCode === undefined ? {} : { cityIbgeCode }
 }
 
-export function toRuleView(rule: MunicipalHolidayRuleRecord): object {
+/** `typedHolidaysKept` só sai onde a rota o calcula (leitura e edição); o `POST` mantém as chaves de sempre. */
+export type MunicipalHolidayRuleView = {
+  readonly cityIbgeCode: string
+  readonly createdAt: string
+  readonly day: number
+  readonly id: string
+  readonly kind: MunicipalHolidayKind
+  readonly materializedThroughYear: number
+  readonly month: number
+  readonly name: string
+  readonly typedHolidaysKept?: number
+  readonly updatedAt: string
+}
+
+export function toRuleView(
+  rule: MunicipalHolidayRuleRecord & { readonly typedHolidaysKept?: number },
+): MunicipalHolidayRuleView {
   return {
     cityIbgeCode: rule.cityIbgeCode,
     createdAt: rule.createdAt.toISOString(),
@@ -71,6 +95,7 @@ export function toRuleView(rule: MunicipalHolidayRuleRecord): object {
     materializedThroughYear: rule.materializedThroughYear,
     month: rule.month,
     name: rule.name,
+    ...(rule.typedHolidaysKept === undefined ? {} : { typedHolidaysKept: rule.typedHolidaysKept }),
     updatedAt: rule.updatedAt.toISOString(),
   }
 }

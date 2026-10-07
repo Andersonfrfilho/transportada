@@ -24,6 +24,12 @@ export type MunicipalHolidayChanges = {
   readonly name?: string
 }
 
+/** `adoptedFromRuleId` preenchido: a data era gerada por essa regra e passou a ser do operador. */
+export type SaveMunicipalHolidayResult = {
+  readonly adoptedFromRuleId: string | null
+  readonly holiday: MunicipalHoliday
+}
+
 export type SaveMunicipalHolidayInput = BusinessCalendarActor & {
   readonly cityIbgeCode: string
   readonly holidayOn: string
@@ -44,7 +50,7 @@ export type MunicipalHolidayPort = {
     input: BusinessCalendarActor & { readonly currentYear: number; readonly id: string },
   ): Promise<void>
   /** Idempotente por `(company_id, city_ibge_code, holiday_on)`; sobre uma data gerada é adoção. */
-  save(input: SaveMunicipalHolidayInput): Promise<MunicipalHoliday>
+  save(input: SaveMunicipalHolidayInput): Promise<SaveMunicipalHolidayResult>
   update(
     input: BusinessCalendarActor & {
       readonly changes: MunicipalHolidayChanges

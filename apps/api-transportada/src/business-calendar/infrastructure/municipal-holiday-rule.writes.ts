@@ -25,6 +25,7 @@ import type { BusinessCalendarTransaction } from './business-calendar-database.t
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toRuleRecord } from './business-calendar-rule.mapper.js'
 import { insertGeneratedHolidays } from './municipal-holiday-generation.support.js'
+import { countTypedHolidaysOnDay } from './municipal-holiday-typed.queries.js'
 import {
   countGeneratedHolidays,
   findRuleByDay,
@@ -86,7 +87,7 @@ export async function createRule({
 export async function removeRule({
   input,
   transaction,
-}: Write<{ readonly id: string }>): Promise<void> {
+}: Write<{ readonly currentYear: number; readonly id: string }>): Promise<void> {
   const { companyId } = input
   const previous = await findRuleById({ companyId, id: input.id, transaction })
   if (previous === undefined) return
@@ -95,6 +96,14 @@ export async function removeRule({
     companyId,
     ruleId: previous.id,
     transaction,
+  })
+  const typedHolidaysKept = await countTypedHolidaysOnDay({
+    cityIbgeCode: previous.cityIbgeCode,
+    companyId,
+    currentYear: input.currentYear,
+    day: previous.day,
+    executor: transaction,
+    month: previous.month,
   })
   // A FK composta apaga em cascata só as datas com `source_rule_id` desta regra.
   await transaction
@@ -111,7 +120,7 @@ export async function removeRule({
     after: null,
     before: toRuleRecord(previous),
     entityId: previous.id,
-    metadata: { generatedHolidaysRemoved },
+    metadata: { generatedHolidaysRemoved, typedHolidaysKept },
     target: RULE_TARGET,
     transaction,
   })

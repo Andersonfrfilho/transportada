@@ -9,6 +9,7 @@ import type {
   MunicipalHolidayChanges,
   MunicipalHolidayPort,
   SaveMunicipalHolidayInput,
+  SaveMunicipalHolidayResult,
 } from './municipal-holiday.port.js'
 
 type Dependencies = {
@@ -29,7 +30,7 @@ export type MunicipalHolidaysUseCases = {
     readonly MunicipalHoliday[]
   >
   readonly remove: Execution<BusinessCalendarActor & { readonly id: string }, void>
-  readonly save: Execution<SaveMunicipalHolidayInput, MunicipalHoliday>
+  readonly save: Execution<SaveMunicipalHolidayInput, SaveMunicipalHolidayResult>
   readonly update: Execution<
     BusinessCalendarActor & { readonly changes: MunicipalHolidayChanges; readonly id: string },
     MunicipalHoliday

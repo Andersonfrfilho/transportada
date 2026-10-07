@@ -13,9 +13,9 @@ import { API_COMPANY_SETTINGS_BUSINESS_CALENDAR_PATH } from '../../shared/api.co
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type { BusinessCalendarSettingsRecord } from '../application/business-calendar-settings.port.js'
 import type { BusinessCalendarSettingsUseCases } from '../application/business-calendar-settings.use-case.js'
+import { BUSINESS_CALENDAR_MANAGE_POLICY } from './business-calendar-policy.constant.js'
 import { jsonData } from './business-calendar-response.support.js'
 
-const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const SETTINGS_ORIGIN = { company: 'company', default: 'default' } as const
 
 /** `.strict()`: a empresa vem do contexto, e `companyId` ou o autor no corpo são recusados. */
@@ -40,7 +40,7 @@ export function createBusinessCalendarSettingsRoutes(
       method: 'GET',
       parse: () => undefined,
       pathname: API_COMPANY_SETTINGS_BUSINESS_CALENDAR_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<SaveInput>({
       async handle({ context, input }) {
@@ -58,7 +58,7 @@ export function createBusinessCalendarSettingsRoutes(
         ...(await parseBody(settingsSchema, request)),
       }),
       pathname: API_COMPANY_SETTINGS_BUSINESS_CALENDAR_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
   ]
 }

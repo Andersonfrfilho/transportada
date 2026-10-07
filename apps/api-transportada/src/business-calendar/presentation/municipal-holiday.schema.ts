@@ -12,16 +12,17 @@ import type {
   MunicipalHoliday,
   MunicipalHolidayChanges,
   SaveMunicipalHolidayInput,
+  SaveMunicipalHolidayResult,
 } from '../application/municipal-holiday.port.js'
 import { toDayNumber } from '../domain/civil-date.policy.js'
+import { LEGACY_CITY_IBGE_CODE_PATTERN } from '../domain/business-calendar.constant.js'
 import {
   civilDateSchema,
   holidayNameSchema,
   municipalKindSchema,
+  readFilter,
   requireAnyField,
 } from './business-calendar-request.schema.js'
-
-const CITY_PATTERN = /^[0-9]{7}$/u
 
 type SaveBody = Omit<
   SaveMunicipalHolidayInput,
@@ -36,7 +37,7 @@ export type MunicipalHolidayFilters = {
 
 const saveSchema = z
   .object({
-    cityIbgeCode: z.string().regex(CITY_PATTERN),
+    cityIbgeCode: z.string().regex(LEGACY_CITY_IBGE_CODE_PATTERN),
     holidayOn: civilDateSchema,
     kind: municipalKindSchema.optional(),
     name: holidayNameSchema,
@@ -63,14 +64,14 @@ export async function parseUpdateHolidayBody(request: Request): Promise<Municipa
 }
 
 export function parseHolidayFilters(request: Request): MunicipalHolidayFilters {
-  const parameters = new URL(request.url).searchParams
+  const url = new URL(request.url)
   const cityIbgeCode = readFilter({
     key: 'cityIbgeCode',
-    parameters,
-    schema: z.string().regex(CITY_PATTERN),
+    schema: z.string().regex(LEGACY_CITY_IBGE_CODE_PATTERN),
+    url,
   })
-  const from = readFilter({ key: 'from', parameters, schema: civilDateSchema })
-  const to = readFilter({ key: 'to', parameters, schema: civilDateSchema })
+  const from = readFilter({ key: 'from', schema: civilDateSchema, url })
+  const to = readFilter({ key: 'to', schema: civilDateSchema, url })
   if (from !== undefined && to !== undefined && toDayNumber(from) > toDayNumber(to)) {
     throw invalidRequest([{ field: 'from', message: 'must not be after to' }])
   }
@@ -82,6 +83,12 @@ export function parseHolidayFilters(request: Request): MunicipalHolidayFilters {
   }
 }
 
+export type SavedHolidayView = MunicipalHoliday & { readonly adoptedFromRuleId: string | null }
+
+export function toSavedHolidayView(saved: SaveMunicipalHolidayResult): SavedHolidayView {
+  return { ...toHolidayView(saved.holiday), adoptedFromRuleId: saved.adoptedFromRuleId }
+}
+
 export function toHolidayView(holiday: MunicipalHoliday): MunicipalHoliday {
   return {
     cityIbgeCode: holiday.cityIbgeCode,
@@ -91,16 +98,4 @@ export function toHolidayView(holiday: MunicipalHoliday): MunicipalHoliday {
     kind: holiday.kind,
     name: holiday.name,
   }
-}
-
-function readFilter(input: {
-  readonly key: string
-  readonly parameters: URLSearchParams
-  readonly schema: z.ZodType<string>
-}): string | undefined {
-  const raw = input.parameters.get(input.key)
-  if (raw === null) return undefined
-  const parsed = input.schema.safeParse(raw)
-  if (!parsed.success) throw invalidRequest([{ field: input.key, message: 'is invalid' }])
-  return parsed.data
 }

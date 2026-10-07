@@ -97,7 +97,15 @@ export function parseStateHolidayListQuery(request: Request): { readonly stateIb
   return stateIbgeCode === undefined ? {} : { stateIbgeCode }
 }
 
-export function toStateHolidayView(holiday: StateHolidayRecord): object {
+export type StateHolidayView = {
+  readonly id: string
+  readonly name: string
+  readonly recurrence: StateHolidayRecord['recurrence']
+  readonly stateIbgeCode: string
+  readonly updatedAt: string
+} & ({ readonly holidayOn: string } | { readonly day: number; readonly month: number })
+
+export function toStateHolidayView(holiday: StateHolidayRecord): StateHolidayView {
   const shared = {
     id: holiday.id,
     name: holiday.name,

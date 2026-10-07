@@ -17,6 +17,14 @@ export type MunicipalHolidayRuleRecord = {
   readonly updatedAt: Date
 }
 
+/**
+ * A regra e quantas datas digitadas à mão ficaram no dia dela, do ano corrente em diante: a regra só
+ * conhece as geradas, e a digitada continua valendo para o roteirizador mesmo depois de a regra mudar.
+ */
+export type MunicipalHolidayRuleOverview = MunicipalHolidayRuleRecord & {
+  readonly typedHolidaysKept: number
+}
+
 /** A cidade não se edita: outra cidade é outra regra. */
 export type MunicipalHolidayRuleChanges = {
   readonly day?: number
@@ -54,14 +62,16 @@ export type MunicipalHolidayRulePort = {
   create(
     input: BusinessCalendarActor & MunicipalHolidayRuleFields & WithCurrentYear,
   ): Promise<CreateMunicipalHolidayRuleResult>
-  list(input: {
-    readonly cityIbgeCode?: string
-    readonly companyId: string
-  }): Promise<readonly MunicipalHolidayRuleRecord[]>
+  list(
+    input: WithCurrentYear & {
+      readonly cityIbgeCode?: string
+      readonly companyId: string
+    },
+  ): Promise<readonly MunicipalHolidayRuleOverview[]>
   materialize(input: BusinessCalendarActor & WithCurrentYear): Promise<MaterializationSummary>
-  remove(input: BusinessCalendarActor & { readonly id: string }): Promise<void>
+  remove(input: BusinessCalendarActor & WithCurrentYear & { readonly id: string }): Promise<void>
   update(
     input: BusinessCalendarActor &
       WithCurrentYear & { readonly changes: MunicipalHolidayRuleChanges; readonly id: string },
-  ): Promise<MunicipalHolidayRuleRecord | null>
+  ): Promise<MunicipalHolidayRuleOverview | null>
 }

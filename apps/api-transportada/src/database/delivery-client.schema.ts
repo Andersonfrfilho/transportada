@@ -21,6 +21,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import {
+  LEGACY_CITY_IBGE_CODE_SOURCE,
   MUNICIPAL_HOLIDAY_KIND,
   MUNICIPAL_HOLIDAY_KINDS,
 } from '../shared/business-calendar.constant.js'
@@ -36,7 +37,6 @@ import { inList } from './schema-check.constant.js'
  * em caixa alta.
  */
 const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'
-const IBGE_CITY_PATTERN = '^[0-9]{7}$'
 
 export const DELIVERY_CLIENT_STATUSES = ['active', 'inactive'] as const
 export type DeliveryClientStatus = (typeof DELIVERY_CLIENT_STATUSES)[number]
@@ -266,7 +266,7 @@ export const municipalHolidays = pgTable(
     ),
     check(
       'municipal_holidays_city_check',
-      sql`${table.cityIbgeCode} ~ ${sql.raw(`'${IBGE_CITY_PATTERN}'`)}`,
+      sql`${table.cityIbgeCode} ~ ${sql.raw(`'${LEGACY_CITY_IBGE_CODE_SOURCE}'`)}`,
     ),
     check('municipal_holidays_name_check', sql`length(${table.name}) > 0`),
     check(

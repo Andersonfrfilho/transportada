@@ -12,17 +12,20 @@ import { API_MUNICIPAL_HOLIDAYS_PATH } from '../../shared/api.constant.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type { MunicipalHolidayChanges } from '../application/municipal-holiday.port.js'
 import type { MunicipalHolidaysUseCases } from '../application/municipal-holidays.use-case.js'
+import {
+  BUSINESS_CALENDAR_MANAGE_POLICY,
+  BUSINESS_CALENDAR_READ_POLICY,
+} from './business-calendar-policy.constant.js'
 import { jsonData, noContent } from './business-calendar-response.support.js'
 import {
   parseHolidayFilters,
   parseSaveHolidayBody,
   parseUpdateHolidayBody,
   toHolidayView,
+  toSavedHolidayView,
   type MunicipalHolidayFilters,
 } from './municipal-holiday.schema.js'
 
-const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
-const MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const HOLIDAY_PATH = `${API_MUNICIPAL_HOLIDAYS_PATH}/:id`
 
 type Dependencies = MunicipalHolidaysUseCases & { readonly resolveClientIp: ClientIpResolver }
@@ -52,16 +55,16 @@ export function createMunicipalHolidayRoutes(
       method: 'GET',
       parse: ({ request }) => parseHolidayFilters(request),
       pathname: API_MUNICIPAL_HOLIDAYS_PATH,
-      policy: READ_POLICY,
+      policy: BUSINESS_CALENDAR_READ_POLICY,
     }),
     defineRoute<SaveInput>({
       async handle({ context, input }) {
-        const holiday = await dependencies.save.execute({
+        const saved = await dependencies.save.execute({
           ...input,
           companyId: context.scope.companyId,
           userId: context.scope.userId,
         })
-        return jsonData({ data: toHolidayView(holiday), status: 201 })
+        return jsonData({ data: toSavedHolidayView(saved), status: 201 })
       },
       method: 'POST',
       parse: async (params) => ({
@@ -69,7 +72,7 @@ export function createMunicipalHolidayRoutes(
         ...(await parseSaveHolidayBody(params.request)),
       }),
       pathname: API_MUNICIPAL_HOLIDAYS_PATH,
-      policy: MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & { readonly changes: MunicipalHolidayChanges; readonly id: string }>({
       async handle({ context, input }) {
@@ -87,7 +90,7 @@ export function createMunicipalHolidayRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: HOLIDAY_PATH,
-      policy: MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
     defineRoute<RequestMeta & { readonly id: string }>({
       async handle({ context, input }) {
@@ -104,7 +107,7 @@ export function createMunicipalHolidayRoutes(
         id: parseUuidPathIdentifier(params.pathParameters.id ?? ''),
       }),
       pathname: HOLIDAY_PATH,
-      policy: MANAGE_POLICY,
+      policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
   ]
 }

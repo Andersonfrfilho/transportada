@@ -46,6 +46,8 @@ export class DrizzleBusinessCalendarSettingsRepository implements BusinessCalend
         .from(companyBusinessCalendarSettings)
         .where(eq(companyBusinessCalendarSettings.companyId, input.companyId))
         .limit(1)
+      if (previous?.saturdayIsBusinessDay === input.saturdayIsBusinessDay) return toRecord(previous)
+
       const values = {
         saturdayIsBusinessDay: input.saturdayIsBusinessDay,
         updatedAt: new Date(),

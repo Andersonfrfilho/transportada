@@ -50,6 +50,17 @@ export async function findByDay(input: {
   return row
 }
 
+/** Digitada, com o mesmo nome e (quando o corpo traz) o mesmo tipo: não há o que gravar nem auditar. */
+export function isSameTypedHoliday(input: {
+  readonly input: { readonly kind?: string; readonly name: string }
+  readonly previous: HolidayRow
+}): boolean {
+  const { input: requested, previous } = input
+  if (previous.sourceRuleId !== null) return false
+  if (previous.name !== requested.name) return false
+  return requested.kind === undefined || requested.kind === previous.kind
+}
+
 type RegenerateParams = {
   readonly companyId: string
   readonly currentYear: number

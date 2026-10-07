@@ -10,6 +10,7 @@ import type {
   MunicipalHolidayChanges,
   MunicipalHolidayPort,
   SaveMunicipalHolidayInput,
+  SaveMunicipalHolidayResult,
 } from '../application/municipal-holiday.port.js'
 import { BUSINESS_CALENDAR_AUDIT_ACTION } from '../domain/business-calendar-audit.constant.js'
 import { MunicipalHolidayGeneratedByRuleError } from '../domain/business-calendar-rule.error.js'
@@ -17,7 +18,13 @@ import type { BusinessCalendarDatabase } from './business-calendar-database.type
 import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toHolidayRecord } from './business-calendar-rule.mapper.js'
-import { audit, findByDay, findById, regenerateRuleDate } from './municipal-holiday.support.js'
+import {
+  audit,
+  findByDay,
+  findById,
+  isSameTypedHoliday,
+  regenerateRuleDate,
+} from './municipal-holiday.support.js'
 
 /**
  * A tabela que o roteirizador lê, com a data digitada e a gerada lado a lado. A digitada manda; a
@@ -51,12 +58,19 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
     return rows.map(toHolidayRecord)
   }
 
-  /** Recadastrar o mesmo dia corrige o nome; sobre uma data gerada é adoção, e a linha vira do operador. */
-  public save(input: SaveMunicipalHolidayInput): Promise<MunicipalHoliday> {
+  /**
+   * Recadastrar o mesmo dia corrige o nome; sobre uma data gerada é adoção, e a linha vira do operador
+   * (`adoptedFromRuleId` diz de qual regra). O mesmo cadastro de novo não muda nada e não audita.
+   */
+  public save(input: SaveMunicipalHolidayInput): Promise<SaveMunicipalHolidayResult> {
     return this.database.transaction(async (transaction) => {
       const { companyId } = input
       await acquireBusinessCalendarLock({ companyId, transaction })
       const previous = await findByDay({ ...input, transaction })
+      if (previous !== undefined && isSameTypedHoliday({ input, previous })) {
+        return { adoptedFromRuleId: null, holiday: toHolidayRecord(previous) }
+      }
+      const adoptedFromRuleId = previous?.sourceRuleId ?? null
       const row = requirePersistedRow(
         (
           await transaction
@@ -88,10 +102,11 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         actor: input,
         after: row,
         before: previous,
+        metadata: { adoptedFromRuleId },
         transaction,
       })
 
-      return toHolidayRecord(row)
+      return { adoptedFromRuleId, holiday: toHolidayRecord(row) }
     })
   }
 
