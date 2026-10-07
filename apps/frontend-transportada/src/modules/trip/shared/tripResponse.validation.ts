@@ -1842,6 +1842,12 @@ type RawOccurrenceType = Omit<
     redeliveryPolicy?: unknown
     signatureMode?: unknown
     stopKind?: unknown
+    referenceNumberMode?: unknown
+    referenceNumberLabel?: unknown
+    declaredAmountMode?: unknown
+    declaredAmountScope?: unknown
+    declaredAmountLabel?: unknown
+    emailItemLineTemplate?: unknown
   }>
 
 function isPositiveInteger(value: unknown): value is number {
@@ -1887,6 +1893,13 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'redeliveryPolicy',
         'signatureMode',
         'stopKind',
+        /** Spec 247 T1.1 (ADR-0081 §9): os campos da devolução com somas, tolerados antes de a API mandá-los. */
+        'referenceNumberMode',
+        'referenceNumberLabel',
+        'declaredAmountMode',
+        'declaredAmountScope',
+        'declaredAmountLabel',
+        'emailItemLineTemplate',
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
@@ -1922,7 +1935,16 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       value.redeliveryPolicy === 'unset' ||
       value.redeliveryPolicy === 'allowed' ||
       value.redeliveryPolicy === 'blocked') &&
-    (value.stage === 'delivery' || value.stage === 'separation')
+    (value.stage === 'delivery' || value.stage === 'separation') &&
+    /** Spec 247 T1.1: os campos opcionais da devolução. */
+    (value.referenceNumberMode === undefined ||
+      isOneOf(value.referenceNumberMode, ['off', 'optional', 'required'])) &&
+    (value.referenceNumberLabel === undefined || isString(value.referenceNumberLabel)) &&
+    (value.declaredAmountMode === undefined ||
+      isOneOf(value.declaredAmountMode, ['off', 'optional', 'required'])) &&
+    (value.declaredAmountScope === undefined || isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
+    (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
   )
 }
 
@@ -1942,6 +1964,12 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     photoMinimumCount,
     redeliveryPolicy,
     signatureMode,
+    referenceNumberMode,
+    referenceNumberLabel,
+    declaredAmountMode,
+    declaredAmountScope,
+    declaredAmountLabel,
+    emailItemLineTemplate,
     ...rest
   } = raw
   return {
@@ -1956,6 +1984,12 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
       ? { photoMinimumCount: photoMinimumCount as number }
       : {}),
     ...(isOneOf(signatureMode, OCCURRENCE_ATTACHMENT_MODES) ? { signatureMode } : {}),
+    ...(isString(referenceNumberMode) ? { referenceNumberMode } : {}),
+    ...(isString(referenceNumberLabel) ? { referenceNumberLabel } : {}),
+    ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
+    ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
+    ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',
