@@ -405,13 +405,28 @@ e editar as listas, **gerar/rotacionar** o endereço e ler as recusas recentes.
   muda**, com antes/depois das listas (configuração do operador, e-mails da equipe e domínio do contratante; é a trilha de quem autorizou quem).
 - **As duas listas validadas antes do banco** (as faixas do CHECK; quem encaminha é endereço completo, o remetente original é endereço ou domínio,
   nunca padrão), com a entrada inválida nomeada; esvaziar uma lista com endereço ativo é recusado (422) — o CHECK do banco exige as duas.
+- **Só ASCII visível nas listas (revisão `opus`, L1 e L3).** Cada entrada tem de casar `/^[\x21-\x7e]+$/u` (domínio internacional entra em
+  punycode, `xn--`) e é medida em **pontos de código** (`[...entry].length`), como o CHECK do banco conta caracteres: antes, `"a😀"` valia 3
+  unidades UTF-16 na API e 2 no banco, a API aceitava e o upsert estourava `23514` (500). A mesma regra fecha **homógrafos** (`аcme.com` com
+  `а` cirílico), **caracteres invisíveis** (zero-width) e **bidi** (RLO): nenhum deles chega à lista que o worker casa por igualdade exata. O painel
+  tem a mesma regra (cópia por valor; contrato lê os dois arquivos e cobra a expressão e a medida) e **nunca desenha a entrada crua** na mensagem
+  de erro (o que não é ASCII visível vira `?`). Se o CHECK ainda recusar, o repositório devolve um desfecho tipado e a API responde **422
+  `RECEIVING_PROFILE_ALLOWLISTS_INVALID`**, nunca 500.
+- **Teto antes da validação por entrada (L2).** Cada lista aceita no máximo 100 entradas de até 1016 caracteres no corpo (o limite útil é 20 × 254; a folga
+  deixa a recusa por entrada dizer o motivo) e a resposta lista no máximo **25** recusas. Antes, 150 mil entradas `"ab"` (~750 KB, abaixo do teto do
+  corpo) geravam 150 mil recusas, uma resposta de ~16 MB e um log com 150 mil nomes de campo; agora é um 400 de poucos KB e o log leva o mesmo punhado de campos.
+- **Domínio de entrada aparado igual nos dois lados (i4).** `buildPreviewInboundAddress` (API) e `extractPreviewTokenCandidates` (worker) fazem
+  `trim().toLowerCase()`; um espaço na configuração da 143 não gera endereço que o worker não casa. Contrato de paridade.
 - **Leitura também é `settings.manage`**, não `fleet.read`: o separador, o `fiscal` e o `viewer` leem a frota e **não** alcançam as rotas (a lista do
   encaminhador mostra endereços da equipe; as recusas mostram o que chegou). Contrato `separator-role`.
 - **Tenant:** contratante de outra empresa é 404 nas quatro; o domínio de entrada vem de `contractor_mail_settings` **da empresa do contexto**.
 
 **Limites conhecidos (T4.6b):** (1) o endereço aparece em claro no `raw.eml` do e-mail aceito (L4 acima; a T4.8 o apaga em 90 dias) e na tela de
 quem o gerou, uma vez — quem tem o endereço e passa a lista do encaminhador alimenta a prévia, como antes. (2) Quem copia o endereço e fecha o
-painel sem guardá-lo só o recupera **rotacionando**. (3) O passo seguinte (MX, domínio no Resend) continua do operador; o painel só o diz.
+painel sem guardá-lo só o recupera **rotacionando**. (2b) **Dois administradores gerando ao mesmo tempo (i2):** as gerações se serializam
+(`for update` no perfil) e a última vence; quem gerou primeiro fica com um endereço que **já morreu** (a tela dele o mostra como válido). Um `If-Match` sobre
+`inboundTokenSetAt` fecharia a corrida, mas pede cabeçalho novo no `POST` e a conferência no servidor — fica registrado como limite aceito (a
+rotação é rara, tem teto de 10 em 5 minutos e a tela mostra "ativo desde" depois). (3) O passo seguinte (MX, domínio no Resend) continua do operador; o painel só o diz.
 
 ### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
 

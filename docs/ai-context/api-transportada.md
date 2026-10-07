@@ -3145,7 +3145,7 @@ spec 238). Mudar a política de leitura é trocar a constante `MANAGE_POLICY` do
 - `GET|PUT /contractors/:id/receiving-profile/preview-email` → `{ contractorId, forwarderAllowlist, hasInboundToken, inboundTokenSetAt,
 senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_logs` (índice `company, target_type, target_id`); hash gravado
   por SQL fica sem hora (`null`). `PUT` leva as **duas** listas (`.strict()`, arrays de texto): minúsculas, aparadas, sem duplicata, as faixas
-  do CHECK (3–254, sem controle/espaço/`,<>|`, ≤ 20 **distintas**); quem encaminha é endereço completo, o remetente original é endereço ou
+  do CHECK (3–254 **pontos de código**, só ASCII visível `/^[\x21-\x7e]+$/u` — IDN em punycode, sem homógrafo/zero-width/bidi —, sem controle/espaço/`,<>|`, ≤ 20 **distintas**; o corpo aceita até 100 entradas de 1016 caracteres e a resposta lista no máximo 25 recusas; `23514` do CHECK vira 422 `RECEIVING_PROFILE_ALLOWLISTS_INVALID`); quem encaminha é endereço completo, o remetente original é endereço ou
   domínio (sem `*`, sem ponto na ponta). Cada entrada inválida vira um detalhe `forwarderAllowlist.<índice>` com a entrada na mensagem.
   Lista vazia = "sem lista" (coluna nula); com endereço ativo, esvaziar uma é **422 `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED`** (os detalhes
   nomeiam a lista). Cria a linha do perfil (tudo padrão, `is_enabled = false`) se ainda não existe. Audita `…preview-allowlists-saved` **só quando

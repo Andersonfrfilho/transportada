@@ -3039,3 +3039,33 @@ Build com `VITE_SMOKE_AUTH_BYPASS=true` em pasta temporária, `vite preview` na 
 
 Push; `make migration-test` e `make check` inteiro (nenhuma migration; `format:check` e gates por app rodados); integração fora das duas citadas; `make smoke` da CI; leitura de banco de produção;
 DNS, MX, Resend e e-mail real (o painel só **diz** o passo seguinte). A **aprovação dos 30 prints** é do usuário — só então publicar.
+
+### Revisão de segurança `opus` da T4.6b — risco BAIXO, 3 LOW e informativos corrigidos (2026-10-07)
+
+Contratos vermelhos antes (`39d04187b` API/worker, `41f64478b` painel: 9 + 2 + 7 testes reprovando pelo motivo certo), código depois (`f9a08d83e`, `8ea685a9b`).
+
+- **L1 — paridade da validação com o CHECK.** A API e o painel mediam em unidades UTF-16 e o banco conta caracteres (`"a😀"`: 3 × 2; a API aceitava e o upsert
+  estourava `23514`, 500). Agora a entrada tem de casar `/^[\x21-\x7e]+$/u` (IDN em punycode) e é medida com `[...entry].length`; ordem das recusas:
+  caractere proibido → fora do ASCII (`nonAscii`, mensagem pt/en com o punycode) → piso e teto. O repositório converte `23514` em desfecho tipado e a API responde
+  **422 `RECEIVING_PROFILE_ALLOWLISTS_INVALID`** (integração: lista que o CHECK recusa, sem linha nem auditoria). O contrato de paridade API↔painel lê os dois arquivos e cobra
+  a expressão e a medida.
+- **L3 — homógrafo, zero-width e bidi.** Fechados pela mesma restrição: `аcme.com` (cirílico), `a​cme.com` e `acme.com‮` são recusados nos dois tipos de lista, na API e no painel; o painel
+  **nunca desenha a entrada crua** (o que não é ASCII visível vira `?` na mensagem; teste de DOM).
+- **L2 — lista sem teto antes da validação.** `z.array(z.string().max(1016)).max(100)` antes do `superRefine`, que sai cedo se o teto já foi recusado, e **no máximo 25** recusas
+  listadas. Contrato: 150 mil entradas `"ab"` (~750 KB) → 400 com corpo < 4 KB e o log (`fields`) < 4 KB; entrada de 5 mil caracteres → uma recusa curta.
+- **i2** (dois administradores gerando juntos): limite aceito e registrado em `SECURITY.md` (2b); `If-Match` sobre `inboundTokenSetAt` **não coube** sem cabeçalho novo e conferência no servidor.
+- **i4** — `buildPreviewInboundAddress` (API) e `extractPreviewTokenCandidates` (worker) agora fazem `trim().toLowerCase()`; contrato de paridade + caso no worker.
+- **i6** — o teste do painel varre também `console.debug`, e há um teste de **sair da ficha com o endereço aberto** (a seção desmonta, o `QueryClient` segue vivo): o endereço some da tela e
+  do cache de mutações. Honestidade: o que garante isso é o `gcTime: 0`; o `reset()` no desmonte é redundante (o cache só esvazia no relógio do gc).
+
+Mutações desta rodada (cada uma vermelha, arquivo restaurado, `git diff --quiet`): R1 API aceita o que não é ASCII visível (5 falhas) · R2 API mede em UTF-16 · R3 sem o teto de entradas
+(150 mil passam) · R4 recusas ilimitadas · R5 sem o teto de cada entrada · R6 `23514` volta a 500 · R7 caso de uso sem o 422 · R8 worker sem `trim` (2 falhas) · R9 API sem `trim` ·
+Q1 painel aceita não-ASCII (5) · Q2 painel mede em UTF-16 · Q3 erro desenha a entrada crua · Q4 endereço em `console.debug` · Q5 sem `gcTime: 0` (2 falhas, incluindo sair da ficha) ·
+Q6 a mensagem perde o punycode — **15 de 15 mortas**.
+
+Gates (saída nova): API typecheck/lint limpos, contratos **10764 → 10774 pass** / 25 skip / 0 fail (+10); integração `contractor-preview-email` **12 → 13 pass** e `contractor-receiving-profile` 4 pass
+(uma por vez, Postgres 18.4 descartável em `127.0.0.1:56437`); worker `bun run test` **2019 → 2021 pass**; painel typecheck/lint (0 erro) e `bun run test` **7440 → 7448 pass**, `test:hooks`
+**978 → 980 pass**, 3 execuções verdes (mais as 13 anteriores); `format:check` na raiz verde.
+
+Prints: só os **6** `previa-email-listas-{375,768,1280}-{dark,light}.png` mudaram (o cenário ganhou uma entrada com `а` cirílico, que mostra a nova mensagem de ASCII); contraste do erro do
+campo ≥ 4,69:1 nos dois temas, 0 violação de alvo de toque a 375, sem rolagem lateral nem corte. Os outros 24 PNGs ficam como estavam.

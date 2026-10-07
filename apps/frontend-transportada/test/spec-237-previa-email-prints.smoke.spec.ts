@@ -247,7 +247,9 @@ const SCREENS: readonly Screen[] = [
       await section
         .getByLabel('Quem encaminha')
         .fill('equipe@transportadora.exemplo.test\nsem-arroba\ncom espaço@x.exemplo.test')
-      await section.getByLabel('Remetente original do contratante').fill('*.alfa.exemplo.test')
+      await section
+        .getByLabel('Remetente original do contratante')
+        .fill('*.alfa.exemplo.test\n\u0430lfa.exemplo.test')
       await section.getByRole('button', { name: 'Salvar listas' }).click()
       await expect(section.locator('[aria-invalid="true"]').first()).toBeVisible()
       return section
