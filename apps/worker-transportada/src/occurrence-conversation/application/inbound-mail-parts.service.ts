@@ -7,7 +7,7 @@
  * aninhada (`forceRfc822Attachments`) e quem a abre somos nós: só depois da MESMA barreira de cabeçalho do MIME
  * de fora e até três níveis. O resultado visível é o de antes — os anexos de dentro entram na mesma posição —;
  * a aninhada hostil ou funda demais conta como uma recusa e o resto da mensagem segue lido.
- * T4.7d: o número de partes é medido antes do PostalMime (mais de 200 linhas de fronteira = recusa) e as
+ * T4.7d: o número de partes é medido antes do PostalMime (mais de 1000 linhas de fronteira = recusa) e as
  * aninhadas abertas dividem um orçamento de 5 para a mensagem toda (5000 aninhadas eram 25 s de laço travado).
  */
 import PostalMime from 'postal-mime'

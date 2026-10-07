@@ -647,7 +647,7 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
 - **O número de partes e as aninhadas têm teto (T4.7d).** O PostalMime é quadrático no número de partes (5000 partes
   0,6 s, 10 000 2,4 s, 20 000 9 s) e a conversa abria cada `message/rfc822` aninhada (5000 com `To`+`Cc` de 2 KiB =
   25,5 s; 200 000 pequenas > 180 s). Antes do leitor se contam as linhas que começam com `--` (as únicas que o
-  PostalMime reconhece como fronteira, qualquer que seja o valor dela): **mais de 200 recusa** (a conversa devolve
+  PostalMime reconhece como fronteira, qualquer que seja o valor dela): **mais de 1000 recusa** (a conversa devolve
   nenhuma parte e uma recusa; a prévia trata como MIME ilegível), e as aninhadas **abertas** dividem um orçamento de **5**
   por mensagem (o teto de anexos da conversa) — o resto conta como recusa. Medido: os piores casos acima caem para
   0–4 ms; o pior que PASSA (cinco aninhadas com `To`+`Cc` de 8 KiB do pior padrão) custa ~370 ms. Isolar a leitura

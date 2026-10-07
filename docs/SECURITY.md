@@ -353,7 +353,7 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
   tirou do MIME — divergência recusa `FORWARDER_FROM_MISMATCH` (código novo, no CHECK da migration ainda não
   publicada). O `From` do provedor (Resend) segue só como checagem barata antes do download; a identidade que vale é a
   do MIME alinhado.
-- **Partes e aninhadas têm teto (T4.7d):** as linhas que começam com `--` são contadas antes do PostalMime (mais de 200 =
+- **Partes e aninhadas têm teto (T4.7d):** as linhas que começam com `--` são contadas antes do PostalMime (mais de 1000 =
   recusa; conversa devolve nenhuma parte, prévia trata como MIME ilegível) e as aninhadas abertas dividem um orçamento de 5 por
   mensagem. Antes: 5000 aninhadas com `To`+`Cc` de 2 KiB = 25,5 s; 20 000 partes pequenas = 9 s; 200 000 pequenas > 180 s;
   depois, 0–4 ms. O pior caso que PASSA (cinco aninhadas com `To`+`Cc` de 8 KiB do pior padrão) custa ~370 ms de laço — limitado,

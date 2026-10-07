@@ -4,7 +4,7 @@
  * Spec 237 T4.7d (terceira revisão de segurança, NOVO-2 restante): o PostalMime é quadrático no número de
  * partes e o worker abre cada `message/rfc822` aninhada — 5000 aninhadas com `To`+`Cc` de 2 KiB eram 25 s de
  * laço travado, 20 000 partes pequenas 9 s. Agora as linhas de fronteira são contadas ANTES do leitor (teto de
- * 200) e as aninhadas abertas dividem um orçamento comum (5, o teto de anexos da conversa). O anexo legítimo
+ * 1000) e as aninhadas abertas dividem um orçamento comum (5, o teto de anexos da conversa). O anexo legítimo
  * — PDF numa aninhada comum, `.eml` anexo, profundidade 2 — continua exatamente como era.
  */
 import { describe, expect, test } from 'bun:test'
@@ -43,15 +43,25 @@ describe('o teto de partes do MIME da conversa (spec 237 T4.7d)', () => {
     expect(elapsedMs).toBeLessThan(LIMIT_MS)
   })
 
-  test('o teto é de 200 linhas de fronteira: 198 anexos (200 linhas com o texto e o fecho) passam, 199 recusam', async () => {
+  test('o teto é de 1000 linhas de fronteira: 998 anexos (1000 linhas com o texto e o fecho) passam, 999 recusam', async () => {
     const parts = (count: number) =>
       readInboundMailParts(bytes(message('B', pdfPart('B', 'a.pdf').repeat(count))))
-    expect((await parts(198)).parts).toHaveLength(198)
-    expect(await parts(199)).toEqual({ parts: [], skippedNestedMessages: 1 })
+    expect((await parts(998)).parts).toHaveLength(998)
+    expect(await parts(999)).toEqual({ parts: [], skippedNestedMessages: 1 })
+  })
+
+  test('um relatório colado em texto com 300 réguas `-----` não faz o PDF anexado ser perdido', async () => {
+    const report = `${'-----\r\n'.repeat(300)}`
+    const raw = bytes(
+      message('B', `${pdfPart('B', 'a.pdf')}--B\r\nContent-Type: text/plain\r\n\r\n${report}`),
+    )
+    const read = await readInboundMailParts(raw)
+    expect(names(read.parts)).toEqual(['a.pdf'])
+    expect(read.skippedNestedMessages).toBe(0)
   })
 
   test('a fronteira com espaço no valor também conta (o PostalMime a reconhece)', async () => {
-    const spaced = pdfPart('B x', 'a.pdf').repeat(300)
+    const spaced = pdfPart('B x', 'a.pdf').repeat(1100)
     const raw = bytes(message('B x', spaced))
     expect(await readInboundMailParts(raw)).toEqual({ parts: [], skippedNestedMessages: 1 })
   })
@@ -72,8 +82,8 @@ describe('o teto de partes do MIME da conversa (spec 237 T4.7d)', () => {
     expect(elapsedMs).toBeLessThan(LIMIT_MS)
   })
 
-  test('na prévia, a mensagem anexada com mais de 200 linhas de fronteira também recusa', async () => {
-    const inner = message('N', pdfPart('N', 'a.pdf').repeat(300))
+  test('na prévia, a mensagem anexada com mais de 1000 linhas de fronteira também recusa', async () => {
+    const inner = message('N', pdfPart('N', 'a.pdf').repeat(1100))
     const outer = message('B', nestedPart('B', inner))
     expect(await parseForwardedEmail(bytes(outer))).toBeUndefined()
   })

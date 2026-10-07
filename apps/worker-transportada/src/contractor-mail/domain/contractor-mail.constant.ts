@@ -46,6 +46,6 @@ export const MIME_HEADER_LIMITS = {
  * orçamento de uma mensagem, que é o teto de anexos da conversa.
  */
 export const MIME_PART_LIMITS = {
-  maxBoundaryLines: 200,
+  maxBoundaryLines: 1000,
   maxNestedMessages: 5,
 } as const

@@ -2744,3 +2744,14 @@ duas execuções seguidas** no mesmo banco (reivindica linhas que sobraram de ou
 
 DNS, MX, Resend e qualquer envio ou recebimento real; o painel; a API (contratos, `db:test`, `make migration-test` e
 `db:generate` — nenhum arquivo da API ou da migration mudou); push; staging e produção. Nada leu banco de produção.
+
+## Ajuste final do teto de partes (T4.7d, conferência de segurança, 2026-10-07)
+
+A conferência final do `opus` (risco BAIXO, sem defeito crítico, alto ou médio) mediu que 200 linhas de fronteira
+recusavam, além do ataque, um relatório colado em texto com régua (`-----`) com PDF anexado (0 anexos), e que o custo
+do PostalMime é de ~3 ms (200 partes), ~28 ms (1000) e ~100 ms (2000, quadrático). `MIME_PART_LIMITS.maxBoundaryLines`
+passou de 200 para **1000**; contar só as linhas que casam o `boundary` declarado foi descartado de propósito (o
+PostalMime aceita `boundary*0=` RFC 2231 e `boundary=""`, e uma regex que não enxergasse a fronteira reabriria a falha).
+Contrato novo: "300 réguas `-----` + PDF anexado ⇒ 1 anexo". O pior caso que passa foi medido em ~500–650 ms (não
+370 ms): `worker_thread` com prazo fica como passo seguinte, não agora (o trecho só roda depois de a thread casar pelo
+token de resposta e não cresce com o tamanho da mensagem).

@@ -115,7 +115,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   soma deles, 8 KiB os outros, 8 `DKIM-Signature` e 3 `ARC-*`; nome de campo com espaço exótico antes do `:` recusa; o
   `addressparser` é quadrático e a `mailauth` faz um hasher por assinatura) — na conversa a mensagem hostil vira DKIM
   `absent`, sem anexos; a mensagem anexada que a prévia abre passa pela mesma barreira, e **a conversa não deixa o PostalMime
-  abrir a `message/rfc822` aninhada** (`inbound-mail-parts.service.ts`): mais de 200 linhas `--` recusa
+  abrir a `message/rfc822` aninhada** (`inbound-mail-parts.service.ts`): mais de 1000 linhas `--` recusa
   (`mime-part-bounds.policy.ts`) e as aninhadas abertas dividem um orçamento de 5. **O DKIM tem prazo de 15 s**
   (`DKIM_VERIFICATION_DEADLINE_MS`; estourou = `unverifiable`) e **o `From` do MIME tem de ser o `headerFrom` que a
   `mailauth` alinhou** (`verifyWithHeaderFrom`; divergência = `FORWARDER_FROM_MISMATCH`: o leitor de remetente exige o
