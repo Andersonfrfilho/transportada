@@ -3191,3 +3191,124 @@ Contrato da API 10042 pass / 25 skip / 0 fail (199 arquivos) · integração da 
 **Nenhuma task de código sobra.** `[ ]` ficam só **T1d.0** e **T3.0** (medições em produção e staging, do usuário). O que resta não é execução da spec: é a **publicação em etapas**
 (seção "Ordem de publicação em etapas", a cargo do orquestrador, com gates por etapa) e, antes do PR `staging` → `main`, as duas medições registradas aqui. Não há prompt de autopilot a rodar; pare e pergunte
 antes de: deploy, migration em produção, a etapa 3 (T1d.0), e qualquer ativação da etapa 2 em produção (T3.0).
+
+## Protótipo: selects fiéis ao componente real (2026-10-06)
+
+O `preview.html` tinha 27 `<select>` nativos, um gatilho e um painel desenhados à mão, com tokens e regras que não eram os da aplicação (o usuário apontou: "os selects estão fora do padrão da aplicação"). Agora todo seletor do protótipo é montado pela **mesma marcação** dos três componentes reais (`Select`, `SearchableSelect`, `MultiSelect`, mais `Checkbox`, `FilterPills` e `Icon` que eles usam): raiz → gatilho `button[aria-haspopup=listbox][aria-expanded]` com valor + seta, painel `role=listbox` com `role=option` e `aria-selected`, busca `role=combobox` no painel quando o componente a tem, pílulas do `MultiSelect`. O CSS é a cópia de `select.module.css`, `multi-select.module.css`, `searchable-select.module.css`, `checkbox.module.css`, `filter-pills.module.css` e `icon.module.css` de `origin/staging`, com os tokens de `src/styles/index.css`. Nenhum arquivo de `apps/*/src` foi tocado.
+
+**Método.** Subi o Vite do worktree `spec-239` (idêntico a `origin/staging` nos componentes de `ui/` e em `styles/`), porta 53090, `VITE_SMOKE_AUTH_BYPASS=true`, e renderizei **os componentes reais** (importados do próprio servidor do Vite, com o CSS da aplicação e `index.css`) numa coluna de 328 px: `Select` compacto e normal, com valor, sem valor, desabilitado, `SearchableSelect` e `MultiSelect` com duas escolhas. Medi os estilos **computados** do gatilho fechado, do gatilho aberto, do painel, da opção (normal, ativa, selecionada), da busca, da caixa de marcação, das pílulas, do foco (`:focus-visible` por Tab real) e do hover (ponteiro real). Repeti a **mesma** medição, com o mesmo script, nos seletores do protótipo (servido por `python3 -m http.server`, porta 53091) montados na mesma coluna. As telas do painel (`/clientes`, `/repasses`) só têm `Select` normal de 48 px, por isso o compacto e os dois seletores com busca foram medidos pela renderização direta dos componentes.
+
+⚠️ O primeiro CSS lido foi o do checkout principal (`work/spec-165`), que está **atrás** da staging: a opção ativa dava 16% de cobre, e o servidor do worktree dava 10% / 5%. A fonte da verdade é `origin/staging`; o protótipo foi corrigido para ela e o número acima é o medido.
+
+### Real × protótipo (1114 propriedades comparadas, tolerância de 1 px nas dimensões: 1114 iguais)
+
+| Propriedade                            | Real                                       | Protótipo                                  | Igual? |
+| -------------------------------------- | ------------------------------------------ | ------------------------------------------ | ------ |
+| **Gatilho fechado (compacto)**         |                                            |                                            |        |
+| altura                                 | `38.3984px`                                | `38.3984px`                                | sim    |
+| padding (topo/dir)                     | `8px / 12px`                               | `8px / 12px`                               | sim    |
+| borda                                  | `1px / solid / #8fa3ad@32%`                | `1px / solid / #8fa3ad@32%`                | sim    |
+| raio                                   | `0px`                                      | `0px`                                      | sim    |
+| fundo                                  | `#10222c@84%`                              | `#10222c@84%`                              | sim    |
+| cor do valor                           | `#f0f2ee`                                  | `#f0f2ee`                                  | sim    |
+| fonte (tam/peso)                       | `13.12px / 400`                            | `13.12px / 400`                            | sim    |
+| família                                | `Avenir Next…`                             | `Avenir Next…`                             | sim    |
+| linha                                  | `normal`                                   | `normal`                                   | sim    |
+| gap                                    | `12px`                                     | `12px`                                     | sim    |
+| sombra                                 | `none`                                     | `none`                                     | sim    |
+| seta: tamanho                          | `17.5938px / 17.5938px`                    | `17.5938px / 17.5938px`                    | sim    |
+| seta: opacidade                        | `0.7`                                      | `0.7`                                      | sim    |
+| seta: folga à direita                  | `13`                                       | `13`                                       | sim    |
+| seta: traço                            | `1.8px / M6 9l6 6 6-6`                     | `1.8px / M6 9l6 6 6-6`                     | sim    |
+| **Gatilho normal (48 px)**             |                                            |                                            |        |
+| altura                                 | `48px`                                     | `48px`                                     | sim    |
+| padding                                | `12px / 12px`                              | `12px / 12px`                              | sim    |
+| fonte                                  | `14.4px`                                   | `14.4px`                                   | sim    |
+| **Placeholder**                        |                                            |                                            |        |
+| cor                                    | `#9aacb5`                                  | `#9aacb5`                                  | sim    |
+| **Desabilitado**                       |                                            |                                            |        |
+| borda                                  | `dashed / #8fa3ad@32%`                     | `dashed / #8fa3ad@32%`                     | sim    |
+| cor do valor                           | `#9aacb5`                                  | `#9aacb5`                                  | sim    |
+| cursor                                 | `not-allowed`                              | `not-allowed`                              | sim    |
+| opacidade                              | `1`                                        | `1`                                        | sim    |
+| **Aberto: gatilho/seta**               |                                            |                                            |        |
+| borda                                  | `#d58a47@60%`                              | `#d58a47@60%`                              | sim    |
+| seta                                   | `matrix(-1, 0, 0, -1, 0, 0) / #d58a47 / 1` | `matrix(-1, 0, 0, -1, 0, 0) / #d58a47 / 1` | sim    |
+| **Painel (Select)**                    |                                            |                                            |        |
+| posição                                | `fixed`                                    | `fixed`                                    | sim    |
+| borda                                  | `1px / #8fa3ad@45%`                        | `1px / #8fa3ad@45%`                        | sim    |
+| fundo                                  | `#1c2b33`                                  | `#1c2b33`                                  | sim    |
+| sombra                                 | `#10222c@72% 0px 8px 20px 0px`             | `#10222c@72% 0px 8px 20px 0px`             | sim    |
+| max-height                             | `256px`                                    | `256px`                                    | sim    |
+| min-width/largura                      | `328px / 328`                              | `328px / 328`                              | sim    |
+| folga do gatilho                       | `4`                                        | `4`                                        | sim    |
+| padding da lista                       | `4px / 4px`                                | `4px / 4px`                                | sim    |
+| raio                                   | `0px`                                      | `0px`                                      | sim    |
+| z-index                                | `60`                                       | `60`                                       | sim    |
+| **Opção normal**                       |                                            |                                            |        |
+| altura                                 | `34.5`                                     | `34.5`                                     | sim    |
+| padding                                | `8px / 12px`                               | `8px / 12px`                               | sim    |
+| borda esq.                             | `2px / rgba(0, 0, 0, 0)`                   | `2px / rgba(0, 0, 0, 0)`                   | sim    |
+| cor                                    | `#f0f2ee`                                  | `#f0f2ee`                                  | sim    |
+| fonte                                  | `13.6px / 400`                             | `13.6px / 400`                             | sim    |
+| **Opção ativa (hover)**                |                                            |                                            |        |
+| borda esq.                             | `#d58a47@70%`                              | `#d58a47@70%`                              | sim    |
+| fundo                                  | `#d58a47@10%`                              | `#d58a47@10%`                              | sim    |
+| cor                                    | `#f0f2ee`                                  | `#f0f2ee`                                  | sim    |
+| **Opção selecionada+ativa**            |                                            |                                            |        |
+| cor                                    | `#d58a47`                                  | `#d58a47`                                  | sim    |
+| peso                                   | `600`                                      | `600`                                      | sim    |
+| fundo                                  | `#d58a47@5%`                               | `#d58a47@5%`                               | sim    |
+| borda esq.                             | `#d58a47@70%`                              | `#d58a47@70%`                              | sim    |
+| **Busca no painel (SearchableSelect)** |                                            |                                            |        |
+| altura do campo                        | `45`                                       | `45`                                       | sim    |
+| padding                                | `8px / 12px`                               | `8px / 12px`                               | sim    |
+| borda inferior                         | `1px / #8fa3ad@32%`                        | `1px / #8fa3ad@32%`                        | sim    |
+| input: fonte                           | `14.4px`                                   | `14.4px`                                   | sim    |
+| ícone                                  | `17.5938px / 0.7`                          | `17.5938px / 0.7`                          | sim    |
+| painel: min-width/max-height           | `328px / 231.195px`                        | `328px / 231.195px`                        | sim    |
+| **MultiSelect**                        |                                            |                                            |        |
+| painel max-height                      | `285.594px`                                | `285.594px`                                | sim    |
+| listbox multiselectable                | `true`                                     | `true`                                     | sim    |
+| caixa de marcação                      | `20px / #d58a47`                           | `20px / #d58a47`                           | sim    |
+| opção marcada: cor                     | `#d58a47`                                  | `#d58a47`                                  | sim    |
+| seta aberta (não gira)                 | `none / 0.7`                               | `none / 0.7`                               | sim    |
+| **Foco (:focus-visible)**              |                                            |                                            |        |
+| outline                                | `solid 2px #d58a47@70% off 2px`            | `solid 2px #d58a47@70% off 2px`            | sim    |
+| **Hover do gatilho**                   |                                            |                                            |        |
+| borda                                  | `#d58a47@45%`                              | `#d58a47@45%`                              | sim    |
+
+A altura máxima e o lado (acima/abaixo) do painel dependem da altura da janela; a comparação vale com real e protótipo medidos na **mesma** janela (a do painel do navegador, sem emulação), e foi repetida, depois da última edição do protótipo, em duas alturas de janela (343 e 766 px): 1114 de 1114 nas duas.
+
+As **pílulas** do `MultiSelect` (`FilterPills`: contêiner, pílula, rótulo, valor, botão de remover 20×20, "limpar", ícone) foram medidas à parte: **139 de 139** propriedades iguais.
+
+### O que divergia antes (protótipo anterior)
+
+- 27 `<select>` **nativos**: o painel de opções é o do sistema operacional, sem a borda, o fundo, a sombra nem o realce de cobre do painel real.
+- Seta feita com dois `linear-gradient` de 5,6 px; a real é o ícone `chevron-down` de 17,6 px (1,1 rem), com 70% de opacidade, que gira e fica cobre quando aberto no `Select`.
+- Campos de formulário do tipo (Situação, Foto, Modelo…) em 38,4 px (compacto); na tela real são **48 px** (`--field-height`, fonte 14,4 px). Só as exceções e o seletor de cliente são compactos.
+- `MultiSelect` aberto: `div` estático com `button role=checkbox`, caixa de 15,2 px com a letra "✓" e busca desenhada como texto ("⌕ Buscar momento"). O real tem `input role=combobox`, `ul role=listbox aria-multiselectable`, `Checkbox` de 20 px com traço SVG e as pílulas do que foi escolhido.
+- Opção em 13,12 px com realce de 14% de cobre; a real é 13,6 px, com realce de 10%, e 5% quando também está selecionada (para o cobre sobre cobre não cair abaixo de 4,5:1).
+- Sem estado desabilitado (a real: borda tracejada e texto `--color-slate-muted`), sem painel de busca no cliente, sem `aria-expanded`, sem `aria-selected`, sem `max-width` no painel.
+
+### Estouro, alvo de toque e contraste do protótipo (medido, 2026-10-06)
+
+| Largura | Ponteiro       | `scrollWidth` / `clientWidth` | Elementos fora da janela | Recortes | Alvos de seletor < 44 px                                                            |
+| ------- | -------------- | ----------------------------- | ------------------------ | -------- | ----------------------------------------------------------------------------------- |
+| 320     | grosso (toque) | 320 / 320                     | 0                        | 0        | 0 (nenhum outro controle < 44 px)                                                   |
+| 375     | grosso (toque) | 375 / 375                     | 0                        | 0        | 0 (nenhum outro controle < 44 px)                                                   |
+| 768     | fino           | 768 / 768                     | 0                        | 0        | só o do ponteiro fino: gatilho compacto 38,4 px e opção 34,5 px, **iguais ao real** |
+| 1280    | fino           | 1280 / 1280                   | 0                        | 0        | idem                                                                                |
+
+Com o ponteiro grosso o gatilho compacto, a opção, a busca, o botão de remover da pílula (44 × 44) e o "limpar" chegam a `--touch-target` (a mesma regra do real). Painel interativo aberto a 320 px: o do cliente fica em 8 → 312, o da exceção em 62 → 258, o dos momentos em 54 → 297, todos dentro da janela.
+
+Contraste (texto sobre o fundo composto): valor 14,4 · placeholder 6,9 · desabilitado 6,9 · opção 12,9 · opção ativa 11,2 · opção selecionada 4,9 (5,2 sem o realce) · rótulo da pílula 5,6 · texto da pílula 11,6 · "limpar" 5,9 · placeholder da busca 6,2 — todos ≥ 4,5:1.
+
+⚠️ Correções que a medição forçou, fora a cópia do CSS: o painel aberto de forma estática a 768 px passava da janela (a largura mínima ficou medida com a janela de outro tamanho; agora recalcula no `resize`, como o `useFloatingLayer`) e o painel com a opção longa do cliente a 375 px (agora `max-width: 100%` no modo estático); o painel interativo fechava por qualquer rolagem, em vez de só quando o gatilho se move (como `useFloatingLayer`); e o `@media (pointer: coarse)` do protótipo perdia para a regra `input[type=text]` (campos, "Adicionar exceção" e "Remover" ficavam com 38 px e 26 px no toque; agora ≥ 44 px).
+
+### O que não deu para igualar, e por quê
+
+- **Painel "aberto" fixo na página.** Na aplicação o painel é `position: fixed` em portal, ancorado na janela. No protótipo o aberto **interativo** é idêntico (`fixed`, mesma conta de `resolveFloatingLayerPosition`, mesmas variáveis `--floating-layer-*`, medido: `fixed`, folga de 4 px). Os painéis das cartelas "estados" ficam **no fluxo** (`position: relative`) só para a página mostrar o desenho sem depender de clique; visual idêntico, posicionamento não.
+- **Transições.** A janela do navegador embutido fica `hidden` e não avança animações; terminei as transições com `getAnimations().finish()` antes de ler as cores. O valor final é o que se compara.
+- **`@media (pointer: coarse)` no componente real** não foi medido na aplicação: a regra está no CSS copiado (`select.module.css`), e a medição no protótipo, emulado como toque, deu 44 px. Sem swatch nem descrição de opção: o protótipo não os usa.
+- O `title` do valor escolhido do `Select` real (tooltip nativo) não foi copiado: o protótipo mostra o texto inteiro (o valor quebra linha), então o `title` não acrescenta nada na tela.
