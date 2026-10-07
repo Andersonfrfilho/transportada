@@ -129,6 +129,7 @@ export function OccurrenceTypeContractorMail({
           />
           <div className={styles.actions}>
             <Button
+              className={styles.action}
               disabled={disabled || pending === null || isBlocked}
               onClick={handleSave}
               size="sm"
@@ -138,7 +139,13 @@ export function OccurrenceTypeContractorMail({
               {t('occurrenceTypeCatalog.mail.save')}
             </Button>
             {pending === null ? null : (
-              <Button onClick={() => setDraft(null)} size="sm" type="button" variant="ghost">
+              <Button
+                className={styles.action}
+                onClick={() => setDraft(null)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
                 <Icon name="close" />
                 {t('occurrenceTypeCatalog.mail.undo')}
               </Button>

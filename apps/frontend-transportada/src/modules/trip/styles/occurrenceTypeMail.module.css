@@ -102,6 +102,12 @@
   gap: var(--space-2);
 }
 
+@media (pointer: coarse) {
+  .action {
+    min-height: var(--touch-target);
+  }
+}
+
 .preview {
   min-width: 0;
   display: grid;
