@@ -129,6 +129,7 @@ describe('o valor monetário lido do banco vira centavos exatos (spec 247 RF9)',
 
   test('um valor além de 2^53 não perde centavo (o binário perderia)', () => {
     expect(parseAmountToCents('99999999999999999.9999')).toBe(10000000000000000000n)
+    expect(parseAmountToCents('12345678901234567.8901')).toBe(1234567890123456789n)
   })
 
   test('texto que não é um decimal sem sinal é recusado, sem repetir o valor', () => {

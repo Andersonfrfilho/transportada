@@ -358,7 +358,7 @@ error: Cannot find module '../../src/trips/domain/occurrence-amount.policy.js' f
 
 ### T3.2 — `occurrence-amount.policy.ts`
 
-`apps/api-transportada/src/trips/domain/occurrence-amount.policy.ts` (≈135 linhas): texto do `numeric` →
+`apps/api-transportada/src/trips/domain/occurrence-amount.policy.ts` (121 linhas): texto do `numeric` →
 `bigint` (4 casas), produto em escala 8 → centavos meio para cima, soma das linhas já arredondadas,
 valor pago vencendo, formatação brasileira. Sem `Number`/`parseFloat`/`Math`. O contrato da T3.1 passou
 a verde (a regra de dinheiro do domínio fica 100% em `bigint`). Verde:
@@ -369,3 +369,63 @@ $ bun --env-file=../../.env.test test --timeout 120000 (API, só contrato)
  10085 pass · 25 skip · 0 fail · Ran 10110 tests across 199 files
 $ bun run lint (API)         → exit 0
 ```
+
+### T3.3 — Mutações da T3.1 (cada uma vermelha, depois revertida)
+
+Comando: `bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts --timeout 120000`
+(de `apps/api-transportada`), filtrado para as linhas `(fail)` e o resumo. Linha de base verde: `525 pass · 0 fail`.
+Cada mutação foi aplicada em `occurrence-amount.policy.ts` e o arquivo foi restaurado do original
+(`git status` limpo na política depois de cada uma).
+
+**M1 — truncar em vez de meio para cima** (`(product + PRODUCT_HALF_CENT) / …` → `product / …`, e o mesmo em `parseAmountToCents`):
+
+```text
+(fail) … CA02 > 3 × 19,995 = 59,985 → 59,99
+(fail) … CA02 > 1 × 1,005 → 1,01 (o binário dá 1,00)
+(fail) … CA02 > 1 × 8,345 → 8,35 (o binário dá 8,34)
+(fail) … CA02 > 1 × 0,005 → 0,01, meio para cima e não truncado
+(fail) … CA02 > sem quantidade registrada: vProd da nota, 12,345 → 12,35
+(fail) … RF9 > arredonda a quarta casa do numeric, meio para cima
+(fail) … RF9 > um valor além de 2^53 não perde centavo (o binário perderia)
+(fail) … RF9 > a soma geral soma as linhas já arredondadas, nunca antes de arredondar
+(fail) … RF9 > valor pago nulo cai na soma da linha, e linha sem quantidade cai no vProd
+ 516 pass
+ 9 fail
+```
+
+**M2 — somar antes de arredondar** (`itemsSumCents` = arredondamento da soma dos produtos crus):
+
+```text
+(fail) … RF9 > a soma geral soma as linhas já arredondadas, nunca antes de arredondar
+ 524 pass
+ 1 fail
+```
+
+**M3 — `Number` no lugar de `bigint`.** Duas variantes, porque o `Math.round` sozinho acerta o caso
+`3 × 19,995` por coincidência de arredondamento do binário (`3 × 19.995 × 100 = 5998.5`, e `Math.round`
+sobe); quem erra esse caso é o `toFixed`, que é o que um implementador ingênuo escreve.
+
+M3a — `BigInt(Math.round(Number(q) * Number(v) * 100))` (e o mesmo em `parseAmountToCents`):
+
+```text
+(fail) … CA02 > 1 × 1,005 → 1,01 (o binário dá 1,00)
+(fail) … RF9 > um valor além de 2^53 não perde centavo (o binário perderia)
+(fail) … RF9 > texto que não é um decimal sem sinal é recusado, sem repetir o valor
+(fail) … RNF > o arquivo não chama Number, parseFloat, toFixed nem Math
+ 521 pass
+ 4 fail
+```
+
+M3b — `(Number(q) * Number(v)).toFixed(2)`:
+
+```text
+(fail) … CA02 > 3 × 19,995 = 59,985 → 59,99
+(fail) … CA02 > 1 × 1,005 → 1,01 (o binário dá 1,00)
+(fail) … RNF > o arquivo não chama Number, parseFloat, toFixed nem Math
+ 522 pass
+ 3 fail
+```
+
+Antes das mutações, o teste do valor além de 2^53 usava `99999999999999999.9999`, que o `Number` acerta
+por acaso (`1e19`); entrou `12345678901234567.8901`, que ele erra — foi a primeira mutação M3a que
+mostrou isso. Revertidas todas, mesmo comando: `525 pass · 0 fail`.
