@@ -472,6 +472,7 @@
       "empty": "No moment found.",
       "clearAll": "Clear moments",
       "remove": "Remove moment {{label}}",
+      "pending": "Moments change not applied yet — click Apply moments for it to take effect.",
       "apply": "Apply moments",
       "undo": "Undo",
       "summary": "{{count}} moments",

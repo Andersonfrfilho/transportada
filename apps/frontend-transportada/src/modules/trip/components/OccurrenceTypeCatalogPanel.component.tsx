@@ -19,6 +19,10 @@ import {
   createOccurrenceMailDraftStore,
   OccurrenceMailDraftStoreContext,
 } from '../hooks/useOccurrenceMailDraftStore.hook'
+import {
+  createOccurrenceMomentsDraftStore,
+  OccurrenceMomentsDraftStoreContext,
+} from '../hooks/useOccurrenceMomentsDraftStore.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
 import type { OccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
@@ -83,6 +87,7 @@ export function OccurrenceTypeCatalogPanel({
   const filtersController = useOccurrenceTypeFilters()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
   const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
+  const [momentsDraftStore] = useState(createOccurrenceMomentsDraftStore)
 
   function handleToggle(typeId: string) {
     setExpandedIds((current) => {
@@ -163,16 +168,18 @@ export function OccurrenceTypeCatalogPanel({
         />
       ) : (
         <OccurrenceMailDraftStoreContext.Provider value={mailDraftStore}>
-          <OccurrenceTypeList
-            canManage={canManage}
-            exceptionsOf={exceptionsOf}
-            expandedIds={expandedIds}
-            isSaving={isSaving}
-            onSave={onSave}
-            onToggle={handleToggle}
-            templates={templates}
-            types={visibleTypes}
-          />
+          <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
+            <OccurrenceTypeList
+              canManage={canManage}
+              exceptionsOf={exceptionsOf}
+              expandedIds={expandedIds}
+              isSaving={isSaving}
+              onSave={onSave}
+              onToggle={handleToggle}
+              templates={templates}
+              types={visibleTypes}
+            />
+          </OccurrenceMomentsDraftStoreContext.Provider>
         </OccurrenceMailDraftStoreContext.Provider>
       )}
 

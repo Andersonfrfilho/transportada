@@ -185,3 +185,13 @@
     gap: var(--space-3);
   }
 }
+
+.pendingNotice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+}

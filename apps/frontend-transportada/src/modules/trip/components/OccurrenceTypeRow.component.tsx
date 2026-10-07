@@ -67,7 +67,12 @@ export function OccurrenceTypeRow({
     <div className={styles.occurrenceForm}>
       <OccurrenceTypeIdentity disabled={isDisabled} onEdit={handleEdit} type={type} />
       {type.moments === undefined ? null : (
-        <OccurrenceTypeMoments disabled={isDisabled} moments={type.moments} onEdit={handleEdit} />
+        <OccurrenceTypeMoments
+          disabled={isDisabled}
+          moments={type.moments}
+          onEdit={handleEdit}
+          typeId={type.id}
+        />
       )}
       <OccurrenceTypeRequirementFields
         disabled={isDisabled}

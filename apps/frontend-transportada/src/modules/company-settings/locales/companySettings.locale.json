@@ -472,6 +472,7 @@
       "empty": "Nenhum momento encontrado.",
       "clearAll": "Limpar momentos",
       "remove": "Tirar momento {{label}}",
+      "pending": "Mudança nos momentos ainda não aplicada — clique em Aplicar momentos para valer.",
       "apply": "Aplicar momentos",
       "undo": "Desfazer",
       "summary": "{{count}} momentos",
