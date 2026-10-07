@@ -37,6 +37,7 @@ import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assert
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
+import { assertTripCrewEvents } from './trip-crew-events.assertion.js'
 import { assertTripStatusEventRollbackRefusesRecordedHistory } from './trip-status-event-rollback.assertion.js'
 import {
   FISCAL_TABLES,
@@ -316,6 +317,14 @@ describe('Drizzle migration integration', () => {
           connectionString,
           database,
           directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertTripCrewEvents({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
         })
 

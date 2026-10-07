@@ -616,6 +616,89 @@ export const tripStatusEvents = pgTable(
   ],
 )
 
+/** Spec 249 D3: o motivo da transferência — 1 a 500 caracteres, o mesmo limite do corpo da rota. */
+export const TRIP_CREW_EVENT_REASON_MAXIMUM_LENGTH = 500
+
+/** Spec 249 D6: um integrante da tripulação como o evento o guarda — o retrato, não uma referência. */
+export type TripCrewEventMember = {
+  readonly driverId: string
+  readonly name: string
+  readonly position: number
+  readonly role: TripCrewRole
+}
+
+/**
+ * Spec 249 D6: histórico das transferências de tripulação de uma viagem que já saiu. Append-only
+ * (trigger, no molde de `trip_dispatch_snapshots`): `previous_crew`/`next_crew` são **retratos** em
+ * JSON — o nome de quem saiu continua legível mesmo que a ficha mude depois.
+ *
+ * `actor_user_id` não tem FK para membership, pela mesma razão de `trip_status_events`:
+ * `removeMembership` apaga a linha de membership, e RESTRICT aqui quebraria a remoção de quem já
+ * transferiu uma tripulação. O isolamento por empresa vem da FK composta `(company_id, trip_id)`.
+ *
+ * Os quatro `cost_*` são o resultado de `trip-crew-cost.policy.ts` (2 casas, `depois − antes`) e
+ * `mdfe_driver_divergence` marca o MDF-e autorizado que seguiu com o condutor anterior.
+ */
+export const tripCrewEvents = pgTable(
+  'trip_crew_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    channel: varchar('channel', { length: 16 }).$type<TripFieldChannel>().notNull(),
+    reason: text().notNull(),
+    previousCrew: jsonb('previous_crew').$type<readonly TripCrewEventMember[]>().notNull(),
+    nextCrew: jsonb('next_crew').$type<readonly TripCrewEventMember[]>().notNull(),
+    costBefore: numeric('cost_before', { precision: 14, scale: 2 }).notNull(),
+    costAfter: numeric('cost_after', { precision: 14, scale: 2 }).notNull(),
+    costDifference: numeric('cost_difference', { precision: 14, scale: 2 }).notNull(),
+    costHasGaps: boolean('cost_has_gaps').notNull(),
+    mdfeDriverDivergence: boolean('mdfe_driver_divergence').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_crew_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_crew_events_company_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_crew_events_company_id_id_unique').on(table.companyId, table.id),
+    /** A linha do tempo lê por viagem, ordenada — sem este índice ela varre a tabela inteira. */
+    index('trip_crew_events_company_trip_created_at_idx').on(
+      table.companyId,
+      table.tripId,
+      table.createdAt,
+    ),
+    check(
+      'trip_crew_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_crew_events_reason_check',
+      sql`char_length(${table.reason}) between 1 and ${raw(String(TRIP_CREW_EVENT_REASON_MAXIMUM_LENGTH))}`,
+    ),
+    check(
+      'trip_crew_events_crew_shape_check',
+      sql`jsonb_typeof(${table.previousCrew}) = 'array' and jsonb_typeof(${table.nextCrew}) = 'array' and jsonb_array_length(${table.nextCrew}) >= 1`,
+    ),
+    /** `antes + diferença = depois` é o que o painel imprime; o banco recusa uma linha que discorde. */
+    check(
+      'trip_crew_events_cost_difference_check',
+      sql`${table.costDifference} = ${table.costAfter} - ${table.costBefore}`,
+    ),
+  ],
+)
+
 /** Mesmo desenho de `mdfe_manifest_drivers` (ADR-0023 §1): `driver_id` + posição, mínimo 1. */
 export const tripDrivers = pgTable(
   'trip_drivers',
