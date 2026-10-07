@@ -9,7 +9,11 @@
  * chegam com valor, e "ausente" significa "mantém". Por isso, quando o operador digita um valor num nível e o
  * outro nível tem valor **gravado**, o outro vai `null` explícito no mesmo corpo.
  */
-import type { DeclaredAmountScope } from './occurrence.constant'
+import {
+  OCCURRENCE_ATTACHMENT_MODE,
+  type DeclaredAmountScope,
+  type OccurrenceAttachmentMode,
+} from './occurrence.constant'
 import {
   EMPTY_CORRECTION_RECORDED_AMOUNTS,
   type CorrectionRecordedAmounts,
@@ -46,10 +50,14 @@ export function isValidReferenceNumber(text: string): boolean {
 }
 
 export type CorrectionAmountsContext = Readonly<{
+  /** Spec 247 T7.2b: o modo do valor pago no tipo; `off` não envia nada dele. Ausente é opcional. */
+  amountMode?: OccurrenceAttachmentMode | undefined
   codes: readonly string[]
   draft: CorrectionAmountsDraft
   /** O que o registro gravou; ausente é "nada gravado". */
   recorded?: CorrectionRecordedAmounts
+  /** Spec 247 T7.2b: o modo do número do documento no tipo; `off` não envia nada dele. Ausente é opcional. */
+  referenceMode?: OccurrenceAttachmentMode | undefined
   /** Onde o tipo pede o valor pago; só decide o nível quando nada está gravado. */
   typeScope?: DeclaredAmountScope | undefined
 }>
@@ -77,6 +85,8 @@ export type CorrectionAmountsResolution = Readonly<{
   /** Texto ou `null` (limpa). Só vai quando editado, ou para limpar o nível que o outro substitui. */
   declaredAmount?: null | string
   hasReferenceNumberError: boolean
+  /** Spec 247 T7.2b: campo `required` que o operador esvaziou — não há como limpar o que o tipo exige. */
+  hasRequiredCleared: boolean
   /** Só das linhas editadas e que ainda estão na seleção; `null` limpa. */
   lineAmounts: ReadonlyMap<string, null | string>
   /** Só quando editado e válido: texto aparado ou `null`. */
@@ -88,12 +98,18 @@ function toDeclaredAmount(masked: string): null | string {
   return amount === '' ? null : amount
 }
 
+function isEditedEmpty(text: string | undefined): boolean {
+  return text !== undefined && text.trim() === ''
+}
+
 export function resolveCorrectionAmounts(
   context: CorrectionAmountsContext,
 ): CorrectionAmountsResolution {
-  const { codes, draft } = context
+  const { amountMode, codes, draft, referenceMode } = context
   const recorded = context.recorded ?? EMPTY_CORRECTION_RECORDED_AMOUNTS
-  const trimmedReference = draft.referenceNumber?.trim()
+  const isReferenceOff = referenceMode === OCCURRENCE_ATTACHMENT_MODE.off
+  const isAmountOff = amountMode === OCCURRENCE_ATTACHMENT_MODE.off
+  const trimmedReference = isReferenceOff ? undefined : draft.referenceNumber?.trim()
   const hasReferenceNumberError =
     trimmedReference !== undefined &&
     trimmedReference !== '' &&
@@ -102,8 +118,19 @@ export function resolveCorrectionAmounts(
     trimmedReference === undefined || hasReferenceNumberError
       ? {}
       : { referenceNumber: trimmedReference === '' ? null : trimmedReference }
+  const hasReferenceCleared =
+    referenceMode === OCCURRENCE_ATTACHMENT_MODE.required && isEditedEmpty(trimmedReference)
 
   const lineAmounts = new Map<string, null | string>()
+  if (isAmountOff) {
+    return {
+      hasReferenceNumberError,
+      hasRequiredCleared: hasReferenceCleared,
+      lineAmounts,
+      ...referenceNumber,
+    }
+  }
+  const isAmountRequired = amountMode === OCCURRENCE_ATTACHMENT_MODE.required
   if (isCorrectionAmountByLine(context)) {
     for (const code of codes) {
       const masked = draft.lineAmounts.get(code)
@@ -111,19 +138,32 @@ export function resolveCorrectionAmounts(
     }
     const hasTypedLineValue = [...lineAmounts.values()].some((amount) => amount !== null)
     const clearsOccurrence = hasTypedLineValue && recorded.declaredAmount !== null
+    const hasLineCleared = isAmountRequired && [...lineAmounts.values()].includes(null)
     return {
       ...(clearsOccurrence ? { declaredAmount: null } : {}),
       hasReferenceNumberError,
+      hasRequiredCleared: hasReferenceCleared || hasLineCleared,
       lineAmounts,
       ...referenceNumber,
     }
   }
 
   if (draft.occurrenceAmount === undefined) {
-    return { hasReferenceNumberError, lineAmounts, ...referenceNumber }
+    return {
+      hasReferenceNumberError,
+      hasRequiredCleared: hasReferenceCleared,
+      lineAmounts,
+      ...referenceNumber,
+    }
   }
   const declaredAmount = toDeclaredAmount(draft.occurrenceAmount)
   const clearsLines = declaredAmount !== null && recorded.lineAmounts.size > 0
   if (clearsLines) for (const code of codes) lineAmounts.set(code, null)
-  return { declaredAmount, hasReferenceNumberError, lineAmounts, ...referenceNumber }
+  return {
+    declaredAmount,
+    hasReferenceNumberError,
+    hasRequiredCleared: hasReferenceCleared || (isAmountRequired && declaredAmount === null),
+    lineAmounts,
+    ...referenceNumber,
+  }
 }

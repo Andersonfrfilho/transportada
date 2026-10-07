@@ -2243,6 +2243,7 @@
         "totalSum": "Soma geral: R$ {{amount}}",
         "clear": "Limpar",
         "nothingRecorded": "Nada gravado.",
+        "required": "Obrigatório: este campo não pode ficar vazio.",
         "willClear": "Será limpo ao salvar.",
         "occurrenceAmountTyped": "{{label}} (da ocorrência)",
         "emailAmount": "Valor que vai no e-mail: R$ {{amount}}",

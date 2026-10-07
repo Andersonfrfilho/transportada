@@ -2243,6 +2243,7 @@
         "totalSum": "Total sum: R$ {{amount}}",
         "clear": "Clear",
         "nothingRecorded": "Nothing saved.",
+        "required": "Required: this field cannot be left empty.",
         "willClear": "Will be cleared on save.",
         "occurrenceAmountTyped": "{{label}} (occurrence)",
         "emailAmount": "Amount in the e-mail: R$ {{amount}}",

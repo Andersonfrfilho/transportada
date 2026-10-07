@@ -13,6 +13,8 @@ export type OccurrenceRecordedFieldProps = Readonly<{
   hasRecorded: boolean
   inputMode: 'decimal' | 'text'
   isInvalid: boolean
+  /** Spec 247 T7.2b: o tipo exige o campo — não há "Limpar" e o texto diz que é obrigatório. */
+  isRequired?: boolean
   label: string
   maxLength?: number
   onChange: (text: string) => void
@@ -29,6 +31,7 @@ export function OccurrenceRecordedField({
   hasRecorded,
   inputMode,
   isInvalid,
+  isRequired = false,
   label,
   maxLength,
   onChange,
@@ -38,13 +41,15 @@ export function OccurrenceRecordedField({
   const { t } = useTranslation('trip')
   const stateId = useId()
   const isEmpty = value.trim() === ''
-  const stateText = isEmpty
-    ? t(
-        hasRecorded
-          ? 'occurrenceDetail.correction.amounts.willClear'
-          : 'occurrenceDetail.correction.amounts.nothingRecorded',
-      )
-    : null
+  const stateText = isRequired
+    ? t('occurrenceDetail.correction.amounts.required')
+    : isEmpty
+      ? t(
+          hasRecorded
+            ? 'occurrenceDetail.correction.amounts.willClear'
+            : 'occurrenceDetail.correction.amounts.nothingRecorded',
+        )
+      : null
 
   return (
     <div className={styles.field}>
@@ -65,7 +70,7 @@ export function OccurrenceRecordedField({
           type="text"
           value={value}
         />
-        {isEmpty ? null : (
+        {isEmpty || isRequired ? null : (
           <Button
             aria-label={`${t('occurrenceDetail.correction.amounts.clear')}: ${label}`}
             className={styles.clear}

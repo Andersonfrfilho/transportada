@@ -13,13 +13,17 @@ import {
   EMPTY_CORRECTION_AMOUNTS_DRAFT,
   resolveCorrectionAmounts,
 } from '../shared/occurrenceCorrectionAmounts.service'
+import { selectRecordConfig } from '../shared/occurrenceRecordConfig.service'
 import type { CorrectionRecordedAmounts } from '../shared/occurrenceRecordedAmounts.service'
 import {
   buildOccurrenceCorrectionItems,
   resolveOccurrenceItemSelectionFromDetail,
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
-import type { TripOccurrenceDetailItem } from '../shared/tripOccurrenceFeed.service'
+import type {
+  TripOccurrenceDetailItem,
+  TripOccurrenceRequirements,
+} from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
 import { OccurrenceCorrectionAmounts } from './OccurrenceCorrectionAmounts.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
@@ -36,6 +40,8 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
   onClose: () => void
   /** O que o registro gravou: a correção nasce com isso, em vez de vazia. */
   recorded: CorrectionRecordedAmounts
+  /** Spec 247 T7.2b: o requisito efetivo que a API publica; ausente cai no catálogo, se o operador pode lê-lo. */
+  requirements?: null | TripOccurrenceRequirements
   tripId: string
   /** Onde achar os rótulos do tipo: o catálogo é de quem tem `settings.manage`. */
   typeLookup: Readonly<{ canReadCatalog: boolean; occurrenceTypeId: null | string }>
@@ -54,6 +60,7 @@ export function TripOccurrenceCorrectionForm({
   occurrenceId,
   onClose,
   recorded,
+  requirements,
   tripId,
   typeLookup,
 }: TripOccurrenceCorrectionFormProps) {
@@ -72,20 +79,27 @@ export function TripOccurrenceCorrectionForm({
   const correction = useCorrectOccurrenceItems()
   const products = productsQuery.data ?? []
   const feedbackKey = resolveTripFeedbackKey(correction.error)
-  const typeConfig = useOccurrenceTypeRecordConfig(typeLookup)
+  const catalogConfig = useOccurrenceTypeRecordConfig({
+    ...typeLookup,
+    canReadCatalog: typeLookup.canReadCatalog && (requirements ?? null) === null,
+  })
+  const typeConfig = selectRecordConfig({ fallback: catalogConfig, requirements })
   const amounts = resolveCorrectionAmounts({
+    amountMode: typeConfig.amountMode,
     codes: productCodes,
     draft: amountsDraft,
     recorded,
+    referenceMode: typeConfig.referenceMode,
     typeScope: typeConfig.scope,
   })
+  const isBlocked = amounts.hasReferenceNumberError || amounts.hasRequiredCleared
 
   useEffect(() => {
     titleRef.current?.focus()
   }, [])
 
   function handleSubmit(): void {
-    if (amounts.hasReferenceNumberError) return
+    if (isBlocked) return
     correction.mutate(
       {
         ...(amounts.declaredAmount === undefined ? {} : { declaredAmount: amounts.declaredAmount }),
@@ -157,9 +171,7 @@ export function TripOccurrenceCorrectionForm({
           {t('occurrenceDetail.correction.form.discard')}
         </Button>
         <Button
-          disabled={
-            correction.isPending || !productsQuery.isSuccess || amounts.hasReferenceNumberError
-          }
+          disabled={correction.isPending || !productsQuery.isSuccess || isBlocked}
           onClick={handleSubmit}
           size="sm"
           type="button"
