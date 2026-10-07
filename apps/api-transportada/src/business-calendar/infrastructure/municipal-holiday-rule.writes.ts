@@ -43,7 +43,9 @@ export type Write<TInput> = {
 export async function createRule({
   input,
   transaction,
-}: Write<MunicipalHolidayRuleFields & { readonly currentYear: number }>): Promise<CreateMunicipalHolidayRuleResult> {
+}: Write<
+  MunicipalHolidayRuleFields & { readonly currentYear: number }
+>): Promise<CreateMunicipalHolidayRuleResult> {
   const { companyId } = input
   const existing = await findRuleByDay({ ...input, transaction })
   if (existing !== undefined) return resolveExisting({ existing, fields: input })
