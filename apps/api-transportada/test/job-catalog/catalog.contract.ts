@@ -166,7 +166,7 @@ const SEED_MIGRATIONS = [
   '20260924033423_lumpy_scalphunter',
   '20260925152805_occurrence_conversation_upload_expire_job',
   '20261002120000_trip_canhoto_read_job',
-  '20261007180000_cargo_preview_retention',
+  '20261007133324_cargo_preview_retention',
 ] as const
 
 describe('job catalog', () => {
