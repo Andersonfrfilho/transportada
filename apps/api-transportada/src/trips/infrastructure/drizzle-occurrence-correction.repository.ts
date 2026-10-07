@@ -28,8 +28,10 @@ import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy
 import { findOccurrenceType, listDocumentProducts } from './delivery-proof-read.support.js'
 import {
   insertOccurrenceProductRows,
+  listOccurrenceProductLines,
   listOccurrenceProducts,
 } from './drizzle-occurrence-product.repository.js'
+import type { StoredOccurrenceLineValues } from '../domain/occurrence-correction-values.policy.js'
 import type {
   CorrectedOccurrenceView,
   LockedOccurrenceRow,
@@ -73,12 +75,13 @@ function createOccurrenceCorrectionTransactionPort(
     findOccurrenceType: (input) => findOccurrenceType(queryable, input),
     hasOpenCase: (input) => hasOpenOccurrenceCase(queryable, input),
     insertCorrection: (input) => insertOccurrenceCorrection(queryable, input),
-    listCurrentItems: (input) => listCurrentOccurrenceItems(queryable, input),
+    listCurrentItems: (input) => listCurrentOccurrenceLines(queryable, input),
     listDocumentProducts: (input) => listDocumentProducts(queryable, input),
     lockOccurrence: (input) => lockOccurrenceForWrite(queryable, input),
     readOccurrenceView: (input) => readOccurrenceView(queryable, input),
     replaceItems: (input) => replaceOccurrenceItems(queryable, input),
     writeCancellation: (input) => writeOccurrenceCancellation(queryable, input),
+    writeDeclaredValues: (input) => writeOccurrenceDeclaredValues(queryable, input),
   }
 }
 
@@ -94,8 +97,10 @@ async function lockOccurrenceForWrite(
   const [row] = await queryable
     .select({
       cancelledAt: tripDocumentOccurrences.cancelledAt,
+      declaredAmount: tripDocumentOccurrences.declaredAmount,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       productCode: tripDocumentOccurrences.productCode,
+      referenceNumber: tripDocumentOccurrences.referenceNumber,
       tripDocumentId: tripDocumentOccurrences.tripDocumentId,
     })
     .from(tripDocumentOccurrences)
@@ -121,8 +126,10 @@ async function lockOccurrenceForWrite(
 
   return {
     cancelledAt: row.cancelledAt === null ? null : row.cancelledAt.toISOString(),
+    declaredAmount: row.declaredAmount,
     occurrenceTypeId: row.occurrenceTypeId,
     productCode: row.productCode,
+    referenceNumber: row.referenceNumber,
     tripDocumentId: row.tripDocumentId,
     tripId: document.tripId,
   }
@@ -181,11 +188,34 @@ async function listCurrentOccurrenceItems(
   return productCodes.map((code) => ({ code, quantity: null, unit: null }))
 }
 
+/**
+ * Spec 247 (T4.8): o conjunto de hoje **com** o valor unitário copiado e o valor pago digitado — é o que
+ * `previous_items` guarda. A resposta publicada ao painel continua com as três chaves de sempre.
+ */
+async function listCurrentOccurrenceLines(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly StoredOccurrenceLineValues[]> {
+  const lines = await listOccurrenceProductLines(queryable, input)
+  if (lines.length > 0) {
+    return lines.map((line) => ({
+      code: line.productCode,
+      declaredAmount: line.declaredAmount,
+      quantity: line.quantity,
+      unit: line.quantityUnit,
+      unitValue: line.unitValue,
+    }))
+  }
+
+  const items = await listCurrentOccurrenceItems(queryable, input)
+  return items.map((item) => ({ ...item, declaredAmount: null, unitValue: null }))
+}
+
 async function replaceOccurrenceItems(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
-    readonly items: readonly OccurrenceItemQuantity[]
+    readonly items: readonly StoredOccurrenceLineValues[]
     readonly occurrenceId: string
     readonly productCode: string
   },
@@ -220,7 +250,7 @@ async function insertOccurrenceCorrection(
     readonly companyId: string
     readonly correctedByUserId: string
     readonly occurrenceId: string
-    readonly previousItems: readonly OccurrenceItemQuantity[]
+    readonly previousItems: readonly StoredOccurrenceLineValues[]
   },
 ): Promise<void> {
   await queryable.insert(tripDocumentOccurrenceCorrections).values({
@@ -229,6 +259,26 @@ async function insertOccurrenceCorrection(
     occurrenceId: input.occurrenceId,
     previousItems: input.previousItems,
   })
+}
+
+async function writeOccurrenceDeclaredValues(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly declaredAmount: null | string
+    readonly occurrenceId: string
+    readonly referenceNumber: null | string
+  },
+): Promise<void> {
+  await queryable
+    .update(tripDocumentOccurrences)
+    .set({ declaredAmount: input.declaredAmount, referenceNumber: input.referenceNumber })
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
 }
 
 async function writeOccurrenceCancellation(

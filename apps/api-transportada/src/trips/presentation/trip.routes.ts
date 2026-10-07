@@ -270,11 +270,15 @@ const OCCURRENCE_CORRECTION_RATE_LIMIT = {
 
 type CorrectOccurrenceItemsRouteInput = {
   readonly context: CompanyContext
+  /** Spec 247 (T4.8): ausente mantém, nulo limpa, texto passa a valer. */
+  readonly declaredAmount?: null | string | undefined
   readonly idempotencyKey: string
   readonly occurrenceId: string
   readonly productCodes: readonly string[]
+  readonly productDeclaredAmounts: readonly (null | string | undefined)[]
   readonly productQuantities: readonly string[]
   readonly productQuantityUnits: readonly string[]
+  readonly referenceNumber?: null | string | undefined
 }
 
 type CancelOccurrenceRouteInput = {

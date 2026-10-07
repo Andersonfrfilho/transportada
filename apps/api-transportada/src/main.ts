@@ -4190,10 +4190,13 @@ function createApplicationRoutes({
               idempotencyKey: input.idempotencyKey,
               operation: `${OCCURRENCE_CORRECTION_OPERATION}:${buildOccurrenceCorrectionFingerprint(
                 {
+                  declaredAmount: input.declaredAmount,
                   occurrenceId: input.occurrenceId,
                   productCodes: input.productCodes,
+                  productDeclaredAmounts: input.productDeclaredAmounts,
                   productQuantities: input.productQuantities,
                   productQuantityUnits: input.productQuantityUnits,
+                  referenceNumber: input.referenceNumber,
                 },
               )}`,
               transaction: fieldReportGuardTransaction,
@@ -4203,10 +4206,13 @@ function createApplicationRoutes({
                 actorUserId: input.context.userId,
                 companyId: input.context.companyId,
                 occurrenceId: input.occurrenceId,
+                declaredAmount: input.declaredAmount,
                 productCode: '',
                 productCodes: input.productCodes,
+                productDeclaredAmounts: input.productDeclaredAmounts,
                 productQuantities: input.productQuantities,
                 productQuantityUnits: input.productQuantityUnits,
+                referenceNumber: input.referenceNumber,
                 unitOfWork: new DrizzleOccurrenceCorrectionUnitOfWork(database),
               }),
             recall: (resultId) =>

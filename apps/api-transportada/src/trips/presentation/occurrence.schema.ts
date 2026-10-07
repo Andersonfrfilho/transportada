@@ -653,13 +653,31 @@ export async function parseOccurrenceAttachmentOverridesRequest(
  * valer, nunca `add`/`remove`. `code` é obrigatório; `quantity`/`unit` são opcionais e o par é
  * conferido pela política pura (`occurrence-item-quantity.policy.ts`), a mesma do registro.
  */
+/**
+ * Spec 247 (T4.8): na correção o número e os valores têm três estados — ausente mantém o gravado, nulo
+ * limpa, texto passa a valer. Valor vazio limpa, como o número vazio do registro. Preço e unidade da nota
+ * **não** entram: o `strict()` os recusa, e o servidor os lê da nota.
+ */
+const correctionReferenceNumberSchema = z.union([
+  z.null(),
+  z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? null : value))
+    .pipe(z.union([z.null(), z.string().regex(new RegExp(OCCURRENCE_REFERENCE_NUMBER_PATTERN))])),
+])
+
+const correctionDeclaredAmountSchema = declaredAmountSchema.nullable()
+
 const correctOccurrenceItemsSchema = z
   .object({
+    declaredAmount: correctionDeclaredAmountSchema.optional(),
     items: z
       .array(
         z
           .object({
             code: z.string().trim().min(1).max(60),
+            declaredAmount: correctionDeclaredAmountSchema.optional(),
             quantity: z.string().trim().max(32).optional(),
             unit: z.string().trim().max(8).optional(),
           })
@@ -667,13 +685,19 @@ const correctOccurrenceItemsSchema = z
       )
       .max(200)
       .default([]),
+    referenceNumber: correctionReferenceNumberSchema.optional(),
   })
   .strict()
 
 export type CorrectOccurrenceItemsBody = {
+  /** Spec 247: ausente mantém, nulo limpa, texto passa a valer. */
+  readonly declaredAmount?: null | string | undefined
   readonly productCodes: readonly string[]
+  /** Alinhada por índice a `productCodes`; o mesmo significado dos três estados. */
+  readonly productDeclaredAmounts: readonly (null | string | undefined)[]
   readonly productQuantities: readonly string[]
   readonly productQuantityUnits: readonly string[]
+  readonly referenceNumber?: null | string | undefined
 }
 
 export async function parseCorrectOccurrenceItemsRequest(
@@ -681,9 +705,12 @@ export async function parseCorrectOccurrenceItemsRequest(
 ): Promise<CorrectOccurrenceItemsBody> {
   const body = await parseBody(correctOccurrenceItemsSchema, request)
   return {
+    declaredAmount: body.declaredAmount,
     productCodes: body.items.map((item) => item.code),
+    productDeclaredAmounts: body.items.map((item) => item.declaredAmount),
     productQuantities: body.items.map((item) => item.quantity ?? ''),
     productQuantityUnits: body.items.map((item) => item.unit ?? ''),
+    referenceNumber: body.referenceNumber,
   }
 }
 

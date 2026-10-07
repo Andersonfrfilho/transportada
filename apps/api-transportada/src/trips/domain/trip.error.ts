@@ -1379,6 +1379,27 @@ export class OccurrenceItemQuantityAboveDocumentError extends ApiError {
   }
 }
 
+/**
+ * Spec 247 (T4.8): o valor pago da ocorrência e o de uma linha ao mesmo tempo — o registro recusa no
+ * corpo (`DECLARED_AMOUNT_SELECTION_CONFLICT`); a correção, que mantém o gravado quando o campo vem
+ * ausente, recusa o estado final.
+ */
+export class OccurrenceDeclaredAmountLevelConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DECLARED_AMOUNT_SELECTION_CONFLICT',
+      details: [
+        {
+          field: 'declaredAmount',
+          message: 'Use the occurrence amount or the item amounts, not both.',
+        },
+      ],
+      message: 'The paid amount is either on the occurrence or on its items, never on both.',
+      status: 400,
+    })
+  }
+}
+
 const REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE = 'Required by the occurrence type.'
 
 /**
