@@ -9,9 +9,16 @@ import { describe, expect, test } from 'bun:test'
 import {
   EMPTY_CORRECTION_AMOUNTS_DRAFT,
   isValidReferenceNumber,
+  resolveCorrectionAmountScope,
   resolveCorrectionAmounts,
   type CorrectionAmountsDraft,
 } from '@/modules/trip/shared/occurrenceCorrectionAmounts.service'
+import { readCorrectionLineSums } from '@/modules/trip/shared/occurrenceCorrectionSums.service'
+import {
+  buildCorrectionRecordedAmounts,
+  EMPTY_CORRECTION_RECORDED_AMOUNTS,
+  resolveCorrectionFinalAmounts,
+} from '@/modules/trip/shared/occurrenceRecordedAmounts.service'
 import { buildOccurrenceCorrectionItems } from '@/modules/trip/shared/occurrenceProductSelection.service'
 
 function draft(overrides: Partial<CorrectionAmountsDraft>): CorrectionAmountsDraft {
@@ -141,5 +148,225 @@ describe('o corpo da correção leva o valor só nas linhas editadas', () => {
       { code: '698' },
     ])
     expect(items[2]).not.toHaveProperty('declaredAmount')
+  })
+})
+
+describe('o gravado vira o estado inicial (spec 247 T7.2, A1/A2)', () => {
+  const onLines = buildCorrectionRecordedAmounts({
+    itemValues: [
+      { declaredAmount: '50.00', productCode: '696', quantity: '2.000', unitValue: '19.9950' },
+      { declaredAmount: null, productCode: '697', quantity: '1.000', unitValue: '57.2000' },
+    ],
+  })
+  const onOccurrence = buildCorrectionRecordedAmounts({ declaredAmount: '40.00' })
+
+  test('só a linha com valor pago entra no gravado; ausente é "nada gravado"', () => {
+    expect([...onLines.lineAmounts]).toEqual([['696', '50.00']])
+    expect(onLines.declaredAmount).toBeNull()
+    expect(buildCorrectionRecordedAmounts({})).toEqual(EMPTY_CORRECTION_RECORDED_AMOUNTS)
+    expect(buildCorrectionRecordedAmounts({ declaredAmount: '0.00' }).declaredAmount).toBe('0.00')
+  })
+
+  test('o nível nasce onde está gravado; sem gravado, no do tipo; sem tipo, por linha', () => {
+    const codes = ['696', '697']
+    expect(resolveCorrectionAmountScope({ codes, draft: draft({}), recorded: onLines })).toBe(
+      'item',
+    )
+    expect(
+      resolveCorrectionAmountScope({
+        codes,
+        draft: draft({}),
+        recorded: onOccurrence,
+        typeScope: 'item',
+      }),
+    ).toBe('occurrence')
+    const empty = EMPTY_CORRECTION_RECORDED_AMOUNTS
+    expect(resolveCorrectionAmountScope({ codes, draft: draft({}), typeScope: 'occurrence' })).toBe(
+      'occurrence',
+    )
+    expect(resolveCorrectionAmountScope({ codes, draft: draft({}), recorded: empty })).toBe('item')
+    expect(
+      resolveCorrectionAmountScope({
+        codes,
+        draft: draft({ scope: 'item' }),
+        recorded: onOccurrence,
+      }),
+    ).toBe('item')
+  })
+
+  test('(a) gravado na linha, vira "um só" e digita 40,00: ocorrência 40.00 e todas as linhas nulas', () => {
+    const resolved = resolveCorrectionAmounts({
+      codes: ['696', '697'],
+      draft: draft({ occurrenceAmount: '40,00', scope: 'occurrence' }),
+      recorded: onLines,
+    })
+    expect(resolved.declaredAmount).toBe('40.00')
+    expect(resolved.lineAmounts).toEqual(
+      new Map<string, null | string>([
+        ['696', null],
+        ['697', null],
+      ]),
+    )
+  })
+
+  test('(b) gravado na ocorrência, vira "por linha" e digita numa linha: ocorrência nula e o valor da linha', () => {
+    const resolved = resolveCorrectionAmounts({
+      codes: ['696', '697'],
+      draft: draft({ lineAmounts: new Map([['696', '50,00']]), scope: 'item' }),
+      recorded: onOccurrence,
+    })
+    expect(resolved).toHaveProperty('declaredAmount')
+    expect(resolved.declaredAmount).toBeNull()
+    expect(resolved.lineAmounts).toEqual(new Map([['696', '50.00']]))
+  })
+
+  test('trocar de nível sem valor novo não apaga o gravado; zero é valor e apaga o outro nível', () => {
+    const untouched = resolveCorrectionAmounts({
+      codes: ['696'],
+      draft: draft({ scope: 'occurrence' }),
+      recorded: onLines,
+    })
+    expect(untouched).not.toHaveProperty('declaredAmount')
+    expect(untouched.lineAmounts.size).toBe(0)
+
+    const zero = resolveCorrectionAmounts({
+      codes: ['696'],
+      draft: draft({ occurrenceAmount: '0,00', scope: 'occurrence' }),
+      recorded: onLines,
+    })
+    expect(zero.declaredAmount).toBe('0.00')
+    expect(zero.lineAmounts.get('696')).toBeNull()
+  })
+
+  test('(c) limpar: a linha nula não apaga a ocorrência, e a ocorrência nula não toca as linhas', () => {
+    const line = resolveCorrectionAmounts({
+      codes: ['696'],
+      draft: draft({ lineAmounts: new Map([['696', '']]), scope: 'item' }),
+      recorded: onLines,
+    })
+    expect(line.lineAmounts.get('696')).toBeNull()
+    expect(line).not.toHaveProperty('declaredAmount')
+
+    const occurrence = resolveCorrectionAmounts({
+      codes: ['696'],
+      draft: draft({ occurrenceAmount: '', scope: 'occurrence' }),
+      recorded: onOccurrence,
+    })
+    expect(occurrence.declaredAmount).toBeNull()
+    expect(occurrence.lineAmounts.size).toBe(0)
+  })
+
+  test('nunca os dois níveis com valor no mesmo corpo, em nenhuma combinação', () => {
+    for (const recorded of [onLines, onOccurrence, EMPTY_CORRECTION_RECORDED_AMOUNTS]) {
+      for (const scope of ['item', 'occurrence'] as const) {
+        const resolved = resolveCorrectionAmounts({
+          codes: ['696', '697'],
+          draft: draft({
+            lineAmounts: new Map([['696', '1,00']]),
+            occurrenceAmount: '2,00',
+            scope,
+          }),
+          recorded,
+        })
+        const hasLine = [...resolved.lineAmounts.values()].some((amount) => amount !== null)
+        const hasOccurrence =
+          resolved.declaredAmount !== undefined && resolved.declaredAmount !== null
+        expect(hasLine && hasOccurrence).toBe(false)
+      }
+    }
+  })
+})
+
+describe('o valor que vai no e-mail (RF9 espelhada)', () => {
+  const products = [
+    {
+      code: '696',
+      commercialUnit: 'CX',
+      description: 'A',
+      ordinal: 1,
+      quantity: '9.000',
+      totalValue: '9.00',
+      unitValue: '1.0000',
+    },
+    {
+      code: '697',
+      commercialUnit: 'CX',
+      description: 'B',
+      ordinal: 2,
+      quantity: '1.000',
+      totalValue: '57.20',
+      unitValue: '57.2000',
+    },
+  ]
+  const quantities = new Map([
+    ['696', { quantity: '3', unit: 'CX' }],
+    ['697', { quantity: '', unit: 'CX' }],
+  ])
+
+  function emailAmount(input: Parameters<typeof resolveCorrectionFinalAmounts>[0]): null | string {
+    return readCorrectionLineSums({
+      codes: input.codes,
+      final: resolveCorrectionFinalAmounts(input),
+      products,
+      quantitiesByCode: quantities,
+    }).emailAmount
+  }
+
+  const codes = ['696', '697']
+
+  test('sem valor pago, é a soma geral; o pago da linha vale no lugar da soma da linha', () => {
+    const none = emailAmount({
+      codes,
+      recorded: EMPTY_CORRECTION_RECORDED_AMOUNTS,
+      resolution: resolveCorrectionAmounts({ codes, draft: draft({}) }),
+    })
+    expect(none).toBe('60,20')
+    const paid = buildCorrectionRecordedAmounts({
+      itemValues: [
+        { declaredAmount: '10.00', productCode: '696', quantity: '3.000', unitValue: '1.0000' },
+      ],
+    })
+    expect(
+      emailAmount({
+        codes,
+        recorded: paid,
+        resolution: resolveCorrectionAmounts({ codes, draft: draft({}), recorded: paid }),
+      }),
+    ).toBe('67,20')
+  })
+
+  test('o valor pago da ocorrência vale como está, e o zero também', () => {
+    for (const [typed, expected] of [
+      ['199,99', '199,99'],
+      ['0,00', '0,00'],
+    ] as const) {
+      const resolution = resolveCorrectionAmounts({
+        codes,
+        draft: draft({ occurrenceAmount: typed, scope: 'occurrence' }),
+      })
+      expect(emailAmount({ codes, recorded: EMPTY_CORRECTION_RECORDED_AMOUNTS, resolution })).toBe(
+        expected,
+      )
+    }
+  })
+
+  test('3 × 19,995 fecha em 59,99 (meio para cima), sem float', () => {
+    const result = readCorrectionLineSums({
+      codes: ['X'],
+      final: { lineAmounts: new Map(), occurrenceAmount: null },
+      products: [
+        {
+          code: 'X',
+          commercialUnit: 'UN',
+          description: 'X',
+          ordinal: 1,
+          quantity: '3.000',
+          totalValue: '60.00',
+          unitValue: '19.9950',
+        },
+      ],
+      quantitiesByCode: new Map([['X', { quantity: '3', unit: 'UN' }]]),
+    })
+    expect(result.emailAmount).toBe('59,99')
   })
 })

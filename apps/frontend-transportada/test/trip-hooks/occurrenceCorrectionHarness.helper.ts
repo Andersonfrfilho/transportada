@@ -10,6 +10,7 @@ import { act, createElement } from 'react'
 import { OccurrenceCorrectionActions } from '@/modules/trip/components/OccurrenceCorrectionActions.component'
 import { TRIP_OCCURRENCE_FEED_QUERY_KEY } from '@/modules/trip/queries/tripOccurrenceFeed.query'
 import { TRIP_MANAGE_PERMISSION } from '@/modules/trip/shared/trip.constant'
+import type { OccurrenceType } from '@/modules/trip/shared/occurrenceType.types'
 import type {
   CorrectTripOccurrenceItemsInput,
   OccurrenceWriteResult,
@@ -64,7 +65,10 @@ let detailReadCount = 0
 let detailOverrides: Partial<TripOccurrenceDetail> = {}
 
 /** A API dublada: guarda o conjunto vigente e o devolve na próxima leitura do detalhe. */
-export function installServerDouble(overrides: Partial<TripOccurrenceDetail> = {}): {
+export function installServerDouble(
+  overrides: Partial<TripOccurrenceDetail> = {},
+  occurrenceTypes: readonly OccurrenceType[] = [],
+): {
   calls: CorrectTripOccurrenceItemsInput[]
   detailReads: () => number
 } {
@@ -94,12 +98,15 @@ export function installServerDouble(overrides: Partial<TripOccurrenceDetail> = {
       }))
       return Promise.resolve(WRITE_RESULT)
     },
+    listOccurrenceTypes: () => Promise.resolve(occurrenceTypes),
     readTripDocumentProducts: () => Promise.resolve(PRODUCTS),
   }
   return { calls, detailReads: () => detailReadCount }
 }
 
-export function DetailHarness() {
+export function DetailHarness({
+  permissions = [TRIP_MANAGE_PERMISSION],
+}: Readonly<{ permissions?: readonly string[] }>) {
   const query = useQuery({
     queryFn: () => {
       detailReadCount += 1
@@ -127,7 +134,7 @@ export function DetailHarness() {
     createElement(OccurrenceCorrectionActions, {
       companyId: COMPANY_ID,
       occurrence: query.data,
-      permissions: [TRIP_MANAGE_PERMISSION],
+      permissions,
     }),
   )
 }

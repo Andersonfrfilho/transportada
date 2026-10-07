@@ -5,11 +5,22 @@
  * em inteiro (`occurrenceAmount.service.ts`). Linha sem conta confiável (unidade que não é a da nota,
  * quantidade ilegível, item que a nota não tem) fica sem soma, e sem soma de uma linha não há soma geral.
  */
-import { calculateItemLineAmount, formatBrazilianAmount } from './occurrenceAmount.service'
+import {
+  calculateItemLineAmount,
+  formatBrazilianAmount,
+  parseAmountToCents,
+} from './occurrenceAmount.service'
+import type { CorrectionFinalAmounts } from './occurrenceRecordedAmounts.service'
 import type { OccurrenceQuantitiesByCode } from './occurrenceProductSelection.service'
 import type { TripDocumentProduct } from './trip.types'
 
 export type CorrectionLineSums = Readonly<{
+  /**
+   * Spec 247 T7.2: o `valorDeclarado` que o e-mail imprime — a mesma regra de RF9 espelhada do servidor: o valor
+   * pago da ocorrência, senão a soma dos valores das linhas (o pago digitado, senão a soma da linha). `null` quando
+   * alguma linha não tem valor pago nem conta confiável.
+   */
+  emailAmount: null | string
   /** A soma de cada linha, já formatada (`57,20`); a linha sem conta confiável não tem entrada. */
   lines: ReadonlyMap<string, string>
   /** A soma das linhas arredondadas; `null` quando alguma linha ficou sem soma, ou não há linha. */
@@ -40,14 +51,37 @@ function readLineCents(
   }
 }
 
+function readEmailAmount(
+  input: Readonly<{
+    calculated: ReadonlyMap<string, bigint>
+    codes: readonly string[]
+    final: CorrectionFinalAmounts
+  }>,
+): null | string {
+  const { calculated, codes, final } = input
+  if (final.occurrenceAmount !== null) {
+    return formatBrazilianAmount(parseAmountToCents(final.occurrenceAmount))
+  }
+  if (codes.length === 0) return null
+  const parts = codes.map((code) => {
+    const typed = final.lineAmounts.get(code)
+    return typed === undefined || typed === null ? calculated.get(code) : parseAmountToCents(typed)
+  })
+  if (parts.some((part) => part === undefined)) return null
+  return formatBrazilianAmount(parts.reduce((sum: bigint, part) => sum + (part ?? 0n), 0n))
+}
+
 export function readCorrectionLineSums(
   input: Readonly<{
     codes: readonly string[]
+    /** O que valerá depois do salvar; ausente não calcula o valor do e-mail. */
+    final?: CorrectionFinalAmounts
     products: readonly TripDocumentProduct[]
     quantitiesByCode: OccurrenceQuantitiesByCode
   }>,
 ): CorrectionLineSums {
   const lines = new Map<string, string>()
+  const calculated = new Map<string, bigint>()
   const cents: bigint[] = []
   for (const code of input.codes) {
     const product = input.products.find((candidate) => candidate.code === code)
@@ -60,10 +94,15 @@ export function readCorrectionLineSums(
     })
     if (lineCents === null) continue
     lines.set(code, formatBrazilianAmount(lineCents))
+    calculated.set(code, lineCents)
     cents.push(lineCents)
   }
   const isComplete = input.codes.length > 0 && cents.length === input.codes.length
   return {
+    emailAmount:
+      input.final === undefined
+        ? null
+        : readEmailAmount({ calculated, codes: input.codes, final: input.final }),
     lines,
     total: isComplete ? formatBrazilianAmount(cents.reduce((sum, value) => sum + value, 0n)) : null,
   }
