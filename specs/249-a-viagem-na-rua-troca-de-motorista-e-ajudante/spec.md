@@ -47,10 +47,14 @@ histórico guarda quem saiu, quem entrou, quem fez, por quê, e o custo antes e 
   tripulação anterior e nova (JSON de `{driverId, name, role, position}`), `actor_user_id`,
   `channel`, `reason`, `cost_before`, `cost_after`, `cost_difference` (`numeric(14,2)`),
   `mdfe_driver_divergence` (boolean). Entra na linha do tempo da viagem. Grava `audit_logs`.
-- **D7 — Custo antes e depois**: usa a mesma `readTripValuation` do resto do produto; soma as
-  parcelas `driver` e `helper`. Antes é lido antes da troca, depois é lido na mesma transação da
-  troca. Parcela com lacuna entra com o valor que a tela já mostra e o evento marca
-  `cost_has_gaps`.
+- **D7 — Custo antes e depois** (emendada pela T1.1): soma das parcelas `driver` e `helper`, pelas
+  **mesmas funções puras** que `readTripValuation` usa (`buildTripDriverCost`,
+  `buildTripHelperCost`), extraídas para `trip-crew-cost.policy.ts` e chamadas também por
+  `buildCostParcels` — uma conta só. **Antes e depois são calculados em memória, dentro da
+  transação e sob `FOR NO KEY UPDATE`**, a partir da mesma leitura das fichas e das diárias. Não
+  se lê `readContext` na transação (12 consultas em paralelo numa conexão só). `cost_before` e
+  `cost_after` são arredondados a 2 casas e a diferença é `after − before` sobre os arredondados.
+  Parcela com lacuna entra com o valor que a tela já mostra e o evento marca `cost_has_gaps`.
 - **D8 — MDF-e**: a divergência é verdadeira quando o conjunto de **motoristas** (`role='driver'`)
   mudou e há MDF-e `authorized` para a viagem. Troca só de ajudante nunca diverge (ADR-0065).
 - **D9 — App do motorista**: a viagem some da lista de quem saiu e aparece para quem entrou pelo

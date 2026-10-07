@@ -84,10 +84,36 @@ Erros (envelope padrão `{ error: { code, message } }`): `400` corpo inválido �
 motivo: cancelada, concluída, ainda não despachada) · `409 TRIP_CREW_UNCHANGED` · `422` ficha
 inelegível (`TRIP_DRIVER_CANNOT_DRIVE` e equivalentes da 235).
 
-`allowed-actions` ganha a chave `transferCrew` (boolean), no mesmo objeto de `defineCrew`.
+`allowed-actions` ganha o nome `transferCrew` dentro da lista `trip[]` (que é uma lista de nomes, não
+um objeto de booleanos); ausente equivale a falso. O painel valida `data.transfer` com chaves exatas.
 
 Evento na linha do tempo da viagem: `kind: 'crew_transfer'`, com `occurredAt`, `actor`, `reason`,
 `previousCrew[]`, `nextCrew[]` (`{ driverId, name, role, position }`), `costDifference`,
 `mdfeDriverDivergence`.
 
 Decimais trafegam como string (regra do projeto: dinheiro nunca é float).
+
+## Decisão T1.1 (opus, 2026-10-07)
+
+Custo antes e depois: **cálculo puro, os dois dentro da transação e sob o lock.**
+
+- Arquivo novo `src/trips/domain/trip-crew-cost.policy.ts` com `buildCrewCostParcels(inputs)` e
+  `summarizeCrewCost(parcels)`; `resolveAllowanceDays` (privada em
+  `read-trip-valuation.use-case.ts:703-713`) muda para ele. `buildCostParcels` delega a
+  `buildCrewCostParcels`, e um contrato de paridade compara os dois caminhos.
+- **Não** estender `DrizzleTripValuationQuery` com executor e **não** tocar em
+  `trip-valuation.query.ts`: `readContext` faz 12 consultas em `Promise.all`, e numa transação isso
+  disputa uma conexão só.
+- Ordem no repositório `transferCrew`: `SELECT trips … FOR NO KEY UPDATE` (traz `status`,
+  `daily_allowance_days`, `planned_duration_seconds`, `planned_journey_seconds`,
+  `planned_journey_includes_return`) → `checkTripTransition(transferCrew)` → `SELECT trip_drivers`
+  atual (igual ao pedido → `TRIP_CREW_UNCHANGED`) → **um** `SELECT fleet_drivers WHERE id IN
+(antigos ∪ novos)` e as duas diárias da empresa **em sequência** → custo antes e depois em memória
+  → `DELETE`+`INSERT trip_drivers`, só `updated_at` em `trips` → MDF-e `authorized` → `INSERT
+trip_crew_events` + `audit_logs` → `readTripDetail(transaction)`.
+- Escala: `MONEY_SCALE = 4n`, coluna `numeric(14,2)`. Arredondar `before` e `after` a 2 casas
+  (`rescaleHalfUp`) e só então `difference = after − before`.
+- `costHasGaps` = alguma das 4 parcelas com `gap !== null && !isAdvisoryGap(gap)`
+  (`HELPER_JOURNEY_WITHOUT_RETURN` é só aviso).
+- O motorista usa `daily_allowance_days` ou `suggestAllowanceDays(planned_duration_seconds)`; **não**
+  usa `planned_journey_seconds` (esse é do ajudante).

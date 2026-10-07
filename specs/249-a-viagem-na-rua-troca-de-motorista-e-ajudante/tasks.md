@@ -20,12 +20,12 @@ Migration pede `make migration-test` além do `make check`.
 
 > 🤖 Modelo: `sonnet` (T1.1 é 🧠 — `opus`, validar com `architect` antes de implementar)
 
-- [ ] **T1.1** 🧠 Decidir e documentar no `plan.md` como o custo "depois" é lido na mesma transação
+- [x] **T1.1** 🧠 Decidir e documentar no `plan.md` como o custo "depois" é lido na mesma transação
       da troca (`readTripValuation` aceita executor de transação? senão, segunda leitura dentro do
       repositório). Saída: 5 linhas no `plan.md`, sem código.
 - [ ] **T1.2** Contratos vermelhos primeiro: grade de `trip-state.contract.ts` com a ação nova nos
       10 status; `crew-transfer.contract.ts` (permissão, corpo, `reason` obrigatório, `409
-    TRIP_CREW_UNCHANGED`, recusa em `completed`/`cancelled`/`separating`, veículo ausente do corpo);
+  TRIP_CREW_UNCHANGED`, recusa em `completed`/`cancelled`/`separating`, veículo ausente do corpo);
       `separator-role.contract.test.ts` prova que o separador não alcança a rota.
 - [ ] **T1.3** Migration `trip_crew_events` + `rollback.sql` + `snapshot.json` + schema Drizzle.
       `make migration-test` verde.
@@ -63,7 +63,7 @@ Migration pede `make migration-test` além do `make check`.
 - [ ] **T4.2** Revisão de design e usabilidade do diálogo: print do painel (web.md §15), uma vez.
 - [ ] **T4.3** Gates completos: `make check`, `make migration-test`, integração tocada
       (`bun --env-file=../../.env.test run test:integration`). Publicar em staging (`fetch → rebase →
-    install → gates → push HEAD:staging`). PR `staging → main` aberto para aprovação humana.
+  install → gates → push HEAD:staging`). PR `staging → main` aberto para aprovação humana.
 
 ## Prompt de execução
 
