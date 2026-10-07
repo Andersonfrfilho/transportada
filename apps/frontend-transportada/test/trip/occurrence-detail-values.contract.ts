@@ -63,6 +63,42 @@ describe('detalhe da ocorrência: número, valor pago e valores por linha (spec 
     expect(detail.itemValues?.[1]?.declaredAmount).toBe('0.00')
   })
 
+  test('os requisitos efetivos do tipo vêm como o contrato da API os serializa', async () => {
+    const detail = await readDetail(golden)
+    expect(detail.requirements).toEqual({
+      declaredAmountLabel: 'Valor pago pela loja',
+      declaredAmountMode: 'optional',
+      declaredAmountScope: 'item',
+      itemsMode: 'required',
+      referenceNumberLabel: 'Número da NFD',
+      referenceNumberMode: 'required',
+    })
+  })
+
+  test('requirements ausente ou nulo (ocorrência, API ou parada sem nota antigas) passa', async () => {
+    expect(await readDetail({})).not.toHaveProperty('requirements')
+    expect((await readDetail({ requirements: null })).requirements).toBeNull()
+  })
+
+  test('requirements com forma errada é recusado: modo fora do vocabulário, rótulo vazio, nível', async () => {
+    const requirements = golden.requirements as Record<string, unknown>
+    const refused = await Promise.all(
+      [
+        { requirements: { ...requirements, referenceNumberMode: 'maybe' } },
+        { requirements: { ...requirements, declaredAmountLabel: '' } },
+        { requirements: { ...requirements, declaredAmountScope: 'order' } },
+        { requirements: { ...requirements, itemsMode: undefined } },
+        { requirements: 'x' },
+      ].map((extra) =>
+        readDetail(extra).then(
+          () => false,
+          () => true,
+        ),
+      ),
+    )
+    expect(refused).toEqual([true, true, true, true, true])
+  })
+
   test('sem as três chaves a leitura passa e elas continuam ausentes', async () => {
     const detail = await readDetail({})
     expect(detail).not.toHaveProperty('referenceNumber')
