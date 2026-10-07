@@ -614,22 +614,45 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
   T4.7c) e na lista → remetente original (`ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) → um único anexo
   candidato, até **960 KiB**, assinatura zip nos bytes (`ATTACHMENT_*`) → teto de 5 prévias abertas
   (`TOO_MANY_OPEN_PREVIEWS`, dentro da transação).
-- **A janela de e-mails (T4.7a, T4.7c).** Dois contadores por contratante em 300 s, pelo **relógio do banco**
-  (`recorded_at`, nunca a data do e-mail): os que passaram do DKIM do encaminhador (teto **20**, que fecha o download
-  e o DKIM) e os que ficaram antes dele (teto **100**). Passado o teto de **autenticados**, o excesso não baixa nada
-  e deixa **uma** linha `RATE_LIMITED` por contratante e janela; passado o de **não autenticados**, a recusa anterior
-  ao DKIM continua sendo avaliada e devolvida, mas **não grava linha** (só o mesmo rastro) — o contador para de
-  gravar, não de avaliar, e lixo endereçado ao token não tranca o encaminhador legítimo. O rastro não entra nos
-  contadores.
-- **O cabeçalho é medido antes do DKIM (T4.7a, T4.7c).** O `addressparser` do nodemailer, que a `mailauth` usa para os
-  endereços, é quadrático: 400 KB de `a,a,a…` travaram o laço de eventos por 58 s. Antes de qualquer `dkimVerify` a
-  seção de cabeçalhos tem de caber em 64 KiB (com fim de cabeçalho) e cada **campo desdobrado**, lido pela regra de
-  linha da `mailauth` (nome sem espaços antes do `:`; a linha que não abre campo soma no de cima), em 2 KiB nos de
-  endereço (`from`, `reply-to`, `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`, somando os repetidos) e
-  8 KiB nos outros. As assinaturas têm teto de quantidade (8 `DKIM-Signature`, 3 conjuntos `ARC-*`) porque a
-  `mailauth` faz um hasher de corpo por combinação e consulta o DNS em série; e a verificação inteira tem **prazo de
-  15 s** (estourou: `unverifiable`, e o resolvedor recusa na hora dali em diante). A mesma barreira guarda o trilho
-  da conversa (mensagem hostil: DKIM `absent` e sem anexos) e a mensagem anexada que a prévia abre.
+- **A janela de e-mails (T4.7a, T4.7c, T4.7d).** Dois contadores por contratante em 300 s, pelo **relógio do banco**
+  (`recorded_at`, nunca a data do e-mail): os **autenticados** (teto **20**, que fecha o download e o DKIM) e as
+  **recusas** (teto **100**). Só consome a janela de autenticados o que o encaminhador PROVA: a prévia aceita e a
+  recusa **depois de o remetente original passar na lista** (`ATTACHMENT_*`, `TOO_MANY_OPEN_PREVIEWS`) — coisas que só
+  quem tem o arquivo certo provoca. As seis recusas anteriores a isso (`MIME_UNREADABLE`, `FORWARDER_FROM_MISMATCH`,
+  `FORWARDER_NOT_ALLOWED`, `ORIGINAL_SENDER_MISSING | _AMBIGUOUS | _NOT_ALLOWED`) ficam nas recusas **mesmo gravadas com o
+  DKIM `aligned`**: o `d=` pode ser do atacante, e uma mensagem assinada pelo encaminhador (uma resposta de
+  `logistica@`) reenviada por SMTP ao endereço do token vira `ORIGINAL_SENDER_MISSING/aligned` — contá-la trancaria o
+  legítimo com 20 reenvios. A lista é a constante `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`, usada pelo SQL do contador e
+  pela política `countsAsAuthenticatedIntake` (o dado gravado não muda: o resultado do DKIM segue `aligned`). Passado
+  o teto de **autenticados**, o excesso não baixa nada e deixa **uma** linha `RATE_LIMITED` por contratante e janela;
+  passado o de **recusas**, a recusa continua sendo avaliada e devolvida, mas **não grava linha** (só o mesmo rastro)
+  — o contador para de gravar, não de avaliar, e lixo endereçado ao token não tranca o encaminhador legítimo. O
+  rastro não entra nos contadores. Consequência: nenhum contador fecha o download e o DKIM para quem só produz recusas
+  anteriores à lista (custo limitado pelos tetos de MIME e de DKIM, e pelo rate limit do Resend; `SECURITY.md`,
+  pendências 10 e 11).
+- **O cabeçalho é medido antes do DKIM (T4.7a, T4.7c, T4.7d).** O `addressparser` do nodemailer, que a `mailauth` usa
+  para os endereços (e o do PostalMime, que o leitor usa), é quadrático: 400 KB de `a,a,a…` travaram o laço de eventos
+  por 58 s; no pior padrão, 2 KiB custam 2,4 ms, 8 KiB 37 ms e 32 KiB 708 ms. Antes de qualquer `dkimVerify` a seção de
+  cabeçalhos tem de caber em 64 KiB (com fim de cabeçalho) e cada **campo desdobrado**, lido pela regra de linha da
+  `mailauth` (nome sem espaços antes do `:`; a linha que não abre campo soma no de cima), em **2 KiB** nos que
+  identificam (`from`, `sender`, `reply-to`, `return-path`, somando os repetidos), **8 KiB por campo e 16 KiB na soma**
+  nos destinatários (`to`, `cc`, `bcc`, `delivered-to`: 8 KiB cobrem ~125 endereços com nome; uma lista de 150 em um
+  campo só, 9,3 KiB, ainda recusa) e 8 KiB nos outros. Linha cujo **nome de campo** tem espaço exótico antes do `:` (`\f`, `\v`, NEL, NBSP,
+  espaços Unicode, BOM) **recusa**, lida em latin1 e em UTF-8: a `mailauth` a junta ao campo de cima (e a mede no teto
+  de 8 KiB dele) e o PostalMime a lê como um campo `to` próprio — sete delas furavam o teto de 2 KiB. As assinaturas têm teto de quantidade
+  (8 `DKIM-Signature`, 3 conjuntos `ARC-*`) porque a `mailauth` faz um hasher de corpo por combinação e consulta o DNS
+  em série; e a verificação inteira tem **prazo de 15 s** (estourou: `unverifiable`, e o resolvedor recusa na hora dali
+  em diante). A mesma barreira guarda o trilho da conversa (mensagem hostil: DKIM `absent` e sem anexos) e a mensagem
+  anexada que a prévia abre.
+- **O número de partes e as aninhadas têm teto (T4.7d).** O PostalMime é quadrático no número de partes (5000 partes
+  0,6 s, 10 000 2,4 s, 20 000 9 s) e a conversa abria cada `message/rfc822` aninhada (5000 com `To`+`Cc` de 2 KiB =
+  25,5 s; 200 000 pequenas > 180 s). Antes do leitor se contam as linhas que começam com `--` (as únicas que o
+  PostalMime reconhece como fronteira, qualquer que seja o valor dela): **mais de 200 recusa** (a conversa devolve
+  nenhuma parte e uma recusa; a prévia trata como MIME ilegível), e as aninhadas **abertas** dividem um orçamento de **5**
+  por mensagem (o teto de anexos da conversa) — o resto conta como recusa. Medido: os piores casos acima caem para
+  0–4 ms; o pior que PASSA (cinco aninhadas com `To`+`Cc` de 8 KiB do pior padrão) custa ~370 ms. Isolar a leitura
+  numa `worker_thread` com prazo (ADR-0053) é o passo seguinte se esse teto ainda doer; não foi feito porque a leitura
+  passou a ter custo limitado (e o anexo legítimo continua idêntico).
 - **O `From` alinhado é o `From` lido (T4.7c).** O leitor de remetente (`readSingleMailboxAddress`) retira as aspas só
   para localizar o `<…>`, e o endereço lido tem de estar **literalmente** no fim do valor original: sem isso,
   `<a"@evil.example>"@t.example>` era `a@t.example` para nós e `a"@evil.example` para a `mailauth`, que o alinhava com a
@@ -638,6 +661,12 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
   aspas (`Silva, João <a@x>`) é um endereço só; lista de endereços de verdade continua recusa.
 - **`l=` nunca alinha (T4.7a).** Assinatura DKIM que declara só parte do corpo (`l=`) deixa o resto livre para quem
   encaminha; a política de alinhamento — a mesma do trilho 143/183 — não a conta como alinhada.
+- **Só a falha transitória de assinatura ALINHADA repete a entrega (T4.7d).** Uma assinatura com `d=` de outro domínio
+  e o DNS dele mudo deixava o veredito `unverifiable` — sem relação com o `From` — e 4 entregas de até 15 s mantinham o
+  trilho refém (`WORKER_PREFETCH` 1). A `mailauth` calcula `status.aligned` antes de consultar o DNS, então a política
+  (compartilhada com a conversa) só conta como "sem veredito" o `temperror` de assinatura alinhada; a de domínio
+  alheio vira `not_aligned`. O que resta: um DNS que responde devagar até o prazo de 15 s ainda estoura em
+  `unverifiable`, porque o prazo não sabe de qual assinatura veio o atraso (`SECURITY.md`, pendência 10).
 - **O remetente original.** PostalMime limitado (`maxNestingDepth` 6, cabeçalhos 64 KiB,
   `forceRfc822Attachments`) abre a mensagem anexada **uma vez, sem recursão**, e só depois de a mensagem anexada
   passar pela barreira de cabeçalho (T4.7c); sem ela, vale o **primeiro**

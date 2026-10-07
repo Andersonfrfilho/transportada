@@ -346,7 +346,7 @@ código da aplicação, e a taxa sobe quando o Postgres tem pouca CPU (a CI). A 
 `graph.seedDocuments` semeia em série; **não** abra uma cadeia por linha no pool. Dentro de uma transação
 (conexão reservada, caso do `writeItemChanges`) o mesmo fan-out de 106 consultas não travou em 60 rodadas.
 
-## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, T4.7a e T4.7c, ADR-0094 §10)
+## A prévia por e-mail encaminhado (spec 237 Fase 4b, T4.6, T4.7a, T4.7c e T4.7d, ADR-0094 §10)
 
 Ramo "prévia" **dentro** do trilho `contractor-mail-inbound.v1`: `recordContractorMailInboundMessage` procura
 primeiro a **conversa** e só chama `previewIntake` (`cargo-preview-email/`) quando **nenhuma** thread casa
@@ -366,26 +366,39 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
   `FORWARDER_FROM_MISMATCH`) e na lista → remetente original (cabeçalho da mensagem anexada ou primeiro bloco
   encaminhado do texto) na `preview_sender_allowlist` → um anexo candidato (960 KiB, `PK\x03\x04`). Cada recusa grava
   `cargo_preview_email_intakes` com o código e para (salvo janela de não autenticados cheia: abaixo).
-- **Janela de e-mails (T4.7a, T4.7c):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
-  (`recorded_at`, nunca `received_at`): os que passaram do DKIM do encaminhador (`forwarder_dkim_result = 'aligned'`,
-  teto 20) e os que ficaram antes dele (teto 100); o rastro `RATE_LIMITED` fica fora dos dois. **20 autenticados**
-  fecham o download e o DKIM: o excesso é ignorado e grava **uma** linha `RATE_LIMITED` por contratante e janela
-  (`recordRateLimited`, sob advisory própria). **100 não autenticados** só **param de gravar**: a recusa anterior ao
-  DKIM continua avaliada e devolvida (`rejected` com o código), sem linha nova e com o mesmo rastro único
-  (`createPreviewEmailRejecter`, `isUnauthenticatedWindowFull`) — recusa depois do DKIM alinhado grava como sempre.
-  Antes da T4.7c o contador de não autenticados fechava a janela inteira e o encaminhador legítimo ficava de fora.
-- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
+- **Janela de e-mails (T4.7a, T4.7c, T4.7d):** dois contadores por contratante em 300 s, medidos pelo **relógio do banco**
+  (`recorded_at`, nunca `received_at`): os **autenticados** (teto 20) e as **recusas** (teto 100); o rastro `RATE_LIMITED`
+  fica fora dos dois. **Autenticado é o que o encaminhador prova** (`countsAsAuthenticatedIntake`, e o mesmo no SQL de
+  `countRecentIntakes`): `forwarder_dkim_result = 'aligned'` e o motivo fora de `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`
+  (`MIME_UNREADABLE`, `FORWARDER_FROM_MISMATCH`, `FORWARDER_NOT_ALLOWED`, `ORIGINAL_SENDER_MISSING | _AMBIGUOUS |
+_NOT_ALLOWED`). Essas seis ficam gravadas com `aligned` (o dado é verdadeiro) mas contam nas recusas: o `d=` pode ser do
+  atacante e uma resposta assinada pelo encaminhador, reenviada, vira `ORIGINAL_SENDER_MISSING/aligned` — contá-la
+  trancaria o legítimo com 20 reenvios. **20 autenticados** fecham o download e o DKIM: o excesso é ignorado e grava **uma**
+  linha `RATE_LIMITED` por contratante e janela (`recordRateLimited`, sob advisory própria). **100 recusas** só **param de
+  gravar**: a recusa continua avaliada e devolvida (`rejected` com o código), sem linha nova e com o mesmo rastro único
+  (`createPreviewEmailRejecter`, `isUnauthenticatedWindowFull`). Consequência assumida: nenhum contador fecha o download
+  e o DKIM para quem só produz as seis recusas (`SECURITY.md`, pendência 10).
+- **Cabeçalho medido antes do DKIM (T4.7a, T4.7c, T4.7d):** `contractor-mail/domain/mime-header-bounds.policy.ts` exige fim de
   cabeçalho (`\r\n\r\n` ou `\n\n`) dentro de 64 KiB e limita cada **campo desdobrado** — lido por
   `mime-header-fields.policy.ts` com a MESMA regra de linha da `mailauth` (`FIELD_START`; a linha que não abre campo
-  soma no de cima; nome sem espaços antes do `:`, minúsculo) — em 2 KiB nos de endereço (`from`, `reply-to`,
-  `return-path`, `sender`, `to`, `cc`, `bcc`, `delivered-to`; a soma dos repetidos de mesmo nome também conta) e 8 KiB
-  nos outros, e conta as assinaturas (8 `DKIM-Signature`; 3 `arc-seal`, 3 `arc-message-signature`, 3
+  soma no de cima; nome sem espaços antes do `:`, minúsculo) — em 2 KiB nos que identificam (`from`, `sender`,
+  `reply-to`, `return-path`; a soma dos repetidos de mesmo nome também conta), **8 KiB por campo e 16 KiB na soma** nos
+  destinatários (`to`, `cc`, `bcc`, `delivered-to`; T4.7d: 8 KiB cobrem ~125 endereços com nome; 150 em um campo só, 9,3 KiB, ainda recusa) e
+  8 KiB nos outros; **linha cujo nome de campo tem espaço exótico antes do `:`** (`\f`, `\v`, NEL, NBSP, espaços Unicode,
+  BOM; latin1 e UTF-8) **recusa** (`hasDivergentFieldName`: a `mailauth` junta `To\f:` ao campo de cima, o PostalMime o
+  lê como `to`), e conta as assinaturas (8 `DKIM-Signature`; 3 `arc-seal`, 3 `arc-message-signature`, 3
   `arc-authentication-results`). O `addressparser` do nodemailer, que a `mailauth` usa, é quadrático (400 KB de
   `a,a,a…` travaram o laço por 58 s) e a `mailauth` faz um hasher de corpo por combinação (canon, hash, `l=`) e consulta
-  o DNS em série. O pior cabeçalho que passa custa ~10 ms na `mailauth` e ~20 ms no PostalMime. Na prévia:
+  o DNS em série. O pior cabeçalho que passa (identidade em 1,9 KiB, `to`+`cc` em 8 KiB) custa ≤ 150 ms somando `mailauth` e PostalMime. Na prévia:
   `MIME_UNREADABLE`, sem DKIM. **No trilho da conversa** (mesma função): a mensagem é gravada com DKIM `absent` (o que a
   `mailauth` devolve para MIME que não parseia) e **sem extrair anexos**; mensagem comum não muda. A mensagem anexada
   que a prévia abre (`parseLimited`) passa pela mesma barreira.
+- **Partes e aninhadas (T4.7d):** `contractor-mail/domain/mime-part-bounds.policy.ts` conta as linhas que começam com
+  `--` (as únicas que o PostalMime reconhece como fronteira) e recusa acima de `MIME_PART_LIMITS.maxBoundaryLines` (200),
+  na conversa (`readInboundMailParts`: nenhuma parte e `skippedNestedMessages: 1`) e na prévia (`parseLimited` →
+  `MIME_UNREADABLE`). As aninhadas **abertas** da conversa gastam um orçamento de `maxNestedMessages` (5) por mensagem,
+  compartilhado entre os níveis; o resto conta como recusa. Medido: 5000 aninhadas 25,5 s → 4 ms; 20 000 partes 9 s →
+  0 ms; o pior que passa (cinco aninhadas com `to`+`cc` de 8 KiB) ~370 ms.
 - **Prazo do DKIM (T4.7c):** `createDkimVerifierGateway({ deadlineMs })`, padrão `DKIM_VERIFICATION_DEADLINE_MS` = 15 s
   para a verificação inteira; estourou = `unverifiable` (`headerFrom: []`), e o resolvedor recusa na hora dali em diante
   (o laço da `mailauth` acaba sem sair para a rede). O gateway tem duas portas: `verify` (só o alinhamento, a conversa) e
@@ -394,6 +407,13 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
   `CargoPreviewEmailDkimUnverifiableError` (o consumidor devolve `retry`, log `reason: dkim_unverifiable`), sem gravar
   nada; só a **última** entrega (`retryCount >= maxRetries` da topologia, 3) grava `FORWARDER_DKIM_UNVERIFIABLE`. O
   consumidor repassa `delivery.isLastAttempt` ao ramo.
+- **Só falha transitória de assinatura alinhada repete (T4.7d):** `isTransientFailure` exige `status.aligned` (a `mailauth` o
+  calcula antes do DNS): `d=` alheio com DNS mudo é `not_aligned`. Mesma política da conversa. O prazo de 15 s ainda
+  estoura em `unverifiable` com DNS lento (resta, pendência 10).
+- **Identidade da conversa (T4.7d):** o trilho da conversa usa `verifyWithHeaderFrom` e
+  `resolveConversationDkimResult` (`conversation-sender-identity.policy.ts`): `aligned` só se o `headerFrom` da `mailauth`
+  é UM e igual ao remetente do `from` do Resend (sem distinguir caixa); senão grava `not_aligned` (a mensagem fica na
+  conversa, sem o selo). A porta da conversa é `VerifyDkimHeaderFromPort`.
 - **`l=` nunca alinha (T4.7a):** `dkim-alignment.policy.ts` ignora a assinatura com `canonBodyLengthLimited` (corpo só em
   parte coberto). A política é a do trilho 143/183 também: uma resposta cuja única assinatura alinhada tem `l=`
   passa a `not_aligned` e deixa de decidir a identidade.

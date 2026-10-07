@@ -2645,3 +2645,102 @@ o ataque é recusado (`FORWARDER_NOT_ALLOWED` quando o leitor recusa o `from` do
 
 DNS, MX, Resend e qualquer envio ou recebimento real; o painel; push; staging e produção. O `format:check` da raiz foi
 conferido (ver abaixo); nada leu banco de produção.
+
+## T4.7d — correções da terceira passada de segurança `opus` sobre a T4.7c (2026-10-07)
+
+A migration `20261007040900_cargo_preview_email_intake` **continua não publicada e não foi editada** (nenhum item exigiu
+coluna, CHECK ou índice novo); a API e o painel não foram tocados. Só `apps/worker-transportada` e os documentos.
+
+### O que mudou, por achado
+
+| #   | Achado                                                           | Correção                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [ALTO] NOVO-2 restante: sem teto de partes e de aninhadas        | `mime-part-bounds.policy.ts` conta as linhas que começam com `--` (as únicas que o PostalMime reconhece como fronteira) antes do leitor: mais de 200 recusa — a conversa devolve `{ parts: [], skippedNestedMessages: 1 }`, a prévia trata como MIME ilegível. As aninhadas abertas da conversa gastam um orçamento de 5 por mensagem, compartilhado entre os níveis; o resto conta como recusa |
+| 2   | [MÉDIO] D-A: barreira e PostalMime separam campos diferente      | `hasDivergentFieldName`: linha que não começa com espaço/tab e tem espaço exótico (`\f`, `\v`, NEL, NBSP, espaços Unicode, BOM) antes do primeiro `:` recusa, avaliada em latin1 **e** em UTF-8                                                                                                                                                                                                 |
+| 3   | [MÉDIO] Tetos de campo de destinatário                           | `from`, `sender`, `reply-to`, `return-path` seguem em 2 KiB (e a soma dos repetidos); `to`, `cc`, `bcc`, `delivered-to` passam a 8 KiB por campo e **16 KiB** na soma dos quatro (`MIME_HEADER_LIMITS.identity*`/`recipient*`)                                                                                                                                                                  |
+| 4+5 | [MÉDIO] D-B e D-C: recusa `aligned` que o encaminhador não prova | `PREVIEW_EMAIL_UNPROVEN_REJECTIONS` (seis códigos) e `countsAsAuthenticatedIntake`: o contador de autenticados (SQL e rejecter, a mesma lista) exige `aligned` **e** motivo fora da lista; as seis recusas contam nas recusas (teto 100, só para de gravar). **Escolhi não gravar sem `aligned`**: o dado gravado continua verdadeiro e o corte fica numa lista só, sem migration               |
+| 6   | [MÉDIO] `unverifiable` por DNS do atacante repete a entrega      | `isTransientFailure` exige `status.aligned` (a `mailauth` o calcula antes do DNS): assinatura de domínio alheio com o DNS mudo vira `not_aligned`                                                                                                                                                                                                                                               |
+| 7   | [MÉDIO] Pendência 9 — identidade da conversa                     | a conversa usa `verifyWithHeaderFrom` (porta `VerifyDkimHeaderFromPort`) e `resolveConversationDkimResult`: `aligned` só com **um** `headerFrom` igual ao remetente gravado (sem distinguir caixa), senão `not_aligned`                                                                                                                                                                         |
+
+### Contrato antes do código (commits)
+
+`4b9dbe167` — **49 vermelhos**, cada um pelo motivo do achado: 8 (partes e orçamento; o de 20 000 partes levou 9,7 s e o de
+1000 aninhadas 4,8 s na leitura antiga), 27 (barreira: espaço exótico em `To`/`From` × 9 variantes, destinatários, soma de 16 KiB,
+pior caso que passa), 6 (as seis recusas gravavam linha com a janela de recusas cheia), 3 (integração: contador e 25 reenvios),
+3 (DKIM de domínio alheio: política, gateway e intake) e 2 (identidade da conversa). Depois: `d47eca7ca` (partes, aninhadas,
+cabeçalho, destinatários), `773864c07` (janela), `a62073563` (DKIM alheio), `9de36ca20` (identidade da conversa).
+
+### Medições (ms, esta máquina)
+
+| Caso                                                                                       | Antes                | Depois                          |
+| ------------------------------------------------------------------------------------------ | -------------------- | ------------------------------- |
+| 5000 aninhadas com `To`+`Cc` de 2 KiB (20,5 MiB)                                           | 25 500 (revisor)     | 4                               |
+| 1000 aninhadas com `To`+`Cc` de 2 KiB                                                      | 4 805                | 0                               |
+| 20 000 partes PDF pequenas (conversa)                                                      | 9 734                | 0                               |
+| 20 000 partes (prévia, `parseForwardedEmail`)                                              | 8 586                | 1                               |
+| 200 000 aninhadas pequenas (13 MiB)                                                        | > 180 000 (revisor)  | 2                               |
+| 60 aninhadas dentro do teto de partes                                                      | todas abertas        | 31 (5 abertas, 55 em `skipped`) |
+| pior que PASSA: 5 aninhadas com `To`+`Cc` de 8 KiB do pior padrão                          | —                    | **~370** (limitado, não zero)   |
+| pior que PASSA: 198 partes com 60 KiB de `Content-Description` cada (11,4 MiB)             | —                    | 20                              |
+| pior cabeçalho que passa (identidade 1,9 KiB ×4, `to`+`cc` 8 KiB): `mailauth` / PostalMime | —                    | 6–8 / 25–81                     |
+| sete `To\f:` de 8 KiB (D-A), barreira                                                      | 250–500 (PostalMime) | recusa em 0,1                   |
+
+O pior caso que passa no item 1 (~370 ms) **não** chega a milissegundos, mas é limitado (6 leituras no máximo, cada uma sob os
+tetos de cabeçalho); **não** implementei `worker_thread` com prazo (ADR-0053): o laço deixou de ser ilimitado e o anexo
+legítimo permanece idêntico. Fica como passo seguinte se o teto ainda doer (`SECURITY.md`, 2026-10-06).
+
+### Gates (rodados nesta sessão)
+
+| Gate                                                                                            | Resultado                                                                                                                               |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| worker `bun run typecheck && bun run lint`                                                      | verdes                                                                                                                                  |
+| script `test` do worker                                                                         | **1989 passam / 0 falham** (antes 1926: +63)                                                                                            |
+| `./test/integration/cargo-preview-email-intake.integration.ts` (Postgres 18 nativo descartável) | 15 passam (antes 13) — banco impresso: `t47d_worker`, `127.0.0.1:56437`, `DATABASE_URL` sobrescrito sobre `.env.test`                   |
+| `test:integration` completo do worker, uma vez (banco novo `t47d_full`, mesmo servidor)         | **204 passam / 4 pulam / 1 falha**: o flaky `contractor-mail-inbound-outbox` (ver abaixo); sem `osrm-routing-matrix` falhando desta vez |
+| `bun run format:check` (raiz)                                                                   | verde                                                                                                                                   |
+
+O flaky `contractor-mail-inbound-outbox.integration.test.ts` falhou na execução completa e **depois falhou/passou sozinho em
+duas execuções seguidas** no mesmo banco (reivindica linhas que sobraram de outros arquivos): arquivos não tocados desde a spec 143.
+
+### Mutações (script fora do repositório; cada arquivo restaurado por `git checkout`; `git diff --quiet` limpo depois)
+
+| Mutação                                                             | Testes que caem               |
+| ------------------------------------------------------------------- | ----------------------------- |
+| sem a contagem de partes (conversa e prévia)                        | 6                             |
+| prévia sem a contagem de partes                                     | 2                             |
+| sem o orçamento de aninhadas                                        | 2                             |
+| sem a recusa de espaço exótico                                      | 18                            |
+| destinatário com 2 KiB de novo                                      | 9                             |
+| sem a soma de 16 KiB dos destinatários                              | 2                             |
+| contador de autenticados soma de novo as seis recusas (lista vazia) | 6 (contrato) + 6 (integração) |
+| reenvio sem remetente original volta a consumir a janela            | 1 (contrato) + 2 (integração) |
+| `unverifiable` por assinatura de domínio alheio volta a repetir     | 3                             |
+| identidade da conversa sem a conferência                            | 2                             |
+
+### O que muda de observável no trilho da 143/183
+
+- **Cabeçalho (compartilhado):** `to`, `cc`, `bcc`, `delivered-to` passam de 2 para 8 KiB por campo (16 KiB na soma): menos
+  falso positivo para responder a todos (8 KiB cobrem ~125 endereços com nome; **150 em um campo só, 9,3 KiB, ainda recusa**,
+  e a mensagem recusada continua gravada como DKIM `absent` e sem anexos). Linha com nome de campo de espaço exótico antes
+  do `:` também recusa (nenhum e-mail legítimo tem isso).
+- **Partes:** mensagem com mais de 200 linhas começando por `--` (texto citado, régua) passa a ter **nenhum anexo** (uma recusa
+  em `skipped`); as aninhadas inline abertas passam de ilimitadas a **5 por mensagem** (a 6ª em diante conta como recusa). Os
+  anexos legítimos (PDF em aninhada comum, `.eml` anexo, profundidade 2, base64, digest) saem **idênticos** (contrato).
+- **DKIM:** assinatura só de domínio alheio com o DNS dele fora do ar grava `not_aligned` em vez de `unverifiable`.
+- **Identidade (a única mudança de comportamento da conversa fora dos tetos):** o `dkim_result` só é `aligned` quando o `From`
+  que a `mailauth` alinhou é um só e é o remetente gravado; a mensagem com `From` assinado diferente do `from` do provedor
+  continua na conversa, **sem o selo de verificada** (`not_aligned`). `SECURITY.md`, pendência 9, fechada.
+
+### Decisões que divergiram do texto do pedido
+
+- **Itens 4/5 numa só correção:** em vez de gravar as recusas sem `aligned`, mantive o dado e cortei no contador (lista
+  `PREVIEW_EMAIL_UNPROVEN_REJECTIONS`). O teto separado de recusas é o `maxUnauthenticated` (100), que já só impedia
+  inundação de linhas.
+- **Dedupe por `b=`/`Message-ID` não foi feito** (pede coluna e índice): pendência 11 passou a MÉDIO e registra o que ficou.
+- **Resta e está em `SECURITY.md` (pendência 10):** nenhum contador fecha o download e o DKIM para quem só produz as seis
+  recusas, e um DNS lento até o prazo de 15 s ainda estoura em `unverifiable` e repete a entrega.
+
+### Não rodou
+
+DNS, MX, Resend e qualquer envio ou recebimento real; o painel; a API (contratos, `db:test`, `make migration-test` e
+`db:generate` — nenhum arquivo da API ou da migration mudou); push; staging e produção. Nada leu banco de produção.

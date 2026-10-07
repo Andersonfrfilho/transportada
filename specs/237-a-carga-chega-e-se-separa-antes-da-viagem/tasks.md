@@ -163,9 +163,17 @@
       barreira de cabeçalho com a regra de linha da `mailauth` (todo campo: 2 KiB os de endereço, 8 KiB os outros, soma
       dos repetidos), o contador de não autenticados para de GRAVAR e não de AVALIAR, nome de exibição com vírgula sem
       aspas. Contratos vermelhos antes, 15 mutações. `evidence.md` § T4.7c; **sem push**. `sonnet`.
+- [x] **T4.7d** Correções da **terceira** passada de segurança `opus` sobre a T4.7c, **antes da publicação**: teto de
+      partes (200 linhas `--`) e orçamento de 5 aninhadas abertas no leitor de MIME (conversa e prévia), nome de campo
+      com espaço exótico recusado, destinatários em 8 KiB por campo e 16 KiB na soma (identidade segue em 2 KiB), a
+      janela de autenticados só conta o que o encaminhador prova (as seis recusas anteriores à lista do remetente
+      original ficam nas recusas), só a falha transitória de assinatura ALINHADA repete a entrega do DKIM, e o trilho
+      da conversa só grava `aligned` com o `From` assinado igual ao remetente gravado (pendência 9 fechada). Sem
+      migration nova nem API tocada. Contratos vermelhos antes (49), 10 mutações. `evidence.md` § T4.7d; **sem push**.
+      `sonnet`.
 - [ ] **T4.7** Revisão `opus` + `security-reviewer` (e-mail é entrada hostil: falsificação do remetente
       original, cabeçalhos forjados, anexo malicioso, reprocessamento), publicar e confirmar. _(Os achados da primeira
-      revisão estão na T4.7a e os da segunda na T4.7c; esta é a revisão do que mudou, depois da T4.7b e da T4.7c.)_
+      revisão estão na T4.7a, os da segunda na T4.7c e os da terceira na T4.7d; esta é a revisão do que mudou, depois da T4.7b, da T4.7c e da T4.7d.)_
 
 ## Fase 4c — Retenção dos dados da planilha (decisão do usuário: 90 dias)
 
