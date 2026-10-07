@@ -1798,3 +1798,365 @@ bun run format:check (raiz)             exit=0
 **O que não foi rodado:** nenhuma tela (a task não toca o painel além dos JSONs de referência); `make migration-test` (nenhuma
 migration); suíte do `frontend-transportada` (só ganhou um fixture, sem consumidor); o caminho do escritório
 (`register-trip-occurrence`) não recebe número nem valor pago, então M2 não o alcança.
+
+### T6.1 — Roteiro de cadastro do SAC (2026-10-07)
+
+**Arquivo**: `docs/operacao/tipos-de-ocorrencia-do-sac.md`
+
+**O que foi corrigido na reescrita** (a primeira versão foi reprovada na conferência):
+
+1. **Erro de conteúdo grave**: a versão anterior mandava desligar o e-mail à contratante na Devolução total e dizia que o SAC não pediu e-mail automático. A spec (§ "Modelos do SAC") define o contrário: assunto `DEVOLUÇÃO TOTAL – NF {{numeroNotaSemSerie}}` e corpo com `Motivo: {{observacao}}`. O roteiro agora traz os passos de assunto, corpo, **Salvar e-mail**, ligar a caixa e conferir a prévia, e o resultado esperado do exemplo do SAC (NF 677002, FARMA LÍDER SANTA ISABEL LTDA, R$ 2.612,88; valores de exemplo). Diz que a Devolução total não usa linha de item (Produtos Desligado).
+2. **Rótulos chutados**: todo nome de tela, bloco, campo e botão foi trocado pelo texto real do painel (tabela abaixo). Não há mais "ou" nem "se ainda não foi atualizado". A rota errada `/company-settings/occurrence-types` saiu: a aba é **Tipos** em **Ocorrências** (`/ocorrencias`), permissão `companies.settings` (a versão anterior dizia `settings.manage`).
+
+3. **Fluxo real**: renomear é editar o campo **Nome** do bloco **Identificação** do tipo aberto (grava ao Enter/sair do campo); criar é o bloco **Novo tipo** (nasce com o momento **Separador, no galpão**, que precisa ser trocado); o formulário de criação não tem número do documento, valor pago nem e-mail, então estes se configuram depois, no tipo aberto. Texto do e-mail grava só com **Salvar e-mail**; momentos só com **Aplicar momentos**.
+4. **Campo a campo contra a spec**: parcial (momentos, Foto Obrigatório mínimo 1, Observação Obrigatório, Assinatura Desligado, Produtos Obrigatório "Ao menos N itens" com N=1 e **Aceita vários itens**, Número Obrigatório "Número da NFD", Valor pago Opcional "Por linha de produto" rótulo "Valor pago pela loja", e-mail ligado, assunto/corpo/linha exatos); total (foto como a parcial, Observação Obrigatório, Produtos Desligado, Número Opcional "Número da NFD", Valor pago Desligado, e-mail ligado). Ordem do **Valor pago** por linha documentada (exige Produtos ligado; a tela recusa sem gravar).
+5. **Prévia**: os resultados esperados vieram de `renderOccurrenceEmailPreview` executado (dados fixos de `occurrence-template-preview.policy.ts`: "Contratante Exemplo", NF 123456, "Supermercado Exemplo Ltda", NFD 45029, soma 117,19), não escritos de memória. A prévia nunca mostra a NF 677002; o exemplo do SAC é o resultado numa nota real.
+6. Mantidas: nota `{{numeroNotaSemSerie}}` vs `{{numeroNota}}`; zero à esquerda do "01FD"; decisão da spec de configurar/renomear "Recusa parcial/total" (id não muda); a Spani entra por `{{contratante}}`, nunca cravada; seção final da spec 248 sem instruções.
+
+**Rótulos reais usados e arquivo de origem**:
+
+| Rótulo na tela                                                                                                                                                                                                    | Origem                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Ocorrências (menu)                                                                                                                                                                                                | `src/modules/shared/workspaceNavigation.constant.ts:13`                                           |
+| Tipos (aba)                                                                                                                                                                                                       | `trip/locales/trip.locale.json` `occurrenceFeed.tabs.types`                                       |
+| No galpão · Na rua; Novo tipo; Nome do tipo; Cadastrar tipo; Avisar quando acontecer; Aceita vários itens; Modelo de e-mail; Sem e-mail                                                                           | `company-settings/locales/companySettings.locale.json` `occurrenceTypeCatalog.*`                  |
+| Identificação; Nome; Devolução                                                                                                                                                                                    | `occurrenceTypeCatalog.identity.*`; `OccurrenceTypeIdentity.component.tsx`                        |
+| Quem registra, e onde; Motorista, numa nota; Escritório, pelo motorista; Separador, no galpão; Tirar momento {{label}}; Aplicar momentos; Desfazer                                                                | `occurrenceTypeCatalog.moments.*`; `OccurrenceTypeMoments` e `OccurrenceTypeCreateMoments`        |
+| O que exige; regra geral; Foto; Observação; Assinatura; Produtos; Número do documento do cliente; Valor pago; Desligado/Opcional/Obrigatório                                                                      | `occurrenceTypeCatalog.requirements.*`                                                            |
+| Rótulo do número na tela de registro; Rótulo do valor na tela de registro; Digitado; Por linha de produto                                                                                                         | `requirements.record.*`; `OccurrenceTypeRecordFields.component.tsx`                               |
+| Quantidade mínima de fotos; Produtos exigidos; Ao menos N itens; Quantidade mínima de produtos                                                                                                                    | `requirements.photoMinimum` e `requirements.itemsMinimum`; `OccurrenceTypeMinimums.component.tsx` |
+| E-mail à contratante; Mandar e-mail à contratante da nota ao registrar; Assunto; Corpo; Linha de cada produto; Salvar e-mail; Desfazer; Prévia · dados de exemplo; Sai automaticamente quando o tipo é registrado | `occurrenceTypeCatalog.mail.*`; `OccurrenceTypeContractorMail.component.tsx`                      |
+| Ordem dos blocos do tipo aberto; clique na linha para abrir                                                                                                                                                       | `OccurrenceTypeRow.component.tsx`, `OccurrenceTypeSummary.component.tsx`                          |
+| Permissão `settings.manage`                                                                                                                                                                                       | `TripOccurrenceTypesTab.component.tsx` (comentário)                                               |
+
+**Marcadores**: só os das listas fechadas de `apps/api-transportada/src/shared/occurrence-template.constant.ts`, por contexto: assunto (`contratante`, `numeroNotaSemSerie`), corpo (`numeroReferencia`, `valorDeclarado`, `razaoSocial`, `numeroNotaSemSerie`, `valorNota`, `observacao`, `linhasItens`), linha (`codigoItem`, `item`, `quantidadeItem`, `unidadeItem`, `observacao`).
+
+**O que não foi conferido**: o roteiro não foi executado na tela (nenhum navegador aberto); os rótulos vêm da leitura do código e dos `locale.json`. O texto exato do motivo do SAC ("o cliente já havia recebido…") veio truncado na spec, então o exemplo usa "o cliente já havia recebido". A dica da tela em **Produtos exigidos** ainda diz que o app do motorista só marca "A nota inteira" e que "Ao menos N" não muda o que ele cobra; o `frontend-driver` hoje lê `itemsMinimumCount`, então a dica pode estar defasada (fora do escopo desta task). Não confirmei se o servidor aceita ligar o e-mail com assunto vazio, por isso o roteiro manda salvar os textos antes de ligar.
+
+---
+
+## T7.2 — correções da revisão: painel
+
+Reprovação da revisão independente (T7.2): achados A1, A2, M3 e B1 do painel, mais a higiene de tamanho. A API (R2) já publica `referenceNumber`,
+`declaredAmount` e `itemValues` no detalhe. Cinco commits no painel (`798babc14`, `a9a22c1c1`, `b5ec95ca4`, `d26536974`, `4454131da`); nenhum arquivo da API
+nem do `frontend-driver` foi tocado. Sem push nem deploy.
+
+| Item | O que mudou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `TripOccurrenceDetail` declara `referenceNumber`, `declaredAmount` e `itemValues` (opcionais: ausente é API ou ocorrência antiga); `readDetail` valida com guards (dinheiro só em texto decimal; forma errada recusa a resposta). O golden `occurrence-detail-values.golden.json` entra em `test/trip/occurrence-detail-values.contract.ts`, com e sem as chaves.                                                                                                                                                                                                        |
+| 2/A2 | A correção nasce preenchida: número, valor pago da ocorrência ou da linha vêm do detalhe (`occurrenceRecordedAmounts.service.ts`); rótulos do **tipo** (`referenceNumberLabel`/`declaredAmountLabel`, lidos de `GET /company-settings/occurrence-types` pelo `useOccurrenceTypeRecordConfig`), com fallback genérico. Sem valor gravado o campo diz "Nada gravado."; **Limpar** é botão explícito (envia `null`) e o campo vazio com gravado diz "Será limpo ao salvar.". "Valor que vai no e-mail" aparece ao lado da "Soma geral" (regra de RF9 sobre o estado final). |
+| 3/A1 | O nível do valor pago nasce onde está gravado (linhas, ocorrência; senão o escopo do tipo; senão por linha). Valor digitado num nível com o outro gravado manda o outro `null` no mesmo corpo; trocar de nível **sem** valor novo não apaga nada. `DECLARED_AMOUNT_SELECTION_CONFLICT`, `TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` e `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED` têm mensagem própria (pt/en), dizendo o que fazer.                                                                                                                                      |
+| 4/M3 | A sugestão do acerto usa o `unitValue` **copiado** (`itemValues`), soma todas as linhas do mesmo código, deixa o valor pago (linha ou ocorrência) vencer a soma e nunca sugere 0 ("A loja não pagou, sem valor a acertar"). Valor pago da ocorrência com vários códigos não tem como ser atribuído a um item: aparece o aviso "A loja pagou R$ X pela ocorrência inteira…" e nenhuma linha é inventada. Sem `itemValues` volta ao comportamento anterior, sem erro.                                                                                                      |
+| 5/B1 | O rascunho do "Salvar e-mail" (assunto/corpo/linha de item) é guardado por tipo num contexto da página (`useOccurrenceMailDraftStore`, criado pelo `OccurrenceTypeCatalogPanel`): recolher e reabrir a linha do tipo o devolve. Escolhida a solução mais simples (guardar), e não a de avisar antes de descartar: não exige perguntar nada ao operador. Trocar de aba da página desmonta o painel e descarta o rascunho (fora do escopo pedido).                                                                                                                         |
+| 6    | `OccurrenceSettlementPanel.component.tsx` (485 linhas) passou a 169, dividido em `OccurrenceSettlementRow`, `OccurrenceSettlementSaved`, `useOccurrenceSettlementDraft` e `occurrenceSettlementDraft.service`, em **commit separado e antes** da mudança funcional (`a9a22c1c1`); o contrato de parede `occurrence-settlement-panel.contract.ts` passou a ler as cinco partes. `OccurrenceCasePanel.component.tsx` (335) não foi tocado e não foi dividido.                                                                                                              |
+
+**Decisão de commits.** A2 e A1 dividem os mesmos arquivos (o rascunho, o serviço de resolução e o componente de valores) e nasceram juntos: um commit só
+(`b5ec95ca4`), em vez de dois que não compilariam isolados.
+
+### Vermelho antes do código e mutações
+
+Os contratos de B1 e de M3 (tabela) foram escritos antes do código e viram vermelho (`B1`: reabrir devolvia o assunto gravado; `M3`: 8 fail). Em A1/A2, o
+serviço puro foi escrito antes do contrato desta rodada (o contrato dos componentes veio depois, sobre o componente já montado): a prova de que os
+contratos mordem é a mutação, cada uma sozinha e revertida (cópia do arquivo restaurada, `diff` vazio):
+
+```text
+A1-1  não limpar o outro nível ao trocar (clearsOccurrence/clearsLines = false)
+      puro:   3 fail — (a) "um só" · (b) "por linha" · "trocar de nível sem valor novo…zero é valor e apaga o outro nível"
+      painel: 2 fail — (a) PATCH sem as linhas nulas · (b) PATCH sem declaredAmount: null     (Expected path: "declaredAmount")
+A1-2  o nível nasce sempre "por linha" (resolveCorrectionAmountScope ignora o gravado e o tipo)
+      puro:   1 fail — "o nível nasce onde está gravado; sem gravado, no do tipo; sem tipo, por linha"
+      painel: 5 fail — valor da ocorrência gravado (inclusive zero) · (b) · (c) limpar tudo · nível do tipo · e-mail da ocorrência
+M3-1  o valor unitário vem da nota, não da cópia: puro 3 fail (3 × 19,995 · código repetido · código repetido com valor pago) + painel 1 fail
+M3-2  valor pago 0 vira sugestão: puro 2 fail ("a loja não pagou" no contrato antigo e no novo)
+```
+
+### Navegador (painel desta árvore, Vite 7 na porta 53010, API dublada por `page.route`, Chromium headless)
+
+Servidor: PID 59923, `cwd` conferido por `lsof -d cwd` = `.../transportada-wt/spec-247/apps/frontend-transportada` antes de qualquer afirmação; binário da app
+(`./node_modules/.bin/vite`), `VITE_API_URL` apontando para uma porta sem servidor (qualquer rota sem dublê voltava 404 em vez de tocar a API de outra
+sessão); 53000/53001/53911 intocadas; sem o `preview_start` do harness. Verificação por texto (`innerText`, `inputValue`, corpo capturado do `PATCH`, geometria
+com `getBoundingClientRect`); um recorte da seção como prova (não commitado).
+
+```text
+(a) gravado 50,00 na linha P1 e NFD 45029, tipo com "Número da NFD" / "Valor pago pela loja"
+    campos: "NFD 45029" · P1 "50,00" · P2 vazio com "Nada gravado." · nível "Por linha de produto" · "Valor que vai no e-mail: R$ 107,20" (50,00 + vProd 57,20)
+    "Um só, pela ocorrência" + 4000 → aviso das linhas; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2","declaredAmount":null}],"declaredAmount":"40.00"}
+(b) gravado 40,00 na ocorrência → nasce "Um só, pela ocorrência" com "40,00"; "Valor que vai no e-mail: R$ 40,00"
+    "Por linha de produto" + 5000 na P1 → PATCH {"items":[{"code":"P1","declaredAmount":"50.00",…},{"code":"P2"}],"declaredAmount":null}
+(c) Limpar na linha e no número → "Será limpo ao salvar." ×2; PATCH {"items":[{"code":"P1","declaredAmount":null,…},{"code":"P2"}],"referenceNumber":null} (sem declaredAmount)
+Acerto (decidida goods_paid), preço atual da nota 25,00 e cópia 19,995: "P1 — R$ 59,99 · soma da linha R$ 59,99" e "P2 — R$ 57,20 · soma da linha R$ 57,20"
+
+                 375 px (toque)   768 px (toque)   1280 px (ponteiro fino)
+estouro horiz.         0                0                  0
+controles < 44 px      nenhum           nenhum             2 (Limpar, 38,4 px — Button sm do design system, só com ponteiro fino)
+```
+
+Os mesmos três cenários e a sugestão passaram nas três larguras. Os 404 do console são rotas sem dublê (sino, atalhos), não das telas verificadas. Servidor
+encerrado por PID, porta 53010 livre, harness e recorte apagados, `git status` limpo.
+
+### Limitações
+
+1. A **soma da linha** e a **Soma geral** da correção continuam calculadas sobre a nota carregada (preço atual) e a quantidade editada; o "valor que vai no e-mail"
+   com o pago digitado não depende disso, mas sem valor pago ele usa a mesma conta da nota, enquanto o servidor usa o `unit_value` copiado. Só diverge se o preço da
+   nota mudou depois do registro (o aviso do acerto, esse sim, parte da cópia).
+2. Os rótulos do tipo só chegam a quem tem `settings.manage` (a lista de tipos é dessa permissão); os demais operadores veem os rótulos genéricos.
+3. Código repetido na seleção da correção não é um caso do formulário (a seleção é por código): o valor gravado por linha usa a primeira linha do código.
+4. Vários códigos com valor pago da ocorrência: não há atribuição por item, o acerto mostra só o aviso (decisão acima), e o operador distribui o valor ao preencher.
+
+## T7.2 — correções da revisão: app do motorista (2026-10-07)
+
+A revisão independente reprovou o app do motorista no **A3 (bloqueante)** e levantou três itens de usabilidade (B1).
+
+### A3 — o valor pago descartava dígito em silêncio
+
+`sanitizeDecimalInput` aceitava `.` e `,` como separador e cortava o que passasse da 2ª casa: `1.500` digitado
+virava `1.50` (e o e-mail saía com R$ 1,50) e colar `1.234,56` gravava `1.23`. O painel usa outra semântica
+(`maskAmountInput`: só dígito, os dois últimos são centavos) — dado financeiro com duas digitações é defeito.
+
+**Correção.** O app do motorista replica a máscara do painel (sem importar código de outra app) em
+`occurrenceMoneyMask.service.ts`: só dígito entra, exibição `1.234,56` com milhar, eco imediato. `1.500` → `15,00`
+(visível ao vivo); colar `1.234,56` → `1.234,56`; `R$ 57,20` → `57,20`. `0` e `0,00` são **valor** (`"0.00"`); vazio
+não é; apagar a partir de `0,00` limpa o campo. O corpo segue string com ponto e 2 casas (`1234.56`), no padrão
+`DECLARED_AMOUNT_DECIMAL` da API. No teto (10 inteiros + 2 centavos) a tela diz, em região viva
+(`aria-live="polite"`): "Limite do campo: o valor não pode passar de R$ 9.999.999.999,99." — a tecla extra não
+entra, mas nunca calada. Teclado `inputMode="numeric"`. `DECLARED_AMOUNT_INPUT`/`sanitizeDecimalInput` foram
+removidos (zero consumidores). O espelho do cálculo (`occurrenceAmount.service.ts`) não precisou mudar; os 24 casos
+da tabela espelhada seguem verdes.
+
+**Quantidade (até 3 casas).** `.` vale como `,` (o campo mostra a vírgula). Casa a mais NÃO é cortada: o texto
+fica como digitado, o campo ganha `aria-invalid` e a mensagem "A quantidade aceita no máximo 3 casas depois da
+vírgula." (`quantityProblem: 'too-many-decimals'`); mais de 9 dígitos inteiros idem (`'too-many-digits'`). O botão
+fica bloqueado pelo motivo "a quantidade dos produtos marcados" (`hasInvalidItemQuantity`).
+
+### B1
+
+- **(a)** Espaço não separável (U+00A0) depois de todo `R$` dos textos da tela (`money`, `paid`, `calculation`,
+  `onNote`, `limit`; pt-BR e en). `pago R$ / 99,00` não parte mais. Contrato: nenhum `R$ ` com espaço comum em
+  `occurrenceRegistration`, nos dois locales.
+- **(b)** O total "Valor pago pela loja R$ 156,20" misturava linhas digitadas com calculadas. Decisão: o rótulo é
+  **"Total que vai no e-mail"** e uma linha de origem o acompanha (`resolveOccurrenceTotalOrigin`): "Calculado pela
+  nota (quantidade × valor unitário).", "Valor pago digitado em todas as linhas.", "N de M linhas com valor pago
+  digitado; as outras, calculadas pela nota." ou "Valor pago digitado para a ocorrência inteira." — a semântica da
+  RF9 (o digitado vence a soma da linha) dita na tela, sem esconder a mistura.
+- **(c)** `OccurrenceRegisterAction` ganhou uma região viva `role="status"` sempre montada com o botão; ela diz o que
+  falta ou, quando o tipo exige algo (`hasRequiredOccurrenceField`) e tudo está preenchido, "Tudo o que o tipo pede
+  está preenchido." (verde `--color-ready` misturado ao tom do texto: 6,05:1 no claro, 6,87:1 no escuro).
+
+### Divisão de arquivo (sem mudar comportamento)
+
+`occurrenceDraftValues.service.ts` (299 linhas) foi dividido por responsabilidade, com 1341 testes verdes antes e
+depois: `occurrenceDraftValues.types.ts` (64), `occurrenceItemLine.service.ts` (~130) e o serviço de avaliação (~150).
+Os importadores seguem pelo mesmo caminho (reexport). `occurrenceRequirements.service.ts` (270) não foi editado.
+⚠️ `DriverOccurrenceRegistrationForm.component.tsx` está com 211 linhas (era 209: já estava acima do teto antes);
+acrescentei uma linha (`hasRequiredFields`) e não o dividi por estar fora do escopo pedido.
+
+### Vermelho antes do código
+
+Contrato novo `test/driver-trip/occurrence-money-input.contract.ts` (registrado no entrypoint):
+
+```text
+error: Cannot find module '../../src/modules/driver-trip/shared/occurrenceMoneyMask.service'
+ 1 error
+```
+
+B1 (a–c) e origem do total, antes da implementação: `bun run --cwd apps/frontend-driver test` → `12 fail`
+(locale com `R$ ` comum, `Total que vai no e-mail`, origem, `hasRequiredFields`/`role="status"`).
+
+### Mutações (cada uma sozinha, vermelho, depois revertida)
+
+1. **Voltar a descartar dígito em silêncio** (`maskMoneyInput` cortando além da 2ª casa depois do separador e
+   `sanitizeQuantityInput` com `.slice(0, 3)`):
+
+```text
+(fail) a máscara de centavos do valor pago (igual à do painel) > "1.500" digitado vira 15,00 — visível ao vivo, e nenhum dígito some
+(fail) ... > "57,2" digitado: cada tecla ecoa na hora, sem perder dígito
+(fail) ... > teclas repetidas: zeros à esquerda não contam e o texto fica estável
+(fail) ... > milhar com ponto, em pt-BR
+(fail) ... > o teto são 10 dígitos inteiros + 2 centavos: além dele a tela avisa (nunca ignora calada)
+(fail) a quantidade (até 3 casas) não descarta dígito em silêncio > casas a mais ficam como digitadas (a tela marca, não corta)
+ 1357 pass
+ 6 fail
+```
+
+2. **Tratar "0,00" como vazio** (`unmaskMoneyText` devolvendo `undefined` para só zeros):
+
+```text
+(fail) a lista, a soma da linha e a soma geral (RF11, os números do protótipo) > valor pago 0 é aceito e diferente de vazio
+(fail) ... > escopo "item" sem nenhuma linha marcada cai na ocorrência — como o servidor
+(fail) o botão só libera com o exigido, sem rede (CA07) > valor pago obrigatório por linha: toda linha marcada o pede; zero vale
+(fail) ... > valor pago obrigatório da ocorrência: o campo da ocorrência o pede; zero vale
+(fail) a máscara de centavos ... > zero é valor: "0" e "0,00" mascaram para 0,00 e vão como "0.00"; vazio não é valor
+(fail) ... > o texto enviado casa com DECLARED_AMOUNT_DECIMAL da API
+(fail) o valor pago mascarado entra na conta e no corpo do envio > "0,00" é um valor ("0.00"), e vazio não manda nada
+ 7 fail
+```
+
+Arquivos restaurados; base de volta a verde.
+
+### Testes existentes alterados (e por quê)
+
+`occurrence-values.contract.ts`: os rascunhos do valor pago passam a ser o texto **mascarado** que o campo guarda
+(`'0'` → `'0,00'`, `'10'` → `'10,00'`, `'50'` → `'50,00'`, `'8'` → `'8,00'`) e o corpo esperado ganha as 2 casas
+(`'0.00'`, `'10.00'`); o teste de `sanitizeDecimalInput` saiu junto com a função (coberto pelo contrato novo).
+`occurrence-values-fields.contract.tsx`: textos com `R$` + U+00A0, "Total que vai no e-mail" no lugar do rótulo do tipo.
+
+### Navegador (arnês descartável + Vite do worktree, porta 53200; verificado por texto)
+
+Arnês não commitado renderizando o `DriverOccurrenceRegistrationForm` real, com CSS e i18n reais; Vite do binário da
+app, PID confirmado com `cwd` neste worktree; encerrado por PID, arnês apagado, portas 53200/53901 livres.
+Sem login real (ADR-0075 §7).
+
+| Cenário digitado                                        | Resultado na tela                                                                                                                                                           |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1.500`                                                 | `15,00`                                                                                                                                                                     |
+| `R$ 1.234,56`                                           | `1.234,56`                                                                                                                                                                  |
+| 14 noves                                                | `9.999.999.999,99` + região viva "Limite do campo: …"                                                                                                                       |
+| `0`                                                     | `0,00`; "falta" passa a ser só a observação; corpo `declaredAmount: "0.00"`                                                                                                 |
+| quantidade `2.5555`                                     | texto fica `2,5555`, `aria-invalid="true"`, "…no máximo 3 casas…", Registrar desabilitado ("falta: a quantidade dos produtos marcados")                                     |
+| quantidade `2.555` + valor pago `9900` na linha do bolo | `2,555 CX × R$ 19,995 = R$ 51,09`; `1 UN × R$ 57,20 = R$ 57,20 · pago R$ 99,00`; total R$ 150,09; "1 de 2 linhas com valor pago digitado; as outras, calculadas pela nota." |
+| tipo exigindo valor + observação, tudo preenchido       | `role="status"`: "Tudo o que o tipo pede está preenchido."; Registrar liberado                                                                                              |
+
+Geometria: sem estouro em 375/768/1280 (`scrollWidth == innerWidth`), campos 46 px, botões 44–57 px, nenhum `R$ `
+com espaço comum nas linhas de conta; contraste da mensagem positiva 6,05:1 (claro) e 6,87:1 (escuro). Um print a
+375 px foi tirado como prova.
+
+### Gates (exit code conferido com `$?`)
+
+```text
+bun run typecheck                          exit=0
+bun run --cwd apps/frontend-driver test    exit=0  — 1371 pass · 0 fail · 3025 expect() calls
+bun run --cwd apps/frontend-driver lint    exit=0
+bun run format:check (raiz)                exit=0  — All matched files use Prettier code style!
+```
+
+### O que NÃO foi rodado
+
+`make check` completo, smoke Playwright do app do motorista, integração da API (fora do escopo; outro executor cuida
+da API), e o fluxo com login e fila reais (o arnês usa fila em memória). Revisão independente (T7.2) a repetir.
+
+## T7.2b — API: requisitos efetivos no detalhe e correção sob o modo do tipo (2026-10-07)
+
+Segunda revisão independente (T7.2) aprovou com ressalvas; os médios N1, N2 e N10 são da API.
+
+### N1 — a correção segue o modo EFETIVO do tipo
+
+`correctOccurrenceItems` agora lê o contratante e o destinatário DA NOTA (`findDocumentSubject`) e as exceções
+do tipo (`findOccurrenceTypeOverrides`), resolve pelo ponto único (`resolveDocumentOccurrenceRequirements`, por
+`resolveStoredOccurrenceRequirements`, que não aplica o filtro "tipo ativo do momento": tipo desativado depois do
+registro não trava a correção) e passa o resultado por `applyCorrectionRequirements`:
+
+- modo efetivo `off`: número, valor pago da ocorrência e valor pago de linha enviados são DESCARTADOS (voltam a
+  "mantém"), sem 4xx. Decisão: o `null` explícito (limpar) segue valendo; descartar não apaga o que já estava
+  gravado (ocorrência de antes de o tipo virar `off`);
+- modo efetivo `required`: só a limpeza EXPLÍCITA (`null`) é 422 (`TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED` /
+  `TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED`, `details[].field` = `declaredAmount` ou `items[i].declaredAmount`);
+  ausente mantém, então a ocorrência anterior à 247 continua corrigível;
+- o lugar do valor pago é `resolveDeclaredAmountTarget` com o `itemsMode` efetivo e o nº de linhas da correção;
+  valor por linha com escopo efetivo `occurrence` segue na regra de conflito de nível.
+
+Vermelho antes do código (`test/trip-occurrence/correction-effective-requirements.contract.ts`, 10 falhas):
+
+```text
+(fail) a correção descarta o campo desligado no modo efetivo número com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago da ocorrência com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago de linha com modo off: a linha é gravada sem o valor
+(fail) a correção descarta o campo desligado no modo efetivo a exceção do contratante da nota desliga o número que o tipo exigia
+(fail) a correção descarta o campo desligado no modo efetivo a exceção de OUTRO contratante não vale para a nota
+(fail) a correção não deixa limpar o campo exigido número exigido: nulo explícito é 422 TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRE
+(fail) a correção não deixa limpar o campo exigido valor pago exigido na ocorrência: nulo explícito é 422 com o campo declaredAm
+(fail) a correção não deixa limpar o campo exigido valor pago exigido por linha: nulo explícito é 422 com o campo da linha
+(fail) a correção não deixa limpar o campo exigido escopo item sem linha cai na ocorrência: o nulo explícito do valor da ocorrên
+(fail) a correção não deixa limpar o campo exigido Produtos desligado pela exceção leva o escopo item para a ocorrência
+```
+
+Mutação 1 — gravar mesmo com `off` (contrato 5 falhas, integração 3), depois revertida:
+
+```text
+(fail) a correção descarta o campo desligado no modo efetivo número com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago da ocorrência com modo off: não grava, sem erro
+(fail) a correção descarta o campo desligado no modo efetivo valor pago de linha com modo off: a linha é gravada sem o valor
+(fail) a correção descarta o campo desligado no modo efetivo a exceção do contratante da nota desliga o número que o tipo exigia
+(fail) a correção descarta o campo desligado no modo efetivo a exceção de OUTRO contratante não vale para a nota
+(fail) a correção sob o modo efetivo do tipo contra Postgres tipo que virou off depois do registro: número e valor novos são des
+(fail) a correção sob o modo efetivo do tipo contra Postgres valor pago por linha com o modo off: a linha é gravada sem o valor
+(fail) a correção sob o modo efetivo do tipo contra Postgres exceção do contratante da nota desliga o que o tipo exigia: descart
+```
+
+Mutação 2 — aceitar limpar o campo `required` (contrato 5 falhas, integração 1), depois revertida:
+
+```text
+(fail) a correção não deixa limpar o campo exigido número exigido: nulo explícito é 422 TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRE
+(fail) a correção não deixa limpar o campo exigido valor pago exigido na ocorrência: nulo explícito é 422 com o campo declaredAm
+(fail) a correção não deixa limpar o campo exigido valor pago exigido por linha: nulo explícito é 422 com o campo da linha
+(fail) a correção não deixa limpar o campo exigido escopo item sem linha cai na ocorrência: o nulo explícito do valor da ocorrên
+(fail) a correção não deixa limpar o campo exigido Produtos desligado pela exceção leva o escopo item para a ocorrência
+(fail) a correção sob o modo efetivo do tipo contra Postgres tipo exigido: limpar com nulo é 422 e não grava; ausente mantém; ou
+```
+
+### N2 — `requirements` no detalhe da ocorrência (aditivo, nível da ocorrência)
+
+`findTripOccurrenceDetail` passa a devolver `requirements`, resolvido pelo servidor com as exceções do contratante e
+do destinatário da NOTA; `null` na ocorrência de parada (sem nota) e no tipo que não existe mais. Nenhuma chave
+existente mudou. Formato (contrato com o painel; dinheiro não passa por aqui, rótulos são texto):
+
+```json
+"requirements": {
+  "referenceNumberMode": "off | optional | required",
+  "referenceNumberLabel": "string",
+  "declaredAmountMode": "off | optional | required",
+  "declaredAmountScope": "item | occurrence",
+  "declaredAmountLabel": "string",
+  "itemsMode": "off | optional | required"
+}
+```
+
+`declaredAmountScope` é o EFETIVO: `resolveDeclaredAmountTarget` com o `itemsMode` efetivo e a contagem de produtos
+distintos da nota. O golden `occurrence-detail-values.golden.json` ganhou `requirements` (a cópia do painel é igual;
+o teste de cópias da API segue verde). Vermelho antes do código:
+
+```text
+(fail) o detalhe publica o requisito efetivo do tipo sem exceção: os modos, o escopo e os rótulos do tipo
+(fail) o detalhe publica o requisito efetivo do tipo exceção do contratante e do destinatário da NOTA vale; Produtos desligado l
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+(fail) o detalhe da ocorrência (spec 183 T202) > itens da ocorrência: código, descrição da nota, quantidade como string decimal e unidade
+```
+
+Mutação 3 — `declaredAmountScope` cru do tipo (contrato + integração, 3 falhas), depois revertida:
+
+```text
+(fail) o requisito efetivo do detalhe da ocorrência escopo item com Produtos desligado no efetivo vira ocorrência
+(fail) o requisito efetivo do detalhe da ocorrência escopo item numa nota sem produto vira ocorrência
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+```
+
+Mutação 4 — `requirements` sem as exceções do contratante/destinatário (integração, 2 falhas), depois revertida:
+
+```text
+(fail) o detalhe publica o requisito efetivo do tipo exceção do contratante e do destinatário da NOTA vale; Produtos desligado l
+(fail) o detalhe publica o requisito efetivo do tipo a exceção de Produtos off leva o valor pago de item para a ocorrência
+```
+
+### N10 — logger no repositório do canal WhatsApp
+
+`main.ts` instanciava `DrizzleCurrentDriverTripRepository(database.db)` sem logger; agora recebe `logger`. Contrato
+`driver-repository-logger-wiring.contract.ts` (toda instância em `main.ts` leva `logger`) estava vermelho antes
+(`n10-red`: 1 falha) e verde depois. A leitura de produtos NÃO foi cortada no canal WhatsApp: ele chama
+`findCurrentDriverTrip`, que monta o snapshot inteiro, e não há prova de que nenhum fluxo use os produtos — não é
+seguro tirar sem teste.
+
+### Divisão de arquivo (commit de refactor anterior, sem mudar comportamento)
+
+`trip-occurrence-detail.query.ts` estava em 200 linhas; `findRecordedValues` foi para
+`trip-occurrence-detail-values.query.ts` (testes do detalhe verdes antes e depois: 10 pass).
+
+### Gates (exit code conferido com `$?`)
+
+```text
+bun run typecheck (raiz)                         exit=0
+contrato da API (bun --env-file test)            exit=0  — 10388 pass · 25 skip · 0 fail
+bun run lint (API)                               exit=0
+bun run format:check (raiz)                      exit=0
+integração da API, 6 lotes em primeiro plano     exit=0 em todos — 208+250+230+180+178+94 pass · 0 fail · 8 skip
+```
+
+Integração em Postgres 18 nativo descartável (porta própria, derrubado ao fim).

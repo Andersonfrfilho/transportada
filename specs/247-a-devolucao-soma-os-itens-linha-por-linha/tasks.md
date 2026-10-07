@@ -130,6 +130,12 @@ OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`; `PUT` sem os campos mantém os gra
 - [ ] **T7.2** Passada independente de funcionalidade, usabilidade e design por `code-reviewer`
       (`opus`): configurar o tipo do SAC na tela, registrar no app com dois itens e valor pago, ver o
       e-mail na conversa, corrigir pelo painel. Reprovado com bloqueante/alto → corrige e repete.
+
+      1ª rodada reprovou o app do motorista (A3 + B1); correções em `evidence.md` § "T7.2 — correções da
+      revisão: app do motorista". 2ª rodada aprovou com ressalvas; N1/N2/N10 (API) em `evidence.md` §
+      "T7.2b — API: requisitos efetivos no detalhe e correção sob o modo do tipo". Falta o painel consumir
+      `requirements` e a revisão final.
+
 - [ ] **T7.3** Atualizar `CLAUDE.md` da raiz, `apps/*/CLAUDE.md` tocados e `docs/ai-context/`.
 - [ ] **T7.4** Gates: `bun run typecheck`, `make check`, `make migration-test`, integração da API em
       primeiro plano com `--env-file`; depois de `git fetch` + rebase + `bun install
