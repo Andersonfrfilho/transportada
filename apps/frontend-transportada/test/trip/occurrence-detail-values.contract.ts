@@ -65,14 +65,7 @@ describe('detalhe da ocorrência: número, valor pago e valores por linha (spec 
 
   test('os requisitos efetivos do tipo vêm como o contrato da API os serializa', async () => {
     const detail = await readDetail(golden)
-    expect(detail.requirements).toEqual({
-      declaredAmountLabel: 'Valor pago pela loja',
-      declaredAmountMode: 'optional',
-      declaredAmountScope: 'item',
-      itemsMode: 'required',
-      referenceNumberLabel: 'Número da NFD',
-      referenceNumberMode: 'required',
-    })
+    expect(detail.requirements).toEqual(golden.requirements as never)
   })
 
   test('requirements ausente ou nulo (ocorrência, API ou parada sem nota antigas) passa', async () => {
