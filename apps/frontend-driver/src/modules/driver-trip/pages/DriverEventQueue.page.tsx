@@ -16,6 +16,7 @@ import {
   resolveEventQueueStopSequence,
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
+import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
 import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
 import styles from '../styles/driverTrip.module.css'
@@ -85,8 +86,12 @@ export function DriverEventQueuePage({
   const pendingCount = items.filter((item) => item.status.state !== 'rejected').length
 
   /** Spec 212: a causa conhecida sai em texto humano; a desconhecida, crua como veio. */
-  function causeLabel(cause: string): string {
-    const key = resolveRejectionCauseLabelKey(cause)
+  function causeLabel(input: {
+    readonly cause: string
+    readonly details?: readonly DriverTripErrorDetail[]
+  }): string {
+    const key = resolveRejectionCauseLabelKey(input.cause, input.details)
+    const { cause } = input
     return key === undefined ? cause : t(key)
   }
 
@@ -101,7 +106,12 @@ export function DriverEventQueuePage({
 
   function statusLabel(item: EventQueueItemView): string {
     if (item.status.state === 'rejected') {
-      return t('eventQueue.status.rejected', { cause: causeLabel(item.status.cause) })
+      return t('eventQueue.status.rejected', {
+        cause: causeLabel({
+          cause: item.status.cause,
+          ...(item.status.details === undefined ? {} : { details: item.status.details }),
+        }),
+      })
     }
     if (item.status.state === 'unverified') return t('eventQueue.status.unverified')
     if (item.status.state === 'failed') {
@@ -189,7 +199,7 @@ export function DriverEventQueuePage({
                     {item.attachmentRejectionCause === undefined ? null : (
                       <p className={styles.eventQueueStatusRejected}>
                         {t('eventQueue.status.attachmentRejected', {
-                          cause: causeLabel(item.attachmentRejectionCause),
+                          cause: causeLabel({ cause: item.attachmentRejectionCause }),
                         })}
                       </p>
                     )}

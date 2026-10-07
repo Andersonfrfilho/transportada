@@ -13,6 +13,7 @@ import type {
   OccurrenceMissingField,
 } from './occurrenceRequirements.service'
 import type { OccurrenceSignatureState } from '../hooks/useOccurrenceSignature.hook'
+import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
 
 /** O que acontece com a foto escolhida antes de ela entrar na fila. */
 export type OccurrencePhotoState = 'failed' | 'idle' | 'reading' | 'too-large'
@@ -52,6 +53,8 @@ export type OccurrenceRegistrationForm = Readonly<{
   selectedType: DriverOccurrenceType | undefined
   signature: OccurrenceSignatureState
   types: readonly DriverOccurrenceType[]
+  /** Spec 247: produtos marcados, quantidades, valor pago e número do documento. */
+  valuesForm: OccurrenceValuesForm
   /** O que o tipo escolhido mostra: `off` não aparece, e só o que é pedido ocupa a tela. */
   visibility: OccurrenceFieldVisibility | undefined
 }>

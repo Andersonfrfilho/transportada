@@ -9,6 +9,7 @@ import type {
 } from '../shared/occurrenceRegistrationForm.types'
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
 import { useOccurrenceSignature } from './useOccurrenceSignature.hook'
+import { useOccurrenceValues } from './useOccurrenceValues.hook'
 import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
 import type { DriverOccurrencePhoto } from '../shared/driverTrip.types'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
@@ -46,6 +47,7 @@ export function useOccurrenceRegistrationForm(
   const [isProductsMarked, setIsProductsMarked] = useState(false)
   const photoPreview = usePhotoPreviewUrl()
   const signature = useOccurrenceSignature()
+  const products = params.document.products ?? []
 
   /** Plan D2 da 189: aberto é captura — navegar no meio do relato perdia o que já foi digitado. */
   useCaptureRegistration('occurrence-dialog', true)
@@ -58,19 +60,27 @@ export function useOccurrenceRegistrationForm(
         })
       : []
   const selectedType = types.find((type) => type.id === occurrenceTypeId)
+  const valuesForm = useOccurrenceValues({ products, type: selectedType })
   const visibility =
-    selectedType === undefined ? undefined : resolveOccurrenceFieldVisibility(selectedType)
+    selectedType === undefined
+      ? undefined
+      : resolveOccurrenceFieldVisibility(selectedType, { hasProductList: products.length > 0 })
   /** Tipo `off` nunca leva foto — a escolhida para outro tipo fica para trás; o limite também corta. */
   const effectivePhotos =
     visibility?.rendersPhoto === true ? photos.slice(0, visibility.photoLimit) : []
   const effectiveSignature = visibility?.rendersSignature === true ? signature.signature : undefined
-  const hasProducts = visibility?.rendersProducts === true && isProductsMarked
+  /** Com a lista da nota, "tem produtos" é ter marcado algum; sem ela, é apontar a nota inteira. */
+  const hasProducts =
+    visibility?.rendersItemsList === true
+      ? valuesForm.values.facts.itemsSelectedCount > 0
+      : visibility?.rendersProducts === true && isProductsMarked
   const gateFacts = {
     hasNote: description.trim() !== '',
     hasPhoto: effectivePhotos.length > 0,
     hasProducts,
     hasSignature: effectiveSignature !== undefined,
     photoCount: effectivePhotos.length,
+    values: valuesForm.values.facts,
   }
 
   async function readPhoto(file: File): Promise<void> {
@@ -108,6 +118,7 @@ export function useOccurrenceRegistrationForm(
         hasProducts,
         photo: effectivePhotos[0],
         signature: effectiveSignature,
+        values: { facts: valuesForm.values.facts, payload: valuesForm.values.payload },
       },
       handlers: params.handlers,
       stopId: params.stop.id,
@@ -145,6 +156,7 @@ export function useOccurrenceRegistrationForm(
     selectedType,
     signature,
     types,
+    valuesForm,
     visibility,
   }
 }

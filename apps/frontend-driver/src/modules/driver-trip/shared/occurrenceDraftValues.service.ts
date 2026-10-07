@@ -2,6 +2,7 @@
 import type { DriverNfeProduct } from './driverTrip.types'
 import {
   calculateItemLineAmount,
+  formatBrazilianQuantity,
   parseAmountToCents,
   parseScaledDecimal,
   resolveOccurrenceAmounts,
@@ -26,6 +27,8 @@ const QUANTITY_PATTERN = /^\d{1,9}(\.\d{1,3})?$/u
 /** O que `DECLARED_AMOUNT_DECIMAL` da API aceita: sem zero à esquerda, duas casas. */
 const DECLARED_AMOUNT_PATTERN = /^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/u
 const NON_ZERO_DIGIT = /[1-9]/u
+/** Uma unidade, na escala de 4 casas do `numeric` da nota. */
+const ONE_UNIT_SCALED = 10_000n
 /** A linha inteira da nota nunca é pedida aqui (a quantidade vem digitada): o `vProd` não entra na conta. */
 const UNUSED_TOTAL_VALUE = '0'
 
@@ -96,6 +99,13 @@ type ItemLineParams = Readonly<{
   product: DriverNfeProduct
   requirements: OccurrenceRequirements
 }>
+
+/** Marcar o produto já sugere devolver uma unidade — ou o que a nota tem, quando é menos de uma. */
+export function resolveDefaultQuantityText(product: DriverNfeProduct): string {
+  const onNote = tryParseScaled(product.quantity)
+  const isLessThanOne = onNote !== undefined && onNote < ONE_UNIT_SCALED
+  return isLessThanOne ? formatBrazilianQuantity(product.quantity) : '1'
+}
 
 function readCanonicalAmount(text: string): string | undefined {
   const canonical = toCanonicalDecimal(text)
@@ -277,8 +287,9 @@ export function evaluateOccurrenceValues(input: {
       itemsSelectedCount: selected.length,
       itemsTotalCount: hasItems ? input.products.length : 0,
       lineAmountMissingCount: isAmountOnLine
-        ? selected.filter((line) => line.isDeclaredAmountRequired && line.declaredAmount === undefined)
-            .length
+        ? selected.filter(
+            (line) => line.isDeclaredAmountRequired && line.declaredAmount === undefined,
+          ).length
         : 0,
     },
     lines,

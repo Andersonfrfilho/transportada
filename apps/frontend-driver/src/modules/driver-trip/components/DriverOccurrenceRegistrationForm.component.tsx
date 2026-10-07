@@ -8,9 +8,9 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { useOccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistrationForm.hook'
 import { OccurrencePhotoField } from './OccurrencePhotoField.component'
-import { OccurrenceProductsField } from './OccurrenceProductsField.component'
 import { OccurrenceRegisterAction } from './OccurrenceRegisterAction.component'
 import { OccurrenceSignatureField } from './OccurrenceSignatureField.component'
+import { OccurrenceValuesSection } from './OccurrenceValuesSection.component'
 import type {
   DriverOccurrenceTypesState,
   DriverTripDocument,
@@ -18,7 +18,10 @@ import type {
 } from '../shared/driverTrip.types'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
-import { resolveOccurrenceRequirements } from '../shared/occurrenceRequirements.service'
+import {
+  resolveOccurrenceRequirements,
+  resolveRequiredItemsCount,
+} from '../shared/occurrenceRequirements.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverOccurrenceRegistrationFormProps = Readonly<{
@@ -53,6 +56,13 @@ export function DriverOccurrenceRegistrationForm({
   const requirements =
     selectedType === undefined ? undefined : resolveOccurrenceRequirements(selectedType)
   const photoLimit = visibility?.photoLimit ?? 1
+  const valueLabels = {
+    declaredAmount:
+      selectedType?.declaredAmountLabel ?? t('occurrenceRegistration.declaredAmount.defaultLabel'),
+    referenceNumber:
+      selectedType?.referenceNumberLabel ??
+      t('occurrenceRegistration.referenceNumber.defaultLabel'),
+  }
 
   function handleRetry(): void {
     onRetryOccurrenceTypes()
@@ -123,8 +133,9 @@ export function DriverOccurrenceRegistrationForm({
         </div>
       )}
 
-      {selectedType === undefined ? null : (
+      {selectedType === undefined || requirements === undefined ? null : (
         <>
+          <OccurrenceValuesSection form={form} labels={valueLabels} requirements={requirements} />
           {visibility?.rendersNote === false ? null : (
             <label>
               <span>
@@ -161,12 +172,6 @@ export function DriverOccurrenceRegistrationForm({
               previewUrl={form.photoPreviewUrl}
             />
           ) : null}
-          {visibility?.rendersProducts === true ? (
-            <OccurrenceProductsField
-              isMarked={form.hasProducts}
-              onToggle={form.handleProductsToggle}
-            />
-          ) : null}
           {visibility?.rendersSignature === true ? (
             <OccurrenceSignatureField
               hasSignature={form.signature.signature !== undefined}
@@ -183,6 +188,14 @@ export function DriverOccurrenceRegistrationForm({
 
       <OccurrenceRegisterAction
         canRegister={form.canRegister}
+        missingContext={{
+          declaredAmountLabel: valueLabels.declaredAmount,
+          itemsMinimumCount: resolveRequiredItemsCount({
+            itemsMinimumCount: requirements?.itemsMinimumCount ?? null,
+            itemsTotalCount: form.valuesForm.values.facts.itemsTotalCount,
+          }),
+          referenceNumberLabel: valueLabels.referenceNumber,
+        }}
         missingFields={missingFields}
         onCancel={onClose}
         onRegister={handleRegister}
