@@ -5399,6 +5399,7 @@ button.occurrenceCaseBadge {
   font-size: 0.85rem;
   gap: var(--space-1);
   min-width: 0;
+}
 
 .crewTransferSummary {
   display: grid;
