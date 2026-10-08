@@ -22,7 +22,7 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 > 🤖 Modelo: `sonnet` (T2.1 é 🧠 — `opus`, validar com `architect`: migration + CHECK)
 
 - [x] **T2.1** 🧠 Constante do catálogo, coluna, CHECK, migration/rollback/snapshot. Integração `test/integration/occurrence-type-icon.integration.ts` + `make migration-test`.
-- [ ] **T2.2** Zod, mapper, use case, leitura, DTOs e goldens (RF2, RF3, CA2). Contrato antes; mutação vermelha registrada (esquecer o mapper).
+- [x] **T2.2** Zod, mapper, use case, leitura, DTOs e goldens (RF2, RF3, CA2). Contrato antes; mutação vermelha registrada (esquecer o mapper).
 
 ## Fase 3 — Telas
 

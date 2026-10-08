@@ -539,6 +539,7 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'declaredAmountScope',
   /** Spec 246 (ADR-0081 §9, painel antes da API): os modos resolvidos da nota e os mínimos. */
   'flow',
+  'iconName',
   'itemsMinimumCount',
   'itemsMode',
   'noteMode',

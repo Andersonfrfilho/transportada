@@ -8,6 +8,7 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { DECLARED_AMOUNT_DECIMAL } from '../../shared/money.constant.js'
+import { OCCURRENCE_TYPE_ICON_NAMES } from '../../shared/trip-occurrence.constant.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
@@ -438,6 +439,8 @@ const occurrenceTypeSchema = z
     declaredAmountLabel: requirementLabelSchema.optional(),
     declaredAmountMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     declaredAmountScope: z.enum(OCCURRENCE_DECLARED_AMOUNT_SCOPES).optional(),
+    // Ausente mantém o ícone, `null` o limpa; nome fora do catálogo é 400.
+    iconName: z.enum(OCCURRENCE_TYPE_ICON_NAMES).nullable().optional(),
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**

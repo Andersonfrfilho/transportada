@@ -162,3 +162,46 @@ company_occurrence_types_icon_name_check, sqlState: 23514 }`), registrado no fim
 - `bun run format:check` (raiz): "All matched files use Prettier code style!".
 
 Desvio do veredito: nenhum. O nome da pasta saiu com data `20261008` (relógio UTC do `drizzle-kit`).
+
+## T2.2 — Zod, mapper, use case, leitura, DTOs e goldens (RF2, RF3, CA2)
+
+**Vermelho (contrato escrito antes do código):** `test/trip-occurrence/occurrence-type-icon.contract.ts`, ligado em
+`test/trip-occurrence.contract.test.ts` (já na lista do `package.json`). Primeira execução, sem nenhuma mudança em `src/`:
+14 fail / 710 pass. Exemplos: `iconName` resolvido `Expected: "alert"` / `Received: undefined`; `readSettingsResolution`
+`Expected ['invoice', null]` / `Received [undefined, undefined]`.
+
+**Implementado:** `iconName: z.enum(OCCURRENCE_TYPE_ICON_NAMES).nullable().optional()` no `occurrenceTypeSchema` (fora do catálogo
+é `400 INVALID_REQUEST` com o campo nos detalhes; ausente mantém, `null` limpa); `SaveOccurrenceTypeInput`/`SaveOccurrenceTypeValues`,
+mapper, `writeOccurrenceTypeRow` (spread condicional, grava e devolve), `findOccurrenceType`/`listOccurrenceTypes`,
+`toFieldOccurrenceType` (`iconName: null | nome`), `readSettingsResolution`, `typeIconName` em `listTripOccurrences` e
+`findTripOccurrenceById`. `iconName` sai direto do tipo — nunca passa por `resolveOccurrenceRequirements` nem por exceção.
+Goldens (`settings-resolution`, `driver-snapshot-document`) com `"iconName": "money"` e as cópias nas duas apps.
+
+**Mutação vermelha:** removida a linha `iconName: input.iconName,` do `save-occurrence-type-values.mapper.ts`:
+
+```
+Expected: "alert"
+Received: undefined
+(fail) o PUT do catálogo valida o ícone do tipo (spec 255 RF2, CA2) > aceita alert do catálogo
+... (um fail por nome do catálogo e o do caso de uso)
+```
+
+Linha restaurada; contrato volta a 724 pass / 0 fail.
+
+**Verde (gates):**
+
+- `bun run typecheck` (raiz): exit 0.
+- API `test`: 10944 pass / 25 skip / 0 fail, 207 arquivos.
+- integração `test/integration/occurrence-type-icon-write.integration.ts` (3 testes: grava/mantém/limpa e lê em get e list; sem o campo
+  é `null`; `typeIconName` na lista e na leitura única), registrada no fim de `test:integration`; suíte inteira: 1291 pass / 8 skip / 0 fail,
+  244 arquivos.
+- `frontend-driver` `test`: 1417 pass / 0 fail. `frontend-transportada` `test`: 7619 pass / 0 fail (+1126 do passo seguinte do script).
+- eslint `--max-warnings=0`: API exit 0; arquivos tocados do `frontend-transportada` limpos. O `lint` do `frontend-transportada`
+  já falha na base (20 problemas, 4 erros, em arquivos não tocados) — idêntico sem as mudanças.
+- `bun run format:check` (raiz): verde.
+
+**Desvio:** a T1.1 deixou o painel aceitar `iconName` só no tipo de escritório. O guard de `GET /occurrence-types/field`
+(`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`) e o de `settings-resolution` (`SETTINGS_RESOLUTION_OPTIONAL_KEYS`) rejeitavam a chave
+(`TRIP_RESPONSE_INVALID`) assim que a API a mandasse; `iconName` entrou nas duas listas e em `SettingsResolutionOccurrenceType`.
+Fora do escopo desta task por desenho: o feed, o detalhe e a view `occurrence-type-items-read` não ganharam `typeIconName` (possível
+lacuna para o cartão da viagem na T3.4).

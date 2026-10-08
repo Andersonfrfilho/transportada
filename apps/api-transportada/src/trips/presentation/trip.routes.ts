@@ -8,6 +8,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
 } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
@@ -310,6 +311,7 @@ type SaveOccurrenceTypeInput = {
   readonly context: CompanyContext
   /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
   readonly declaredAmountLabel?: string | undefined
+  readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
   readonly emailBody?: string | undefined

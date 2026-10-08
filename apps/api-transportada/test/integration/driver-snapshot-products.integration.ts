@@ -159,6 +159,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     declaredAmountLabel: 'Valor pago pela loja',
     declaredAmountMode: 'optional',
     declaredAmountScope: 'item',
+    iconName: 'money',
     id: typeId,
     itemsMinimumCount: null,
     itemsMode: 'required',
