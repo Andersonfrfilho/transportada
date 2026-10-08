@@ -32,9 +32,32 @@ adaptador de novo, como a ADR-0029 previu.
 - Já existe no repositório o cofre de certificado A1 (ADR-0004), a reserva idempotente de número
   fiscal (ADR-0005) e o XML fiscal imutável (ADR-0006) — todos do CT-e e reaproveitáveis.
 
-## Decisões do usuário (07/10/2026)
+## Levantamento de 08/10/2026 (fontes públicas; o Swagger ainda não foi lido)
 
-- Primeiro a v3 (spec 250); **depois** a troca para a integração nacional gratuita (esta spec).
+- **URLs oficiais** (<https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/apis-prod-restrita-e-producao>):
+  ADN contribuintes — produção restrita `https://adn.producaorestrita.nfse.gov.br/contribuintes/docs/index.html`,
+  produção `https://adn.nfse.gov.br/contribuintes/docs/index.html`; Sefin Nacional — produção restrita
+  `https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/docs/index`, produção
+  `https://sefin.nfse.gov.br/SefinNacional/docs/index`. Qual dos dois recebe a DPS é da T0.3.
+- **Transporte:** HTTPS TLS ≥ 1.2 com **autenticação mútua**; certificado ICP-Brasil **A1 ou A3**, tipo
+  e-CNPJ ou e-aplicação (anexo II, "Guia para utilização das APIs"). Só A1 serve ao worker (A3 pede token
+  físico). Fontes de terceiros dizem XML assinado + GZip + Base64 em corpo JSON; as versões do anexo II
+  divergem entre síncrono (v1.1) e assíncrono (v1.02) — **o Swagger decide**, não os PDFs.
+- **Ribeirão Preto** migrou para o padrão nacional (layout ABRASF deixou de valer em 01/07/2026; só a DPS
+  no padrão novo é aceita — fonte de fornecedor, não da Prefeitura). Isso **não prova** que o contribuinte
+  emite direto: segue o [NEEDS CLARIFICATION] 1.
+- **Gratuidade:** o emissor público é gratuito para o contribuinte segundo guias de 2026; o portal
+  gov.br não a afirma por escrito. Registrar a fonte oficial na T0.2.
+- **Fora do ar na tentativa:** o Swagger da produção restrita respondeu `socket hang up` em 08/10/2026
+  — a T0.3 repete a leitura (talvez exija o certificado já no TLS).
+
+## Decisões do usuário
+
+- 07/10/2026 — Primeiro a v3 (spec 250); **depois** a troca para a integração nacional gratuita (esta spec).
+- 08/10/2026 — Emitir **direto pelo Emissor Nacional, sem provedor**. A Nota RP deixa de ser o caminho;
+  se ela fica como contingência é decisão da T0.5. A T6.2 da 250 (virada para `v3` em produção) fica
+  suspensa até a T0.2: se o município aceita emissão direta e a homologação prova a DPS, a virada vai
+  direto ao `national` e a 250 fecha sem a virada.
 
 ## Decisões por delegação
 

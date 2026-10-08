@@ -24,6 +24,15 @@ payload congelado ──► DPS 1.01 (XML) ──► assinar (A1) ──► [GZi
 - Parâmetros do município (alíquota, retenções, regime) lidos da API nacional **no momento da
   congelação do payload**, nunca na hora da transmissão (a reemissão não recalcula).
 
+## Ambientes (levantamento de 08/10/2026)
+
+| Ambiente          | ADN contribuintes                                        | Sefin Nacional                                                 |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
+| Produção restrita | `https://adn.producaorestrita.nfse.gov.br/contribuintes` | `https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional` |
+| Produção          | `https://adn.nfse.gov.br/contribuintes`                  | `https://sefin.nfse.gov.br/SefinNacional`                      |
+
+Docs em `…/docs/index(.html)` de cada um. mTLS com e-CNPJ A1. Rotas, compactação e erros: T0.3.
+
 ## Riscos e mitigação
 
 | Risco                                           | Mitigação                                                                                 |
