@@ -68,7 +68,9 @@ export async function decorateReportDocument(
   await database.db
     .update(nfeDocuments)
     .set({
-      ...(seed.number === undefined ? {} : { number: seed.number }),
+      ...(seed.number === undefined
+        ? {}
+        : { accessKey: `${'9'.repeat(32)}${seed.number.padStart(12, '0')}`, number: seed.number }),
       ...(seed.series === undefined ? {} : { series: seed.series }),
       ...(seed.totalValue === undefined ? {} : { totalValue: seed.totalValue }),
     })
