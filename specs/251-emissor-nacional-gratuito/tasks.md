@@ -16,7 +16,7 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 
 > 🤖 Modelo: `sonnet` (T0.1 → `haiku`; T0.5 é 🧠 `opus`)
 
-- [ ] **T0.1** `haiku` — Conferir spec 250 em `origin/staging` e ler as specs 032/040/175 (nada aqui
+- [x] **T0.1** `haiku` — Conferir spec 250 em `origin/staging` e ler as specs 032/040/175 (nada aqui
       duplica decisão delas). Aceite: lista de contratos herdados em `evidence.md`.
 - [ ] **T0.2** `sonnet` — Confirmar na API nacional (parâmetros municipais, produção restrita) que
       Ribeirão Preto aceita emissão direta pelo contribuinte, e registrar a fonte oficial da
