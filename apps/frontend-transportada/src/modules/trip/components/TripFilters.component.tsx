@@ -11,15 +11,19 @@ import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/sh
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 
 import type { TripTableController } from '../hooks/useTripTable.hook'
+import type { ContractorSummary } from '../shared/contractorSummary.service'
 import { TRIP_STATUS } from '../shared/trip.types'
 import { describeTripFilterPills, type TripFilterPill } from '../shared/tripFilterPills.service'
+import { describeTripReportFilterPills } from '../shared/tripReportFilterPills.service'
 import styles from '../styles/trip.module.css'
+import { TripReportFilterPanel } from './TripReportFilterPanel.component'
 
 function labelOf(options: readonly MultiSelectOption[], value: string): string {
   return options.find((option) => option.value === value)?.label ?? value
 }
 
 type TripFiltersProps = Readonly<{
+  contractors: readonly ContractorSummary[]
   drivers: readonly FleetDriverListItem[]
   table: TripTableController
   vehicles: readonly FleetVehicleDetail[]
@@ -33,7 +37,7 @@ type TripFiltersProps = Readonly<{
  * O catálogo é o cadastro **inteiro**, não só o ativo: filtrar viagem antiga exige o veículo que
  * saiu da frota depois dela.
  */
-export function TripFilters({ drivers, table, vehicles }: TripFiltersProps) {
+export function TripFilters({ contractors, drivers, table, vehicles }: TripFiltersProps) {
   const { t } = useTranslation('trip')
 
   const vehicleOptions = useVehicleSelectOptions(vehicles)
@@ -48,7 +52,28 @@ export function TripFilters({ drivers, table, vehicles }: TripFiltersProps) {
     filters: table.filters,
     formatDay: formatCalendarDate,
   })
+  const reportDescriptors = describeTripReportFilterPills({
+    describeContractor: (contractorId) =>
+      contractors.find((contractor) => contractor.id === contractorId)?.displayName ?? contractorId,
+    noContractorLabel: t('filters.report.noContractor'),
+    state: table.reportFilters.state,
+  })
   const pills: readonly FilterPill[] = descriptors.map(toPill)
+  const reportPills: readonly FilterPill[] = reportDescriptors.map((descriptor) => {
+    const label = t(descriptor.labelKey)
+    const value =
+      descriptor.valueKeys === undefined
+        ? descriptor.value
+        : descriptor.valueKeys.map((key) => t(key)).join(', ')
+    return {
+      id: `report-${descriptor.field}`,
+      label,
+      onRemove: () => table.reportFilters.clearField(descriptor.field),
+      removeLabel: t('filters.removeFilter', { field: label }),
+      value,
+    }
+  })
+  const allPills: readonly FilterPill[] = [...pills, ...reportPills]
 
   function toPill(descriptor: TripFilterPill): FilterPill {
     const label = t(descriptor.labelKey)
@@ -140,15 +165,17 @@ export function TripFilters({ drivers, table, vehicles }: TripFiltersProps) {
         </label>
       </div>
 
+      <TripReportFilterPanel contractors={contractors} filters={table.reportFilters} />
+
       <FilterPills
         clearAllLabel={t('filters.clear')}
         onClearAll={table.clearFilters}
-        pills={pills}
+        pills={allPills}
       />
 
       <div className={styles.toolbar}>
         <p className={styles.counter}>{t('filters.active', { count: table.activeFilterCount })}</p>
-        {pills.length === 0 && table.activeFilterCount > 0 ? (
+        {allPills.length === 0 && table.activeFilterCount > 0 ? (
           <Button onClick={table.clearFilters} size="sm" type="button" variant="secondary">
             <Icon name="filter-clear" />
             {t('filters.clear')}
