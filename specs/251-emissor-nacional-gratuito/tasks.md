@@ -33,7 +33,7 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 - [x] **T0.4** `sonnet` — Obter com o usuário o A1 de **homologação** (ou procedimento), confirmar a
       validade do A1 de produção (o da Nota RP vence em 05/11/2026) e quem renova.
       A1 de produção da transportadora liberado pelo usuário para leitura em produção restrita/produção (GET); Anderson renova (vence em 05/11/2026) e repassa ao cofre; emissão real só na T4.2; senha nunca em arquivo/log.
-- [ ] **T0.5** 🧠 `opus` — (destino da Nota RP já decidido pelo usuário: sai do app, fica só na lib) ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
+- [x] **T0.5** 🧠 `opus` — (destino da Nota RP já decidido pelo usuário: sai do app, fica só na lib) ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
       sorte da Nota RP (contingência × remoção) e da T6.2 da 250 — fecha o [NEEDS CLARIFICATION] 3.
       Validar com `architect` antes de implementar. Numeração conferida em `origin/staging`.
 
@@ -42,9 +42,12 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 > 🤖 Modelo: `sonnet` (T1.3 → `haiku`)
 
 - [ ] **T1.1** `sonnet` — Cadastro do A1 da NFS-e (reuso do cofre da ADR-0004), com validade e alerta.
+      ADR 0099 §3: finalidade própria `nfse` em `digital_certificates` (não lê o `cte`); alerta D-30/D-7 por e-mail no cron é novo.
 - [ ] **T1.2** `sonnet` — Reserva de `nDPS`/série por empresa e ambiente, idempotente (padrão ADR-0005).
+      ADR 0099 §4: modelo `nfse_dps`, chave `nfse-dps:<provider_request_key>`, reserva na API ao criar a tentativa; `dps_series` no perfil.
 - [ ] **T1.3** `haiku` — Ambiente da credencial (`homologation` | `production`) e
       `NFSE_PROVIDER_BASE_URL` por ambiente no schema de env — emenda da 0035. Aceite: `tsc` + contrato.
+      ADR 0099 §5: a credencial e a tentativa já têm `fiscal_environment`; a task vira `NFSE_NATIONAL_ADN_BASE_URL` + guarda de staging.
 
 ## Fase 2 — Adaptador no worker
 
@@ -62,6 +65,7 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 - [ ] **T2.4** `sonnet` — `nfse-national.client.ts` + gateway + seleção `national` por env, com mTLS e
       limitador do processo.
 - [ ] **T2.5** `sonnet` — Status pull e documentos (XML fiscal imutável + PDF no storage).
+      ADR 0099 §6: o PDF é DANFSe renderizado no worker (`pdfkit`) dentro de `fetchDocument({ kind: 'pdf' })`.
 - [ ] **T2.6** `haiku` — Registrar os arquivos novos de teste no `package.json` do worker e da API.
 
 ## Fase 3 — Painel
@@ -85,6 +89,7 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       externo e seus contratos; a lib `@adatechnology/fiscal-provider` não é tocada. `cTribNac`
       (`national_taxation_code`) fica: é campo do padrão nacional. Aceite: `make check`,
       `make migration-test` e grep sem `nota-rp` em `apps/`.
+      ADR 0099 §2/§9: pré-condição zero nota v2/v3 não terminal; o limitador fica (renomeado), sai só a instância v3.
 - [ ] **T4.3** `haiku` — Documentar em `docs/ai-context/*`, `CLAUDE.md`; fechar a 250 conforme a
       decisão da T0.5.
 

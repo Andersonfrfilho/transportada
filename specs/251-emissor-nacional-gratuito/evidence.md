@@ -236,3 +236,9 @@ Continuam sem fonte oficial: algoritmos XMLDSig, limites de taxa, Swagger do DAN
 ## T0.4 — fechamento
 
 A1 de produção da transportadora liberado pelo usuário para leitura em produção restrita/produção (GET); Anderson renova (vence em 05/11/2026) e repassa ao cofre; emissão real só na T4.2; senha nunca em arquivo/log.
+
+## T0.5 — ADR 0099
+
+- Arquivo: `docs/adr/0099-a-nfse-fala-o-sistema-nacional.md` (Status: proposto; 0099 livre em `origin/staging`, 0100 existe).
+- Decisões-chave: `accepted` com `chaveAcesso` + pull autoriza (sem estado novo), `HEAD /dps/{id}` antes de todo `POST`; `national` por tentativa e remoção da Nota RP na T4.2b; A1 com finalidade `nfse`; `nDPS` pela ADR-0005 na API; staging emite em produção restrita; DANFSe no worker; parametrização do ADN no congelamento; sonda T2.3b; limitador reaproveitado.
+- Para o architect: HEAD-antes-do-POST e `403` como `rejected`; `409` na divergência de alíquota ADN × perfil; finalidade `nfse` × certificado `cte`; DANFSe no worker sem leiaute oficial.
