@@ -102,6 +102,7 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
     })
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: async ({ report }) => {
         try {
           await client.send({ report, stamp: undefined })
@@ -139,13 +140,13 @@ describe('indisponibilidade do servidor não recusa o item da fila', () => {
       }
     }
 
-    const first = await drainQueue({ send, store })
+    const first = await drainQueue({ origin: 'immediate', send, store })
     expect(first).toEqual({ rejected: [], remaining: 2, sent: 0 })
     expect(store.items()[0]?.attempts).toBe(1)
     expect(seen).toEqual(['chave-a'])
 
     isServerUp = true
-    const second = await drainQueue({ send, store })
+    const second = await drainQueue({ origin: 'immediate', send, store })
     expect(second).toEqual({ rejected: [], remaining: 0, sent: 2 })
   })
 

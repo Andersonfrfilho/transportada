@@ -137,6 +137,12 @@ const CATALOG = [
     job: 'cargo-preview.retention.apply',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Spec 248 T2.3: só toca o próprio banco e o bucket; nasce pausada, roda por disparo manual. */
+    failureOutcomes: [],
+    job: 'nfe.recipient-email.backfill',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('cron job catalog', () => {

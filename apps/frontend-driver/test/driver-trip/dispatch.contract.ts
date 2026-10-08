@@ -109,7 +109,7 @@ describe('a fila offline no hook (revisão 082)', () => {
   it('a drenagem é single-flight, e o pedido concorrente reexecuta em vez de sumir', () => {
     /** Spec 189 T9.2 (M3): a regra mora em `createDrainScheduler`, provada em pending-queue. */
     expect(hook).toInclude('createDrainScheduler(')
-    expect(hook).toInclude('drainScheduler.request(only)')
+    expect(hook).toInclude('drainScheduler.request(only, origin)')
     expect(hook).toInclude('requestDrain')
     expect(hook).not.toInclude('drain.mutate(undefined)')
   })

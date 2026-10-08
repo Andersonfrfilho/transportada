@@ -35,6 +35,7 @@ describe('normalized NF-e document schema', () => {
       'other_expenses_value',
       'additional_information',
       'authorization_protocol',
+      'recipient_email',
       'xml_object_id',
       'xml_sha256',
       'import_id',

@@ -122,6 +122,7 @@ describe('a fila tem dono (plan D5, ADR-0075 §8)', () => {
     const sentAttachments: string[] = []
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       ownerSubHash: OWNER,
       send: ({ report }): Promise<AttachmentSendOutcome> => {
@@ -152,6 +153,7 @@ describe('a fila tem dono (plan D5, ADR-0075 §8)', () => {
     let sendCalls = 0
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'chave-other',
       ownerSubHash: OWNER,
@@ -174,6 +176,7 @@ describe('a fila tem dono (plan D5, ADR-0075 §8)', () => {
     let sendCalls = 0
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createMemoryAttachmentStore(),
       ownerSubHash: OWNER,
       send: () => {
@@ -194,6 +197,7 @@ describe('a fila tem dono (plan D5, ADR-0075 §8)', () => {
     })
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       ownerSubHash: OWNER,
       send: () => Promise.resolve({ cause: '409 CONFLICT', kind: 'rejected' }),

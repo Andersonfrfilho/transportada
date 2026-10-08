@@ -9,20 +9,18 @@ import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/s
 import { Select, type SelectOption } from '@/components/ui/select'
 import { formatTaxId } from '@/modules/shared/taxId.service'
 
-import {
-  AMOUNT_OPERATORS,
-  AMOUNT_OPERATOR_SYMBOL,
-  CTE_ISSUED_FILTER_VALUES,
-  type AmountOperator,
-  type DocumentStatus,
-  type FilterMode,
-  type UseNfeDocumentTableResult,
-} from '../hooks/useNfeDocumentTable.hook'
-import styles from '../styles/nfeWorkspace.module.css'
 import { AdvancedFilterBuilder } from './AdvancedFilterBuilder.component'
+import {
+  AMOUNT_OPERATOR_SYMBOL,
+  AMOUNT_OPERATORS,
+  CTE_ISSUED_FILTER_VALUES,
+} from './nfeFilter.constant'
+import styles from './nfeFilterPanel.module.css'
+import type { NfeFilterPanelController } from './NfeFilterPanelController.types'
+import type { AmountOperator, FilterMode, NfeFilterStatus } from './nfeFilter.types'
 
 const FILTER_MODES: readonly FilterMode[] = ['simple', 'advanced']
-const STATUS_VALUES: readonly DocumentStatus[] = ['authorized', 'cancelled', 'denied']
+const STATUS_VALUES: readonly NfeFilterStatus[] = ['authorized', 'cancelled', 'denied']
 
 function toOptions(values: readonly string[]): readonly SelectOption[] {
   return values.map((value) => ({ label: value, value }))
@@ -42,17 +40,17 @@ function cteIssuedLabelKey(value: string): string {
   return value === 'issued' ? 'filters.cteIssuedIssued' : 'filters.cteIssuedPending'
 }
 
-type NfeDocumentFilterPanelProps = Readonly<{ table: UseNfeDocumentTableResult }>
+type NfeDocumentFilterPanelProps = Readonly<{ controller: NfeFilterPanelController }>
 
 /**
  * O painel saiu de dentro da tabela porque passou a ter **dois** consumidores: a listagem de notas e
  * a criação de viagem, que monta o lote com os mesmos filtros que o operador acabou de usar. Copiar
  * o bloco daria duas telas concordando hoje e divergindo no primeiro filtro novo.
  *
- * Ele é autocontido de propósito: as listas de opção derivam do `table` e da tradução, então quem o
+ * Ele é autocontido de propósito: as listas de opção derivam do `controller` e da tradução, então quem o
  * renderiza só precisa ter um controlador — não precisa saber montar `selectFieldOptions`.
  */
-export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
+export function NfeDocumentFilterPanel({ controller }: NfeDocumentFilterPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
 
   const operatorOptions: readonly SelectOption[] = AMOUNT_OPERATORS.map((operator) => ({
@@ -69,10 +67,10 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
   }))
   const selectFieldOptions = {
     cteIssued: cteIssuedOptions,
-    emitterCity: toOptions(table.cityOptions.emitterCity),
-    emitterState: toOptions(table.stateOptions.emitterState),
-    recipientCity: toOptions(table.cityOptions.recipientCity),
-    recipientState: toOptions(table.stateOptions.recipientState),
+    emitterCity: toOptions(controller.cityOptions.emitterCity),
+    emitterState: toOptions(controller.stateOptions.emitterState),
+    recipientCity: toOptions(controller.cityOptions.recipientCity),
+    recipientState: toOptions(controller.stateOptions.recipientState),
     status: statusOptions,
   } as const
 
@@ -84,43 +82,47 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
     ]
   }
 
+  const isAdvancedMode = controller.capabilities.advanced && controller.mode === 'advanced'
+
   return (
     <div className={styles.filterPanel}>
-      <div
-        aria-label={t('documents.filterMode.label')}
-        className={styles.filterModeBar}
-        role="group"
-      >
-        {FILTER_MODES.map((filterMode) => (
-          <button
-            aria-pressed={table.mode === filterMode}
-            className={table.mode === filterMode ? styles.tabActive : styles.tab}
-            key={filterMode}
-            onClick={() => table.setMode(filterMode)}
-            type="button"
-          >
-            {t(`documents.filterMode.${filterMode}`)}
-          </button>
-        ))}
-      </div>
-      {table.mode === 'advanced' ? (
+      {controller.capabilities.advanced && (
+        <div
+          aria-label={t('documents.filterMode.label')}
+          className={styles.filterModeBar}
+          role="group"
+        >
+          {FILTER_MODES.map((filterMode) => (
+            <button
+              aria-pressed={controller.mode === filterMode}
+              className={controller.mode === filterMode ? styles.tabActive : styles.tab}
+              key={filterMode}
+              onClick={() => controller.setMode(filterMode)}
+              type="button"
+            >
+              {t(`documents.filterMode.${filterMode}`)}
+            </button>
+          ))}
+        </div>
+      )}
+      {isAdvancedMode ? (
         <div className={styles.builderWrapper}>
           <AdvancedFilterBuilder
-            model={table.advancedFilter}
-            onAddCondition={table.addCondition}
-            onAddGroup={table.addGroup}
-            onClearConditions={table.clearConditions}
-            onRemoveCondition={table.removeCondition}
-            onRemoveGroup={table.removeGroup}
-            onSetGroupConnector={table.setGroupConnector}
-            onSetRootConnector={table.setRootConnector}
-            onUpdateCondition={table.updateCondition}
+            model={controller.advancedFilter}
+            onAddCondition={controller.addCondition}
+            onAddGroup={controller.addGroup}
+            onClearConditions={controller.clearConditions}
+            onRemoveCondition={controller.removeCondition}
+            onRemoveGroup={controller.removeGroup}
+            onSetGroupConnector={controller.setGroupConnector}
+            onSetRootConnector={controller.setRootConnector}
+            onUpdateCondition={controller.updateCondition}
             selectFieldOptions={selectFieldOptions}
           />
           <button
             className={styles.builderSave}
-            disabled={table.activeConditionCount === 0}
-            onClick={table.saveAdvancedFilter}
+            disabled={controller.activeConditionCount === 0}
+            onClick={controller.saveAdvancedFilter}
             type="button"
           >
             <Icon name="save" />
@@ -129,14 +131,16 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
         </div>
       ) : (
         <div className={styles.filterGrid}>
-          <div className={styles.filterField}>
-            <span className={styles.filterFieldLabel}>{t('filters.fiscalLink')}</span>
-            <Checkbox
-              checked={table.filters.unlinkedOnly}
-              label={t('filters.unlinkedOnly')}
-              onChange={table.setUnlinkedOnly}
-            />
-          </div>
+          {controller.capabilities.unlinkedOnly && (
+            <div className={styles.filterField}>
+              <span className={styles.filterFieldLabel}>{t('filters.fiscalLink')}</span>
+              <Checkbox
+                checked={controller.filters.unlinkedOnly}
+                label={t('filters.unlinkedOnly')}
+                onChange={controller.setUnlinkedOnly}
+              />
+            </div>
+          )}
 
           <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.cteIssued')}</span>
@@ -144,10 +148,10 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               ariaLabel={t('documents.fields.cteIssued')}
               clearable
               compact
-              onChange={(value) => table.setSelectFilter('cteIssued', value)}
+              onChange={(value) => controller.setSelectFilter('cteIssued', value)}
               options={cteIssuedOptions}
               placeholder={t('filters.all')}
-              value={table.filters.select.cteIssued}
+              value={controller.filters.select.cteIssued}
             />
           </div>
 
@@ -158,17 +162,17 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
                 aria-label={t('documents.numberFrom')}
                 className={styles.filterInput}
                 inputMode="numeric"
-                onChange={(event) => table.setNumberFrom(event.target.value)}
+                onChange={(event) => controller.setNumberFrom(event.target.value)}
                 placeholder={t('documents.numberFrom')}
-                value={table.filters.numberFrom}
+                value={controller.filters.numberFrom}
               />
               <input
                 aria-label={t('documents.numberTo')}
                 className={styles.filterInput}
                 inputMode="numeric"
-                onChange={(event) => table.setNumberTo(event.target.value)}
+                onChange={(event) => controller.setNumberTo(event.target.value)}
                 placeholder={t('documents.numberTo')}
-                value={table.filters.numberTo}
+                value={controller.filters.numberTo}
               />
             </div>
           </div>
@@ -178,12 +182,12 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <DateRangePicker
               ariaLabel={t('documents.fields.issuedAt')}
               clearLabel={t('documents.clearAll')}
-              from={table.filters.dateFrom}
+              from={controller.filters.dateFrom}
               nextMonthLabel={t('documents.nextMonth')}
-              onChange={table.setDateRange}
+              onChange={controller.setDateRange}
               placeholder={t('documents.datePlaceholder')}
               previousMonthLabel={t('documents.previousMonth')}
-              to={table.filters.dateTo}
+              to={controller.filters.dateTo}
             />
           </div>
 
@@ -194,18 +198,18 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
                 ariaLabel={t('documents.operator')}
                 clearable={false}
                 compact
-                onChange={(value) => table.setAmountOperator(value as AmountOperator)}
+                onChange={(value) => controller.setAmountOperator(value as AmountOperator)}
                 options={operatorOptions}
-                placeholder={AMOUNT_OPERATOR_SYMBOL[table.filters.amountOperator]}
-                value={table.filters.amountOperator}
+                placeholder={AMOUNT_OPERATOR_SYMBOL[controller.filters.amountOperator]}
+                value={controller.filters.amountOperator}
               />
               <input
                 aria-label={t('documents.fields.totalAmount')}
                 className={styles.filterInput}
                 inputMode="decimal"
-                onChange={(event) => table.setAmountValue(event.target.value)}
+                onChange={(event) => controller.setAmountValue(event.target.value)}
                 placeholder={t('documents.fields.totalAmount')}
-                value={table.filters.amountValue}
+                value={controller.filters.amountValue}
               />
             </div>
           </div>
@@ -217,13 +221,13 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearAllLabel={t('filters.clearSelection')}
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(values) => table.setMultiFilter('emitterName', values)}
-              options={toOptions(table.emitterOptions.emitterName)}
+              onChange={(values) => controller.setMultiFilter('emitterName', values)}
+              options={toOptions(controller.emitterOptions.emitterName)}
               placeholder={t('filters.all')}
               removeLabel={t('filters.removeSelection')}
               searchPlaceholder={t('filters.search')}
               summaryLabel={(count) => t('filters.selectedSummary', { count })}
-              values={table.filters.multi.emitterName}
+              values={controller.filters.multi.emitterName}
             />
           </div>
 
@@ -234,13 +238,13 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearAllLabel={t('filters.clearSelection')}
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(values) => table.setMultiFilter('emitterTaxId', values)}
-              options={toTaxIdOptions(table.emitterOptions.emitterTaxId)}
+              onChange={(values) => controller.setMultiFilter('emitterTaxId', values)}
+              options={toTaxIdOptions(controller.emitterOptions.emitterTaxId)}
               placeholder={t('filters.all')}
               removeLabel={t('filters.removeSelection')}
               searchPlaceholder={t('filters.search')}
               summaryLabel={(count) => t('filters.selectedSummary', { count })}
-              values={table.filters.multi.emitterTaxId}
+              values={controller.filters.multi.emitterTaxId}
             />
           </div>
 
@@ -249,12 +253,12 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <SearchableSelect
               ariaLabel={t('documents.fields.emitterAddress')}
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setTextFilter('emitterAddress', value)}
-              options={toTextOptions(table.textOptions.emitterAddress)}
+              onChange={(value) => controller.setTextFilter('emitterAddress', value)}
+              options={toTextOptions(controller.textOptions.emitterAddress)}
               placeholder={t('filters.all')}
               resolveCustomOption={toTypedOption}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.text.emitterAddress}
+              value={controller.filters.text.emitterAddress}
             />
           </div>
 
@@ -265,11 +269,11 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearable
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setSelectFilter('emitterCity', value)}
-              options={toOptions(table.cityOptions.emitterCity)}
+              onChange={(value) => controller.setSelectFilter('emitterCity', value)}
+              options={toOptions(controller.cityOptions.emitterCity)}
               placeholder={t('filters.all')}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.select.emitterCity}
+              value={controller.filters.select.emitterCity}
             />
           </div>
 
@@ -280,11 +284,11 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearable
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setSelectFilter('emitterState', value)}
-              options={toOptions(table.stateOptions.emitterState)}
+              onChange={(value) => controller.setSelectFilter('emitterState', value)}
+              options={toOptions(controller.stateOptions.emitterState)}
               placeholder={t('filters.all')}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.select.emitterState}
+              value={controller.filters.select.emitterState}
             />
           </div>
 
@@ -293,12 +297,12 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <SearchableSelect
               ariaLabel={t('documents.fields.recipientName')}
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setTextFilter('recipientName', value)}
-              options={toTextOptions(table.textOptions.recipientName)}
+              onChange={(value) => controller.setTextFilter('recipientName', value)}
+              options={toTextOptions(controller.textOptions.recipientName)}
               placeholder={t('filters.all')}
               resolveCustomOption={toTypedOption}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.text.recipientName}
+              value={controller.filters.text.recipientName}
             />
           </div>
 
@@ -309,12 +313,12 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <SearchableSelect
               ariaLabel={t('documents.fields.recipientAddress')}
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setTextFilter('recipientAddress', value)}
-              options={toTextOptions(table.textOptions.recipientAddress)}
+              onChange={(value) => controller.setTextFilter('recipientAddress', value)}
+              options={toTextOptions(controller.textOptions.recipientAddress)}
               placeholder={t('filters.all')}
               resolveCustomOption={toTypedOption}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.text.recipientAddress}
+              value={controller.filters.text.recipientAddress}
             />
           </div>
 
@@ -325,11 +329,11 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearable
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setSelectFilter('recipientCity', value)}
-              options={toOptions(table.cityOptions.recipientCity)}
+              onChange={(value) => controller.setSelectFilter('recipientCity', value)}
+              options={toOptions(controller.cityOptions.recipientCity)}
               placeholder={t('filters.all')}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.select.recipientCity}
+              value={controller.filters.select.recipientCity}
             />
           </div>
 
@@ -340,11 +344,11 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               clearable
               compact
               emptyLabel={t('filters.searchEmpty')}
-              onChange={(value) => table.setSelectFilter('recipientState', value)}
-              options={toOptions(table.stateOptions.recipientState)}
+              onChange={(value) => controller.setSelectFilter('recipientState', value)}
+              options={toOptions(controller.stateOptions.recipientState)}
               placeholder={t('filters.all')}
               searchPlaceholder={t('filters.search')}
-              value={table.filters.select.recipientState}
+              value={controller.filters.select.recipientState}
             />
           </div>
 
@@ -354,10 +358,10 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
               ariaLabel={t('documents.fields.status')}
               clearable
               compact
-              onChange={(value) => table.setSelectFilter('status', value)}
+              onChange={(value) => controller.setSelectFilter('status', value)}
               options={statusOptions}
               placeholder={t('filters.all')}
-              value={table.filters.select.status}
+              value={controller.filters.select.status}
             />
           </div>
         </div>

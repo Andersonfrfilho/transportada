@@ -38,7 +38,7 @@ import {
   type ViewPreferencesClient,
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
-import { NfeDocumentFilterPanel } from './NfeDocumentFilterPanel.component'
+import { NfeDocumentFilterPanel } from '@/modules/shared/nfe-filter/NfeDocumentFilterPanel.component'
 import { NfeTripReportExportAction } from './NfeTripReportExportAction.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
@@ -496,7 +496,7 @@ export function NfeDocumentTable({
         )}
       </div>
 
-      {isFilterOpen && <NfeDocumentFilterPanel table={table} />}
+      {isFilterOpen && <NfeDocumentFilterPanel controller={table} />}
 
       <FilterPills
         clearAllLabel={t('documents.clearAll')}

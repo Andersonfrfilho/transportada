@@ -11,12 +11,6 @@ const TIME_ZONE = 'America/Sao_Paulo'
 const SUPPORTED_ISS_EXIGIBILITY = '1'
 const DESCRIPTION_LIMIT = 2000
 const DECIMAL_TEXT = /^\d+(\.\d+)?$/u
-const NO_SPECIAL_TAX_REGIME = 'nenhum'
-const IBS_CBS_TRANSPORT_CLASSIFICATION = {
-  classtrib: '000001',
-  cst: '000',
-  indop: '070101',
-} as const
 
 export const PAYLOAD_REJECTION = {
   descriptionTooLong: 'NFSE_DESCRIPTION_TOO_LONG_FOR_PROVIDER',
@@ -141,7 +135,6 @@ function buildFlags(params: BuildIssueBodyParams): Readonly<Record<string, unkno
   const isCallbackSecure = callbackBaseUrl.startsWith('https://')
   return {
     enviar_email: false,
-    tomador_exterior: false,
     hash_pedido: params.providerRequestKey,
     ...(isCallbackSecure
       ? { webhook_url: `${callbackBaseUrl}/public/nfse-callbacks/${params.callbackToken}` }
@@ -159,12 +152,10 @@ function buildService(input: {
     codigo_tributacao_nacional: payload.nationalTaxationCode,
     data_competencia: formatCompetenceDate(input.issuedAt),
     descricao: payload.description,
-    ibscbs: IBS_CBS_TRANSPORT_CLASSIFICATION,
     incidencia_issqn: 'operacao_tributavel',
     issqn_retido: payload.issWithheld,
     municipio: payload.municipalityIbgeCode,
     pais: 'BR',
-    regime_especial_tributacao: NO_SPECIAL_TAX_REGIME,
     tributos_aproximados: { aliquota_simples_nacional: Number(payload.simplesNationalRate) },
     valor_total: Number(payload.serviceAmount),
     ...optionalText('codigo_nbs', payload.nbsCode),

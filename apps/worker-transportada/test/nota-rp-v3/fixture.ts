@@ -158,7 +158,6 @@ export const EXPECTED_ISSUE_BODY = {
   flags: {
     enviar_email: false,
     hash_pedido: PROVIDER_REQUEST_KEY,
-    tomador_exterior: false,
     webhook_url: `${CALLBACK_BASE_URL}/public/nfse-callbacks/${CALLBACK_TOKEN}`,
   },
   servico: {
@@ -168,12 +167,10 @@ export const EXPECTED_ISSUE_BODY = {
     codigo_tributacao_nacional: '160201',
     data_competencia: ISSUED_ON_SAO_PAULO,
     descricao: 'Transporte rodoviario de cargas referente as notas 1234, 1235 e 1236.',
-    ibscbs: { classtrib: '000001', cst: '000', indop: '070101' },
     incidencia_issqn: 'operacao_tributavel',
     issqn_retido: false,
     municipio: '3543402',
     pais: 'BR',
-    regime_especial_tributacao: 'nenhum',
     tributos_aproximados: { aliquota_simples_nacional: 2 },
     valor_total: 2601.95,
   },

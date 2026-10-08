@@ -58,6 +58,8 @@ function buildReportRepository(input: {
     countDocumentsWithoutTrip: async () => 0,
     countRows: async () => input.total ?? input.records.length,
     listCalls,
+    listFacetEmitters: async () => [],
+    listFacetPlaces: async () => [],
     listDocumentStatusesByTrip: async () => new Map([[TRIP_ID, ['delivered' as const]]]),
     listRows: async () => {
       listCalls.push(1)

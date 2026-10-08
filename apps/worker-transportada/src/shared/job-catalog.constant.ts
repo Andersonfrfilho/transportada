@@ -280,6 +280,20 @@ export const JOB_CATALOG = [
     /** Um dia: o corte é de 90 dias, e correr mais fino não muda a retenção real. */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Spec 248 T2.3: nota importada antes da coluna `recipient_email` só tem o endereço no XML
+     * original guardado. A rotina o relê e preenche onde a coluna é nula, sem nunca trocar valor
+     * gravado. Só toca o próprio banco e o bucket: falha por nota vira contador, nunca exceção.
+     *
+     * Nasce **pausada** (a migration a semeia desligada): só roda por disparo manual, com
+     * autorização do usuário em produção.
+     */
+    failureOutcomes: [],
+    job: 'nfe.recipient-email.backfill',
+    /** Um dia: depois de pausada e retomada, a nota sem e-mail no XML é relida a cada ciclo. */
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

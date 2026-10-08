@@ -93,6 +93,7 @@ describe('quem recebeu e a drenagem (spec 193 D7)', () => {
     await enqueueAttachment({ attachment: photo(), attachmentStore, store })
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: async (attachment) => {
@@ -125,6 +126,7 @@ describe('quem recebeu e a drenagem (spec 193 D7)', () => {
     await enqueueAttachment({ attachment: photo(), attachmentStore, store })
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),
@@ -171,6 +173,7 @@ describe('a fila offline com anexos (D6)', () => {
     await enqueueAttachment({ attachment: photo(), attachmentStore, store })
 
     const offline = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: () => Promise.resolve({ kind: 'failed-network' }),
@@ -186,6 +189,7 @@ describe('a fila offline com anexos (D6)', () => {
     expect(attachmentStore.entries().get('document:document-1')).toHaveLength(1)
 
     const online = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: () => Promise.resolve({ kind: 'sent', punctuality: 'late' }),
@@ -251,6 +255,7 @@ describe('a fila offline com anexos (D6)', () => {
     const sentAttachments: string[] = []
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: (attachment) => {
@@ -283,6 +288,7 @@ describe('a fila offline com anexos (D6)', () => {
     const eventSends: string[] = []
 
     const first = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
@@ -303,6 +309,7 @@ describe('a fila offline com anexos (D6)', () => {
     expect(attachmentStore.entries().get('chave-1')).toHaveLength(1)
 
     const second = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
@@ -326,6 +333,7 @@ describe('a fila offline com anexos (D6)', () => {
     const eventSends: string[] = []
 
     const first = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: ({ report }) => {
         eventSends.push(report.idempotencyKey)
@@ -350,6 +358,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     /** Automática pula o anexo rejeitado. */
     const automatic = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),
@@ -360,6 +369,7 @@ describe('a fila offline com anexos (D6)', () => {
 
     /** Manual (only) tenta o anexo de novo — e só ele. */
     const manual = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'chave-1',
       send: () => Promise.resolve({ kind: 'sent' }),
@@ -376,6 +386,7 @@ describe('a fila offline com anexos (D6)', () => {
     const attachmentStore = createMemoryAttachments()
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ cause: '409 TRIP_DOCUMENT_NOT_REACHABLE', kind: 'rejected' }),
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),
@@ -406,6 +417,7 @@ describe('a fila offline com anexos (D6)', () => {
     }
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send,
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),
@@ -414,6 +426,7 @@ describe('a fila offline com anexos (D6)', () => {
     expect(sent).toEqual(['chave-2'])
 
     const manual = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'chave-1',
       send,
@@ -439,6 +452,7 @@ describe('a fila offline com anexos (D6)', () => {
     const attempted: string[] = []
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: ({ report }) => {
         attempted.push(report.idempotencyKey)
@@ -467,6 +481,7 @@ describe('a fila offline com anexos (D6)', () => {
     const attachmentStore = createMemoryAttachments()
 
     const result = await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'chave-2',
       send: () => Promise.resolve({ kind: 'sent' }),
@@ -492,6 +507,7 @@ describe('a fila offline com anexos (D6)', () => {
     const sentAttachments: string[] = []
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ cause: '409 CONFLICT', kind: 'rejected' }),
       sendAttachment: (attachment) => {

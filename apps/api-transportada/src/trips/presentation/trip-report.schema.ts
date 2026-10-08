@@ -3,6 +3,7 @@
  */
 import { z } from 'zod'
 
+import { NFE_DOCUMENT_STATUSES } from '../../database/nfe.schema.js'
 import { TRIP_DOCUMENT_SEPARATION_STATUSES, TRIP_STATUSES } from '../../database/trip.schema.js'
 import {
   invalidRequest,
@@ -17,12 +18,14 @@ import {
   parseUuidPathIdentifier,
 } from '../../http/request-parsing.service.js'
 import {
+  TRIP_REPORT_CTE_ISSUED_VALUES,
   TRIP_REPORT_CURSOR_SEPARATOR,
   TRIP_REPORT_DEFAULT_LIMIT,
   TRIP_REPORT_NO_CONTRACTOR_MARKER,
   TRIP_REPORT_VALUE_OPERATORS,
 } from '../domain/trip-report.constant.js'
 import type {
+  ListTripReportFacetsParams,
   TripReportContractorFilter,
   TripReportCursor,
   TripReportFilters,
@@ -34,6 +37,9 @@ const INVALID_VALUE_MESSAGE = 'Invalid value.'
 const MICROSECOND_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/
 const STATE_CODE = /^[A-Z]{2}$/
 const DECIMAL_AMOUNT = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,4})?$/
+const DOCUMENT_NUMBER = /^[0-9]{1,15}$/
+const CIVIL_DATE = /^\d{4}-\d{2}-\d{2}$/
+const TAX_ID = /^[0-9A-Za-z./-]{1,18}$/
 
 /** Os parsers compartilhados com `GET /trips` lançam `ApiError` sem detalhe; aqui viram issue do Zod. */
 function fromParser<TValue>(parse: (value: string) => TValue) {
@@ -83,35 +89,77 @@ function parseDecimalAmount(value: string): string {
   return value
 }
 
+/** Número de nota com zeros à esquerda preservados (`00001`); a comparação é numérica, no SQL. */
+function parseDocumentNumber(value: string): string {
+  if (!DOCUMENT_NUMBER.test(value)) throw invalidRequest()
+  return value
+}
+
+/** Dia civil `AAAA-MM-DD` que existe no calendário (30/02 e 29/02 de ano não bissexto são recusados). */
+function parseCivilDate(value: string): string {
+  if (!CIVIL_DATE.test(value)) throw invalidRequest()
+  const [year = 0, month = 0, day = 0] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const isRealDay =
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  if (!isRealDay) throw invalidRequest()
+  return value
+}
+
+function parseTaxIdList(value: string): readonly string[] {
+  const items = parseListFilter(value) ?? []
+  if (!items.every((item) => TAX_ID.test(item))) throw invalidRequest()
+  return items
+}
+
 function required<TValue>(value: TValue | undefined): TValue {
   if (value === undefined) throw invalidRequest()
   return value
 }
 
+const tripReportFields = {
+  contractorIdIn: fromParser(parseContractorFilter).optional(),
+  createdFrom: fromParser((value) => required(parseIsoDateTime(value))).optional(),
+  createdUntil: fromParser((value) => required(parseIsoDateTime(value))).optional(),
+  cteIssued: fromParser((value) =>
+    required(parseOption(value, TRIP_REPORT_CTE_ISSUED_VALUES)),
+  ).optional(),
+  cursor: fromParser(parseCursor).optional(),
+  documentIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
+  documentStatusIn: fromParser((value) =>
+    required(parseOptionList(value, TRIP_DOCUMENT_SEPARATION_STATUSES)),
+  ).optional(),
+  driverIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
+  emitterAddress: fromParser((value) => required(parseContains(value))).optional(),
+  emitterCityIn: fromParser((value) => required(parseListFilter(value))).optional(),
+  emitterNameIn: fromParser((value) => required(parseListFilter(value))).optional(),
+  emitterStateIn: fromParser(parseStateCodes).optional(),
+  emitterTaxIdIn: fromParser(parseTaxIdList).optional(),
+  fiscalStatusIn: fromParser((value) =>
+    required(parseOptionList(value, NFE_DOCUMENT_STATUSES)),
+  ).optional(),
+  issuedFrom: fromParser(parseCivilDate).optional(),
+  issuedUntil: fromParser(parseCivilDate).optional(),
+  limit: fromParser(parseLimit).optional(),
+  numberFrom: fromParser(parseDocumentNumber).optional(),
+  numberTo: fromParser(parseDocumentNumber).optional(),
+  proofPendingEq: fromParser((value) => required(parseBooleanFilter(value))).optional(),
+  recipientAddress: fromParser((value) => required(parseContains(value))).optional(),
+  recipientCityIn: fromParser((value) => required(parseListFilter(value))).optional(),
+  recipientName: fromParser((value) => required(parseContains(value))).optional(),
+  recipientStateIn: fromParser(parseStateCodes).optional(),
+  search: fromParser((value) => required(parseContains(value))).optional(),
+  statusIn: fromParser((value) => required(parseOptionList(value, TRIP_STATUSES))).optional(),
+  tripIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
+  valueAmount: fromParser(parseDecimalAmount).optional(),
+  valueOperator: fromParser((value) =>
+    required(parseOption(value, TRIP_REPORT_VALUE_OPERATORS)),
+  ).optional(),
+  vehicleIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
+}
+
 const tripReportQuerySchema = z
-  .strictObject({
-    contractorIdIn: fromParser(parseContractorFilter).optional(),
-    createdFrom: fromParser((value) => required(parseIsoDateTime(value))).optional(),
-    createdUntil: fromParser((value) => required(parseIsoDateTime(value))).optional(),
-    cursor: fromParser(parseCursor).optional(),
-    documentIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
-    documentStatusIn: fromParser((value) =>
-      required(parseOptionList(value, TRIP_DOCUMENT_SEPARATION_STATUSES)),
-    ).optional(),
-    driverIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
-    limit: fromParser(parseLimit).optional(),
-    proofPendingEq: fromParser((value) => required(parseBooleanFilter(value))).optional(),
-    recipientCityIn: fromParser((value) => required(parseListFilter(value))).optional(),
-    recipientStateIn: fromParser(parseStateCodes).optional(),
-    search: fromParser((value) => required(parseContains(value))).optional(),
-    statusIn: fromParser((value) => required(parseOptionList(value, TRIP_STATUSES))).optional(),
-    tripIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
-    valueAmount: fromParser(parseDecimalAmount).optional(),
-    valueOperator: fromParser((value) =>
-      required(parseOption(value, TRIP_REPORT_VALUE_OPERATORS)),
-    ).optional(),
-    vehicleIdIn: fromParser((value) => required(parseUuidListFilter(value))).optional(),
-  })
+  .strictObject(tripReportFields)
   .refine((fields) => fields.valueOperator === undefined || fields.valueAmount !== undefined, {
     message: 'Required with valueOperator.',
     path: ['valueAmount'],
@@ -122,6 +170,32 @@ const tripReportQuerySchema = z
     path: ['valueOperator'],
     when: () => true,
   })
+  .refine(
+    (fields) =>
+      fields.numberFrom === undefined ||
+      fields.numberTo === undefined ||
+      Number(fields.numberFrom) <= Number(fields.numberTo),
+    { message: 'Must not be below numberFrom.', path: ['numberTo'], when: () => true },
+  )
+  .refine(
+    (fields) =>
+      fields.issuedFrom === undefined ||
+      fields.issuedUntil === undefined ||
+      fields.issuedFrom <= fields.issuedUntil,
+    { message: 'Must not be before issuedFrom.', path: ['issuedUntil'], when: () => true },
+  )
+
+const tripReportFacetsSchema = z.strictObject({
+  contractorIdIn: tripReportFields.contractorIdIn,
+  createdFrom: tripReportFields.createdFrom,
+  createdUntil: tripReportFields.createdUntil,
+  documentStatusIn: tripReportFields.documentStatusIn,
+  driverIdIn: tripReportFields.driverIdIn,
+  proofPendingEq: tripReportFields.proofPendingEq,
+  statusIn: tripReportFields.statusIn,
+  tripIdIn: tripReportFields.tripIdIn,
+  vehicleIdIn: tripReportFields.vehicleIdIn,
+})
 
 function readQueryRecord(url: URL): Record<string, string | readonly string[]> {
   const record: Record<string, string | readonly string[]> = {}
@@ -143,4 +217,9 @@ export function parseTripReportQuery(url: URL): TripReportQuery {
     filters: filters satisfies TripReportFilters,
     limit: limit ?? TRIP_REPORT_DEFAULT_LIMIT,
   }
+}
+
+/** Só filtros de viagem: qualquer outro nome é 400, para o filtro de nota nunca encolher as opções. */
+export function parseTripReportFacetsQuery(url: URL): ListTripReportFacetsParams['filters'] {
+  return parseAgainstSchema(tripReportFacetsSchema, readQueryRecord(url))
 }

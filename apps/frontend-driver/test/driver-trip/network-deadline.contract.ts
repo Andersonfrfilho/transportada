@@ -121,11 +121,11 @@ describe('a trava da drenagem não fica presa para sempre', () => {
       },
     })
 
-    scheduler.request(undefined)
+    scheduler.request(undefined, 'immediate')
     expect(runs).toEqual([FULL_DRAIN])
 
     /** Drenagem que nunca assenta: sem o cão de guarda, daqui em diante tudo era engolido. */
-    scheduler.request(undefined)
+    scheduler.request(undefined, 'immediate')
     expect(runs).toEqual([FULL_DRAIN])
 
     expect(release).toBeDefined()
@@ -145,9 +145,9 @@ describe('a trava da drenagem não fica presa para sempre', () => {
       },
     })
 
-    scheduler.request('chave-a')
-    scheduler.request('chave-b')
-    scheduler.request('chave-c')
+    scheduler.request('chave-a', 'immediate')
+    scheduler.request('chave-b', 'immediate')
+    scheduler.request('chave-c', 'immediate')
     expect(runs).toEqual(['chave-a'])
 
     /** O cão de guarda abandona a drenagem de 'chave-a' e deixa a de 'chave-b' começar. */

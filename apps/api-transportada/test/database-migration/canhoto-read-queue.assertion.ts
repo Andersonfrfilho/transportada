@@ -9,7 +9,10 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { migrationsDirectory } from './support.js'
 
 const CANHOTO_READ_MIGRATION_SUFFIX = '_trip_canhoto_read_job'
-const LATER_JOB_MIGRATION_SUFFIX = '_cargo_preview_retention'
+const LATER_JOB_MIGRATION_SUFFIXES = [
+  '_nfe_recipient_email_backfill_job',
+  '_cargo_preview_retention',
+] as const
 const JOB_NAME = 'trip.canhoto.read'
 const INDEX_NAME = 'trip_delivery_proofs_canhoto_pending_idx'
 const INDEX_DEFINITION = `CREATE INDEX ${INDEX_NAME} ON public.trip_delivery_proofs USING btree (created_at) WHERE (((canhoto_review)::text = 'pending'::text) AND (canhoto_read_source IS NULL) AND (canhoto_read_attempted_at IS NULL))`
@@ -43,8 +46,9 @@ export async function assertCanhotoReadQueue(probe: CanhotoReadQueueProbe): Prom
 
   // Ordem inversa: a migration que depois ampliou as mesmas CHECK de `job` sai antes, ou a CHECK antiga
   // recusaria a linha do relógio da rotina nova.
-  const laterDirectory = probe.directories.find((name) => name.endsWith(LATER_JOB_MIGRATION_SUFFIX))
-  if (laterDirectory !== undefined) {
+  for (const suffix of LATER_JOB_MIGRATION_SUFFIXES) {
+    const laterDirectory = probe.directories.find((name) => name.endsWith(suffix))
+    if (laterDirectory === undefined) continue
     await database.unsafe(
       await Bun.file(join(migrationsDirectory.pathname, laterDirectory, 'rollback.sql')).text(),
     )

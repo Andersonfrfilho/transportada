@@ -347,3 +347,9 @@ Revisão final (`code-reviewer`, sonnet): 0 crítico, 0 alto, 3 médio, 14 baixo
 - M3 (código estável do 400): o contrato `occurrence-type-icon.contract.ts` afirma `INVALID_REQUEST` para `iconName` fora do catálogo.
 - B12: `snapshot.json` carrega `company_occurrence_types_icon_name_check`.
 - Baixos (B1 a B11, B13, B14): comentários que citam spec seguem o padrão dos arquivos vizinhos; B13 (ícone só no cartão, não na tabela/linha do tempo) é decisão de escopo já registrada na T3.4. Ficam para um commit de limpeza, se o usuário quiser.
+
+## T4.1 — smoke CA3 em staging (2026-10-08)
+
+- Painel (`app.staging…/ocorrencias?tab=types`): ícone "Pacote" escolhido em "Item faltante"; salvou na hora e continuou "Pacote" após recarregar a página. Verificado por texto/DOM, sem screenshot.
+- App do motorista: o chip **não foi conferido** — a sessão disponível é de operador, sem cadastro de motorista ligado ("Sua conta ainda não está ligada a um cadastro de motorista"). Fica a conferência visual pelo usuário com um login de motorista.
+- Fora do escopo da spec, no mesmo dia, em staging: foto "Obrigatório" em todos os tipos com campo de foto, exceto "Prorrogação do boleto" ("Opcional"). Produção não foi tocada.

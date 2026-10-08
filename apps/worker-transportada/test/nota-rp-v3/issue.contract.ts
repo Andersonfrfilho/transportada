@@ -111,18 +111,6 @@ describe('Nota RP v3 client — emissão: corpo a partir do payload congelado', 
     expect(parseBody(calls[0])).toMatchObject({ servico: { data_competencia: '05/01/2026' } })
   })
 
-  test('o corpo leva os campos que a v3 exige: IBS/CBS, regime especial e tomador no exterior', async () => {
-    const { calls } = await issueWith({})
-
-    expect(parseBody(calls[0])).toMatchObject({
-      flags: { tomador_exterior: false },
-      servico: {
-        ibscbs: { classtrib: '000001', cst: '000', indop: '070101' },
-        regime_especial_tributacao: 'nenhum',
-      },
-    })
-  })
-
   test('aliquota_issqn sai em percentual numérico a partir da fração do domínio', async () => {
     const { calls } = await issueWith({ payload: payloadWith({ issRate: '0.027500' }) })
 

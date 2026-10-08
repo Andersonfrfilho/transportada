@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, desc, eq, inArray, isNull, ne, sql, sum } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, isNull, sql, sum } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
@@ -57,6 +57,10 @@ import {
   type FreightRuleVersionFilters,
 } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { resolveDocumentFreight } from '../domain/document-freight.policy.js'
+import {
+  buildBatchLinkCompanyFilter,
+  buildBatchLinkNotCancelledFilter,
+} from './cte-batch-link.query.js'
 import { freightRules, freightRuleVersions } from '../../database/freight.schema.js'
 import { nfeDocumentNotFound } from '../domain/nfe-document.error.js'
 import type {
@@ -127,8 +131,6 @@ const EMPTY_PARTICIPANT: ParticipantDetail = {
   state: null,
   taxId: null,
 }
-
-const CANCELLED_BATCH_STATUS = 'cancelled'
 
 type DocumentScope = {
   readonly companyId: string
@@ -226,9 +228,9 @@ export function buildDocumentBatchLinkFilters({
   documentIds,
 }: DocumentScope): readonly SQL[] {
   return [
-    eq(cteBatchItemDocuments.companyId, companyId),
+    buildBatchLinkCompanyFilter(companyId),
     inArray(cteBatchItemDocuments.nfeDocumentId, [...documentIds]),
-    ne(cteBatches.status, CANCELLED_BATCH_STATUS),
+    buildBatchLinkNotCancelledFilter(),
   ] as const as readonly SQL[]
 }
 

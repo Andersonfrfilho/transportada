@@ -427,6 +427,7 @@ import {
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { createExportTripProofPdfUseCase } from './trips/application/export-trip-proof-pdf.use-case.js'
+import { createListTripReportFacetsUseCase } from './trips/application/list-trip-report-facets.use-case.js'
 import { createListTripReportUseCase } from './trips/application/list-trip-report.use-case.js'
 import { DrizzleTripProofReportRepository } from './trips/infrastructure/drizzle-trip-proof-report.repository.js'
 import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
@@ -683,6 +684,7 @@ import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/p
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
+import { createMeClientDiagnosticsRoutes } from './trips/presentation/me-client-diagnostics.routes.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
 import { createMeProofReceiverRoutes } from './trips/presentation/me-proof-receiver.routes.js'
 import { updateDriverProofReceiver } from './trips/application/update-driver-proof-receiver.use-case.js'
@@ -3203,6 +3205,9 @@ function createApplicationRoutes({
       listTripReport: createListTripReportUseCase({
         repository: new DrizzleTripReportRepository(database),
       }),
+      listTripReportFacets: createListTripReportFacetsUseCase({
+        repository: new DrizzleTripReportRepository(database),
+      }),
     }),
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
@@ -3543,6 +3548,7 @@ function createApplicationRoutes({
         issue: (input) => mdfeIssuance.issue(input),
       },
     }),
+    ...createMeClientDiagnosticsRoutes({ logger }),
     ...createMeLocationRoutes({
       readConsent: createReadLocationConsentUseCase({
         repository: tripLocationRepository,

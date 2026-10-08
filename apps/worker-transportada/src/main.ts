@@ -273,8 +273,12 @@ import { createNfeImportArchiveExpander } from './nfe-imports/infrastructure/nfe
 import {
   createNfeImportFinalStorage,
   createNfeImportSourceStorage,
+  createNfeXmlObjectReader,
 } from './nfe-imports/infrastructure/nfe-import-storage.gateway.js'
 import { createNfeXmlImporter } from './nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
+import { createNfeRecipientEmailBackfillRoutine } from './nfe-recipient-email-backfill/application/nfe-recipient-email-backfill.routine.js'
+import { NFE_RECIPIENT_EMAIL_BACKFILL_JOB } from './nfe-recipient-email-backfill/domain/nfe-recipient-email-backfill.constant.js'
+import { DrizzleNfeRecipientEmailBackfillRepository } from './nfe-recipient-email-backfill/infrastructure/drizzle-nfe-recipient-email-backfill.repository.js'
 import { DrizzleNfeImportConsumerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 import { DrizzleNfeImportWorkerRepository } from './nfe-imports/infrastructure/drizzle-nfe-import-worker.repository.js'
 import { createErrorTracker } from './observability/sentry.service.js'
@@ -1362,6 +1366,19 @@ export async function startWorkerRuntime(
             }),
             logger,
             now: () => new Date(),
+          }),
+          /**
+           * Spec 248 T2.3: relê o XML original das notas sem `recipient_email` e preenche a coluna.
+           * Sempre registrada; quem a mantém desligada é o relógio (a migration a semeia pausada),
+           * então ela só roda por disparo manual.
+           */
+          [NFE_RECIPIENT_EMAIL_BACKFILL_JOB]: createNfeRecipientEmailBackfillRoutine({
+            importer: createNfeXmlImporter(),
+            logger,
+            reader: createNfeXmlObjectReader({ gateway: storageGateway }),
+            repository: new DrizzleNfeRecipientEmailBackfillRepository(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
           }),
           /**
            * Achado [3] da revisão de código de 23/09 (spec 179): sempre registrada, como as outras

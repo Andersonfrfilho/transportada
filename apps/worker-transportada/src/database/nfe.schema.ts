@@ -174,6 +174,7 @@ export const nfeDocuments = pgTable('nfe_documents', {
   otherExpensesValue: decimalColumn('other_expenses_value').default('0'),
   additionalInformation: text('additional_information'),
   authorizationProtocol: text('authorization_protocol'),
+  recipientEmail: text('recipient_email'),
   xmlObjectId: uuid('xml_object_id').notNull(),
   xmlSha256: text('xml_sha256').notNull(),
   importId: uuid('import_id').notNull(),

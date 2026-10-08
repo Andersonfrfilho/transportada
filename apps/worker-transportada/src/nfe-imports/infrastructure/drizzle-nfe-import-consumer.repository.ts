@@ -37,6 +37,7 @@ import {
   type PackageBoxRow,
 } from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
+import { resolveRecipientEmail } from '../domain/recipient-email.policy.js'
 import { requestCargoPreviewReevaluation } from './cargo-preview-reevaluation.writer.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
@@ -294,6 +295,13 @@ export class DrizzleNfeImportConsumerRepository {
         })
       } else {
         const document = normalizedXml.document
+        const recipientEmail = resolveRecipientEmail(document.recipient?.email)
+        if (recipientEmail.wasRejected) {
+          this.#logger.warn('nfe_recipient_email_rejected', {
+            companyId: item.companyId,
+            rejectedRecipientEmailCount: 1,
+          })
+        }
         const initial = await resolveInitialDocumentStatus({
           accessKey: document.accessKey,
           companyId: item.companyId,
@@ -319,6 +327,7 @@ export class DrizzleNfeImportConsumerRepository {
             operationType: document.operationType,
             otherExpensesValue: document.totals.otherExpenses ?? '0',
             productsValue: document.totals.products,
+            recipientEmail: recipientEmail.email,
             series: document.series,
             source: importRow.source as NfeImportSource,
             status: initial.status,

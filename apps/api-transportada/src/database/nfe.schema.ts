@@ -259,6 +259,10 @@ export const nfeImportItems = pgTable(
   ],
 )
 
+/** Guarda de forma, o mesmo padrão de `fleet.schema.ts`; o endereço só é conferido no envio. */
+const RECIPIENT_EMAIL_PATTERN = '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'
+const RECIPIENT_EMAIL_MAX_LENGTH = 254
+
 export const nfeDocuments = pgTable(
   'nfe_documents',
   {
@@ -286,6 +290,7 @@ export const nfeDocuments = pgTable(
     otherExpensesValue: decimalColumn('other_expenses_value').default('0'),
     additionalInformation: text('additional_information'),
     authorizationProtocol: text('authorization_protocol'),
+    recipientEmail: text('recipient_email'),
     xmlObjectId: uuid('xml_object_id').notNull(),
     xmlSha256: text('xml_sha256').notNull(),
     importId: uuid('import_id').notNull(),
@@ -300,6 +305,10 @@ export const nfeDocuments = pgTable(
   },
   (table) => [
     unique('nfe_documents_company_id_id_unique').on(table.companyId, table.id),
+    check(
+      'nfe_documents_recipient_email_check',
+      sql`${table.recipientEmail} is null or (length(${table.recipientEmail}) <= ${sql.raw(String(RECIPIENT_EMAIL_MAX_LENGTH))} and ${table.recipientEmail} ~ ${sql.raw(`'${RECIPIENT_EMAIL_PATTERN}'`)})`,
+    ),
     unique('nfe_documents_company_id_access_key_unique').on(table.companyId, table.accessKey),
     index('nfe_documents_company_updated_issued_id_idx').on(
       table.companyId,

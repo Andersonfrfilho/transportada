@@ -2,6 +2,7 @@
 /* Cópia por valor de apps/frontend-driver/src/modules/driver-trip/shared/pendingQueue.service.ts (ADR-0075 §7). */
 import { isAwaitingDeliveryKey, type AttachmentGroupEntries } from './offlineAttachments.service'
 import type { QueuedReport } from './offlineQueue.service'
+import type { DrainOrigin } from './retryBackoff.service'
 
 /**
  * A pendência da fila antiga (ADR-0075 §6, plan D6): a mesma definição da app do motorista, copiada
@@ -92,7 +93,8 @@ export type DrainTriggerTarget = Readonly<{
  * estes.
  */
 export function scheduleQueueDrainTriggers(input: {
-  readonly drain: () => void
+  /** Spec 254: o tick do temporizador chega como `timer`; todo outro gatilho, `immediate`. */
+  readonly drain: (origin: DrainOrigin) => void
   readonly getDrainable: () => number
   /**
    * Entrega a quem chama o `sync` do temporizador. Um toque enfileirado com sinal fraco não dispara
@@ -110,7 +112,7 @@ export function scheduleQueueDrainTriggers(input: {
   }
 
   function tick(): void {
-    input.drain()
+    input.drain('timer')
     if (input.getDrainable() <= 0) stopInterval()
   }
 
@@ -123,18 +125,18 @@ export function scheduleQueueDrainTriggers(input: {
   }
 
   function handleOnline(): void {
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 
   function handlePageshow(): void {
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 
   function handleVisibilityChange(): void {
     if (!input.target.isVisible()) return
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 

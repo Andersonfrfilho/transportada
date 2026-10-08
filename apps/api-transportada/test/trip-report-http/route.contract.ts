@@ -15,6 +15,8 @@ import type {
 import { ApiError } from '../../src/shared/api.error.js'
 import { HTTP_ERROR } from '../../src/shared/api.constant.js'
 import type {
+  ListTripReportFacetsParams,
+  ListTripReportFacetsResult,
   ListTripReportParams,
   ListTripReportResult,
   TripReportRow,
@@ -29,6 +31,7 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000002'
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000a01'
 const REPORT_PATH = '/trip-document-report'
+const FACETS_PATH = '/trip-document-report/facets'
 const ORIGIN = 'http://127.0.0.1:53000'
 
 const REPORT_RESULT: ListTripReportResult = {
@@ -49,6 +52,14 @@ const REPORT_RESULT: ListTripReportResult = {
   ],
   excludedWithoutTrip: 1,
   page: { nextCursor: null, total: 1 },
+}
+
+const FACETS_RESULT: ListTripReportFacetsResult = {
+  data: {
+    cities: { emitter: ['Recife', 'Santos'], recipient: ['Campinas'] },
+    emitters: [{ name: 'Alfa Ltda', taxId: '11111111000111' }],
+    states: { emitter: ['PE', 'SP'], recipient: ['SP'] },
+  },
 }
 
 function omitAmount(row: TripReportRow): TripReportRow {
@@ -81,6 +92,9 @@ function buildContext(permissions: readonly string[]): AuthenticatedContext<Comp
 
 function buildHandler(input: {
   readonly isAuthenticated?: boolean
+  readonly listTripReportFacets?: (
+    params: ListTripReportFacetsParams,
+  ) => Promise<ListTripReportFacetsResult>
   readonly listTripReport?: (params: ListTripReportParams) => Promise<ListTripReportResult>
   readonly permissions: readonly string[]
 }) {
@@ -105,6 +119,7 @@ function buildHandler(input: {
         throw new Error('unexpected proofs-pdf call')
       },
       listTripReport: input.listTripReport ?? (async () => REPORT_RESULT),
+      listTripReportFacets: input.listTripReportFacets ?? (async () => FACETS_RESULT),
     }),
     tenantContext: { resolveCompany: async () => context },
     userPictureExistence: stubUserPictureExistence(),
@@ -116,11 +131,10 @@ function buildHandler(input: {
     requestTimeoutSeconds: 30,
     router,
   })
-  return (query = '') =>
-    handle(
-      new Request(`${ORIGIN}${REPORT_PATH}${query}`, { headers: { authorization: 'Bearer x' } }),
-      { timeout() {} },
-    )
+  return (query = '', path = REPORT_PATH) =>
+    handle(new Request(`${ORIGIN}${path}${query}`, { headers: { authorization: 'Bearer x' } }), {
+      timeout() {},
+    })
 }
 
 describe('GET /trip-document-report (spec 253 T2.3)', () => {
@@ -222,5 +236,82 @@ describe('GET /trip-document-report (spec 253 T2.3)', () => {
     expect(response.status).toBe(422)
     const body = (await response.json()) as { error: { code: string } }
     expect(body.error.code).toBe('TRIP_REPORT_TOO_LARGE')
+  })
+})
+
+describe('GET /trip-document-report/facets (spec 258 T3.3)', () => {
+  test('200 com o envelope proprio, no-store e a empresa do contexto', async () => {
+    const calls: ListTripReportFacetsParams[] = []
+    const handle = buildHandler({
+      listTripReportFacets: async (params) => {
+        calls.push(params)
+        return FACETS_RESULT
+      },
+      permissions: ['fleet.read'],
+    })
+
+    const response = await handle('?statusIn=draft&driverIdIn=' + USER_ID, FACETS_PATH)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    const body = await response.json()
+    expect(body).toEqual(FACETS_RESULT)
+    expect(body).not.toHaveProperty('data.texts')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.companyId).toBe(COMPANY_ID)
+    expect(calls[0]?.filters).toEqual({ driverIdIn: [USER_ID], statusIn: ['draft'] })
+  })
+
+  test('filtro de nota, paginacao e nome desconhecido sao 400 juntos', async () => {
+    let wasCalled = false
+    const handle = buildHandler({
+      listTripReportFacets: async () => {
+        wasCalled = true
+        return FACETS_RESULT
+      },
+      permissions: ['fleet.read'],
+    })
+
+    const response = await handle(
+      '?emitterNameIn=Alfa&numberFrom=1&limit=10&cursor=x&mystery=1&statusIn=nope',
+      FACETS_PATH,
+    )
+
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as {
+      error: { code: string; details: { field: string }[] }
+    }
+    expect(body.error.code).toBe('INVALID_REQUEST')
+    expect(wasCalled).toBe(false)
+    expect(body.error.details.length).toBeGreaterThan(0)
+  })
+
+  test('401 sem identidade', async () => {
+    const response = await buildHandler({ isAuthenticated: false, permissions: [] })(
+      '',
+      FACETS_PATH,
+    )
+    expect(response.status).toBe(401)
+  })
+
+  test('403 sem permissao de leitura e o caso de uso nem roda', async () => {
+    let wasCalled = false
+    const handle = buildHandler({
+      listTripReportFacets: async () => {
+        wasCalled = true
+        return FACETS_RESULT
+      },
+      permissions: ['trip.financials'],
+    })
+
+    const response = await handle('', FACETS_PATH)
+
+    expect(response.status).toBe(403)
+    expect(wasCalled).toBe(false)
+  })
+
+  test('trip.report-on-behalf tambem le as facetas', async () => {
+    const response = await buildHandler({ permissions: ['trip.report-on-behalf'] })('', FACETS_PATH)
+    expect(response.status).toBe(200)
   })
 })

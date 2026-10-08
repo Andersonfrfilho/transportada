@@ -1,26 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { TripReportFilters } from '@/modules/trip/shared/tripReport.types'
-import { normalizeTripReportAmount } from '@/modules/trip/shared/tripReportFilterState.service'
-
 import {
-  MULTI_FILTER_FIELDS,
-  TEXT_FILTER_FIELDS,
-  type DocumentFilters,
-} from '../hooks/useNfeDocumentTable.hook'
+  normalizeTripReportAmount,
+  normalizeTripReportNumber,
+} from '@/modules/trip/shared/tripReportFilterState.service'
 
-/** Filtros da aba que o endpoint do relatório não entende — não há `contractorIdIn` na nota, só o nome do emitente. */
-export type NfeTripReportUnsupportedFilter =
-  | 'advanced'
-  | 'cteIssued'
-  | 'date'
-  | 'emitter'
-  | 'emitterAddress'
-  | 'emitterCity'
-  | 'emitterState'
-  | 'number'
-  | 'recipientAddress'
-  | 'recipientName'
-  | 'status'
+import type { DocumentFilters } from '../hooks/useNfeDocumentTable.hook'
+
+/** O modo avançado é uma árvore de condições; o endpoint do relatório só entende os filtros simples. */
+export type NfeTripReportUnsupportedFilter = 'advanced'
 
 export type NfeTripReportTranslationInput = Readonly<{
   filters: DocumentFilters
@@ -33,49 +21,64 @@ export type NfeTripReportTranslation = Readonly<{
   unsupported: readonly NfeTripReportUnsupportedFilter[]
 }>
 
-const UNSUPPORTED_SELECT_FIELDS = ['emitterCity', 'emitterState', 'status', 'cteIssued'] as const
-
-function isFilled(value: string): boolean {
-  return value.trim().length > 0
+function pickText(value: string): string | undefined {
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
 }
 
-function listUnsupportedFilters(
-  input: NfeTripReportTranslationInput,
-): readonly NfeTripReportUnsupportedFilter[] {
-  const { filters } = input
-  const unsupported: NfeTripReportUnsupportedFilter[] = []
-  if (input.isAdvancedActive) unsupported.push('advanced')
-  if (MULTI_FILTER_FIELDS.some((field) => filters.multi[field].length > 0)) {
-    unsupported.push('emitter')
+function buildTextFilters(filters: DocumentFilters, searchTerm: string): TripReportFilters {
+  const search = pickText(searchTerm)
+  const { emitterAddress, recipientAddress, recipientName } = filters.text
+  const emitterAddressText = pickText(emitterAddress)
+  const recipientAddressText = pickText(recipientAddress)
+  const recipientNameText = pickText(recipientName)
+  return {
+    ...(emitterAddressText === undefined ? {} : { emitterAddress: emitterAddressText }),
+    ...(recipientAddressText === undefined ? {} : { recipientAddress: recipientAddressText }),
+    ...(recipientNameText === undefined ? {} : { recipientName: recipientNameText }),
+    ...(search === undefined ? {} : { search }),
   }
-  for (const field of TEXT_FILTER_FIELDS) {
-    if (isFilled(filters.text[field])) unsupported.push(field)
+}
+
+function buildListFilters(filters: DocumentFilters): TripReportFilters {
+  const { cteIssued, emitterCity, emitterState, recipientCity, recipientState, status } =
+    filters.select
+  const { emitterName, emitterTaxId } = filters.multi
+  return {
+    ...(cteIssued === '' ? {} : { cteIssued }),
+    ...(emitterCity === '' ? {} : { emitterCityIn: [emitterCity] }),
+    ...(emitterName.length === 0 ? {} : { emitterNameIn: emitterName }),
+    ...(emitterState === '' ? {} : { emitterStateIn: [emitterState] }),
+    ...(emitterTaxId.length === 0 ? {} : { emitterTaxIdIn: emitterTaxId }),
+    ...(status === '' ? {} : { fiscalStatusIn: [status] }),
+    ...(recipientCity === '' ? {} : { recipientCityIn: [recipientCity] }),
+    ...(recipientState === '' ? {} : { recipientStateIn: [recipientState] }),
   }
-  for (const field of UNSUPPORTED_SELECT_FIELDS) {
-    if (filters.select[field] !== '') unsupported.push(field)
+}
+
+function buildRangeFilters(filters: DocumentFilters): TripReportFilters {
+  const amount = normalizeTripReportAmount(filters.amountValue)
+  const numberFrom = normalizeTripReportNumber(filters.numberFrom)
+  const numberTo = normalizeTripReportNumber(filters.numberTo)
+  return {
+    ...(filters.dateFrom === '' ? {} : { issuedFrom: filters.dateFrom }),
+    ...(filters.dateTo === '' ? {} : { issuedUntil: filters.dateTo }),
+    ...(numberFrom === undefined ? {} : { numberFrom }),
+    ...(numberTo === undefined ? {} : { numberTo }),
+    ...(amount === undefined ? {} : { valueAmount: amount, valueOperator: filters.amountOperator }),
   }
-  if (isFilled(filters.numberFrom) || isFilled(filters.numberTo)) unsupported.push('number')
-  if (filters.dateFrom !== '' || filters.dateTo !== '') unsupported.push('date')
-  return unsupported
 }
 
 /** `unlinkedOnly` não entra: o relatório só tem notas em viagem, o oposto do que ele esconde. */
 export function translateNfeFiltersToTripReport(
   input: NfeTripReportTranslationInput,
 ): NfeTripReportTranslation {
-  const { filters } = input
-  const search = input.searchTerm.trim()
-  const amount = normalizeTripReportAmount(filters.amountValue)
-  const { recipientCity, recipientState } = filters.select
   return {
     filters: {
-      ...(recipientCity === '' ? {} : { recipientCityIn: [recipientCity] }),
-      ...(recipientState === '' ? {} : { recipientStateIn: [recipientState] }),
-      ...(search === '' ? {} : { search }),
-      ...(amount === undefined
-        ? {}
-        : { valueAmount: amount, valueOperator: filters.amountOperator }),
+      ...buildListFilters(input.filters),
+      ...buildRangeFilters(input.filters),
+      ...buildTextFilters(input.filters, input.searchTerm),
     },
-    unsupported: listUnsupportedFilters(input),
+    unsupported: input.isAdvancedActive ? ['advanced'] : [],
   }
 }

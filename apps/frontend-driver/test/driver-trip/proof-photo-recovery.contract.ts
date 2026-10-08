@@ -88,6 +88,7 @@ function reduceTo(bytes: number) {
 async function drain(attachmentStore: AttachmentStore, only?: string) {
   const sent: QueuedAttachment[] = []
   await drainQueueWithAttachments({
+    origin: 'immediate',
     attachmentStore,
     ...(only === undefined ? {} : { only }),
     send: () => Promise.resolve({ kind: 'sent' }),
@@ -276,7 +277,7 @@ describe('o hook liga a trava e a recuperação (spec 212)', () => {
 
   it('a foto nasce marcada e a redução é a do canhoto, não a da ocorrência', () => {
     expect(hook).toInclude('pendingReduction: true')
-    expect(hook).toInclude('reduce: reduceProofPhotoToJpeg')
+    expect(hook).toInclude('reduce: reduceProofPhotoWithTiming')
     expect(hook).not.toInclude('reduceOccurrencePhotoToJpeg')
   })
 

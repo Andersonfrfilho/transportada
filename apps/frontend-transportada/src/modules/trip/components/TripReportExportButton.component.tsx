@@ -8,11 +8,12 @@ import { useSpreadsheetExport } from '@/modules/shared/spreadsheet/useSpreadshee
 import { useTripReportExport } from '../hooks/useTripReportExport.hook'
 import type { TripReportScope } from '../shared/tripReport.service'
 import type { TripReportFetchPage, TripReportResult } from '../shared/tripReport.types'
+import { buildTripExportFileName } from '../shared/tripExportFileName.service'
 import { buildTripReportRows } from '../shared/tripReportRows.service'
 import styles from '../styles/trip.module.css'
 
 const REPORT_LOCALE = 'pt-BR'
-const REPORT_FILE_NAME = 'trip-report.xlsx'
+const REPORT_BASE_NAME = 'trip-report'
 
 type TripReportExportButtonProps = Readonly<{
   /** Quem desabilita diz o porquê em texto ao lado. */
@@ -41,7 +42,7 @@ export function TripReportExportButton({
       })
       await spreadsheetExport.exportSpreadsheet({
         ...sheet,
-        fileName: REPORT_FILE_NAME,
+        fileName: buildTripExportFileName({ baseName: REPORT_BASE_NAME, extension: 'xlsx' }),
         sheetName: t('reportExport.sheetName'),
         title: t('reportExport.title'),
       })

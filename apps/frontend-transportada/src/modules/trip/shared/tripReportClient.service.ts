@@ -7,6 +7,8 @@ import {
   TripReportTooLargeError,
 } from './tripReport.service'
 import type {
+  TripReportFacets,
+  TripReportFetchFacets,
   TripReportFetchPage,
   TripReportFilters,
   TripReportPage,
@@ -25,6 +27,11 @@ const LIST_FILTER_KEYS = [
   'documentIdIn',
   'documentStatusIn',
   'driverIdIn',
+  'emitterCityIn',
+  'emitterNameIn',
+  'emitterStateIn',
+  'emitterTaxIdIn',
+  'fiscalStatusIn',
   'recipientCityIn',
   'recipientStateIn',
   'statusIn',
@@ -34,6 +41,14 @@ const LIST_FILTER_KEYS = [
 const TEXT_FILTER_KEYS = [
   'createdFrom',
   'createdUntil',
+  'cteIssued',
+  'emitterAddress',
+  'issuedFrom',
+  'issuedUntil',
+  'numberFrom',
+  'numberTo',
+  'recipientAddress',
+  'recipientName',
   'search',
   'valueAmount',
   'valueOperator',
@@ -87,6 +102,54 @@ async function readResponseJson(response: Response): Promise<unknown> {
     return (await response.json()) as unknown
   } catch {
     return undefined
+  }
+}
+
+const FACETS_PATH = '/trip-document-report/facets'
+
+function isStringList(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isFacetSides(value: unknown): value is TripReportFacets['cities'] {
+  return isRecord(value) && isStringList(value.emitter) && isStringList(value.recipient)
+}
+
+function isFacetEmitter(value: unknown): value is TripReportFacets['emitters'][number] {
+  return isRecord(value) && typeof value.name === 'string' && typeof value.taxId === 'string'
+}
+
+function readFacets(payload: unknown): TripReportFacets {
+  const data = isRecord(payload) ? payload.data : undefined
+  if (
+    !isRecord(data) ||
+    !isFacetSides(data.cities) ||
+    !isFacetSides(data.states) ||
+    !Array.isArray(data.emitters) ||
+    !data.emitters.every(isFacetEmitter)
+  ) {
+    throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { cities: data.cities, emitters: data.emitters, states: data.states }
+}
+
+export function createTripReportFetchFacets(
+  dependencies: ClientDependencies,
+): TripReportFetchFacets {
+  return async (input) => {
+    const accessToken = await dependencies.getAccessToken()
+    const response = await dependencies.fetch(
+      new Request(`${dependencies.apiUrl}${FACETS_PATH}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'GET',
+        ...(input?.signal === undefined ? {} : { signal: input.signal }),
+      }),
+    )
+    const payload = await readResponseJson(response)
+    if (response.ok) return readFacets(payload)
+    const code = readErrorField(payload, 'code')
+    throw new Error(typeof code === 'string' ? code : TRIP_ERROR.REQUEST_FAILED)
   }
 }
 

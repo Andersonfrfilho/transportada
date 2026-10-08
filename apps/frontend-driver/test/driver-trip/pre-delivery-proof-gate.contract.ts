@@ -244,12 +244,14 @@ describe('o anexo de antes da entrega espera a entrega na fila (spec 218 RF-A3)'
     }
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: () => Promise.resolve({ kind: 'sent' }),
       sendAttachment,
       store,
     })
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: awaitingDeliveryAttachmentKey('document-1'),
       send: () => Promise.resolve({ kind: 'sent' }),
@@ -283,6 +285,7 @@ describe('o anexo de antes da entrega espera a entrega na fila (spec 218 RF-A3)'
 
     const order: string[] = []
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       send: ({ report }) => {
         order.push(report.kind)

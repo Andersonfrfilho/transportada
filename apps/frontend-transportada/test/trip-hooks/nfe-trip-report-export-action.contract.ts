@@ -26,12 +26,21 @@ function buildTable(overrides: Partial<UseNfeDocumentTableResult>): UseNfeDocume
 
 describe('NfeTripReportExportAction (spec 253 revisão final)', () => {
   test('conjunto filtrado vazio desabilita os dois botões e diz o motivo', async () => {
-    const table = buildTable({ filters: { ...EMPTY_FILTERS, dateFrom: '2026-01-01' } })
+    const table = buildTable({ activeConditionCount: 1, mode: 'advanced' })
     const view = await renderWithQueryClient(createElement(NfeTripReportExportAction, { table }))
     const buttons = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
     expect(buttons).toHaveLength(2)
     expect(buttons.every((button) => button.disabled)).toBe(true)
     expect(document.body.textContent).toContain('Nenhuma nota para exportar')
+    view.unmount()
+  })
+
+  test('filtro simples viaja como parâmetro e não depende das notas carregadas', async () => {
+    const table = buildTable({ filters: { ...EMPTY_FILTERS, dateFrom: '2026-01-01' } })
+    const view = await renderWithQueryClient(createElement(NfeTripReportExportAction, { table }))
+    const buttons = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
+    expect(buttons).toHaveLength(2)
+    expect(buttons.every((button) => !button.disabled)).toBe(true)
     view.unmount()
   })
 })
