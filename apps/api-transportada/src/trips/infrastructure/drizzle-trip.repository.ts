@@ -478,8 +478,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   public async linkDocumentsAfterDispatch(
     input: LinkTripDocumentsAfterDispatchParams,
   ): Promise<LinkTripDocumentsAfterDispatchResult | null> {
-    return this.database.transaction((transaction) =>
-      applyTripDocumentLinkAfterDispatch(transaction, input),
+    return runGuarded(() =>
+      this.database.transaction((transaction) =>
+        applyTripDocumentLinkAfterDispatch(transaction, input),
+      ),
     )
   }
 

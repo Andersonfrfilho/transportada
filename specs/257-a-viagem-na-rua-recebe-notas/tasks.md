@@ -10,10 +10,10 @@
 
 ## Fase 1 — API (`sonnet`)
 
-- [ ] T1.1 🧠 Desacoplar `TRIP_STATUSES_BEFORE_DISPATCH` de `checkTripAcceptsLinkage` (D10) e provar com teste que o vínculo comum continua `409` na rua e a rota congelada não é limpa. Aceite: contrato verde.
-- [ ] T1.2 Migration + schema `trip_document_link_events` + rollback. Aceite: `make migration-test`.
+- [x] T1.1 🧠 Desacoplar `TRIP_STATUSES_BEFORE_DISPATCH` de `checkTripAcceptsLinkage` (D10) e provar com teste que o vínculo comum continua `409` na rua e a rota congelada não é limpa. Aceite: contrato verde.
+- [x] T1.2 Migration + schema `trip_document_link_events` + rollback. Aceite: `make migration-test`.
 - [x] T1.3 Persistência (D4–D7, D9): teste de integração — nota entra `loaded`; parada aberta reaproveitada, parada fechada gera nova; rota/snapshot intactos; já vinculada → `skipped`; janela perdida sob lock → 409. Aceite: `test:integration` (com `--env-file`).
-- [ ] T1.4 Use case + rota + schema + permissão + `allowed-actions` + auditoria. Aceite: contrato 201/400/403/404/409 + rota presente no OpenAPI.
+- [x] T1.4 Use case + rota + schema + permissão + `allowed-actions` + auditoria. Aceite: contrato 201/400/403/404/409 + rota presente no OpenAPI.
 - [ ] T1.5 Timeline `documents_added`. Aceite: contrato de paridade da timeline.
 - [ ] T1.6 D8: integração — viagem cancelada a partir de qualquer status e com motivos distintos libera as notas e elas entram na viagem socorrista. Aceite: `test:integration`.
 

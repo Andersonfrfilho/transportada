@@ -30,6 +30,7 @@ import {
   recordLinkEvent,
   recordLoadedEvents,
 } from './trip-document-link-after-dispatch-write.persistence.js'
+import { closePendingReviewsOnLink } from './trip-document-review-relink.support.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
 /** `null` é viagem inexistente nesta empresa. */
@@ -87,6 +88,10 @@ export async function applyTripDocumentLinkAfterDispatch(
     tripDocumentIds: linked.map((document) => document.tripDocumentId),
   })
   await touchTrip(transaction, params)
+  await closePendingReviewsOnLink(transaction, {
+    companyId: params.companyId,
+    tripId: params.tripId,
+  })
 
   const linkedNfeIds = linked.map((document) => document.nfeDocumentId)
   const documentsWithoutCte = await countDocumentsWithoutCte(transaction, {

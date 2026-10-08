@@ -247,6 +247,8 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'POST /trips/:id/documents/:documentId/field-delivery',
       'POST /trips/:id/documents/:documentId/field-proof',
       'POST /trips/:id/documents/:documentId/field-return',
+      /** Spec 257 D3: acrescentar notas à viagem que já saiu é `trip.report-on-behalf`, como a transferência. */
+      'POST /trips/:id/documents/after-dispatch',
       'POST /trips/:id/documents/field-occurrences',
       'POST /trips/:id/financial-result/recalculate',
       'POST /trips/:id/start-route',

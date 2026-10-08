@@ -97,6 +97,14 @@ import {
   parseTransferTripCrewRequest,
   serializeTripCrewTransfer,
 } from './trip-crew-transfer.schema.js'
+import {
+  parseLinkTripDocumentsAfterDispatchRequest,
+  serializeTripDocumentLink,
+} from './trip-document-link-after-dispatch.schema.js'
+import type {
+  LinkTripDocumentsAfterDispatchInput,
+  LinkTripDocumentsAfterDispatchResponse,
+} from '../application/trip-document-link-after-dispatch.types.js'
 import type {
   TransferTripCrewInput,
   TransferTripCrewResult,
@@ -181,6 +189,7 @@ const TRIP_CREW_TRANSFERS_PATH = `${API_TRIPS_PATH}/:id/crew-transfers`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
+const TRIP_DOCUMENTS_AFTER_DISPATCH_PATH = `${TRIP_DOCUMENTS_PATH}/after-dispatch`
 const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
 /**
  * Fora da árvore `/trips/:id` de propósito: quem monta o roteiro no formulário ainda não tem
@@ -540,6 +549,11 @@ type Dependencies = {
   }
   readonly transferTripCrew: {
     execute(input: TenantInput<TransferTripCrewInput>): Promise<TransferTripCrewResult>
+  }
+  readonly linkTripDocumentsAfterDispatch: {
+    execute(
+      input: TenantInput<LinkTripDocumentsAfterDispatchInput>,
+    ): Promise<LinkTripDocumentsAfterDispatchResponse>
   }
   readonly createTripCteBatch: {
     execute(input: {
@@ -1456,6 +1470,45 @@ export function createTripRoutes(
         }
       },
       pathname: TRIP_CREW_TRANSFERS_PATH,
+      policy: OFFICE_REPORT_POLICY,
+    }),
+    /**
+     * Spec 257 D2/D3: acrescenta notas soltas a uma viagem **que já saiu** (rota de socorro). É ação
+     * própria, com motivo, na permissão da baixa em nome do motorista — `POST /documents` e
+     * `/documents/batch` continuam recusando viagem na rua.
+     */
+    defineRoute<Omit<LinkTripDocumentsAfterDispatchInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const { link, trip } = await dependencies.linkTripDocumentsAfterDispatch.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: {
+              link: serializeTripDocumentLink(link),
+              trip: serializeTripDetail({
+                canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+                canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+                trip,
+              }),
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseLinkTripDocumentsAfterDispatchRequest(request)
+        return {
+          correlationId,
+          ipAddress: dependencies.resolveClientIp(request),
+          nfeDocumentIds: body.nfeDocumentIds,
+          reason: body.reason,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DOCUMENTS_AFTER_DISPATCH_PATH,
       policy: OFFICE_REPORT_POLICY,
     }),
     defineRoute<Omit<LinkTripDocumentInput, 'context'>>({

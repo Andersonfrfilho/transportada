@@ -17,3 +17,10 @@
 - `applyTripDocumentLinkAfterDispatch` (lock `FOR NO KEY UPDATE`, janela D1 sob o lock, nota `loaded` com `separated_at`/`loaded_at`, parada aberta reaproveitada ou nova ao fim sem ETA, evento de documento, `trip_document_link_events`, auditoria `office.trip.documents-added`, sinalização fiscal D7).
 - `test/integration/trip-document-link-after-dispatch.integration.ts` (8 testes, na lista `test:integration`): entra `loaded`; parada aberta reaproveitada; fechada gera nova; viagem congelada intacta (`readTripFreeze`); `already_linked` pulada; janela perdida → 409 sem gravar; histórico + auditoria sem o motivo no `metadata`; trigger append-only; contagem sem CT-e.
 - `bun --env-file=../../.env.test test ./test/integration/trip-document-link-after-dispatch.integration.ts` → 8 pass / 0 fail; `bun run typecheck` limpo.
+
+## T1.4
+
+- Caso de uso `linkDocumentsAfterDispatch` (pré-checagem da janela + repositório; canal `backoffice` posto pelo caso de uso), schema estrito (`nfeDocumentIds` 1–300 uuid, `reason` 1–500 aparado), rota `POST /v1/trips/:id/documents/after-dispatch` (201, `OFFICE_REPORT_POLICY`), fiação em `main.ts`; ação `linkDocumentsAfterDispatch` em `TRIP_ACTION` e em `allowed-actions` (oferecida a quem dá baixa em nome do motorista, só na janela da rua).
+- Gravação fecha as revisões pendentes da nota (`closePendingReviewsOnLink`); nota inexistente/de outra empresa → FK → `TripDocumentNotFoundError` (404) via `runGuarded`.
+- Contrato novo `test/trip-http/documents-after-dispatch.contract.ts` (201 com recorte exato, 400 com todos os erros, 403 separador/leitor, 404 viagem e nota, 409 por motivo, id não-uuid), janela no `trip-state.contract.ts`, rota nas listas de `finance-read` e `separator-role`; grade de transição 160 → 180; `allowed-actions` atualizados.
+- `bun run typecheck` limpo; `bun --env-file=../../.env.test test --timeout 120000` → 10998 pass / 0 fail.

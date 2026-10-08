@@ -95,6 +95,10 @@ export function tripCrewTransfersPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/crew-transfers`
 }
 
+export function tripDocumentsAfterDispatchPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/documents/after-dispatch`
+}
+
 export function tripMdfeManifestsPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/mdfe-manifests`
 }

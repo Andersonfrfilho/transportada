@@ -534,6 +534,22 @@ describe('a transferência de tripulação na rua (spec 249)', () => {
   })
 })
 
+/** Spec 257 D3: acrescentar notas à viagem que já saiu é baixa em nome do motorista, não montagem. */
+describe('o acréscimo de notas na rua (spec 257)', () => {
+  const LINK_ROUTE = 'POST /trips/:id/documents/after-dispatch'
+
+  test('o separador e o leitor não alcançam a rota', () => {
+    expect(reachableRoutes(['separator'])).not.toContain(LINK_ROUTE)
+    expect(reachableRoutes(['viewer'])).not.toContain(LINK_ROUTE)
+  })
+
+  test('quem dá baixa em nome do motorista alcança', () => {
+    for (const role of ['company-admin', 'operator', 'finance'] as const) {
+      expect(reachableRoutes([role])).toContain(LINK_ROUTE)
+    }
+  })
+})
+
 /**
  * Spec 085 G005: medir a caixa é trabalho de galpão, e ele precisa de permissão própria.
  * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial

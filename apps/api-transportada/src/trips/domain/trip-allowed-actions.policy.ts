@@ -31,7 +31,9 @@ import {
  */
 type OfferableTripAction = Exclude<
   TripAction,
-  typeof TRIP_ACTION.defineCrew | typeof TRIP_ACTION.transferCrew
+  | typeof TRIP_ACTION.defineCrew
+  | typeof TRIP_ACTION.linkDocumentsAfterDispatch
+  | typeof TRIP_ACTION.transferCrew
 >
 
 export const STOP_ALLOWED_ACTION = { arrive: 'arrive', occurrence: 'occurrence' } as const
@@ -186,7 +188,18 @@ function resolveTripLevelActions(input: {
       ? [TRIP_ACTION.transferCrew]
       : []
 
-  return [...offerable, ...crewSwap, ...crewTransfer]
+  /** Spec 257 RF1: a mesma porta da transferência (`trip.report-on-behalf`); a janela é a da máquina. */
+  const linkAfterDispatch: readonly TripAction[] =
+    canReportInField(input) &&
+    checkTripTransition({
+      action: TRIP_ACTION.linkDocumentsAfterDispatch,
+      hasRoute: input.hasRoute,
+      tripStatus: input.trip.status,
+    }).outcome === 'unchanged'
+      ? [TRIP_ACTION.linkDocumentsAfterDispatch]
+      : []
+
+  return [...offerable, ...crewSwap, ...crewTransfer, ...linkAfterDispatch]
 }
 
 /**

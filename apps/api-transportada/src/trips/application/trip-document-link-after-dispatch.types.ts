@@ -3,6 +3,7 @@
  */
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { TripCompanyContext, TripDetail } from './trip.port.js'
 
 /** Spec 257 D6: o que o repositório grava — as notas soltas, o motivo e a trilha de quem pediu. */
 export type LinkTripDocumentsAfterDispatchParams = {
@@ -36,4 +37,19 @@ export type LinkTripDocumentsAfterDispatchResult = {
   readonly mdfeDocumentDivergence: boolean
   readonly skipped: readonly SkippedAfterDispatchDocument[]
   readonly tripStatus: TripStatus
+}
+
+/** Spec 257 D2: o pedido do escritório — as notas soltas e o motivo. */
+export type LinkTripDocumentsAfterDispatchInput = {
+  readonly context: TripCompanyContext
+  readonly correlationId: string
+  readonly ipAddress: string
+  readonly nfeDocumentIds: readonly string[]
+  readonly reason: string
+  readonly tripId: string
+}
+
+export type LinkTripDocumentsAfterDispatchResponse = {
+  readonly link: LinkTripDocumentsAfterDispatchResult
+  readonly trip: TripDetail
 }

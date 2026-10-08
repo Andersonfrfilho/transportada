@@ -27,6 +27,10 @@ import {
   type TripRouteFreezeLogger,
 } from './freeze-trip-route-gracefully.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
+import type {
+  LinkTripDocumentsAfterDispatchInput,
+  LinkTripDocumentsAfterDispatchResponse,
+} from './trip-document-link-after-dispatch.types.js'
 import type { TransferTripCrewInput, TransferTripCrewResult } from './trip-crew-transfer.types.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
@@ -108,6 +112,9 @@ export type TripUseCase = {
   create(input: CreateTripInput): Promise<TripDetail>
   get(input: GetTripInput): Promise<TripDetail>
   linkDocument(input: LinkTripDocumentInput): Promise<TripDocument>
+  linkDocumentsAfterDispatch(
+    input: LinkTripDocumentsAfterDispatchInput,
+  ): Promise<LinkTripDocumentsAfterDispatchResponse>
   list(input: ListTripsInput): Promise<TripPage>
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
   updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
@@ -232,6 +239,44 @@ export function createTripUseCase(dependencies: {
       })
       await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return linked
+    },
+
+    /**
+     * Spec 257: acrescenta notas soltas a uma viagem que já saiu — rota, snapshot, pedágio e ETA ficam
+     * como estavam. A janela aqui é a checagem prévia (UX); o repositório a reconfere sob lock.
+     */
+    async linkDocumentsAfterDispatch({
+      context,
+      correlationId,
+      ipAddress,
+      nfeDocumentIds,
+      reason,
+      tripId,
+    }) {
+      const companyId = context.companyId
+      const trip = await findTripOrThrow({ companyId, repository, tripId })
+
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.linkDocumentsAfterDispatch,
+        hasRoute: false,
+        tripStatus: trip.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+
+      const link = await repository.linkDocumentsAfterDispatch({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        correlationId,
+        ipAddress,
+        nfeDocumentIds,
+        reason,
+        tripId,
+      })
+      if (link === null) throw new TripNotFoundError()
+      return { link, trip: await findTripOrThrow({ companyId, repository, tripId }) }
     },
 
     async list({ context, cursor, filters, limit }) {

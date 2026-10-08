@@ -44,6 +44,8 @@ export const TRIP_ACTION = {
    * status: liberado é sempre `unchanged`.
    */
   transferCrew: 'transferCrew',
+  /** Spec 257 D1: acrescenta notas soltas a uma viagem que já saiu; nunca há transição de status. */
+  linkDocumentsAfterDispatch: 'linkDocumentsAfterDispatch',
 } as const
 
 export type TripAction = (typeof TRIP_ACTION)[keyof typeof TRIP_ACTION]
@@ -353,6 +355,10 @@ export function checkTripTransition(params: CheckTripTransitionParams): TripTran
   }
   // Spec 216: sem tripulação, só `defineCrew` e `cancel` (já resolvidos acima) têm o que fazer.
   if (action === TRIP_ACTION.transferCrew) return checkTransferCrew(tripStatus)
+  if (action === TRIP_ACTION.linkDocumentsAfterDispatch) {
+    const reason = checkTripAcceptsLinkageAfterDispatch(tripStatus)
+    return reason === null ? { outcome: 'unchanged' } : { outcome: 'blocked', reason }
+  }
   if (tripStatus === 'awaiting_crew') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined }
   }

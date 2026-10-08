@@ -47,6 +47,7 @@ type RouteDependencies = {
   readonly dispatchTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly getTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
+  readonly linkTripDocumentsAfterDispatch: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listDeliveryAddressHistory: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listStops: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readTripActionSnapshot: { execute(input: ExecuteCall): Promise<unknown> }
@@ -88,6 +89,9 @@ type CreateFixtureParams = {
   readonly transferTripCrewError?: Error
   /** Spec 249: o que a transferência devolve; ausente é a viagem em trânsito e o resumo do contrato. */
   readonly transferTripCrewResult?: unknown
+  /** Spec 257: o que o acréscimo após a saída devolve; ausente é o resumo de uma nota ligada. */
+  readonly linkTripDocumentsAfterDispatchError?: Error
+  readonly linkTripDocumentsAfterDispatchResult?: unknown
   readonly createTripMdfeManifestError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
@@ -158,6 +162,25 @@ const DEFAULT_CREW_TRANSFER_RESULT = {
   trip: { ...TRIP_DETAIL, status: 'in_transit' },
 }
 
+const DEFAULT_LINK_AFTER_DISPATCH_RESULT = {
+  link: {
+    createdStopIds: [],
+    documentsWithoutCte: 1,
+    eventId: '00000000-0000-4000-8000-000000000c01',
+    linked: [
+      {
+        nfeDocumentId: '00000000-0000-4000-8000-000000000d01',
+        stopId: '00000000-0000-4000-8000-000000000e01',
+        tripDocumentId: '00000000-0000-4000-8000-000000000f01',
+      },
+    ],
+    mdfeDocumentDivergence: false,
+    skipped: [],
+    tripStatus: 'in_transit',
+  },
+  trip: { ...TRIP_DETAIL, status: 'in_transit' },
+}
+
 export const NO_PERMISSIONS: CompanyContext['permissions'] = new Set([])
 
 /** Quem administra frota deixou de administrar viagem: é o ponto da permissão nova. */
@@ -207,6 +230,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly getTripCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly linkTripDocumentCalls: ExecuteCall[]
+  readonly linkTripDocumentsAfterDispatchCalls: ExecuteCall[]
   readonly listDeliveryAddressHistoryCalls: ExecuteCall[]
   readonly listStopsCalls: ExecuteCall[]
   readonly listTripCostsCalls: ExecuteCall[]
@@ -239,6 +263,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
   const linkTripDocumentCalls: ExecuteCall[] = []
+  const linkTripDocumentsAfterDispatchCalls: ExecuteCall[] = []
   const listDeliveryAddressHistoryCalls: ExecuteCall[] = []
   const listStopsCalls: ExecuteCall[] = []
   const listTripCostsCalls: ExecuteCall[] = []
@@ -339,6 +364,15 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         getTripCalls.push(structuredClone(input))
         if (params.getTripError) throw params.getTripError
         return (params.getTripResult ?? TRIP_DETAIL) as typeof TRIP_DETAIL
+      },
+    },
+    linkTripDocumentsAfterDispatch: {
+      async execute(input) {
+        linkTripDocumentsAfterDispatchCalls.push(structuredClone(input))
+        if (params.linkTripDocumentsAfterDispatchError) {
+          throw params.linkTripDocumentsAfterDispatchError
+        }
+        return params.linkTripDocumentsAfterDispatchResult ?? DEFAULT_LINK_AFTER_DISPATCH_RESULT
       },
     },
     linkTripDocument: {
@@ -584,6 +618,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     getTripCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
+    linkTripDocumentsAfterDispatchCalls,
     readValuationCalls,
     readRouteGeometryCalls,
     readTripDeliveryProofsCalls,
