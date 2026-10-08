@@ -3,6 +3,7 @@
 /** Cores da planilha: o cabeçalho da tabela destaca-se do papel timbrado, e a zebra é discreta. */
 export const SPREADSHEET_COLORS = {
   band: '#EAF1F5',
+  bodyText: '#000000',
   border: '#C9D6DE',
   headerBackground: '#1F4E66',
   headerText: '#FFFFFF',
@@ -39,10 +40,14 @@ export type SpreadsheetToneRow = Readonly<{
 /** Formato antigo (só as células, zebra) ou com tom opcional. */
 export type SpreadsheetRowInput = readonly SpreadsheetCellValue[] | SpreadsheetToneRow
 
+export type SpreadsheetLegendItem = Readonly<{ label: string; tone: SpreadsheetRowTone }>
+
 export type SpreadsheetLayoutInput = Readonly<{
   columns: readonly SpreadsheetColumn[]
   /** Linhas do timbre abaixo do nome (CNPJ e endereço, telefone, exportação), já compostas. */
   infoLines: readonly string[]
+  /** Cores com o rótulo já traduzido, sob o título; o layout não fixa texto. */
+  legend?: readonly SpreadsheetLegendItem[]
   letterheadName: string
   rows: readonly SpreadsheetRowInput[]
   title: string
@@ -100,6 +105,15 @@ function buildLetterheadRows(input: SpreadsheetLayoutInput): readonly SheetRow[]
       height: 22,
       textColor: SPREADSHEET_COLORS.headerBackground,
     }),
+    ...(input.legend ?? []).map((item) =>
+      textCell(item.label, {
+        backgroundColor: SPREADSHEET_ROW_TONES[item.tone],
+        borderColor: SPREADSHEET_COLORS.border,
+        borderStyle: 'thin',
+        height: 16,
+        textColor: SPREADSHEET_COLORS.bodyText,
+      }),
+    ),
     ...Array.from({ length: LETTERHEAD_BLANK_ROWS_AFTER }, () => padRow([], width)),
   ]
 }
@@ -146,6 +160,7 @@ function buildBodyRow(
     backgroundColor,
     borderColor: SPREADSHEET_COLORS.border,
     borderStyle: 'thin',
+    textColor: SPREADSHEET_COLORS.bodyText,
     ...(column.format === undefined ? {} : { format: column.format }),
     value: input.row[index] ?? '',
     wrap: true,

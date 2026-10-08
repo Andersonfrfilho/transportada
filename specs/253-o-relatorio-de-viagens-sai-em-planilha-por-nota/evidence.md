@@ -68,3 +68,11 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - `SPREADSHEET_ROW_TONES` (`warehouse #FFFFFF`, `on_route #E4D7F5`, `finished #CDEBD3`, `total_return #CFF1EE`) e `SpreadsheetRowTone` em `spreadsheetLayout.service.ts`; `rows` aceita `{ cells, tone? }` ou o array antigo (guarda `isToneRow`, não `Array.isArray` direto: ele não estreita `readonly` array). O writer não mudou: a cor vai na célula (`backgroundColor`) e o writer já repassa `sheetData`.
 - `bun run test` (cwd=apps/frontend-transportada) → 7585 pass + 1104 pass (hooks), 0 fail; exportadores existentes sem alteração. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes, nenhum em spreadsheet).
 - Commit: ver `git log --grep "spec 253 T3.1"`.
+
+## T3.2 — legenda e contraste dos tons (sonnet)
+
+- `legend?: readonly { tone, label }[]` em `SpreadsheetLayoutInput`: uma linha por cor sob o título (célula com a cor do tom, borda e texto `SPREADSHEET_COLORS.bodyText`); o rótulo vem do chamador (i18n), o layout não fixa texto. Sem legenda o timbre não muda. `useSpreadsheetExport` aceita `legend` e `rows` com tom e os repassa ao writer (que já passa o input inteiro ao layout).
+- Cor do texto agora explícita: `SPREADSHEET_COLORS.bodyText = #000000` (o padrão do Excel, antes implícito) aplicada às células do corpo e da legenda.
+- Contraste: `test/shared/spreadsheet-legend.contract.ts` (registrado em `test/shared.contract.test.ts`) tem a luminância relativa WCAG como função pura no teste, valida os extremos (21:1 e 1:1) e exige ≥ 4,5:1 de `bodyText` sobre cada um dos quatro tons (preto sobre o mais escuro, `#E4D7F5`, passa folgado). Também cobre a legenda: posição, rótulos, cores, crescimento do timbre.
+- `bun run test` (cwd=apps/frontend-transportada) → 7593 pass + 1104 pass (hooks), 0 fail. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes, nenhum em spreadsheet). Prettier limpo.
+- Commit: ver `git log --grep "spec 253 T3.2"`.
