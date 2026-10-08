@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 253 RF10-RF12: o PDF de canhotos reaproveita o filtro e o escopo do relatório. O teto recusa
- * antes de ler uma imagem; as consultas são uma por tabela, e as imagens só são lidas quando o
- * gateway as desenha, uma de cada vez.
+ * antes de ler uma imagem, contando notas e depois blocos (a reentrega gera um por canhoto); as
+ * consultas são uma por tabela, e as imagens só são lidas quando o gateway as desenha, uma de cada vez.
  */
 import type { TripDocumentSeparationStatus } from '../../database/trip.schema.js'
 import type { ArchiveObjectStreamGateway } from '../../shared/archive-stream.service.js'
@@ -101,9 +101,11 @@ export function createExportTripProofPdfUseCase(dependencies: {
       proofRepository.findLetterhead({ companyId: params.companyId }),
       proofRepository.findExporterName({ userId: params.exportedByUserId }),
     ])
+    const blocks = toBlocks(entries, proofs)
+    if (blocks.length > TRIP_PROOF_REPORT_MAX_DOCUMENTS) throw new TripProofReportTooLargeError()
     const generatedAt = clock()
     const stream = await renderer.render({
-      blocks: toBlocks(entries, proofs),
+      blocks,
       exportedBy: exporterName ?? TRIP_PROOF_REPORT_TEXT.unknownExporter,
       generatedAt,
       letterhead,

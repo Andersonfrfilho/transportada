@@ -181,6 +181,33 @@ describe('export-trip-proof-pdf use case (spec 253 T2.4)', () => {
     expect(proofCalls).toHaveLength(0)
   })
 
+  it('counts blocks, not notes: 150 notes with 2 proofs each is refused', async () => {
+    const numbers = Array.from({ length: 150 }, (_, index) => String(index + 1))
+    const { useCase } = setup({
+      proofs: numbers.flatMap((number) => [
+        buildProof(number, `k/${number}/a`),
+        buildProof(number, `k/${number}/b`),
+      ]),
+      records: numbers.map((number) => buildRecord(number)),
+    })
+    await expect(useCase(PARAMS)).rejects.toBeInstanceOf(TripProofReportTooLargeError)
+  })
+
+  it('accepts exactly 200 blocks across notes with and without proofs', async () => {
+    const numbers = Array.from({ length: 150 }, (_, index) => String(index + 1))
+    const { captured, useCase } = setup({
+      proofs: numbers
+        .slice(0, 50)
+        .flatMap((number) => [
+          buildProof(number, `k/${number}/a`),
+          buildProof(number, `k/${number}/b`),
+        ]),
+      records: numbers.map((number) => buildRecord(number)),
+    })
+    await useCase(PARAMS)
+    expect(captured[0]?.blocks).toHaveLength(TRIP_PROOF_REPORT_MAX_DOCUMENTS)
+  })
+
   it('accepts exactly the ceiling', async () => {
     const { useCase } = setup({
       records: [buildRecord('14')],
