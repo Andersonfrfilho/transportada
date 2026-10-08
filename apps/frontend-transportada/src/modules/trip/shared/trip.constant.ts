@@ -495,6 +495,8 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    */
   'typeAllowsMultipleItems',
   'typeItemsMode',
+  /** Spec 255 RF6: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  'typeIconName',
 ] as const
 
 /**

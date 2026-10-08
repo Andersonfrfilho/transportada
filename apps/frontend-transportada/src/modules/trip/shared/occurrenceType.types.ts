@@ -38,6 +38,8 @@ export type OccurrenceType = Readonly<{
   emailsContractor?: boolean
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
+  /** Spec 255 RF1: o ícone do design system; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  iconName?: null | string
   /** Spec 218 (D1, RF-B5): qual botão do motorista este tipo alimenta. Ausente na API é `document`. */
   flow: OccurrenceTypeFlow
   id: string

@@ -1116,6 +1116,10 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
+    tripOccurrenceFromApi(input: unknown): TripOccurrence {
+      if (!isTripOccurrence(input)) throw invalid()
+      return input
+    },
     /**
      * Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`.
      *
@@ -1506,6 +1510,9 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
     (value.typeItemsMode === undefined ||
       value.typeItemsMode === null ||
       isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.typeIconName === undefined ||
+      value.typeIconName === null ||
+      isString(value.typeIconName)) &&
     isString(value.typeName)
   )
 }
@@ -1923,6 +1930,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'emailsContractor',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
+        /** Spec 255 T1.1 (ADR-0081 §9): o ícone do tipo, tolerado antes de a API mandá-lo. */
+        'iconName',
         /** Spec 246 T1c.4: quantidade mínima de produtos (nulo = todos os itens), tolerada antes de a API mandá-la. */
         'itemsMinimumCount',
         /** Spec 241 RF1: mesma tolerância — ausente é API anterior ao campo e continua ausente. */
@@ -1990,6 +1999,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.declaredAmountScope === undefined ||
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
     (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
   )
 }
@@ -2015,6 +2025,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
+    iconName,
     emailItemLineTemplate,
     ...rest
   } = raw
@@ -2035,6 +2046,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isString(iconName) ? { iconName } : {}),
     ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',

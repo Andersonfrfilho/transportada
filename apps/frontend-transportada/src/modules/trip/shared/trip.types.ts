@@ -204,6 +204,8 @@ export type TripOccurrence = Readonly<{
   typeAllowsMultipleItems?: boolean | null
   /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
   typeItemsMode?: OccurrenceItemsMode | null
+  /** Spec 255 RF6: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  typeIconName?: null | string
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>
@@ -221,6 +223,8 @@ export type FieldOccurrenceType = Readonly<{
   declaredAmountMode?: OccurrenceAttachmentMode
   declaredAmountScope?: DeclaredAmountScope
   id: string
+  /** Spec 255 RF3: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  iconName?: null | string
   /** Spec 246: a quantidade mínima de produtos (nulo = todos os itens); ausente é API anterior. */
   itemsMinimumCount?: null | number
   itemsMode?: OccurrenceAttachmentMode
