@@ -32,3 +32,36 @@ em `trip.types.ts:208` e `:390` (e `trip.constant.ts:458`, chaves exatas da refe
 Não há `typeIconName`. Consequência para o RF6: o join já existe, então o campo é aditivo
 (`typeIconName: companyOccurrenceTypes.iconName` nos dois selects, T2.2) e o painel o lê como opcional (T1.1).
 Atenção: `trip.constant.ts:458` e `:637` são listas de chaves exatas — conferir se `typeIconName` precisa entrar.
+
+## T1.1 — Painel tolerante (2026-10-07)
+
+**Vermelho inicial:**
+
+- Contrato `occurrence-type-icon-tolerance.contract.ts` criado: 5 testes falhando (5 fail, 7614 pass)
+  - `iconName` não aceito em tipo (chave desconhecida)
+  - `typeIconName` não aceito em ocorrência
+  - Função `tripOccurrenceFromApi` inexistente
+
+**Implementação:**
+
+1. `occurrenceType.types.ts:41-42`: `iconName?: null | string`
+2. `trip.types.ts:208-209`: `typeIconName?: null | string` em `TripOccurrence`
+3. `trip.types.ts:226-227`: `iconName?: null | string` em `FieldOccurrenceType`
+4. `tripResponse.validation.ts:1924`: `iconName` em allowed keys
+5. `tripResponse.validation.ts:1960`: validação `(value.iconName === undefined || value.iconName === null || isString(value.iconName))`
+6. `tripResponse.validation.ts:2021`: desestruturação de `iconName` em `toOccurrenceType`
+7. `tripResponse.validation.ts:2042`: spread condicional `...(isString(iconName) ? { iconName } : {})`
+8. `trip.constant.ts:502-503`: `typeIconName` em `TRIP_OCCURRENCE_OPTIONAL_KEYS`
+9. `tripResponse.validation.ts:1509-1512`: validação de `typeIconName` em `isTripOccurrence`
+10. `tripResponse.validation.ts:1118-1120`: função `tripOccurrenceFromApi(input: unknown): TripOccurrence`
+11. `test/trip.contract.test.ts:159`: import `occurrence-type-icon-tolerance.contract`
+12. Prettier: formatação do arquivo novo
+
+**Verde final:**
+
+- Testes: 7619 pass, 0 fail ✓
+- Typecheck: sem erros ✓
+- ESLint: sem erros ✓
+- Prettier: passou ✓
+
+**Commit:** `cd5253999` — feat(frontend): painel aceita iconName opcional no tipo de ocorrência (spec 255 T1.1)
