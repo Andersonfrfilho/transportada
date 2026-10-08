@@ -1611,7 +1611,7 @@
     "weightValue": "{{weight}} kg"
   },
   "readiness": {
-    "count": "{{ready}} of {{total}} invoices ready",
+    "count": "{{ready}} of {{total}} invoices with an authorized CT-e",
     "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e.",
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
@@ -1917,8 +1917,8 @@
     "generateCteSelection": "Issue CT-e for {{count}} selected invoice",
     "generateCteSelection_other": "Issue CT-e for {{count}} selected invoices",
     "planRoute": "Plan route",
-    "readinessSummary": "{{ready}} of {{total}} invoices ready",
-    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices ready ({{nfsePending}} awaiting NFS-e)",
+    "readinessSummary": "{{ready}} of {{total}} invoices with an authorized CT-e",
+    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices with an authorized CT-e ({{nfsePending}} awaiting NFS-e)",
     "returnReasonLabel": "Return reason",
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
