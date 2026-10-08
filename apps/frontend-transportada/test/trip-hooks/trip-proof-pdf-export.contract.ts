@@ -5,6 +5,7 @@ import { act, createElement } from 'react'
 import '@/modules/shared/i18n/i18n.service'
 import { TripProofPdfExportButton } from '@/modules/trip/components/TripProofPdfExportButton.component'
 import { useTripProofPdfExport } from '@/modules/trip/hooks/useTripProofPdfExport.hook'
+import { buildTripExportFileName } from '@/modules/trip/shared/tripExportFileName.service'
 import {
   buildTripProofPdfSearch,
   TripProofPdfTooLargeError,
@@ -32,7 +33,10 @@ describe('useTripProofPdfExport (spec 253 T4.6)', () => {
     )
     await act(() => rendered.result().exportPdf())
     expect(saved).toHaveLength(1)
-    expect(saved[0]?.fileName).toBe('trip-proofs.pdf')
+    expect(saved[0]?.fileName).toBe(
+      buildTripExportFileName({ baseName: 'trip-proofs', extension: 'pdf' }),
+    )
+    expect(saved[0]?.fileName).toMatch(/^trip-proofs-\d{4}-\d{2}-\d{2}\.pdf$/)
     expect(rendered.result().error).toBeUndefined()
     expect(rendered.result().isExporting).toBe(false)
     rendered.unmount()
@@ -197,5 +201,21 @@ describe('TripProofPdfExportButton (spec 253 T4.6)', () => {
       expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('200'),
     )
     failing.unmount()
+  })
+})
+
+describe('buildTripExportFileName', () => {
+  test('uses the local calendar date, not UTC', () => {
+    const lateEvening = new Date(2026, 9, 8, 23, 30)
+    expect(
+      buildTripExportFileName({ baseName: 'trip-report', extension: 'xlsx', today: lateEvening }),
+    ).toBe('trip-report-2026-10-08.xlsx')
+  })
+
+  test('pads month and day', () => {
+    const firstDay = new Date(2026, 0, 5, 9, 0)
+    expect(
+      buildTripExportFileName({ baseName: 'trip-proofs', extension: 'pdf', today: firstDay }),
+    ).toBe('trip-proofs-2026-01-05.pdf')
   })
 })
