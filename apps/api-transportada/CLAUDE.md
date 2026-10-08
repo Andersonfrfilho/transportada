@@ -927,3 +927,5 @@ conferir cada guard antes de a API publicar; o detalhe é seguro porque `readDet
 não recebe `redeliveryPolicy`), então a sugestão de acerto só existe no galpão e no lote do escritório. `previous_items` guarda só
 as linhas: número e valor pago da **ocorrência** são sobrescritos sem rastro na correção (guardar exige 2 colunas aditivas).
 Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/evidence.md.
+
+⚠️ **O ícone do tipo é catálogo fechado** (spec 255): ampliar `OCCURRENCE_TYPE_ICON_NAMES` pede migration `DROP/ADD CONSTRAINT` (rollback zera os novos) **e** as cópias por valor no painel e no `frontend-driver`. Detalhe: docs/ai-context/api-transportada.md § "Spec 255".

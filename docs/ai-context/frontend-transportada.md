@@ -1489,3 +1489,21 @@ O painel não importa nada de `fleet` além de `municipality.service` (a lista d
 **Contratos.** `test/business-calendar/*.contract.ts` (guardas, cliente, formulário, corpo, recusa, tabela, horizonte, locale — `bun test ./test/business-calendar.contract.test.ts`) e
 `test/trip-hooks/business-calendar-*.contract.ts` (DOM: sábado, permissão, cadastro, validação, recusa, edição, exclusão, horizonte+adoção, estadual, tabela), todos sobre
 `businessCalendarClientMocks.helper.ts` — a API dublada com as MESMAS transições da T1.3 (gera 11 datas, a digitada vence, adoção, 409 na gerada). Em teste de DOM o `Select` só abre com `stubVisibleLayout()`.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+**Aba Tipos.** `OccurrenceTypeIconPicker` (grade de botões com `aria-label`, mais "Sem ícone"), dentro do bloco de identificação
+(`OccurrenceTypeIdentity`/`OccurrenceTypeRecordFields`); `iconName` segue o PUT (`occurrenceTypeUpdate.service.ts`): ausente mantém, `null` limpa.
+`OccurrenceTypeIcon` é o único ponto que desenha: só nome do catálogo vira `<Icon>` decorativo (`aria-hidden`); nulo, ausente ou desconhecido devolve `null`,
+então o markup de quem não tem ícone é idêntico ao de antes (CA1).
+
+**Catálogo.** `shared/occurrenceTypeIcon.constant.ts` é cópia por valor de `OCCURRENCE_TYPE_ICON_NAMES` da API (nenhuma app importa outra); o contrato
+`occurrence-type-icon-catalog.contract.ts` lê a lista da API **como texto** e a confere com a cópia e com `ICON_PATHS` de `components/ui/icon.tsx`. Os glyphs
+são os mesmos do app do motorista (mesmo traçado, ADR-0075 §7).
+
+**Cartão.** `TripOccurrences` mostra o ícone antes do nome do tipo (`typeIconName` da ocorrência, `.occurrenceEntryTypeIcon`), com e sem link. Linha do tempo
+e feed não mostram (`typeName` ali é referência de chave exata).
+
+**Guards.** `iconName` entrou **opcional** no tipo do escritório, em `isFieldOccurrenceType` (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`) e em
+`SETTINGS_RESOLUTION_OPTIONAL_KEYS`; `typeIconName` opcional em `TripOccurrence` (`trip.constant.ts`). O guard é de chave exata: a chave nova só
+entra antes da API a mandar, senão `TRIP_RESPONSE_INVALID`. Ampliar o catálogo: API (migration) + esta cópia + `icon.tsx` + app do motorista.

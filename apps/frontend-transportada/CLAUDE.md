@@ -533,3 +533,5 @@ servidor** (`POST /company-settings/occurrence-types/email-preview`), nunca de u
 usa o `unitValue` **copiado** em `itemValues`, não o preço atual da nota. O rascunho do e-mail só some quando o salvar pousa (PUT que falha preserva o texto). ⚠️ `fixtures/*.golden.json` são cópia idêntica da API.
 O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (o registro do motorista não a abre: decisão pendente).
 Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".
+
+⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + `frontend-driver`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 255".

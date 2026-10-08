@@ -372,3 +372,5 @@ precedência); modo `off` na hora do envio é descartado pelo servidor, não rec
 (o campo antigo descartava dígito em silêncio); total sem o que somar mostra "—". Medido só sintético: o snapshot passa de
 256 KiB com dezenas de notas grandes, e login/fila offline reais nunca foram exercitados. Detalhe: docs/ai-context/frontend-driver.md
 § "Spec 247".
+
+⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + painel. Detalhe: docs/ai-context/frontend-driver.md § "Spec 255".

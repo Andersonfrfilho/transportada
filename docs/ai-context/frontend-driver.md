@@ -220,3 +220,13 @@ valor pela fila). Contratos: `occurrence-amount.contract.ts` (mesmos casos da AP
   e "Sem valor" para leitor de tela. Número do documento mantém o texto digitado, com `aria-invalid` e a lista de caracteres válidos.
 - **Nunca manda preço nem unidade:** o servidor lê da nota. Modo `off` no envio é descartado, não recusado (fila offline não trava).
 - **Não exercitado:** login e fila offline reais do motorista; só arnês descartável (Vite 53200) e contrato.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+O chip do tipo em `DriverOccurrenceRegistrationForm` renderiza `<OccurrenceTypeIcon iconName={type.iconName} />` antes do nome. Sem `iconName` (ausente, `null`),
+o markup é o de antes (CA1); nome fora do catálogo é tolerado (devolve `null`, não quebra o formulário nem o guard `isDriverOccurrenceType`, que aceita a chave
+opcional). O nome acessível do chip (`role="radio"`) não muda: o ícone é decorativo. Sem CSS novo.
+
+**Cópia por valor.** `shared/occurrenceTypeIcon.constant.ts` repete `OCCURRENCE_TYPE_ICON_NAMES` da API e o contrato `occurrence-type-icon-chip.contract.tsx` lê a
+lista da API como texto e a confere; `icon.tsx` ganhou os glyphs que faltavam com o traçado do painel. `scripts/driver-preview-api.ts` traz exemplos (`package`,
+`null`). **Não exercitado:** a posição do ícone no chip é conferida no fonte (o formulário tem hook com estado e fila, sem render estático); o smoke CA3 em staging é a T4.1.

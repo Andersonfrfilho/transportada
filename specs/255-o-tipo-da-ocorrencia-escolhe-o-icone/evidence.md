@@ -314,3 +314,11 @@ da task: exit 0; `format:check` (raiz) verde. `frontend-transportada` não tocad
 
 **Gates:** `bun run typecheck` raiz limpo; `bun run test` da frontend-transportada 1130 pass / 0 fail;
 eslint `--max-warnings=0` nos arquivos tocados limpo; prettier aplicado. API não tocada (sem contrato/integração novos).
+
+## T4.2 — Documentação nos ai-context e CLAUDE.md de app (2026-10-08)
+
+Só documentação; nenhum código nem teste tocado. Seção nova "Spec 255 — O tipo da ocorrência escolhe o ícone" no fim de
+`docs/ai-context/api-transportada.md` (coluna, CHECK, catálogo, gravação, leituras, como ampliar), `docs/ai-context/frontend-transportada.md`
+(seletor, catálogo por valor, cartão, guards) e `docs/ai-context/frontend-driver.md` (chip, tolerância, cópia por valor). Uma linha ⚠️ ao fim de
+`apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e `apps/frontend-driver/CLAUDE.md`: ampliar o catálogo é migration mais as
+cópias nas três apps. `bun run format:check` (raiz) verde após `prettier --write` nos arquivos alterados.

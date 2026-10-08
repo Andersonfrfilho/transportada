@@ -3329,3 +3329,25 @@ mesma transação: tentativa `issue` `accepted` sem `provider_request_key` e sem
 vinculado na empresa → `409 NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED` (índice único parcial); mesma chave com outro corpo →
 `409 IDEMPOTENCY_KEY_REUSED`. Sem credencial → `422 NFSE_CREDENTIAL_MISSING`. Núcleo:
 `nfse-invoice-external-link.use-case.ts`. Não existe teste que compare as rotas com um documento OpenAPI neste módulo.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+**Dado.** Migration `20261008024137_occurrence_type_icon` (aditiva, com `rollback.sql`): `company_occurrence_types.icon_name VARCHAR(32)` nula, sem
+default, e a CHECK `company_occurrence_types_icon_name_check` (`icon_name is null or icon_name in (…)`) gerada do catálogo fechado
+`OCCURRENCE_TYPE_ICON_NAMES` (`src/shared/trip-occurrence.constant.ts`, 10 nomes: `alert`, `camera`, `clipboard-list`, `clock`, `document`, `invoice`,
+`message`, `money`, `package`, `truck`). Só o tipo ganha a coluna: nada em `*_overrides` nem `moments` (o ícone não é exigência e não passa por
+`resolveOccurrenceRequirements`). Nula = sem ícone; nenhum tipo existente recebeu default.
+
+**Gravação.** `POST/PUT /company-settings/occurrence-types` aceita `iconName` (`z.enum(catálogo).nullable().optional()`): ausente no PUT **mantém**, `null`
+**limpa**, fora do catálogo é `400 INVALID_REQUEST` com o campo nos detalhes, e a CHECK recusa o mesmo valor no banco (`23514`). O mapper
+`save-occurrence-type-values.mapper.ts` copia campo a campo: campo esquecido ali é gravação perdida (mutação vermelha registrada na evidência).
+
+**Leitura.** `iconName: string | null` em `GET /me/trips/current/occurrence-types` (e no snapshot do motorista), na lista/leitura única do escritório e em
+`readSettingsResolution`; `typeIconName` em cada ocorrência (`listTripOccurrences`, `findTripOccurrenceById`). Goldens
+(`settings-resolution`, `driver-snapshot-document`) levam `"iconName": "money"` e são copiados para as duas apps. Fora: feed, linha do tempo e a view
+`occurrence-type-items-read` não trazem o ícone.
+
+⚠️ **Ampliar o catálogo** é uma migration `DROP CONSTRAINT` + `ADD CONSTRAINT` com a lista nova (aditivo), com rollback que **zera** (`UPDATE … SET icon_name = NULL`)
+os nomes novos antes de recolocar a CHECK antiga, mais o nome nas **duas** cópias por valor (painel e app do motorista) e o glyph em cada `icon.tsx`; o contrato
+catálogo × `ICON_PATHS` falha se faltar um. Reduzir exige migration de dados. Ordem de publicação (ADR-0081 §9): painel e app tolerantes → API → telas. Gates e
+vermelhos: specs/255-\*/evidence.md.
