@@ -43,25 +43,51 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 
 - [ ] **T1.1** `sonnet` — Cadastro do A1 da NFS-e (reuso do cofre da ADR-0004), com validade e alerta.
       ADR 0099 §3: finalidade própria `nfse` em `digital_certificates` (não lê o `cte`); alerta D-30/D-7 por e-mail no cron é novo.
+      Revisão do architect: upload único pode selar `cte` e `nfse` (cada um com o próprio AAD); a API abre o A1 `nfse` para o mTLS
+      do ADN (`node-forge`, §13); emissão `national` sem A1 `nfse` ativo e válido → `409`.
+- [ ] **T1.4** `sonnet` — Credencial NFS-e `national` sem segredo (ADR 0099 §3): `NFSE_PROVIDERS` ganha `national`;
+      `secret_envelope` e `callback_token_sha256` nuláveis com check por provedor; migration aditiva com `rollback.sql`
+      guardado. Na mesma task, `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS` (reemissão com chave herdada e `correction`,
+      ADR 0099 §1). Aceite: contrato + `make migration-test`.
 - [ ] **T1.2** `sonnet` — Reserva de `nDPS`/série por empresa e ambiente, idempotente (padrão ADR-0005).
       ADR 0099 §4: modelo `nfse_dps`, chave `nfse-dps:<provider_request_key>`, reserva na API ao criar a tentativa; `dps_series` no perfil.
+      Revisão do architect: check de `dps_series` é 1–49998; a série `49999` é reservada à sonda e a provas fora do sistema.
 - [ ] **T1.3** `haiku` — Ambiente da credencial (`homologation` | `production`) e
       `NFSE_PROVIDER_BASE_URL` por ambiente no schema de env — emenda da 0035. Aceite: `tsc` + contrato.
       ADR 0099 §5: a credencial e a tentativa já têm `fiscal_environment`; a task vira `NFSE_NATIONAL_ADN_BASE_URL` + guarda de staging.
+      Revisão do architect: guarda de boot host × `FISCAL_ENVIRONMENT` na API e no worker (`producaorestrita` só em
+      `homologation`); leitura do ADN (§7) com alíquota comparada só fora do Simples (`iss_rate`), no Simples gravada sem
+      bloquear, ADN `404` não vira `503`; conferir se o perfil tem marcador de regime melhor que `simples_national_rate` nulo.
 
 ## Fase 2 — Adaptador no worker
 
 > 🤖 Modelo: `sonnet` (T2.6 → `haiku`; T2.3 passa por `security-reviewer` em `opus`)
 
+- [ ] **T2.0** `sonnet` — **Antes de qualquer valor novo na API** (ADR 0099 §2): no worker, versão de API **desconhecida**
+      vira recusa fatal `NFSE_PROVIDER_VERSION_UNKNOWN` (só a ausência segue `v2`). Publicar e confirmar no ar antes de a API
+      aceitar `national`; a troca de `NFSE_PROVIDER_API_VERSION` é passo de operação registrado em `evidence.md`, nunca do
+      mesmo PR. Aceite: contrato vermelho → verde em `nfse-provider-api-version.policy.ts`.
 - [ ] **T2.1** `sonnet` — Contratos vermelhos com fixtures do Swagger (emitir, consultar, cancelar, DANFSe).
+      ADR 0099 §1 (revisão): 400/403 classificados por `erros[].codigo` (403 sem esse corpo → `error`); recusa de
+      duplicidade → `GET /dps/{id}` → `accepted` (código a localizar no Anexo I/sonda; fixture provisória nomeada);
+      `tipoAmbiente` divergente → falha terminal `environment_mismatch`; evento `101101`: `201` → `accepted`, pull confirma,
+      `400`/`422` → `rejected`, retentativa consulta eventos antes do `POST`.
 - [ ] **T2.2** `sonnet` — Montagem da DPS 1.01 e validação contra XSD.
+      Revisão do architect: conferir no XSD os valores de `cMotivo` do `e101101` e se a NFS-e tem campo de código de
+      verificação (senão `verificationCode = chaveAcesso`); `cNBS` sai de `nbs_code` quando preenchido.
 - [ ] **T2.3** `sonnet` — Assinatura XMLDSig com o A1 (gateway da aplicação, sem internals do pacote
       fiscal). Revisão de segurança: chave e senha nunca em log, buffers zerados.
+      Revisão do architect: `xml-crypto` 6.3.x + `@xmldom/xmldom`, PKCS#12 por `node-forge` 1.3.x, todos pelo §13.
 - [ ] **T2.3b** `sonnet` — **SONDA (antes da Fase 1 e da Fase 3):** com a DPS montada e assinada, um
       `POST /nfse` de teste em **produção restrita**. Se a Sefin recusar por o município não ser aderente ao
       Emissor Nacional, **parar**, registrar o código/mensagem em `evidence.md` e voltar ao usuário (ADR "não
       faremos" ou webservice ISS.Net). Se aceitar, o risco do cadastro desatualizado está fechado. Exige o A1
       (o usuário digita a senha; nada de segredo em arquivo).
+      **Ação antes do envio (revisão do architect, ADR 0099 §4/§8):** a sonda preparada usa série 1 / `nDPS` 1 e deve
+      passar à **série `49999`** (reservada, fora do perfil). Enviar com `cNBS` preenchido e registrar se a Sefin o cobra,
+      o algoritmo de assinatura aceito e o código da recusa de duplicidade, se aparecer. **Se recusar por convênio,** as
+      saídas são: retomar a T6.2 da 250 (virada para `v3`, aprovação humana) ou o webservice ISS.Net — a produção está na
+      v2, que já recusa a empresa; não há "regressão zero".
 - [ ] **T2.4** `sonnet` — `nfse-national.client.ts` + gateway + seleção `national` por env, com mTLS e
       limitador do processo.
 - [ ] **T2.5** `sonnet` — Status pull e documentos (XML fiscal imutável + PDF no storage).
@@ -89,7 +115,9 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       externo e seus contratos; a lib `@adatechnology/fiscal-provider` não é tocada. `cTribNac`
       (`national_taxation_code`) fica: é campo do padrão nacional. Aceite: `make check`,
       `make migration-test` e grep sem `nota-rp` em `apps/`.
-      ADR 0099 §2/§9: pré-condição zero nota v2/v3 não terminal; o limitador fica (renomeado), sai só a instância v3.
+      ADR 0099 §2/§9: pré-condição zero nota v2/v3 não terminal **e zero v2/v3 em `failed` com causa ambígua sem
+      `providerDocumentId`** (reemitida por `national` duplicaria nota que talvez exista na Nota RP); o limitador fica
+      (renomeado), sai só a instância v3.
 - [ ] **T4.3** `haiku` — Documentar em `docs/ai-context/*`, `CLAUDE.md`; fechar a 250 conforme a
       decisão da T0.5.
 
@@ -107,7 +135,8 @@ NFSE_PROVIDER_API_VERSION, nationalTaxationCode, vínculo externo). A virada da 
 pré-requisito. Se o código não estiver em staging, pare e avise.
 Modelo por task (delegue ao subagente executor com model=<modelo>; o modelo está escrito em cada task):
  · haiku → T0.1, T1.3, T2.6, T3.1b, T4.1, T4.3
- · sonnet → T0.2, T0.3, T0.4, T1.1, T1.2, T2.1–T2.5, T3.1, T3.2
+ · sonnet → T0.2, T0.3, T0.4, T1.1, T1.2, T1.4, T2.0 (publicada antes de a API aceitar `national`),
+   T2.1–T2.5, T3.1, T3.2
  · opus 🧠 → T0.5 (ADR 0099, validada por architect antes de seguir) e a revisão de segurança da T2.3
    (security-reviewer, opus)
  · revisão final → code-reviewer model=sonnet, em passe separado de quem escreveu.

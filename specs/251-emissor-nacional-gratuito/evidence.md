@@ -269,3 +269,12 @@ com uma cópia local sem as âncoras `^`/`$` do padrão de `TSerieDPS`, que o li
 `xml-crypto` 6.3.3, `POST /SefinNacional/nfse` em produção restrita. Selftest com certificado autoassinado: DPS
 válida antes e depois de assinada, assinatura verifica em RSA-SHA1 e RSA-SHA256, adulteração rejeitada. O usuário roda
 com o A1 real e digita a senha; nada de segredo em arquivo. Resultado da Sefin: **pendente**.
+
+## T0.5 — revisão do `architect` (08/10/2026)
+
+Veredito **aprovar com ajustes** (15). Aplicados na ADR 0099 (§ "Revisão do architect"), com cada caminho:linha
+reaberto no código. Mudanças que viram task: **T2.0** (worker recusa versão desconhecida antes de a API aceitar
+`national`), **T1.4** (credencial `national` sem segredo + `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS`), série `49999`
+reservada à sonda (T1.2/T2.3b), pré-condição da T4.2b com `failed` ambíguo. A T6.2 da 250 fica **suspensa** (não
+cancelada) até a sonda. Achado da conferência: `nbs_code` já existe no perfil (`nfse.schema.ts:166`), sem coluna nova.
+Pendente: código oficial da recusa de duplicidade de DPS (Anexo I ou sonda).

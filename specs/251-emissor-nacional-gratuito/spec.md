@@ -104,7 +104,9 @@ adaptador de novo, como a ADR-0029 previu.
 
 - **Nota RP sai do app e fica só na lib** (`@adatechnology/fiscal-provider`, repositório
   `adatechnology-packages`). Nada de v2/v3 no `api`/`worker`/`cron` depois da primeira nota real pelo nacional;
-  não há contingência no app. Fecha o [NEEDS CLARIFICATION] 3 e torna a T6.2 da 250 desnecessária.
+  não há contingência no app. Fecha o [NEEDS CLARIFICATION] 3; a T6.2 da 250 **não é cancelada: fica
+  suspensa até a sonda T2.3b** e é o plano B se a sonda falhar (a produção está na v2, que já recusa a
+  empresa — ADR 0099 §2 e §8, revisão do architect).
   A reversibilidade passa a ser o git (a remoção é uma task isolada, depois da prova real).
 - **O A1 de produção da transportadora pode ser usado** para leitura em produção restrita (Swagger e
   parâmetros municipais, só GET). Emissão real continua só na T4.2. **Anderson renova o A1** (vence em
