@@ -34,7 +34,6 @@ function createUseCase(overrides: Parameters<typeof createNfseRepositoryFixture>
     ...fixture,
     useCase: createNfseInvoiceExternalLinkUseCase({
       now: () => new Date(NOW),
-      providerApiVersion: 'v3',
       repository: fixture.repository,
     }),
   }
@@ -93,6 +92,24 @@ describe('nfse invoice external link', () => {
     expect(recording.payloads[0]?.payload).toEqual(FROZEN_PAYLOAD.payload)
     expect(recording.payloads[0]?.payloadSha256).toBe(FROZEN_PAYLOAD.payloadSha256)
     expect(recording.payloads[0]?.providerConfig).toMatchObject({
+      externalLink: true,
+      providerApiVersion: 'v3',
+    })
+  })
+
+  test('fixa a tentativa de vínculo em v3, o id_nota do portal é um id v3, seja qual for a versão do ambiente', async () => {
+    const fixture = createNfseRepositoryFixture({
+      frozenPayload: FROZEN_PAYLOAD,
+      invoiceStatus: 'rejected',
+    })
+    const useCase = createNfseInvoiceExternalLinkUseCase({
+      now: () => new Date(NOW),
+      repository: fixture.repository,
+    })
+
+    await useCase.execute(LINK_INPUT)
+
+    expect(fixture.recording.payloads[0]?.providerConfig).toMatchObject({
       externalLink: true,
       providerApiVersion: 'v3',
     })

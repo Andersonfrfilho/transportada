@@ -2633,7 +2633,6 @@ function createApplicationRoutes({
   })
   const linkNfseInvoiceExternally = createNfseInvoiceExternalLinkUseCase({
     now: () => new Date(),
-    providerApiVersion: nfseProviderApiVersion,
     repository: nfseInvoiceRepository,
   })
   const reissueNfseInvoice = createNfseInvoiceReissueUseCase({

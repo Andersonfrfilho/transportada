@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { NfseAttemptKind } from '../../database/nfse.schema.js'
-import type { NfseProviderApiVersion } from '../../shared/nfse-provider-api-version.constant.js'
+import { NFSE_NATIONAL_PROVIDER_API_VERSION } from '../../shared/nfse-provider-api-version.constant.js'
 import {
   NFSE_INVOICE_ACTION,
   checkNfseInvoiceTransition,
@@ -56,10 +56,9 @@ export type NfseInvoiceExternalLinkUseCase = {
  */
 export function createNfseInvoiceExternalLinkUseCase(dependencies: {
   readonly now: () => Date
-  readonly providerApiVersion?: NfseProviderApiVersion
   readonly repository: NfseInvoiceRepositoryPort
 }): NfseInvoiceExternalLinkUseCase {
-  const { now, providerApiVersion, repository } = dependencies
+  const { now, repository } = dependencies
 
   return {
     async execute(input) {
@@ -99,7 +98,7 @@ export function createNfseInvoiceExternalLinkUseCase(dependencies: {
           payload: frozen.payload,
           payloadSha256: frozen.payloadSha256,
           providerConfig: {
-            ...buildNfseProviderConfig(credential, providerApiVersion),
+            ...buildNfseProviderConfig(credential, NFSE_NATIONAL_PROVIDER_API_VERSION),
             externalLink: true,
           },
         })
