@@ -78,10 +78,12 @@ Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `sonnet` (T5.1 🧠 `opus`: muda o estado fiscal de uma nota)
 
-- [ ] **T5.1** 🧠 Decidir e desenhar "vincular nota emitida externamente": **preferir vincular pelo
+- [x] **T5.1** 🧠 Decidir e desenhar "vincular nota emitida externamente": **preferir vincular pelo
       `id_nota` da Nota RP** (o status pull traz número, chave, PDF e XML); digitar número/data/chave
       é a contingência. A nota vai a `authorized` sem transmitir; auditoria com ator. Dependência da 042/T017 e
       043/T010 (as 16 notas de Ribeirão Preto).
+      **Desvio deliberado:** o vínculo leva a nota a `pending_authorization` e o status pull a autoriza (`authorized`
+      direto não teria XML, PDF nem cancelamento). Desenho na ADR 0098 § "Desenho do vínculo (T5.1)"; evidência E23.
 - [ ] **T5.2** Implementar API + painel do vínculo, com contrato negativo (só nota rejeitada/falha).
 
 ## Fase 6 — Virada e fechamento

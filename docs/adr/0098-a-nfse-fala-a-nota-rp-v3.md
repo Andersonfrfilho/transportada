@@ -99,6 +99,33 @@ Fatos que delimitam a decisão (spec 250, `evidence.md`):
 - O motivo de uma `Falha` assíncrona não aparece no nosso painel (limitação da decisão 7);
   ler o corpo do webhook para exibi-lo fica como seguimento, fora da spec 250.
 
+## Desenho do vínculo (T5.1)
+
+Ação nova `link` (`POST /v1/nfse-service-invoices/:id/external-link`, permissão `nfse.issue`, `Idempotency-Key`
+obrigatória, corpo `.strict()` `{ providerDocumentId }` com 1 a 20 dígitos). Responde `202` com
+`{ invoiceId, attemptId, status: "pending_authorization", replayed }`.
+
+- **Estado:** só `rejected` e `failed` vinculam (mesma tabela do `discard`); os demais bloqueiam com os códigos
+  `NFSE_TRANSITION_BLOCK` já existentes. `companyId` vem só do contexto autenticado; nota de outra empresa é `404`.
+- **Desvio deliberado do princípio da decisão 10:** a nota **não** vai direto a `authorized`. Vai a
+  `pending_authorization` e o **status pull autoriza**, porque `authorized` sem passar pela consulta não teria XML,
+  PDF nem caminho de cancelamento (que a v3 exige `chave_acesso` para fazer).
+- **Mesma transação:** nova tentativa `kind='issue'`, `status='accepted'`, sem `provider_request_key`, payload congelado
+  copiado com `providerConfig` `{...v3, externalLink: true}`; a nota recebe `provider_document_id = id_nota` e
+  `next_status_check_at = now()`, com os campos de rejeição limpos como a reemissão faz; evento `accepted`
+  (`{ source: 'external_link' }`); linha em `audit_logs` (`nfse.invoice.external_link`) com ator, permissão, antes/depois
+  e correlationId. **Sem linha de outbox** (nada é transmitido). Vínculos com NF-e são mantidos.
+- **Idempotência:** mesma chave e mesmo corpo é replay (`replayed: true`); mesma chave com corpo diferente é
+  `409 IDEMPOTENCY_KEY_REUSED`. `id_nota` já ligado a outra nota da empresa é
+  `409 NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED` (índice único). Sem credencial ativa é `409 NFSE_CREDENTIAL_MISSING`.
+- **Worker, só tentativas de vínculo:** `not_found` → `rejected` `NFSE_EXTERNAL_LINK_NOT_FOUND` (o `id_nota` digitado
+  não existe; em tentativa normal `not_found` segue adiando, decisão 7); `Sucesso` com `valor_servicos` diferente do
+  `serviceAmount` congelado (comparação decimal normalizada) → `rejected` `NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH`; `Falha`
+  → rejeição normal. A consulta passa a expor `valor_servicos`.
+- **Reemissão:** `canReuseProviderDocumentId` devolve `false` quando a última tentativa de emissão é de vínculo
+  (`externalLink === true`): nunca se envia à Nota RP um `id_nota` que o sistema não criou.
+- Sem migration.
+
 ## Alternativas rejeitadas
 
 - **Versão só pela variável de ambiente:** voltar à v2 quebraria as notas v3 e a virada deixaria as

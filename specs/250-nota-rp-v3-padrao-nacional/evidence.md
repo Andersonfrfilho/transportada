@@ -421,3 +421,11 @@ desabilitado com a mensagem do campo visível. Defeito achado e corrigido (commi
 (`bulkReissue.missingNationalTaxation`, `role="alert"`) usava `.placeholder` (cinza apagado) e passava despercebido; agora
 usa `.emissionError` (`--color-alert`). Gates (de `apps/frontend-transportada`): typecheck 0 erros · lint 0 erros ·
 `bun run test` 0 fail (`nfse-invoice` 1104 pass) · prettier limpo.
+
+## E23 — T5.1: desenho do vínculo de nota externa (07/10/2026)
+
+Desenho feito pelo architect (opus) e gravado na ADR 0098 § "Desenho do vínculo (T5.1)": ação `link`
+(`POST /v1/nfse-service-invoices/:id/external-link`, `nfse.issue`), só `rejected|failed`, tentativa `accepted` sem
+outbox, auditoria com ator, idempotência por chave, `id_nota` único por empresa, e no worker `not_found` e valor
+divergente rejeitam só tentativas de vínculo. Desvio da decisão 10: vai a `pending_authorization` e o status pull
+autoriza (XML, PDF e cancelamento só existem depois da consulta). Sem código nesta task.
