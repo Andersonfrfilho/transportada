@@ -10,6 +10,16 @@ export const SPREADSHEET_COLORS = {
   white: '#FFFFFF',
 } as const
 
+/** Chaves iguais às da situação da linha na API (`TRIP_REPORT_TONES`): as apps não compartilham código. */
+export const SPREADSHEET_ROW_TONES = {
+  finished: '#CDEBD3',
+  on_route: '#E4D7F5',
+  total_return: '#CFF1EE',
+  warehouse: '#FFFFFF',
+} as const
+
+export type SpreadsheetRowTone = keyof typeof SPREADSHEET_ROW_TONES
+
 export type SpreadsheetColumn = Readonly<{
   align?: 'center' | 'left' | 'right'
   /** Formato do Excel (`#,##0`, `0.0`, `@`): números continuam somáveis. */
@@ -21,12 +31,20 @@ export type SpreadsheetColumn = Readonly<{
 
 export type SpreadsheetCellValue = number | string
 
+export type SpreadsheetToneRow = Readonly<{
+  cells: readonly SpreadsheetCellValue[]
+  tone?: SpreadsheetRowTone
+}>
+
+/** Formato antigo (só as células, zebra) ou com tom opcional. */
+export type SpreadsheetRowInput = readonly SpreadsheetCellValue[] | SpreadsheetToneRow
+
 export type SpreadsheetLayoutInput = Readonly<{
   columns: readonly SpreadsheetColumn[]
   /** Linhas do timbre abaixo do nome (CNPJ e endereço, telefone, exportação), já compostas. */
   infoLines: readonly string[]
   letterheadName: string
-  rows: readonly (readonly SpreadsheetCellValue[])[]
+  rows: readonly SpreadsheetRowInput[]
   title: string
 }>
 
@@ -101,17 +119,31 @@ function buildHeaderRow(columns: readonly SpreadsheetColumn[]): SheetRow {
   }))
 }
 
+function isToneRow(row: SpreadsheetRowInput): row is SpreadsheetToneRow {
+  return !Array.isArray(row)
+}
+
+function resolveRowBackground(
+  input: Readonly<{ isBanded: boolean; tone: SpreadsheetRowTone | undefined }>,
+): string {
+  if (input.tone !== undefined) return SPREADSHEET_ROW_TONES[input.tone]
+  return input.isBanded ? SPREADSHEET_COLORS.band : SPREADSHEET_COLORS.white
+}
+
 function buildBodyRow(
   input: Readonly<{
     columns: readonly SpreadsheetColumn[]
     isBanded: boolean
     row: readonly SpreadsheetCellValue[]
+    tone: SpreadsheetRowTone | undefined
   }>,
 ): SheetRow {
+  const backgroundColor = resolveRowBackground(input)
+
   return input.columns.map((column, index) => ({
     align: typeof input.row[index] === 'number' ? 'right' : (column.align ?? 'left'),
     alignVertical: 'center',
-    backgroundColor: input.isBanded ? SPREADSHEET_COLORS.band : SPREADSHEET_COLORS.white,
+    backgroundColor,
     borderColor: SPREADSHEET_COLORS.border,
     borderStyle: 'thin',
     ...(column.format === undefined ? {} : { format: column.format }),
@@ -129,7 +161,12 @@ export function buildSpreadsheetLayout(input: SpreadsheetLayoutInput): Spreadshe
   const letterhead = buildLetterheadRows(input)
   const header = buildHeaderRow(input.columns)
   const body = input.rows.map((row, index) =>
-    buildBodyRow({ columns: input.columns, isBanded: index % 2 === 1, row }),
+    buildBodyRow({
+      columns: input.columns,
+      isBanded: index % 2 === 1,
+      row: isToneRow(row) ? row.cells : row,
+      tone: isToneRow(row) ? row.tone : undefined,
+    }),
   )
 
   return {

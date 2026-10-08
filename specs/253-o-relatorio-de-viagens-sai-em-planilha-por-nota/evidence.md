@@ -61,3 +61,10 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - Desvios: (1) o PDF é montado em Buffer e embrulhado em `ReadableStream`, não é stream de verdade (`bufferPages` precisa de todas as páginas para o "Página X de N"); as imagens são lidas uma a uma. (2) O teto de 200 conta notas (linhas do relatório), não canhotos. (3) `exportTripProofPdf` virou dependência obrigatória da rota; os dois chamadores existentes ganharam stub que lança. (4) Sem rate limit: a rota não envia e-mail nem tem custo externo.
 - Commits: ver `git log --grep "spec 253 T2.4"`.
 - Correção do teto (RF12): o desvio (2) acima foi superado — o use case recusa por nota (pré-checagem barata) e, depois de buscar os canhotos, conta os BLOCOS (canhotos anexados + notas sem canhoto) e lança `TripProofReportTooLargeError` acima de 200. Testes: 150 notas × 2 canhotos → recusa; 200 blocos exatos → ok. `trip-proof-pdf` + `trip-report-http` → 41 pass, 0 fail; typecheck e lint limpos.
+
+## T3.1 — cor por linha no layout da planilha (sonnet)
+
+- Teste primeiro: `test/shared/spreadsheet-row-tone.contract.ts` (registrado em `test/shared.contract.test.ts`) falhou antes (export inexistente) e passa depois: quatro tons com as chaves da API, linha tonalizada sem zebra, linha sem tom mantém zebra (formato novo e antigo), tom não muda valor/alinhamento/formato, índice da zebra preservado.
+- `SPREADSHEET_ROW_TONES` (`warehouse #FFFFFF`, `on_route #E4D7F5`, `finished #CDEBD3`, `total_return #CFF1EE`) e `SpreadsheetRowTone` em `spreadsheetLayout.service.ts`; `rows` aceita `{ cells, tone? }` ou o array antigo (guarda `isToneRow`, não `Array.isArray` direto: ele não estreita `readonly` array). O writer não mudou: a cor vai na célula (`backgroundColor`) e o writer já repassa `sheetData`.
+- `bun run test` (cwd=apps/frontend-transportada) → 7585 pass + 1104 pass (hooks), 0 fail; exportadores existentes sem alteração. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes, nenhum em spreadsheet).
+- Commit: ver `git log --grep "spec 253 T3.1"`.
