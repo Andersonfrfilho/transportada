@@ -38,7 +38,7 @@ Postgres):
   emite um `logger.info('driver_client_diagnostic', …)` por evento via `safeLogInfo`. Sem repositório.
 - Constantes (`trips.constant.ts`): `DRIVER_CLIENT_DIAGNOSTIC_LOG_MESSAGE`, nomes dos enums, limites
   (`MAX_DIAGNOSTIC_EVENTS_PER_REQUEST`), código `CLIENT_DIAGNOSTICS_INVALID`.
-- Resposta `204`. `429` pelo limite C5. OpenAPI derivado da definição da rota.
+- Resposta `204`. `429` pelo limite C5. Sem OpenAPI: a API não o gera hoje (documentar em `docs/ai-context/api-transportada.md`).
 
 ### 2. Coletor no `frontend-driver`
 

@@ -89,7 +89,7 @@ entra na fila de eventos, não conta em `attempts`, não gera aviso ao motorista
 **RF6 — Rota de diagnóstico.** `POST /v1/me/client-diagnostics`: Bearer, permissão `trip.report`
 (a mesma da posição ao vivo), `companyId` do contexto autenticado, nunca do corpo. Corpo `.strict()`
 em Zod, todos os erros juntos, `400` com código estável; limite de requisições (C5) com `429` +
-`Retry-After`. Responde `204`. Entra no OpenAPI/Scalar, com o teste "toda rota aparece no documento".
+`Retry-After`. Responde `204`. A API ainda não gera OpenAPI/Scalar (conferido na T1.2): a rota entra na documentação de rotas em `docs/ai-context/api-transportada.md`; criar o gerador está fora desta spec.
 
 **RF7 — Log da API.** Um `logger.info` por evento, mensagem constante `driver_client_diagnostic`,
 metadados: `companyId`, `membershipId`, `eventKind`, `step`, `durationMs`, `failureKind`, `httpStatus`,
@@ -133,4 +133,4 @@ ao previsto pela fórmula; "Enviar agora" ignora o espaçamento; `403`/`500` seg
 - **CA3** — 20 ticks com rede caída fazem menos pedidos que 20, conforme a fórmula de C1–C3.
 - **CA4** — `online`/"Enviar agora" drenam imediatamente com item em espera.
 - **CA5** — Falha ao enviar diagnóstico não altera o resultado da baixa nem `attempts`.
-- **CA6** — `make check` verde nas duas apps de front e na API; rota no documento OpenAPI.
+- **CA6** — `make check` verde nas duas apps de front e na API; rota documentada em `docs/ai-context/api-transportada.md`.

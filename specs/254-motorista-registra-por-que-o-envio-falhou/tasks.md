@@ -33,7 +33,7 @@ arquivo.
 - [ ] **T1.2** Contrato da API (`apps/api-transportada/test/me-client-diagnostics.contract.ts` + entrypoint):
       corpo válido → `204` e um log por evento; corpo com campo extra → `400` (`.strict()`); todos os erros
       juntos; `companyId` do corpo ignorado/rejeitado; sem permissão → `403`; limite C5 → `429` com
-      `Retry-After`; rota presente no documento OpenAPI; log sem URL assinada/observação/coordenada (CA2).
+      `Retry-After`; teto C5 declarado na rota (o 429 do roteador já é coberto em `test/rate-limit/router.contract.ts`); log sem URL assinada/observação/coordenada (CA2).
       Aceite: falha por rota inexistente (vermelho esperado).
 - [ ] **T1.3** Contrato do backoff, estendendo `occurrence-upload-retry-loop.contract.ts` (RF10/CA3/CA4):
       `computeRetryDelayMs` (30 s × 2, teto 10 min, jitter fixado); 20 ticks com rede caída fazem menos de 20
@@ -60,7 +60,7 @@ arquivo.
       (molde de `me-location.routes.ts`: `defineRoute`, `parseBody` `.strict()`, política `trip.report`
       `scope: company`, balde de limite C5, `204`). Registrar a rota no roteador.
       Sem `resolveDriver`; limite C5 por configuração do balde; lista de campos permitidos no caso de uso.
-      Gate: T1.2 verde; teste "toda rota aparece no OpenAPI" verde.
+      Gate: T1.2 verde.
 - [ ] **T2.3** Atualizar docs (`docs/spec/` da API se houver contrato de rotas; `apps/api-transportada/CLAUDE.md`
       só se mudar regra normativa; `docs/ai-context/api-transportada.md` com a rota) — code-standart §14.
 
