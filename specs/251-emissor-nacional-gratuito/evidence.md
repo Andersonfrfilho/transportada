@@ -242,3 +242,30 @@ A1 de produção da transportadora liberado pelo usuário para leitura em produ�
 - Arquivo: `docs/adr/0099-a-nfse-fala-o-sistema-nacional.md` (Status: proposto; 0099 livre em `origin/staging`, 0100 existe).
 - Decisões-chave: `accepted` com `chaveAcesso` + pull autoriza (sem estado novo), `HEAD /dps/{id}` antes de todo `POST`; `national` por tentativa e remoção da Nota RP na T4.2b; A1 com finalidade `nfse`; `nDPS` pela ADR-0005 na API; staging emite em produção restrita; DANFSe no worker; parametrização do ADN no congelamento; sonda T2.3b; limitador reaproveitado.
 - Para o architect: HEAD-antes-do-POST e `403` como `rejected`; `409` na divergência de alíquota ADN × perfil; finalidade `nfse` × certificado `cte`; DANFSe no worker sem leiaute oficial.
+
+## Levantamento de 08/10/2026 — obrigatoriedade, custo e canal (fontes secundárias; conferir no DOU)
+
+- **Resolução CGSN nº 191/2026** (publicada em 04/08/2026; altera a Res. CGSN 140/2018; revoga a 189/2026 que fixava
+  01/09/2026): ME e EPP optantes do **Simples Nacional** emitem NFS-e **pelo Emissor Nacional, via aplicação web ou por
+  integração via API, a partir de 01/11/2026**. Fontes concordantes, todas contábeis (nenhuma cita o DOU): Fenacon,
+  CRC-SP, CRC-MS, LegisWeb, COAD, Jornal Contábil. **A transportadora é Simples Nacional**, então a obrigação a atinge e
+  dá base federal ao argumento de que o cadastro municipal (`aderenteEmissorNacional=0`) está atrasado. A obrigação de
+  CBS/IBS é outra e só vale para o Simples em 01/01/2027. **Prazo: faltam 23 dias.**
+- **Custo do ISS.Net em Ribeirão Preto:** CBN Ribeirão, 21/12/2020 — a emissão pelo site da Prefeitura passou a ser
+  paga (MEI R$ 7,90/mês; demais a partir de R$ 29,90/mês, até R$ 149,00 no pacote completo). Dado de **2020**, escrito
+  como "NF-e"; preço atual sem confirmação. Fórum ACBr: acesso à homologação do ISS.Net só mediante contrato.
+- **Prefeitura (29/04/2026):** atualização do **sistema municipal** (ISS.net Online) ao padrão nacional — Código de
+  Tributação Nacional, **NBS** e atividade municipal passam a ser obrigatórios; CNAE e item da LC deixam de ser usados.
+  **Não cita Emissor Nacional, DPS ou webservice.** Página ISS Digital (2020): a Prefeitura não fornece emissor
+  (Decreto 176/2020). **Consequência para a DPS:** `cNBS` provavelmente será cobrada; é opcional no XSD 1.01.
+- **Origem da afirmação "o Emissor Nacional é totalmente gratuito":** texto colado pelo usuário, de origem
+  desconhecida; citava a obrigação do Simples a partir de uma fonte de **Ribeirão Claro/PR**, não de Ribeirão Preto.
+  O fato federal foi conferido acima; a gratuidade por página oficial segue sem prova.
+
+## Sonda T2.3b — preparada (08/10/2026), ainda não enviada
+
+Sonda descartável fora do repositório (scratchpad da sessão): DPS 1.01 validada no XSD oficial (pacote de 09/02/2026,
+com uma cópia local sem as âncoras `^`/`$` do padrão de `TSerieDPS`, que o libxml2 não aceita), assinada com
+`xml-crypto` 6.3.3, `POST /SefinNacional/nfse` em produção restrita. Selftest com certificado autoassinado: DPS
+válida antes e depois de assinada, assinatura verifica em RSA-SHA1 e RSA-SHA256, adulteração rejeitada. O usuário roda
+com o A1 real e digita a senha; nada de segredo em arquivo. Resultado da Sefin: **pendente**.

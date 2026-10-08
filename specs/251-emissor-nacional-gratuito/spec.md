@@ -109,3 +109,10 @@ adaptador de novo, como a ADR-0029 previu.
 - **O A1 de produção da transportadora pode ser usado** para leitura em produção restrita (Swagger e
   parâmetros municipais, só GET). Emissão real continua só na T4.2. **Anderson renova o A1** (vence em
   05/11/2026) e o repassa ao cofre; o alerta D-30 avisa o Anderson.
+
+## Prazo regulatório (08/10/2026)
+
+A Resolução CGSN 191/2026 obriga as optantes do Simples Nacional a emitir NFS-e pelo Emissor Nacional (web ou API) a
+partir de **01/11/2026** (fontes contábeis; conferir no DOU). A transportadora é Simples. Isso torna esta spec
+**prazo-crítico**: o caminho por provedor (Nota RP) deixa de ser o destino, e a sonda T2.3b decide se o cadastro
+municipal (`aderenteEmissorNacional=0`) bloqueia a emissão direta antes de qualquer migration.
