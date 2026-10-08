@@ -118,10 +118,7 @@ function countSettled(input: {
     input.counters.examined += 1
     if (result.status === 'rejected') {
       input.counters.failed += 1
-      const reason =
-        result.reason instanceof Error
-          ? `${result.reason.name}: ${result.reason.message.slice(0, 60)}`
-          : 'UnknownError'
+      const reason = result.reason instanceof Error ? result.reason.name : 'UnknownError'
       input.failureReasons[reason] = (input.failureReasons[reason] ?? 0) + 1
     } else if (result.value === 'filled') input.counters.filled += 1
     else if (result.value === 'rejected') input.counters.rejected += 1
