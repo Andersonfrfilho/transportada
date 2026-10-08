@@ -255,4 +255,27 @@ describe('NFS-e reconciliation outcome from an externally linked invoice', () =>
       kind: 'reject',
     })
   })
+
+  test('does not apply the link checks to a linked note being cancelled: not_found defers', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: { cause: 'not_found', status: 'error' },
+        storedStatus: 'cancellation_requested',
+      }),
+    ).toEqual({ cause: 'not_found', kind: 'defer' })
+  })
+
+  test('does not reject a linked note being cancelled over an amount mismatch', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: {
+          document: { ...AUTHORIZED_DOCUMENT, serviceAmount: '1500.01' },
+          status: 'authorized',
+        },
+        storedStatus: 'cancellation_requested',
+      }),
+    ).toEqual({ cause: 'cancellation_pending', kind: 'reschedule' })
+  })
 })

@@ -76,7 +76,7 @@ export function resolveNfseReconciliationDecision(input: {
   readonly provider: NfseProviderStatusFacts
   readonly storedStatus: NfseReconciliationSourceStatus
 }): NfseReconciliationDecision {
-  if (input.externalLink !== undefined) {
+  if (input.externalLink !== undefined && input.storedStatus === 'pending_authorization') {
     const linkDecision = resolveExternalLinkRejection({
       externalLink: input.externalLink,
       provider: input.provider,
