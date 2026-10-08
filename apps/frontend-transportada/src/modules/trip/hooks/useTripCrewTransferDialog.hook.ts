@@ -13,6 +13,7 @@ import {
 } from '../shared/tripCrewHelpers.service'
 import {
   buildTransferTripCrewInput,
+  readCurrentMembers,
   resolveCrewTransferBlocker,
   resolveCrewTransferErrorKey,
   resolveCrewTransferOutcome,
@@ -119,10 +120,12 @@ export function useTripCrewTransferDialog(input: TripCrewTransferDialogInput) {
   return {
     blocker,
     canSubmit: blocker === undefined && !isSubmitting,
+    currentMembers: readCurrentMembers(input.trip),
     driverCandidates,
     driverIds,
     errorKey,
     helperCandidates,
+    hasChanges: summary.entering.length > 0 || summary.leaving.length > 0,
     helperIds,
     isSubmitting,
     outcome,

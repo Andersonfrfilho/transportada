@@ -1,6 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isRecord, isString } from './nfseInvoiceGuards.validation'
 import {
+  findNationalTaxationFieldErrors,
+  formatSimplesNationalRate,
+  toNationalTaxationCode,
+  toSimplesNationalRate,
+} from './nfseNationalTaxation.service'
+import {
   NFSE_ISS_EXIGIBILITIES,
   NFSE_TAKERS,
   type NfseEmissionProfileSettings,
@@ -16,7 +22,9 @@ export const NFSE_PROFILE_BLOCK_REASON = {
   ISS_RATE_INVALID: 'issRateInvalid',
   MUNICIPALITY_INVALID: 'municipalityInvalid',
   NAME_REQUIRED: 'nameRequired',
+  NATIONAL_TAXATION_CODE_INVALID: 'nationalTaxationCodeInvalid',
   SERVICE_LIST_ITEM_REQUIRED: 'serviceListItemRequired',
+  SIMPLES_NATIONAL_RATE_INVALID: 'simplesNationalRateInvalid',
 } as const
 export type NfseProfileBlockReason =
   (typeof NFSE_PROFILE_BLOCK_REASON)[keyof typeof NFSE_PROFILE_BLOCK_REASON]
@@ -55,9 +63,11 @@ export type NfseProfileDraft = Readonly<{
   municipalityIbgeCode: string
   municipalityName: string
   name: string
+  nationalTaxationCode: string
   nbsCode: string
   observations: string
   serviceListItem: string
+  simplesNationalRate: string
   taker: NfseTaker
 }>
 
@@ -78,9 +88,11 @@ export const EMPTY_NFSE_PROFILE_DRAFT: NfseProfileDraft = {
   municipalityIbgeCode: '',
   municipalityName: '',
   name: '',
+  nationalTaxationCode: '',
   nbsCode: '',
   observations: '',
   serviceListItem: '',
+  simplesNationalRate: '',
   taker: '0',
 }
 
@@ -136,9 +148,11 @@ export function toNfseProfileDraft(profile: unknown): NfseProfileDraft {
     municipalityIbgeCode: readText(profile['municipalityIbgeCode']),
     municipalityName: readText(profile['municipalityName']),
     name: readText(profile['name']),
+    nationalTaxationCode: readText(profile['nationalTaxationCode']),
     nbsCode: readText(profile['nbsCode']),
     observations: readText(profile['observations']),
     serviceListItem: readText(profile['serviceListItem']),
+    simplesNationalRate: formatSimplesNationalRate(readText(profile['simplesNationalRate'])),
     taker: readOption(profile['taker'], NFSE_TAKERS, '0'),
   }
 }
@@ -176,6 +190,12 @@ export function buildNfseProfileSubmission(draft: NfseProfileDraft): NfseProfile
   )
     return blocked(NFSE_PROFILE_BLOCK_REASON.DESCRIPTION_MAX_LENGTH_INVALID)
 
+  const nationalTaxationErrors = findNationalTaxationFieldErrors(draft)
+  if (nationalTaxationErrors.code)
+    return blocked(NFSE_PROFILE_BLOCK_REASON.NATIONAL_TAXATION_CODE_INVALID)
+  if (nationalTaxationErrors.rate)
+    return blocked(NFSE_PROFILE_BLOCK_REASON.SIMPLES_NATIONAL_RATE_INVALID)
+
   return {
     settings: {
       chargeComponentLabel: draft.chargeComponentLabel.trim(),
@@ -190,9 +210,11 @@ export function buildNfseProfileSubmission(draft: NfseProfileDraft): NfseProfile
       municipalityIbgeCode: draft.municipalityIbgeCode.trim(),
       municipalityName,
       name,
+      nationalTaxationCode: toNationalTaxationCode(draft.nationalTaxationCode),
       nbsCode: draft.nbsCode.trim(),
       observations: draft.observations.trim(),
       serviceListItem,
+      simplesNationalRate: toSimplesNationalRate(draft.simplesNationalRate),
       taker: draft.taker,
     },
     status: 'ready',

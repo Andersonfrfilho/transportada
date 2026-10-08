@@ -31,9 +31,11 @@ const PROFILE_SETTINGS_KEYS = [
   'municipalityIbgeCode',
   'municipalityName',
   'name',
+  'nationalTaxationCode',
   'nbsCode',
   'observations',
   'serviceListItem',
+  'simplesNationalRate',
   'taker',
 ] as const
 
@@ -99,6 +101,8 @@ const PANEL_LABEL_KEYS = [
   'nfseProfileBlockedIssRateInvalid',
   'nfseProfileBlockedDescriptionTemplateRequired',
   'nfseProfileBlockedDescriptionMaxLengthInvalid',
+  'nfseProfileBlockedNationalTaxationCodeInvalid',
+  'nfseProfileBlockedSimplesNationalRateInvalid',
 ] as const
 
 type ProfileSettingsContract = Readonly<{
@@ -114,9 +118,11 @@ type ProfileSettingsContract = Readonly<{
   municipalityIbgeCode: string
   municipalityName: string
   name: string
+  nationalTaxationCode: null | string
   nbsCode: string
   observations: string
   serviceListItem: string
+  simplesNationalRate: null | string
   taker: string
 }>
 
@@ -133,9 +139,11 @@ const PROFILE_SETTINGS = {
   municipalityIbgeCode: '3543402',
   municipalityName: 'Município Sintético',
   name: 'Perfil Sintético',
+  nationalTaxationCode: null,
   nbsCode: '',
   observations: '',
   serviceListItem: '16.02',
+  simplesNationalRate: null,
   taker: '0',
 } as const satisfies ProfileSettingsContract
 

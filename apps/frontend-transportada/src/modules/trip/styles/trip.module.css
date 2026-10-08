@@ -276,6 +276,9 @@
 }
 
 .statusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-compact);
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   font-family: var(--font-utility);
@@ -2110,6 +2113,27 @@ button.occurrenceCaseBadge {
   align-content: end;
 }
 
+.settlementField input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+}
+
+.settlementField input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.settlementField input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
 .settlementFieldLabel {
   color: var(--color-slate);
   font-size: 0.8rem;
@@ -3615,6 +3639,13 @@ button.occurrenceCaseBadge {
   margin: 0;
 }
 
+.reportExportBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* A contagem selecionada pesa mais que a da página: é ela que diz o que a ação vai atingir. */
 .bulkCount {
   font-weight: 600;
@@ -4370,6 +4401,45 @@ button.occurrenceCaseBadge {
   border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
 }
 
+/* Cada ocorrência é um cartão: borda, fundo e filete lateral dizem onde começa e onde termina. */
+.occurrenceEntryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  font-size: 0.8rem;
+}
+
+.occurrenceEntry {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  border-left: 3px solid var(--color-copper);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-fog) 4%, transparent);
+  padding: var(--space-3);
+  min-width: 0;
+}
+
+.occurrenceEntry > * {
+  margin: 0;
+}
+
+.occurrenceEntryMoment {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--color-fog) 70%, var(--color-slate) 30%);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.occurrenceEntryAuthorship {
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  padding-top: var(--space-2);
+  color: color-mix(in srgb, var(--color-fog) 70%, var(--color-slate) 30%);
+  font-size: 0.75rem;
+}
+
 .occurrenceEntryHeader {
   display: flex;
   flex-wrap: wrap;
@@ -4381,6 +4451,11 @@ button.occurrenceCaseBadge {
 .occurrenceEntryType {
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.occurrenceEntryTypeIcon {
+  margin-inline-end: var(--space-1);
+  vertical-align: text-bottom;
 }
 
 .occurrenceEntryLink {
@@ -4399,17 +4474,25 @@ button.occurrenceCaseBadge {
 
 .occurrenceEntryItems {
   list-style: none;
-  margin: var(--space-1) 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-fog) 5%, transparent);
+  overflow: hidden;
 }
 
 .occurrenceEntryItems > li {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.occurrenceEntryItems > li + li {
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
 }
 
 /* O código é etiqueta, não texto: largura própria para os itens alinharem entre si. */
@@ -4425,9 +4508,10 @@ button.occurrenceCaseBadge {
   min-width: 0;
 }
 
-/* A contagem é o número que decide a tratativa — ela não pode ler como detalhe secundário. */
+/* A contagem é o número que decide a tratativa — fica à direita, sempre no mesmo lugar. */
 .occurrenceEntryItemQuantity {
-  border: 1px solid color-mix(in srgb, var(--color-fog) 26%, transparent);
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   border-radius: var(--radius-sm, 0.25rem);
   padding: 0 var(--space-2);
   font-size: 0.78rem;
@@ -4435,9 +4519,62 @@ button.occurrenceCaseBadge {
   white-space: nowrap;
 }
 
+/* O total da linha fecha a leitura à direita; o unitário vai embaixo, em segundo plano. */
+.occurrenceEntryItemAmount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.occurrenceEntryItemDeclared {
+  flex-basis: 100%;
+  padding-left: 4rem;
+  color: var(--color-copper);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.occurrenceEntryTotals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  font-size: 0.8rem;
+}
+
+.occurrenceEntryTotals dt {
+  color: color-mix(in srgb, var(--color-fog) 70%, var(--color-slate) 30%);
+}
+
+.occurrenceEntryTotals dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.occurrenceEntryTotalDeclared {
+  color: var(--color-copper);
+}
+
+.occurrenceEntryItemUnitValue {
+  flex-basis: 100%;
+  padding-left: 4rem;
+  color: color-mix(in srgb, var(--color-fog) 70%, var(--color-slate) 30%);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "A nota inteira" é escopo, não item: vira etiqueta, não frase solta. */
 .occurrenceEntryWhole {
-  margin: var(--space-1) 0 0;
-  font-style: italic;
+  justify-self: start;
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 45%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0 var(--space-2);
+  font-size: 0.78rem;
   color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
 }
 
@@ -5239,4 +5376,65 @@ button.occurrenceCaseBadge {
   display: grid;
   gap: var(--space-1);
   align-content: start;
+}
+
+.reportFilters {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.reportAmountRow {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr);
+}
+
+.reportFilters legend {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  padding-inline: var(--space-1);
+}
+
+.reportField {
+  align-content: start;
+  display: grid;
+  font-size: 0.85rem;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.crewTransferSummary {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.crewTransferSummary p {
+  margin: 0;
+}
+
+.crewTransferLeaving strong {
+  color: var(--color-alert-ink);
+}
+
+.crewTransferEntering strong {
+  color: var(--color-ready);
+}
+
+.crewTransferForm {
+  grid-template-columns: 1fr;
+}
+
+.crewTransferRoles {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crewTransferRoles span {
+  color: var(--color-slate);
 }

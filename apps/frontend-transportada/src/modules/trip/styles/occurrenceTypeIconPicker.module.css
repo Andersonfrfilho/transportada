@@ -1,0 +1,49 @@
+.picker {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.label {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.option {
+  min-width: var(--control-height-compact);
+  min-height: var(--control-height-compact);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-fog);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.option[aria-pressed='true'] {
+  border-color: var(--color-copper);
+  color: var(--color-copper);
+}
+
+.option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}

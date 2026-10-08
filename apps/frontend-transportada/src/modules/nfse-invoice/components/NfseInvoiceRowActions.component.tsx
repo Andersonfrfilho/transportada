@@ -72,6 +72,18 @@ export function NfseInvoiceRowActions({ actions, invoice }: NfseInvoiceRowAction
           <Icon name="refresh" />
         </button>
       )}
+      {state.isExternalLinkVisible && (
+        <button
+          aria-label={t('rowActions.externalLink')}
+          className={styles.iconAction}
+          disabled={!state.isExternalLinkEnabled}
+          onClick={() => actions.openExternalLink(invoice)}
+          title={t('rowActions.externalLink')}
+          type="button"
+        >
+          <Icon name="link" />
+        </button>
+      )}
       {state.isDiscardVisible && (
         <button
           aria-label={t('rowActions.discard')}

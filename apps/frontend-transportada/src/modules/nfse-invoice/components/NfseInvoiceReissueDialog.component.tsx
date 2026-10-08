@@ -10,7 +10,9 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { NfseInvoiceRowActionsController } from '../hooks/useNfseInvoiceRowActions.hook'
 import styles from '../styles/nfseInvoice.module.css'
+import { selectNfseReissueFailureKey } from '../shared/nfseNationalTaxation.service'
 import { NFSE_ISS_EXIGIBILITIES, type NfseIssExigibility } from '../shared/nfseSettings.types'
+import { NfseNationalTaxationFields } from './NfseNationalTaxationFields.component'
 
 type NfseInvoiceReissueDialogProps = Readonly<{
   actions: NfseInvoiceRowActionsController
@@ -27,6 +29,11 @@ const ISS_EXIGIBILITY_LABEL_KEYS: Readonly<Record<NfseIssExigibility, string>> =
 }
 
 const DESCRIPTION_ROWS = 3
+const NATIONAL_TAXATION_CLASS_NAMES = {
+  error: styles.emissionError,
+  field: styles.emissionField,
+  hint: styles.emissionHint,
+} as const
 
 export function NfseInvoiceReissueDialog({ actions }: NfseInvoiceReissueDialogProps) {
   const { t } = useTranslation('nfseInvoice')
@@ -118,6 +125,13 @@ export function NfseInvoiceReissueDialog({ actions }: NfseInvoiceReissueDialogPr
                 />
               </label>
 
+              <NfseNationalTaxationFields
+                classNames={NATIONAL_TAXATION_CLASS_NAMES}
+                disabled={isFieldsDisabled}
+                onChange={actions.setReissueField}
+                values={actions.reissueNationalTaxationValues}
+              />
+
               <label className={styles.emissionField}>
                 <span>{t('reissueDialog.nbsCode')}</span>
                 <input
@@ -191,7 +205,7 @@ export function NfseInvoiceReissueDialog({ actions }: NfseInvoiceReissueDialogPr
 
         {actions.reissueErrorCode !== null && (
           <p className={styles.placeholder} role="alert">
-            {t('reissueDialog.failed')}
+            {t(selectNfseReissueFailureKey(actions.reissueErrorCode))}
           </p>
         )}
 
@@ -202,7 +216,11 @@ export function NfseInvoiceReissueDialog({ actions }: NfseInvoiceReissueDialogPr
           </button>
           <button
             className={styles.primaryAction}
-            disabled={lastPayload === null || actions.isReissuePending}
+            disabled={
+              lastPayload === null ||
+              actions.isReissuePending ||
+              !actions.isReissueNationalTaxationValid
+            }
             onClick={actions.confirmReissue}
             type="button"
           >

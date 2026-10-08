@@ -13,7 +13,11 @@ import {
   type OccurrenceType,
 } from './occurrence.constant'
 import { resolveOccurrenceMoments } from './occurrenceMoments.service'
-import type { OccurrenceRequirementField } from './occurrenceRequirement.constant'
+import { readOccurrenceRecordFields } from './occurrenceRecordFields.service'
+import type {
+  OccurrenceRecordField,
+  OccurrenceRequirementField,
+} from './occurrenceRequirement.constant'
 
 export type OccurrenceRequirementScope = Readonly<{
   /** Os campos que uma exceção deste tipo pode declarar: os do momento, sem olhar o que a API mandou. */
@@ -26,6 +30,8 @@ export type OccurrenceRequirementScope = Readonly<{
   isMixed: boolean
   /** Só chegada à parada: o app cobra a foto e mais nada. */
   isStopOnly: boolean
+  /** Spec 247 RF3: o número e o valor pago valem na nota e no escritório — e só os que a API trouxe. */
+  recordFields: readonly OccurrenceRecordField[]
   /** Os campos que a tela edita: os do momento que a resposta da API também trouxe. */
   typeFields: readonly OccurrenceRequirementField[]
 }>
@@ -64,6 +70,7 @@ export function readOccurrenceRequirementScope(type: OccurrenceType): Occurrence
     hasPhotoMinimum: hasDocument && type.photoMinimumCount !== undefined,
     isMixed: hasSeparation && hasStreet,
     isStopOnly: hasStop && !hasDocument && !hasSeparation,
+    recordFields: hasDocument || moments.includes('office') ? readOccurrenceRecordFields(type) : [],
     typeFields: exceptionFields.filter((field) => isPresent[field]),
   }
 }

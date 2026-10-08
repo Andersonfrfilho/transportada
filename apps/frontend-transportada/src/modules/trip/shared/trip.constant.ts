@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { OCCURRENCE_CORRECTION_ERROR } from './occurrence.constant'
-import { OCCURRENCE_TYPE_MOMENTS_ERROR } from './occurrenceMoment.constant'
+import {
+  OCCURRENCE_TYPE_DECLARED_AMOUNT_ERROR,
+  OCCURRENCE_TYPE_MOMENTS_ERROR,
+} from './occurrenceMoment.constant'
 
 export const TRIPS_PATH = '/trips'
 
@@ -195,6 +198,14 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   [OCCURRENCE_TYPE_MOMENTS_ERROR.REQUIRED]: 'occurrenceTypeMomentsRequired',
   [OCCURRENCE_TYPE_MOMENTS_ERROR.DOCUMENT_AND_STOP]: 'occurrenceTypeMomentsDocumentAndStop',
   [OCCURRENCE_TYPE_MOMENTS_ERROR.STAGE_CONFLICT]: 'occurrenceTypeMomentsStageConflict',
+  /** Spec 247 RF1: valor pago por linha em tipo sem produtos — a tela antecipa, o servidor é a rede de segurança. */
+  [OCCURRENCE_TYPE_DECLARED_AMOUNT_ERROR.NEEDS_ITEMS]: 'occurrenceTypeDeclaredAmountNeedsItems',
+  /** Spec 247 RF13: a correção com valor da ocorrência e de linha juntos — a tela não deixa, o servidor recusa. */
+  [OCCURRENCE_CORRECTION_ERROR.DECLARED_AMOUNT_SELECTION_CONFLICT]:
+    'declaredAmountSelectionConflict',
+  /** Spec 247 RF14 (T7.2): a correção que limpa o que o tipo exige diz qual campo falta, e o que fazer. */
+  [OCCURRENCE_CORRECTION_ERROR.REFERENCE_NUMBER_REQUIRED]: 'occurrenceReferenceNumberRequired',
+  [OCCURRENCE_CORRECTION_ERROR.DECLARED_AMOUNT_REQUIRED]: 'occurrenceDeclaredAmountRequired',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
@@ -290,7 +301,18 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'freightAmount',
   'freightRuleName',
   'freightSource',
+  /** Spec 236 T1.2b: ausente é API anterior; `null` é "sem prazo"; malformado cai sozinho (ver a guarda). */
+  'deliveryDeadline',
 ] as const
+
+/** Spec 236: as chaves exatas de cada estado do prazo de entrega — o que a API serializa, nada além. */
+export const TRIP_DELIVERY_DEADLINE_KEYS_BY_STATE = {
+  delivered_late: ['businessDaysLate', 'deliveredOn', 'dueOn', 'state'],
+  delivered_on_time: ['deliveredOn', 'dueOn', 'state'],
+  due_today: ['dueOn', 'state'],
+  on_time: ['businessDaysRemaining', 'dueOn', 'state'],
+  overdue: ['businessDaysLate', 'dueOn', 'state'],
+} as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
 export const TRIP_STOP_OPTIONAL_KEYS = [
@@ -300,6 +322,8 @@ export const TRIP_STOP_OPTIONAL_KEYS = [
   'latitude',
   'longitude',
   'state',
+  /** Spec 252 (ADR-0100 §6): avisos de feriado nas paradas. Campo novo nasce ausente (spec 078 D2). */
+  'holidayWarnings',
 ] as const
 
 export const TRIP_STOP_KEYS = [
@@ -471,6 +495,8 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
    */
   'typeAllowsMultipleItems',
   'typeItemsMode',
+  /** Spec 255 RF6: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  'typeIconName',
 ] as const
 
 /**
@@ -513,6 +539,7 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'declaredAmountScope',
   /** Spec 246 (ADR-0081 §9, painel antes da API): os modos resolvidos da nota e os mínimos. */
   'flow',
+  'iconName',
   'itemsMinimumCount',
   'itemsMode',
   'noteMode',
@@ -557,6 +584,8 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   'addressChange',
   'crewTransfer',
+  /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
+  'isSystemActor',
   'lateRegistration',
 ] as const
 

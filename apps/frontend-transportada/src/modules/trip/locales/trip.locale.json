@@ -1,4 +1,5 @@
 {
+  "amountLimit": "Limite de 10 dígitos antes da vírgula: a próxima tecla não entra.",
   "actions": {
     "backToList": "Voltar às viagens",
     "close": "Encerrar viagem",
@@ -460,11 +461,13 @@
       "crewUnchanged": "A tripulação escolhida é igual à atual. Troque ao menos uma pessoa.",
       "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante.",
       "driverRequired": "Escolha ao menos um motorista.",
+      "reasonRequired": "Informe o motivo para concluir.",
       "helperIsDriver": "A mesma pessoa não pode ser motorista e ajudante.",
       "reasonTooLong": "O motivo passa de 500 caracteres."
     },
     "clearAll": "Retirar todos",
-    "drivers": "Motoristas",
+    "current": "Tripulação atual",
+    "drivers": "Quem dirige",
     "driversEmpty": "Não há motorista ativo na frota para escolher.",
     "driversNoMatch": "Nenhum motorista encontrado",
     "driversPlaceholder": "Escolher motoristas",
@@ -479,7 +482,7 @@
       "notAllowed": "Esta viagem não aceita transferência de tripulação agora: só a viagem em andamento pode ser transferida.",
       "unchanged": "A tripulação escolhida é igual à atual. Nada foi alterado."
     },
-    "helpers": "Ajudantes",
+    "helpers": "Quem ajuda",
     "helpersEmpty": "Nenhum ajudante ativo. Cadastre um em Frota › Motoristas ou dê o papel Ajudante em Acesso.",
     "helpersNoMatch": "Nenhum ajudante encontrado",
     "helpersPlaceholder": "Escolher ajudantes",
@@ -497,21 +500,27 @@
       "mdfeDivergence": "O MDF-e autorizado desta viagem segue com o condutor anterior: a troca não altera o manifesto.",
       "same": "O custo da viagem não mudou."
     },
-    "reason": "Motivo da transferência",
+    "reason": "Motivo da transferência (obrigatório)",
+    "roleGroup": {
+      "driver": "Motoristas",
+      "helper": "Ajudantes"
+    },
     "role": {
       "driver": "motorista",
       "helper": "ajudante"
     },
     "search": "Buscar por nome",
     "submit": "Transferir",
-    "subtitle": "A viagem continua de onde está. Só mudam quem dirige e quem ajuda; veículo, rota e paradas ficam como estão, e o custo da tripulação é recalculado.",
+    "subtitle": "Retire quem sai e adicione quem entra. A viagem continua de onde está e o custo é recalculado.",
     "summary": {
-      "line": "{{leaving}} → {{entering}}",
+      "entering": "Entra",
+      "leaving": "Sai",
       "nobody": "ninguém",
-      "title": "Quem sai → quem entra"
+      "none": "Nenhuma troca ainda. Retire ou adicione alguém acima.",
+      "title": "O que vai mudar"
     },
     "title": "Transferir tripulação",
-    "vehicleLocked": "O veículo não muda: a viagem segue com o mesmo caminhão."
+    "vehicleLocked": "O veículo, a rota e as paradas não mudam."
   },
   "dateRange": {
     "clear": "Limpar período",
@@ -1045,10 +1054,14 @@
     "occurrenceCaseDecisionConflict": "Outra decisão diferente já foi registrada para esta tratativa. Recarregue a página para ver o que ficou gravado.",
     "occurrenceCaseRedeliveryNotAllowed": "Esta ocorrência não admite reentrega — escolha outra decisão.",
     "occurrenceCaseNoteRequired": "Informe o motivo da decisão.",
+    "declaredAmountSelectionConflict": "O valor pago por linha e o valor da ocorrência não podem vir juntos. Escolha um nível em \"Digitado\", use \"Limpar\" no outro e salve de novo. Nada foi gravado.",
+    "occurrenceTypeDeclaredAmountNeedsItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado.",
     "occurrenceTypeMomentsRequired": "O tipo precisa de ao menos um momento: sem nenhum ele não apareceria para ninguém. Nada foi gravado.",
-    "occurrenceTypeMomentsDocumentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
+    "occurrenceTypeMomentsDocumentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado.",
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
-    "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro."
+    "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
+    "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
+    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -1069,6 +1082,31 @@
     "removeFilter": "Remover o filtro {{field}}",
     "removeStatus": "Retirar esta situação",
     "removeVehicle": "Retirar este veículo",
+    "report": {
+      "clearSelection": "Limpar seleção",
+      "contractor": "Contratante",
+      "documentStatus": "Situação da nota",
+      "documentStatuses": {
+        "delivered": "Entregue",
+        "loaded": "Carregada",
+        "pending": "Pendente",
+        "returned": "Devolvida",
+        "separated": "Separada"
+      },
+      "hint": "Estes filtros definem só o que entra no relatório exportado; a lista de viagens não muda.",
+      "noContractor": "Sem cadastro",
+      "operator": "Operador",
+      "recipientCity": "Cidade destino",
+      "recipientState": "UF destino",
+      "removeSelection": "Retirar esta seleção",
+      "search": "Nota",
+      "searchEmpty": "Nada encontrado",
+      "searchPlaceholder": "Buscar",
+      "selectedSummary": "{{count}} selecionado",
+      "selectedSummary_other": "{{count}} selecionados",
+      "title": "Filtros do relatório",
+      "value": "Valor"
+    },
     "status": "Situação",
     "statusClearAll": "Retirar todas",
     "statusEmpty": "Nenhuma situação encontrada",
@@ -1180,6 +1218,44 @@
     "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
   },
+  "deadlineFilter": {
+    "ariaLabel": "Prazo de entrega",
+    "clear": "Limpar filtros",
+    "clearAll": "Limpar seleção",
+    "empty": "Nenhuma situação encontrada",
+    "option": {
+      "delivered": "Entregues",
+      "due_today": "Vencem hoje",
+      "none": "Sem prazo",
+      "on_time": "No prazo",
+      "overdue": "Vencidas"
+    },
+    "optionWithCount": "{{label}} ({{count}})",
+    "placeholder": "Todas as notas",
+    "remove": "Remover situação do prazo",
+    "searchPlaceholder": "Buscar situação",
+    "shownCount_one": "{{shown}} de {{count}} nota",
+    "shownCount_other": "{{shown}} de {{count}} notas",
+    "stopEmpty": "Nenhuma nota desta parada corresponde ao filtro.",
+    "summary_one": "{{count}} situação",
+    "summary_other": "{{count}} situações"
+  },
+  "deliveryDeadline": {
+    "dueOnHint": "Prazo de entrega até {{date}}",
+    "field": "Prazo de entrega",
+    "label": {
+      "deliveredLate": "Entregue fora do prazo",
+      "deliveredLateWithDays_one": "Entregue com {{count}} dia útil de atraso",
+      "deliveredLateWithDays_other": "Entregue com {{count}} dias úteis de atraso",
+      "deliveredOnTime": "Entregue no prazo",
+      "dueToday": "Vence hoje",
+      "onTime_one": "Vence em {{count}} dia útil",
+      "onTime_other": "Vence em {{count}} dias úteis",
+      "overdue": "Vencida",
+      "overdueWithDays_one": "Vencida há {{count}} dia útil",
+      "overdueWithDays_other": "Vencida há {{count}} dias úteis"
+    }
+  },
   "proofPending": {
     "badge": "Canhoto pendente",
     "hint": "Nota baixada sem canhoto, e a configuração da empresa exige o canhoto. A cobrança segue pendente até o canhoto chegar."
@@ -1239,6 +1315,12 @@
       "documentAlt": "Documento PDF anexado"
     },
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
+    "itemAmount": "R$ {{amount}}",
+    "totalDocument": "Total da nota",
+    "totalItems": "Total dos itens",
+    "totalDeclared": "Cliente pagou",
+    "itemDeclaredAmount": "Cliente pagou R$ {{amount}}",
+    "itemUnitValue": "R$ {{amount}} cada",
     "product": "Item da nota",
     "register": "Registrar ocorrência",
     "sendStatus": {
@@ -1529,7 +1611,7 @@
     "weightValue": "{{weight}} kg"
   },
   "readiness": {
-    "count": "{{ready}} de {{total}} notas prontas",
+    "count": "{{ready}} de {{total}} notas com CT-e autorizado",
     "generateCteBatchHint": "Antecipa o lote que a contratante autorizaria. O faturamento continua alcançando esses CT-e.",
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
@@ -1835,8 +1917,8 @@
     "generateCteSelection": "Gerar CT-e de {{count}} nota marcada",
     "generateCteSelection_other": "Gerar CT-e de {{count}} notas marcadas",
     "planRoute": "Liberar para separação",
-    "readinessSummary": "{{ready}} de {{total}} notas prontas",
-    "readinessSummaryWithNfse": "{{ready}} de {{total}} notas prontas ({{nfsePending}} aguardando NFS-e)",
+    "readinessSummary": "{{ready}} de {{total}} notas com CT-e autorizado",
+    "readinessSummaryWithNfse": "{{ready}} de {{total}} notas com CT-e autorizado ({{nfsePending}} aguardando NFS-e)",
     "returnReasonLabel": "Motivo da devolução",
     "returnSubmit": "Confirmar devolução",
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",
@@ -2120,7 +2202,15 @@
     "productCodeRequired": "Informe o código do produto.",
     "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
     "reimbursedOn": "Ressarcido em {{date}}",
-    "savedItemsTitle": "Itens gravados"
+    "savedItemsTitle": "Itens gravados",
+    "suggestion": {
+      "title": "Sugestão pelo registro",
+      "hint": "O que o registro da ocorrência diz que cada item vale: o valor pago digitado, senão a soma da linha. Nada é gravado até você usar a sugestão e salvar o acerto.",
+      "reference": "soma da linha {{amount}}",
+      "unpaid": "A loja não pagou, sem valor a acertar",
+      "use": "Usar a sugestão do registro",
+      "unsplit": "A loja pagou R$ {{amount}} pela ocorrência inteira. Esse valor não é de um item só: distribua-o entre os itens do acerto."
+    }
   },
   "occurrenceDetail": {
     "back": "Voltar para ocorrências",
@@ -2213,6 +2303,31 @@
         "discard": "Descartar",
         "productsError": "Não foi possível carregar os itens da nota. Feche e tente de novo."
       },
+      "amounts": {
+        "title": "Número e valor pago",
+        "hint": "Os campos já trazem o que está gravado. Mude o que precisa; \"Limpar\" apaga o valor gravado. A soma da linha é só a conta da nota: o valor pago digitado não a muda, e vale no lugar dela no e-mail.",
+        "referenceLabel": "Número do documento do cliente",
+        "referenceInvalid": "Use só letras, números, espaço, ponto, barra e hífen, até 30 caracteres. Nada foi gravado.",
+        "amountLabel": "Valor pago",
+        "occurrenceAmount": "Valor pago da ocorrência",
+        "scope": "Onde se digita o valor pago",
+        "scopeTitle": "Digitado",
+        "scopes": {
+          "item": "Por linha de produto",
+          "occurrence": "Um só, pela ocorrência"
+        },
+        "placeholder": "0,00",
+        "lineSum": "Soma da linha: R$ {{amount}}",
+        "totalSum": "Soma geral: R$ {{amount}}",
+        "clear": "Limpar",
+        "nothingRecorded": "Nada gravado.",
+        "required": "Obrigatório: este campo não pode ficar vazio.",
+        "willClear": "Será limpo ao salvar.",
+        "occurrenceAmountTyped": "{{label}} (da ocorrência)",
+        "emailAmount": "Valor que vai no e-mail: R$ {{amount}}",
+        "noticeOccurrenceRecorded": "Há um valor pago gravado na ocorrência. Ao digitar um valor numa linha, o da ocorrência é apagado: só um nível vale por vez.",
+        "noticeLinesRecorded": "Há valor pago gravado nas linhas. Ao digitar um valor da ocorrência, o das linhas é apagado: só um nível vale por vez."
+      },
       "unavailable": {
         "occurrenceCancelled": "Esta ocorrência já foi cancelada e não pode mais ser corrigida nem cancelada.",
         "caseOpen": "A tratativa está aberta: depois que ela abre, a ocorrência já vale dinheiro e não pode mais ser corrigida nem cancelada.",
@@ -2280,5 +2395,42 @@
     "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
     "title": "Encerrar {{count}} viagem",
     "title_other": "Encerrar {{count}} viagens"
+  },
+  "proofPdfExport": {
+    "button": "Exportar canhotos (PDF)",
+    "exporting": "Gerando PDF…",
+    "tooManyDocuments": "Selecione até {{max}} notas ou refine o filtro para exportar os canhotos.",
+    "tooLarge": "O PDF passa do limite de {{maxBlocks}} canhotos. Filtre ou selecione menos notas.",
+    "tooLargeUnknown": "O PDF passa do limite de canhotos. Filtre ou selecione menos notas.",
+    "failed": "Não foi possível exportar os canhotos."
+  },
+  "reportExport": {
+    "title": "Relatório de viagens",
+    "sheetName": "Viagens",
+    "button": "Exportar relatório",
+    "exporting": "Exportando {{loaded}} de {{total}}",
+    "exportingUnknown": "Exportando {{loaded}}",
+    "tooLarge": "O relatório passa do limite de {{maxRows}} linhas. Filtre ou selecione menos viagens.",
+    "tooLargeUnknown": "O relatório passa do limite de linhas. Filtre ou selecione menos viagens.",
+    "failed": "Não foi possível exportar o relatório.",
+    "columns": {
+      "trip": "Viagem",
+      "document": "Nota/Série",
+      "accessKey": "Chave",
+      "contractor": "Contratante",
+      "recipient": "Destinatário",
+      "city": "Cidade/UF",
+      "amount": "Valor",
+      "documentStatus": "Situação da nota",
+      "deliveredAt": "Data de entrega",
+      "returnedAt": "Data de devolução",
+      "returnReason": "Motivo"
+    },
+    "legend": {
+      "warehouse": "No armazém",
+      "on_route": "Em rota",
+      "finished": "Entregue",
+      "total_return": "Devolução total"
+    }
   }
 }

@@ -118,6 +118,8 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
       createElement(OccurrenceTypeCatalogPanel, {
         canManage: true,
         isSaving: false,
+        loadStatus: 'ready',
+        onRetry: () => undefined,
         onSave: (input) => saved.push(input),
         saveFeedbackKey: null,
         types,
@@ -139,6 +141,8 @@ async function mountReplaceable(
     return createElement(OccurrenceTypeCatalogPanel, {
       canManage: true,
       isSaving: false,
+      loadStatus: 'ready',
+      onRetry: () => undefined,
       onSave: (input) => saved.push(input),
       saveFeedbackKey: null,
       types,
@@ -187,7 +191,7 @@ describe('exceções à vista: uma consulta por tela (RF11c)', () => {
       await mount([buildType(), buildType({ active: false, id: 'type-2', name: 'Avaria antiga' })])
       const [first, second] = summaries()
       expect(first?.textContent?.includes('2 exceções')).toBe(true)
-      expect(first?.textContent?.includes('Entrega da nota')).toBe(true)
+      expect(first?.textContent?.includes('Motorista, numa nota')).toBe(true)
       expect(second?.textContent?.includes('sem exceção')).toBe(true)
       expect(second?.textContent?.includes('Inativo')).toBe(true)
       expect(first?.getAttribute('aria-expanded')).toBe('false')
@@ -421,7 +425,7 @@ async function pressButton(text: string): Promise<void> {
 }
 
 describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
-  const MOMENTS_LABEL = 'Em que momento pode acontecer'
+  const MOMENTS_LABEL = 'Quem registra, e onde'
 
   async function toggleOption(text: string): Promise<void> {
     const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) =>
@@ -452,7 +456,7 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       await mount([buildType()])
       await expandAllTypes()
       expect(control(MOMENTS_LABEL)?.textContent).toContain('1 momentos')
-      expect(pageText()).toContain('só nos momentos de rua')
+      expect(pageText()).toContain('só quando o motorista registra')
     }),
   )
 
@@ -463,7 +467,7 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       await mount([buildType({ moments: ['document'] })])
       await expandAllTypes()
       await openMoments()
-      await toggleOption('Entrega da nota')
+      await toggleOption('Motorista, numa nota')
 
       expect(saved).toHaveLength(0)
       expect(document.querySelector('[role="alert"]')?.textContent).toContain(
@@ -480,13 +484,13 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       await expandAllTypes()
       await openMoments()
 
-      await toggleOption('Chegada à parada')
+      await toggleOption('Motorista, na parada')
       expect(saved).toHaveLength(0)
       expect(document.querySelector('[role="alert"]')?.textContent).toContain(
         'não podem estar juntas',
       )
 
-      await toggleOption('Entrega da nota')
+      await toggleOption('Motorista, numa nota')
       expect(saved).toHaveLength(0)
       await pressButton('Aplicar momentos')
       expect(saved).toHaveLength(1)
@@ -503,7 +507,7 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       await expandAllTypes()
       await openMoments()
       await toggleOption('Escritório')
-      await toggleOption('Separação')
+      await toggleOption('Separador')
 
       expect(saved).toHaveLength(0)
       expect(document.querySelectorAll('[role="option"]').length).toBeGreaterThan(0)
@@ -520,7 +524,7 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       await mount([buildType({ moments: ['document'] })])
       await expandAllTypes()
       await openMoments()
-      await toggleOption('Entrega da nota')
+      await toggleOption('Motorista, numa nota')
       expect(document.querySelector('[role="alert"]')?.textContent).toContain(
         'Escolha ao menos um momento',
       )
@@ -538,7 +542,7 @@ describe('momentos do tipo (RF0, RF1h, T5.3b)', () => {
       installExceptionsDouble({ byType: BATCH })
       await mount([buildType({ moments: ['document'] })])
       await expandAllTypes()
-      expect(control('Tirar momento Entrega da nota') !== null).toBe(true)
+      expect(control('Tirar momento Motorista, numa nota') !== null).toBe(true)
     }),
   )
 

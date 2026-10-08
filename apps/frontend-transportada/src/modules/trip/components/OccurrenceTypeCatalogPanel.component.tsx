@@ -5,17 +5,20 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
-import {
-  buildOccurrenceEmailTemplateOptions,
-  type OccurrenceEmailTemplatesState,
-} from '@/modules/trip/shared/occurrenceTemplate.service'
-import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
-import { useOccurrenceAttachmentOverridesBatchQuery } from '@/modules/trip/queries/useOccurrenceAttachmentOverridesBatch.query'
-import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
-import { useOccurrenceExceptionPeople } from '../hooks/useOccurrenceExceptionPeople.hook'
+import {
+  createOccurrenceMailDraftStore,
+  OccurrenceMailDraftStoreContext,
+} from '../hooks/useOccurrenceMailDraftStore.hook'
+import {
+  createOccurrenceMomentsDraftStore,
+  OccurrenceMomentsDraftStoreContext,
+} from '../hooks/useOccurrenceMomentsDraftStore.hook'
+import { useOccurrenceTypeCatalogData } from '../hooks/useOccurrenceTypeCatalogData.hook'
+import { useOccurrenceTypeJustCreated } from '../hooks/useOccurrenceTypeJustCreated.hook'
 import { useOccurrenceTypeFilters } from '../hooks/useOccurrenceTypeFilters.hook'
+import type { OccurrenceTypeLoadStatus } from '../shared/occurrenceTypeLoadStatus.service'
 import { filterOccurrenceTypes } from '../shared/occurrenceTypeFilter.service'
 import { countActiveOccurrenceTypeFilters } from '../shared/occurrenceTypeFilterChips.service'
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
@@ -23,15 +26,14 @@ import { OccurrenceTypeCreateForm } from './OccurrenceTypeCreateForm.component'
 import { OccurrenceTypeFilterEmpty } from './OccurrenceTypeFilterEmpty.component'
 import { OccurrenceTypeFilters } from './OccurrenceTypeFilters.component'
 import { OccurrenceTypeList } from './OccurrenceTypeList.component'
-
-function toLoadStatus(query: Readonly<{ isError: boolean; isSuccess: boolean }>) {
-  if (query.isError) return 'error' as const
-  return query.isSuccess ? ('ready' as const) : ('loading' as const)
-}
+import { OccurrenceTypeLoadState } from './OccurrenceTypeLoadState.component'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
   isSaving: boolean
+  /** Lista ainda não chegou ≠ lista vazia: o aviso de vazio só vale com `ready`. */
+  loadStatus: OccurrenceTypeLoadStatus
+  onRetry: () => void
   onSave: (input: OccurrenceTypeSaveInput) => void
   /** Spec 241: a recusa da última gravação, já traduzida em chave de `trip.feedback`. */
   saveFeedbackKey: null | string
@@ -57,6 +59,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
 export function OccurrenceTypeCatalogPanel({
   canManage,
   isSaving,
+  loadStatus,
+  onRetry,
   onSave,
   saveFeedbackKey,
   types,
@@ -71,8 +75,21 @@ export function OccurrenceTypeCatalogPanel({
 
   const filtersController = useOccurrenceTypeFilters()
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
+  const [mailDraftStore] = useState(createOccurrenceMailDraftStore)
+  const [momentsDraftStore] = useState(createOccurrenceMomentsDraftStore)
+
+  const created = useOccurrenceTypeJustCreated({
+    onCreated: (typeId) => setExpandedIds((current) => new Set(current).add(typeId)),
+    types,
+  })
+
+  function handleCreate(input: OccurrenceTypeSaveInput) {
+    created.trackCreate(input.name)
+    onSave(input)
+  }
 
   function handleToggle(typeId: string) {
+    created.dismiss(typeId)
     setExpandedIds((current) => {
       const next = new Set(current)
       if (!next.delete(typeId)) next.add(typeId)
@@ -80,31 +97,10 @@ export function OccurrenceTypeCatalogPanel({
     })
   }
 
-  /**
-   * Spec 246 RF11c: uma consulta de exceções por tela, e uma de contratantes e de clientes — nunca por
-   * tipo. As duas listas grandes só vêm quando alguém abre um tipo ou busca por quem tem exceção.
-   */
-  const overridesQuery = useOccurrenceAttachmentOverridesBatchQuery({ enabled: canManage })
-  const people = useOccurrenceExceptionPeople({
-    enabled: canManage && (expandedIds.size > 0 || filtersController.filters.query.trim() !== ''),
+  const { exceptionsOf, overridesQuery, people, templates } = useOccurrenceTypeCatalogData({
+    canManage,
+    isPeopleNeeded: expandedIds.size > 0 || filtersController.filters.query.trim() !== '',
   })
-
-  function exceptionsOf(type: OccurrenceType): OccurrenceTypeExceptionsState {
-    if (overridesQuery.isError) return { overrides: undefined, people, status: 'error' }
-    if (!overridesQuery.isSuccess) return { overrides: undefined, people, status: 'loading' }
-    const found = overridesQuery.data.find((entry) => entry.occurrenceTypeId === type.id)
-    return {
-      overrides: found ?? { contractorOverrides: [], recipientOverrides: [] },
-      people,
-      status: 'ready',
-    }
-  }
-
-  const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
-  const templates: OccurrenceEmailTemplatesState = {
-    options: buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? []),
-    status: toLoadStatus(emailTemplates),
-  }
 
   const exceptionsByTypeId = overridesQuery.isSuccess
     ? new Map(overridesQuery.data.map((entry) => [entry.occurrenceTypeId, entry]))
@@ -120,20 +116,32 @@ export function OccurrenceTypeCatalogPanel({
       <h2>{t('occurrenceTypeCatalog.title')}</h2>
       <p className={styles.hint}>{t('occurrenceTypeCatalog.hint')}</p>
 
-      {types.length === 0 ? (
+      {loadStatus !== 'ready' ? (
+        <OccurrenceTypeLoadState onRetry={onRetry} status={loadStatus} />
+      ) : null}
+
+      {loadStatus === 'ready' && types.length === 0 ? (
         <p className={styles.hint}>{t('occurrenceTypeCatalog.empty')}</p>
-      ) : (
+      ) : null}
+
+      {loadStatus === 'ready' && types.length > 0 ? (
         <OccurrenceTypeFilters
           canFilterByException={overridesQuery.isSuccess}
           controller={filtersController}
           shownCount={visibleTypes.length}
           totalCount={types.length}
         />
-      )}
+      ) : null}
 
       {saveFeedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {tTrip(`feedback.${saveFeedbackKey}`)}
+        </p>
+      )}
+
+      {created.createdTypeId === undefined ? null : (
+        <p className={styles.successNotice} role="status">
+          {t('occurrenceTypeCatalog.created')}
         </p>
       )}
 
@@ -144,22 +152,26 @@ export function OccurrenceTypeCatalogPanel({
           query={filtersController.filters.query}
         />
       ) : (
-        <OccurrenceTypeList
-          canManage={canManage}
-          exceptionsOf={exceptionsOf}
-          expandedIds={expandedIds}
-          isSaving={isSaving}
-          onSave={onSave}
-          onToggle={handleToggle}
-          templates={templates}
-          types={visibleTypes}
-        />
+        <OccurrenceMailDraftStoreContext.Provider value={mailDraftStore}>
+          <OccurrenceMomentsDraftStoreContext.Provider value={momentsDraftStore}>
+            <OccurrenceTypeList
+              canManage={canManage}
+              exceptionsOf={exceptionsOf}
+              expandedIds={expandedIds}
+              isSaving={isSaving}
+              onSave={onSave}
+              onToggle={handleToggle}
+              templates={templates}
+              types={visibleTypes}
+            />
+          </OccurrenceMomentsDraftStoreContext.Provider>
+        </OccurrenceMailDraftStoreContext.Provider>
       )}
 
-      {canManage ? (
+      {canManage && loadStatus === 'ready' ? (
         <OccurrenceTypeCreateForm
           isSaving={isSaving}
-          onSave={onSave}
+          onSave={handleCreate}
           support={createSupport}
           templateOptions={templates.options}
         />

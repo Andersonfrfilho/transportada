@@ -204,6 +204,8 @@ export type TripOccurrence = Readonly<{
   typeAllowsMultipleItems?: boolean | null
   /** Spec 241 RF5: o tipo **atual** carrega itens? Ausente é API anterior ao campo e lê `optional`. */
   typeItemsMode?: OccurrenceItemsMode | null
+  /** Spec 255 RF6: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  typeIconName?: null | string
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>
@@ -221,6 +223,8 @@ export type FieldOccurrenceType = Readonly<{
   declaredAmountMode?: OccurrenceAttachmentMode
   declaredAmountScope?: DeclaredAmountScope
   id: string
+  /** Spec 255 RF3: o ícone do tipo; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  iconName?: null | string
   /** Spec 246: a quantidade mínima de produtos (nulo = todos os itens); ausente é API anterior. */
   itemsMinimumCount?: null | number
   itemsMode?: OccurrenceAttachmentMode
@@ -245,8 +249,12 @@ export type FieldOccurrenceType = Readonly<{
  */
 export type OccurrenceProduct = Readonly<{
   code: string
+  /** Spec 247 (ADR-0081 §9): o valor pago da linha antes da correção — a API ainda não o publica. */
+  declaredAmount?: null | string
   quantity: null | string
   unit: null | OccurrenceQuantityUnit
+  /** Spec 247 (ADR-0081 §9): o valor unitário copiado no registro — a API ainda não o publica. */
+  unitValue?: null | string
 }>
 
 /** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
@@ -285,16 +293,22 @@ export type OccurrenceWriteResult = Omit<TripOccurrence, 'attachments'> &
 /** Spec 240 RF2: `quantity` e `unit` andam juntos; ausentes, o item vai sem contagem. */
 export type CorrectOccurrenceItemInput = Readonly<{
   code: string
+  /** Spec 247 RF13: o valor pago da linha — ausente mantém, `null` limpa, texto vale. */
+  declaredAmount?: null | string
   quantity?: string
   unit?: OccurrenceQuantityUnit
 }>
 
 export type CorrectTripOccurrenceItemsInput = TripDocumentActionInput &
   Readonly<{
+    /** Spec 247 RF13: o valor pago da ocorrência — ausente mantém, `null` limpa, texto vale (nunca junto do de linha). */
+    declaredAmount?: null | string
     idempotencyKey: string
     /** Substitui o conjunto inteiro — não é edição item a item. */
     items: readonly CorrectOccurrenceItemInput[]
     occurrenceId: string
+    /** Spec 247 RF13: o número do documento do cliente — os mesmos três estados. */
+    referenceNumber?: null | string
   }>
 
 export type CancelTripOccurrenceInput = TripDocumentActionInput &
@@ -430,6 +444,8 @@ export type TripTimelineItem = Readonly<{
   /** Só em `*.status_changed`. */
   fromStatus: null | string
   id: string
+  /** `true` quando o autor é uma integração, não uma pessoa. Ausente na API anterior ao campo. */
+  isSystemActor?: boolean
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
@@ -462,6 +478,19 @@ export type TripDocumentProduct = Readonly<{
   totalValue: string
   unitValue: string
 }>
+
+/** Spec 236: o prazo de entrega da nota. `not_applicable` da API chega como `null`, nunca como estado. */
+export type TripDocumentDeliveryDeadline =
+  | Readonly<{ businessDaysRemaining: number; dueOn: string; state: 'on_time' }>
+  | Readonly<{ dueOn: string; state: 'due_today' }>
+  | Readonly<{ businessDaysLate: number; dueOn: string; state: 'overdue' }>
+  | Readonly<{ deliveredOn: string; dueOn: string; state: 'delivered_on_time' }>
+  | Readonly<{
+      businessDaysLate: number
+      deliveredOn: string
+      dueOn: string
+      state: 'delivered_late'
+    }>
 
 export type TripDocumentDetail = TripDocument &
   Readonly<{
@@ -505,10 +534,26 @@ export type TripDocumentDetail = TripDocument &
      */
     freightRuleName?: null | string
     freightSource?: TripDocumentFreightSource
+    /** Spec 236: ausente é API anterior; `null`, nota sem prazo (sem chegada, sem perfil, devolvida…). */
+    deliveryDeadline?: null | TripDocumentDeliveryDeadline
   }>
 
 /** O mesmo vocabulário de `TripAmounts.revenueSource` (spec 065 D7). */
 export type TripDocumentFreightSource = 'estimated' | 'measured' | 'missing'
+
+/** Spec 252 (ADR-0100 §6): aviso de feriado numa parada. */
+export type HolidayWarning = Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly HolidayReason[]
+}>
+
+export type HolidayReason = Readonly<{
+  scope: string
+  origin: string
+  name: string
+}>
 
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
@@ -521,6 +566,8 @@ export type TripStopDetail = Readonly<{
    */
   cityCode?: string
   state?: string
+  /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Ausente é API anterior (spec 078 D2). */
+  holidayWarnings?: readonly HolidayWarning[]
   addressKey: string
   /** Spec 079 T012: de `geocoded_addresses`; `null` é endereço ainda não geocodificado. */
   latitude?: null | string

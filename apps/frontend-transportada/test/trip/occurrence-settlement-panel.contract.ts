@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   formatOccurrenceSettlementAmount,
+  isAmountInputAtLimit,
   isPositiveDecimalAmount,
   maskAmountFromDecimal,
   maskAmountInput,
@@ -14,10 +15,20 @@ import {
 
 const STYLES = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
 
-const PANEL = new URL(
-  '../../src/modules/trip/components/OccurrenceSettlementPanel.component.tsx',
-  import.meta.url,
-)
+/** O painel foi dividido por responsabilidade (spec 247 T7.2): a regra vive em qualquer uma destas partes. */
+const PANEL_PARTS = [
+  'components/OccurrenceSettlementPanel.component.tsx',
+  'components/OccurrenceSettlementRow.component.tsx',
+  'components/OccurrenceSettlementSaved.component.tsx',
+  'hooks/useOccurrenceSettlementDraft.hook.ts',
+  'shared/occurrenceSettlementDraft.service.ts',
+] as const
+
+function readPanelSources(): string {
+  return PANEL_PARTS.map((part) =>
+    readFileSync(new URL(`../../src/modules/trip/${part}`, import.meta.url), 'utf8'),
+  ).join('\n')
+}
 
 /**
  * Spec 164 T23 (RF34): dinheiro nunca em float no cliente — soma e formatação passam por `BigInt`
@@ -53,7 +64,7 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
    * envio inteiro para.
    */
   test('item sem valor ou sem código para o envio, marcando o campo em vez de sumir', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('isPositiveDecimalAmount(unmaskAmountInput(row.amount))')
     expect(panel).toContain('row.productCode.trim().length > 0')
     expect(panel).toContain('if (hasInvalidRow) return')
@@ -63,19 +74,20 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
   })
 
   test('transportadora (carrier) não oferece o botão, e o item ressarcido vira selo com a data', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('item.reimbursedAt !== null ? (')
     expect(panel).toContain("t('occurrenceSettlement.reimbursedOn'")
     expect(panel).toContain("item.payerKind === 'carrier' ? null : (")
   })
 
-  test('amountSource é sempre manual — esta tela não tem de onde ler o valor da nota', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+  test('amountSource nasce manual; só a sugestão do registro (spec 247 RF12) manda a origem da nota', () => {
+    const panel = readPanelSources()
     expect(panel).toContain("amountSource: 'manual'")
+    expect(panel).toContain('amountSource: row.amountSource')
   })
 
   test('usa Select/Button/Icon do design system para o seletor de pagador', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain("from '@/components/ui/select'")
     expect(panel).toContain("from '@/components/ui/button'")
     expect(panel).not.toMatch(/<select[\s>]/u)
@@ -88,19 +100,19 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
  */
 describe('spec 164 (achado 2): GET do acerto já gravado', () => {
   test('usa o hook de consulta do acerto, habilitado só com a permissão de resolver', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('useOccurrenceSettlementQuery')
     expect(panel).toContain('enabled: canResolve, occurrenceId')
   })
 
   test('carrega o rascunho e o resultado a partir da consulta, uma vez por ocorrência', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('loadedOccurrenceIdRef')
     expect(panel).toContain('setLastResult(settlementQuery.data)')
   })
 
   test('mostra um estado de carregamento com Skeleton do design system', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('settlementQuery.isLoading')
     expect(panel).toContain("from '@/components/ui/skeleton'")
   })
@@ -112,7 +124,7 @@ describe('spec 164 (achado 2): GET do acerto já gravado', () => {
  */
 describe('spec 164 T30: o acerto depois da revisão de design', () => {
   test('B3: o motorista vem da lista da frota, com busca, e nunca do UUID digitado', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('useDriverOptions')
     expect(panel).toContain("searchPlaceholder={t('occurrenceSettlement.payerSearch')}")
     expect(panel).toContain('label: driver.name')
@@ -120,21 +132,21 @@ describe('spec 164 T30: o acerto depois da revisão de design', () => {
   })
 
   test('B3: sem fleet.read o campo de texto continua, mas com o nome resolvido ao lado', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('driverOptions.canReadDrivers ? (')
     expect(panel).toContain('payerNameOf(row.payerId)')
     expect(panel).toContain("t('occurrenceSettlement.payerManualHint')")
   })
 
   test('A1: a célula do motorista existe sempre — desabilitada quando não se aplica', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('disabled={!isDriverPayer}')
     expect(panel).not.toContain("row.payerKind === 'driver' ? (")
     expect(panel).toContain('styles.settlementRemove')
   })
 
   test('A1: rascunho e itens gravados usam a mesma grade', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel.match(/styles\.settlementGrid/gu)).toHaveLength(2)
     expect(panel.match(/styles\.settlementColumns/gu)).toHaveLength(2)
   })
@@ -149,14 +161,14 @@ describe('spec 164 T30: o acerto depois da revisão de design', () => {
   })
 
   test('A3: o campo mostra o valor mascarado, e o decimal só nasce no envio', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('maskAmountInput(event.target.value)')
     expect(panel).toContain('amount: unmaskAmountInput(row.amount)')
     expect(panel).toContain('maskAmountFromDecimal(item.amount)')
   })
 
   test('a linha tem id próprio — key={index} fazia o foco pular ao remover a do meio', () => {
-    const panel = readFileSync(PANEL, 'utf8')
+    const panel = readPanelSources()
     expect(panel).toContain('key={row.id}')
     expect(panel).not.toContain('key={index}')
   })
@@ -174,6 +186,16 @@ describe('spec 164 T30 A3: máscara de moeda pt-BR', () => {
     expect(maskAmountInput('1')).toBe('0,01')
     expect(maskAmountInput('12345678')).toBe('123.456,78')
     expect(maskAmountInput('abc')).toBe('')
+  })
+
+  test('teto de 10 inteiros + 2 centavos: dígito além não entra e o aviso aparece (spec 247 T7.2b, N5)', () => {
+    expect(maskAmountInput('12345678901234')).toBe('1.234.567.890,12')
+    expect(maskAmountInput('1.234.567.890,12')).toBe('1.234.567.890,12')
+    expect(maskAmountInput('000000000000123')).toBe('1,23')
+    expect(isAmountInputAtLimit('1.234.567.890,12')).toBe(true)
+    expect(isAmountInputAtLimit('123.456,78')).toBe(false)
+    expect(isAmountInputAtLimit('0,00')).toBe(false)
+    expect(unmaskAmountInput(maskAmountInput('12345678901234')).length).toBeLessThanOrEqual(13)
   })
 
   test('o decimal que a API lê sai do texto mascarado', () => {

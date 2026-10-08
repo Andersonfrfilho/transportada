@@ -1,11 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   NFSE_EMISSION_PROFILE_KEYS,
+  NFSE_NATIONAL_TAXATION_KEYS,
   NFSE_PROVIDER_CREDENTIAL_KEYS,
   NFSE_SETTINGS_ERROR,
 } from './nfseInvoice.constant'
 import {
   hasExactKeys,
+  hasKeys,
   isBoolean,
   isOneOf,
   isRecord,
@@ -20,6 +22,7 @@ import {
   type NfseEmissionProfile,
   type NfseProviderCredentialSummary,
 } from './nfseSettings.types'
+import { toNationalTaxationCode, toSimplesNationalRate } from './nfseNationalTaxation.service'
 
 /** A alíquota chega com seis casas fixas — ler como número perderia a casa que a prefeitura cobra. */
 const ISS_RATE_PATTERN = /^(?:0\.[0-9]{6}|1\.000000)$/
@@ -29,8 +32,19 @@ function settingsError(): Error {
   return new Error(NFSE_SETTINGS_ERROR.RESPONSE_INVALID)
 }
 
+function isNullableMatch(value: unknown, parse: (input: string) => null | string): boolean {
+  if (value === undefined || value === null) return true
+  return isString(value) && parse(value) !== null
+}
+
 function isProfile(value: unknown): value is NfseEmissionProfile {
-  if (!hasExactKeys(value, NFSE_EMISSION_PROFILE_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...NFSE_EMISSION_PROFILE_KEYS, ...NFSE_NATIONAL_TAXATION_KEYS],
+      required: NFSE_EMISSION_PROFILE_KEYS,
+    })
+  )
+    return false
 
   return (
     isString(value['chargeComponentLabel']) &&
@@ -48,6 +62,8 @@ function isProfile(value: unknown): value is NfseEmissionProfile {
     isString(value['municipalityIbgeCode']) &&
     isString(value['municipalityName']) &&
     isString(value['name']) &&
+    isNullableMatch(value['nationalTaxationCode'], toNationalTaxationCode) &&
+    isNullableMatch(value['simplesNationalRate'], toSimplesNationalRate) &&
     isString(value['nbsCode']) &&
     isString(value['observations']) &&
     isString(value['serviceListItem']) &&

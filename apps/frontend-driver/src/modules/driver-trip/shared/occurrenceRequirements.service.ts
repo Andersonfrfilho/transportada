@@ -13,11 +13,22 @@ export const OCCURRENCE_PHOTO_MAXIMUM_COUNT = 5
 
 const DEFAULT_PHOTO_MINIMUM_COUNT = 1
 
+/** Spec 247: onde se digita o valor pago — por produto (`item`) ou uma vez na ocorrência. */
+export type DeclaredAmountScope = 'item' | 'occurrence'
+
 export type OccurrenceRequirements = Readonly<{
+  /** Spec 247 (RF1): o valor pago da loja; `off` não aparece. */
+  declaredAmountMode: ProofFieldRequirement
+  /** O do tipo — onde ele cai de fato depende das linhas marcadas (`resolveDeclaredAmountTarget`). */
+  declaredAmountScope: DeclaredAmountScope
+  /** `null` é "todos os itens da nota" (regra do servidor, 246 RF1c2). */
+  itemsMinimumCount: number | null
   itemsMode: ProofFieldRequirement
   noteMode: ProofFieldRequirement
   photoMinimumCount: number
   photoMode: ProofFieldRequirement
+  /** Spec 247 (RF1): o número do documento do cliente (NFD); `off` não aparece. */
+  referenceNumberMode: ProofFieldRequirement
   signatureMode: ProofFieldRequirement
 }>
 
@@ -27,9 +38,13 @@ export type OccurrenceRequirements = Readonly<{
  * observação de uma parada no aparelho seria recusar o que o servidor aceita.
  */
 const STOP_REQUIREMENTS = {
+  declaredAmountMode: 'off',
+  declaredAmountScope: 'occurrence',
+  itemsMinimumCount: null,
   itemsMode: 'off',
   noteMode: 'optional',
   photoMinimumCount: DEFAULT_PHOTO_MINIMUM_COUNT,
+  referenceNumberMode: 'off',
   signatureMode: 'off',
 } as const
 
@@ -47,85 +62,60 @@ export function resolveOccurrenceRequirements(type: DriverOccurrenceType): Occur
   const photoMode = type.photoMode ?? type.attachmentMode ?? 'off'
   if (type.flow === 'stop') return { ...STOP_REQUIREMENTS, photoMode }
   return {
+    declaredAmountMode: type.declaredAmountMode ?? 'off',
+    declaredAmountScope: type.declaredAmountScope === 'occurrence' ? 'occurrence' : 'item',
+    itemsMinimumCount: type.itemsMinimumCount ?? null,
     itemsMode: type.itemsMode ?? 'optional',
     noteMode: type.noteMode ?? 'optional',
     photoMinimumCount: readPhotoMinimumCount(type),
     photoMode,
+    referenceNumberMode: type.referenceNumberMode ?? 'off',
     signatureMode: type.signatureMode ?? 'off',
   }
 }
 
 export type OccurrenceFieldVisibility = Readonly<{
+  /** Spec 247: o valor pago da ocorrência ou o de cada linha — `off` não aparece. */
+  rendersDeclaredAmount: boolean
+  /** Spec 247: a lista de produtos da nota, com quantidade e soma, quando o snapshot a traz. */
+  rendersItemsList: boolean
   /** Quantas fotos o formulário aceita: uma, ou até o teto quando o tipo exige mais de uma. */
   photoLimit: number
   rendersNote: boolean
   rendersPhoto: boolean
   /** Sem lista de itens no snapshot, o app só aponta a nota inteira — e só quando é exigido. */
   rendersProducts: boolean
+  rendersReferenceNumber: boolean
   rendersSignature: boolean
 }>
 
 export function resolveOccurrenceFieldVisibility(
   type: DriverOccurrenceType,
+  options?: Readonly<{ hasProductList: boolean }>,
 ): OccurrenceFieldVisibility {
   const requirements = resolveOccurrenceRequirements(type)
   const isStop = type.flow === 'stop'
+  const hasProductList = options?.hasProductList === true
   const asksManyPhotos = requirements.photoMode === 'required' && requirements.photoMinimumCount > 1
+  const rendersItemsList = !isStop && hasProductList && requirements.itemsMode !== 'off'
   return {
     photoLimit: !isStop && asksManyPhotos ? OCCURRENCE_PHOTO_MAXIMUM_COUNT : 1,
+    rendersDeclaredAmount: requirements.declaredAmountMode !== 'off',
+    rendersItemsList,
     rendersNote: isStop || requirements.noteMode !== 'off',
     rendersPhoto: requirements.photoMode !== 'off',
-    rendersProducts: !isStop && requirements.itemsMode === 'required',
+    rendersProducts: !isStop && !rendersItemsList && requirements.itemsMode === 'required',
+    rendersReferenceNumber: requirements.referenceNumberMode !== 'off',
     rendersSignature: !isStop && requirements.signatureMode !== 'off',
   }
 }
 
-/** `photoMinimum` é a foto que já existe, mas não chega ao mínimo — o texto diz quantas faltam. */
-export type OccurrenceMissingField = 'note' | 'photo' | 'photoMinimum' | 'products' | 'signature'
-
-export type OccurrenceDraftFacts = Readonly<{
-  hasNote: boolean
-  hasProducts: boolean
-  hasSignature: boolean
-  photoCount: number
-}>
-
-function listMissingPhotoField(input: {
-  readonly photoCount: number
-  readonly requirements: OccurrenceRequirements
-}): readonly OccurrenceMissingField[] {
-  const { photoCount, requirements } = input
-  if (requirements.photoMode !== 'required') return []
-  if (photoCount === 0) return ['photo']
-  return photoCount < requirements.photoMinimumCount ? ['photoMinimum'] : []
-}
-
-/** Quem falta, na ordem em que o formulário pergunta. `off` e `optional` nunca faltam. */
-export function listMissingOccurrenceRequirements(input: {
-  readonly facts: OccurrenceDraftFacts
-  readonly requirements: OccurrenceRequirements
-}): readonly OccurrenceMissingField[] {
-  const { facts, requirements } = input
-  return [
-    ...(requirements.noteMode === 'required' && !facts.hasNote ? (['note'] as const) : []),
-    ...(requirements.itemsMode === 'required' && !facts.hasProducts ? (['products'] as const) : []),
-    ...listMissingPhotoField({ photoCount: facts.photoCount, requirements }),
-    ...(requirements.signatureMode === 'required' && !facts.hasSignature
-      ? (['signature'] as const)
-      : []),
-  ]
-}
-
-/**
- * Spec 246 (RF1c): a foto escolhida entra na lista. Com limite 1 (o que o app sempre fez) ela
- * **substitui**; com mais de uma, acrescenta até o teto — a lista cheia não aceita a próxima.
- */
-export function addOccurrencePhoto<TPhoto>(input: {
-  readonly current: readonly TPhoto[]
-  readonly limit: number
-  readonly photo: TPhoto
-}): readonly TPhoto[] {
-  if (input.limit <= 1) return [input.photo]
-  if (input.current.length >= input.limit) return input.current
-  return [...input.current, input.photo]
-}
+export {
+  addOccurrencePhoto,
+  listMissingOccurrenceRequirements,
+  resolveDeclaredAmountTarget,
+  resolveRequiredItemsCount,
+  type OccurrenceDraftFacts,
+  type OccurrenceMissingField,
+  type OccurrenceValuesFacts,
+} from './occurrenceMissingFields.service'

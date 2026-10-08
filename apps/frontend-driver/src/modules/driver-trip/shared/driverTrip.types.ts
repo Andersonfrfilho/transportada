@@ -8,9 +8,26 @@
 export type DriverNfeProduct = Readonly<{
   code: string
   description: string
-  unit: string
+  /** O valor unitário varia entre as linhas do código: o valor pago passa a ser exigido na linha. */
+  hasVaryingUnitValue: boolean
+  /** A soma das linhas do código, com as casas da NF-e: é o teto do que se devolve. */
   quantity: string
+  unit: string
   unitValue: string
+}>
+
+/** Spec 252 (ADR-0100 §6): aviso de feriado numa parada. */
+export type HolidayReason = Readonly<{
+  scope: string
+  origin: string
+  name: string
+}>
+
+export type HolidayWarning = Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly HolidayReason[]
 }>
 
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
@@ -108,6 +125,8 @@ export type DriverTripStop = Readonly<{
   enRouteSince?: string | null
   /** Spec 206 D9: a hora do TOQUE no aparelho — a 207 usa como âncora, com `enRouteSince` de reserva. */
   enRouteTappedAt?: string | null
+  /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
+  holidayWarnings?: readonly HolidayWarning[]
   id: string
   label: string
   latitude: string | null
@@ -350,6 +369,14 @@ export type DriverFieldReport =
       /** Vazio é a nota inteira. */
       productCode: string
       /**
+       * Spec 247 (T5.3): o que o motorista marcou e digitou. Tudo `string` — dinheiro e quantidade nunca
+       * viram `number` —, e nada de preço, unidade ou escopo: o servidor lê da nota. Ausente é o item
+       * gravado antes da spec (ou o tipo sem produtos, número e valor).
+       */
+      declaredAmount?: string
+      items?: readonly DriverOccurrenceItem[]
+      referenceNumber?: string
+      /**
        * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
        * o aviso para um fato só. Sobe pelo mesmo par de upload e vira `signatureObjectId`; nunca
        * passa pelo comprovante da nota.
@@ -387,6 +414,13 @@ export type DriverFieldReport =
       idempotencyKey: string
       kind: 'proofReceiver'
     }>
+
+/** Spec 247: um produto devolvido — código, quantidade e, só no escopo "por produto", o valor pago. */
+export type DriverOccurrenceItem = Readonly<{
+  declaredAmount?: string
+  productCode: string
+  quantity: string
+}>
 
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
 export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
@@ -435,6 +469,7 @@ export type DriverOccurrenceType = Readonly<{
   declaredAmountScope?: string
   declaredAmountLabel?: string
   emailItemLineTemplate?: string
+  iconName?: null | string
 }>
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
@@ -465,6 +500,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountScope?: unknown
     readonly declaredAmountLabel?: unknown
     readonly emailItemLineTemplate?: unknown
+    readonly iconName?: unknown
   }
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
@@ -498,6 +534,10 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
       typeof candidate.declaredAmountLabel === 'string') &&
     (candidate.emailItemLineTemplate === undefined ||
       typeof candidate.emailItemLineTemplate === 'string')
+  const hasKnownIconName =
+    candidate.iconName === undefined ||
+    candidate.iconName === null ||
+    typeof candidate.iconName === 'string'
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
@@ -505,7 +545,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownFlow &&
     hasKnownStopKind &&
     hasKnownDeclaredAmountScope &&
-    hasKnownNewFields
+    hasKnownNewFields &&
+    hasKnownIconName
   )
 }
 

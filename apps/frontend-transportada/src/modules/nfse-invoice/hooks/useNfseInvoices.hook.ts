@@ -17,6 +17,7 @@ import type {
   NfseCancellationSummary,
   NfseDiscardSummary,
   NfseDocumentDownload,
+  NfseExternalLinkSummary,
   NfseInvoiceDetail,
   NfseInvoiceDocument,
   NfseInvoiceDocumentKind,
@@ -33,6 +34,7 @@ import {
   type NfseInvoiceClient,
   type NfseInvoiceDiscardInput,
   type NfseInvoiceExportInput,
+  type NfseInvoiceExternalLinkInput,
   type NfseInvoiceListQuery,
   type NfseInvoiceReissueInput,
 } from '../shared/nfseInvoiceClient.service'
@@ -52,6 +54,7 @@ export type NfseInvoiceController = Readonly<{
   getInvoiceDocumentUrl: (
     input: Readonly<{ invoiceId: string; kind: NfseInvoiceDocumentKind }>,
   ) => Promise<NfseDocumentDownload>
+  linkExternalInvoice: (input: NfseInvoiceExternalLinkInput) => Promise<NfseExternalLinkSummary>
   listInvoiceDocuments: (
     input: Readonly<{ invoiceId: string }>,
   ) => Promise<readonly NfseInvoiceDocument[]>
@@ -90,6 +93,8 @@ export function createNfseInvoiceController(input: ControllerInput): NfseInvoice
     getInvoice: (query) => (canReadInvoices ? input.client.getInvoice(query) : forbidden()),
     getInvoiceDocumentUrl: (query) =>
       canReadInvoices ? input.client.getInvoiceDocumentUrl(query) : forbidden(),
+    linkExternalInvoice: (query) =>
+      canIssueInvoices ? input.client.linkExternalInvoice(query) : forbidden(),
     listInvoiceDocuments: (query) =>
       canReadInvoices ? input.client.listInvoiceDocuments(query) : forbidden(),
     listInvoices: (query) => (canReadInvoices ? input.client.listInvoices(query) : forbidden()),

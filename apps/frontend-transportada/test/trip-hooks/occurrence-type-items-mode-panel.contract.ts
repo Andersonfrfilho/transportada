@@ -76,6 +76,8 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
     createElement(OccurrenceTypeCatalogPanel, {
       canManage: true,
       isSaving: false,
+      loadStatus: 'ready',
+      onRetry: () => undefined,
       onSave: (input) => saved.push(input),
       saveFeedbackKey: null,
       types,
@@ -174,6 +176,8 @@ describe('cadastro de tipos: Produtos (spec 241 RF10)', () => {
           active: true,
           allowsMultipleItems: true,
           attachmentMode: 'off',
+          emailBody: '',
+          emailSubject: '',
           emailTemplateKey: null,
           itemsMode: 'off',
           leavesDocumentBehind: false,

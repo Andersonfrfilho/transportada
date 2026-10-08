@@ -6,6 +6,7 @@ import { Tabs, type TabsItem } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { isWorkspaceForbidden } from '@/modules/shared/workspaceWall.service'
 
+import { BusinessCalendarPanel } from '../components/BusinessCalendarPanel.component'
 import { CertificateUploadForm } from '../components/CertificateUploadForm.component'
 import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
@@ -49,8 +50,8 @@ import {
   type SafeCertificate,
 } from '../shared/companySettingsClient.service'
 import {
-  COMPANY_SETTINGS_TAB_IDS,
   parseCompanySettingsTabParameter,
+  resolveVisibleCompanySettingsTabs,
   resolveCompanySettingsTab,
   type CompanySettingsTabId,
 } from '../shared/companySettingsTabs.service'
@@ -115,6 +116,7 @@ type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
+  companyId: string | undefined
   /** Spec 221 RF-D2: a permissão vem do mapa de `workspaceAccess`, nunca de uma cópia local. */
   isForbidden: boolean
   certificates: ActiveCertificatesByPurpose
@@ -249,6 +251,10 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
     return <SettingsResolutionPanel canManage={props.canManageSettings} />
   /** Spec 183 T701 (RF12): o painel é do módulo da conversa, autocontido — aqui só se decide onde. */
   if (tab === 'quickReplies') return <QuickRepliesSettingsPanel enabled={props.canManageSettings} />
+  /** Spec 238 Fase 2: o calendário de dias úteis é autocontido — busca os próprios dados, só com `settings.manage`. */
+  if (tab === 'businessCalendar') {
+    return <BusinessCalendarPanel canManage={props.canManageSettings} companyId={props.companyId} />
+  }
   if (tab === 'site') {
     return (
       <>
@@ -287,8 +293,9 @@ function SettingsBody(props: SettingsBodyProps) {
   const { t } = useTranslation('companySettings')
   const isForbidden = props.isForbidden
   if (props.viewModel.status === 'loading') return <CompanySettingsSkeleton />
-  const editable = props.canManageSettings && ['empty', 'success'].includes(props.viewModel.status)
-  const tabs: readonly TabsItem[] = COMPANY_SETTINGS_TAB_IDS.map((id) => ({
+  const editable = ['empty', 'success'].includes(props.viewModel.status)
+  const visibleTabIds = resolveVisibleCompanySettingsTabs({ canManage: props.canManageSettings })
+  const tabs: readonly TabsItem[] = visibleTabIds.map((id) => ({
     id,
     label: t(`tabs.${id}`),
     panel: <div className={styles.primaryColumn}>{renderTabPanel(id, props)}</div>,
@@ -302,7 +309,7 @@ function SettingsBody(props: SettingsBodyProps) {
             {t('forbidden')}
           </p>
         )}
-        {editable && (
+        {editable && tabs.length > 0 && (
           <Tabs
             ariaLabel={t('title')}
             items={tabs}
@@ -392,6 +399,7 @@ export function CompanySettingsPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         canManageSettings={canManageSettings}
+        companyId={companyId}
         isForbidden={isWorkspaceForbidden({
           companyId,
           permissions,

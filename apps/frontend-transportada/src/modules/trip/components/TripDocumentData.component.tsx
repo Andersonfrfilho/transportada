@@ -12,6 +12,8 @@ import { useHasDocumentCost } from '@/modules/trip-financials/hooks/useDocumentC
 import type { TripDocumentDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+import { TripDocumentDeadlineField } from './TripDocumentDeadlineField.component'
+
 type TripDocumentDataProps = Readonly<{
   /** Quem não abre `/clientes` não ganha o atalho para uma parede. */
   canOpenClients?: boolean
@@ -135,8 +137,11 @@ export function TripDocumentData({ canOpenClients = false, document }: TripDocum
   const hasContractor = hasText(contact?.contractorName)
   const hasRule = hasText(freightRuleName)
   const hasContact = contact !== null && contact !== undefined
+  const deadline = document.deliveryDeadline ?? null
 
-  if (fields.length === 0 && !hasContact && !hasRule && !hasDocumentCost) return null
+  if (fields.length === 0 && !hasContact && !hasRule && !hasDocumentCost && deadline === null) {
+    return null
+  }
 
   const titleId = `trip-document-data-${document.id}`
 
@@ -145,7 +150,7 @@ export function TripDocumentData({ canOpenClients = false, document }: TripDocum
       <p className={styles.documentDataTitle} id={titleId}>
         {t('documentData.title')}
       </p>
-      {fields.length === 0 ? null : (
+      {fields.length === 0 && deadline === null ? null : (
         <dl className={styles.documentDataGrid}>
           {fields.map((field) => (
             <div className={styles.documentDataField} key={field.key}>
@@ -171,6 +176,7 @@ export function TripDocumentData({ canOpenClients = false, document }: TripDocum
               </dd>
             </div>
           ))}
+          {deadline === null ? null : <TripDocumentDeadlineField deadline={deadline} />}
         </dl>
       )}
       {hasContact || hasRule ? (

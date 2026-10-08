@@ -43,6 +43,7 @@ import {
   buildTripTimelineStopAnchorId,
 } from '../shared/tripTimelineLink.service'
 import { TripArrivalDialog } from './TripArrivalDialog.component'
+import { TripDeliveryDeadlineBadge } from './TripDeliveryDeadlineBadge.component'
 import { TripDocumentData } from './TripDocumentData.component'
 import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import {
@@ -155,6 +156,8 @@ type TripStopListProps = Readonly<{
   onReorder: (stopIds: readonly string[]) => void
   selection: TripDocumentSelectionController
   stops: readonly TripStopDetail[]
+  /** Spec 236 P2: as notas que o filtro do prazo deixa à mostra; ausente é "sem filtro". As paradas ficam todas. */
+  visibleDocumentIds?: ReadonlySet<string> | undefined
 }>
 
 export function TripStopList({
@@ -163,6 +166,7 @@ export function TripStopList({
   onReorder,
   selection,
   stops,
+  visibleDocumentIds,
 }: TripStopListProps) {
   const { t } = useTranslation('trip')
   const order = useTripStopOrder({ onReorder, stops })
@@ -194,6 +198,7 @@ export function TripStopList({
           onOpenOccurrence={setOccurrenceStopId}
           selection={selection}
           stop={stop}
+          visibleDocumentIds={visibleDocumentIds}
         />
       ))}
     </ul>
@@ -265,6 +270,7 @@ type TripStopCardProps = Readonly<{
   onOpenOccurrence: (stopId: string) => void
   selection: TripDocumentSelectionController
   stop: TripStopDetail
+  visibleDocumentIds: ReadonlySet<string> | undefined
 }>
 
 function TripStopCard({
@@ -274,6 +280,7 @@ function TripStopCard({
   onOpenOccurrence,
   selection,
   stop,
+  visibleDocumentIds,
 }: TripStopCardProps) {
   const { t } = useTranslation('trip')
   const sortable = useSortable({ disabled: !canReorder, id: stop.id })
@@ -281,7 +288,12 @@ function TripStopCard({
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
   }
-  const documentIds = stop.documents.map((document) => document.id)
+  const shownDocuments =
+    visibleDocumentIds === undefined
+      ? stop.documents
+      : stop.documents.filter((document) => visibleDocumentIds.has(document.id))
+  /** Marcar a parada alcança só as notas à mostra: marcar o que o filtro escondeu seria agir às cegas. */
+  const documentIds = shownDocuments.map((document) => document.id)
   const allSelected =
     documentIds.length > 0 &&
     documentIds.every((documentId) => selection.selectedIds.has(documentId))
@@ -350,7 +362,12 @@ function TripStopCard({
           <span className={styles.stopSequence}>{stop.sequence}</span>
           <span className={styles.stopLabel}>{stop.label}</span>
           <span className={styles.stopCounter}>
-            {t('stops.documentCount', { count: stop.documents.length })}
+            {visibleDocumentIds === undefined
+              ? t('stops.documentCount', { count: stop.documents.length })
+              : t('deadlineFilter.shownCount', {
+                  count: stop.documents.length,
+                  shown: shownDocuments.length,
+                })}
           </span>
         </div>
         {hasCardMeta ? (
@@ -404,7 +421,11 @@ function TripStopCard({
         ) : null}
       </div>
 
-      <TripStopDocumentGroup actions={actions} documents={stop.documents} selection={selection} />
+      {visibleDocumentIds !== undefined && shownDocuments.length === 0 ? (
+        <p className={styles.hint}>{t('deadlineFilter.stopEmpty')}</p>
+      ) : (
+        <TripStopDocumentGroup actions={actions} documents={shownDocuments} selection={selection} />
+      )}
     </li>
   )
 }
@@ -498,6 +519,7 @@ function TripStopDocumentRow({
           status: t(`separationStatus.${document.separationStatus}`),
         })
   const hasProof = hasTripDocumentProof(document)
+  const deliveryDeadline = document.deliveryDeadline ?? null
   const bodyId = `trip-stop-document-body-${document.id}`
   const isOpen = actions.openDocumentId === document.id
 
@@ -542,6 +564,10 @@ function TripStopDocumentRow({
           >
             {separationStatusLabel}
           </span>
+          {/* Spec 236 RF6: o prazo de entrega só informa; nota sem prazo (`null`) ou de API anterior não ganha selo. */}
+          {deliveryDeadline === null ? null : (
+            <TripDeliveryDeadlineBadge deadline={deliveryDeadline} />
+          )}
           {/*
            * Spec 181 RF2/CA02: o marcador de ocorrência aberta e `openOccurrenceCase === true` são
            * a mesma condição booleana (proposta-ux.md item 4) — um selo só, clicável, leva direto

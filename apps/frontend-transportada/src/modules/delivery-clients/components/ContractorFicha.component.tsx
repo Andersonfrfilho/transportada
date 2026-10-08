@@ -12,6 +12,7 @@ import { useReceivingProfileQuery } from '../queries/useReceivingProfile.query'
 import type { Contractor } from '../shared/contractorDirectory.types'
 import styles from '../styles/contractorDirectory.module.css'
 import { ContractorDetailsForm } from './ContractorDetailsForm.component'
+import { PreviewEmailPanel } from './PreviewEmailPanel.component'
 import { ReceivingProfileForm } from './ReceivingProfileForm.component'
 
 type ContractorFichaProps = Readonly<{
@@ -67,6 +68,8 @@ export function ContractorFicha({
           />
         )}
       </div>
+
+      {canManage ? <PreviewEmailPanel contractorId={contractor.id} /> : null}
     </section>
   )
 }

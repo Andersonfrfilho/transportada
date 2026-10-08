@@ -173,6 +173,10 @@ import {
 } from './tripGuards.validation'
 import { hasCrewTransferForKind } from './tripTimelineCrewTransfer.validation'
 import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
+import {
+  dropMalformedDeliveryDeadline,
+  isAbsentOrDeliveryDeadline,
+} from './tripDeliveryDeadline.validation'
 
 /**
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
@@ -407,7 +411,9 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
-      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES))
+      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES)) &&
+    /** Spec 236: ausente é API anterior; `null` é sem prazo; presente tem de ter o formato exato do estado. */
+    isAbsentOrDeliveryDeadline(value.deliveryDeadline)
   )
 }
 
@@ -426,6 +432,28 @@ function isAutoDispatchOutcome(value: unknown): value is AutoDispatchOutcome {
   return (
     value.details === undefined ||
     (isRecord(value.details) && isEveryItem(value.details.stopIds, isString))
+  )
+}
+
+function isHolidayReason(
+  value: unknown,
+): value is Readonly<{ scope: string; origin: string; name: string }> {
+  return isRecord(value) && isString(value.scope) && isString(value.origin) && isString(value.name)
+}
+
+function isHolidayWarning(value: unknown): value is Readonly<{
+  date: string
+  cityIbgeCode: number
+  cityName?: string
+  reasons: readonly Readonly<{ scope: string; origin: string; name: string }>[]
+}> {
+  return (
+    isRecord(value) &&
+    isString(value.date) &&
+    typeof value.cityIbgeCode === 'number' &&
+    (value.cityName === undefined || isString(value.cityName)) &&
+    Array.isArray(value.reasons) &&
+    value.reasons.every(isHolidayReason)
   )
 }
 
@@ -448,7 +476,9 @@ function isStopDetail(value: unknown): value is TripStopDetail {
     isString(value.id) &&
     isString(value.label) &&
     isUnsignedInteger(value.sequence) &&
-    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence))
+    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence)) &&
+    (value.holidayWarnings === undefined ||
+      (Array.isArray(value.holidayWarnings) && value.holidayWarnings.every(isHolidayWarning)))
   )
 }
 
@@ -490,7 +520,7 @@ function isDetail(value: unknown): value is TripDetail {
 }
 
 function readTolerantDocumentDetail(value: unknown): TripDocumentDetail | undefined {
-  return readTolerantRecord(value, {
+  return readTolerantRecord(dropMalformedDeliveryDeadline(value), {
     allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
     guard: isDocumentDetail,
     required: TRIP_DOCUMENT_DETAIL_KEYS,
@@ -1086,6 +1116,10 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
+    tripOccurrenceFromApi(input: unknown): TripOccurrence {
+      if (!isTripOccurrence(input)) throw invalid()
+      return input
+    },
     /**
      * Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`.
      *
@@ -1405,10 +1439,16 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
  */
 function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
   return (
-    hasExactKeys(value, ['code', 'quantity', 'unit'] as const) &&
+    hasKeys(value, {
+      /** Spec 247 (ADR-0081 §9): o valor unitário copiado e o valor pago da linha — tolerados antes de a API os publicar. */
+      allowed: ['code', 'declaredAmount', 'quantity', 'unit', 'unitValue'],
+      required: ['code', 'quantity', 'unit'],
+    }) &&
     isString(value.code) &&
     (value.quantity === null || isString(value.quantity)) &&
     (value.unit === null || isString(value.unit)) &&
+    isOptionalNullableString(value.declaredAmount) &&
+    isOptionalNullableString(value.unitValue) &&
     /** Os dois andam juntos, como no banco — meia contagem não chega à tela. */
     (value.quantity === null) === (value.unit === null)
   )
@@ -1470,6 +1510,9 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
     (value.typeItemsMode === undefined ||
       value.typeItemsMode === null ||
       isOneOf(value.typeItemsMode, OCCURRENCE_ITEMS_MODES)) &&
+    (value.typeIconName === undefined ||
+      value.typeIconName === null ||
+      isString(value.typeIconName)) &&
     isString(value.typeName)
   )
 }
@@ -1629,6 +1672,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     hasAddressChangeForKind(value) &&
     hasCrewTransferForKind(value) &&
+    (value.isSystemActor === undefined || isBoolean(value.isSystemActor)) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&
     isNullableString(value.actorName) &&
@@ -1886,6 +1930,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'emailsContractor',
         /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
         'flow',
+        /** Spec 255 T1.1 (ADR-0081 §9): o ícone do tipo, tolerado antes de a API mandá-lo. */
+        'iconName',
         /** Spec 246 T1c.4: quantidade mínima de produtos (nulo = todos os itens), tolerada antes de a API mandá-la. */
         'itemsMinimumCount',
         /** Spec 241 RF1: mesma tolerância — ausente é API anterior ao campo e continua ausente. */
@@ -1953,6 +1999,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.declaredAmountScope === undefined ||
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
     (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
   )
 }
@@ -1978,6 +2025,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
+    iconName,
     emailItemLineTemplate,
     ...rest
   } = raw
@@ -1998,6 +2046,7 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isString(iconName) ? { iconName } : {}),
     ...(isString(emailItemLineTemplate) ? { emailItemLineTemplate } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',

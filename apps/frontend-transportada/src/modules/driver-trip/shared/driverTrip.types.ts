@@ -207,6 +207,7 @@ export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 export type DriverOccurrenceType = Readonly<{
   id: string
   name: string
+  iconName?: null | string
 }>
 
 /**

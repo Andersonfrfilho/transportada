@@ -5,13 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { useTripDocumentTimelineQuery } from '../queries/useTripDocumentTimeline.query'
 import { canReadTrip } from '../shared/trip.constant'
 import type { TripStopDetail } from '../shared/trip.types'
 import {
-  collectRepeatedAuthorshipItemIds,
   removeDuplicateDispatchEvents,
   removeDuplicateTimelineItems,
 } from '../shared/tripTimeline.service'
@@ -36,7 +34,8 @@ const SKELETON_ROWS = 2
  * Spec 233 T5.3 (RF7, D11): "Eventos desta entrega" na nota aberta — os eventos **da nota** e os da
  * parada dela, vindos de `GET /trips/:id/timeline?documentId=`. A apresentação de cada evento é a
  * `TripTimelineEntry` da linha do tempo da viagem (distância ao ponto e mapa só com
- * `trip.event-location`, que a API já aplica). Em ordem cronológica, como no canvas.
+ * `trip.event-location`, que a API já aplica). Do mais recente para o mais antigo, como a linha do
+ * tempo da viagem.
  */
 export function TripDocumentEvents({
   documentId,
@@ -46,20 +45,15 @@ export function TripDocumentEvents({
   tripId,
 }: TripDocumentEventsProps) {
   const { t } = useTranslation('trip')
-  const translate = t as Translate
   const query = useTripDocumentTimelineQuery({ documentId, permissions, tripId })
 
-  /** A API ordena do mais recente para o mais antigo; a seção conta a entrega do começo ao fim. */
+  /** A API ordena do mais recente para o mais antigo, e a seção mantém essa ordem. */
   const items = useMemo(() => {
     const pages = query.data?.pages ?? []
     return removeDuplicateDispatchEvents(
       removeDuplicateTimelineItems(pages.flatMap((page) => page.items)),
-    ).toReversed()
+    )
   }, [query.data])
-  const repeatedAuthorshipItemIds = useMemo(
-    () => collectRepeatedAuthorshipItemIds(items, translate),
-    [items, translate],
-  )
 
   /** A seção é de uma entrega: se todo evento é da mesma parada, o chip dela é ruído em cada linha. */
   const sharesStop = items.every((item) => item.stop?.id === items[0]?.stop?.id)
@@ -90,11 +84,9 @@ export function TripDocumentEvents({
       ) : (
         <ol aria-busy={query.isFetchingNextPage} className={timelineStyles.list}>
           {items.map((item, index) => {
-            const previous = items[index - 1]
+            const older = items[index + 1]
             const interval =
-              previous === undefined
-                ? undefined
-                : resolveTripTimelineInterval({ newer: item, older: previous })
+              older === undefined ? undefined : resolveTripTimelineInterval({ newer: item, older })
             return (
               <TripTimelineEntry
                 elapsedMinutes={
@@ -103,7 +95,6 @@ export function TripDocumentEvents({
                 isOwnDelivery
                 item={item}
                 key={item.id}
-                repeatsAuthorship={repeatedAuthorshipItemIds.has(item.id)}
                 shouldOmitStopChip={sharesStop}
                 stops={stops}
               />

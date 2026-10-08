@@ -15,13 +15,18 @@ import {
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
 } from '../shared/tripOccurrenceFeed.service'
-import { OccurrenceSettlementPanel } from './OccurrenceSettlementPanel.component'
+import {
+  OccurrenceSettlementPanel,
+  type OccurrenceSettlementPanelProps,
+} from './OccurrenceSettlementPanel.component'
 import styles from '../styles/trip.module.css'
 
 export type OccurrenceCasePanelProps = Readonly<{
   canResolve: boolean
   occurrenceCase: null | TripOccurrenceCaseView
   occurrenceId: string
+  /** Spec 247 T5.4 (RF12): o que o acerto precisa para sugerir valores; só a página do detalhe conhece os itens. */
+  suggestionSource?: OccurrenceSettlementPanelProps['suggestionSource']
 }>
 
 type NoteAction = 'cancel' | 'warehouse-return'
@@ -45,6 +50,7 @@ export function OccurrenceCasePanel({
   canResolve,
   occurrenceCase,
   occurrenceId,
+  suggestionSource,
 }: OccurrenceCasePanelProps) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
@@ -321,6 +327,7 @@ export function OccurrenceCasePanel({
           canResolve={canResolve}
           onDraftDirtyChange={setHasUnsavedSettlement}
           occurrenceId={occurrenceId}
+          {...(suggestionSource === undefined ? {} : { suggestionSource })}
         />
       ) : null}
     </div>

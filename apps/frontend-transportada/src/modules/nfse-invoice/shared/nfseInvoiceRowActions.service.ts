@@ -4,14 +4,22 @@ import {
   NFSE_CANCELLATION_REASON_MAX_LENGTH,
   NFSE_CANCELLATION_REASON_MIN_LENGTH,
   NFSE_ISSUE_PERMISSION,
+  NFSE_NATIONAL_TAXATION_KEYS,
   NFSE_READ_PERMISSION,
   NFSE_REISSUE_CORRECTABLE_KEYS,
 } from './nfseInvoice.constant'
 import type { NfseLastIssuancePayload } from './nfseInvoice.types'
+import {
+  formatSimplesNationalRate,
+  toNationalTaxationCode,
+  toSimplesNationalRate,
+} from './nfseNationalTaxation.service'
 
 const CANCELLATION_IDEMPOTENCY_KEY_PREFIX = 'nfse-cancellation'
 const REISSUE_IDEMPOTENCY_KEY_PREFIX = 'nfse-reissue'
 const DISCARD_IDEMPOTENCY_KEY_PREFIX = 'nfse-discard'
+const EXTERNAL_LINK_IDEMPOTENCY_KEY_PREFIX = 'nfse-external-link'
+const PROVIDER_DOCUMENT_ID_PATTERN = /^\d{1,20}$/u
 
 /** A API só transita `authorized` → `cancellation_requested`; oferecer fora daí seria pedir 409. */
 const CANCELLABLE_STATUSES: readonly string[] = ['authorized']
@@ -19,6 +27,7 @@ const CANCELLABLE_STATUSES: readonly string[] = ['authorized']
 /** `rejected` e `failed` são as duas saídas de uma nota parada — a política do domínio é a mesma. */
 export const REISSUABLE_STATUSES: readonly string[] = ['failed', 'rejected']
 export const DISCARDABLE_STATUSES: readonly string[] = ['failed', 'rejected']
+export const EXTERNAL_LINKABLE_STATUSES: readonly string[] = ['failed', 'rejected']
 
 /** XML e PDF nascem na autorização e sobrevivem ao cancelamento — antes dela não há arquivo. */
 export const NFSE_DOWNLOADABLE_STATUSES: readonly string[] = [
@@ -34,6 +43,8 @@ export type NfseRowActionState = Readonly<{
   isDiscardEnabled: boolean
   isDiscardVisible: boolean
   isDownloadEnabled: boolean
+  isExternalLinkEnabled: boolean
+  isExternalLinkVisible: boolean
   isReissueEnabled: boolean
   isReissueVisible: boolean
 }>
@@ -56,6 +67,8 @@ export function resolveNfseRowActions(
     isDiscardEnabled: canCancel && DISCARDABLE_STATUSES.includes(input.status),
     isDiscardVisible: canCancel,
     isDownloadEnabled: canRead && NFSE_DOWNLOADABLE_STATUSES.includes(input.status),
+    isExternalLinkEnabled: canIssue && EXTERNAL_LINKABLE_STATUSES.includes(input.status),
+    isExternalLinkVisible: canIssue,
     isReissueEnabled: canIssue && REISSUABLE_STATUSES.includes(input.status),
     isReissueVisible: canIssue,
   }
@@ -97,6 +110,18 @@ export function buildNfseDiscardIdempotencyKey(
   return buildIdempotencyKey({ ...input, prefix: DISCARD_IDEMPOTENCY_KEY_PREFIX })
 }
 
+export function buildNfseExternalLinkIdempotencyKey(
+  input: Readonly<{ invoiceId: string; token: string }>,
+): string {
+  return buildIdempotencyKey({ ...input, prefix: EXTERNAL_LINK_IDEMPOTENCY_KEY_PREFIX })
+}
+
+/** O `id_nota` do portal é numérico; a API recusa o resto com 400, então a tela recusa antes. */
+export function parseNfseProviderDocumentId(value: string): null | string {
+  const trimmed = value.trim()
+  return PROVIDER_DOCUMENT_ID_PATTERN.test(trimmed) ? trimmed : null
+}
+
 export type NfseReissueCorrection = Partial<
   Pick<NfseLastIssuancePayload, (typeof NFSE_REISSUE_CORRECTABLE_KEYS)[number]>
 >
@@ -109,12 +134,33 @@ export type NfseReissueCorrection = Partial<
 export function buildNfseReissueCorrectionBody(
   input: Readonly<{ edited: NfseReissueCorrection; lastPayload: NfseLastIssuancePayload }>,
 ): NfseReissueCorrection {
-  const correction: Record<string, unknown> = {}
+  const correction: Record<string, unknown> = {
+    ...readNationalTaxationCorrection(input),
+  }
   for (const key of NFSE_REISSUE_CORRECTABLE_KEYS) {
+    if (NFSE_NATIONAL_TAXATION_KEYS.some((nationalKey) => nationalKey === key)) continue
     if (!(key in input.edited)) continue
     if (input.edited[key] !== input.lastPayload[key]) correction[key] = input.edited[key]
   }
   return correction
+}
+
+/** Apagar o campo não corrige nada: a API não aceita valor vazio, então vazio significa "não mexi". */
+function readNationalTaxationCorrection(
+  input: Readonly<{ edited: NfseReissueCorrection; lastPayload: NfseLastIssuancePayload }>,
+): NfseReissueCorrection {
+  const code = toNationalTaxationCode(input.edited.nationalTaxationCode ?? '')
+  const rate = toSimplesNationalRate(input.edited.simplesNationalRate ?? '')
+  const frozenRate = formatSimplesNationalRate(input.lastPayload.simplesNationalRate ?? '')
+
+  return {
+    ...(code !== null && code !== input.lastPayload.nationalTaxationCode
+      ? { nationalTaxationCode: code }
+      : {}),
+    ...(rate !== null && formatSimplesNationalRate(rate) !== frozenRate
+      ? { simplesNationalRate: rate }
+      : {}),
+  }
 }
 
 /** O documento fiscal sai por link assinado: sem `url` legível não há o que abrir, e mentir é pior. */

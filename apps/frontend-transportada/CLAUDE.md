@@ -352,6 +352,11 @@ linha), nunca por expressão regular (revisão de segurança S3). `PUT` do perfi
 (`data-field`). Em teste de DOM, compare foco com `activeElement === campo`, nunca `toBe` sobre nó. Detalhe:
 docs/ai-context/frontend-transportada.md § "Spec 237 T1.4".
 
+**Seção "Prévia por e-mail" da ficha** (T4.6b): `PreviewEmailPanel`, só com `settings.manage`; cliente e rotas próprios (o perfil não ganhou chave).
+Endereço gerado aparece **uma vez**, só em `mutation.data` (`gcTime: 0`, `reset()` ao fechar/desmontar) — nunca em `localStorage`, URL ou console;
+rotacionar pede confirmação. Ganchos `beforeEach/afterEach` de arquivo de DOM vão **dentro** do `describe` (a suíte de DOM é uma só). Detalhe:
+docs/ai-context/frontend-transportada.md § "Spec 237 T4.6b".
+
 ## O ajudante fecha as pontas (spec 243)
 
 Painel "Diária do ajudante" na aba de motoristas (`DriverCrewSettingsPanel`, fora de `SETTINGS_PANEL_PLACEMENT`,
@@ -445,6 +450,43 @@ fluxo existente**: "Montar viagem" navega a `/trips?createFromDocuments=` só co
 XML" é neutro (nunca alerta); ação sem nota roteável fica desabilitada com o motivo; sem `trip.manage` nenhuma ação
 aparece. Estado na URL (`recommend`, `draftRoute`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T5.2".
 
+## O prazo de entrega da nota (spec 236 T1.2b)
+
+`documents[].deliveryDeadline` é aceito pelo painel (só tipo e guarda, sem selo ainda) **antes** de a API o mandar: opcional em
+`TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS`, chaves exatas por estado, e malformado cai **sozinho** (`dropMalformedDeliveryDeadline`) — sem isso o leitor
+tolerante levaria `contact` e `proofPending` junto. Nunca no `TripDocument`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 T1.2b".
+
+## O selo do prazo de entrega e o filtro (spec 236 Fase 2)
+
+Selo `TripDeliveryDeadlineBadge` na linha da nota (texto de `deliveryDeadline.label.*`, "Vencida" sem número quando o atraso é zero dia útil; `dueOn` é
+**data civil**, formatada por `formatDeliveryDeadlineDate`, nunca `new Date(texto)`) e data no "Dados da nota". Só informa: não é botão, não muda ação nem
+ordem. Filtro **no cliente** na lista de notas do detalhe (`useTripDeliveryDeadlineScope`, múltiplo, na URL como `?deadline=`, contagem por opção, só com
+alguma nota com prazo): as paradas ficam todas, "marcar todas" só alcança as notas à mostra. Sem filtro na lista de viagens (decisão aberta). A tinta do
+alerta é `--color-alert-ink` (a `--color-alert` crua media 4,11:1 no claro). ⚠️ Gancho `beforeEach`/`afterEach` no topo de contrato de `test:hooks` vale para
+a suíte inteira: guarde dentro de um `describe`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 236 Fase 2".
+
+## O calendário de dias úteis (spec 238 Fase 2)
+
+Aba **Calendário** de Configurações (`BusinessCalendarPanel`, `COMPANY_SETTINGS_TAB_IDS`, `businessCalendar` em `SETTINGS_PANEL_PLACEMENT`): só com
+`settings.manage` (`resolveVisibleCompanySettingsTabs`; sem a permissão o painel nem faz chamada). Três blocos: **Sábado é dia útil**
+(`GET/PUT /company-settings/business-calendar`), **feriados municipais** (UF → município pelo IBGE, `municipality.service`; "todo ano" é uma
+**regra** e a tabela mostra UMA linha "Todo ano, 14/07 — gerado até 2036" — as datas que a API gerou NÃO são linhas; "só esta data" é data fixa)
+e **feriados estaduais**. Namespace i18n `businessCalendar` (arquivo próprio, pt-BR e en).
+
+- **Guardas de chaves exatas** (`businessCalendarGuards.validation.ts`, `hasExactKeys`/`hasKeys` de `objectKeys.service`): o formato é o das
+  rotas da API; `typedHolidaysKept` só nas regras lidas/editadas, `adoptedFromRuleId` só no `POST` da data fixa. Chave a mais é recusada.
+- **A recusa nomeia todos os campos** (`describeBusinessCalendarRefusal`, `data-field` = nome da API, atalho = `focusBusinessCalendarField`); código
+  novo da API entra em `BUSINESS_CALENDAR_REFUSAL_CODES` e precisa de `errors.<CÓDIGO>` nos dois locales (contrato `locale.contract.ts`).
+- **Editar** reabre a linha no mesmo formulário com cidade/UF e recorrência travadas; a data fixa só muda nome e tipo; o `PATCH` estadual leva sempre
+  `recurrence`, e mês+dia vão juntos. Excluir pede confirmação (`HolidayDeleteDialog`), que avisa "N datas digitadas neste dia continuam valendo"
+  (o `DELETE` é 204 sem corpo: a contagem vem da leitura das regras). Adoção (`adoptedFromRuleId`) e `typedHolidaysKept` do `PATCH` são ditos.
+- **Horizonte:** sem rotina agendada, a tela avisa quando uma regra tem `materializedThroughYear < ano corrente + 2` (ano de São Paulo) e oferece
+  "Gerar próximos anos" (`POST …/materializations`, sem corpo). O aviso fixo do roteiro usa o MENOR "gerado até".
+- **Tabela:** `HolidayTable` (cartão abaixo de 40 rem com `data-label`), ordenação asc/desc/neutro, filtros múltiplos (tipo, recorrência, UF), página
+  de 10 — tudo na URL com prefixo (`municipal…`, `state…`), sem apagar `?tab=`. Contratos: `test/business-calendar/*.contract.ts` (sem DOM) e
+  `test/trip-hooks/business-calendar-*.contract.ts` (DOM; API dublada com as transições da T1.3 em `businessCalendarClientMocks.helper.ts`).
+  ⚠️ `GET /municipal-holidays` é `fleet.read`: quem tem só `settings.manage` vê a falha dita na lista municipal. Detalhe: docs/ai-context § "Spec 238 Fase 2".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de
@@ -480,3 +522,16 @@ a ação não se desfaz, decisão só `other`/`goods_paid` (nunca reentrega), e 
 Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniaturas ficam estáveis entre leituras; progresso do celular
 só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
 `currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".
+
+## A devolução soma os itens no painel (spec 247)
+
+A aba Tipos configura número do documento do cliente, valor pago (modo, escopo, rótulo) e o e-mail à contratante; a **prévia vem do
+servidor** (`POST /company-settings/occurrence-types/email-preview`), nunca de uma segunda implementação no painel. A correção
+(`TripOccurrenceCorrectionForm`) obedece `requirements` do **detalhe** da ocorrência (modo efetivo: `off` esconde, `required` sem
+"Limpar"), para não depender de `settings.manage`; `useOccurrenceTypeRecordConfig` é só fallback quando `requirements` falta.
+`occurrenceAmount.service.ts` espelha o cálculo da API (`bigint`; contrato `occurrence-amount-mirror.contract.ts`) e a soma da linha
+usa o `unitValue` **copiado** em `itemValues`, não o preço atual da nota. O rascunho do e-mail só some quando o salvar pousa (PUT que falha preserva o texto). ⚠️ `fixtures/*.golden.json` são cópia idêntica da API.
+O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (o registro do motorista não a abre: decisão pendente).
+Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".
+
+⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + `frontend-driver`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 255".

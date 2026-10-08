@@ -54,9 +54,13 @@ export function useNfseInvoiceBulkReissue(input: UseNfseInvoiceBulkReissueInput)
             invoiceId: invoice.id,
           })
           outcomes.push({ invoiceId: invoice.id, isReissued: true })
-        } catch {
+        } catch (error) {
           /* Uma nota recusada não derruba as seguintes: o resultado por nota é relatado no fim. */
-          outcomes.push({ invoiceId: invoice.id, isReissued: false })
+          outcomes.push({
+            errorCode: error instanceof Error ? error.message : null,
+            invoiceId: invoice.id,
+            isReissued: false,
+          })
         }
       }
 

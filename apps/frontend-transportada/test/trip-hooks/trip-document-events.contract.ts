@@ -117,14 +117,14 @@ describe('Eventos desta entrega (spec 233 T5.3)', () => {
     expect(dom.textContent).not.toContain('Eventos desta entrega')
   })
 
-  it('mostra o título, os eventos da nota em ordem cronológica e o rótulo D11', async () => {
+  it('mostra o título, os eventos da nota do mais recente ao mais antigo e o rótulo D11', async () => {
     const { dom } = await renderEvents()
 
     expect(dom.querySelector('h4')?.textContent).toBe('Eventos desta entrega')
     const titles = [...dom.querySelectorAll('ol > li p')].map((node) => node.textContent)
-    expect(titles[0]).toBe('Saída para esta parada')
+    expect(titles[0]).toContain('123/1')
     expect(titles[1]).toBe('Chegada na parada 2')
-    expect(titles[2]).toContain('123/1')
+    expect(titles[2]).toBe('Saída para esta parada')
     expect(dom.textContent).not.toContain('A caminho da parada')
   })
 

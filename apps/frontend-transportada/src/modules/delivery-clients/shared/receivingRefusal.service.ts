@@ -5,6 +5,8 @@ import { ContractorDirectoryRequestError } from './contractorDirectoryRequest.se
 export type RefusedField = Readonly<{ field: string; labelKey: string | undefined }>
 
 const PREVIEW_COLUMN_PREFIX = 'previewColumnMap.'
+/** `forwarderAllowlist.2` é a terceira entrada da lista: o aviso nomeia a lista, não o índice. */
+const LIST_ENTRY_SEPARATOR = '.'
 
 /**
  * `web.md` §11.4: o rótulo impresso é o que aparece, nunca o caminho do corpo. O mapa mora aqui, num
@@ -16,6 +18,7 @@ const FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   closingPeriod: 'details.closingPeriod',
   deliveryDeadlineBusinessDays: 'fields.deliveryDeadlineBusinessDays',
   displayName: 'details.displayName',
+  forwarderAllowlist: 'fields.forwarderAllowlist',
   isEnabled: 'fields.isEnabled',
   matchWindowDays: 'fields.matchWindowDays',
   notes: 'details.notes',
@@ -24,6 +27,7 @@ const FIELD_LABEL_KEYS: Readonly<Record<string, string>> = {
   previewSheetName: 'fields.previewSheetName',
   reportEmail: 'details.reportEmail',
   requiresDamageCheck: 'fields.requiresDamageCheck',
+  senderAllowlist: 'fields.senderAllowlist',
   separationWindowHours: 'fields.separationWindowHours',
   status: 'details.status',
   weightTolerancePercent: 'fields.weightTolerancePercent',
@@ -33,7 +37,7 @@ function resolveLabelKey(field: string): string | undefined {
   if (field.startsWith(PREVIEW_COLUMN_PREFIX)) {
     return `columns.${field.slice(PREVIEW_COLUMN_PREFIX.length)}`
   }
-  return FIELD_LABEL_KEYS[field]
+  return FIELD_LABEL_KEYS[field] ?? FIELD_LABEL_KEYS[field.split(LIST_ENTRY_SEPARATOR)[0] ?? field]
 }
 
 /** Deduplicado por campo: quem viola duas regras é um item, não dois. */

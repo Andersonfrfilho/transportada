@@ -15,6 +15,7 @@ import {
   formatExceptionSubject,
   type OccurrenceExceptionSubject,
 } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
+import type { OccurrenceRecordLabels } from '@/modules/trip/shared/occurrenceRecordFields.service'
 import type { OccurrenceRequirementScope } from '@/modules/trip/shared/occurrenceRequirementScope.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
@@ -26,6 +27,8 @@ type OccurrenceExceptionItemProps = Readonly<{
   entry: OccurrenceExceptionEntry
   onEdit: (key: OccurrenceExceptionKey, edit: OccurrenceExceptionEdit) => void
   onRemove: (key: OccurrenceExceptionKey) => void
+  /** Spec 247 D8: os nomes que o tipo deu ao número e ao valor pago; `undefined` é API anterior aos campos. */
+  recordLabels: OccurrenceRecordLabels | undefined
   /** O que o momento do tipo cobra: tipo só de parada declara só a foto. */
   scope: OccurrenceRequirementScope
   subject: OccurrenceExceptionSubject
@@ -37,6 +40,7 @@ export function OccurrenceExceptionItem({
   entry,
   onEdit,
   onRemove,
+  recordLabels,
   scope,
   subject,
 }: OccurrenceExceptionItemProps) {
@@ -91,6 +95,24 @@ export function OccurrenceExceptionItem({
             field="items"
             onChange={(mode) => handleEdit({ itemsMode: mode })}
             value={entry.itemsMode ?? null}
+          />
+        ) : null}
+        {recordLabels !== undefined && scope.recordFields.includes('referenceNumber') ? (
+          <OccurrenceExceptionModeSelect
+            disabled={disabled}
+            field="referenceNumber"
+            label={recordLabels.referenceNumber}
+            onChange={(mode) => handleEdit({ referenceNumberMode: mode })}
+            value={entry.referenceNumberMode ?? null}
+          />
+        ) : null}
+        {recordLabels !== undefined && scope.recordFields.includes('declaredAmount') ? (
+          <OccurrenceExceptionModeSelect
+            disabled={disabled}
+            field="declaredAmount"
+            label={recordLabels.declaredAmount}
+            onChange={(mode) => handleEdit({ declaredAmountMode: mode })}
+            value={entry.declaredAmountMode ?? null}
           />
         ) : null}
         <OccurrenceExceptionMinimums

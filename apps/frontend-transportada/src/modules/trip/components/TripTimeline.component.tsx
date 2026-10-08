@@ -20,7 +20,6 @@ import {
   resolveTimelineLocationView,
 } from '../shared/tripTimelineDetail.service'
 import {
-  collectRepeatedAuthorshipItemIds,
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   formatTripTimelineDocumentFilterLabel,
@@ -186,10 +185,6 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
     () => new Map(items.map((item, index) => [item.id, items[index + 1]])),
     [items],
   )
-  const repeatedAuthorshipItemIds = useMemo(
-    () => collectRepeatedAuthorshipItemIds(items, translate),
-    [items, translate],
-  )
 
   function handleDocumentToggle(documentId: string, checked: boolean) {
     setSelectedDocumentIds((current) => {
@@ -300,7 +295,6 @@ export function TripTimeline({ openDocumentId, query, stops }: TripTimelineProps
                             : interval.minutes
                         }
                         item={item}
-                        repeatsAuthorship={repeatedAuthorshipItemIds.has(item.id)}
                         stops={stops}
                       />
                       {hasGapRuler ? (
@@ -358,14 +352,12 @@ export function TripTimelineEntry({
   elapsedMinutes,
   isOwnDelivery = false,
   item,
-  repeatsAuthorship,
   shouldOmitStopChip = false,
   stops,
 }: Readonly<{
   elapsedMinutes: null | number
   isOwnDelivery?: boolean
   item: TripTimelineItem
-  repeatsAuthorship: boolean
   /** Todos os eventos da lista são da mesma parada: o chip "Parada N" só repetiria. */
   shouldOmitStopChip?: boolean
   stops: readonly TripStopDetail[] | undefined
@@ -391,8 +383,7 @@ export function TripTimelineEntry({
       />
     )
   const title = resolveEntryTitle({ isOwnDelivery, item, translate })
-  /** Autoria igual à do evento anterior cala: o leitor já sabe de quem é (spec 180). */
-  const authorship = repeatsAuthorship ? null : resolveTripTimelineAuthorshipText(item, translate)
+  const authorship = resolveTripTimelineAuthorshipText(item, translate)
   const { icon, tone } = resolveTripTimelineIcon(item)
   const chips = resolveTripTimelineChips(item, translate, { shouldOmitStop: shouldOmitStopChip })
   const addressChange = resolveTripTimelineAddressChange(item, translate)

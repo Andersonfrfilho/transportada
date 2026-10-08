@@ -432,7 +432,8 @@ export function useTripWorkspace(
   const openDocument = tripQuery.data?.documents.find((document) => document.id === openDocumentId)
   const openProofDocumentId =
     openDocument !== undefined && hasTripDocumentProof(openDocument) ? openDocument.id : null
-  const activeProductsDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
+  const activeProductsDocumentId =
+    openProofDocumentId ?? openSeparationOccurrenceDocumentId ?? openDocumentId
   const activeOccurrenceDocumentId = openDocumentId ?? openSeparationOccurrenceDocumentId
 
   const nextCargoLayoutEpisode = trackCargoLayoutPendingEpisode({

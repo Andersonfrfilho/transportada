@@ -38,7 +38,7 @@ describe('selecionar todas as notas da viagem de uma vez', () => {
     expect(source).toContain('if (documentIds.length === 0) return null')
   })
 
-  it('fica no cabeçalho de "Cargas da viagem", antes da lista, e cobre todas as notas da viagem', () => {
+  it('fica no cabeçalho de "Cargas da viagem", antes da lista, e cobre as notas que o filtro do prazo deixa à mostra (todas, sem filtro)', () => {
     const source = readFileSync(DETAIL, 'utf8')
     const titulo = source.indexOf('id="trip-stops-title"')
     const caixa = source.indexOf('<TripSelectAllDocuments', titulo)
@@ -47,7 +47,7 @@ describe('selecionar todas as notas da viagem de uma vez', () => {
     expect(caixa).toBeGreaterThan(titulo)
     expect(caixa).toBeLessThan(lista)
     expect(source.slice(caixa, lista)).toContain(
-      'documentIds={trip.documents.map((document) => document.id)}',
+      'documentIds={deadlineScope.visibleDocuments.map((document) => document.id)}',
     )
   })
 

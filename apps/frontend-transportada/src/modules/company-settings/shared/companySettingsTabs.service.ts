@@ -25,6 +25,7 @@ export const SETTINGS_PANELS = [
   'entryKindCatalog',
   'quickReplies',
   'settingsResolution',
+  'businessCalendar',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -41,6 +42,7 @@ export const SETTINGS_PANEL_MODULES = [
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
+  | 'businessCalendar'
   | 'cameraMeasurementSettings'
   | 'cargoSettings'
   | 'cargoVolumeFactors'
@@ -82,6 +84,15 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  /**
+   * Spec 238 Fase 2: o calendário (sábado, feriados municipais e estaduais) é da empresa inteira e do prazo de
+   * entrega em dias úteis, não de um módulo — aba própria de Configurações, só com `settings.manage`.
+   */
+  businessCalendar: {
+    module: 'company-settings',
+    source: 'businessCalendar',
+    tab: 'businessCalendar',
+  },
   /**
    * Spec 152 D14 — o interruptor mora na aba onde o conferente já está: é lá que "Medir esta
    * caixa" aparece ou some, e é lá que quem administra configurações vê o efeito do que ligou.
@@ -226,6 +237,7 @@ export function resolveSettingsDataScope(
     settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
   )
   return {
+    businessCalendar: sources.has('businessCalendar'),
     cameraMeasurementSettings: sources.has('cameraMeasurementSettings'),
     cargoSettings: sources.has('cargoSettings'),
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
@@ -259,9 +271,20 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'entryKinds',
   'quickReplies',
   'settingsResolution',
+  'businessCalendar',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
+
+/**
+ * As abas que a pessoa vê. Configurações da empresa é de quem tem `settings.manage`: sem a permissão não há aba
+ * nenhuma — nem a do calendário de dias úteis, que a API também recusaria (`settings.manage` em todas as rotas).
+ */
+export function resolveVisibleCompanySettingsTabs(
+  input: Readonly<{ canManage: boolean }>,
+): readonly CompanySettingsTabId[] {
+  return input.canManage ? COMPANY_SETTINGS_TAB_IDS : []
+}
 
 /** Aba desconhecida — endereço antigo, digitação, estado velho — abre a primeira, não uma tela vazia. */
 export function resolveCompanySettingsTab(value: string | null | undefined): CompanySettingsTabId {

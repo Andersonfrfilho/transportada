@@ -105,7 +105,9 @@
     "previewEnabled": "Receber prévia da planilha",
     "previewSheetName": "Nome da aba",
     "previewColumnMap": "Colunas da planilha",
-    "arrivalReferenceLabel": "Texto que antecede o número da carga"
+    "arrivalReferenceLabel": "Texto que antecede o número da carga",
+    "forwarderAllowlist": "Quem encaminha",
+    "senderAllowlist": "Remetente original do contratante"
   },
   "columns": {
     "contractorReference": "Referência do contratante",

@@ -250,9 +250,200 @@ describe('driverTripResponse.validation — o documento real da API com produtos
     })
   })
 
+  it('os produtos do documento real chegam à tela, com o aviso de preço que varia (T5.3)', () => {
+    const document = parseSnapshot().trips[0]?.stops[0]?.documents[0]
+
+    expect(document?.products).toEqual([
+      {
+        code: 'P1',
+        description: 'Biscoito',
+        hasVaryingUnitValue: false,
+        quantity: '3.0000',
+        unit: 'CX',
+        unitValue: '19.9950',
+      },
+      {
+        code: 'P2',
+        description: 'Bolo',
+        hasVaryingUnitValue: false,
+        quantity: '1.0000',
+        unit: 'UN',
+        unitValue: '57.2000',
+      },
+      {
+        code: 'P3',
+        description: 'Fardo de água',
+        hasVaryingUnitValue: true,
+        quantity: '2.0000',
+        unit: 'FD',
+        unitValue: '10.0000',
+      },
+    ])
+  })
+
+  it('nota sem a chave products (snapshot antigo) fica sem lista; lista vazia fica vazia', () => {
+    function parseWith(extra: Record<string, unknown>) {
+      const { products: _ignored, ...withoutProducts } = golden
+      void _ignored
+      return toDriverTripSnapshot({
+        data: {
+          isRegisteredDriver: true,
+          pendingProofs: [],
+          score: null,
+          trips: [
+            {
+              createdAt: '2026-10-07T00:00:00.000Z',
+              crewRole: 'driver',
+              id: 'trip-1',
+              manifest: null,
+              status: 'in_transit',
+              stops: [
+                {
+                  arrivedAt: null,
+                  completedAt: null,
+                  deliveryWindowEnd: null,
+                  deliveryWindowStart: null,
+                  documents: [{ ...withoutProducts, ...extra }],
+                  enRouteSince: null,
+                  enRouteTappedAt: null,
+                  id: 'stop-1',
+                  label: 'Centro, 100',
+                  latitude: null,
+                  longitude: null,
+                  schedule: null,
+                  sequence: 1,
+                },
+              ],
+              vehiclePlate: 'ABC1D23',
+            },
+          ],
+        },
+      }).trips[0]?.stops[0]?.documents[0]
+    }
+
+    expect(parseWith({})?.products).toBeUndefined()
+    expect(parseWith({ products: [] })?.products).toEqual([])
+    expect(
+      parseWith({ products: [{ code: 'X' }, 'lixo', null] })?.products,
+      'item malformado some, o resto da nota não cai',
+    ).toEqual([])
+  })
+
   it('o tipo efetivo do documento real passa no guard do tipo', () => {
     const [type] = golden.occurrenceTypes as readonly unknown[]
 
     expect(isDriverOccurrenceType(type)).toBe(true)
+  })
+})
+
+/**
+ * Spec 252 T5.1b: O app do motorista tolera o campo novo `holidayWarnings` nas paradas antes de
+ * a API mandá-lo. Uma parada COM e SEM o campo é aceita. Esta é a etapa 1 (app tolerante)
+ * da ADR-0081 §9 e ADR-0100 §6. Acessório: ausente ou malformado vira lista vazia, nunca erro.
+ */
+describe('driverTripResponse.validation — tolerância a holidayWarnings (spec 252 T5.1b)', () => {
+  it('aceita parada sem holidayWarnings (API anterior)', () => {
+    const stopWithoutHolidayWarnings = {
+      arrivedAt: null,
+      completedAt: null,
+      deliveryWindowEnd: '2024-12-25T18:00:00Z',
+      deliveryWindowStart: '2024-12-25T09:00:00Z',
+      documents: [],
+      id: 'stop-1',
+      label: 'Campinas',
+      latitude: null,
+      longitude: null,
+      schedule: null,
+      sequence: 1,
+    }
+
+    const payload = {
+      data: {
+        isRegisteredDriver: true,
+        trips: [
+          {
+            id: 'trip-1',
+            createdAt: '2024-12-25T00:00:00Z',
+            driverNames: ['João'],
+            requiresMdfe: false,
+            status: 'draft',
+            updatedAt: '2024-12-25T00:00:00Z',
+            vehiclePlate: 'ABC1D23',
+            stops: [stopWithoutHolidayWarnings],
+            documents: [],
+            manifest: null,
+          },
+        ],
+      },
+    }
+
+    const result = toDriverTripSnapshot(payload)
+    expect(result.trips[0]?.stops[0]?.holidayWarnings).toBeUndefined()
+  })
+
+  it('aceita parada COM holidayWarnings (API nova)', () => {
+    const stopWithHolidayWarnings = {
+      arrivedAt: null,
+      completedAt: null,
+      deliveryWindowEnd: '2024-12-25T18:00:00Z',
+      deliveryWindowStart: '2024-12-25T09:00:00Z',
+      documents: [],
+      id: 'stop-1',
+      label: 'Campinas',
+      latitude: null,
+      longitude: null,
+      schedule: null,
+      sequence: 1,
+      holidayWarnings: [
+        {
+          date: '2024-12-25',
+          cityIbgeCode: 3509502,
+          cityName: 'Campinas',
+          reasons: [
+            {
+              scope: 'municipal',
+              origin: 'imported',
+              name: 'Aniversário de Campinas',
+            },
+          ],
+        },
+      ],
+    }
+
+    const payload = {
+      data: {
+        isRegisteredDriver: true,
+        trips: [
+          {
+            id: 'trip-1',
+            createdAt: '2024-12-25T00:00:00Z',
+            driverNames: ['João'],
+            requiresMdfe: false,
+            status: 'draft',
+            updatedAt: '2024-12-25T00:00:00Z',
+            vehiclePlate: 'ABC1D23',
+            stops: [stopWithHolidayWarnings],
+            documents: [],
+            manifest: null,
+          },
+        ],
+      },
+    }
+
+    const result = toDriverTripSnapshot(payload)
+    expect(result.trips[0]?.stops[0]?.holidayWarnings).toEqual([
+      {
+        date: '2024-12-25',
+        cityIbgeCode: 3509502,
+        cityName: 'Campinas',
+        reasons: [
+          {
+            scope: 'municipal',
+            origin: 'imported',
+            name: 'Aniversário de Campinas',
+          },
+        ],
+      },
+    ])
   })
 })
