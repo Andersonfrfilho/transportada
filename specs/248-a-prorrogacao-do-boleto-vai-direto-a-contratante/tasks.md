@@ -35,7 +35,7 @@ No worker, `make worker-integration` provisiona o banco descartável.
       emitente, por simetria), com teste do parser sobre XML com e sem a tag; publicar a versão.
 - [x] **T2.2** Worker: gravar `nfe_documents.recipient_email` no import (validado, ≤ 254; inválido
       vira nulo, com contador no log, sem o valor). Integração.
-- [ ] **T2.3** Job `nfe.recipient-email.backfill` (molde de `identity.document.backfill`): relê o XML
+- [x] **T2.3** Job `nfe.recipient-email.backfill` (molde de `identity.document.backfill`): relê o XML
       original guardado, idempotente, em lotes. **Em produção, só com autorização do usuário.**
 
 ## Fase 3 — O dado (etapa 2)

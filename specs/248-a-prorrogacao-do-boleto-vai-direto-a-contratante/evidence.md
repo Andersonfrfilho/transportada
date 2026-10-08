@@ -121,3 +121,30 @@ Gates:
 - `prettier --check` nos arquivos tocados → ok.
 
 Não executado: `make worker-integration` completo (só os 3 arquivos relevantes; o banco compartilhado estava meio migrado por outro worktree).
+
+## T2.3 — Job `nfe.recipient-email.backfill`
+
+Rotina `createNfeRecipientEmailBackfillRoutine` (worker): lê em lotes de 50, por cursor de `documentId`, as notas com
+`recipient_email IS NULL`, relê o XML original, reaproveita `resolveRecipientEmail` e grava só onde o campo continua nulo
+(`UPDATE ... WHERE recipient_email IS NULL`: nunca sobrescreve, e a segunda passada não muda nada). Cada documento é
+isolado (`Promise.allSettled`): falha de leitura ou de parse conta em `failed` e não derruba o lote. O log é só contagem
+(`examined`, `filled`, `rejected`, `withoutEmail`, `failed`), nunca endereço nem a mensagem do erro.
+
+Catálogo (api, worker, cron, frontend) e migration `20261008164340_nfe_recipient_email_backfill_job` (CHECKs de
+`job_executions` e `job_schedules`, linha em `job_schedules`, `rollback.sql`, `snapshot.json`; `db:check` ok).
+
+**Como roda: nasce pausado** (`enabled=false`, `paused_origin='system'`), então não roda sozinho em staging nem em
+produção — diferente do `identity.document.backfill`, que é diário e automático. Disparo manual:
+`POST /operations/jobs/nfe.recipient-email.backfill/run` (`OPERATIONS_RUN_POLICY`; o mesmo botão "rodar agora" da tela de
+operações). `startManual` só insere a execução e não consulta o agendamento, então vale para job pausado. **Não** usar
+`/resume`: ligaria a rotina diária. **Em produção, só com autorização do usuário.**
+
+Limite conhecido: nota cujo XML não traz `<dest><email>` segue nula e é relida a cada execução (não há coluna-marcadora).
+
+Gates:
+
+- worker: `typecheck` ok, `lint` ok, `bun run test` → 2190 pass, 0 fail (7 testes novos de contrato da rotina).
+- worker integração (`nfe-recipient-email-backfill` + `nfe-import-recipient-email`) em banco descartável migrado com o
+  `db:migrate` da api → pass, 0 fail.
+- api: `typecheck` ok, `lint` ok, `bun run test` → 10967 pass, 0 fail (3 contratos estáticos novos da migration).
+- cron: `typecheck` ok, `lint` ok, `test` → 101 pass. frontend: `typecheck` ok, `lint` 0 erros, contrato do catálogo ok.
