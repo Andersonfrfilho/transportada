@@ -34,6 +34,8 @@ type Counters = {
   withoutEmail: number
 }
 
+type FailureReasons = Record<string, number>
+
 /**
  * Nota importada antes da coluna `recipient_email` só tem o endereço no XML original guardado. A
  * passada relê esse XML e preenche onde a coluna é nula; nota cujo XML não traz e-mail continua nula
@@ -51,6 +53,7 @@ async function runCycle(input: {
 }): Promise<JobRoutineResult> {
   const { context, dependencies } = input
   const counters: Counters = { examined: 0, failed: 0, filled: 0, rejected: 0, withoutEmail: 0 }
+  const failureReasons: FailureReasons = {}
   let cursor: string | undefined
 
   while (!context.isStopRequested()) {
@@ -63,7 +66,7 @@ async function runCycle(input: {
     const settled = await Promise.allSettled(
       batch.map((document) => processDocument({ dependencies, document })),
     )
-    countSettled({ counters, settled })
+    countSettled({ counters, failureReasons, settled })
     cursor = batch[batch.length - 1]?.documentId
   }
 
@@ -73,6 +76,7 @@ async function runCycle(input: {
     message: 'nfe_recipient_email_backfill_cycle_finished',
     metadata: {
       ...counters,
+      failureReasons,
       correlationId: context.correlationId,
       executionId: context.executionId,
     },
@@ -107,12 +111,19 @@ async function processDocument(input: {
 
 function countSettled(input: {
   readonly counters: Counters
+  readonly failureReasons: FailureReasons
   readonly settled: readonly PromiseSettledResult<DocumentOutcome>[]
 }): void {
   for (const result of input.settled) {
     input.counters.examined += 1
-    if (result.status === 'rejected') input.counters.failed += 1
-    else if (result.value === 'filled') input.counters.filled += 1
+    if (result.status === 'rejected') {
+      input.counters.failed += 1
+      const reason =
+        result.reason instanceof Error
+          ? `${result.reason.name}: ${result.reason.message.slice(0, 60)}`
+          : 'UnknownError'
+      input.failureReasons[reason] = (input.failureReasons[reason] ?? 0) + 1
+    } else if (result.value === 'filled') input.counters.filled += 1
     else if (result.value === 'rejected') input.counters.rejected += 1
     else input.counters.withoutEmail += 1
   }
