@@ -114,6 +114,7 @@
     "discard": "Discard the service invoice",
     "downloadPdf": "Download the service invoice PDF",
     "downloadXml": "Download the service invoice XML",
+    "externalLink": "Link a note issued on the portal",
     "reissue": "Reissue the service invoice"
   },
   "detail": {
@@ -193,6 +194,18 @@
     "sending": "Discarding…",
     "title": "Discard the service invoice",
     "warning": "Discarding releases the linked fiscal invoices and cannot be undone."
+  },
+  "externalLinkDialog": {
+    "alreadyLinked": "This id_nota is already linked to another service invoice.",
+    "back": "Back",
+    "close": "Close",
+    "confirm": "Link the note",
+    "description": "Use when the note was already issued on the Nota RP portal. Enter the id_nota: the system checks the note with the city hall, without issuing again, and authorizes it if the amount matches.",
+    "failed": "Could not link the note. Check the id_nota and try again.",
+    "providerDocumentId": "Portal id_nota",
+    "providerDocumentIdInvalid": "The id_nota is digits only, 1 to 20 long.",
+    "sending": "Linking…",
+    "title": "Link a note issued on the portal"
   },
   "reissueDialog": {
     "back": "Back",

@@ -259,6 +259,13 @@ export const NFSE_REISSUE_SUMMARY_KEYS = [
   'status',
 ] as const
 
+export const NFSE_EXTERNAL_LINK_SUMMARY_KEYS = [
+  'attemptId',
+  'invoiceId',
+  'replayed',
+  'status',
+] as const
+
 export const NFSE_DISCARD_SUMMARY_KEYS = [
   'invoiceId',
   'releasedDocumentIds',

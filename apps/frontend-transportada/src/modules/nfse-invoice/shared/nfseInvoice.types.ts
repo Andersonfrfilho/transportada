@@ -213,6 +213,13 @@ export type NfseReissueSummary = Readonly<{
   status: string
 }>
 
+export type NfseExternalLinkSummary = Readonly<{
+  attemptId: string
+  invoiceId: string
+  replayed: boolean
+  status: string
+}>
+
 export type NfseDiscardSummary = Readonly<{
   invoiceId: string
   releasedDocumentIds: readonly string[]

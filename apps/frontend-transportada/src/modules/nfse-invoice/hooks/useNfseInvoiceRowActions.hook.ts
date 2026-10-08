@@ -23,8 +23,10 @@ import type {
 import {
   buildNfseCancellationIdempotencyKey,
   buildNfseDiscardIdempotencyKey,
+  buildNfseExternalLinkIdempotencyKey,
   buildNfseReissueCorrectionBody,
   buildNfseReissueIdempotencyKey,
+  parseNfseProviderDocumentId,
   readNfseDownloadUrl,
   resolveNfseRowActions,
   validateNfseCancellationReason,
@@ -81,6 +83,9 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
   const [reissueAttemptToken, setReissueAttemptToken] = useState('')
   const [discardTarget, setDiscardTarget] = useState<NfseInvoice | null>(null)
   const [discardAttemptToken, setDiscardAttemptToken] = useState('')
+  const [externalLinkTarget, setExternalLinkTarget] = useState<NfseInvoice | null>(null)
+  const [providerDocumentId, setProviderDocumentId] = useState('')
+  const [externalLinkAttemptToken, setExternalLinkAttemptToken] = useState('')
 
   const queryClient = useQueryClient()
   const permissions = input.companyId === undefined ? [] : input.permissions
@@ -171,6 +176,23 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     discardMutation.reset()
   }
 
+  const externalLinkMutation = useMutation({
+    mutationFn: controller.linkExternalInvoice,
+    onSuccess: () => {
+      setExternalLinkTarget(null)
+      setProviderDocumentId('')
+      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+    },
+  })
+
+  const parsedProviderDocumentId = parseNfseProviderDocumentId(providerDocumentId)
+
+  function closeExternalLink(): void {
+    setExternalLinkTarget(null)
+    setProviderDocumentId('')
+    externalLinkMutation.reset()
+  }
+
   const reissueNationalTaxationValues = resolveReissueNationalTaxationValues({
     draft: reissueDraft,
     frozen: reissueDetailQuery.data?.lastPayload ?? {},
@@ -200,6 +222,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       })
     },
     closeDiscard,
+    closeExternalLink,
     closeReissue,
     confirmDiscard: () => {
       if (discardTarget === null) return
@@ -209,6 +232,17 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
           token: discardAttemptToken,
         }),
         invoiceId: discardTarget.id,
+      })
+    },
+    confirmExternalLink: () => {
+      if (externalLinkTarget === null || parsedProviderDocumentId === null) return
+      externalLinkMutation.mutate({
+        idempotencyKey: buildNfseExternalLinkIdempotencyKey({
+          invoiceId: externalLinkTarget.id,
+          token: externalLinkAttemptToken,
+        }),
+        invoiceId: externalLinkTarget.id,
+        providerDocumentId: parsedProviderDocumentId,
       })
     },
     confirmReissue: () => {
@@ -233,6 +267,8 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     discardTarget,
     documents: documentsQuery.data ?? [],
     downloadErrorCode,
+    externalLinkErrorCode: readErrorCode(externalLinkMutation.error),
+    externalLinkTarget,
     downloadInvoice: (invoiceId: string, kind: NfseInvoiceDocumentKind) => {
       setDownloadErrorCode(null)
       downloadMutation.mutate({ invoiceId, kind })
@@ -242,6 +278,8 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     isDetailLoading: detailQuery.isLoading || documentsQuery.isLoading,
     isDiscardPending: discardMutation.isPending,
     isDownloadPending: downloadMutation.isPending,
+    isExternalLinkPending: externalLinkMutation.isPending,
+    isExternalLinkReady: parsedProviderDocumentId !== null,
     isReissueDetailLoading: reissueDetailQuery.isLoading,
     isReissueNationalTaxationValid,
     isReissuePending: reissueMutation.isPending,
@@ -258,12 +296,19 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       setDiscardAttemptToken(crypto.randomUUID())
       discardMutation.reset()
     },
+    openExternalLink: (invoice: NfseInvoice) => {
+      setExternalLinkTarget(invoice)
+      setProviderDocumentId('')
+      setExternalLinkAttemptToken(crypto.randomUUID())
+      externalLinkMutation.reset()
+    },
     openReissue: (invoice: NfseInvoice) => {
       setReissueTarget(invoice)
       setReissueDraft({})
       setReissueAttemptToken(crypto.randomUUID())
       reissueMutation.reset()
     },
+    providerDocumentId,
     reasonBlock: reasonCheck.status === 'blocked' ? reasonCheck.reason : null,
     reissueDraft,
     reissueErrorCode: readErrorCode(reissueMutation.error),
@@ -274,6 +319,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       resolveNfseRowActions({ permissions, status }),
     setCancellationMotive,
     setCancellationReason,
+    setProviderDocumentId,
     setReissueField: (change: Partial<NfseLastIssuancePayload>) =>
       setReissueDraft((previous) => ({ ...previous, ...change })),
   }

@@ -3,6 +3,7 @@ import {
   NFSE_DISCARD_SUMMARY_KEYS,
   NFSE_DOCUMENT_DOWNLOAD_KEYS,
   NFSE_EMISSION_PROFILE_OPTION_KEYS,
+  NFSE_EXTERNAL_LINK_SUMMARY_KEYS,
   NFSE_INVOICE_CHARGE_KEYS,
   NFSE_INVOICE_DELIVERY_KEYS,
   NFSE_INVOICE_DETAIL_KEYS,
@@ -41,6 +42,7 @@ import {
   NFSE_INVOICE_STATUSES,
   type NfseCancellationSummary,
   type NfseDiscardSummary,
+  type NfseExternalLinkSummary,
   type NfseDocumentDownload,
   type NfseEmissionProfileOption,
   type NfseInvoice,
@@ -293,6 +295,16 @@ function isDiscardSummary(value: unknown): value is NfseDiscardSummary {
   )
 }
 
+function isExternalLinkSummary(value: unknown): value is NfseExternalLinkSummary {
+  return (
+    hasExactKeys(value, NFSE_EXTERNAL_LINK_SUMMARY_KEYS) &&
+    isString(value.attemptId) &&
+    isString(value.invoiceId) &&
+    isBoolean(value.replayed) &&
+    isString(value.status)
+  )
+}
+
 function isDocumentDownload(value: unknown): value is NfseDocumentDownload {
   return (
     hasExactKeys(value, NFSE_DOCUMENT_DOWNLOAD_KEYS) &&
@@ -326,6 +338,10 @@ export function createNfseInvoiceResponseAdapters() {
     },
     documentDownloadFromApi(input: unknown): NfseDocumentDownload {
       if (!isDocumentDownload(input)) throw invalid()
+      return input
+    },
+    externalLinkSummaryFromApi(input: unknown): NfseExternalLinkSummary {
+      if (!isExternalLinkSummary(input)) throw invalid()
       return input
     },
     emissionProfilesFromApi(input: unknown): readonly NfseEmissionProfileOption[] {

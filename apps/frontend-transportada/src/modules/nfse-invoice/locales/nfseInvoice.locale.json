@@ -114,6 +114,7 @@
     "discard": "Descartar a nota de serviço",
     "downloadPdf": "Baixar o PDF da nota de serviço",
     "downloadXml": "Baixar o XML da nota de serviço",
+    "externalLink": "Vincular nota emitida no portal",
     "reissue": "Reemitir a nota de serviço"
   },
   "detail": {
@@ -193,6 +194,18 @@
     "sending": "Descartando…",
     "title": "Descartar a nota de serviço",
     "warning": "O descarte libera as notas fiscais vinculadas e não pode ser desfeito."
+  },
+  "externalLinkDialog": {
+    "alreadyLinked": "Este id_nota já está vinculado a outra nota de serviço.",
+    "back": "Voltar",
+    "close": "Fechar",
+    "confirm": "Vincular a nota",
+    "description": "Use quando a nota já foi emitida no portal da Nota RP. Informe o id_nota: o sistema confere a nota na prefeitura, sem emitir de novo, e a autoriza se o valor bater.",
+    "failed": "Não foi possível vincular a nota. Confira o id_nota e tente de novo.",
+    "providerDocumentId": "id_nota do portal",
+    "providerDocumentIdInvalid": "O id_nota tem só números, de 1 a 20 dígitos.",
+    "sending": "Vinculando…",
+    "title": "Vincular nota emitida no portal"
   },
   "reissueDialog": {
     "back": "Voltar",
