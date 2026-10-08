@@ -81,3 +81,67 @@ Decisões que a 251 herda sem reabrir. Se o emissor nacional precisar de outra c
 - `origin/staging` continha a pasta `specs/250-nota-rp-v3-padrao-nacional` (commit `0fb79c24c`). A branch da worktree estava `ahead 1` de `origin/staging`, sem `behind`.
 - Lista de leitura: `specs/250-*/{spec,plan,tasks}.md`, `docs/adr/0098`, `0029`, `0035`, `0004`, `0005`; de 032, 040 e 175 só `spec.md`, por busca de termos NFS-e.
 - Não li na íntegra `specs/250-*/evidence.md` (515 linhas) nem os ADRs 0004 e 0005 inteiros: só o outline e as decisões. Se algum ponto das seções acima for contestado, é aí que se confere.
+
+## T0.2 — Ribeirão Preto aceita emissão direta?
+
+**Veredito: INCONCLUSIVO, com indícios que pendem para NÃO.** Gratuidade: INCONCLUSIVA (sem fonte oficial verificável).
+Acesso em 08/10/2026 a todas as fontes abaixo. A task **não** foi marcada: o portão 1 segue fechado.
+
+### O teste que decide
+
+O FAQ oficial "Perguntas e Respostas NFS-e v1.1 (22/09/2026)" (assunto 19.6 e 1.2) diz que a resposta está em um campo
+da API de Parâmetros Municipais do ADN: `aderenteEmissorNacional`. Valor 1 = o município usa os Emissores Nacionais
+(API Sefin Nacional) e a nota nasce direto na Sefin (`ambGer = 2`). Valor 0 = a emissão ocorre no sistema próprio da
+prefeitura, que depois compartilha com o ADN (`ambGer = 1`); só MEI e operações do item 99 emitem nacionalmente
+nesse caso. `situacaoEmissaoPadraoContribuintesRFB` diz se todo CNPJ do município já está habilitado.
+O município pode estar "Ativo na Plataforma" (integrado ao ADN) sem ser "operacional" para emissão nacional.
+
+### Tentativa de consulta ao campo (não contornada)
+
+- `curl -m 20 https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/parametros_municipais/3543402/convenio` →
+  `HTTP/1.1 403 Forbidden` (IIS, "Access is denied"). Idem em `https://sefin.nfse.gov.br/SefinNacional/...` → 403.
+- `https://adn.producaorestrita.nfse.gov.br/parametrizacao/parametros_municipais/3543402/convenio` →
+  `curl: (56) LibreSSL SSL_read: ... bad decrypt`.
+- Leitura: a API exige certificado (mTLS), como o levantamento já previa. Não tentei contornar. **Ficou sem prova** o
+  valor real de `aderenteEmissorNacional` para 3543402. Só se obtém com o A1 da empresa (T0.3/T0.4, ambiente de teste).
+
+### Fontes oficiais
+
+1. FAQ NFS-e v1.1, PDF do portal:
+   `https://www.gov.br/nfse/pt-br/perguntas-frequentes/perguntas-e-respostas-nfs-e-v-1-1-20260922.pdf`.
+   Sustenta a regra acima (campo, valores, fluxo recomendado: valor 1 → Sefin; valor 0 → webservice local da prefeitura).
+   Não afirma nada sobre Ribeirão Preto.
+2. Prefeitura de Ribeirão Preto, aviso de 08/05/2026:
+   `https://www.ribeiraopreto.sp.gov.br/portal/noticia/prefeitura-atualiza-sistema-da-nfs-e-e-prorroga-prazo-para-adequacao-ao-novo-padrao-nacional`.
+   Sustenta: quem usa sistema próprio via webservice deve se adequar; ABRASF deixa de valer em 01/07/2026 e só DPS no
+   padrão novo é aceita; prazo de homologação até 30/06/2026. O webservice de teste citado é do provedor IssNet
+   (`nfse.issnetonline.com.br/wsnfsenacional/homologacao/nfse.asmx`), **não** do ADN/Sefin. Não menciona o Emissor Nacional.
+3. Prefeitura de Ribeirão Preto, página de NF-e:
+   `https://www.ribeiraopreto.sp.gov.br/portal/fazenda/nota-fiscal-eletronica`.
+   Sustenta: a Prefeitura "não fornece emissor de nota fiscal" (Decreto Municipal 176/2020); NFS-e passa pelo ISS.Net
+   Online. Não cita Emissor Nacional nem convênio. Indício de que o município **segue por provedor próprio** (valor 0).
+4. Portal gov.br/nfse, municípios: `https://www.gov.br/nfse/pt-br/municipios-aderentes/municipios-aderentes` e
+   `https://www.gov.br/nfse/pt-br/municipios`. A página diz que municípios com mais de 500 mil habitantes aderiram e
+   aponta uma planilha; não lista Ribeirão Preto, não define "aderente" e não trata de gratuidade. Não consegui abrir a
+   planilha. Ribeirão Preto tem menos de 500 mil habitantes (dado meu, não da página): não é coberta por esse corte.
+
+### Fontes não oficiais (apenas indício)
+
+- Fornecedor/blog `https://notagateway.com.br/?p=12415`: repete o aviso da Prefeitura (assina "Fonte: Prefeitura"); não cita o Emissor Nacional.
+- Resultado de busca de terceiros listou 3543402 sob "Emissor Nacional", em tabela ilegível; **não confiável**.
+- Focus NFe: descreve Ribeirão Preto por IssNet/ABRASF; pode estar defasado.
+
+### Gratuidade
+
+- Nenhuma página oficial acessível afirma por escrito que o emissor é gratuito: a home do portal e `/municipios` não
+  trazem a palavra, a página do FAQ web exige login ("Conteúdo Restrito"), e o PDF do FAQ só usa "gratuita" para a
+  Nota Fiscal Fácil do MEI. Um trecho de busca atribuía ao portal a frase "sistema próprio e gratuito" para o
+  contribuinte, mas não consegui abrir a página para confirmar. **Sem prova oficial; tratar como INCONCLUSIVO.**
+
+### O que fica pendente
+
+1. Valor de `aderenteEmissorNacional` e `situacaoEmissaoPadraoContribuintesRFB` para 3543402 (exige mTLS).
+2. Planilha oficial de municípios do portal (link a partir de `/municipios/monitoramento-adesoes`).
+3. Confirmação por escrito da Secretaria Municipal da Fazenda de Ribeirão Preto (qual canal recebe a DPS do contribuinte).
+4. Página oficial de gratuidade. Se 1 voltar 0, abrir ADR "não faremos" (aceite da T0.2) ou refazer o escopo para o
+   webservice IssNet no padrão nacional.
