@@ -12,6 +12,7 @@ import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shar
 import { TripConferenceDialog } from './TripConferenceDialog.component'
 
 type TripConferenceActionProps = Readonly<{
+  creatorName: null | string | undefined
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   stops: readonly TripStopDetail[]
@@ -20,6 +21,7 @@ type TripConferenceActionProps = Readonly<{
 }>
 
 export function TripConferenceAction({
+  creatorName,
   documents,
   drivers,
   stops,
@@ -44,6 +46,7 @@ export function TripConferenceAction({
         </Button>
       </Tooltip>
       <TripConferenceDialog
+        creatorName={creatorName}
         documents={documents}
         drivers={drivers}
         isOpen={isOpen}

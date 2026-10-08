@@ -5,15 +5,20 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { useTripConferencePdf } from '../hooks/useTripConferencePdf.hook'
 import { buildTripConference } from '../shared/tripConference.service'
+import { buildTripConferenceSheetLabels } from '../shared/tripConferenceLabels.service'
+import { buildTripConferenceSheet, ROUTE_SEPARATOR } from '../shared/tripConferenceSheet.service'
 import type { TripConferenceRow } from '../shared/tripConference.service'
 import { TripConferencePrintSheet } from './TripConferencePrintSheet.component'
 import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripConferenceDialogProps = Readonly<{
+  creatorName: null | string | undefined
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   isOpen: boolean
@@ -60,23 +65,38 @@ function TripConferenceRowView({ row }: TripConferenceRowViewProps) {
   )
 }
 
-/** Conferência de leitura: nada aqui altera a viagem, só confronta a montagem com o que foi bipado. */
-export function TripConferenceDialog({
+type TripConferenceContentProps = Omit<TripConferenceDialogProps, 'isOpen'>
+
+function TripConferenceContent({
+  creatorName,
   documents,
   drivers,
-  isOpen,
   onClose,
   stops,
   tripCode,
   vehiclePlate,
-}: TripConferenceDialogProps) {
+}: TripConferenceContentProps) {
   const { t } = useTranslation('trip')
-  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
-
-  if (!isOpen) return null
-
+  const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
+  const brand = useInstallationBrandView()
   const conference = buildTripConference({ documents, stops })
   const { rows, summary } = conference
+  const labels = buildTripConferenceSheetLabels(t)
+  const sheet = buildTripConferenceSheet({
+    conference,
+    creatorName,
+    drivers,
+    labels,
+    printedOn: new Date(),
+    tripCode,
+    vehiclePlate,
+  })
+  const pdf = useTripConferencePdf({
+    brand,
+    labels,
+    sheet,
+    tripCode,
+  })
 
   const dialog = createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
@@ -121,12 +141,34 @@ export function TripConferenceDialog({
             <dd>{summary.totalVolumes}</dd>
           </div>
         </dl>
-        <div>
+        {summary.cities.length === 0 ? null : (
+          <p className={styles.conferenceRoute}>
+            <strong>{t('conference.routeCities')}</strong> {summary.cities.join(ROUTE_SEPARATOR)}
+          </p>
+        )}
+        {typeof creatorName === 'string' ? (
+          <p className={styles.hint}>{t('conference.createdBy', { name: creatorName })}</p>
+        ) : null}
+        <div className={styles.conferenceActions}>
+          <Button
+            disabled={pdf.isGenerating}
+            onClick={() => void pdf.handleDownload()}
+            size="sm"
+            type="button"
+          >
+            <Icon name="download" />
+            {t('conference.downloadPdf')}
+          </Button>
           <Button onClick={() => globalThis.print()} size="sm" type="button" variant="secondary">
             <Icon name="document" />
             {t('conference.print')}
           </Button>
         </div>
+        {pdf.hasFailed ? (
+          <p className={styles.alert} role="alert">
+            {t('conference.pdfFailed')}
+          </p>
+        ) : null}
         {summary.notesWithoutValue === 0 ? null : (
           <p className={styles.hint} role="status">
             {t('conference.withoutValue', { count: summary.notesWithoutValue })}
@@ -163,13 +205,14 @@ export function TripConferenceDialog({
   return (
     <>
       {dialog}
-      <TripConferencePrintSheet
-        conference={conference}
-        drivers={drivers}
-        printedOn={new Date()}
-        tripCode={tripCode}
-        vehiclePlate={vehiclePlate}
-      />
+      <TripConferencePrintSheet brand={brand} labels={labels} sheet={sheet} />
     </>
   )
+}
+
+/** Conferência de leitura: nada aqui altera a viagem, só confronta a montagem com o que foi bipado. */
+export function TripConferenceDialog({ isOpen, ...content }: TripConferenceDialogProps) {
+  if (!isOpen) return null
+
+  return <TripConferenceContent {...content} />
 }

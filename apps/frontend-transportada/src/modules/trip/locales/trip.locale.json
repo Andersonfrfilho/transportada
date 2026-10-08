@@ -2474,6 +2474,11 @@
     "sheetVehicle": "Veículo",
     "sheetTrip": "Viagem",
     "sheetPrintedAt": "Emitido em",
-    "sheetNotes": "Notas"
+    "sheetNotes": "Notas",
+    "downloadPdf": "Baixar PDF",
+    "pdfFailed": "Não foi possível gerar o PDF. Tente de novo.",
+    "sheetCreatedBy": "Criada por",
+    "createdBy": "Criada por {{name}}",
+    "routeCities": "Cidades da rota"
   }
 }
