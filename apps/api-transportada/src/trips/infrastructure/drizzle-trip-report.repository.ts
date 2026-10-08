@@ -16,8 +16,15 @@ import type {
   TripReportRecord,
   TripReportScopeParams,
 } from '../application/trip-report.port.js'
-import type { TripReportQuery } from '../domain/trip-report.types.js'
+import type {
+  ListTripReportFacetsParams,
+  TripReportFacetEmitter,
+  TripReportFacetPlaceKind,
+  TripReportFacetSide,
+  TripReportQuery,
+} from '../domain/trip-report.types.js'
 import type { TripDatabase } from './trip-queryable.type.js'
+import { selectFacetEmitters, selectFacetPlaces } from './trip-report-facets.query.js'
 import {
   REPORT_ORDER,
   buildTripReportBase,
@@ -48,6 +55,21 @@ export class DrizzleTripReportRepository implements TripReportPort {
       ),
     )
     return Number(row?.total ?? 0)
+  }
+
+  listFacetEmitters(
+    params: ListTripReportFacetsParams,
+  ): Promise<readonly TripReportFacetEmitter[]> {
+    return selectFacetEmitters(this.database, params)
+  }
+
+  listFacetPlaces(
+    params: ListTripReportFacetsParams & {
+      readonly kind: TripReportFacetPlaceKind
+      readonly side: TripReportFacetSide
+    },
+  ): Promise<readonly string[]> {
+    return selectFacetPlaces(this.database, params)
   }
 
   async listRows(params: {

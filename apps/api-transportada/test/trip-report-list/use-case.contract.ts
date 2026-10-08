@@ -57,6 +57,8 @@ function buildFakeRepository(options: FakeRepositoryOptions = {}) {
       calls.countRows += 1
       return options.total ?? options.records?.length ?? 0
     },
+    listFacetEmitters: async () => [],
+    listFacetPlaces: async () => [],
     listDocumentStatusesByTrip: async () => {
       calls.statuses += 1
       return options.statusesByTrip ?? new Map()

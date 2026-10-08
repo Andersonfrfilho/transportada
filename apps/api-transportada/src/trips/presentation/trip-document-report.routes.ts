@@ -13,14 +13,17 @@ import type {
   ExportTripProofPdfResult,
 } from '../domain/trip-proof-report.types.js'
 import type {
+  ListTripReportFacetsParams,
+  ListTripReportFacetsResult,
   ListTripReportParams,
   ListTripReportResult,
   TripReportQuery,
 } from '../domain/trip-report.types.js'
-import { parseTripReportQuery } from './trip-report.schema.js'
+import { parseTripReportFacetsQuery, parseTripReportQuery } from './trip-report.schema.js'
 import { TRIP_FIELD_READ_POLICY, TRIP_FINANCIALS_POLICY } from './trip.routes.js'
 
 const TRIP_DOCUMENT_REPORT_PATH = '/trip-document-report'
+const TRIP_REPORT_FACETS_PATH = '/trip-document-report/facets'
 const TRIP_PROOF_PDF_PATH = '/trip-document-report/proofs-pdf'
 const PDF_CONTENT_TYPE = 'application/pdf'
 
@@ -43,6 +46,9 @@ export type TripDocumentReportRoutesDependencies = {
   readonly exportTripProofPdf: (
     params: ExportTripProofPdfParams,
   ) => Promise<ExportTripProofPdfResult>
+  readonly listTripReportFacets: (
+    params: ListTripReportFacetsParams,
+  ) => Promise<ListTripReportFacetsResult>
   readonly listTripReport: (params: ListTripReportParams) => Promise<ListTripReportResult>
 }
 
@@ -65,6 +71,23 @@ export function createTripDocumentReportRoutes(
       method: 'GET',
       parse: ({ request }) => parseTripReportQuery(new URL(request.url)),
       pathname: TRIP_DOCUMENT_REPORT_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
+      rateLimit: REPORT_RATE_LIMIT,
+    }),
+    defineRoute<ListTripReportFacetsParams['filters']>({
+      async handle({ context, input }): Promise<Response> {
+        const facets = await dependencies.listTripReportFacets({
+          companyId: context.scope.companyId,
+          filters: input,
+        })
+        return new Response(JSON.stringify(facets), {
+          headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseTripReportFacetsQuery(new URL(request.url)),
+      pathname: TRIP_REPORT_FACETS_PATH,
       policy: TRIP_FIELD_READ_POLICY,
       rateLimit: REPORT_RATE_LIMIT,
     }),

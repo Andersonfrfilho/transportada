@@ -84,6 +84,9 @@ function buildHandler(input: {
       listTripReport: async () => {
         throw new Error('unexpected report call')
       },
+      listTripReportFacets: async () => {
+        throw new Error('unexpected facets call')
+      },
     }),
     tenantContext: { resolveCompany: async () => context },
     userPictureExistence: stubUserPictureExistence(),

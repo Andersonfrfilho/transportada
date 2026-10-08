@@ -248,6 +248,8 @@ describe('separator role contract', () => {
       /** Spec 253 RF1: o relatório de viagens, sob `TRIP_FIELD_READ_POLICY` como as outras leituras de campo; o valor só sai com `trip.financials`, que ele não tem. */
       'GET /trip-document-report',
       /** Spec 253 RF10: o PDF de canhotos segue a mesma política de leitura; o valor da nota sai só com `trip.financials`. */
+      /** Spec 258 RF3: as opções do filtro do relatório, mesma política de leitura; só texto e CNPJ de emitente, sem valor. */
+      'GET /trip-document-report/facets',
       'GET /trip-document-report/proofs-pdf',
       'GET /trip-document-reviews',
       'GET /trip-document-reviews/:id/swap-suggestions',

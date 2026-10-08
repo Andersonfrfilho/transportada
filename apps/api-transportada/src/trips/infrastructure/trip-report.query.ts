@@ -66,7 +66,8 @@ export type TripReportAddress = ReturnType<typeof buildParticipantAddress>
 
 export function buildTripReportBase(
   database: TripDatabase,
-  selection: (address: TripReportAddress) => SelectedFields,
+  selection: (address: TripReportAddress, emitterAddress: TripReportAddress) => SelectedFields,
+  options: { readonly isDistinct?: boolean } = {},
 ) {
   const address = buildParticipantAddress(
     database,
@@ -81,8 +82,10 @@ export function buildTripReportBase(
   return {
     address,
     emitterAddress,
-    query: database
-      .select(selection(address))
+    query: (options.isDistinct === true
+      ? database.selectDistinct(selection(address, emitterAddress))
+      : database.select(selection(address, emitterAddress))
+    )
       .from(tripDocuments)
       .innerJoin(
         trips,

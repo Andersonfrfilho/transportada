@@ -84,3 +84,44 @@ export type ListTripReportResult = {
   readonly excludedWithoutTrip?: number
   readonly page: { readonly nextCursor: string | null; readonly total?: number }
 }
+
+/** Spec 258 RF3: só os filtros de viagem — as opções nunca encolhem pelo filtro de nota. */
+export type TripReportFacetFilters = Pick<
+  TripReportFilters,
+  | 'contractorIdIn'
+  | 'createdFrom'
+  | 'createdUntil'
+  | 'documentStatusIn'
+  | 'driverIdIn'
+  | 'proofPendingEq'
+  | 'statusIn'
+  | 'tripIdIn'
+  | 'vehicleIdIn'
+>
+
+export type ListTripReportFacetsParams = {
+  readonly companyId: string
+  readonly filters: TripReportFacetFilters
+}
+
+export type TripReportFacetEmitter = {
+  readonly name: string
+  readonly taxId: string
+}
+
+export type TripReportFacetSides = {
+  readonly emitter: readonly string[]
+  readonly recipient: readonly string[]
+}
+
+export type TripReportFacets = {
+  readonly cities: TripReportFacetSides
+  readonly emitters: readonly TripReportFacetEmitter[]
+  readonly states: TripReportFacetSides
+}
+
+export type ListTripReportFacetsResult = { readonly data: TripReportFacets }
+
+export type TripReportFacetPlaceKind = 'city' | 'state'
+
+export type TripReportFacetSide = 'emitter' | 'recipient'

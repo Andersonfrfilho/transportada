@@ -161,6 +161,12 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         store: 'postgres',
         windowSeconds: 300,
       },
+      'GET /trip-document-report/facets': {
+        maxRequests: 60,
+        scope: 'trip-document-report',
+        store: 'postgres',
+        windowSeconds: 300,
+      },
       'GET /trip-document-report/proofs-pdf': {
         maxRequests: 10,
         scope: 'trip-proof-pdf',
