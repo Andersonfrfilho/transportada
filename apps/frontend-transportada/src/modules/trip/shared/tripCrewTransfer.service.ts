@@ -118,7 +118,9 @@ function toMemberKey(member: CrewTransferMember): string {
   return `${member.role}:${member.id}`
 }
 
-function readCurrentMembers(trip: Pick<TripDetail, 'drivers'>): readonly CrewTransferMember[] {
+export function readCurrentMembers(
+  trip: Pick<TripDetail, 'drivers'>,
+): readonly CrewTransferMember[] {
   return trip.drivers.map((member) => ({
     id: member.driverId,
     name: member.driverName,

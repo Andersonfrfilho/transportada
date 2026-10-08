@@ -461,11 +461,13 @@
       "crewUnchanged": "A tripulação escolhida é igual à atual. Troque ao menos uma pessoa.",
       "driverCannotDrive": "Alguém escolhido como motorista não dirige: a ficha é de ajudante.",
       "driverRequired": "Escolha ao menos um motorista.",
+      "reasonRequired": "Informe o motivo para concluir.",
       "helperIsDriver": "A mesma pessoa não pode ser motorista e ajudante.",
       "reasonTooLong": "O motivo passa de 500 caracteres."
     },
     "clearAll": "Retirar todos",
-    "drivers": "Motoristas",
+    "current": "Tripulação atual",
+    "drivers": "Quem dirige",
     "driversEmpty": "Não há motorista ativo na frota para escolher.",
     "driversNoMatch": "Nenhum motorista encontrado",
     "driversPlaceholder": "Escolher motoristas",
@@ -480,7 +482,7 @@
       "notAllowed": "Esta viagem não aceita transferência de tripulação agora: só a viagem em andamento pode ser transferida.",
       "unchanged": "A tripulação escolhida é igual à atual. Nada foi alterado."
     },
-    "helpers": "Ajudantes",
+    "helpers": "Quem ajuda",
     "helpersEmpty": "Nenhum ajudante ativo. Cadastre um em Frota › Motoristas ou dê o papel Ajudante em Acesso.",
     "helpersNoMatch": "Nenhum ajudante encontrado",
     "helpersPlaceholder": "Escolher ajudantes",
@@ -498,21 +500,27 @@
       "mdfeDivergence": "O MDF-e autorizado desta viagem segue com o condutor anterior: a troca não altera o manifesto.",
       "same": "O custo da viagem não mudou."
     },
-    "reason": "Motivo da transferência",
+    "reason": "Motivo da transferência (obrigatório)",
+    "roleGroup": {
+      "driver": "Motoristas",
+      "helper": "Ajudantes"
+    },
     "role": {
       "driver": "motorista",
       "helper": "ajudante"
     },
     "search": "Buscar por nome",
     "submit": "Transferir",
-    "subtitle": "A viagem continua de onde está. Só mudam quem dirige e quem ajuda; veículo, rota e paradas ficam como estão, e o custo da tripulação é recalculado.",
+    "subtitle": "Retire quem sai e adicione quem entra. A viagem continua de onde está e o custo é recalculado.",
     "summary": {
-      "line": "{{leaving}} → {{entering}}",
+      "entering": "Entra",
+      "leaving": "Sai",
       "nobody": "ninguém",
-      "title": "Quem sai → quem entra"
+      "none": "Nenhuma troca ainda. Retire ou adicione alguém acima.",
+      "title": "O que vai mudar"
     },
     "title": "Transferir tripulação",
-    "vehicleLocked": "O veículo não muda: a viagem segue com o mesmo caminhão."
+    "vehicleLocked": "O veículo, a rota e as paradas não mudam."
   },
   "dateRange": {
     "clear": "Limpar período",
@@ -1307,6 +1315,12 @@
       "documentAlt": "Documento PDF anexado"
     },
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
+    "itemAmount": "R$ {{amount}}",
+    "totalDocument": "Total da nota",
+    "totalItems": "Total dos itens",
+    "totalDeclared": "Cliente pagou",
+    "itemDeclaredAmount": "Cliente pagou R$ {{amount}}",
+    "itemUnitValue": "R$ {{amount}} cada",
     "product": "Item da nota",
     "register": "Registrar ocorrência",
     "sendStatus": {

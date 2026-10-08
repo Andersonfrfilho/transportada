@@ -29,9 +29,11 @@ histórico guarda quem saiu, quem entrou, quem fez, por quê, e o custo antes e 
 
 ## Decisões por delegação
 
-- **D1 — Janela**: `dispatched`, `in_transit`, `on_delivery_route`. `separating` e `loading` seguem
-  como estão (lacuna conhecida da 217, fora deste pedido). `completed` e `cancelled` continuam
-  recusados com o motivo próprio.
+- **D1 — Janela**: `dispatched`, `in_transit`, `on_delivery_route` e, por decisão do usuário
+  (07/10/2026), `completed` — corrigir quem de fato dirigiu numa viagem já concluída; o resumo
+  financeiro por motorista (D10) migra para a nova tripulação, como na rua. `separating` e `loading`
+  seguem como estão (lacuna conhecida da 217, fora deste pedido). `cancelled` continua recusada
+  com o motivo próprio.
 - **D2 — O que não muda**: `status`, `vehicle_id`, rota congelada, pedágio, ETA, paradas, notas,
   `daily_allowance_days`, `planned_journey_seconds`. O corpo da rota **não aceita** `vehicleId`:
   trocar caminhão no meio da viagem apagaria a rota congelada.

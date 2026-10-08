@@ -21,6 +21,10 @@ const COMPONENT = new URL(
   import.meta.url,
 )
 const SOURCE = readFileSync(COMPONENT, 'utf8')
+const ENTRY_ITEMS_SOURCE = readFileSync(
+  new URL('../../src/modules/trip/components/OccurrenceEntryItems.component.tsx', import.meta.url),
+  'utf8',
+)
 const QUANTITIES_SOURCE = readFileSync(
   new URL(
     '../../src/modules/trip/components/OccurrenceItemQuantities.component.tsx',
@@ -71,9 +75,9 @@ describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
    * linha, com o **nome** do produto ao lado do código — código sozinho não diz o que foi avariado.
    */
   it('a leitura descreve item a item, com nome e contagem (P3)', () => {
-    expect(SOURCE).toContain('describeOccurrenceItems')
-    expect(SOURCE).toContain('occurrenceEntryItemName')
-    expect(SOURCE).toContain('occurrenceEntryItemQuantity')
+    expect(ENTRY_ITEMS_SOURCE).toContain('describeOccurrenceItems')
+    expect(ENTRY_ITEMS_SOURCE).toContain('occurrenceEntryItemName')
+    expect(ENTRY_ITEMS_SOURCE).toContain('occurrenceEntryItemQuantity')
   })
 
   /** Spec 172 RF2/CA02: o campo nasce marcado na unidade daquele item na nota, não numa escolha. */

@@ -57,6 +57,15 @@ export default defineRailway((ctx) => {
     VOLUME,
   )
   const queueVolume = volume(isProduction ? 'rabbitmq-volume-V_YD' : 'rabbitmq-volume', VOLUME)
+  /**
+   * ⚠️ O CORS do bucket **não** se declara aqui: `BucketConfig` só tem `region`, e bucket recriado
+   * nasce sem regra — o navegador então recusa o preflight do `PUT` e a foto da ocorrência nunca
+   * sobe, sem erro de servidor nenhum (staging, 07/10/2026: 37 URLs assinadas, 0 objetos). A regra
+   * esperada: `PUT`/`GET`/`HEAD`, cabeçalho `content-type`, `ETag` exposto, `MaxAge` 3600, e as
+   * origens do painel (`app.`), do portal (`cliente.`) e do motorista (`motorista.`) do ambiente.
+   * Conferir e aplicar: `scripts/diagnostics/bucket-cors-apply.ts` (sem `APPLY=1` só lê; as origens
+   * de produção vão em `CORS_ORIGINS`).
+   */
   const objectStorage = bucket(isProduction ? 'transportada-production' : 'transportada-staging', {
     region: 'sjc',
   })

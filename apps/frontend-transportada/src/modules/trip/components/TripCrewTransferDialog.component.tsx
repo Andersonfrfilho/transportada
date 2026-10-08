@@ -10,12 +10,10 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { useTripCrewTransferDialog } from '../hooks/useTripCrewTransferDialog.hook'
 import type { TripDetail } from '../shared/trip.types'
-import {
-  CREW_TRANSFER_REASON_MAX_LENGTH,
-  type CrewTransferBlocker,
-} from '../shared/tripCrewTransfer.service'
-import type { CrewTransferMember, CrewTransferResult } from '../shared/tripCrewTransfer.types'
+import { CREW_TRANSFER_REASON_MAX_LENGTH } from '../shared/tripCrewTransfer.service'
+import type { CrewTransferResult } from '../shared/tripCrewTransfer.types'
 import styles from '../styles/trip.module.css'
+import { CrewTransferMemberList } from './CrewTransferMemberList.component'
 import { TripCrewTransferOutcome } from './TripCrewTransferOutcome.component'
 
 type TripCrewTransferDialogProps = Readonly<{
@@ -31,13 +29,6 @@ type TripCrewTransferDialogProps = Readonly<{
   ) => Promise<CrewTransferResult>
   trip: TripDetail
 }>
-
-/** O motivo vazio é o estado inicial do formulário, não um erro a apontar. */
-function isReportableBlocker(
-  blocker: CrewTransferBlocker | undefined,
-): blocker is CrewTransferBlocker {
-  return blocker !== undefined && blocker !== 'reasonRequired'
-}
 
 /**
  * Spec 249 T2.2: a viagem que já saiu troca de motorista(s) e ajudante(s). Servido só quando
@@ -56,13 +47,6 @@ export function TripCrewTransferDialog({
   const dialog = useTripCrewTransferDialog({ drivers, isOpen, onSubmit, trip })
 
   if (!isOpen) return null
-
-  function describeMembers(members: readonly CrewTransferMember[]): string {
-    if (members.length === 0) return t('crewTransferDialog.summary.nobody')
-    return members
-      .map((member) => `${member.name} (${t(`crewTransferDialog.role.${member.role}`)})`)
-      .join(', ')
-  }
 
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
@@ -90,7 +74,12 @@ export function TripCrewTransferDialog({
         </header>
 
         {dialog.outcome === undefined ? (
-          <div className={styles.fieldGrid}>
+          <div className={`${styles.fieldGrid} ${styles.crewTransferForm}`}>
+            <section>
+              <p className={styles.hint}>{t('crewTransferDialog.current')}</p>
+              <CrewTransferMemberList members={dialog.currentMembers} />
+            </section>
+
             <label>
               {t('crewTransferDialog.drivers')}
               {dialog.driverCandidates.length === 0 ? (
@@ -137,8 +126,6 @@ export function TripCrewTransferDialog({
               )}
             </label>
 
-            <p className={styles.hint}>{t('crewTransferDialog.vehicleLocked')}</p>
-
             <label>
               {t('crewTransferDialog.reason')}
               <textarea
@@ -149,17 +136,27 @@ export function TripCrewTransferDialog({
               />
             </label>
 
-            <section>
+            <section className={styles.crewTransferSummary}>
               <p className={styles.hint}>{t('crewTransferDialog.summary.title')}</p>
-              <p>
-                {t('crewTransferDialog.summary.line', {
-                  entering: describeMembers(dialog.summary.entering),
-                  leaving: describeMembers(dialog.summary.leaving),
-                })}
-              </p>
+              {dialog.hasChanges ? (
+                <>
+                  <div className={styles.crewTransferLeaving}>
+                    <strong>{t('crewTransferDialog.summary.leaving')}</strong>
+                    <CrewTransferMemberList members={dialog.summary.leaving} />
+                  </div>
+                  <div className={styles.crewTransferEntering}>
+                    <strong>{t('crewTransferDialog.summary.entering')}</strong>
+                    <CrewTransferMemberList members={dialog.summary.entering} />
+                  </div>
+                </>
+              ) : (
+                <p className={styles.hint}>{t('crewTransferDialog.summary.none')}</p>
+              )}
             </section>
 
-            {isReportableBlocker(dialog.blocker) ? (
+            <p className={styles.hint}>{t('crewTransferDialog.vehicleLocked')}</p>
+
+            {dialog.hasChanges && dialog.blocker !== undefined ? (
               <p className={styles.hint}>{t(`crewTransferDialog.blocker.${dialog.blocker}`)}</p>
             ) : null}
           </div>

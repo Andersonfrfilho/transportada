@@ -460,12 +460,14 @@
     "blocker": {
       "crewUnchanged": "The chosen crew is the same as the current one. Change at least one person.",
       "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only.",
+      "reasonRequired": "Enter the reason to continue.",
       "driverRequired": "Choose at least one driver.",
       "helperIsDriver": "The same person cannot be both driver and helper.",
       "reasonTooLong": "The reason is longer than 500 characters."
     },
+    "current": "Current crew",
     "clearAll": "Remove all",
-    "drivers": "Drivers",
+    "drivers": "Who drives",
     "driversEmpty": "There is no active driver in the fleet to choose from.",
     "driversNoMatch": "No driver found",
     "driversPlaceholder": "Choose drivers",
@@ -480,7 +482,7 @@
       "notAllowed": "This trip does not accept a crew transfer right now: only a trip under way can be transferred.",
       "unchanged": "The chosen crew is the same as the current one. Nothing was changed."
     },
-    "helpers": "Helpers",
+    "helpers": "Who helps",
     "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
     "helpersNoMatch": "No helper found",
     "helpersPlaceholder": "Choose helpers",
@@ -498,21 +500,27 @@
       "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
       "same": "The trip cost did not change."
     },
-    "reason": "Reason for the transfer",
+    "reason": "Reason for the transfer (required)",
+    "roleGroup": {
+      "driver": "Drivers",
+      "helper": "Helpers"
+    },
     "role": {
       "driver": "driver",
       "helper": "helper"
     },
     "search": "Search by name",
     "submit": "Transfer",
-    "subtitle": "The trip carries on from where it is. Only who drives and who helps change; vehicle, route and stops stay as they are, and the crew cost is recalculated.",
+    "subtitle": "Remove who leaves and add who joins. The trip continues from where it is and the cost is recalculated.",
     "summary": {
-      "line": "{{leaving}} → {{entering}}",
+      "entering": "Joins",
+      "leaving": "Leaves",
       "nobody": "nobody",
-      "title": "Who leaves → who joins"
+      "none": "No change yet. Remove or add someone above.",
+      "title": "What will change"
     },
     "title": "Transfer crew",
-    "vehicleLocked": "The vehicle does not change: the trip carries on with the same truck."
+    "vehicleLocked": "The vehicle, route and stops do not change."
   },
   "dateRange": {
     "clear": "Clear period",
@@ -1307,6 +1315,12 @@
       "documentAlt": "Attached PDF document"
     },
     "placeholders": "Available placeholders: {{list}}. A placeholder outside the list is rejected on save.",
+    "itemAmount": "R$ {{amount}}",
+    "totalDocument": "Invoice total",
+    "totalItems": "Items total",
+    "totalDeclared": "Customer paid",
+    "itemDeclaredAmount": "Customer paid R$ {{amount}}",
+    "itemUnitValue": "R$ {{amount}} each",
     "product": "Invoice item",
     "register": "Register occurrence",
     "sendStatus": {

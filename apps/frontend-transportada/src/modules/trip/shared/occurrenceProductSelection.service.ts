@@ -4,6 +4,12 @@ import {
   type OccurrenceFallbackQuantityUnit,
   type OccurrenceQuantityUnit,
 } from './trip.constant'
+import {
+  calculateItemLineAmount,
+  formatBrazilianAmount,
+  parseAmountToCents,
+  resolveOccurrenceAmounts,
+} from './occurrenceAmount.service'
 import type { CorrectOccurrenceItemInput, TripDocumentProduct, TripOccurrence } from './trip.types'
 import type { TripOccurrenceDetailItem } from './tripOccurrenceFeed.service'
 
@@ -234,6 +240,12 @@ export type OccurrenceItemDescription = Readonly<{
   description: null | string
   /** `null` é item sem contagem. Nunca zero (spec 166 P3). */
   quantity: null | string
+  /** Quantidade × valor unitário da nota (`null` sem a nota carregada), na regra de arredondamento da spec 247. */
+  lineAmount: null | string
+  /** O valor unitário da nota (`null` sem a nota carregada). */
+  unitValue: null | string
+  /** O valor que o cliente pagou pela linha (spec 247); `null` quando o tipo não pede ou não foi digitado. */
+  declaredAmount: null | string
 }>
 
 /**
@@ -251,15 +263,83 @@ export function describeOccurrenceItems(
     unitLabels: Readonly<Record<OccurrenceFallbackQuantityUnit, string>>
   }>,
 ): readonly OccurrenceItemDescription[] {
-  const descriptionByCode = new Map(
-    input.products.map((product) => [product.code, product.description] as const),
+  const productByCode = new Map(input.products.map((product) => [product.code, product] as const))
+  return resolveOccurrenceProductEntries(input.occurrence).map((entry) => {
+    const product = productByCode.get(entry.code)
+    const declaredAmount = input.occurrence.products?.find(
+      (candidate) => candidate.code === entry.code,
+    )?.declaredAmount
+    return {
+      code: entry.code,
+      declaredAmount:
+        declaredAmount === undefined || declaredAmount === null
+          ? null
+          : formatBrazilianAmount(parseAmountToCents(declaredAmount)),
+      description: product?.description ?? null,
+      quantity:
+        entry.quantity === null || entry.unit === null
+          ? null
+          : `${formatOccurrenceQuantity(entry.quantity)} ${formatOccurrenceUnitLabel(entry.unit, input.unitLabels)}`,
+      lineAmount:
+        product === undefined
+          ? null
+          : formatBrazilianAmount(
+              calculateItemLineAmount({
+                quantity: entry.quantity,
+                totalValue: product.totalValue,
+                unitValue: product.unitValue,
+              }),
+            ),
+      unitValue:
+        product === undefined ? null : formatBrazilianAmount(parseAmountToCents(product.unitValue)),
+    }
+  })
+}
+
+/** Os totais da leitura: o valor em nota do que a ocorrência cobre e o que o cliente pagou (spec 247). */
+export type OccurrenceTotalsDescription = Readonly<{
+  /** Soma das linhas em nota; na nota inteira, o total de todos os produtos. `null` sem produtos carregados. */
+  documentAmount: null | string
+  /** Soma do que o cliente pagou, só quando alguma linha o declarou. */
+  declaredAmount: null | string
+}>
+
+export function describeOccurrenceTotals(
+  input: Readonly<{
+    occurrence: Pick<TripOccurrence, 'productCode' | 'productCodes' | 'products'>
+    products: readonly TripDocumentProduct[]
+  }>,
+): OccurrenceTotalsDescription {
+  const codes = resolveOccurrenceProductCodes(input.occurrence)
+  const productByCode = new Map(input.products.map((product) => [product.code, product] as const))
+  const entries = resolveOccurrenceProductEntries(input.occurrence)
+  const lines = (
+    codes.length === 0
+      ? input.products.map((product) => ({ product, entry: undefined }))
+      : entries.map((entry) => ({ product: productByCode.get(entry.code), entry }))
+  ).flatMap(({ entry, product }) =>
+    product === undefined
+      ? []
+      : [
+          {
+            declaredAmount:
+              input.occurrence.products?.find((candidate) => candidate.code === product.code)
+                ?.declaredAmount ?? null,
+            quantity: entry?.quantity ?? null,
+            totalValue: product.totalValue,
+            unitValue: product.unitValue,
+          },
+        ],
   )
-  return resolveOccurrenceProductEntries(input.occurrence).map((entry) => ({
-    code: entry.code,
-    description: descriptionByCode.get(entry.code) ?? null,
-    quantity:
-      entry.quantity === null || entry.unit === null
-        ? null
-        : `${formatOccurrenceQuantity(entry.quantity)} ${formatOccurrenceUnitLabel(entry.unit, input.unitLabels)}`,
-  }))
+  if (lines.length === 0) return { declaredAmount: null, documentAmount: null }
+  const summary = resolveOccurrenceAmounts({ declaredAmount: null, lines })
+  const hasDeclared = lines.some((line) => line.declaredAmount !== null)
+  return {
+    declaredAmount:
+      hasDeclared && summary.declaredAmountCents !== null
+        ? formatBrazilianAmount(summary.declaredAmountCents)
+        : null,
+    documentAmount:
+      summary.itemsSumCents === null ? null : formatBrazilianAmount(summary.itemsSumCents),
+  }
 }

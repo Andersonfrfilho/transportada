@@ -528,14 +528,16 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         tripStatus: 'cancelled',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
+  })
 
+  test('transferCrew is allowed on a completed trip without changing its status', () => {
     expect(
       checkTripTransition({
         action: TRIP_ACTION.transferCrew,
         hasRoute: true,
         tripStatus: 'completed',
       }),
-    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
+    ).toEqual({ outcome: 'unchanged' })
   })
 
   test('transferCrew before the dispatch is refused as not dispatched, even without a crew', () => {

@@ -397,15 +397,12 @@ export function isCrewSwappable(tripStatus: TripStatus): boolean {
 }
 
 /**
- * Spec 249 D1: a viagem na rua troca de tripulação; as encerradas dizem o motivo próprio, e tudo
+ * Spec 249 D1: a viagem na rua ou já concluída troca de tripulação; a cancelada diz o motivo próprio, e tudo
  * antes do despacho cabe à `defineCrew`. Resultado de status é sempre `unchanged`.
  */
 function checkTransferCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
   if (tripStatus === 'cancelled') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
-  }
-  if (tripStatus === 'completed') {
-    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
   }
   if (!isCrewTransferable(tripStatus)) {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched }
@@ -420,7 +417,10 @@ function checkTransferCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
  * sobrepõe a `isCrewSwappable`.
  */
 export function isCrewTransferable(tripStatus: TripStatus): boolean {
-  return (TRIP_ON_ROAD_STATUSES as readonly TripStatus[]).includes(tripStatus)
+  return (
+    tripStatus === 'completed' ||
+    (TRIP_ON_ROAD_STATUSES as readonly TripStatus[]).includes(tripStatus)
+  )
 }
 
 /**

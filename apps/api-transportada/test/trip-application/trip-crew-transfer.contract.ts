@@ -174,7 +174,6 @@ describe('transferir a tripulação de uma viagem na rua (spec 249)', () => {
 
   test.each([
     ['cancelled', 'TRIP_CANCELLED'],
-    ['completed', 'TRIP_COMPLETED'],
     ['awaiting_crew', 'TRIP_NOT_DISPATCHED'],
     ['draft', 'TRIP_NOT_DISPATCHED'],
     ['route_planned', 'TRIP_NOT_DISPATCHED'],
