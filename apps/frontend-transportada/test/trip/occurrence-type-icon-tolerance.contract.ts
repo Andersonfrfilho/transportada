@@ -7,7 +7,6 @@
  */
 import { describe, expect, it } from 'bun:test'
 
-import type { TripOccurrence } from '@/modules/trip/shared/trip.types'
 import { createTripResponseAdapters } from '@/modules/trip/shared/tripResponse.validation'
 
 const adapters = createTripResponseAdapters()
@@ -80,16 +79,14 @@ describe('tolerância a iconName opcional no tipo de ocorrência (spec 255 T1.1)
 
   it('aceita ocorrência da viagem com typeIconName string', () => {
     const occurrence = adapters.tripOccurrenceFromApi(
-      buildTripOccurrence({ typeIconName: 'truck' }) as unknown,
+      buildTripOccurrence({ typeIconName: 'truck' }),
     )
 
     expect((occurrence as unknown as Record<string, unknown>).typeIconName).toBe('truck')
   })
 
   it('aceita ocorrência da viagem com typeIconName null (como ausente)', () => {
-    const occurrence = adapters.tripOccurrenceFromApi(
-      buildTripOccurrence({ typeIconName: null }) as unknown,
-    )
+    const occurrence = adapters.tripOccurrenceFromApi(buildTripOccurrence({ typeIconName: null }))
 
     expect(
       (occurrence as unknown as Record<string, unknown>).typeIconName ?? undefined,
@@ -97,7 +94,7 @@ describe('tolerância a iconName opcional no tipo de ocorrência (spec 255 T1.1)
   })
 
   it('aceita ocorrência da viagem sem typeIconName (API anterior)', () => {
-    const occurrence = adapters.tripOccurrenceFromApi(buildTripOccurrence() as unknown)
+    const occurrence = adapters.tripOccurrenceFromApi(buildTripOccurrence())
 
     expect((occurrence as unknown as Record<string, unknown>).typeIconName).toBeUndefined()
   })
