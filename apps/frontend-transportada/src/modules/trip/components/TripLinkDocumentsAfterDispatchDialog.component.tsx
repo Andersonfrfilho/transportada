@@ -73,7 +73,7 @@ export function TripLinkDocumentsAfterDispatchDialog({
         </header>
 
         {dialog.outcome === undefined ? (
-          <div className={styles.fieldGrid}>
+          <div className={styles.linkDocumentsBody}>
             <TripDocumentSearch
               documents={documentsQuery.data ?? []}
               isLoading={documentsQuery.isLoading}
