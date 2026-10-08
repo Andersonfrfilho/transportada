@@ -197,3 +197,10 @@ Corrigido:
 Conferido sem divergência: primitivos (`MultiSelect`/`SearchableSelect`/`Select` compactos, igual à aba de notas), `input` herda `--field-*` via `.fieldGrid input`, grade 1/2/3 colunas em 0/40/64 rem (`min-width`), `flex-wrap` nas barras (sem overflow esperado em 375 px), pílulas pelo `FilterPills`, `.alert` (`--color-copper` sobre fundo escuro, alto contraste).
 
 Listado (não alterado): (1) `aria-label` fixo nos botões de exportar sobrepõe o texto de progresso ("Exportando 3/10") para leitor de tela — remover exige mudar os contratos `TripReportExportButton`/`TripProofPdfExportButton`; (2) rótulos do painel de relatório são 0,85 rem normais, enquanto a aba de notas usa `filterFieldLabel` (caixa alta 0,68 rem) — unificar é decisão de design; (3) espaçamento das barras de exportação: `--space-2` em `/trips` contra `--space-3` em `reportExportRow` das notas.
+
+## Revisão final
+
+- Corrigidos (API): contratante sem cadastro mostra o emitente (`coalesce`), rate limit nas duas rotas, `document.image()` com fallback para "Imagem indisponível" e `warn` só com ids, `findExporterName` isolado com `.catch`.
+- O PDF é **bufferizado** (limitado pelo teto de 200 blocos), não stream real.
+- T3.2 sem red run: prova de mutação feita em 2026-10-07 — a cor da legenda trocada localmente por `SPREADSHEET_ROW_TONES.warehouse` em `spreadsheetLayout.service.ts` reprovou `legenda da planilha > entra logo abaixo do título...` (7 pass, 1 fail); revertida com `git checkout`.
+- Dívida: filtros de `/trips` em `useState`; `TripTable` com 421 linhas; ícone `document`; ausência de `env.test.e2e` (a prova é contract + `test:integration`).

@@ -90,7 +90,7 @@ function buildHandler(input: {
       exportTripProofPdf: createExportTripProofPdfUseCase({
         clock: () => new Date('2026-10-07T15:00:00.000Z'),
         proofRepository: new DrizzleTripProofReportRepository(input.database.db),
-        renderer: createTripProofPdfGateway(),
+        renderer: createTripProofPdfGateway({ logger: { warn() {} } }),
         reportRepository: new DrizzleTripReportRepository(input.database.db),
         storage: input.storage,
       }),

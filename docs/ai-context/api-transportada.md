@@ -3310,3 +3310,9 @@ specs/236-\*/evidence.md § T1.2e e § T1.3.
 - outro `completed` → `finished` (verde `#CDEBD3`)
 
 Nota liberada (`released_at` não nulo) é ignorada em "todas devolvidas" e não entra no relatório. Listas de status vêm de `trip-state.policy.ts`, nunca copiadas.
+
+**Revisão final da spec 253** (2026-10-07):
+
+- `contractorName` do relatório é `coalesce(contratante cadastrado, emitente da NF-e)`: nota sem cadastro mostra o nome do emitente, e o filtro "Sem cadastro" segue olhando só o cadastro. O PDF reaproveita a linha.
+- `GET /trip-document-report` (60/300 s) e `.../proofs-pdf` (10/300 s) declaram `rateLimit` no Postgres e estão em `test/rate-limited-routes.contract.test.ts`.
+- ⚠️ O PDF de canhotos é **bufferizado**, não stream real: `pdfkit` acumula tudo (`bufferPages`) e a resposta sai de uma vez. A memória fica limitada pelo teto de 200 blocos. Imagem que abre mas falha ao embutir cai no placeholder "Imagem indisponível" e loga `trip_proof_pdf.image_embed_failed` só com `tripId` e `proofIndex`; o nome do exportador (`findExporterName`) é best-effort e não derruba o PDF.
