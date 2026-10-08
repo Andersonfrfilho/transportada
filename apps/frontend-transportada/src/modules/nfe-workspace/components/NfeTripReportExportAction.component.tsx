@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { TripProofPdfExportButton } from '@/modules/trip/components/TripProofPdfExportButton.component'
 import { TripReportExportButton } from '@/modules/trip/components/TripReportExportButton.component'
 import type { TripReportScope } from '@/modules/trip/shared/tripReport.service'
 import type { TripReportResult } from '@/modules/trip/shared/tripReport.types'
@@ -47,6 +48,7 @@ export function NfeTripReportExportAction({ table }: NfeTripReportExportActionPr
   return (
     <>
       <TripReportExportButton onExported={handleExported} scope={scope} />
+      <TripProofPdfExportButton scope={scope} />
       {notice === undefined ? null : (
         <p className={styles.reportNotice} role="status">
           {notice}

@@ -17,6 +17,7 @@ import { describeTripFilterPills, type TripFilterPill } from '../shared/tripFilt
 import { describeTripReportFilterPills } from '../shared/tripReportFilterPills.service'
 import styles from '../styles/trip.module.css'
 import { TripReportExportButton } from './TripReportExportButton.component'
+import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
 import { TripReportFilterPanel } from './TripReportFilterPanel.component'
 
 function labelOf(options: readonly MultiSelectOption[], value: string): string {
@@ -169,6 +170,7 @@ export function TripFilters({ contractors, drivers, table, vehicles }: TripFilte
       <TripReportFilterPanel contractors={contractors} filters={table.reportFilters} />
       <div className={styles.reportExportBar}>
         <TripReportExportButton scope={{ filters: table.reportScope }} />
+        <TripProofPdfExportButton scope={{ filters: table.reportScope }} />
       </div>
 
       <FilterPills

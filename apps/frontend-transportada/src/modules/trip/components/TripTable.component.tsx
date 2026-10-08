@@ -23,6 +23,7 @@ import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSele
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
 import { TripReportExportButton } from './TripReportExportButton.component'
+import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -287,6 +288,7 @@ export function TripTable({
               </Button>
             ) : null}
             <TripReportExportButton scope={{ selectedTripIds: table.selectedIds }} />
+            <TripProofPdfExportButton scope={{ selectedTripIds: table.selectedIds }} />
             <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
               <Icon name="close" />
               {t('selection.clear')}
