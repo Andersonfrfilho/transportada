@@ -1,0 +1,236 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* A seção da prévia por e-mail ocupa a largura da ficha, abaixo das duas colunas de dados e de perfil. */
+.section {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.sectionHeader h4,
+.subsectionHeader h5 {
+  margin: 0;
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.statusText {
+  margin: 0;
+  font-family: var(--font-utility);
+}
+
+/* Duas listas lado a lado só onde cabem; no celular empilham, cada uma com o alvo de toque inteiro. */
+.lists {
+  display: grid;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A altura do campo é a da métrica da casa; só a face é de código, para conferir caractere a caractere. */
+.listField textarea {
+  font-family: var(--font-utility);
+  word-break: break-all;
+}
+
+.issueList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.controls {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+/* O painel do endereço recém-gerado: moldura de cobre, porque é a única vez que ele aparece. */
+.generated {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.generated:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.generated h5 {
+  margin: 0;
+}
+
+.addressRow {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* O botão de copiar é o alvo principal desta tela: alvo de toque inteiro, sem a margem negativa da tabela. */
+.addressRow > button {
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  margin-block: 0;
+}
+
+.address {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 1rem;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.warning {
+  margin: 0;
+  color: var(--color-copper-ink);
+  font-weight: 600;
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-alert);
+}
+
+.confirm p {
+  margin: 0;
+}
+
+.subsection {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tableScroll {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--color-graphite);
+}
+
+.previewLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-copper-ink);
+}
+
+/*
+ * Mobile-first, como a tabela do recebimento: abaixo de 40rem cada linha vira um cartão com o rótulo da coluna
+ * (`data-label`) ao lado do valor — o motivo da recusa é a coluna que o operador mais quer ler, e não pode ficar
+ * atrás da rolagem. A partir de 40rem volta a ser tabela.
+ */
+.table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table,
+.table tbody,
+.table tr,
+.table td {
+  display: block;
+}
+
+.table tr {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.table td {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: 0;
+  border: 0;
+}
+
+.table td::before {
+  content: attr(data-label);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+@media (min-width: 40rem) {
+  .table {
+    display: table;
+  }
+
+  .table thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .table tbody {
+    display: table-row-group;
+  }
+
+  .table tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .table td {
+    display: table-cell;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-graphite);
+  }
+
+  .table td::before {
+    content: none;
+  }
+}

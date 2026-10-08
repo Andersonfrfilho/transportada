@@ -131,6 +131,16 @@ outras oito no cron. Mudou tabela na API? confira as cópias — migrations só 
 (`drizzle-pending-address.repository.ts`) inclui esses endereços — é por ela que o barracão ganha
 coordenada, sem centroide de município. Sem coordenada, `depot` segue `null` (nada inventado).
 
+## O feriado municipal no roteirizador vale só para a parada da cidade dele (spec 238 T1.2a e F1, 2026-10-07)
+
+A janela do cliente no pool é resolvida por `(cidade da parada, CNPJ)` (`drizzle-pool-window.query.ts` lê;
+`domain/pool-window.policy.ts` resolve, chave `${cityCode}\u0000${taxId}`). Cada parada recebe só os
+`municipal_holidays.holiday_on = hoje (UTC)` da cidade dela; antes, o feriado da cidade B fechava também o cliente da
+cidade A no mesmo roteiro. A exceção do cliente continua vencendo o feriado, cliente sem janela cadastrada em cidade
+em feriado fica fechado, e o mesmo CNPJ com paradas em A e em B fecha só a parada da cidade em feriado. Data `yearly`
+(ano 2000) nunca casa. `resolveDeliveryWindow` e o contrato com o solver não mudaram.
+`test/route-optimization-municipal-holiday.integration.test.ts` fixa isso contra Postgres.
+
 ## O e-mail à contratante sai para todos os destinatários, não só o primeiro (spec 150 T302)
 
 Até aqui `send-contractor-mail-outbound-message.use-case.ts` só entregava a `toAddresses[0]` —
@@ -358,7 +368,9 @@ devolve `not_a_preview` e a mensagem é descartada como `token_unknown`, como an
 
 - **Token:** local-part de 26 base32 minúsculos no domínio de entrada, hash `sha256("transportada:cargo-preview-inbound:v1:" + token)`
   em `contractor_receiving_profiles.preview_inbound_token_hash` (distinto do hash de conversa; `+` recusado).
-  O hash e a função `hashPreviewInboundToken` são os que a T4.6b vai copiar para a API (com paridade).
+  O hash e a função `hashPreviewInboundToken` são os que a API (T4.6b) copia por valor para **gerar** o token no servidor
+  (`api-transportada/src/cargo-receiving/domain/preview-inbound-token.policy.ts`); `test/cargo-preview-email/parity.contract.ts` lê os dois
+  arquivos e cobra o padrão, o propósito do hash e a expressão do hash — mudar um lado sem o outro reprova (o endereço gerado deixaria de abrir).
 - **Barreiras, em ordem:** perfil pronto → encaminhador do provedor na `preview_forwarder_allowlist` **antes** de
   baixar → teto de e-mails **autenticados** da janela (T4.7c; só o download e o DKIM ficam atrás dele) → MIME até 2 MiB
   (`downloadRawEmail({ maxBytes })`, só número finito) → **cabeçalho medido** (`hasBoundedMimeHeaders`, abaixo) → DKIM
@@ -451,3 +463,109 @@ _NOT_ALLOWED`). Essas seis ficam gravadas com `aligned` (o dado é verdadeiro) m
   e-mail de conversa se a migration `20261007040900_cargo_preview_email_intake` não existir. O `deploy.yml` já
   garante a ordem (`deploy-api` com `preDeployCommand` e `assert-migrations` antes de `deploy-worker`, que `needs:
 deploy-api`); **reverter a API sem o worker** quebra o trilho de conversa até o worker voltar.
+
+## A retenção de 90 dias dos dados da planilha (spec 237 Fase 4c, T4.8, ADR-0094 §11)
+
+`cargo-preview.retention.apply` (`src/cargo-preview-retention/`, diária, vocabulário de falha vazio) cumpre a decisão do
+usuário de 2026-10-06. Detalhe de segurança, o que fica e as pendências: `docs/SECURITY.md`, 2026-10-07.
+
+- **Quem entra:** `cargo_previews` em `ready` ou `failed`, **sem nenhum item** em `awaiting_xml`/`suggested`/`ambiguous`
+  (`CARGO_PREVIEW_OPEN_ITEM_STATES`, a mesma lista da reavaliação), sem o evento `retention_applied` e com
+  `greatest(prévia.updated_at, max(itens.updated_at)) <= now − 90 dias`. Não existe coluna "fechado em"; o
+  `updated_at` do item é o instante fiel (decisão, desvínculo e reavaliação o movem). A condição é uma só
+  (`cargo-preview-retention-eligibility.query.ts`) para a consulta de candidatas e para a reconferência sob lock.
+- **O marcador é o evento**, não coluna: `cargo_preview_events` kind `retention_applied` (canal `worker`, `details`
+  com `itemsAnonymized`, `objectsDeleted`, `retentionDays`). Só sai depois do último objeto apagado; anti-join no
+  evento é o que impede reprocessar. **Reabrir um item depois não "desfaz" a retenção** (o arquivo já não existe).
+- **A unidade é a prévia**, numa transação (`applyCargoPreviewRetentionUnit`): trava do contratante sem esperar
+  (`pg_try_advisory_xact_lock`, a mesma do vínculo e das ações do operador) → `for update` na prévia reconferindo a
+  elegibilidade → `for update` nos objetos vivos (planilha + MIME bruto de **todo** intake aceito da prévia), **sem
+  `skip locked`** (objeto pulado pareceria apagado) → bytes saem do bucket **antes** de qualquer escrita → anula as
+  quatro colunas → marca `stored_objects` `deleted` (nunca apaga a linha; a FK `RESTRICT` e o trigger append-only
+  dos intakes a prendem) → evento. Delete do bucket com prazo de 10 s; falha desfaz a unidade (`failed`).
+- **Tetos:** lote 25, 200 lotes por ciclo, 50 objetos por prévia por passada (`partial`: anula e marca, mas não grava
+  o evento; continua na próxima execução), 5 falhas de bucket seguidas encerram o ciclo. Prévia `failed`/`partial`
+  entra em `excludedPreviewIds` e não repete no mesmo ciclo. Erro imprevisto de uma prévia vira `failed`
+  (`settleCargoPreviewRetentionUnit`), log só com o tipo do erro.
+- **Anula só** `recipient_name`, `address`, `neighborhood`, `postal_code`; `updated_at` do item **não** se move.
+  `match_evidence`/`row_error` não têm dado pessoal (conferido no escritor). `city`, `state`, `recipient_code`,
+  `contractor_reference` e `cargo_previews.file_name` ficam — pendência em `docs/SECURITY.md`.
+- **Cópia por valor:** `CARGO_PREVIEW_RETENTION_DAYS` e `CARGO_PREVIEW_OPEN_ITEM_STATES` estão em
+  `shared/cargo-preview.constant.ts`, **byte a byte** com a API (`test/cargo-preview/domain-parity.contract.ts`); o
+  catálogo de jobs tem a entrada nas quatro cópias (API, worker, cron, painel).
+- **Provas:** `test/cargo-preview-retention/` (política, unidade com portas falsas, ciclo) e
+  `test/integration/cargo-preview-retention.integration.ts` (Postgres, bucket em memória, semeia em série). ⚠️
+  `bun test` de arquivo avulso: `./test/integration/cargo-preview-retention.integration.ts`.
+
+## A Nota RP v3 — recorte do contrato usado (spec 250 T0.4, 07/10/2026)
+
+Fonte: `https://www.notarp.com.br/docs/swagger.yaml` (OpenAPI 3, v3.0.0) e a coleção Postman do mesmo
+site. Mudou desde o recorte: o changelog em `/docs/changelog.md` (último: 10/08/2026).
+
+- **Auth:** `X-Auth-User-Token` + `X-Auth-CNPJ` (só dígitos) + `X-Auth-IM` (só dígitos). O token é do
+  usuário, não da empresa. A v2 recusa o `X-Auth-CNPJ` (403 "empresa não migrada"), a v3 o exige.
+- **Limite:** 1 req/s, burst 3; excedente é recusado. Não paralelizar; `emitir` só enfileira.
+- **Emitir** `POST /api/v3/nota/emitir` → `200 {success, id_nota}`. Obrigatórios: `tomador.documento`,
+  `tomador.nome`, `servico.descricao`, `valor_total`, `codigo_tributacao_nacional` (6 dígitos),
+  `codigo_tributacao_municipal`, `codigo_nbs` (9), `data_competencia` (`dd/mm/aaaa`), `pais`,
+  `incidencia_issqn`; `municipio` se `pais=BR`; `aliquota_issqn` (percentual) se `operacao_tributavel`.
+  Simples Nacional: `tributos_aproximados.aliquota_simples_nacional` (documenta mínimo de 4,50%).
+  Lucro Real/Presumido: PIS/COFINS e `ibscbs`. `flags.hash_pedido` = idempotência 24 h (repetido → `409`
+  com o `id_nota` original; pedido recusado na validação libera a chave); `flags.webhook_url` exige
+  `https://`; `flags.regime` omitido usa o cadastro da empresa. `id_nota` no corpo reemite nota em `Falha`.
+- **Consultar** `GET /api/v3/nota/listar?id_nota=` → `results[]` com `id_nota, numero, data_competencia,
+data_emissao, status, valor_servicos, chave_acesso`. Status: `Criada | Enviando | Pendente | Sucesso |
+Falha | Cancelada`.
+- **Cancelar** `POST /api/v3/nota/cancelar` `{id_nota, motivo, descricao?, enviar_email}`;
+  `motivo ∈ erro_emissao | servico_nao_prestado | outros` (`descricao` obrigatória em `outros`). Só nota
+  com `chave_acesso` (ADN) é cancelável por API. `409` se já cancelada.
+- **Documentos** `GET /api/v3/nota/pdf|xml?id_nota=` → `{success, base64_file}`; só `Sucesso`/`Cancelada`.
+- **Webhook:** `POST` com `{success, id_nota, numero, status, chave_acesso, ...}` ou
+  `{success:false, id_nota, erros:[{Codigo, Mensagem}]}`; `X-Signature` = HMAC-SHA256 do corpo bruto, se o
+  segredo estiver cadastrado; 41 reentregas em ~6 h; trate como idempotente por `id_nota`. Nossa rota
+  anônima só antecipa a consulta (ADR-0029 §2), então o corpo não é lido.
+- **Erro:** `{success:false, message, alert?, field?}`; HTTP 400/401/403/404/409/422/500.
+- ⚠️ A documentação diz que a v3 não atende Ribeirão Preto; o suporte da Nota RP (07/10/2026)
+  confirmou o contrário. O contrato acima é o que vale; o aviso do swagger está desatualizado.
+
+### Roteamento por versão e limitador (spec 250 T3.3)
+
+- **A versão é a da tentativa, e o worker não lê `NFSE_PROVIDER_API_VERSION`.** A API grava
+  `providerApiVersion` (`v2`|`v3`, ausente = `v2`) no `provider_config` da tentativa de **emissão**. O
+  worker lê a versão da própria tentativa ao emitir; ao cancelar, consultar e baixar documentos, da
+  **última tentativa de emissão** da nota (`attempt_kind='issue'`, maior `attempt_number`). A política
+  mora em `nfse-issuance/domain/nfse-provider-api-version.policy.ts`; a leitura em
+  `drizzle-nfse-issuance-history.reader.ts`, usada pelos dois repositórios (execução e reconciliação).
+- **`id_nota` na reemissão** só viaja se a nota já tem `provider_document_id` **e** toda emissão anterior
+  foi v3 (`canReuseProviderDocumentId`). Sem como provar a origem, vai nota nova: a chave de idempotência
+  (`provider_request_key`; tentativa legada usa o `attemptId`) protege a duplicação.
+- **v2 não muda.** O payload da v3 não passa pelo zod da v2: `nationalTaxationCode` ausente vira `rejected`
+  nomeado dentro do cliente v3, nunca `error invalid_payload`.
+- **Um limitador, um processo.** `createRateLimitedFetch` (1 s) é criado **uma vez** no `main.ts` e
+  entregue como `v3Fetch` aos dois gateways (emissão e consulta); a v2 segue no `fetch` cru, sem espera
+  nova. O limite da Nota RP é por CNPJ e o intervalo é por processo: **assume-se uma réplica do worker**.
+  Subir réplicas exige limitador compartilhado (Redis) ou o limite estoura.
+- **`409` do `/cancelar` nunca vale `accepted` sozinho.** O cliente consulta `GET /nota/listar?id_nota=` (pelo
+  mesmo limitador): `Cancelada` → `accepted`; qualquer outro status → `rejected` `NOTA_RP_HTTP_409`; consulta
+  que falha (rede, 5xx, nota ausente, corpo fora do formato) → `error`, recuperável pelo retry da fila.
+  Motivo do banco: `'2'` → `servico_nao_prestado`; `'4'` → `outros` com `descricao` "Nota duplicada".
+  PDF e XML seguem a versão da nota pelos mesmos gateways.
+
+## Nota vinculada à mão: o pull confere o valor (spec 250 T5.2)
+
+A tentativa de vínculo (`providerConfig.externalLink`) é a única em que o status pull **rejeita** o que a emissão
+normal adia. `not_found` → `rejected` `NFSE_EXTERNAL_LINK_NOT_FOUND`; `Sucesso` com `valor_servicos` diferente do
+`serviceAmount` congelado → `rejected` `NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH` (comparação textual com zeros à direita
+removidos; valor ausente conta como divergência); `Falha` é rejeição comum. Tentativa normal com `not_found` continua
+adiada. O mapper v3 lê `valor_servicos` em `serviceAmount`. `canReuseProviderDocumentId` é falso se qualquer tentativa
+anterior for de vínculo. Núcleo: `resolveNfseReconciliationDecision` (`externalLink?`) em
+`nfse-reconciliation-outcome.policy.ts`.
+
+## Onde a versão da Nota RP é decidida (spec 250, ADR 0098)
+
+`NFSE_PROVIDER_API_VERSION` (`v2` por padrão, também no `.env.example` e no `.railway/railway.ts`) é lida **só pela
+API**, no momento de criar a tentativa de emissão; o worker obedece à versão gravada na tentativa. Virar a variável não
+reescreve nota em andamento: a nota que já tem tentativa v2 continua falando v2 (consulta, cancelamento, PDF e XML)
+até a próxima emissão. A virada para `v3` em produção é a T6.2 da spec 250, sob aprovação humana, e **não aconteceu**.
+O vínculo de nota emitida fora do sistema (`POST .../service-invoices/:id/external-link`) vai a `pending_authorization`
+e é o status pull acima que a autoriza ou rejeita.

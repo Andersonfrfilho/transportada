@@ -23,13 +23,19 @@ import type {
 import {
   buildNfseCancellationIdempotencyKey,
   buildNfseDiscardIdempotencyKey,
+  buildNfseExternalLinkIdempotencyKey,
   buildNfseReissueCorrectionBody,
   buildNfseReissueIdempotencyKey,
+  parseNfseProviderDocumentId,
   readNfseDownloadUrl,
   resolveNfseRowActions,
   validateNfseCancellationReason,
   type NfseRowActionState,
 } from '../shared/nfseInvoiceRowActions.service'
+import {
+  findNationalTaxationFieldErrors,
+  resolveReissueNationalTaxationValues,
+} from '../shared/nfseNationalTaxation.service'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
 
 type UseNfseInvoiceRowActionsInput = Readonly<{
@@ -77,6 +83,9 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
   const [reissueAttemptToken, setReissueAttemptToken] = useState('')
   const [discardTarget, setDiscardTarget] = useState<NfseInvoice | null>(null)
   const [discardAttemptToken, setDiscardAttemptToken] = useState('')
+  const [externalLinkTarget, setExternalLinkTarget] = useState<NfseInvoice | null>(null)
+  const [providerDocumentId, setProviderDocumentId] = useState('')
+  const [externalLinkAttemptToken, setExternalLinkAttemptToken] = useState('')
 
   const queryClient = useQueryClient()
   const permissions = input.companyId === undefined ? [] : input.permissions
@@ -167,6 +176,31 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     discardMutation.reset()
   }
 
+  const externalLinkMutation = useMutation({
+    mutationFn: controller.linkExternalInvoice,
+    onSuccess: () => {
+      setExternalLinkTarget(null)
+      setProviderDocumentId('')
+      return queryClient.invalidateQueries({ queryKey: [NFSE_INVOICES_QUERY_KEY] })
+    },
+  })
+
+  const parsedProviderDocumentId = parseNfseProviderDocumentId(providerDocumentId)
+
+  function closeExternalLink(): void {
+    setExternalLinkTarget(null)
+    setProviderDocumentId('')
+    externalLinkMutation.reset()
+  }
+
+  const reissueNationalTaxationValues = resolveReissueNationalTaxationValues({
+    draft: reissueDraft,
+    frozen: reissueDetailQuery.data?.lastPayload ?? {},
+  })
+  const nationalTaxationErrors = findNationalTaxationFieldErrors(reissueNationalTaxationValues)
+  const isReissueNationalTaxationValid =
+    !nationalTaxationErrors.code && !nationalTaxationErrors.rate
+
   return {
     cancelErrorCode: readErrorCode(cancelMutation.error),
     cancellationMotive,
@@ -188,6 +222,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       })
     },
     closeDiscard,
+    closeExternalLink,
     closeReissue,
     confirmDiscard: () => {
       if (discardTarget === null) return
@@ -199,9 +234,21 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
         invoiceId: discardTarget.id,
       })
     },
+    confirmExternalLink: () => {
+      if (externalLinkTarget === null || parsedProviderDocumentId === null) return
+      externalLinkMutation.mutate({
+        idempotencyKey: buildNfseExternalLinkIdempotencyKey({
+          invoiceId: externalLinkTarget.id,
+          token: externalLinkAttemptToken,
+        }),
+        invoiceId: externalLinkTarget.id,
+        providerDocumentId: parsedProviderDocumentId,
+      })
+    },
     confirmReissue: () => {
       const lastPayload = reissueDetailQuery.data?.lastPayload
       if (reissueTarget === null || lastPayload === null || lastPayload === undefined) return
+      if (!isReissueNationalTaxationValid) return
       reissueMutation.mutate({
         correction: buildNfseReissueCorrectionBody({
           edited: reissueDraft,
@@ -220,6 +267,8 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     discardTarget,
     documents: documentsQuery.data ?? [],
     downloadErrorCode,
+    externalLinkErrorCode: readErrorCode(externalLinkMutation.error),
+    externalLinkTarget,
     downloadInvoice: (invoiceId: string, kind: NfseInvoiceDocumentKind) => {
       setDownloadErrorCode(null)
       downloadMutation.mutate({ invoiceId, kind })
@@ -229,7 +278,10 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     isDetailLoading: detailQuery.isLoading || documentsQuery.isLoading,
     isDiscardPending: discardMutation.isPending,
     isDownloadPending: downloadMutation.isPending,
+    isExternalLinkPending: externalLinkMutation.isPending,
+    isExternalLinkReady: parsedProviderDocumentId !== null,
     isReissueDetailLoading: reissueDetailQuery.isLoading,
+    isReissueNationalTaxationValid,
     isReissuePending: reissueMutation.isPending,
     openCancel: (invoice: NfseInvoice) => {
       setCancelTarget(invoice)
@@ -244,21 +296,30 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
       setDiscardAttemptToken(crypto.randomUUID())
       discardMutation.reset()
     },
+    openExternalLink: (invoice: NfseInvoice) => {
+      setExternalLinkTarget(invoice)
+      setProviderDocumentId('')
+      setExternalLinkAttemptToken(crypto.randomUUID())
+      externalLinkMutation.reset()
+    },
     openReissue: (invoice: NfseInvoice) => {
       setReissueTarget(invoice)
       setReissueDraft({})
       setReissueAttemptToken(crypto.randomUUID())
       reissueMutation.reset()
     },
+    providerDocumentId,
     reasonBlock: reasonCheck.status === 'blocked' ? reasonCheck.reason : null,
     reissueDraft,
     reissueErrorCode: readErrorCode(reissueMutation.error),
     reissueLastPayload: reissueDetailQuery.data?.lastPayload ?? null,
+    reissueNationalTaxationValues,
     reissueTarget,
     resolveActions: (status: string): NfseRowActionState =>
       resolveNfseRowActions({ permissions, status }),
     setCancellationMotive,
     setCancellationReason,
+    setProviderDocumentId,
     setReissueField: (change: Partial<NfseLastIssuancePayload>) =>
       setReissueDraft((previous) => ({ ...previous, ...change })),
   }

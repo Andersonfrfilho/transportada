@@ -24,16 +24,9 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import {
-  deliveryClientExceptions,
-  deliveryClientWindows,
-  deliveryClients,
-  municipalHolidays,
-} from '../../database/delivery-client.schema.js'
-import {
   resolvePhysicalDestination,
   PHYSICAL_DESTINATION_ORIGINS,
 } from '../domain/physical-destination.policy.js'
-import { resolveDeliveryWindow } from '../domain/delivery-window.policy.js'
 import {
   fleetDriverRegions,
   freightRegionCities,
@@ -41,6 +34,8 @@ import {
 } from '../../database/freight-region.schema.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
 import { readDepotOriginAddressKey } from './drizzle-depot-origin.query.js'
+import { readPoolWindows } from './drizzle-pool-window.query.js'
+import { resolvePoolWindow } from '../domain/pool-window.policy.js'
 import { buildRegionCityKey } from '../domain/region-coverage.policy.js'
 import type { DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import { resolveStopWeight } from '../domain/stop-weight.policy.js'
@@ -937,6 +932,7 @@ async function readPoolStops(input: {
        * fuso se cancela na subtração. "Abre às 8h e saímos às 8h" é zero, em qualquer fuso.
        */
       offsetSeconds: -input.departureTimeSeconds,
+      cityCode: group.cityCode,
       taxIds: [...group.taxIds],
       windows,
     })
@@ -975,158 +971,6 @@ async function readPoolStops(input: {
       windowStartSeconds: window.startSeconds,
     }
   })
-}
-
-type PoolWindowIntervals = ReadonlyMap<string, readonly { closesAt: string; opensAt: string }[]>
-
-/**
- * Spec 058 P2 + 060 D2: **a hora em que o cliente recebe**, resolvida pelo documento do destinatário.
- * Uma consulta por tabela, não uma por parada: um pool de oitenta notas viraria oitenta idas ao banco
- * numa rotina que já é a mais pesada do worker.
- *
- * A precedência é a da 060, e ela vem da política copiada — exceção do cliente vence feriado do
- * município, e cliente sem cadastro de janela é **ausência de restrição**, não fechado.
- */
-async function readPoolWindows(input: {
-  readonly companyId: string
-  readonly database: RouteOptimizationDatabase
-  readonly date: string
-  readonly stops: readonly {
-    readonly cityCode: string | null
-    readonly taxIds: readonly string[]
-  }[]
-}): Promise<PoolWindowIntervals> {
-  const taxIds = [...new Set(input.stops.flatMap((stop) => stop.taxIds))]
-  if (taxIds.length === 0) return new Map()
-
-  const clients = await input.database
-    .select({ id: deliveryClients.id, taxId: deliveryClients.taxId })
-    .from(deliveryClients)
-    .where(
-      and(eq(deliveryClients.companyId, input.companyId), inArray(deliveryClients.taxId, taxIds)),
-    )
-  if (clients.length === 0) return new Map()
-
-  const clientIds = clients.map((client) => client.id)
-  const cityCodes = [
-    ...new Set(
-      input.stops
-        .map((stop) => stop.cityCode)
-        .filter((cityCode): cityCode is string => cityCode !== null && cityCode !== ''),
-    ),
-  ]
-
-  const [windows, exceptions, holidays] = await Promise.all([
-    input.database
-      .select({
-        closesAt: deliveryClientWindows.closesAt,
-        deliveryClientId: deliveryClientWindows.deliveryClientId,
-        opensAt: deliveryClientWindows.opensAt,
-        weekday: deliveryClientWindows.weekday,
-      })
-      .from(deliveryClientWindows)
-      .where(
-        and(
-          eq(deliveryClientWindows.companyId, input.companyId),
-          inArray(deliveryClientWindows.deliveryClientId, clientIds),
-        ),
-      ),
-    input.database
-      .select({
-        closesAt: deliveryClientExceptions.closesAt,
-        deliveryClientId: deliveryClientExceptions.deliveryClientId,
-        exceptionOn: deliveryClientExceptions.exceptionOn,
-        kind: deliveryClientExceptions.kind,
-        opensAt: deliveryClientExceptions.opensAt,
-      })
-      .from(deliveryClientExceptions)
-      .where(
-        and(
-          eq(deliveryClientExceptions.companyId, input.companyId),
-          inArray(deliveryClientExceptions.deliveryClientId, clientIds),
-          eq(deliveryClientExceptions.exceptionOn, input.date),
-        ),
-      ),
-    cityCodes.length === 0
-      ? Promise.resolve([])
-      : input.database
-          .select({ holidayOn: municipalHolidays.holidayOn })
-          .from(municipalHolidays)
-          .where(
-            and(
-              eq(municipalHolidays.companyId, input.companyId),
-              inArray(municipalHolidays.cityIbgeCode, cityCodes),
-              eq(municipalHolidays.holidayOn, input.date),
-            ),
-          ),
-  ])
-
-  const resolved = new Map<string, readonly { closesAt: string; opensAt: string }[]>()
-  for (const client of clients) {
-    const window = resolveDeliveryWindow({
-      date: input.date,
-      exceptions: exceptions
-        .filter((exception) => exception.deliveryClientId === client.id)
-        .map((exception) => ({
-          closesAt: exception.closesAt,
-          exceptionOn: exception.exceptionOn,
-          kind: exception.kind === 'closed' ? ('closed' as const) : ('open' as const),
-          opensAt: exception.opensAt,
-        })),
-      holidays: holidays.map((holiday) => ({ holidayOn: holiday.holidayOn })),
-      windows: windows
-        .filter((row) => row.deliveryClientId === client.id)
-        .map((row) => ({ closesAt: row.closesAt, opensAt: row.opensAt, weekday: row.weekday })),
-    })
-
-    /**
-     * `unset` é ausência de regra e vira ausência de janela — o solver não penaliza hora nenhuma.
-     * `closed` (intervalos vazios com origem declarada) é o oposto, e por isso ele **não** cai aqui:
-     * ver `resolvePoolWindow`.
-     */
-    if (window.source === 'unset') continue
-    resolved.set(client.taxId, window.intervals)
-  }
-
-  return resolved
-}
-
-/**
- * ⚠️ **O solver representa uma janela por parada**, e o cliente pode ter duas (manhã e tarde). Fica a
- * **primeira** — a mais cedo —, e não o intervalo que vai da abertura ao fechamento do dia: unir os
- * dois faria o roteiro propor chegada no horário de almoço, que a portaria recusa. Perder a tarde é
- * proposta pobre; propor a hora fechada é caminhão parado no portão.
- *
- * Cliente **fechado** no dia (janela cadastrada, nenhum intervalo hoje) recebe uma janela impossível
- * — abre e fecha no mesmo instante —, que o solver trata como violação explícita em vez de esconder:
- * é a mesma regra da precisão grosseira, o operador precisa ver antes de aceitar.
- */
-function resolvePoolWindow(input: {
-  readonly offsetSeconds: number
-  readonly taxIds: readonly string[]
-  readonly windows: PoolWindowIntervals
-}): { readonly endSeconds: number | null; readonly startSeconds: number | null } {
-  for (const taxId of input.taxIds) {
-    const intervals = input.windows.get(taxId)
-    if (intervals === undefined) continue
-
-    const first = intervals[0]
-    if (first === undefined) return { endSeconds: 0, startSeconds: 0 }
-
-    return {
-      endSeconds: toDaySeconds(first.closesAt) + input.offsetSeconds,
-      startSeconds: toDaySeconds(first.opensAt) + input.offsetSeconds,
-    }
-  }
-
-  return { endSeconds: null, startSeconds: null }
-}
-
-/** `HH:MM` ou `HH:MM:SS` — o Postgres devolve com segundos, o cadastro às vezes manda sem. */
-function toDaySeconds(time: string): number {
-  const [hours = '0', minutes = '0', seconds = '0'] = time.split(':')
-
-  return Number(hours) * 3_600 + Number(minutes) * 60 + Number(seconds)
 }
 
 /**

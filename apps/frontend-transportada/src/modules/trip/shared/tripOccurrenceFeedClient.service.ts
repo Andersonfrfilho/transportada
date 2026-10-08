@@ -2,6 +2,7 @@
 import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
+import { isOccurrenceRequirements } from './tripOccurrenceRequirements.validation'
 import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse.validation'
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
@@ -23,6 +24,7 @@ import {
   type TripOccurrenceDetail,
   type TripOccurrenceDetailDriver,
   type TripOccurrenceDetailItem,
+  type TripOccurrenceItemValue,
   type TripOccurrenceDocument,
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
@@ -269,8 +271,28 @@ function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
     isString(value.description) &&
     (value.quantity === null ||
       (isString(value.quantity) && DECIMAL_STRING.test(value.quantity))) &&
-    isNullableString(value.unit)
+    isNullableString(value.unit) &&
+    (value.declaredAmount === undefined ||
+      value.declaredAmount === null ||
+      (isString(value.declaredAmount) && DECIMAL_STRING.test(value.declaredAmount)))
   )
+}
+
+function isItemValue(value: unknown): value is TripOccurrenceItemValue {
+  return (
+    isRecord(value) &&
+    isString(value.productCode) &&
+    isString(value.quantity) &&
+    DECIMAL_STRING.test(value.quantity) &&
+    isString(value.unitValue) &&
+    DECIMAL_STRING.test(value.unitValue) &&
+    (value.declaredAmount === null ||
+      (isString(value.declaredAmount) && DECIMAL_STRING.test(value.declaredAmount)))
+  )
+}
+
+function isNullableDecimal(value: unknown): value is null | string {
+  return value === null || (isString(value) && DECIMAL_STRING.test(value))
 }
 
 function readDetail(payload: unknown): TripOccurrenceDetail {
@@ -281,6 +303,7 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
   const { actorName, channel, corrections, document, driver, items, onBehalfOfDriverName } = fields
+  const { declaredAmount, itemValues, referenceNumber, requirements } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
@@ -293,7 +316,15 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
     ) ||
     !isNullableString(actorName) ||
     !isString(channel) ||
-    !isNullableString(onBehalfOfDriverName)
+    !isNullableString(onBehalfOfDriverName) ||
+    !(declaredAmount === undefined || isNullableDecimal(declaredAmount)) ||
+    !(referenceNumber === undefined || isNullableString(referenceNumber)) ||
+    !(
+      requirements === undefined ||
+      requirements === null ||
+      isOccurrenceRequirements(requirements)
+    ) ||
+    !(itemValues === undefined || (Array.isArray(itemValues) && itemValues.every(isItemValue)))
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }

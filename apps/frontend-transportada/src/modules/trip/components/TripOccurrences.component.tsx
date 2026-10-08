@@ -14,7 +14,6 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import {
-  describeOccurrenceItems,
   resolveOccurrenceItemQuantityFields,
   type OccurrenceQuantitiesByCode,
 } from '../shared/occurrenceProductSelection.service'
@@ -34,9 +33,11 @@ import {
 } from '../shared/occurrencePhotoSend.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceEntryItems } from './OccurrenceEntryItems.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
+import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 import {
   appendOccurrenceNotePreset,
@@ -237,11 +238,11 @@ export function TripOccurrences({
       {occurrences.length === 0 ? (
         <p className={styles.hint}>{t('occurrence.none')}</p>
       ) : (
-        <ul className={styles.documentProductList}>
+        <ul className={styles.occurrenceEntryList}>
           {occurrences.map((occurrence) => {
             const authorship = resolveFieldAuthorshipText(occurrence, t as Translate)
             return (
-              <li key={occurrence.id}>
+              <li className={styles.occurrenceEntry} key={occurrence.id}>
                 <p className={styles.occurrenceEntryHeader}>
                   {canOpenOccurrence ? (
                     <a
@@ -256,60 +257,30 @@ export function TripOccurrences({
                         })
                       }}
                     >
+                      <OccurrenceTypeIcon iconName={occurrence.typeIconName} />
                       {occurrence.typeName}
                     </a>
                   ) : (
-                    <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                    <span className={styles.occurrenceEntryType}>
+                      <OccurrenceTypeIcon iconName={occurrence.typeIconName} />
+                      {occurrence.typeName}
+                    </span>
                   )}
-                  <span className={styles.hint}>{formatMoment(occurrence.createdAt)}</span>
+                  <span className={styles.occurrenceEntryMoment}>
+                    {formatMoment(occurrence.createdAt)}
+                  </span>
                   <OccurrenceCancellationMark
                     cancellation={occurrence.cancellation}
                     variant="badge"
                   />
                 </p>
-                {/*
-                 * Revisão de leitura (22/09): o código sozinho ("183") não diz o que foi avariado,
-                 * e a descrição já está na tela — o formulário a usa para marcar. Cada item em sua
-                 * linha porque a lista cresceu: três itens numa linha só viram parede de texto.
-                 */}
-                {describeOccurrenceItems({
-                  occurrence,
-                  products,
-                  unitLabels: {
-                    box: t('occurrence.quantityUnits.box'),
-                    unit: t('occurrence.quantityUnits.unit'),
-                  },
-                }).length === 0 ? (
-                  <p className={styles.occurrenceEntryWhole}>{t('occurrence.wholeDocument')}</p>
-                ) : (
-                  <ul className={styles.occurrenceEntryItems}>
-                    {describeOccurrenceItems({
-                      occurrence,
-                      products,
-                      unitLabels: {
-                        box: t('occurrence.quantityUnits.box'),
-                        unit: t('occurrence.quantityUnits.unit'),
-                      },
-                    }).map((item) => (
-                      <li key={item.code}>
-                        <span className={styles.occurrenceEntryItemCode}>{item.code}</span>
-                        {/* Item que não está na nota carregada sai só com o código — nada inventado. */}
-                        {item.description === null ? null : (
-                          <span className={styles.occurrenceEntryItemName}>{item.description}</span>
-                        )}
-                        {item.quantity === null ? null : (
-                          <span className={styles.occurrenceEntryItemQuantity}>
-                            {item.quantity}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <OccurrenceEntryItems occurrence={occurrence} products={products} />
                 {occurrence.note === '' ? null : (
                   <p className={styles.occurrenceEntryNote}>{occurrence.note}</p>
                 )}
-                {authorship === null ? null : <p className={styles.hint}>{authorship}</p>}
+                {authorship === null ? null : (
+                  <p className={styles.occurrenceEntryAuthorship}>{authorship}</p>
+                )}
                 {occurrence.attachments === undefined ||
                 occurrence.attachments.length === 0 ? null : (
                   <OccurrenceAttachmentGrid

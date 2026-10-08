@@ -21,6 +21,7 @@ import {
   fleetVehicles,
   identityUserProfiles,
   identityUsers,
+  membershipRoles,
   nfeDocuments,
   nfeImports,
   storedObjects,
@@ -2930,3 +2931,68 @@ async function withDisposableDatabase(
     operation,
   })
 }
+
+describe('trip-timeline.query sinaliza o ator sistema (isSystemActor) contra o Postgres', () => {
+  async function seedServiceActor(
+    database: TestDatabase,
+    companyId: string,
+    role: 'automation' | 'operator',
+  ): Promise<string> {
+    const userId = crypto.randomUUID()
+    const membershipId = crypto.randomUUID()
+    await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+    await database.db.insert(userCompanyMemberships).values({
+      companyId,
+      id: membershipId,
+      status: 'active',
+      userId,
+    })
+    await database.db.insert(membershipRoles).values({ membershipId, role })
+    return userId
+  }
+
+  testWithPostgres(
+    'a conta de serviço aparece como sistema; a pessoa e o autor sem papel de serviço, não',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const automationUserId = await seedServiceActor(database, company.companyId, 'automation')
+        const operatorUserId = await seedServiceActor(database, company.companyId, 'operator')
+
+        const base = new Date('2026-10-01T10:00:00.000Z').getTime()
+        const events = [
+          { actorUserId: automationUserId, toStatus: 'route_planned' },
+          { actorUserId: operatorUserId, toStatus: 'dispatched' },
+          { actorUserId: company.userId, toStatus: 'in_transit' },
+        ] as const
+        for (const [index, event] of events.entries()) {
+          await database.db.insert(tripStatusEvents).values({
+            actorUserId: event.actorUserId,
+            channel: 'backoffice',
+            companyId: company.companyId,
+            fromStatus: 'draft',
+            id: crypto.randomUUID(),
+            occurredAt: new Date(base + index * 1000),
+            toStatus: event.toStatus,
+            tripId,
+          })
+        }
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+        const systemFlagByStatus = new Map(
+          result.items.map((item) => [item.toStatus, item.isSystemActor]),
+        )
+
+        expect(systemFlagByStatus.get('route_planned')).toBe(true)
+        expect(systemFlagByStatus.get('dispatched')).toBe(false)
+        expect(systemFlagByStatus.get('in_transit')).toBe(false)
+      })
+    },
+  )
+})

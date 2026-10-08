@@ -20,6 +20,7 @@ function makeRow(overrides: Partial<AddressCorrectionQueryRow> = {}): AddressCor
     actorName: 'Usuária Escritório',
     createdAt: CREATED_AT,
     id: '00000000-0000-4000-8000-0000000000c1',
+    isSystemActor: false,
     newLatitude: '-23.5505000',
     newLongitude: '-46.6334000',
     occurredAtKey: '2026-10-01T10:00:00.000000Z',

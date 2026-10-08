@@ -19,6 +19,7 @@ import {
   CARGO_PREVIEW_CHANNEL,
   CARGO_PREVIEW_DECIDED_BY,
   CARGO_PREVIEW_ITEM_STATE,
+  CARGO_PREVIEW_OPEN_ITEM_STATES,
   CARGO_PREVIEW_ROUTE_LOAD_ORIGIN,
 } from '../../shared/cargo-preview.constant.js'
 import type { PreviewItemChange } from '../domain/cargo-preview-match-diff.policy.js'
@@ -26,12 +27,6 @@ import type { PreviewItemChange } from '../domain/cargo-preview-match-diff.polic
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 export type PreviewScope = { readonly companyId: string; readonly previewId: string }
-
-const OPEN_STATES = [
-  CARGO_PREVIEW_ITEM_STATE.awaitingXml,
-  CARGO_PREVIEW_ITEM_STATE.suggested,
-  CARGO_PREVIEW_ITEM_STATE.ambiguous,
-]
 
 export async function lockContractorMatching(tx: Transaction, key: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
@@ -56,7 +51,7 @@ export function selectOpenItems(tx: Transaction, scope: PreviewScope) {
       and(
         eq(cargoPreviewItems.companyId, scope.companyId),
         eq(cargoPreviewItems.previewId, scope.previewId),
-        inArray(cargoPreviewItems.matchState, OPEN_STATES),
+        inArray(cargoPreviewItems.matchState, CARGO_PREVIEW_OPEN_ITEM_STATES),
         or(
           isNull(cargoPreviewItems.matchedBy),
           eq(cargoPreviewItems.matchedBy, CARGO_PREVIEW_DECIDED_BY.system),

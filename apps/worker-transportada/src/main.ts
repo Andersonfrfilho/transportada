@@ -184,6 +184,7 @@ import { DrizzleNfseIssuanceWriteBackRepository } from './nfse-issuance/infrastr
 import { DrizzleNfseOutboxRepository } from './nfse-issuance/infrastructure/drizzle-nfse-outbox.repository.js'
 import { DrizzleNfseRetryPolicyRepository } from './nfse-issuance/infrastructure/drizzle-nfse-retry-policy.repository.js'
 import { createNfseFiscalGateway } from './nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
+import { createRateLimitedFetch } from './nfse-issuance/infrastructure/nota-rp-rate-limit.js'
 import { startNfseIssuanceConsumer } from './runtime/nfse-issuance-consumer.service.js'
 import { startJobRunConsumer } from './runtime/job-run-consumer.service.js'
 import { createJobCycle, type JobCyclePort } from './job-run/application/run-job-cycle.js'
@@ -253,6 +254,9 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
+import { CARGO_PREVIEW_RETENTION_JOB } from './cargo-preview-retention/domain/cargo-preview-retention.constant.js'
+import { createDrizzleApplyCargoPreviewRetentionBatch } from './cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
 import { createTripOccurrenceAttachmentPurgeRoutine } from './trip-occurrence-attachment-purge/application/trip-occurrence-attachment-purge.routine.js'
 import { TRIP_OCCURRENCE_ATTACHMENT_PURGE_JOB } from './trip-occurrence-attachment-purge/domain/trip-occurrence-attachment-purge.constant.js'
 import { createDrizzlePurgeOccurrenceAttachmentBatch } from './trip-occurrence-attachment-purge/infrastructure/drizzle-trip-occurrence-attachment-purge.repository.js'
@@ -500,6 +504,9 @@ type WorkerRuntimeDependencies = {
   }) => Promise<RuntimeConsumer | undefined>
 }
 
+/** A Nota RP v3 limita a taxa por CNPJ; uma réplica do worker, então o intervalo vale por processo. */
+const NFSE_PROVIDER_V3_MIN_INTERVAL_MILLISECONDS = 1000
+
 export async function startWorkerRuntime(
   params: {
     readonly dependencies?: WorkerRuntimeDependencies
@@ -580,6 +587,13 @@ export async function startWorkerRuntime(
     connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
   })
   const storageGateway = storageGatewayFactory({ environment })
+  /** Um só para os dois gateways: limitadores separados somariam as chamadas ao mesmo CNPJ. */
+  const nfseProviderV3Fetch = createRateLimitedFetch({
+    clock: () => Date.now(),
+    fetch: (input, init) => fetch(input, init),
+    minIntervalMilliseconds: NFSE_PROVIDER_V3_MIN_INTERVAL_MILLISECONDS,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  })
   const storageBucket =
     environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET ?? 'transportada-private'
   const syntheticTopology = buildRabbitMqTopology(`${config.queuePrefix}.synthetic.v1`)
@@ -978,6 +992,7 @@ export async function startWorkerRuntime(
           secretService: createNfseCredentialSecretService({
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
           }),
+          v3Fetch: nfseProviderV3Fetch,
         }),
         logger,
         writeBack: nfseIssuanceWriteBack,
@@ -1334,6 +1349,21 @@ export async function startWorkerRuntime(
             }),
           }),
           /**
+           * Spec 237 T4.8 (decisão do usuário, 2026-10-06): 90 dias depois de a prévia ficar sem item
+           * em aberto, o arquivo da planilha e o MIME bruto saem do bucket e o dado pessoal dos itens
+           * é anulado. Sempre registrada, como as outras varreduras de retenção; a porta do bucket é
+           * só `deleteObject`.
+           */
+          [CARGO_PREVIEW_RETENTION_JOB]: createCargoPreviewRetentionRoutine({
+            apply: createDrizzleApplyCargoPreviewRetentionBatch({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
+              logger,
+            }),
+            logger,
+            now: () => new Date(),
+          }),
+          /**
            * Achado [3] da revisão de código de 23/09 (spec 179): sempre registrada, como as outras
            * varreduras de retenção — sem ela o upload `pending` cujo motorista perdeu sinal antes do
            * `confirm` ficava para sempre, e o objeto que ele chegou a subir não tinha dono no bucket.
@@ -1468,6 +1498,7 @@ export async function startWorkerRuntime(
                 secretService: createNfseStatusCredentialSecretService({
                   envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
                 }),
+                v3Fetch: nfseProviderV3Fetch,
               }),
               writeBack: createDrizzleNfseReconciliationWriteBack({
                 db: database.db as ReturnType<typeof createDrizzleProvider>['db'],

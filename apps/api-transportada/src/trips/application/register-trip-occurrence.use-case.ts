@@ -8,6 +8,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import type { RedeliveryPolicy, TripStopOccurrenceKind } from '../../database/trip.schema.js'
@@ -52,6 +53,8 @@ export type TripOccurrence = {
   readonly stage: TripOccurrenceStage
   /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
   readonly typeName: string
+  /** Ausente é só dublê de teste; a leitura real traz `null` quando o tipo não escolheu ícone. */
+  readonly typeIconName?: null | OccurrenceTypeIconName
 }
 
 /**
@@ -128,6 +131,7 @@ export type OccurrenceTypeRecord = {
    * rótulo. Opcionais só para os dublês de teste; a leitura real (`findOccurrenceType`) sempre grava.
    */
   readonly declaredAmountLabel?: string
+  readonly iconName?: null | OccurrenceTypeIconName
   readonly declaredAmountMode?: DeliveryProofFieldMode
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */

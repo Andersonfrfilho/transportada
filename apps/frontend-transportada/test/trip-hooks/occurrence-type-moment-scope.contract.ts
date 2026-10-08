@@ -4,6 +4,8 @@
  * Spec 246 (revisão do painel A2, M2, M3, M5): o painel decide o que mostrar pelo conjunto de momentos,
  * esconde o que a API não mandou e avisa o que o app do motorista ainda não cumpre. Dados sintéticos.
  */
+import { readFileSync } from 'node:fs'
+
 import { createElement } from 'react'
 import { describe, expect, test } from 'bun:test'
 
@@ -98,6 +100,8 @@ async function mount(type: OccurrenceType): Promise<void> {
       createElement(OccurrenceTypeCatalogPanel, {
         canManage: true,
         isSaving: false,
+        loadStatus: 'ready',
+        onRetry: () => undefined,
         onSave: (input) => saved.push(input),
         saveFeedbackKey: null,
         types: [type],
@@ -127,13 +131,15 @@ function hasExceptionList(): boolean {
 
 describe('tipo de galpão e rua: as exigências da rua continuam à vista (A2)', () => {
   test(
-    '{separation, document} mostra Foto, Observação, Assinatura e Produtos, a nota dos momentos de rua e a lista de exceções',
+    '{separation, document} mostra Foto, Observação, Assinatura e Produtos, a nota de quando o motorista registra e a lista de exceções',
     scenario(async () => {
       await mount(buildType(['separation', 'document'], { stage: 'separation' }))
       for (const label of ['Foto', 'Observação', 'Assinatura', 'Produtos']) {
         expect(control(label) !== null).toBe(true)
       }
-      expect(pageText().includes('As exigências abaixo valem só nos momentos de rua')).toBe(true)
+      expect(pageText().includes('As exigências abaixo valem só quando o motorista registra')).toBe(
+        true,
+      )
       expect(hasExceptionList()).toBe(true)
       expect(pageText().includes('1 exceção')).toBe(true)
     }),
@@ -146,7 +152,9 @@ describe('tipo de galpão e rua: as exigências da rua continuam à vista (A2)',
       expect(control('Foto') === null).toBe(true)
       expect(control('Produtos') !== null).toBe(true)
       expect(hasExceptionList()).toBe(false)
-      expect(pageText().includes('As exigências abaixo valem só nos momentos de rua')).toBe(false)
+      expect(pageText().includes('As exigências abaixo valem só quando o motorista registra')).toBe(
+        false,
+      )
     }),
   )
 })
@@ -160,7 +168,7 @@ describe('tipo só de parada: só a Foto vale (M2)', () => {
       for (const label of ['Observação', 'Assinatura', 'Produtos', 'Quantidade mínima de fotos']) {
         expect(control(label) === null).toBe(true)
       }
-      expect(pageText().includes('Na chegada à parada só a foto é cobrada')).toBe(true)
+      expect(pageText().includes('Em Motorista, na parada só a foto é cobrada')).toBe(true)
       const section = document.querySelector('section[aria-label^="Exceções por cliente"]')
       const labels = [...(section?.querySelectorAll('button[aria-label]') ?? [])].map((button) =>
         button.getAttribute('aria-label'),
@@ -173,15 +181,28 @@ describe('tipo só de parada: só a Foto vale (M2)', () => {
   )
 })
 
-describe('Produtos: o texto não contradiz o padrão e o app é avisado (M3)', () => {
+describe('Produtos: o texto não contradiz o padrão nem o app do motorista (M3, spec 247 T7.1)', () => {
   test(
-    'a legenda não diz "ao menos um item" e o aviso do app do motorista está à vista',
+    'a legenda não diz "ao menos um item" e não diz que o app só marca a nota inteira',
     scenario(async () => {
       await mount(buildType(['document']))
       expect(pageText().includes('ao menos um item da nota marcado')).toBe(false)
-      expect(pageText().includes('app do motorista só marca “A nota inteira”')).toBe(true)
+      expect(pageText().includes('só marca “A nota inteira”')).toBe(false)
+      expect(pageText().includes('ainda não muda o que ele cobra')).toBe(false)
+      expect(pageText().includes('só libera o registro com todos os produtos marcados')).toBe(true)
     }),
   )
+
+  test('nenhuma das duas línguas, nem o texto da exceção, diz que o app ainda não cumpre o mínimo', () => {
+    for (const file of ['companySettings.locale.json', 'companySettings.en.locale.json']) {
+      const text = readFileSync(
+        new URL(`../../src/modules/company-settings/locales/${file}`, import.meta.url),
+        'utf8',
+      )
+      expect(text.includes('ainda não muda o que ele cobra')).toBe(false)
+      expect(text.includes('does not yet change what it requires')).toBe(false)
+    }
+  })
 })
 
 describe('API anterior aos campos: o painel não oferece o que ela recusaria (M5)', () => {

@@ -34,6 +34,10 @@ function discardFrom(
   return checkNfseInvoiceTransition({ action: NFSE_INVOICE_ACTION.discard, status })
 }
 
+function linkFrom(status: NfseServiceInvoiceStatus): ReturnType<typeof checkNfseInvoiceTransition> {
+  return checkNfseInvoiceTransition({ action: NFSE_INVOICE_ACTION.link, status })
+}
+
 describe('NFS-e invoice state contract', () => {
   test('transmits a fresh invoice and retries one the city refused', () => {
     for (const status of ['requested', 'rejected', 'failed'] as const) {
@@ -172,6 +176,28 @@ describe('NFS-e invoice state contract', () => {
         allowed: false,
         reason: NFSE_TRANSITION_BLOCK.alreadyDiscarded,
       })
+    }
+  })
+
+  /** Vincular nota emitida no portal só existe para o que a prefeitura nunca autorizou por aqui. */
+  test('links an external invoice only over a rejected or failed one, to pending_authorization', () => {
+    for (const status of ['rejected', 'failed'] as const) {
+      expect(linkFrom(status)).toEqual({ allowed: true, nextStatus: 'pending_authorization' })
+    }
+  })
+
+  test('refuses to link an external invoice over every other status', () => {
+    const blocked = {
+      authorized: NFSE_TRANSITION_BLOCK.alreadyAuthorized,
+      cancellation_requested: NFSE_TRANSITION_BLOCK.cancellationInFlight,
+      cancelled: NFSE_TRANSITION_BLOCK.alreadyCancelled,
+      discarded: NFSE_TRANSITION_BLOCK.alreadyDiscarded,
+      issuing: NFSE_TRANSITION_BLOCK.inFlight,
+      pending_authorization: NFSE_TRANSITION_BLOCK.pendingAuthorization,
+      requested: NFSE_TRANSITION_BLOCK.inFlight,
+    } as const
+    for (const [status, reason] of Object.entries(blocked)) {
+      expect(linkFrom(status as NfseServiceInvoiceStatus)).toEqual({ allowed: false, reason })
     }
   })
 })

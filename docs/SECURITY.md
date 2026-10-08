@@ -58,6 +58,64 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
+
+**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (ainda não implementada; spec 252, ADR-0100).
+
+**O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
+global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
+respondeu **404** em 2026-10-07 e a documentação **não diz se os dados podem ser armazenados**. É o mesmo tipo de
+risco que os termos do Google Maps Platform (spec 186, ADR-0044 §3), aceito lá por decisão do usuário; aqui **ainda
+não foi aceito**.
+
+**O que sai:** só código IBGE da cidade (ou UF) e ano, com `Authorization: Bearer <FERIADOS_API_TOKEN>`. Nunca
+`companyId`, nome de cliente ou endereço. Feriado não é dado pessoal.
+
+**O que segura (desenho, a provar nas tasks):** token só no worker, opcional (sem ele a rotina não é registrada e nada
+sai); header redigido no log (contrato, CA9); orçamento mensal e teto por ciclo no banco; resposta guardada por Zod
+(`malformed_response`, nada gravado); falha do fornecedor nunca derruba nada do negócio; origem "Importado
+(FeriadosAPI)" visível e desligamento auditado.
+
+**Pendência (passo do usuário):** confirmar com o fornecedor que guardar os feriados é permitido **antes** de
+configurar `FERIADOS_API_TOKEN` (spec 252 Q4, `[NEEDS CLARIFICATION]`). Ao ligar, `feriadosapi.com` entra na lista de
+destinos de saída (T6.1).
+
+**Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07.
+
+### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
+
+**Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,
+`/company-settings/business-calendar`, e as antigas `/municipal-holidays`); ADR-0096 §6.
+
+**Quem alcança:** toda rota nova é `settings.manage`, para ler e para escrever — só o papel `company-admin` (medido em `COMPANY_ROLE_PERMISSIONS`); o
+separador, o operador e o motorista não. `GET /municipal-holidays` segue `fleet.read` (desde a spec 060; o separador o alcança,
+agora enumerado em `test/separator-role.contract.test.ts`), e as escritas dela são `settings.manage`. A empresa vem só do
+contexto autenticado; `.strict()` recusa `companyId`, `sourceRuleId`, `materializedThroughYear` e qualquer campo a mais;
+id de outra empresa é ausência (no-op ou 404), nunca 409, para não confirmar que a linha existe. Provado com dois tenants
+em `test/integration/business-calendar-tenant-*.integration.ts`.
+
+**Auditoria:** toda escrita grava `audit_logs` **na mesma transação** (rollback desfaz as duas), com ator, alvo, IP por
+`resolveClientIp` (o do salto conhecido, não o `x-forwarded-for` do cliente), correlation id e antes/depois. Ações:
+`municipal-holiday-rule.{created,updated,deleted,materialized}`, `municipal-holiday.{saved,updated,deleted}`,
+`state-holiday.{created,updated,deleted}`, `company-business-calendar-settings.saved`. Feriado e regra são cadastro da
+empresa, sem dado pessoal; o nome (até 120 caracteres) é texto livre do operador e entra no antes/depois.
+
+**O que continua aberto:**
+
+- **Sem `rateLimit`** (escrita de configuração, como as vizinhas). `POST /municipal-holiday-rules/materializations` é a
+  mais cara — insere até 11 linhas por regra da empresa, em lotes de 1000, sob o lock da empresa. Se a tela a expuser
+  num botão repetível, vale um teto no Postgres.
+- **Um cadastro errado afeta o prazo e o roteiro**: um feriado digitado numa cidade fecha o cliente dali no roteirizador
+  (a data fixa) e muda a conta de dias úteis. O controle é a permissão e a trilha acima, não validação de conteúdo.
+- O feriado municipal das rotas antigas segue aceitando sete dígitos de qualquer UF (o CHECK do banco antigo); só as
+  rotas novas exigem município de UF existente.
+- **Fechado na T1.3b:** a adoção de uma data gerada pelo `POST /municipal-holidays` deixava a data digitada valendo para o
+  roteirizador sem aviso depois que a regra mudava. Hoje a resposta traz `adoptedFromRuleId`, `PATCH`/`GET` da regra trazem
+  `typedHolidaysKept` e o `DELETE` da regra grava a contagem na auditoria. Geração sem efeito, `PUT` do sábado igual e
+  `POST` igual deixaram de poluir `audit_logs`.
+
+**Origem:** spec 238 T1.3. Registrado em 2026-10-07.
+
 ### 2026-09-25 — a ocorrência tem duas conversas: anexo por URL assinada, remetente pelo DKIM, portal por referência opaca (spec 183)
 
 **Onde:**
@@ -287,6 +345,113 @@ desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revi
 
 **Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
 
+### 2026-10-07 — spec 237 T4.8 — a retenção de 90 dias dos dados da planilha: o que sai, o que fica e o dado pessoal que sobra (decisão do usuário)
+
+**Onde:** `worker-transportada`, `cargo-preview-retention/` (rotina `cargo-preview.retention.apply`, diária);
+`api-transportada`, migration `20261007133324_cargo_preview_retention` (vocabulário de quatro CHECK e a linha
+do relógio); ADR-0094 §11.
+
+**Decisão do usuário (2026-10-06, implementada em 2026-10-07):** 90 dias depois de a prévia ficar sem item em
+aberto (`awaiting_xml`, `suggested`, `ambiguous`), o arquivo da planilha e o MIME bruto do e-mail encaminhado
+saem do bucket e o dado pessoal dos itens é anulado. A constante é `CARGO_PREVIEW_RETENTION_DAYS = 90`.
+
+**O que sai:**
+
+- O objeto da planilha (`cargo_previews.file_object_id`) e, nas prévias por e-mail, **todo** MIME bruto de
+  `cargo_preview_email_intakes.raw_object_id` aceito para a prévia (a reentrega guarda o dela). O objeto sai do
+  bucket e `stored_objects` passa a `status = 'deleted'` com `deleted_at`; **a linha fica** — a FK `RESTRICT` e o
+  trigger append-only de `cargo_preview_email_intakes` não deixam anulá-la nem apagá-la, e `raw_object_id`
+  continua apontando para a linha.
+- Em `cargo_preview_items`: `recipient_name`, `address`, `neighborhood` e `postal_code` viram `NULL`.
+
+**O que fica:** valor, peso, volume, roteiro, data de roteirização, estado, vínculo com a nota, quem decidiu e
+quando, evidência do vínculo, a trilha (`cargo_preview_events`) e `cargo_previews` por inteiro. Item decidido pelo
+operador e vínculo não mudam.
+
+**Quando, e como se sabe que já foi:** a prévia entra quando está `ready` ou `failed` (a que ainda está na fila
+ou sendo lida nunca perde o arquivo), **não tem nenhum item em aberto, qualquer que seja a idade**, e o último
+movimento — o maior entre o `updated_at` da prévia e o dos itens — tem 90 dias ou mais. O item não tem coluna de
+"fechado em"; `updated_at` se move a cada decisão, desvínculo e reavaliação, e é o instante fiel que existe.
+O marcador de "já retida" é o evento append-only `retention_applied` (canal `worker`, só contagens: itens
+anulados, objetos apagados, prazo) — sem coluna nova. Uma prévia só recebe o evento **depois** de o último
+objeto sair do bucket; falha de bucket desfaz a unidade e ela volta na próxima execução.
+
+**Como roda:** lotes de 25 prévias, teto de 200 lotes por ciclo e de 50 objetos por prévia por passada (o resto
+continua na execução seguinte); uma transação por prévia, com os bytes apagados **antes** de qualquer escrita; a
+trava do contratante (a do vínculo e das ações do operador) é tomada sem esperar — com o operador na prévia, ela
+espera a próxima execução. Falha de bucket ou erro imprevisto numa prévia não derruba as outras, e ela não repete
+no mesmo ciclo. Log só com contagens e ids da execução, nunca id de prévia, chave do objeto, nome ou endereço.
+
+**Dado pessoal que a decisão não manda anular (pendência, decisão do usuário):**
+
+- `cargo_preview_items.city`, `state`, `recipient_code`, `contractor_reference` e `match_group_key` (o último é
+  id de nota, não pessoa) e `cargo_previews.file_name` (nome que o contratante deu ao arquivo) ficam. A cidade e o
+  código do destinatário identificam pouco sozinhos, mas **junto com o valor e o peso que ficam** podem reidentificar
+  uma entrega. Anular qualquer uma é uma linha na rotina e um contrato; fica para o usuário decidir.
+- `match_evidence` e `row_error` **foram conferidos no escritor e não carregam dado pessoal**: o primeiro guarda
+  ids de nota e rótulos fixos de evidência (`value`, `weight`, `postal_code`…), e o segundo guarda o nome da
+  coluna da planilha, o campo e uma mensagem de texto fixo. Por isso não são anulados.
+- O MIME bruto de e-mail **recusado** (`outcome = 'rejected'`, sem prévia) não entra na retenção: ela é da
+  prévia. Enquanto não houver prazo próprio, o objeto de uma recusa continua no bucket.
+- A trilha `cargo_preview_events` é append-only e não guarda nome nem endereço (`details` só carrega ids e
+  contagens, desde a T4.2); nada a anular ali.
+
+**Limites que o desenho aceita:** (1) reabrir um item depois da retenção (desvincular a nota) o devolve a
+`awaiting_xml` **sem nome, endereço, bairro e CEP** — o operador ainda decide, mas sem o dado que o casaria; a
+prévia não é retida de novo (o evento só sai uma vez) e o arquivo já não existe. (2) Em passada parcial (mais de
+50 objetos) o evento conta só os objetos da última passada. (3) A migration é aditiva e só mexe em vocabulário de
+CHECK e na linha do relógio; o rollback devolve as listas de antes e apaga a rotina, **mas não apaga os eventos
+`retention_applied` já gravados** (a trilha é append-only) — com o evento gravado, voltar a migration exige antes
+trocar o `kind` dessas linhas à mão, e por isso o rollback recusa se houver alguma.
+
+**Origem:** decisão do usuário em 2026-10-06 (spec 237 RF/SECURITY item 2 da Fase 4a); implementação T4.8.
+
+### 2026-10-07 — spec 237 T4.6b — o endereço de entrada da prévia por e-mail é gerado no servidor, mostrado uma vez e rotacionável
+
+**Onde:** `api-transportada`, `cargo-receiving/` (`contractor-preview-email.routes.ts`, `preview-inbound-token.policy.ts`,
+`drizzle-contractor-preview-email.repository.ts`); `frontend-transportada`, `PreviewEmailPanel` na ficha do contratante (ADR-0094 §10).
+
+**O que muda:** até a T4.6b o token do endereço e as duas listas entravam por SQL. Agora há quatro rotas (`settings.manage`, ler e escrever): ler
+e editar as listas, **gerar/rotacionar** o endereço e ler as recusas recentes.
+
+**O que segura:**
+
+- **Gerado no servidor, ≥ 130 bits.** 26 símbolos base32 de 5 bits tirados de `crypto.getRandomValues` (máscara de 5 bits, sem viés). O cliente
+  nunca escolhe o token; o CHECK do banco, que só confere o alfabeto, deixa de ser a única barreira.
+- **Só o hash é guardado** (`sha256("transportada:cargo-preview-inbound:v1:" + token)`, o mesmo que o worker calcula; contrato de paridade nos dois
+  lados). O token e o endereço saem **uma vez**, na resposta do `POST` (`Cache-Control: no-store`). **Nenhuma leitura devolve o hash, o token ou
+  o endereço** — só `hasInboundToken` e a hora da última geração (que vem da auditoria). No painel o valor vive só na memória do componente
+  (`gcTime: 0`, apagado ao fechar o painel ou sair da ficha); nunca em `localStorage`, URL, log ou telemetria (contrato de DOM varre os quatro).
+- **Rotação invalida o anterior** (o hash antigo deixa de existir na mesma transação; o painel pede confirmação). **Teto de 10 gerações em 5 minutos
+  por usuário**, no Postgres (`receiving-profile-inbound-token`).
+- **Auditoria `audit_logs` na MESMA transação** (ator, alvo, IP por `resolveClientIp`, hora, `isRotation`) — **nunca o token nem o hash**, no
+  log, no metadata ou na resposta. Falha na auditoria desfaz a troca do hash (integração com mutação). A edição das listas audita **só quando
+  muda**, com antes/depois das listas (configuração do operador, e-mails da equipe e domínio do contratante; é a trilha de quem autorizou quem).
+- **As duas listas validadas antes do banco** (as faixas do CHECK; quem encaminha é endereço completo, o remetente original é endereço ou domínio,
+  nunca padrão), com a entrada inválida nomeada; esvaziar uma lista com endereço ativo é recusado (422) — o CHECK do banco exige as duas.
+- **Só ASCII visível nas listas (revisão `opus`, L1 e L3).** Cada entrada tem de casar `/^[\x21-\x7e]+$/u` (domínio internacional entra em
+  punycode, `xn--`) e é medida em **pontos de código** (`[...entry].length`), como o CHECK do banco conta caracteres: antes, `"a😀"` valia 3
+  unidades UTF-16 na API e 2 no banco, a API aceitava e o upsert estourava `23514` (500). A mesma regra fecha **homógrafos** (`аcme.com` com
+  `а` cirílico), **caracteres invisíveis** (zero-width) e **bidi** (RLO): nenhum deles chega à lista que o worker casa por igualdade exata. O painel
+  tem a mesma regra (cópia por valor; contrato lê os dois arquivos e cobra a expressão e a medida) e **nunca desenha a entrada crua** na mensagem
+  de erro (o que não é ASCII visível vira `?`). Se o CHECK ainda recusar, o repositório devolve um desfecho tipado e a API responde **422
+  `RECEIVING_PROFILE_ALLOWLISTS_INVALID`**, nunca 500.
+- **Teto antes da validação por entrada (L2).** Cada lista aceita no máximo 100 entradas de até 1016 caracteres no corpo (o limite útil é 20 × 254; a folga
+  deixa a recusa por entrada dizer o motivo) e a resposta lista no máximo **25** recusas. Antes, 150 mil entradas `"ab"` (~750 KB, abaixo do teto do
+  corpo) geravam 150 mil recusas, uma resposta de ~16 MB e um log com 150 mil nomes de campo; agora é um 400 de poucos KB e o log leva o mesmo punhado de campos.
+- **Domínio de entrada aparado igual nos dois lados (i4).** `buildPreviewInboundAddress` (API) e `extractPreviewTokenCandidates` (worker) fazem
+  `trim().toLowerCase()`; um espaço na configuração da 143 não gera endereço que o worker não casa. Contrato de paridade.
+- **Leitura também é `settings.manage`**, não `fleet.read`: o separador, o `fiscal` e o `viewer` leem a frota e **não** alcançam as rotas (a lista do
+  encaminhador mostra endereços da equipe; as recusas mostram o que chegou). Contrato `separator-role`.
+- **Tenant:** contratante de outra empresa é 404 nas quatro; o domínio de entrada vem de `contractor_mail_settings` **da empresa do contexto**.
+
+**Limites conhecidos (T4.6b):** (1) o endereço aparece em claro no `raw.eml` do e-mail aceito (L4 acima; a T4.8 o apaga em 90 dias) e na tela de
+quem o gerou, uma vez — quem tem o endereço e passa a lista do encaminhador alimenta a prévia, como antes. (2) Quem copia o endereço e fecha o
+painel sem guardá-lo só o recupera **rotacionando**. (2b) **Dois administradores gerando ao mesmo tempo (i2):** as gerações se serializam
+(`for update` no perfil) e a última vence; quem gerou primeiro fica com um endereço que **já morreu** (a tela dele o mostra como válido). Um `If-Match` sobre
+`inboundTokenSetAt` fecharia a corrida, mas pede cabeçalho novo no `POST` e a conferência no servidor — fica registrado como limite aceito (a
+rotação é rara, tem teto de 10 em 5 minutos e a tela mostra "ativo desde" depois). (3) O passo seguinte (MX, domínio no Resend) continua do operador; o painel só o diz.
+
 ### 2026-10-06 — spec 237 Fase 4b — a prévia por e-mail encaminhado: o DKIM do contratante se perde (risco aceito)
 
 **Onde:** `worker-transportada`, `cargo-preview-email/` e o trilho `contractor-mail-inbound.v1`
@@ -385,17 +550,19 @@ real, e as sugestões passam pelo operador; a prévia não cria chegada, viagem 
    itens; até lá o prazo não é cumprido.
 3. **Sem rate limit por IP/remetente** além da janela por contratante: quem tem o token e consegue passar a
    lista do encaminhador é a própria equipe.
-4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012) e as listas/hash do token no perfil —
-   por SQL até a T4.6b (rota `PUT` e ficha). O código não configura DNS nem envia e-mail.
+4. **Passo do usuário:** MX/domínio de entrada no Resend (spec 143 T012). As listas e o endereço (token) saem da
+   ficha do contratante desde a T4.6b (entrada de 2026-10-07 abaixo); o código não configura DNS nem envia e-mail.
 5. **L3 — a lista do encaminhador por "endereço exato" só é tão forte quanto o DKIM do domínio** (T4.7a). O
    alinhamento é **relaxado** (domínio organizacional) e o `i=` da assinatura não é verificado: quem assina por
    `team.com`, ou por um subdomínio dele, passa o DKIM com `From: forwarder@team.com` e se faz passar por
    `forwarder@team.com`. A lista barra quem **não** controla o domínio da equipe, não quem controla uma conta
    qualquer dele.
 6. **L4 — o token aparece em claro no `raw.eml` guardado** (T4.7a): o MIME bruto do e-mail aceito tem o endereço de
-   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). Enquanto a T4.6b não gerar o token no
-   servidor, ele é **escolhido à mão por SQL** — o CHECK só confere o alfabeto (26 base32), então um padrão fraco
-   passa. Gerar com `openssl rand` (≥ 130 bits aleatórios) e nunca derivar de nome, data ou sequência.
+   entrada no `To`/`Cc`, e o bucket guarda o MIME por 90 dias (T4.8). **T4.6b: o token passou a ser gerado no
+   servidor** (130 bits de `crypto.getRandomValues`, nunca derivado de nome, data ou sequência) — o caminho de
+   escolher à mão por SQL, em que o CHECK só confere o alfabeto (26 base32) e deixava um padrão fraco passar, deixa
+   de ser o caminho normal; quem ainda gravar um hash por SQL carrega a mesma responsabilidade de antes (`openssl rand`).
+   Rotacionar o endereço apaga o hash anterior (e-mail em voo para ele cai como `token_unknown`).
 7. **Só se encaminha à mão** (T4.7a): a equipe **encaminha manualmente** a mensagem (inline ou como anexo). Regra ou
    redirecionamento automático do Gmail/Outlook preserva o `From` do contratante e não cria bloco encaminhado — não é
    suportado por esta versão. **[NEEDS CLARIFICATION]** decisão do usuário: se o encaminhamento automático for
@@ -545,8 +712,8 @@ contratos em `specs/237-…/evidence.md` § "Correções da revisão de seguran�
 2. **Retenção dos itens e do arquivo — decidida pelo usuário em 2026-10-06: 90 dias.** Os itens guardam
    razão social, endereço, CEP e valor por linha, e o arquivo fica no bucket. 90 dias depois de a prévia
    ficar sem item em aberto, o arquivo é apagado e as colunas de pessoa (nome, endereço, bairro, CEP) dos
-   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementação pendente**
-   (T4.8 da spec 237): até lá, o prazo não é cumprido.
+   itens são anonimizadas, mantendo valor, peso, roteiro, vínculo e trilha. **Implementada na T4.8**
+   (2026-10-07): ver "2026-10-07 — spec 237 T4.8" abaixo.
 3. O teto de 960 KiB é do transporte: planilha maior que isso é recusada (413) mesmo dentro dos 5 MiB
    do leitor. As medidas reais estão em 0,80–0,82 MB.
 

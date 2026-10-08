@@ -16,6 +16,7 @@ import {
   buildInvoiceListFilters,
   buildInvoiceScopeFilters,
   buildLatestAttemptFilters,
+  buildLatestIssueAttemptFilters,
   buildPendingOutboxFilters,
   buildStoredObjectFilters,
 } from '../../src/nfse-invoices/infrastructure/nfse-invoice-query.query.js'
@@ -148,6 +149,15 @@ describe('nfse invoice query tenant safety', () => {
     expect(query.sql).toContain('"nfse_issuance_attempts"."company_id" = $')
     expect(query.sql).toContain('"nfse_issuance_attempts"."invoice_id" = $')
     expect(query.params[0]).toBe(COMPANY_ID)
+  })
+
+  test('a emissão anterior que a reemissão herda é presa à empresa e ao tipo emissão', () => {
+    const query = compile(buildLatestIssueAttemptFilters(SCOPE))
+
+    expect(query.sql).toContain('"nfse_issuance_attempts"."company_id" = $')
+    expect(query.sql).toContain('"nfse_issuance_attempts"."invoice_id" = $')
+    expect(query.sql).toContain('"nfse_issuance_attempts"."attempt_kind" = $')
+    expect(query.params).toEqual([COMPANY_ID, INVOICE_ID, 'issue'])
   })
 
   /**

@@ -30,6 +30,7 @@ import {
   constantPriority,
   formatTimelineTimestampKey,
   timelineActorMembership,
+  timelineActorIsSystem,
   timelineActorProfile,
   timelineIndexablePredicate,
   timelineKeysetCondition,
@@ -63,6 +64,7 @@ export async function listDocumentOccurrenceRows(
     .select({
       accuracyMeters: tripDocumentOccurrences.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       capturedAt: tripDocumentOccurrences.capturedAt,
       /**
        * Spec 161 T11 (RF12): a contagem da tabela nova (D2) quando existe, senão 1 quando a
@@ -154,6 +156,7 @@ export async function listDocumentOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     document: { id: row.documentId, number: row.invoiceNumber, series: row.invoiceSeries },
@@ -209,6 +212,7 @@ export async function listDocumentStatusChangedRows(
   const rows = await queryable
     .select({
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       channel: tripDocumentEvents.channel,
       documentId: tripDocuments.id,
       fromStatus: tripDocumentEvents.fromStatus,
@@ -267,6 +271,7 @@ export async function listDocumentStatusChangedRows(
       row.channel === TRIP_FIELD_CHANNELS.driverApp ? null : row.channel
     return {
       actorName: row.actorName ?? null,
+      isSystemActor: row.isSystemActor,
       channel,
       closeReason: null,
       document: { id: row.documentId, number: row.invoiceNumber, series: row.invoiceSeries },

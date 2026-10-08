@@ -33,6 +33,8 @@ describe('nfse emission profile schema', () => {
       'cnae_code',
       'service_list_item',
       'municipal_taxation_code',
+      'national_taxation_code',
+      'simples_national_rate',
       'nbs_code',
       'iss_rate',
       'iss_withheld',
@@ -64,6 +66,35 @@ describe('nfse emission profile schema', () => {
     expect(checks['nfse_emission_profiles_iss_rate_check']).toContain('<= 1')
     expect(checks['nfse_emission_profiles_municipality_check']).toContain('[0-9]{7}')
     expect(checks['nfse_emission_profiles_description_max_length_check']).toContain('between')
+  })
+})
+
+describe('nfse national taxation columns', () => {
+  test('the profile carries a nullable six digit national code and a non-negative Simples rate', () => {
+    const profiles = requireSchemaTable('nfseEmissionProfiles')
+    const checks = checkSqlByName(profiles)
+
+    expect(columnNames(profiles)).toContainValues([
+      'national_taxation_code',
+      'simples_national_rate',
+    ])
+    expect(columnSqlTypes(profiles)).toMatchObject({
+      national_taxation_code: 'text',
+      simples_national_rate: 'numeric(9, 6)',
+    })
+    expect(requiredColumnNames(profiles)).not.toContainValues([
+      'national_taxation_code',
+      'simples_national_rate',
+    ])
+    expect(checks['nfse_emission_profiles_national_taxation_code_check']).toContain('[0-9]{6}')
+    expect(checks['nfse_emission_profiles_simples_national_rate_check']).toContain('>= 0')
+  })
+
+  test('the attempt keeps the nullable provider request key', () => {
+    const attempts = requireSchemaTable('nfseIssuanceAttempts')
+
+    expect(columnSqlTypes(attempts)).toMatchObject({ provider_request_key: 'text' })
+    expect(requiredColumnNames(attempts)).not.toContainValues(['provider_request_key'])
   })
 })
 
@@ -280,6 +311,7 @@ describe('nfse issuance rail schema', () => {
       'last_error_code',
       'last_error_cause',
       'last_error_message',
+      'provider_request_key',
       'correlation_id',
       'created_at',
       'updated_at',

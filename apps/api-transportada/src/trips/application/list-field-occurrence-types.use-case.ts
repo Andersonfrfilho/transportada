@@ -20,6 +20,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
 } from '../../shared/trip-occurrence.constant.js'
 import { resolveDeclaredAmountTarget } from '../domain/occurrence-declared-amount-target.policy.js'
 import { occurrenceTypeAcceptsMoment } from '../domain/occurrence-moment.policy.js'
@@ -46,6 +47,7 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
   readonly declaredAmountLabel: string
   readonly declaredAmountMode: DeliveryProofFieldMode
   readonly declaredAmountScope: OccurrenceDeclaredAmountScope
+  readonly iconName: null | OccurrenceTypeIconName
   readonly referenceNumberLabel: string
   readonly referenceNumberMode: DeliveryProofFieldMode
   /**
@@ -179,6 +181,7 @@ function toFieldOccurrenceType(params: {
   return {
     ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
+    iconName: type.iconName ?? null,
     declaredAmountLabel: requirements.declaredAmountLabel,
     declaredAmountMode: requirements.declaredAmountMode,
     /** O tipo não conhece a nota: só o modo de Produtos conta aqui; a nota sem produto refina no snapshot. */

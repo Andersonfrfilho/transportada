@@ -26,6 +26,7 @@ export type NfseAuthorizedDocumentFacts = {
   readonly authorizedAt: string
   readonly fiscalNumber: string
   readonly providerDocumentId: string
+  readonly serviceAmount?: string
   readonly verificationCode: string
 }
 
@@ -40,6 +41,17 @@ export type NfseProviderStatusFacts =
   | { readonly cause?: NfseStatusFailureCause; readonly status: 'error' }
   | { readonly rejection?: NfseRejectionFacts; readonly status: 'rejected' }
   | { readonly status: 'pending' }
+
+/** A nota vinculada à mão: o valor congelado na tentativa é o que o portal tem de confirmar. */
+export type NfseExternalLinkFacts = { readonly serviceAmount: string }
+
+export const NFSE_EXTERNAL_LINK_NOT_FOUND = 'NFSE_EXTERNAL_LINK_NOT_FOUND'
+export const NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH = 'NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH'
+
+const EXTERNAL_LINK_NOT_FOUND_MESSAGE =
+  'A Nota RP não encontrou a nota informada no vínculo; confira o id_nota no portal.'
+const EXTERNAL_LINK_AMOUNT_MISMATCH_MESSAGE =
+  'O valor da nota vinculada no portal difere do valor desta nota de serviço.'
 
 export type NfseReconciliationSourceStatus = 'cancellation_requested' | 'pending_authorization'
 
@@ -60,9 +72,17 @@ const UNEXPECTED: NfseReconciliationDecision = {
 const STILL_PENDING: NfseReconciliationDecision = { cause: 'pending', kind: 'reschedule' }
 
 export function resolveNfseReconciliationDecision(input: {
+  readonly externalLink?: NfseExternalLinkFacts
   readonly provider: NfseProviderStatusFacts
   readonly storedStatus: NfseReconciliationSourceStatus
 }): NfseReconciliationDecision {
+  if (input.externalLink !== undefined && input.storedStatus === 'pending_authorization') {
+    const linkDecision = resolveExternalLinkRejection({
+      externalLink: input.externalLink,
+      provider: input.provider,
+    })
+    if (linkDecision !== undefined) return linkDecision
+  }
   if (input.provider.status === 'error') {
     return { cause: input.provider.cause ?? 'transport_failure', kind: 'defer' }
   }
@@ -71,6 +91,40 @@ export function resolveNfseReconciliationDecision(input: {
   return input.storedStatus === 'cancellation_requested'
     ? resolveForCancellationRequested(input.provider)
     : resolveForPendingAuthorization(input.provider)
+}
+
+function resolveExternalLinkRejection(input: {
+  readonly externalLink: NfseExternalLinkFacts
+  readonly provider: NfseProviderStatusFacts
+}): NfseReconciliationDecision | undefined {
+  const { provider } = input
+  if (provider.status === 'error' && provider.cause === 'not_found') {
+    return {
+      errorCode: NFSE_EXTERNAL_LINK_NOT_FOUND,
+      errorMessage: EXTERNAL_LINK_NOT_FOUND_MESSAGE,
+      kind: 'reject',
+    }
+  }
+  if (provider.status !== 'authorized' || provider.document === undefined) return undefined
+
+  const { serviceAmount } = provider.document
+  if (
+    serviceAmount !== undefined &&
+    normalizeDecimal(serviceAmount) === normalizeDecimal(input.externalLink.serviceAmount)
+  ) {
+    return undefined
+  }
+  return {
+    errorCode: NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH,
+    errorMessage: EXTERNAL_LINK_AMOUNT_MISMATCH_MESSAGE,
+    kind: 'reject',
+  }
+}
+
+/** `1500`, `1500.00` e `1500.0000` são o mesmo valor; a comparação é textual, sem float. */
+function normalizeDecimal(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.includes('.') ? trimmed.replace(/0+$/u, '').replace(/\.$/u, '') : trimmed
 }
 
 function resolveForPendingAuthorization(

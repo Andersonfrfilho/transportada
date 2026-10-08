@@ -114,6 +114,7 @@
     "discard": "Descartar a nota de serviço",
     "downloadPdf": "Baixar o PDF da nota de serviço",
     "downloadXml": "Baixar o XML da nota de serviço",
+    "externalLink": "Vincular nota emitida no portal",
     "reissue": "Reemitir a nota de serviço"
   },
   "detail": {
@@ -194,6 +195,18 @@
     "title": "Descartar a nota de serviço",
     "warning": "O descarte libera as notas fiscais vinculadas e não pode ser desfeito."
   },
+  "externalLinkDialog": {
+    "alreadyLinked": "Este id_nota já está vinculado a outra nota de serviço.",
+    "back": "Voltar",
+    "close": "Fechar",
+    "confirm": "Vincular a nota",
+    "description": "Use quando a nota já foi emitida no portal da Nota RP. Informe o id_nota: o sistema confere a nota na prefeitura, sem emitir de novo, e a autoriza se o valor bater.",
+    "failed": "Não foi possível vincular a nota. Confira o id_nota e tente de novo.",
+    "providerDocumentId": "id_nota do portal",
+    "providerDocumentIdInvalid": "O id_nota tem só números, de 1 a 20 dígitos.",
+    "sending": "Vinculando…",
+    "title": "Vincular nota emitida no portal"
+  },
   "reissueDialog": {
     "back": "Voltar",
     "cnaeCode": "CNAE",
@@ -241,6 +254,7 @@
     "confirm": "Reemitir as notas",
     "confirmation": "As notas elegíveis serão reemitidas, uma de cada vez, sem correção.",
     "empty": "Nenhuma nota da seleção pode ser reemitida.",
+    "missingNationalTaxation": "{{count}} notas não foram reemitidas por falta do código de tributação nacional e da alíquota do Simples. Preencha os dois no perfil de emissão, ou reemita a nota individualmente informando o par.",
     "result": "{{reissued}} reemitidas, {{failed}} com falha.",
     "subtitle": "{{count}} notas rejeitadas ou com falha serão reemitidas, uma de cada vez.",
     "title": "Reemitir as notas de serviço selecionadas"
@@ -347,6 +361,7 @@
     "freightRuleVersionMissing": "A regra de frete usada no cálculo não está mais disponível.",
     "inFlight": "Já existe uma emissão em andamento para esta nota.",
     "issRateOutOfRange": "A alíquota de ISS está fora da faixa aceita.",
+    "nationalTaxationMissing": "Preencha o código de tributação nacional e a alíquota do Simples no perfil ou nesta reemissão.",
     "notAuthorized": "A nota de serviço ainda não está autorizada.",
     "notDiscardable": "Esta nota de serviço não pode ser descartada.",
     "notFound": "Nota de serviço não encontrada.",
@@ -400,6 +415,7 @@
   "nfseProfileDescriptionMaxLengthLabel": "Tamanho máximo da descrição",
   "nfseProfileMunicipalTaxationLabel": "Código de tributação municipal",
   "nfseProfileNbsLabel": "Código NBS",
+  "nfseProfileTaxationSummary": "Par fiscal gravado: cTribNac {{code}} · Simples {{rate}}",
   "nfseProfileObservationsLabel": "Observações",
   "nfseProfileStatusActive": "Ativo",
   "nfseProfileStatusDraft": "Rascunho",
@@ -418,6 +434,16 @@
   "nfseProfileBlockedIssRateInvalid": "A alíquota do ISS precisa ser um percentual entre 0 e 100.",
   "nfseProfileBlockedDescriptionTemplateRequired": "Escreva o modelo da descrição do serviço.",
   "nfseProfileBlockedDescriptionMaxLengthInvalid": "O tamanho máximo da descrição precisa ficar entre 200 e 5000 caracteres.",
+  "nfseProfileBlockedNationalTaxationCodeInvalid": "O código de tributação nacional precisa ter 6 dígitos, ou ficar vazio.",
+  "nfseProfileBlockedSimplesNationalRateInvalid": "A alíquota do Simples precisa ser um percentual de 0 a 100, com até 6 casas, ou ficar vazia.",
+  "nationalTaxation": {
+    "codeHint": "Par aceito pela prefeitura: 160201 + 160101 para transporte rodoviário de cargas em Ribeirão Preto.",
+    "codeInvalid": "O código de tributação nacional tem 6 dígitos.",
+    "codeLabel": "Código de tributação nacional (cTribNac)",
+    "rateHint": "Vai em tributos aproximados da nota. A Nota RP documenta mínimo de 4,50%.",
+    "rateInvalid": "A alíquota do Simples precisa ser um percentual de 0 a 100, com até 6 casas.",
+    "rateLabel": "Alíquota efetiva do Simples Nacional (%)"
+  },
   "nfseIssExigibility1": "1 — Exigível",
   "nfseIssExigibility2": "2 — Não incidência",
   "nfseIssExigibility3": "3 — Isenção",

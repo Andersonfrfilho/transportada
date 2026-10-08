@@ -34,6 +34,10 @@ const MUNICIPAL_HOLIDAY_KINDS: ReadonlySet<MunicipalHolidayKind> = new Set(
   Object.values(MUNICIPAL_HOLIDAY_KIND),
 )
 
+export function isMunicipalHolidayKind(value: string): value is MunicipalHolidayKind {
+  return Object.values<string>(MUNICIPAL_HOLIDAY_KIND).includes(value)
+}
+
 type HolidayRulesParams = {
   readonly municipalRules: readonly MunicipalHolidayRule[]
   readonly stateRules: readonly StateHolidayRule[]

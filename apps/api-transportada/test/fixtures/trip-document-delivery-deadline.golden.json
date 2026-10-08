@@ -1,0 +1,16 @@
+{
+  "delivered_late": {
+    "businessDaysLate": 2,
+    "deliveredOn": "2026-10-19",
+    "dueOn": "2026-10-15",
+    "state": "delivered_late"
+  },
+  "delivered_on_time": {
+    "deliveredOn": "2026-10-15",
+    "dueOn": "2026-10-15",
+    "state": "delivered_on_time"
+  },
+  "due_today": { "dueOn": "2026-10-15", "state": "due_today" },
+  "on_time": { "businessDaysRemaining": 2, "dueOn": "2026-10-15", "state": "on_time" },
+  "overdue": { "businessDaysLate": 1, "dueOn": "2026-10-15", "state": "overdue" }
+}

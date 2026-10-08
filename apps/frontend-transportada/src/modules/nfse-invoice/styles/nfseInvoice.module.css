@@ -156,12 +156,17 @@
   align-content: start;
 }
 
-.emissionField > span:first-child {
+.emissionField > span:first-child,
+.emissionField > label:first-child {
   color: var(--color-slate);
   font-family: var(--font-utility);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.emissionField input[aria-invalid='true'] {
+  border-color: var(--color-alert);
 }
 
 .emissionField input,
@@ -196,6 +201,12 @@
 .emissionHint {
   display: block;
   color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.emissionError {
+  display: block;
+  color: var(--color-alert);
   font-size: 0.75rem;
 }
 

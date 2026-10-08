@@ -2,7 +2,11 @@
 import { useTranslation } from 'react-i18next'
 
 import { saveArchiveFile } from '../archiveDownload.service'
-import type { SpreadsheetCellValue, SpreadsheetColumn } from './spreadsheetLayout.service'
+import type {
+  SpreadsheetColumn,
+  SpreadsheetLegendItem,
+  SpreadsheetRowInput,
+} from './spreadsheetLayout.service'
 import { composeLetterheadInfoLines } from './spreadsheetLetterhead.service'
 import { useSpreadsheetLetterhead } from './useSpreadsheetLetterhead.hook'
 import { writeBrandedSpreadsheet } from './writeBrandedSpreadsheet.service'
@@ -10,7 +14,8 @@ import { writeBrandedSpreadsheet } from './writeBrandedSpreadsheet.service'
 export type SpreadsheetExportRequest = Readonly<{
   columns: readonly SpreadsheetColumn[]
   fileName: string
-  rows: readonly (readonly SpreadsheetCellValue[])[]
+  legend?: readonly SpreadsheetLegendItem[]
+  rows: readonly SpreadsheetRowInput[]
   sheetName: string
   title: string
 }>
@@ -39,6 +44,7 @@ export function useSpreadsheetExport(): Readonly<{
           }),
           labels: { phone: t('letterhead.phone'), taxId: t('letterhead.taxId') },
         }),
+        ...(request.legend === undefined ? {} : { legend: request.legend }),
         letterheadName: company.name,
         logo,
         rows: request.rows,

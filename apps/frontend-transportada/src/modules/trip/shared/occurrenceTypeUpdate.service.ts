@@ -4,6 +4,7 @@
 import {
   OCCURRENCE_ITEMS_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
+  type DeclaredAmountScope,
   type OccurrenceAttachmentMode,
   type OccurrenceItemsWriteMode,
   type OccurrenceMoment,
@@ -19,7 +20,23 @@ export type OccurrenceTypeSaveInput = Readonly<{
   allowsMultipleItems: boolean
   /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
   attachmentMode: OccurrenceAttachmentMode
+  /** Spec 247 RF1: o valor pago digitado — `undefined` é "não mexe", como todo campo opcional do tipo. */
+  declaredAmountLabel?: string | undefined
+  declaredAmountMode?: OccurrenceAttachmentMode | undefined
+  declaredAmountScope?: DeclaredAmountScope | undefined
+  /**
+   * Spec 247 RF2: o e-mail à contratante é independente do aviso interno. O `PUT` sem estes dois grava
+   * texto vazio, então toda edição de um tipo existente os leva como estão; a criação os omite.
+   */
+  emailBody?: string | undefined
+  /** Spec 247 RF6: o formato de cada linha de item — `undefined` é "não mexe". */
+  emailItemLineTemplate?: string | undefined
+  emailSubject?: string | undefined
+  /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
+  emailsContractor?: boolean | undefined
   emailTemplateKey: null | string
+  /** Spec 255 RF4: `null` limpa o ícone; `undefined` é "não mexe" — o `PUT` ausente mantém. */
+  iconName?: null | string | undefined
   /** Spec 218 (D1, RF-B5): `undefined` é "não mexe" — só a troca explícita do seletor manda o campo. */
   flow?: OccurrenceTypeFlow | undefined
   /**
@@ -42,6 +59,9 @@ export type OccurrenceTypeSaveInput = Readonly<{
   photoMinimumCount?: number | undefined
   /** Spec 164 RF1: conjunto completo — sempre enviado, nunca omitido no `PUT`. */
   redeliveryPolicy: OccurrenceRedeliveryPolicy
+  /** Spec 247 RF1: o número do documento do cliente — `undefined` é "não mexe". */
+  referenceNumberLabel?: string | undefined
+  referenceNumberMode?: OccurrenceAttachmentMode | undefined
   signatureMode?: OccurrenceAttachmentMode | undefined
   stage: TripOccurrenceStage
 }>
@@ -53,8 +73,16 @@ export type OccurrenceTypeEdit = Readonly<
       | 'active'
       | 'allowsMultipleItems'
       | 'attachmentMode'
+      | 'declaredAmountLabel'
+      | 'declaredAmountMode'
+      | 'declaredAmountScope'
+      | 'emailBody'
+      | 'emailItemLineTemplate'
+      | 'emailsContractor'
+      | 'emailSubject'
       | 'emailTemplateKey'
       | 'flow'
+      | 'iconName'
       | 'itemsMinimumCount'
       | 'itemsMode'
       | 'leavesDocumentBehind'
@@ -64,6 +92,8 @@ export type OccurrenceTypeEdit = Readonly<
       | 'notifies'
       | 'photoMinimumCount'
       | 'redeliveryPolicy'
+      | 'referenceNumberLabel'
+      | 'referenceNumberMode'
       | 'signatureMode'
     >
   >
@@ -105,6 +135,8 @@ export function buildOccurrenceTypeUpdate(
     active: type.active,
     allowsMultipleItems: type.allowsMultipleItems,
     attachmentMode: type.attachmentMode,
+    emailBody: type.emailBody,
+    emailSubject: type.emailSubject,
     emailTemplateKey: type.emailTemplateKey,
     leavesDocumentBehind: type.leavesDocumentBehind,
     name: type.name,

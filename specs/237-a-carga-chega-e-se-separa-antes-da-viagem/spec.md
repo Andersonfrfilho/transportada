@@ -233,7 +233,7 @@ conferência) **Then** o fluxo dele muda **só por dado**, sem código novo e se
 
 **Respondidas pelo usuário (2026-10-03):** **a prévia é a chegada** (1 prévia = 1 chegada); **seguir o `NroCarga`
 sempre que ele existir no XML e na prévia** (na planilha ele não existe: o par vem de `RouteName`, ver RF5a); a planilha e os exemplos (`planilha-fr.md`); o prazo é **3 dias
-úteis desde a chegada**; o feriado é da **cidade do destinatário**; a primeira separação é **por nota,
+úteis desde a chegada**; o feriado é da **cidade do destino físico** (revisto em 2026-10-06; era "cidade do destinatário"); a primeira separação é **por nota,
 agrupada por rota e cidade**; a operação é **pelo celular**; o e-mail deve ser **lido pelo app quando
 recebido**; a comparação com o XML usa a **data de recebimento da planilha**; o calendário de feriados **já
 existe** (238 o reaproveita).

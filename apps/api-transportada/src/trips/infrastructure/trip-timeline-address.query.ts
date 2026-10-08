@@ -12,6 +12,8 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { distanceInMetres } from '../../addresses/domain/coordinate-distance.js'
+import { SERVICE_COMPANY_ROLES } from '../../database/identity.schema.js'
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../../identity/domain/system-distribution-actor.constant.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 import type {
@@ -32,6 +34,7 @@ export type AddressCorrectionQueryRow = {
   readonly actorName: string | null
   readonly createdAt: Date
   readonly id: string
+  readonly isSystemActor: boolean
   readonly newLatitude: string | null
   readonly newLongitude: string | null
   readonly occurredAtKey: string
@@ -46,6 +49,7 @@ type AddressCorrectionSqlRow = {
   readonly actor_name: string | null
   readonly created_at: Date | string
   readonly id: string
+  readonly is_system_actor: boolean
   readonly new_latitude: string | null
   readonly new_longitude: string | null
   readonly occurred_at_key: string
@@ -86,6 +90,7 @@ function toDisplacementMeters(row: AddressCorrectionQueryRow): number | null {
 export function toAddressCorrectedTimelineRow(row: AddressCorrectionQueryRow): TripTimelineRow {
   return {
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     addressChange: { displacementMeters: toDisplacementMeters(row), origin: row.origin },
     channel: null,
     closeReason: null,
@@ -112,6 +117,7 @@ function fromSqlRow(row: AddressCorrectionSqlRow): AddressCorrectionQueryRow {
     actorName: row.actor_name,
     createdAt: new Date(row.created_at),
     id: row.id,
+    isSystemActor: row.is_system_actor,
     newLatitude: row.new_latitude,
     newLongitude: row.new_longitude,
     occurredAtKey: row.occurred_at_key,
@@ -167,6 +173,14 @@ export async function listAddressCorrectedRows(
       matched.stop_id,
       matched.stop_sequence,
       actor_profile.name as actor_name,
+      (actor_membership.user_id = ${SYSTEM_DISTRIBUTION_ACTOR_USER_ID}::uuid or exists (
+        select 1 from membership_roles
+        where membership_roles.membership_id = actor_membership.id
+          and membership_roles.role in (${sql.join(
+            SERVICE_COMPANY_ROLES.map((role) => sql`${role}`),
+            sql`, `,
+          )})
+      )) as is_system_actor,
       ${formatTimelineTimestampKey(ADDRESS_INSTANT)} as occurred_at_key
     from (
       select distinct on (changes.id)

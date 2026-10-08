@@ -21,6 +21,7 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'chevron-up'
+  | 'clipboard-list'
   | 'clock'
   | 'close'
   | 'columns'
@@ -43,6 +44,8 @@ export type IconName =
   | 'menu'
   | 'message'
   | 'microphone'
+  | 'money'
+  | 'package'
   | 'page-first'
   | 'page-last'
   | 'page-next'
@@ -136,6 +139,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'chevron-left': ['M15 18l-6-6 6-6'],
   'chevron-right': ['M9 18l6-6-6-6'],
   'chevron-up': ['M6 15l6-6 6 6'],
+  /** Prancheta com a lista: a contagem de notas do romaneio, ao lado do número. */
+  'clipboard-list': ['M6 4h12v17H6z', 'M9 3h6v3H9z', 'M9 10h6', 'M9 14h4'],
   /** Relógio: o tempo que o roteiro leva, ao lado do número que o diz. */
   clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7v5l3 2'],
   close: ['M6 6l12 12', 'M18 6L6 18'],
@@ -174,6 +179,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
+  money: [
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+    'M12 7v10',
+    'M15 9.5c-.7-1-1.7-1.5-3-1.5-1.7 0-3 1-.8 3 1.7 0 3 .8 3 2.5s-1.3 3-3 3c-1.3 0-2.3-.5-3-1.5',
+  ],
+  package: ['M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z', 'M3 7.5l9 4.5 9-4.5', 'M12 12v9'],
   'page-first': ['M17 6l-6 6 6 6', 'M7 6v12'],
   'page-last': ['M7 6l6 6-6 6', 'M17 6v12'],
   'page-next': ['M10 6l6 6-6 6'],

@@ -210,6 +210,20 @@ export const DISCARD: NfseInvoiceDiscardSummary = {
   status: 'discarded',
 }
 
+export type NfseInvoiceExternalLinkSummary = {
+  readonly attemptId: string
+  readonly invoiceId: string
+  readonly replayed: boolean
+  readonly status: 'pending_authorization'
+}
+
+export const EXTERNAL_LINK: NfseInvoiceExternalLinkSummary = {
+  attemptId: ATTEMPT_ID,
+  invoiceId: INVOICE_ID,
+  replayed: false,
+  status: 'pending_authorization',
+}
+
 /** A reemissão reaproveita o payload congelado: mesma `payloadSha256`, `attemptNumber` adiante. */
 export const REISSUE: NfseInvoiceReissueSummary = {
   attemptId: ATTEMPT_ID,
@@ -238,6 +252,9 @@ type InvoiceRouteDependencies = {
   readonly exportNfseDocuments: {
     exportDocuments(input: ExecuteCall): Promise<NfseExportResult>
   }
+  readonly linkNfseInvoiceExternally: {
+    execute(input: ExecuteCall): Promise<NfseInvoiceExternalLinkSummary>
+  }
   readonly nfseInvoice: {
     create(input: ExecuteCall): Promise<NfseInvoiceSummary>
     preview(input: ExecuteCall): Promise<NfseInvoicePreview>
@@ -260,6 +277,7 @@ type CreateFixtureParams = {
   readonly discardError?: Error
   readonly downloadError?: Error
   readonly exportError?: Error
+  readonly linkError?: Error
   readonly permissions?: CompanyContext['permissions']
   readonly reissueError?: Error
   readonly summary?: NfseInvoiceSummary
@@ -274,6 +292,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   readonly downloadCalls: ExecuteCall[]
   readonly exportCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
+  readonly linkCalls: ExecuteCall[]
   readonly listCalls: ExecuteCall[]
   readonly previewCalls: ExecuteCall[]
   readonly reissueCalls: ExecuteCall[]
@@ -285,6 +304,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
   const documentCalls: ExecuteCall[] = []
   const downloadCalls: ExecuteCall[] = []
   const exportCalls: ExecuteCall[] = []
+  const linkCalls: ExecuteCall[] = []
   const listCalls: ExecuteCall[] = []
   const previewCalls: ExecuteCall[] = []
   const reissueCalls: ExecuteCall[] = []
@@ -317,6 +337,13 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
             },
           }),
         }
+      },
+    },
+    linkNfseInvoiceExternally: {
+      async execute(input) {
+        linkCalls.push(serializeCall(input))
+        if (params.linkError) throw params.linkError
+        return EXTERNAL_LINK
       },
     },
     nfseInvoice: {
@@ -382,6 +409,7 @@ export async function createNfseInvoicesHttpFixture(params: CreateFixtureParams 
     downloadCalls,
     exportCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
+    linkCalls,
     listCalls,
     previewCalls,
     reissueCalls,

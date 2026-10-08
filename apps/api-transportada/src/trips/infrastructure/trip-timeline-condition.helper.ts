@@ -12,7 +12,8 @@ import type { SQL, SQLWrapper } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
-import { userCompanyMemberships } from '../../database/identity.schema.js'
+import { SERVICE_COMPANY_ROLES, userCompanyMemberships } from '../../database/identity.schema.js'
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../../identity/domain/system-distribution-actor.constant.js'
 import { TRIP_TIMELINE_KIND_PRIORITY } from '../application/trip-timeline.types.js'
 import type { TripTimelineCursor, TripTimelineKind } from '../application/trip-timeline.types.js'
 
@@ -21,6 +22,12 @@ export const timelineActorMembership = alias(
   'trip_timeline_actor_membership',
 )
 export const timelineActorProfile = alias(identityUserProfiles, 'trip_timeline_actor_profile')
+/** Conta de serviço (papel `automation`) ou o ator fixo do cron: o evento é de uma integração, não de uma pessoa. */
+export const timelineActorIsSystem = sql<boolean>`(${timelineActorMembership.userId} = ${SYSTEM_DISTRIBUTION_ACTOR_USER_ID}::uuid or exists (select 1 from membership_roles where membership_roles.membership_id = ${timelineActorMembership.id} and membership_roles.role in (${sql.join(
+  SERVICE_COMPANY_ROLES.map((role) => sql`${role}`),
+  sql`, `,
+)})))`
+
 export const timelineOnBehalfDriver = alias(fleetDrivers, 'trip_timeline_on_behalf_driver')
 
 /** Texto em vez de `Date`: preserva os microssegundos que `occurred_at` guarda (T9). */

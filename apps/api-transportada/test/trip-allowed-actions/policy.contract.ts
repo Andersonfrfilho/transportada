@@ -319,7 +319,6 @@ describe('allowedActions — por parada e por viagem', () => {
       'separating',
       'loading',
       'cancelled',
-      'completed',
     ] as const) {
       const refused = resolveTripAllowedActions({
         capabilities: OPERATOR,
@@ -333,6 +332,12 @@ describe('allowedActions — por parada e por viagem', () => {
       trip: snapshot({ status: 'in_transit' }),
     })
     expect(onRoad.trip).not.toContain('defineCrew')
+
+    const completed = resolveTripAllowedActions({
+      capabilities: OPERATOR,
+      trip: snapshot({ documents: [documentIn('delivered')], status: 'completed' }),
+    })
+    expect(completed.trip).toContain('transferCrew')
   })
 
   it('o finance não recebe ação de viagem do barracão', () => {

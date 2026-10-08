@@ -9,7 +9,11 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
-import type { OccurrenceItemsMode } from './occurrence.constant'
+import type {
+  DeclaredAmountScope,
+  OccurrenceAttachmentMode,
+  OccurrenceItemsMode,
+} from './occurrence.constant'
 import type {
   OccurrenceAttachment,
   OccurrenceCancellation,
@@ -196,9 +200,35 @@ export type TripOccurrenceDetailDriver = Readonly<{
 /** Spec 183 T207: o item atingido (specs 166/172); quantidade é string decimal. */
 export type TripOccurrenceDetailItem = Readonly<{
   code: string
+  /** Spec 247 (ADR-0081 §9): o valor pago da linha; ausente é API anterior ao campo, `null` é não digitado. */
+  declaredAmount?: null | string
   description: string
   quantity: null | string
   unit: null | string
+}>
+
+/**
+ * Spec 247 R2: o que o registro gravou por linha, no nível da ocorrência. `quantity` tem 3 casas, `unitValue`
+ * (a cópia do `vUnCom`) tem 4 e `declaredAmount` tem 2 (`null` é não digitado). Dinheiro é sempre texto.
+ */
+export type TripOccurrenceItemValue = Readonly<{
+  declaredAmount: null | string
+  productCode: string
+  quantity: string
+  unitValue: string
+}>
+
+/**
+ * Spec 247 T7.2b: o requisito **efetivo** do tipo da ocorrência (já resolvido pela API, com o padrão do
+ * catálogo onde o tipo não escolheu). Quem corrige lê daqui — o catálogo é de quem tem `settings.manage`.
+ */
+export type TripOccurrenceRequirements = Readonly<{
+  declaredAmountLabel: string
+  declaredAmountMode: OccurrenceAttachmentMode
+  declaredAmountScope: DeclaredAmountScope
+  itemsMode: OccurrenceAttachmentMode
+  referenceNumberLabel: string
+  referenceNumberMode: OccurrenceAttachmentMode
 }>
 
 /** Spec 183 RF1: a linha da listagem, com autoria, nota e o motorista. */
@@ -206,6 +236,14 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem &
   Readonly<{
     actorName: null | string
     channel: string
+    /** Spec 247 R2: o valor pago da ocorrência (2 casas; `"0.00"` é valor). Ausente é API/ocorrência antiga. */
+    declaredAmount?: null | string
+    /** Spec 247 R2: um por linha gravada, na ordem de `position`. Ausente é API anterior ao campo. */
+    itemValues?: readonly TripOccurrenceItemValue[]
+    /** Spec 247 R2: o número do documento do cliente. Ausente é API anterior ao campo. */
+    referenceNumber?: null | string
+    /** Spec 247 T7.2b: ausente ou `null` é ocorrência antiga, API anterior ou parada sem nota — rótulos genéricos. */
+    requirements?: null | TripOccurrenceRequirements
     driver: null | TripOccurrenceDetailDriver
     /** Spec 240 RF9: mais antiga primeiro; `[]` quando a ocorrência nunca foi corrigida. */
     corrections?: readonly OccurrenceCorrection[]

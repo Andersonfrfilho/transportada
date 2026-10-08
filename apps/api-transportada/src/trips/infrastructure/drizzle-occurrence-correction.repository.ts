@@ -26,6 +26,8 @@ import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-memb
 import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
 import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
 import { findOccurrenceType, listDocumentProducts } from './delivery-proof-read.support.js'
+import { createOccurrenceTypeOverridesReader } from './occurrence-type-overrides-reader.js'
+import { findDocumentOccurrenceSubject } from './document-occurrence-subject.query.js'
 import {
   insertOccurrenceProductRows,
   listOccurrenceProductLines,
@@ -72,7 +74,9 @@ function createOccurrenceCorrectionTransactionPort(
   queryable: TripQueryable,
 ): OccurrenceCorrectionTransactionPort {
   return {
+    findDocumentSubject: (input) => findDocumentOccurrenceSubject(queryable, input),
     findOccurrenceType: (input) => findOccurrenceType(queryable, input),
+    ...createOccurrenceTypeOverridesReader(queryable),
     hasOpenCase: (input) => hasOpenOccurrenceCase(queryable, input),
     insertCorrection: (input) => insertOccurrenceCorrection(queryable, input),
     listCurrentItems: (input) => listCurrentOccurrenceLines(queryable, input),

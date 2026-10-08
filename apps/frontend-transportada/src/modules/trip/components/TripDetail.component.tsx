@@ -101,6 +101,8 @@ import { describeTripVehicle } from '../shared/vehicleSummary.service'
 import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocument.service'
 import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
+import { useTripDeliveryDeadlineScope } from '../hooks/useTripDeliveryDeadlineScope.hook'
+import { TripDeliveryDeadlineFilter } from './TripDeliveryDeadlineFilter.component'
 import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
@@ -205,6 +207,7 @@ const TRAILER_ROLE = 'trailer'
 const ACTIVE_STATUS = 'active'
 const EMPTY_TRAILER_SELECTION = ''
 const NO_PROOF_BADGES: ReadonlyMap<string, TripDocumentProofBadges> = new Map()
+const NO_DOCUMENTS: readonly TripDocumentDetail[] = []
 
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
@@ -322,6 +325,8 @@ export function TripDetail({
    */
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
+  /** Spec 236 P2: antes dos `return` condicionais, como os hooks vizinhos — a viagem pode não ter carregado. */
+  const deadlineScope = useTripDeliveryDeadlineScope(workspace.trip?.documents ?? NO_DOCUMENTS)
   /** Spec 222 T2.8: antes dos `return` condicionais — a viagem pode não ter carregado, `''` não resolve. */
   const canhotoBatchReview = useCanhotoBatchReview({
     approveBatch: workspace.approveCanhotoBatchMutation.mutateAsync,
@@ -1331,16 +1336,18 @@ export function TripDetail({
             {t('stops.title')}
           </h3>
           <TripSelectAllDocuments
-            documentIds={trip.documents.map((document) => document.id)}
+            documentIds={deadlineScope.visibleDocuments.map((document) => document.id)}
             selection={selection}
           />
         </div>
+        <TripDeliveryDeadlineFilter scope={deadlineScope} />
         <TripStopList
           actions={documentActions}
           canReorder={canManage && isEditable}
           onReorder={handleReorderStops}
           selection={selection}
           stops={trip.stops}
+          visibleDocumentIds={deadlineScope.visibleDocumentIds}
         />
 
         {unassignedDocuments.length === 0 ? null : (
@@ -1358,11 +1365,16 @@ export function TripDetail({
                 </span>
               </div>
             </div>
-            <TripStopDocumentGroup
-              actions={documentActions}
-              documents={unassignedDocuments}
-              selection={selection}
-            />
+            {deadlineScope.hasFilter &&
+            deadlineScope.keepVisible(unassignedDocuments).length === 0 ? (
+              <p className={styles.hint}>{t('deadlineFilter.stopEmpty')}</p>
+            ) : (
+              <TripStopDocumentGroup
+                actions={documentActions}
+                documents={deadlineScope.keepVisible(unassignedDocuments)}
+                selection={selection}
+              />
+            )}
           </div>
         )}
 

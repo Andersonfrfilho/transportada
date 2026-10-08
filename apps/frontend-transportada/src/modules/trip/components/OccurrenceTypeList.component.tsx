@@ -3,6 +3,7 @@
  */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { TRIP_OCCURRENCE_STAGE } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import type { OccurrenceTypeExceptionsState } from '@/modules/trip/shared/occurrenceExceptionPeople.service'
@@ -44,10 +45,19 @@ export function OccurrenceTypeList({
 
         return (
           <fieldset className={styles.group} key={group}>
-            <legend className={styles.groupTitle}>
-              {group === TRIP_OCCURRENCE_STAGE.separation
-                ? t('occurrenceTypeCatalog.stageSeparation')
-                : t('occurrenceTypeCatalog.stageDelivery')}
+            <legend className={styles.groupLegend}>
+              <h3 className={styles.groupTitle}>
+                <Icon
+                  className={styles.groupIcon ?? ''}
+                  name={group === TRIP_OCCURRENCE_STAGE.separation ? 'organization' : 'truck'}
+                />
+                {group === TRIP_OCCURRENCE_STAGE.separation
+                  ? t('occurrenceTypeCatalog.stageSeparation')
+                  : t('occurrenceTypeCatalog.stageDelivery')}
+                <span className={styles.groupCount}>
+                  {t('occurrenceTypeCatalog.groupCount', { count: groupTypes.length })}
+                </span>
+              </h3>
             </legend>
             {groupTypes.map((type) => (
               <OccurrenceTypeItem

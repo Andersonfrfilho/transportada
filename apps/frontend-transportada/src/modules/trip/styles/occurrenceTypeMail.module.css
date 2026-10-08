@@ -1,0 +1,154 @@
+/* Spec 247 RF3/RF4: o bloco "E-mail à contratante" — campos à esquerda, prévia do servidor ao lado (empilha no estreito). */
+.mail {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.layout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.fields {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.field {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.fieldLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.fields .mono {
+  font-family: var(--font-utility);
+  font-size: 0.82rem;
+}
+
+.fields textarea.mono {
+  min-height: 9rem;
+}
+
+.fields .invalid {
+  border-color: var(--color-alert);
+}
+
+.alert {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-alert);
+  color: var(--color-fog);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.markers {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.marker {
+  min-height: var(--touch-target, 2.75rem);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  background: transparent;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.marker:hover:not(:disabled) {
+  border-color: var(--color-copper);
+}
+
+.marker:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .action {
+    min-height: var(--touch-target);
+  }
+}
+
+.preview {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.mailCard {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+  background: var(--color-asphalt);
+}
+
+.mailMeta {
+  color: var(--color-slate-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.mailSubject {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.mailBody {
+  margin: 0;
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 64rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}

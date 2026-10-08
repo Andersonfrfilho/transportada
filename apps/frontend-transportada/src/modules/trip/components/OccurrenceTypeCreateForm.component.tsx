@@ -31,6 +31,7 @@ import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook
 import type { OccurrenceTypeSaveInput } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceRequirementModeSelect } from './OccurrenceRequirementModeSelect.component'
 import { OccurrenceTypeCreateMoments } from './OccurrenceTypeCreateMoments.component'
+import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint.component'
 
 type OccurrenceTypeCreateFormProps = Readonly<{
   isSaving: boolean
@@ -136,6 +137,10 @@ export function OccurrenceTypeCreateForm({
             onChange={draft.setLeavesDocumentBehind}
           />
         ) : null}
+        <OccurrenceTypeHiddenFieldsHint
+          isItemsOff={draft.isItemsOff}
+          isSeparationOnlyHidden={support.hasMoments && draft.moments.length > 0 && !isSeparation}
+        />
         <Select
           ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}
           onChange={draft.setEmailTemplateKey}

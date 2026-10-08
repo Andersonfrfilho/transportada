@@ -20,7 +20,13 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+import {
+  LEGACY_CITY_IBGE_CODE_SOURCE,
+  MUNICIPAL_HOLIDAY_KIND,
+  MUNICIPAL_HOLIDAY_KINDS,
+} from '../shared/business-calendar.constant.js'
 import { companies } from './identity.schema.js'
+import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { tripDocumentOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -31,7 +37,6 @@ import { inList } from './schema-check.constant.js'
  * em caixa alta.
  */
 const TAX_ID_OR_CNPJ_PATTERN = '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'
-const IBGE_CITY_PATTERN = '^[0-9]{7}$'
 
 export const DELIVERY_CLIENT_STATUSES = ['active', 'inactive'] as const
 export type DeliveryClientStatus = (typeof DELIVERY_CLIENT_STATUSES)[number]
@@ -241,6 +246,10 @@ export const municipalHolidays = pgTable(
     holidayOn: date('holiday_on').notNull(),
     name: text().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Spec 238: `city_anniversary` é rótulo para a tela; a data é fixa de qualquer jeito. */
+    kind: text().notNull().default(MUNICIPAL_HOLIDAY_KIND.HOLIDAY),
+    /** Nulo = digitada à mão. Preenchido = gerada de uma regra "todo ano", que a leva ao ser apagada. */
+    sourceRuleId: uuid('source_rule_id'),
   },
   (table) => [
     foreignKey({
@@ -257,9 +266,24 @@ export const municipalHolidays = pgTable(
     ),
     check(
       'municipal_holidays_city_check',
-      sql`${table.cityIbgeCode} ~ ${sql.raw(`'${IBGE_CITY_PATTERN}'`)}`,
+      sql`${table.cityIbgeCode} ~ ${sql.raw(`'${LEGACY_CITY_IBGE_CODE_SOURCE}'`)}`,
     ),
     check('municipal_holidays_name_check', sql`length(${table.name}) > 0`),
+    check(
+      'municipal_holidays_kind_check',
+      sql`${table.kind} in (${sql.raw(inList(MUNICIPAL_HOLIDAY_KINDS))})`,
+    ),
+    /** MATCH SIMPLE: com `source_rule_id` nulo a chave não é conferida, e a data digitada nunca é apagada. */
+    foreignKey({
+      columns: [table.companyId, table.sourceRuleId],
+      foreignColumns: [municipalHolidayRules.companyId, municipalHolidayRules.id],
+      name: 'municipal_holidays_company_source_rule_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('municipal_holidays_company_source_rule_idx')
+      .on(table.companyId, table.sourceRuleId)
+      .where(sql`${table.sourceRuleId} is not null`),
   ],
 )
 

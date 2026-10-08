@@ -13,6 +13,10 @@ import {
   noteAccordionTimelineItems,
   noteAccordionValuation,
 } from './trip-note-accordion.fixture'
+import {
+  DELIVERY_DEADLINE_DOCUMENTS,
+  DELIVERY_DEADLINE_STOPS,
+} from './trip-delivery-deadline.fixture'
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
@@ -79,6 +83,7 @@ const BASE_TRIP = {
 type DocumentsMode =
   | 'all-authorized'
   | 'delivered-proof'
+  | 'delivery-deadline'
   | 'document-cost'
   | 'document-cost-open'
   | 'dispatch-flow'
@@ -766,24 +771,26 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
         ? DOCUMENT_COST_DOCUMENTS
         : mode === 'note-accordion'
           ? NOTE_ACCORDION_DOCUMENTS
-          : mode === 'delivered-proof'
-            ? [PROOF_DELIVERED_DOCUMENT]
-            : mode === 'stop-card-states'
-              ? [
-                  STOP_CARD_LOADED_DOCUMENT,
-                  STOP_CARD_RETURNED_DOCUMENT,
-                  STOP_CARD_OCCURRENCE_DOCUMENT,
-                  STOP_CARD_LONG_RECIPIENT_DOCUMENT,
-                ]
-              : mode === 'dispatch-flow'
+          : mode === 'delivery-deadline'
+            ? DELIVERY_DEADLINE_DOCUMENTS
+            : mode === 'delivered-proof'
+              ? [PROOF_DELIVERED_DOCUMENT]
+              : mode === 'stop-card-states'
                 ? [
-                    DISPATCH_LOAD_DISPATCHED_DOCUMENT,
-                    DISPATCH_LOAD_BLOCKED_DOCUMENT,
-                    DISPATCH_LEFT_BEHIND_DOCUMENT,
+                    STOP_CARD_LOADED_DOCUMENT,
+                    STOP_CARD_RETURNED_DOCUMENT,
+                    STOP_CARD_OCCURRENCE_DOCUMENT,
+                    STOP_CARD_LONG_RECIPIENT_DOCUMENT,
                   ]
-                : mode === 'dispatched'
-                  ? [DISPATCHED_DOCUMENT]
-                  : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+                : mode === 'dispatch-flow'
+                  ? [
+                      DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+                      DISPATCH_LOAD_BLOCKED_DOCUMENT,
+                      DISPATCH_LEFT_BEHIND_DOCUMENT,
+                    ]
+                  : mode === 'dispatched'
+                    ? [DISPATCHED_DOCUMENT]
+                    : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
@@ -799,7 +806,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           ? 'dispatched'
           : mode === 'document-cost'
             ? 'completed'
-            : mode === 'note-accordion'
+            : mode === 'note-accordion' || mode === 'delivery-deadline'
               ? 'in_transit'
               : BASE_TRIP.status,
     amounts: null,
@@ -831,15 +838,17 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       ? DOCUMENT_COST_STOPS
       : mode === 'note-accordion'
         ? NOTE_ACCORDION_STOPS
-        : mode === 'delivered-proof'
-          ? [PROOF_STOP]
-          : mode === 'stop-card-states'
-            ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
-            : mode === 'dispatch-flow'
-              ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
-              : mode === 'dispatched'
-                ? [DISPATCHED_STOP]
-                : [],
+        : mode === 'delivery-deadline'
+          ? DELIVERY_DEADLINE_STOPS
+          : mode === 'delivered-proof'
+            ? [PROOF_STOP]
+            : mode === 'stop-card-states'
+              ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
+              : mode === 'dispatch-flow'
+                ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
+                : mode === 'dispatched'
+                  ? [DISPATCHED_STOP]
+                  : [],
   }
 }
 
@@ -1066,6 +1075,14 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [], page: { nextCursor: null } })
   })
+  /** O filtro de contratante do relatório consulta o diretório ao abrir a lista; o smoke reprova qualquer falha de rede. */
+  await input.page.route(/\/contractors(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
   /**
    * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
    * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta
@@ -1262,6 +1279,24 @@ async function registerTripMocks(
     await fulfillJson(route, { data: tripDetail(input.mode) })
   })
   if (input.mode === 'note-accordion') await registerNoteAccordionMocks(input.page)
+  if (input.mode === 'delivery-deadline') await registerDeliveryDeadlineMocks(input.page)
+}
+
+/** Spec 236: nota aberta lê comprovante, ocorrências e produtos; o prazo é o assunto, então todos vêm vazios. */
+async function registerDeliveryDeadlineMocks(page: Page): Promise<void> {
+  const emptyRoutes = [
+    /\/trips\/[^/]+\/delivery-proofs$/,
+    /\/trips\/[^/]+\/documents\/[^/]+\/(?:proof|occurrences|products)$/,
+  ]
+  for (const pattern of emptyRoutes) {
+    await page.route(pattern, async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await fulfillOptions(route)
+        return
+      }
+      await fulfillJson(route, { data: [] })
+    })
+  }
 }
 
 function documentIndexFromUrl(url: string): number {

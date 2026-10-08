@@ -30,6 +30,8 @@ import {
   type TripPageState,
   type TripSortState,
 } from '../shared/tripTable.service'
+import { buildTripReportFilters } from '../shared/tripReportFilterState.service'
+import { useTripReportFilters } from './useTripReportFilters.hook'
 import { getTripClient } from './useTripWorkspace.hook'
 
 const EMPTY_TRIP_FILTERS: TripFilters = {}
@@ -46,6 +48,7 @@ export function useTripTable(input: UseTripTableInput) {
   const [filters, setFilters] = useState<TripFilters>(EMPTY_TRIP_FILTERS)
   const [sort, setSort] = useState<TripSortState>(null)
   const [page, setPage] = useState<TripPageState>(TRIP_FIRST_PAGE)
+  const reportFilters = useTripReportFilters()
 
   const client = getTripClient()
   const tripsQuery = useQuery({
@@ -70,7 +73,7 @@ export function useTripTable(input: UseTripTableInput) {
   }
 
   return {
-    activeFilterCount: countActiveTripFilters(filters),
+    activeFilterCount: countActiveTripFilters(filters) + reportFilters.activeCount,
     /** As marcadas que **ainda podem** ser canceladas — nunca a marcação crua (spec 102). */
     cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
     closeableSelection: closeableSelection({ selectedIds, trips: visibleItems }),
@@ -97,6 +100,7 @@ export function useTripTable(input: UseTripTableInput) {
     },
     clearFilters: () => {
       setFilters(EMPTY_TRIP_FILTERS)
+      reportFilters.clear()
       setSort(null)
       restartPagination()
     },
@@ -107,6 +111,9 @@ export function useTripTable(input: UseTripTableInput) {
     openTrip: (tripId: string) =>
       navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId }),
     pageSize: TRIP_PAGE_SIZE,
+    reportFilters,
+    /** Escopo do relatório: filtros da listagem + filtros de nota (a listagem não usa os de nota). */
+    reportScope: buildTripReportFilters({ state: reportFilters.state, tripFilters: filters }),
     setDateRange: (from: string, to: string) => {
       setFilters((current) => {
         const next = { ...current }

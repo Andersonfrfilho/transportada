@@ -4,6 +4,10 @@
 - **Data:** 2026-08-27
 - **Contexto:** spec 060. Alimenta a 058 (roteirização) e a 057 (a viagem no bolso do motorista).
 
+> **Emenda (2026-10-07):** o §3 ("nenhuma fonte pública de feriado municipal é confiável… alimentado à mão") foi
+> emendado pelo **ADR-0100** (spec 252): a FeriadosAPI entra como fonte **opcional** de feriado municipal e estadual,
+> com a linha digitada vencendo, origem visível e supressão auditada. O texto abaixo fica como registro histórico.
+
 ## Contexto
 
 Hoje não existe cadastro de cliente neste produto. O destinatário é derivado de `nfe_participants` a

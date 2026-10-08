@@ -51,8 +51,10 @@ function dueInvoice(overrides: Partial<DueNfseInvoice> = {}): DueNfseInvoice {
       envelope: { sealed: true },
       fiscalEnvironment: 'homologation',
       municipalRegistration: '12345678',
+      taxId: '12345678000190',
     },
     invoiceId: INVOICE_ID,
+    providerApiVersion: 'v2',
     providerDocumentId: PROVIDER_DOCUMENT_ID,
     status: 'pending_authorization',
     ...overrides,
@@ -432,6 +434,54 @@ describe('NFS-e reconciliation: still pending', () => {
 
     expect(result).toEqual({ cause: 'provider_not_configured', outcome: 'deferred' })
     expect(fixture.writeBack.authorized).toEqual([])
+    expect(fixture.writeBack.rejected).toEqual([])
+  })
+})
+
+describe('NFS-e reconciliation: externally linked invoice', () => {
+  test('records the amount mismatch as a rejection and never archives the documents', async () => {
+    const fixture = buildUseCase({
+      status: {
+        document: { ...AUTHORIZED_DOCUMENT, serviceAmount: '99.00' },
+        status: 'authorized',
+      },
+    })
+
+    const result = await fixture.useCase.execute({
+      invoice: dueInvoice({ externalLink: { serviceAmount: '1500.0000' } }),
+      now: NOW,
+    })
+
+    expect(result).toEqual({ outcome: 'rejected' })
+    expect(fixture.writeBack.rejected).toHaveLength(1)
+    expect(fixture.writeBack.rejected[0]).toMatchObject({
+      errorCode: 'NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH',
+    })
+    expect(fixture.writeBack.authorized).toEqual([])
+    expect(fixture.status.documentCalls).toEqual([])
+  })
+
+  test('records not_found as a rejection of the link', async () => {
+    const fixture = buildUseCase({ status: { cause: 'not_found', status: 'error' } })
+
+    const result = await fixture.useCase.execute({
+      invoice: dueInvoice({ externalLink: { serviceAmount: '1500.0000' } }),
+      now: NOW,
+    })
+
+    expect(result).toEqual({ outcome: 'rejected' })
+    expect(fixture.writeBack.rejected[0]).toMatchObject({
+      errorCode: 'NFSE_EXTERNAL_LINK_NOT_FOUND',
+    })
+    expect(fixture.writeBack.rescheduled).toEqual([])
+  })
+
+  test('a normal invoice with not_found still defers', async () => {
+    const fixture = buildUseCase({ status: { cause: 'not_found', status: 'error' } })
+
+    const result = await fixture.useCase.execute({ invoice: dueInvoice(), now: NOW })
+
+    expect(result).toEqual({ cause: 'not_found', outcome: 'deferred' })
     expect(fixture.writeBack.rejected).toEqual([])
   })
 })

@@ -1,0 +1,96 @@
+{
+  "title": "Prévia por e-mail",
+  "intro": "A equipe encaminha à mão o e-mail do contratante, com a planilha de prévia, ao endereço de entrada do sistema, e o sistema lê a prévia sozinho. O encaminhamento pode ser inline ou como anexo. Encaminhamento automático (regra ou redirecionamento do e-mail) não é suportado.",
+  "loading": "Carregando a entrada por e-mail",
+  "loadError": "Não foi possível ler a entrada por e-mail ({{code}}).",
+  "status": {
+    "none": "Sem endereço de entrada",
+    "active": "Endereço ativo",
+    "activeSince": "Endereço ativo desde {{moment}}",
+    "noneHint": "Salve as duas listas e gere o endereço para começar a receber prévias por e-mail.",
+    "activeHint": "O endereço completo é mostrado só no momento em que é gerado. Para trocá-lo, gere um novo."
+  },
+  "lists": {
+    "title": "Quem pode enviar",
+    "forwarder": {
+      "label": "Quem encaminha",
+      "hint": "Endereços exatos de quem da equipe encaminha o e-mail, um por linha. É a assinatura (DKIM) do domínio dele que vale: a lista barra quem não controla o domínio."
+    },
+    "sender": {
+      "label": "Remetente original do contratante",
+      "hint": "Endereço ou domínio exato do contratante, um por linha. Subdomínio e padrão com * não valem. O sistema lê o remetente original na mensagem encaminhada: é informação, não prova."
+    },
+    "save": "Salvar listas",
+    "saving": "Salvando…",
+    "saved": "Listas salvas",
+    "error": "Não foi possível salvar as listas ({{code}})."
+  },
+  "issues": {
+    "tooShort": "“{{entry}}”: é curta demais (mínimo {{min}} caracteres).",
+    "tooLong": "“{{entry}}”: é longa demais (máximo {{max}} caracteres).",
+    "forbiddenCharacter": "“{{entry}}”: tem espaço, vírgula, < >, | ou caractere de controle.",
+    "nonAscii": "“{{entry}}”: só caracteres ASCII visíveis; domínio internacional em punycode (xn--).",
+    "notAMailbox": "“{{entry}}”: precisa ser um endereço de e-mail completo.",
+    "notADomain": "“{{entry}}”: precisa ser um domínio exato, sem * nem ponto na ponta.",
+    "tooMany": "No máximo {{max}} entradas diferentes por lista."
+  },
+  "address": {
+    "generate": "Gerar endereço",
+    "regenerate": "Gerar novo endereço",
+    "generating": "Gerando…",
+    "needsLists": "Preencha e salve as duas listas antes de gerar o endereço.",
+    "confirmTitle": "Gerar um novo endereço?",
+    "confirmBody": "O endereço anterior deixa de valer: e-mails enviados a ele serão recusados como endereço desconhecido.",
+    "confirm": "Sim, gerar novo endereço",
+    "cancel": "Cancelar",
+    "errors": {
+      "RECEIVING_PROFILE_ALLOWLISTS_REQUIRED": "Preencha as duas listas e salve antes de gerar o endereço.",
+      "RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED": "A empresa ainda não tem domínio de entrada de e-mail configurado (configuração de e-mail do contratante).",
+      "TOO_MANY_REQUESTS": "Muitas tentativas em pouco tempo. Espere alguns minutos e tente de novo.",
+      "fallback": "Não foi possível gerar o endereço ({{code}})."
+    }
+  },
+  "generated": {
+    "title": "Endereço gerado",
+    "warning": "Mostrado só agora: copie e guarde. Ele não será exibido de novo.",
+    "next": "O próximo passo é seu: apontar o MX do domínio de entrada e cadastrar o domínio no serviço de e-mail. O sistema não faz isso.",
+    "copy": "Copiar endereço",
+    "copied": "Endereço copiado",
+    "close": "Fechar"
+  },
+  "intakes": {
+    "title": "Recusas recentes",
+    "intro": "Os últimos e-mails que chegaram a este endereço. Os aceitos também aparecem, com o link da prévia.",
+    "empty": "Nenhum e-mail recebido ainda.",
+    "columns": {
+      "date": "Data",
+      "outcome": "Resultado",
+      "reason": "Motivo",
+      "preview": "Prévia"
+    },
+    "openPreview": "Abrir prévia",
+    "noReason": "—"
+  },
+  "outcomes": {
+    "accepted": "Aceita",
+    "rejected": "Recusada"
+  },
+  "reasons": {
+    "ATTACHMENT_AMBIGUOUS": "Mais de um anexo possível: o e-mail deve levar uma única planilha.",
+    "ATTACHMENT_MISSING": "O e-mail não trouxe a planilha anexa.",
+    "ATTACHMENT_NOT_A_WORKBOOK": "O anexo não é uma planilha do Excel (.xlsx ou .xlsm).",
+    "ATTACHMENT_TOO_LARGE": "A planilha passa do tamanho máximo aceito.",
+    "FORWARDER_DKIM_NOT_ALIGNED": "A assinatura (DKIM) de quem encaminhou não bate com o remetente.",
+    "FORWARDER_DKIM_UNVERIFIABLE": "Não deu para verificar a assinatura (DKIM) de quem encaminhou.",
+    "FORWARDER_FROM_MISMATCH": "O remetente da mensagem não é o da assinatura verificada.",
+    "FORWARDER_NOT_ALLOWED": "Quem encaminhou não está na lista “Quem encaminha”.",
+    "MIME_UNREADABLE": "Não foi possível ler a mensagem (formato inválido ou complexo demais).",
+    "ORIGINAL_SENDER_AMBIGUOUS": "Não ficou claro quem é o remetente original: a mensagem indica mais de um.",
+    "ORIGINAL_SENDER_MISSING": "Não foi possível achar o remetente original na mensagem encaminhada.",
+    "ORIGINAL_SENDER_NOT_ALLOWED": "O remetente original não está na lista do contratante.",
+    "PREVIEW_NOT_ENABLED": "A prévia por planilha não está ligada neste contratante.",
+    "RATE_LIMITED": "Muitos e-mails em poucos minutos: o excedente foi ignorado.",
+    "RAW_EMAIL_TOO_LARGE": "A mensagem passa do tamanho máximo aceito.",
+    "TOO_MANY_OPEN_PREVIEWS": "Já há prévias demais esperando leitura: espere terminarem."
+  }
+}

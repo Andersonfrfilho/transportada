@@ -150,9 +150,18 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
         const feedItem = page.items.find((item) => item.id === occurrenceId)
         if (detail === null || feedItem === undefined) throw new Error('EXPECTED_DETAIL')
 
-        const { corrections, declaredAmount, driver, itemValues, items, referenceNumber, ...line } =
-          detail
+        const {
+          corrections,
+          declaredAmount,
+          driver,
+          itemValues,
+          items,
+          referenceNumber,
+          requirements,
+          ...line
+        } = detail
         expect(line).toEqual(feedItem)
+        expect(requirements).toMatchObject({ declaredAmountMode: 'off', itemsMode: 'optional' })
         expect(corrections).toEqual([])
         expect(items).toEqual([])
         expect([declaredAmount, itemValues, referenceNumber]).toEqual([null, [], null])
@@ -345,6 +354,7 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
           occurrenceId: stopOccurrenceId,
         })
         expect(stop?.items).toEqual([])
+        expect(stop?.requirements).toBeNull()
       })
     },
     30_000,

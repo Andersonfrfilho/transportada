@@ -77,7 +77,12 @@ export function OccurrenceTypeFilters({
                   <span aria-hidden="true" className={styles.mark}>
                     {isPressed ? '✓' : '+'}
                   </span>
-                  {t(`occurrenceTypeCatalog.filters.chips.${group}.${value}`)}
+                  {/* Spec 247 D10: o momento tem **um** nome só — o do controle, o da linha recolhida e o do filtro. */}
+                  {t(
+                    group === 'moment'
+                      ? `occurrenceTypeCatalog.moments.labels.${value}`
+                      : `occurrenceTypeCatalog.filters.chips.${group}.${value}`,
+                  )}
                 </button>
               )
             })}

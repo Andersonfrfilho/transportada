@@ -4,6 +4,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
+import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
+import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
+import { createStateHolidayRoutes } from '../src/business-calendar/presentation/state-holiday.routes'
 import { createCargoArrivalDocumentProductsRoute } from '../src/cargo-receiving/presentation/cargo-arrival-document-products.routes'
 import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoArrivalSeparationRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-separation.routes'
@@ -11,6 +15,7 @@ import { createCargoArrivalRoutes } from '../src/cargo-receiving/presentation/ca
 import { createCargoPreviewActionRoutes } from '../src/cargo-receiving/presentation/cargo-preview-action.routes'
 import { createCargoPreviewTripDraftRoutes } from '../src/cargo-receiving/presentation/cargo-preview-trip-draft.routes'
 import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
+import { createContractorPreviewEmailRoutes } from '../src/cargo-receiving/presentation/contractor-preview-email.routes'
 import { createCteIssuanceRoutes } from '../src/cte-issuance/presentation/cte-issuance.routes'
 import { createCompanyCrewSettingsRoutes } from '../src/fleet/presentation/crew-settings.routes'
 import { createFleetRoutes } from '../src/fleet/presentation/fleet.routes'
@@ -30,6 +35,7 @@ import {
   OFFICE_REPORT_POLICY,
 } from '../src/trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
+import { createTripDocumentReportRoutes } from '../src/trips/presentation/trip-document-report.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -85,6 +91,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createPackageBoxMeasurementExportRoutes(dependencies),
     ...createPendingItemsRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
+    ...createTripDocumentReportRoutes(dependencies),
     // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
     // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
     // "não alcançar" field-delivery/field-return era verdade por elas nunca terem sido testadas,
@@ -98,6 +105,12 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
+    // Spec 238 T1.3: o calendário de dias úteis. Regra, feriado estadual e sábado são configuração
+    // (`settings.manage`, ler e escrever); só o `GET /municipal-holidays` é `fleet.read`, desde a spec 060.
+    ...createMunicipalHolidayRoutes(dependencies),
+    ...createMunicipalHolidayRuleRoutes(dependencies),
+    ...createStateHolidayRoutes(dependencies),
+    ...createBusinessCalendarSettingsRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
@@ -109,6 +122,9 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createCargoPreviewRoutes(dependencies),
     ...createCargoPreviewActionRoutes(dependencies),
     ...createCargoPreviewTripDraftRoutes(dependencies),
+    // Spec 237 T4.6b: a entrada da prévia por e-mail é configuração (`settings.manage`, ler e escrever): o
+    // separador lê a frota (`fleet.read`) e **não** alcança nenhuma das quatro rotas.
+    ...createContractorPreviewEmailRoutes(dependencies),
   ]
 
   return routes
@@ -182,6 +198,12 @@ describe('separator role contract', () => {
       'GET /fleet/drivers/:id/score',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',
+      /**
+       * Spec 060 T008 (enumerado na spec 238 T1.3): o feriado do município é `fleet.read`, porque o roteiro
+       * consulta, e o separador monta roteiro. Só lê: cadastrar, editar e apagar (e a regra "todo ano", o
+       * feriado estadual e o sábado) são `settings.manage`, que ele não tem.
+       */
+      'GET /municipal-holidays',
       'GET /nfe-documents',
       'GET /nfe-documents/:id',
       'GET /nfe-documents/:id/eligibility',
@@ -223,6 +245,10 @@ describe('separator role contract', () => {
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
        * mostra número da nota, motivo e o Δ% de peso e espaço — nada de dinheiro nem ficha de pessoa.
        */
+      /** Spec 253 RF1: o relatório de viagens, sob `TRIP_FIELD_READ_POLICY` como as outras leituras de campo; o valor só sai com `trip.financials`, que ele não tem. */
+      'GET /trip-document-report',
+      /** Spec 253 RF10: o PDF de canhotos segue a mesma política de leitura; o valor da nota sai só com `trip.financials`. */
+      'GET /trip-document-report/proofs-pdf',
       'GET /trip-document-reviews',
       'GET /trip-document-reviews/:id/swap-suggestions',
       'GET /trip-documents/returned-with-active-cte',

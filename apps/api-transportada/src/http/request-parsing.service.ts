@@ -55,7 +55,7 @@ export async function parseOptionalBody<TSchema extends z.ZodType>(
   return parseAgainstSchema(schema, {})
 }
 
-function parseAgainstSchema<TSchema extends z.ZodType>(
+export function parseAgainstSchema<TSchema extends z.ZodType>(
   schema: TSchema,
   value: unknown,
 ): z.infer<TSchema> {
@@ -123,7 +123,7 @@ export function parseUuidListFilter(value: string | null): readonly string[] | u
  * Lista separada por vírgula. Valor repetido é recusado, não deduplicado: `statusIn=draft,draft`
  * quase sempre é a tela montando a query errada, e aceitar esconderia o defeito.
  */
-function parseListFilter(value: string | null): readonly string[] | undefined {
+export function parseListFilter(value: string | null): readonly string[] | undefined {
   if (value === null) return undefined
   const values = value.split(',')
   if (values.length > LIST_FILTER_MAX_VALUES) throw invalidRequest()

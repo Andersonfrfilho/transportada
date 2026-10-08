@@ -19,10 +19,14 @@ import {
 import type { OccurrenceTypeEdit } from '@/modules/trip/shared/occurrenceTypeUpdate.service'
 import styles from '@/modules/trip/styles/occurrenceException.module.css'
 
+import { useOccurrenceMomentsDraftStore } from '../hooks/useOccurrenceMomentsDraftStore.hook'
+import { OccurrenceTypeMomentHints } from './OccurrenceTypeMomentHints.component'
+
 type OccurrenceTypeMomentsProps = Readonly<{
   disabled: boolean
   moments: readonly OccurrenceMoment[]
   onEdit: (edit: OccurrenceTypeEdit) => void
+  typeId: string
 }>
 
 function isSameMoments(
@@ -38,23 +42,35 @@ function isSameMoments(
  * tipo de grupo no meio da escolha. Conjunto vazio (ou nota e parada juntas) é recusado aqui, com o
  * motivo à vista; "Desfazer" volta ao gravado.
  */
-export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceTypeMomentsProps) {
+export function OccurrenceTypeMoments({
+  disabled,
+  moments,
+  onEdit,
+  typeId,
+}: OccurrenceTypeMomentsProps) {
   const { t } = useTranslation('companySettings')
-  const [draft, setDraft] = useState<null | readonly OccurrenceMoment[]>(null)
+  const draftStore = useOccurrenceMomentsDraftStore()
+  const [draft, setDraft] = useState<null | readonly OccurrenceMoment[]>(
+    () => draftStore.read(typeId) ?? null,
+  )
   const pending = draft !== null && !isSameMoments(draft, moments) ? draft : null
   const shown = pending ?? moments
   const problem = pending === null ? null : readOccurrenceMomentsProblem(pending)
 
   function handleChange(values: readonly string[]) {
-    setDraft(toOccurrenceMoments(values))
+    const next = toOccurrenceMoments(values)
+    draftStore.write(typeId, next)
+    setDraft(next)
   }
 
   function handleApply() {
     if (pending === null || problem !== null) return
+    draftStore.discard(typeId)
     onEdit({ moments: pending })
   }
 
   function handleUndo() {
+    draftStore.discard(typeId)
     setDraft(null)
   }
 
@@ -85,6 +101,11 @@ export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceT
         </p>
       )}
       {pending === null ? null : (
+        <p aria-live="polite" className={styles.pendingNotice} role="status">
+          {t('occurrenceTypeCatalog.moments.pending')}
+        </p>
+      )}
+      {pending === null ? null : (
         <div className={styles.momentActions}>
           <Button
             disabled={disabled || problem !== null}
@@ -101,6 +122,7 @@ export function OccurrenceTypeMoments({ disabled, moments, onEdit }: OccurrenceT
           </Button>
         </div>
       )}
+      <OccurrenceTypeMomentHints />
       <p className={styles.legend}>{t('occurrenceTypeCatalog.moments.note')}</p>
     </section>
   )

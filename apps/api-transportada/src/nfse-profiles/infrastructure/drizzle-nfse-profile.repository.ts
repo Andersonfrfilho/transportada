@@ -391,9 +391,11 @@ function toProfileColumns(
     municipalityName: settings.municipalityName,
     municipalTaxationCode: settings.municipalTaxationCode,
     name: settings.name,
+    nationalTaxationCode: settings.nationalTaxationCode,
     nbsCode: settings.nbsCode,
     observations: settings.observations,
     serviceListItem: settings.serviceListItem,
+    simplesNationalRate: settings.simplesNationalRate,
     taker: settings.taker,
   }
 }

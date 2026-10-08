@@ -1,5 +1,9 @@
 # Feature 238 — os dias úteis contam feriado e aniversário da cidade
 
+> **Emenda (2026-10-07):** o item "Importar feriados de fonte pública … nunca carga automática" do **Fora do escopo**
+> foi revogado para a FeriadosAPI pelo **ADR-0100** (spec 252). O CSV manual (P3) continua fora. O texto abaixo fica
+> como registro histórico.
+
 > **Estado:** pronta para execução (sem dúvidas bloqueantes). **Primeira da fila** (236 e 237 dependem dela).
 > Decisão do usuário (2026-10-03): o prazo de entrega conta em **dias úteis, incluindo feriados e o
 > aniversário das cidades**, e **já existe um calendário com feriados** no produto: esta spec o **reaproveita**
@@ -61,14 +65,21 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
   (`brazilianHoliday.service.ts`: fixos + Carnaval, Sexta-feira Santa, Corpus Christi por Páscoa), **sem
   mudar o comportamento que a equipe já usa** (decisão do usuário: "temos um calendário já com feriados").
   Um contrato de **paridade** garante que painel e backend dão o mesmo resultado para os mesmos anos.
-- **RF3 — Recorrência no município:** `municipal_holidays` ganha `recurrence` (`once` | `yearly`) e `kind`
-  (`holiday` | `city_anniversary`); `yearly` guarda mês e dia. Migration **aditiva**, com `rollback.sql`; linhas
-  atuais viram `once` sem mudar comportamento. A leitura expande `yearly` para o ano pedido (29/02 só em ano
-  bissexto, regra registrada).
-- **RF4 — Feriado estadual:** `state_holidays` (`company_id`, `state_code`, data ou mês/dia, nome),
-  cadastrável. Sem seed automático de estados.
-- **RF5 — Sábado:** configuração da empresa `saturday_is_business_day` (padrão `false`: segunda a sexta);
-  premissa revogável pelo operador.
+- **RF3 — Regra "todo ano" em tabela própria; `municipal_holidays` só com datas fixas** (ADR-0096 §Modelo de
+  dados, forma B1): `municipal_holiday_rules` (`company_id`, `city_ibge_code`, `month`, `day`, `kind`
+  `holiday`|`city_anniversary`, `name`, `materialized_through_year`) guarda **só** as regras "todo ano".
+  `municipal_holidays` (tabela já publicada, lida pelo roteirizador por `holiday_on`) continua guardando **só datas
+  fixas** e ganha duas colunas: `kind` (padrão `holiday`) e `source_rule_id` (nulo = digitada à mão; preenchido =
+  gerada por uma regra, apagada em cascata com ela, FK composta `(company_id, source_rule_id)`). Migration
+  **aditiva**, com `rollback.sql`, sem INSERT nem backfill: as linhas atuais viram `holiday` sem origem e nada muda
+  para o roteirizador. Ao gravar a regra, a rota (T1.3) gera as datas dos próximos **10 anos** (29/02 só nos bissextos),
+  **sem rotina agendada**; a tela avisa até que ano a regra foi gerada e oferece a ação idempotente "gerar próximos
+  anos", que avança `materialized_through_year`. A política (T1.1) segue recebendo regras `once` e `yearly`.
+- **RF4 — Feriado estadual:** `state_holidays` (`company_id`, `state_ibge_code`, `recurrence` `once`|`yearly`,
+  `holiday_on` ou `month`+`day`, `name`), cadastrável, com dois únicos parciais (um por forma) e CHECK de forma. Não é
+  materializado: o roteiro não lê feriado estadual, a política expande o `yearly`. Sem seed automático de estados.
+- **RF5 — Sábado:** `company_business_calendar_settings` (uma linha por empresa; `saturday_is_business_day`, sem
+  linha = `false`: segunda a sexta); premissa revogável pelo operador.
 - **RF6 — Resolução por cidade** (a cidade é a do destino físico, resolvida por quem chama com
   `resolvePhysicalDestination` — ADR-0096): o calendário de uma cidade = nacionais ∪ estaduais (UF do IBGE) ∪
   municipais daquela cidade. A UF sai dos dois primeiros dígitos do código IBGE.
@@ -89,7 +100,8 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 
 - Cidade sem nenhum feriado cadastrado: só nacionais + estaduais; "ausência é ausência" (ADR-0048).
 - Código IBGE inválido ou sem UF: a política recusa (erro tipado), nunca assume um calendário.
-- Feriado duplicado (mesma cidade, mesma data): idempotente (unique existente).
+- Feriado duplicado (mesma cidade, mesma data): idempotente (unique existente). Regra duplicada (mesma cidade, mesmo
+  dia) é recusada pelo unique da regra; a data gerada que colide com uma digitada à mão é ignorada, não sobrescrita.
 - Ano muito distante (>5 anos): a expansão é limitada e o excesso vira erro tipado.
 
 ## Critérios de aceite
@@ -99,7 +111,9 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
   sem o municipal (São Paulo), **2026-10-15**. Caso de contrato em tabela, linhas 1 e 2. _(Corrigido na T1.1: a
   redação anterior esquecia que 12/10 é feriado nacional e levava a 15/10; evidence.md § T1.1.)_
 - **CA2** Aniversário `yearly` vale em 2026 e 2027 sem recadastro; `once` só no ano gravado.
-- **CA3** Migration sobe e desce; `db:generate` = `no_changes`; linhas antigas continuam valendo.
+- **CA3** Migration sobe e desce; `db:generate` = `no_changes`; linhas antigas continuam valendo; no rollback as
+  datas materializadas **ficam** em `municipal_holidays` como datas fixas comuns (o roteiro as respeita) e só o que é
+  novo some.
 - **CA4** Rotas validam, recusam campo desconhecido (400) e nunca aceitam `companyId` do corpo.
 - **CA5** A tela cadastra, edita e remove; o print nos dois temas e em 375/768/1280 px é aprovado.
 - **CA6** Mutação: tirar a expansão anual, contar sábado, ignorar a UF, duplicar o feriado em fim de semana
@@ -108,5 +122,5 @@ Importar uma lista de feriados municipais de um CSV (modelo baixável), revisand
 ## Dúvidas
 
 Nenhuma bloqueante. Premissas adotadas (revogáveis, sem travar a execução): **sábado não é dia útil**
-(configurável por empresa) e **a cidade do feriado é sempre onde a carga será entregue**, o destino físico de `resolvePhysicalDestination` (decidido pelo usuário em 2026-10-06; antes constava "a do destinatário"), e **o feriado anual vira uma data fixa por ano, materializada por rotina**, para o roteirizador não mudar (ADR-0096);
+(configurável por empresa) e **a cidade do feriado é sempre onde a carga será entregue**, o destino físico de `resolvePhysicalDestination` (decidido pelo usuário em 2026-10-06; antes constava "a do destinatário"), e **o feriado anual é guardado como regra e vira uma data fixa por ano, materializada na escrita da regra (10 anos, sem rotina agendada)**, para o roteirizador não mudar (ADR-0096);
 Carnaval e Corpus Christi seguem como feriado, **como o calendário atual do painel já faz**.

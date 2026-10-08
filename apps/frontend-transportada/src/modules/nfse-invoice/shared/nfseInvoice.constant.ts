@@ -95,6 +95,7 @@ export const NFSE_INVOICE_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>
   NFSE_INVOICE_REQUEST_FAILED: 'requestFailed',
   NFSE_INVOICE_RESPONSE_INVALID: 'responseInvalid',
   NFSE_ISS_RATE_OUT_OF_RANGE: 'issRateOutOfRange',
+  NFSE_NATIONAL_TAXATION_CODE_MISSING: 'nationalTaxationMissing',
 }
 
 export const NFSE_INVOICE_KEYS = [
@@ -143,7 +144,10 @@ export const NFSE_LAST_ISSUANCE_PAYLOAD_KEYS = [
   'takerTaxId',
 ] as const
 
-/** Os nove campos que a reemissão pode corrigir — o resto do payload congelado é somente leitura. */
+/** O par nacional só existe no payload congelado das notas emitidas depois da Nota RP v3. */
+export const NFSE_NATIONAL_TAXATION_KEYS = ['nationalTaxationCode', 'simplesNationalRate'] as const
+
+/** Os onze campos que a reemissão pode corrigir — o resto do payload congelado é somente leitura. */
 export const NFSE_REISSUE_CORRECTABLE_KEYS = [
   'cnaeCode',
   'description',
@@ -152,8 +156,10 @@ export const NFSE_REISSUE_CORRECTABLE_KEYS = [
   'issWithheld',
   'municipalTaxationCode',
   'municipalityIbgeCode',
+  'nationalTaxationCode',
   'nbsCode',
   'serviceListItem',
+  'simplesNationalRate',
 ] as const
 
 export const NFSE_INVOICE_DELIVERY_KEYS = [
@@ -250,6 +256,13 @@ export const NFSE_REISSUE_SUMMARY_KEYS = [
   'payloadSha256',
   'replayed',
   'requestedAt',
+  'status',
+] as const
+
+export const NFSE_EXTERNAL_LINK_SUMMARY_KEYS = [
+  'attemptId',
+  'invoiceId',
+  'replayed',
   'status',
 ] as const
 

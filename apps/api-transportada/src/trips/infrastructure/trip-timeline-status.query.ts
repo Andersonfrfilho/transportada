@@ -25,6 +25,7 @@ import {
   constantPriority,
   formatTimelineTimestampKey,
   timelineActorMembership,
+  timelineActorIsSystem,
   timelineActorProfile,
   timelineIndexablePredicate,
   timelineKeysetCondition,
@@ -56,6 +57,7 @@ export async function listDispatchedRows(
   const rows = await queryable
     .select({
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       id: tripDispatchSnapshots.id,
       occurredAt: tripDispatchSnapshots.dispatchedAt,
       occurredAtKey: formatTimelineTimestampKey(tripDispatchSnapshots.dispatchedAt),
@@ -82,6 +84,7 @@ export async function listDispatchedRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: null,
     closeReason: null,
     document: null,
@@ -129,6 +132,7 @@ export async function listStatusChangedRows(
     .select({
       accuracyMeters: tripStatusEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       capturedAt: tripStatusEvents.capturedAt,
       channel: tripStatusEvents.channel,
       closeReason: trips.closeReason,
@@ -172,6 +176,7 @@ export async function listStatusChangedRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     /**
      * Spec 158 T12: `trips.close_reason` só descreve o encerramento manual — em qualquer outro
@@ -229,6 +234,7 @@ export async function listCreatedRows(
     .select({
       accuracyMeters: tripStatusEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       capturedAt: tripStatusEvents.capturedAt,
       channel: tripStatusEvents.channel,
       id: tripStatusEvents.id,
@@ -257,6 +263,7 @@ export async function listCreatedRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     document: null,

@@ -52,6 +52,17 @@ export class NfseInvoiceTransitionBlockedError extends ApiError {
   }
 }
 
+/** O `id_nota` é do provedor e único por empresa: ligar o mesmo a duas notas faria o status pull autorizar as duas. */
+export class NfseProviderDocumentAlreadyLinkedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED',
+      message: 'The provider document is already linked to another service invoice.',
+      status: CONFLICT_STATUS,
+    })
+  }
+}
+
 export class NfseIdempotencyKeyReusedError extends ApiError {
   public constructor() {
     super({
@@ -173,6 +184,22 @@ export class NfseInvoiceCreateSpansMultipleTakersError extends ApiError {
       message:
         'The selected documents resolve to more than one taker; create one invoice per taker.',
       status: UNPROCESSABLE_STATUS,
+    })
+  }
+}
+
+/**
+ * Na API v3 da Nota RP o código de tributação nacional e a alíquota do Simples seguem no payload, e a
+ * prefeitura recusa a nota sem eles. Barrar na criação evita uma nota que nasce condenada à recusa
+ * assíncrona — e a correção está no perfil ou no corpo da reemissão.
+ */
+export class NfseNationalTaxationCodeMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'NFSE_NATIONAL_TAXATION_CODE_MISSING',
+      message:
+        'The national taxation code and the Simples Nacional rate are required by the provider API version in use.',
+      status: CONFLICT_STATUS,
     })
   }
 }

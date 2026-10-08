@@ -10,7 +10,8 @@
     "driverAllowance": "Diária do motorista",
     "entryKinds": "Espécies de lançamento",
     "quickReplies": "Respostas rápidas",
-    "settingsResolution": "Verificar configuração"
+    "settingsResolution": "Verificar configuração",
+    "businessCalendar": "Calendário"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -284,6 +285,16 @@
     "title": "Tipos de ocorrência",
     "hint": "Cada tipo declara em que momentos pode ser registrado e o que exige de prova. A exceção por CNPJ vence a regra geral: destinatário primeiro, depois contratante. O aviso ao contratante só sai nos tipos marcados.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "created": "Tipo criado. Configure o que ele exige e o e-mail abaixo.",
+    "groupCount_one": "{{count}} tipo",
+    "groupCount_other": "{{count}} tipos",
+    "hiddenFields": {
+      "itemsOff": "Reentrega e “Aceita vários itens” só aparecem quando Produtos está Opcional ou Obrigatório.",
+      "separationOnly": "“A viagem segue sem a nota” só existe para tipos registrados no galpão (momento Separador): na rua a nota não sai da viagem."
+    },
+    "loading": "Carregando tipos…",
+    "loadError": "Não foi possível carregar os tipos de ocorrência. A lista pode não estar vazia: tente de novo.",
+    "retry": "Tentar de novo",
     "add": "Cadastrar tipo",
     "name": "Nome do tipo",
     "stage": "Onde acontece",
@@ -294,7 +305,6 @@
     "emailTemplate": "Modelo de e-mail",
     "emailTemplateNone": "Sem e-mail",
     "editTemplates": "Editar modelos de e-mail",
-    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "allowsMultipleItems": "Aceita vários itens",
     "itemsMode": "Produtos",
@@ -338,10 +348,11 @@
       "contractorsFailed": "Não foi possível carregar os contratantes, então a exceção por contratante não pode ser criada agora. Recarregue a página para tentar de novo.",
       "allClientsUsed": "Não há cliente cadastrado sem exceção neste tipo.",
       "inheritMode": "Igual ao tipo",
+      "recordNote": "A exceção muda só as exigências do número e do valor pago. Rótulos e e-mail são do tipo.",
       "photo": "Foto",
       "photoMinimum": "Mínimo de fotos",
       "itemsMinimum": "Produtos exigidos",
-      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra.",
+      "itemsMinimumBlocked": "O mínimo de produtos só vale quando Produtos é Obrigatório nesta exceção.",
       "readOnly": "Sem permissão para alterar as exceções.",
       "add": "Adicionar exceção",
       "remove": "Remover",
@@ -351,7 +362,23 @@
       "title": "Identificação",
       "name": "Nome",
       "redelivery": "Devolução",
-      "flow": "Registro"
+      "flow": "Registro",
+      "icon": {
+        "title": "Ícone do tipo",
+        "none": "Sem ícone",
+        "names": {
+          "alert": "Alerta",
+          "camera": "Câmera",
+          "clipboard-list": "Lista de conferência",
+          "clock": "Relógio",
+          "document": "Documento",
+          "invoice": "Nota fiscal",
+          "message": "Mensagem",
+          "money": "Dinheiro",
+          "package": "Pacote",
+          "truck": "Caminhão"
+        }
+      }
     },
     "create": {
       "title": "Novo tipo"
@@ -360,13 +387,15 @@
       "scope": "regra geral",
       "title": "O que exige",
       "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos são os itens da nota que a ocorrência aponta.",
-      "mixedScope": "As exigências abaixo valem só nos momentos de rua (entrega da nota e chegada à parada). No galpão a regra é fixa.",
-      "stopOnlyScope": "Na chegada à parada só a foto é cobrada: observação, assinatura e produtos valem na entrega da nota.",
+      "mixedScope": "As exigências abaixo valem só quando o motorista registra (Motorista, numa nota e Motorista, na parada). No galpão a regra é fixa.",
+      "stopOnlyScope": "Em Motorista, na parada só a foto é cobrada: observação, assinatura e produtos valem em Motorista, numa nota.",
       "fields": {
         "photo": "Foto",
         "note": "Observação",
         "signature": "Assinatura",
-        "items": "Produtos"
+        "items": "Produtos",
+        "referenceNumber": "Número do documento do cliente",
+        "declaredAmount": "Valor pago"
       },
       "modes": {
         "off": "Desligado",
@@ -377,7 +406,20 @@
         "photo": "Vale para o registro do motorista na rua. Desligado: não pede foto. Opcional: ele pode anexar. Obrigatório: a ocorrência só sai com a quantidade mínima de fotos.",
         "note": "Desligado: o campo de observação não aparece. Opcional: o motorista pode escrever. Obrigatório: a ocorrência só sai com o texto preenchido.",
         "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
-        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado."
+        "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado.",
+        "referenceNumber": "Desligado: a tela de registro não pede. Opcional: pede e aceita vazio. Obrigatório: o botão de registrar só libera com o número preenchido (ex.: o da NFD da loja).",
+        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e."
+      },
+      "record": {
+        "referenceLabel": "Rótulo do número na tela de registro",
+        "amountLabel": "Rótulo do valor na tela de registro",
+        "scope": "Onde se digita o valor pago",
+        "scopeTitle": "Digitado",
+        "scopes": {
+          "item": "Por linha de produto",
+          "occurrence": "Um só, pela ocorrência"
+        },
+        "amountWithoutItems": "Valor pago por linha precisa de produtos: com Produtos desligado não há linha onde digitar. Escolha \"Um só, pela ocorrência\" em Digitado, ou ligue Produtos. Nada foi gravado."
       },
       "photoMinimum": {
         "label": "Quantidade mínima de fotos",
@@ -388,7 +430,8 @@
         "all": "Todos os itens da nota",
         "atLeast": "Ao menos N itens",
         "count": "Quantidade mínima de produtos",
-        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total. O app do motorista só marca “A nota inteira”, então “Ao menos N” ainda não muda o que ele cobra: não configure uma regra que o aparelho não cumpre."
+        "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total: o app do motorista só libera o registro com todos os produtos marcados. Ao menos N libera com N produtos marcados.",
+        "allItemsHint": "Sem mínimo, o motorista marca todos os produtos da nota. Defina \"Ao menos N\" para aceitar devolução parcial."
       }
     },
     "summary": {
@@ -412,34 +455,72 @@
         "required": "{{field}}: obrigatório"
       }
     },
+    "mail": {
+      "title": "E-mail à contratante",
+      "switch": "Mandar e-mail à contratante da nota ao registrar",
+      "save": "Salvar e-mail",
+      "undo": "Desfazer",
+      "fields": {
+        "subject": "Assunto",
+        "body": "Corpo",
+        "itemLine": "Linha de cada produto"
+      },
+      "markers": {
+        "subject": "Marcadores do assunto — toque num para inserir onde o cursor está.",
+        "body": "Marcadores do corpo — toque num para inserir onde o cursor está.",
+        "itemLine": "Marcadores da linha de cada produto — toque num para inserir onde o cursor está."
+      },
+      "markerOverflow": "O marcador não coube: este campo já está no limite de {{max}} caracteres. Apague um trecho e tente de novo.",
+      "unknownMarker_one": "Este marcador não existe neste campo: {{markers}}. Use um da lista abaixo; nada foi gravado.",
+      "unknownMarker_other": "Estes marcadores não existem neste campo: {{markers}}. Use os da lista abaixo; nada foi gravado.",
+      "preview": {
+        "title": "Prévia · dados de exemplo",
+        "recipient": "Para: contatos da contratante da nota que recebem ocorrências",
+        "loading": "Gerando a prévia…",
+        "failed": "Não foi possível gerar a prévia. O que você digitou continua aqui; tente de novo em instantes.",
+        "blocked": "Corrija o marcador para ver a prévia.",
+        "automatic": "Sai automaticamente quando o tipo é registrado.",
+        "manual": "Desligado: o operador manda pela conversa da ocorrência, se quiser.",
+        "noSubject": "Sem assunto o e-mail automático não sai.",
+        "linesWithoutItems": "Este tipo está sem produtos: onde houver {{marker}} o e-mail sai sem linhas."
+      }
+    },
     "moments": {
-      "title": "Em que momento pode acontecer",
+      "title": "Quem registra, e onde",
       "placeholder": "Escolha os momentos",
       "searchPlaceholder": "Buscar momento",
       "empty": "Nenhum momento encontrado.",
       "clearAll": "Limpar momentos",
       "remove": "Tirar momento {{label}}",
+      "pending": "Mudança nos momentos ainda não aplicada — clique em Aplicar momentos para valer.",
       "apply": "Aplicar momentos",
       "undo": "Desfazer",
       "summary": "{{count}} momentos",
       "labels": {
-        "separation": "Separação no galpão",
-        "document": "Entrega da nota",
-        "stop": "Chegada à parada",
+        "separation": "Separador, no galpão",
+        "document": "Motorista, numa nota",
+        "stop": "Motorista, na parada",
         "office": "Escritório, pelo motorista"
       },
-      "note": "Observação, assinatura, produtos e fotos valem só nos momentos de rua (Entrega da nota e Chegada à parada). Nos outros momentos a regra é fixa.",
+      "hints": {
+        "separation": "Caixa amassada achada na conferência, antes de a carga sair.",
+        "document": "Na frente do cliente: o mercado devolveu dois fardos daquela NF.",
+        "stop": "Sobre o lugar, sem nota: portão fechado.",
+        "office": "O operador registra no painel em nome dele."
+      },
+      "hintsTitle": "O que cada um quer dizer",
+      "note": "Observação, assinatura, produtos e fotos valem só quando o motorista registra (Motorista, numa nota e Motorista, na parada). Nos outros momentos a regra é fixa.",
       "problem": {
         "empty": "Escolha ao menos um momento: sem nenhum o tipo não aparece para ninguém, então nada foi gravado.",
-        "documentAndStop": "Entrega da nota e Chegada à parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado."
+        "documentAndStop": "Motorista, numa nota e Motorista, na parada não podem estar juntas no mesmo tipo: o aplicativo do motorista mostraria o tipo duas vezes. Nada foi gravado."
       }
     },
     "notification": {
-      "title": "Notificação",
+      "title": "Aviso interno",
       "template": "Modelo da notificação",
-      "templateHint": "O e-mail que o contratante recebe quando este tipo é registrado. O texto se edita em Notificações; aqui só se escolhe qual modelo vale.",
+      "templateHint": "Aviso a quem despachou a viagem, pelo módulo de Notificações. O texto se edita em Notificações; aqui só se escolhe qual modelo vale. O e-mail à contratante se configura no bloco acima.",
       "subject": "Assunto:",
-      "disabledReason": "O modelo só vale quando o tipo avisa o contratante. Ligue \"Avisar quando acontecer\" para escolher.",
+      "disabledReason": "O modelo só vale quando o tipo avisa quem despachou a viagem. Ligue \"Avisar quando acontecer\" para escolher.",
       "loading": "Carregando os modelos de e-mail…",
       "failed": "Não foi possível carregar os modelos de e-mail. O modelo atual segue valendo; recarregue a página para tentar de novo.",
       "missing": "O modelo \"{{key}}\" não está mais ativo, então nenhum e-mail sai por ele. Escolha outro modelo."
@@ -462,12 +543,6 @@
         "other": "E ainda"
       },
       "chips": {
-        "moment": {
-          "separation": "Separação no galpão",
-          "document": "Entrega da nota",
-          "stop": "Chegada à parada",
-          "office": "Escritório"
-        },
         "requirement": {
           "photo": "Foto",
           "note": "Observação",

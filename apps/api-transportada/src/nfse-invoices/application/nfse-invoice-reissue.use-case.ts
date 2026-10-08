@@ -6,8 +6,14 @@ import {
   NFSE_INVOICE_ACTION,
   checkNfseInvoiceTransition,
 } from '../domain/nfse-invoice-state.policy.js'
+import type { NfseProviderApiVersion } from '../../shared/nfse-provider-api-version.constant.js'
 import { applyNfseIssuanceCorrection } from '../domain/nfse-issuance-correction.policy.js'
 import type { NfseInvoiceCorrectionInput } from '../domain/nfse-issuance-correction.policy.js'
+import {
+  requiresNationalTaxation,
+  resolveNationalTaxation,
+} from '../domain/nfse-national-taxation.policy.js'
+import { resolveInheritedProviderRequestKey } from '../domain/nfse-provider-request-key.policy.js'
 import {
   NfseIdempotencyKeyReusedError,
   NfseInvoiceNotFoundError,
@@ -65,9 +71,10 @@ export type NfseInvoiceReissueUseCase = {
  */
 export function createNfseInvoiceReissueUseCase(dependencies: {
   readonly now: () => Date
+  readonly providerApiVersion?: NfseProviderApiVersion
   readonly repository: NfseInvoiceRepositoryPort
 }): NfseInvoiceReissueUseCase {
-  const { now, repository } = dependencies
+  const { now, providerApiVersion, repository } = dependencies
 
   return {
     async execute(input) {
@@ -95,6 +102,7 @@ export function createNfseInvoiceReissueUseCase(dependencies: {
           invoice,
           nextStatus,
           now,
+          providerApiVersion,
           requestFingerprint,
           transaction,
         })
@@ -169,6 +177,7 @@ async function requestReissue({
   invoice,
   nextStatus,
   now,
+  providerApiVersion,
   requestFingerprint,
   transaction,
 }: {
@@ -178,6 +187,7 @@ async function requestReissue({
   readonly invoice: NfseInvoiceCancellationTarget
   readonly nextStatus: NfseServiceInvoiceStatus
   readonly now: () => Date
+  readonly providerApiVersion: NfseProviderApiVersion | undefined
   readonly requestFingerprint: string
   readonly transaction: NfseInvoiceTransactionPort
 }): Promise<NfseInvoiceReissueSummary> {
@@ -187,6 +197,10 @@ async function requestReissue({
     previousPayloadSha256: frozen.payloadSha256,
     ...(input.correction === undefined ? {} : { correction: input.correction }),
   })
+  if (requiresNationalTaxation(providerApiVersion)) resolveNationalTaxation(corrected.payload)
+  const inheritedProviderRequestKey = resolveInheritedProviderRequestKey(
+    await transaction.findLatestIssueAttempt({ invoiceId: invoice.invoiceId }),
+  )
 
   await transaction.markIssuing({
     invoiceId: invoice.invoiceId,
@@ -205,13 +219,16 @@ async function requestReissue({
     idempotencyKey: input.idempotencyKey,
     invoiceId: invoice.invoiceId,
     requestFingerprint,
+    ...(inheritedProviderRequestKey === undefined
+      ? {}
+      : { providerRequestKey: inheritedProviderRequestKey }),
   })
   await transaction.savePayload({
     attemptId: attempt.attemptId,
     invoiceId: invoice.invoiceId,
     payload: corrected.payload,
     payloadSha256: corrected.payloadSha256,
-    providerConfig: buildNfseProviderConfig(credential),
+    providerConfig: buildNfseProviderConfig(credential, providerApiVersion),
   })
   await scheduleNfseIssuance({
     attemptId: attempt.attemptId,

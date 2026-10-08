@@ -1365,3 +1365,145 @@ detalhe da prévia por e-mail quebrava igual.
   ⚠️ Na tabela empilhada o conteúdo da célula precisa de **um** filho (`<div>`): dois filhos viram dois itens do `grid` da célula e o
   selo cai sob o rótulo da coluna (medido no print; `readBadgeMisalignment` no spec de prints).
 - Prints: `test/spec-237-previa-origem-prints.smoke.spec.ts` (fora da CI), `prints/previa-origem-email-{lista,detalhe}-*`.
+
+## Spec 237 T4.6b — a seção "Prévia por e-mail" da ficha do contratante (2026-10-07; ainda não publicada)
+
+`PreviewEmailPanel` (`delivery-clients/components/`), montada por `ContractorFicha` **só com `canManage`** (= `settings.manage`; a API também
+exige para ler). Fala com **rotas novas** (`GET|PUT …/receiving-profile/preview-email`, `POST …/inbound-token`, `GET …/email-intakes`) por um
+cliente próprio (`previewEmailClient.service.ts`, `getPreviewEmailClient`); o perfil (`receiving-profile`) **não ganhou chave** e o `PUT` do perfil
+segue com as 10 chaves. `requestContractorApi` passou a aceitar `POST`.
+
+- **Estado:** `PreviewEmailStatus` ("Sem endereço de entrada" × "Endereço ativo desde …"; o endereço nunca aparece aqui).
+- **Listas:** `PreviewEmailAllowlistsForm` + `PreviewEmailListField` (uma entrada por linha). `previewEmailAllowlist.validation.ts` é cópia por
+  valor das regras da API (corpus idêntico nos dois testes) e devolve um erro **por entrada**, que o campo nomeia (`aria-invalid` +
+  `aria-describedby`). Recusa do servidor: `RefusedFieldsHint` com os rótulos `fields.forwarderAllowlist|senderAllowlist` (`receivingRefusal.service`
+  resolve `forwarderAllowlist.2` para a lista, não para o índice).
+- **Endereço:** `usePreviewEmailAddress` — primeira geração direta; trocar um ativo pede confirmação ("o endereço anterior deixa de valer").
+  `PreviewEmailGeneratedAddress` mostra o endereço completo **uma vez**, com `CopyButton` (alvo de 44 px) e o aviso "mostrado só agora".
+  ⚠️ **O token só existe em `mutation.data`**, com `gcTime: 0`, e `dismiss`/desmontar chamam `reset()`: nunca `localStorage`, URL, console nem
+  estado local. O contrato `preview-email-panel` varre o armazenamento, a URL e o console, e o cache de mutações.
+- **Recusas recentes:** `PreviewEmailIntakes` (+ `Row`), tabela que vira cartão abaixo de 40 rem (`data-label`); motivo traduzido para **todos** os
+  16 códigos do CHECK (`previewEmail.locale.json`, namespace próprio; contrato de rótulos pt/en e de paridade com a constante da API); código novo
+  da API passa como veio. O link da prévia aceita (`/recebimento/previas/<id>`, cópia por valor da rota) navega sem recarregar.
+- **Testes:** pure `test/delivery-clients/preview-email-{client,allowlist,locales}.contract.ts`; DOM `test/trip-hooks/preview-email-{panel,ficha}.contract.ts`
+  com `previewEmailHarness.helper.ts` (o `mock.module` do cliente novo é instalado uma vez e o harness da ficha o reaproveita). ⚠️ Os ganchos
+  `beforeEach/afterEach` do arquivo vivem **dentro** dos `describe` (os contratos de DOM entram numa suíte só).
+- **Prints:** `test/spec-237-previa-email-prints.smoke.spec.ts` (fora da CI; build com `VITE_SMOKE_AUTH_BYPASS=true` e o preview **precisa** das
+  `VITE_*` no ambiente também — a CSP nasce no `vite preview`), `prints/previa-email-{ficha,listas,token,rotacao,recusas}-*`.
+
+## Spec 247 — Tipos, correção e acerto com número e valor pago (ainda não publicada)
+
+**Aba Tipos.** `OccurrenceTypeRecordFields`/`OccurrenceTypeRequirementFields` (número do documento e valor pago: modo, rótulo, escopo; exceções com "Igual ao tipo"),
+`OccurrenceTypeContractorMail` + `MailFields`/`MailMarkers`/`MailPreview` (interruptor, assunto, corpo, linha de item, marcadores clicáveis, prévia do servidor com
+`debounce`), `OccurrenceTypeNotification` agora "Aviso interno". Rótulos de momento "Quem registra, e onde" (locale; o contrato procura o rótulo no controle).
+O rascunho do e-mail só some quando o salvar pousa; marcador que estoura o teto é dito em `role="status"`.
+
+**Correção e acerto.** `TripOccurrenceCorrectionForm` + `OccurrenceCorrectionAmounts*`: lê `requirements` do detalhe (N1/N2); `off` esconde, `required` sem "Limpar" e Salvar
+bloqueia se esvaziar; `useOccurrenceTypeRecordConfig` (exige `settings.manage`) só quando `requirements` falta. Soma da linha usa o `unitValue` copiado em `itemValues`
+(N9); máscara de 12 dígitos com `AmountLimitNotice`. `OccurrenceSettlementPanel` sugere o valor pago, senão a soma (`manual`/`nfe`), só onde existe tratativa.
+
+**Parsers e golden.** `isFieldOccurrenceType`/`isSettingsResolutionView` ganharam as chaves como opcionais (etapa tolerante, T1.1/1b); o guard do detalhe
+(`tripOccurrenceRequirements.validation.ts`) recusa forma errada e tolera `null`. `test/fixtures/occurrence-detail-values.golden.json` é cópia idêntica da API.
+
+**Verificado:** por texto no navegador (Vite 53010, API dublada) em 375/768/1280, sem estouro. **Não verificado:** a dica N14 só por contrato; nenhum `make smoke`.
+
+## Spec 236 T1.2b — o painel aceita o prazo de entrega antes da API o mandar
+
+`TripDocumentDetail.deliveryDeadline?: TripDocumentDeliveryDeadline | null` (`trip.types.ts`) é o prazo de entrega da nota: cinco estados
+(`on_time`, `due_today`, `overdue`, `delivered_on_time`, `delivered_late`), cada um com as **chaves exatas** do estado
+(`TRIP_DELIVERY_DEADLINE_KEYS_BY_STATE`) e `dueOn`/`deliveredOn` como data civil `YYYY-MM-DD` (nunca instante: `new Date('2026-10-15')` vira
+14/10 em São Paulo). `not_applicable` da API chega como `null`. **Esta task não renderiza nada**: o selo e o filtro são a Fase 2.
+
+⚠️ **A guarda mora em `isDocumentDetail` e o campo entra em `TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS`, mas isso sozinho derrubaria a nota.** O leitor
+tolerante (`readTolerantRecord`) cai para só os obrigatórios quando QUALQUER opcional vem fora da forma, e `contact`, `proofPending`, `volumeCount`…
+sumiriam juntos. Por isso `readTolerantDocumentDetail` passa antes por `dropMalformedDeliveryDeadline`
+(`tripDeliveryDeadline.validation.ts`), que tira só `deliveryDeadline` quando malformado. O campo vai **só** no detalhe, nunca no `TripDocument` (chaves
+exatas: uma chave nova o derrubaria). Contrato: `test/trip/delivery-deadline-tolerance.contract.ts`, com o JSON de referência
+`test/fixtures/trip-document-delivery-deadline.golden.json` (cópia idêntica da API, conferida lá). **Ordem de publicação: este painel antes da API.**
+
+## Spec 236 Fase 2 — o selo do prazo de entrega e o filtro "vencidas / vencem hoje"
+
+**O selo** (`TripDeliveryDeadlineBadge`, `data-part="delivery-deadline"`, `data-state`, `data-tone`) mora na linha da nota, logo depois do selo
+de situação, no mesmo molde dele (altura `--control-height-dense`, borda, `--font-utility`, caixa-alta). O texto sai do bloco `deliveryDeadline.label`
+do `trip.locale.json`/`trip.en.locale.json` pela chave que `resolveDeliveryDeadlineView` devolve (`tripDeliveryDeadlineView.service.ts`, função
+pura): singular/plural por `_one`/`_other`, e **atraso de zero dia útil é "Vencida"/"Entregue fora do prazo", nunca "0 dias"**. Tom: `on_time`
+neutro, `due_today` e `delivered_late` cobre, `overdue` alerta, `delivered_on_time` verde. A data é só a dica do design system (`Tooltip`) e um
+trecho para leitor de tela dentro do selo; na nota aberta ela entra no "Dados da nota" (`TripDocumentDeadlineField`, campo "Prazo de entrega"), e
+o estado **não se repete** ali (mesma regra do comprovante, spec 233 D4). O selo não é botão, não leva foco e não muda ação nem ordem.
+
+⚠️ **`dueOn` é data civil.** `formatDeliveryDeadlineDate` separa a string em partes (pt-BR `dd/mm/aaaa`, en `mm/dd/aaaa`); nunca `new Date(texto)`.
+O contrato `delivery-deadline-view.contract.ts` roda o formatador em subprocessos com `TZ` em São Paulo, Kiritimati (+14) e Pago Pago (-11).
+
+⚠️ **Tinta do alerta.** `--color-alert` sobre o próprio fundo diluído media 4,11:1 no tema claro (reprovado, achado na revisão de design). Nasceu
+`--color-alert-ink` (`#ff6b63` escuro, `#a92f27` claro) no `index.css`, nos três blocos de tema, igual às demais tintas `-ink`.
+
+**O filtro** (`TripDeliveryDeadlineFilter`, `useTripDeliveryDeadlineScope`) é **no cliente**, na lista de notas do detalhe da viagem: o prazo
+depende do calendário e não vira filtro paginado. Seleção múltipla (união) com cinco opções — Vencidas, Vencem hoje, No prazo, Entregues
+(no prazo ou com atraso) e Sem prazo (`null` e campo ausente) —, cada uma com a contagem; só aparece quando alguma nota da viagem tem prazo;
+"Limpar filtros" só com filtro ativo. A escolha vai na URL (`?deadline=overdue,due_today`, ordem canônica, escrita no próprio gesto, resto da URL
+e hash preservados; `popstate` relê, porque a página não remonta ao trocar de viagem). **Não muda a rota nem a ordem**: as paradas ficam todas
+(a sem nota no filtro diz "Nenhuma nota desta parada corresponde ao filtro."), o contador da parada vira "1 de 2 notas", e "marcar todas"
+(da viagem e da parada) alcança só as notas à mostra — marcar e emitir CT-e de nota escondida seria agir às cegas. **Não há filtro na lista de
+viagens** (decisão aberta com o usuário). Seleção feita antes do filtro continua valendo para as notas que ele escondeu.
+
+Contratos: `test/trip/delivery-deadline-{view,filter,wiring}.contract.ts`, `test/trip-hooks/delivery-deadline-{badge,filter}.contract.ts`
+(fixture `test/fixtures/tripDeliveryDeadline.fixture.ts`). ⚠️ `beforeEach`/`afterEach` no topo de um contrato importado pelo `test:hooks` valem para a suíte
+**inteira**: os dois contratos novos guardam os ganchos dentro de um `describe` (um `resetLocation` no topo vazou `/trips/trip-1` para outro contrato).
+Smoke/prints (fora da CI): `test/spec-236-prazo-prints.smoke.spec.ts` com o modo `delivery-deadline` de `trip-smoke.helper.ts`.
+
+## Spec 238 Fase 2 — o calendário de dias úteis em Configurações (2026-10-07)
+
+Aba **Calendário** de `/company-settings` (`?tab=businessCalendar`), `BusinessCalendarPanel` (autocontido, como `SettingsResolutionPanel`): sábado, feriados
+municipais (com o aniversário da cidade) e feriados estaduais, sobre as rotas da T1.3 (ADR-0096 §6). Só com `settings.manage`
+(`resolveVisibleCompanySettingsTabs`: sem a permissão não há aba, e o painel, se montado sem ela, não faz chamada alguma). Arquivos novos em
+`modules/company-settings/` — `queries/useBusinessCalendar.query.ts`, `mutations/*.mutation.ts`, `hooks/useMunicipalHolidaySection|useStateHolidaySection|
+useSaturdaySetting|useHoliday{Draft,Table,Delete,Feedback}|useMaterialization…`, `components/` (um por responsabilidade), `shared/businessCalendar*.service|validation.ts`,
+`locales/businessCalendar{,.en}.locale.json` (namespace próprio `businessCalendar`, registrado em `i18n.service.ts`) e `styles/businessCalendar.module.css`.
+
+**Decisões.**
+
+- **Guardas de chaves exatas** com o formato real das respostas (`test/fixtures/businessCalendar.fixture.ts` copia o `*.schema.ts` da API): regra `POST` com 9 chaves,
+  `GET`/`PATCH` com `typedHolidaysKept`; data fixa com 6, `POST` com `adoptedFromRuleId`; estadual em duas formas (`once` com `holidayOn`, `yearly` com `month`/`day`);
+  configuração do sábado com `origin`/`updatedAt`. O envelope `{ data }` também é exato (lista sem `pagination`).
+- **A linha é a regra, não as datas geradas.** `buildMunicipalRows` descarta `generatedByRuleId !== null`: a regra aparece como "Todo ano, 14/07 — gerado até 2036" e as 11
+  datas dela nunca são linhas — não há como editar/apagar uma gerada pela tela (o 409 `MUNICIPAL_HOLIDAY_GENERATED_BY_RULE` existe no rótulo para a corrida entre duas abas).
+- **Município pelo IBGE.** UF (`Select` com busca) → município (`SearchableSelect`, lista do `municipality.service` por sigla, via `getMunicipalityDirectory`). Lista fora do ar
+  não para o cadastro: campo de código IBGE (7 dígitos). A tabela lê o nome da cidade da mesma lista (uma consulta por UF presente); sem ela mostra o código.
+- **Edição no mesmo formulário.** Regra: UF/município/recorrência travados, mês+dia vão juntos quando um muda. Data fixa: cidade e data viram texto, só nome e tipo. Estadual: UF e
+  recorrência travadas, `PATCH` com `recurrence`. "Salvar alterações" espera mudança (`hasMunicipalChanges`/`hasStateChanges`).
+- **Avisos que a API não diz sozinha:** `adoptedFromRuleId` → "Esta data agora é sua…"; `typedHolidaysKept` do `PATCH` (só quando mês/dia mudaram) e a contagem da regra na
+  confirmação de excluir (o `DELETE` é 204 sem corpo, a contagem vem do `GET`). `POST` idêntico (200) → "já estava cadastrada".
+- **Horizonte (risco 6 do plano):** `hasShortMaterializationHorizon` (`materializedThroughYear < ano corrente + 2`, ano de São Paulo) liga o aviso e a ação "Gerar próximos anos". O
+  aviso fixo do roteiro usa o MENOR "gerado até"; sem regra, o que uma regra nova geraria (ano corrente + 10).
+- **Tabela (`web.md` §7).** Cabeçalho asc→desc→neutro (`aria-sort`), filtros múltiplos (tipo — só município —, recorrência, UF), "Limpar filtros" só com critério, contagem
+  "N de M" com filtro, página de 10, tudo na URL com prefixo `municipal…`/`state…` (o `tab` fica), zebra por CSS, cartão abaixo de 40 rem (`data-label`). Sem seleção em lote: não há ação em lote
+  definida (excluir exige a confirmação que diz o efeito).
+- **Recusa nomeando todos os campos** (`web.md` §11): `describeBusinessCalendarRefusal` deduplica por campo, `fields.<nome>` é o rótulo impresso e campo desconhecido sai cru; o atalho
+  rola/foca o `[data-field]` do bloco. Erro de campo é do campo (`aria-invalid` + `aria-describedby`) e some ao editar. Texto de TODO código (T1.3, política 422, transporte, 403/429)
+  em `errors.*`, travado por `locale.contract.ts`.
+- **Diálogo de exclusão** segue o molde tela-cheia no celular (`modal-dialog-fullscreen.contract.ts`, que ganhou a linha dele).
+
+**Limites.** `GET /municipal-holidays` exige `fleet.read` (a T1.3 manteve): quem tem só `settings.manage` vê a falha da lista municipal dita na tela, não a tabela. Não há OpenAPI (ADR-0096 §6).
+O painel não importa nada de `fleet` além de `municipality.service` (a lista de municípios do IBGE).
+
+**Contratos.** `test/business-calendar/*.contract.ts` (guardas, cliente, formulário, corpo, recusa, tabela, horizonte, locale — `bun test ./test/business-calendar.contract.test.ts`) e
+`test/trip-hooks/business-calendar-*.contract.ts` (DOM: sábado, permissão, cadastro, validação, recusa, edição, exclusão, horizonte+adoção, estadual, tabela), todos sobre
+`businessCalendarClientMocks.helper.ts` — a API dublada com as MESMAS transições da T1.3 (gera 11 datas, a digitada vence, adoção, 409 na gerada). Em teste de DOM o `Select` só abre com `stubVisibleLayout()`.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+**Aba Tipos.** `OccurrenceTypeIconPicker` (grade de botões com `aria-label`, mais "Sem ícone"), dentro do bloco de identificação
+(`OccurrenceTypeIdentity`/`OccurrenceTypeRecordFields`); `iconName` segue o PUT (`occurrenceTypeUpdate.service.ts`): ausente mantém, `null` limpa.
+`OccurrenceTypeIcon` é o único ponto que desenha: só nome do catálogo vira `<Icon>` decorativo (`aria-hidden`); nulo, ausente ou desconhecido devolve `null`,
+então o markup de quem não tem ícone é idêntico ao de antes (CA1).
+
+**Catálogo.** `shared/occurrenceTypeIcon.constant.ts` é cópia por valor de `OCCURRENCE_TYPE_ICON_NAMES` da API (nenhuma app importa outra); o contrato
+`occurrence-type-icon-catalog.contract.ts` lê a lista da API **como texto** e a confere com a cópia e com `ICON_PATHS` de `components/ui/icon.tsx`. Os glyphs
+são os mesmos do app do motorista (mesmo traçado, ADR-0075 §7).
+
+**Cartão.** `TripOccurrences` mostra o ícone antes do nome do tipo (`typeIconName` da ocorrência, `.occurrenceEntryTypeIcon`), com e sem link. Linha do tempo
+e feed não mostram (`typeName` ali é referência de chave exata).
+
+**Guards.** `iconName` entrou **opcional** no tipo do escritório, em `isFieldOccurrenceType` (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`) e em
+`SETTINGS_RESOLUTION_OPTIONAL_KEYS`; `typeIconName` opcional em `TripOccurrence` (`trip.constant.ts`). O guard é de chave exata: a chave nova só
+entra antes da API a mandar, senão `TRIP_RESPONSE_INVALID`. Ampliar o catálogo: API (migration) + esta cópia + `icon.tsx` + app do motorista.

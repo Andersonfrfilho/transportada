@@ -38,6 +38,7 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'trash'
+  | 'truck'
   | 'upload'
   | 'workspace-driver-trip'
   | 'workspace-users'
@@ -119,6 +120,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
+  truck: [
+    'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
+    'M13 10h4l3 3v4h-7z',
+    'M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+    'M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
   /** O volante: a tela de quem está com as mãos nele, e não a de quem monta a viagem. */
   'workspace-driver-trip': [

@@ -14,7 +14,9 @@ import {
   deliveryClientWindows,
   deliveryClients,
   extraChargeBatches,
+  municipalHolidayRules,
   municipalHolidays,
+  stateHolidays,
   tripStopSchedules,
 } from '../../src/database/database.schema.js'
 import {
@@ -29,6 +31,9 @@ const TENANT_ANCHORED = [
   { name: 'delivery_clients', table: deliveryClients },
   { name: 'contractors', table: contractors },
   { name: 'municipal_holidays', table: municipalHolidays },
+  /** Spec 238 T1.2: o calendário útil nasce ancorado na empresa, como o feriado que já existia. */
+  { name: 'municipal_holiday_rules', table: municipalHolidayRules },
+  { name: 'state_holidays', table: stateHolidays },
 ] as const
 
 describe('o cadastro que nasce da nota (spec 060 T002)', () => {

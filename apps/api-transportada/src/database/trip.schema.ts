@@ -12,6 +12,7 @@ import {
   OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
+  OCCURRENCE_TYPE_ICON_NAMES,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_REQUIREMENT_DEFAULTS,
   TRIP_OCCURRENCE_STAGE,
@@ -20,6 +21,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceItemQuantityUnit,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
 import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
@@ -2858,6 +2860,8 @@ export const companyOccurrenceTypes = pgTable(
       .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.declaredAmountLabel),
     /** Spec 247 (RF6): o modelo de cada linha de `{{linhasItens}}`; vazio é a linha padrão. */
     emailItemLineTemplate: text('email_item_line_template').notNull().default(''),
+    /** A design-system icon name from the closed catalog; `NULL` keeps the type without an icon. */
+    iconName: varchar('icon_name', { length: 32 }).$type<OccurrenceTypeIconName>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2958,6 +2962,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
       sql`${table.declaredAmountMode} = ${raw(`'${OCCURRENCE_ITEMS_MODE.off}'`)} or ${table.declaredAmountScope} = ${raw(`'${OCCURRENCE_DECLARED_AMOUNT_SCOPE.occurrence}'`)} or ${table.itemsMode} <> ${raw(`'${OCCURRENCE_ITEMS_MODE.off}'`)}`,
+    ),
+    check(
+      'company_occurrence_types_icon_name_check',
+      sql`${table.iconName} is null or ${table.iconName} in (${raw(inList(OCCURRENCE_TYPE_ICON_NAMES))})`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],

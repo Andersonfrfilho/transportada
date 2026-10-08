@@ -8,20 +8,34 @@
 
 - [x] **T1.1** 🧠 `business-calendar.policy.ts` + contrato em tabela **antes** (CA1, CA2, extremos);
       feriados nacionais por Páscoa; mutação.
-- [ ] **T1.2** Migration aditiva: `municipal_holidays.recurrence/kind/month/day`, `state_holidays`,
-      `saturday_is_business_day`; `rollback.sql`; `make migration-test`; `db:generate` = `no_changes`.
-- [ ] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4); integração contra
-      Postgres incluindo que o solver continua lendo as datas.
-- [ ] **T1.4** Revisão da fase com `code-reviewer` em `opus` (passada separada); publicar em staging com
-      tudo verde e **confirmar o deploy**.
+- [x] **T1.2a** Caracterização do roteirizador **antes** da migration: integração do worker contra Postgres fixando
+      como `municipal_holidays` fecha (ou não) o cliente — data, cidade, empresa e `2000-MM-DD`; mutação.
+- [x] **T1.2** Migration aditiva (forma B1, ADR-0096 §Modelo de dados): tabelas `municipal_holiday_rules`,
+      `state_holidays` e `company_business_calendar_settings`; em `municipal_holidays` só `kind`, `source_rule_id`,
+      o CHECK de `kind`, a FK composta com `ON DELETE CASCADE` e o índice parcial; `rollback.sql` (as datas
+      materializadas ficam); `make migration-test`; `db:generate` = `no_changes`; integração do roteirizador
+      continua verde, com o caso novo da data materializada. Lista linha a linha em `evidence.md` § T1.2.
+- [x] **T1.3** Repositório e rotas (RF8), Zod `.strict()`, contratos de validação (CA4): regra "todo ano" gera as
+      datas de 10 anos na escrita (29/02 só nos bissextos; colisão com data digitada é ignorada), ação idempotente
+      "gerar próximos anos", feriado estadual e configuração de sábado; a leitura da política usa as regras como
+      `yearly` e só as datas **sem** `source_rule_id` como `once`; integração contra Postgres incluindo que o solver
+      continua lendo as datas.
+- [x] **T1.3b** Correções da revisão `opus` da Fase 1 (migration editada no lugar, ainda não publicada): lock da
+      `municipal_holidays` no fim do lote e cabeçalho honesto; CHECK de `materialized_through_year`; adoção sinalizada
+      (`adoptedFromRuleId`) e `typedHolidaysKept` (PATCH/GET, e no `metadata` do DELETE); editar a regra só do ano
+      corrente em diante; corpo estrito em `…/materializations`; auditoria só na mudança; alvo coerente na geração;
+      `POST /state-holidays` idempotente; definições únicas (política, filtro, cidade) e tipos de visão; limites no
+      ADR-0096. Lista linha a linha em `evidence.md` § T1.3b.
+- [x] **T1.4** Revisão da fase com `code-reviewer` em `opus` (passada separada) — feita, veredito COMMENT (corrigido
+      na T1.3b); publicar em staging com tudo verde e **confirmar o deploy** é do orquestrador (nada foi publicado).
 
 ## Fase 2 — Tela
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contrato **antes** da tela (formulário, validação, tabela com filtro/ordenação).
-- [ ] **T2.2** Tela de feriados em Configurações (municipal, estadual, aniversário), locale pt-BR/en.
-- [ ] **T2.3** Prova por mutação e evidência em `evidence.md`.
+- [x] **T2.1** Contrato **antes** da tela (formulário, validação, tabela com filtro/ordenação).
+- [x] **T2.2** Tela de feriados em Configurações (municipal, estadual, aniversário), locale pt-BR/en.
+- [x] **T2.3** Prova por mutação e evidência em `evidence.md`.
 - [ ] **T2.4** **Revisão de design e usabilidade** (web.md §15) com print enviado ao usuário e aprovado antes
       de publicar; publicar em staging.
 

@@ -49,6 +49,7 @@ import type {
   OccurrenceMoment,
   OccurrenceDeclaredAmountScope,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import {
@@ -413,6 +414,7 @@ export async function listTripOccurrences(
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       stage: tripDocumentOccurrences.stage,
       /** Spec 079: o nome que a empresa deu ao tipo — é ele que a tela imprime. */
+      typeIconName: companyOccurrenceTypes.iconName,
       typeName: companyOccurrenceTypes.name,
     })
     .from(tripDocumentOccurrences)
@@ -514,6 +516,7 @@ export async function listTripOccurrences(
       products,
       stage: row.stage,
       typeAllowsMultipleItems: typeView.typeAllowsMultipleItems,
+      typeIconName: row.typeIconName,
       typeItemsMode: typeView.typeItemsMode,
       typeName: row.typeName,
     }
@@ -845,6 +848,7 @@ export async function findOccurrenceType(
       declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
+      iconName: companyOccurrenceTypes.iconName,
       emailBody: companyOccurrenceTypes.emailBody,
       emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
@@ -916,6 +920,7 @@ export async function findTripOccurrenceById(
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       productCode: tripDocumentOccurrences.productCode,
       stage: tripDocumentOccurrences.stage,
+      typeIconName: companyOccurrenceTypes.iconName,
       typeName: companyOccurrenceTypes.name,
     })
     .from(tripDocumentOccurrences)
@@ -958,6 +963,7 @@ export async function findTripOccurrenceById(
         ? storedProducts
         : productCodes.map((code) => ({ code, quantity: null, unit: null })),
     stage: row.stage,
+    typeIconName: row.typeIconName,
     typeName: row.typeName,
   }
 }
@@ -1001,6 +1007,7 @@ export async function listOccurrenceTypes(
       declaredAmountLabel: companyOccurrenceTypes.declaredAmountLabel,
       declaredAmountMode: companyOccurrenceTypes.declaredAmountMode,
       declaredAmountScope: companyOccurrenceTypes.declaredAmountScope,
+      iconName: companyOccurrenceTypes.iconName,
       emailBody: companyOccurrenceTypes.emailBody,
       emailItemLineTemplate: companyOccurrenceTypes.emailItemLineTemplate,
       emailSubject: companyOccurrenceTypes.emailSubject,
@@ -1104,6 +1111,7 @@ async function writeOccurrenceTypeRow(
     readonly companyId: string
     /** Spec 247 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
     readonly declaredAmountLabel?: string | undefined
+    readonly iconName?: null | OccurrenceTypeIconName | undefined
     readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
     readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
     /** Spec 247 RF2: ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
@@ -1170,6 +1178,7 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { allowsMultipleItems: input.allowsMultipleItems }),
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
+    ...(input.iconName === undefined ? {} : { iconName: input.iconName }),
     ...(input.declaredAmountLabel === undefined
       ? {}
       : { declaredAmountLabel: input.declaredAmountLabel }),
@@ -1255,6 +1264,7 @@ async function writeOccurrenceTypeRow(
     declaredAmountLabel: saved.declaredAmountLabel,
     declaredAmountMode: saved.declaredAmountMode,
     declaredAmountScope: saved.declaredAmountScope,
+    iconName: saved.iconName,
     emailBody: saved.emailBody,
     emailItemLineTemplate: saved.emailItemLineTemplate,
     emailSubject: saved.emailSubject,

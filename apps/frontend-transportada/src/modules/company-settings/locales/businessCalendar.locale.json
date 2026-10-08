@@ -1,0 +1,249 @@
+{
+  "panel": {
+    "kicker": "Calendário",
+    "title": "Calendário de dias úteis",
+    "hint": "Sábado, feriados e aniversários de cidade que o prazo de entrega em dias úteis conta.",
+    "forbidden": "Você não tem permissão para ver o calendário de dias úteis."
+  },
+  "notice": {
+    "routing": "O roteiro fecha os clientes da cidade nas datas geradas por esta regra (até {{year}}); feriados nacionais e estaduais não fecham clientes no roteiro; o prazo de entrega por contratante conta todos.",
+    "adopted": "Esta data agora é sua e sobrevive à exclusão da regra: a regra não a gera mais.",
+    "typedKept_one": "{{count}} data digitada no dia antigo continua valendo.",
+    "typedKept_other": "{{count}} datas digitadas no dia antigo continuam valendo.",
+    "ruleExists": "Esta regra já estava cadastrada.",
+    "holidayExists": "Este feriado já estava cadastrado.",
+    "created": "Cadastro feito.",
+    "updated": "Alterações salvas."
+  },
+  "saturday": {
+    "title": "Sábado",
+    "label": "Sábado é dia útil",
+    "hint": "Ligado, o prazo em dias úteis passa a contar o sábado. O domingo nunca conta.",
+    "origin": {
+      "default": "Padrão do sistema: segunda a sexta.",
+      "company": "Configurado pela empresa."
+    },
+    "loading": "Carregando a configuração do sábado",
+    "saving": "Salvando…",
+    "saved": "Salvo."
+  },
+  "municipal": {
+    "title": "Feriados municipais",
+    "hint": "Cadastre o feriado ou o aniversário da cidade. \"Todo ano\" cria uma regra que o sistema gera sozinho para os próximos anos; \"Só esta data\" vale uma vez.",
+    "loading": "Carregando os feriados municipais",
+    "empty": "Nenhum feriado municipal cadastrado.",
+    "form": {
+      "stateAria": "UF do município",
+      "statePlaceholder": "Escolha a UF",
+      "stateSearch": "Buscar UF",
+      "stateEmpty": "Nenhuma UF encontrada",
+      "cityAria": "Município",
+      "cityPlaceholder": "Escolha o município",
+      "citySearch": "Buscar município",
+      "cityEmpty": "Nenhum município encontrado",
+      "cityNeedsState": "Escolha a UF primeiro.",
+      "cityLoading": "Carregando municípios…",
+      "cityLoadError": "Não foi possível carregar os municípios. Digite o código IBGE.",
+      "cityCodeAria": "Código IBGE do município",
+      "cityCodePlaceholder": "Ex.: 3509502",
+      "submitCreate": "Cadastrar feriado",
+      "editing": "Editando: {{name}}",
+      "lockedHint": "A cidade e a recorrência não se editam: para mudá-las, exclua e cadastre de novo.",
+      "lockedHintDate": "Cidade e data não se editam: para mudá-las, exclua e cadastre de novo."
+    },
+    "table": {
+      "region": "Feriados municipais cadastrados",
+      "place": "Lugar",
+      "kind": "Tipo",
+      "when": "Quando",
+      "name": "Nome",
+      "actions": "Ações",
+      "ruleSchedule": "Todo ano, {{date}} — gerado até {{year}}"
+    },
+    "horizon": {
+      "notice": "Há regras com datas geradas só até {{year}}: depois disso o roteiro deixa de fechar os clientes dessas cidades.",
+      "action": "Gerar próximos anos",
+      "running": "Gerando…",
+      "created": "Datas novas geradas: {{count}}. Regras processadas: {{rules}}.",
+      "none": "Nenhuma data nova: as regras já estavam completas."
+    }
+  },
+  "state": {
+    "title": "Feriados estaduais",
+    "hint": "Vale para todas as cidades da UF. Feriado estadual conta no prazo de entrega, mas não fecha clientes no roteiro.",
+    "loading": "Carregando os feriados estaduais",
+    "empty": "Nenhum feriado estadual cadastrado.",
+    "form": {
+      "stateAria": "UF",
+      "submitCreate": "Cadastrar feriado estadual",
+      "editing": "Editando: {{name}}",
+      "lockedHint": "A UF e a recorrência não se editam: para mudá-las, exclua e cadastre de novo."
+    },
+    "table": {
+      "region": "Feriados estaduais cadastrados",
+      "place": "UF",
+      "when": "Quando",
+      "name": "Nome",
+      "actions": "Ações",
+      "yearlySchedule": "Todo ano, {{date}}"
+    }
+  },
+  "form": {
+    "kindAria": "Tipo",
+    "kindPlaceholder": "Escolha o tipo",
+    "recurrenceAria": "Recorrência",
+    "recurrencePlaceholder": "Escolha",
+    "monthAria": "Mês",
+    "monthPlaceholder": "Mês",
+    "dayAria": "Dia",
+    "dayPlaceholder": "Dia",
+    "dateAria": "Data",
+    "datePlaceholder": "dd/mm/aaaa",
+    "nameAria": "Nome",
+    "namePlaceholder": "Ex.: Aniversário da cidade",
+    "submitEdit": "Salvar alterações",
+    "cancelEdit": "Cancelar edição",
+    "saving": "Salvando…",
+    "searchPlaceholder": "Buscar",
+    "emptyOptions": "Nada encontrado",
+    "datePicker": {
+      "chooseYear": "Escolher o ano",
+      "clear": "Limpar a data",
+      "next": "Mês seguinte",
+      "previous": "Mês anterior",
+      "open": "Abrir o calendário"
+    }
+  },
+  "fields": {
+    "stateIbgeCode": "UF",
+    "cityIbgeCode": "Município",
+    "kind": "Tipo",
+    "recurrence": "Recorrência",
+    "month": "Mês",
+    "day": "Dia",
+    "holidayOn": "Data",
+    "name": "Nome"
+  },
+  "fieldErrors": {
+    "required": "Preencha este campo.",
+    "invalid": "Valor inválido.",
+    "dayNotInMonth": "Este dia não existe nesse mês.",
+    "tooLong": "Use no máximo {{max}} caracteres.",
+    "cityIbgeCode": {
+      "invalid": "Informe o código IBGE do município, com sete dígitos."
+    },
+    "holidayOn": {
+      "invalid": "Essa data não existe no calendário."
+    }
+  },
+  "refusal": {
+    "lead": "Confira:"
+  },
+  "kinds": {
+    "holiday": "Feriado",
+    "city_anniversary": "Aniversário da cidade"
+  },
+  "recurrences": {
+    "yearly": "Todo ano",
+    "once": "Só esta data"
+  },
+  "months": {
+    "1": "Janeiro",
+    "2": "Fevereiro",
+    "3": "Março",
+    "4": "Abril",
+    "5": "Maio",
+    "6": "Junho",
+    "7": "Julho",
+    "8": "Agosto",
+    "9": "Setembro",
+    "10": "Outubro",
+    "11": "Novembro",
+    "12": "Dezembro"
+  },
+  "list": {
+    "loadError": "Não foi possível carregar a lista.",
+    "retry": "Tentar de novo",
+    "empty": "Nenhum feriado com esses filtros.",
+    "edit": "Editar",
+    "editAria": "Editar {{name}}",
+    "delete": "Excluir",
+    "deleteAria": "Excluir {{name}}",
+    "sortNone": "Ordenar",
+    "sortAscending": "Ordenação crescente",
+    "sortDescending": "Ordenação decrescente",
+    "pageOf": "Página {{page}} de {{count}}",
+    "previousPage": "Página anterior",
+    "nextPage": "Próxima página",
+    "count": "{{shown}} de {{total}} feriados"
+  },
+  "filters": {
+    "clear": "Limpar filtros",
+    "clearAll": "Remover todos",
+    "kindAria": "Filtrar por tipo",
+    "kindPlaceholder": "Tipo",
+    "kindSummary": "{{count}} tipos",
+    "kindRemove": "Remover filtro de tipo",
+    "recurrenceAria": "Filtrar por recorrência",
+    "recurrencePlaceholder": "Recorrência",
+    "recurrenceSummary": "{{count}} recorrências",
+    "recurrenceRemove": "Remover filtro de recorrência",
+    "stateAria": "Filtrar por UF",
+    "statePlaceholder": "UF",
+    "stateSummary": "{{count}} UFs",
+    "stateRemove": "Remover filtro de UF",
+    "search": "Buscar",
+    "empty": "Nada encontrado"
+  },
+  "dialog": {
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "deleting": "Excluindo…",
+    "rule": {
+      "title": "Excluir a regra “{{name}}”?",
+      "body": "As datas geradas por ela (até {{year}}) deixam de valer para o roteiro.",
+      "confirm": "Excluir regra"
+    },
+    "date": {
+      "title": "Excluir a data “{{name}}”?",
+      "body": "A data deixa de valer para o roteiro e para o prazo de entrega.",
+      "confirm": "Excluir data"
+    },
+    "state": {
+      "title": "Excluir o feriado estadual “{{name}}”?",
+      "body": "O feriado deixa de contar no prazo de entrega de todas as cidades da UF.",
+      "confirm": "Excluir feriado"
+    },
+    "typedKept_one": "{{count}} data digitada neste dia continua valendo.",
+    "typedKept_other": "{{count}} datas digitadas neste dia continuam valendo."
+  },
+  "errors": {
+    "generic": "Não foi possível concluir a ação. Tente de novo.",
+    "withCode": "{{message}} (código {{code}})",
+    "INVALID_REQUEST": "O servidor recusou os dados enviados.",
+    "FORBIDDEN": "Seu perfil não tem permissão para esta ação.",
+    "UNAUTHENTICATED": "Sua sessão expirou. Entre de novo.",
+    "TOO_MANY_REQUESTS": "Muitos pedidos em pouco tempo. Aguarde um instante e tente de novo.",
+    "DATABASE_UNAVAILABLE": "O banco de dados está indisponível agora. Tente de novo em instantes.",
+    "BUSINESS_CALENDAR_NETWORK_ERROR": "Não foi possível falar com o servidor. Confira a conexão e tente de novo.",
+    "BUSINESS_CALENDAR_REQUEST_FAILED": "O servidor não respondeu como esperado.",
+    "BUSINESS_CALENDAR_RESPONSE_INVALID": "A resposta do servidor veio num formato inesperado e foi descartada.",
+    "MUNICIPAL_HOLIDAY_RULE_CONFLICT": "Já existe uma regra para esta cidade e este dia, com outro nome ou tipo. Edite a regra existente.",
+    "MUNICIPAL_HOLIDAY_RULE_NOT_FOUND": "Esta regra não existe mais. A lista foi atualizada.",
+    "MUNICIPAL_HOLIDAY_RULE_INVALID_DAY": "Este dia não existe nesse mês.",
+    "MUNICIPAL_HOLIDAY_GENERATED_BY_RULE": "Esta data foi gerada por uma regra: edite ou exclua a regra, não a data.",
+    "MUNICIPAL_HOLIDAY_NOT_FOUND": "Esta data não existe mais. A lista foi atualizada.",
+    "STATE_HOLIDAY_CONFLICT": "Já existe um feriado estadual nesta UF e neste dia, com outro nome.",
+    "STATE_HOLIDAY_NOT_FOUND": "Este feriado estadual não existe mais. A lista foi atualizada.",
+    "STATE_HOLIDAY_RECURRENCE_MISMATCH": "A recorrência não confere com a do feriado gravado. Recarregue a lista.",
+    "BUSINESS_CALENDAR_INVALID_DATE": "Data inválida para o calendário.",
+    "BUSINESS_CALENDAR_INVALID_DAYS": "Quantidade de dias úteis inválida.",
+    "BUSINESS_CALENDAR_INVALID_CITY": "Município inválido para o calendário.",
+    "BUSINESS_CALENDAR_UNKNOWN_STATE": "UF desconhecida para o calendário.",
+    "BUSINESS_CALENDAR_INVALID_RULE": "Regra de feriado inválida.",
+    "BUSINESS_CALENDAR_INVALID_COVERAGE": "Período do calendário inválido.",
+    "BUSINESS_CALENDAR_COVERAGE_TOO_WIDE": "Período do calendário largo demais.",
+    "BUSINESS_CALENDAR_OUT_OF_COVERAGE": "Data fora do período que o calendário cobre.",
+    "BUSINESS_CALENDAR_TOO_MANY_RULES": "Há regras demais para montar o calendário."
+  }
+}

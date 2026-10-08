@@ -42,9 +42,10 @@
       correções da T1.5 — a migration nova `20261006144825_cargo_arrival_check_null_holes` e as rotas novas
       ainda **não** foram publicadas (sem push nesta rodada). ⚠️ O aprovo do print pelo usuário não está
       registrado no `evidence.md`. **Produção: não** — só com o usuário.)_
-- [ ] **T2.6** ⛔ **Bloqueada por decisão do usuário (M6 da revisão):** a cidade do grupo vem do `<enderDest>`
-      (cadastro), não do destino físico `<entrega>` (spec 073); nota cadastrada em SP com entrega em Guarulhos
-      cai na pilha de SP. Decidir se o grupo segue `resolvePhysicalDestination` — ADR-0094 §6.
+- [x] **T2.6** A cidade do grupo de separação é o destino físico da nota (`resolvePhysicalDestination`, spec 073),
+      não o `<enderDest>` do cadastro. _(Decidido pelo usuário em 2026-10-06 — M6 da revisão. Nota cadastrada em SP
+      com `<entrega>` em Guarulhos cai no grupo de Guarulhos; sem destino resolvível, no grupo sem cidade. O
+      desvio manual não entra: ele nasce no vínculo da viagem, depois da chegada — `evidence.md` § T2.6.)_
 
 ## Fase 4a — Prévia por upload: ler, vincular e propor a chegada
 
@@ -138,12 +139,19 @@
       `cargo-preview-email/` no worker, cópia por valor da criação da prévia com paridade, SECURITY (DKIM do
       contratante perdido = risco aceito) e ADR-0094 §10 — `evidence.md` § T4.6; **sem push**. Token e listas
       entram por SQL até a T4.6b; MX/Resend/listas são passo do usuário.)_
-- [ ] **T4.6b** Rota `PUT` do perfil para **gerar/rotacionar o token** do endereço de entrada (mostra o token uma
+- [x] **T4.6b** Rota `PUT` do perfil para **gerar/rotacionar o token** do endereço de entrada (mostra o token uma
       vez, guarda só o hash) e **editar as duas listas** (`preview_forwarder_allowlist`,
       `preview_sender_allowlist`), com auditoria; a ficha do contratante no painel mostra o endereço de entrada
       e as listas, e **as recusas recentes** (`cargo_preview_email_intakes`) por contratante. Contrato antes;
       o formato do token e o hash são os de `preview-inbound-token.policy.ts` (copiar por valor, com paridade).
       `sonnet`.
+      **Feito (2026-10-07), sem push:** quatro rotas num **sub-recurso** do perfil (`preview-email`, `inbound-token`,
+      `email-intakes`), todas `settings.manage`; o token nasce no servidor (130 bits), só o hash é guardado, aparece uma vez
+      (`no-store`), rotação apaga o hash anterior, auditoria na mesma transação, `rateLimit` 10/300 s; painel: seção "Prévia por
+      e-mail" da ficha, o endereço só na memória do componente. **Divergências do enunciado (decididas):** sub-recurso e não
+      chaves novas em `GET|PUT /receiving-profile` (o painel publicado valida o perfil por chaves exatas) e leitura também
+      `settings.manage` (o separador tem `fleet.read` e não pode alcançar as rotas). `evidence.md` § T4.6b; ADR-0094 §10;
+      `SECURITY.md` 2026-10-07; **30 prints a aprovar antes de publicar**.
 - [x] **T4.7a** Correções das revisões `opus` (código e segurança) da T4.6, **antes da publicação**: cabeçalho do MIME
       medido antes do DKIM (prévia e conversa), `l=` nunca alinha, janela por contratante com dois contadores pelo
       relógio do banco e rastro `RATE_LIMITED`, a conversa vence quando há os dois endereços, o MIME da vencedora
@@ -182,7 +190,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.8** Rotina agendada (cron → fila → worker, no molde das rotinas existentes) que, 90 dias depois de
+- [x] **T4.8** Rotina agendada (cron → fila → worker, no molde das rotinas existentes) que, 90 dias depois de
       a prévia ficar sem item em aberto (`awaiting_xml`/`suggested`/`ambiguous`), **apaga o arquivo do
       bucket** e **anonimiza** `recipient_name`, `address`, `neighborhood` e `postal_code` dos itens, mantendo
       valor, peso, roteiro, vínculo, estado e trilha; idempotente, com evento append-only, sem PII em log,
@@ -194,6 +202,11 @@
       ⚠️ **Só pode marcar `stored_objects.status = 'deleted'` e apagar o objeto do bucket** (T4.7a): a tabela de
       e-mails é append-only e a FK `RESTRICT` de `raw_object_id` impede anular a referência ou apagar
       `cargo_previews`/`stored_objects` referenciados — a linha do MIME **fica**, só o conteúdo some.
+      **Feito (2026-10-07):** rotina `cargo-preview.retention.apply` (worker, diária) — prévia `ready`/`failed` sem item
+      em aberto e com o último movimento (`greatest` entre a prévia e os itens) em 90+ dias; bytes saem antes de
+      qualquer escrita, `stored_objects` vira `deleted` (a linha fica), as quatro colunas viram `NULL`, e o evento
+      `retention_applied` é o marcador; lote 25, 200 lotes, 50 objetos por prévia; trava do contratante sem esperar;
+      9 mutações mortas. `evidence.md` § T4.8; `docs/SECURITY.md` 2026-10-07; ADR-0094 §11. **Migration fechada (2026-10-07):** `20261007133324_cargo_preview_retention` (NOT VALID + VALIDATE nas quatro CHECK, linha do relógio, `rollback.sql` que recusa com evento `retention_applied` existente); `db:test` 146 pass; migration autorizada pelo usuário no chat, só para staging. `sonnet`.
 
 ## Prompt de execução
 

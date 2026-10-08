@@ -131,6 +131,12 @@ const CATALOG = [
     job: 'trip.canhoto.read',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 237 T4.8: a retenção dos dados da planilha só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'cargo-preview.retention.apply',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('cron job catalog', () => {

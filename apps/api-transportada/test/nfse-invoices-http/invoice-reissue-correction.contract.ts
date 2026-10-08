@@ -44,6 +44,48 @@ describe('nfse service invoice reissue correction http', () => {
     expect(fixture.reissueCalls[0]?.correction).toEqual({ issRate: '0.060000' })
   })
 
+  test('código nacional e alíquota do Simples corrigidos chegam ao caso de uso', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({
+        body: { nationalTaxationCode: '160201', simplesNationalRate: '2.000000' },
+        path: REISSUE_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.reissueCalls[0]?.correction).toEqual({
+      nationalTaxationCode: '160201',
+      simplesNationalRate: '2.000000',
+    })
+  })
+
+  test('código nacional fora de seis dígitos é recusado com 400', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const response = await fixture.handle(
+      invoiceRequest({ body: { nationalTaxationCode: '1602' }, path: REISSUE_PATH }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.reissueCalls).toHaveLength(0)
+  })
+
+  test('alíquota do Simples negativa ou acima de 100 é recusada com 400', async () => {
+    const fixture = await createNfseInvoicesHttpFixture()
+
+    const negative = await fixture.handle(
+      invoiceRequest({ body: { simplesNationalRate: '-2.000000' }, path: REISSUE_PATH }),
+    )
+    const above = await fixture.handle(
+      invoiceRequest({ body: { simplesNationalRate: '100.000001' }, path: REISSUE_PATH }),
+    )
+
+    expect([negative.status, above.status]).toEqual([400, 400])
+    expect(fixture.reissueCalls).toHaveLength(0)
+  })
+
   test('serviceAmount no corpo é recusado com 400', async () => {
     const fixture = await createNfseInvoicesHttpFixture()
 

@@ -4,6 +4,7 @@ import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
+import { assertBusinessCalendar } from './business-calendar.assertion.js'
 import { assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
@@ -27,6 +28,7 @@ import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
+import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
@@ -37,6 +39,7 @@ import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assert
 import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
+import { assertNfseNationalTaxation } from './nfse-national-taxation.assertion.js'
 import { assertTripCrewEvents } from './trip-crew-events.assertion.js'
 import { assertTripStatusEventRollbackRefusesRecordedHistory } from './trip-status-event-rollback.assertion.js'
 import {
@@ -188,6 +191,13 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
 
+        await assertOccurrenceTypeIconRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
         // Ordem inversa do histórico: a 247 sai antes da 246, e a 241 derruba `items_mode` e, com
         // ele, as CHECKs que o leem.
         await assertOccurrenceDeclaredAmountRollback({
@@ -325,6 +335,19 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+        await assertBusinessCalendar({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertNfseNationalTaxation({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
           userId: identityFixture.userId,
         })
 

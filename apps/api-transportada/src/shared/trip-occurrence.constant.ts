@@ -250,3 +250,22 @@ export const OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK =
 
 /** O índice único `(company_id, lower(btrim(name)))`, em qualquer etapa — não aparece no schema TS. */
 export const OCCURRENCE_TYPE_NAME_UNIQUE = 'company_occurrence_types_company_name_unique'
+
+/**
+ * The closed catalog of design-system icon names an occurrence type may pick; `NULL` is no icon.
+ * `VARCHAR` with a CHECK generated from this list, never a native ENUM. Widening it is additive.
+ */
+export const OCCURRENCE_TYPE_ICON_NAMES = [
+  'alert',
+  'camera',
+  'clipboard-list',
+  'clock',
+  'document',
+  'invoice',
+  'message',
+  'money',
+  'package',
+  'truck',
+] as const
+
+export type OccurrenceTypeIconName = (typeof OCCURRENCE_TYPE_ICON_NAMES)[number]

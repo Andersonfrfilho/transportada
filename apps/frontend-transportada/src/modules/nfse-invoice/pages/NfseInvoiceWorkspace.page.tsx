@@ -16,6 +16,7 @@ import { NfseInvoiceBulkReissueDialog } from '../components/NfseInvoiceBulkReiss
 import { NfseInvoiceCancelDialog } from '../components/NfseInvoiceCancelDialog.component'
 import { NfseInvoiceDetailDialog } from '../components/NfseInvoiceDetailDialog.component'
 import { NfseInvoiceDiscardDialog } from '../components/NfseInvoiceDiscardDialog.component'
+import { NfseInvoiceExternalLinkDialog } from '../components/NfseInvoiceExternalLinkDialog.component'
 import { NfseInvoiceReissueDialog } from '../components/NfseInvoiceReissueDialog.component'
 import { NfseInvoiceTable } from '../components/NfseInvoiceTable.component'
 import { useNfseInvoiceTable } from '../hooks/useNfseInvoiceTable.hook'
@@ -121,6 +122,7 @@ export function NfseInvoiceWorkspacePage({
         <NfseInvoiceCancelDialog actions={table.rowActions} />
         <NfseInvoiceReissueDialog actions={table.rowActions} />
         <NfseInvoiceDiscardDialog actions={table.rowActions} />
+        <NfseInvoiceExternalLinkDialog actions={table.rowActions} />
         <NfseInvoiceBulkCancelDialog bulkCancel={table.bulkCancel} />
         <NfseInvoiceBulkReissueDialog bulkReissue={table.bulkReissue} />
         <NfseInvoiceBulkDiscardDialog bulkDiscard={table.bulkDiscard} />

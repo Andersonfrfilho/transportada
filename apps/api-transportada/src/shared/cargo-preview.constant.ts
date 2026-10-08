@@ -38,6 +38,16 @@ export type CargoPreviewItemState =
   (typeof CARGO_PREVIEW_ITEM_STATE)[keyof typeof CARGO_PREVIEW_ITEM_STATE]
 export const CARGO_PREVIEW_ITEM_STATES = Object.values(CARGO_PREVIEW_ITEM_STATE)
 
+/** Item que ainda espera decisão: a prévia que tem um deles nunca entra na retenção. */
+export const CARGO_PREVIEW_OPEN_ITEM_STATES = [
+  CARGO_PREVIEW_ITEM_STATE.awaitingXml,
+  CARGO_PREVIEW_ITEM_STATE.suggested,
+  CARGO_PREVIEW_ITEM_STATE.ambiguous,
+] as const
+
+/** Decisão do usuário (2026-10-06): dias depois de a prévia ficar sem item em aberto. */
+export const CARGO_PREVIEW_RETENTION_DAYS = 90
+
 /** Quem decidiu o item por último: o vínculo automático ou o operador (que a máquina nunca desfaz). */
 export const CARGO_PREVIEW_DECIDED_BY = { system: 'system', user: 'user' } as const
 export type CargoPreviewDecidedBy =
@@ -63,6 +73,7 @@ export const CARGO_PREVIEW_EVENT_KIND = {
   itemSuggested: 'item_suggested',
   itemUnlinked: 'item_unlinked',
   parsed: 'parsed',
+  retentionApplied: 'retention_applied',
   uploaded: 'uploaded',
 } as const
 export type CargoPreviewEventKind =
@@ -75,6 +86,7 @@ export const CARGO_PREVIEW_WIDE_EVENT_KINDS = [
   CARGO_PREVIEW_EVENT_KIND.parsed,
   CARGO_PREVIEW_EVENT_KIND.failed,
   CARGO_PREVIEW_EVENT_KIND.arrivalProposed,
+  CARGO_PREVIEW_EVENT_KIND.retentionApplied,
 ] as const
 
 /** O painel age por `backoffice`; o vínculo automático por `worker`, sempre sem ator humano. */

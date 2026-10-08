@@ -35,6 +35,7 @@ const SETTINGS_RESOLUTION_OPTIONAL_KEYS = [
   'declaredAmountLabel',
   'declaredAmountMode',
   'declaredAmountScope',
+  'iconName',
   'itemsMinimumCount',
   'itemsMode',
   'noteMode',
@@ -52,6 +53,7 @@ export type SettingsResolutionOccurrenceType = Readonly<{
   declaredAmountMode?: OccurrenceAttachmentMode
   declaredAmountScope?: DeclaredAmountScope
   flow: OccurrenceTypeFlow
+  iconName?: null | string
   id: string
   itemsMinimumCount?: null | number
   itemsMode?: OccurrenceAttachmentMode

@@ -21,6 +21,7 @@ export function buildFieldOccurrenceType(
     declaredAmountLabel: 'Valor pago',
     declaredAmountMode: 'off',
     declaredAmountScope: 'item',
+    iconName: null,
     flow: 'document',
     itemsMinimumCount: null,
     itemsMode: 'optional',

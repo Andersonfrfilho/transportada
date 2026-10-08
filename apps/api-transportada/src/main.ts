@@ -168,6 +168,7 @@ import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/driz
 import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
 import { createNfseInvoiceDiscardUseCase } from './nfse-invoices/application/nfse-invoice-discard.use-case.js'
+import { createNfseInvoiceExternalLinkUseCase } from './nfse-invoices/application/nfse-invoice-external-link.use-case.js'
 import { createNfseInvoiceReissueUseCase } from './nfse-invoices/application/nfse-invoice-reissue.use-case.js'
 import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
 import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
@@ -425,6 +426,12 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createExportTripProofPdfUseCase } from './trips/application/export-trip-proof-pdf.use-case.js'
+import { createListTripReportUseCase } from './trips/application/list-trip-report.use-case.js'
+import { DrizzleTripProofReportRepository } from './trips/infrastructure/drizzle-trip-proof-report.repository.js'
+import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
+import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
+import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -612,14 +619,20 @@ import { createFleetDriverRegionsUseCase } from './freight-regions/application/f
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
-import {
-  createContractorsUseCase,
-  createMunicipalHolidaysUseCase,
-} from './delivery-clients/application/contractors.use-case.js'
-import {
-  DrizzleContractorRepository,
-  DrizzleMunicipalHolidayRepository,
-} from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
+import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
+import { createMunicipalHolidayRulesUseCases } from './business-calendar/application/municipal-holiday-rules.use-case.js'
+import { createMunicipalHolidaysUseCases } from './business-calendar/application/municipal-holidays.use-case.js'
+import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
+import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
+import { DrizzleMunicipalHolidayRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
+import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday-rule.repository.js'
+import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
+import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
+import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
+import { createMunicipalHolidayRuleRoutes } from './business-calendar/presentation/municipal-holiday-rule.routes.js'
+import { createStateHolidayRoutes } from './business-calendar/presentation/state-holiday.routes.js'
+import { createContractorsUseCase } from './delivery-clients/application/contractors.use-case.js'
+import { DrizzleContractorRepository } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import {
   createGetContractorReceivingProfileUseCase,
@@ -648,6 +661,7 @@ import { createCargoArrivalSeparationRoutes } from './cargo-receiving/presentati
 import { createCargoArrivalRoutes } from './cargo-receiving/presentation/cargo-arrival.routes.js'
 import { createCargoArrivalOccurrenceHttpRoutes } from './cargo-receiving/cargo-arrival-occurrence.composition.js'
 import { createCargoPreviewHttpRoutes } from './cargo-receiving/cargo-preview.composition.js'
+import { createContractorPreviewEmailHttpRoutes } from './cargo-receiving/contractor-preview-email.composition.js'
 import { CARGO_ARRIVAL_CHANNEL } from './shared/cargo-arrival.constant.js'
 import { createContractorContactsUseCase } from './contractor-mail/application/contractor-contacts.use-case.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
@@ -1019,7 +1033,7 @@ export function bootstrap(): Bun.Server<undefined> {
    * também porque o hook do WhatsApp (abaixo) nasce antes das instâncias de `me-trip` mais adiante
    * neste arquivo. Nenhum caminho paralelo: o motorista pelo WhatsApp grava pelo mesmo repositório.
    */
-  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
+  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db, logger)
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
@@ -1357,6 +1371,7 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
   const whatsappNfseInvoices = createNfseInvoiceUseCase({
     now: () => new Date(),
+    providerApiVersion: config.nfseProviderApiVersion,
     repository: whatsappNfseInvoiceRepository,
   })
   /**
@@ -1556,6 +1571,7 @@ export function bootstrap(): Bun.Server<undefined> {
         idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
         keycloak: config.keycloak,
         logger,
+        nfseProviderApiVersion: config.nfseProviderApiVersion,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
@@ -1902,6 +1918,8 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
+  /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
+  readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
@@ -1962,6 +1980,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   logger,
+  nfseProviderApiVersion,
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
@@ -1988,9 +2007,7 @@ function createApplicationRoutes({
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
     repository: contractorPortalRepository,
   })
-  const municipalHolidays = createMunicipalHolidaysUseCase({
-    repository: new DrizzleMunicipalHolidayRepository(database),
-  })
+  const businessCalendarClock = { now: () => new Date() }
   const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
   const occurrenceChargeReport = createOccurrenceChargeReportUseCase({
     report: new DrizzleOccurrenceChargeReportRepository(database),
@@ -2141,6 +2158,8 @@ function createApplicationRoutes({
    */
   const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions, {
+    clock: businessCalendarClock,
+    logger,
     packageBoxLookup: packageBoxRepository,
   })
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
@@ -2597,6 +2616,7 @@ function createApplicationRoutes({
   })
   const nfseInvoices = createNfseInvoiceUseCase({
     now: () => new Date(),
+    providerApiVersion: nfseProviderApiVersion,
     repository: nfseInvoiceRepository,
   })
   const nfseInvoiceQuery = createNfseInvoiceQueryUseCase({
@@ -2611,8 +2631,13 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: nfseInvoiceRepository,
   })
+  const linkNfseInvoiceExternally = createNfseInvoiceExternalLinkUseCase({
+    now: () => new Date(),
+    repository: nfseInvoiceRepository,
+  })
   const reissueNfseInvoice = createNfseInvoiceReissueUseCase({
     now: () => new Date(),
+    providerApiVersion: nfseProviderApiVersion,
     repository: nfseInvoiceRepository,
   })
   const exportNfseDocuments = createExportNfseDocumentsUseCase({
@@ -2920,6 +2945,30 @@ function createApplicationRoutes({
       resolveClientIp,
       save: createSaveLocationRetentionSettingsUseCase(locationRetentionDependencies),
     }),
+    ...createMunicipalHolidayRoutes({
+      ...createMunicipalHolidaysUseCases({
+        ...businessCalendarClock,
+        repository: new DrizzleMunicipalHolidayRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createMunicipalHolidayRuleRoutes({
+      ...createMunicipalHolidayRulesUseCases({
+        ...businessCalendarClock,
+        repository: new DrizzleMunicipalHolidayRuleRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createStateHolidayRoutes({
+      ...createStateHolidaysUseCases({ repository: new DrizzleStateHolidayRepository(database) }),
+      resolveClientIp,
+    }),
+    ...createBusinessCalendarSettingsRoutes({
+      ...createBusinessCalendarSettingsUseCases({
+        repository: new DrizzleBusinessCalendarSettingsRepository(database),
+      }),
+      resolveClientIp,
+    }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
     }),
@@ -3138,6 +3187,23 @@ function createApplicationRoutes({
       },
       resolveClientIp,
     }),
+    /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */
+    ...createTripDocumentReportRoutes({
+      exportTripProofPdf: createExportTripProofPdfUseCase({
+        clock: () => new Date(),
+        proofRepository: new DrizzleTripProofReportRepository(database),
+        renderer: createTripProofPdfGateway({ logger }),
+        reportRepository: new DrizzleTripReportRepository(database),
+        storage: createNfeStorageGatewayFromEnvironment({
+          environment: process.env,
+          finalBucket: occurrenceStatementBucket,
+          stagingBucket: occurrenceStatementBucket,
+        }),
+      }),
+      listTripReport: createListTripReportUseCase({
+        repository: new DrizzleTripReportRepository(database),
+      }),
+    }),
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
@@ -3331,9 +3397,6 @@ function createApplicationRoutes({
       getByTaxId: { execute: (input) => contractorRegistry.getByTaxId(input) },
       getContractor: { execute: (input) => contractorRegistry.get(input) },
       listContractors: { execute: (input) => contractorRegistry.list(input) },
-      listHolidays: { execute: (input) => municipalHolidays.list(input) },
-      removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
-      saveHoliday: { execute: (input) => municipalHolidays.save(input) },
       updateContractor: { execute: (input) => contractorRegistry.update(input) },
     }),
     ...createContractorReceivingProfileRoutes({
@@ -3344,6 +3407,7 @@ function createApplicationRoutes({
         repository: receivingProfileRepository,
       }),
     }),
+    ...createContractorPreviewEmailHttpRoutes({ database, resolveClientIp }),
     ...createContractorReceivingProfileListRoutes({
       listProfiles: createListContractorReceivingProfilesUseCase({
         repository: receivingProfileRepository,
@@ -4766,6 +4830,7 @@ function createApplicationRoutes({
       exportNfseDocuments: {
         exportDocuments: (input) => exportNfseDocuments.exportDocuments(input),
       },
+      linkNfseInvoiceExternally: { execute: (input) => linkNfseInvoiceExternally.execute(input) },
       nfseInvoice: {
         create: (input) => nfseInvoices.create(input),
         preview: (input) => nfseInvoices.preview(input),

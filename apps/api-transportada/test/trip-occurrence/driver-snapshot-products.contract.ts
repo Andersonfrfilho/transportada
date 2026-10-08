@@ -274,7 +274,7 @@ describe('a verificação com os campos novos é o JSON de referência dos parse
         }),
       },
       occurrenceTypes: {
-        listOccurrenceTypes: async () => [type({})],
+        listOccurrenceTypes: async () => [type({ iconName: 'money' })],
       },
     }
 

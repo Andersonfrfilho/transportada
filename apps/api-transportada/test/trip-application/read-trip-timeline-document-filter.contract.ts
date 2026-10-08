@@ -108,6 +108,7 @@ describe('createReadTripTimelineUseCase com documentId (spec 233 T5.1)', () => {
       document: { id: DOCUMENT_ID, number: '1', series: '1' },
       fromStatus: null,
       id: TRIP_ID,
+      isSystemActor: false,
       kind: 'document.delivered',
       lateRegistration: false,
       location: {

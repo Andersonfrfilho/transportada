@@ -12,8 +12,6 @@ import type {
   ContractorPage,
   ContractorRepositoryPort,
   ContractorWriteInput,
-  MunicipalHoliday,
-  MunicipalHolidayRepositoryPort,
 } from './contractor.port.js'
 
 export type ContractorsUseCase = {
@@ -67,39 +65,6 @@ export function createContractorsUseCase(dependencies: {
       const updated = await repository.update({ companyId: context.companyId, id, values })
       if (updated === null) throw new ContractorNotFoundError()
       return updated
-    },
-  }
-}
-
-export type MunicipalHolidaysUseCase = {
-  list(input: {
-    readonly cityIbgeCode?: string
-    readonly context: CompanyContext
-    readonly from?: string
-    readonly to?: string
-  }): Promise<readonly MunicipalHoliday[]>
-  remove(input: { readonly context: CompanyContext; readonly id: string }): Promise<void>
-  save(input: {
-    readonly cityIbgeCode: string
-    readonly context: CompanyContext
-    readonly holidayOn: string
-    readonly name: string
-  }): Promise<MunicipalHoliday>
-}
-
-export function createMunicipalHolidaysUseCase(dependencies: {
-  readonly repository: MunicipalHolidayRepositoryPort
-}): MunicipalHolidaysUseCase {
-  return {
-    async list({ context, ...filters }) {
-      return dependencies.repository.list({ companyId: context.companyId, ...filters })
-    },
-    async remove({ context, id }) {
-      /** Apagar o que não existe é no-op: o operador clicou duas vezes, e isso não é conflito. */
-      await dependencies.repository.remove({ companyId: context.companyId, id })
-    },
-    async save({ context, ...holiday }) {
-      return dependencies.repository.save({ companyId: context.companyId, ...holiday })
     },
   }
 }

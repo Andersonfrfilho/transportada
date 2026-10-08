@@ -24,7 +24,7 @@ import { renderWithQueryClient, waitFor } from './renderHook.helper'
 
 const saved: OccurrenceTypeSaveInput[] = []
 const mounted: { unmount: () => void }[] = []
-const MOMENTS = 'Em que momento pode acontecer'
+const MOMENTS = 'Quem registra, e onde'
 
 function buildType(): OccurrenceType {
   return {
@@ -67,6 +67,8 @@ async function mount(types: readonly OccurrenceType[]): Promise<void> {
       createElement(OccurrenceTypeCatalogPanel, {
         canManage: true,
         isSaving: false,
+        loadStatus: 'ready',
+        onRetry: () => undefined,
         onSave: (input) => saved.push(input),
         saveFeedbackKey: null,
         types,
@@ -119,7 +121,7 @@ describe('cadastro do tipo novo: o vocabulário da RF1a (M4)', () => {
     'mostra Foto, Observação, Assinatura e Produtos e os momentos; não mostra Fluxo de registro, Foto do comprovante nem Onde acontece',
     scenario(async () => {
       await mount([buildType()])
-      await toggleMoment('Entrega da nota')
+      await toggleMoment('Motorista, numa nota')
       for (const label of ['Foto', 'Observação', 'Assinatura', 'Produtos', MOMENTS]) {
         expect(control(label) !== null).toBe(true)
       }
@@ -135,8 +137,8 @@ describe('cadastro do tipo novo: o vocabulário da RF1a (M4)', () => {
     'grava momentos, os quatro modos, e o grupo e o fluxo derivados dos momentos',
     scenario(async () => {
       await mount([buildType()])
-      await toggleMoment('Entrega da nota')
-      await toggleMoment('Separação no galpão')
+      await toggleMoment('Motorista, numa nota')
+      await toggleMoment('Separador, no galpão')
       await chooseFrom(control('Foto') as HTMLElement, 'Obrigatório')
       await fillNameAndAdd('Recusa na porta')
 
@@ -157,8 +159,8 @@ describe('cadastro do tipo novo: o vocabulário da RF1a (M4)', () => {
     'tipo só de parada pede só a Foto e grava flow stop',
     scenario(async () => {
       await mount([buildType()])
-      await toggleMoment('Chegada à parada')
-      await toggleMoment('Separação no galpão')
+      await toggleMoment('Motorista, na parada')
+      await toggleMoment('Separador, no galpão')
       expect(control('Foto') !== null).toBe(true)
       for (const label of ['Observação', 'Assinatura', 'Produtos']) {
         expect(control(label) === null).toBe(true)
@@ -174,7 +176,7 @@ describe('cadastro do tipo novo: o vocabulário da RF1a (M4)', () => {
     'momentos recusados desligam o botão, com o motivo à vista',
     scenario(async () => {
       await mount([buildType()])
-      await toggleMoment('Separação no galpão')
+      await toggleMoment('Separador, no galpão')
       const add = [...form().querySelectorAll<HTMLElement>('button')].find(
         (button) => button.textContent?.trim() === 'Cadastrar tipo',
       )

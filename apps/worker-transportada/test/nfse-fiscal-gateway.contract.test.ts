@@ -6,6 +6,8 @@ import { describe, expect, test } from 'bun:test'
 import type { NfseCredentialAccess } from '../src/nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
 import { createNfseFiscalGateway } from '../src/nfse-issuance/infrastructure/nfse-fiscal-gateway.js'
 
+const V2_ISSUE = { providerApiVersion: 'v2', providerRequestKey: 'request-key' } as const
+
 const PRODUCTION_BASE_URL = 'https://producao.exemplo/api/v2'
 
 /**
@@ -65,6 +67,7 @@ function createCredential(
     envelope: { sealed: true },
     fiscalEnvironment,
     municipalRegistration: '12345678',
+    taxId: '12345678000190',
   }
 }
 
@@ -126,8 +129,8 @@ describe('NFS-e fiscal gateway configuration contract', () => {
     })
 
     const issued = { payload: PAYLOAD }
-    await gateway.issue({ ...issued, credential: createCredential('homologation') })
-    await gateway.issue({ ...issued, credential: createCredential('production') })
+    await gateway.issue({ ...issued, ...V2_ISSUE, credential: createCredential('homologation') })
+    await gateway.issue({ ...issued, ...V2_ISSUE, credential: createCredential('production') })
 
     expect(baseUrls).toEqual([PRODUCTION_BASE_URL, PRODUCTION_BASE_URL])
   })
@@ -145,6 +148,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: PAYLOAD,
     })
 
@@ -188,6 +192,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: { ...PAYLOAD, issRate },
     })
 
@@ -203,6 +208,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: {
         ...PAYLOAD,
         taker: { ...PAYLOAD.taker, address: { ...TAKER_ADDRESS, complement: '', phone: '' } },
@@ -226,6 +232,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     const outcome = await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: { ...rest, taker: { legalName: taker.legalName, taxId: taker.taxId } },
     })
 
@@ -249,6 +256,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: { ...PAYLOAD, municipalTaxationCode: '10100', nbsCode: '115090000' },
     })
 
@@ -265,6 +273,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: PAYLOAD,
     })
 
@@ -279,7 +288,11 @@ describe('NFS-e fiscal gateway configuration contract', () => {
   test('builds the callback URL from the sealed token, not from configuration', async () => {
     const sent = captureIssuedRps()
 
-    await sent.gateway.issue({ credential: createCredential('production'), payload: PAYLOAD })
+    await sent.gateway.issue({
+      ...V2_ISSUE,
+      credential: createCredential('production'),
+      payload: PAYLOAD,
+    })
 
     expect(sent.rps[0]?.['CallbackUrl']).toBe(
       `${CALLBACK_BASE_URL}/public/nfse-callbacks/${CALLBACK_TOKEN}`,
@@ -314,6 +327,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     const outcome = await gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: PAYLOAD,
     })
 
@@ -327,6 +341,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     const outcome = await sent.gateway.issue({
       credential: createCredential('production'),
+      ...V2_ISSUE,
       payload: PAYLOAD,
     })
 
@@ -360,7 +375,7 @@ describe('NFS-e fiscal gateway configuration contract', () => {
 
     const credential = createCredential('production')
 
-    expect(await gateway.issue({ credential, payload: PAYLOAD })).toEqual({
+    expect(await gateway.issue({ ...V2_ISSUE, credential, payload: PAYLOAD })).toEqual({
       cause: 'provider_not_configured',
       status: 'error',
     })
@@ -368,15 +383,27 @@ describe('NFS-e fiscal gateway configuration contract', () => {
       await gateway.cancel({
         cancellationMotive: '2',
         credential,
+        providerApiVersion: 'v2',
         providerDocumentId: 'nota-1',
       }),
     ).toEqual({ cause: 'provider_not_configured', status: 'error' })
-    expect(await gateway.fetchStatus({ credential, providerDocumentId: 'nota-1' })).toEqual({
+    expect(
+      await gateway.fetchStatus({
+        credential,
+        providerApiVersion: 'v2',
+        providerDocumentId: 'nota-1',
+      }),
+    ).toEqual({
       cause: 'provider_not_configured',
       status: 'error',
     })
     expect(
-      await gateway.fetchDocument({ credential, kind: 'pdf', providerDocumentId: 'nota-1' }),
+      await gateway.fetchDocument({
+        credential,
+        kind: 'pdf',
+        providerApiVersion: 'v2',
+        providerDocumentId: 'nota-1',
+      }),
     ).toEqual({ cause: 'provider_not_configured', status: 'error' })
     expect(decryptCalls).toEqual([])
   })

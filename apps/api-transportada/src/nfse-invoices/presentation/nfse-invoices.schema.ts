@@ -7,7 +7,9 @@ import {
   MAX_DESCRIPTION_MAX_LENGTH,
   NFSE_CANCELLATION_MOTIVES,
   NFSE_ISS_EXIGIBILITIES,
+  NFSE_NATIONAL_TAXATION_CODE_PATTERN,
   NFSE_SERVICE_INVOICE_STATUSES,
+  NFSE_SIMPLES_NATIONAL_RATE_PATTERN,
 } from '../../database/nfse.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -40,6 +42,7 @@ const UUID = z.uuid()
 const CORRECTION_CNAE = /^[0-9]{7}$/
 const CORRECTION_IBGE_CITY = /^[0-9]{7}$/
 const CORRECTION_ISS_RATE = /^(?:0\.[0-9]{6}|1\.000000)$/
+const CORRECTION_NATIONAL_TAXATION_CODE = new RegExp(NFSE_NATIONAL_TAXATION_CODE_PATTERN)
 
 const LIST_QUERY_KEYS = new Set([
   'createdFrom',
@@ -67,6 +70,13 @@ export type NfseInvoiceCancellationBody = z.infer<typeof nfseInvoiceCancellation
 /** Descartar não tem motivo nem correção: o corpo é vazio, e `.strict()` recusa qualquer campo. */
 export const nfseInvoiceDiscardSchema = z.object({}).strict()
 
+/** O `id_nota` do portal é numérico; só dígitos, para não virar outro filtro ou caminho no provedor. */
+export const nfseInvoiceExternalLinkSchema = z
+  .object({ providerDocumentId: z.string().regex(/^\d{1,20}$/) })
+  .strict()
+
+export type NfseInvoiceExternalLinkBody = z.infer<typeof nfseInvoiceExternalLinkSchema>
+
 /**
  * Reemitir sem correção retransmite o RPS congelado tal como está — corpo ausente. Os nove campos
  * corrigíveis da spec são todos opcionais e sem `.default()`: ausência tem de continuar distinguível
@@ -82,6 +92,7 @@ export const nfseInvoiceReissueSchema = z
     issWithheld: z.boolean().optional(),
     municipalTaxationCode: z.string().trim().max(MAX_CORRECTION_TEXT_LENGTH).optional(),
     municipalityIbgeCode: z.string().regex(CORRECTION_IBGE_CITY).optional(),
+    nationalTaxationCode: z.string().regex(CORRECTION_NATIONAL_TAXATION_CODE).optional(),
     nbsCode: z.string().trim().max(MAX_CORRECTION_TEXT_LENGTH).optional(),
     serviceListItem: z
       .string()
@@ -89,6 +100,7 @@ export const nfseInvoiceReissueSchema = z
       .min(MIN_CORRECTION_SERVICE_LIST_ITEM)
       .max(MAX_CORRECTION_SERVICE_LIST_ITEM)
       .optional(),
+    simplesNationalRate: z.string().regex(NFSE_SIMPLES_NATIONAL_RATE_PATTERN).optional(),
   })
   .strict()
 
@@ -222,9 +234,11 @@ export const nfseLastIssuancePayloadResponseSchema = z
     issWithheld: z.boolean(),
     municipalTaxationCode: z.string(),
     municipalityIbgeCode: z.string(),
+    nationalTaxationCode: z.string().optional(),
     nbsCode: z.string(),
     serviceAmount: z.string(),
     serviceListItem: z.string(),
+    simplesNationalRate: z.string().optional(),
     takerLegalName: z.string(),
     takerTaxId: z.string(),
   })
