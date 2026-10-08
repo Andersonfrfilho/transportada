@@ -1154,6 +1154,14 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [] })
   })
+  // Spec 253: a tela de viagens carrega os contratantes para o filtro do relatório; smoke que precisa deles registra a rota por cima.
+  await input.page.route(/\/contractors(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
   // Spec 158: o detalhe da viagem sempre lê a linha do tempo; smoke que precisa de itens registra
   // `mockTripTimelineApi` por cima (o mais recente vence no Playwright).
   await input.page.route(/\/trips\/[^/]+\/timeline(?:\?.*)?$/, async (route) => {
