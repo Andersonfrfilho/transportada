@@ -8,7 +8,7 @@
 
 ## T1.2
 
-- Migration `20261008161749_trip_document_link_events`: tabela append-only (trigger `55000`), checks de canal, motivo (1–500), forma do JSON e `documents_without_cte >= 0`; `rollback.sql` recusa rodar com linhas e remove a linha do journal.
+- Migration `20261008183714_trip_document_link_events`: tabela append-only (trigger `55000`), checks de canal, motivo (1–500), forma do JSON e `documents_without_cte >= 0`; `rollback.sql` recusa rodar com linhas e remove a linha do journal.
 - Lista de migrations (`static-migration.contract.ts`) e de tabelas (`support.ts`) atualizadas.
 - `make migration-test` → 158 pass / 0 fail; `bun run typecheck` limpo.
 

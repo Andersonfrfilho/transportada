@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "77d0d4e4-d9af-46bc-b6fe-ae612ad929d3",
+  "id": "006a0815-6918-4626-b754-781db4a62b48",
   "prevIds": [
-    "d33051c0-e368-45b5-8639-5fc1e3a49ddd"
+    "600c283a-1dde-442f-a514-610fd2c07dc9"
   ],
   "ddl": [
     {
@@ -4974,6 +4974,19 @@
       "generated": null,
       "identity": null,
       "name": "authorization_protocol",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "nfe_documents"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_email",
       "entityType": "columns",
       "schema": "public",
       "table": "nfe_documents"
@@ -60496,6 +60509,13 @@
       "table": "nfe_document_status_changes"
     },
     {
+      "value": "\"recipient_email\" is null or (length(\"recipient_email\") <= 254 and \"recipient_email\" ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$')",
+      "name": "nfe_documents_recipient_email_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "nfe_documents"
+    },
+    {
       "value": "\"access_key\" ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'",
       "name": "nfe_documents_access_key_check",
       "entityType": "checks",
@@ -60979,7 +60999,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -61021,7 +61041,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",
