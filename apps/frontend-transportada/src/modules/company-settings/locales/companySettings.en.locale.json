@@ -362,7 +362,23 @@
       "title": "Identification",
       "name": "Name",
       "redelivery": "Return",
-      "flow": "Logging"
+      "flow": "Logging",
+      "icon": {
+        "title": "Type icon",
+        "none": "No icon",
+        "names": {
+          "alert": "Alert",
+          "camera": "Camera",
+          "clipboard-list": "Checklist",
+          "clock": "Clock",
+          "document": "Document",
+          "invoice": "Invoice",
+          "message": "Message",
+          "money": "Money",
+          "package": "Package",
+          "truck": "Truck"
+        }
+      }
     },
     "create": {
       "title": "New type"

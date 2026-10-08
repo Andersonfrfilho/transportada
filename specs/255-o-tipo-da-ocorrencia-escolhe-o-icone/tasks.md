@@ -29,7 +29,7 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 > 🤖 Modelo: `sonnet`; T3.1 → `haiku`
 
 - [x] **T3.1** Glyphs faltantes nos dois `icon.tsx` + contrato catálogo × `ICON_PATHS`.
-- [ ] **T3.2** Aba Tipos: seletor de ícone + locale.
+- [x] **T3.2** Aba Tipos: seletor de ícone + locale.
 - [ ] **T3.3** Chip do motorista com ícone (CA1: sem ícone = igual a hoje).
 - [ ] **T3.4** Cartão da ocorrência no painel com ícone.
 

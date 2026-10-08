@@ -23,6 +23,7 @@ import styles from '@/modules/trip/styles/occurrenceTypeItem.module.css'
 
 import { useOccurrenceTypeOptions } from '../hooks/useOccurrenceTypeOptions.hook'
 import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint.component'
+import { OccurrenceTypeIconPicker } from './OccurrenceTypeIconPicker.component'
 
 const NAME_MAX_LENGTH = 60
 
@@ -107,6 +108,11 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
           </div>
         ) : null}
       </div>
+      <OccurrenceTypeIconPicker
+        disabled={disabled}
+        onChange={(iconName) => onEdit({ iconName })}
+        value={type.iconName}
+      />
       <div className={identityStyles.identityChecks}>
         <Checkbox
           checked={type.active}

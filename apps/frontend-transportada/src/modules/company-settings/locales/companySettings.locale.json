@@ -362,7 +362,23 @@
       "title": "Identificação",
       "name": "Nome",
       "redelivery": "Devolução",
-      "flow": "Registro"
+      "flow": "Registro",
+      "icon": {
+        "title": "Ícone do tipo",
+        "none": "Sem ícone",
+        "names": {
+          "alert": "Alerta",
+          "camera": "Câmera",
+          "clipboard-list": "Lista de conferência",
+          "clock": "Relógio",
+          "document": "Documento",
+          "invoice": "Nota fiscal",
+          "message": "Mensagem",
+          "money": "Dinheiro",
+          "package": "Pacote",
+          "truck": "Caminhão"
+        }
+      }
     },
     "create": {
       "title": "Novo tipo"

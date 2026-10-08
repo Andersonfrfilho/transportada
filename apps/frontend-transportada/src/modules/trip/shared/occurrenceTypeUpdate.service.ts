@@ -35,6 +35,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
   emailsContractor?: boolean | undefined
   emailTemplateKey: null | string
+  /** Spec 255 RF4: `null` limpa o ícone; `undefined` é "não mexe" — o `PUT` ausente mantém. */
+  iconName?: null | string | undefined
   /** Spec 218 (D1, RF-B5): `undefined` é "não mexe" — só a troca explícita do seletor manda o campo. */
   flow?: OccurrenceTypeFlow | undefined
   /**
@@ -80,6 +82,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'emailSubject'
       | 'emailTemplateKey'
       | 'flow'
+      | 'iconName'
       | 'itemsMinimumCount'
       | 'itemsMode'
       | 'leavesDocumentBehind'

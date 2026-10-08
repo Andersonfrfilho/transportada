@@ -252,3 +252,23 @@ Contratos em `test/icon-catalog.contract.test.ts` (ambos os apps):
 O contrato do executor tinha a lista de nomes copiada à mão e só conferia presença: ampliar o catálogo da API ou desenhar um glyph diferente numa das apps não deixaria nada vermelho. Os dois contratos passam a ler `OCCURRENCE_TYPE_ICON_NAMES` do arquivo da API (mesmo padrão de `catalog-parity.contract.ts`) e o do painel compara também o traçado de cada glyph com o do motorista.
 
 Mutação vermelha: o traçado de `truck` do motorista alterado (`...v4h-7z` → `...v4h-8z`) deixa `desenha cada glyph igual ao do motorista` vermelho (1 pass, 1 fail); restaurado, 2 pass, 0 fail no painel e 1 pass, 0 fail no motorista. Medido à mão: os 10 traçados são idênticos nas duas apps.
+
+## T3.2 — Aba Tipos: seletor de ícone + locale (RF4)
+
+**Vermelho (antes de implementar):** os três contratos novos falharam — `occurrence-type-icon-catalog` e `occurrence-type-icon-picker`
+com `Cannot find module` (constante e componente inexistentes); `occurrence-type-icon-body` com 2 fail (`iconName` string e `null` não
+iam no corpo; o caso "omite a chave" já passava).
+
+**Verde:** `OccurrenceTypeIconPicker` (grade de botões nativos, `aria-label` do locale, `aria-pressed`, "Sem ícone" devolve `null`) no
+bloco Identificação (`OccurrenceTypeIdentity`); lista única em `shared/occurrenceTypeIcon.constant.ts`, igualada ao catálogo da API
+lida como texto. `iconName` entrou em `OccurrenceTypeSaveInput`/`OccurrenceTypeEdit` e no corpo do `PUT` (`tripClient.service.ts`).
+O formulário já modela "não mexe" como `undefined` (edição parcial), então a chave só vai quando o seletor é usado — string do catálogo
+ou `null`. O tipo lido já traz `iconName` (T1.1), que alimenta o `aria-pressed`. Locale em `companySettings.locale.json` e `.en.locale.json`
+(`occurrenceTypeCatalog.identity.icon.*`). Nenhum arquivo de `useTripWorkspace`/`TripOccurrences` foi tocado.
+
+**Desvio:** o seletor mora em `OccurrenceTypeIdentity` (o bloco de identificação real da aba), não em `OccurrenceTypeRecordFields`.
+O CSS usa `--control-height-compact` e import relativo da folha, exigidos pelos contratos de design system.
+
+**Gates:** `bun run typecheck` (raiz) verde; `test` do `frontend-transportada` 7625 pass / 0 fail (+1130 do `test:hooks`);
+`bunx eslint --max-warnings=0` nos arquivos da task: exit 0 (o `lint` da app segue com os 4 erros pré-existentes em
+`test/trip/occurrence-type-icon-tolerance.contract.ts`, não tocado); `frontend-driver` não tocado.

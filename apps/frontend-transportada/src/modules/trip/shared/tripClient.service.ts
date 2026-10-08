@@ -953,6 +953,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.itemsMinimumCount === undefined
             ? {}
             : { itemsMinimumCount: input.itemsMinimumCount }),
+          ...(input.iconName === undefined ? {} : { iconName: input.iconName }),
           leavesDocumentBehind: input.leavesDocumentBehind,
           ...(input.moments === undefined ? {} : { moments: input.moments }),
           name: input.name,
