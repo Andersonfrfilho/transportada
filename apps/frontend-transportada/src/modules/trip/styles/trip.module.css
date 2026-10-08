@@ -5438,3 +5438,164 @@ button.occurrenceCaseBadge {
 .crewTransferRoles span {
   color: var(--color-slate);
 }
+
+.conferenceSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.conferenceSummary div {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.conferenceSummary dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+}
+
+.conferenceSummary dd {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+@media (min-width: 40rem) {
+  .conferenceSummary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Mobile-first: cartões por nota; a tabela larga volta a partir de 40rem. */
+.conferenceTable thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.conferenceTable,
+.conferenceTable tbody,
+.conferenceTable tr,
+.conferenceTable td {
+  display: block;
+}
+
+.conferenceTable tr {
+  padding-block: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.conferenceTable td {
+  display: grid;
+  white-space: normal;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border: none;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.conferenceTable td::before {
+  flex: none;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+  content: attr(data-label);
+  text-align: left;
+}
+
+@media (min-width: 40rem) {
+  .conferenceTable thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .conferenceTable {
+    display: table;
+  }
+
+  .conferenceTable thead {
+    display: table-header-group;
+  }
+
+  .conferenceTable tbody {
+    display: table-row-group;
+  }
+
+  .conferenceTable tr {
+    display: table-row;
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .conferenceTable td {
+    display: table-cell;
+    white-space: nowrap;
+    padding: revert;
+    text-align: left;
+  }
+
+  .conferenceTable td::before {
+    content: none;
+  }
+}
+
+/* Os três campos que o atendimento confere primeiro: nota, cliente e valor. */
+.conferenceTable td.conferenceKey {
+  color: var(--color-ink, inherit);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Só o ícone cabe ao lado do status em painel estreito; o texto volta quando há largura. */
+.conferenceButtonLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+@media (min-width: 64rem) {
+  .conferenceButtonLabel {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+}
+
+/* Título e identificador andam juntos; o resto do cabeçalho se distribui ao redor deles. */
+.tripTitleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+}
+
+/* Título, selos e botão têm alturas diferentes (texto, selo, alvo de toque): centralizados, não pela linha de base. */
+.tripDetailHead {
+  align-items: center;
+}
+
+/* O identificador é anotação do título, não um campo: sem caixa própria. */
+.tripIdInline {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}

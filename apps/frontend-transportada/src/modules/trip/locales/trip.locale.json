@@ -2432,5 +2432,26 @@
       "finished": "Entregue",
       "total_return": "Devolução total"
     }
+  },
+  "conference": {
+    "button": "Conferência da viagem",
+    "title": "Conferência da viagem",
+    "subtitle": "O que está montado nesta viagem, nota a nota.",
+    "close": "Fechar a conferência",
+    "notes": "Notas",
+    "stops": "Paradas",
+    "totalValue": "Valor das notas",
+    "volumes": "Volumes",
+    "withoutValue": "{{count}} nota sem valor informado — fora da soma.",
+    "withoutValue_other": "{{count}} notas sem valor informado — fora da soma.",
+    "noteColumn": "Nota",
+    "clientColumn": "Cliente",
+    "destinationColumn": "Destino (cidade)",
+    "valueColumn": "Valor",
+    "volumesColumn": "Volumes",
+    "series": "série {{series}}",
+    "unknown": "—",
+    "noStop": "Sem parada definida",
+    "empty": "Nenhuma nota nesta viagem ainda."
   }
 }
