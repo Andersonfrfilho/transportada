@@ -385,3 +385,27 @@ Gates finais (de `apps/worker-transportada`, após T3.4): `bun run typecheck` 0 
 `test:integration`: **não rodou, e não precisava** — nenhum arquivo de `test/integration` toca os repositórios
 de NFS-e alterados. A consulta SQL nova foi provada à parte, em Postgres nativo descartável (E17), sem teste
 versionado: ver a lacuna em E17. Não declarar a integração do worker como verde por isso.
+
+## E20 — T4.1: campo no perfil de emissão (07/10/2026)
+
+Aba Configurações do perfil ganha "Código de tributação nacional" (6 dígitos) e a alíquota do Simples Nacional
+(`simplesNationalRate`, string, vírgula ou ponto, mesmo padrão do schema da API), em pt-BR e en, com ajuda do par
+`cTribNac` + `cTribMun`. Componente `NfseNationalTaxationFields`, regras em `nfseNationalTaxation.service.ts`; a
+resposta do perfil rejeita valor fora do formato. Commit `2883000e7`. Contratos: `national-taxation-fields.contract.tsx`,
+`nfse-settings.contract.ts`, locais pt-BR/en em `navigation-and-locales.contract.ts`.
+
+Gates (de `apps/frontend-transportada`): `bun run typecheck` 0 erros · `bun run lint` 0 erros (16 warnings antigos) ·
+`bun run test` 7602 pass / 0 fail e entrypoint `nfse-invoice` 1104 pass / 0 fail · prettier limpo nos arquivos tocados.
+O typecheck foi conferido com só os arquivos do commit (stash do restante): limpo.
+Ressalva: o entrypoint `nfse-invoice.contract.test.ts` (já na lista do `package.json`) só importa os dois testes novos no
+commit da T4.2; no commit da T4.1 sozinho o teste do componente não é executado.
+
+## E21 — T4.2: correção na reemissão (07/10/2026)
+
+O diálogo de reemissão (individual e em lote) mostra o par nacional lido do payload congelado; o corpo enviado
+(`buildNfseReissueCorrectionBody`) leva só o que mudou, com a alíquota no formato da API; o 409
+`NFSE_NATIONAL_TAXATION_CODE_MISSING` tem mensagem própria. O detalhe aceita o payload congelado com e sem os dois campos
+(notas anteriores à v3). Contrato da API conferido em `nfse-invoices.schema.ts` (`nationalTaxationCode` 6 dígitos,
+`simplesNationalRate` string). Commit `faaa00add`; contrato `national-taxation.contract.ts` (registrado via
+`nfse-invoice.contract.test.ts`, já na lista do `package.json`). Gates: os mesmos da E20.
+Pendente: T4.3 (revisão de design com print).
