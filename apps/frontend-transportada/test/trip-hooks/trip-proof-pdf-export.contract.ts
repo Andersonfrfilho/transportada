@@ -36,7 +36,7 @@ describe('useTripProofPdfExport (spec 253 T4.6)', () => {
     expect(saved[0]?.fileName).toBe(
       buildTripExportFileName({ baseName: 'trip-proofs', extension: 'pdf' }),
     )
-    expect(saved[0]?.fileName).toMatch(/^trip-proofs-\d{4}-\d{2}-\d{2}\.pdf$/)
+    expect(saved[0]?.fileName).toMatch(/^trip-proofs-\d{4}-\d{2}-\d{2}-\d{4}\.pdf$/)
     expect(rendered.result().error).toBeUndefined()
     expect(rendered.result().isExporting).toBe(false)
     rendered.unmount()
@@ -205,17 +205,17 @@ describe('TripProofPdfExportButton (spec 253 T4.6)', () => {
 })
 
 describe('buildTripExportFileName', () => {
-  test('uses the local calendar date, not UTC', () => {
+  test('uses the local date and time, not UTC', () => {
     const lateEvening = new Date(2026, 9, 8, 23, 30)
     expect(
       buildTripExportFileName({ baseName: 'trip-report', extension: 'xlsx', today: lateEvening }),
-    ).toBe('trip-report-2026-10-08.xlsx')
+    ).toBe('trip-report-2026-10-08-2330.xlsx')
   })
 
-  test('pads month and day', () => {
-    const firstDay = new Date(2026, 0, 5, 9, 0)
+  test('pads month, day, hour and minute', () => {
+    const firstDay = new Date(2026, 0, 5, 9, 5)
     expect(
       buildTripExportFileName({ baseName: 'trip-proofs', extension: 'pdf', today: firstDay }),
-    ).toBe('trip-proofs-2026-01-05.pdf')
+    ).toBe('trip-proofs-2026-01-05-0905.pdf')
   })
 })
