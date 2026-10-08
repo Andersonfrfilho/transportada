@@ -40,6 +40,7 @@ export const NFSE_CANCEL_OUTBOX_EVENT: NfseIssuanceOutboxEventType =
 const CANCEL_ATTEMPT_KIND: NfseAttemptKind = 'cancel'
 const CANCEL_OPERATION = 'nfse.invoice.cancel'
 const CREATE_OPERATION = 'nfse.invoice.create'
+const EXTERNAL_LINK_OPERATION = 'nfse.invoice.external_link'
 const ISSUE_ATTEMPT_KIND: NfseAttemptKind = 'issue'
 const REISSUE_OPERATION = 'nfse.invoice.reissue'
 
@@ -103,6 +104,18 @@ export function createReissueFingerprint(input: {
     invoiceId: input.invoiceId,
     operation: REISSUE_OPERATION,
     ...(input.correction ?? {}),
+  })
+}
+
+/** O `id_nota` entra: ligar outra nota do provedor e repetir a chave é pedido novo, não replay. */
+export function createExternalLinkFingerprint(input: {
+  readonly invoiceId: string
+  readonly providerDocumentId: string
+}): string {
+  return createRequestFingerprint({
+    invoiceId: input.invoiceId,
+    operation: EXTERNAL_LINK_OPERATION,
+    providerDocumentId: input.providerDocumentId,
   })
 }
 

@@ -70,6 +70,13 @@ export type NfseInvoiceCancellationBody = z.infer<typeof nfseInvoiceCancellation
 /** Descartar não tem motivo nem correção: o corpo é vazio, e `.strict()` recusa qualquer campo. */
 export const nfseInvoiceDiscardSchema = z.object({}).strict()
 
+/** O `id_nota` do portal é numérico; só dígitos, para não virar outro filtro ou caminho no provedor. */
+export const nfseInvoiceExternalLinkSchema = z
+  .object({ providerDocumentId: z.string().regex(/^\d{1,20}$/) })
+  .strict()
+
+export type NfseInvoiceExternalLinkBody = z.infer<typeof nfseInvoiceExternalLinkSchema>
+
 /**
  * Reemitir sem correção retransmite o RPS congelado tal como está — corpo ausente. Os nove campos
  * corrigíveis da spec são todos opcionais e sem `.default()`: ausência tem de continuar distinguível

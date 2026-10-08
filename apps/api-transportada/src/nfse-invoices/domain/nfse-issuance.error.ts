@@ -52,6 +52,17 @@ export class NfseInvoiceTransitionBlockedError extends ApiError {
   }
 }
 
+/** O `id_nota` é do provedor e único por empresa: ligar o mesmo a duas notas faria o status pull autorizar as duas. */
+export class NfseProviderDocumentAlreadyLinkedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED',
+      message: 'The provider document is already linked to another service invoice.',
+      status: CONFLICT_STATUS,
+    })
+  }
+}
+
 export class NfseIdempotencyKeyReusedError extends ApiError {
   public constructor() {
     super({

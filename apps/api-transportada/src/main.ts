@@ -168,6 +168,7 @@ import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/driz
 import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
 import { createNfseInvoiceDiscardUseCase } from './nfse-invoices/application/nfse-invoice-discard.use-case.js'
+import { createNfseInvoiceExternalLinkUseCase } from './nfse-invoices/application/nfse-invoice-external-link.use-case.js'
 import { createNfseInvoiceReissueUseCase } from './nfse-invoices/application/nfse-invoice-reissue.use-case.js'
 import { createNfseInvoiceQueryUseCase } from './nfse-invoices/application/nfse-invoice-query.use-case.js'
 import { createNfseInvoiceUseCase } from './nfse-invoices/application/nfse-invoice.use-case.js'
@@ -2630,6 +2631,11 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: nfseInvoiceRepository,
   })
+  const linkNfseInvoiceExternally = createNfseInvoiceExternalLinkUseCase({
+    now: () => new Date(),
+    providerApiVersion: nfseProviderApiVersion,
+    repository: nfseInvoiceRepository,
+  })
   const reissueNfseInvoice = createNfseInvoiceReissueUseCase({
     now: () => new Date(),
     providerApiVersion: nfseProviderApiVersion,
@@ -4825,6 +4831,7 @@ function createApplicationRoutes({
       exportNfseDocuments: {
         exportDocuments: (input) => exportNfseDocuments.exportDocuments(input),
       },
+      linkNfseInvoiceExternally: { execute: (input) => linkNfseInvoiceExternally.execute(input) },
       nfseInvoice: {
         create: (input) => nfseInvoices.create(input),
         preview: (input) => nfseInvoices.preview(input),

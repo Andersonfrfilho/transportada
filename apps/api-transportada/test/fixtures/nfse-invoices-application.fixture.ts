@@ -13,6 +13,8 @@ import type {
   LinkNfseInvoiceDocumentsInput,
   MarkNfseInvoiceCancellationInput,
   MarkNfseInvoiceDiscardedInput,
+  MarkNfseInvoiceExternallyLinkedInput,
+  AppendNfseInvoiceAuditInput,
   MarkNfseInvoiceIssuingInput,
   NfseFiscalDocumentLocation,
   NfseFrozenIssuancePayload,
@@ -29,6 +31,7 @@ import type {
   ReleaseNfseInvoiceLinksInput,
   SaveNfseIssuancePayloadInput,
 } from '../../src/nfse-invoices/application/nfse-invoice.port'
+import { NfseProviderDocumentAlreadyLinkedError } from '../../src/nfse-invoices/domain/nfse-issuance.error'
 import type { NfseIssuanceAttemptHistory } from '../../src/nfse-invoices/domain/nfse-provider-request-key.policy'
 import type { NfseSelectionDocument } from '../../src/nfse-invoices/domain/nfse-selection.policy'
 import type { NfsePartyAddress } from '../../src/nfse-invoices/domain/nfse-taker-address.policy'
@@ -260,18 +263,21 @@ export type NfseRepositoryState = {
   readonly invoiceStatus: NfseServiceInvoiceStatus
   readonly latestIssueAttempt: NfseIssuanceAttemptHistory | null
   readonly linkedDocumentIds: readonly string[]
+  readonly linkedProviderDocumentIds: readonly string[]
   readonly profile: NfseInvoiceProfile | null
   readonly ruleVersion: NfseFreightRuleVersion | null
 }
 
 export type NfseRepositoryRecording = {
   readonly attempts: CreateNfseIssuanceAttemptInput[]
+  readonly audits: AppendNfseInvoiceAuditInput[]
   readonly cancellations: MarkNfseInvoiceCancellationInput[]
   readonly charges: CreateNfseInvoiceChargesInput[]
   readonly discards: MarkNfseInvoiceDiscardedInput[]
   readonly events: AppendNfseIssuanceEventInput[]
   readonly invoices: CreateNfseInvoiceRecordInput[]
   readonly issuings: MarkNfseInvoiceIssuingInput[]
+  readonly externalLinks: MarkNfseInvoiceExternallyLinkedInput[]
   readonly links: LinkNfseInvoiceDocumentsInput[]
   readonly outbox: PushNfseIssuanceOutboxInput[]
   readonly payloads: SaveNfseIssuancePayloadInput[]
@@ -301,6 +307,7 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     invoiceStatus: 'authorized',
     latestIssueAttempt: null,
     linkedDocumentIds: [DOCUMENT_ID],
+    linkedProviderDocumentIds: [],
     profile: PROFILE,
     ruleVersion: RULE_VERSION,
     ...overrides,
@@ -308,10 +315,12 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
 
   const recording: NfseRepositoryRecording = {
     attempts: [],
+    audits: [],
     cancellations: [],
     charges: [],
     discards: [],
     events: [],
+    externalLinks: [],
     invoices: [],
     issuings: [],
     links: [],
@@ -368,6 +377,10 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
 
   const transaction: NfseInvoiceTransactionPort = {
     ...reader,
+    async appendAudit(input) {
+      recording.steps.push('appendAudit')
+      recording.audits.push(input)
+    },
     async appendEvent(input) {
       recording.steps.push('appendEvent')
       recording.events.push(input)
@@ -429,6 +442,13 @@ export function createNfseRepositoryFixture(overrides: Partial<NfseRepositorySta
     async markDiscarded(input) {
       recording.steps.push('markDiscarded')
       recording.discards.push(input)
+    },
+    async markExternallyLinked(input) {
+      recording.steps.push('markExternallyLinked')
+      recording.externalLinks.push(input)
+      if (state.linkedProviderDocumentIds.includes(input.providerDocumentId)) {
+        throw new NfseProviderDocumentAlreadyLinkedError()
+      }
     },
     async markIssuing(input) {
       recording.steps.push('markIssuing')

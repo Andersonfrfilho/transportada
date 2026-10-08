@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, sql } from 'drizzle-orm'
 
+import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
 import { freightRuleVersions } from '../../database/freight.schema.js'
@@ -23,6 +24,7 @@ import {
   nfseServiceInvoices,
 } from '../../database/nfse.schema.js'
 import type { NfseFiscalEnvironment, NfseServiceInvoiceStatus } from '../../database/nfse.schema.js'
+import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   buildActiveCredentialFilters,
@@ -51,6 +53,7 @@ import {
   buildStoredObjectFilters,
 } from './nfse-invoice-query.query.js'
 import type {
+  AppendNfseInvoiceAuditInput,
   AppendNfseIssuanceEventInput,
   CreateNfseInvoiceChargesInput,
   CreateNfseInvoiceRecordInput,
@@ -58,6 +61,7 @@ import type {
   LinkNfseInvoiceDocumentsInput,
   MarkNfseInvoiceCancellationInput,
   MarkNfseInvoiceDiscardedInput,
+  MarkNfseInvoiceExternallyLinkedInput,
   MarkNfseInvoiceIssuingInput,
   NfseFiscalDocumentKind,
   NfseFiscalDocumentLocation,
@@ -84,6 +88,7 @@ import type {
   ReleaseNfseInvoiceLinksInput,
   SaveNfseIssuancePayloadInput,
 } from '../application/nfse-invoice.port.js'
+import { NfseProviderDocumentAlreadyLinkedError } from '../domain/nfse-issuance.error.js'
 import type { NfseIssuanceAttemptHistory } from '../domain/nfse-provider-request-key.policy.js'
 import type { NfseSelectionDocument } from '../domain/nfse-selection.policy.js'
 import { findNfseSelectionDocuments } from './nfse-invoice-selection.query.js'
@@ -96,6 +101,9 @@ const AGGREGATE_TYPE = 'nfse_service_invoice'
 const AGGREGATE_SUBTYPE = 'invoice'
 const CURSOR_SEPARATOR = '::'
 const PENDING_ATTEMPT_STATUS = 'pending'
+const ACCEPTED_ATTEMPT_STATUS = 'accepted'
+const PROVIDER_DOCUMENT_UNIQUE_CONSTRAINT = 'nfse_service_invoices_company_provider_document_unique'
+const AUDIT_ENTITY_TYPE = 'nfse_service_invoice'
 const REQUESTED_OUTBOX_STATUS = 'requested'
 
 /**
@@ -204,6 +212,9 @@ function createScopedTransaction(
   companyId: string,
 ): NfseInvoiceTransactionPort {
   return {
+    async appendAudit(input) {
+      await appendAudit(transaction, input)
+    },
     async appendEvent(input) {
       await appendEvent(transaction, companyId, input)
     },
@@ -269,6 +280,9 @@ function createScopedTransaction(
     },
     async markDiscarded(input) {
       await markDiscarded(transaction, companyId, input)
+    },
+    async markExternallyLinked(input) {
+      await markExternallyLinked(transaction, companyId, input)
     },
     async markIssuing(input) {
       await markIssuing(transaction, companyId, input)
@@ -668,6 +682,52 @@ async function markIssuing(
     .where(and(...buildInvoiceScopeFilters({ companyId, invoiceId: input.invoiceId })))
 }
 
+/** O índice único por (empresa, `id_nota`) é quem impede duas notas de apontarem para a mesma do provedor. */
+async function markExternallyLinked(
+  transaction: NfseTransaction,
+  companyId: string,
+  input: MarkNfseInvoiceExternallyLinkedInput,
+): Promise<void> {
+  try {
+    await transaction
+      .update(nfseServiceInvoices)
+      .set({
+        nextStatusCheckAt: new Date(input.requestedAt),
+        providerDocumentId: input.providerDocumentId,
+        rejectionCode: null,
+        rejectionMessage: null,
+        status: input.status,
+        updatedAt: new Date(input.requestedAt),
+        version: sql`${nfseServiceInvoices.version} + 1`,
+      })
+      .where(and(...buildInvoiceScopeFilters({ companyId, invoiceId: input.invoiceId })))
+  } catch (error) {
+    if (violatedUniqueConstraint(error) === PROVIDER_DOCUMENT_UNIQUE_CONSTRAINT) {
+      throw new NfseProviderDocumentAlreadyLinkedError()
+    }
+    throw error
+  }
+}
+
+async function appendAudit(
+  transaction: NfseTransaction,
+  input: AppendNfseInvoiceAuditInput,
+): Promise<void> {
+  await transaction.insert(auditLogs).values({
+    action: input.action,
+    actorUserId: input.actorUserId,
+    afterSnapshot: input.after,
+    beforeSnapshot: input.before,
+    companyId: input.companyId,
+    correlationId: input.correlationId,
+    entityId: input.invoiceId,
+    entityType: AUDIT_ENTITY_TYPE,
+    permission: input.permission,
+    targetId: input.invoiceId,
+    targetType: AUDIT_ENTITY_TYPE,
+  })
+}
+
 /** A ordem é por `attempt_number`, não por data: é ele que numera as tentativas da nota. */
 async function findLatestPayload(
   queryable: NfseQueryable,
@@ -952,6 +1012,7 @@ function buildProviderRequestKeyColumn(params: {
   readonly attemptId: string
   readonly input: CreateNfseIssuanceAttemptInput
 }): { readonly providerRequestKey?: string } {
+  if (params.input.externalLink === true) return {}
   if (params.input.providerRequestKey !== undefined) {
     return { providerRequestKey: params.input.providerRequestKey }
   }
@@ -981,7 +1042,7 @@ async function createAttempt(
       idempotencyKey: input.idempotencyKey,
       invoiceId: input.invoiceId,
       requestFingerprint: uniqueRequestFingerprint,
-      status: PENDING_ATTEMPT_STATUS,
+      status: input.externalLink === true ? ACCEPTED_ATTEMPT_STATUS : PENDING_ATTEMPT_STATUS,
     })
     .returning(ATTEMPT_COLUMNS)
   if (record === undefined) throw new Error('NFS-e issuance attempt insert returned no row')

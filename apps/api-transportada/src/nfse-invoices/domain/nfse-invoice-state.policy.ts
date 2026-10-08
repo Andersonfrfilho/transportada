@@ -8,6 +8,7 @@ export const NFSE_INVOICE_ACTION = {
   confirmCancellation: 'confirmCancellation',
   discard: 'discard',
   issue: 'issue',
+  link: 'link',
 } as const
 
 export type NfseInvoiceAction = (typeof NFSE_INVOICE_ACTION)[keyof typeof NFSE_INVOICE_ACTION]
@@ -91,6 +92,16 @@ const DISCARD_TRANSITIONS: Readonly<Record<NfseServiceInvoiceStatus, NfseInvoice
   requested: { allowed: false, reason: NFSE_TRANSITION_BLOCK.inFlight },
 }
 
+/**
+ * Vincular a nota emitida no portal só vale para o que nunca virou documento fiscal aqui. Leva a
+ * `pending_authorization` — não a `authorized` — para o status pull trazer número, XML e PDF.
+ */
+const LINK_TRANSITIONS: Readonly<Record<NfseServiceInvoiceStatus, NfseInvoiceTransition>> = {
+  ...DISCARD_TRANSITIONS,
+  failed: { allowed: true, nextStatus: 'pending_authorization' },
+  rejected: { allowed: true, nextStatus: 'pending_authorization' },
+}
+
 export function checkNfseInvoiceTransition({
   action,
   status,
@@ -103,6 +114,7 @@ export function checkNfseInvoiceTransition({
     return CONFIRM_CANCELLATION_TRANSITIONS[status]
   }
   if (action === NFSE_INVOICE_ACTION.discard) return DISCARD_TRANSITIONS[status]
+  if (action === NFSE_INVOICE_ACTION.link) return LINK_TRANSITIONS[status]
 
   return ISSUE_TRANSITIONS[status]
 }

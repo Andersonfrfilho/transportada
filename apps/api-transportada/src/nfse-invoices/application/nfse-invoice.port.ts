@@ -123,6 +123,8 @@ export type CreateNfseInvoiceChargesInput = {
 export type CreateNfseIssuanceAttemptInput = {
   readonly attemptKind: NfseAttemptKind
   readonly correlationId: string
+  /** A tentativa de um vínculo nasce `accepted` e sem chave do provedor: nada é transmitido. */
+  readonly externalLink?: true
   readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly idempotencyKey: string
   readonly invoiceId: string
@@ -316,6 +318,24 @@ export type AppendNfseIssuanceEventInput = {
   readonly payload: Readonly<Record<string, unknown>>
 }
 
+export type MarkNfseInvoiceExternallyLinkedInput = {
+  readonly invoiceId: string
+  readonly providerDocumentId: string
+  readonly requestedAt: string
+  readonly status: NfseServiceInvoiceStatus
+}
+
+export type AppendNfseInvoiceAuditInput = {
+  readonly action: string
+  readonly actorUserId: string
+  readonly after: Readonly<Record<string, unknown>>
+  readonly before: Readonly<Record<string, unknown>>
+  readonly companyId: string
+  readonly correlationId: string
+  readonly invoiceId: string
+  readonly permission: string
+}
+
 export type SaveNfseIssuancePayloadInput = {
   readonly attemptId: string
   readonly invoiceId: string
@@ -387,6 +407,7 @@ export type NfseInvoiceReaderPort = {
 }
 
 export type NfseInvoiceTransactionPort = NfseInvoiceReaderPort & {
+  appendAudit(input: AppendNfseInvoiceAuditInput): Promise<void>
   appendEvent(input: AppendNfseIssuanceEventInput): Promise<void>
   createAttempt(input: CreateNfseIssuanceAttemptInput): Promise<NfseIssuanceAttemptRecord>
   createCharges(input: CreateNfseInvoiceChargesInput): Promise<void>
@@ -403,6 +424,7 @@ export type NfseInvoiceTransactionPort = NfseInvoiceReaderPort & {
   linkDocuments(input: LinkNfseInvoiceDocumentsInput): Promise<void>
   markCancellationRequested(input: MarkNfseInvoiceCancellationInput): Promise<void>
   markDiscarded(input: MarkNfseInvoiceDiscardedInput): Promise<void>
+  markExternallyLinked(input: MarkNfseInvoiceExternallyLinkedInput): Promise<void>
   markIssuing(input: MarkNfseInvoiceIssuingInput): Promise<void>
   pushOutbox(input: PushNfseIssuanceOutboxInput): Promise<void>
   releaseDocumentLinks(input: ReleaseNfseInvoiceLinksInput): Promise<readonly string[]>
