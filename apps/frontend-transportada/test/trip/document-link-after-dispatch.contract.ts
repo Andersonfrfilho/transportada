@@ -85,7 +85,7 @@ describe('resposta de POST /trips/:id/documents/after-dispatch', () => {
   })
 
   it('recusa chave desconhecida, campo faltando, tipo trocado e motivo de pulo desconhecido', () => {
-    const { eventId: _eventId, ...incomplete } = LINK
+    const incomplete = Object.fromEntries(Object.entries(LINK).filter(([key]) => key !== 'eventId'))
 
     expect(() => parseDocumentLinkAfterDispatch({ ...LINK, extra: 1 })).toThrow()
     expect(() => parseDocumentLinkAfterDispatch(incomplete)).toThrow()

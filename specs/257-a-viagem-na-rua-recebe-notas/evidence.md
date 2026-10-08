@@ -54,3 +54,9 @@
 ## T3.1
 
 - ADR-0043 §2 ganhou a exceção; `docs/ai-context/api-transportada.md` ganhou a seção da spec 257; `apps/api-transportada/CLAUDE.md` aponta a rota e a tabela. Só documentação.
+
+## T3.2
+
+- `make check` (format, lint, typecheck, test, build) → exit 0; o lint pegou uma variável sem uso no contrato novo, corrigida.
+- `make migration-test` → exit 0, 158 pass / 0 fail.
+- Deploy **não** feito: pede aprovação humana, e o painel sai antes da API.
