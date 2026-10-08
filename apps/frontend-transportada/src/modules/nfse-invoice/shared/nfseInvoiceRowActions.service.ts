@@ -4,10 +4,16 @@ import {
   NFSE_CANCELLATION_REASON_MAX_LENGTH,
   NFSE_CANCELLATION_REASON_MIN_LENGTH,
   NFSE_ISSUE_PERMISSION,
+  NFSE_NATIONAL_TAXATION_KEYS,
   NFSE_READ_PERMISSION,
   NFSE_REISSUE_CORRECTABLE_KEYS,
 } from './nfseInvoice.constant'
 import type { NfseLastIssuancePayload } from './nfseInvoice.types'
+import {
+  formatSimplesNationalRate,
+  toNationalTaxationCode,
+  toSimplesNationalRate,
+} from './nfseNationalTaxation.service'
 
 const CANCELLATION_IDEMPOTENCY_KEY_PREFIX = 'nfse-cancellation'
 const REISSUE_IDEMPOTENCY_KEY_PREFIX = 'nfse-reissue'
@@ -109,12 +115,33 @@ export type NfseReissueCorrection = Partial<
 export function buildNfseReissueCorrectionBody(
   input: Readonly<{ edited: NfseReissueCorrection; lastPayload: NfseLastIssuancePayload }>,
 ): NfseReissueCorrection {
-  const correction: Record<string, unknown> = {}
+  const correction: Record<string, unknown> = {
+    ...readNationalTaxationCorrection(input),
+  }
   for (const key of NFSE_REISSUE_CORRECTABLE_KEYS) {
+    if (NFSE_NATIONAL_TAXATION_KEYS.some((nationalKey) => nationalKey === key)) continue
     if (!(key in input.edited)) continue
     if (input.edited[key] !== input.lastPayload[key]) correction[key] = input.edited[key]
   }
   return correction
+}
+
+/** Apagar o campo não corrige nada: a API não aceita valor vazio, então vazio significa "não mexi". */
+function readNationalTaxationCorrection(
+  input: Readonly<{ edited: NfseReissueCorrection; lastPayload: NfseLastIssuancePayload }>,
+): NfseReissueCorrection {
+  const code = toNationalTaxationCode(input.edited.nationalTaxationCode ?? '')
+  const rate = toSimplesNationalRate(input.edited.simplesNationalRate ?? '')
+  const frozenRate = formatSimplesNationalRate(input.lastPayload.simplesNationalRate ?? '')
+
+  return {
+    ...(code !== null && code !== input.lastPayload.nationalTaxationCode
+      ? { nationalTaxationCode: code }
+      : {}),
+    ...(rate !== null && formatSimplesNationalRate(rate) !== frozenRate
+      ? { simplesNationalRate: rate }
+      : {}),
+  }
 }
 
 /** O documento fiscal sai por link assinado: sem `url` legível não há o que abrir, e mentir é pior. */

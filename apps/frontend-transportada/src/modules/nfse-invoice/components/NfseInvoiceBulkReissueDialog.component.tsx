@@ -73,6 +73,14 @@ export function NfseInvoiceBulkReissueDialog({
           </p>
         )}
 
+        {bulkReissue.summary !== null && bulkReissue.summary.missingNationalTaxation > 0 && (
+          <p className={styles.placeholder} role="alert">
+            {t('bulkReissue.missingNationalTaxation', {
+              count: bulkReissue.summary.missingNationalTaxation,
+            })}
+          </p>
+        )}
+
         <footer className={styles.emissionFooter}>
           <button className={styles.ghostAction} onClick={bulkReissue.close} type="button">
             <Icon name="close" />

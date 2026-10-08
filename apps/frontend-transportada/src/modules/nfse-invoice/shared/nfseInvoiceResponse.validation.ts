@@ -11,6 +11,7 @@ import {
   NFSE_INVOICE_KEYS,
   NFSE_ISSUANCE_SUMMARY_KEYS,
   NFSE_LAST_ISSUANCE_PAYLOAD_KEYS,
+  NFSE_NATIONAL_TAXATION_KEYS,
   NFSE_PREVIEW_ADJUSTMENT_KEYS,
   NFSE_PREVIEW_BLOCK_KEYS,
   NFSE_PREVIEW_CHARGE_KEYS,
@@ -21,11 +22,13 @@ import {
 } from './nfseInvoice.constant'
 import {
   hasExactKeys,
+  hasKeys,
   isBoolean,
   isDecimalString,
   isEveryItem,
   isNullableString,
   isOneOf,
+  isOptionalString,
   isRecord,
   isString,
   isStringArray,
@@ -110,7 +113,12 @@ function isDelivery(value: unknown): value is NfseInvoiceDelivery {
 /** O payload congelado da última tentativa — nulo quando a fatura ainda não tem tentativa nenhuma. */
 function isLastIssuancePayload(value: unknown): value is NfseLastIssuancePayload {
   return (
-    hasExactKeys(value, NFSE_LAST_ISSUANCE_PAYLOAD_KEYS) &&
+    hasKeys(value, {
+      allowed: [...NFSE_LAST_ISSUANCE_PAYLOAD_KEYS, ...NFSE_NATIONAL_TAXATION_KEYS],
+      required: NFSE_LAST_ISSUANCE_PAYLOAD_KEYS,
+    }) &&
+    isOptionalString(value.nationalTaxationCode) &&
+    isOptionalString(value.simplesNationalRate) &&
     isString(value.cnaeCode) &&
     isString(value.description) &&
     isUnsignedInteger(value.documentCount) &&

@@ -30,6 +30,10 @@ import {
   validateNfseCancellationReason,
   type NfseRowActionState,
 } from '../shared/nfseInvoiceRowActions.service'
+import {
+  findNationalTaxationFieldErrors,
+  resolveReissueNationalTaxationValues,
+} from '../shared/nfseNationalTaxation.service'
 import { createNfseInvoiceController, getNfseInvoiceClient } from './useNfseInvoices.hook'
 
 type UseNfseInvoiceRowActionsInput = Readonly<{
@@ -167,6 +171,14 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     discardMutation.reset()
   }
 
+  const reissueNationalTaxationValues = resolveReissueNationalTaxationValues({
+    draft: reissueDraft,
+    frozen: reissueDetailQuery.data?.lastPayload ?? {},
+  })
+  const nationalTaxationErrors = findNationalTaxationFieldErrors(reissueNationalTaxationValues)
+  const isReissueNationalTaxationValid =
+    !nationalTaxationErrors.code && !nationalTaxationErrors.rate
+
   return {
     cancelErrorCode: readErrorCode(cancelMutation.error),
     cancellationMotive,
@@ -202,6 +214,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     confirmReissue: () => {
       const lastPayload = reissueDetailQuery.data?.lastPayload
       if (reissueTarget === null || lastPayload === null || lastPayload === undefined) return
+      if (!isReissueNationalTaxationValid) return
       reissueMutation.mutate({
         correction: buildNfseReissueCorrectionBody({
           edited: reissueDraft,
@@ -230,6 +243,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     isDiscardPending: discardMutation.isPending,
     isDownloadPending: downloadMutation.isPending,
     isReissueDetailLoading: reissueDetailQuery.isLoading,
+    isReissueNationalTaxationValid,
     isReissuePending: reissueMutation.isPending,
     openCancel: (invoice: NfseInvoice) => {
       setCancelTarget(invoice)
@@ -254,6 +268,7 @@ export function useNfseInvoiceRowActions(input: UseNfseInvoiceRowActionsInput) {
     reissueDraft,
     reissueErrorCode: readErrorCode(reissueMutation.error),
     reissueLastPayload: reissueDetailQuery.data?.lastPayload ?? null,
+    reissueNationalTaxationValues,
     reissueTarget,
     resolveActions: (status: string): NfseRowActionState =>
       resolveNfseRowActions({ permissions, status }),
