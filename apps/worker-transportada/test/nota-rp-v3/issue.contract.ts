@@ -335,6 +335,14 @@ describe('Nota RP v3 client — emissão: respostas', () => {
     expect(outcome.rejection?.code).toBe('NOTA_RP_HTTP_422')
   })
 
+  test('422 com errors[] leva campo e motivo de cada erro na mensagem', async () => {
+    const { outcome } = await issueWith({ respond: validationErrorBody })
+
+    expect(outcome.rejection?.message).toContain(
+      'servico.codigo_tributacao_nacional: Campo inválido',
+    )
+  })
+
   test('mensagem de recusa sai sem token nem callback token e com até 500 caracteres', async () => {
     const message = `campo flags.webhook_url invalido ${CALLBACK_TOKEN} token ${API_TOKEN} ${'x'.repeat(900)}`
     const { outcome } = await issueWith({ respond: () => errorBody({ message, status: 422 }) })

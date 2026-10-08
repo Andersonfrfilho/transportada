@@ -73,17 +73,34 @@ export async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function describeFieldErrors(body: Readonly<Record<string, unknown>> | undefined): string {
+  const items = Array.isArray(body?.['errors']) ? (body['errors'] as readonly unknown[]) : []
+  return items
+    .map((item) => asRecord(item))
+    .map((item) => {
+      if (item === undefined) return ''
+      const field = readText(item, 'field')
+      const reason = readText(item, 'message')
+      return [field, reason].filter((part) => part !== undefined).join(': ')
+    })
+    .filter((line) => line.length > 0)
+    .join('; ')
+}
+
 export async function readHttpRejection(input: {
   readonly redact: NotaRpV3Redact
   readonly response: Response
 }): Promise<NotaRpRejection> {
   const code = `${HTTP_REJECTION_CODE_PREFIX}${input.response.status}`
   const fallback = `HTTP ${input.response.status}`
-  const message = asRecord(await readJson(input.response))?.['message']
+  const body = asRecord(await readJson(input.response))
+  const message = body?.['message']
   const text = typeof message === 'string' ? message.trim() : ''
+  const details = describeFieldErrors(body)
+  const headline = text.length === 0 ? fallback : text
   return buildRejection({
     code,
-    message: text.length === 0 ? fallback : text,
+    message: details.length === 0 ? headline : `${headline} — ${details}`,
     redact: input.redact,
   })
 }
