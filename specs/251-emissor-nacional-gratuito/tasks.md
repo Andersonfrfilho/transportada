@@ -18,10 +18,11 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 
 - [x] **T0.1** `haiku` — Conferir spec 250 em `origin/staging` e ler as specs 032/040/175 (nada aqui
       duplica decisão delas). Aceite: lista de contratos herdados em `evidence.md`.
-- [ ] **T0.2** `sonnet` — Confirmar na API nacional (parâmetros municipais, produção restrita) que
+- [x] **T0.2** `sonnet` — Confirmar na API nacional (parâmetros municipais, produção restrita) que
       Ribeirão Preto aceita emissão direta pelo contribuinte, e registrar a fonte oficial da
       gratuidade. Aceite: resposta em `evidence.md`; sem ela, parar e abrir ADR "não faremos".
-      **REABERTA (08/10/2026): `aderenteEmissorNacional = 0` para 3543402 em produção restrita (evidence § Medição).**
+      **FECHADA CONDICIONALMENTE (08/10/2026):** o cadastro oficial diz `aderenteEmissorNacional = 0` (restrita e
+      produção), mas o usuário informa que a prefeitura já aceita e o cadastro está desatualizado; vale a sonda T2.3b.
       Antes: fechada por confirmação do usuário de que a prefeitura atende a emissão nacional; a
       medição de `aderenteEmissorNacional` (mTLS) segue como conferência técnica na T0.3/T0.4, não como
       bloqueio. A gratuidade não tem página oficial acessível: tratar como indício. Ver `evidence.md` § T0.2.
@@ -54,6 +55,11 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 - [ ] **T2.2** `sonnet` — Montagem da DPS 1.01 e validação contra XSD.
 - [ ] **T2.3** `sonnet` — Assinatura XMLDSig com o A1 (gateway da aplicação, sem internals do pacote
       fiscal). Revisão de segurança: chave e senha nunca em log, buffers zerados.
+- [ ] **T2.3b** `sonnet` — **SONDA (antes da Fase 1 e da Fase 3):** com a DPS montada e assinada, um
+      `POST /nfse` de teste em **produção restrita**. Se a Sefin recusar por o município não ser aderente ao
+      Emissor Nacional, **parar**, registrar o código/mensagem em `evidence.md` e voltar ao usuário (ADR "não
+      faremos" ou webservice ISS.Net). Se aceitar, o risco do cadastro desatualizado está fechado. Exige o A1
+      (o usuário digita a senha; nada de segredo em arquivo).
 - [ ] **T2.4** `sonnet` — `nfse-national.client.ts` + gateway + seleção `national` por env, com mTLS e
       limitador do processo.
 - [ ] **T2.5** `sonnet` — Status pull e documentos (XML fiscal imutável + PDF no storage).

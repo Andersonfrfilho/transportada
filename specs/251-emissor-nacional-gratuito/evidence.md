@@ -206,3 +206,12 @@ corpo JSON (nomes dos campos, GZip+Base64) e os status HTTP só têm fonte não 
 - Isto **contradiz** a confirmação dada no chat (a prefeitura "atende a emissão nacional"): ela é verdadeira para o
   ambiente nacional (DPS no padrão nacional via ISS.Net), mas **não** para o Emissor Nacional/Sefin gratuito.
 - Ressalva: o valor é de **produção restrita**; o de produção não foi consultado (pede autorização do usuário).
+
+### Produção também diz 0, e a decisão do usuário (08/10/2026)
+
+`GET https://adn.nfse.gov.br/parametrizacao/3543402/convenio` (produção, A1 do prestador, só leitura) → **200** com os
+mesmos valores: `aderenteAmbienteNacional=1`, **`aderenteEmissorNacional=0`**, `situacaoEmissaoPadraoContribuintesRFB=1`.
+
+O usuário informou que a prefeitura **já aceita** a emissão direta e que o cadastro nacional está **desatualizado**.
+Decisão: a spec **segue** sob essa informação; o registro oficial (0) fica como **risco conhecido**, com a sonda abaixo.
+Pendente do usuário: anexar a confirmação escrita da prefeitura/CGNFS (e-mail ou protocolo) em `evidence.md`.
