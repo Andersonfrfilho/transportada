@@ -12,7 +12,10 @@ import {
   type NfseReconciliationIneligibilityReason,
 } from '../domain/nfse-reconciliation-eligibility.policy.js'
 import type { NfseProviderApiVersion } from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
-import type { NfseReconciliationSourceStatus } from '../domain/nfse-reconciliation-outcome.policy.js'
+import type {
+  NfseExternalLinkFacts,
+  NfseReconciliationSourceStatus,
+} from '../domain/nfse-reconciliation-outcome.policy.js'
 import type { NfseCredentialAccess } from './nfse-fiscal-status.port.js'
 import type {
   NfseReconciliationCandidate,
@@ -23,6 +26,7 @@ export type DueNfseInvoice = {
   readonly attemptId: string
   readonly companyId: string
   readonly credential: NfseCredentialAccess
+  readonly externalLink?: NfseExternalLinkFacts
   readonly invoiceId: string
   readonly providerApiVersion: NfseProviderApiVersion
   readonly providerDocumentId: string
@@ -104,6 +108,7 @@ function toDueInvoice(candidate: NfseReconciliationCandidate): DueNfseInvoice {
       municipalRegistration: credential.municipalRegistration,
       taxId: credential.taxId,
     },
+    ...(candidate.externalLink === undefined ? {} : { externalLink: candidate.externalLink }),
     invoiceId: candidate.invoiceId,
     providerApiVersion: candidate.providerApiVersion,
     providerDocumentId: candidate.providerDocumentId as string,

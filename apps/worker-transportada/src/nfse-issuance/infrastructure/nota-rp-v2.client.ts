@@ -78,6 +78,8 @@ export type NotaRpAuthorizedDocument = {
   readonly authorizedAt: string
   readonly fiscalNumber: string
   readonly providerDocumentId: string
+  /** Só a v3 traz (`valor_servicos`); confere o vínculo de nota emitida fora do sistema. */
+  readonly serviceAmount?: string
   readonly verificationCode: string
 }
 

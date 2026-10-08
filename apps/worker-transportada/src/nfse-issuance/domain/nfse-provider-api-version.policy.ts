@@ -9,6 +9,7 @@ const PROVIDER_API_VERSION_FIELD = 'providerApiVersion'
 
 export type NfseIssuanceAttemptHistoryEntry = {
   readonly attemptNumber: bigint
+  readonly payload?: unknown
   readonly providerConfig: unknown
 }
 
@@ -34,6 +35,26 @@ export function resolveLatestIssuanceApiVersion(
     : parseProviderApiVersion(latest.providerConfig)
 }
 
+/** A tentativa de vínculo guarda o `id_nota` do portal, não o de uma emissão feita aqui. */
+export function isExternalLinkAttempt(providerConfig: unknown): boolean {
+  if (typeof providerConfig !== 'object' || providerConfig === null) return false
+  return (providerConfig as Record<string, unknown>)['externalLink'] === true
+}
+
+/** O valor congelado da última emissão, quando ela é um vínculo; é o que o portal tem de confirmar. */
+export function resolveLatestExternalLinkServiceAmount(
+  history: readonly NfseIssuanceAttemptHistoryEntry[],
+): string | undefined {
+  let latest: NfseIssuanceAttemptHistoryEntry | undefined
+  for (const entry of history) {
+    if (latest === undefined || entry.attemptNumber > latest.attemptNumber) latest = entry
+  }
+  if (latest === undefined || !isExternalLinkAttempt(latest.providerConfig)) return undefined
+  if (typeof latest.payload !== 'object' || latest.payload === null) return undefined
+  const amount = (latest.payload as Record<string, unknown>)['serviceAmount']
+  return typeof amount === 'string' ? amount : undefined
+}
+
 /**
  * O `id_nota` da nota só vale para a v3 se foi a v3 que o gerou. Sem coluna de origem, a prova é
  * que toda emissão anterior foi v3; qualquer dúvida manda nota nova (a chave de idempotência
@@ -45,5 +66,6 @@ export function canReuseProviderDocumentId(input: {
 }): boolean {
   const priorAttempts = input.history.filter((entry) => entry.attemptNumber < input.attemptNumber)
   if (priorAttempts.length === 0) return false
+  if (priorAttempts.some((entry) => isExternalLinkAttempt(entry.providerConfig))) return false
   return priorAttempts.every((entry) => parseProviderApiVersion(entry.providerConfig) === 'v3')
 }

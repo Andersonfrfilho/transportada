@@ -77,6 +77,7 @@ export function createReconcileInvoiceUseCase(
         providerDocumentId: invoice.providerDocumentId,
       })
       const decision = resolveNfseReconciliationDecision({
+        ...(invoice.externalLink === undefined ? {} : { externalLink: invoice.externalLink }),
         provider,
         storedStatus: invoice.status,
       })

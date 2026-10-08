@@ -56,6 +56,7 @@ function readAuthorized(input: {
   const fiscalNumber = readIdentifier(input.note, 'numero')
   const verificationCode = readText(input.note, 'chave_acesso')
   const authorizedAt = readAuthorizedAt(input.note)
+  const serviceAmount = readAmount(input.note, 'valor_servicos')
   if (fiscalNumber === undefined || verificationCode === undefined || authorizedAt === undefined) {
     return { cause: 'malformed_response', status: 'error' }
   }
@@ -65,10 +66,17 @@ function readAuthorized(input: {
       authorizedAt,
       fiscalNumber,
       providerDocumentId: input.providerDocumentId,
+      ...(serviceAmount === undefined ? {} : { serviceAmount }),
       verificationCode,
     },
     status: 'authorized',
   }
+}
+
+function readAmount(note: Readonly<Record<string, unknown>>, field: string): string | undefined {
+  const value = note[field]
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : undefined
+  return readText(note, field)
 }
 
 /** `data_emissao` está depreciada no swagger: a competência manda e a emissão é só reserva. */

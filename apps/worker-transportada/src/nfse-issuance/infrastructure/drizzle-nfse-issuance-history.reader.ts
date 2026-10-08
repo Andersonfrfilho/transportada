@@ -27,6 +27,7 @@ export async function listIssuanceAttemptHistory(input: {
     .select({
       attemptNumber: nfseIssuanceAttempts.attemptNumber,
       invoiceId: nfseIssuanceAttempts.invoiceId,
+      payload: nfseIssuancePayloads.payload,
       providerConfig: nfseIssuancePayloads.providerConfig,
     })
     .from(nfseIssuanceAttempts)
@@ -48,7 +49,11 @@ export async function listIssuanceAttemptHistory(input: {
   const byInvoice = new Map<string, NfseIssuanceAttemptHistoryEntry[]>()
   for (const row of rows) {
     const entries = byInvoice.get(row.invoiceId) ?? []
-    entries.push({ attemptNumber: row.attemptNumber, providerConfig: row.providerConfig })
+    entries.push({
+      attemptNumber: row.attemptNumber,
+      payload: row.payload,
+      providerConfig: row.providerConfig,
+    })
     byInvoice.set(row.invoiceId, entries)
   }
   return byInvoice

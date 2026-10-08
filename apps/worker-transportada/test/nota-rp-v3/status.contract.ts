@@ -71,6 +71,7 @@ describe('Nota RP v3 client — consulta: classificação por status', () => {
         authorizedAt: '2024-01-15T00:00:00-03:00',
         fiscalNumber: '123',
         providerDocumentId: PROVIDER_DOCUMENT_ID,
+        serviceAmount: '1500',
         verificationCode: 'ABC123XYZ789',
       },
       status: 'authorized',

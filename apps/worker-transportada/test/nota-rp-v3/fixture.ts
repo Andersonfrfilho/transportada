@@ -37,6 +37,7 @@ export type NotaRpV3StatusOutcomeShape = {
     authorizedAt: string
     fiscalNumber: string
     providerDocumentId: string
+    serviceAmount?: string
     verificationCode: string
   }
   rejection?: NotaRpV3RejectionShape

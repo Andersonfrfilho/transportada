@@ -87,3 +87,14 @@ describe('NFS-e provider API version — id_nota só atravessa v3 para v3', () =
     expect(canReuseProviderDocumentId({ attemptNumber: 2n, history })).toBe(true)
   })
 })
+
+describe('NFS-e provider API version — vínculo externo', () => {
+  test('o id_nota de um vínculo nunca é reaproveitado numa reemissão', () => {
+    const history = [
+      entry(1n, { externalLink: true, providerApiVersion: 'v3' }),
+      entry(2n, { providerApiVersion: 'v3' }),
+    ]
+
+    expect(canReuseProviderDocumentId({ attemptNumber: 2n, history })).toBe(false)
+  })
+})

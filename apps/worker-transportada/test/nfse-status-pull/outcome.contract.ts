@@ -180,3 +180,79 @@ describe('NFS-e reconciliation outcome from an invoice awaiting cancellation', (
     ).toEqual({ cause: 'timeout', kind: 'defer' })
   })
 })
+
+const LINK_SERVICE_AMOUNT = '1500.0000'
+
+describe('NFS-e reconciliation outcome from an externally linked invoice', () => {
+  const externalLink = { serviceAmount: LINK_SERVICE_AMOUNT }
+
+  test('rejects a note the provider cannot find, instead of deferring forever', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: { cause: 'not_found', status: 'error' },
+        storedStatus: 'pending_authorization',
+      }),
+    ).toMatchObject({ errorCode: 'NFSE_EXTERNAL_LINK_NOT_FOUND', kind: 'reject' })
+  })
+
+  test('still defers the other provider errors', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: TRANSPORT_ERROR,
+        storedStatus: 'pending_authorization',
+      }),
+    ).toEqual({ cause: 'timeout', kind: 'defer' })
+  })
+
+  test('authorizes when the portal amount equals the frozen amount, ignoring trailing zeros', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: {
+          document: { ...AUTHORIZED_DOCUMENT, serviceAmount: '1500' },
+          status: 'authorized',
+        },
+        storedStatus: 'pending_authorization',
+      }),
+    ).toMatchObject({ kind: 'authorize' })
+  })
+
+  test('rejects an authorization whose amount differs from the frozen amount', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: {
+          document: { ...AUTHORIZED_DOCUMENT, serviceAmount: '1500.01' },
+          status: 'authorized',
+        },
+        storedStatus: 'pending_authorization',
+      }),
+    ).toMatchObject({ errorCode: 'NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH', kind: 'reject' })
+  })
+
+  test('rejects an authorization that carries no amount: the match cannot be proven', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: { document: AUTHORIZED_DOCUMENT, status: 'authorized' },
+        storedStatus: 'pending_authorization',
+      }),
+    ).toMatchObject({ errorCode: 'NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH', kind: 'reject' })
+  })
+
+  test('a provider Falha is a normal rejection', () => {
+    expect(
+      resolveNfseReconciliationDecision({
+        externalLink,
+        provider: REJECTED,
+        storedStatus: 'pending_authorization',
+      }),
+    ).toEqual({
+      errorCode: 'E320',
+      errorMessage: 'Item da lista de servicos incompativel com o CNAE',
+      kind: 'reject',
+    })
+  })
+})

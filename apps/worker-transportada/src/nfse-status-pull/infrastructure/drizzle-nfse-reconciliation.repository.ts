@@ -27,6 +27,7 @@ import {
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import { listIssuanceAttemptHistory } from '../../nfse-issuance/infrastructure/drizzle-nfse-issuance-history.reader.js'
 import {
+  resolveLatestExternalLinkServiceAmount,
   resolveLatestIssuanceApiVersion,
   type NfseProviderApiVersion,
 } from '../../nfse-issuance/domain/nfse-provider-api-version.policy.js'
@@ -118,6 +119,9 @@ export function createDrizzleNfseReconciliationSource(dependencies: {
           credential: credentials.get(invoice.companyId),
           invoice,
           providerApiVersion: resolveLatestIssuanceApiVersion(
+            issuanceHistory.get(invoice.invoiceId) ?? [],
+          ),
+          externalLinkServiceAmount: resolveLatestExternalLinkServiceAmount(
             issuanceHistory.get(invoice.invoiceId) ?? [],
           ),
         }),
@@ -524,8 +528,12 @@ function toCandidate(input: {
     readonly status: NfseServiceInvoiceStatus
   }
   readonly providerApiVersion: NfseProviderApiVersion
+  readonly externalLinkServiceAmount: string | undefined
 }): NfseReconciliationCandidate {
   return {
+    ...(input.externalLinkServiceAmount === undefined
+      ? {}
+      : { externalLink: { serviceAmount: input.externalLinkServiceAmount } }),
     companyId: input.invoice.companyId,
     providerApiVersion: input.providerApiVersion,
     invoiceId: input.invoice.invoiceId,
