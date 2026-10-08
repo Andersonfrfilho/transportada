@@ -91,7 +91,7 @@ arquivo.
       (corpo `.strict()` espelhando a rota; sem `await` no caminho do motorista; `400` descarta o lote; `429`/rede
       devolvem os eventos ao buffer limitado a 50; nunca instrumenta o próprio envio; publicar API antes do driver).
       Gate: T1.4 verde.
-- [ ] **T4.3** Instrumentar só chamando o coletor, sem mudar regra: `upload_slot`/`upload_put`/
+- [x] **T4.3** Instrumentar só chamando o coletor, sem mudar regra: `upload_slot`/`upload_put`/
       `upload_confirm`/`report_send` (+ `send_failed` com `toAttachmentSendOutcome`), `photo_reduce`,
       `trip_open`, `baixa_total`. `flush` no fim da drenagem, em `online` e na volta de visibilidade.
       Gate: contratos existentes do driver verdes (nenhuma regra de ocorrência mudou — D2) + T1.4.

@@ -438,7 +438,7 @@ describe('o PUT que cai na rede deixa rastro (spec 254 CA1/RF1)', () => {
 
     const failures = harness.collected
       .flatMap((batch) => batch.events)
-      .filter((event) => event.eventKind === 'send_failed')
+      .filter((event) => event.eventKind === 'send_failed' && event.step !== 'report_send')
     expect(failures.map((event) => event.step)).toEqual(['upload_put', 'upload_put', 'upload_put'])
     expect(failures.map((event) => event.failureKind)).toEqual(['network', 'network', 'network'])
     expect(failures.map((event) => event.attempt)).toEqual([1, 2, 3])
@@ -597,5 +597,22 @@ describe('nada que o coletor emite carrega dado pessoal (spec 254 RF4/CA2)', () 
     const keys = Object.keys(batches[0]?.events[0] ?? {})
     expect(keys.length).toBeGreaterThan(0)
     expect(keys.filter((key) => !allowed.has(key))).toEqual([])
+  })
+})
+
+describe('o passo envoltório do envio (spec 254 RF2)', () => {
+  it('a falha do envio também sai como report_send, com o mesmo rótulo do passo que quebrou', async () => {
+    const harness = await buildDiagnosable({
+      sendDiagnostics: () => Promise.resolve({ status: 204 }),
+      storage: NETWORK_DOWN,
+    })
+    await harness.sendWithAttempt(1)
+    await harness.diagnostics.flush()
+
+    const wrapper = harness.collected
+      .flatMap((batch) => batch.events)
+      .filter((event) => event.step === 'report_send')
+    expect(wrapper.map((event) => event.eventKind)).toEqual(['send_failed'])
+    expect(wrapper[0]?.failureKind).toBe('network')
   })
 })

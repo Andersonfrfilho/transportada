@@ -26,10 +26,11 @@ import {
   type ProofPunctuality,
   type StopOccurrenceReportReference,
 } from './driverTrip.types'
+import { buildDeviceProfile } from './deviceProfile.service'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
-import type { ClientDiagnostics } from './clientDiagnostics.service'
+import { createClientDiagnostics, type ClientDiagnostics } from './clientDiagnostics.service'
 import type {
   DiagnosticFailureKind,
   DiagnosticsBatch,
@@ -425,7 +426,12 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       return toManifestDownload(payload)
     },
     async readCurrent() {
-      const payload = await request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH })
+      const payload = await traceStep({
+        context: {},
+        dependencies,
+        run: () => request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH }),
+        step: 'trip_open',
+      })
       return toDriverTripSnapshot(payload)
     },
     async readDeliveryProofs(documentId) {
@@ -474,52 +480,71 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         throw error
       }
     },
-    async send({ report: queuedReport, stamp }, options) {
-      const report = withLegacyLocation(queuedReport)
-      if (report.kind === 'documentOccurrence') {
-        await sendDocumentOccurrence({
-          dependencies,
-          diagnostics: {
-            attempt: options?.attempt,
-            idempotencyKey: report.idempotencyKey,
-            reportKind: report.kind,
-          },
-          report,
-        })
-        return
-      }
-      if (report.kind === 'stopOccurrencePhoto') {
-        await sendStopOccurrencePhoto({
-          dependencies,
-          diagnostics: {
-            attempt: options?.attempt,
-            idempotencyKey: report.occurrenceKey,
-            reportKind: report.kind,
-          },
-          report,
-          stamp,
-        })
-        return
-      }
-      if (report.kind === 'proofReceiver') {
-        await request({
-          body: JSON.stringify(report.fields),
-          dependencies,
-          idempotencyKey: report.idempotencyKey,
-          method: 'PATCH',
-          path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
-        })
-        return
-      }
-      await request({
-        body: reportBody({ report, stamp }),
+    send(stamped, options) {
+      return traceStep({
+        context: {
+          attempt: options?.attempt,
+          idempotencyKey: stamped.report.idempotencyKey,
+          reportKind: stamped.report.kind,
+        },
         dependencies,
-        idempotencyKey: report.idempotencyKey,
-        method: 'POST',
-        path: reportPath(report),
+        run: () => sendReport({ dependencies, options, stamped }),
+        step: 'report_send',
       })
     },
   }
+}
+
+async function sendReport(input: {
+  readonly dependencies: ClientDependencies
+  readonly options: SendOptions | undefined
+  readonly stamped: StampedReport
+}): Promise<void> {
+  const { dependencies, options, stamped } = input
+  const { report: queuedReport, stamp } = stamped
+  const report = withLegacyLocation(queuedReport)
+  if (report.kind === 'documentOccurrence') {
+    await sendDocumentOccurrence({
+      dependencies,
+      diagnostics: {
+        attempt: options?.attempt,
+        idempotencyKey: report.idempotencyKey,
+        reportKind: report.kind,
+      },
+      report,
+    })
+    return
+  }
+  if (report.kind === 'stopOccurrencePhoto') {
+    await sendStopOccurrencePhoto({
+      dependencies,
+      diagnostics: {
+        attempt: options?.attempt,
+        idempotencyKey: report.occurrenceKey,
+        reportKind: report.kind,
+      },
+      report,
+      stamp,
+    })
+    return
+  }
+  if (report.kind === 'proofReceiver') {
+    await request({
+      body: JSON.stringify(report.fields),
+      dependencies,
+      idempotencyKey: report.idempotencyKey,
+      method: 'PATCH',
+      path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
+    })
+    return
+  }
+  await request({
+    body: reportBody({ report, stamp }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
+    method: 'POST',
+    path: reportPath(report),
+  })
 }
 
 /**
@@ -856,12 +881,33 @@ function abortSignalWithDeadline(
   return controller.signal
 }
 
-export function getDriverTripClient(): DriverTripClient {
-  return createDriverTripClient({
+function buildBaseDependencies(): ClientDependencies {
+  return {
     apiUrl: getDriverEnvironment().apiBaseUrl,
     clockOffset: driverClockOffset,
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+  }
+}
+
+let sharedDiagnostics: ClientDiagnostics | undefined
+
+/** Spec 254: um coletor por aparelho; o envio dele usa um cliente sem coletor, então não se mede. */
+export function getDriverDiagnostics(): ClientDiagnostics {
+  sharedDiagnostics ??= createClientDiagnostics({
+    device: buildDeviceProfile({
+      isStandalone: globalThis.matchMedia?.('(display-mode: standalone)').matches,
+      navigator: globalThis.navigator,
+    }),
+    send: (batch) => createDriverTripClient(buildBaseDependencies()).sendClientDiagnostics(batch),
+  })
+  return sharedDiagnostics
+}
+
+export function getDriverTripClient(): DriverTripClient {
+  return createDriverTripClient({
+    ...buildBaseDependencies(),
+    diagnostics: getDriverDiagnostics(),
   })
 }
 

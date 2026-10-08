@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { driverClockOffset } from '../shared/clockOffset.service'
-import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
+import {
+  getDriverDiagnostics,
+  getDriverTripClient,
+  toAttachmentSendOutcome,
+} from '../shared/driverTripClient.service'
 import {
   readCurrentLocation,
   readDirectTapLocation,
@@ -54,10 +58,8 @@ import {
   selectPendingTotal,
 } from '../shared/pendingQueue.service'
 import type { DrainOrigin } from '../shared/retryBackoff.service'
-import {
-  reduceProofPhotoToJpeg,
-  shouldReduceProofFile,
-} from '../shared/proofPhotoReduction.service'
+import { reduceProofPhotoWithTiming } from '../shared/tracedProofPhotoReducer.service'
+import { shouldReduceProofFile } from '../shared/proofPhotoReduction.service'
 import {
   recoverQueuedProofPhotos,
   reduceQueuedProofPhoto,
@@ -376,7 +378,7 @@ export function useDriverTrip(
   const recoverProofPhotos = useCallback(async (): Promise<void> => {
     const recovered = await recoverQueuedProofPhotos({
       attachmentStore,
-      reduce: reduceProofPhotoToJpeg,
+      reduce: reduceProofPhotoWithTiming,
       reductions: proofPhotoReductions,
     })
     if (recovered > 0) await refreshQueueView()
@@ -465,6 +467,7 @@ export function useDriverTrip(
         },
         store,
       })
+      void getDriverDiagnostics().flush()
       return { ...result, sentKeys }
     },
     onSuccess: (result) => {
@@ -782,7 +785,7 @@ export function useDriverTrip(
           attachment,
           attachmentStore,
           eventKey,
-          reduce: reduceProofPhotoToJpeg,
+          reduce: reduceProofPhotoWithTiming,
           reductions: proofPhotoReductions,
         })
       : Promise.resolve()

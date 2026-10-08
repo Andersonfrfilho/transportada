@@ -277,7 +277,7 @@ describe('o hook liga a trava e a recuperação (spec 212)', () => {
 
   it('a foto nasce marcada e a redução é a do canhoto, não a da ocorrência', () => {
     expect(hook).toInclude('pendingReduction: true')
-    expect(hook).toInclude('reduce: reduceProofPhotoToJpeg')
+    expect(hook).toInclude('reduce: reduceProofPhotoWithTiming')
     expect(hook).not.toInclude('reduceOccurrencePhotoToJpeg')
   })
 
