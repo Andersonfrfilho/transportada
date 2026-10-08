@@ -701,6 +701,66 @@ export const tripCrewEvents = pgTable(
   ],
 )
 
+/**
+ * Spec 257 D9: histórico das notas acrescentadas a uma viagem que já saiu. Append-only (trigger, no
+ * molde de `trip_crew_events`). Guarda só ids opacos: o motivo é dado de negócio e fica na linha, mas
+ * nem nome nem destinatário entram aqui. `mdfe_document_divergence` marca o MDF-e autorizado que
+ * seguiu sem as notas novas; `documents_without_cte` conta as que ainda não têm CT-e autorizado.
+ */
+export const TRIP_DOCUMENT_LINK_EVENT_REASON_MAXIMUM_LENGTH = 500
+
+export const tripDocumentLinkEvents = pgTable(
+  'trip_document_link_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    channel: varchar('channel', { length: 16 }).$type<TripFieldChannel>().notNull(),
+    reason: text().notNull(),
+    nfeDocumentIds: jsonb('nfe_document_ids').$type<readonly string[]>().notNull(),
+    createdStopIds: jsonb('created_stop_ids').$type<readonly string[]>().notNull(),
+    mdfeDocumentDivergence: boolean('mdfe_document_divergence').notNull(),
+    documentsWithoutCte: integer('documents_without_cte').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_link_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_document_link_events_company_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_document_link_events_company_id_id_unique').on(table.companyId, table.id),
+    index('trip_document_link_events_company_trip_created_at_idx').on(
+      table.companyId,
+      table.tripId,
+      table.createdAt,
+    ),
+    check(
+      'trip_document_link_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_document_link_events_reason_check',
+      sql`char_length(${table.reason}) between 1 and ${raw(String(TRIP_DOCUMENT_LINK_EVENT_REASON_MAXIMUM_LENGTH))}`,
+    ),
+    check(
+      'trip_document_link_events_shape_check',
+      sql`jsonb_typeof(${table.nfeDocumentIds}) = 'array' and jsonb_array_length(${table.nfeDocumentIds}) >= 1 and jsonb_typeof(${table.createdStopIds}) = 'array'`,
+    ),
+    check('trip_document_link_events_without_cte_check', sql`${table.documentsWithoutCte} >= 0`),
+  ],
+)
+
 /** Mesmo desenho de `mdfe_manifest_drivers` (ADR-0023 §1): `driver_id` + posição, mínimo 1. */
 export const tripDrivers = pgTable(
   'trip_drivers',
