@@ -39,7 +39,7 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 
 - [ ] **T4.1** Smoke CA3 em staging (escolher na aba Tipos → ver no app do motorista).
 - [x] **T4.2** Atualizar `docs/ai-context/{api-transportada,frontend-transportada,frontend-driver}.md` e os `CLAUDE.md` de app tocados.
-- [ ] **T4.3** `make check`, `make migration-test`, integração da API, `evidence.md` consolidado.
+- [x] **T4.3** `make check`, `make migration-test`, integração da API, `evidence.md` consolidado.
 
 ## Prompt de execução
 

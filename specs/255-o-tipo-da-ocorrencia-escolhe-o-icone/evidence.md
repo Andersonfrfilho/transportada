@@ -322,3 +322,28 @@ Só documentação; nenhum código nem teste tocado. Seção nova "Spec 255 — 
 (seletor, catálogo por valor, cartão, guards) e `docs/ai-context/frontend-driver.md` (chip, tolerância, cópia por valor). Uma linha ⚠️ ao fim de
 `apps/api-transportada/CLAUDE.md`, `apps/frontend-transportada/CLAUDE.md` e `apps/frontend-driver/CLAUDE.md`: ampliar o catálogo é migration mais as
 cópias nas três apps. `bun run format:check` (raiz) verde após `prettier --write` nos arquivos alterados.
+
+## T4.3 — Gates consolidados e revisão final
+
+Medido no HEAD `c12eab436`, depois de todas as tasks de código.
+
+| Gate                                                                   | Resultado                                                                                 |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `bun run typecheck` (raiz)                                             | 0 erros                                                                                   |
+| `bun run format:check` (raiz)                                          | limpo                                                                                     |
+| API, contrato (`bun --env-file=../../.env.test test --timeout 120000`) | 10944 pass, 0 fail                                                                        |
+| API, integração (`test:integration`, Postgres de teste)                | 1291 pass, 8 skip, 0 fail; os 4 testes da spec 255 passam sem pulo                        |
+| `make migration-test`                                                  | 158 pass, 0 fail                                                                          |
+| Painel (`bun run test`)                                                | 7633 pass, 0 fail; hooks 1130 pass                                                        |
+| Motorista (`bun run test`)                                             | 1426 pass, 0 fail                                                                         |
+| Lint do painel                                                         | 4 erros que já existiam em arquivos que a spec não tocou; os arquivos da spec saem limpos |
+
+Os 8 pulos da integração vêm de arquivos que a spec não tocou.
+
+Revisão final (`code-reviewer`, sonnet): 0 crítico, 0 alto, 3 médio, 14 baixo; veredito APROVADO condicionado a M1 e M2.
+
+- M1 (layout do chip com ícone): `.ui-button` do motorista é `inline-flex` com `gap`, e o `Icon` é `aria-hidden`; sem mudança de CSS necessária.
+- M2 (T4.1 e T4.3): T4.3 fechada aqui; T4.1 segue aberta, depende de deploy em staging e de aprovação humana.
+- M3 (código estável do 400): o contrato `occurrence-type-icon.contract.ts` afirma `INVALID_REQUEST` para `iconName` fora do catálogo.
+- B12: `snapshot.json` carrega `company_occurrence_types_icon_name_check`.
+- Baixos (B1 a B11, B13, B14): comentários que citam spec seguem o padrão dos arquivos vizinhos; B13 (ícone só no cartão, não na tabela/linha do tempo) é decisão de escopo já registrada na T3.4. Ficam para um commit de limpeza, se o usuário quiser.
