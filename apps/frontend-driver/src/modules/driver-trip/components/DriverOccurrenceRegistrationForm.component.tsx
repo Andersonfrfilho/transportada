@@ -10,6 +10,7 @@ import { useOccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistratio
 import { OccurrencePhotoField } from './OccurrencePhotoField.component'
 import { OccurrenceRegisterAction } from './OccurrenceRegisterAction.component'
 import { OccurrenceSignatureField } from './OccurrenceSignatureField.component'
+import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
 import { OccurrenceValuesSection } from './OccurrenceValuesSection.component'
 import type {
   DriverOccurrenceTypesState,
@@ -124,6 +125,7 @@ export function DriverOccurrenceRegistrationForm({
               type="button"
               variant={type.id === selectedType?.id ? 'default' : 'ghost'}
             >
+              <OccurrenceTypeIcon iconName={type.iconName} />
               <span className={styles.occurrenceChipLabel}>
                 <span>{type.name}</span>
                 <span className={styles.occurrenceChipMode}>

@@ -272,3 +272,21 @@ O CSS usa `--control-height-compact` e import relativo da folha, exigidos pelos 
 **Gates:** `bun run typecheck` (raiz) verde; `test` do `frontend-transportada` 7625 pass / 0 fail (+1130 do `test:hooks`);
 `bunx eslint --max-warnings=0` nos arquivos da task: exit 0 (o `lint` da app segue com os 4 erros pré-existentes em
 `test/trip/occurrence-type-icon-tolerance.contract.ts`, não tocado); `frontend-driver` não tocado.
+
+## T3.3 — Chip do motorista com ícone (RF5, CA1)
+
+**Vermelho (antes de ligar o chip):** `occurrence-type-icon-chip.contract.tsx` — 1 fail ("o chip põe o ícone antes do nome e não muda o
+nome acessível"): o formulário ainda não trazia `<OccurrenceTypeIcon iconName={type.iconName} />`. Os demais casos (svg decorativo para
+nome do catálogo; `''` para ausente, `null`, desconhecido, `sun` fora do catálogo; lista do motorista igual à da API lida como texto)
+passavam por já existir o componente. Suíte do contrato: 1290 pass / 1 fail.
+
+**Verde:** `OccurrenceTypeIcon` devolve `null` quando o nome não é do catálogo, então o chip sem ícone tem o mesmo markup de antes
+(CA1); o `Icon` já é `aria-hidden`, e o nome acessível do chip (`role="radio"`, sem `aria-label`) não muda. Sem CSS novo: o botão da app já
+espaça filho e texto. `iconName` entrou nos tipos de exemplo de `scripts/driver-preview-api.ts` (`package` e `null`).
+
+**Desvio:** o catálogo do motorista é a cópia por valor `shared/occurrenceTypeIcon.constant.ts` (a app não importa código de outra); o
+contrato confere a lista contra `OCCURRENCE_TYPE_ICON_NAMES` da API. O formulário inteiro não é renderizado estaticamente (hook com
+estado e fila): a posição do ícone no chip é conferida no fonte, o markup sem ícone no componente.
+
+**Gates:** `bun run typecheck` (raiz) verde; `test` do `frontend-driver` 1426 pass / 0 fail; `bunx eslint --max-warnings=0` nos arquivos
+da task: exit 0; `format:check` (raiz) verde. `frontend-transportada` não tocado.
