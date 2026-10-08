@@ -14,10 +14,10 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T0.1** Conferir os fatos do `plan.md` § Contexto contra `origin/staging` (arquivo e linha),
+- [x] **T0.1** Conferir os fatos do `plan.md` § Contexto contra `origin/staging` (arquivo e linha),
       incluindo `SendMessageUseCase.sendMedia`/`assertWithinWindow` no `meta-whatsapp-module`
       instalado e `NfeXmlParty` no pacote fiscal instalado. Divergência vira nota em `evidence.md`.
-- [ ] **T0.2** Conferir que a 247 está em `origin/staging`; se não estiver, parar.
+- [x] **T0.2** Conferir que a 247 está em `origin/staging`; se não estiver, parar.
 
 ## Fase 1 — Painel e app tolerantes (etapa 1)
 
