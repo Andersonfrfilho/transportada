@@ -65,3 +65,36 @@ Atenção: `trip.constant.ts:458` e `:637` são listas de chaves exatas — conf
 - Prettier: passou ✓
 
 **Commit:** `cd5253999` — feat(frontend): painel aceita iconName opcional no tipo de ocorrência (spec 255 T1.1)
+
+## T1.2 — App do motorista tolerante (2026-10-07)
+
+**Vermelho inicial:**
+
+- Contrato `occurrence-type-icon-tolerance.contract.ts` criado em `apps/frontend-driver/test/driver-trip/`: 3 testes falhando (3 fail, 1414 pass)
+  - `iconName: 123` não era recusado (tipo errado)
+  - `iconName: ['truck']` não era recusado (tipo errado)
+  - Chave desconhecida não era recusada (falta guarda de chave exata)
+
+**Implementação:**
+
+1. `apps/frontend-driver/src/modules/driver-trip/shared/driverTrip.types.ts:471-473`: `iconName?: null | string` ao tipo `DriverOccurrenceType`
+2. Mesmo arquivo, line 504: `readonly iconName?: unknown` ao candidato do guard
+3. Mesmo arquivo, lines 536-540: validação `hasKnownIconName` (aceita `undefined`, `null`, `string`)
+4. Mesmo arquivo, lines 487-502: guarda de chave exata com `allowedKeys.has(key)` (rejeita chaves desconhecidas)
+5. Return do guard inclui `hasKnownIconName` na linha 550
+6. `apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts:211`: `iconName?: null | string` ao tipo (cópia de transição /minha-viagem, sem guard)
+7. `apps/frontend-driver/test/driver-trip.contract.test.ts:46`: import `occurrence-type-icon-tolerance.contract`
+8. Prettier: formatação
+
+**Verde final:**
+
+- Testes: 1417 pass, 0 fail ✓
+- Typecheck: sem erros ✓
+- ESLint: sem erros ✓
+- Prettier: passou ✓
+
+**Verificação da cópia:**
+
+- `frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts` tem tipo `DriverOccurrenceType` simplificado (só `id` e `name`); sem guard; agora com `iconName?: null | string` tolerante.
+
+**Commit:** feat(frontend-driver): app do motorista aceita iconName opcional no tipo de ocorrência (spec 255 T1.2)

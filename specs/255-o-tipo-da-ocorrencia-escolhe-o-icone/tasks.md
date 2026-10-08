@@ -15,7 +15,7 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 > 🤖 Modelo: `haiku`
 
 - [x] **T1.1** Painel: `iconName?: null | string` opcional no tipo e no guard de chave exata + contrato "com e sem a chave".
-- [ ] **T1.2** Motorista: `iconName` opcional no tipo e no guard + contrato.
+- [x] **T1.2** Motorista: `iconName` opcional no tipo e no guard + contrato.
 
 ## Fase 2 — O dado
 
