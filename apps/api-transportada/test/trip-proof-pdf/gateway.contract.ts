@@ -1,8 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 
+import PDFDocument from 'pdfkit'
 import { extractText, getDocumentProxy } from 'unpdf'
 
 import { createTripProofPdfGateway } from '../../src/trips/infrastructure/trip-proof-pdf.gateway.js'
@@ -19,6 +20,8 @@ const LETTERHEAD: TripProofLetterhead = {
   logoBytes: undefined,
   taxLine: 'CNPJ 12.345.678/0001-90',
 }
+
+const SILENT_LOGGER = { warn() {} }
 
 function buildRow(documentNumber: string): TripReportRow {
   return {
@@ -53,8 +56,9 @@ function buildBlock(documentNumber: string, image: TripProofImage | undefined): 
 async function renderPdf(input: {
   readonly blocks: readonly TripProofBlock[]
   readonly letterhead?: TripProofLetterhead
+  readonly logger?: { warn(message: string, metadata?: Record<string, unknown>): void }
 }): Promise<{ readonly bytes: Uint8Array; readonly pages: number; readonly text: string }> {
-  const stream = await createTripProofPdfGateway().render({
+  const stream = await createTripProofPdfGateway({ logger: input.logger ?? SILENT_LOGGER }).render({
     blocks: input.blocks,
     exportedBy: 'Ana Operadora',
     generatedAt: new Date('2026-10-07T15:00:00.000Z'),
@@ -102,6 +106,25 @@ describe('trip-proof-pdf gateway (spec 253 T2.4)', () => {
     })
     expect(text.match(/Imagem indisponível/gu)).toHaveLength(2)
     expect(text).toContain('NF-e 13')
+  })
+
+  it('falls back to the placeholder and warns with ids only when embedding fails after opening', async () => {
+    const warnings: { message: string; metadata: unknown }[] = []
+    const imageSpy = spyOn(PDFDocument.prototype, 'image').mockImplementation(() => {
+      throw new Error('embed failed')
+    })
+    try {
+      const { text } = await renderPdf({
+        blocks: [buildBlock('15', buildImage({ heightPx: 800, widthPx: 400 }))],
+        logger: { warn: (message, metadata) => warnings.push({ message, metadata }) },
+      })
+      expect(text).toContain('Imagem indisponível')
+      expect(text).toContain('NF-e 15')
+    } finally {
+      imageSpy.mockRestore()
+    }
+    expect(warnings).toHaveLength(1)
+    expect(Object.keys(warnings[0]?.metadata as object).sort()).toEqual(['proofIndex', 'tripId'])
   })
 
   it('does not even read a mime type pdfkit cannot draw', async () => {

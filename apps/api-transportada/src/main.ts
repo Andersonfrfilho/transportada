@@ -3187,7 +3187,7 @@ function createApplicationRoutes({
       exportTripProofPdf: createExportTripProofPdfUseCase({
         clock: () => new Date(),
         proofRepository: new DrizzleTripProofReportRepository(database),
-        renderer: createTripProofPdfGateway(),
+        renderer: createTripProofPdfGateway({ logger }),
         reportRepository: new DrizzleTripReportRepository(database),
         storage: createNfeStorageGatewayFromEnvironment({
           environment: process.env,

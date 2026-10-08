@@ -23,6 +23,7 @@ import {
   buildTripReportBase,
   buildTripReportConditions,
   reportDocument,
+  reportEmitter,
   reportRecipient,
 } from './trip-report.query.js'
 
@@ -55,7 +56,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
     const { address, query } = buildTripReportBase(this.database, (recipientAddress) => ({
       accessKey: reportDocument.accessKey,
       amount: reportDocument.totalValue,
-      contractorName: contractors.displayName,
+      contractorName: sql<string>`coalesce(${contractors.displayName}, ${reportEmitter.legalName}, ${reportEmitter.tradeName})`,
       deliveredAt: tripDocuments.deliveredAt,
       documentNumber: reportDocument.number,
       documentSeries: reportDocument.series,

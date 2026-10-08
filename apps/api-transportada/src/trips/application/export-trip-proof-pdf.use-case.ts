@@ -99,7 +99,7 @@ export function createExportTripProofPdfUseCase(dependencies: {
         tripDocumentIds: entries.map((entry) => entry.tripDocumentId),
       }),
       proofRepository.findLetterhead({ companyId: params.companyId }),
-      proofRepository.findExporterName({ userId: params.exportedByUserId }),
+      proofRepository.findExporterName({ userId: params.exportedByUserId }).catch(() => undefined),
     ])
     const blocks = toBlocks(entries, proofs)
     if (blocks.length > TRIP_PROOF_REPORT_MAX_DOCUMENTS) throw new TripProofReportTooLargeError()

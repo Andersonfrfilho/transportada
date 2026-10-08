@@ -130,7 +130,7 @@ describe('o relatorio de viagens contra o Postgres (spec 253 T2.2)', () => {
   )
 
   testWithPostgres(
-    'contratante sem cadastro vem nulo e o cadastro de outra empresa nao casa',
+    'contratante sem cadastro mostra o emitente da nota e o cadastro de outra empresa nao casa',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedWorld(database)
@@ -138,7 +138,7 @@ describe('o relatorio de viagens contra o Postgres (spec 253 T2.2)', () => {
         const byNumber = new Map(rows.map((row) => [row.documentNumber, row]))
 
         expect(byNumber.get('12345')?.contractorName).toBe('Alfa')
-        expect(byNumber.get('777')?.contractorName).toBeNull()
+        expect(byNumber.get('777')?.contractorName).toBe('Emitente')
 
         const withNone = await listAll(database, world.company.companyId, {
           contractorIdIn: { contractorIds: [], includesNone: true },
@@ -275,7 +275,7 @@ describe('o relatorio de viagens contra o Postgres (spec 253 T2.2)', () => {
         const other = await listAll(database, world.otherCompany.companyId)
 
         expect(other.data.map((row) => row.documentNumber)).toEqual(['12345'])
-        expect(other.data[0]?.contractorName).toBeNull()
+        expect(other.data[0]?.contractorName).toBe('Emitente')
         expect(other.page.total).toBe(1)
       })
     },

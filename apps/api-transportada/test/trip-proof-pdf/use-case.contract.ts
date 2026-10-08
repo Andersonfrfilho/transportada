@@ -14,6 +14,7 @@ import type {
   TripReportRecord,
 } from '../../src/trips/application/trip-report.port.js'
 import { buildTripProofInfoLines } from '../../src/trips/domain/trip-proof-block-info.policy.js'
+import { TRIP_PROOF_REPORT_TEXT } from '../../src/trips/domain/trip-proof-report.constant.js'
 import { TRIP_PROOF_REPORT_MAX_DOCUMENTS } from '../../src/trips/domain/trip-report.constant.js'
 import type { TripProofBlock } from '../../src/trips/domain/trip-proof-report.types.js'
 import { TripProofReportTooLargeError } from '../../src/trips/domain/trip.error.js'
@@ -75,6 +76,7 @@ function buildProof(documentNumber: string, key: string): TripProofRecord {
 }
 
 function setup(input: {
+  readonly exporterNameFails?: boolean
   readonly proofs?: readonly TripProofRecord[]
   readonly records: readonly TripReportRecord[]
   readonly total?: number
@@ -84,7 +86,10 @@ function setup(input: {
   const proofCalls: (readonly string[])[] = []
   const reportRepository = buildReportRepository(input)
   const proofRepository: TripProofReportPort = {
-    findExporterName: async () => 'Ana Operadora',
+    findExporterName: async () => {
+      if (input.exporterNameFails === true) throw new Error('user lookup down')
+      return 'Ana Operadora'
+    },
     findLetterhead: async () => ({
       legalName: 'Transportadora Ada',
       logoBytes: undefined,
@@ -169,6 +174,12 @@ describe('export-trip-proof-pdf use case (spec 253 T2.4)', () => {
     })
     await useCase(PARAMS)
     expect(typeof captured[0]?.blocks[0]?.image?.read).toBe('function')
+  })
+
+  it('still renders when the exporter name lookup fails, falling back to the unknown label', async () => {
+    const { captured, useCase } = setup({ exporterNameFails: true, records: [buildRecord('14')] })
+    await useCase(PARAMS)
+    expect(captured[0]?.exportedBy).toBe(TRIP_PROOF_REPORT_TEXT.unknownExporter)
   })
 
   it('refuses above the ceiling before reading anything else', async () => {

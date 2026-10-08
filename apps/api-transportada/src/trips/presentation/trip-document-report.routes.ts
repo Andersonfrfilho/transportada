@@ -24,6 +24,21 @@ const TRIP_DOCUMENT_REPORT_PATH = '/trip-document-report'
 const TRIP_PROOF_PDF_PATH = '/trip-document-report/proofs-pdf'
 const PDF_CONTENT_TYPE = 'application/pdf'
 
+const REPORT_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'trip-document-report',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+/** O PDF lê até 200 imagens do storage por chamada: balde bem mais curto que o da lista. */
+const PROOF_PDF_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'trip-proof-pdf',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
 export type TripDocumentReportRoutesDependencies = {
   readonly exportTripProofPdf: (
     params: ExportTripProofPdfParams,
@@ -51,6 +66,7 @@ export function createTripDocumentReportRoutes(
       parse: ({ request }) => parseTripReportQuery(new URL(request.url)),
       pathname: TRIP_DOCUMENT_REPORT_PATH,
       policy: TRIP_FIELD_READ_POLICY,
+      rateLimit: REPORT_RATE_LIMIT,
     }),
     defineRoute<TripReportQuery>({
       async handle({ context, input }): Promise<Response> {
@@ -73,6 +89,7 @@ export function createTripDocumentReportRoutes(
       parse: ({ request }) => parseTripReportQuery(new URL(request.url)),
       pathname: TRIP_PROOF_PDF_PATH,
       policy: TRIP_FIELD_READ_POLICY,
+      rateLimit: PROOF_PDF_RATE_LIMIT,
     }),
   ]
 }

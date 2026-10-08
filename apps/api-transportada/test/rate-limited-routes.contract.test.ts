@@ -22,6 +22,7 @@ import { createUserActivationRoutes } from '../src/identity/presentation/user-ac
 import { createMeLocationRoutes } from '../src/trips/presentation/me-location.routes'
 import { createMeProofReceiverRoutes } from '../src/trips/presentation/me-proof-receiver.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
+import { createTripDocumentReportRoutes } from '../src/trips/presentation/trip-document-report.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
@@ -142,6 +143,30 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'POST /trips/:id/start-route': trip,
       'POST /trips/:id/stops/:stopId/arrive': trip,
       'POST /trips/:id/stops/:stopId/occurrences': trip,
+    })
+  })
+
+  /** Spec 253: o relatório e o PDF de canhotos (até 200 imagens por chamada) contam no Postgres. */
+  test('o relatorio de viagens e o PDF de canhotos tem balde proprio, o PDF mais curto', () => {
+    const routes = createTripDocumentReportRoutes(unusedDependencies() as never)
+
+    const limited = Object.fromEntries(
+      routes.map((route) => [`${route.method} ${route.pathname}`, route.rateLimit]),
+    )
+
+    expect(limited).toEqual({
+      'GET /trip-document-report': {
+        maxRequests: 60,
+        scope: 'trip-document-report',
+        store: 'postgres',
+        windowSeconds: 300,
+      },
+      'GET /trip-document-report/proofs-pdf': {
+        maxRequests: 10,
+        scope: 'trip-proof-pdf',
+        store: 'postgres',
+        windowSeconds: 300,
+      },
     })
   })
 
@@ -577,6 +602,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
       'trips/presentation/redelivery-proposal.routes.ts',
+      'trips/presentation/trip-document-report.routes.ts',
       'trips/presentation/trip-field-office-document.routes.ts',
       'trips/presentation/trip-field-office-occurrence.routes.ts',
       'trips/presentation/trip-field-office-trip.routes.ts',

@@ -31,6 +31,7 @@ import {
   TRIP_PROOF_REPORT_TEXT,
 } from '../domain/trip-proof-report.constant.js'
 import type { TripProofBlock, TripProofLetterhead } from '../domain/trip-proof-report.types.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 
 const POINTS_PER_CM = 72 / 2.54
 const FONT_REGULAR = 'Helvetica'
@@ -56,7 +57,9 @@ type OpenedImage = {
 type ImageOpeningDocument = Document & { openImage(source: Buffer): OpenedImage }
 type ImageSource = Parameters<Document['image']>[0]
 
-export function createTripProofPdfGateway(): TripProofPdfRenderer {
+export function createTripProofPdfGateway(dependencies: {
+  readonly logger: Pick<ApiLogger, 'warn'>
+}): TripProofPdfRenderer {
   return {
     render: async (input) => {
       const document = new PDFDocument({
@@ -76,7 +79,13 @@ export function createTripProofPdfGateway(): TripProofPdfRenderer {
         if (placed.placement.pageNumber > document.bufferedPageRange().count) {
           startPage({ document, letterhead: input.letterhead })
         }
-        drawBlock({ block, document, drawn, placement: placed.placement })
+        drawBlock({
+          block,
+          document,
+          drawn,
+          logger: dependencies.logger,
+          placement: placed.placement,
+        })
       }
 
       stampFooters({ document, exportedBy: input.exportedBy, generatedAt: input.generatedAt })
@@ -169,9 +178,10 @@ function drawBlock(input: {
   readonly block: TripProofBlock
   readonly document: Document
   readonly drawn: PreparedBlock
+  readonly logger: Pick<ApiLogger, 'warn'>
   readonly placement: ProofBlockPlacement
 }): void {
-  const { block, document, drawn, placement } = input
+  const { block, document, drawn, logger, placement } = input
   const top = BODY_TOP_POINTS + placement.topCm * POINTS_PER_CM
 
   document.font(FONT_REGULAR).fontSize(8).fillColor(TEXT_COLOR)
@@ -192,7 +202,20 @@ function drawBlock(input: {
     drawPlaceholder({ document, height: imageHeight, text: drawn.placeholder ?? '', top: imageTop })
     return
   }
-  drawImage({ document, height: imageHeight, image: drawn.image, top: imageTop })
+  try {
+    drawImage({ document, height: imageHeight, image: drawn.image, top: imageTop })
+  } catch {
+    logger.warn('trip_proof_pdf.image_embed_failed', {
+      proofIndex: block.proofIndex,
+      tripId: block.row.tripId,
+    })
+    drawPlaceholder({
+      document,
+      height: imageHeight,
+      text: TRIP_PROOF_REPORT_TEXT.imageUnavailable,
+      top: imageTop,
+    })
+  }
 }
 
 function drawImage(input: {
@@ -213,13 +236,16 @@ function drawImage(input: {
     return
   }
   document.save()
-  document.rotate(90, { origin: [centerX, centerY] })
-  document.image(toImageSource(image), centerX - height / 2, centerY - CONTENT_WIDTH_POINTS / 2, {
-    align: 'center',
-    fit: [height, CONTENT_WIDTH_POINTS],
-    valign: 'center',
-  })
-  document.restore()
+  try {
+    document.rotate(90, { origin: [centerX, centerY] })
+    document.image(toImageSource(image), centerX - height / 2, centerY - CONTENT_WIDTH_POINTS / 2, {
+      align: 'center',
+      fit: [height, CONTENT_WIDTH_POINTS],
+      valign: 'center',
+    })
+  } finally {
+    document.restore()
+  }
 }
 
 function drawPlaceholder(input: {

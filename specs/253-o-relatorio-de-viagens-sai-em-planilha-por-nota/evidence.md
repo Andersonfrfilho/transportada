@@ -184,3 +184,16 @@ Gates:
 - `bun run typecheck` (cwd=apps/frontend-transportada) → sem erros
 
 Commit: `docs(trips): relatório de viagens e canhotos em PDF + auditoria §15 (spec 253 T5.1)` + `Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>`.
+
+## T5.2-design — revisão de design de `/trips` contra a aba de notas
+
+**Bloqueado:** a parte de browser (375/768/1280 px, CSS computado, screenshot) não rodou — a extensão do Chrome não respondeu em 8 s e `/trips` exige login Keycloak. Revisão feita em CSS/JSX.
+
+Corrigido:
+
+- Campo "Valor" do painel de filtros era `<div><span>` sem a regra dos `label` do `.fieldGrid` (fonte 0,85 rem, grade, `gap`): ganhou `.reportField`.
+- `<legend>` do `fieldset` do relatório saía com o estilo do navegador: `.reportFilters legend` (tom `--color-slate`, 0,85 rem).
+
+Conferido sem divergência: primitivos (`MultiSelect`/`SearchableSelect`/`Select` compactos, igual à aba de notas), `input` herda `--field-*` via `.fieldGrid input`, grade 1/2/3 colunas em 0/40/64 rem (`min-width`), `flex-wrap` nas barras (sem overflow esperado em 375 px), pílulas pelo `FilterPills`, `.alert` (`--color-copper` sobre fundo escuro, alto contraste).
+
+Listado (não alterado): (1) `aria-label` fixo nos botões de exportar sobrepõe o texto de progresso ("Exportando 3/10") para leitor de tela — remover exige mudar os contratos `TripReportExportButton`/`TripProofPdfExportButton`; (2) rótulos do painel de relatório são 0,85 rem normais, enquanto a aba de notas usa `filterFieldLabel` (caixa alta 0,68 rem) — unificar é decisão de design; (3) espaçamento das barras de exportação: `--space-2` em `/trips` contra `--space-3` em `reportExportRow` das notas.

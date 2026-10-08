@@ -107,7 +107,7 @@ export function TripReportFilterPanel({ contractors, filters }: TripReportFilter
             values={state.recipientStates}
           />
         </label>
-        <div>
+        <div className={styles.reportField}>
           <span>{t('filters.report.value')}</span>
           <div className={styles.reportAmountRow}>
             <Select
