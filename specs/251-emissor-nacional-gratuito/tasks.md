@@ -43,12 +43,13 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 
 - [ ] **T1.1** `sonnet` — Cadastro do A1 da NFS-e (reuso do cofre da ADR-0004), com validade e alerta.
       ADR 0099 §3: finalidade própria `nfse` em `digital_certificates` (não lê o `cte`); alerta D-30/D-7 por e-mail no cron é novo.
-      Revisão do architect: upload único pode selar `cte` e `nfse` (cada um com o próprio AAD); a API abre o A1 `nfse` para o mTLS
-      do ADN (`node-forge`, §13); emissão `national` sem A1 `nfse` ativo e válido → `409`.
-- [ ] **T1.4** `sonnet` — Credencial NFS-e `national` sem segredo (ADR 0099 §3): `NFSE_PROVIDERS` ganha `national`;
+      Decidido pelo usuário (08/10/2026): upload único sela `cte` e `nfse` (cada um com o próprio AAD); **só o worker abre o A1**
+      (a API não decifra o envelope; a leitura do ADN é do worker, ADR 0099 §3/§7); emissão `national` sem A1 `nfse` ativo e
+      não vencido (metadados) → `409`.
+- [ ] **T1.4** `sonnet` — Credencial NFS-e `national` sem segredo (ADR 0099 §3, decidido pelo usuário em 08/10/2026): `NFSE_PROVIDERS` ganha `national`;
       `secret_envelope` e `callback_token_sha256` nuláveis com check por provedor; migration aditiva com `rollback.sql`
       guardado. Na mesma task, `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS` (reemissão com chave herdada e `correction`,
-      ADR 0099 §1). Aceite: contrato + `make migration-test`.
+      ADR 0099 §1, proibição confirmada pelo usuário em 08/10/2026). Aceite: contrato + `make migration-test`.
 - [ ] **T1.2** `sonnet` — Reserva de `nDPS`/série por empresa e ambiente, idempotente (padrão ADR-0005).
       ADR 0099 §4: modelo `nfse_dps`, chave `nfse-dps:<provider_request_key>`, reserva na API ao criar a tentativa; `dps_series` no perfil.
       Revisão do architect: check de `dps_series` é 1–49998; a série `49999` é reservada à sonda e a provas fora do sistema.
@@ -56,8 +57,8 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       `NFSE_PROVIDER_BASE_URL` por ambiente no schema de env — emenda da 0035. Aceite: `tsc` + contrato.
       ADR 0099 §5: a credencial e a tentativa já têm `fiscal_environment`; a task vira `NFSE_NATIONAL_ADN_BASE_URL` + guarda de staging.
       Revisão do architect: guarda de boot host × `FISCAL_ENVIRONMENT` na API e no worker (`producaorestrita` só em
-      `homologation`); leitura do ADN (§7) com alíquota comparada só fora do Simples (`iss_rate`), no Simples gravada sem
-      bloquear, ADN `404` não vira `503`; conferir se o perfil tem marcador de regime melhor que `simples_national_rate` nulo.
+      `homologation`); leitura do ADN (§7) **no worker, na transmissão** (a API não abre o A1): alíquota comparada só fora do Simples (`iss_rate`,
+      recusa fatal nomeada), no Simples só registrada sem bloquear, ADN `404` não é falha; conferir se o perfil tem marcador de regime melhor que `simples_national_rate` nulo.
 
 ## Fase 2 — Adaptador no worker
 
@@ -81,12 +82,13 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 - [ ] **T2.3b** `sonnet` — **SONDA (antes da Fase 1 e da Fase 3):** com a DPS montada e assinada, um
       `POST /nfse` de teste em **produção restrita**. Se a Sefin recusar por o município não ser aderente ao
       Emissor Nacional, **parar**, registrar o código/mensagem em `evidence.md` e voltar ao usuário (ADR "não
-      faremos" ou webservice ISS.Net). Se aceitar, o risco do cadastro desatualizado está fechado. Exige o A1
+      faremos" ou plano B: webservice ISS.Net no padrão nacional, decidido pelo usuário em 08/10/2026). Se aceitar, o risco do cadastro desatualizado está fechado. Exige o A1
       (o usuário digita a senha; nada de segredo em arquivo).
       **Ação antes do envio (revisão do architect, ADR 0099 §4/§8):** a sonda preparada usa série 1 / `nDPS` 1 e deve
       passar à **série `49999`** (reservada, fora do perfil). Enviar com `cNBS` preenchido e registrar se a Sefin o cobra,
       o algoritmo de assinatura aceito e o código da recusa de duplicidade, se aparecer. **Se recusar por convênio,** as
-      saídas são: retomar a T6.2 da 250 (virada para `v3`, aprovação humana) ou o webservice ISS.Net — a produção está na
+      saída é o plano B decidido pelo usuário (08/10/2026): webservice ISS.Net no padrão nacional (spec nova; pode ter
+      custo/contrato). A T6.2 da 250 (`v3`) segue suspensa e é alternativa descartada por ora. A produção está na
       v2, que já recusa a empresa; não há "regressão zero".
 - [ ] **T2.4** `sonnet` — `nfse-national.client.ts` + gateway + seleção `national` por env, com mTLS e
       limitador do processo.

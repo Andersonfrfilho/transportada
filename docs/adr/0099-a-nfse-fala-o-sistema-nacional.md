@@ -3,6 +3,7 @@
 - Status: proposto (revisado pelo `architect` em 08/10/2026, "aprovar com ajustes", ajustes aplicados;
   aguarda o usuário; nada da Fase 1 em diante começa antes)
 - Data: 2026-10-08
+- Decisões do usuário em 08/10/2026: ajustes 4, 8, 9, 15 e plano B
 - Decisores: mantenedor do projeto (Anderson); revisão Opus em § "Revisão do architect"
 - Emenda: ADR-0029 (provedor: sai a Nota RP, entra o Sistema Nacional), ADR-0035 (passa a haver dois
   ambientes) e ADR-0098 (ganha o valor `national` e, depois da primeira nota real, perde `v2`/`v3`)
@@ -78,7 +79,7 @@ oficial com o A1 em 08/10/2026):
      retentar ou reemitir multiplica o defeito. A API recusa reemissão automática dessa causa; a nota
      do outro ambiente é cancelada à mão no portal. A guarda de boot da decisão 5 impede que isso
      chegue a acontecer.
-   - **Reemissão ambígua não aceita correção.** A chave herdada (`resolveInheritedProviderRequestKey`,
+   - **Reemissão ambígua não aceita correção (decidido pelo usuário em 08/10/2026).** A chave herdada (`resolveInheritedProviderRequestKey`,
      `apps/api-transportada/src/nfse-invoices/domain/nfse-provider-request-key.policy.ts:28`) leva ao
      mesmo `nDPS` e ao mesmo `Id`; se o `HEAD` responder `200`, a nota antiga é adotada e a correção
      aceita por `applyNfseIssuanceCorrection`
@@ -146,8 +147,8 @@ oficial com o A1 em 08/10/2026):
      `NFSE_PROVIDER_VERSION_RETIRED`, nunca retentativa.
    - Fecha o [NEEDS CLARIFICATION] 3 da spec. A T6.2 da 250 (virada para `v3`) **não é cancelada por
      esta ADR: fica suspensa até a sonda T2.3b**. Se a sonda aceitar, a 250 fecha sem a virada e a
-     032/T030 fecha com a nota da T4.2 desta spec. Se a sonda falhar, a T6.2 volta a ser um dos
-     planos B (decisão 8). A razão: a produção está na **v2**, e a v2 já recusa a empresa (ADR-0098 §
+     032/T030 fecha com a nota da T4.2 desta spec. Se a sonda falhar, o plano B é o webservice ISS.Net
+     no padrão nacional (decisão 8); a T6.2 fica como alternativa descartada por ora. A razão: a produção está na **v2**, e a v2 já recusa a empresa (ADR-0098 §
      Consequências) — sem o nacional e sem a v3, a transportadora não emite NFS-e pelo sistema.
    - **Alternativa descartada:** manter a v3 como contingência alternável. Foi recusada pelo usuário
      e custaria dois adaptadores, dois limitadores e duas famílias de contrato para um caminho que
@@ -161,7 +162,7 @@ oficial com o A1 em 08/10/2026):
      É o precedente do MDF-e, que lê a finalidade `mdfe`
      (`apps/worker-transportada/src/mdfe-issuance/infrastructure/drizzle-mdfe-certificate.repository.ts:35`).
      O arquivo PFX pode ser o mesmo do CT-e. **O cadastro aceita um único upload que sela dois
-     envelopes** (`cte` e `nfse`) na mesma requisição, cada um com o próprio AAD: o PFX e a senha
+     envelopes** (`cte` e `nfse`, decidido pelo usuário em 08/10/2026) na mesma requisição, cada um com o próprio AAD: o PFX e a senha
      ficam em memória uma vez, nada atravessa finalidade (cada envelope é cifrado do texto claro, não
      de outro envelope) e as duas linhas seguem com rotação independente. O upload de uma finalidade
      só continua valendo; a T1.1 decide a tela.
@@ -171,7 +172,7 @@ oficial com o A1 em 08/10/2026):
      descartada:** copiar o envelope do `cte` no servidor — exige decifrar com um AAD e recifrar com
      outro, a mesma travessia de finalidade.
    - Validade: `expires_at` já existe (`digital-certificate.schema.ts:42`). Emissão nova com A1 `nfse`
-     vencido é recusada na API (`409`) e no worker (`rejected` nomeado). **Alerta D-30 e D-7** por
+     vencido (metadado `expires_at`, sem abrir o envelope) é recusada na API (`409`) e no worker (`rejected` nomeado). **Alerta D-30 e D-7** por
      e-mail ao destinatário configurado (Anderson), em rotina diária do cron sobre os certificados
      ativos de toda finalidade, e selo no painel. **Quem renova: Anderson** (o A1 atual vence em
      05/11/2026). Não existe alerta de validade hoje: é trabalho novo da T1.1.
@@ -181,28 +182,28 @@ oficial com o A1 em 08/10/2026):
      precisa alcançar as URLs de LCR do certificado (`E1206`/`E107`). Leitor do PKCS#12: `node-forge`
      1.3.x, o mesmo que o `@adatechnology/fiscal-provider` já usa (dependência dele, não do app); entra
      como dependência direta do worker e da API, conferida pelo §13 do code-standart na T2.3.
-   - **A API também abre o A1 `nfse`.** O ADN exige mTLS para `/parametrizacao` (sem certificado a
-     T0.2 recebeu `403`/`bad decrypt`; a leitura de `adn-convenio.body` só saiu com o A1 — `evidence.md`,
-     tabela dos corpos lidos), e a decisão 7 lê a parametrização na API. A API decifra o envelope `nfse` pelo
-     `decrypt` do serviço existente
-     (`apps/api-transportada/src/companies/application/digital-certificate-secret.service.ts:43`), com
-     as mesmas regras do worker: só em memória, zerado no `finally`, nunca em log.
+   - **Só o worker abre o A1 `nfse`** (decidido pelo usuário em 08/10/2026, recomendação do assistente):
+     a API **não** decifra o envelope; a chave vive em um só processo. O ADN exige mTLS para
+     `/parametrizacao` (sem certificado a T0.2 recebeu `403`/`bad decrypt`; `evidence.md`, tabela dos
+     corpos lidos), por isso a leitura dos parâmetros do município acontece no worker, na transmissão
+     (decisão 7). A API só confere os metadados da linha (existe, ativa, `expires_at`). **Reabrir se um
+     dia a alíquota do ADN precisar bloquear na criação.**
    - XMLDSig no **gateway da aplicação** (`nfse-national-dps.signer.ts` no worker), Enveloped sobre
      `infDPS` e `infPedReg`. Biblioteca: `xml-crypto` 6.3.x (a sonda usou a 6.3.3; é a mesma família
      que o pacote fiscal usa), que exige um DOM — `@xmldom/xmldom`; as duas entram pelo §13 do
      code-standart na T2.3 (mantidas, tipadas, compatíveis com Bun). **Alternativa descartada:** publicar antes um assinador público no pacote
      fiscal — ciclo de publicação antes de qualquer prova na restrita, o mesmo argumento da ADR-0029;
      extrair ao pacote depois de provado é seguimento.
-   - **Credencial NFS-e no modo `national`: linha sem segredo.** A API exige credencial ativa
+   - **Credencial NFS-e no modo `national`: linha sem segredo (decidido pelo usuário em 08/10/2026).** A API exige credencial ativa
      (`NFSE_CREDENTIAL_MISSING`, `apps/api-transportada/src/nfse-invoices/domain/nfse-issuance.error.ts:132`)
      e a linha de `nfse_provider_credentials` carrega o que a emissão precisa além do segredo:
      `tax_id`, `municipal_registration` e `fiscal_environment`. No nacional não há token nem
      callback: `NFSE_PROVIDERS` (`nfse.schema.ts:44`) ganha `national`, e `secret_envelope` e
      `callback_token_sha256` (`nfse.schema.ts:281-282`) passam a nuláveis com check
      (`notarp` → os dois presentes; `national` → os dois nulos). A linha **não** referencia o
-     certificado: o worker e a API leem o A1 `nfse` ativo da empresa, como o MDF-e lê o `mdfe`, e a
+     certificado: o worker lê o A1 `nfse` ativo da empresa, como o MDF-e lê o `mdfe`, e a
      rotação do certificado não toca a credencial. Emissão `national` sem A1 `nfse` ativo e válido é
-     `409` na API. **Alternativa descartada:** FK da credencial ao certificado — a rotação passaria a
+     `409` na API (conferência de metadados). **Alternativa descartada:** FK da credencial ao certificado — a rotação passaria a
      exigir editar a credencial, e um certificado novo ficaria inerte até alguém lembrar.
    - Nunca em log: PFX, senha, chave, DPS, NFS-e, corpo de evento. Log de recusa leva código e
      mensagem saneada (sequências longas de dígitos redigidas, como em
@@ -281,33 +282,33 @@ oficial com o A1 em 08/10/2026):
      adiar o PDF — o painel e o cliente já esperam o documento, e o renderizador lê um XML que já
      temos. O PDF é representação, não prova: errar o leiaute não toca o XML fiscal.
 
-7. **Parâmetros do município lidos do ADN ao congelar o payload, nunca na transmissão.**
-   - A API consulta `/parametrizacao/{codMun}/convenio`, `/{codServico}/{competencia}/aliquota`,
-     `/{competencia}/retencoes` e `/{codServico}/{competencia}/regimes_especiais` **antes** da
-     transação de criação (HTTP nunca dentro de transação), com timeout curto; falha →
-     `503 NFSE_MUNICIPAL_PARAMETERS_UNAVAILABLE` e nada é gravado. O resultado entra no payload
-     congelado com a competência e a hora da leitura.
+7. **Parâmetros do município lidos do ADN pelo worker, na transmissão (A1 só no worker, decisão 3).**
+   - O worker consulta `/parametrizacao/{codMun}/convenio`, `/{codServico}/{competencia}/aliquota`,
+     `/{competencia}/retencoes` e `/{codServico}/{competencia}/regimes_especiais` **antes** do `POST`
+     (fora de qualquer transação), com timeout curto, usando o mTLS do A1 `nfse` que ele já abre para
+     a Sefin. Falha de rede/`5xx`/corpo ilegível → recuperável (retentativa do consumidor), sem
+     emitir. O resultado é registrado no resultado da tentativa com a competência e a hora da leitura.
+     A API não consulta o ADN.
    - **Qual alíquota compara.** O perfil tem `iss_rate` e `simples_national_rate`
      (`apps/api-transportada/src/database/nfse.schema.ts:165` e `:167`). Fora do Simples
-     (`simples_national_rate` nulo), a alíquota do ADN diferente de `iss_rate` →
-     `409 NFSE_MUNICIPAL_RATE_MISMATCH` com os dois valores; a API não sobrescreve o perfil em
-     silêncio. **No Simples** (o caso da transportadora, `evidence.md`), o ISS segue a faixa do
-     Simples e não a alíquota municipal: o valor do ADN é gravado no payload congelado como
-     referência, sem bloquear. A T1.3 confere se o perfil tem marcador de regime melhor que a
+     (`simples_national_rate` nulo), a alíquota do ADN diferente de `iss_rate` → recusa fatal nomeada
+     no worker (`NFSE_MUNICIPAL_RATE_MISMATCH`, com os dois valores, sem retentativa); o worker não
+     sobrescreve o perfil em silêncio. **No Simples** (o caso da transportadora, `evidence.md`), o ISS segue a faixa do
+     Simples e não a alíquota municipal: o valor do ADN é apenas registrado
+     (nunca bloqueia), então a perda de não bloquear na criação é pequena. A T1.3 confere se o perfil tem marcador de regime melhor que a
      nulidade de `simples_national_rate`; se tiver, ele decide.
    - **ADN `404` na alíquota** (serviço sem parametrização no município) não é indisponibilidade:
-     não vira `503`; o payload grava `municipalRate: not_parameterized` e a emissão segue com o
-     perfil. `503` fica para timeout, rede, `5xx` e corpo ilegível. O mTLS do ADN usa o A1 `nfse`
-     aberto pela API (decisão 3).
+     não é falha: registra `municipalRate: not_parameterized` e a emissão segue com o
+     perfil. Recuperável fica para timeout, rede, `5xx` e corpo ilegível.
    - **NBS.** A Prefeitura tornou NBS obrigatório no sistema municipal (29/04/2026, `evidence.md`), e
      o `cNBS` é opcional no XSD 1.01. O perfil **já tem** `nbs_code`
      (`nfse.schema.ts:166`, `text not null default ''`): não há coluna nova. A DPS leva `cNBS` quando
      o perfil o tiver; a sonda T2.3b envia com `cNBS` preenchido e registra se a Sefin o cobra. Se
      cobrar, a API passa a exigir `nbs_code` não vazio no modo `national` (como o
      `nationalTaxationCode` da ADR-0098).
-   - A reemissão segue a regra de congelamento do resto do payload (ADR-0098 §4): não relê o ADN por
-     conta própria. **Alternativa descartada:** ler no worker na hora do envio — a reentrega
-     recalcularia imposto de uma nota já decidida.
+   - **Alternativa descartada:** ler na API ao congelar o payload — exigiria que a API abrisse o A1
+     (decisão 3). A leitura por tentativa no worker é registrada e a reentrega da mesma tentativa
+     reaproveita o valor já gravado, sem recalcular.
 
 8. **Risco aberto: `aderenteEmissorNacional = 0`. A sonda T2.3b decide antes das Fases 1 e 3.**
    - Com a DPS montada e assinada (A1 vindo do arquivo local, senha digitada pelo usuário, nada em
@@ -321,10 +322,11 @@ oficial com o A1 em 08/10/2026):
    - **Se a Sefin recusar por convênio:** parar, registrar código e mensagem em `evidence.md` e voltar
      ao usuário. **Não há "regressão zero":** a produção está na **v2**, e a v2 já recusa a empresa
      (ADR-0098 § Consequências; `CLAUDE.md` da raiz) — ficar como está é não emitir NFS-e pelo
-     sistema. As saídas são: **(a) retomar a T6.2 da 250** (virada para `v3` em produção, com a nota
-     real de valor mínimo e aprovação humana), que esta ADR deixou suspensa, não cancelada; ou **(b)**
-     refazer o escopo para o webservice ISS.Net no padrão nacional. (a) é a que já tem código pronto
-     em `origin/staging`. Nenhuma migration da Fase 1 entra antes da sonda.
+     sistema. **Plano B decidido pelo usuário em 08/10/2026: webservice ISS.Net no padrão nacional**
+     (spec nova, a abrir se a sonda falhar; pode ter custo e contrato — a homologação do ISS.Net,
+     segundo o fórum do ACBr, exige contrato). **Alternativa descartada por ora:** retomar a T6.2 da
+     250 (virada para `v3`); ela segue suspensa e não é o plano B escolhido. Nenhuma migration da
+     Fase 1 entra antes da sonda.
 
 9. **Limites: limitador por processo reaproveitado, valor configurável e conservador.**
    - O `createRateLimitedFetch`
@@ -359,15 +361,16 @@ oficial com o A1 em 08/10/2026):
 - **Ordem:** worker com `NFSE_PROVIDER_VERSION_UNKNOWN` e com o ramo `national` no ar **antes** de a
   API gravar `national`; a troca da variável é passo de operação, não do PR (decisão 2).
 - **API:** valor `national`, cadastro do A1 `nfse` com validade e alerta (upload único que sela `cte`
-  e `nfse` opcional), credencial `national` sem segredo, reserva de `nDPS`, leitura da
-  parametrização com o A1 `nfse` aberto em memória (`node-forge`), base do ADN no schema de env,
-  guardas de staging e de endereço × ambiente, `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS`.
-- **Worker:** `nfse-national.client.ts` + assinador (`xml-crypto` + `@xmldom/xmldom`, PKCS#12 por
+  e `nfse` opcional), credencial `national` sem segredo, reserva de `nDPS`, base do ADN no schema de
+  env, guardas de staging e de endereço × ambiente; **a API não abre o A1**, `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS`.
+- **Worker:** leitura da parametrização do ADN na transmissão (único processo que abre o A1),
+  `nfse-national.client.ts` + assinador (`xml-crypto` + `@xmldom/xmldom`, PKCS#12 por
   `node-forge`) + ramo `national` nos dois gateways, eventos `101101`, instância nacional do
   limitador, renderizador do DANFSe (`pdfkit` e `bwip-js` como dependências novas, justificadas pelo
   §13), guarda de endereço × ambiente, recusa `NFSE_PROVIDER_VERSION_UNKNOWN` desde já e
   `NFSE_PROVIDER_VERSION_RETIRED` depois da T4.2b.
-- **Spec 250:** a T6.2 fica **suspensa** até a sonda; volta a ser plano B se a sonda falhar.
+- **Spec 250:** a T6.2 fica **suspensa** até a sonda; se a sonda falhar o plano B é o ISS.Net no
+  padrão nacional (spec nova) e a T6.2 fica como alternativa descartada por ora.
 - **Cron:** rotina de alerta de validade do A1; `cron-nfse` passa a subir em staging.
 - **Painel:** tela do certificado/ambiente da NFS-e com validade e estado (Fase 3); a tela de emissão
   não muda.
@@ -380,9 +383,8 @@ oficial com o A1 em 08/10/2026):
 Nenhum segredo novo em claro: A1 e senha no envelope da ADR-0004 com finalidade própria. XML, DPS e
 evento nunca em fila, log, auditoria ou erro (ADR-0006 §12). Rejeições logam código e mensagem
 saneada. A guarda de boot de endereço × ambiente, a conferência de `tipoAmbiente` (falha terminal
-com alerta) e a guarda de staging impedem nota de produção a partir de staging. O A1 `nfse` passa a
-ser aberto em dois processos (API para o ADN, worker para a Sefin): a superfície da chave cresce, e
-as regras de memória e log valem igual nos dois.
+com alerta) e a guarda de staging impedem nota de produção a partir de staging. O A1 `nfse` é aberto
+em um só processo (o worker, para o ADN e para a Sefin): a superfície da chave não cresce.
 
 ## O que o `architect` precisa validar
 
@@ -403,13 +405,14 @@ código antes de mudar o texto.
    2 ganha "worker primeiro, variável depois" e a recusa `NFSE_PROVIDER_VERSION_UNKNOWN` desde já
    (T2.0), não só a `RETIRED` da T4.2b.
 2. **[alta] "Regressão zero" e T6.2** — aceito. Decisões 2 e 8 corrigidas: produção na v2, que já
-   recusa a empresa; a T6.2 da 250 fica suspensa até a sonda e é o plano B (a), ao lado do ISS.Net.
+   recusa a empresa; a T6.2 da 250 fica suspensa até a sonda. (Atualizado pelo usuário em 08/10/2026: o plano B é o ISS.Net no
+   padrão nacional; a T6.2 é alternativa descartada por ora.)
    `spec.md` corrigido.
 3. **[alta] Sonda × numeração** — aceito. Série `49999` reservada à sonda, perfil limitado a
    1–49998 (decisão 4, consequências); índice único confirmado em `nfse.schema.ts:387-389`. A sonda
    não foi editada: a troca de série é ação da T2.3b.
-4. **[alta] Reemissão ambígua com correção** — aceito, opção "proibir": `409
-NFSE_REISSUE_CORRECTION_AMBIGUOUS` (decisão 1). Comparação no pull descartada com razão: detecta
+4. **[alta] Reemissão ambígua com correção** — aceito, opção "proibir", **confirmada
+   pelo usuário em 08/10/2026**: `409 NFSE_REISSUE_CORRECTION_AMBIGUOUS` (decisão 1). Comparação no pull descartada com razão: detecta
    tarde e deixa nota `authorized` com payload que mente. Caminhos confirmados (`:28`; a correção é
    aplicada em `:195`).
 5. **[alta] Corrida `HEAD 404` → `POST` duplicado** — aceito. Recusa de duplicidade → `GET /dps/{id}`
@@ -423,8 +426,9 @@ NFSE_REISSUE_CORRECTION_AMBIGUOUS` (decisão 1). Comparação no pull descartada
 8. **[média] Qual alíquota compara** — aceito-com-mudança. Colunas confirmadas (`:165`/`:167`).
    Compara `iss_rate` só fora do Simples (marcador provisório: `simples_national_rate` nulo, a T1.3
    confere); no Simples grava sem bloquear; ADN `404` não é `503`. O ADN **exige** mTLS (evidência
-   da T0.2 e leitura com A1), então a decisão 3 diz que a API também abre o A1 `nfse`.
-9. **[média] Credencial no `national`** — aceito; decidido: linha de `nfse_provider_credentials`
+   da T0.2 e leitura com A1). O architect propôs a API abrir o A1; **o usuário decidiu em 08/10/2026
+   que só o worker abre o A1** (decisão 3), e a leitura do ADN foi para o worker (decisão 7).
+9. **[média] Credencial no `national`** — aceito; **decidido pelo usuário em 08/10/2026**: linha de `nfse_provider_credentials`
    com `provider = national`, sem segredo nem callback (colunas nuláveis com check), sem FK ao
    certificado. Confirmado `NFSE_CREDENTIAL_MISSING` e `nfse.schema.ts:44`/`:281-282`.
 10. **[média] Pré-condição da T4.2b** — aceito. Conta também v2/v3 em `failed` ambíguo.
@@ -440,6 +444,6 @@ NFSE_REISSUE_CORRECTION_AMBIGUOUS` (decisão 1). Comparação no pull descartada
 14. **[baixa] Documento** — aceito. `verificationCode` (confirmado `:30`) = campo do XSD se houver,
     senão `chaveAcesso` (T2.2 confere); XML guardado descomprimido, sem reserializar, SHA sobre esses
     bytes; `bwip-js` (confirmado `package.json:53` da API) como segunda dependência do worker.
-15. **[baixa] Upload único que sela `cte` e `nfse`** — aceito (adotado como opção). Cada envelope é
+15. **[baixa] Upload único que sela `cte` e `nfse`** — aceito; **decidido pelo usuário em 08/10/2026**. Cada envelope é
     cifrado do texto claro com o próprio AAD; não atravessa finalidade e mantém rotação
     independente.

@@ -105,8 +105,10 @@ adaptador de novo, como a ADR-0029 previu.
 - **Nota RP sai do app e fica só na lib** (`@adatechnology/fiscal-provider`, repositório
   `adatechnology-packages`). Nada de v2/v3 no `api`/`worker`/`cron` depois da primeira nota real pelo nacional;
   não há contingência no app. Fecha o [NEEDS CLARIFICATION] 3; a T6.2 da 250 **não é cancelada: fica
-  suspensa até a sonda T2.3b** e é o plano B se a sonda falhar (a produção está na v2, que já recusa a
-  empresa — ADR 0099 §2 e §8, revisão do architect).
+  suspensa até a sonda T2.3b**; se a sonda falhar, o **plano B decidido pelo usuário (08/10/2026) é o
+  webservice ISS.Net no padrão nacional** (spec nova, a abrir; pode ter custo/contrato — a homologação do
+  ISS.Net exige contrato, segundo o fórum do ACBr) e a T6.2 fica como alternativa descartada por ora (a
+  produção está na v2, que já recusa a empresa — ADR 0099 §2 e §8, revisão do architect).
   A reversibilidade passa a ser o git (a remoção é uma task isolada, depois da prova real).
 - **O A1 de produção da transportadora pode ser usado** para leitura em produção restrita (Swagger e
   parâmetros municipais, só GET). Emissão real continua só na T4.2. **Anderson renova o A1** (vence em
@@ -117,4 +119,6 @@ adaptador de novo, como a ADR-0029 previu.
 A Resolução CGSN 191/2026 obriga as optantes do Simples Nacional a emitir NFS-e pelo Emissor Nacional (web ou API) a
 partir de **01/11/2026** (fontes contábeis; conferir no DOU). A transportadora é Simples. Isso torna esta spec
 **prazo-crítico**: o caminho por provedor (Nota RP) deixa de ser o destino, e a sonda T2.3b decide se o cadastro
-municipal (`aderenteEmissorNacional=0`) bloqueia a emissão direta antes de qualquer migration.
+municipal (`aderenteEmissorNacional=0`) bloqueia a emissão direta antes de qualquer migration. Se a
+sonda falhar, o plano B é o webservice ISS.Net no padrão nacional (decidido pelo usuário em 08/10/2026; spec
+nova, possível custo/contrato); retomar a T6.2 da 250 (`v3`) fica descartado por ora.
