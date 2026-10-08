@@ -26,14 +26,13 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       Antes: fechada por confirmação do usuário de que a prefeitura atende a emissão nacional; a
       medição de `aderenteEmissorNacional` (mTLS) segue como conferência técnica na T0.3/T0.4, não como
       bloqueio. A gratuidade não tem página oficial acessível: tratar como indício. Ver `evidence.md` § T0.2.
-- [ ] **T0.3** `sonnet` — Ler o Swagger de produção restrita (ADN e Sefin) e transcrever para
+- [x] **T0.3** `sonnet` — Ler o Swagger de produção restrita (ADN e Sefin) e transcrever para
       `plan.md`: qual serviço recebe a DPS, mTLS, corpo de emissão (compactação), consulta,
-      cancelamento (evento), DANFSe, erros, limites. Se o Swagger recusar sem certificado, ler pelo
-      repositório do Swagger/OpenAPI publicado e registrar.
-      **PENDENTE** (08/10/2026): (a), (b) e (d) têm fonte oficial; (c) corpo `dpsXmlGZipB64`/GZip+Base64 e status HTTP só em cópia
-      não oficial do Swagger (o oficial exige certificado: 403/TLS). Fechar com o A1 de homologação (T0.4). Ver `plan.md` § T0.3.
-- [ ] **T0.4** `sonnet` — Obter com o usuário o A1 de **homologação** (ou procedimento), confirmar a
+      cancelamento (evento), DANFSe, erros, limites. Fechada em 08/10/2026 com o Swagger oficial lido com o A1;
+      ver `plan.md` § T0.3 e `evidence.md` § "T0.3 — fechamento (Swagger oficial)".
+- [x] **T0.4** `sonnet` — Obter com o usuário o A1 de **homologação** (ou procedimento), confirmar a
       validade do A1 de produção (o da Nota RP vence em 05/11/2026) e quem renova.
+      A1 de produção da transportadora liberado pelo usuário para leitura em produção restrita/produção (GET); Anderson renova (vence em 05/11/2026) e repassa ao cofre; emissão real só na T4.2; senha nunca em arquivo/log.
 - [ ] **T0.5** 🧠 `opus` — (destino da Nota RP já decidido pelo usuário: sai do app, fica só na lib) ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
       sorte da Nota RP (contingência × remoção) e da T6.2 da 250 — fecha o [NEEDS CLARIFICATION] 3.
       Validar com `architect` antes de implementar. Numeração conferida em `origin/staging`.

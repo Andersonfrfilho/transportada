@@ -215,3 +215,24 @@ mesmos valores: `aderenteAmbienteNacional=1`, **`aderenteEmissorNacional=0`**, `
 O usuário informou que a prefeitura **já aceita** a emissão direta e que o cadastro nacional está **desatualizado**.
 Decisão: a spec **segue** sob essa informação; o registro oficial (0) fica como **risco conhecido**, com a sonda abaixo.
 Pendente do usuário: anexar a confirmação escrita da prefeitura/CGNFS (e-mail ou protocolo) em `evidence.md`.
+
+## T0.3 — fechamento (Swagger oficial)
+
+**Resultado: FECHADA (08/10/2026).** O usuário consultou os Swaggers de produção restrita com o A1; as respostas foram lidas como dado (sem segredo).
+Contrato transcrito em `plan.md` § "Contrato do Sistema Nacional (T0.3) — fechado com o Swagger oficial".
+
+| Arquivo lido                                                                                                           | Resultado                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sefin-swagger-docs-v1.body`                                                                                           | Swagger 2.0 "Sefin Nacional v1", `basePath /SefinNacional`: 9 rotas, 10 schemas. `POST /nfse` com `dpsXmlGZipB64`, 201/400/403/500; eventos com `pedidoRegistroEventoXmlGZipB64`. |
+| `adn-swagger-contribuintes.body` / `adn-swagger-v1-alt.body`                                                           | Idênticos (11999 bytes). OpenAPI 3.0.1 ADN Contribuinte: `GET /DFe/{NSU}`, `GET /NFSe/{ChaveAcesso}/Eventos`, `LoteDistribuicaoNSUResponse`.                                      |
+| `adn-parametrizacao-swagger.body`                                                                                      | OpenAPI 3.0.1, `servers /parametrizacao`: convenio, aliquota, historicoaliquotas, beneficio, regimes_especiais, retencoes (+ 3 POST do município).                                |
+| `adn-convenio.body`, `adn-convenio-producao.body`                                                                      | 3543402: `aderenteAmbienteNacional=1`, `aderenteEmissorNacional=0` em restrita **e** produção; usuário diz que o cadastro está desatualizado (risco: sonda T2.3b).                |
+| `adn-danfse-swagger.body`                                                                                              | Vazio (404 em `swagger/v1/swagger.json`). A Sefin diz que DANFSe e ParametrosMunicipais foram "movidos" para o ADN.                                                               |
+| Demais (`*-docs-index`, `sefin-swagger-v1*`, `sefin-parametros-convenio`, `adn-swagger-v1`, `adn-parametros-convenio`) | Índices, vazios ou tentativas anteriores; sem contrato adicional.                                                                                                                 |
+
+Correções ao levantamento anterior: `basePath` sem `/API/`; rotas de parametrização são `/parametrizacao/{codMun}/…`, não `/parametros_municipais/…`; a Sefin não tem `GET …/eventos` nem `…/eventos/{tipoEvento}`; nome do campo do evento resolvido (`pedidoRegistroEventoXmlGZipB64`).
+Continuam sem fonte oficial: algoritmos XMLDSig, limites de taxa, Swagger do DANFSe (API de PDF sobrestada: renderizador próprio).
+
+## T0.4 — fechamento
+
+A1 de produção da transportadora liberado pelo usuário para leitura em produção restrita/produção (GET); Anderson renova (vence em 05/11/2026) e repassa ao cofre; emissão real só na T4.2; senha nunca em arquivo/log.
