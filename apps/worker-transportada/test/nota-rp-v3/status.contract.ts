@@ -204,6 +204,18 @@ describe('Nota RP v3 client — consulta: falhas', () => {
     expect(outcome).toEqual({ cause: 'unexpected_status', status: 'error' })
   })
 
+  test('429 e 503 são error unexpected_status, nunca not_found', async () => {
+    const throttled = await statusWith(() =>
+      errorBody({ message: 'Limite de requisições excedido', status: 429 }),
+    )
+    const unavailable = await statusWith(() =>
+      errorBody({ message: 'Serviço indisponível', status: 503 }),
+    )
+
+    expect(throttled.outcome).toEqual({ cause: 'unexpected_status', status: 'error' })
+    expect(unavailable.outcome).toEqual({ cause: 'unexpected_status', status: 'error' })
+  })
+
   test('corpo que não é JSON é malformed_response', async () => {
     const { outcome } = await statusWith(() => textResponse('<html>bad gateway</html>'))
 

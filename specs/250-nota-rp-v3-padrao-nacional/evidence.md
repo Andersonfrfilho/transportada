@@ -477,3 +477,39 @@ Staging não emite NFS-e (ADR-0035): nenhuma prova fiscal aqui.
 (a v3 não toca o cron; confirmado pela E6, sem cliente da Nota RP) e `CLAUDE.md` raiz (parágrafo da v3). **Não feito:**
 fechar 032/T030 — exige a primeira emissão real (T6.2, aprovação humana, `NFSE_PROVIDER_API_VERSION=v3`, perfil
 `cTribNac 160201`/`cTribMun 160101`, nota de valor mínimo conferida no portal); virou a T6.3b, aberta.
+
+## E26 — Revisão de código: dois achados corrigidos (08/10/2026)
+
+**Corrigidos, com teste vermelho antes:**
+
+1. **Worker, `nfse-reconciliation-outcome.policy.ts`.** `resolveExternalLinkRejection` rodava antes de considerar o
+   `storedStatus`: uma nota vinculada e autorizada em cancelamento (`cancellation_requested`) era reprovada em
+   `not_found` ou divergência de valor (tentativa de cancelamento liquidada como rejeitada, notificação falsa, fatura
+   presa, poll em laço). Agora as checagens do vínculo só valem em `pending_authorization`. Dois contratos em
+   `test/nfse-status-pull/outcome.contract.ts`: `not_found` vira `defer`, divergência de valor vira
+   `reschedule/cancellation_pending`. Commit `a4fa3d0d3`.
+2. **API, `nfse-invoice-external-link.use-case.ts`.** A `providerConfig` da tentativa de vínculo vinha da versão do
+   ambiente (v2 até a T6.2), então o `id_nota` do portal (id v3) ficava gravado como v2 e o worker consultava a API v2.
+   A tentativa agora é sempre `v3` (`NFSE_NATIONAL_PROVIDER_API_VERSION`); a dependência `providerApiVersion` saiu do
+   caso de uso e do `main.ts`. Contrato novo em `invoice-external-link.contract.ts`. Commit `d8688e1fa`.
+   - O worker roteia pela versão da tentativa (`resolveLatestIssuanceApiVersion` → `providerApiVersion` do
+     `DueNfseInvoice` → `resolveClient`), e o cliente v3 vem de `createNfseV3ClientResolver` com o mesmo
+     `NFSE_PROVIDER_BASE_URL`/timeout/limitador do worker, **sem depender da versão do ambiente da API**. Nada a mais
+     para montar. **Ressalva de operação:** a base URL é única; com o ambiente em v2 ela aponta para a v2, então um vínculo
+     feito antes da T6.2 consulta o `id_nota` na base URL configurada. Só é correto depois da virada para v3.
+
+**LOW não corrigidos (registrados):**
+
+- Vínculo rejeitado mantém `provider_document_id` preenchido e continua segurando o índice único.
+- A validação do vínculo é só por valor (`serviceAmount`); não confere CNPJ do tomador, competência nem número.
+- O `payload` jsonb é carregado a cada ciclo do status pull.
+- Import do frontend sem `.js`.
+
+**Pergunta em aberto verificada:** `results` vazio vira `not_found` (`interpretListResponse`, e isso reprova um vínculo
+novo); **404** idem. Já 5xx e 429 caem em `unexpected_status`, que a política **adia** (`defer`), nunca rejeita: o
+mapeamento está correto. 500 já tinha teste; adicionei `429 e 503 são error unexpected_status, nunca not_found` em
+`test/nota-rp-v3/status.contract.ts`. Resta a dúvida de produto: `results` vazio pode ser consistência eventual do
+portal logo após a criação da nota — hoje reprova o vínculo na primeira consulta.
+
+**Gates:** worker typecheck/lint limpos, `bun run test` 2170 pass / 0 fail (100 arquivos). API typecheck/lint limpos,
+`bun run test` 10851 pass / 0 fail (10885 testes, 202 arquivos).
