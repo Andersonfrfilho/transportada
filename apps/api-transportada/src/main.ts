@@ -683,6 +683,7 @@ import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/p
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
+import { createMeClientDiagnosticsRoutes } from './trips/presentation/me-client-diagnostics.routes.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
 import { createMeProofReceiverRoutes } from './trips/presentation/me-proof-receiver.routes.js'
 import { updateDriverProofReceiver } from './trips/application/update-driver-proof-receiver.use-case.js'
@@ -3543,6 +3544,7 @@ function createApplicationRoutes({
         issue: (input) => mdfeIssuance.issue(input),
       },
     }),
+    ...createMeClientDiagnosticsRoutes({ logger }),
     ...createMeLocationRoutes({
       readConsent: createReadLocationConsentUseCase({
         repository: tripLocationRepository,

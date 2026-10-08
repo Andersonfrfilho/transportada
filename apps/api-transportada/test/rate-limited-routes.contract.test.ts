@@ -596,6 +596,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
+      'trips/presentation/me-client-diagnostics.routes.ts',
       'trips/presentation/me-location.routes.ts',
       'trips/presentation/me-proof-receiver.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',

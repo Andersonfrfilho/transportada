@@ -19,13 +19,6 @@ export const MIN_DIAGNOSTIC_HTTP_STATUS = 100
 export const MAX_DIAGNOSTIC_HTTP_STATUS = 599
 export const MAX_DIAGNOSTIC_APP_VERSION_LENGTH = 64
 
-export const CLIENT_DIAGNOSTICS_RATE_LIMIT = {
-  maxRequests: 6,
-  scope: 'me-client-diagnostics',
-  store: 'postgres',
-  windowSeconds: 60,
-} as const
-
 export const DIAGNOSTIC_EVENT_KINDS = ['send_failed', 'step_timing'] as const
 export const DIAGNOSTIC_STEPS = [
   'trip_open',
