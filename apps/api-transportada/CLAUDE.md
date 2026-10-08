@@ -513,6 +513,9 @@ docs/ai-context § "A ocorrência tem duas conversas".
   - a tripulação **não é fixa**: troca-se até `route_planned` (spec 217) e, com a viagem na rua,
     por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097), que grava `trip_crew_events`;
     a conversa segue o motorista principal de agora.
+- **A viagem na rua recebe notas** (spec 257, exceção do ADR-0043 §2): `POST /v1/trips/:id/documents/after-dispatch`
+  (`trip.report-on-behalf`, janela `dispatched`/`in_transit`/`on_delivery_route`) grava `trip_document_link_events`;
+  a nota entra `loaded`, sem mexer em status, rota, pedágio nem ETA. Viagem cancelada solta as notas.
 - **O aviso automático à contratante** (T802, `emails_contractor` do tipo):
   - dispara e esquece depois do commit, nos cinco caminhos de registro, **em série** (T903, C4);
   - um por ocorrência (chave `occurrence-auto-mail:<id>`), sem autor, com a mensagem `automatic`;

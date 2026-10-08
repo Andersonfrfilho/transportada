@@ -50,3 +50,7 @@
 - `test/trip/document-link-after-dispatch.contract.ts` (novo, em `trip.contract.test.ts`): ação conhecida/filtrada, botão, resposta exata, corpo e caminho do cliente, bloqueios, chave de erro, resultado e paridade de locales.
 - Smoke Playwright **não** adicionado nesta task: a cobertura é de contrato; fica registrado como lacuna.
 - `bun run typecheck` limpo; `bun run test` → 7688 pass / 0 fail.
+
+## T3.1
+
+- ADR-0043 §2 ganhou a exceção; `docs/ai-context/api-transportada.md` ganhou a seção da spec 257; `apps/api-transportada/CLAUDE.md` aponta a rota e a tabela. Só documentação.

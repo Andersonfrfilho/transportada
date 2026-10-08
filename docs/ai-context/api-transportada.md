@@ -3197,6 +3197,23 @@ senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_
 - **Risco conhecido (D10):** `financial-summary.query.ts` une o resultado congelado ao `trip_drivers`
   **atual**; depois de uma transferência o total por motorista da viagem migra para o novo.
 
+## Spec 257 — a viagem na rua recebe notas (exceção do ADR-0043 §2)
+
+- **Rota:** `POST /v1/trips/:id/documents/after-dispatch`, permissão `trip.report-on-behalf`. Corpo
+  estrito `{nfeDocumentIds (1–300), reason (1–500)}`. 201 com `data.link` (`linked`, `skipped`,
+  `createdStopIds`, `eventId`, `mdfeDocumentDivergence`, `documentsWithoutCte`, `tripStatus`) e `data.trip`.
+- **Janela:** `dispatched`, `in_transit`, `on_delivery_route`; ação `linkAfterDispatch` em `allowed-actions`
+  (nome público `linkDocumentsAfterDispatch`). `TRIP_STATUSES_BEFORE_DISPATCH` ficou desacoplado da janela.
+- **Efeito:** nota entra `loaded` com evento de documento; reaproveita só parada aberta, senão cria parada
+  nova ao fim, sem ETA. Status, rota, pedágio, snapshot e ETA não mudam.
+- **Lote:** nota já em viagem viva é pulada (`skipped: already_linked`); se a viagem sai da janela sob o
+  lock, o lote inteiro é `409 STATE_TRANSITION_NOT_ALLOWED` e nada é gravado.
+- **Histórico:** `trip_document_link_events` (append-only por trigger), `audit_logs`
+  `office.trip.documents-added` (ids opacos, sem o motivo) e o item `documents_added` na linha do tempo.
+- **Cancelamento:** viagem cancelada, de qualquer status e por qualquer motivo, libera as notas
+  (`markCancelled`); coberto por `test/integration/trip-cancel-releases-notes.integration.ts`.
+- **Publicar em etapas:** painel primeiro (kind `documents_added` tolerante), depois a API.
+
 ## Spec 247 — A devolução soma os itens e registra o valor pago (ainda não publicada)
 
 **Dado.** Migration `20261007033420_occurrence_declared_amount` (aditiva, com `rollback.sql`): seis colunas no tipo

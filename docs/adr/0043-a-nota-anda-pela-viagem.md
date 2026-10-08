@@ -78,6 +78,14 @@ depois do manifesto autorizado é divergência fiscal, não ajuste de tela.
 Sair de `dispatched` só por `cancelled` administrativo, com motivo obrigatório e trilha — e isso é um
 incidente, não um fluxo.
 
+**Exceção (spec 257): a viagem na rua recebe notas.** As rotas comuns de vínculo seguem fechadas depois de
+`dispatched`. A única entrada é `POST /v1/trips/:id/documents/after-dispatch`, com `trip.report-on-behalf`,
+motivo obrigatório e só em `dispatched`, `in_transit` e `on_delivery_route` — o caso do veículo que quebra e
+da van que assume a carga. A nota entra `loaded`, nas paradas ainda abertas; roteiro, pedágio, ETA e status
+da viagem não mudam. O histórico (`trip_document_link_events`, append-only) e a auditoria guardam quem e por
+quê, e o MDF-e autorizado que não lista a nota vira aviso de divergência, não bloqueio. Viagem cancelada, por
+qualquer motivo, solta as notas (`markCancelled`).
+
 Despachar com nota pendente é caso real e acontece todo dia: a API recusa por padrão
 (`409 TRIP_HAS_UNLOADED_DOCUMENTS`, listando as notas) e aceita com `force` **mais motivo
 obrigatório**, que desvincula as pendentes de volta ao pool. O que não pode é acontecer sem alguém

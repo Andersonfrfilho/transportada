@@ -24,7 +24,7 @@
 
 ## Fase 3 — Documentação e fechamento (`haiku`)
 
-- [ ] T3.1 ADR-0043 §2, `docs/ai-context/api-transportada.md`, `apps/api-transportada/CLAUDE.md`.
+- [x] T3.1 ADR-0043 §2, `docs/ai-context/api-transportada.md`, `apps/api-transportada/CLAUDE.md`.
 - [ ] T3.2 `make check` + `make migration-test`; `evidence.md`. **Deploy: aprovação humana.**
 
 ## Prompt de execução
