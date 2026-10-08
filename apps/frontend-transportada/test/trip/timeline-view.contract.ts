@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
-  collectRepeatedAuthorshipItemIds,
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   removeDuplicateDispatchEvents,
@@ -401,48 +400,50 @@ describe('autoria de trip.created sem ator (spec 171)', () => {
   })
 })
 
-/**
- * A autoria só aparece quando **muda**: quatro eventos seguidos do mesmo autor mostram a frase uma
- * vez. A regra existia desde a spec 180, viveu dentro do JSX e sumiu sem ninguém notar quando a
- * spec 196 reescreveu o item — o único a cobrá-la era o smoke, que roda na CI. Aqui ela é função
- * pura e tem contrato próprio.
- */
-describe('autoria repetida some do evento seguinte (spec 180)', () => {
-  function buildItem(id: string, overrides: Partial<TripTimelineItem> = {}): TripTimelineItem {
-    return { ...BASE_ITEM, id, ...overrides }
-  }
-
-  it('marca todos os seguintes de uma sequência do mesmo autor, menos o primeiro', () => {
-    const items = [buildItem('a'), buildItem('b'), buildItem('c'), buildItem('d')]
-
-    const repeated = collectRepeatedAuthorshipItemIds(items, fakeTranslate)
-
-    expect(repeated.has('a')).toBe(false)
-    expect([...repeated].sort()).toEqual(['b', 'c', 'd'])
-  })
-
-  it('o autor que muda reaparece, e volta a sumir quando se repete', () => {
-    const items = [
-      buildItem('a'),
-      buildItem('b', { actorName: 'Carlos Lima' }),
-      buildItem('c', { actorName: 'Carlos Lima' }),
-      buildItem('d'),
+describe('autoria em todo evento', () => {
+  it('cada evento da sequência de um mesmo autor ganha a frase, inclusive conclusão e entrega', () => {
+    const items: readonly TripTimelineItem[] = [
+      { ...BASE_ITEM, id: 'a', kind: 'trip.status_changed', toStatus: 'on_delivery_route' },
+      { ...BASE_ITEM, id: 'b', kind: 'document.delivered' },
+      { ...BASE_ITEM, id: 'c', kind: 'trip.status_changed', toStatus: 'completed' },
     ]
 
-    const repeated = collectRepeatedAuthorshipItemIds(items, fakeTranslate)
+    const texts = items.map((item) => resolveTripTimelineAuthorshipText(item, fakeTranslate))
 
-    expect([...repeated]).toEqual(['c'])
+    expect(texts.every((text) => text !== null)).toBe(true)
   })
 
-  /** O que se compara é a frase, não o nome: o mesmo ator por outro canal escreve outra coisa. */
-  it('mesmo ator em canal diferente não conta como repetição', () => {
-    const items = [buildItem('a'), buildItem('b', { channel: 'backoffice' })]
+  it('evento de integração diz "pelo sistema", com ou sem nome de ator, em qualquer canal', () => {
+    const channels = ['backoffice', 'office', null] as const
 
-    expect(collectRepeatedAuthorshipItemIds(items, fakeTranslate).size).toBe(0)
+    for (const channel of channels) {
+      for (const actorName of ['Automação', null]) {
+        const item: TripTimelineItem = {
+          ...BASE_ITEM,
+          actorName,
+          channel,
+          isSystemActor: true,
+          kind: 'document.delivered',
+        }
+
+        expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
+          fakeTranslate('authorship.system'),
+        )
+      }
+    }
   })
 
-  it('lista vazia não quebra', () => {
-    expect(collectRepeatedAuthorshipItemIds([], fakeTranslate).size).toBe(0)
+  it('sem o sinal da API, nome ausente continua "autor não identificado" e não vira sistema', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      actorName: null,
+      channel: 'backoffice',
+      kind: 'trip.status_changed',
+    }
+
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).not.toBe(
+      fakeTranslate('authorship.system'),
+    )
   })
 })
 

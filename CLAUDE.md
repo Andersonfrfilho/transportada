@@ -139,6 +139,23 @@ Fase 2) permite o operador, depois que a rotina passa, marcar as entregas, ver a
 lote — nada de conferência sem a imagem na frente. Detalhe em `docs/ai-context/worker-transportada.md`
 (rotina) e `docs/ai-context/api-transportada.md` (rota do robô).
 
+**A devolução soma os itens e registra o valor pago** (spec 247; ainda não publicada). Tudo é coluna do tipo
+(`reference_number_mode`, `declared_amount_mode`/`_scope`, `email_item_line_template`), nunca nome de tipo. Número do
+documento do cliente e valor pago são exigidos pelo **mesmo** resolvedor nas três apps (`resolveOccurrenceRequirements`): o app
+lê o que o servidor resolveu e o servidor recobra — nunca reimplementar precedência tipo/exceção. Dinheiro é `bigint`/string com
+o mesmo arredondamento nas três apps (meio para cima por linha, soma das linhas arredondadas, valor pago vence a soma, `0` é
+valor e não vazio), preso por um contrato de tabela espelhada em cada app. Preço e unidade **nunca** vêm do payload (`.strict()`
+→ 400): `unit_value` é copiado da nota. Publicar em etapas (ADR-0081 §9): painel tolerante → API → telas. Decisão **pendente**
+do usuário: o registro do motorista não abre a tratativa da 164, então a sugestão de acerto (RF12) não aparece nele. Detalhe:
+`apps/api-transportada/CLAUDE.md` § "A devolução soma os itens (spec 247)" e `specs/247-*/evidence.md`.
+
+**A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
+(`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
+próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por
+`POST /service-invoices/:id/external-link`: o `id_nota` da Nota RP leva a nota a `pending_authorization` e o status pull a
+autoriza, ou rejeita se o valor divergir. A virada para `v3` e a primeira nota real de valor mínimo (T6.2) pedem aprovação
+humana; a 032/T030 segue **aberta** até lá. Detalhe em `docs/ai-context/worker-transportada.md` § "A Nota RP v3".
+
 ## Convenções
 
 Sufixos em uso: `.use-case.ts` · `.service.ts` · `.schema.ts` · `.repository.ts` (sempre prefixo

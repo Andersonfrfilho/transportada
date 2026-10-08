@@ -62,7 +62,12 @@ type BulkReissueModule = {
   ) => BulkPlan
   summarizeNfseBulkReissue: (
     outcomes: readonly Readonly<{ invoiceId: string; isReissued: boolean }>[],
-  ) => Readonly<{ failed: number; reissued: number; total: number }>
+  ) => Readonly<{
+    failed: number
+    missingNationalTaxation: number
+    reissued: number
+    total: number
+  }>
 }
 
 type BulkDiscardModule = {
@@ -141,13 +146,18 @@ describe('nfse bulk reissue summary contract', () => {
       { invoiceId: FAILED_INVOICE.id, isReissued: false },
     ])
 
-    expect(summary).toEqual({ failed: 1, reissued: 1, total: 2 })
+    expect(summary).toEqual({ failed: 1, missingNationalTaxation: 0, reissued: 1, total: 2 })
   })
 
   test('lote vazio não inventa resultado', async () => {
     const { summarizeNfseBulkReissue } = await loadFutureModule<BulkReissueModule>(REISSUE_MODULE)
 
-    expect(summarizeNfseBulkReissue([])).toEqual({ failed: 0, reissued: 0, total: 0 })
+    expect(summarizeNfseBulkReissue([])).toEqual({
+      failed: 0,
+      missingNationalTaxation: 0,
+      reissued: 0,
+      total: 0,
+    })
   })
 })
 

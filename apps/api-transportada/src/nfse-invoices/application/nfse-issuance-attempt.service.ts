@@ -11,12 +11,17 @@ import type {
   NfseIssuanceOutboxEventType,
   NfseServiceInvoiceStatus,
 } from '../../database/nfse.schema.js'
+import type { NfseProviderApiVersion } from '../../shared/nfse-provider-api-version.constant.js'
 import type { NfseInvoiceCorrectionInput } from '../domain/nfse-issuance-correction.policy.js'
 import {
   NfseCredentialMissingError,
   NfseFiscalSettingsMissingError,
   NfseIdempotencyKeyReusedError,
 } from '../domain/nfse-issuance.error.js'
+import {
+  requiresNationalTaxation,
+  resolveNationalTaxation,
+} from '../domain/nfse-national-taxation.policy.js'
 import type { NfseInvoicePreviewItem } from './nfse-invoice-preview.service.js'
 import type {
   NfseInvoiceCredential,
@@ -35,6 +40,7 @@ export const NFSE_CANCEL_OUTBOX_EVENT: NfseIssuanceOutboxEventType =
 const CANCEL_ATTEMPT_KIND: NfseAttemptKind = 'cancel'
 const CANCEL_OPERATION = 'nfse.invoice.cancel'
 const CREATE_OPERATION = 'nfse.invoice.create'
+const EXTERNAL_LINK_OPERATION = 'nfse.invoice.external_link'
 const ISSUE_ATTEMPT_KIND: NfseAttemptKind = 'issue'
 const REISSUE_OPERATION = 'nfse.invoice.reissue'
 
@@ -101,6 +107,18 @@ export function createReissueFingerprint(input: {
   })
 }
 
+/** O `id_nota` entra: ligar outra nota do provedor e repetir a chave é pedido novo, não replay. */
+export function createExternalLinkFingerprint(input: {
+  readonly invoiceId: string
+  readonly providerDocumentId: string
+}): string {
+  return createRequestFingerprint({
+    invoiceId: input.invoiceId,
+    operation: EXTERNAL_LINK_OPERATION,
+    providerDocumentId: input.providerDocumentId,
+  })
+}
+
 /**
  * O ambiente fiscal e a credencial ativa da empresa, na mesma leitura que toda emissão faz. Fica
  * aqui para criação, cancelamento e reemissão lerem pela mesma porta — três cópias divergiriam.
@@ -147,6 +165,7 @@ export type FreezeNfseIssuancePayloadParams = {
   readonly invoice: NfseInvoicePreviewItem
   readonly invoiceId: string
   readonly profile: NfseInvoiceProfile
+  readonly providerApiVersion?: NfseProviderApiVersion | undefined
 }
 
 /**
@@ -159,6 +178,7 @@ export function freezeNfseIssuancePayload({
   invoice,
   invoiceId,
   profile,
+  providerApiVersion,
 }: FreezeNfseIssuancePayloadParams): {
   readonly attemptId: string
   readonly invoiceId: string
@@ -166,6 +186,9 @@ export function freezeNfseIssuancePayload({
   readonly payloadSha256: string
   readonly providerConfig: Readonly<Record<string, unknown>>
 } {
+  const nationalTaxation = requiresNationalTaxation(providerApiVersion)
+    ? resolveNationalTaxation(profile)
+    : undefined
   const payload = {
     cnaeCode: profile.cnaeCode,
     description: invoice.description,
@@ -182,9 +205,15 @@ export function freezeNfseIssuancePayload({
     issWithheld: profile.issWithheld,
     municipalityIbgeCode: profile.municipalityIbgeCode,
     municipalTaxationCode: profile.municipalTaxationCode,
+    ...(nationalTaxation === undefined
+      ? {}
+      : { nationalTaxationCode: nationalTaxation.nationalTaxationCode }),
     nbsCode: profile.nbsCode,
     serviceAmount: invoice.serviceAmount,
     serviceListItem: profile.serviceListItem,
+    ...(nationalTaxation === undefined
+      ? {}
+      : { simplesNationalRate: nationalTaxation.simplesNationalRate }),
     taker: {
       address: invoice.takerAddress,
       legalName: invoice.takerLegalName,
@@ -197,7 +226,7 @@ export function freezeNfseIssuancePayload({
     invoiceId,
     payload,
     payloadSha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex'),
-    providerConfig: buildNfseProviderConfig(credential),
+    providerConfig: buildNfseProviderConfig(credential, providerApiVersion),
   }
 }
 
@@ -205,16 +234,19 @@ export function freezeNfseIssuancePayload({
  * Sem segredo: o token continua selado na credencial e só o worker o abre para transmitir. Fica
  * fora do `payload` — e do hash — porque é transporte, não conteúdo fiscal: a reemissão remonta
  * este bloco pela credencial ativa de hoje, que é o que faz uma inscrição municipal corrigida
- * valer na próxima tentativa.
+ * valer na próxima tentativa. `providerApiVersion` é a versão da API do provedor com que a tentativa
+ * nasceu (ADR 0098): consulta, cancelamento e documentos seguem a dela, não a do ambiente.
  */
 export function buildNfseProviderConfig(
   credential: NfseInvoiceCredential,
+  providerApiVersion?: NfseProviderApiVersion,
 ): Readonly<Record<string, unknown>> {
   return {
     credentialId: credential.credentialId,
     fiscalEnvironment: credential.fiscalEnvironment,
     municipalRegistration: credential.municipalRegistration,
     provider: credential.provider,
+    ...(providerApiVersion === undefined ? {} : { providerApiVersion }),
     taxId: credential.taxId,
   }
 }

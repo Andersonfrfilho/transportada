@@ -79,6 +79,17 @@
   resize: vertical;
 }
 
+.nationalTaxationField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.fieldError {
+  color: var(--color-alert);
+  font-size: 0.85rem;
+}
+
 .fieldWide {
   grid-column: 1 / -1;
 }

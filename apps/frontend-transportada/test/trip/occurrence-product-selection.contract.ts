@@ -3,6 +3,7 @@ import { describe, expect, it, test } from 'bun:test'
 
 import {
   describeOccurrenceItems,
+  describeOccurrenceTotals,
   formatOccurrenceProductEntryLabel,
   formatOccurrenceProductLabel,
   formatOccurrenceProductsLine,
@@ -280,7 +281,14 @@ describe('descrição do item na leitura da ocorrência', () => {
     })
 
     expect(itens).toEqual([
-      { code: '183', description: 'SHAMP MONANGE 325ML HIDR COM PODER', quantity: '3 peças' },
+      {
+        code: '183',
+        description: 'SHAMP MONANGE 325ML HIDR COM PODER',
+        declaredAmount: null,
+        lineAmount: '30,00',
+        quantity: '3 peças',
+        unitValue: '10,00',
+      },
     ])
   })
 
@@ -321,7 +329,14 @@ describe('descrição do item na leitura da ocorrência', () => {
       unitLabels: UNIT_LABELS,
     })
 
-    expect(item).toEqual({ code: '999', description: null, quantity: null })
+    expect(item).toEqual({
+      code: '999',
+      declaredAmount: null,
+      description: null,
+      lineAmount: null,
+      quantity: null,
+      unitValue: null,
+    })
   })
 
   /** Lista vazia é a nota inteira, e quem decide como dizer isso é a tela, não esta função. */
@@ -372,5 +387,51 @@ describe('formato brasileiro da quantidade (defeito medido em 23/09)', () => {
   /** Três casas existem no banco e têm de sobreviver à tela quando são significativas. */
   it('mantém as casas que importam', () => {
     expect(quantidadeDe('2.125')).toBe('2,125 caixas')
+  })
+})
+
+describe('totais da ocorrência na leitura', () => {
+  const PRODUCTS = [
+    {
+      code: '1',
+      commercialUnit: 'UN',
+      description: 'A',
+      ordinal: 1,
+      quantity: '12.0000',
+      totalValue: '120.0000',
+      unitValue: '10.0000',
+    },
+    {
+      code: '2',
+      commercialUnit: 'CX',
+      description: 'B',
+      ordinal: 2,
+      quantity: '3.0000',
+      totalValue: '30.0000',
+      unitValue: '10.0000',
+    },
+  ]
+
+  it('soma as linhas em nota e o que o cliente pagou', () => {
+    const totals = describeOccurrenceTotals({
+      occurrence: {
+        productCode: '1',
+        productCodes: ['1', '2'],
+        products: [
+          { code: '1', declaredAmount: '20.00', quantity: '2.000', unit: 'unit' },
+          { code: '2', declaredAmount: '5.00', quantity: '1.000', unit: 'unit' },
+        ],
+      },
+      products: PRODUCTS,
+    })
+    expect(totals).toEqual({ declaredAmount: '25,00', documentAmount: '30,00' })
+  })
+
+  it('nota inteira soma todos os produtos e não inventa valor pago', () => {
+    const totals = describeOccurrenceTotals({
+      occurrence: { productCode: '', productCodes: [] },
+      products: PRODUCTS,
+    })
+    expect(totals).toEqual({ declaredAmount: null, documentAmount: '150,00' })
   })
 })

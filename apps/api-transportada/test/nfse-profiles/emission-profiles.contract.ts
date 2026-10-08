@@ -101,6 +101,95 @@ describe('NFS-e emission profile routes contract', () => {
     })
   })
 
+  test('both national taxation fields default to null when the body omits them', async () => {
+    const fixture = await createNfseProfilesHttpFixture()
+    const { nationalTaxationCode, simplesNationalRate, ...legacySettings } = PROFILE_SETTINGS
+
+    const response = await fixture.handle(
+      jsonRequest({ body: legacySettings, method: 'POST', path: '/nfse-emission-profiles' }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(nationalTaxationCode).toBe('160201')
+    expect(simplesNationalRate).toBe('2.000000')
+    expect(fixture.createCalls[0]).toMatchObject({
+      settings: { nationalTaxationCode: null, simplesNationalRate: null },
+    })
+  })
+
+  test('accepts an explicit null to clear the national taxation fields on update', async () => {
+    const fixture = await createNfseProfilesHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          expectedVersion: '1',
+          settings: { ...PROFILE_SETTINGS, nationalTaxationCode: null, simplesNationalRate: null },
+        },
+        method: 'PATCH',
+        path: `/nfse-emission-profiles/${PROFILE_ID}`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]).toMatchObject({
+      settings: { nationalTaxationCode: null, simplesNationalRate: null },
+    })
+  })
+
+  test.each(['16020', '1602011', '16020a', ' 160201', ''])(
+    'rejects the national taxation code %p',
+    async (nationalTaxationCode) => {
+      const fixture = await createNfseProfilesHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...PROFILE_SETTINGS, nationalTaxationCode },
+          method: 'POST',
+          path: '/nfse-emission-profiles',
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.createCalls).toHaveLength(0)
+    },
+  )
+
+  test.each(['-1.000000', 'abc', '100.000001', '2,00', '1e2', ''])(
+    'rejects the Simples national rate %p',
+    async (simplesNationalRate) => {
+      const fixture = await createNfseProfilesHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...PROFILE_SETTINGS, simplesNationalRate },
+          method: 'POST',
+          path: '/nfse-emission-profiles',
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.createCalls).toHaveLength(0)
+    },
+  )
+
+  test.each(['0', '2', '2.00', '4.5', '100', '0.000001'])(
+    'accepts the Simples national rate %p',
+    async (simplesNationalRate) => {
+      const fixture = await createNfseProfilesHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...PROFILE_SETTINGS, simplesNationalRate },
+          method: 'POST',
+          path: '/nfse-emission-profiles',
+        }),
+      )
+
+      expect(response.status).toBe(201)
+    },
+  )
+
   test('routes the status transition to activation or deactivation by the requested status', async () => {
     const fixture = await createNfseProfilesHttpFixture()
 

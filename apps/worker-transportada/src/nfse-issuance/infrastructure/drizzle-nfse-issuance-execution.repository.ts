@@ -15,10 +15,18 @@ import type {
   NfseIssuanceExecutionInputReader,
 } from '../application/nfse-issuance-consumer.effect.js'
 import { NFSE_NON_SETTLED_ATTEMPT_STATUSES } from '../domain/nfse-attempt-status.policy.js'
+import {
+  canReuseProviderDocumentId,
+  parseProviderApiVersion,
+  resolveLatestIssuanceApiVersion,
+  type NfseProviderApiVersion,
+} from '../domain/nfse-provider-api-version.policy.js'
+import { listIssuanceAttemptHistory } from './drizzle-nfse-issuance-history.reader.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const ACTIVE_CREDENTIAL_STATUS = 'active'
+const CANCEL_ATTEMPT_KIND = 'cancel'
 
 export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecutionInputReader {
   readonly #database: Database
@@ -40,13 +48,18 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
   }): Promise<NfseIssuanceExecutionInput | undefined> {
     const [row] = await this.#database
       .select({
+        attemptKind: nfseIssuanceAttempts.attemptKind,
+        attemptNumber: nfseIssuanceAttempts.attemptNumber,
         cancellationMotive: nfseServiceInvoices.cancellationMotive,
         credentialId: nfseProviderCredentials.id,
         envelope: nfseProviderCredentials.secretEnvelope,
         fiscalEnvironment: nfseIssuanceAttempts.fiscalEnvironment,
         municipalRegistration: nfseProviderCredentials.municipalRegistration,
         payload: nfseIssuancePayloads.payload,
+        providerConfig: nfseIssuancePayloads.providerConfig,
         providerDocumentId: nfseServiceInvoices.providerDocumentId,
+        providerRequestKey: nfseIssuanceAttempts.providerRequestKey,
+        taxId: nfseProviderCredentials.taxId,
       })
       .from(nfseIssuanceAttempts)
       .innerJoin(
@@ -87,14 +100,39 @@ export class DrizzleNfseIssuanceExecutionRepository implements NfseIssuanceExecu
 
     if (row === undefined) return undefined
 
+    const isCancellation = row.attemptKind === CANCEL_ATTEMPT_KIND
+    const needsHistory = isCancellation || row.providerDocumentId !== null
+    const history = needsHistory
+      ? ((
+          await listIssuanceAttemptHistory({
+            companyIds: [input.companyId],
+            db: this.#database,
+            invoiceIds: [input.invoiceId],
+          })
+        ).get(input.invoiceId) ?? [])
+      : []
+    const providerApiVersion: NfseProviderApiVersion = isCancellation
+      ? resolveLatestIssuanceApiVersion(history)
+      : parseProviderApiVersion(row.providerConfig)
+    const canReuseDocument =
+      !isCancellation &&
+      row.providerDocumentId !== null &&
+      canReuseProviderDocumentId({ attemptNumber: row.attemptNumber, history })
+
     return {
+      providerApiVersion,
       credential: {
         companyId: input.companyId,
         credentialId: row.credentialId,
         envelope: row.envelope,
         fiscalEnvironment: row.fiscalEnvironment,
         municipalRegistration: row.municipalRegistration,
+        taxId: row.taxId,
       },
+      ...(row.providerRequestKey === null ? {} : { providerRequestKey: row.providerRequestKey }),
+      ...(canReuseDocument && row.providerDocumentId !== null
+        ? { reissueProviderDocumentId: row.providerDocumentId }
+        : {}),
       ...(row.payload === null ? {} : { payload: row.payload }),
       ...(row.cancellationMotive === null ? {} : { cancellationMotive: row.cancellationMotive }),
       ...(row.providerDocumentId === null ? {} : { providerDocumentId: row.providerDocumentId }),

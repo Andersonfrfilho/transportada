@@ -14,6 +14,7 @@ import {
 } from '../shared/nfseSettings.types'
 
 import styles from '../styles/nfseSettings.module.css'
+import { NfseNationalTaxationFields } from './NfseNationalTaxationFields.component'
 
 type NfseProfileFieldsProps = Readonly<{
   disabled: boolean
@@ -37,6 +38,11 @@ const TAKER_LABEL_KEYS: Readonly<Record<NfseTaker, string>> = {
   '3': 'nfseTaker3',
 }
 
+const NATIONAL_TAXATION_CLASS_NAMES = {
+  error: styles.fieldError,
+  field: styles.nationalTaxationField,
+  hint: styles.fieldHint,
+} as const
 const CODE_MAX_LENGTH = 40
 const NAME_MAX_LENGTH = 120
 const OBSERVATIONS_MAX_LENGTH = 500
@@ -166,6 +172,12 @@ export function NfseProfileFields({
           value={draft.municipalTaxationCode}
         />
       </label>
+      <NfseNationalTaxationFields
+        classNames={NATIONAL_TAXATION_CLASS_NAMES}
+        disabled={disabled}
+        onChange={patch}
+        values={draft}
+      />
       <label>
         <span>{t('nfseProfileNbsLabel')}</span>
         <input

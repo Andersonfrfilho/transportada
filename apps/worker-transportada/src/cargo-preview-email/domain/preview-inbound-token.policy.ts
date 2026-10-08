@@ -18,7 +18,7 @@ export function extractPreviewTokenCandidates(input: {
   readonly replyDomain: string
   readonly toAddresses: readonly string[]
 }): readonly string[] {
-  const replyDomain = input.replyDomain.toLowerCase()
+  const replyDomain = input.replyDomain.trim().toLowerCase()
   const candidates = new Set<string>()
 
   for (const address of [...input.toAddresses, ...(input.ccAddresses ?? [])]) {

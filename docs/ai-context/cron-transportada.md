@@ -150,3 +150,8 @@ produto discordarem. Quem guarda a paridade são os contratos `test/fuel-catalog
 (API), `test/shared/fuel-catalog.contract.ts` (frontend) e
 `test/fuel-price-pull/catalog.contract.ts` (worker) — mudou produto ou unidade de um lado? mude dos
 três. Uma linha de GNV lida como litro entra no banco sem reclamar de nada.
+
+**A Nota RP v3 não toca esta app** (spec 250, ADR 0098). O cron não tem cliente da Nota RP desde a retirada do
+`cron-nfse` (T0.1 da 250 confirmou com `git grep`); a troca de v2 para v3 vive na API (versão por tentativa) e no
+worker (clientes e limitador). Se um cliente da Nota RP voltar para cá, o limite de 1 req/s por CNPJ precisa do
+limitador compartilhado descrito no doc do worker.

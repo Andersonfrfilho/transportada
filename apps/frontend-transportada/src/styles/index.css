@@ -100,6 +100,8 @@
   --color-ready-ink: #71b292;
   --color-copper-ink: #d78f4e;
   --color-slate-ink: #90a4ae;
+  /* Mesma regra para o alerta: `--color-alert` sobre o próprio fundo diluído media 4,11:1 no tema claro. */
+  --color-alert-ink: #ff6b63;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -209,6 +211,7 @@
   --color-ready-ink: #286c48;
   --color-copper-ink: #93501c;
   --color-slate-ink: #54646c;
+  --color-alert-ink: #a92f27;
 }
 
 @media (prefers-color-scheme: light) {
@@ -229,6 +232,7 @@
     --color-ready-ink: #286c48;
     --color-copper-ink: #93501c;
     --color-slate-ink: #54646c;
+    --color-alert-ink: #a92f27;
   }
 }
 

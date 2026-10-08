@@ -1,4 +1,5 @@
 {
+  "amountLimit": "Limit of 10 digits before the comma: the next key will not be accepted.",
   "actions": {
     "backToList": "Back to trips",
     "close": "Close trip",
@@ -459,12 +460,14 @@
     "blocker": {
       "crewUnchanged": "The chosen crew is the same as the current one. Change at least one person.",
       "driverCannotDrive": "Someone chosen as driver cannot drive: their record is helper-only.",
+      "reasonRequired": "Enter the reason to continue.",
       "driverRequired": "Choose at least one driver.",
       "helperIsDriver": "The same person cannot be both driver and helper.",
       "reasonTooLong": "The reason is longer than 500 characters."
     },
+    "current": "Current crew",
     "clearAll": "Remove all",
-    "drivers": "Drivers",
+    "drivers": "Who drives",
     "driversEmpty": "There is no active driver in the fleet to choose from.",
     "driversNoMatch": "No driver found",
     "driversPlaceholder": "Choose drivers",
@@ -479,7 +482,7 @@
       "notAllowed": "This trip does not accept a crew transfer right now: only a trip under way can be transferred.",
       "unchanged": "The chosen crew is the same as the current one. Nothing was changed."
     },
-    "helpers": "Helpers",
+    "helpers": "Who helps",
     "helpersEmpty": "No active helper. Register one in Fleet › Drivers or give the Helper role in Access.",
     "helpersNoMatch": "No helper found",
     "helpersPlaceholder": "Choose helpers",
@@ -497,21 +500,27 @@
       "mdfeDivergence": "This trip's authorized MDF-e keeps the previous driver: the transfer does not change the manifest.",
       "same": "The trip cost did not change."
     },
-    "reason": "Reason for the transfer",
+    "reason": "Reason for the transfer (required)",
+    "roleGroup": {
+      "driver": "Drivers",
+      "helper": "Helpers"
+    },
     "role": {
       "driver": "driver",
       "helper": "helper"
     },
     "search": "Search by name",
     "submit": "Transfer",
-    "subtitle": "The trip carries on from where it is. Only who drives and who helps change; vehicle, route and stops stay as they are, and the crew cost is recalculated.",
+    "subtitle": "Remove who leaves and add who joins. The trip continues from where it is and the cost is recalculated.",
     "summary": {
-      "line": "{{leaving}} → {{entering}}",
+      "entering": "Joins",
+      "leaving": "Leaves",
       "nobody": "nobody",
-      "title": "Who leaves → who joins"
+      "none": "No change yet. Remove or add someone above.",
+      "title": "What will change"
     },
     "title": "Transfer crew",
-    "vehicleLocked": "The vehicle does not change: the trip carries on with the same truck."
+    "vehicleLocked": "The vehicle, route and stops do not change."
   },
   "dateRange": {
     "clear": "Clear period",
@@ -1045,10 +1054,14 @@
     "occurrenceCaseDecisionConflict": "A different decision has already been recorded for this case. Reload the page to see what was saved.",
     "occurrenceCaseRedeliveryNotAllowed": "This occurrence does not allow redelivery — choose another decision.",
     "occurrenceCaseNoteRequired": "State the reason for the decision.",
+    "declaredAmountSelectionConflict": "The amount paid per line and the occurrence amount cannot come together. Pick one level under \"Typed\", use \"Clear\" on the other and save again. Nothing was saved.",
+    "occurrenceTypeDeclaredAmountNeedsItems": "An amount paid per line needs products: with Products off there is no line to type it on. Choose \"One for the whole occurrence\" under Typed, or turn Products on. Nothing was saved.",
     "occurrenceTypeMomentsRequired": "The type needs at least one moment: with none it would show for nobody. Nothing was saved.",
-    "occurrenceTypeMomentsDocumentAndStop": "Document delivery and Arrival at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
+    "occurrenceTypeMomentsDocumentAndStop": "Driver, on an invoice and Driver, at the stop cannot share one type: the driver app would show the type twice. Nothing was saved.",
     "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",
-    "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another."
+    "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another.",
+    "occurrenceReferenceNumberRequired": "This occurrence type requires the customer document number. Fill it in instead of clearing it and save again. Nothing was saved.",
+    "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -1069,6 +1082,31 @@
     "removeFilter": "Remove the {{field}} filter",
     "removeStatus": "Remove this status",
     "removeVehicle": "Remove this vehicle",
+    "report": {
+      "clearSelection": "Clear selection",
+      "contractor": "Contractor",
+      "documentStatus": "Invoice status",
+      "documentStatuses": {
+        "delivered": "Delivered",
+        "loaded": "Loaded",
+        "pending": "Pending",
+        "returned": "Returned",
+        "separated": "Separated"
+      },
+      "hint": "These filters only define what goes into the exported report; the trip list does not change.",
+      "noContractor": "Not registered",
+      "operator": "Operator",
+      "recipientCity": "Recipient city",
+      "recipientState": "Recipient state",
+      "removeSelection": "Remove this selection",
+      "search": "Invoice",
+      "searchEmpty": "Nothing found",
+      "searchPlaceholder": "Search",
+      "selectedSummary": "{{count}} selected",
+      "selectedSummary_other": "{{count}} selected",
+      "title": "Report filters",
+      "value": "Value"
+    },
     "status": "Status",
     "statusClearAll": "Remove all",
     "statusEmpty": "No status found",
@@ -1180,6 +1218,44 @@
     "withoutVolume": "{{count}} invoice without volume was left out of the calculation.",
     "withoutVolume_other": "{{count}} invoices without volume were left out of the calculation."
   },
+  "deadlineFilter": {
+    "ariaLabel": "Delivery deadline",
+    "clear": "Clear filters",
+    "clearAll": "Clear selection",
+    "empty": "No status found",
+    "option": {
+      "delivered": "Delivered",
+      "due_today": "Due today",
+      "none": "No deadline",
+      "on_time": "On time",
+      "overdue": "Overdue"
+    },
+    "optionWithCount": "{{label}} ({{count}})",
+    "placeholder": "All notes",
+    "remove": "Remove deadline status",
+    "searchPlaceholder": "Search status",
+    "shownCount_one": "{{shown}} of {{count}} note",
+    "shownCount_other": "{{shown}} of {{count}} notes",
+    "stopEmpty": "No note in this stop matches the filter.",
+    "summary_one": "{{count}} status",
+    "summary_other": "{{count}} statuses"
+  },
+  "deliveryDeadline": {
+    "dueOnHint": "Delivery deadline: {{date}}",
+    "field": "Delivery deadline",
+    "label": {
+      "deliveredLate": "Delivered after the deadline",
+      "deliveredLateWithDays_one": "Delivered {{count}} business day late",
+      "deliveredLateWithDays_other": "Delivered {{count}} business days late",
+      "deliveredOnTime": "Delivered on time",
+      "dueToday": "Due today",
+      "onTime_one": "Due in {{count}} business day",
+      "onTime_other": "Due in {{count}} business days",
+      "overdue": "Overdue",
+      "overdueWithDays_one": "Overdue by {{count}} business day",
+      "overdueWithDays_other": "Overdue by {{count}} business days"
+    }
+  },
   "proofPending": {
     "badge": "Receipt pending",
     "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."
@@ -1239,6 +1315,12 @@
       "documentAlt": "Attached PDF document"
     },
     "placeholders": "Available placeholders: {{list}}. A placeholder outside the list is rejected on save.",
+    "itemAmount": "R$ {{amount}}",
+    "totalDocument": "Invoice total",
+    "totalItems": "Items total",
+    "totalDeclared": "Customer paid",
+    "itemDeclaredAmount": "Customer paid R$ {{amount}}",
+    "itemUnitValue": "R$ {{amount}} each",
     "product": "Invoice item",
     "register": "Register occurrence",
     "sendStatus": {
@@ -1529,7 +1611,7 @@
     "weightValue": "{{weight}} kg"
   },
   "readiness": {
-    "count": "{{ready}} of {{total}} invoices ready",
+    "count": "{{ready}} of {{total}} invoices with an authorized CT-e",
     "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e.",
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
@@ -1835,8 +1917,8 @@
     "generateCteSelection": "Issue CT-e for {{count}} selected invoice",
     "generateCteSelection_other": "Issue CT-e for {{count}} selected invoices",
     "planRoute": "Plan route",
-    "readinessSummary": "{{ready}} of {{total}} invoices ready",
-    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices ready ({{nfsePending}} awaiting NFS-e)",
+    "readinessSummary": "{{ready}} of {{total}} invoices with an authorized CT-e",
+    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices with an authorized CT-e ({{nfsePending}} awaiting NFS-e)",
     "returnReasonLabel": "Return reason",
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
@@ -2120,7 +2202,15 @@
     "productCodeRequired": "Enter the product code.",
     "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
     "reimbursedOn": "Reimbursed on {{date}}",
-    "savedItemsTitle": "Saved items"
+    "savedItemsTitle": "Saved items",
+    "suggestion": {
+      "title": "Suggestion from the record",
+      "hint": "What the occurrence record says each item is worth: the typed amount paid, otherwise the line sum. Nothing is saved until you use the suggestion and save the settlement.",
+      "reference": "line sum {{amount}}",
+      "unpaid": "The store did not pay, nothing to settle",
+      "use": "Use the suggestion from the record",
+      "unsplit": "The store paid R$ {{amount}} for the whole occurrence. That amount does not belong to one item: split it among the settlement items."
+    }
   },
   "occurrenceDetail": {
     "back": "Back to occurrences",
@@ -2213,6 +2303,31 @@
         "discard": "Discard",
         "productsError": "The invoice items could not be loaded. Close and try again."
       },
+      "amounts": {
+        "title": "Number and amount paid",
+        "hint": "The fields already carry what is saved. Change what you need; \"Clear\" erases the saved value. The line sum is only the invoice arithmetic: the amount paid you type does not change it, and it replaces it in the e-mail.",
+        "referenceLabel": "Customer document number",
+        "referenceInvalid": "Use only letters, digits, space, dot, slash and hyphen, up to 30 characters. Nothing was saved.",
+        "amountLabel": "Amount paid",
+        "occurrenceAmount": "Amount paid for the occurrence",
+        "scope": "Where the amount paid is typed",
+        "scopeTitle": "Typed",
+        "scopes": {
+          "item": "Per product line",
+          "occurrence": "One for the whole occurrence"
+        },
+        "placeholder": "0.00",
+        "lineSum": "Line sum: R$ {{amount}}",
+        "totalSum": "Total sum: R$ {{amount}}",
+        "clear": "Clear",
+        "nothingRecorded": "Nothing saved.",
+        "required": "Required: this field cannot be left empty.",
+        "willClear": "Will be cleared on save.",
+        "occurrenceAmountTyped": "{{label}} (occurrence)",
+        "emailAmount": "Amount in the e-mail: R$ {{amount}}",
+        "noticeOccurrenceRecorded": "An amount paid is saved on the occurrence. Typing an amount on a line erases the occurrence one: only one level counts at a time.",
+        "noticeLinesRecorded": "An amount paid is saved on the lines. Typing an occurrence amount erases the line ones: only one level counts at a time."
+      },
       "unavailable": {
         "occurrenceCancelled": "This occurrence was already cancelled and can no longer be corrected or cancelled.",
         "caseOpen": "The case is open: once it opens, the occurrence already carries money and can no longer be corrected or cancelled.",
@@ -2280,5 +2395,42 @@
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",
     "title_other": "Close {{count}} trips"
+  },
+  "proofPdfExport": {
+    "button": "Export proofs (PDF)",
+    "exporting": "Generating PDF…",
+    "tooManyDocuments": "Select up to {{max}} invoices or refine the filter to export the proofs.",
+    "tooLarge": "The PDF exceeds the limit of {{maxBlocks}} proofs. Filter or select fewer invoices.",
+    "tooLargeUnknown": "The PDF exceeds the proof limit. Filter or select fewer invoices.",
+    "failed": "Could not export the proofs."
+  },
+  "reportExport": {
+    "title": "Trip report",
+    "sheetName": "Trips",
+    "button": "Export report",
+    "exporting": "Exporting {{loaded}} of {{total}}",
+    "exportingUnknown": "Exporting {{loaded}}",
+    "tooLarge": "The report exceeds the limit of {{maxRows}} rows. Filter or select fewer trips.",
+    "tooLargeUnknown": "The report exceeds the row limit. Filter or select fewer trips.",
+    "failed": "Could not export the report.",
+    "columns": {
+      "trip": "Trip",
+      "document": "Invoice/Series",
+      "accessKey": "Access key",
+      "contractor": "Contractor",
+      "recipient": "Recipient",
+      "city": "City/State",
+      "amount": "Amount",
+      "documentStatus": "Invoice status",
+      "deliveredAt": "Delivery date",
+      "returnedAt": "Return date",
+      "returnReason": "Reason"
+    },
+    "legend": {
+      "warehouse": "In warehouse",
+      "on_route": "On route",
+      "finished": "Delivered",
+      "total_return": "Fully returned"
+    }
   }
 }

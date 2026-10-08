@@ -33,7 +33,7 @@ import type {
 const EMITTER_TAX_ID = '30290856000160'
 const RECIPIENT_TAX_ID = '12345678000190'
 const GOLDEN_URL = new URL('../fixtures/occurrence-detail-values.golden.json', import.meta.url)
-const NEW_DETAIL_KEYS = ['declaredAmount', 'itemValues', 'referenceNumber'] as const
+const NEW_DETAIL_KEYS = ['declaredAmount', 'itemValues', 'referenceNumber', 'requirements'] as const
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??

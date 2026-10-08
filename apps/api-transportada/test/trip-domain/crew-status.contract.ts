@@ -228,11 +228,12 @@ describe('crew status is a function of the pair (spec 217 D1)', () => {
  * janela da 217 (`isCrewSwappable`) não se mexe.
  */
 describe('crew transfer window (spec 249 D1)', () => {
-  test('only the road is transferable', () => {
+  test('only the road and the completed trip are transferable', () => {
     expect(TRIP_STATUSES.filter((status) => isCrewTransferable(status))).toEqual([
       'dispatched',
       'in_transit',
       'on_delivery_route',
+      'completed',
     ])
   })
 

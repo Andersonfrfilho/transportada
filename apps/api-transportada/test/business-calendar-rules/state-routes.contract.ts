@@ -1,0 +1,168 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 238 T1.3 (RF4, RF8, CA4): o feriado estadual, em data fixa (`once`) ou todo ano (`yearly`). Cada
+ * ramo da união é `.strict()`; `settings.manage` para ler e escrever.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import type { StateHolidayRecord } from '../../src/business-calendar/application/state-holiday.port.js'
+import { createStateHolidayRoutes } from '../../src/business-calendar/presentation/state-holiday.routes.js'
+import {
+  COMPANY_CONTEXT,
+  createHttpHandler,
+  FORBIDDEN_BODY_KEYS,
+  jsonRequest,
+  RESOLVED_IP,
+  recordingUseCase,
+  responseData,
+  STATE_HOLIDAY_ID,
+  type RecordedCalls,
+} from '../fixtures/business-calendar-http.fixture.js'
+import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
+
+const PATH = '/state-holidays'
+const UPDATED_AT = new Date('2026-10-07T13:00:00.000Z')
+const ONCE: StateHolidayRecord = {
+  holidayOn: '2026-07-09',
+  id: STATE_HOLIDAY_ID,
+  name: 'Revolução Constitucionalista',
+  recurrence: 'once',
+  stateIbgeCode: '35',
+  updatedAt: UPDATED_AT,
+}
+const YEARLY: StateHolidayRecord = {
+  day: 9,
+  id: STATE_HOLIDAY_ID,
+  month: 7,
+  name: 'Revolução Constitucionalista',
+  recurrence: 'yearly',
+  stateIbgeCode: '35',
+  updatedAt: UPDATED_AT,
+}
+const ONCE_BODY = {
+  holidayOn: '2026-07-09',
+  name: 'Revolução Constitucionalista',
+  recurrence: 'once',
+  stateIbgeCode: '35',
+} as const
+const YEARLY_BODY = {
+  day: 9,
+  month: 7,
+  name: 'Revolução Constitucionalista',
+  recurrence: 'yearly',
+  stateIbgeCode: '35',
+} as const
+
+function createFixture(permissions?: CompanyContext['permissions'], created = true) {
+  const calls: RecordedCalls = {}
+  const routes = createStateHolidayRoutes({
+    create: recordingUseCase(calls, 'create', { created, holiday: ONCE }),
+    list: recordingUseCase(calls, 'list', [ONCE, YEARLY]),
+    remove: recordingUseCase(calls, 'remove', undefined),
+    resolveClientIp: () => RESOLVED_IP,
+    update: recordingUseCase(calls, 'update', YEARLY),
+  })
+  return {
+    calls,
+    handle: createHttpHandler({ routes, ...(permissions === undefined ? {} : { permissions }) }),
+  }
+}
+
+describe('o feriado estadual: criação (spec 238 T1.3, CA4)', () => {
+  test('cria nas duas formas, com a empresa e o ator do contexto', async () => {
+    const { calls, handle } = createFixture()
+
+    expect(
+      (await handle(jsonRequest({ body: ONCE_BODY, method: 'POST', path: PATH }))).status,
+    ).toBe(201)
+    expect(
+      (await handle(jsonRequest({ body: YEARLY_BODY, method: 'POST', path: PATH }))).status,
+    ).toBe(201)
+    expect(calls.create).toEqual([
+      {
+        ...ONCE_BODY,
+        companyId: COMPANY_CONTEXT.companyId,
+        correlationId: 'freight-regions-http-correlation',
+        ipAddress: RESOLVED_IP,
+        userId: COMPANY_CONTEXT.userId,
+      },
+      {
+        ...YEARLY_BODY,
+        companyId: COMPANY_CONTEXT.companyId,
+        correlationId: 'freight-regions-http-correlation',
+        ipAddress: RESOLVED_IP,
+        userId: COMPANY_CONTEXT.userId,
+      },
+    ])
+  })
+
+  test('o mesmo feriado de novo responde 200 com o existente, como o municipal', async () => {
+    const { handle } = createFixture(undefined, false)
+
+    const response = await handle(jsonRequest({ body: ONCE_BODY, method: 'POST', path: PATH }))
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toMatchObject({ id: STATE_HOLIDAY_ID, recurrence: 'once' })
+  })
+
+  test('todo ano em 29/02 é aceito; 31/04 e 30/02 não', async () => {
+    const { handle } = createFixture()
+    const post = (body: object) => handle(jsonRequest({ body, method: 'POST', path: PATH }))
+
+    expect((await post({ ...YEARLY_BODY, day: 29, month: 2 })).status).toBe(201)
+    expect((await post({ ...YEARLY_BODY, day: 31, month: 4 })).status).toBe(400)
+    expect((await post({ ...YEARLY_BODY, day: 30, month: 2 })).status).toBe(400)
+  })
+
+  test('data fixa que não existe é 400', async () => {
+    const { calls, handle } = createFixture()
+
+    for (const holidayOn of ['2026-02-30', '2027-02-29', '2026-13-01', '26-07-09', '2026-7-9']) {
+      const response = await handle(
+        jsonRequest({ body: { ...ONCE_BODY, holidayOn }, method: 'POST', path: PATH }),
+      )
+
+      expect(response.status).toBe(400)
+    }
+    expect(calls.create).toEqual([])
+  })
+
+  test('cada ramo é estrito: a forma de um não entra no outro', async () => {
+    const { calls, handle } = createFixture()
+    const bodies = [
+      { ...ONCE_BODY, month: 7 },
+      { ...ONCE_BODY, day: 9 },
+      { ...YEARLY_BODY, holidayOn: '2026-07-09' },
+      { ...YEARLY_BODY, month: undefined },
+      { name: 'Sem forma', recurrence: 'weekly', stateIbgeCode: '35' },
+      { name: 'Sem forma', stateIbgeCode: '35' },
+      { ...ONCE_BODY, holidayOn: undefined },
+    ]
+
+    for (const body of bodies) {
+      expect((await handle(jsonRequest({ body, method: 'POST', path: PATH }))).status).toBe(400)
+    }
+    expect(calls.create).toEqual([])
+  })
+
+  test('UF que não existe, nome vazio ou longo e campo desconhecido são 400', async () => {
+    const { calls, handle } = createFixture()
+    const bodies = [
+      { ...ONCE_BODY, stateIbgeCode: '99' },
+      { ...ONCE_BODY, stateIbgeCode: '3' },
+      { ...ONCE_BODY, stateIbgeCode: '3509502' },
+      { ...ONCE_BODY, name: '' },
+      { ...ONCE_BODY, name: 'x'.repeat(121) },
+      ...FORBIDDEN_BODY_KEYS.flatMap((forbidden) => [
+        { ...ONCE_BODY, ...forbidden },
+        { ...YEARLY_BODY, ...forbidden },
+      ]),
+    ]
+
+    for (const body of bodies) {
+      expect((await handle(jsonRequest({ body, method: 'POST', path: PATH }))).status).toBe(400)
+    }
+    expect(calls.create).toEqual([])
+  })
+})

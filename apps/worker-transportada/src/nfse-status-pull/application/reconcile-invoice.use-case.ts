@@ -73,9 +73,11 @@ export function createReconcileInvoiceUseCase(
     async execute({ invoice, now }) {
       const provider = await dependencies.status.fetchStatus({
         credential: invoice.credential,
+        providerApiVersion: invoice.providerApiVersion,
         providerDocumentId: invoice.providerDocumentId,
       })
       const decision = resolveNfseReconciliationDecision({
+        ...(invoice.externalLink === undefined ? {} : { externalLink: invoice.externalLink }),
         provider,
         storedStatus: invoice.status,
       })
@@ -142,6 +144,7 @@ async function settleAuthorization(input: {
   const xmlFetch = await dependencies.status.fetchDocument({
     credential: invoice.credential,
     kind: 'xml',
+    providerApiVersion: invoice.providerApiVersion,
     providerDocumentId: invoice.providerDocumentId,
   })
   if (xmlFetch.status !== 'ok') {
@@ -183,6 +186,7 @@ async function storePdf(input: {
   const pdfFetch = await dependencies.status.fetchDocument({
     credential: invoice.credential,
     kind: 'pdf',
+    providerApiVersion: invoice.providerApiVersion,
     providerDocumentId: invoice.providerDocumentId,
   })
   if (pdfFetch.status !== 'ok') {

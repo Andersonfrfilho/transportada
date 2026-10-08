@@ -13,6 +13,7 @@ import {
   type NfseProfileBlockReason,
   type NfseProfileDraft,
 } from '../shared/nfseProfileForm.service'
+import { formatSimplesNationalRate } from '../shared/nfseNationalTaxation.service'
 import type { NfseEmissionProfile, NfseEmissionProfileStatus } from '../shared/nfseSettings.types'
 
 import type { NfseProfileSave, NfseProfileStatusToggle } from '../hooks/useNfseSettings.hook'
@@ -31,6 +32,7 @@ type NfseEmissionProfilePanelProps = Readonly<{
 }>
 
 const NEW_PROFILE_VALUE = ''
+const MISSING_VALUE_DASH = '—'
 
 const PROFILE_STATUS_LABEL_KEYS: Readonly<Record<NfseEmissionProfileStatus, string>> = {
   active: 'nfseProfileStatusActive',
@@ -46,7 +48,9 @@ const BLOCK_REASON_LABEL_KEYS: Readonly<Record<NfseProfileBlockReason, string>> 
   issRateInvalid: 'nfseProfileBlockedIssRateInvalid',
   municipalityInvalid: 'nfseProfileBlockedMunicipalityInvalid',
   nameRequired: 'nfseProfileBlockedNameRequired',
+  nationalTaxationCodeInvalid: 'nfseProfileBlockedNationalTaxationCodeInvalid',
   serviceListItemRequired: 'nfseProfileBlockedServiceListItemRequired',
+  simplesNationalRateInvalid: 'nfseProfileBlockedSimplesNationalRateInvalid',
 }
 
 function ProfileSkeleton(): JSX.Element {
@@ -68,6 +72,8 @@ export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): 
   const [blockReason, setBlockReason] = useState<NfseProfileBlockReason | undefined>(undefined)
 
   const selected = props.profiles.find((profile) => profile.id === selectedId)
+  const hasTaxationPair =
+    selected?.nationalTaxationCode != null || selected?.simplesNationalRate != null
 
   function handleSelect(value: string) {
     const profile = props.profiles.find((candidate) => candidate.id === value)
@@ -129,6 +135,17 @@ export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): 
               />
             </label>
           </div>
+          {selected !== undefined && hasTaxationPair && (
+            <p className={styles.fieldHint}>
+              {t('nfseProfileTaxationSummary', {
+                code: selected.nationalTaxationCode ?? MISSING_VALUE_DASH,
+                rate:
+                  selected.simplesNationalRate === null
+                    ? MISSING_VALUE_DASH
+                    : `${formatSimplesNationalRate(selected.simplesNationalRate)}%`,
+              })}
+            </p>
+          )}
           <NfseProfileFields
             disabled={props.disabled}
             draft={draft}

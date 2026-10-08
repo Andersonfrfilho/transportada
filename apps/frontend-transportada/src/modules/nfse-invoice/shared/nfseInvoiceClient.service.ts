@@ -18,6 +18,7 @@ import type { NfseReissueCorrection } from './nfseInvoiceRowActions.service'
 import type {
   NfseCancellationSummary,
   NfseDiscardSummary,
+  NfseExternalLinkSummary,
   NfseDocumentDownload,
   NfseEmissionProfileOption,
   NfseInvoiceDetail,
@@ -64,6 +65,12 @@ export type NfseInvoiceDiscardInput = Readonly<{
   invoiceId: string
 }>
 
+export type NfseInvoiceExternalLinkInput = Readonly<{
+  idempotencyKey: string
+  invoiceId: string
+  providerDocumentId: string
+}>
+
 /** `correction` ausente ou vazia manda corpo ausente — a rota distingue "sem corpo" de `{}`. */
 export type NfseInvoiceReissueInput = Readonly<{
   correction?: NfseReissueCorrection
@@ -82,6 +89,7 @@ export type NfseInvoiceClient = Readonly<{
   getInvoiceDocumentUrl: (
     input: Readonly<{ invoiceId: string; kind: NfseInvoiceDocumentKind }>,
   ) => Promise<NfseDocumentDownload>
+  linkExternalInvoice: (input: NfseInvoiceExternalLinkInput) => Promise<NfseExternalLinkSummary>
   listEmissionProfiles: () => Promise<readonly NfseEmissionProfileOption[]>
   listInvoiceDocuments: (
     input: Readonly<{ invoiceId: string }>,
@@ -270,6 +278,16 @@ export function createNfseInvoiceClient(dependencies: ClientDependencies): NfseI
         path: `${NFSE_SERVICE_INVOICES_PATH}/${input.invoiceId}/discard`,
       })
       return adapters.discardSummaryFromApi(readEnvelopeData(payload))
+    },
+    async linkExternalInvoice(input) {
+      const payload = await authorizedRequest({
+        body: JSON.stringify({ providerDocumentId: input.providerDocumentId }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${NFSE_SERVICE_INVOICES_PATH}/${input.invoiceId}/external-link`,
+      })
+      return adapters.externalLinkSummaryFromApi(readEnvelopeData(payload))
     },
     async exportInvoices(input) {
       const body: Record<string, unknown> = { invoiceIds: input.invoiceIds }

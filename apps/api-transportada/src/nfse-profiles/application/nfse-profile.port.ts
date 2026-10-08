@@ -32,9 +32,11 @@ export type NfseEmissionProfileSettings = {
   readonly municipalityIbgeCode: string
   readonly municipalityName: string
   readonly name: string
+  readonly nationalTaxationCode: string | null
   readonly nbsCode: string
   readonly observations: string
   readonly serviceListItem: string
+  readonly simplesNationalRate: string | null
   readonly taker: NfseTaker
 }
 

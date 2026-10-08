@@ -12,7 +12,7 @@
     "serve": "bun ./server.ts",
     "smoke": "ENV_FILE=${ENV_FILE:-../../.env}; set -a; . \"$ENV_FILE\"; set +a; DRIVER_SMOKE_PORT=${PLAYWRIGHT_DRIVER_PORT:-53112}; PLAYWRIGHT_DRIVER_PORT=$DRIVER_SMOKE_PORT VITE_DRIVER_APP_URL=http://localhost:$DRIVER_SMOKE_PORT PLAYWRIGHT_TEST_MATCH=driver-service-worker.smoke.spec.ts playwright test && PLAYWRIGHT_DRIVER_PORT=$DRIVER_SMOKE_PORT VITE_DRIVER_APP_URL=http://localhost:$DRIVER_SMOKE_PORT VITE_SMOKE_AUTH_BYPASS=true PLAYWRIGHT_TEST_MATCH=driver-app.smoke.spec.ts playwright test",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-53200}",
-    "test": "bun test test/shared.contract.test.ts test/identity.contract.test.ts test/driver-trip.contract.test.ts test/driverTripResponse.validation.contract.test.ts",
+    "test": "bun test test/icon-catalog.contract.test.ts test/shared.contract.test.ts test/identity.contract.test.ts test/driver-trip.contract.test.ts test/driverTripResponse.validation.contract.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

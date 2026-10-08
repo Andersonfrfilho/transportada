@@ -295,9 +295,7 @@ describe('a linha do tempo da viagem mostra a marca de cancelada (CA06)', () => 
       note: '',
       typeName: 'Avaria',
     })
-    return renderWithQueries(
-      <TripTimelineEntry elapsedMinutes={null} item={item} repeatsAuthorship={false} stops={[]} />,
-    )
+    return renderWithQueries(<TripTimelineEntry elapsedMinutes={null} item={item} stops={[]} />)
   }
 
   test('cancelada: selo, autoria e motivo à vista, sem precisar expandir', () => {

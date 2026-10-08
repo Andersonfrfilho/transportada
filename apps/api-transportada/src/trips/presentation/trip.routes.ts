@@ -8,6 +8,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
 } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type {
@@ -310,6 +311,7 @@ type SaveOccurrenceTypeInput = {
   readonly context: CompanyContext
   /** Spec 247 (RF1): o valor pago digitado; ausente é "não mexa" — ver o caso de uso. */
   readonly declaredAmountLabel?: string | undefined
+  readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
   readonly emailBody?: string | undefined
@@ -458,7 +460,7 @@ const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
  */
 /** ADR-0081 §6: quem pode ver *onde* o motorista tocou. */
 const TRIP_EVENT_LOCATION_PERMISSION = 'trip.event-location'
-const TRIP_FIELD_READ_POLICY = {
+export const TRIP_FIELD_READ_POLICY = {
   anyPermission: [TRIP_READ_POLICY.permission, TRIP_REPORT_ON_BEHALF_PERMISSION],
   scope: 'company',
 } as const satisfies CompanyAnyPermissionPolicy
@@ -472,7 +474,7 @@ export const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'c
  */
 const MDFE_AUTO_ISSUE_POLICY = { permission: 'mdfe.auto-issue', scope: 'company' } as const
 /** Spec 061 D4: margem, custo de motorista e receita não são `trip.manage`. */
-const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
+export const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 /** Disparar o lote é submeter emissão fiscal — a mesma permissão de quem submete o lote normal. */
 const CTE_SUBMIT_POLICY = { permission: 'cte.submit', scope: 'company' } as const
 
@@ -2377,6 +2379,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
   Readonly<{
     contact: TripDocumentDetail['contact']
     cteAuthorized: TripDocumentDetail['cteAuthorized']
+    deliveryDeadline: TripDocumentDetail['deliveryDeadline']
     fiscalStatus: TripDocumentDetail['fiscalStatus']
     freightAmount: TripDocumentDetail['freightAmount']
     freightRuleName: TripDocumentDetail['freightRuleName']
@@ -2402,6 +2405,7 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   createdAt: 'safe',
   cteAuthorized: 'safe',
   deliveredAt: 'safe',
+  deliveryDeadline: 'safe',
   destinationOrigin: 'safe',
   fiscalStatus: 'safe',
   freightAmount: 'money',
@@ -2439,6 +2443,8 @@ function serializeTripDocumentDetail(input: {
     ...serializeTripDocument(document),
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
+    /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */
+    deliveryDeadline: document.deliveryDeadline === null ? null : { ...document.deliveryDeadline },
     fiscalStatus: document.fiscalStatus,
     freightAmount: document.freightAmount,
     freightRuleName: document.freightRuleName,

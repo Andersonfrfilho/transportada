@@ -8,14 +8,17 @@
 import { and, desc, eq } from 'drizzle-orm'
 
 import { contractors } from '../../database/delivery-client.schema.js'
-import { nfeAddresses, nfeDocuments } from '../../database/nfe.schema.js'
+import { nfeDocuments } from '../../database/nfe.schema.js'
 import type { AvailableArrivalDocumentsLookup } from '../application/cargo-arrival.port.js'
 import type { ListAvailableArrivalDocumentsRecordParams } from '../application/cargo-arrival-request.types.js'
+import {
+  NO_ARRIVAL_DESTINATION_CITY,
+  selectArrivalDestinationCities,
+} from './cargo-arrival-destination.query.js'
 import {
   buildAvailableDocumentFilters,
   emitterJoin,
   emitterParticipant,
-  recipientAddressSql,
   recipientJoin,
   recipientParticipant,
 } from './cargo-arrival-document.query.js'
@@ -38,12 +41,20 @@ export async function selectAvailableDocuments(
   if (contractor === undefined) return { isContractorFound: false }
 
   const rows = await selectAvailableRows(database, { ...params, emitterTaxId: contractor.taxId })
+  const cities = await selectArrivalDestinationCities(database, {
+    companyId: params.companyId,
+    documentIds: rows.map((row) => row.id),
+  })
   return {
     isContractorFound: true,
     page: toPage({
       dateOf: (row) => row.issuedAt,
       limit: params.paging.limit,
-      map: (row) => ({ ...row, issuedAt: row.issuedAt.toISOString() }),
+      map: (row) => ({
+        ...row,
+        ...(cities.get(row.id) ?? NO_ARRIVAL_DESTINATION_CITY),
+        issuedAt: row.issuedAt.toISOString(),
+      }),
       rows,
     }),
   }
@@ -56,14 +67,11 @@ function selectAvailableRows(
   return database
     .select({
       accessKey: nfeDocuments.accessKey,
-      cityIbgeCode: recipientAddressSql(nfeAddresses.cityCode),
-      cityName: recipientAddressSql(nfeAddresses.city),
       id: nfeDocuments.id,
       issuedAt: nfeDocuments.issuedAt,
       number: nfeDocuments.number,
       recipientName: recipientParticipant.legalName,
       series: nfeDocuments.series,
-      state: recipientAddressSql(nfeAddresses.state),
       totalValue: nfeDocuments.totalValue,
     })
     .from(nfeDocuments)

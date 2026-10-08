@@ -123,14 +123,9 @@ import {
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import {
   CONTRACTOR_DIRECTORY_MAX_PAGES,
-  type OccurrenceAttachmentMode,
   type OccurrenceAttachmentOverrides,
   type OccurrenceAttachmentOverridesByType,
-  type OccurrenceMoment,
-  type OccurrenceRedeliveryPolicy,
   type OccurrenceType,
-  type OccurrenceItemsWriteMode,
-  type OccurrenceTypeFlow,
 } from './occurrence.constant'
 import {
   isSettingsResolutionView,
@@ -141,11 +136,17 @@ import {
   readOccurrenceAttachmentOverrides,
   readOccurrenceAttachmentOverridesBatch,
 } from './occurrenceAttachmentOverrides.validation'
+import type {
+  OccurrenceMailPreview,
+  OccurrenceMailPreviewInput,
+} from './occurrenceMailDraft.service'
+import type { OccurrenceTypeSaveInput } from './occurrenceTypeUpdate.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 /** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
+const OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH = `${OCCURRENCE_TYPES_PATH}/email-preview`
 const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_BATCH_PATH = `${OCCURRENCE_TYPES_PATH}/attachment-overrides`
 const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
   `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
@@ -327,36 +328,9 @@ export type TripClient = Readonly<{
   replaceOccurrenceAttachmentOverrides: (
     input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
   ) => Promise<OccurrenceAttachmentOverrides>
-  saveOccurrenceType: (
-    input: Readonly<{
-      active: boolean
-      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
-      allowsMultipleItems: boolean
-      /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
-      attachmentMode: OccurrenceAttachmentMode
-      emailTemplateKey: null | string
-      /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
-      flow?: OccurrenceTypeFlow | undefined
-      /** Spec 241 RF4: `undefined` é "não mexe" — só vai quando a listagem trouxe `itemsMode`. */
-      itemsMode?: OccurrenceItemsWriteMode | undefined
-      /** Spec 246 RF4: `undefined` é "não mexe"; `null` é "todos os itens" (só com Produtos obrigatório). */
-      itemsMinimumCount?: null | number | undefined
-      /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
-      leavesDocumentBehind: boolean
-      /** Spec 246 RF0: `undefined` é "não mexe". */
-      moments?: readonly OccurrenceMoment[] | undefined
-      name: string
-      /** Spec 246 RF1/RF4: observação e assinatura — `undefined` é "não mexe". */
-      noteMode?: OccurrenceAttachmentMode | undefined
-      notifies: boolean
-      occurrenceTypeId: null | string
-      photoMinimumCount?: number | undefined
-      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
-      redeliveryPolicy: OccurrenceRedeliveryPolicy
-      signatureMode?: OccurrenceAttachmentMode | undefined
-      stage: 'delivery' | 'separation'
-    }>,
-  ) => Promise<OccurrenceType>
+  saveOccurrenceType: (input: OccurrenceTypeSaveInput) => Promise<OccurrenceType>
+  /** Spec 247 RF4: o e-mail do tipo renderizado pelo servidor, com dados de exemplo — nada é gravado. */
+  previewOccurrenceTypeEmail: (input: OccurrenceMailPreviewInput) => Promise<OccurrenceMailPreview>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -961,6 +935,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
+          /** Spec 247 RF2: o e-mail à contratante vai como está — o `PUT` sem ele o gravaria vazio. */
+          ...(input.emailBody === undefined ? {} : { emailBody: input.emailBody }),
+          ...(input.emailSubject === undefined ? {} : { emailSubject: input.emailSubject }),
+          ...(input.emailItemLineTemplate === undefined
+            ? {}
+            : { emailItemLineTemplate: input.emailItemLineTemplate }),
+          ...(input.emailsContractor === undefined
+            ? {}
+            : { emailsContractor: input.emailsContractor }),
           emailTemplateKey: input.emailTemplateKey,
           /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
           ...(input.flow === undefined ? {} : { flow: input.flow }),
@@ -970,6 +953,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.itemsMinimumCount === undefined
             ? {}
             : { itemsMinimumCount: input.itemsMinimumCount }),
+          ...(input.iconName === undefined ? {} : { iconName: input.iconName }),
           leavesDocumentBehind: input.leavesDocumentBehind,
           ...(input.moments === undefined ? {} : { moments: input.moments }),
           name: input.name,
@@ -981,6 +965,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             : { photoMinimumCount: input.photoMinimumCount }),
           redeliveryPolicy: input.redeliveryPolicy,
           ...(input.signatureMode === undefined ? {} : { signatureMode: input.signatureMode }),
+          /** Spec 247 RF1: a devolução com somas — mesma regra, só vai o que a edição muda. */
+          ...(input.referenceNumberMode === undefined
+            ? {}
+            : { referenceNumberMode: input.referenceNumberMode }),
+          ...(input.referenceNumberLabel === undefined
+            ? {}
+            : { referenceNumberLabel: input.referenceNumberLabel }),
+          ...(input.declaredAmountMode === undefined
+            ? {}
+            : { declaredAmountMode: input.declaredAmountMode }),
+          ...(input.declaredAmountScope === undefined
+            ? {}
+            : { declaredAmountScope: input.declaredAmountScope }),
+          ...(input.declaredAmountLabel === undefined
+            ? {}
+            : { declaredAmountLabel: input.declaredAmountLabel }),
           stage: input.stage,
         }),
         dependencies,
@@ -988,6 +988,19 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: OCCURRENCE_TYPES_PATH,
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
+    },
+    async previewOccurrenceTypeEmail(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(input),
+        dependencies,
+        method: 'POST',
+        path: OCCURRENCE_TYPE_EMAIL_PREVIEW_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isRecord(data) || !isString(data.body) || !isString(data.subject)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { body: data.body, subject: data.subject }
     },
     async listOccurrenceAttachmentOverrides(input) {
       const response = await authorizedRequest({
@@ -1240,7 +1253,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async correctTripOccurrenceItems(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ items: input.items }),
+        body: JSON.stringify({
+          items: input.items,
+          /** Spec 247 RF13: ausente mantém o gravado, `null` limpa — nunca manda `undefined` no corpo. */
+          ...(input.declaredAmount === undefined ? {} : { declaredAmount: input.declaredAmount }),
+          ...(input.referenceNumber === undefined
+            ? {}
+            : { referenceNumber: input.referenceNumber }),
+        }),
         dependencies,
         idempotencyKey: input.idempotencyKey,
         method: 'PATCH',

@@ -18,6 +18,10 @@ import type {
   NfseInvoiceDiscardSummary,
 } from '../application/nfse-invoice-discard.use-case.js'
 import type {
+  LinkNfseInvoiceExternallyInput,
+  NfseInvoiceExternalLinkSummary,
+} from '../application/nfse-invoice-external-link.use-case.js'
+import type {
   NfseInvoicePreview,
   NfseInvoicePreviewItem,
 } from '../application/nfse-invoice-preview.service.js'
@@ -48,6 +52,7 @@ import {
   nfseInvoiceCancellationSchema,
   nfseInvoiceDiscardSchema,
   nfseInvoiceExportSchema,
+  nfseInvoiceExternalLinkSchema,
   nfseInvoiceReissueSchema,
   nfseInvoiceSelectionSchema,
   parseNfseInvoiceList,
@@ -61,6 +66,7 @@ const NFSE_CANCEL_POLICY = { permission: 'nfse.cancel', scope: 'company' } as co
 const CANCEL_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/cancel`
 const DISCARD_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/discard`
 const DOCUMENTS_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/documents`
+const EXTERNAL_LINK_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/external-link`
 const EXPORT_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/export`
 const INVOICE_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id`
 const PDF_PATH = `${API_NFSE_SERVICE_INVOICES_PATH}/:id/pdf`
@@ -79,6 +85,11 @@ type Dependencies = {
   }
   readonly exportNfseDocuments: {
     exportDocuments(input: TenantInput<NfseExportRequest>): Promise<NfseExportResult>
+  }
+  readonly linkNfseInvoiceExternally: {
+    execute(
+      input: TenantInput<LinkNfseInvoiceExternallyInput>,
+    ): Promise<NfseInvoiceExternalLinkSummary>
   }
   readonly nfseInvoice: {
     create(input: TenantInput<CreateNfseInvoiceInput>): Promise<NfseInvoiceSummary>
@@ -254,6 +265,26 @@ export function createNfseInvoiceRoutes(
       pathname: DISCARD_PATH,
       policy: NFSE_CANCEL_POLICY,
     }),
+    defineRoute<Omit<LinkNfseInvoiceExternallyInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const summary = await dependencies.linkNfseInvoiceExternally.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: serializeExternalLink(summary) }, status: 202 })
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        return {
+          correlationId,
+          idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+          invoiceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(await parseBody(nfseInvoiceExternalLinkSchema, request)),
+        }
+      },
+      pathname: EXTERNAL_LINK_PATH,
+      policy: NFSE_ISSUE_POLICY,
+    }),
     defineRoute<Omit<ReissueNfseInvoiceInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const summary = await dependencies.reissueNfseInvoice.execute({
@@ -358,9 +389,15 @@ function serializeLastPayload(payload: NfseLastIssuancePayload): object {
     issWithheld: payload.issWithheld,
     municipalTaxationCode: payload.municipalTaxationCode,
     municipalityIbgeCode: payload.municipalityIbgeCode,
+    ...(payload.nationalTaxationCode === undefined
+      ? {}
+      : { nationalTaxationCode: payload.nationalTaxationCode }),
     nbsCode: payload.nbsCode,
     serviceAmount: payload.serviceAmount,
     serviceListItem: payload.serviceListItem,
+    ...(payload.simplesNationalRate === undefined
+      ? {}
+      : { simplesNationalRate: payload.simplesNationalRate }),
     takerLegalName: payload.takerLegalName,
     takerTaxId: payload.takerTaxId,
   }
@@ -398,6 +435,15 @@ function serializeCancellation(summary: NfseInvoiceCancellationSummary): object 
     releasedDocumentIds: summary.releasedDocumentIds,
     replayed: summary.replayed,
     requestedAt: summary.requestedAt,
+    status: summary.status,
+  }
+}
+
+function serializeExternalLink(summary: NfseInvoiceExternalLinkSummary): object {
+  return {
+    attemptId: summary.attemptId,
+    invoiceId: summary.invoiceId,
+    replayed: summary.replayed,
     status: summary.status,
   }
 }

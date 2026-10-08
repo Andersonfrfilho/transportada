@@ -31,6 +31,7 @@ import {
   constantPriority,
   formatTimelineTimestampKey,
   timelineActorMembership,
+  timelineActorIsSystem,
   timelineActorProfile,
   timelineIndexablePredicate,
   timelineKeysetCondition,
@@ -126,6 +127,7 @@ export async function listStopEventRows(
     .select({
       accuracyMeters: tripStopEvents.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       capturedAt: tripStopEvents.capturedAt,
       channel: tripStopEvents.channel,
       documentId: tripDocuments.id,
@@ -194,6 +196,7 @@ export async function listStopEventRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     document:
@@ -245,6 +248,7 @@ export async function listStopOccurrenceRows(
     .select({
       accuracyMeters: tripStopOccurrences.accuracyMeters,
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       /** Fora do escopo da spec 161 (D2/D12): a parada só tem a coluna antiga, no máximo um anexo. */
       attachmentObjectId: tripStopOccurrences.attachmentObjectId,
       capturedAt: tripStopOccurrences.capturedAt,
@@ -300,6 +304,7 @@ export async function listStopOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     document: null,

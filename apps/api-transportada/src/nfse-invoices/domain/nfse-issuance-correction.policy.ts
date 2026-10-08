@@ -24,8 +24,10 @@ export type NfseInvoiceCorrectionInput = {
   readonly issWithheld?: boolean | undefined
   readonly municipalTaxationCode?: string | undefined
   readonly municipalityIbgeCode?: string | undefined
+  readonly nationalTaxationCode?: string | undefined
   readonly nbsCode?: string | undefined
   readonly serviceListItem?: string | undefined
+  readonly simplesNationalRate?: string | undefined
 }
 
 export type ApplyNfseIssuanceCorrectionInput = {

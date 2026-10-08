@@ -18,6 +18,7 @@ import {
   constantPriority,
   formatTimelineTimestampKey,
   timelineActorMembership,
+  timelineActorIsSystem,
   timelineActorProfile,
   timelineIndexablePredicate,
   timelineKeysetCondition,
@@ -48,6 +49,7 @@ export async function listCrewTransferRows(
   const rows = await queryable
     .select({
       actorName: timelineActorProfile.name,
+      isSystemActor: timelineActorIsSystem,
       channel: tripCrewEvents.channel,
       costDifference: tripCrewEvents.costDifference,
       id: tripCrewEvents.id,
@@ -74,6 +76,7 @@ export async function listCrewTransferRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    isSystemActor: row.isSystemActor,
     channel: row.channel,
     closeReason: null,
     crewTransfer: {

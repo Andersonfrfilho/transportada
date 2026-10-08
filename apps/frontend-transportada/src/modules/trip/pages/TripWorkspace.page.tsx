@@ -176,7 +176,9 @@ export function TripWorkspacePage() {
     enabled: canManageSettings && settingsScope.deliveryProofSettings,
   })
   const contractorsQuery = useContractorsQuery({
-    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+    enabled:
+      workspace.controller.canReadTrips ||
+      (canManageSettings && settingsScope.deliveryProofSettings),
   })
   const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
   const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
@@ -496,6 +498,7 @@ export function TripWorkspacePage() {
               />
 
               <TripFilters
+                contractors={contractorsQuery.data ?? []}
                 drivers={fleet.viewModel.drivers ?? []}
                 table={table}
                 vehicles={fleet.viewModel.vehicles ?? []}

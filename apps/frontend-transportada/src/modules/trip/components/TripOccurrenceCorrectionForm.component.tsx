@@ -6,15 +6,27 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { useOccurrenceTypeRecordConfig } from '../hooks/useOccurrenceTypeRecordConfig.hook'
 import { useCorrectOccurrenceItems } from '../queries/useOccurrenceCorrection.query'
 import { useOccurrenceDocumentProducts } from '../queries/useOccurrenceDocumentProducts.query'
+import {
+  EMPTY_CORRECTION_AMOUNTS_DRAFT,
+  resolveCorrectionAmounts,
+} from '../shared/occurrenceCorrectionAmounts.service'
+import { selectRecordConfig } from '../shared/occurrenceRecordConfig.service'
+import type { CorrectionRecordedAmounts } from '../shared/occurrenceRecordedAmounts.service'
 import {
   buildOccurrenceCorrectionItems,
   resolveOccurrenceItemSelectionFromDetail,
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
-import type { TripOccurrenceDetailItem } from '../shared/tripOccurrenceFeed.service'
+import type {
+  TripOccurrenceDetailItem,
+  TripOccurrenceItemValue,
+  TripOccurrenceRequirements,
+} from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
+import { OccurrenceCorrectionAmounts } from './OccurrenceCorrectionAmounts.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 
@@ -25,9 +37,17 @@ export type TripOccurrenceCorrectionFormProps = Readonly<{
   documentId: string
   id: string
   items: readonly TripOccurrenceDetailItem[]
+  /** Spec 247 T7.2b: o valor unitário copiado no registro, para a soma da correção. */
+  itemValues?: readonly TripOccurrenceItemValue[] | undefined
   occurrenceId: string
   onClose: () => void
+  /** O que o registro gravou: a correção nasce com isso, em vez de vazia. */
+  recorded: CorrectionRecordedAmounts
+  /** Spec 247 T7.2b: o requisito efetivo que a API publica; ausente cai no catálogo, se o operador pode lê-lo. */
+  requirements?: null | TripOccurrenceRequirements
   tripId: string
+  /** Onde achar os rótulos do tipo: o catálogo é de quem tem `settings.manage`. */
+  typeLookup: Readonly<{ canReadCatalog: boolean; occurrenceTypeId: null | string }>
 }>
 
 /**
@@ -40,9 +60,13 @@ export function TripOccurrenceCorrectionForm({
   documentId,
   id,
   items,
+  itemValues,
   occurrenceId,
   onClose,
+  recorded,
+  requirements,
   tripId,
+  typeLookup,
 }: TripOccurrenceCorrectionFormProps) {
   const { t } = useTranslation('trip')
   const titleId = useId()
@@ -50,6 +74,7 @@ export function TripOccurrenceCorrectionForm({
   const initialSelection = resolveOccurrenceItemSelectionFromDetail(items)
   const [productCodes, setProductCodes] = useState(initialSelection.productCodes)
   const [quantitiesByCode, setQuantitiesByCode] = useState(initialSelection.quantitiesByCode)
+  const [amountsDraft, setAmountsDraft] = useState(EMPTY_CORRECTION_AMOUNTS_DRAFT)
   const productsQuery = useOccurrenceDocumentProducts({
     ...(companyId === undefined ? {} : { companyId }),
     documentId,
@@ -58,17 +83,40 @@ export function TripOccurrenceCorrectionForm({
   const correction = useCorrectOccurrenceItems()
   const products = productsQuery.data ?? []
   const feedbackKey = resolveTripFeedbackKey(correction.error)
+  const catalogConfig = useOccurrenceTypeRecordConfig({
+    ...typeLookup,
+    canReadCatalog: typeLookup.canReadCatalog && (requirements ?? null) === null,
+  })
+  const typeConfig = selectRecordConfig({ fallback: catalogConfig, requirements })
+  const amounts = resolveCorrectionAmounts({
+    amountMode: typeConfig.amountMode,
+    codes: productCodes,
+    draft: amountsDraft,
+    recorded,
+    referenceMode: typeConfig.referenceMode,
+    typeScope: typeConfig.scope,
+  })
+  const isBlocked = amounts.hasReferenceNumberError || amounts.hasRequiredCleared
 
   useEffect(() => {
     titleRef.current?.focus()
   }, [])
 
   function handleSubmit(): void {
+    if (isBlocked) return
     correction.mutate(
       {
+        ...(amounts.declaredAmount === undefined ? {} : { declaredAmount: amounts.declaredAmount }),
         documentId,
-        items: buildOccurrenceCorrectionItems({ codes: productCodes, quantitiesByCode }),
+        items: buildOccurrenceCorrectionItems({
+          codes: productCodes,
+          declaredAmounts: amounts.lineAmounts,
+          quantitiesByCode,
+        }),
         occurrenceId,
+        ...(amounts.referenceNumber === undefined
+          ? {}
+          : { referenceNumber: amounts.referenceNumber }),
         tripId,
       },
       { onSuccess: onClose },
@@ -101,6 +149,13 @@ export function TripOccurrenceCorrectionForm({
             products={products}
             quantitiesByCode={quantitiesByCode}
           />
+          <OccurrenceCorrectionAmounts
+            draft={amountsDraft}
+            onChange={setAmountsDraft}
+            recorded={recorded}
+            selection={{ codes: productCodes, itemValues, products, quantitiesByCode }}
+            typeConfig={typeConfig}
+          />
         </>
       ) : null}
       {feedbackKey === null ? null : (
@@ -120,7 +175,7 @@ export function TripOccurrenceCorrectionForm({
           {t('occurrenceDetail.correction.form.discard')}
         </Button>
         <Button
-          disabled={correction.isPending || !productsQuery.isSuccess}
+          disabled={correction.isPending || !productsQuery.isSuccess || isBlocked}
           onClick={handleSubmit}
           size="sm"
           type="button"

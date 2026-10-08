@@ -27,7 +27,7 @@ export type ContractorDirectoryDependencies = Readonly<{
 type RequestInput = Readonly<{
   body?: string
   dependencies: ContractorDirectoryDependencies
-  method: 'GET' | 'PATCH' | 'PUT'
+  method: 'GET' | 'PATCH' | 'POST' | 'PUT'
   path: string
 }>
 

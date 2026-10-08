@@ -18,6 +18,8 @@ import type {
   ReceivingProfileRules,
 } from '@/modules/delivery-clients/shared/receivingProfile.types'
 
+import { installPreviewEmailDouble } from './previewEmailHarness.helper'
+
 export const CONTRACTOR_IDS = {
   alfa: '00000000-0000-4000-8000-000000237a01',
   beta: '00000000-0000-4000-8000-000000237a02',
@@ -123,6 +125,8 @@ export function installContractorDirectoryDouble(
     profileSaves: [],
   }
   contractorDirectoryFakes.saveFailure = undefined
+  /** A ficha monta a seção da prévia por e-mail: sem a API dublada dela, a ficha iria à rede de verdade. */
+  installPreviewEmailDouble()
   contractorDirectoryFakes.client = {
     getReceivingProfile: (contractorId) => {
       calls.profileReads.push(contractorId)

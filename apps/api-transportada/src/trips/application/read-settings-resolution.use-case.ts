@@ -15,7 +15,10 @@ import {
   type DeliveryProofFieldSettings,
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
+} from '../../shared/trip-occurrence.constant.js'
 import type {
   DeliveryProofSettingsContractorOverride,
   DeliveryProofSettingsOverride,
@@ -45,6 +48,7 @@ export type SettingsResolutionOccurrenceType = OccurrenceRequirements &
   Readonly<{
     attachmentMode: DeliveryProofFieldMode
     flow: OccurrenceTypeFlow
+    iconName: null | OccurrenceTypeIconName
     id: string
     name: string
     sources: SettingsResolutionSources
@@ -153,6 +157,7 @@ export async function readSettingsResolution(
       ...pickRequirements(type),
       attachmentMode: type.attachmentMode,
       flow: type.flow,
+      iconName: type.iconName,
       id: type.id,
       name: type.name,
       sources,

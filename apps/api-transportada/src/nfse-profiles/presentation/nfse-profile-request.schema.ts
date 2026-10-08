@@ -10,6 +10,8 @@ import {
   NFSE_CREDENTIAL_STATUSES,
   NFSE_FISCAL_ENVIRONMENTS,
   NFSE_ISS_EXIGIBILITIES,
+  NFSE_NATIONAL_TAXATION_CODE_PATTERN,
+  NFSE_SIMPLES_NATIONAL_RATE_PATTERN,
   NFSE_TAKERS,
 } from '../../database/nfse.schema.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
@@ -19,8 +21,12 @@ const CNAE = /^[0-9]{7}$/
 const IBGE_CITY = /^[0-9]{7}$/
 const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RATE_DECIMAL = /^(?:0\.[0-9]{6}|1\.000000)$/
+const NFSE_NATIONAL_TAXATION_CODE = new RegExp(NFSE_NATIONAL_TAXATION_CODE_PATTERN)
 
 const DEFAULT_DESCRIPTION_MAX_LENGTH = '2000'
+
+const nationalTaxationCodeSchema = z.string().regex(NFSE_NATIONAL_TAXATION_CODE)
+const simplesNationalRateSchema = z.string().regex(NFSE_SIMPLES_NATIONAL_RATE_PATTERN)
 
 const descriptionMaxLengthSchema = z
   .string()
@@ -44,9 +50,11 @@ const settingsSchema = z
     municipalityIbgeCode: z.string().regex(IBGE_CITY),
     municipalityName: z.string().trim().min(1).max(MUNICIPALITY_NAME_MAX_LENGTH),
     name: z.string().trim().min(2).max(100),
+    nationalTaxationCode: nationalTaxationCodeSchema.nullable().default(null),
     nbsCode: z.string().trim().max(40).default(''),
     observations: z.string().max(500).default(''),
     serviceListItem: z.string().trim().min(1).max(20),
+    simplesNationalRate: simplesNationalRateSchema.nullable().default(null),
     taker: z.enum(NFSE_TAKERS),
   })
   .strict()

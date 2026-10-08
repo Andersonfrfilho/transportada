@@ -2488,9 +2488,8 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
   `test/cargo-receiving-http/cargo-arrival-routes.contract.ts`,
   `test/cargo-receiving-schema/{cargo-arrival,tenant-safety}.contract.ts` e
   `test/separator-role.contract.test.ts`; integração `test/integration/cargo-arrival.integration.ts`.
-- **Follow-ups:** a cidade do grupo vem do destinatário (`<enderDest>`), não do seam
-  `resolvePhysicalDestination` (`<entrega>`); corrida aceita — a nota pode entrar numa viagem entre a
-  checagem e o commit da chegada (a leitura mostra "já em viagem").
+- **Follow-ups:** ~~a cidade do grupo vem do destinatário~~ (resolvido na T2.6, abaixo); corrida aceita — a
+  nota pode entrar numa viagem entre a checagem e o commit da chegada (a leitura mostra "já em viagem").
 
 ### Correções da revisão das Fases 1–2 (2026-10-06)
 
@@ -2522,9 +2521,26 @@ CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` com a lista; fechar de novo é `unchanged`)
   (`CARGO_ARRIVAL_LIMITS.arrivedAtMaxAgeMs`); a proposta da prévia registra pela mesma rota.
 - **L7:** o `409 CARGO_ARRIVAL_HAS_PENDING_DOCUMENTS` traz `details[{ field: 'pendingDocumentIds.<n>',
 message: 'The document is not separated yet', documentId }]` — o id saiu do `message`.
-- **Pendente de decisão do usuário (M6):** a cidade do grupo é a do `<enderDest>`, não a do destino
-  físico `<entrega>` (spec 073, `resolvePhysicalDestination`): nota cadastrada em SP com entrega em
-  Guarulhos cai na pilha de SP. ADR-0094 §6.
+- **M6, decidido em 2026-10-06 (T2.6):** a cidade do grupo é o **destino físico** da nota
+  (`resolvePhysicalDestination`, spec 073: `<entrega>` → `<enderDest>`), não o cadastro. Nota cadastrada em
+  SP com entrega em Guarulhos cai no grupo de Guarulhos; sem destino resolvível, no grupo sem cidade.
+  ADR-0094 §6.
+
+### T2.6 — a cidade do grupo é onde a carga será entregue (2026-10-07)
+
+- **Código:** `src/cargo-receiving/infrastructure/cargo-arrival-destination.query.ts` →
+  `selectArrivalDestinationCities`: uma consulta em lote (`nfe_participants` ⋈ `nfe_addresses`, papéis
+  `delivery`/`recipient`, `company_id` na própria consulta) e a escolha por `pickPhysicalDestinationByDocument`
+  — a **mesma** política da parada e do MDF-e; nada de precedência reimplementada. Três leitores a usam: o
+  detalhe `GET /cargo-arrivals/:id` (código **e** nome da cidade, lidos de agora), a lista
+  `GET /cargo-arrivals/available-documents` (código, nome e UF) e o registro (que grava o código físico).
+- ⚠️ **O `cargo_arrival_documents.city_ibge_code` não decide mais o grupo:** é só o registro do momento da
+  chegada (migrations não mudaram). Ler o gravado deixaria a chegada já aberta no grupo errado.
+- ⚠️ **O desvio manual não entra** — `delivery_address_overrides` pertence a `trip_documents` (vínculo da
+  viagem, que nasce depois da chegada) e nem o MDF-e nem o roteirizador o leem do `nfe_documents`.
+- **Não mudou:** as chaves da resposta (o painel confere chave exata; `toDocumentView` é campo a campo), o
+  rascunho de viagem da prévia (`cargo-preview-trip-draft.query.ts` segue pela cidade do destinatário) e o
+  vínculo prévia↔nota (CEP/nome da planilha). Integração: `cargo-arrival-physical-destination.integration.ts`.
 
 ## Spec 244 — O ajudante sem resto: consentimento, foto pendente e diária zero
 
@@ -3000,6 +3016,102 @@ bissexto, recusa tipada `BUSINESS_CALENDAR_*`): ADR-0096.
   aprovação humana); a cidade é a do **destino físico**, resolvida pelo chamador com `resolvePhysicalDestination`, nunca
   o endereço cadastrado do destinatário (Q2); fuso fixo de São Paulo (Q3).
 
+## Spec 236 T1.1 — o prazo de entrega da nota (só a política; sem consulta, rota ou tela)
+
+`src/trips/domain/delivery-deadline.policy.ts` (`resolveDeliveryDeadline`) é pura: datas civis em texto, sem relógio,
+sem fuso, sem I/O. `dueOn = addBusinessDays(chegada, N)` da 238, com o **N copiado de `cargo_arrivals`** (não o perfil
+atual); a janela de 24 h de separação **não existe na assinatura** (corre dentro dos dias úteis). Estados: `on_time`
+(com `businessDaysRemaining`), `due_today`, `overdue` (com `businessDaysLate`, que pode ser 0), `delivered_on_time`,
+`delivered_late` (os dois terminais: ignoram o `today`) e `not_applicable` com motivo (precedência: cancelada,
+devolvida, a devolver ao contratante, liberada; depois sem chegada, sem prazo, sem cidade do destino físico). Entrega no
+dia do vencimento é no prazo. Só informa: nada em `src/fleet/**`, `src/cte-*/**`, `delivery-proof-*.ts`,
+`proof-pending.query.ts` e `drizzle-current-driver-trip.repository.ts` pode importá-la (contrato estático
+`delivery-deadline-isolation.contract.ts`).
+
+- A borda `application/delivery-deadline-input.service.ts` (`resolveDeliveryDeadlineFromInstants`) converte chegada,
+  entrega e "agora" em **dia civil de São Paulo** (`toCivilDate`, fuso fixo). A hora não conta: chegar às 23:30 de
+  segunda é chegar na segunda. Quem chama passa o instante da entrega de `deliveredMomentSql`, nunca a chegada ao
+  servidor.
+- ⚠️ `dueOn` é **data**, não instante: `new Date('2026-10-15')` vira 14/10 em São Paulo. Nunca converter de volta.
+- A fixture da 238 inventa um aniversário em BH (29/02); o contrato da 236 usa a própria (`delivery-deadline-calendar`).
+- Falta (T1.2): `loadRules` em série, guarda do painel, leitura no `readTripDetail`. Evidência e mutações:
+  `specs/236-*/evidence.md`.
+
+## Spec 238 T1.2 — o calendário útil ganha dado (ADR-0096 §5)
+
+Migration aditiva `20261007140303_business_calendar` (só staging até aprovação específica). Três tabelas novas:
+`municipal_holiday_rules` (regra "todo ano": cidade, mês, dia, `kind`, nome, `materialized_through_year`),
+`state_holidays` (`once`/`yearly`, não materializa) e `company_business_calendar_settings` (sábado; sem linha = `false`).
+`municipal_holidays` segue **só com datas fixas** e ganha `kind` (padrão `holiday`) e `source_rule_id` (nulo = digitada;
+preenchido = gerada, FK composta `(company_id, source_rule_id)` com `ON DELETE CASCADE`). O roteirizador não muda.
+
+- ⚠️ **CHECK aceita NULL.** `month between 1 and 12` com `month` nulo não reprova. `state_holidays_shape_check` exige
+  `month`/`day` `is not null` na ponta `yearly` — retirar isso deixa o `yearly` sem mês passar (mutação provada).
+- ⚠️ **Constante das UFs mora em `src/shared/business-calendar.constant.ts`**, porque o schema não importa de domínio;
+  `business-calendar.constant.ts` (domínio) importa de lá. Mexer na lista num lugar só.
+- A regra duplicada (empresa, cidade, mês, dia) é `23505`; a data gerada que colide com uma digitada também — a T1.3
+  gera com `on conflict do nothing`. Horizonte de 10 anos na escrita, sem rotina agendada.
+- Rollback: as datas materializadas **ficam** como datas fixas; perdem-se regras, rótulo, vínculo, estaduais e sábado.
+- Contratos: `test/business-calendar-schema/`, `test/database-migration/business-calendar.static.contract.ts` (os seis
+  comandos em `municipal_holidays`) e `business-calendar*.assertion.ts` (dentro de `db:test`). Caso novo do roteirizador:
+  `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts`.
+
+## Spec 238 T1.3 — repositório, geração das datas e rotas do calendário de dias úteis (ADR-0096 §6)
+
+`src/business-calendar/{application,infrastructure,presentation}` (a política pura é da T1.1). Sem migration: usa as
+tabelas da T1.2.
+
+- **`DrizzleBusinessCalendarRepository.loadRules({ companyId, cityCodes, coverage })`** alimenta `buildBusinessCalendar`:
+  uma consulta por tabela (regras, datas digitadas, feriados estaduais) em `Promise.all` — calendário parcial é prazo
+  errado, falhar é o comportamento certo —, cada uma com `limit(BUSINESS_CALENDAR_MAX_RULES + 1)` para a política recusar
+  com `TOO_MANY_RULES`; as UFs saem dos dois primeiros dígitos das cidades; lista de cidades vazia pula as consultas.
+  ⚠️ **`municipal_holidays` entra só com `source_rule_id IS NULL`**: a linha gerada é a mesma causa que a regra `yearly`, e
+  contá-la entra duas vezes. Ainda sem chamador (236/237); não está ligado ao `main.ts`.
+- **Geração** (`municipal-holiday-materialization.service.ts` + `municipal-holiday-generation.support.ts`): ano corrente
+  (São Paulo, relógio injetado no caso de uso) até +10; 29/02 só nos bissextos (`daysInMonth` do domínio, nunca SQL);
+  `ON CONFLICT … DO NOTHING` (a digitada vence e rodar de novo dá o mesmo conjunto e os mesmos ids). Sem rotina agendada:
+  `POST /municipal-holiday-rules/materializations` completa o horizonte; `materializedThroughYear` na leitura da regra.
+- **Convivência** (ADR-0096 §6): apagar a regra leva só as geradas; editar a regra as regenera; `POST /municipal-holidays`
+  numa gerada é **adoção** (`source_rule_id = NULL`); `DELETE`/`PATCH` de gerada é 409; `DELETE` de digitada sobre o dia
+  de uma regra regenera a da regra **só dentro do horizonte**.
+- **Escrita**: um lock por empresa (`pg_advisory_xact_lock` em `business-calendar-lock.support.ts`) serializa conferência,
+  geração e regeneração; `audit_logs` na **mesma transação** (`business-calendar-audit.support.ts`, ator, alvo, IP por
+  `resolveClientIp`, antes/depois). Id de outra empresa é ausência: `null`/no-op, nunca 409.
+- **Rotas** (`settings.manage` ler e escrever; Zod `.strict()`; `companyId` só do contexto): `GET/POST
+/municipal-holiday-rules`, `PATCH/DELETE …/:id`, `POST …/materializations`; `GET/POST /state-holidays`, `PATCH/DELETE
+…/:id`; `GET/PUT /company-settings/business-calendar`. As antigas `/municipal-holidays` (`fleet.read` lê, `settings.manage`
+  escreve) moraram em `delivery-clients/` até a T1.3 e agora vivem aqui, com `kind`, `generatedByRuleId` e `PATCH`.
+- ⚠️ **`PATCH` com id que não é UUID canônico é 404** (o roteador nem entrega a rota); `PATCH` de feriado estadual exige
+  `recurrence` e, no `yearly`, `month` e `day` juntos.
+- ⚠️ **As quatro fábricas de rota entram em `test/separator-role.contract.test.ts` e `helper-role.contract.test.ts`**; o
+  separador alcança só `GET /municipal-holidays`.
+- Contratos: `test/business-calendar-rules/` (HTTP, casos de uso, geração), `test/business-calendar-schema/tenant-safety
+.contract.ts` (toda instrução com `companyId` no fonte — rede grossa) e `test/integration/business-calendar-*.integration.ts`
+  - `municipal-holiday-*.integration.ts` (Postgres, dois tenants). Roteirizador: o caso novo em
+    `apps/worker-transportada/test/route-optimization-municipal-holiday.integration.test.ts` (regra sem linha gerada não fecha).
+
+## Spec 238 T1.3b — correções da revisão da Fase 1 (ADR-0096 §5, §6 e Riscos aceitos)
+
+A migration `20261007140303_business_calendar` ainda não estava publicada e foi **editada no lugar** (só staging).
+
+- ⚠️ **Os seis comandos de `municipal_holidays` ficam no fim do arquivo**, e o cabeçalho diz o que o migrador faz: todas as
+  pendentes numa transação só, ACCESS EXCLUSIVE retido até o COMMIT do **lote**; `NOT VALID` não encurta e `lock_timeout` só
+  limita a espera. Produção: deploy sem migration longa atrás, medir a duração do lote. `materialized_through_year` ganhou
+  `CHECK … between 1583 and 9999` (os limites moram em `shared/business-calendar.constant.ts`).
+- ⚠️ **A adoção é sinalizada e a regra não conhece mais a data digitada.** `POST /municipal-holidays` devolve
+  `adoptedFromRuleId` (e o grava no `metadata`); `PATCH`/`GET` de `/municipal-holiday-rules` devolvem `typedHolidaysKept`
+  (digitadas no dia da regra, do ano corrente em diante; no `GET` uma consulta agregada, `municipal-holiday-typed.queries.ts`);
+  `DELETE` da regra segue 204 e grava a contagem no `metadata`.
+- ⚠️ **Editar a regra só apaga as geradas do ano corrente em diante**; as de anos passados ficam (o roteirizador não as relê).
+  A política (236) lê a regra `yearly` em todo ano da cobertura: editar o dia recalcula prazos de anos passados — aceito.
+- **Auditoria só quando muda**: geração sem linha nova nem regra avançada, `PUT` do sábado igual e `POST` igual não gravam.
+  A geração audita o alvo `municipal_holiday_rules` (`entityId` = empresa). `POST …/materializations` lê o corpo (`.strict()`).
+- `POST /state-holidays` idêntico é 200 com a existente; outro nome na mesma data, 409. `create` devolve `{ created, holiday }`.
+- Definições únicas: `readFilter`, `BUSINESS_CALENDAR_{MANAGE,READ}_POLICY` (`presentation/business-calendar-policy.constant.ts`),
+  `LEGACY_CITY_IBGE_CODE_SOURCE` em `shared/`; `isMunicipalHolidayKind` guarda o mapper (tipo fora do vocabulário é
+  `BusinessCalendarPersistenceError`). Contrato: `test/business-calendar-schema/single-definitions.contract.ts`.
+- A lista de fábricas do contrato do ajudante vive em `test/fixtures/role-contract-routes.fixture.ts`.
+
 ## Spec 237 — Fase 4b, a migration da prévia por e-mail encaminhado (T4.6)
 
 `20261007040900_cargo_preview_email_intake` (aprovada pelo usuário; aditiva, com `rollback.sql` que **recusa**
@@ -3008,7 +3120,8 @@ enquanto existir prévia por e-mail):
 - `contractor_receiving_profiles`: `preview_inbound_token_hash char(64)` (hash do token do endereço de entrada,
   único por empresa quando não nulo), `preview_forwarder_allowlist text[]` e `preview_sender_allowlist text[]`
   (1..20 entradas de 3 a 254 caracteres, sem NULL, vazia, controle, espaço, vírgula, `<>` nem `|` — T4.7a); CHECK: token ⇒ as duas listas. **A rota
-  `PUT /contractors/:id/receiving-profile` não conhece as colunas** (T4.6b); o worker as lê.
+  `PUT /contractors/:id/receiving-profile` não conhece as colunas** (de propósito, T4.6b: a leitura e a escrita delas moram nas
+  rotas da seção seguinte, e o perfil mantém as 10 chaves exatas); o worker as lê.
 - `cargo_previews`: `uploaded_by_user_id` nulo e `source` aceita `email`; `cargo_previews_uploader_check` amarra
   `source = 'upload'` a quem enviou. Nada na API lê `uploaded_by_user_id` fora do insert do upload.
 - `cargo_preview_email_intakes` (append-only por trigger): uma linha por e-mail que casou o token — `accepted`
@@ -3021,6 +3134,41 @@ enquanto existir prévia por e-mail):
   `(company_id, contractor_id, recorded_at desc)` — o índice é por `recorded_at`, o relógio do banco, que a janela de
   e-mails do worker usa. **O upload recusa `Idempotency-Key` com o prefixo `email:`** (reservado à prévia por e-mail, 400).
   A pasta se chama `20261007040900_…`, depois da última de staging (renomeada na T4.7a, com o snapshot refeito).
+
+## Spec 237 — T4.6b, gerar o endereço de entrada da prévia por e-mail e editar as duas listas (ADR-0094 §10)
+
+Quatro rotas **novas** em `cargo-receiving/presentation/contractor-preview-email.routes.ts` (montadas por
+`cargo-receiving/contractor-preview-email.composition.ts`), **todas `settings.manage`** — ler também: o separador, o `fiscal` e o
+`viewer` leem a frota (`fleet.read`) e não alcançam nenhuma (contrato `separator-role`; precedente: o calendário de dias úteis,
+spec 238). Mudar a política de leitura é trocar a constante `MANAGE_POLICY` do arquivo (e a lista do contrato).
+
+- `GET|PUT /contractors/:id/receiving-profile/preview-email` → `{ contractorId, forwarderAllowlist, hasInboundToken, inboundTokenSetAt,
+senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_logs` (índice `company, target_type, target_id`); hash gravado
+  por SQL fica sem hora (`null`). `PUT` leva as **duas** listas (`.strict()`, arrays de texto): minúsculas, aparadas, sem duplicata, as faixas
+  do CHECK (3–254 **pontos de código**, só ASCII visível `/^[\x21-\x7e]+$/u` — IDN em punycode, sem homógrafo/zero-width/bidi —, sem controle/espaço/`,<>|`, ≤ 20 **distintas**; o corpo aceita até 100 entradas de 1016 caracteres e a resposta lista no máximo 25 recusas; `23514` do CHECK vira 422 `RECEIVING_PROFILE_ALLOWLISTS_INVALID`); quem encaminha é endereço completo, o remetente original é endereço ou
+  domínio (sem `*`, sem ponto na ponta). Cada entrada inválida vira um detalhe `forwarderAllowlist.<índice>` com a entrada na mensagem.
+  Lista vazia = "sem lista" (coluna nula); com endereço ativo, esvaziar uma é **422 `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED`** (os detalhes
+  nomeiam a lista). Cria a linha do perfil (tudo padrão, `is_enabled = false`) se ainda não existe. Audita `…preview-allowlists-saved` **só quando
+  muda**, com antes/depois das listas (configuração do operador, não segredo) e o IP.
+- `POST …/inbound-token` (corpo vazio, `.strict()`; `parseOptionalBody`): o token é gerado **aqui** (`generatePreviewInboundToken`: 26 símbolos
+  base32, 5 bits de `crypto.getRandomValues` cada, máscara — 130 bits, sem viés) e só o **hash** (`hashPreviewInboundToken`, cópia por valor da
+  política do worker; contrato de paridade em `worker-transportada/test/cargo-preview-email/parity.contract.ts`) chega ao repositório. Devolve
+  `{ address, token }` **uma vez**, com `cache-control: no-store`. Exige as duas listas (422 acima) e o domínio de entrada da empresa em
+  `contractor_mail_settings.reply_domain` (a mesma configuração da 143; sem ela, **409
+  `RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED`**). Rotacionar = chamar de novo: o hash anterior some (a mensagem em voo para o endereço
+  antigo cai como `token_unknown`). **`rateLimit` 10 em 300 s por usuário no Postgres** (escopo `receiving-profile-inbound-token`). Auditoria
+  `…inbound-token-generated` na **mesma transação** (ator, alvo, IP, `isRotation`) — **nunca o token nem o hash**.
+- `GET …/email-intakes?limit=` (1–50, padrão 20; outro parâmetro é 400): `cargo_preview_email_intakes` do contratante, **mais recentes primeiro**
+  (`recorded_at`, o relógio do banco), só `{ outcome, previewId, reasonCode, receivedAt }` (a tabela nunca guardou endereço, nome, assunto
+  nem corpo).
+- Trava: `for no key update` no contratante + `for update` no perfil (duas gerações/edições simultâneas se serializam). Tenant: toda junção por
+  `company_id` do contexto; contratante alheio é 404 nas quatro.
+- **Por que sub-recurso e não chaves no `GET|PUT /receiving-profile`:** o painel publicado valida o perfil com chaves **exatas**
+  (`RECEIVING_PROFILE_KEYS`); uma chave nova no perfil derrubaria a ficha com `RESPONSE_INVALID` até o painel novo subir. As rotas novas não
+  mudam o perfil, e a ordem de deploy deixa de importar.
+- Contratos: `test/cargo-receiving/{preview-inbound-token,preview-email-allowlist,contractor-preview-email-use-case}.contract.ts`,
+  `test/cargo-receiving-http/contractor-preview-email-routes.contract.ts`, `rate-limited-routes` e `separator-role`; integração
+  `test/integration/contractor-preview-email.integration.ts` (Postgres: uma geração, rotação, auditoria atômica, tenant).
 
 ## Spec 249 — a viagem na rua troca de motorista e de ajudante (ADR-0097)
 
@@ -3048,3 +3196,158 @@ enquanto existir prévia por e-mail):
   `TRIP_NOT_DISPATCHED`), `409 TRIP_CREW_UNCHANGED`, e os erros de ficha inelegível da criação.
 - **Risco conhecido (D10):** `financial-summary.query.ts` une o resultado congelado ao `trip_drivers`
   **atual**; depois de uma transferência o total por motorista da viagem migra para o novo.
+
+## Spec 247 — A devolução soma os itens e registra o valor pago (ainda não publicada)
+
+**Dado.** Migration `20261007033420_occurrence_declared_amount` (aditiva, com `rollback.sql`): seis colunas no tipo
+(`reference_number_mode`/`_label`, `declared_amount_mode`/`_scope`/`_label`, `email_item_line_template`), os dois modos **nulos** nas duas
+exceções, `reference_number` e `declared_amount` na ocorrência, `unit_value` e `declared_amount` nos produtos. CHECKs geradas das
+constantes; `declared_amount_scope = 'item'` com modo ligado exige `items_mode <> 'off'` (422
+`OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS`). A soma nunca é gravada: é derivada. `unit_value` é a **cópia** do `vUnCom` no registro
+(a 166 aponta produto por código; mesma linha de menor `ordinal`).
+
+**Cálculo.** `trips/domain/occurrence-amount.policy.ts`, `bigint`, sem `Number`/`parseFloat`: linha = `round(quantidade × vUnCom)` meio para cima
+(`3 × 19,995 = 59,99`; sem quantidade = `vProd`); `somaItens` = soma das linhas arredondadas; `valorItem` = valor pago da linha, senão a soma;
+`valorDeclarado` = valor pago da ocorrência, senão Σ `valorItem`. Espelhado em `frontend-driver` e `frontend-transportada` por contratos que
+rodam os **mesmos casos**; mutações (truncar, somar antes de arredondar, `Number`) ficam vermelhas.
+
+**E-mail.** `occurrence-template.policy.ts`: duas listas fechadas de marcadores (corpo/assunto e linha de item); `{{linhasItens}}` renderiza a
+linha por item, teto de 200 ("e mais N itens"); valor de item nunca é re-renderizado (`{{` na descrição sai literal); `{{valorNota}}` em
+`7.840,64`; `{{quantidadeItem}}` é a quantidade da ocorrência (D5); `{{numeroNotaSemSerie}}` novo, `{{numeroNota}}` intacto. Prévia pelo
+servidor: `POST /company-settings/occurrence-types/email-preview` (`settings.manage`, rate limit), mesma função do envio. RF2: chave do aviso interno
+e assunto/corpo da contratante são independentes.
+
+**Registro do motorista (T4.4).** Itens `(productCode, quantity, declaredAmount?)`, `referenceNumber?`, `declaredAmount?`; `.strict()` recusa
+preço/unidade (400). Exigência efetiva por `resolveOccurrenceRequirements` com contratante e destinatário lidos da nota; modo efetivo `off`
+descarta (M2, não recusa). CA03 (só a configuração decide) provada com tipos de mesmo nome e config diferente, e vice-versa, com mutação por nome.
+
+**Snapshot, detalhe e correção.** O snapshot traz produtos por nota (uma consulta por viagem; leitura isolada com `logger.warn`
+`driver_snapshot_products_read_failed`; só sintético: 76 KB para 300 itens, viagem inteira extrapolada acima de 256 KiB). O detalhe da
+ocorrência ganhou `referenceNumber`, `declaredAmount` (`"0.00"` nunca `null`), `itemValues` (`unitValue` com 4 casas, senão o centavo da soma se perde) e
+`requirements`. A correção (T7.2b N1) usa o modo efetivo (`off` descarta; `required` recusa só `null` explícito). Golden compartilhado:
+`test/fixtures/occurrence-detail-values.golden.json` idêntico no painel.
+
+**Decisões pendentes e riscos abertos.** (a) O registro do motorista não abre a tratativa da 164. (b) `previous_items` não guarda número/valor da
+ocorrência. (c) T0.2 (tipos com `email_template_key` e `emails_contractor`) não medida em staging. (d) `requirements: null` por tipo inexistente sem
+integração. (e) M4: `{{quantidadeItem}}` com vírgula em modelo antigo. Gates e vermelhos: specs/247-\*/evidence.md.
+
+## Spec 236 T1.2 — o prazo de entrega por nota no detalhe da viagem
+
+**O que sai.** `GET /trips/:id` (e toda escrita que devolve o detalhe) traz `documents[].deliveryDeadline` — e o mesmo objeto em
+`stops[].documents[]` —: `{ state, dueOn, businessDaysRemaining? | businessDaysLate? , deliveredOn? } | null`, com `state` em `on_time`,
+`due_today`, `overdue`, `delivered_on_time`, `delivered_late` e as chaves exatas de cada estado (JSON de referência
+`test/fixtures/trip-document-delivery-deadline.golden.json`, cópia idêntica no painel, conferida por
+`test/trip-http/delivery-deadline.contract.ts`). `not_applicable` da política sai como `null`. **Só no `TripDocumentDetail`**: o painel lê o
+`TripDocument` com chaves exatas. `dueOn`/`deliveredOn` são **datas civis** `YYYY-MM-DD`, nunca instantes. **Ordem de publicação: o painel
+tolerante (T1.2b) antes da API.**
+
+**De onde vem cada coisa, sem consulta nova por nota.** A chegada e o prazo copiado (`cargo_arrivals.delivery_deadline_business_days`, ADR-0094:
+nunca o perfil atual) e `cargo_arrival_documents.return_to_contractor` entram por dois `leftJoin` no `documentRecords` do `readTripDetail`
+(`unique (company_id, nfe_document_id)`: uma linha por nota; o contratante nem é lido). A cidade é a do **destino físico**
+(`stopAddresses`, que `listStopAddresses` já resolvia e foi antecipada para antes do `map` das notas) com o **desvio manual por cima**
+(`delivery_address_overrides`, o mais recente por nota: a política de destino físico não o conhece); desvio **sem cidade** deixa a nota sem
+prazo, em vez de cair no cadastro que o operador acabou de trocar. A entrega é `deliveredMomentSql` (`selectDistinctOn` por nota, desempate
+`created_at desc, id desc`), **só pelo evento**: nota entregue sem evento fica sem prazo (`trip_documents.delivered_at` é o `now()` do clique no
+barracão — T1.2e).
+
+**Custo fixo.** `readTripDeliveryDeadlines` (`trip-delivery-deadline.support.ts`): **+0** consultas se nenhuma nota tem chegada e prazo;
+senão **desvio + entrega** (+2) e, se alguma nota tem cidade válida, as **quatro** leituras do calendário (+4, `loadBusinessCalendarRules`,
+em série) — exatamente **+6**, com 1 ou 200 notas, 1 ou 40 cidades. `loadRules` da 238 foi extraído para essa função porque o `readTripDetail`
+roda dentro de transação nos caminhos de escrita (`close`, vínculo, cancelamento…), que também pagam as seis consultas: aceito.
+Cobertura do calendário (`resolveDeadlineCoverage`): do menor ano entre chegadas, entregas e (só com nota **pendente**) hoje até o maior entre
+entregas, hoje e a última chegada + 1 (chegada em 30/12), com corte do começo acima de cinco anos de vão — a nota que ficou de fora vira "sem
+prazo". Sem pendente o hoje não entra: viagem toda entregue lida anos depois mantém o selo.
+
+**Degradação.** Falha de banco **propaga** (503 como as outras leituras). `BusinessCalendarError` (`INVALID_CITY`, `UNKNOWN_STATE`,
+`TOO_MANY_RULES`, `INVALID_RULE`, `OUT_OF_COVERAGE`…) vira `null` para as notas afetadas, com um `warn` por código
+(`trip_delivery_deadline_unavailable`: só `code`, `companyId`, `tripId` e `tripDocumentIds`), **coalescido: um por viagem e código a cada 5 min**,
+em memória e por processo (`trip-delivery-deadline-warn-throttle.support.ts`; o painel relê a cada 30 s). O "hoje" é um `clock` injetado em
+`DrizzleTripRepository` (só `main.ts` o monta; `test/composition/trip-delivery-deadline-wiring.contract.ts` segura isso) e, sem ele, o campo não
+é calculado e nenhuma consulta é feita.
+
+**Provas.** Contratos sem banco com executor de mentira (`test/trip-infrastructure/delivery-deadline-read.contract.ts`, `…/recording-select-executor.fixture.ts`)
+e integrações `test/integration/trip-detail-delivery-deadline*.integration.ts` (cópia vs perfil, desvio, 30/12, `occurredAt` vs `recordedAt`,
+notas encerradas, isolamento, contagem +0/+6/+2 e `close` dentro da transação). Evidência e mutações: specs/236-\*/evidence.md § T1.2.
+
+**Revisão da Fase 1 (T1.2e).** Fuso e tipos são os da 238 (`BUSINESS_CALENDAR_TIME_ZONE`, `DELIVERED_EVENT_KIND`/`*_DOCUMENT_STATUS` de
+`delivery-event.constant.ts`): a cópia local do fuso saiu. `toCivilDate` guarda o `Intl.DateTimeFormat` por fuso (16 entradas no máximo;
+construir custava ~22 µs por chamada, ~5 por nota). Lacunas conhecidas: nota vinculada por cálculo de frete (`nfe_document_id` nulo) nunca
+recebe prazo, e uma regra de calendário ruim derruba o prazo de todas as cidades da viagem (sai `null` com `warn`). **A 236 só vai a produção
+junto com ou depois das migrations da 237 Fase 2 e da 238** (a consulta das notas lê essas tabelas mesmo sem o relógio). Evidência:
+specs/236-\*/evidence.md § T1.2e e § T1.3.
+
+## Spec 253 — O relatório de viagens sai em planilha por nota
+
+**Rotas novas** (Fase 5 T5.1, regra 14):
+
+- **`GET /v1/trip-document-report`** (RF1, RF2): lista paginada por cursor de notas com viagem.
+  - Permissão: `fleet.read` ou `trip.report-on-behalf` (mesma do `GET /trips`)
+  - Query: `tripIdIn` (até 100 UUIDs) **ou** filtros por nota (número/série/chave, contratante, cidade/UF, valor com operador, situação da nota) + filtros de viagem (status, veículo, motorista, período). `Zod.strictObject` aceita ambos (AND) ou só os filtros, cursor até 100 linhas por página
+  - Resposta: `{ data: [{ tripId, tripStatus, tripDocumentStatus, documentNumber, documentSeries, accessKey, contractorName, contractorTaxId, recipientName, recipientCity, recipientState, amount?, deliveryDeadline?, returnDeadline?, returnReason? }], pagination: { nextCursor } }`
+  - `amount` só com `trip.financials`, acesso protegido por `canReadFinancials` verificado na rota
+  - Teto: 5 000 linhas. Acima: `422 TRIP_REPORT_TOO_LARGE`
+  - `tripDocumentStatus` em `warehouse|on_route|finished|total_return` (função pura `resolveTrip ReportTone`, nunca cópia) ou ausente se `cancelled` ou `released_at` preenchido
+  - Nota liberada (`released_at`) não entra em "todas devolvidas"
+  - Contratante por `tax_id` em `contractors`, sem match = nome do emitente + "Sem cadastro"
+  - Validação unificada em `details[]` (Zod, chave desconhecida = 400 `INVALID_REQUEST`)
+
+- **`GET /v1/trip-document-report/proofs-pdf`** (RF10-RF12): PDF em streaming dos canhotos.
+  - Query, permissão, filtros e teto idênticos ao relatório
+  - Teto: 200 canhotos por PDF. Acima: `422 TRIP_PROOF_REPORT_TOO_LARGE`
+  - Só `kind = 'photo'`; assinatura e fotos de carga ficam fora
+  - Bloco por canhoto em fluxo (quantos couberem por página), imagem 5–7 cm altura, horizontal, EXIF respeitado
+  - Bloco de aviso quando nota sem canhoto, marcação "1 de 2" em reentrega
+  - Cabeçalho com timbre, rodapé "Página X de Y" + quem exportou
+  - `amount` só com `trip.financials`
+  - Bucket privado, chave nunca na resposta
+
+**Regra de tom** (RF3, domínio puro `resolve-trip-report-tone.policy.ts`):
+
+- `cancelled` → fora do relatório
+- `awaiting_crew, draft, route_planned, separating, loading` → `warehouse` (branco `#FFFFFF`)
+- `dispatched, in_transit, on_delivery_route` → `on_route` (roxo `#E4D7F5`)
+- `completed` com **todas** as notas `returned` → `total_return` (verde-água `#CFF1EE`)
+- outro `completed` → `finished` (verde `#CDEBD3`)
+
+Nota liberada (`released_at` não nulo) é ignorada em "todas devolvidas" e não entra no relatório. Listas de status vêm de `trip-state.policy.ts`, nunca copiadas.
+
+**Revisão final da spec 253** (2026-10-07):
+
+- `contractorName` do relatório é `coalesce(contratante cadastrado, emitente da NF-e)`: nota sem cadastro mostra o nome do emitente, e o filtro "Sem cadastro" segue olhando só o cadastro. O PDF reaproveita a linha.
+- `GET /trip-document-report` (60/300 s) e `.../proofs-pdf` (10/300 s) declaram `rateLimit` no Postgres e estão em `test/rate-limited-routes.contract.test.ts`.
+- ⚠️ O PDF de canhotos é **bufferizado**, não stream real: `pdfkit` acumula tudo (`bufferPages`) e a resposta sai de uma vez. A memória fica limitada pelo teto de 200 blocos. Imagem que abre mas falha ao embutir cai no placeholder "Imagem indisponível" e loga `trip_proof_pdf.image_embed_failed` só com `tripId` e `proofIndex`; o nome do exportador (`findExporterName`) é best-effort e não derruba o PDF.
+
+## Nota de serviço emitida no portal: o vínculo (spec 250 T5.2)
+
+`POST /v1/nfse-service-invoices/:id/external-link` (`nfse.issue`, `Idempotency-Key` obrigatório, corpo
+`{providerDocumentId}` `.strict()`, só dígitos de 1 a 20) liga uma nota `rejected|failed` a um `id_nota` já emitido no
+portal da Nota RP. Resposta `202 {invoiceId, attemptId, status: 'pending_authorization', replayed}`. A nota **não vai
+a `authorized` direto**: o status pull a autoriza, porque XML, PDF e cancelamento só existem depois da consulta. Na
+mesma transação: tentativa `issue` `accepted` sem `provider_request_key` e sem outbox, payload congelado copiado com
+`providerConfig.externalLink: true`, `provider_document_id` gravado, evento `accepted` `{source: 'external_link'}` e
+`audit_logs` `nfse.invoice.external_link`. `companyId` vem do contexto; nota de outra empresa dá `404`. `id_nota` já
+vinculado na empresa → `409 NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED` (índice único parcial); mesma chave com outro corpo →
+`409 IDEMPOTENCY_KEY_REUSED`. Sem credencial → `422 NFSE_CREDENTIAL_MISSING`. Núcleo:
+`nfse-invoice-external-link.use-case.ts`. Não existe teste que compare as rotas com um documento OpenAPI neste módulo.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+**Dado.** Migration `20261008024137_occurrence_type_icon` (aditiva, com `rollback.sql`): `company_occurrence_types.icon_name VARCHAR(32)` nula, sem
+default, e a CHECK `company_occurrence_types_icon_name_check` (`icon_name is null or icon_name in (…)`) gerada do catálogo fechado
+`OCCURRENCE_TYPE_ICON_NAMES` (`src/shared/trip-occurrence.constant.ts`, 10 nomes: `alert`, `camera`, `clipboard-list`, `clock`, `document`, `invoice`,
+`message`, `money`, `package`, `truck`). Só o tipo ganha a coluna: nada em `*_overrides` nem `moments` (o ícone não é exigência e não passa por
+`resolveOccurrenceRequirements`). Nula = sem ícone; nenhum tipo existente recebeu default.
+
+**Gravação.** `POST/PUT /company-settings/occurrence-types` aceita `iconName` (`z.enum(catálogo).nullable().optional()`): ausente no PUT **mantém**, `null`
+**limpa**, fora do catálogo é `400 INVALID_REQUEST` com o campo nos detalhes, e a CHECK recusa o mesmo valor no banco (`23514`). O mapper
+`save-occurrence-type-values.mapper.ts` copia campo a campo: campo esquecido ali é gravação perdida (mutação vermelha registrada na evidência).
+
+**Leitura.** `iconName: string | null` em `GET /me/trips/current/occurrence-types` (e no snapshot do motorista), na lista/leitura única do escritório e em
+`readSettingsResolution`; `typeIconName` em cada ocorrência (`listTripOccurrences`, `findTripOccurrenceById`). Goldens
+(`settings-resolution`, `driver-snapshot-document`) levam `"iconName": "money"` e são copiados para as duas apps. Fora: feed, linha do tempo e a view
+`occurrence-type-items-read` não trazem o ícone.
+
+⚠️ **Ampliar o catálogo** é uma migration `DROP CONSTRAINT` + `ADD CONSTRAINT` com a lista nova (aditivo), com rollback que **zera** (`UPDATE … SET icon_name = NULL`)
+os nomes novos antes de recolocar a CHECK antiga, mais o nome nas **duas** cópias por valor (painel e app do motorista) e o glyph em cada `icon.tsx`; o contrato
+catálogo × `ICON_PATHS` falha se faltar um. Reduzir exige migration de dados. Ordem de publicação (ADR-0081 §9): painel e app tolerantes → API → telas. Gates e
+vermelhos: specs/255-\*/evidence.md.

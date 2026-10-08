@@ -9,6 +9,7 @@ import { describe, expect, test } from 'bun:test'
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
 import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
+import { createContractorPreviewEmailRoutes } from '../src/cargo-receiving/presentation/contractor-preview-email.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
@@ -21,6 +22,7 @@ import { createUserActivationRoutes } from '../src/identity/presentation/user-ac
 import { createMeLocationRoutes } from '../src/trips/presentation/me-location.routes'
 import { createMeProofReceiverRoutes } from '../src/trips/presentation/me-proof-receiver.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
+import { createTripDocumentReportRoutes } from '../src/trips/presentation/trip-document-report.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
@@ -141,6 +143,30 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'POST /trips/:id/start-route': trip,
       'POST /trips/:id/stops/:stopId/arrive': trip,
       'POST /trips/:id/stops/:stopId/occurrences': trip,
+    })
+  })
+
+  /** Spec 253: o relatório e o PDF de canhotos (até 200 imagens por chamada) contam no Postgres. */
+  test('o relatorio de viagens e o PDF de canhotos tem balde proprio, o PDF mais curto', () => {
+    const routes = createTripDocumentReportRoutes(unusedDependencies() as never)
+
+    const limited = Object.fromEntries(
+      routes.map((route) => [`${route.method} ${route.pathname}`, route.rateLimit]),
+    )
+
+    expect(limited).toEqual({
+      'GET /trip-document-report': {
+        maxRequests: 60,
+        scope: 'trip-document-report',
+        store: 'postgres',
+        windowSeconds: 300,
+      },
+      'GET /trip-document-report/proofs-pdf': {
+        maxRequests: 10,
+        scope: 'trip-proof-pdf',
+        store: 'postgres',
+        windowSeconds: 300,
+      },
     })
   })
 
@@ -485,6 +511,34 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
   })
 
   /**
+   * Spec 237 T4.6b: gerar o endereço de entrada da prévia por e-mail (e rotacioná-lo) invalida o anterior e
+   * grava auditoria — 10 em 5 minutos por usuário, balde próprio. Só a geração tem teto: ler e editar as
+   * listas é `settings.manage` e não dispara custo externo.
+   */
+  test('gerar o endereço de entrada da prévia conta no Postgres, no balde dele', () => {
+    const routes = createContractorPreviewEmailRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 10,
+          scope: 'receiving-profile-inbound-token',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /contractors/:id/receiving-profile/inbound-token',
+      },
+    ])
+  })
+
+  /**
    * Spec 237 T3.2: a avaria sem viagem sobe foto — o mesmo teto da ocorrência de galpão, balde próprio.
    * T3.4a: marcar, desfazer e concluir a devolução são transições do escritório, como a tratativa.
    */
@@ -532,6 +586,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'address-correction/presentation/address-correction.routes.ts',
       'cargo-receiving/presentation/cargo-arrival-occurrence.routes.ts',
       'cargo-receiving/presentation/cargo-preview.routes.ts',
+      'cargo-receiving/presentation/contractor-preview-email.routes.ts',
       'companies/presentation/location-retention-settings.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
@@ -547,6 +602,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
       'trips/presentation/redelivery-proposal.routes.ts',
+      'trips/presentation/trip-document-report.routes.ts',
       'trips/presentation/trip-field-office-document.routes.ts',
       'trips/presentation/trip-field-office-occurrence.routes.ts',
       'trips/presentation/trip-field-office-trip.routes.ts',

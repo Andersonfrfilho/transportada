@@ -27,7 +27,13 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
+      "declaredAmountRequired": "o valor pago é exigido por este tipo de ocorrência",
+      "itemDeclaredAmountRequired": "o valor pago de cada produto é exigido por este tipo de ocorrência",
+      "itemQuantityAboveNote": "a quantidade devolvida passou da quantidade da nota",
+      "itemsMinimumNotMet": "faltou marcar mais produtos da nota",
+      "itemsRequired": "faltou marcar os produtos da nota",
       "notOfDriver": "esta viagem foi transferida; peça ao escritório para registrar",
+      "referenceNumberRequired": "o número do documento do cliente é exigido por este tipo de ocorrência",
       "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
@@ -506,12 +512,55 @@
       "required": "Foto obrigatória"
     },
     "cancel": "Cancelar",
+    "declaredAmount": {
+      "defaultLabel": "Valor pago",
+      "limit": "Limite do campo: o valor não pode passar de R$\u00a09.999.999.999,99.",
+      "optional": "{{label}} · opcional",
+      "placeholder": "0,00",
+      "required": "{{label}} · obrigatório"
+    },
+    "items": {
+      "amountOptional": "{{label}} · se diferente",
+      "amountRequired": "{{label}} · obrigatório",
+      "calculation": "{{quantity}} {{unit}} × R$\u00a0{{unitValue}} =",
+      "fillTotal": "Total da nota",
+      "fillTotalAria": "Devolver tudo: {{quantity}} {{unit}}",
+      "money": "R$\u00a0{{value}}",
+      "onNote": "Na nota: {{quantity}} {{unit}} × R$\u00a0{{unitValue}}",
+      "paid": "· pago R$\u00a0{{value}}",
+      "quantityAboveNote": "A nota tem só {{quantity}} {{unit}}.",
+      "quantityLabel": "Quantidade devolvida ({{unit}})",
+      "quantityMissing": "Informe a quantidade, maior que zero.",
+      "quantityTooManyDecimals": "A quantidade aceita no máximo 3 casas depois da vírgula.",
+      "quantityTooManyDigits": "A quantidade aceita no máximo 9 dígitos antes da vírgula.",
+      "title": "Produtos devolvidos",
+      "titleOptional": "Produtos devolvidos (opcional)",
+      "titleRequired": "Produtos devolvidos (obrigatório)",
+      "totals": {
+        "inMail": "Total que vai no e-mail",
+        "none": "Sem valor",
+        "origin": {
+          "calculated": "Calculado pela nota (quantidade × valor unitário).",
+          "mixed": "{{typed}} de {{total}} linhas com valor pago digitado; as outras, calculadas pela nota.",
+          "occurrence": "Valor pago digitado para a ocorrência inteira.",
+          "typed": "Valor pago digitado em todas as linhas."
+        },
+        "sum": "Soma dos produtos (NF-e)"
+      },
+      "varyingUnitValue": "O valor unitário varia nesta nota: informe o valor pago desta linha."
+    },
     "legend": "Qual ocorrência?",
     "missing": {
+      "declaredAmount": "“{{label}}”",
+      "itemDeclaredAmount": "“{{label}}” de cada produto marcado",
       "note": "a observação",
       "photo": "a foto",
       "photoMinimum": "mais fotos (mínimo de {{count}})",
+      "productQuantity": "a quantidade dos produtos marcados",
       "products": "a marcação dos produtos",
+      "productsMinimum": "mais produtos (mínimo de {{count}})",
+      "referenceNumberInvalid": "“{{label}}” com letras, números, espaço, ponto, barra e hífen apenas",
+      "referenceNumber": "“{{label}}”",
       "signature": "a assinatura"
     },
     "missingLead": "Para registrar, falta: {{fields}}.",
@@ -523,6 +572,13 @@
     "photoRemoveLast": "Remover a última foto",
     "products": {
       "title": "Produtos da nota (obrigatório)"
+    },
+    "readyToRegister": "Tudo o que o tipo pede está preenchido.",
+    "referenceNumber": {
+      "defaultLabel": "Número do documento do cliente",
+      "optional": "{{label}} · opcional",
+      "invalid": "Use só letras, números, espaço, ponto, barra e hífen, até {{max}} caracteres. Nada foi cortado: corrija o texto.",
+      "required": "{{label}} · obrigatório"
     },
     "signature": {
       "redo": "Colher a assinatura de novo",

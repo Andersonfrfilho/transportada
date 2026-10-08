@@ -1,63 +1,46 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  BRAZILIAN_STATE_IBGE_CODE_LIST,
+  BUSINESS_CALENDAR_MAX_YEAR,
+  BUSINESS_CALENDAR_MIN_YEAR,
+  CITY_IBGE_CODE_SOURCE,
+  HOLIDAY_RECURRENCE,
+  LEGACY_CITY_IBGE_CODE_SOURCE,
+  MUNICIPAL_HOLIDAY_KIND,
+} from '../../shared/business-calendar.constant.js'
+
+export {
+  BUSINESS_CALENDAR_MAX_YEAR,
+  BUSINESS_CALENDAR_MIN_YEAR,
+  HOLIDAY_RECURRENCE,
+  MUNICIPAL_HOLIDAY_KIND,
+}
 
 /** O teto de 1–60 dias é do perfil do contratante; a política só barra o absurdo. */
 export const BUSINESS_CALENDAR_MAX_DAYS = 366
 
 export const BUSINESS_CALENDAR_MAX_RULES = 5000
 
+/** Fuso fixo de São Paulo (ADR-0096 Q3): é nele que o instante vira o ano corrente da geração. */
+export const BUSINESS_CALENDAR_TIME_ZONE = 'America/Sao_Paulo'
+
+/** A regra "todo ano" gera as datas do ano corrente até o corrente + 10 (ADR-0096 §5). */
+export const MUNICIPAL_HOLIDAY_MATERIALIZATION_YEARS = 10
+
 export const BUSINESS_CALENDAR_MAX_COVERAGE_SPAN_YEARS = 5
 
-// A Páscoa de Meeus só vale no calendário gregoriano, adotado em 1582.
-export const BUSINESS_CALENDAR_MIN_YEAR = 1583
+export const CITY_IBGE_CODE_PATTERN = new RegExp(CITY_IBGE_CODE_SOURCE, 'u')
 
-export const BUSINESS_CALENDAR_MAX_YEAR = 9999
-
-export const CITY_IBGE_CODE_PATTERN = /^[1-5][0-9]{6}$/
+export const LEGACY_CITY_IBGE_CODE_PATTERN = new RegExp(LEGACY_CITY_IBGE_CODE_SOURCE, 'u')
 
 export const STATE_IBGE_CODE_LENGTH = 2
 
-/** As 27 unidades da federação pelo código IBGE, que é o prefixo do código do município. */
-export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set([
-  '11',
-  '12',
-  '13',
-  '14',
-  '15',
-  '16',
-  '17',
-  '21',
-  '22',
-  '23',
-  '24',
-  '25',
-  '26',
-  '27',
-  '28',
-  '29',
-  '31',
-  '32',
-  '33',
-  '35',
-  '41',
-  '42',
-  '43',
-  '50',
-  '51',
-  '52',
-  '53',
-])
-
-export const HOLIDAY_RECURRENCE = {
-  ONCE: 'once',
-  YEARLY: 'yearly',
-} as const
-
-export const MUNICIPAL_HOLIDAY_KIND = {
-  CITY_ANNIVERSARY: 'city_anniversary',
-  HOLIDAY: 'holiday',
-} as const
+/** A lista mora em `shared/` porque o schema do banco a usa no CHECK e não importa de domínio. */
+export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set(
+  BRAZILIAN_STATE_IBGE_CODE_LIST,
+)
 
 export const BUSINESS_CALENDAR_ERROR_CODE = {
   COVERAGE_TOO_WIDE: 'BUSINESS_CALENDAR_COVERAGE_TOO_WIDE',
@@ -69,6 +52,18 @@ export const BUSINESS_CALENDAR_ERROR_CODE = {
   OUT_OF_COVERAGE: 'BUSINESS_CALENDAR_OUT_OF_COVERAGE',
   TOO_MANY_RULES: 'BUSINESS_CALENDAR_TOO_MANY_RULES',
   UNKNOWN_STATE: 'BUSINESS_CALENDAR_UNKNOWN_STATE',
+} as const
+
+/** Recusas das rotas de cadastro; as da política (acima) são 422, estas seguem o verbo HTTP. */
+export const BUSINESS_CALENDAR_RULE_ERROR_CODE = {
+  MUNICIPAL_HOLIDAY_GENERATED_BY_RULE: 'MUNICIPAL_HOLIDAY_GENERATED_BY_RULE',
+  MUNICIPAL_HOLIDAY_NOT_FOUND: 'MUNICIPAL_HOLIDAY_NOT_FOUND',
+  MUNICIPAL_HOLIDAY_RULE_CONFLICT: 'MUNICIPAL_HOLIDAY_RULE_CONFLICT',
+  MUNICIPAL_HOLIDAY_RULE_INVALID_DAY: 'MUNICIPAL_HOLIDAY_RULE_INVALID_DAY',
+  MUNICIPAL_HOLIDAY_RULE_NOT_FOUND: 'MUNICIPAL_HOLIDAY_RULE_NOT_FOUND',
+  STATE_HOLIDAY_CONFLICT: 'STATE_HOLIDAY_CONFLICT',
+  STATE_HOLIDAY_NOT_FOUND: 'STATE_HOLIDAY_NOT_FOUND',
+  STATE_HOLIDAY_RECURRENCE_MISMATCH: 'STATE_HOLIDAY_RECURRENCE_MISMATCH',
 } as const
 
 export type BusinessCalendarErrorCode =

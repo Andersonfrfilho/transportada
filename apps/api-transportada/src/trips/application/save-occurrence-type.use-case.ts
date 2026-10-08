@@ -16,6 +16,7 @@ import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
   OccurrenceTypeFlow,
+  OccurrenceTypeIconName,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
@@ -56,6 +57,7 @@ export type SaveOccurrenceTypeValues = {
    * padrão da coluna (`off`), que desligaria o campo de um tipo configurado a cada edição de e-mail.
    */
   readonly declaredAmountLabel?: string | undefined
+  readonly iconName?: null | OccurrenceTypeIconName | undefined
   readonly declaredAmountMode?: DeliveryProofFieldMode | undefined
   readonly declaredAmountScope?: OccurrenceDeclaredAmountScope | undefined
   /** Ausente é "não mexa"; `''` explícito apaga o texto (spec 247 RF2). */

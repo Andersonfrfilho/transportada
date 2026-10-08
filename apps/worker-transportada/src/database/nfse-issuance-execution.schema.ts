@@ -70,6 +70,7 @@ export const nfseIssuanceAttempts = pgTable('nfse_issuance_attempts', {
   lastErrorCause: text('last_error_cause'),
   lastErrorMessage: text('last_error_message'),
   correlationId: text('correlation_id').notNull(),
+  providerRequestKey: text('provider_request_key'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })
 

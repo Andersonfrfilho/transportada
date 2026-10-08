@@ -26,6 +26,7 @@
       "declaredAmountMode": "optional",
       "declaredAmountScope": "item",
       "flow": "document",
+      "iconName": "money",
       "id": "00000000-0000-4000-8000-0000000000a1",
       "name": "Tipo configurado",
       "referenceNumberLabel": "Número da NFD",

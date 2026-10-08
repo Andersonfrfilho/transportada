@@ -60,6 +60,25 @@ docs/ai-context/api-transportada.md § "Spec 239" e `docs/SECURITY.md` § "2026-
 **Dias úteis por cidade** (spec 238 T1.1, ADR-0096): `src/business-calendar/domain/` — política pura
 (`buildBusinessCalendar`, `isBusinessDay`, `explainDay`, `addBusinessDays`, `countBusinessDays`), datas civis em texto,
 sem relógio nem fuso, recusa tipada `BUSINESS_CALENDAR_*`. Detalhe: docs/ai-context § "Spec 238 T1.1".
+Dado do calendário (T1.2, ADR-0096 §5): `municipal_holiday_rules` (regra "todo ano"), `state_holidays`,
+`company_business_calendar_settings`; `municipal_holidays` só com datas fixas e `kind`/`source_rule_id`. UFs e vocabulário
+em `src/shared/business-calendar.constant.ts` (o schema não importa de domínio). CHECK aceita NULL: exija `is not null`
+à parte. Detalhe: docs/ai-context § "Spec 238 T1.2".
+Escrita e rotas (T1.3, ADR-0096 §6): regra "todo ano" gera as datas fixas de 10 anos (`DO NOTHING`; 29/02 só nos
+bissextos; sem rotina, `POST /municipal-holiday-rules/materializations` completa o horizonte); a digitada vence e a gerada só
+se mexe pela regra (409). `loadRules` lê as digitadas (`source_rule_id IS NULL`), nunca as geradas. Rotas
+`/municipal-holiday-rules`, `/state-holidays`, `/company-settings/business-calendar` e as antigas `/municipal-holidays`
+(`settings.manage` para escrever; auditoria na mesma transação, lock por empresa). Sem OpenAPI nesta API. Detalhe:
+docs/ai-context § "Spec 238 T1.3".
+Correções da revisão (T1.3b): `POST /municipal-holidays` devolve `adoptedFromRuleId`; `PATCH`/`GET` da regra devolvem
+`typedHolidaysKept` (a digitada que a regra não conhece mais); editar a regra só apaga as geradas do ano corrente em diante;
+auditoria só quando muda; `POST /state-holidays` idêntico é 200. A migration foi editada no lugar (não publicada) e os
+comandos de `municipal_holidays` vão no fim do lote. Detalhe: docs/ai-context § "Spec 238 T1.3b".
+O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
+derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
+por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
+injetado (`clock` em `DrizzleTripRepository`, só em `main.ts`); sem ele o campo não é calculado. Recusa do calendário vira `null` com
+`warn` só de ids e código. Detalhe: docs/ai-context § "Spec 236 T1.2".
 
 ## Banco
 
@@ -790,7 +809,9 @@ juntos — `20261006144825_cargo_arrival_check_null_holes`). Uma nota entra em n
 chegada. Rotas `/cargo-arrivals…` com `fleet.read` (leitura) e `trip.manage` (escrita), as duas do
 `separator` — e todas listadas em `test/separator-role.contract.test.ts`. ⚠️ Escrita nova trava a chegada
 primeiro e as notas depois (ordem de id), e o registro trava o contratante antes de procurar a chave.
-Detalhe: docs/ai-context § "Spec 237" → "Fase 2".
+Detalhe: docs/ai-context § "Spec 237" → "Fase 2". ⚠️ A cidade do grupo `(rota, cidade)` é o **destino
+físico** da nota (`selectArrivalDestinationCities` → `resolvePhysicalDestination`, T2.6), lida de agora e
+nunca do `cargo_arrival_documents.city_ibge_code` nem do `<enderDest>`.
 
 **Revisão das Fases 1–2** (2026-10-06): `GET /cargo-arrivals` filtra por `contractorId`/`status` **repetidos**
 e ordena no servidor (`sort`/`direction`, lista fechada); o cursor carrega a ordem e, noutra, é `400
@@ -836,7 +857,14 @@ da avaria de recebimento corre pelas rotas existentes de `/trip-occurrences/:id/
 nulas no perfil (`preview_inbound_token_hash`, `preview_forwarder_allowlist`, `preview_sender_allowlist`; o token
 exige as duas listas), `cargo_previews.source = 'email'` com `uploaded_by_user_id` nulo (CHECK amarra os dois) e a
 tabela append-only `cargo_preview_email_intakes`. ⚠️ Código que lê `uploaded_by_user_id` trata o nulo; a rota `PUT`
-do perfil **não** grava token nem listas até a T4.6b (hoje, SQL). Detalhe: docs/ai-context § "Spec 237 — Fase 4b".
+do perfil **não** conhece token nem listas (o perfil segue com as 10 chaves exatas: o painel publicado as valida). Detalhe: docs/ai-context § "Spec 237 — Fase 4b".
+
+**Gerar o endereço de entrada e editar as listas** (T4.6b, ADR-0094 §10): sub-recurso `…/receiving-profile/{preview-email,inbound-token,
+email-intakes}` (`contractor-preview-email.routes.ts`), **tudo `settings.manage`** (o separador lê a frota e não alcança nenhuma). O token
+nasce **no servidor** (130 bits de `getRandomValues`), só o hash vai ao banco, aparece **uma vez** na resposta do `POST` (`no-store`) e a
+leitura **nunca** devolve hash nem token; rotacionar apaga o hash anterior. Auditoria `audit_logs` **na mesma transação**, sem token nem hash;
+`rateLimit` 10/300 s. `hashPreviewInboundToken` é cópia por valor da política do worker (paridade no teste do worker). Detalhe: docs/ai-context
+§ "Spec 237 — T4.6b".
 
 ## Rascunhos de viagem da prévia (spec 237 T5.1)
 
@@ -868,3 +896,36 @@ estáveis novos: `TRIP_OCCURRENCE_SIGNATURE_REQUIRED`, `_ITEMS_REQUIRED`, `_ITEM
 migrations de `…205139` a `…205209`; o backfill de anexos (`…205232`) é deploy **separado**, só depois da `…205139`
 aplicada e da medição T1d.0. Rebase que traga migration nova refaz as quatro (cadeia linear de snapshots). Detalhe e
 ordem com SHAs: specs/246-…/evidence.md; formatos: docs/ai-context/api-transportada.md § "Spec 246".
+
+## A devolução soma os itens (spec 247)
+
+**Uma resolução só para o que o tipo exige.** `resolveOccurrenceRequirements` (sobre `resolveWithOverrides`, exceção por
+contratante/destinatário **lidos da nota**) decide número do documento do cliente e valor pago para o snapshot, o registro, a
+correção e o detalhe (`requirements`, opcional; `null` em parada e em tipo que sumiu). O escopo do valor pago é o **efetivo**:
+`resolveDeclaredAmountTarget` (com `itemsMode` efetivo e a contagem de produtos da nota) — ler `declared_amount_scope` cru do tipo
+manda valor para linha que não existe. Painel e app só leem; o servidor recobra (`TRIP_OCCURRENCE_REFERENCE_NUMBER_REQUIRED`,
+`_DECLARED_AMOUNT_REQUIRED`).
+
+**Modo efetivo `off` descarta, não recusa** (registro do motorista e correção): a fila offline não pode travar porque a
+configuração mudou. `required` só recusa a **limpeza explícita** (`null`) na correção; ausente mantém, e a ocorrência anterior à
+247 continua corrigível. O `PUT` do tipo é "ausente = não mexa", inclusive `emailSubject`/`emailBody` (o painel em staging não os
+manda e apagava o e-mail à contratante); `''` explícito apaga. `email_template_key` (aviso interno) e assunto/corpo (contratante) são
+independentes.
+
+**Dinheiro é `bigint` (centavos), nunca `number`.** `occurrence-amount.policy.ts`: soma da linha = quantidade × `vUnCom` arredondada
+meio para cima por linha; soma geral = soma das linhas arredondadas; valor pago vence a soma; `0` vale. Preço, unidade e
+`unit_value` **nunca** vêm do payload (`.strict()`, 400): o valor é lido de `nfe_products` (linha de menor `ordinal` do `cProd`) e
+**copiado** para a ocorrência — a 166 aponta produto por código, não por linha. Quantidade acima da nota → 400
+`OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT` (a 166 nunca comparou com a nota; a recusa nasce aqui).
+
+**Armadilhas medidas.** (1) Parser do painel publicado com lista fechada de chaves (`hasKeys`/`hasExactKeys`) recusa a chave nova:
+conferir cada guard antes de a API publicar; o detalhe é seguro porque `readDetail` espalha chaves desconhecidas, a viagem não.
+(2) `test/fixtures/*.golden.json` é **o mesmo arquivo** em API, painel e app: o teste de cópias iguais vigia, e quem muda um muda os três.
+`{{quantidadeItem}}` passou à quantidade da ocorrência e `{{valorNota}}` sai `7.840,64` (sem símbolo).
+
+**Decisões pendentes (do usuário, não fatos).** O registro do motorista **não abre a tratativa da 164** (`saveDocumentOccurrence`
+não recebe `redeliveryPolicy`), então a sugestão de acerto só existe no galpão e no lote do escritório. `previous_items` guarda só
+as linhas: número e valor pago da **ocorrência** são sobrescritos sem rastro na correção (guardar exige 2 colunas aditivas).
+Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/evidence.md.
+
+⚠️ **O ícone do tipo é catálogo fechado** (spec 255): ampliar `OCCURRENCE_TYPE_ICON_NAMES` pede migration `DROP/ADD CONSTRAINT` (rollback zera os novos) **e** as cópias por valor no painel e no `frontend-driver`. Detalhe: docs/ai-context/api-transportada.md § "Spec 255".

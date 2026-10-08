@@ -205,7 +205,8 @@ de `delivery-clients`.
   (nulo sem janela). Perfil ausente ou desligado não abre chegada (`CARGO_RECEIVING_NOT_ENABLED`).
   "Vencida" é leitura: prazo passado **e** nota ainda não separada.
 - **O grupo é `(rota, cidade)`**, leitura e nunca estado: a rota é texto livre do operador (a prévia a
-  preencherá na Fase 4a) e a cidade é o código IBGE do endereço do **destinatário**.
+  preencherá na Fase 4a) e a cidade é o código IBGE do **destino físico** da nota (emenda de 2026-10-06 abaixo; até lá era o do
+  destinatário).
 - **Uma nota entra em no máximo uma chegada, para sempre** (`unique (company_id, nfe_document_id)`).
   Consequência aceita: nota posta por engano numa chegada não tem conserto nesta fase, e nota que
   volta (reentrega) não entra em outra chegada. Se uma história pedir, a troca por índice parcial com
@@ -224,12 +225,17 @@ de `delivery-clients`.
     staging e não se edita. **Antes de promover a produção**, quem tem acesso ao banco mede
     `select count(*), pg_size_pretty(pg_total_relation_size('nfe_participants')) from nfe_participants;` e
     escolhe janela de baixa importação; o passo e a alternativa estão em `docs/SECURITY.md` (2026-10-06).
-  - **Pendência de produto, NÃO decidida (M6).** A cidade do grupo `(rota, cidade)` sai do endereço
-    cadastral do destinatário (`<enderDest>`), não do destino físico da nota (`<entrega>`, spec 073 — o
-    seam `resolvePhysicalDestination` que parada, roteirizador e MDF-e já seguem). Efeito físico: nota com
-    `<enderDest>` em São Paulo e `<entrega>` em Guarulhos é separada na pilha de São Paulo, e o caminhão de
-    Guarulhos sai sem ela. Trocar para o destino físico muda o que o separador vê e o que a recomendação de
-    viagens agrupa — é decisão do usuário (`tasks.md`, T2.6, bloqueada), e nada foi mudado no código.
+  - **Decidido em 2026-10-06 (M6, T2.6).** A cidade do grupo `(rota, cidade)` é **sempre onde a carga será
+    entregue**: o destino físico da nota, pelo mesmo seam `resolvePhysicalDestination` que parada,
+    roteirizador e MDF-e já seguem (`<entrega>` → `<enderDest>`, spec 073), e não o cadastro do
+    destinatário. Nota com `<enderDest>` em São Paulo e `<entrega>` em Guarulhos entra no grupo de
+    Guarulhos; sem destino resolvível, no grupo sem cidade. A cidade é lida **de agora**
+    (`cargo-arrival-destination.query.ts`, uma consulta em lote), nunca do `city_ibge_code` gravado no
+    registro — que continua sendo gravado, com o código físico, mas não decide mais o grupo; assim a nota
+    de uma chegada já aberta também se corrige. O **desvio manual não entra**: `delivery_address_overrides`
+    é histórico do vínculo `trip_documents`, que nasce depois da chegada (e nenhum consumidor de "lugar"
+    fora da própria parada o lê do `nfe_documents`). Fora do escopo: o rascunho de viagem da prévia
+    (`cargo-preview-trip-draft.query.ts`) segue agrupando pela cidade do destinatário.
 
 ### 7. A leitura da planilha de prévia (Fase 4a, T4.1)
 
@@ -592,7 +598,7 @@ e-mail entrega os **bytes** ao mesmo contrato do upload e nunca abre o arquivo.
   entrada da spec 143. `contractor_receiving_profiles.preview_inbound_token_hash` guarda
   `sha256("transportada:cargo-preview-inbound:v1:" + token)` — um espaço de hash **distinto** do das
   conversas (um token de conversa nunca abre um perfil de prévia, nem o contrário) —, único por empresa
-  (índice parcial). `+` continua rejeitado. O token em si não é guardado; gerar e rotacionar é a T4.6b.
+  (índice parcial). `+` continua rejeitado. O token em si não é guardado: **a API o gera e rotaciona** (T4.6b, abaixo).
 - **As duas listas** (colunas aditivas, nulas): `preview_forwarder_allowlist` (quem encaminha, **endereço
   exato**) e `preview_sender_allowlist` (o remetente original, **endereço exato ou domínio exato**, nunca
   subdomínio). Separadas porque são conjuntos de natureza diferente; numa lista só, quem encaminha forjaria o
@@ -700,9 +706,51 @@ null)` amarra os dois), `idempotency_key = 'email:' + sha256(providerEmailId)`, 
   encaminhado: o encaminhador do provedor não é o da lista e o remetente original não é lido — essa forma **não é
   suportada por esta versão**. `[NEEDS CLARIFICATION]` — decisão do usuário pendente: se o encaminhamento automático
   for necessário, é outro desenho (o contratante assina o e-mail; a lista passa a ser de quem **assina**).
-- **Passos do usuário (spec 143 T012):** MX e domínio de entrada no Resend, e — enquanto não há tela — gravar
-  por SQL o hash do token e as duas listas no perfil (o token deve ter ≥ 130 bits aleatórios, `openssl rand`; o
-  CHECK só confere o alfabeto). Nada disso é feito pelo código.
+- **Gerar o endereço e editar as listas (T4.6b).** Quatro rotas num sub-recurso do perfil, **todas `settings.manage`** (ler também: o
+  separador lê a frota e não alcança nenhuma): `GET|PUT …/receiving-profile/preview-email` (as duas listas e `hasInboundToken` +
+  `inboundTokenSetAt`; **nunca** o hash), `POST …/receiving-profile/inbound-token` e `GET …/receiving-profile/email-intakes?limit=`
+  (`{ outcome, previewId, reasonCode, receivedAt }`, mais recentes primeiro, sem endereço, nome, assunto nem corpo). **Sub-recurso, e não chaves
+  novas em `GET|PUT /receiving-profile`,** porque o painel publicado valida o perfil por chaves **exatas** (§5): chave nova no perfil derrubaria a
+  ficha (`RESPONSE_INVALID`) até o painel novo subir, e o `PUT` do perfil com chave obrigatória nova derrubaria o salvar de um painel em cache. As
+  rotas novas deixam o perfil como está e a ordem de deploy deixa de importar.
+  - **O token nasce no servidor:** 26 símbolos base32 de `crypto.getRandomValues` (5 bits cada; **130 bits**), só o hash vai ao banco (a mesma
+    política do worker, copiada por valor com contrato de paridade nos dois sentidos) e o token + o endereço (`<token>@<domínio de entrada>`, o
+    domínio de `contractor_mail_settings.reply_domain` da empresa — sem ele, **409** `RECEIVING_PROFILE_INBOUND_DOMAIN_NOT_CONFIGURED`) saem **uma
+    vez**, na resposta do `POST` (`no-store`). **Rotacionar = chamar de novo:** o hash anterior some na mesma transação. Exige as duas listas
+    (**422** `RECEIVING_PROFILE_ALLOWLISTS_REQUIRED`, os detalhes nomeiam as que faltam); `rateLimit` de 10 em 300 s por usuário no Postgres.
+  - **Auditoria `audit_logs` na mesma transação** (ator, alvo, IP, hora, `isRotation`), sem token nem hash; a edição das listas audita **só
+    quando muda**, com antes/depois. Duas gerações simultâneas se serializam (`for update` no perfil).
+  - **As listas** (`.strict()`, texto, normalizadas: minúsculas, aparadas, sem duplicata; as faixas do CHECK; ≤ 20 entradas **distintas**): quem
+    encaminha é endereço completo, o remetente original é endereço ou domínio exato (sem `*`), a entrada inválida é nomeada (`forwarderAllowlist.<i>`).
+    Lista vazia = sem lista; com endereço ativo, esvaziar uma é 422 (o CHECK exige as duas).
+  - **O painel** (ficha do contratante, só `settings.manage`): estado "sem endereço" × "ativo desde …", as duas listas com erro por entrada, "Gerar
+    endereço" / "Gerar novo endereço" (a rotação pede confirmação), o painel do endereço **mostrado uma vez** (copiar, aviso, passo seguinte do
+    operador) e a tabela de recusas com o motivo traduzido para os 16 códigos do CHECK. O endereço só existe na memória do componente.
+- **Passos do usuário (spec 143 T012):** MX e domínio de entrada no Resend. Nada disso é feito pelo código (o painel só o diz).
+
+### 11. A retenção de 90 dias dos dados da planilha (Fase 4c, T4.8)
+
+Decisão do usuário (2026-10-06): 90 dias depois de a prévia ficar sem item em aberto, a planilha e o MIME bruto saem
+do bucket e o dado pessoal dos itens é anulado. A rotina é `cargo-preview.retention.apply` (worker, diária, molde
+das varreduras de retenção): **o que a dispara** é a batida do agendador; **quem entra** é a prévia `ready` ou
+`failed`, sem nenhum item em `awaiting_xml`/`suggested`/`ambiguous` e com o último movimento (o maior entre o
+`updated_at` da prévia e o dos itens, o único instante fiel que existe) em 90 dias ou mais; **o marcador** é o evento
+append-only `retention_applied` na trilha, que só sai depois do último objeto apagado — sem coluna nova.
+
+- **Sai:** o objeto da planilha e todo MIME bruto aceito da prévia (bucket + `stored_objects.status = 'deleted'`,
+  nunca a linha: a FK `RESTRICT` e o trigger append-only de `cargo_preview_email_intakes` a prendem), e
+  `recipient_name`, `address`, `neighborhood`, `postal_code` dos itens. **Fica:** valor, peso, roteiro, estado,
+  vínculo, trilha. Item decidido pelo operador e prévia com item em aberto nunca mudam.
+- **Desenho:** uma transação por prévia, bytes apagados **antes** de qualquer escrita, trava do contratante tomada
+  sem esperar (a mesma do vínculo), lotes de 25, teto de 200 lotes por ciclo e de 50 objetos por prévia por passada;
+  falha de bucket ou erro imprevisto numa prévia não derruba as outras e ela volta na próxima execução. O prazo é a
+  constante nomeada `CARGO_PREVIEW_RETENTION_DAYS`, cópia byte a byte na API e no worker (contrato de paridade).
+- **Migration (aprovada pelo usuário só para staging):** aditiva, sem coluna, índice ou tabela — vocabulário de
+  `job_executions_job_check`, `job_schedules_job_check`, `cargo_preview_events_kind_check` e
+  `cargo_preview_events_item_scope_check`, e a linha do relógio. O catálogo de jobs ganha a entrada nas quatro
+  cópias (API, worker, cron e painel).
+- **Limites e pendências:** o que a decisão não manda anular (`city`, `state`, `recipient_code`,
+  `contractor_reference`, `file_name`) e o MIME de e-mail recusado estão em `docs/SECURITY.md` (2026-10-07).
 
 ## Consequências
 

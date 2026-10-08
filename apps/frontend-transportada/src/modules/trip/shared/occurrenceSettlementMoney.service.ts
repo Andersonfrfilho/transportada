@@ -44,18 +44,28 @@ export function formatOccurrenceSettlementAmount(amount: string): string {
   return BRL_FORMATTER.format(Number(scaled) / Number(SCALE))
 }
 
+/** `numeric(14,4)` da API: dez dígitos inteiros e duas casas — o campo não passa disso, e a tela avisa. */
+const MAX_AMOUNT_DIGITS = 12
+const LEADING_ZEROS = /^0+/u
+
 /**
  * Máscara de moeda pt-BR **na digitação** (revisão de design da T30, A3): a tela mostrava `89.90`
  * no campo e `R$ 124,90` no total, dois formatos para a mesma grandeza na mesma tela. Só dígito
  * entra, e os dois últimos são sempre os centavos — o separador não é digitado, é consequência.
+ * No teto de dígitos a próxima tecla não entra (`isAmountInputAtLimit` diz isso na tela).
  */
 export function maskAmountInput(raw: string): string {
   const digits = raw.replace(/\D/gu, '')
   if (digits.length === 0) return ''
-  const padded = digits.padStart(3, '0')
+  const padded = digits.replace(LEADING_ZEROS, '').slice(0, MAX_AMOUNT_DIGITS).padStart(3, '0')
   const whole = BigInt(padded.slice(0, -2)).toString()
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/gu, '.')
   return `${grouped},${padded.slice(-2)}`
+}
+
+/** Chegou ao teto de dígitos: a próxima tecla não entra — e a tela diz isso em vez de ignorá-la calada. */
+export function isAmountInputAtLimit(text: string): boolean {
+  return text.replace(/\D/gu, '').replace(LEADING_ZEROS, '').length >= MAX_AMOUNT_DIGITS
 }
 
 /** O decimal que a soma e a API leem, a partir do texto mascarado. Vazio continua vazio. */

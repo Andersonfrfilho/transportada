@@ -41,6 +41,7 @@ const CREDENTIAL = {
   envelope: { sealed: true },
   fiscalEnvironment: 'homologation',
   municipalRegistration: '12345678',
+  taxId: '12345678000190',
 } as const
 
 const ISSUE_ENVELOPE: NfseProcessingEnvelopeV1 = {
@@ -106,6 +107,7 @@ function createEffectFixture(options?: {
     cancellationMotive: CANCELLATION_MOTIVE,
     credential: CREDENTIAL,
     payload: { serviceAmount: '100.0000' },
+    providerApiVersion: 'v2',
     providerDocumentId: PROVIDER_DOCUMENT_ID,
   }
 
@@ -289,7 +291,11 @@ describe('NFS-e issuance effect contract', () => {
   /** O XML da emissão é o congelado na requisição: sem ele não há o que transmitir, e remontar aqui mudaria o documento. */
   test('an issue whose payload was never frozen is fatal, and the provider is never called', async () => {
     const fixture = createEffectFixture({
-      input: { credential: CREDENTIAL, providerDocumentId: PROVIDER_DOCUMENT_ID },
+      input: {
+        credential: CREDENTIAL,
+        providerApiVersion: 'v2',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+      },
     })
 
     await expect(fixture.execute(ISSUE_ENVELOPE)).rejects.toBeInstanceOf(NfseIssuanceFatalError)
@@ -302,6 +308,7 @@ describe('NFS-e issuance effect contract', () => {
       input: {
         cancellationMotive: CANCELLATION_MOTIVE,
         credential: CREDENTIAL,
+        providerApiVersion: 'v2',
         providerDocumentId: PROVIDER_DOCUMENT_ID,
       },
     })
@@ -328,11 +335,68 @@ describe('NFS-e issuance effect contract', () => {
       {
         cancellationMotive: CANCELLATION_MOTIVE,
         credential: CREDENTIAL,
+        providerApiVersion: 'v2',
         providerDocumentId: PROVIDER_DOCUMENT_ID,
       },
     ])
     expect(Object.keys(CANCEL_ENVELOPE.payload)).not.toContain('cancellationMotive')
     expect(Object.keys(CANCEL_ENVELOPE.payload)).not.toContain('cancellationReason')
+  })
+
+  test('an issue carries the attempt provider version, and its own id as the key of a legacy attempt', async () => {
+    const fixture = createEffectFixture({
+      input: {
+        credential: CREDENTIAL,
+        payload: { serviceAmount: '100.0000' },
+        providerApiVersion: 'v3',
+      },
+    })
+
+    await fixture.execute(ISSUE_ENVELOPE)
+
+    expect(fixture.issued).toEqual([
+      {
+        credential: CREDENTIAL,
+        payload: { serviceAmount: '100.0000' },
+        providerApiVersion: 'v3',
+        providerRequestKey: ATTEMPT_ID,
+      },
+    ])
+  })
+
+  test('an issue sends the persisted provider key and the id_nota proven to be from the v3', async () => {
+    const fixture = createEffectFixture({
+      input: {
+        credential: CREDENTIAL,
+        payload: { serviceAmount: '100.0000' },
+        providerApiVersion: 'v3',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+        providerRequestKey: 'persisted-key',
+        reissueProviderDocumentId: PROVIDER_DOCUMENT_ID,
+      },
+    })
+
+    await fixture.execute(ISSUE_ENVELOPE)
+
+    expect(fixture.issued[0]).toMatchObject({
+      providerDocumentId: PROVIDER_DOCUMENT_ID,
+      providerRequestKey: 'persisted-key',
+    })
+  })
+
+  test('a reissue without a proven v3 origin never sends the stored id_nota', async () => {
+    const fixture = createEffectFixture({
+      input: {
+        credential: CREDENTIAL,
+        payload: { serviceAmount: '100.0000' },
+        providerApiVersion: 'v3',
+        providerDocumentId: PROVIDER_DOCUMENT_ID,
+      },
+    })
+
+    await fixture.execute(ISSUE_ENVELOPE)
+
+    expect(fixture.issued[0]).not.toHaveProperty('providerDocumentId')
   })
 
   test('confirms the cancellation when the provider accepts it', async () => {
@@ -349,7 +413,12 @@ describe('NFS-e issuance effect contract', () => {
 
   test('a cancellation without a provider document is fatal, and the provider is never called', async () => {
     const fixture = createEffectFixture({
-      input: { cancellationMotive: CANCELLATION_MOTIVE, credential: CREDENTIAL, payload: {} },
+      input: {
+        cancellationMotive: CANCELLATION_MOTIVE,
+        credential: CREDENTIAL,
+        payload: {},
+        providerApiVersion: 'v2',
+      },
     })
 
     await expect(fixture.execute(CANCEL_ENVELOPE)).rejects.toBeInstanceOf(NfseIssuanceFatalError)
@@ -362,6 +431,7 @@ describe('NFS-e issuance effect contract', () => {
       input: {
         credential: CREDENTIAL,
         payload: {},
+        providerApiVersion: 'v2',
         providerDocumentId: PROVIDER_DOCUMENT_ID,
       },
     })

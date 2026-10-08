@@ -401,7 +401,7 @@ describe('o que a transferência recusa (spec 249 D1/D5)', () => {
       const request = transferRequest(world, { driverIds: [world.bruno.id] })
       await currentDatabase()
         .db.update(trips)
-        .set({ status: 'completed' })
+        .set({ status: 'cancelled' })
         .where(eq(trips.id, world.trip.tripId))
 
       const error = await world.repository
@@ -427,7 +427,7 @@ describe('o que a transferência recusa (spec 249 D1/D5)', () => {
 
       expect(error).toMatchObject({
         code: 'STATE_TRANSITION_NOT_ALLOWED',
-        reason: 'TRIP_COMPLETED',
+        reason: 'TRIP_CANCELLED',
       })
       expect(await readCrewEvents(currentDatabase(), world.trip.tripId)).toEqual([])
     },

@@ -6,6 +6,8 @@ import { alias } from 'drizzle-orm/pg-core'
 
 import {
   auditLogs,
+  cargoArrivalDocuments,
+  cargoArrivals,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
@@ -93,6 +95,11 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { toDeliveryDeadlineNote } from './trip-delivery-deadline-note.mapper.js'
+import {
+  readTripDeliveryDeadlines,
+  type DeliveryDeadlineReadContext,
+} from './trip-delivery-deadline.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
@@ -118,6 +125,7 @@ import type { PendingMeasurementBoxLookupPort } from '../application/pending-mea
 import type { CargoLayoutPendingMeasurement } from '../application/read-cargo-layout.types.js'
 import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
 import { applyTripCrewTransfer } from './trip-crew-transfer.persistence.js'
@@ -158,15 +166,28 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
   private readonly cargoLayoutLeaseMs: number
   private readonly packageBoxLookup: PendingMeasurementBoxLookupPort
+  private readonly deliveryDeadlineContext: DeliveryDeadlineReadContext | undefined
 
   public constructor(
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
-    dependencies: { readonly packageBoxLookup?: PendingMeasurementBoxLookupPort } = {},
+    dependencies: {
+      /** Spec 236: o "hoje" do prazo de entrega, montado só em `main.ts`. Sem ele o detalhe não o calcula. */
+      readonly clock?: { now(): Date }
+      readonly logger?: ApiLogger
+      readonly packageBoxLookup?: PendingMeasurementBoxLookupPort
+    } = {},
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
     this.packageBoxLookup = dependencies.packageBoxLookup ?? noPendingMeasurementBoxLookup
+    this.deliveryDeadlineContext =
+      dependencies.clock === undefined
+        ? undefined
+        : {
+            clock: dependencies.clock,
+            ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+          }
   }
 
   public async close(input: {
@@ -209,6 +230,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           tripId: input.tripId,
           cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
           packageBoxLookup: this.packageBoxLookup,
+          deliveryDeadlineContext: this.deliveryDeadlineContext,
         })
       }
 
@@ -264,6 +286,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         return readTripDetail(transaction, {
           cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
           packageBoxLookup: this.packageBoxLookup,
+          deliveryDeadlineContext: this.deliveryDeadlineContext,
           companyId: input.companyId,
           tripId: input.tripId,
         })
@@ -306,6 +329,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         packageBoxLookup: this.packageBoxLookup,
+        deliveryDeadlineContext: this.deliveryDeadlineContext,
       })
     })
   }
@@ -417,6 +441,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       return readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         packageBoxLookup: this.packageBoxLookup,
+        deliveryDeadlineContext: this.deliveryDeadlineContext,
         companyId: input.companyId,
         tripId: input.tripId,
       })
@@ -437,6 +462,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         companyId: input.companyId,
         packageBoxLookup: this.packageBoxLookup,
+        deliveryDeadlineContext: this.deliveryDeadlineContext,
         tripId: input.tripId,
       })
       return trip === null ? null : { transfer, trip }
@@ -485,6 +511,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       const detail = await readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         packageBoxLookup: this.packageBoxLookup,
+        deliveryDeadlineContext: this.deliveryDeadlineContext,
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -508,6 +535,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       ...input,
       cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
       packageBoxLookup: this.packageBoxLookup,
+      deliveryDeadlineContext: this.deliveryDeadlineContext,
     })
   }
 
@@ -655,6 +683,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       return readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         packageBoxLookup: this.packageBoxLookup,
+        deliveryDeadlineContext: this.deliveryDeadlineContext,
         companyId: input.companyId,
         tripId: input.tripId,
       })
@@ -1258,6 +1287,7 @@ async function readTripDetail(
   input: {
     readonly cargoLayoutLeaseMs: number
     readonly companyId: string
+    readonly deliveryDeadlineContext: DeliveryDeadlineReadContext | undefined
     readonly packageBoxLookup: PendingMeasurementBoxLookupPort
     readonly tripId: string
   },
@@ -1333,6 +1363,13 @@ async function readTripDetail(
       freightDestinationCityCode: tripDocumentRecipientAddress.cityCode,
       freightDestinationState: tripDocumentRecipientAddress.state,
       freightSenderTaxId: tripDocumentEmitter.taxId,
+      /**
+       * Spec 236 RF5: a chegada da nota e a **cópia** do prazo, do join que já existia — `unique
+       * (company_id, nfe_document_id)` garante uma linha por nota, e o contratante nem é lido.
+       */
+      arrivalDeadlineBusinessDays: cargoArrivals.deliveryDeadlineBusinessDays,
+      arrivalReturnToContractor: cargoArrivalDocuments.returnToContractor,
+      arrivedAt: cargoArrivals.arrivedAt,
     })
     .from(tripDocuments)
     .leftJoin(
@@ -1377,6 +1414,20 @@ async function readTripDetail(
       and(
         eq(tripDocumentRecipientAddress.companyId, tripDocumentRecipient.companyId),
         eq(tripDocumentRecipientAddress.participantId, tripDocumentRecipient.id),
+      ),
+    )
+    .leftJoin(
+      cargoArrivalDocuments,
+      and(
+        eq(cargoArrivalDocuments.companyId, tripDocuments.companyId),
+        eq(cargoArrivalDocuments.nfeDocumentId, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
+      cargoArrivals,
+      and(
+        eq(cargoArrivals.companyId, cargoArrivalDocuments.companyId),
+        eq(cargoArrivals.id, cargoArrivalDocuments.arrivalId),
       ),
     )
     .where(and(...buildTripDocumentListFilters(input)))
@@ -1434,9 +1485,37 @@ async function readTripDetail(
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
   })
+  /**
+   * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
+   * criação da parada, e ficou congelado quando o rótulo passou a levar o número do endereço.
+   * Recalcular por migration em SQL seria a quarta grafia de endereço nesta base — e a terceira já
+   * divergiu em silêncio. Sem endereço resolvido, o gravado continua valendo. Lida antes das notas
+   * porque o prazo de entrega também precisa da cidade do destino físico (spec 236): uma leitura só.
+   */
+  const stopAddresses = await listStopAddresses(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
+  /**
+   * Spec 236 RF5: desvio manual, entrega e calendário — seis consultas fixas por viagem, só quando alguma
+   * nota tem chegada e prazo (nenhuma, senão), em série: o `queryable` pode ser transação.
+   */
+  const deliveryDeadlines =
+    input.deliveryDeadlineContext === undefined
+      ? new Map<string, NonNullable<TripDocumentDetail['deliveryDeadline']>>()
+      : await readTripDeliveryDeadlines(queryable, {
+          companyId: input.companyId,
+          context: input.deliveryDeadlineContext,
+          notes: documentRecords.map(toDeliveryDeadlineNote),
+          stopAddresses,
+          tripId: input.tripId,
+        })
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
+      deliveryDeadline: deliveryDeadlines.get(row.document.id) ?? null,
       contact:
         row.document.nfeDocumentId === null
           ? null
@@ -1520,16 +1599,6 @@ async function readTripDetail(
     view: cargoWeight,
   })
 
-  /**
-   * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
-   * criação da parada, e ficou congelado quando o rótulo passou a levar o número do endereço.
-   * Recalcular por migration em SQL seria a quarta grafia de endereço nesta base — e a terceira já
-   * divergiu em silêncio. Sem endereço resolvido, o gravado continua valendo.
-   */
-  const stopAddresses = await listStopAddresses(queryable, {
-    companyId: input.companyId,
-    nfeDocumentIds,
-  })
   const addressOf = (stopId: string) => {
     for (const document of documentsByStopId.get(stopId) ?? []) {
       const address =

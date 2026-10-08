@@ -4,6 +4,7 @@
 import { ApiError } from '../../shared/api.error.js'
 import { OCCURRENCE_DECLARED_AMOUNT_FIELD } from '../../shared/trip-occurrence.constant.js'
 import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
+import { TRIP_PROOF_REPORT_MAX_DOCUMENTS, TRIP_REPORT_MAX_ROWS } from './trip-report.constant.js'
 import type { TripTransitionBlock } from './trip-state.policy.js'
 
 export class TripVehicleNotFoundError extends ApiError {
@@ -1439,6 +1440,28 @@ export class TripOccurrenceDeclaredAmountRequiredError extends ApiError {
       code: 'TRIP_OCCURRENCE_DECLARED_AMOUNT_REQUIRED',
       details: [{ field, message: REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE }],
       message: 'This occurrence type requires the declared amount.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 253 RF2: o relatório passa do teto de linhas — o filtro precisa ser mais estreito. */
+export class TripReportTooLargeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_REPORT_TOO_LARGE',
+      message: `The report has more than ${TRIP_REPORT_MAX_ROWS} rows. Narrow the filters.`,
+      status: 422,
+    })
+  }
+}
+
+/** Spec 253 RF11: o PDF de canhotos passa do teto de notas. */
+export class TripProofReportTooLargeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_PROOF_REPORT_TOO_LARGE',
+      message: `The proof report has more than ${TRIP_PROOF_REPORT_MAX_DOCUMENTS} documents. Narrow the selection.`,
       status: 422,
     })
   }

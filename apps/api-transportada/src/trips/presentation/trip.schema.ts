@@ -203,7 +203,7 @@ export function parseTripList(url: URL): TripListing {
   return { ...readPaging(parameters), ...(hasFilter(filters) ? { filters } : {}) }
 }
 
-function parseIsoDateTime(value: string | null): string | undefined {
+export function parseIsoDateTime(value: string | null): string | undefined {
   if (value === null) return undefined
   if (!z.iso.datetime().safeParse(value).success) throw invalidRequest()
   return value

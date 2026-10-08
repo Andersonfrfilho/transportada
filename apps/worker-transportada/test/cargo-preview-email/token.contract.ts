@@ -45,6 +45,15 @@ describe('o token do endereço de entrada da prévia (spec 237 T4.6)', () => {
     )
   })
 
+  test('o domínio de entrada configurado com espaço nas pontas ainda casa (como na API, que o apara)', () => {
+    expect(
+      extractPreviewTokenCandidates({
+        replyDomain: `  ${DOMAIN.toUpperCase()} `,
+        toAddresses: [`${TOKEN}@${DOMAIN}`],
+      }),
+    ).toEqual([TOKEN])
+  })
+
   test('devolve cada candidato uma vez só', () => {
     expect(
       extractPreviewTokenCandidates({

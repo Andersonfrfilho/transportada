@@ -78,6 +78,9 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   `toAddresses[0]`** — teto `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, cópia por valor da API com
   contrato de paridade (spec 150 T302). Detalhe: docs/ai-context § "O e-mail à contratante sai para
   todos os destinatários".
+- **O feriado municipal fecha só a parada da cidade dele no roteirizador** — a janela do cliente é resolvida por
+  `(cidade da parada, CNPJ)` (`drizzle-pool-window.query.ts`), nunca com os feriados de todo o roteiro. Detalhe:
+  docs/ai-context § "O feriado municipal no roteirizador vale só para a parada da cidade dele".
 - **A limpeza do limitador de taxa (`rate_limit_windows`) é rotina daqui, não da API nem do cron**
   (spec 150 T406) — `rate-limit.window.purge` apaga janela com mais de 48 h. Detalhe: docs/ai-context
   § "A limpeza do limitador de taxa é rotina do worker".
@@ -127,9 +130,18 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   `not_aligned`) e só a última grava `FORWARDER_DKIM_UNVERIFIABLE`; **a conversa só grava `aligned` com o `From` assinado
   igual ao remetente gravado** (`conversation-sender-identity.policy.ts`); o MIME da mensagem é de quem a registrou (reentrega descarta só a
   planilha da tentativa). Anexo com o teto e o critério do upload; recusa vira linha em `cargo_preview_email_intakes`
-  (só código), sem corpo nem eco. A criação da prévia é **cópia por valor** do upload da API
+  (só código), sem corpo nem eco. O token do endereço é **gerado pela API** (T4.6b, 26 base32 de `getRandomValues`) com a mesma política de hash
+  deste ramo — `test/cargo-preview-email/parity.contract.ts` cobra o padrão, o propósito e a expressão do hash dos dois lados. A criação da prévia é **cópia por valor** do upload da API
   (`preview-upload-file.policy.ts`, paridade nos dois sentidos). A planilha nunca é aberta aqui. Detalhe:
   docs/ai-context § "A prévia por e-mail encaminhado".
+
+- **A retenção da planilha é rotina daqui** (spec 237 T4.8, ADR-0094 §11) — `cargo-preview.retention.apply`, diária:
+  90 dias depois de a prévia (`ready`/`failed`) ficar **sem item em aberto**, apaga do bucket a planilha e o MIME
+  bruto do e-mail encaminhado, marca `stored_objects` como `deleted` (nunca apaga a linha, nunca anula
+  `raw_object_id`) e anula `recipient_name`, `address`, `neighborhood`, `postal_code` dos itens. O marcador é o
+  evento `retention_applied` (sem coluna nova); uma transação por prévia, bytes **antes** de qualquer escrita,
+  trava do contratante sem esperar. Prévia com item em aberto nunca é tocada. `CARGO_PREVIEW_RETENTION_DAYS` é
+  cópia byte a byte da API. Detalhe: docs/ai-context § "A retenção de 90 dias dos dados da planilha".
 
 ## O expurgo de posição (spec 196, ADR-0081)
 

@@ -2,17 +2,15 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, gt, gte, ilike, lte } from 'drizzle-orm'
+import { and, asc, eq, gt, ilike } from 'drizzle-orm'
 
-import { contractors, municipalHolidays } from '../../database/delivery-client.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import type {
   Contractor,
   ContractorListFilters,
   ContractorPage,
   ContractorRepositoryPort,
   ContractorWriteInput,
-  MunicipalHoliday,
-  MunicipalHolidayRepositoryPort,
 } from '../application/contractor.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -101,81 +99,6 @@ export class DrizzleContractorRepository implements ContractorRepositoryPort {
       .returning()
 
     return updated === undefined ? null : toContractor(updated)
-  }
-}
-
-export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayRepositoryPort {
-  public constructor(private readonly database: Database) {}
-
-  public async list(input: {
-    readonly cityIbgeCode?: string
-    readonly companyId: string
-    readonly from?: string
-    readonly to?: string
-  }): Promise<readonly MunicipalHoliday[]> {
-    const rows = await this.database
-      .select()
-      .from(municipalHolidays)
-      .where(
-        and(
-          eq(municipalHolidays.companyId, input.companyId),
-          ...(input.cityIbgeCode === undefined
-            ? []
-            : [eq(municipalHolidays.cityIbgeCode, input.cityIbgeCode)]),
-          ...(input.from === undefined ? [] : [gte(municipalHolidays.holidayOn, input.from)]),
-          ...(input.to === undefined ? [] : [lte(municipalHolidays.holidayOn, input.to)]),
-        ),
-      )
-      .orderBy(asc(municipalHolidays.holidayOn), asc(municipalHolidays.cityIbgeCode))
-
-    return rows.map((row) => ({
-      cityIbgeCode: row.cityIbgeCode,
-      holidayOn: row.holidayOn,
-      id: row.id,
-      name: row.name,
-    }))
-  }
-
-  public async remove(input: {
-    readonly companyId: string
-    readonly id: string
-  }): Promise<boolean> {
-    const removed = await this.database
-      .delete(municipalHolidays)
-      .where(
-        and(eq(municipalHolidays.companyId, input.companyId), eq(municipalHolidays.id, input.id)),
-      )
-      .returning({ id: municipalHolidays.id })
-
-    return removed.length > 0
-  }
-
-  public async save(input: {
-    readonly cityIbgeCode: string
-    readonly companyId: string
-    readonly holidayOn: string
-    readonly name: string
-  }): Promise<MunicipalHoliday> {
-    /** Recadastrar o mesmo dia corrige o nome em vez de estourar unique: o operador está corrigindo. */
-    const [saved] = await this.database
-      .insert(municipalHolidays)
-      .values(input)
-      .onConflictDoUpdate({
-        set: { name: input.name },
-        target: [
-          municipalHolidays.companyId,
-          municipalHolidays.cityIbgeCode,
-          municipalHolidays.holidayOn,
-        ],
-      })
-      .returning()
-
-    return {
-      cityIbgeCode: saved!.cityIbgeCode,
-      holidayOn: saved!.holidayOn,
-      id: saved!.id,
-      name: saved!.name,
-    }
   }
 }
 

@@ -203,7 +203,30 @@ a regra fica num lugar só.
 - **Fila:** o item `documentOccurrence` ganhou `extraPhotos` e `signature` (opcionais; item antigo vale sem migrar o IndexedDB);
   `sendDocumentOccurrence` sobe fotos e assinatura em paralelo e manda `signatureObjectId` no mesmo `POST`. Fotos e assinatura
   contam na cota de bytes e em `attachmentCount`; fila cheia recusa o toque inteiro. Nada vai a `/proof` (regra da 209).
-- **Limitações declaradas:** o snapshot não traz os itens da nota, então com Produtos obrigatório só existe "A nota inteira"
+- **Limitações declaradas (superadas pela 247, abaixo):** o snapshot não traz os itens da nota, então com Produtos obrigatório só existe "A nota inteira"
   (satisfaz "todos" e "ao menos N"; o servidor é quem cobra o N). Item de fila gravado por versão antiga, sob tipo que depois
   endurece, recebe **422 permanente** da API (o app não reescreve o item; ver pendências em `evidence.md`). A lacuna do app com produtos item a item é pendência.
 - **Medições pendentes:** nenhuma no app; T1d.0 e T3.0 são da API (`docs/ai-context/api-transportada.md` § "Spec 246").
+
+## Spec 247 — A devolução soma os itens (ainda não publicada)
+
+**Arquivos-chave:** `occurrenceAmount.service.ts` (espelho do cálculo da API), `occurrenceItemLine.service.ts` e `OccurrenceItemRow`/
+`OccurrenceItemsField` (lista de produtos, quantidade na unidade da nota, soma da linha), `OccurrenceTotals` (soma e total), `OccurrenceMoneyField` +
+`occurrenceMoneyMask.service.ts`, `occurrenceMissingFields.service.ts` (o que falta para liberar "Registrar"), `occurrenceDispatch.service.ts` (itens, número e
+valor pela fila). Contratos: `occurrence-amount.contract.ts` (mesmos casos da API e do painel).
+
+- **Supera a limitação da 246:** o snapshot agora traz os produtos; o mínimo de itens da 246 é cobrado no aparelho. O servidor continua recobrando.
+- **Dinheiro:** máscara de centavos com teto de 12 dígitos (a primeira versão descartava dígito em silêncio); `0` é valor; total sem o que somar mostra "—"
+  e "Sem valor" para leitor de tela. Número do documento mantém o texto digitado, com `aria-invalid` e a lista de caracteres válidos.
+- **Nunca manda preço nem unidade:** o servidor lê da nota. Modo `off` no envio é descartado, não recusado (fila offline não trava).
+- **Não exercitado:** login e fila offline reais do motorista; só arnês descartável (Vite 53200) e contrato.
+
+## Spec 255 — O tipo da ocorrência escolhe o ícone
+
+O chip do tipo em `DriverOccurrenceRegistrationForm` renderiza `<OccurrenceTypeIcon iconName={type.iconName} />` antes do nome. Sem `iconName` (ausente, `null`),
+o markup é o de antes (CA1); nome fora do catálogo é tolerado (devolve `null`, não quebra o formulário nem o guard `isDriverOccurrenceType`, que aceita a chave
+opcional). O nome acessível do chip (`role="radio"`) não muda: o ícone é decorativo. Sem CSS novo.
+
+**Cópia por valor.** `shared/occurrenceTypeIcon.constant.ts` repete `OCCURRENCE_TYPE_ICON_NAMES` da API e o contrato `occurrence-type-icon-chip.contract.tsx` lê a
+lista da API como texto e a confere; `icon.tsx` ganhou os glyphs que faltavam com o traçado do painel. `scripts/driver-preview-api.ts` traz exemplos (`package`,
+`null`). **Não exercitado:** a posição do ícone no chip é conferida no fonte (o formulário tem hook com estado e fila, sem render estático); o smoke CA3 em staging é a T4.1.

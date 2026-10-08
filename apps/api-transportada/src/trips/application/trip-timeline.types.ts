@@ -177,6 +177,11 @@ export type TripTimelineItem = {
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null
   readonly id: string
+  /**
+   * `true` quando o autor é uma integração (conta de serviço, cron, futuras integrações), não uma
+   * pessoa. O painel não adivinha pelo nome vazio: nome ausente é "autor não identificado".
+   */
+  readonly isSystemActor: boolean
   readonly kind: TripTimelineKind
   /**
    * Spec 205 RF6: a baixa veio pelo "Registrar entrega depois" da app do motorista — só pode ser

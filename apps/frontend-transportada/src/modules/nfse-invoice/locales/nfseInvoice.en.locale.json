@@ -114,6 +114,7 @@
     "discard": "Discard the service invoice",
     "downloadPdf": "Download the service invoice PDF",
     "downloadXml": "Download the service invoice XML",
+    "externalLink": "Link a note issued on the portal",
     "reissue": "Reissue the service invoice"
   },
   "detail": {
@@ -194,6 +195,18 @@
     "title": "Discard the service invoice",
     "warning": "Discarding releases the linked fiscal invoices and cannot be undone."
   },
+  "externalLinkDialog": {
+    "alreadyLinked": "This id_nota is already linked to another service invoice.",
+    "back": "Back",
+    "close": "Close",
+    "confirm": "Link the note",
+    "description": "Use when the note was already issued on the Nota RP portal. Enter the id_nota: the system checks the note with the city hall, without issuing again, and authorizes it if the amount matches.",
+    "failed": "Could not link the note. Check the id_nota and try again.",
+    "providerDocumentId": "Portal id_nota",
+    "providerDocumentIdInvalid": "The id_nota is digits only, 1 to 20 long.",
+    "sending": "Linking…",
+    "title": "Link a note issued on the portal"
+  },
   "reissueDialog": {
     "back": "Back",
     "cnaeCode": "CNAE",
@@ -241,6 +254,7 @@
     "confirm": "Reissue the invoices",
     "confirmation": "Eligible invoices will be reissued, one at a time, with no correction.",
     "empty": "No invoice in the selection can be reissued.",
+    "missingNationalTaxation": "{{count}} invoices were not reissued because the national taxation code and the Simples rate are missing. Fill in both on the emission profile, or reissue the invoice individually with the pair.",
     "result": "{{reissued}} reissued, {{failed}} failed.",
     "subtitle": "{{count}} rejected or failed invoices will be reissued, one at a time.",
     "title": "Reissue the selected service invoices"
@@ -347,6 +361,7 @@
     "freightRuleVersionMissing": "The freight rule used in the calculation is no longer available.",
     "inFlight": "There is an issuance in flight for this invoice.",
     "issRateOutOfRange": "The ISS rate is outside the accepted range.",
+    "nationalTaxationMissing": "Fill in the national taxation code and the Simples rate on the profile or in this reissue.",
     "notAuthorized": "The service invoice is not authorized yet.",
     "notDiscardable": "This service invoice cannot be discarded.",
     "notFound": "Service invoice not found.",
@@ -400,6 +415,7 @@
   "nfseProfileDescriptionMaxLengthLabel": "Description maximum length",
   "nfseProfileMunicipalTaxationLabel": "Municipal taxation code",
   "nfseProfileNbsLabel": "NBS code",
+  "nfseProfileTaxationSummary": "Stored tax pair: cTribNac {{code}} · Simples {{rate}}",
   "nfseProfileObservationsLabel": "Observations",
   "nfseProfileStatusActive": "Active",
   "nfseProfileStatusDraft": "Draft",
@@ -418,6 +434,16 @@
   "nfseProfileBlockedIssRateInvalid": "The ISS rate must be a percentage between 0 and 100.",
   "nfseProfileBlockedDescriptionTemplateRequired": "Write the service description template.",
   "nfseProfileBlockedDescriptionMaxLengthInvalid": "The description maximum length must be between 200 and 5000 characters.",
+  "nfseProfileBlockedNationalTaxationCodeInvalid": "The national taxation code must have 6 digits, or be left empty.",
+  "nfseProfileBlockedSimplesNationalRateInvalid": "The Simples rate must be a percentage from 0 to 100 with up to 6 decimal places, or be left empty.",
+  "nationalTaxation": {
+    "codeHint": "Pair accepted by the city hall: 160201 + 160101 for road cargo transport in Ribeirão Preto.",
+    "codeInvalid": "The national taxation code has 6 digits.",
+    "codeLabel": "National taxation code (cTribNac)",
+    "rateHint": "Goes into the invoice's approximate taxes. Nota RP documents a minimum of 4.50%.",
+    "rateInvalid": "The Simples rate must be a percentage from 0 to 100 with up to 6 decimal places.",
+    "rateLabel": "Effective Simples Nacional rate (%)"
+  },
   "nfseIssExigibility1": "1 — Chargeable",
   "nfseIssExigibility2": "2 — Non-incidence",
   "nfseIssExigibility3": "3 — Exemption",

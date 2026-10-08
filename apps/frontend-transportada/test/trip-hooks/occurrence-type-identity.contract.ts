@@ -87,7 +87,7 @@ async function typeName(value: string): Promise<void> {
 
 describe('o tipo aberto segue o preview (T6.1, CA08)', () => {
   test(
-    'os blocos vêm na ordem Identificação, momentos, o que exige, notificação',
+    'os blocos vêm na ordem Identificação, momentos, o que exige, aviso interno',
     scenario(async () => {
       await Promise.resolve()
       const titles = [...document.querySelectorAll('section[aria-label]')].map((section) =>
@@ -96,18 +96,18 @@ describe('o tipo aberto segue o preview (T6.1, CA08)', () => {
 
       expect(titles).toEqual([
         'Identificação',
-        'Em que momento pode acontecer',
+        'Quem registra, e onde',
         'O que exige',
         'Exceções por cliente',
       ])
       const order = (document.body.textContent ?? '').match(
-        /Identificação|Em que momento pode acontecer|O que exige|Notificação/gu,
+        /Identificação|Quem registra, e onde|O que exige|Aviso interno/gu,
       )
       expect(order?.slice(0, 4)).toEqual([
         'Identificação',
-        'Em que momento pode acontecer',
+        'Quem registra, e onde',
         'O que exige',
-        'Notificação',
+        'Aviso interno',
       ])
     }),
   )

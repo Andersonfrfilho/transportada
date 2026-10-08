@@ -56,6 +56,12 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/cargo-receiving/styles/cargoOccurrenceDialog.module.css',
     overlay: '.overlay',
   },
+  /** Spec 238 Fase 2: a confirmação de excluir regra, data ou feriado estadual do calendário. */
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/company-settings/styles/businessCalendar.module.css',
+    overlay: '.overlay',
+  },
   { dialog: '.dialog', filePath: 'src/modules/fleet/styles/fleet.module.css', overlay: '.overlay' },
   /** Spec 183 T407: "Enviar à contratante". */
   {

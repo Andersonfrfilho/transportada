@@ -43,9 +43,11 @@ export const PROFILE_SETTINGS = {
   municipalityIbgeCode: '3543402',
   municipalityName: 'Ribeirão Preto',
   name: 'Ribeirão Preto — transporte',
+  nationalTaxationCode: '160201',
   nbsCode: '',
   observations: '',
   serviceListItem: '16.01',
+  simplesNationalRate: '2.000000',
   taker: '3',
 } as const
 

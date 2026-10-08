@@ -268,6 +268,18 @@ export const JOB_CATALOG = [
     /** A batida: o canhoto chega durante o dia e a fila precisa estar curta quando o escritório abre. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 237 T4.8 (decisão do usuário, 2026-10-06): 90 dias depois de a prévia da carga ficar sem
+     * item em aberto, a rotina apaga do bucket a planilha e o MIME bruto do e-mail encaminhado e
+     * anula os quatro campos pessoais dos itens. Só toca o próprio banco e o bucket: o imprevisto já
+     * tem nome no invólucro, e falha de storage vira contador, nunca exceção.
+     */
+    failureOutcomes: [],
+    job: 'cargo-preview.retention.apply',
+    /** Um dia: o corte é de 90 dias, e correr mais fino não muda a retenção real. */
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

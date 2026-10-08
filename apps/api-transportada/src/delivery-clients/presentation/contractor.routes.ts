@@ -1,20 +1,16 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * O contratante e o feriado do município são cadastro de configuração da operação: ler é
- * `fleet.read` (o roteiro e a viagem consultam), escrever é `settings.manage` — período de
- * fechamento e destinatário do relatório decidem para quem o dinheiro é cobrado.
+ * O contratante é cadastro de configuração da operação: ler é `fleet.read` (o roteiro e a viagem
+ * consultam), escrever é `settings.manage` — período de fechamento e destinatário do relatório decidem
+ * para quem o dinheiro é cobrado. O feriado do município mora em `business-calendar` (spec 238 T1.3).
  */
 import { z } from 'zod'
 
 import { defineRoute } from '../../http/router.service.js'
 import { parseBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
-import {
-  API_CONTRACTORS_PATH,
-  API_MUNICIPAL_HOLIDAYS_PATH,
-  JSON_CONTENT_TYPE,
-} from '../../shared/api.constant.js'
+import { API_CONTRACTORS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import {
   CONTRACTOR_CLOSING_PERIODS,
   DELIVERY_CLIENT_STATUSES,
@@ -26,19 +22,15 @@ import type {
   ContractorListFilters,
   ContractorPage,
   ContractorWriteInput,
-  MunicipalHoliday,
 } from '../application/contractor.port.js'
 import { ContractorNotFoundError } from '../domain/delivery-client.error.js'
 
 const CONTRACTOR_PATH = `${API_CONTRACTORS_PATH}/:id`
 const CONTRACTOR_BY_TAX_ID_PATH = `${API_CONTRACTORS_PATH}/by-tax-id/:taxId`
-const HOLIDAY_PATH = `${API_MUNICIPAL_HOLIDAYS_PATH}/:id`
 
 const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 
-const DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u
-const CITY_PATTERN = /^[0-9]{7}$/u
 const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
 
@@ -55,14 +47,6 @@ const contractorWriteSchema = z
 
 const contractorCreateSchema = contractorWriteSchema
   .extend({ taxId: buildTaxIdSchema(TAX_ID_PATTERN) })
-  .strict()
-
-const holidaySchema = z
-  .object({
-    cityIbgeCode: z.string().regex(CITY_PATTERN),
-    holidayOn: z.string().regex(DATE_PATTERN),
-    name: z.string().trim().min(1).max(120),
-  })
   .strict()
 
 export type ContractorRoutesDependencies = {
@@ -87,25 +71,6 @@ export type ContractorRoutesDependencies = {
       readonly context: CompanyContext
       readonly filters: ContractorListFilters
     }): Promise<ContractorPage>
-  }
-  readonly listHolidays: {
-    execute(input: {
-      readonly cityIbgeCode?: string
-      readonly context: CompanyContext
-      readonly from?: string
-      readonly to?: string
-    }): Promise<readonly MunicipalHoliday[]>
-  }
-  readonly removeHoliday: {
-    execute(input: { readonly context: CompanyContext; readonly id: string }): Promise<void>
-  }
-  readonly saveHoliday: {
-    execute(input: {
-      readonly cityIbgeCode: string
-      readonly context: CompanyContext
-      readonly holidayOn: string
-      readonly name: string
-    }): Promise<MunicipalHoliday>
   }
   readonly updateContractor: {
     execute(input: {
@@ -204,43 +169,6 @@ export function createContractorRoutes(
       pathname: CONTRACTOR_PATH,
       policy: MANAGE_POLICY,
     }),
-    defineRoute<{
-      readonly cityIbgeCode?: string
-      readonly from?: string
-      readonly to?: string
-    }>({
-      async handle({ context, input }): Promise<Response> {
-        const holidays = await dependencies.listHolidays.execute({
-          context: context.scope,
-          ...input,
-        })
-        return jsonResponse({ body: { data: holidays }, status: 200 })
-      },
-      method: 'GET',
-      parse: ({ request }) => parseHolidayFilters(new URL(request.url)),
-      pathname: API_MUNICIPAL_HOLIDAYS_PATH,
-      policy: READ_POLICY,
-    }),
-    defineRoute<z.infer<typeof holidaySchema>>({
-      async handle({ context, input }): Promise<Response> {
-        const holiday = await dependencies.saveHoliday.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: holiday }, status: 201 })
-      },
-      method: 'POST',
-      parse: ({ request }) => parseBody(holidaySchema, request),
-      pathname: API_MUNICIPAL_HOLIDAYS_PATH,
-      policy: MANAGE_POLICY,
-    }),
-    defineRoute<{ readonly id: string }>({
-      async handle({ context, input }): Promise<Response> {
-        await dependencies.removeHoliday.execute({ context: context.scope, id: input.id })
-        return new Response(null, { headers: { 'cache-control': 'no-store' }, status: 204 })
-      },
-      method: 'DELETE',
-      parse: ({ pathParameters }) => ({ id: parseUuidPathIdentifier(pathParameters.id ?? '') }),
-      pathname: HOLIDAY_PATH,
-      policy: MANAGE_POLICY,
-    }),
   ]
 }
 
@@ -260,25 +188,6 @@ function parseContractorList(url: URL): ContractorListFilters {
       ? {}
       : { nameContains: nameContains.trim() }),
     ...(status === null ? {} : { status: z.enum(DELIVERY_CLIENT_STATUSES).parse(status) }),
-  }
-}
-
-function parseHolidayFilters(url: URL): {
-  readonly cityIbgeCode?: string
-  readonly from?: string
-  readonly to?: string
-} {
-  const parameters = url.searchParams
-  const cityIbgeCode = parameters.get('cityIbgeCode')
-  const from = parameters.get('from')
-  const to = parameters.get('to')
-
-  return {
-    ...(cityIbgeCode === null
-      ? {}
-      : { cityIbgeCode: z.string().regex(CITY_PATTERN).parse(cityIbgeCode) }),
-    ...(from === null ? {} : { from: z.string().regex(DATE_PATTERN).parse(from) }),
-    ...(to === null ? {} : { to: z.string().regex(DATE_PATTERN).parse(to) }),
   }
 }
 

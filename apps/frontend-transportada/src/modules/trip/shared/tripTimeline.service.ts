@@ -244,28 +244,10 @@ export function resolveTripTimelineAuthorshipText(
   item: TripTimelineItem,
   t: Translate,
 ): null | string {
+  if (item.isSystemActor === true) return t('authorship.system')
   if (item.kind === 'trip.created' && item.actorName === null) return t('authorship.system')
   return resolveFieldAuthorshipText(item, t)
 }
-/**
- * Spec 180: a autoria só aparece quando **muda**. Numa viagem tocada pelo mesmo operador a frase
- * vinha em todos os eventos, quase tão longa quanto o título e competindo com ele; aqui ficam os
- * ids dos eventos que repetem a frase do anterior, para a tela calar neles.
- */
-export function collectRepeatedAuthorshipItemIds(
-  items: readonly TripTimelineItem[],
-  t: Translate,
-): ReadonlySet<string> {
-  const repeatedIds = new Set<string>()
-  let previousAuthorship: null | string = null
-  for (const item of items) {
-    const authorship = resolveTripTimelineAuthorshipText(item, t)
-    if (authorship !== null && authorship === previousAuthorship) repeatedIds.add(item.id)
-    previousAuthorship = authorship
-  }
-  return repeatedIds
-}
-
 export type TripTimelineDayGroup = Readonly<{
   dayKey: string
   items: readonly TripTimelineItem[]

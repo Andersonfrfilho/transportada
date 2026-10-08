@@ -411,6 +411,8 @@ function OccurrenceDetailSections({
     )
   }
 
+  const tripDocumentId = occurrence.document?.tripDocumentId ?? null
+
   const sections: Record<OccurrenceDetailSection, () => ReactNode> = {
     case: () =>
       occurrence.source === 'document' ? (
@@ -422,6 +424,22 @@ function OccurrenceDetailSections({
             canResolve={canResolveOccurrenceCases}
             occurrenceCase={occurrence.case}
             occurrenceId={occurrence.id}
+            {...(tripDocumentId === null
+              ? {}
+              : {
+                  suggestionSource: {
+                    ...(companyId === undefined ? {} : { companyId }),
+                    ...(occurrence.declaredAmount === undefined
+                      ? {}
+                      : { declaredAmount: occurrence.declaredAmount }),
+                    documentId: tripDocumentId,
+                    ...(occurrence.itemValues === undefined
+                      ? {}
+                      : { itemValues: occurrence.itemValues }),
+                    items: occurrence.items,
+                    tripId: occurrence.tripId,
+                  },
+                })}
           />
         </section>
       ) : null,

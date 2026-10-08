@@ -145,7 +145,7 @@ export async function assertCteProfileOutputConstraints(
   await database`delete from freight_rules where id in (${ownRuleId}, ${otherRuleId})`
 }
 
-async function insertFreightRule(
+export async function insertFreightRule(
   database: SQL,
   companyId: string,
   userId: string,
@@ -162,7 +162,7 @@ async function insertFreightRule(
   return id
 }
 
-async function insertNfseProfile(
+export async function insertNfseProfile(
   database: SQL,
   input: Readonly<{ companyId: string; freightRuleId: string; userId: string }>,
 ): Promise<string> {

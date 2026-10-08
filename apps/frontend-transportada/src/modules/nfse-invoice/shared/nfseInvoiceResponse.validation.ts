@@ -3,6 +3,7 @@ import {
   NFSE_DISCARD_SUMMARY_KEYS,
   NFSE_DOCUMENT_DOWNLOAD_KEYS,
   NFSE_EMISSION_PROFILE_OPTION_KEYS,
+  NFSE_EXTERNAL_LINK_SUMMARY_KEYS,
   NFSE_INVOICE_CHARGE_KEYS,
   NFSE_INVOICE_DELIVERY_KEYS,
   NFSE_INVOICE_DETAIL_KEYS,
@@ -11,6 +12,7 @@ import {
   NFSE_INVOICE_KEYS,
   NFSE_ISSUANCE_SUMMARY_KEYS,
   NFSE_LAST_ISSUANCE_PAYLOAD_KEYS,
+  NFSE_NATIONAL_TAXATION_KEYS,
   NFSE_PREVIEW_ADJUSTMENT_KEYS,
   NFSE_PREVIEW_BLOCK_KEYS,
   NFSE_PREVIEW_CHARGE_KEYS,
@@ -21,11 +23,13 @@ import {
 } from './nfseInvoice.constant'
 import {
   hasExactKeys,
+  hasKeys,
   isBoolean,
   isDecimalString,
   isEveryItem,
   isNullableString,
   isOneOf,
+  isOptionalString,
   isRecord,
   isString,
   isStringArray,
@@ -38,6 +42,7 @@ import {
   NFSE_INVOICE_STATUSES,
   type NfseCancellationSummary,
   type NfseDiscardSummary,
+  type NfseExternalLinkSummary,
   type NfseDocumentDownload,
   type NfseEmissionProfileOption,
   type NfseInvoice,
@@ -110,7 +115,12 @@ function isDelivery(value: unknown): value is NfseInvoiceDelivery {
 /** O payload congelado da última tentativa — nulo quando a fatura ainda não tem tentativa nenhuma. */
 function isLastIssuancePayload(value: unknown): value is NfseLastIssuancePayload {
   return (
-    hasExactKeys(value, NFSE_LAST_ISSUANCE_PAYLOAD_KEYS) &&
+    hasKeys(value, {
+      allowed: [...NFSE_LAST_ISSUANCE_PAYLOAD_KEYS, ...NFSE_NATIONAL_TAXATION_KEYS],
+      required: NFSE_LAST_ISSUANCE_PAYLOAD_KEYS,
+    }) &&
+    isOptionalString(value.nationalTaxationCode) &&
+    isOptionalString(value.simplesNationalRate) &&
     isString(value.cnaeCode) &&
     isString(value.description) &&
     isUnsignedInteger(value.documentCount) &&
@@ -285,6 +295,16 @@ function isDiscardSummary(value: unknown): value is NfseDiscardSummary {
   )
 }
 
+function isExternalLinkSummary(value: unknown): value is NfseExternalLinkSummary {
+  return (
+    hasExactKeys(value, NFSE_EXTERNAL_LINK_SUMMARY_KEYS) &&
+    isString(value.attemptId) &&
+    isString(value.invoiceId) &&
+    isBoolean(value.replayed) &&
+    isString(value.status)
+  )
+}
+
 function isDocumentDownload(value: unknown): value is NfseDocumentDownload {
   return (
     hasExactKeys(value, NFSE_DOCUMENT_DOWNLOAD_KEYS) &&
@@ -318,6 +338,10 @@ export function createNfseInvoiceResponseAdapters() {
     },
     documentDownloadFromApi(input: unknown): NfseDocumentDownload {
       if (!isDocumentDownload(input)) throw invalid()
+      return input
+    },
+    externalLinkSummaryFromApi(input: unknown): NfseExternalLinkSummary {
+      if (!isExternalLinkSummary(input)) throw invalid()
       return input
     },
     emissionProfilesFromApi(input: unknown): readonly NfseEmissionProfileOption[] {

@@ -4,6 +4,8 @@ import { initReactI18next } from 'react-i18next'
 
 import billingWorkspaceLocale from '@/modules/billing/locales/billingWorkspace.locale.json'
 import billingWorkspaceEnglishLocale from '@/modules/billing/locales/billingWorkspace.en.locale.json'
+import businessCalendarLocale from '@/modules/company-settings/locales/businessCalendar.locale.json'
+import businessCalendarEnglishLocale from '@/modules/company-settings/locales/businessCalendar.en.locale.json'
 import cargoOccurrenceLocale from '@/modules/cargo-receiving/locales/cargoOccurrence.locale.json'
 import cargoReceivingLocale from '@/modules/cargo-receiving/locales/cargoReceiving.locale.json'
 import cargoOccurrenceEnglishLocale from '@/modules/cargo-receiving/locales/cargoOccurrence.en.locale.json'
@@ -18,6 +20,8 @@ import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
 import contractorDirectoryLocale from '@/modules/delivery-clients/locales/contractorDirectory.locale.json'
 import contractorDirectoryEnglishLocale from '@/modules/delivery-clients/locales/contractorDirectory.en.locale.json'
+import previewEmailLocale from '@/modules/delivery-clients/locales/previewEmail.locale.json'
+import previewEmailEnglishLocale from '@/modules/delivery-clients/locales/previewEmail.en.locale.json'
 import deliveryClientsLocale from '@/modules/delivery-clients/locales/deliveryClients.locale.json'
 import deliveryClientsEnglishLocale from '@/modules/delivery-clients/locales/deliveryClients.en.locale.json'
 import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
@@ -62,6 +66,7 @@ void i18n.use(initReactI18next).init({
   resources: {
     en: {
       billingWorkspace: billingWorkspaceEnglishLocale,
+      businessCalendar: businessCalendarEnglishLocale,
       // A avaria da chegada tem arquivo próprio; o namespace é o mesmo e as chaves de topo não se cruzam.
       cargoReceiving: { ...cargoReceivingEnglishLocale, ...cargoOccurrenceEnglishLocale },
       companySettings: companySettingsEnglishLocale,
@@ -82,6 +87,7 @@ void i18n.use(initReactI18next).init({
       occurrenceConversation: occurrenceConversationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       pendingItems: pendingItemsEnglishLocale,
+      previewEmail: previewEmailEnglishLocale,
       routing: routingEnglishLocale,
       spreadsheet: spreadsheetEnglishLocale,
       translation: foundationEnglishLocale,
@@ -90,6 +96,7 @@ void i18n.use(initReactI18next).init({
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
+      businessCalendar: businessCalendarLocale,
       cargoReceiving: { ...cargoReceivingLocale, ...cargoOccurrenceLocale },
       companySettings: companySettingsLocale,
       cteBatch: cteBatchLocale,
@@ -109,6 +116,7 @@ void i18n.use(initReactI18next).init({
       occurrenceConversation: occurrenceConversationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       pendingItems: pendingItemsLocale,
+      previewEmail: previewEmailLocale,
       routing: routingLocale,
       spreadsheet: spreadsheetLocale,
       translation: foundationLocale,

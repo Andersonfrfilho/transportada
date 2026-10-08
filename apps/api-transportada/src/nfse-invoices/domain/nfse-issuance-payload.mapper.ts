@@ -16,9 +16,11 @@ type FrozenPayloadShape = {
   readonly issWithheld: boolean
   readonly municipalTaxationCode: string
   readonly municipalityIbgeCode: string
+  readonly nationalTaxationCode?: string
   readonly nbsCode: string
   readonly serviceAmount: string
   readonly serviceListItem: string
+  readonly simplesNationalRate?: string
   readonly taker: { readonly legalName: string; readonly taxId: string }
 }
 
@@ -42,9 +44,15 @@ export function extractLastIssuancePayload(
     issWithheld: payload.issWithheld,
     municipalTaxationCode: payload.municipalTaxationCode,
     municipalityIbgeCode: payload.municipalityIbgeCode,
+    ...(payload.nationalTaxationCode === undefined
+      ? {}
+      : { nationalTaxationCode: payload.nationalTaxationCode }),
     nbsCode: payload.nbsCode,
     serviceAmount: payload.serviceAmount,
     serviceListItem: payload.serviceListItem,
+    ...(payload.simplesNationalRate === undefined
+      ? {}
+      : { simplesNationalRate: payload.simplesNationalRate }),
     takerLegalName: payload.taker.legalName,
     takerTaxId: payload.taker.taxId,
   }

@@ -9,7 +9,7 @@ import { and, count, eq, inArray } from 'drizzle-orm'
 import { cargoArrivalDocuments } from '../../database/cargo-arrival-document.schema.js'
 import { cargoArrivals } from '../../database/cargo-arrival.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
-import { nfeAddresses, nfeDocuments } from '../../database/nfe.schema.js'
+import { nfeDocuments } from '../../database/nfe.schema.js'
 import type { ArrivalStateCounts } from '../domain/cargo-arrival-grouping.policy.js'
 import { isPendingSeparation } from '../domain/cargo-arrival-return.policy.js'
 import type {
@@ -23,14 +23,18 @@ import type {
 } from '../application/cargo-arrival-request.types.js'
 import type {
   CargoArrivalDetailRecord,
+  CargoArrivalDocumentRecord,
   CargoArrivalListRecord,
   CargoArrivalRecord,
   Page,
 } from '../application/cargo-arrival.types.js'
 import { selectAvailableDocuments } from './cargo-arrival-available.query.js'
 import {
+  NO_ARRIVAL_DESTINATION_CITY,
+  selectArrivalDestinationCities,
+} from './cargo-arrival-destination.query.js'
+import {
   isInLiveTripSql,
-  recipientAddressSql,
   recipientJoin,
   recipientParticipant,
 } from './cargo-arrival-document.query.js'
@@ -119,12 +123,26 @@ export class DrizzleCargoArrivalReadRepository implements CargoArrivalReadReposi
     }
   }
 
-  private documents(params: FindCargoArrivalRecordParams) {
+  /** A cidade é lida do destino físico de agora, nunca do código gravado no registro. */
+  private async documents(
+    params: FindCargoArrivalRecordParams,
+  ): Promise<CargoArrivalDocumentRecord[]> {
+    const rows = await this.documentRows(params)
+    const cities = await selectArrivalDestinationCities(this.database, {
+      companyId: params.companyId,
+      documentIds: rows.map((row) => row.nfeDocumentId),
+    })
+    return rows.map((row) => {
+      const { cityIbgeCode, cityName } =
+        cities.get(row.nfeDocumentId) ?? NO_ARRIVAL_DESTINATION_CITY
+      return { ...row, cityIbgeCode, cityName }
+    })
+  }
+
+  private documentRows(params: FindCargoArrivalRecordParams) {
     return this.database
       .select({
         accessKey: nfeDocuments.accessKey,
-        cityIbgeCode: cargoArrivalDocuments.cityIbgeCode,
-        cityName: recipientAddressSql(nfeAddresses.city),
         isInLiveTrip: isInLiveTripSql(cargoArrivalDocuments.nfeDocumentId).mapWith(Boolean),
         nfeDocumentId: cargoArrivalDocuments.nfeDocumentId,
         number: nfeDocuments.number,

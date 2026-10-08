@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
-import { Tooltip } from '@/components/ui/tooltip'
 import type { OccurrenceType } from '@/modules/trip/shared/occurrence.constant'
 import {
   OCCURRENCE_TEMPLATE_NONE,
@@ -40,7 +39,6 @@ export function OccurrenceTypeNotification({
   const { t } = useTranslation('companySettings')
   const reasonId = useId()
   const selected = templates.options.find((option) => option.key === type.emailTemplateKey)
-  const hasLegacyText = type.emailTemplateKey === null && type.emailSubject !== ''
   const isMissing =
     type.emailTemplateKey !== null && templates.status === 'ready' && selected === undefined
 
@@ -68,22 +66,13 @@ export function OccurrenceTypeNotification({
 
   function renderPreview() {
     if (!type.notifies) return null
-    if (selected !== undefined || hasLegacyText) {
-      const subject = selected?.subject ?? type.emailSubject
-      const body = selected?.body ?? type.emailBody
+    if (selected !== undefined) {
       return (
-        <>
-          {hasLegacyText ? (
-            <p className={styles.templateNote}>
-              {t('occurrenceTypeCatalog.legacyTemplate', { subject: type.emailSubject })}
-            </p>
-          ) : null}
-          <p className={styles.templatePreview}>
-            <strong>{t('occurrenceTypeCatalog.notification.subject')}</strong> {subject}
-            {'\n'}
-            {body}
-          </p>
-        </>
+        <p className={styles.templatePreview}>
+          <strong>{t('occurrenceTypeCatalog.notification.subject')}</strong> {selected.subject}
+          {'\n'}
+          {selected.body}
+        </p>
       )
     }
     if (type.emailTemplateKey === null) {
@@ -97,6 +86,7 @@ export function OccurrenceTypeNotification({
   return (
     <div className={styles.notification}>
       <p className={styles.blockTitle}>{t('occurrenceTypeCatalog.notification.title')}</p>
+      <p className={styles.templateNote}>{t('occurrenceTypeCatalog.notification.templateHint')}</p>
       <Checkbox
         checked={type.notifies}
         disabled={disabled}
@@ -104,17 +94,15 @@ export function OccurrenceTypeNotification({
         onChange={(value) => onEdit({ notifies: value })}
       />
       <div aria-describedby={type.notifies ? undefined : reasonId} role="group">
-        <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.notification.templateHint')}>
-          <Select
-            ariaLabel={t('occurrenceTypeCatalog.notification.template')}
-            disabled={disabled || !type.notifies}
-            onChange={(value) =>
-              onEdit({ emailTemplateKey: value === OCCURRENCE_TEMPLATE_NONE ? null : value })
-            }
-            options={options}
-            value={type.emailTemplateKey ?? OCCURRENCE_TEMPLATE_NONE}
-          />
-        </Tooltip>
+        <Select
+          ariaLabel={t('occurrenceTypeCatalog.notification.template')}
+          disabled={disabled || !type.notifies}
+          onChange={(value) =>
+            onEdit({ emailTemplateKey: value === OCCURRENCE_TEMPLATE_NONE ? null : value })
+          }
+          options={options}
+          value={type.emailTemplateKey ?? OCCURRENCE_TEMPLATE_NONE}
+        />
       </div>
       {type.notifies ? null : (
         <p className={styles.templateNote} id={reasonId}>

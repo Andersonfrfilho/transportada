@@ -23,6 +23,7 @@ export function toSaveOccurrenceTypeValues(
     emailsContractor: input.emailsContractor,
     emailTemplateKey: input.emailTemplateKey,
     flow: input.flow,
+    iconName: input.iconName,
     itemsMinimumCount: input.itemsMinimumCount,
     itemsMode: input.itemsMode,
     leavesDocumentBehind: input.leavesDocumentBehind,
