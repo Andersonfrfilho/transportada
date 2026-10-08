@@ -182,3 +182,27 @@ corpo JSON (nomes dos campos, GZip+Base64) e os status HTTP só têm fonte não 
 - (a) quem recebe, (b) rotas e (d) autenticação: sustentados por fonte oficial.
 - (c) corpo e resposta: **só [NO]**. Por isso a T0.3 **não** foi marcada.
 - Arquivos baixados ficaram só no diretório temporário da sessão; nada foi para o repositório.
+
+### Medição oficial do convênio de Ribeirão Preto (08/10/2026, produção restrita, A1 do prestador)
+
+`GET https://adn.producaorestrita.nfse.gov.br/parametrizacao/3543402/convenio` → **200**:
+
+```json
+{
+  "parametrosConvenio": {
+    "aderenteAmbienteNacional": 1,
+    "aderenteEmissorNacional": 0,
+    "situacaoEmissaoPadraoContribuintesRFB": 1,
+    "aderenteMAN": 0,
+    "permiteAproveitametoDeCreditos": true
+  }
+}
+```
+
+- `aderenteAmbienteNacional = 1`: o município compartilha as NFS-e com o ADN (padrão nacional / DPS).
+- **`aderenteEmissorNacional = 0`**: segundo o FAQ oficial v1.1 (assuntos 19.6 e 1.2), o prestador **não** emite direto
+  na Sefin Nacional; a emissão é no sistema próprio da prefeitura, que compartilha com o ADN (só MEI e item 99
+  emitem nacionalmente nesse caso). Isso é compatível com o aviso da Prefeitura (ISS.Net, webservice no padrão nacional).
+- Isto **contradiz** a confirmação dada no chat (a prefeitura "atende a emissão nacional"): ela é verdadeira para o
+  ambiente nacional (DPS no padrão nacional via ISS.Net), mas **não** para o Emissor Nacional/Sefin gratuito.
+- Ressalva: o valor é de **produção restrita**; o de produção não foi consultado (pede autorização do usuário).
