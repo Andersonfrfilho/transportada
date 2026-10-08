@@ -68,9 +68,9 @@ arquivo.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `retryBackoff.service.ts` (puro: `computeRetryDelayMs`, `isRetryDue`; relógio e jitter
+- [x] **T3.1** `retryBackoff.service.ts` (puro: `computeRetryDelayMs`, `isRetryDue`; relógio e jitter
       injetáveis) no **painel** (origem da cópia, ADR-0075 §7). Gate: trecho da T1.3 sobre a fórmula verde.
-- [ ] **T3.2** No painel: `lastAttemptAt` em `QueuedReport` e no item de anexo; parâmetro **obrigatório**
+- [x] **T3.2** No painel: `lastAttemptAt` em `QueuedReport` e no item de anexo; parâmetro **obrigatório**
       `origin: 'timer' | 'immediate'` em `drainQueue` e na drenagem de anexos; `timer` **para** a drenagem, sem contar
       tentativa, quando o primeiro item elegível está em espera (N3: nunca pular); `setInterval` chama `timer`, `online`/`pageshow`/visibilidade/"Enviar agora"/abertura
       chamam `immediate`; ajustar os hooks que chamam `drain`. Gate: typecheck pega chamada esquecida;
