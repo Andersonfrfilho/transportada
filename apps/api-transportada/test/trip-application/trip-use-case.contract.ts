@@ -239,6 +239,9 @@ function createFixture(params: FixtureParams = {}) {
     async transferCrew() {
       throw new Error('TRANSFER_CREW_NOT_EXERCISED_HERE')
     },
+    async linkDocumentsAfterDispatch() {
+      throw new Error('LINK_AFTER_DISPATCH_NOT_EXERCISED_HERE')
+    },
     async setTrailer(input) {
       setTrailerCalls.push(input)
       if (params.setTrailerResult !== undefined) return params.setTrailerResult
