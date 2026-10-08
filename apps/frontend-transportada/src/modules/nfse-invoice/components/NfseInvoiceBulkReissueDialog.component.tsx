@@ -74,7 +74,7 @@ export function NfseInvoiceBulkReissueDialog({
         )}
 
         {bulkReissue.summary !== null && bulkReissue.summary.missingNationalTaxation > 0 && (
-          <p className={styles.placeholder} role="alert">
+          <p className={styles.emissionError} role="alert">
             {t('bulkReissue.missingNationalTaxation', {
               count: bulkReissue.summary.missingNationalTaxation,
             })}
