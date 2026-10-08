@@ -2399,7 +2399,7 @@
   "proofPdfExport": {
     "button": "Export proofs (PDF)",
     "exporting": "Generating PDF…",
-    "tooManyDocuments": "Select up to {{max}} invoices to export the proofs.",
+    "tooManyDocuments": "Select up to {{max}} invoices or refine the filter to export the proofs.",
     "tooLarge": "The PDF exceeds the limit of {{maxBlocks}} proofs. Filter or select fewer invoices.",
     "tooLargeUnknown": "The PDF exceeds the proof limit. Filter or select fewer invoices.",
     "failed": "Could not export the proofs."

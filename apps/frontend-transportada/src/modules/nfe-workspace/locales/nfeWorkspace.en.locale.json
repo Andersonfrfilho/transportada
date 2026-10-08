@@ -106,6 +106,7 @@
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} invoice without a trip was left out",
     "reportExcludedWithoutTrip_other": "{{count}} invoices without a trip were left out",
+    "reportNoDocuments": "No invoices to export",
     "title": "Imported documents",
     "subtitle": "Fast review of already persisted NF-e records.",
     "empty": "No documents available.",

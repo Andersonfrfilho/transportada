@@ -15,6 +15,8 @@ const REPORT_LOCALE = 'pt-BR'
 const REPORT_FILE_NAME = 'trip-report.xlsx'
 
 type TripReportExportButtonProps = Readonly<{
+  /** Quem desabilita diz o porquê em texto ao lado. */
+  isDisabled?: boolean
   fetchPage?: TripReportFetchPage
   /** Depois da planilha salva; a aba de notas lê `excludedWithoutTrip` daqui para avisar. */
   onExported?: (result: TripReportResult) => void
@@ -23,6 +25,7 @@ type TripReportExportButtonProps = Readonly<{
 
 /** Botão autocontido: escopo entra, planilha timbrada sai. Seleção, filtro e aba de notas só escolhem o `scope`. */
 export function TripReportExportButton({
+  isDisabled = false,
   fetchPage,
   onExported,
   scope,
@@ -64,8 +67,9 @@ export function TripReportExportButton({
   return (
     <>
       <Button
-        aria-label={t('reportExport.button')}
-        disabled={reportExport.isExporting}
+        aria-label={describeLabel()}
+        aria-live="polite"
+        disabled={reportExport.isExporting || isDisabled}
         onClick={handleExportClick}
         size="sm"
         type="button"

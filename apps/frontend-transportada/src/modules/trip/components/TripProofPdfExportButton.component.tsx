@@ -15,6 +15,8 @@ import type { TripReportScope } from '../shared/tripReport.service'
 import styles from '../styles/trip.module.css'
 
 type TripProofPdfExportButtonProps = Readonly<{
+  /** Quem desabilita diz o porquê em texto ao lado. */
+  isDisabled?: boolean
   fetchPdf?: TripProofPdfFetch
   savePdf?: TripProofPdfSave
   scope: TripReportScope
@@ -22,6 +24,7 @@ type TripProofPdfExportButtonProps = Readonly<{
 
 /** Um PDF por pedido: seleção de notas acima do teto da API desabilita o botão em vez de dividir em vários arquivos. */
 export function TripProofPdfExportButton({
+  isDisabled = false,
   fetchPdf,
   savePdf,
   scope,
@@ -33,6 +36,10 @@ export function TripProofPdfExportButton({
     ...(savePdf === undefined ? {} : { savePdf }),
   })
   const isTooBroad = isTripProofPdfScopeTooBroad(scope)
+
+  const buttonLabel = proofExport.isExporting
+    ? t('proofPdfExport.exporting')
+    : t('proofPdfExport.button')
 
   function handleExportClick(): void {
     void proofExport.exportPdf()
@@ -48,15 +55,16 @@ export function TripProofPdfExportButton({
   return (
     <>
       <Button
-        aria-label={t('proofPdfExport.button')}
-        disabled={proofExport.isExporting || isTooBroad}
+        aria-label={buttonLabel}
+        aria-live="polite"
+        disabled={proofExport.isExporting || isTooBroad || isDisabled}
         onClick={handleExportClick}
         size="sm"
         type="button"
         variant="secondary"
       >
         <Icon name="document" />
-        {proofExport.isExporting ? t('proofPdfExport.exporting') : t('proofPdfExport.button')}
+        {buttonLabel}
       </Button>
       {isTooBroad ? (
         <p className={styles.alert} role="status">

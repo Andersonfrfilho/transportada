@@ -44,7 +44,17 @@ describe('TripReportExportButton', () => {
       expect(findButton().disabled).toBe(true)
       expect(findButton().textContent).toContain('Exportando')
     })
-    expect(findButton().getAttribute('aria-label')).toBe('Exportar relatório')
+    expect(findButton().getAttribute('aria-label')).toBe(findButton().textContent)
+    expect(findButton().getAttribute('aria-label')).toContain('Exportando')
+    expect(findButton().getAttribute('aria-live')).toBe('polite')
+    view.unmount()
+  })
+
+  test('isDisabled desabilita o botão parado', async () => {
+    const view = await renderWithQueryClient(
+      createElement(TripReportExportButton, { isDisabled: true, scope: { documentIds: [] } }),
+    )
+    expect(findButton().disabled).toBe(true)
     view.unmount()
   })
 })

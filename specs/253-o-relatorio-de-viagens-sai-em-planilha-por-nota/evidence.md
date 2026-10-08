@@ -196,7 +196,7 @@ Corrigido:
 
 Conferido sem divergência: primitivos (`MultiSelect`/`SearchableSelect`/`Select` compactos, igual à aba de notas), `input` herda `--field-*` via `.fieldGrid input`, grade 1/2/3 colunas em 0/40/64 rem (`min-width`), `flex-wrap` nas barras (sem overflow esperado em 375 px), pílulas pelo `FilterPills`, `.alert` (`--color-copper` sobre fundo escuro, alto contraste).
 
-Listado (não alterado): (1) `aria-label` fixo nos botões de exportar sobrepõe o texto de progresso ("Exportando 3/10") para leitor de tela — remover exige mudar os contratos `TripReportExportButton`/`TripProofPdfExportButton`; (2) rótulos do painel de relatório são 0,85 rem normais, enquanto a aba de notas usa `filterFieldLabel` (caixa alta 0,68 rem) — unificar é decisão de design; (3) espaçamento das barras de exportação: `--space-2` em `/trips` contra `--space-3` em `reportExportRow` das notas.
+Listado (não alterado): (1) ~~`aria-label` fixo nos botões de exportar~~ — resolvido (ver Pendências resolvidas); (2) rótulos do painel de relatório são 0,85 rem normais, enquanto a aba de notas usa `filterFieldLabel` (caixa alta 0,68 rem) — unificar é decisão de design; (3) espaçamento das barras de exportação: `--space-2` em `/trips` contra `--space-3` em `reportExportRow` das notas.
 
 ## Revisão final
 
@@ -204,3 +204,9 @@ Listado (não alterado): (1) `aria-label` fixo nos botões de exportar sobrepõe
 - O PDF é **bufferizado** (limitado pelo teto de 200 blocos), não stream real.
 - T3.2 sem red run: prova de mutação feita em 2026-10-07 — a cor da legenda trocada localmente por `SPREADSHEET_ROW_TONES.warehouse` em `spreadsheetLayout.service.ts` reprovou `legenda da planilha > entra logo abaixo do título...` (7 pass, 1 fail); revertida com `git checkout`.
 - Dívida: filtros de `/trips` em `useState`; `TripTable` com 421 linhas; ícone `document`; ausência de `env.test.e2e` (a prova é contract + `test:integration`).
+
+## Pendências resolvidas (pós-revisão final)
+
+- Aba de notas, acima de 100 notas: a mensagem agora diz "Selecione até 100 notas ou refine o filtro para exportar os canhotos." (pt-BR e en). Conjunto filtrado vazio deixa de esconder os botões: ficam desabilitados com o texto "Nenhuma nota para exportar" (`documents.reportNoDocuments`). Contrato novo: `test/trip-hooks/nfe-trip-report-export-action.contract.ts`.
+- Botões de exportar: `aria-label` passou a seguir o texto visível/progresso ("Exportando 3 de 10", "Gerando PDF…") e ganhou `aria-live="polite"`. Contratos `trip-report-export-button` e `trip-proof-pdf-export` agora provam nome acessível = texto visível, progresso no nome e `aria-live`.
+- Gates: `bun run test` 7611 + 1128 hooks pass / 0 fail, `typecheck` limpo, `lint` 0 erros (16 avisos antigos).

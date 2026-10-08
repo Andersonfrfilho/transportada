@@ -158,6 +158,7 @@
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} nota sem viagem ficou de fora",
     "reportExcludedWithoutTrip_other": "{{count}} notas sem viagem ficaram de fora",
+    "reportNoDocuments": "Nenhuma nota para exportar",
     "title": "Documentos importados",
     "subtitle": "Consulta rápida das NF-e já persistidas.",
     "empty": "Nenhum documento disponível.",

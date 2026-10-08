@@ -44,11 +44,21 @@ export function NfeTripReportExportAction({ table }: NfeTripReportExportActionPr
     setExcludedWithoutTrip(result.excludedWithoutTrip)
   }
 
-  if (scope === undefined) return null
+  const isEmptyScope = scope === undefined
+  const effectiveScope: TripReportScope = scope ?? { documentIds: [] }
   return (
     <>
-      <TripReportExportButton onExported={handleExported} scope={scope} />
-      <TripProofPdfExportButton scope={scope} />
+      <TripReportExportButton
+        isDisabled={isEmptyScope}
+        onExported={handleExported}
+        scope={effectiveScope}
+      />
+      <TripProofPdfExportButton isDisabled={isEmptyScope} scope={effectiveScope} />
+      {isEmptyScope ? (
+        <p className={styles.reportNotice} role="status">
+          {t('documents.reportNoDocuments')}
+        </p>
+      ) : null}
       {notice === undefined ? null : (
         <p className={styles.reportNotice} role="status">
           {notice}

@@ -162,6 +162,7 @@ describe('TripProofPdfExportButton (spec 253 T4.6)', () => {
     )
     expect(findButton().disabled).toBe(true)
     expect(document.body.querySelector('[role="status"]')?.textContent).toContain('até 100 notas')
+    expect(document.body.querySelector('[role="status"]')?.textContent).toContain('refine o filtro')
     view.unmount()
   })
 
@@ -177,6 +178,9 @@ describe('TripProofPdfExportButton (spec 253 T4.6)', () => {
       await Promise.resolve()
     })
     await waitFor(() => expect(findButton().disabled).toBe(true))
+    expect(findButton().getAttribute('aria-label')).toBe(findButton().textContent)
+    expect(findButton().getAttribute('aria-label')).toContain('Gerando')
+    expect(findButton().getAttribute('aria-live')).toBe('polite')
     view.unmount()
 
     const failing = await renderWithQueryClient(

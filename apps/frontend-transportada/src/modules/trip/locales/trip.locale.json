@@ -2399,7 +2399,7 @@
   "proofPdfExport": {
     "button": "Exportar canhotos (PDF)",
     "exporting": "Gerando PDF…",
-    "tooManyDocuments": "Selecione até {{max}} notas para exportar os canhotos.",
+    "tooManyDocuments": "Selecione até {{max}} notas ou refine o filtro para exportar os canhotos.",
     "tooLarge": "O PDF passa do limite de {{maxBlocks}} canhotos. Filtre ou selecione menos notas.",
     "tooLargeUnknown": "O PDF passa do limite de canhotos. Filtre ou selecione menos notas.",
     "failed": "Não foi possível exportar os canhotos."
