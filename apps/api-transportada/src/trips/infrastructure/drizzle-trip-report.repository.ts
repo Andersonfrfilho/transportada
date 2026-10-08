@@ -33,7 +33,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
   constructor(private readonly database: TripDatabase) {}
 
   async countRows(params: TripReportScopeParams): Promise<number> {
-    const { address, query } = buildTripReportBase(this.database, () => ({
+    const { address, emitterAddress, query } = buildTripReportBase(this.database, () => ({
       total: count(),
     }))
     const [row] = await query.where(
@@ -42,6 +42,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
           address,
           companyId: params.companyId,
           cursor: undefined,
+          emitterAddress,
           filters: params.filters,
         }),
       ),
@@ -53,24 +54,27 @@ export class DrizzleTripReportRepository implements TripReportPort {
     readonly companyId: string
     readonly query: TripReportQuery
   }): Promise<readonly TripReportRecord[]> {
-    const { address, query } = buildTripReportBase(this.database, (recipientAddress) => ({
-      accessKey: reportDocument.accessKey,
-      amount: reportDocument.totalValue,
-      contractorName: sql<string>`coalesce(${contractors.displayName}, ${reportEmitter.legalName}, ${reportEmitter.tradeName})`,
-      deliveredAt: tripDocuments.deliveredAt,
-      documentNumber: reportDocument.number,
-      documentSeries: reportDocument.series,
-      documentStatus: tripDocuments.separationStatus,
-      recipientCity: recipientAddress.city,
-      recipientName: sql<string>`coalesce(${reportRecipient.legalName}, ${reportRecipient.tradeName}, '')`,
-      recipientState: recipientAddress.state,
-      returnReason: tripDocuments.returnReason,
-      returnedAt: tripDocuments.returnedAt,
-      tripCreatedAt: TRIP_CREATED_AT_MICROSECONDS,
-      tripDocumentId: tripDocuments.id,
-      tripId: trips.id,
-      tripStatus: trips.status,
-    }))
+    const { address, emitterAddress, query } = buildTripReportBase(
+      this.database,
+      (recipientAddress) => ({
+        accessKey: reportDocument.accessKey,
+        amount: reportDocument.totalValue,
+        contractorName: sql<string>`coalesce(${contractors.displayName}, ${reportEmitter.legalName}, ${reportEmitter.tradeName})`,
+        deliveredAt: tripDocuments.deliveredAt,
+        documentNumber: reportDocument.number,
+        documentSeries: reportDocument.series,
+        documentStatus: tripDocuments.separationStatus,
+        recipientCity: recipientAddress.city,
+        recipientName: sql<string>`coalesce(${reportRecipient.legalName}, ${reportRecipient.tradeName}, '')`,
+        recipientState: recipientAddress.state,
+        returnReason: tripDocuments.returnReason,
+        returnedAt: tripDocuments.returnedAt,
+        tripCreatedAt: TRIP_CREATED_AT_MICROSECONDS,
+        tripDocumentId: tripDocuments.id,
+        tripId: trips.id,
+        tripStatus: trips.status,
+      }),
+    )
     const rows = await query
       .where(
         and(
@@ -78,6 +82,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
             address,
             companyId: params.companyId,
             cursor: params.query.cursor,
+            emitterAddress,
             filters: params.query.filters,
           }),
         ),

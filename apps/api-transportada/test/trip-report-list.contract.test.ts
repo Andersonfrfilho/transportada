@@ -6,3 +6,4 @@
  */
 import './trip-report-list/use-case.contract.js'
 import './trip-report-list/query-tenant-safety.contract.js'
+import './trip-report-list/document-filters.contract.js'

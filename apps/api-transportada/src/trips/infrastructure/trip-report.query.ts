@@ -6,21 +6,21 @@
  * relatório de outra (contrato de fonte em `test/trip-report/query-tenant-safety.contract.ts`).
  */
 import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
-import { alias, type SelectedFields } from 'drizzle-orm/pg-core'
+import type { SelectedFields } from 'drizzle-orm/pg-core'
 
 import { contractors } from '../../database/delivery-client.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
-import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import { nfeAddresses } from '../../database/nfe.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type { TripFilters } from '../application/trip.port.js'
 import type { TripReportValueOperator } from '../domain/trip-report.constant.js'
 import type { TripReportCursor, TripReportFilters } from '../domain/trip-report.types.js'
 import type { TripDatabase } from './trip-queryable.type.js'
+import { reportDocument, reportEmitter, reportRecipient } from './trip-report-aliases.js'
+import { buildDocumentFilterConditions, escapeLike } from './trip-report-document-filters.query.js'
 import { buildTripListFilters } from './trip.query.js'
 
-export const reportDocument = alias(nfeDocuments, 'trip_report_document')
-export const reportEmitter = alias(nfeParticipants, 'trip_report_emitter')
-export const reportRecipient = alias(nfeParticipants, 'trip_report_recipient')
+export { reportDocument, reportEmitter, reportRecipient }
 
 const VALUE_OPERATOR_SQL: Readonly<Record<TripReportValueOperator, string>> = {
   eq: '=',
@@ -34,31 +34,53 @@ const VALUE_OPERATOR_SQL: Readonly<Record<TripReportValueOperator, string>> = {
 /** A nota chega por `trip_documents.nfe_document_id` ou, na falta dele, pelo cálculo de frete. */
 export const resolvedDocumentId = sql<string>`coalesce(${tripDocuments.nfeDocumentId}, ${freightCalculations.nfeDocumentId})`
 
-/** `nfe_addresses` não é único por participante: o endereço do destinatário é a primeira linha. */
-function buildRecipientAddress(database: TripDatabase) {
+const ADDRESS_COLUMNS = {
+  city: nfeAddresses.city,
+  district: nfeAddresses.district,
+  number: nfeAddresses.number,
+  state: nfeAddresses.state,
+  street: nfeAddresses.street,
+}
+
+/** `nfe_addresses` não é único por participante: o endereço de cada parte é a primeira linha. */
+function buildParticipantAddress(
+  database: TripDatabase,
+  participant: typeof reportRecipient | typeof reportEmitter,
+  name: string,
+) {
   return database
-    .select({ city: nfeAddresses.city, state: nfeAddresses.state })
+    .select(ADDRESS_COLUMNS)
     .from(nfeAddresses)
     .where(
       and(
-        eq(nfeAddresses.companyId, reportRecipient.companyId),
-        eq(nfeAddresses.participantId, reportRecipient.id),
+        eq(nfeAddresses.companyId, participant.companyId),
+        eq(nfeAddresses.participantId, participant.id),
       ),
     )
     .orderBy(asc(nfeAddresses.createdAt), asc(nfeAddresses.id))
     .limit(1)
-    .as('trip_report_recipient_address')
+    .as(name)
 }
 
-export type TripReportAddress = ReturnType<typeof buildRecipientAddress>
+export type TripReportAddress = ReturnType<typeof buildParticipantAddress>
 
 export function buildTripReportBase(
   database: TripDatabase,
   selection: (address: TripReportAddress) => SelectedFields,
 ) {
-  const address = buildRecipientAddress(database)
+  const address = buildParticipantAddress(
+    database,
+    reportRecipient,
+    'trip_report_recipient_address',
+  )
+  const emitterAddress = buildParticipantAddress(
+    database,
+    reportEmitter,
+    'trip_report_emitter_address',
+  )
   return {
     address,
+    emitterAddress,
     query: database
       .select(selection(address))
       .from(tripDocuments)
@@ -103,7 +125,8 @@ export function buildTripReportBase(
           eq(contractors.taxId, reportEmitter.taxId),
         ),
       )
-      .leftJoinLateral(address, sql`true`),
+      .leftJoinLateral(address, sql`true`)
+      .leftJoinLateral(emitterAddress, sql`true`),
   }
 }
 
@@ -118,10 +141,6 @@ function pickTripLevelFilters(filters: TripReportFilters): TripFilters {
     ...(filters.createdUntil === undefined ? {} : { createdUntil: filters.createdUntil }),
     ...(filters.proofPendingEq === undefined ? {} : { proofPendingEq: filters.proofPendingEq }),
   }
-}
-
-function escapeLike(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
 }
 
 function buildContractorCondition(
@@ -143,9 +162,10 @@ export function buildTripReportConditions(input: {
   readonly address: TripReportAddress
   readonly companyId: string
   readonly cursor: TripReportCursor | undefined
+  readonly emitterAddress: TripReportAddress
   readonly filters: TripReportFilters
 }): readonly SQL[] {
-  const { address, companyId, cursor, filters } = input
+  const { address, companyId, cursor, emitterAddress, filters } = input
   const conditions: (SQL | undefined)[] = [
     ...buildTripListFilters({ companyId, cursor: null, filters: pickTripLevelFilters(filters) }),
     eq(tripDocuments.companyId, companyId),
@@ -185,5 +205,13 @@ export function buildTripReportConditions(input: {
       sql`${reportDocument.totalValue}::numeric ${operator} ${filters.valueAmount}::numeric`,
     )
   }
+  conditions.push(
+    ...buildDocumentFilterConditions({
+      companyId,
+      emitterAddress,
+      filters,
+      recipientAddress: address,
+    }),
+  )
   return conditions.filter((condition): condition is SQL => condition !== undefined)
 }

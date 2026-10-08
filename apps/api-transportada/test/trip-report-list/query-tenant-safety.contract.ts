@@ -38,9 +38,11 @@ describe('tenant safety do relatorio de viagens', () => {
     expect(scoped).toBe(total)
   })
 
-  test('o endereco lateral e escopado pela empresa do destinatario', () => {
-    expect(QUERY_SOURCE).toContain('eq(nfeAddresses.companyId, reportRecipient.companyId)')
-    expect(QUERY_SOURCE).toContain('eq(nfeAddresses.participantId, reportRecipient.id)')
+  test('o endereco lateral de cada parte e escopado pela empresa dela', () => {
+    expect(QUERY_SOURCE).toContain('eq(nfeAddresses.companyId, participant.companyId)')
+    expect(QUERY_SOURCE).toContain('eq(nfeAddresses.participantId, participant.id)')
+    expect(QUERY_SOURCE).toContain("'trip_report_recipient_address'")
+    expect(QUERY_SOURCE).toContain("'trip_report_emitter_address'")
   })
 
   test('o contratante casa por empresa e CNPJ do emitente, nunca so pelo CNPJ', () => {
