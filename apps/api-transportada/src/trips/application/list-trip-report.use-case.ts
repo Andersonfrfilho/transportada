@@ -83,7 +83,7 @@ function encodeCursor(record: TripReportRecord): string {
   )
 }
 
-function toReportRow(input: {
+export function toReportRow(input: {
   readonly canReadFinancials: boolean
   readonly documentStatuses: Parameters<typeof resolveTripReportTone>[1]
   readonly record: TripReportRecord
