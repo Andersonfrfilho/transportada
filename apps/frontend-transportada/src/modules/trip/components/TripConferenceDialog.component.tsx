@@ -2,20 +2,25 @@
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { buildTripConference } from '../shared/tripConference.service'
 import type { TripConferenceRow } from '../shared/tripConference.service'
-import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
+import { TripConferencePrintSheet } from './TripConferencePrintSheet.component'
+import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripConferenceDialogProps = Readonly<{
   documents: readonly TripDocumentDetail[]
+  drivers: readonly TripDriverLine[]
   isOpen: boolean
   onClose: () => void
   stops: readonly TripStopDetail[]
+  tripCode: string
+  vehiclePlate: null | string
 }>
 
 type TripConferenceRowViewProps = Readonly<{ row: TripConferenceRow }>
@@ -58,18 +63,22 @@ function TripConferenceRowView({ row }: TripConferenceRowViewProps) {
 /** Conferência de leitura: nada aqui altera a viagem, só confronta a montagem com o que foi bipado. */
 export function TripConferenceDialog({
   documents,
+  drivers,
   isOpen,
   onClose,
   stops,
+  tripCode,
+  vehiclePlate,
 }: TripConferenceDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
 
   if (!isOpen) return null
 
-  const { rows, summary } = buildTripConference({ documents, stops })
+  const conference = buildTripConference({ documents, stops })
+  const { rows, summary } = conference
 
-  return createPortal(
+  const dialog = createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
       <div
         aria-labelledby="trip-conference-title"
@@ -112,6 +121,12 @@ export function TripConferenceDialog({
             <dd>{summary.totalVolumes}</dd>
           </div>
         </dl>
+        <div>
+          <Button onClick={() => globalThis.print()} size="sm" type="button" variant="secondary">
+            <Icon name="document" />
+            {t('conference.print')}
+          </Button>
+        </div>
         {summary.notesWithoutValue === 0 ? null : (
           <p className={styles.hint} role="status">
             {t('conference.withoutValue', { count: summary.notesWithoutValue })}
@@ -143,5 +158,18 @@ export function TripConferenceDialog({
       </div>
     </div>,
     document.body,
+  )
+
+  return (
+    <>
+      {dialog}
+      <TripConferencePrintSheet
+        conference={conference}
+        drivers={drivers}
+        printedOn={new Date()}
+        tripCode={tripCode}
+        vehiclePlate={vehiclePlate}
+      />
+    </>
   )
 }

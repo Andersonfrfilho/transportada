@@ -3535,6 +3535,198 @@ button.occurrenceCaseBadge {
   text-align: start;
 }
 
+/* Folha de conferência para o motorista assinar: só existe na impressão, só com o que há na viagem. */
+.printSheet {
+  display: none;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print {
+  .printSheet {
+    display: block;
+    color: black;
+    background: white;
+    font-family: var(--font-utility), sans-serif;
+    font-size: 0.72rem;
+    print-color-adjust: exact;
+  }
+
+  .printSheetHeader {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: var(--space-3);
+    border-bottom: 2px solid black;
+  }
+
+  .printSheetBrand {
+    display: inline-flex;
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .printSheetLogo {
+    width: auto;
+    height: 12mm;
+    max-width: 40mm;
+    object-fit: contain;
+  }
+
+  .printSheetBrandName {
+    font-size: 1rem;
+    text-transform: uppercase;
+  }
+
+  .printSheetHeading {
+    text-align: right;
+  }
+
+  .printSheetHeading h1 {
+    margin: 0;
+    font-family: inherit;
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .printSheetHeading p {
+    margin: var(--space-1) 0 0;
+    font-size: 0.7rem;
+  }
+
+  .printSheetInfo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(60mm, 1fr));
+    gap: var(--space-2) var(--space-5);
+    margin: var(--space-3) 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid black;
+  }
+
+  .printSheetField {
+    display: grid;
+    gap: 0.5mm;
+  }
+
+  .printSheetField dt {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .printSheetField dd {
+    margin: 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+  }
+
+  .printSheetTable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .printSheetTable th,
+  .printSheetTable td {
+    height: 8mm;
+    padding: 0 var(--space-2);
+    border: 1px solid black;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .printSheetTable thead th {
+    height: 9mm;
+    background: #d9d9d9;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .printSheetTable tbody tr:nth-child(even) td {
+    background: #f2f2f2;
+  }
+
+  .printSheetTable th:nth-child(1) {
+    width: 10mm;
+  }
+
+  .printSheetTable th:nth-child(2) {
+    width: 20mm;
+  }
+
+  .printSheetTable th:nth-child(3) {
+    width: 22mm;
+  }
+
+  .printSheetTable th:nth-child(5) {
+    width: 38mm;
+  }
+
+  .printSheetTable th:nth-child(6) {
+    width: 28mm;
+  }
+
+  .printSheetTable th:nth-child(7) {
+    width: 32mm;
+  }
+
+  .printSheetTable th:nth-child(8) {
+    width: 18mm;
+  }
+
+  .printSheetTable th:nth-child(9) {
+    width: 28mm;
+  }
+
+  .printSheetTable td.printSheetClient {
+    text-align: left;
+  }
+
+  .printSheetTable td.printSheetMoney {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .printSheetTable tfoot th {
+    background: #d9d9d9;
+    text-align: right;
+  }
+
+  .printSheetTable tfoot td {
+    background: #d9d9d9;
+    font-weight: 700;
+  }
+
+  .printSheetTable tr {
+    break-inside: avoid;
+  }
+
+  .printSheetSignatures {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1fr;
+    gap: var(--space-8, 2rem);
+    margin-top: 16mm;
+    break-inside: avoid;
+    font-size: 0.7rem;
+  }
+
+  .printSheetSignatures span {
+    padding-top: var(--space-1);
+    border-top: 1px solid black;
+    text-align: center;
+  }
+}
+
 /**
  * ⚠️ No papel, **nada depende de cor** e nenhum controle é impresso: botão impresso é tinta gasta, e
  * o desenho colorido em laser mono vira uma mancha cinza sem paradas distinguíveis. O que carrega a

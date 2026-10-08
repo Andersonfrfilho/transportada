@@ -12,6 +12,8 @@ export type TripConferenceRow = Readonly<{
   clientName: string
   destinationLabel: string
   documentId: string
+  issuedAt: null | string
+  city: string
   noteNumber: string
   noteSeries: string
   totalValue: null | string
@@ -35,8 +37,21 @@ function hasText(value: null | string | undefined): value is string {
   return value !== null && value !== undefined && value.trim() !== ''
 }
 
+const UF_PATTERN = /^[A-Za-z]{2}$/u
+
+/** O endereço da parada termina em ", CIDADE, UF"; sem a UF no fim não há como afirmar a cidade. */
+export function extractCityFromStopLabel(label: string): string {
+  const parts = label.split(',').map((part) => part.trim())
+  const [state, city] = [parts.at(-1), parts.at(-2)]
+
+  if (parts.length < 3 || state === undefined || !UF_PATTERN.test(state)) return ''
+  return city ?? ''
+}
+
 function toRow(document: TripDocumentDetail, destinationLabel: string): TripConferenceRow {
   return {
+    city: extractCityFromStopLabel(destinationLabel),
+    issuedAt: hasText(document.nfeIssuedAt) ? document.nfeIssuedAt : null,
     clientName: hasText(document.contact?.name) ? document.contact.name.trim() : '',
     destinationLabel,
     documentId: document.id,
