@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { driverClockOffset } from '../shared/clockOffset.service'
-import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
+import {
+  getDriverDiagnostics,
+  getDriverTripClient,
+  toAttachmentSendOutcome,
+} from '../shared/driverTripClient.service'
+import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
 import {
   readCurrentLocation,
   readDirectTapLocation,
@@ -53,10 +58,9 @@ import {
   scheduleQueueDrainTriggers,
   selectPendingTotal,
 } from '../shared/pendingQueue.service'
-import {
-  reduceProofPhotoToJpeg,
-  shouldReduceProofFile,
-} from '../shared/proofPhotoReduction.service'
+import type { DrainOrigin } from '../shared/retryBackoff.service'
+import { reduceProofPhotoWithTiming } from '../shared/tracedProofPhotoReducer.service'
+import { shouldReduceProofFile } from '../shared/proofPhotoReduction.service'
 import {
   recoverQueuedProofPhotos,
   reduceQueuedProofPhoto,
@@ -363,9 +367,11 @@ export function useDriverTrip(
   }
 
   /** O `run` do agendador aponta para a mutação do render corrente. */
-  const runDrainRef = useRef<(only: string | undefined) => void>(() => undefined)
+  const runDrainRef = useRef<(only: string | undefined, origin: DrainOrigin) => void>(
+    () => undefined,
+  )
   const [drainScheduler] = useState(() =>
-    createDrainScheduler({ run: (only) => runDrainRef.current(only) }),
+    createDrainScheduler({ run: (only, origin) => runDrainRef.current(only, origin) }),
   )
 
   /** Spec 212: as reduções do canhoto em voo — a varredura e a drenagem esperam por elas. */
@@ -373,7 +379,7 @@ export function useDriverTrip(
   const recoverProofPhotos = useCallback(async (): Promise<void> => {
     const recovered = await recoverQueuedProofPhotos({
       attachmentStore,
-      reduce: reduceProofPhotoToJpeg,
+      reduce: reduceProofPhotoWithTiming,
       reductions: proofPhotoReductions,
     })
     if (recovered > 0) await refreshQueueView()
@@ -381,7 +387,7 @@ export function useDriverTrip(
 
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
-    mutationFn: async (only?: string) => {
+    mutationFn: async (request: { only?: string; origin: DrainOrigin }) => {
       /** Spec 212: a foto grande presa (413) volta reduzida e sem causa antes de a fila ser lida. */
       await recoverProofPhotos()
       const client = getDriverTripClient()
@@ -389,11 +395,12 @@ export function useDriverTrip(
       const sentKeys: string[] = []
       const result = await drainQueueWithAttachments({
         attachmentStore,
-        ...(only === undefined ? {} : { only }),
+        ...(request.only === undefined ? {} : { only: request.only }),
+        origin: request.origin,
         ownerSubHash: session.subHash,
-        send: async (stamped): Promise<AttachmentSendOutcome> => {
+        send: async (stamped, options): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(stamped)
+            await client.send(stamped, options)
             sentKeys.push(stamped.report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
@@ -461,6 +468,7 @@ export function useDriverTrip(
         },
         store,
       })
+      void getDriverDiagnostics().flush()
       return { ...result, sentKeys }
     },
     onSuccess: (result) => {
@@ -515,7 +523,8 @@ export function useDriverTrip(
       drainScheduler.settled()
     },
   })
-  runDrainRef.current = (only) => drain.mutate(only)
+  runDrainRef.current = (only, origin) =>
+    drain.mutate(only === undefined ? { origin } : { only, origin })
 
   /**
    * Spec 082 (revisão): **uma drenagem por vez** — duas em paralelo mandariam o mesmo evento duas
@@ -528,10 +537,10 @@ export function useDriverTrip(
    * porque a repetição geral pula os recusados e engolia o reenvio manual deles.
    */
   const requestDrain = useCallback(
-    (only?: string) => {
+    (only: string | undefined, origin: DrainOrigin) => {
       /** Boot sem rede: a drenagem fica suspensa até haver token (plan D4). */
       if (!session.canSync) return
-      drainScheduler.request(only)
+      drainScheduler.request(only, origin)
     },
     [drainScheduler, session.canSync],
   )
@@ -553,10 +562,10 @@ export function useDriverTrip(
       /** Spec 212: também sem rede — a foto já sai reduzida quando a drenagem puder levá-la. */
       .then(() => recoverProofPhotos())
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
-    drainRef.current(undefined)
+    drainRef.current(undefined, 'immediate')
 
     const cancelTriggers = scheduleQueueDrainTriggers({
-      drain: () => drainRef.current(undefined),
+      drain: (origin) => drainRef.current(undefined, origin),
       getDrainable: () => drainableCountRef.current,
       onQueueSync: (sync) => {
         syncDrainTimerRef.current = sync
@@ -582,7 +591,7 @@ export function useDriverTrip(
       })
       if (!result.accepted) return result.reason
       await refreshQueueView()
-      requestDrain(undefined)
+      requestDrain(undefined, 'immediate')
       return 'queued'
     })
   }
@@ -597,8 +606,19 @@ export function useDriverTrip(
   function reportWithLocation(
     build: (location: DriverReportedLocation | null) => DriverFieldReport,
   ): Promise<DriverReportOutcome> {
+    const fieldReport = build(null)
+    return traceBaixaTotal({
+      clock: () => Date.now(),
+      record: (event) => getDriverDiagnostics().record(event),
+      reportKind: fieldReport.kind,
+      run: () => reportWithLocationUntraced(fieldReport),
+    })
+  }
+
+  function reportWithLocationUntraced(
+    fieldReport: DriverFieldReport,
+  ): Promise<DriverReportOutcome> {
     return persistWhileOpen(captureRegistry, async () => {
-      const fieldReport = build(null)
       const result = await enqueueReport({
         clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,
@@ -619,7 +639,7 @@ export function useDriverTrip(
       await refreshQueueView()
 
       await completeLocations([fieldReport])
-      requestDrain(undefined)
+      requestDrain(undefined, 'immediate')
       return 'queued'
     })
   }
@@ -675,7 +695,7 @@ export function useDriverTrip(
       await refreshQueueView()
 
       await completeLocations(reports)
-      requestDrain(undefined)
+      requestDrain(undefined, 'immediate')
       return 'queued'
     })
   }
@@ -717,7 +737,7 @@ export function useDriverTrip(
       if (!result.accepted) return result.reason
       await refreshQueueView()
       await completeLocations(fitted.reports)
-      requestDrain(undefined)
+      requestDrain(undefined, 'immediate')
       return isPhotoDropped ? 'photo-dropped' : 'queued'
     })
   }
@@ -777,7 +797,7 @@ export function useDriverTrip(
           attachment,
           attachmentStore,
           eventKey,
-          reduce: reduceProofPhotoToJpeg,
+          reduce: reduceProofPhotoWithTiming,
           reductions: proofPhotoReductions,
         })
       : Promise.resolve()
@@ -796,7 +816,7 @@ export function useDriverTrip(
     // A folga (`PROOF_AUTO_DRAIN_GRACE_MS`) é depois da redução, não no lugar dela — a versão leve
     // já está pronta quando a drenagem finalmente dispara.
     void reduction.finally(() => {
-      window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)
+      window.setTimeout(() => requestDrain(undefined, 'immediate'), PROOF_AUTO_DRAIN_GRACE_MS)
     })
     return 'queued'
   }
@@ -905,7 +925,7 @@ export function useDriverTrip(
   async function confirmUnverified(): Promise<void> {
     await confirmUnverifiedPending({ attachmentStore, ownerSubHash: session.subHash, store })
     await refreshQueueView()
-    requestDrain(undefined)
+    requestDrain(undefined, 'immediate')
   }
 
   async function discardUnverified(): Promise<void> {
@@ -954,8 +974,8 @@ export function useDriverTrip(
     reportNotDelivered,
     reportStopOccurrence,
     reportWithLocation,
-    sendAllNow: () => requestDrain(undefined),
-    sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
+    sendAllNow: () => requestDrain(undefined, 'immediate'),
+    sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey, 'immediate'),
     sentReportKeys,
     snapshot: currentTrip.data,
     /** Sem sessão não há quem confirme: a faixa só aparece depois de entrar. */

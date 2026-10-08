@@ -85,6 +85,9 @@ function buildHandler(input: {
       listTripReport: createListTripReportUseCase({
         repository: new DrizzleTripReportRepository(input.database.db),
       }),
+      listTripReportFacets: async () => {
+        throw new Error('unexpected facets call')
+      },
     }),
     tenantContext: { resolveCompany: async () => context },
     userPictureExistence: stubUserPictureExistence(),

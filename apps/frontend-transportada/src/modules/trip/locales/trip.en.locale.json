@@ -1085,6 +1085,11 @@
     "report": {
       "clearSelection": "Clear selection",
       "contractor": "Contractor",
+      "cteIssued": "CT-e issued",
+      "cteIssuedValues": {
+        "issued": "Issued",
+        "pending": "Pending"
+      },
       "documentStatus": "Invoice status",
       "documentStatuses": {
         "delivered": "Delivered",
@@ -1093,10 +1098,25 @@
         "returned": "Returned",
         "separated": "Separated"
       },
+      "emitterAddress": "Emitter address",
+      "emitterCity": "Emitter city",
+      "emitterName": "Emitter",
+      "emitterState": "Emitter state",
+      "emitterTaxId": "Emitter tax ID",
+      "fiscalStatus": "Fiscal status",
+      "fiscalStatuses": {
+        "authorized": "Authorized",
+        "cancelled": "Cancelled",
+        "denied": "Denied"
+      },
       "hint": "These filters only define what goes into the exported report; the trip list does not change.",
+      "issuedAt": "Issued on",
       "noContractor": "Not registered",
+      "number": "Number",
       "operator": "Operator",
+      "recipientAddress": "Recipient address",
       "recipientCity": "Recipient city",
+      "recipientName": "Recipient",
       "recipientState": "Recipient state",
       "removeSelection": "Remove this selection",
       "search": "Invoice",

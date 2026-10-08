@@ -230,3 +230,16 @@ opcional). O nome acessível do chip (`role="radio"`) não muda: o ícone é dec
 **Cópia por valor.** `shared/occurrenceTypeIcon.constant.ts` repete `OCCURRENCE_TYPE_ICON_NAMES` da API e o contrato `occurrence-type-icon-chip.contract.tsx` lê a
 lista da API como texto e a confere; `icon.tsx` ganhou os glyphs que faltavam com o traçado do painel. `scripts/driver-preview-api.ts` traz exemplos (`package`,
 `null`). **Não exercitado:** a posição do ícone no chip é conferida no fonte (o formulário tem hook com estado e fila, sem render estático); o smoke CA3 em staging é a T4.1.
+
+## Spec 254 — O envio que falha deixa rastro
+
+**Arquivos-chave:** `clientDiagnostics.service.ts` (coletor), `clientDiagnostics.types.ts`, `stepTimer.service.ts`, `deviceProfile.service.ts`,
+`tracedProofPhotoReducer.service.ts`, `driverTripClient.service.ts` (`traceStep`, `sendClientDiagnostics`, `getDriverDiagnostics`),
+`retryBackoff.service.ts` + `offlineAttachments.service.ts`/`offlineQueue.service.ts` (backoff do temporizador). Contratos:
+`client-diagnostics.contract.ts`, `occurrence-upload-retry-loop.contract.ts`, `offline-attachments-backoff.contract.ts`.
+
+- **Origem:** 07/10/2026, um Android, 60 `occurrence-uploads` (201) sem `/confirm`. Não provado: por que o PUT falhou no aparelho nem o custo real de
+  CPU/bateria — a instrumentação responde depois do deploy.
+- **Lacunas conhecidas:** `baixa_total` não tem passo próprio (é o `report_send` de cada nota); `attempt` não chega nos eventos da drenagem
+  porque a fila não o expõe ao `send`; a falha aparece duas vezes (no passo e em `report_send`) — de propósito, o envoltório cobre POST simples.
+- **Rota:** só `safeLogInfo` `driver_client_diagnostic`, sem tabela; 6 req/60 s, `204`, `400 CLIENT_DIAGNOSTICS_INVALID`.

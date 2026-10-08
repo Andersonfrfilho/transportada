@@ -14,18 +14,18 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T0.1** Conferir os fatos do `plan.md` § Contexto contra `origin/staging` (arquivo e linha),
+- [x] **T0.1** Conferir os fatos do `plan.md` § Contexto contra `origin/staging` (arquivo e linha),
       incluindo `SendMessageUseCase.sendMedia`/`assertWithinWindow` no `meta-whatsapp-module`
       instalado e `NfeXmlParty` no pacote fiscal instalado. Divergência vira nota em `evidence.md`.
-- [ ] **T0.2** Conferir que a 247 está em `origin/staging`; se não estiver, parar.
+- [x] **T0.2** Conferir que a 247 está em `origin/staging`; se não estiver, parar.
 
 ## Fase 1 — Painel e app tolerantes (etapa 1)
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T1.1** Painel: validação aceita os campos novos do tipo, as três colunas da exceção e o objeto
+- [x] **T1.1** Painel: validação aceita os campos novos do tipo, as três colunas da exceção e o objeto
       `contractorReply` da ocorrência como opcionais; contrato com e sem as chaves.
-- [ ] **T1.2** App do motorista: idem para o estado do retorno na ocorrência.
+- [x] **T1.2** App do motorista: idem para o estado do retorno na ocorrência.
 
 ## Fase 2 — O e-mail do cliente da nota
 
@@ -33,9 +33,9 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 - [ ] **T2.1** No `adatechnology-packages`: `NfeXmlParty.email?` lido de `<dest><email>` (e do
       emitente, por simetria), com teste do parser sobre XML com e sem a tag; publicar a versão.
-- [ ] **T2.2** Worker: gravar `nfe_documents.recipient_email` no import (validado, ≤ 254; inválido
+- [x] **T2.2** Worker: gravar `nfe_documents.recipient_email` no import (validado, ≤ 254; inválido
       vira nulo, com contador no log, sem o valor). Integração.
-- [ ] **T2.3** Job `nfe.recipient-email.backfill` (molde de `identity.document.backfill`): relê o XML
+- [x] **T2.3** Job `nfe.recipient-email.backfill` (molde de `identity.document.backfill`): relê o XML
       original guardado, idempotente, em lotes. **Em produção, só com autorização do usuário.**
 
 ## Fase 3 — O dado (etapa 2)

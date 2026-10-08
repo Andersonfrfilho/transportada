@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverFieldReport } from './driverTrip.types'
+import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
 
 /**
  * ADR-0045 §5: o motorista entra no subsolo do shopping e sai sem sinal por vinte minutos. Se o
@@ -24,6 +25,8 @@ export type QueuedReport = Readonly<{
    * pendência ser a mesma definição da app do motorista (contrato de paridade de `countPending`).
    */
   isUnverified?: true
+  /** Spec 254: quando a rede recusou a última tentativa — a base do espaçamento do temporizador. */
+  lastAttemptAt?: string
   /**
    * Spec 082 D7: a causa legível da recusa do servidor. Preenchida, o item fica **à vista** como
    * rejeitado em vez de sumir — e só o envio manual o tenta de novo (limpando a causa antes).
@@ -136,22 +139,35 @@ export function sumReportPhotoBytes(reports: readonly DriverFieldReport[]): numb
  * Falha de **rede** para a drenagem inteira e devolve o resto para a próxima tentativa — insistir
  * item a item sem sinal só gasta bateria. Recusa do **servidor** tira o item da fila: reenviar o que
  * ele já disse que não aceita repetiria a recusa para sempre.
+ *
+ * Spec 254: na origem `timer`, o primeiro item ainda em espera **para** a drenagem — sem contar
+ * tentativa e sem pular (a ordem importa) —; `immediate` ignora o espaçamento. Nada sai da fila por
+ * isso (spec 227 D1).
  */
 export async function drainQueue(input: {
+  readonly now?: Date
+  readonly origin: DrainOrigin
+  readonly random?: () => number
   readonly send: (report: DriverFieldReport) => Promise<DrainOutcome>
   readonly store: OfflineQueueStore
 }): Promise<DrainResult> {
+  const readClock = (): Date => input.now ?? new Date()
   const queued = await input.store.read()
   const rejected: QueuedReport[] = []
   const settledKeys = new Set<string>()
   let failedKey: string | undefined
+  let failedAt: string | undefined
   let sent = 0
 
   for (const item of queued) {
+    if (input.origin === 'timer' && !isRetryDue({ item, now: readClock(), random: input.random })) {
+      break
+    }
     const outcome = await input.send(item.report)
     if (outcome === 'failed-network') {
       // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
       failedKey = item.report.idempotencyKey
+      failedAt = readClock().toISOString()
       break
     }
     if (outcome === 'rejected') rejected.push(item)
@@ -164,7 +180,9 @@ export async function drainQueue(input: {
     current.flatMap((item) => {
       const key = item.report.idempotencyKey
       if (settledKeys.has(key)) return []
-      if (key === failedKey) return [{ ...item, attempts: item.attempts + 1 }]
+      if (key === failedKey && failedAt !== undefined) {
+        return [{ ...item, attempts: item.attempts + 1, lastAttemptAt: failedAt }]
+      }
       return [item]
     }),
   )

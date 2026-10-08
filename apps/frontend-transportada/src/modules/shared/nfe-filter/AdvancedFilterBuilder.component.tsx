@@ -9,18 +9,16 @@ import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
-import {
-  CONDITION_FIELDS,
-  CONDITION_FIELD_TYPE,
-  OPERATORS_BY_TYPE,
-  type AdvancedFilterModel,
-  type ConditionChanges,
-  type ConditionField,
-  type FilterCondition,
-  type FilterGroup,
-  type GroupConnector,
-} from '../hooks/useNfeDocumentTable.hook'
-import styles from '../styles/nfeWorkspace.module.css'
+import { CONDITION_FIELD_TYPE, CONDITION_FIELDS, OPERATORS_BY_TYPE } from './nfeFilter.constant'
+import type {
+  AdvancedFilterModel,
+  ConditionChanges,
+  ConditionField,
+  FilterCondition,
+  FilterGroup,
+  GroupConnector,
+} from './nfeFilter.types'
+import styles from './nfeFilterPanel.module.css'
 
 type SelectFieldOptions = Readonly<{
   cteIssued: readonly SelectOption[]

@@ -460,6 +460,7 @@ describe('a fila carimba o desvio na criação do item (spec 234 D2)', () => {
     const seen: SeenRequest[] = []
     const client = buildRecordingClient(seen)
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createEmptyAttachmentStore(),
       send: async (stamped) => {
         await client.send(stamped)
@@ -493,6 +494,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
     const { store } = createMemoryStore([stampedItem])
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createEmptyAttachmentStore(),
       send: ({ stamp }) => {
         stamps.push(stamp)
@@ -510,6 +512,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
     const { store } = createMemoryStore([legacyItem])
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createEmptyAttachmentStore(),
       send: ({ stamp }) => {
         stamps.push(stamp)
@@ -527,6 +530,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
     const { store } = createMemoryStore([stampedItem, legacyItem])
 
     await drainQueue({
+      origin: 'immediate',
       send: ({ stamp }) => {
         stamps.push(stamp)
         return Promise.resolve('sent')
@@ -541,6 +545,7 @@ describe('a drenagem entrega o carimbo do item ao envio (spec 234 D2)', () => {
     const { items, store } = createMemoryStore([stampedItem])
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createEmptyAttachmentStore(),
       send: () => Promise.resolve({ cause: '422 X', kind: 'rejected' }),
       sendAttachment: () => Promise.resolve({ kind: 'sent' }),

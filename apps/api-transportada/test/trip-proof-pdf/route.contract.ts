@@ -84,6 +84,9 @@ function buildHandler(input: {
       listTripReport: async () => {
         throw new Error('unexpected report call')
       },
+      listTripReportFacets: async () => {
+        throw new Error('unexpected facets call')
+      },
     }),
     tenantContext: { resolveCompany: async () => context },
     userPictureExistence: stubUserPictureExistence(),
@@ -160,6 +163,42 @@ describe('GET /trip-document-report/proofs-pdf (spec 253 T2.4)', () => {
   it('400 lists every query error together', async () => {
     const response = await buildHandler({ permissions: ['fleet.read'] })('?statusIn=nope&mystery=1')
     expect(response.status).toBe(400)
+  })
+
+  it('accepts the spec 258 note filters and hands them to the export', async () => {
+    const calls: ExportTripProofPdfParams[] = []
+    const handle = buildHandler({
+      exportTripProofPdf: async (params) => {
+        calls.push(params)
+        return {
+          filename: 'x.pdf',
+          stream: new Response('%PDF').body as ReadableStream<Uint8Array>,
+        }
+      },
+      permissions: ['fleet.read'],
+    })
+    const response = await handle(
+      '?numberFrom=00001&numberTo=99999&issuedFrom=2026-10-01&issuedUntil=2026-10-31' +
+        '&emitterNameIn=AMARELINHA&cteIssued=pending&fiscalStatusIn=authorized',
+    )
+    expect(response.status).toBe(200)
+    expect(calls[0]?.filters).toMatchObject({
+      cteIssued: 'pending',
+      emitterNameIn: ['AMARELINHA'],
+      fiscalStatusIn: ['authorized'],
+      issuedFrom: '2026-10-01',
+      issuedUntil: '2026-10-31',
+      numberFrom: '00001',
+      numberTo: '99999',
+    })
+  })
+
+  it('400 for the spec 258 filters refused by the shared parser', async () => {
+    const handle = buildHandler({ permissions: ['fleet.read'] })
+    expect((await handle('?numberFrom=99999&numberTo=00001')).status).toBe(400)
+    expect((await handle('?issuedFrom=2026-02-30')).status).toBe(400)
+    expect((await handle('?cteIssued=maybe')).status).toBe(400)
+    expect((await handle('?numberFrom=1A')).status).toBe(400)
   })
 
   it('422 TRIP_PROOF_REPORT_TOO_LARGE when the selection is above the ceiling', async () => {

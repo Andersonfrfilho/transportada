@@ -374,3 +374,20 @@ precedência); modo `off` na hora do envio é descartado pelo servidor, não rec
 § "Spec 247".
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + painel. Detalhe: docs/ai-context/frontend-driver.md § "Spec 255".
+
+## O envio que falha deixa rastro (spec 254)
+
+Em produção um aparelho fez 60 `POST .../occurrence-uploads` sem nenhum `/confirm`: o PUT ao storage não terminava e o
+temporizador de 30 s repetia o fluxo inteiro. Duas peças, ambas sem tocar regra de ocorrência:
+
+- **Coletor de diagnóstico** (`clientDiagnostics.service.ts`, `getDriverDiagnostics()`): é **melhor esforço**. `record` é
+  síncrono e nunca lança; o buffer guarda 50 eventos e `flush` manda até 20 por chamada a `POST /v1/me/client-diagnostics`.
+  **Nunca entra na fila offline, nunca conta em `attempts` e nunca mede o próprio envio** (usa um cliente sem coletor).
+  400 descarta o lote; 408/429/5xx/rede devolvem os eventos ao buffer. Campos são uma lista fechada (sem texto livre, URL,
+  coordenada nem observação) e o sanitizador espelha o `.strict()` da rota. Passos: `trip_open`, `photo_reduce`,
+  `upload_slot`, `upload_put`, `upload_confirm`, `report_send`. Publicar a API antes do driver.
+- **Backoff só no temporizador** (`retryBackoff.service.ts`): `min(30 s × 2^(tentativas−1), 10 min)` com ±20 % de jitter. Item
+  em espera **para** a drenagem `timer` sem contar tentativa; `immediate` ignora o espaçamento. Backoff nunca descarta item
+  (227 D1).
+
+Detalhe e medições: `docs/ai-context/frontend-driver.md` § "Spec 254".

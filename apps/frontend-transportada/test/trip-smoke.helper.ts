@@ -1083,6 +1083,20 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [], page: { nextCursor: null } })
   })
+  /** O painel de filtros do relatório consulta as opções de cidade, UF e emitente ao abrir; o smoke reprova qualquer falha de rede. */
+  await input.page.route(/\/trip-document-report\/facets(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: {
+        cities: { emitter: [], recipient: [] },
+        emitters: [],
+        states: { emitter: [], recipient: [] },
+      },
+    })
+  })
   /**
    * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
    * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta

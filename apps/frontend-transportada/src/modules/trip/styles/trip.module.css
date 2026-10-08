@@ -5584,24 +5584,10 @@ button.occurrenceCaseBadge {
   padding: var(--space-3);
 }
 
-.reportAmountRow {
-  display: grid;
-  gap: var(--space-2);
-  grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr);
-}
-
 .reportFilters legend {
   color: var(--color-slate);
   font-size: 0.85rem;
   padding-inline: var(--space-1);
-}
-
-.reportField {
-  align-content: start;
-  display: grid;
-  font-size: 0.85rem;
-  gap: var(--space-1);
-  min-width: 0;
 }
 
 .crewTransferSummary {

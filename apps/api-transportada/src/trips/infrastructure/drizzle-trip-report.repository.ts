@@ -16,8 +16,15 @@ import type {
   TripReportRecord,
   TripReportScopeParams,
 } from '../application/trip-report.port.js'
-import type { TripReportQuery } from '../domain/trip-report.types.js'
+import type {
+  ListTripReportFacetsParams,
+  TripReportFacetEmitter,
+  TripReportFacetPlaceKind,
+  TripReportFacetSide,
+  TripReportQuery,
+} from '../domain/trip-report.types.js'
 import type { TripDatabase } from './trip-queryable.type.js'
+import { selectFacetEmitters, selectFacetPlaces } from './trip-report-facets.query.js'
 import {
   REPORT_ORDER,
   buildTripReportBase,
@@ -33,7 +40,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
   constructor(private readonly database: TripDatabase) {}
 
   async countRows(params: TripReportScopeParams): Promise<number> {
-    const { address, query } = buildTripReportBase(this.database, () => ({
+    const { address, emitterAddress, query } = buildTripReportBase(this.database, () => ({
       total: count(),
     }))
     const [row] = await query.where(
@@ -42,6 +49,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
           address,
           companyId: params.companyId,
           cursor: undefined,
+          emitterAddress,
           filters: params.filters,
         }),
       ),
@@ -49,28 +57,46 @@ export class DrizzleTripReportRepository implements TripReportPort {
     return Number(row?.total ?? 0)
   }
 
+  listFacetEmitters(
+    params: ListTripReportFacetsParams,
+  ): Promise<readonly TripReportFacetEmitter[]> {
+    return selectFacetEmitters(this.database, params)
+  }
+
+  listFacetPlaces(
+    params: ListTripReportFacetsParams & {
+      readonly kind: TripReportFacetPlaceKind
+      readonly side: TripReportFacetSide
+    },
+  ): Promise<readonly string[]> {
+    return selectFacetPlaces(this.database, params)
+  }
+
   async listRows(params: {
     readonly companyId: string
     readonly query: TripReportQuery
   }): Promise<readonly TripReportRecord[]> {
-    const { address, query } = buildTripReportBase(this.database, (recipientAddress) => ({
-      accessKey: reportDocument.accessKey,
-      amount: reportDocument.totalValue,
-      contractorName: sql<string>`coalesce(${contractors.displayName}, ${reportEmitter.legalName}, ${reportEmitter.tradeName})`,
-      deliveredAt: tripDocuments.deliveredAt,
-      documentNumber: reportDocument.number,
-      documentSeries: reportDocument.series,
-      documentStatus: tripDocuments.separationStatus,
-      recipientCity: recipientAddress.city,
-      recipientName: sql<string>`coalesce(${reportRecipient.legalName}, ${reportRecipient.tradeName}, '')`,
-      recipientState: recipientAddress.state,
-      returnReason: tripDocuments.returnReason,
-      returnedAt: tripDocuments.returnedAt,
-      tripCreatedAt: TRIP_CREATED_AT_MICROSECONDS,
-      tripDocumentId: tripDocuments.id,
-      tripId: trips.id,
-      tripStatus: trips.status,
-    }))
+    const { address, emitterAddress, query } = buildTripReportBase(
+      this.database,
+      (recipientAddress) => ({
+        accessKey: reportDocument.accessKey,
+        amount: reportDocument.totalValue,
+        contractorName: sql<string>`coalesce(${contractors.displayName}, ${reportEmitter.legalName}, ${reportEmitter.tradeName})`,
+        deliveredAt: tripDocuments.deliveredAt,
+        documentNumber: reportDocument.number,
+        documentSeries: reportDocument.series,
+        documentStatus: tripDocuments.separationStatus,
+        recipientCity: recipientAddress.city,
+        recipientName: sql<string>`coalesce(${reportRecipient.legalName}, ${reportRecipient.tradeName}, '')`,
+        recipientState: recipientAddress.state,
+        returnReason: tripDocuments.returnReason,
+        returnedAt: tripDocuments.returnedAt,
+        tripCreatedAt: TRIP_CREATED_AT_MICROSECONDS,
+        tripDocumentId: tripDocuments.id,
+        tripId: trips.id,
+        tripStatus: trips.status,
+      }),
+    )
     const rows = await query
       .where(
         and(
@@ -78,6 +104,7 @@ export class DrizzleTripReportRepository implements TripReportPort {
             address,
             companyId: params.companyId,
             cursor: params.query.cursor,
+            emitterAddress,
             filters: params.query.filters,
           }),
         ),

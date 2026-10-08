@@ -3351,3 +3351,30 @@ default, e a CHECK `company_occurrence_types_icon_name_check` (`icon_name is nul
 os nomes novos antes de recolocar a CHECK antiga, mais o nome nas **duas** cópias por valor (painel e app do motorista) e o glyph em cada `icon.tsx`; o contrato
 catálogo × `ICON_PATHS` falha se faltar um. Reduzir exige migration de dados. Ordem de publicação (ADR-0081 §9): painel e app tolerantes → API → telas. Gates e
 vermelhos: specs/255-\*/evidence.md.
+
+## Spec 254 — o app do motorista diz por que o envio falhou (rota de diagnóstico)
+
+**`POST /v1/me/client-diagnostics`** (sem OpenAPI nesta API; este é o contrato). Bearer; permissão `trip.report`, `scope: company`; **sem
+`resolveDriver`** (quem não tem cadastro de motorista também relata; o log leva o `membershipId`). Responde `204` sem corpo. `companyId` e
+`membershipId` vêm do contexto autenticado — `companyId` no corpo é campo extra e dá `400`.
+
+Corpo `.strict()` (Zod), todos os erros de uma vez em `error.details[]` `{ field, message }`, `400` com o código estável
+`CLIENT_DIAGNOSTICS_INVALID`:
+
+```
+{ device?: { appVersion?, deviceMemoryGb?, hardwareConcurrency?, effectiveType?, saveData?, isStandalone? },
+  events: [{ eventKind: 'send_failed'|'step_timing', step, occurredAt, durationMs?, failureKind?, httpStatus?,
+             attempt?, reportKind?, photoBytes?, idempotencyKey?, attachmentKey? }] }   // 1..20 eventos
+```
+
+`step`: `trip_open | photo_reduce | upload_slot | upload_put | upload_confirm | report_send | baixa_total`. `failureKind`:
+`network | timeout | http_status | identity`. `effectiveType`: `slow-2g | 2g | 3g | 4g`. `durationMs` 0..600000, `httpStatus` 100..599, `attempt`
+0..10000, `photoBytes` 0..50 MiB. `reportKind` é identificador técnico (`^[A-Za-z][A-Za-z0-9_-]{0,63}$`, não enum: o app tem tipos de relatório
+que a API não conhece); `idempotencyKey`/`attachmentKey` são chaves opacas (`^[A-Za-z0-9_-]{1,128}$` — barra, `:` e espaço não passam, então URL
+assinada não entra). Não há campo livre de texto nem coordenada: o que não está na lista é recusado.
+
+**Só log, sem tabela** (T1.1, architect): `createRecordClientDiagnosticsUseCase` emite um `safeLogInfo('driver_client_diagnostic', …)` por evento,
+montando os metadados **campo a campo** (nunca `...event`), com `companyId`, `membershipId`, `eventKind`, `step`, o que veio do evento e `device`.
+Não há repositório. Limite: `{ maxRequests: 6, windowSeconds: 60, scope: 'me-client-diagnostics', store: 'postgres' }` por usuário (`429` +
+`Retry-After` do roteador). Constantes em `trips/domain/trip-client-diagnostics.constant.ts`; contrato em `test/me-client-diagnostics.contract.ts`.
+Publicar a API antes do coletor do `frontend-driver`.

@@ -301,6 +301,7 @@ describe('a medição que o cliente persiste (spec 234 D7)', () => {
       getAccessToken: () => Promise.resolve('token'),
     })
     await drainQueue({
+      origin: 'immediate',
       send: async (stamped) => {
         await sending.send(stamped)
         return 'sent'

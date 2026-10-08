@@ -32,11 +32,24 @@ export type TripReportFilters = Readonly<{
   contractorIdIn?: readonly string[]
   createdFrom?: string
   createdUntil?: string
+  cteIssued?: string
   documentIdIn?: readonly string[]
   documentStatusIn?: readonly string[]
   driverIdIn?: readonly string[]
+  emitterAddress?: string
+  emitterCityIn?: readonly string[]
+  emitterNameIn?: readonly string[]
+  emitterStateIn?: readonly string[]
+  emitterTaxIdIn?: readonly string[]
+  fiscalStatusIn?: readonly string[]
+  issuedFrom?: string
+  issuedUntil?: string
+  numberFrom?: string
+  numberTo?: string
   proofPendingEq?: boolean
+  recipientAddress?: string
   recipientCityIn?: readonly string[]
+  recipientName?: string
   recipientStateIn?: readonly string[]
   search?: string
   statusIn?: readonly string[]
@@ -45,6 +58,18 @@ export type TripReportFilters = Readonly<{
   valueOperator?: TripReportValueOperator
   vehicleIdIn?: readonly string[]
 }>
+
+export type TripReportFacetEmitter = Readonly<{ name: string; taxId: string }>
+
+export type TripReportFacets = Readonly<{
+  cities: Readonly<{ emitter: readonly string[]; recipient: readonly string[] }>
+  emitters: readonly TripReportFacetEmitter[]
+  states: Readonly<{ emitter: readonly string[]; recipient: readonly string[] }>
+}>
+
+export type TripReportFetchFacets = (
+  input?: Readonly<{ signal?: AbortSignal }>,
+) => Promise<TripReportFacets>
 
 export type TripReportPageInput = Readonly<{
   cursor: null | string

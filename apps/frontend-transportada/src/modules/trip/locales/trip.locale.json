@@ -1085,6 +1085,11 @@
     "report": {
       "clearSelection": "Limpar seleção",
       "contractor": "Contratante",
+      "cteIssued": "CT-e emitido",
+      "cteIssuedValues": {
+        "issued": "Emitido",
+        "pending": "Pendente"
+      },
       "documentStatus": "Situação da nota",
       "documentStatuses": {
         "delivered": "Entregue",
@@ -1093,10 +1098,25 @@
         "returned": "Devolvida",
         "separated": "Separada"
       },
+      "emitterAddress": "Endereço do emitente",
+      "emitterCity": "Cidade do emitente",
+      "emitterName": "Emitente",
+      "emitterState": "UF do emitente",
+      "emitterTaxId": "CNPJ do emitente",
+      "fiscalStatus": "Situação fiscal",
+      "fiscalStatuses": {
+        "authorized": "Autorizada",
+        "cancelled": "Cancelada",
+        "denied": "Denegada"
+      },
       "hint": "Estes filtros definem só o que entra no relatório exportado; a lista de viagens não muda.",
+      "issuedAt": "Emissão",
       "noContractor": "Sem cadastro",
+      "number": "Número",
       "operator": "Operador",
+      "recipientAddress": "Endereço do destinatário",
       "recipientCity": "Cidade destino",
+      "recipientName": "Destinatário",
       "recipientState": "UF destino",
       "removeSelection": "Retirar esta seleção",
       "search": "Nota",

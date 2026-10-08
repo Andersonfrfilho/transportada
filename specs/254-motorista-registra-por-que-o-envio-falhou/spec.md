@@ -63,14 +63,14 @@ Resultado desta feature:
 
 **RF1 — Motivo da falha de envio.** Toda falha do fluxo de upload de foto (`occurrence-uploads` →
 `PUT` → `confirm`) e do envio do relatório gera um evento `send_failed` com: passo
-(`upload_slot` | `upload_put` | `upload_confirm` | `report_send`), tipo (`network` | `timeout` |
-`http_status` | `identity`), `httpStatus` quando houver, número da tentativa (`attempts`), tipo do
+(`photo_reduce` | `upload_slot` | `upload_put` | `upload_confirm` | `report_send` | `baixa_total`), tipo (`network` | `timeout` |
+`http_status` | `identity` | `local`), `httpStatus` quando houver, número da tentativa (`attempts`), tipo do
 relatório (`reportKind`) e tamanho da foto em bytes.
 
 **RF2 — Tempo de cada passo.** O app mede com `performance.now()` e emite `step_timing` com `step` e
 `durationMs` para: `trip_open` (carregar a viagem atual), `photo_reduce` (captura/redução da foto),
-`upload_slot`, `upload_put`, `upload_confirm`, `report_send` e `baixa_total` (do toque em "dar baixa"
-até o item sair — enviado — ou entrar na fila). Mede o app, não o servidor: o servidor já tem
+`upload_slot`, `upload_put`, `upload_confirm`, `report_send` e `baixa_total` (do toque em cheguei/entreguei/devolvi
+até a fila aceitar o item; não inclui o envio, que é a drenagem). Mede o app, não o servidor: o servidor já tem
 `durationMs`.
 
 **RF3 — Dados do aparelho.** Cada requisição de diagnóstico leva uma vez `device`:
@@ -89,15 +89,16 @@ entra na fila de eventos, não conta em `attempts`, não gera aviso ao motorista
 **RF6 — Rota de diagnóstico.** `POST /v1/me/client-diagnostics`: Bearer, permissão `trip.report`
 (a mesma da posição ao vivo), `companyId` do contexto autenticado, nunca do corpo. Corpo `.strict()`
 em Zod, todos os erros juntos, `400` com código estável; limite de requisições (C5) com `429` +
-`Retry-After`. Responde `204`. Entra no OpenAPI/Scalar, com o teste "toda rota aparece no documento".
+`Retry-After`. Responde `204`. A API ainda não gera OpenAPI/Scalar (conferido na T1.2): a rota entra na documentação de rotas em `docs/ai-context/api-transportada.md`; criar o gerador está fora desta spec.
 
 **RF7 — Log da API.** Um `logger.info` por evento, mensagem constante `driver_client_diagnostic`,
 metadados: `companyId`, `membershipId`, `eventKind`, `step`, `durationMs`, `failureKind`, `httpStatus`,
-`attempt`, `reportKind`, `photoBytes`, `device`. Passa pela redação do logger. Nunca grava o corpo cru.
+`attempt`, `reportKind`, `photoBytes`, `device`. O que protege é a lista fechada do schema Zod (o logger não tem camada de redação). Nunca grava o corpo cru.
 
 **RF8 — Espaçamento da drenagem.** O item que falha por rede ganha `lastAttemptAt`; o temporizador de 30 s
 só o drena quando `agora ≥ lastAttemptAt + backoff(attempts)` (C1–C3). Vale para a fila de eventos e
-a de anexos. `online`, `pageshow`, "Enviar agora" e a abertura ignoram o espaçamento (D6). Item **nunca**
+a de anexos. Se o primeiro item elegível não é devido, a drenagem do temporizador **para** (preserva a ordem N3; nada de pular). `online`, `pageshow`, "Enviar agora" e a abertura ignoram o espaçamento (D6). Se o primeiro item elegível está em espera, a drenagem do
+temporizador **para** (ordem N3, nunca pular). Item **nunca**
 é descartado por isso (D5), e `attempts` segue só contando.
 
 **RF9 — A tela diz a verdade.** A fila continua mostrando "falhou N vezes". Item em espera do
@@ -132,4 +133,4 @@ ao previsto pela fórmula; "Enviar agora" ignora o espaçamento; `403`/`500` seg
 - **CA3** — 20 ticks com rede caída fazem menos pedidos que 20, conforme a fórmula de C1–C3.
 - **CA4** — `online`/"Enviar agora" drenam imediatamente com item em espera.
 - **CA5** — Falha ao enviar diagnóstico não altera o resultado da baixa nem `attempts`.
-- **CA6** — `make check` verde nas duas apps de front e na API; rota no documento OpenAPI.
+- **CA6** — `make check` verde nas duas apps de front e na API; rota documentada em `docs/ai-context/api-transportada.md`.

@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isAwaitingDeliveryKey, type AttachmentGroupEntries } from './offlineAttachments.service'
 import type { QueuedReport } from './offlineQueue.service'
+import type { DrainOrigin } from './retryBackoff.service'
 
 /**
  * A pendência da fila (plan D5): quanto falta enviar. `drainable` alimenta o temporizador da
@@ -113,7 +114,8 @@ export type DrainTriggerTarget = Readonly<{
  * `drain()` uma vez, antes de agendar estes.
  */
 export function scheduleQueueDrainTriggers(input: {
-  readonly drain: () => void
+  /** Spec 254: `timer` respeita o espaçamento por item; os demais gatilhos são `immediate`. */
+  readonly drain: (origin: DrainOrigin) => void
   readonly getDrainable: () => number
   /**
    * Entrega a quem chama o `sync` do temporizador. Um toque enfileirado com sinal fraco não dispara
@@ -131,7 +133,7 @@ export function scheduleQueueDrainTriggers(input: {
   }
 
   function tick(): void {
-    input.drain()
+    input.drain('timer')
     if (input.getDrainable() <= 0) stopInterval()
   }
 
@@ -144,18 +146,18 @@ export function scheduleQueueDrainTriggers(input: {
   }
 
   function handleOnline(): void {
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 
   function handlePageshow(): void {
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 
   function handleVisibilityChange(): void {
     if (!input.target.isVisible()) return
-    input.drain()
+    input.drain('immediate')
     syncInterval()
   }
 
@@ -174,7 +176,7 @@ export function scheduleQueueDrainTriggers(input: {
 }
 
 export type DrainScheduler = Readonly<{
-  request: (only?: string) => void
+  request: (only: string | undefined, origin: DrainOrigin) => void
   /** Quem roda a drenagem chama isto quando ela termina, dando certo ou não. */
   settled: () => void
 }>
@@ -201,15 +203,19 @@ function scheduleWatchdogWithTimer(release: () => void): () => void {
  * que chega ocupado não é descartado — o geral vira uma repetição, e cada "Enviar agora" (`only`)
  * fica guardado num `Set` e roda na sua vez. Spec 189 T9.2 (M3): a repetição sem `only` engolia o
  * envio manual de um item recusado, que só drena com o `only` dele.
+ *
+ * Spec 254: cada pedido carrega a origem; ao juntar dois, `immediate` vence `timer` — senão um "Enviar
+ * agora" pedido durante uma drenagem respeitaria o espaçamento.
  */
 export function createDrainScheduler(input: {
-  readonly run: (only: string | undefined) => void
+  readonly run: (only: string | undefined, origin: DrainOrigin) => void
   /** Injetável só para o teste disparar o cão de guarda sem esperar três minutos. */
   readonly scheduleWatchdog?: (release: () => void) => () => void
 }): DrainScheduler {
   const scheduleWatchdog = input.scheduleWatchdog ?? scheduleWatchdogWithTimer
   let isRunning = false
   let hasPendingFullDrain = false
+  let pendingFullDrainOrigin: DrainOrigin = 'timer'
   let cancelWatchdog: (() => void) | undefined
   /**
    * ⚠️ O cão de guarda cria uma corrida que antes não existia: ele abre a trava e a drenagem
@@ -219,15 +225,15 @@ export function createDrainScheduler(input: {
    * guarda abandona exatamente uma drenagem, e o `settled()` dela é engolido.
    */
   let abandonedDrains = 0
-  const pendingKeys = new Set<string>()
+  const pendingKeys = new Map<string, DrainOrigin>()
 
-  function start(only: string | undefined): void {
+  function start(only: string | undefined, origin: DrainOrigin): void {
     isRunning = true
     cancelWatchdog = scheduleWatchdog(() => {
       abandonedDrains += 1
       settle()
     })
-    input.run(only)
+    input.run(only, origin)
   }
 
   function settle(): void {
@@ -236,23 +242,30 @@ export function createDrainScheduler(input: {
     isRunning = false
     if (hasPendingFullDrain) {
       hasPendingFullDrain = false
-      start(undefined)
+      const origin = pendingFullDrainOrigin
+      pendingFullDrainOrigin = 'timer'
+      start(undefined, origin)
       return
     }
-    const [nextKey] = pendingKeys
-    if (nextKey === undefined) return
+    const [next] = pendingKeys
+    if (next === undefined) return
+    const [nextKey, nextOrigin] = next
     pendingKeys.delete(nextKey)
-    start(nextKey)
+    start(nextKey, nextOrigin)
   }
 
   return {
-    request(only) {
+    request(only, origin) {
       if (!isRunning) {
-        start(only)
+        start(only, origin)
         return
       }
-      if (only === undefined) hasPendingFullDrain = true
-      else pendingKeys.add(only)
+      if (only === undefined) {
+        hasPendingFullDrain = true
+        if (origin === 'immediate') pendingFullDrainOrigin = 'immediate'
+        return
+      }
+      if (origin === 'immediate' || !pendingKeys.has(only)) pendingKeys.set(only, origin)
     },
     settled() {
       if (abandonedDrains > 0) {

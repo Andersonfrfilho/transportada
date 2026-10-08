@@ -31,8 +31,21 @@ export const TRIP_REPORT_STATE_ACRONYMS: readonly string[] = [
 
 export type TripReportFilterState = Readonly<{
   contractorIds: readonly string[]
+  cteIssued: string
+  dateFrom: string
+  dateTo: string
   documentStatuses: readonly TripReportRow['documentStatus'][]
+  emitterAddress: string
+  emitterCity: string
+  emitterNames: readonly string[]
+  emitterState: string
+  emitterTaxIds: readonly string[]
+  fiscalStatus: string
+  numberFrom: string
+  numberTo: string
+  recipientAddress: string
   recipientCity: string
+  recipientName: string
   recipientStates: readonly string[]
   search: string
   valueAmount: string
@@ -41,8 +54,21 @@ export type TripReportFilterState = Readonly<{
 
 export const EMPTY_TRIP_REPORT_FILTER_STATE: TripReportFilterState = {
   contractorIds: [],
+  cteIssued: '',
+  dateFrom: '',
+  dateTo: '',
   documentStatuses: [],
+  emitterAddress: '',
+  emitterCity: '',
+  emitterNames: [],
+  emitterState: '',
+  emitterTaxIds: [],
+  fiscalStatus: '',
+  numberFrom: '',
+  numberTo: '',
+  recipientAddress: '',
   recipientCity: '',
+  recipientName: '',
   recipientStates: [],
   search: '',
   valueAmount: '',
@@ -55,6 +81,19 @@ const AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/
 export function normalizeTripReportAmount(raw: string): string | undefined {
   const normalized = raw.trim().replace(',', '.')
   return AMOUNT_PATTERN.test(normalized) ? normalized : undefined
+}
+
+const DIGITS_PATTERN = /^\d+$/
+
+/** Número de nota que não é só dígitos não vai para a API (ela responderia 400). */
+export function normalizeTripReportNumber(raw: string): string | undefined {
+  const trimmed = raw.trim()
+  return DIGITS_PATTERN.test(trimmed) ? trimmed : undefined
+}
+
+function pickText(value: string): string | undefined {
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
 }
 
 function isValueComplete(state: TripReportFilterState): boolean {
@@ -75,6 +114,29 @@ function pickTripScope(tripFilters: TripFilters): TripReportFilters {
   }
 }
 
+function buildNfeScopeFilters(state: TripReportFilterState): TripReportFilters {
+  const numberFrom = normalizeTripReportNumber(state.numberFrom)
+  const numberTo = normalizeTripReportNumber(state.numberTo)
+  const emitterAddress = pickText(state.emitterAddress)
+  const recipientName = pickText(state.recipientName)
+  const recipientAddress = pickText(state.recipientAddress)
+  return {
+    ...(numberFrom === undefined ? {} : { numberFrom }),
+    ...(numberTo === undefined ? {} : { numberTo }),
+    ...(state.dateFrom === '' ? {} : { issuedFrom: state.dateFrom }),
+    ...(state.dateTo === '' ? {} : { issuedUntil: state.dateTo }),
+    ...(state.emitterNames.length === 0 ? {} : { emitterNameIn: state.emitterNames }),
+    ...(state.emitterTaxIds.length === 0 ? {} : { emitterTaxIdIn: state.emitterTaxIds }),
+    ...(state.emitterCity === '' ? {} : { emitterCityIn: [state.emitterCity] }),
+    ...(state.emitterState === '' ? {} : { emitterStateIn: [state.emitterState] }),
+    ...(emitterAddress === undefined ? {} : { emitterAddress }),
+    ...(recipientName === undefined ? {} : { recipientName }),
+    ...(recipientAddress === undefined ? {} : { recipientAddress }),
+    ...(state.cteIssued === '' ? {} : { cteIssued: state.cteIssued }),
+    ...(state.fiscalStatus === '' ? {} : { fiscalStatusIn: [state.fiscalStatus] }),
+  }
+}
+
 export function buildTripReportFilters(
   input: Readonly<{ state: TripReportFilterState; tripFilters: TripFilters }>,
 ): TripReportFilters {
@@ -83,6 +145,7 @@ export function buildTripReportFilters(
   const search = state.search.trim()
   return {
     ...pickTripScope(input.tripFilters),
+    ...buildNfeScopeFilters(state),
     ...(state.contractorIds.length === 0 ? {} : { contractorIdIn: state.contractorIds }),
     ...(state.documentStatuses.length === 0 ? {} : { documentStatusIn: state.documentStatuses }),
     ...(state.recipientCity === '' ? {} : { recipientCityIn: [state.recipientCity] }),
@@ -102,5 +165,17 @@ export function countActiveTripReportFilters(state: TripReportFilterState): numb
     state.recipientStates.length > 0,
     state.search.trim() !== '',
     isValueComplete(state),
+    normalizeTripReportNumber(state.numberFrom) !== undefined ||
+      normalizeTripReportNumber(state.numberTo) !== undefined,
+    state.dateFrom !== '' || state.dateTo !== '',
+    state.emitterNames.length > 0,
+    state.emitterTaxIds.length > 0,
+    state.emitterCity !== '',
+    state.emitterState !== '',
+    state.emitterAddress.trim() !== '',
+    state.recipientName.trim() !== '',
+    state.recipientAddress.trim() !== '',
+    state.cteIssued !== '',
+    state.fiscalStatus !== '',
   ].filter(Boolean).length
 }

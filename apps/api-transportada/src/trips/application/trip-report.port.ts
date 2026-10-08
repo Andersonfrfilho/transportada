@@ -2,7 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
-import type { TripReportFilters, TripReportQuery } from '../domain/trip-report.types.js'
+import type {
+  ListTripReportFacetsParams,
+  TripReportFacetEmitter,
+  TripReportFacetPlaceKind,
+  TripReportFacetSide,
+  TripReportFilters,
+  TripReportQuery,
+} from '../domain/trip-report.types.js'
 
 /** Uma linha por nota de viagem; `tripCreatedAt` é o texto com microssegundos que vira cursor. */
 export type TripReportRecord = {
@@ -39,6 +46,13 @@ export type TripReportPort = {
     readonly companyId: string
     readonly tripIds: readonly string[]
   }): Promise<ReadonlyMap<string, readonly TripDocumentSeparationStatus[]>>
+  listFacetEmitters(params: ListTripReportFacetsParams): Promise<readonly TripReportFacetEmitter[]>
+  listFacetPlaces(
+    params: ListTripReportFacetsParams & {
+      readonly kind: TripReportFacetPlaceKind
+      readonly side: TripReportFacetSide
+    },
+  ): Promise<readonly string[]>
   listRows(params: {
     readonly companyId: string
     readonly query: TripReportQuery

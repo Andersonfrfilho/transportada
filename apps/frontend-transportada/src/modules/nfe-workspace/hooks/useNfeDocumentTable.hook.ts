@@ -8,6 +8,38 @@ import {
 import { compareMoneyAmounts, parseMoneyAmount } from '@/modules/trip/shared/tripTable.service'
 
 import {
+  AMOUNT_OPERATOR_SYMBOL,
+  AMOUNT_OPERATORS,
+  CONDITION_FIELD_TYPE,
+  CONDITION_FIELDS,
+  CTE_ISSUED_DONE,
+  CTE_ISSUED_FILTER_VALUES,
+  CTE_ISSUED_PENDING,
+  EMPTY_FILTERS,
+  EMPTY_SELECT,
+  MULTI_FILTER_FIELDS,
+  OPERATORS_BY_TYPE,
+  TEXT_FILTER_FIELDS,
+} from '@/modules/shared/nfe-filter/nfeFilter.constant'
+import type { NfeFilterPanelCapabilities } from '@/modules/shared/nfe-filter/NfeFilterPanelController.types'
+import type {
+  AdvancedFilterModel,
+  AmountOperator,
+  ConditionChanges,
+  ConditionField,
+  ConditionOperator,
+  DocumentFilters,
+  FieldType,
+  FilterCondition,
+  FilterGroup,
+  FilterMode,
+  GroupConnector,
+  MultiFilterField,
+  SelectFilterField,
+  TextFilterField,
+} from '@/modules/shared/nfe-filter/nfeFilter.types'
+
+import {
   countSelectionHiddenByFilter,
   scopeSelectionToFilter,
 } from '../shared/documentSelectionScope.service'
@@ -15,20 +47,36 @@ import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 
 export type DocumentStatus = NfeDocumentListItem['status']
 
-export type TextFilterField = 'emitterAddress' | 'recipientAddress' | 'recipientName'
-
-/** Emitente é escolha, não digitação: quem filtra quer três transportadoras nomeadas, não um `contains`. */
-export type MultiFilterField = 'emitterName' | 'emitterTaxId'
-
-export type SelectFilterField =
-  | 'cteIssued'
-  | 'emitterCity'
-  | 'emitterState'
-  | 'recipientCity'
-  | 'recipientState'
-  | 'status'
-
-export type AmountOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'neq'
+export {
+  AMOUNT_OPERATOR_SYMBOL,
+  AMOUNT_OPERATORS,
+  CONDITION_FIELD_TYPE,
+  CONDITION_FIELDS,
+  CTE_ISSUED_DONE,
+  CTE_ISSUED_FILTER_VALUES,
+  CTE_ISSUED_PENDING,
+  EMPTY_FILTERS,
+  EMPTY_SELECT,
+  MULTI_FILTER_FIELDS,
+  OPERATORS_BY_TYPE,
+  TEXT_FILTER_FIELDS,
+}
+export type {
+  AdvancedFilterModel,
+  AmountOperator,
+  ConditionChanges,
+  ConditionField,
+  ConditionOperator,
+  DocumentFilters,
+  FieldType,
+  FilterCondition,
+  FilterGroup,
+  FilterMode,
+  GroupConnector,
+  MultiFilterField,
+  SelectFilterField,
+  TextFilterField,
+}
 
 export type FilterKey =
   | MultiFilterField
@@ -38,64 +86,6 @@ export type FilterKey =
   | 'dateRange'
   | 'numberRange'
   | 'unlinkedOnly'
-
-export type FilterMode = 'advanced' | 'simple'
-
-export type FieldType = 'amount' | 'date' | 'number' | 'select' | 'text'
-
-export type ConditionField =
-  | 'cteIssued'
-  | 'emitterAddress'
-  | 'emitterCity'
-  | 'emitterName'
-  | 'emitterState'
-  | 'issuedAt'
-  | 'number'
-  | 'recipientAddress'
-  | 'recipientCity'
-  | 'recipientName'
-  | 'recipientState'
-  | 'series'
-  | 'status'
-  | 'totalAmount'
-
-export type ConditionOperator =
-  | 'after'
-  | 'before'
-  | 'between'
-  | 'contains'
-  | 'eq'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'neq'
-  | 'notContains'
-
-export type GroupConnector = 'and' | 'or'
-
-export type FilterCondition = Readonly<{
-  field: ConditionField
-  id: string
-  operator: ConditionOperator
-  value: string
-  valueTo: string
-}>
-
-export type FilterGroup = Readonly<{
-  conditions: readonly FilterCondition[]
-  connector: GroupConnector
-  id: string
-}>
-
-export type AdvancedFilterModel = Readonly<{
-  connector: GroupConnector
-  groups: readonly FilterGroup[]
-}>
-
-export type ConditionChanges = Partial<
-  Pick<FilterCondition, 'field' | 'operator' | 'value' | 'valueTo'>
->
 
 export type ColumnKey =
   | 'amount'
@@ -121,81 +111,6 @@ export type SortColumn =
 
 export type SortDirection = 'asc' | 'desc'
 export type SortState = Readonly<{ column: SortColumn; direction: SortDirection }> | null
-
-export type DocumentFilters = Readonly<{
-  amountOperator: AmountOperator
-  amountValue: string
-  dateFrom: string
-  dateTo: string
-  multi: Readonly<Record<MultiFilterField, readonly string[]>>
-  numberFrom: string
-  numberTo: string
-  select: Readonly<Record<SelectFilterField, string>>
-  text: Readonly<Record<TextFilterField, string>>
-  /** Esconde a nota que já tem CT-e vivo ou NFS-e vinculada. */
-  unlinkedOnly: boolean
-}>
-
-export const TEXT_FILTER_FIELDS: readonly TextFilterField[] = [
-  'emitterAddress',
-  'recipientName',
-  'recipientAddress',
-]
-
-export const MULTI_FILTER_FIELDS: readonly MultiFilterField[] = ['emitterName', 'emitterTaxId']
-
-export const AMOUNT_OPERATORS: readonly AmountOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte']
-
-export const AMOUNT_OPERATOR_SYMBOL: Readonly<Record<AmountOperator, string>> = {
-  eq: '=',
-  gt: '>',
-  gte: '≥',
-  lt: '<',
-  lte: '≤',
-  neq: '≠',
-}
-
-export const CONDITION_FIELDS: readonly ConditionField[] = [
-  'number',
-  'cteIssued',
-  'series',
-  'issuedAt',
-  'emitterName',
-  'emitterAddress',
-  'emitterCity',
-  'emitterState',
-  'recipientName',
-  'recipientAddress',
-  'recipientCity',
-  'recipientState',
-  'totalAmount',
-  'status',
-]
-
-export const CONDITION_FIELD_TYPE: Readonly<Record<ConditionField, FieldType>> = {
-  cteIssued: 'select',
-  emitterAddress: 'text',
-  emitterCity: 'select',
-  emitterName: 'text',
-  emitterState: 'select',
-  issuedAt: 'date',
-  number: 'number',
-  recipientAddress: 'text',
-  recipientCity: 'select',
-  recipientName: 'text',
-  recipientState: 'select',
-  series: 'number',
-  status: 'select',
-  totalAmount: 'amount',
-}
-
-export const OPERATORS_BY_TYPE: Readonly<Record<FieldType, readonly ConditionOperator[]>> = {
-  amount: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
-  date: ['between', 'before', 'after', 'eq'],
-  number: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
-  select: ['eq', 'neq'],
-  text: ['contains', 'notContains', 'eq', 'neq'],
-}
 
 const DEFAULT_OPERATOR: Readonly<Record<FieldType, ConditionOperator>> = {
   amount: 'eq',
@@ -236,47 +151,9 @@ export const SORT_COLUMNS: readonly SortColumn[] = [
   'updatedAt',
 ]
 
-const EMPTY_TEXT: Record<TextFilterField, string> = {
-  emitterAddress: '',
-  recipientAddress: '',
-  recipientName: '',
-}
-
-const EMPTY_MULTI: Record<MultiFilterField, readonly string[]> = {
-  emitterName: [],
-  emitterTaxId: [],
-}
-
-/** Antigo padrão do filtro; o `unlinkedOnly` assumiu o papel de abrir só as notas ainda sem documento fiscal. */
-export const CTE_ISSUED_PENDING = 'pending'
-
-export const CTE_ISSUED_DONE = 'issued'
-
-export const CTE_ISSUED_FILTER_VALUES: readonly string[] = [CTE_ISSUED_PENDING, CTE_ISSUED_DONE]
+const NOTES_FILTER_CAPABILITIES: NfeFilterPanelCapabilities = { advanced: true, unlinkedOnly: true }
 
 const CTE_ALREADY_LINKED_REASON = 'CTE_BATCH_DOCUMENT_ALREADY_LINKED'
-
-const EMPTY_SELECT: Record<SelectFilterField, string> = {
-  cteIssued: '',
-  emitterCity: '',
-  emitterState: '',
-  recipientCity: '',
-  recipientState: '',
-  status: '',
-}
-
-export const EMPTY_FILTERS: DocumentFilters = {
-  amountOperator: 'gte',
-  amountValue: '',
-  dateFrom: '',
-  dateTo: '',
-  multi: EMPTY_MULTI,
-  numberFrom: '',
-  numberTo: '',
-  select: EMPTY_SELECT,
-  text: EMPTY_TEXT,
-  unlinkedOnly: true,
-}
 
 /** A mesma ordem da API: atualização, depois emissão, depois id — ver `compareByLatestUpdate`. */
 export const DEFAULT_SORT: SortState = { column: 'updatedAt', direction: 'desc' }
@@ -334,6 +211,7 @@ export type UseNfeDocumentTableResult = Readonly<{
   advancedFilter: AdvancedFilterModel
   allSelected: boolean
   blockedCount: number
+  capabilities: NfeFilterPanelCapabilities
   cityOptions: Readonly<Record<'emitterCity' | 'recipientCity', readonly string[]>>
   clearAllFilters: () => void
   clearFilter: (key: FilterKey) => void
@@ -1308,6 +1186,7 @@ export function useNfeDocumentTable({
     advancedFilter,
     allSelected,
     blockedCount,
+    capabilities: NOTES_FILTER_CAPABILITIES,
     cityOptions,
     clearAllFilters,
     clearFilter,

@@ -567,30 +567,6 @@ div.cardError {
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
 }
 
-.tab,
-.tabActive {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font: inherit;
-  font-weight: 700;
-  background: transparent;
-  cursor: pointer;
-}
-
-.tab {
-  color: var(--color-slate);
-}
-
-.tabActive {
-  color: var(--color-fog);
-  border-bottom-color: var(--color-copper);
-}
-
 .tabCount {
   padding: 0 var(--space-2);
   border: 1px solid currentColor;
@@ -1007,49 +983,6 @@ div.cardError {
   background: var(--color-graphite);
 }
 
-.filterGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: var(--space-3);
-  padding: var(--space-4);
-  margin-bottom: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
-  background: var(--color-graphite);
-}
-
-.filterField {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  /* Sem isto o campo estica até a altura da linha da grade e o controle cru fica mais alto que o do design system. */
-  align-content: start;
-}
-
-.filterFieldLabel {
-  font-family: var(--font-utility);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-slate);
-}
-
-.filterInput {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--field-height-compact);
-  padding: var(--field-padding-compact);
-  border: 1px solid var(--color-slate);
-  color: var(--color-fog);
-  font: inherit;
-  font-size: var(--field-font-size-compact);
-  background: var(--color-asphalt);
-}
-
-.filterInput:focus {
-  outline: 1px solid var(--color-copper);
-}
-
 .headerEnd,
 .amountCell {
   text-align: right;
@@ -1201,28 +1134,6 @@ div.cardError {
   background: var(--color-copper);
 }
 
-.rangeInputs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.amountRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-2);
-  align-items: stretch;
-}
-
-.filterModeBar {
-  display: inline-flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
-  background: var(--color-graphite);
-  justify-self: start;
-}
-
 .columnRow {
   display: flex;
   align-items: center;
@@ -1233,152 +1144,6 @@ div.cardError {
 .columnReorder {
   display: inline-flex;
   gap: var(--space-1);
-}
-
-.builderConnectorRail {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.builderConnectorRailRoot {
-  margin: var(--space-1) 0;
-}
-
-.builderConnectorLine {
-  flex: 1 1 auto;
-  height: 1px;
-  background: color-mix(in srgb, var(--color-slate) 30%, transparent);
-}
-
-.builderConnectorRailRoot .builderConnectorLine {
-  background: color-mix(in srgb, var(--color-copper) 40%, transparent);
-}
-
-.builderConnectorChip {
-  flex: 0 0 auto;
-  min-width: 3.25rem;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
-  color: var(--color-copper);
-  font-family: var(--font-utility);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-align: center;
-  cursor: pointer;
-  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
-}
-
-.builderConnectorChip:hover {
-  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
-}
-
-.builderConnectorRailRoot .builderConnectorChip {
-  color: var(--color-asphalt);
-  background: var(--color-copper);
-}
-
-.builder {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
-  background: var(--color-graphite);
-}
-
-.builderGroup {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
-  background: var(--color-asphalt);
-}
-
-.builderHint {
-  margin: 0;
-  color: var(--color-slate);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-.builderGroupHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.builderGroupTitle {
-  color: var(--color-slate);
-  font-family: var(--font-utility);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.builderConditions {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.builderCondition {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.builderAddCondition,
-.builderAddGroup {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  justify-self: start;
-  padding: var(--space-2) var(--space-3);
-  border: 1px dashed color-mix(in srgb, var(--color-slate) 45%, transparent);
-  color: var(--color-fog);
-  font: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-  background: transparent;
-}
-
-.builderAddGroup {
-  border-color: color-mix(in srgb, var(--color-copper) 60%, transparent);
-  color: var(--color-copper);
-}
-
-.builderWrapper {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.builderSave {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  justify-self: start;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-copper);
-  color: var(--color-asphalt);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--color-copper);
-}
-
-.builderSave:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-@media (min-width: 40rem) {
-  .builderCondition {
-    grid-template-columns: minmax(9rem, 1fr) minmax(8rem, 1fr) minmax(10rem, 1.4fr) auto;
-  }
 }
 
 .cteEmissionOverlay {

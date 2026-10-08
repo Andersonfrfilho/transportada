@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { hasValidContractorReplyFields } from './driverOccurrenceContractorReply.validation'
 
 /**
  * Spec 247 RF11: produto da NF-e para o registro de ocorrência com somas. Código, descrição,
@@ -546,7 +547,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownStopKind &&
     hasKnownDeclaredAmountScope &&
     hasKnownNewFields &&
-    hasKnownIconName
+    hasKnownIconName &&
+    hasValidContractorReplyFields(value as Readonly<Record<string, unknown>>)
   )
 }
 

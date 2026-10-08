@@ -38,7 +38,7 @@ Postgres):
   emite um `logger.info('driver_client_diagnostic', …)` por evento via `safeLogInfo`. Sem repositório.
 - Constantes (`trips.constant.ts`): `DRIVER_CLIENT_DIAGNOSTIC_LOG_MESSAGE`, nomes dos enums, limites
   (`MAX_DIAGNOSTIC_EVENTS_PER_REQUEST`), código `CLIENT_DIAGNOSTICS_INVALID`.
-- Resposta `204`. `429` pelo limite C5. OpenAPI derivado da definição da rota.
+- Resposta `204`. `429` pelo limite C5. Sem OpenAPI: a API não o gera hoje (documentar em `docs/ai-context/api-transportada.md`).
 
 ### 2. Coletor no `frontend-driver`
 
@@ -68,19 +68,26 @@ Postgres):
 - Função pura `computeRetryDelayMs({ attempts })` em `retryBackoff.service.ts`:
   `min(30_000 × 2^(attempts−1), 600_000)` + jitter ±20 % por função injetável (padrão
   `Math.random`; teste fixa o jitter). `isRetryDue({ item, now })` pura.
-- `drainQueue` e o equivalente de anexos recebem `origin: 'timer' | 'immediate'`. Em `'timer'`, item com
-  `attempts > 0` e `!isRetryDue` é **pulado sem contar tentativa** e **sem parar** a drenagem dos de
-  trás (diferente do `failed-network`, que para tudo). Em `'immediate'`, nada muda.
+- `drainQueue` e o equivalente de anexos recebem `origin: 'timer' | 'immediate'`. Em `'timer'`, se o primeiro item elegível tem
+  `attempts > 0` e `!isRetryDue`, a drenagem **para inteira, sem contar tentativa** (T1.1: pular e seguir
+  quebraria a ordem N3 — "Entreguei" não sobe antes de "Cheguei", `offlineAttachments.service.ts:367-371`).
+  Em `'immediate'`, nada muda.
 - `createDrainScheduler`/`scheduleQueueDrainTriggers`: o `tick` do `setInterval` chama
   `drain('timer')`; `online`, `pageshow`, visibilidade e "Enviar agora" chamam `drain('immediate')`.
-  ⚠️ Mudar a assinatura de `drain` toca os dois hooks (`useDriverTrip.hook.ts` e o do painel).
+  A origem atravessa `scheduleQueueDrainTriggers` → `drainRef` → `request` → `run` → `mutationFn`
+  (`useDriverTrip.hook.ts`) → `drainQueueWithAttachments`. O agendador guarda a origem junto do pedido
+  pendente e, ao juntar dois pedidos, **`'immediate'` vence** (`pendingQueue.service.ts:249-251`).
+  O hook do painel não tem agendador: chama `drain.mutate` direto, e esse chamador é `'immediate'`.
+- `lastAttemptAt` entra explicitamente na remontagem do item recusado (`offlineAttachments.service.ts:379-389`).
 - Item sem `lastAttemptAt` (gravado antes da spec) é tratado como "devido" — nada trava na migração.
 
 ### 4. Espelho no painel (D8)
 
-Os três arquivos de fila são cópia por valor de `apps/frontend-transportada/src/modules/driver-trip/shared/`.
-A mudança entra **primeiro no painel** (a origem da cópia), depois no driver, e o
-`copy-by-value-header.contract.ts` continua verde. O coletor de diagnóstico é só do `frontend-driver`.
+Os arquivos de fila **não são cópias idênticas** (T1.1): painel e driver divergem em tamanho e lógica
+(`ownerSubHash`, `createDrainScheduler` com cão de guarda e `recoverProofPhotos` só existem no driver). A
+mudança é **portada nas duas apps** — origem do `offlineQueue`/`offlineAttachments` é o painel; do
+`pendingQueue`, o driver — sem sobrescrever arquivo. O `copy-by-value-header.contract.ts` só vigia o
+cabeçalho e continua verde. O coletor de diagnóstico é só do `frontend-driver`.
 
 ## Riscos
 
@@ -89,7 +96,8 @@ A mudança entra **primeiro no painel** (a origem da cópia), depois no driver, 
   de CA4.
 - **Buffer perdido na recarga**: se a falha acontece e o motorista fecha o app antes do `flush`, o rastro
   some. Aceito (Fora do escopo). Revisitar se o log mostrar buracos.
-- **`failed-network` para a drenagem inteira** continua: item cabeça em espera longa não bloqueia os de
+- **Ordem N3 acima do ganho de pular:** item cabeça em espera longa segura os de trás no temporizador (até
+  10 min). Aceito: a alternativa reordenaria "Cheguei"/"Entreguei". Antes: `failed-network` já parava a drenagem; item cabeça em espera longa não bloqueia os de
   trás (são pulados), mas item cabeça _devido_ e falhando ainda para os de trás — comportamento atual.
 - **Volume de log**: ≤ 20 eventos × 6 req/min × usuário. Em frota pequena é irrelevante; se crescer, o
   limite C5 é o freio.
@@ -110,3 +118,11 @@ A mudança entra **primeiro no painel** (a origem da cópia), depois no driver, 
 nome da mensagem de log) é herdado pelas tasks da API e do coletor. Validar com `architect` (T1.1)
 antes de qualquer código: se o usuário passar a querer consulta/painel dos diagnósticos, a decisão muda
 para tabela e migration, e a spec precisa ser reaberta.
+
+## Ajustes da T1.1 (architect, opus — APROVADO, só log, sem tabela)
+
+1. Drenagem pelo temporizador **para** no primeiro item elegível não devido (N3). 2. Origem guardada no
+   agendador, `'immediate'` vence. 3. Fila é **portada** nas duas apps, nunca copiada por cima. 4. O use case monta
+   o log campo a campo (lista permitida), nunca `...event`. 5. Coletor: 400 descarta o lote, 429/rede devolvem ao
+   buffer (teto C4), nunca instrumenta o próprio envio; publicar API → driver. Rota sem `resolveDriver` (o log leva
+   `membershipId`); limite `{maxRequests: 6, windowSeconds: 60, scope: 'me-client-diagnostics', store: 'postgres'}`.
