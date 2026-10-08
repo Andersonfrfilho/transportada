@@ -24,7 +24,6 @@ import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.compone
 import { TripTimeline } from '../components/TripTimeline.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
 import { useTripTimeline } from '../hooks/useTripTimeline.hook'
-import { useTripCreatorName } from '../hooks/useTripCreatorName.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { navigateToTrips } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
@@ -80,8 +79,6 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
     tripId,
     tripStatus: workspace.trip?.status,
   })
-
-  const creatorName = useTripCreatorName(timeline)
 
   /**
    * O motivo da lacuna vira ação **só onde ela existe**. `planRoute` exige a viagem em `draft` — a
@@ -154,7 +151,6 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
             <TripDetail
               canAdjustTollBooth={canAdjustTollBooth}
               canReadFinancials={financials.canReadFinancials}
-              creatorName={creatorName}
               drivers={fleet.viewModel.drivers ?? []}
               linkForm={linkForm}
               vehicles={fleet.viewModel.vehicles ?? []}

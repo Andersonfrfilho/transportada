@@ -1,31 +1,35 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
-import { findTripCreatorName } from '../shared/tripCreator.service'
-import type { useTripTimeline } from './useTripTimeline.hook'
+import { TRIP_QUERY_KEY, TRIP_TIMELINE_DEFAULT_LIMIT } from '../shared/trip.constant'
+import { readTripCreatorName } from '../shared/tripCreator.service'
+import { getTripClient } from './useTripWorkspace.hook'
 
-/** Teto de páginas buscadas só para achar a criação: uma viagem enorme não puxa a história toda. */
-const MAX_PAGES_TO_FIND_CREATOR = 10
-
-type TripTimelineQuery = ReturnType<typeof useTripTimeline>
+type UseTripCreatorNameInput = Readonly<{
+  canRead: boolean
+  tripId: string
+}>
 
 /**
- * Reaproveita a consulta da linha do tempo (mesma chave de cache) e, se a criação — o item mais
- * antigo — ainda não chegou, busca as páginas seguintes até achá-la.
+ * Consulta **própria**, fora da linha do tempo visível: buscar páginas extras na mesma consulta
+ * mudava a paginação do painel ("Carregar mais" sumia). Só roda quando alguém pede o nome — o
+ * diálogo de conferência monta este hook ao abrir. O autor da criação nunca muda, então não
+ * se relê.
  */
-export function useTripCreatorName(timeline: TripTimelineQuery): null | string | undefined {
-  const pages = timeline.data?.pages ?? []
-  const creatorName = findTripCreatorName(pages)
-  const { fetchNextPage, hasNextPage, isFetchingNextPage } = timeline
-  const shouldFetchMore =
-    creatorName === undefined &&
-    hasNextPage &&
-    !isFetchingNextPage &&
-    pages.length < MAX_PAGES_TO_FIND_CREATOR
+export function useTripCreatorName({ canRead, tripId }: UseTripCreatorNameInput): null | string {
+  const query = useQuery({
+    enabled: canRead && tripId !== '',
+    queryFn: () =>
+      readTripCreatorName((cursor) =>
+        getTripClient().readTripTimeline({
+          cursor,
+          limit: TRIP_TIMELINE_DEFAULT_LIMIT,
+          tripId,
+        }),
+      ),
+    queryKey: [TRIP_QUERY_KEY, tripId, 'creator'] as const,
+    staleTime: Infinity,
+  })
 
-  useEffect(() => {
-    if (shouldFetchMore) void fetchNextPage()
-  }, [shouldFetchMore, fetchNextPage])
-
-  return creatorName
+  return query.data ?? null
 }

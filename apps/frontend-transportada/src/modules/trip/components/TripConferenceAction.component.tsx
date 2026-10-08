@@ -12,20 +12,22 @@ import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shar
 import { TripConferenceDialog } from './TripConferenceDialog.component'
 
 type TripConferenceActionProps = Readonly<{
-  creatorName: null | string | undefined
+  canReadCreator: boolean
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   stops: readonly TripStopDetail[]
   tripCode: string
+  tripId: string
   vehiclePlate: null | string
 }>
 
 export function TripConferenceAction({
-  creatorName,
+  canReadCreator,
   documents,
   drivers,
   stops,
   tripCode,
+  tripId,
   vehiclePlate,
 }: TripConferenceActionProps) {
   const { t } = useTranslation('trip')
@@ -46,13 +48,14 @@ export function TripConferenceAction({
         </Button>
       </Tooltip>
       <TripConferenceDialog
-        creatorName={creatorName}
+        canReadCreator={canReadCreator}
         documents={documents}
         drivers={drivers}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         stops={stops}
         tripCode={tripCode}
+        tripId={tripId}
         vehiclePlate={vehiclePlate}
       />
     </>
