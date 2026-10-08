@@ -9,11 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { countAdvancedFilterConditions } from '@/modules/shared/advancedFilterConditions.service'
 
-import {
-  CONDITION_FIELD_TYPE,
-  CONDITION_FIELDS,
-  OPERATORS_BY_TYPE,
-} from './nfeFilter.constant'
+import { CONDITION_FIELD_TYPE, CONDITION_FIELDS, OPERATORS_BY_TYPE } from './nfeFilter.constant'
 import type {
   AdvancedFilterModel,
   ConditionChanges,

@@ -10,7 +10,11 @@ import { Select, type SelectOption } from '@/components/ui/select'
 import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import { AdvancedFilterBuilder } from './AdvancedFilterBuilder.component'
-import { AMOUNT_OPERATOR_SYMBOL, AMOUNT_OPERATORS, CTE_ISSUED_FILTER_VALUES } from './nfeFilter.constant'
+import {
+  AMOUNT_OPERATOR_SYMBOL,
+  AMOUNT_OPERATORS,
+  CTE_ISSUED_FILTER_VALUES,
+} from './nfeFilter.constant'
 import styles from './nfeFilterPanel.module.css'
 import type { NfeFilterPanelController } from './NfeFilterPanelController.types'
 import type { AmountOperator, FilterMode, NfeFilterStatus } from './nfeFilter.types'
