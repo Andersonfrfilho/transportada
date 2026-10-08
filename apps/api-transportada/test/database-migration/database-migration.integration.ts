@@ -28,6 +28,7 @@ import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
+import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
 import { assertOccurrenceTypeItemsModeBackfill } from './occurrence-type-items-mode.assertion.js'
@@ -188,6 +189,13 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceTypeIconRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         // Ordem inversa do histórico: a 247 sai antes da 246, e a 241 derruba `items_mode` e, com

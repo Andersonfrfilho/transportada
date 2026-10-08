@@ -7,8 +7,8 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T0.1** Conferir os caminhos/linhas do `plan.md` contra `origin/staging`; registrar divergência. Aceite: lista em `evidence.md`.
-- [ ] **T0.2** Conferir se o `GET` da viagem já devolve o tipo da ocorrência (para RF6). Aceite: resposta registrada.
+- [x] **T0.1** Conferir os caminhos/linhas do `plan.md` contra `origin/staging`; registrar divergência. Aceite: lista em `evidence.md`.
+- [x] **T0.2** Conferir se o `GET` da viagem já devolve o tipo da ocorrência (para RF6). Aceite: resposta registrada.
 
 ## Fase 1 — Painel e app tolerantes
 
@@ -21,7 +21,7 @@ Gates por task: typecheck da app, testes da app (script `test`, nunca `bun test`
 
 > 🤖 Modelo: `sonnet` (T2.1 é 🧠 — `opus`, validar com `architect`: migration + CHECK)
 
-- [ ] **T2.1** 🧠 Constante do catálogo, coluna, CHECK, migration/rollback/snapshot. Integração `test/integration/occurrence-type-icon.integration.ts` + `make migration-test`.
+- [x] **T2.1** 🧠 Constante do catálogo, coluna, CHECK, migration/rollback/snapshot. Integração `test/integration/occurrence-type-icon.integration.ts` + `make migration-test`.
 - [ ] **T2.2** Zod, mapper, use case, leitura, DTOs e goldens (RF2, RF3, CA2). Contrato antes; mutação vermelha registrada (esquecer o mapper).
 
 ## Fase 3 — Telas

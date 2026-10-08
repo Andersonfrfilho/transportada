@@ -107,3 +107,58 @@ plano ("campo opcional, desconhecido tolerado") e faria o app recusar qualquer c
 teste agora afirma a tolerância. Também saíram os comentários que citavam a spec. Gates depois da correção:
 typecheck `frontend-driver` e `frontend-transportada` limpos, `bun run test` 1417 pass / 0 fail, eslint e
 prettier limpos.
+
+## T2.1 — validação do `architect` (opus), antes de implementar
+
+Veredito: **APROVADO COM AJUSTES**.
+
+- CHECK com lista `IN` segue o padrão do repo (`inList` + `raw`); ampliar o catálogo = migration `DROP`+`ADD CONSTRAINT` numa instrução só; rollback de ampliação leva os valores novos a `NULL` antes de recriar a CHECK antiga.
+- Gerar a pasta com `db:generate -- --name occurrence_type_icon` **depois** de `git fetch && git rebase origin/staging`; `prevIds` = id de `20261007205304_nfse_national_taxation`. Snapshot nunca à mão; segundo `db:generate` deve dar `no_changes`.
+- Coluna só em `company_occurrence_types` (nunca nas tabelas `*_overrides`/`moments`).
+- Ajuste obrigatório 1: acrescentar a pasta nova no fim da lista fixa de `test/database-migration/static-migration.contract.ts` (~linha 360).
+- Ajuste obrigatório 2: registrar `./test/integration/occurrence-type-icon.integration.ts` em `test:integration` no `package.json` da API.
+- Integração insere cada nome do catálogo, `NULL` e um inválido (`23514`, `constraint_name = company_occurrence_types_icon_name_check`).
+- Recomendado: `test/database-migration/occurrence-type-icon.static.contract.ts` (padrão da 247) e assertion de rollback em `database-migration.integration.ts`.
+
+## T2.1 — Catálogo, coluna, CHECK, migration e rollback (2026-10-08)
+
+`git fetch && git rebase --autostash origin/staging` antes de gerar: já em dia com `754630a65`.
+
+**Vermelho** (`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/occurrence-type-icon.integration.ts`):
+
+1. teste escrito antes de tudo: `SyntaxError: Export named 'OCCURRENCE_TYPE_ICON_NAMES' not found` — 0 pass / 1 fail;
+2. com a constante e sem a coluna: `TypeError: Object.entries requires that input parameter not be null or undefined`
+   (o `select` de `companyOccurrenceTypes.iconName` inexistente) — 0 pass / 1 fail.
+
+**Implementação** (só `company_occurrence_types`; nada em `*_overrides` nem `moments`):
+
+- `src/shared/trip-occurrence.constant.ts`: `OCCURRENCE_TYPE_ICON_NAMES` (10 nomes, `as const`) e `OccurrenceTypeIconName`.
+- `src/database/trip.schema.ts`: `iconName: varchar('icon_name', { length: 32 }).$type<OccurrenceTypeIconName>()`, sem `notNull`/`default`;
+  CHECK `company_occurrence_types_icon_name_check` = `icon_name is null or icon_name in (inList(catálogo))`.
+- `db:generate -- --name occurrence_type_icon` → `drizzle/20261008024137_occurrence_type_icon/` (`migration.sql`, `snapshot.json`).
+  `prevIds` = `b685ccc8-da17-4849-8518-5f564580ccda` = `id` de `20261007205304_nfse_national_taxation`. No `migration.sql` só
+  entraram o cabeçalho de copyright e comentários; as duas instruções são as geradas. Segundo `db:generate`:
+  `{"status":"no_changes","dialect":"postgresql"}`.
+- `rollback.sql` à mão (padrão da 247): "Manual rollback only", `BEGIN`, `DROP CONSTRAINT IF EXISTS`, `DROP COLUMN IF EXISTS`,
+  `DELETE` do journal com `ROW_COUNT = 1`, `COMMIT`. Sem `CASCADE`.
+- Testes: `test/integration/occurrence-type-icon.integration.ts` (cada nome do catálogo, `NULL`, `'rocket'` → `{ constraint:
+company_occurrence_types_icon_name_check, sqlState: 23514 }`), registrado no fim de `test:integration`;
+  `test/database-migration/occurrence-type-icon.static.contract.ts` (um `ADD COLUMN "icon_name" varchar(32)` sem `DEFAULT`/`NOT NULL`,
+  CHECK depois da coluna com o catálogo exato, sem `UPDATE`/`DROP`/`DELETE`, nenhuma `_overrides`/`_moments`; rollback em ordem e sem
+  `CASCADE`), importado em `test/database-migration.contract.test.ts`; `occurrence-type-icon.assertion.ts` chamado em
+  `database-migration.integration.ts` antes do rollback da 247 (ordem inversa do histórico): rollback derruba só a CHECK e a coluna,
+  as outras CHECKs da tabela ficam, tipo gravado antes da reaplicação volta com `icon_name` NULL. Pasta nova no fim da lista fixa de
+  `static-migration.contract.ts`.
+
+**Verde (gates):**
+
+- integração nova: 1 pass / 0 fail (13 expect).
+- `bun run typecheck` (raiz): exit 0.
+- `bun run lint` (cwd `apps/api-transportada`, `--max-warnings=0`): exit 0.
+- `bun --env-file=../../.env.test run test` (API): 10924 pass / 25 skip / 0 fail, 207 arquivos.
+- `bun --env-file=../../.env.test run test:integration` (Postgres de teste em 65432, `make up ENV_FILE=.env.test SERVICES=postgres`):
+  1288 pass / 8 skip / 0 fail, 243 arquivos.
+- `make migration-test`: 158 pass / 0 skip / 0 fail (inclui a asserção de rollback nova).
+- `bun run format:check` (raiz): "All matched files use Prettier code style!".
+
+Desvio do veredito: nenhum. O nome da pasta saiu com data `20261008` (relógio UTC do `drizzle-kit`).
