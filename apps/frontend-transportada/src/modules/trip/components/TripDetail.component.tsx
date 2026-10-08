@@ -842,7 +842,13 @@ export function TripDetail({
           </span>
         </div>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
-        <TripConferenceAction documents={trip.documents} stops={trip.stops} />
+        <TripConferenceAction
+          documents={trip.documents}
+          drivers={trip.drivers}
+          stops={trip.stops}
+          tripCode={trip.id.slice(0, 8)}
+          vehiclePlate={vehicles.find((vehicle) => vehicle.id === trip.vehicleId)?.plate ?? null}
+        />
         {/*
          * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o
          * próximo passo. Elas viviam numa seção no meio da página, e a decisão exigia rolar.

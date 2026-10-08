@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import { buildTripConference } from '@/modules/trip/shared/tripConference.service'
+import {
+  buildTripConference,
+  extractCityFromStopLabel,
+} from '@/modules/trip/shared/tripConference.service'
 import type { TripDocumentDetail, TripStopDetail } from '@/modules/trip/shared/trip.types'
 
 function document(overrides: Partial<TripDocumentDetail>): TripDocumentDetail {
@@ -106,5 +109,27 @@ describe('buildTripConference', () => {
     expect(conference.rows.map((row) => row.documentId)).toEqual(['a', 'b'])
     expect(conference.rows[1]?.destinationLabel).toBe('')
     expect(conference.summary.stopCount).toBe(1)
+  })
+})
+
+describe('extractCityFromStopLabel', () => {
+  it('lê a cidade do fim do endereço, antes da UF', () => {
+    expect(extractCityFromStopLabel('RUA JOSE BONIFACIO, 1519, PIRASSUNUNGA, SP')).toBe(
+      'PIRASSUNUNGA',
+    )
+  })
+
+  it('sem UF no fim, devolve vazio em vez de inventar uma cidade', () => {
+    expect(extractCityFromStopLabel('Centro, 100')).toBe('')
+    expect(extractCityFromStopLabel('')).toBe('')
+  })
+})
+
+describe('data da fatura', () => {
+  it('leva a emissão da nota para a linha', () => {
+    const issued = document({ id: 'a', nfeIssuedAt: '2026-10-02T13:00:00Z' })
+    const conference = buildTripConference({ documents: [issued], stops: [] })
+
+    expect(conference.rows[0]?.issuedAt).toBe('2026-10-02T13:00:00Z')
   })
 })

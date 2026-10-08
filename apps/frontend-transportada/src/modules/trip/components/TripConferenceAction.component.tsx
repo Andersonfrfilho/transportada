@@ -7,16 +7,25 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import styles from '../styles/trip.module.css'
-import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
+import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shared/trip.types'
 
 import { TripConferenceDialog } from './TripConferenceDialog.component'
 
 type TripConferenceActionProps = Readonly<{
   documents: readonly TripDocumentDetail[]
+  drivers: readonly TripDriverLine[]
   stops: readonly TripStopDetail[]
+  tripCode: string
+  vehiclePlate: null | string
 }>
 
-export function TripConferenceAction({ documents, stops }: TripConferenceActionProps) {
+export function TripConferenceAction({
+  documents,
+  drivers,
+  stops,
+  tripCode,
+  vehiclePlate,
+}: TripConferenceActionProps) {
   const { t } = useTranslation('trip')
   const [isOpen, setIsOpen] = useState(false)
 
@@ -36,9 +45,12 @@ export function TripConferenceAction({ documents, stops }: TripConferenceActionP
       </Tooltip>
       <TripConferenceDialog
         documents={documents}
+        drivers={drivers}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         stops={stops}
+        tripCode={tripCode}
+        vehiclePlate={vehiclePlate}
       />
     </>
   )
