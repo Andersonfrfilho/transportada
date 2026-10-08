@@ -17,4 +17,8 @@ export const TRIP_REPORT_VALUE_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte
 
 export type TripReportValueOperator = (typeof TRIP_REPORT_VALUE_OPERATORS)[number]
 
+export const TRIP_REPORT_CTE_ISSUED_VALUES = ['issued', 'pending'] as const
+
+export type TripReportCteIssued = (typeof TRIP_REPORT_CTE_ISSUED_VALUES)[number]
+
 export const TRIP_REPORT_CURSOR_SEPARATOR = '::'

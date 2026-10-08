@@ -136,4 +136,85 @@ describe('parseTripReportQuery', () => {
     expect(refusal('?recipientStateIn=pernambuco').code).toBe('INVALID_REQUEST')
     expect(refusal('?proofPendingEq=maybe').code).toBe('INVALID_REQUEST')
   })
+
+  it('accepts the spec 258 note filters with their types', () => {
+    expect(
+      parse(
+        '?numberFrom=00001&numberTo=99999&issuedFrom=2028-02-29&issuedUntil=2028-03-01' +
+          '&emitterNameIn=AMARELINHA,OUTRA&emitterTaxIdIn=12345678000190&emitterCityIn=Recife' +
+          '&emitterStateIn=PE&emitterAddress=Rua%20A&recipientName=Maria&recipientAddress=Av%20B' +
+          '&cteIssued=issued&fiscalStatusIn=authorized,denied',
+      ).filters,
+    ).toEqual({
+      cteIssued: 'issued',
+      emitterAddress: 'Rua A',
+      emitterCityIn: ['Recife'],
+      emitterNameIn: ['AMARELINHA', 'OUTRA'],
+      emitterStateIn: ['PE'],
+      emitterTaxIdIn: ['12345678000190'],
+      fiscalStatusIn: ['authorized', 'denied'],
+      issuedFrom: '2028-02-29',
+      issuedUntil: '2028-03-01',
+      numberFrom: '00001',
+      numberTo: '99999',
+      recipientAddress: 'Av B',
+      recipientName: 'Maria',
+    })
+  })
+
+  it('accepts a single-sided number range and a single-sided date range', () => {
+    expect(parse('?numberFrom=42').filters).toEqual({ numberFrom: '42' })
+    expect(parse('?numberTo=42').filters).toEqual({ numberTo: '42' })
+    expect(parse('?issuedUntil=2026-10-31').filters).toEqual({ issuedUntil: '2026-10-31' })
+    expect(parse('?numberFrom=42&numberTo=42').filters).toEqual({
+      numberFrom: '42',
+      numberTo: '42',
+    })
+  })
+
+  it('refuses an inverted number range', () => {
+    expect(refusal('?numberFrom=99999&numberTo=00001').details?.[0]?.field).toBe('numberTo')
+  })
+
+  it('refuses a document number that is not 1 to 15 digits', () => {
+    expect(refusal('?numberFrom=12A').code).toBe('INVALID_REQUEST')
+    expect(refusal('?numberTo=-1').code).toBe('INVALID_REQUEST')
+    expect(refusal('?numberTo=1234567890123456').code).toBe('INVALID_REQUEST')
+    expect(refusal('?numberFrom=').code).toBe('INVALID_REQUEST')
+  })
+
+  it('refuses a date that is not a real calendar day', () => {
+    expect(refusal('?issuedFrom=2026-02-30').code).toBe('INVALID_REQUEST')
+    expect(refusal('?issuedUntil=2027-02-29').code).toBe('INVALID_REQUEST')
+    expect(refusal('?issuedFrom=2026-1-5').code).toBe('INVALID_REQUEST')
+    expect(refusal('?issuedFrom=05/10/2026').code).toBe('INVALID_REQUEST')
+  })
+
+  it('refuses an inverted date range', () => {
+    expect(refusal('?issuedFrom=2026-10-31&issuedUntil=2026-10-01').details?.[0]?.field).toBe(
+      'issuedUntil',
+    )
+  })
+
+  it('refuses a cteIssued outside issued and pending', () => {
+    expect(parse('?cteIssued=pending').filters.cteIssued).toBe('pending')
+    expect(refusal('?cteIssued=maybe').code).toBe('INVALID_REQUEST')
+    expect(refusal('?cteIssued=ISSUED').code).toBe('INVALID_REQUEST')
+  })
+
+  it('refuses an unknown fiscal status and an unknown state in the new lists', () => {
+    expect(refusal('?fiscalStatusIn=flying').code).toBe('INVALID_REQUEST')
+    expect(refusal('?emitterStateIn=pernambuco').code).toBe('INVALID_REQUEST')
+  })
+
+  it('refuses a text longer than the contains ceiling', () => {
+    const longText = 'a'.repeat(61)
+    expect(refusal(`?recipientName=${longText}`).code).toBe('INVALID_REQUEST')
+    expect(refusal(`?emitterAddress=${longText}`).code).toBe('INVALID_REQUEST')
+  })
+
+  it('refuses a list above the 100 values ceiling in the new lists', () => {
+    const names = Array.from({ length: 101 }, (_, index) => `e${index}`).join(',')
+    expect(refusal(`?emitterNameIn=${names}`).code).toBe('INVALID_REQUEST')
+  })
 })
