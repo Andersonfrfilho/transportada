@@ -1100,7 +1100,8 @@
     "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
   },
   "filters": {
-    "active": "{{count}} filtro(s) ativo(s)",
+    "active_one": "{{count}} filtro ativo",
+    "active_other": "{{count}} filtros ativos",
     "all": "Todas",
     "allMasculine": "Todos",
     "clear": "Limpar filtros",

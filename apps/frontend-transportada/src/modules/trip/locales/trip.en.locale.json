@@ -1100,7 +1100,8 @@
     "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved."
   },
   "filters": {
-    "active": "{{count}} active filter(s)",
+    "active_one": "{{count}} active filter",
+    "active_other": "{{count}} active filters",
     "all": "All",
     "allMasculine": "All",
     "clear": "Clear filters",

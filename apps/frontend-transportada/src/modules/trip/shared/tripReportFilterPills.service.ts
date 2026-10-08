@@ -99,6 +99,8 @@ export function describeTripReportFilterPills(
   return pills
 }
 
+const OPEN_RANGE_MARK = '…'
+
 const TEXT_PILLS = [
   ['emitterAddress', 'filters.report.emitterAddress'],
   ['recipientName', 'filters.report.recipientName'],
@@ -116,12 +118,12 @@ function describeNfePills(
     pills.push({
       field: 'number',
       labelKey: 'filters.report.number',
-      value: `${numberFrom ?? ''} – ${numberTo ?? ''}`,
+      value: `${numberFrom ?? OPEN_RANGE_MARK}–${numberTo ?? OPEN_RANGE_MARK}`,
     })
   }
   if (state.dateFrom !== '' || state.dateTo !== '') {
-    const from = state.dateFrom === '' ? '' : formatDay(state.dateFrom)
-    const to = state.dateTo === '' ? '' : formatDay(state.dateTo)
+    const from = state.dateFrom === '' ? OPEN_RANGE_MARK : formatDay(state.dateFrom)
+    const to = state.dateTo === '' ? OPEN_RANGE_MARK : formatDay(state.dateTo)
     pills.push({ field: 'date', labelKey: 'filters.report.issuedAt', value: `${from} – ${to}` })
   }
   if (state.emitterNames.length > 0) {
