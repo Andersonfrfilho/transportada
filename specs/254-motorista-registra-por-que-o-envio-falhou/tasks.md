@@ -39,7 +39,9 @@ arquivo.
       `computeRetryDelayMs` (30 s × 2, teto 10 min, jitter fixado); 20 ticks com rede caída fazem menos de 20
       pedidos e o número previsto pela fórmula; "Enviar agora" (`immediate`) ignora o espaçamento; `403`/`500`
       seguem recusa; item **continua na fila após 100 ticks** (227 D1); item sem `lastAttemptAt` é devido; um
-      item em espera não impede os de trás. Mesmo para a fila de anexos (`offline-attachments.contract`).
+      item em espera na frente **para** a drenagem do temporizador e não deixa passar os de trás (N3); o agendador
+      junta pedidos com `immediate` vencendo; `lastAttemptAt` sobrevive à remontagem do item recusado. Mesmo
+      para a fila de anexos (`offline-attachments.contract`).
       Aceite: vermelho esperado (função e parâmetro `origin` ainda não existem).
 - [ ] **T1.4** Contrato do coletor (`apps/frontend-driver/test/driver-trip/client-diagnostics.contract.ts`
   - entrypoint): `record` nunca lança; buffer de 50 descarta o mais antigo; `flush` em lote ≤ 20; falha do
@@ -57,6 +59,7 @@ arquivo.
 - [ ] **T2.2** `record-client-diagnostics.use-case.ts` + `me-client-diagnostics.routes.ts`
       (molde de `me-location.routes.ts`: `defineRoute`, `parseBody` `.strict()`, política `trip.report`
       `scope: company`, balde de limite C5, `204`). Registrar a rota no roteador.
+      Sem `resolveDriver`; limite C5 por configuração do balde; lista de campos permitidos no caso de uso.
       Gate: T1.2 verde; teste "toda rota aparece no OpenAPI" verde.
 - [ ] **T2.3** Atualizar docs (`docs/spec/` da API se houver contrato de rotas; `apps/api-transportada/CLAUDE.md`
       só se mudar regra normativa; `docs/ai-context/api-transportada.md` com a rota) — code-standart §14.
@@ -68,14 +71,15 @@ arquivo.
 - [ ] **T3.1** `retryBackoff.service.ts` (puro: `computeRetryDelayMs`, `isRetryDue`; relógio e jitter
       injetáveis) no **painel** (origem da cópia, ADR-0075 §7). Gate: trecho da T1.3 sobre a fórmula verde.
 - [ ] **T3.2** No painel: `lastAttemptAt` em `QueuedReport` e no item de anexo; parâmetro **obrigatório**
-      `origin: 'timer' | 'immediate'` em `drainQueue` e na drenagem de anexos; `timer` pula (sem contar e sem
-      parar) item em espera; `setInterval` chama `timer`, `online`/`pageshow`/visibilidade/"Enviar agora"/abertura
+      `origin: 'timer' | 'immediate'` em `drainQueue` e na drenagem de anexos; `timer` **para** a drenagem, sem contar
+      tentativa, quando o primeiro item elegível está em espera (N3: nunca pular); `setInterval` chama `timer`, `online`/`pageshow`/visibilidade/"Enviar agora"/abertura
       chamam `immediate`; ajustar os hooks que chamam `drain`. Gate: typecheck pega chamada esquecida;
       contratos do painel verdes (`offline-queue`, `offline-attachments`, `pending-queue`, `session-drain`).
-- [ ] **T3.3** Copiar por valor os três arquivos para `apps/frontend-driver/` mantendo o cabeçalho do
-      `copy-by-value-header.contract.ts`; ajustar o hook do driver. Mecânica, aceite por comando:
-      T1.3 inteira verde + `copy-by-value-header.contract` verde + typecheck.
-  > 🤖 `haiku`; falhou 2× → `sonnet`.
+- [ ] **T3.3** **Portar** o mesmo trecho para `apps/frontend-driver/` (os arquivos divergem do painel — não
+      copiar por cima: preservar `ownerSubHash`, `createDrainScheduler`/cão de guarda, `recoverProofPhotos`);
+      o agendador guarda a origem e `immediate` vence; ajustar o hook do driver. Aceite: T1.3 inteira verde +
+      `copy-by-value-header.contract` verde + typecheck.
+  > 🤖 `sonnet` (a T1.1 mostrou que deixou de ser mecânica).
 
 ## Fase 4 — Coletor e instrumentação no `frontend-driver`
 
@@ -84,7 +88,9 @@ arquivo.
 - [ ] **T4.1** `stepTimer.service.ts`, `deviceProfile.service.ts` (verificar na hora se existe variável de
       versão do build; se não, `appVersion` é omitido e isso vai para `evidence.md`).
 - [ ] **T4.2** `clientDiagnostics.service.ts` + `sendClientDiagnostics` no `driverTripClient.service.ts`
-      (corpo `.strict()` espelhando a rota; sem `await` no caminho do motorista). Gate: T1.4 verde.
+      (corpo `.strict()` espelhando a rota; sem `await` no caminho do motorista; `400` descarta o lote; `429`/rede
+      devolvem os eventos ao buffer limitado a 50; nunca instrumenta o próprio envio; publicar API antes do driver).
+      Gate: T1.4 verde.
 - [ ] **T4.3** Instrumentar só chamando o coletor, sem mudar regra: `upload_slot`/`upload_put`/
       `upload_confirm`/`report_send` (+ `send_failed` com `toAttachmentSendOutcome`), `photo_reduce`,
       `trip_open`, `baixa_total`. `flush` no fim da drenagem, em `online` e na volta de visibilidade.

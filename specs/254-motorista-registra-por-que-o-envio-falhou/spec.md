@@ -97,7 +97,8 @@ metadados: `companyId`, `membershipId`, `eventKind`, `step`, `durationMs`, `fail
 
 **RF8 — Espaçamento da drenagem.** O item que falha por rede ganha `lastAttemptAt`; o temporizador de 30 s
 só o drena quando `agora ≥ lastAttemptAt + backoff(attempts)` (C1–C3). Vale para a fila de eventos e
-a de anexos. Se o primeiro item elegível não é devido, a drenagem do temporizador **para** (preserva a ordem N3; nada de pular). `online`, `pageshow`, "Enviar agora" e a abertura ignoram o espaçamento (D6). Item **nunca**
+a de anexos. Se o primeiro item elegível não é devido, a drenagem do temporizador **para** (preserva a ordem N3; nada de pular). `online`, `pageshow`, "Enviar agora" e a abertura ignoram o espaçamento (D6). Se o primeiro item elegível está em espera, a drenagem do
+temporizador **para** (ordem N3, nunca pular). Item **nunca**
 é descartado por isso (D5), e `attempts` segue só contando.
 
 **RF9 — A tela diz a verdade.** A fila continua mostrando "falhou N vezes". Item em espera do
