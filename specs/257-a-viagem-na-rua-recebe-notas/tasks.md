@@ -31,11 +31,10 @@
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/257-a-viagem-na-rua-recebe-notas/ (leia spec.md, plan.md e tasks.md
-antes de começar; molde: spec 249). Uma task por vez, na ordem do tasks.md.
-Modelos: Fase 0 → executor model=haiku · Fase 1 → executor model=sonnet · T1.1 🧠 → validar com architect (opus)
-antes de implementar · Fase 2 → executor model=haiku (T2.2 → sonnet) · Fase 3 → haiku · revisão final → code-reviewer model=sonnet.
-Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md. Trabalhe no worktree
+antes de começar; molde: spec 249). Uma task por vez, na ordem do tasks.md, no worktree
 ../transportada-wt/spec-257 (branch work/spec-257).
+MODELO: use SÓ o modelo da sessão atual. NÃO troque de modelo, NÃO use subagente com model= diferente,
+NÃO peça /model. Ignore a tabela de modelos por fase do tasks.md.
+Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md.
 Pare e pergunte antes de: deploy, migration destrutiva, qualquer [NEEDS CLARIFICATION].
 ```
