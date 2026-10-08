@@ -113,3 +113,12 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - `trip/shared/tripProofPdf.service.ts` (GET `/trip-document-report/proofs-pdf` com `buildTripReportSearch`, blob, `saveArchiveFile`; `TripProofPdfTooLargeError` com `maxBlocks` lido da mensagem; `TripProofPdfTooManyDocumentsError`), `hooks/useTripProofPdfExport.hook.ts` (`exportPdf`, `cancelExport`, `isExporting`, `error`, `isTooLarge`, `isTooManyDocuments`, `maxBlocks`), `components/TripProofPdfExportButton.component.tsx`, plugado ao lado do botão de planilha em `TripTable` (bulkBar), `TripFilters` e `NfeTripReportExportAction` (barra de lote e de filtros da aba de notas). i18n `proofPdfExport.*` em pt-BR/en.
 - `bun run test` (cwd=app) → 7611 pass + 1126 pass (hooks), 0 fail. `bun run typecheck` limpo. `bun run lint` 0 erros (16 warnings preexistentes).
 - Desvios: (1) ícone `document`: o `Icon` do design system não tem `FileText`. (2) Nome do arquivo constante (`trip-proofs.pdf`), como na planilha. (3) Acima de 100 `documentIdIn` o botão desabilita com aviso (sem dividir em vários PDFs), inclusive quando o filtro da aba de notas vira lista de ids.
+
+## T4.4 — i18n pt-BR/en acentuado (haiku)
+
+- Verificação: todos os textos visíveis ao usuário criados em T3.2, T4.2, T4.3, T4.5 e T4.6 foram extraídos para chaves i18n em `trip.locale.json` (pt-BR) e `trip.en.locale.json` (en), bem como `nfeWorkspace.locale.json` e `nfeWorkspace.en.locale.json`.
+- Chaves verificadas: `reportExport.*` (título, botão, exporting, tetos, colunas, legenda), `proofPdfExport.*` (botão, exporting, tetos), `filters.report.*` (título, dica, contratante, situação, operador, busca, placeholder, seleção).
+- Teste de paridade: `bun run test` (cwd=apps/frontend-transportada) → `test/trip/locale-parity.contract.ts` passa → todas as chaves de pt-BR existem em en (e vice-versa), sem mismatch de forma (folha/objeto), e marcadores de interpolação `{{var}}` são iguais.
+- Grep por texto fixo em .tsx/.ts novos (aria-label, title, placeholder, strings literais visíveis): nenhuma ocorrência encontrada.
+- Gates: `bun run test` → 1126 pass, 0 fail. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes).
+- Commit: `feat(i18n): textos do relatório de viagens em pt-BR e en (spec 253 T4.4)` + `Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>`.
