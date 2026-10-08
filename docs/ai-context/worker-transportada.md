@@ -560,3 +560,12 @@ removidos; valor ausente conta como divergência); `Falha` é rejeição comum. 
 adiada. O mapper v3 lê `valor_servicos` em `serviceAmount`. `canReuseProviderDocumentId` é falso se qualquer tentativa
 anterior for de vínculo. Núcleo: `resolveNfseReconciliationDecision` (`externalLink?`) em
 `nfse-reconciliation-outcome.policy.ts`.
+
+## Onde a versão da Nota RP é decidida (spec 250, ADR 0098)
+
+`NFSE_PROVIDER_API_VERSION` (`v2` por padrão, também no `.env.example` e no `.railway/railway.ts`) é lida **só pela
+API**, no momento de criar a tentativa de emissão; o worker obedece à versão gravada na tentativa. Virar a variável não
+reescreve nota em andamento: a nota que já tem tentativa v2 continua falando v2 (consulta, cancelamento, PDF e XML)
+até a próxima emissão. A virada para `v3` em produção é a T6.2 da spec 250, sob aprovação humana, e **não aconteceu**.
+O vínculo de nota emitida fora do sistema (`POST .../service-invoices/:id/external-link`) vai a `pending_authorization`
+e é o status pull acima que a autoriza ou rejeita.

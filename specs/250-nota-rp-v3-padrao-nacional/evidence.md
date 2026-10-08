@@ -445,3 +445,35 @@ parado: Postgres recusou conexão (`PostgresError: Connection closed`), 820 falh
 atribuível ao código. Rodar com `make up` antes de fechar a Fase 6. Não há teste de rotas contra OpenAPI no módulo.
 Desvios: `NFSE_CREDENTIAL_MISSING` é 422; auditoria sem `ipAddress`; sem arquivo central de códigos de erro; o worker
 trata `valor_servicos` ausente como divergência; `canReuseProviderDocumentId` bloqueia por qualquer vínculo anterior.
+
+## E25 — T6.1 e T6.3: gates da Fase 6 e documentação (08/10/2026)
+
+`make up` subiu a stack completa, **MinIO incluso** (a imagem do GHCR estava em cache; sem `docker login`).
+
+| Gate                                                                              | Resultado                                                                                                                                                                       |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API `bun --env-file=../../.env.test run test:integration` (o que a E24 não rodou) | 1274 pass / 8 skip / 0 fail (1282 testes, 240 arquivos, 2545 s). `nfse-external-link.integration.ts` isolado: 2 pass / 0 fail. Nenhum defeito achado, nenhum commit de correção |
+| `make migration-test`                                                             | 156 pass / 0 fail (8 arquivos)                                                                                                                                                  |
+| `make worker-integration`                                                         | **Vermelho como invocado, verde com dois ajustes de ambiente** (abaixo): 238 pass / 0 fail (48 arquivos)                                                                        |
+| `make check`                                                                      | exit 0 (format, lint com 0 erros e 16 avisos preexistentes de hooks, typecheck, testes, build)                                                                                  |
+
+**`make worker-integration` não passou como o Makefile o chama, e a causa não é desta spec:**
+
+1. O banco persistente `<db>_worker_integration` é **compartilhado entre worktrees** e estava migrado por outra branch: o
+   diário tinha `20261002033125_occurrence_location_stamp`, esta árvore tem `20261002153258_occurrence_location_stamp` (mesmo
+   conteúdo, outro nome), e o `db:migrate` falhou com `column "latitude" of relation "trip_status_events" already exists`.
+   Não apaguei o banco (outras sessões o usam): repeti os passos do alvo contra um banco novo, `spec250_worker_integration`
+   (criado e removido por mim).
+2. O `.env` aponta `ROUTING_MATRIX_URL` para o OSRM de staging (extract real), e o teste da spec 058 espera a grade sintética:
+   `ponto fora da área` recebeu 1143650 m em vez de 4511.2 (1 fail em 238). O OSRM é opt-in e o caso **pulou**, não passou,
+   na repetição com `ROUTING_MATRIX_URL=` vazio. Nada em `src/routing` mudou nesta branch.
+   Quem rodar o alvo em outra árvore bate no item 1 até alguém recriar `*_worker_integration`; vale um ajuste do alvo
+   (nome do banco por worktree) numa spec própria.
+
+Três sessões rodaram integração da API ao mesmo tempo no mesmo Postgres de teste; a suíte levou 42 min por isso.
+Staging não emite NFS-e (ADR-0035): nenhuma prova fiscal aqui.
+
+**T6.3:** `docs/ai-context/worker-transportada.md` (§ "Onde a versão da Nota RP é decidida"), `cron-transportada.md`
+(a v3 não toca o cron; confirmado pela E6, sem cliente da Nota RP) e `CLAUDE.md` raiz (parágrafo da v3). **Não feito:**
+fechar 032/T030 — exige a primeira emissão real (T6.2, aprovação humana, `NFSE_PROVIDER_API_VERSION=v3`, perfil
+`cTribNac 160201`/`cTribMun 160101`, nota de valor mínimo conferida no portal); virou a T6.3b, aberta.

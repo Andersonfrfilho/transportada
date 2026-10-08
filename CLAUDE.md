@@ -149,6 +149,13 @@ valor e não vazio), preso por um contrato de tabela espelhada em cada app. Pre�
 do usuário: o registro do motorista não abre a tratativa da 164, então a sugestão de acerto (RF12) não aparece nele. Detalhe:
 `apps/api-transportada/CLAUDE.md` § "A devolução soma os itens (spec 247)" e `specs/247-*/evidence.md`.
 
+**A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
+(`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
+próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por
+`POST /service-invoices/:id/external-link`: o `id_nota` da Nota RP leva a nota a `pending_authorization` e o status pull a
+autoriza, ou rejeita se o valor divergir. A virada para `v3` e a primeira nota real de valor mínimo (T6.2) pedem aprovação
+humana; a 032/T030 segue **aberta** até lá. Detalhe em `docs/ai-context/worker-transportada.md` § "A Nota RP v3".
+
 ## Convenções
 
 Sufixos em uso: `.use-case.ts` · `.service.ts` · `.schema.ts` · `.repository.ts` (sempre prefixo

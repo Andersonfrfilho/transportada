@@ -85,18 +85,19 @@ Teste novo entra na lista explícita do `package.json` da app.
       **Desvio deliberado:** o vínculo leva a nota a `pending_authorization` e o status pull a autoriza (`authorized`
       direto não teria XML, PDF nem cancelamento). Desenho na ADR 0098 § "Desenho do vínculo (T5.1)"; evidência E23.
 - [x] **T5.2** Implementar API + painel do vínculo, com contrato negativo (só nota rejeitada/falha).
-      Integração da API **não rodou** (Docker parado): ver E24.
+      Integração da API **não rodou** em E24 (Docker parado); rodou verde na E25.
 
 ## Fase 6 — Virada e fechamento
 
 > 🤖 Modelo: `sonnet` (T6.2 exige aprovação humana)
 
-- [ ] **T6.1** `make check` + `make migration-test` + `make worker-integration`. Staging **não emite
+- [x] **T6.1** `make check` + `make migration-test` + `make worker-integration`. Staging **não emite
       NFS-e** (ADR-0035): a prova fiscal é a T6.2.
 - [ ] **T6.2** Virada em produção: `NFSE_PROVIDER_API_VERSION=v3`, perfil com `cTribNac 160201` e
       `cTribMun 160101`, uma nota de **valor mínimo** real, conferida no portal. Aprovação humana.
-- [ ] **T6.3** Atualizar `docs/ai-context/worker-transportada.md`, `cron-transportada.md`,
-      `CLAUDE.md` raiz; fechar 032/T030 com a evidência da primeira emissão real.
+- [x] **T6.3** Atualizar `docs/ai-context/worker-transportada.md`, `cron-transportada.md`,
+      `CLAUDE.md` raiz (feito, E25).
+- [ ] **T6.3b** Fechar 032/T030 com a evidência da primeira emissão real — **depende da T6.2**.
 
 ## Prompt de execução
 
