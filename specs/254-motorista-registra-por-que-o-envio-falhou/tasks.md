@@ -35,7 +35,7 @@ arquivo.
       juntos; `companyId` do corpo ignorado/rejeitado; sem permissão → `403`; limite C5 → `429` com
       `Retry-After`; teto C5 declarado na rota (o 429 do roteador já é coberto em `test/rate-limit/router.contract.ts`); log sem URL assinada/observação/coordenada (CA2).
       Aceite: falha por rota inexistente (vermelho esperado).
-- [ ] **T1.3** Contrato do backoff, estendendo `occurrence-upload-retry-loop.contract.ts` (RF10/CA3/CA4):
+- [x] **T1.3** Contrato do backoff, estendendo `occurrence-upload-retry-loop.contract.ts` (RF10/CA3/CA4):
       `computeRetryDelayMs` (30 s × 2, teto 10 min, jitter fixado); 20 ticks com rede caída fazem menos de 20
       pedidos e o número previsto pela fórmula; "Enviar agora" (`immediate`) ignora o espaçamento; `403`/`500`
       seguem recusa; item **continua na fila após 100 ticks** (227 D1); item sem `lastAttemptAt` é devido; um
@@ -116,16 +116,15 @@ e viagem com entrega aberta fornecidos pelo usuário, e buscar `driver_client_di
 
 ## Prompt de execução
 
+Fases 1 a 4 feitas e commitadas (`evidence.md`). Resta fechar a T2.3 (integração da API, exige Postgres sem outra suíte
+rodando) e a Fase 5.
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/254-motorista-registra-por-que-o-envio-falhou/ (leia spec.md, plan.md e tasks.md
-antes de começar). Uma task por vez, na ordem do tasks.md. Trabalhe em worktree (make worktree NAME=spec-254).
-Já existe e não deve ser refeito: apps/frontend-driver/test/driver-trip/occurrence-upload-retry-loop.contract.ts — estenda-o na T1.3.
-Modelos: Fase 1 → executor model=sonnet (T1.1 🧠 → architect em opus, só veredito, sem código) ·
-Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet ·
-Fase 4 → executor model=sonnet · Fase 5 → haiku (T5.2 revisão → code-reviewer model=sonnet).
-Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com typecheck + testes (script test da app, entrypoints explícitos; na API, contrato E integração) +
-commit isolado, evidência em evidence.md.
-Não toque em regra de ocorrência nem crie interruptor de ocorrência (D2). Backoff nunca descarta item (227 D1).
-Pare e pergunte antes de: deploy, migration destrutiva, qualquer [NEEDS CLARIFICATION], e se a T1.1 pedir tabela/migration.
+/oh-my-claudecode:autopilot Retome a spec specs/254-motorista-registra-por-que-o-envio-falhou/ (leia spec.md, plan.md,
+tasks.md e evidence.md antes de começar). Feitas: Fases 1 a 4. Falta: T2.3 (rodar `bun --env-file=../../.env.test run
+test:integration` em apps/api-transportada, log fora do repositório, conferir a linha exit=, esperar 0 falhas), depois a Fase 5.
+Modelos: Fase 5 → haiku (T5.2 revisão → code-reviewer model=sonnet).
+Escalada: gate falhou 2x → sobe um nível e registra em evidence.md. Cada task fecha com gate + commit isolado + evidência.
+Não toque em regra de ocorrência (D2). Backoff nunca descarta item (227 D1).
+Pare e pergunte antes de: deploy, push, migration destrutiva, qualquer [NEEDS CLARIFICATION].
 ```
