@@ -6,8 +6,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import {
-  fetchTripReport,
-  resolveTripReportFilters,
+  fetchTripReportBatches,
   TripReportTooLargeError,
   type TripReportScope,
 } from '../shared/tripReport.service'
@@ -44,10 +43,10 @@ export function useTripReportExport(input: UseTripReportExportInput) {
       const controller = new AbortController()
       controllerRef.current = controller
       setProgress({ loaded: 0, total: undefined })
-      const result = await fetchTripReport({
+      const result = await fetchTripReportBatches({
         fetchPage: input.fetchPage ?? getDefaultFetchPage(),
-        filters: resolveTripReportFilters(input.scope),
         onProgress: (loaded, total) => setProgress({ loaded, total }),
+        scope: input.scope,
         signal: controller.signal,
       })
       await input.buildSpreadsheet?.(result)

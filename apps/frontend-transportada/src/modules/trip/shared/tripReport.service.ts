@@ -3,6 +3,8 @@ import type { TripReportFetchPage, TripReportFilters, TripReportResult } from '.
 
 export const TRIP_REPORT_PATH = '/trip-document-report'
 export const TRIP_REPORT_PAGE_LIMIT = 100
+/** Teto de `documentIdIn` na API (`LIST_FILTER_MAX_VALUES`): acima disso a seleção vira vários pedidos. */
+export const TRIP_REPORT_DOCUMENT_BATCH_SIZE = 100
 export const TRIP_REPORT_TOO_LARGE_CODE = 'TRIP_REPORT_TOO_LARGE'
 
 /** `maxRows` é o teto que a API recusou; `undefined` quando a mensagem não o traz. */
@@ -63,5 +65,53 @@ export async function fetchTripReport(input: FetchTripReportInput): Promise<Trip
     cursor = page.nextCursor
     input.onProgress?.(rows.length, page.total)
   } while (cursor !== null)
+  return { excludedWithoutTrip, rows }
+}
+
+export function resolveTripReportFilterBatches(
+  scope: TripReportScope,
+): readonly TripReportFilters[] {
+  const filters = resolveTripReportFilters(scope)
+  const documentIds = filters.documentIdIn
+  if (documentIds === undefined || documentIds.length <= TRIP_REPORT_DOCUMENT_BATCH_SIZE) {
+    return [filters]
+  }
+  const batches: TripReportFilters[] = []
+  for (let start = 0; start < documentIds.length; start += TRIP_REPORT_DOCUMENT_BATCH_SIZE) {
+    batches.push({
+      ...filters,
+      documentIdIn: documentIds.slice(start, start + TRIP_REPORT_DOCUMENT_BATCH_SIZE),
+    })
+  }
+  return batches
+}
+
+export type FetchTripReportBatchesInput = Readonly<
+  Omit<FetchTripReportInput, 'filters'> & { scope: TripReportScope }
+>
+
+/** Lotes em sequência (um pedido por vez, como as páginas): o resultado é a concatenação, as exclusões somam. */
+export async function fetchTripReportBatches(
+  input: FetchTripReportBatchesInput,
+): Promise<TripReportResult> {
+  const { onProgress, scope, ...pageInput } = input
+  const batches = resolveTripReportFilterBatches(scope)
+  const rows: TripReportResult['rows'][number][] = []
+  let excludedWithoutTrip = 0
+  for (const filters of batches) {
+    const loadedBefore = rows.length
+    const result = await fetchTripReport({
+      ...pageInput,
+      filters,
+      ...(onProgress === undefined
+        ? {}
+        : {
+            onProgress: (loaded: number, total: number | undefined) =>
+              onProgress(loadedBefore + loaded, batches.length === 1 ? total : undefined),
+          }),
+    })
+    rows.push(...result.rows)
+    excludedWithoutTrip += result.excludedWithoutTrip
+  }
   return { excludedWithoutTrip, rows }
 }

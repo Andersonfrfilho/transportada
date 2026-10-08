@@ -39,6 +39,7 @@ import {
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 import { NfeDocumentFilterPanel } from './NfeDocumentFilterPanel.component'
+import { NfeTripReportExportAction } from './NfeTripReportExportAction.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { TRIP_MANAGE_PERMISSION } from '@/modules/trip/shared/trip.constant'
@@ -503,6 +504,12 @@ export function NfeDocumentTable({
         pills={pills}
       />
 
+      {table.selectedCount === 0 && (
+        <div className={styles.reportExportRow}>
+          <NfeTripReportExportAction table={table} />
+        </div>
+      )}
+
       {table.selectedCount > 0 && (
         <div className={styles.selectionBar} role="status">
           <span>{t('documents.selectedCount', { count: table.selectedCount })}</span>
@@ -551,6 +558,7 @@ export function NfeDocumentTable({
               onEmitted={table.clearSelection}
               permissions={permissions}
             />
+            <NfeTripReportExportAction table={table} />
             <Tooltip label={t('documents.downloadSelected')}>
               <button
                 aria-label={t('documents.downloadSelected')}

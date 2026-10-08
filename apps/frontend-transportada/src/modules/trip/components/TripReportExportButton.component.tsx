@@ -16,26 +16,33 @@ const REPORT_FILE_NAME = 'trip-report.xlsx'
 
 type TripReportExportButtonProps = Readonly<{
   fetchPage?: TripReportFetchPage
+  /** Depois da planilha salva; a aba de notas lê `excludedWithoutTrip` daqui para avisar. */
+  onExported?: (result: TripReportResult) => void
   scope: TripReportScope
 }>
 
 /** Botão autocontido: escopo entra, planilha timbrada sai. Seleção, filtro e aba de notas só escolhem o `scope`. */
-export function TripReportExportButton({ fetchPage, scope }: TripReportExportButtonProps) {
+export function TripReportExportButton({
+  fetchPage,
+  onExported,
+  scope,
+}: TripReportExportButtonProps) {
   const { t } = useTranslation('trip')
   const spreadsheetExport = useSpreadsheetExport()
   const reportExport = useTripReportExport({
-    buildSpreadsheet: (result: TripReportResult) => {
+    buildSpreadsheet: async (result: TripReportResult) => {
       const sheet = buildTripReportRows({
         locale: REPORT_LOCALE,
         rows: result.rows,
         translate: (key) => t(key),
       })
-      return spreadsheetExport.exportSpreadsheet({
+      await spreadsheetExport.exportSpreadsheet({
         ...sheet,
         fileName: REPORT_FILE_NAME,
         sheetName: t('reportExport.sheetName'),
         title: t('reportExport.title'),
       })
+      onExported?.(result)
     },
     ...(fetchPage === undefined ? {} : { fetchPage }),
     scope,

@@ -136,6 +136,32 @@ describe('useTripReportExport (spec 253 T4.1)', () => {
     rendered.unmount()
   })
 
+  test('a document selection above 100 runs sequential batches of 100 and concatenates', async () => {
+    const calls: TripReportPageInput[] = []
+    const documentIds = Array.from({ length: 250 }, (_, index) => `doc-${index}`)
+    const rendered = await renderHook(() =>
+      useTripReportExport({
+        fetchPage: (pageInput) => {
+          calls.push(pageInput)
+          return Promise.resolve({
+            excludedWithoutTrip: 2,
+            nextCursor: null,
+            rows: [buildRow(calls.length)],
+            total: 1,
+          })
+        },
+        scope: { documentIds },
+      }),
+    )
+    const result = await act(() => rendered.result().exportReport())
+    expect(calls.map((call) => call.filters.documentIdIn?.length)).toEqual([100, 100, 50])
+    expect(calls[0]?.filters.documentIdIn?.[0]).toBe('doc-0')
+    expect(calls[2]?.filters.documentIdIn?.[49]).toBe('doc-249')
+    expect(result?.rows.length).toBe(3)
+    expect(result?.excludedWithoutTrip).toBe(6)
+    rendered.unmount()
+  })
+
   test('cancelling aborts, stops fetching and leaves no error', async () => {
     const calls: TripReportPageInput[] = []
     let release: () => void = () => undefined
