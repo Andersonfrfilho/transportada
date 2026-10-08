@@ -61,7 +61,7 @@ arquivo.
       `scope: company`, balde de limite C5, `204`). Registrar a rota no roteador.
       Sem `resolveDriver`; limite C5 por configuração do balde; lista de campos permitidos no caso de uso.
       Gate: T1.2 verde.
-- [ ] **T2.3** Atualizar docs (`docs/spec/` da API se houver contrato de rotas; `apps/api-transportada/CLAUDE.md`
+- [x] **T2.3** Atualizar docs (`docs/spec/` da API se houver contrato de rotas; `apps/api-transportada/CLAUDE.md`
       só se mudar regra normativa; `docs/ai-context/api-transportada.md` com a rota) — code-standart §14.
 
 ## Fase 3 — Espaçamento da drenagem (painel primeiro, depois driver)
