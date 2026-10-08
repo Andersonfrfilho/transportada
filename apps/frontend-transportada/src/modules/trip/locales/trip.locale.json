@@ -2381,5 +2381,34 @@
     "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
     "title": "Encerrar {{count}} viagem",
     "title_other": "Encerrar {{count}} viagens"
+  },
+  "reportExport": {
+    "title": "Relatório de viagens",
+    "sheetName": "Viagens",
+    "button": "Exportar relatório",
+    "exporting": "Exportando {{loaded}} de {{total}}",
+    "exportingUnknown": "Exportando {{loaded}}",
+    "tooLarge": "O relatório passa do limite de {{maxRows}} linhas. Filtre ou selecione menos viagens.",
+    "tooLargeUnknown": "O relatório passa do limite de linhas. Filtre ou selecione menos viagens.",
+    "failed": "Não foi possível exportar o relatório.",
+    "columns": {
+      "trip": "Viagem",
+      "document": "Nota/Série",
+      "accessKey": "Chave",
+      "contractor": "Contratante",
+      "recipient": "Destinatário",
+      "city": "Cidade/UF",
+      "amount": "Valor",
+      "documentStatus": "Situação da nota",
+      "deliveredAt": "Data de entrega",
+      "returnedAt": "Data de devolução",
+      "returnReason": "Motivo"
+    },
+    "legend": {
+      "warehouse": "No armazém",
+      "on_route": "Em rota",
+      "finished": "Entregue",
+      "total_return": "Devolução total"
+    }
   }
 }

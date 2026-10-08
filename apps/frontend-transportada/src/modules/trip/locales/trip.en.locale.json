@@ -2381,5 +2381,34 @@
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",
     "title_other": "Close {{count}} trips"
+  },
+  "reportExport": {
+    "title": "Trip report",
+    "sheetName": "Trips",
+    "button": "Export report",
+    "exporting": "Exporting {{loaded}} of {{total}}",
+    "exportingUnknown": "Exporting {{loaded}}",
+    "tooLarge": "The report exceeds the limit of {{maxRows}} rows. Filter or select fewer trips.",
+    "tooLargeUnknown": "The report exceeds the row limit. Filter or select fewer trips.",
+    "failed": "Could not export the report.",
+    "columns": {
+      "trip": "Trip",
+      "document": "Invoice/Series",
+      "accessKey": "Access key",
+      "contractor": "Contractor",
+      "recipient": "Recipient",
+      "city": "City/State",
+      "amount": "Amount",
+      "documentStatus": "Invoice status",
+      "deliveredAt": "Delivery date",
+      "returnedAt": "Return date",
+      "returnReason": "Reason"
+    },
+    "legend": {
+      "warehouse": "In warehouse",
+      "on_route": "On route",
+      "finished": "Delivered",
+      "total_return": "Fully returned"
+    }
   }
 }

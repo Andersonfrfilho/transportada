@@ -22,6 +22,7 @@ import type { Trip, TripStatus } from '../shared/trip.types'
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
+import { TripReportExportButton } from './TripReportExportButton.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -240,7 +241,8 @@ export function TripTable({
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
         {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
         {(canCancel && table.cancellableSelection.length > 0) ||
-        (canClose && table.closeableSelection.length > 0) ? (
+        (canClose && table.closeableSelection.length > 0) ||
+        table.selectedIds.length > 0 ? (
           <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
             {/*
              * A conta é das marcadas que **esta** permissão consegue agir, não de um dos dois
@@ -284,6 +286,7 @@ export function TripTable({
                 {t('selection.closeTrips', { count: table.closeableSelection.length })}
               </Button>
             ) : null}
+            <TripReportExportButton scope={{ selectedTripIds: table.selectedIds }} />
             <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
               <Icon name="close" />
               {t('selection.clear')}
