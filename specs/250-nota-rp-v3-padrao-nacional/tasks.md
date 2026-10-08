@@ -72,7 +72,7 @@ Teste novo entra na lista explícita do `package.json` da app.
 - [x] **T4.1** Campo "Código de tributação nacional" na aba Configurações do perfil (pt-BR e en,
       validação de 6 dígitos), com ajuda do par `cTribNac`+`cTribMun`.
 - [x] **T4.2** Campo corrigível no diálogo de reemissão (individual e em lote).
-- [ ] **T4.3** Revisão de design e usabilidade (print, web.md §15), conferida ao lado do estado atual.
+- [x] **T4.3** Revisão de design e usabilidade (print, web.md §15), conferida ao lado do estado atual.
 
 ## Fase 5 — Nota emitida fora do sistema
 

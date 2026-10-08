@@ -409,3 +409,15 @@ O diálogo de reemissão (individual e em lote) mostra o par nacional lido do pa
 `simplesNationalRate` string). Commit `faaa00add`; contrato `national-taxation.contract.ts` (registrado via
 `nfse-invoice.contract.test.ts`, já na lista do `package.json`). Gates: os mesmos da E20.
 Pendente: T4.3 (revisão de design com print).
+
+## E22 — T4.3: revisão de design e usabilidade (07/10/2026)
+
+Sem print: a infra (Docker/MinIO do GHCR) não sobe nesta máquina, então a revisão foi feita no código dos componentes, no CSS
+contra os vizinhos (`.fieldGrid`/`.emissionField`) e nos contratos de render do harness (web.md §15 itens 1-2; o item 3, o
+print, **segue pendente** para quando houver ambiente). Conferido: rótulo ligado por `htmlFor`, dica e erro em
+`aria-describedby`, `aria-invalid` com a borda `--color-alert` igual ao vizinho, `inputMode` numérico/decimal, campos
+nativos (teclado e foco do vizinho), paridade pt-BR/en das chaves novas, coluna única abaixo de 40 rem, botão de confirmar
+desabilitado com a mensagem do campo visível. Defeito achado e corrigido (commit `8cf1c713a`): o aviso do lote
+(`bulkReissue.missingNationalTaxation`, `role="alert"`) usava `.placeholder` (cinza apagado) e passava despercebido; agora
+usa `.emissionError` (`--color-alert`). Gates (de `apps/frontend-transportada`): typecheck 0 erros · lint 0 erros ·
+`bun run test` 0 fail (`nfse-invoice` 1104 pass) · prettier limpo.
