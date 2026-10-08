@@ -24,3 +24,10 @@
 - Gravação fecha as revisões pendentes da nota (`closePendingReviewsOnLink`); nota inexistente/de outra empresa → FK → `TripDocumentNotFoundError` (404) via `runGuarded`.
 - Contrato novo `test/trip-http/documents-after-dispatch.contract.ts` (201 com recorte exato, 400 com todos os erros, 403 separador/leitor, 404 viagem e nota, 409 por motivo, id não-uuid), janela no `trip-state.contract.ts`, rota nas listas de `finance-read` e `separator-role`; grade de transição 160 → 180; `allowed-actions` atualizados.
 - `bun run typecheck` limpo; `bun --env-file=../../.env.test test --timeout 120000` → 10998 pass / 0 fail.
+
+## T1.5
+
+- Kind `documents_added` na linha do tempo (`TRIP_TIMELINE_KINDS`, prioridade 8, tipo `TripTimelineDocumentsAdded`), lido de `trip_document_link_events` por `trip-timeline-documents-added.query.ts`, filtrado por `companyId` e `tripId`, e entrando no merge por cursor. Sem ponto de localização (`NO_EVENT_LOCATION`); não carrega dinheiro, então a redação não muda.
+- Contratos: vocabulário (kind, prioridade, chaves de `documentsAdded`), merge e isolamento por empresa/viagem da query nova; o teste de 196 T4.2 passou de 3 para 4 fontes sem ponto.
+- `bun run typecheck` limpo; `bun --env-file=../../.env.test test --timeout 120000` → 11000 pass / 0 fail.
+- Integração dos consumidores da timeline reexecutada à parte: `trip-crew-transfer-timeline.integration.ts` 4 pass / 0 fail; `event-location-stamp.integration.ts` 23 pass / 0 fail. A corrida completa de integração (iniciada com o código ainda em edição) acusou falhas nesses dois arquivos; ambos passam isolados, e a suíte completa é reexecutada no fechamento da T1.6.

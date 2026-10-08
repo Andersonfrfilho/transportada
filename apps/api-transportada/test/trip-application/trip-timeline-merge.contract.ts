@@ -107,6 +107,31 @@ describe('mergeTripTimeline (spec 158 T5, D8)', () => {
     expect(result.items.map((item) => item.id)).toEqual(['status', 'arrival', 'created'])
   })
 
+  /** Spec 257: o acréscimo de notas é fonte nova; o merge a ordena e a leva inteira. */
+  test('documents_added entra no merge inteiro e vem acima da troca de status no empate', () => {
+    const sameInstant = '2026-10-08T12:00:00.000Z'
+    const added: TripTimelineRow = {
+      ...row({ id: 'added', kind: 'documents_added', occurredAt: sameInstant }),
+      documentsAdded: {
+        documentCount: 3,
+        documentsWithoutCte: 3,
+        mdfeDocumentDivergence: true,
+        reason: 'Van quebrou',
+      },
+    }
+
+    const result = mergeTripTimeline({
+      limit: 10,
+      sources: [
+        [row({ id: 'status', kind: 'trip.status_changed', occurredAt: sameInstant })],
+        [added],
+      ],
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual(['added', 'status'])
+    expect(result.items[0]?.documentsAdded).toEqual(added.documentsAdded)
+  })
+
   /** Spec 249: a transferência é fonte nova; o merge a ordena e a leva inteira, sem recortar o que ela carrega. */
   test('crew_transfer entra no merge com o retrato da tripulação e vem acima da troca de status no empate', () => {
     const sameInstant = '2026-10-07T12:00:00.000Z'
