@@ -31,7 +31,7 @@ function getDefaultFetchPage(): TripReportFetchPage {
 }
 
 function isAbort(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
+  return error instanceof DOMException && error.code === DOMException.ABORT_ERR
 }
 
 export function useTripReportExport(input: UseTripReportExportInput) {
