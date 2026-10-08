@@ -104,7 +104,7 @@ arquivo.
 
 - [x] **T5.1** `make check` na raiz (format:check + lint por app + typecheck + test + build); contrato **e**
       integração da API (`--env-file=../../.env.test`). Registrar contagens em `evidence.md`.
-- [ ] **T5.2** Revisão final por `code-reviewer` (sonnet), separada da autoria: foco em PII nos eventos,
+- [x] **T5.2** Revisão final por `code-reviewer` (sonnet), separada da autoria: foco em PII nos eventos,
       chamada de `drain` sem `origin`, `Promise.all` novo (code-standart §15), strings repetidas.
 - [x] **T5.3** Auditoria go-live (code-standart §15 / `security.md` §1 e §3): log sem PII, corpo validado,
       limite na rota, ausência de stack em `500`.

@@ -787,8 +787,10 @@ function describeFailure(
   return { failureKind: isIdentityError(error) ? 'identity' : 'network' }
 }
 
+const DEADLINE_ERROR_NAMES: ReadonlySet<string> = new Set(['TimeoutError', 'AbortError'])
+
 function isDeadlineError(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+  return error instanceof Error && DEADLINE_ERROR_NAMES.has(error.name)
 }
 
 function withoutDiagnostics(dependencies: ClientDependencies): ClientDependencies {

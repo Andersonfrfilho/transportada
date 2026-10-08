@@ -447,6 +447,24 @@ describe('o PUT que cai na rede deixa rastro (spec 254 CA1/RF1)', () => {
     expect(failures.every((event) => event.photoBytes === 3)).toBe(true)
   })
 
+  it.each(['TimeoutError', 'AbortError'])(
+    'PUT que estoura o prazo (%s): failureKind timeout',
+    async (deadlineName) => {
+      const harness = await buildDiagnosable({
+        sendDiagnostics: () => Promise.resolve({ status: 204 }),
+        storage: () => Promise.reject(new DOMException('prazo', deadlineName)),
+      })
+
+      await harness.sendWithAttempt(1)
+      await harness.diagnostics.flush()
+
+      const failure = harness.collected
+        .flatMap((batch) => batch.events)
+        .find((event) => event.eventKind === 'send_failed' && event.step === 'upload_put')
+      expect(failure?.failureKind).toBe('timeout')
+    },
+  )
+
   it('503 do storage: failureKind http_status com o httpStatus', async () => {
     const harness = await buildDiagnosable({
       sendDiagnostics: () => Promise.resolve({ status: 204 }),

@@ -93,7 +93,7 @@ em Zod, todos os erros juntos, `400` com código estável; limite de requisiçõ
 
 **RF7 — Log da API.** Um `logger.info` por evento, mensagem constante `driver_client_diagnostic`,
 metadados: `companyId`, `membershipId`, `eventKind`, `step`, `durationMs`, `failureKind`, `httpStatus`,
-`attempt`, `reportKind`, `photoBytes`, `device`. Passa pela redação do logger. Nunca grava o corpo cru.
+`attempt`, `reportKind`, `photoBytes`, `device`. O que protege é a lista fechada do schema Zod (o logger não tem camada de redação). Nunca grava o corpo cru.
 
 **RF8 — Espaçamento da drenagem.** O item que falha por rede ganha `lastAttemptAt`; o temporizador de 30 s
 só o drena quando `agora ≥ lastAttemptAt + backoff(attempts)` (C1–C3). Vale para a fila de eventos e

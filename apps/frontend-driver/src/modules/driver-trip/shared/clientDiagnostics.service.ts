@@ -23,6 +23,8 @@ const STEPS: ReadonlySet<string> = new Set([
   'baixa_total',
 ])
 const MAX_DURATION_MS = 600_000
+const MAX_ATTEMPT = 10_000
+const MAX_PHOTO_BYTES = 50 * 1024 * 1024
 const MIN_HTTP_STATUS = 100
 const MAX_HTTP_STATUS = 599
 const MAX_KEY_LENGTH = 128
@@ -104,10 +106,10 @@ function sanitizeEvent(event: unknown): DiagnosticInput | undefined {
   return {
     eventKind: eventKind as DiagnosticInput['eventKind'],
     step,
-    ...pickInteger({ key: 'attempt', max: 10_000, min: 0, source }),
+    ...pickInteger({ key: 'attempt', max: MAX_ATTEMPT, min: 0, source }),
     ...pickInteger({ key: 'durationMs', max: MAX_DURATION_MS, min: 0, source, shouldClamp: true }),
     ...pickInteger({ key: 'httpStatus', max: MAX_HTTP_STATUS, min: MIN_HTTP_STATUS, source }),
-    ...pickInteger({ key: 'photoBytes', max: 50 * 1024 * 1024, min: 0, source }),
+    ...pickInteger({ key: 'photoBytes', max: MAX_PHOTO_BYTES, min: 0, source }),
     ...pickString({ key: 'attachmentKey', pattern: OPAQUE_KEY_PATTERN, source }),
     ...pickString({ key: 'idempotencyKey', pattern: OPAQUE_KEY_PATTERN, source }),
     ...pickString({ key: 'reportKind', pattern: REPORT_KIND_PATTERN, source }),
