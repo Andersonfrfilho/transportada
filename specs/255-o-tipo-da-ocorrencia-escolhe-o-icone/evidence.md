@@ -98,3 +98,12 @@ Atenção: `trip.constant.ts:458` e `:637` são listas de chaves exatas — conf
 - `frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts` tem tipo `DriverOccurrenceType` simplificado (só `id` e `name`); sem guard; agora com `iconName?: null | string` tolerante.
 
 **Commit:** feat(frontend-driver): app do motorista aceita iconName opcional no tipo de ocorrência (spec 255 T1.2)
+
+### T1.2 — correção na revisão (2026-10-07)
+
+O executor `haiku` acrescentou ao `isDriverOccurrenceType` uma whitelist de 18 chaves (guard de chave exata) que
+o guard do motorista não tinha, e um teste que afirmava a recusa de chave desconhecida. Isso contrariava o
+plano ("campo opcional, desconhecido tolerado") e faria o app recusar qualquer chave nova da API. Removido; o
+teste agora afirma a tolerância. Também saíram os comentários que citavam a spec. Gates depois da correção:
+typecheck `frontend-driver` e `frontend-transportada` limpos, `bun run test` 1417 pass / 0 fail, eslint e
+prettier limpos.

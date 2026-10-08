@@ -47,8 +47,8 @@ describe('tolerância a iconName opcional no tipo de ocorrência (spec 255 T1.2)
     expect(isDriverOccurrenceType(candidate)).toBe(false)
   })
 
-  it('recusa chave desconhecida — a guarda continua de chave exata', () => {
+  it('tolera chave desconhecida de uma API mais nova', () => {
     const candidate = buildOccurrenceType({ unknownIconField: 'x' })
-    expect(isDriverOccurrenceType(candidate)).toBe(false)
+    expect(isDriverOccurrenceType(candidate)).toBe(true)
   })
 })

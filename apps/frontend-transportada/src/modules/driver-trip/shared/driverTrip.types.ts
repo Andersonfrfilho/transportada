@@ -207,7 +207,6 @@ export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 export type DriverOccurrenceType = Readonly<{
   id: string
   name: string
-  /** Spec 255 RF1: o ícone do design system; nulo ou ausente é sem ícone. Ausente é API anterior. */
   iconName?: null | string
 }>
 
