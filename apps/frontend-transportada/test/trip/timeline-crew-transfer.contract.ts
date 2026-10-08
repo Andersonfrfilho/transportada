@@ -93,8 +93,11 @@ function lookup(dictionary: unknown, path: string): unknown {
 }
 
 describe('vocabulário da linha do tempo com a transferência de tripulação (spec 249)', () => {
-  it('crew_transfer entra no fim da lista de kinds, depois do endereço corrigido', () => {
-    expect([...TRIP_TIMELINE_KINDS].slice(-2)).toEqual(['stop.address_corrected', 'crew_transfer'])
+  it('crew_transfer entra na lista de kinds depois do endereço corrigido', () => {
+    expect([...TRIP_TIMELINE_KINDS].slice(-3, -1)).toEqual([
+      'stop.address_corrected',
+      'crew_transfer',
+    ])
   })
 
   it('o evento tem ícone de equipe, tom neutro e fica fora do mapa da viagem', () => {

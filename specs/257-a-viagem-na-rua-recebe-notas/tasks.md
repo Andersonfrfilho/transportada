@@ -19,7 +19,7 @@
 
 ## Fase 2 — Painel (`haiku`; publicar **antes** da API)
 
-- [ ] T2.1 Kind `documents_added` em `tripTimelineMap`/validação, tolerante a kind desconhecido.
+- [x] T2.1 Kind `documents_added` em `tripTimelineMap`/validação, tolerante a kind desconhecido.
 - [ ] T2.2 (`sonnet`) `TripLinkDocumentsAfterDispatchDialog` + ação em `tripAllowedActions` + cliente + aviso fiscal. Aceite: contrato + smoke.
 
 ## Fase 3 — Documentação e fechamento (`haiku`)

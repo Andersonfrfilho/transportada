@@ -585,9 +585,18 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   'addressChange',
   'crewTransfer',
+  'documentsAdded',
   /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
   'isSystemActor',
   'lateRegistration',
+] as const
+
+/** Spec 257 D9: chave exata, nenhuma opcional — não há dinheiro aqui. */
+export const TRIP_TIMELINE_DOCUMENTS_ADDED_KEYS = [
+  'documentCount',
+  'documentsWithoutCte',
+  'mdfeDocumentDivergence',
+  'reason',
 ] as const
 
 /** Spec 249 D6: `costDifference` é a única opcional — a rota a tira de quem não tem `trip.financials`. */

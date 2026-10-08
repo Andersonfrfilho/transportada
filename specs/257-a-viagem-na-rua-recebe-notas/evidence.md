@@ -37,3 +37,9 @@
 - `test/integration/trip-cancel-releases-notes.integration.ts` (9 testes, na lista `test:integration`): cancelada a partir de `draft`, `route_planned`, `separating`, `loading`, `dispatched`, `in_transit` e `on_delivery_route` libera as duas notas e a linha permanece; nota já entregue não é liberada; a nota liberada entra na viagem socorrista que já saiu (`linkDocumentsAfterDispatch`, sem `skipped`).
 - D8 confirmado como já verdadeiro: nenhuma mudança em `markCancelled`.
 - `bun run typecheck` limpo; `bun --env-file=../../.env.test run test:integration` completo → 1310 pass / 0 fail / 8 skip (inclui os dois arquivos que a corrida anterior, feita com o código em edição, acusara; passam).
+
+## T2.1
+
+- Painel: kind `documents_added` (ícone `document`, tom neutro, fora do mapa), chave `documentsAdded` com chave exata (obrigatória só nesse kind, recusada nos outros), resumo com contagem, motivo e avisos de CT-e/MDF-e, textos pt-BR/en. Kind desconhecido segue descartado.
+- `test/trip/timeline-documents-added.contract.ts` (novo, registrado em `trip.contract.test.ts`); asserções dos contratos 249 e 228 ajustadas para o novo último kind.
+- `bun run typecheck` limpo; `bun run test` → 7677 pass / 0 fail.

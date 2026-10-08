@@ -26,6 +26,7 @@ const ICON_BY_KIND = {
   'document.occurrence': 'alert',
   'document.returned': 'refresh',
   'document.status_changed': 'document',
+  documents_added: 'document',
   'stop.address_corrected': 'edit',
   'stop.arrived': 'map-pin',
   'stop.departed': 'truck',
@@ -39,6 +40,7 @@ const ICON_BY_KIND = {
 const NEUTRAL_KINDS: ReadonlySet<TripTimelineKind> = new Set([
   'crew_transfer',
   'document.canhoto_photo',
+  'documents_added',
   'stop.address_corrected',
   'stop.arrived',
   'stop.departed',

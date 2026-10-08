@@ -893,7 +893,8 @@
       },
       "unknownDocument": "Nota",
       "unknownOccurrenceType": "não informado",
-      "unknownStatus": "não informada"
+      "unknownStatus": "não informada",
+      "documentsAdded": "Notas acrescentadas"
     },
     "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
@@ -986,6 +987,14 @@
       "addressCorrectedAt": "Corrigido em {{moment}}",
       "legendAddress": "Pino liso: novo ponto do endereço da parada. Pino numerado: parada {{sequence}}.",
       "legendAddressEventOnly": "Pino liso: novo ponto do endereço da parada."
+    },
+    "documentsAdded": {
+      "count_one": "{{count}} nota acrescentada",
+      "count_other": "{{count}} notas acrescentadas",
+      "mdfeDivergence": "O MDF-e autorizado desta viagem não inclui estas notas: reemita o manifesto antes de seguir.",
+      "reason": "Motivo: {{reason}}",
+      "withoutCte_one": "{{count}} nota sem CT-e autorizado.",
+      "withoutCte_other": "{{count}} notas sem CT-e autorizado."
     }
   },
   "feedback": {
