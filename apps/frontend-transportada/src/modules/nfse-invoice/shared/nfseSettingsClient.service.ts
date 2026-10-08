@@ -116,9 +116,11 @@ function serializeSettings(settings: NfseEmissionProfileSettings): Record<string
     municipalityIbgeCode: settings.municipalityIbgeCode,
     municipalityName: settings.municipalityName,
     name: settings.name,
+    nationalTaxationCode: settings.nationalTaxationCode,
     nbsCode: settings.nbsCode,
     observations: settings.observations,
     serviceListItem: settings.serviceListItem,
+    simplesNationalRate: settings.simplesNationalRate,
     taker: settings.taker,
   }
 }

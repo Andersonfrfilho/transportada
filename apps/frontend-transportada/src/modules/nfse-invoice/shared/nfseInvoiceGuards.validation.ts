@@ -1,4 +1,4 @@
-import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+import { hasExactKeys, hasKeys } from '@/modules/shared/objectKeys.service'
 
 /** Dinheiro e alíquota chegam como string decimal — número binário aqui perde centavo. */
 const DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/
@@ -19,6 +19,10 @@ export function isNullableString(value: unknown): value is null | string {
   return value === null || typeof value === 'string'
 }
 
+export function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
 export function isDecimalString(value: unknown): value is string {
   return typeof value === 'string' && DECIMAL_PATTERN.test(value)
 }
@@ -32,7 +36,7 @@ export function isStringArray(value: unknown): value is readonly string[] {
 }
 
 /** Spec 079: reexporta a guarda compartilhada — a regra mora num lugar so. */
-export { hasExactKeys }
+export { hasExactKeys, hasKeys }
 
 export function isOneOf<TOption extends string>(
   value: unknown,

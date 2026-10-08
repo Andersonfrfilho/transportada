@@ -93,9 +93,11 @@ export type NfseLastIssuancePayload = Readonly<{
   issWithheld: boolean
   municipalTaxationCode: string
   municipalityIbgeCode: string
+  nationalTaxationCode?: string
   nbsCode: string
   serviceAmount: string
   serviceListItem: string
+  simplesNationalRate?: string
   takerLegalName: string
   takerTaxId: string
 }>
