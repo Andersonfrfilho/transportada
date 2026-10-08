@@ -92,6 +92,7 @@ import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoReje
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
+import { TripConferenceAction } from './TripConferenceAction.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
@@ -826,19 +827,22 @@ export function TripDetail({
 
   return (
     <section className={styles.panel} aria-labelledby="trip-detail-title">
-      <div className={styles.panelHead}>
-        <h2 id="trip-detail-title">{t('detail.title')}</h2>
-        {/* O UUID inteiro não cabe numa anotação a mão — os 8 primeiros caracteres bastam para
-            achar a viagem de novo, e o botão copia o valor completo para quem precisa dele. */}
-        <span className={styles.tripIdBadge}>
-          <code>{trip.id.slice(0, 8)}</code>
-          <CopyButton
-            copiedLabel={t('detail.idCopied')}
-            label={t('detail.copyId')}
-            value={trip.id}
-          />
-        </span>
+      <div className={`${styles.panelHead} ${styles.tripDetailHead}`}>
+        <div className={styles.tripTitleGroup}>
+          <h2 id="trip-detail-title">{t('detail.title')}</h2>
+          {/* O UUID inteiro não cabe numa anotação a mão — os 8 primeiros caracteres bastam para
+              achar a viagem de novo, e o botão copia o valor completo para quem precisa dele. */}
+          <span className={styles.tripIdInline}>
+            <code>{trip.id.slice(0, 8)}</code>
+            <CopyButton
+              copiedLabel={t('detail.idCopied')}
+              label={t('detail.copyId')}
+              value={trip.id}
+            />
+          </span>
+        </div>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
+        <TripConferenceAction documents={trip.documents} stops={trip.stops} />
         {/*
          * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o
          * próximo passo. Elas viviam numa seção no meio da página, e a decisão exigia rolar.

@@ -1401,10 +1401,10 @@
  * espremia "FIAT FIORINO 1.4 FURGAO" numa coluna de letras.
  */
 .identityBand {
-  display: grid;
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
   align-items: center;
-  grid-template-columns: minmax(0, 1fr);
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-copper) 28%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 50%, transparent);
@@ -1422,6 +1422,8 @@
 
 .identityFacts {
   display: grid;
+  flex: 1 1 14rem;
+  min-width: 0;
   gap: var(--space-2);
   align-content: start;
 }
@@ -1438,18 +1440,11 @@
 }
 
 /**
- * Lado a lado só quando há largura para isso. Medido em 375px: com a placa fixa em 10rem, a coluna
- * do texto caía para 39px e "FIAT FIORINO 1.4 FURGAO" virava uma coluna de letras de 82px de
- * altura. Abaixo de 40rem — o primeiro dos pontos de quebra do sistema — a placa fica em cima e o
- * nome embaixo, os dois à esquerda.
+ * Lado a lado quando couber, medido pela largura da própria faixa e não pela da tela: ela mora em
+ * painéis de larguras diferentes, e uma tela de 40rem pode dar 530px à faixa. O texto pede ao menos
+ * 14rem (`flex-basis`); sem esse espaço ele desce para a própria linha, como o modelo longo em 375px
+ * que virava uma coluna de letras.
  */
-@media (min-width: 40rem) {
-  .identityBand {
-    grid-template-columns: auto auto minmax(0, 1fr);
-    gap: var(--space-4);
-  }
-}
-
 .identitySpecification {
   margin: 0;
   color: var(--color-slate-muted);

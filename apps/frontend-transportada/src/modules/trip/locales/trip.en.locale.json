@@ -2432,5 +2432,26 @@
       "finished": "Delivered",
       "total_return": "Fully returned"
     }
+  },
+  "conference": {
+    "button": "Trip check",
+    "title": "Trip check",
+    "subtitle": "What is assembled in this trip, note by note.",
+    "close": "Close the check",
+    "notes": "Notes",
+    "stops": "Stops",
+    "totalValue": "Notes value",
+    "volumes": "Volumes",
+    "withoutValue": "{{count}} note without a declared value — left out of the total.",
+    "withoutValue_other": "{{count}} notes without a declared value — left out of the total.",
+    "noteColumn": "Note",
+    "clientColumn": "Client",
+    "destinationColumn": "Destination (city)",
+    "valueColumn": "Value",
+    "volumesColumn": "Volumes",
+    "series": "series {{series}}",
+    "unknown": "—",
+    "noStop": "No stop assigned",
+    "empty": "No notes in this trip yet."
   }
 }
