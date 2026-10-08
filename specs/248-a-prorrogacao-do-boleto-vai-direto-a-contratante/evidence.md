@@ -81,3 +81,23 @@ Gates (frontend-transportada, 2026-10-08):
 - Recusa de valor fora do vocabulário, da faixa e de `contractorReply` não-objeto cobertas pelos testes
   `recusa campo do retorno fora do vocabulário ou da faixa`, `recusa contractorReply que não é objeto` e
   `recusa coluna da exceção fora do vocabulário`. Mutação (validação removida) não executada nesta task.
+
+### T1.2 — App do motorista tolera os campos do retorno no tipo
+
+Arquivos: `apps/frontend-driver/src/modules/driver-trip/shared/driverOccurrenceContractorReply.validation.ts`
+(novo, cópia por valor do vocabulário do painel, como o app já faz com `driverTrip.types.ts`),
+`driverTrip.types.ts` (`isDriverOccurrenceType` passa a exigir `hasValidContractorReplyFields`).
+Teste novo: `test/driverOccurrenceContractorReply.validation.contract.test.ts`, na lista `test` do
+`package.json`.
+
+Premissa: o app do motorista não lê o registro da ocorrência (`contractorReply`) hoje; a única
+validação de ocorrência/tipo que ele faz é `isDriverOccurrenceType`, e é nela que a tolerância entra.
+
+Gates (frontend-driver, 2026-10-08):
+
+- `bun run typecheck` → `tsc --noEmit`, sem erro.
+- `bun test ./test/driverOccurrenceContractorReply.validation.contract.test.ts` → 4 pass, 0 fail (novo).
+- `bun run test` (script da app) → 1434 pass, 0 fail, 6 arquivos.
+- `bun run lint` (`eslint .`, cwd da app) → saída vazia, exit 0.
+- `bunx prettier --check` nos arquivos tocados → ok (o teste novo foi reformatado antes do check final).
+- Mutação (validação removida) não executada nesta task.

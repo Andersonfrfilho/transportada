@@ -25,7 +25,7 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 - [x] **T1.1** Painel: validação aceita os campos novos do tipo, as três colunas da exceção e o objeto
       `contractorReply` da ocorrência como opcionais; contrato com e sem as chaves.
-- [ ] **T1.2** App do motorista: idem para o estado do retorno na ocorrência.
+- [x] **T1.2** App do motorista: idem para o estado do retorno na ocorrência.
 
 ## Fase 2 — O e-mail do cliente da nota
 
