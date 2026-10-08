@@ -152,3 +152,33 @@ O usuário informou no chat que **já há confirmação de que a prefeitura aten
 aceita para o Portão 1; ela supera os indícios para NÃO acima (aviso de 08/05/2026 e ISS.Net), que ficam como contexto.
 A origem da confirmação (documento ou e-mail da Fazenda) será anexada pelo usuário quando disponível. Pendências que
 seguem, sem bloquear: valor de `aderenteEmissorNacional` para 3543402 (mTLS, T0.3/T0.4) e página oficial de gratuidade.
+
+## T0.3 — Contrato do Sistema Nacional (08/10/2026)
+
+**Resultado: PARCIAL.** Rotas, quem recebe a DPS, mTLS e regra de certificado vêm de fonte oficial (manuais, XSD 1.01, FAQ v1.1). O
+corpo JSON (nomes dos campos, GZip+Base64) e os status HTTP só têm fonte não oficial. A task segue aberta. Detalhe em `plan.md` § "Contrato do Sistema Nacional (T0.3)".
+
+### Fontes tentadas
+
+| #   | Fonte                                                                                                     | Resultado                                                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | `curl` Sefin restrita `…/API/SefinNacional/docs/index`, `swagger/v1/swagger.json`, `docs/v1/swagger.json` | 403 IIS "Access is denied" nas três. Sem certificado; não contornado.                                          |
+| 2   | `curl` ADN restrita `…/contribuintes/docs/index.html`, `swagger/v1/swagger.json`, `docs/v1/swagger.json`  | `curl (56) … bad decrypt` (handshake exige certificado); o corpo mostrado era resíduo, 403. Idem produção.     |
+| 3   | Produção `sefin.nfse.gov.br/sefinnacional/docs/index`, `adn.nfse.gov.br/contribuintes/docs/index.html`    | 403 / mesmo erro TLS.                                                                                          |
+| 4   | `adn.producaorestrita…/danfse/docs/index.html` e `swagger.json`                                           | Mesmo erro TLS.                                                                                                |
+| 5   | gov.br/nfse "Documentação Atual" (lista de arquivos) [O]                                                  | OK. Lista manuais v1.2, XSD 1.01, Anexos I a V.                                                                |
+| 6   | Manual Contribuintes Emissor Público API v1.2 (PDF, 188 KB) [O]                                           | OK. Rotas da Sefin, síncrono, DPS substitutiva, eventos. Sem corpo JSON, sem mTLS, sem erros, sem limites.     |
+| 7   | Manual Contribuintes APIs do ADN v1.0 (12/02/2026, PDF) [O]                                               | OK. `GET /DFe/{NSU}` e `GET /NFSe/{ChaveAcesso}/Eventos`.                                                      |
+| 8   | Manual Emissão por Decisão Administrativa/Judicial v1.0 (PDF) [O]                                         | OK. `POST /decisao-judicial/nfse`; fora do escopo.                                                             |
+| 9   | FAQ NFS-e v1.1 (22/09/2026, PDF) [O]                                                                      | OK. §§ 17.1–17.8 (certificado, E0717/E0718, sem procuração, DANFSe sobrestado), 18.1–18.6 (série, nNFSe), 6.7. |
+| 10  | Pacote XSD 1.01 de 09/02/2026 (zip, 65 KB) [O], lido em diretório temporário                              | OK. `TSIdDPS`, `TSSerieDPS`, `TSNumDPS`, eventos 101101/105102/105104, `versao` 1.00/1.01.                     |
+| 11  | Anexo I v1.01 (xlsx) [O], textos de regra                                                                 | OK. Assinatura obrigatória na API, certificado do emitente, regras do certificado. Sem algoritmos.             |
+| 12  | Cópia pública do `swagger.json` da Sefin (`github.com/ItargetLabs/sefin-sdk`, MIT) [NO]                   | OK. Rotas, campos `dpsXmlGZipB64`/`nfseXmlGZipB64`/`pedidoRegistroEventoXmlGZipB64`, erros, status HTTP.       |
+| 13  | README do mesmo SDK [NO]; `github.com/pedrocasado/nfse-php`, fórum ACBr, notagateway (só via busca) [NO]  | Confirmam GZip+Base64 e RSA-SHA1 em eventos; E999/RNG9999. Não verificados a fundo.                            |
+| 14  | Anexo II (Guia APIs) achado por busca [O]                                                                 | É da **NFS-e Via** (pedágio), não da nacional. Descartado.                                                     |
+
+### Fechamento
+
+- (a) quem recebe, (b) rotas e (d) autenticação: sustentados por fonte oficial.
+- (c) corpo e resposta: **só [NO]**. Por isso a T0.3 **não** foi marcada.
+- Arquivos baixados ficaram só no diretório temporário da sessão; nada foi para o repositório.

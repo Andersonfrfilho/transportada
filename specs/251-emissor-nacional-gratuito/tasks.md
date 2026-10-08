@@ -28,6 +28,8 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       `plan.md`: qual serviço recebe a DPS, mTLS, corpo de emissão (compactação), consulta,
       cancelamento (evento), DANFSe, erros, limites. Se o Swagger recusar sem certificado, ler pelo
       repositório do Swagger/OpenAPI publicado e registrar.
+      **PENDENTE** (08/10/2026): (a), (b) e (d) têm fonte oficial; (c) corpo `dpsXmlGZipB64`/GZip+Base64 e status HTTP só em cópia
+      não oficial do Swagger (o oficial exige certificado: 403/TLS). Fechar com o A1 de homologação (T0.4). Ver `plan.md` § T0.3.
 - [ ] **T0.4** `sonnet` — Obter com o usuário o A1 de **homologação** (ou procedimento), confirmar a
       validade do A1 de produção (o da Nota RP vence em 05/11/2026) e quem renova.
 - [ ] **T0.5** 🧠 `opus` — ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
