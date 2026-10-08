@@ -205,3 +205,50 @@ Linha restaurada; contrato volta a 724 pass / 0 fail.
 (`TRIP_RESPONSE_INVALID`) assim que a API a mandasse; `iconName` entrou nas duas listas e em `SettingsResolutionOccurrenceType`.
 Fora do escopo desta task por desenho: o feed, o detalhe e a view `occurrence-type-items-read` não ganharam `typeIconName` (possível
 lacuna para o cartão da viagem na T3.4).
+
+## T3.1 — Glyphs faltantes nos dois icon.tsx + contrato catálogo × ICON_PATHS
+
+**Status**: ✅ COMPLETO
+
+### Implementação
+
+Adicionados os ícones do catálogo `OCCURRENCE_TYPE_ICON_NAMES` (10 nomes) aos dois apps:
+
+- **Painel**: `clipboard-list`, `money`, `package` (adicionados a src/components/ui/icon.tsx e tipo IconName)
+- **Motorista**: `truck` (adicionado a src/components/ui/icon.tsx e tipo IconName)
+
+Traçados copiados do app que já os possuía, idênticos entre as duas apps (ADR-0075 §7):
+
+- `clipboard-list`: prancheta com lista (motorista → painel)
+- `money`: círculo com cifrão (motorista → painel)
+- `package`: caixa 3D em perspectiva (motorista → painel)
+- `truck`: caminhão com rodas (painel → motorista)
+
+### Testes (TDD)
+
+Contratos em `test/icon-catalog.contract.test.ts` (ambos os apps):
+
+- Verifica que todos os 10 nomes do catálogo estão definidos em ICON_PATHS
+- Usa regex simples (robusto a comentários e espaçamento)
+- Painel: verde ✅ (7620 pass)
+- Motorista: verde ✅ (1418 pass)
+
+### Gates
+
+- **typecheck**: ✅ PASSOU (0 errors)
+- **format:check**: ✅ PASSOU
+- **eslint**: ⚠️ 4 erros pré-existentes no painel (test/trip/occurrence-type-icon-tolerance.contract.ts), não relacionados a T3.1; motorista limpo
+- **Testes**: ✅ painel 7620 pass / motorista 1418 pass
+
+### Commit
+
+- Hash: `9eb62438a`
+- Mensagem: "feat(frontend): glyphs do catálogo de ícones do tipo de ocorrência (spec 255 T3.1)"
+- Arquivos: 6 modificados, 2 criados (testes)
+- Assinatura: Co-Authored-By: Claude Haiku 4.5
+
+### T3.1 — correção na revisão
+
+O contrato do executor tinha a lista de nomes copiada à mão e só conferia presença: ampliar o catálogo da API ou desenhar um glyph diferente numa das apps não deixaria nada vermelho. Os dois contratos passam a ler `OCCURRENCE_TYPE_ICON_NAMES` do arquivo da API (mesmo padrão de `catalog-parity.contract.ts`) e o do painel compara também o traçado de cada glyph com o do motorista.
+
+Mutação vermelha: o traçado de `truck` do motorista alterado (`...v4h-7z` → `...v4h-8z`) deixa `desenha cada glyph igual ao do motorista` vermelho (1 pass, 1 fail); restaurado, 2 pass, 0 fail no painel e 1 pass, 0 fail no motorista. Medido à mão: os 10 traçados são idênticos nas duas apps.

@@ -1,41 +1,39 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 255: verifica que o catálogo de ícones de tipo de ocorrência está
- * completo no motorista.
+ * O catálogo de ícones do tipo de ocorrência mora na API e o bundle não carrega código de lá.
+ * Restatar a lista aqui guardaria só um lado, então ela é lida do arquivo da API (caminho
+ * relativo entre apps do mesmo monorepo, num teste — não um `import`).
  */
 
-import { readFileSync } from 'fs'
-import { describe, it, expect } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 
-describe('Spec 255 — Catálogo de ícones de tipo de ocorrência', () => {
-  it('motorista tem todos os ícones do catálogo', () => {
-    // Catálogo do spec 255
-    const catalogNames = [
-      'alert',
-      'camera',
-      'clipboard-list',
-      'clock',
-      'document',
-      'invoice',
-      'message',
-      'money',
-      'package',
-      'truck',
-    ]
+const API_CATALOG_SOURCE = new URL(
+  '../../api-transportada/src/shared/trip-occurrence.constant.ts',
+  import.meta.url,
+)
+const ICON_SOURCE = new URL('../src/components/ui/icon.tsx', import.meta.url)
 
-    // Lê o arquivo de definição de ícones do motorista
-    const componentFile = readFileSync('./src/components/ui/icon.tsx', 'utf-8')
+async function readCatalogNames(): Promise<readonly string[]> {
+  const text = await Bun.file(API_CATALOG_SOURCE).text()
+  const block = /export const OCCURRENCE_TYPE_ICON_NAMES = \[([^\]]*)\] as const/u.exec(text)
+  if (block?.[1] === undefined) throw new Error('API_CONSTANT_NOT_FOUND_OCCURRENCE_TYPE_ICON_NAMES')
+  return [...block[1].matchAll(/'([^']+)'/gu)].map((match) => match[1] ?? '')
+}
 
-    const missing: string[] = []
-    for (const name of catalogNames) {
-      // Procura por definição: alert: [...] ou 'alert': [...]
-      const regex = new RegExp(`^\\s*'?${name.replace(/-/g, '\\-')}'?\\s*:\\s*\\[`, 'm')
-      if (!regex.test(componentFile)) {
-        missing.push(name)
-      }
-    }
+function readGlyphPaths(source: string, name: string): string | undefined {
+  const declaration = new RegExp(`^\\s*'?${name}'?\\s*:\\s*\\[([\\s\\S]*?)\\],?\\s*$`, 'mu')
+  const block = declaration.exec(source)
+  if (block?.[1] === undefined) return undefined
+  return [...block[1].matchAll(/'([^']+)'/gu)].map((match) => match[1]).join('|')
+}
 
-    expect(missing.length).toEqual(0)
+describe('catálogo de ícones do tipo de ocorrência no motorista', () => {
+  it('tem um glyph para cada nome do catálogo da API', async () => {
+    const source = await Bun.file(ICON_SOURCE).text()
+    const names = await readCatalogNames()
+    const missing = names.filter((name) => readGlyphPaths(source, name) === undefined)
+    expect(names.length).toBeGreaterThan(0)
+    expect(missing).toEqual([])
   })
 })
