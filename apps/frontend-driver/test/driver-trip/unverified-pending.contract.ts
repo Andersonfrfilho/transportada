@@ -121,8 +121,15 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     ])
     const sender = sendingEverything()
 
-    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
     await drainQueueWithAttachments({
+      origin: 'immediate',
+      attachmentStore,
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
+    await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'key-1',
       ownerSubHash: OWNER,
@@ -175,7 +182,13 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     const sender = sendingEverything()
 
     await confirmUnverifiedPending({ attachmentStore, ownerSubHash: OWNER, store })
-    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
+    await drainQueueWithAttachments({
+      origin: 'immediate',
+      attachmentStore,
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
 
     expect(sender.sentReports).toEqual(['key-1'])
     expect(sender.sentAttachments).toEqual(['photo-1'])
@@ -247,8 +260,15 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     ])
     const sender = sendingEverything()
 
-    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
     await drainQueueWithAttachments({
+      origin: 'immediate',
+      attachmentStore,
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
+    await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore,
       only: 'deliver-online',
       ownerSubHash: OWNER,
@@ -259,7 +279,13 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     expect(sender.sentAttachments).toEqual([])
 
     await confirmUnverifiedPending({ attachmentStore, ownerSubHash: OWNER, store })
-    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
+    await drainQueueWithAttachments({
+      origin: 'immediate',
+      attachmentStore,
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
 
     expect(sender.sentReports).toEqual(['arrive-offline', 'deliver-online'])
     expect(sender.sentAttachments).toEqual(['photo-of-deliver'])
@@ -273,6 +299,7 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     const sender = sendingEverything()
 
     await drainQueueWithAttachments({
+      origin: 'immediate',
       attachmentStore: createMemoryAttachments(),
       ownerSubHash: OWNER,
       store,

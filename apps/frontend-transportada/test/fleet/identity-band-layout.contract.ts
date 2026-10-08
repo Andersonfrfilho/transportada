@@ -4,13 +4,17 @@ import { describe, expect, test } from 'bun:test'
 import { readCssBlock, readStylesheet } from '../design-system/cssBlock.helper'
 
 describe('faixa de identidade do veículo no celular (revisão do painel)', () => {
-  /** Medido em 375px no detalhe da viagem: com `auto minmax(0, 1fr)` a placa de 10rem começava em x=262 e a página rolava até 422. */
-  test('abaixo de 40rem a faixa é uma coluna só, e a placa não escolhe a segunda', async () => {
+  /** Medido em 375px: com a placa fixa ao lado do texto, ele caía para 39px e virava uma coluna de letras. */
+  test('a faixa quebra por conteúdo: o texto exige largura mínima e desce quando ela falta', async () => {
     const styles = await readStylesheet('src/modules/fleet/styles/fleet.module.css')
     const band = readCssBlock(styles, '.identityBand')
+    const facts = readCssBlock(styles, '.identityFacts')
 
-    expect(band).toContain('grid-template-columns: minmax(0, 1fr)')
-    expect(band).not.toContain('auto minmax(0, 1fr)')
+    expect(band).toContain('display: flex')
+    expect(band).toContain('flex-wrap: wrap')
+    expect(band).not.toContain('grid-template-columns')
+    expect(facts).toContain('flex: 1 1 14rem')
+    expect(facts).toContain('min-width: 0')
   })
 })
 

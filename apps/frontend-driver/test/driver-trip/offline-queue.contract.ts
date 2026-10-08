@@ -85,6 +85,7 @@ describe('a fila offline', () => {
     const sentKeys: string[] = []
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: ({ report }) => {
         sentKeys.push(report.idempotencyKey)
         return Promise.resolve('sent')
@@ -109,6 +110,7 @@ describe('a fila offline', () => {
     const attempted: string[] = []
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: ({ report }): Promise<DrainOutcome> => {
         attempted.push(report.idempotencyKey)
         return Promise.resolve(report.idempotencyKey === 'chave-2' ? 'failed-network' : 'sent')
@@ -127,7 +129,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
     await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
 
-    await drainQueue({ send: () => Promise.resolve('failed-network'), store })
+    await drainQueue({ origin: 'immediate', send: () => Promise.resolve('failed-network'), store })
 
     expect(store.items().map((item) => item.attempts)).toEqual([1, 0])
   })
@@ -141,6 +143,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: async ({ report }) => {
         if (report.idempotencyKey === 'chave-1') {
           await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
@@ -164,6 +167,7 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: ({ report }) =>
         Promise.resolve(report.idempotencyKey === 'chave-2' ? 'rejected' : 'sent'),
       store,
@@ -179,6 +183,7 @@ describe('a fila offline', () => {
     let calls = 0
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: () => {
         calls += 1
         return Promise.resolve('sent')

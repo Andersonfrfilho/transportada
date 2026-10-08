@@ -118,6 +118,11 @@ import {
 } from './trip.constant'
 import { hasValidReturnRequirementFields } from './returnRequirementFields.validation'
 import {
+  CONTRACTOR_REPLY_TYPE_KEYS,
+  hasValidContractorReplyObject,
+  hasValidContractorReplyTypeFields,
+} from './occurrenceContractorReply.validation'
+import {
   SCANNED_NFE_STATUS,
   TRIP_BATCH_ITEM_OUTCOME,
   TRIP_DISPATCH_BLOCKED_CODES,
@@ -1513,6 +1518,7 @@ export function isTripOccurrence(value: unknown): value is TripOccurrence {
     (value.typeIconName === undefined ||
       value.typeIconName === null ||
       isString(value.typeIconName)) &&
+    hasValidContractorReplyObject(value.contractorReply) &&
     isString(value.typeName)
   )
 }
@@ -1954,6 +1960,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountScope',
         'declaredAmountLabel',
         'emailItemLineTemplate',
+        ...CONTRACTOR_REPLY_TYPE_KEYS,
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
@@ -2000,7 +2007,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
     (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
-    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate))
+    (value.emailItemLineTemplate === undefined || isString(value.emailItemLineTemplate)) &&
+    hasValidContractorReplyTypeFields(value)
   )
 }
 

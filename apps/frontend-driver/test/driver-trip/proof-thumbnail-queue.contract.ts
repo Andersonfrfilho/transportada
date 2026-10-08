@@ -25,7 +25,7 @@ function queuedPhoto(extra: Partial<QueuedAttachment> = {}): QueuedAttachment {
     kind: 'photo',
     pendingReduction: true,
     ...extra,
-  } as QueuedAttachment
+  }
 }
 
 describe('spec 220 T3.3: a miniatura viaja com o anexo da fila', () => {

@@ -10,6 +10,7 @@ import type {
   OccurrenceAttachmentOverrides,
   OccurrenceAttachmentOverridesByType,
 } from './occurrenceType.types'
+import { hasValidContractorOverrideReplyFields } from './occurrenceContractorReply.validation'
 import { isOneOf, isRecord, isString } from './tripGuards.validation'
 
 function isNullOrAbsent(value: unknown): boolean {
@@ -51,7 +52,8 @@ function isContractorOverride(value: unknown): boolean {
     isRecord(value) &&
     isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES) &&
     isString(value.contractorId) &&
-    hasValidRequirementFields(value)
+    hasValidRequirementFields(value) &&
+    hasValidContractorOverrideReplyFields(value)
   )
 }
 

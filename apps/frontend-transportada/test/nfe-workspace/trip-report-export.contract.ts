@@ -8,6 +8,7 @@ import {
 } from '../../src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
 import { buildExcludedWithoutTripNotice } from '../../src/modules/nfe-workspace/shared/nfeTripReportNotice.service'
 import { translateNfeFiltersToTripReport } from '../../src/modules/nfe-workspace/shared/nfeTripReportFilters.service'
+import { buildTripReportSearch } from '../../src/modules/trip/shared/tripReportClient.service'
 
 function translate(
   overrides: Partial<DocumentFilters> = {},
@@ -60,29 +61,118 @@ describe('nfe tab filters to trip report filters (spec 253 T4.5)', () => {
     expect(translate({ amountOperator: 'gt', amountValue: '  ' }).filters).toEqual({})
   })
 
-  test('filters without an equivalent endpoint parameter are listed as unsupported', () => {
-    const { filters, unsupported } = translate({
-      dateFrom: '2026-01-01',
-      multi: { emitterName: ['Acme'], emitterTaxId: ['123'] },
-      numberFrom: '10',
-      select: {
-        ...EMPTY_FILTERS.select,
-        cteIssued: 'pending',
-        emitterState: 'RJ',
-        status: 'denied',
-      },
-      text: { ...EMPTY_FILTERS.text, recipientName: 'Maria' },
-    })
-    expect(filters).toEqual({})
-    expect(unsupported).toEqual([
-      'emitter',
-      'recipientName',
+  const CONTROL_TO_PARAMETER: readonly (readonly [
+    string,
+    Partial<DocumentFilters>,
+    Record<string, unknown>,
+  ])[] = [
+    ['numberFrom', { numberFrom: ' 10 ' }, { numberFrom: '10' }],
+    ['numberTo', { numberTo: '99' }, { numberTo: '99' }],
+    ['dateFrom', { dateFrom: '2026-01-01' }, { issuedFrom: '2026-01-01' }],
+    ['dateTo', { dateTo: '2026-01-31' }, { issuedUntil: '2026-01-31' }],
+    [
+      'emitterName',
+      { multi: { emitterName: ['Acme', 'Beta'], emitterTaxId: [] } },
+      { emitterNameIn: ['Acme', 'Beta'] },
+    ],
+    [
+      'emitterTaxId',
+      { multi: { emitterName: [], emitterTaxId: ['123'] } },
+      { emitterTaxIdIn: ['123'] },
+    ],
+    [
+      'emitterCity',
+      { select: { ...EMPTY_FILTERS.select, emitterCity: 'Rio' } },
+      { emitterCityIn: ['Rio'] },
+    ],
+    [
       'emitterState',
+      { select: { ...EMPTY_FILTERS.select, emitterState: 'RJ' } },
+      { emitterStateIn: ['RJ'] },
+    ],
+    [
       'status',
+      { select: { ...EMPTY_FILTERS.select, status: 'denied' } },
+      { fiscalStatusIn: ['denied'] },
+    ],
+    [
       'cteIssued',
-      'number',
-      'date',
-    ])
+      { select: { ...EMPTY_FILTERS.select, cteIssued: 'pending' } },
+      { cteIssued: 'pending' },
+    ],
+    [
+      'emitterAddress',
+      { text: { ...EMPTY_FILTERS.text, emitterAddress: ' Rua A ' } },
+      { emitterAddress: 'Rua A' },
+    ],
+    [
+      'recipientName',
+      { text: { ...EMPTY_FILTERS.text, recipientName: 'Maria' } },
+      { recipientName: 'Maria' },
+    ],
+    [
+      'recipientAddress',
+      { text: { ...EMPTY_FILTERS.text, recipientAddress: 'Av B' } },
+      { recipientAddress: 'Av B' },
+    ],
+  ]
+
+  for (const [control, overrides, expected] of CONTROL_TO_PARAMETER) {
+    test(`${control} becomes its report parameter and is not unsupported`, () => {
+      expect(translate(overrides)).toEqual({ filters: expected, unsupported: [] })
+    })
+  }
+
+  test('a non-numeric invoice number is dropped, never sent', () => {
+    expect(translate({ numberFrom: '12a', numberTo: '' }).filters).toEqual({})
+  })
+
+  test('every control together survives serialization with the API parameter names', () => {
+    const { filters } = translate(
+      {
+        amountOperator: 'gte',
+        amountValue: '10',
+        dateFrom: '2026-01-01',
+        dateTo: '2026-01-31',
+        multi: { emitterName: ['Acme', 'Beta'], emitterTaxId: ['123'] },
+        numberFrom: '1',
+        numberTo: '9',
+        select: {
+          cteIssued: 'issued',
+          emitterCity: 'Rio',
+          emitterState: 'RJ',
+          recipientCity: 'Campinas',
+          recipientState: 'SP',
+          status: 'authorized',
+        },
+        text: { emitterAddress: 'Rua A', recipientAddress: 'Av B', recipientName: 'Maria' },
+      },
+      { searchTerm: 'abc' },
+    )
+    const parameters = new URLSearchParams(
+      buildTripReportSearch({ cursor: null, filters, limit: 50 }),
+    )
+    expect(Object.fromEntries(parameters)).toEqual({
+      cteIssued: 'issued',
+      emitterAddress: 'Rua A',
+      emitterCityIn: 'Rio',
+      emitterNameIn: 'Acme,Beta',
+      emitterStateIn: 'RJ',
+      emitterTaxIdIn: '123',
+      fiscalStatusIn: 'authorized',
+      issuedFrom: '2026-01-01',
+      issuedUntil: '2026-01-31',
+      limit: '50',
+      numberFrom: '1',
+      numberTo: '9',
+      recipientAddress: 'Av B',
+      recipientCityIn: 'Campinas',
+      recipientName: 'Maria',
+      recipientStateIn: 'SP',
+      search: 'abc',
+      valueAmount: '10',
+      valueOperator: 'gte',
+    })
   })
 
   test('advanced mode with conditions is unsupported as a whole', () => {

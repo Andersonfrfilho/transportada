@@ -92,6 +92,7 @@ import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoReje
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
+import { TripConferenceAction } from './TripConferenceAction.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
@@ -115,6 +116,8 @@ import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.h
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
+  /** Quem criou a viagem, da linha do tempo: `undefined` enquanto não chegou, `null` sem ator humano. */
+  creatorName?: null | string | undefined
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
   /** Sem `trip.financials` o pedágio da rota some da tela — nunca zero (spec 153 D10). */
@@ -284,6 +287,7 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
 
 export function TripDetail({
   canAdjustTollBooth,
+  creatorName,
   canReadFinancials,
   drivers,
   linkForm,
@@ -826,19 +830,29 @@ export function TripDetail({
 
   return (
     <section className={styles.panel} aria-labelledby="trip-detail-title">
-      <div className={styles.panelHead}>
-        <h2 id="trip-detail-title">{t('detail.title')}</h2>
-        {/* O UUID inteiro não cabe numa anotação a mão — os 8 primeiros caracteres bastam para
-            achar a viagem de novo, e o botão copia o valor completo para quem precisa dele. */}
-        <span className={styles.tripIdBadge}>
-          <code>{trip.id.slice(0, 8)}</code>
-          <CopyButton
-            copiedLabel={t('detail.idCopied')}
-            label={t('detail.copyId')}
-            value={trip.id}
-          />
-        </span>
+      <div className={`${styles.panelHead} ${styles.tripDetailHead}`}>
+        <div className={styles.tripTitleGroup}>
+          <h2 id="trip-detail-title">{t('detail.title')}</h2>
+          {/* O UUID inteiro não cabe numa anotação a mão — os 8 primeiros caracteres bastam para
+              achar a viagem de novo, e o botão copia o valor completo para quem precisa dele. */}
+          <span className={styles.tripIdInline}>
+            <code>{trip.id.slice(0, 8)}</code>
+            <CopyButton
+              copiedLabel={t('detail.idCopied')}
+              label={t('detail.copyId')}
+              value={trip.id}
+            />
+          </span>
+        </div>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
+        <TripConferenceAction
+          creatorName={creatorName}
+          documents={trip.documents}
+          drivers={trip.drivers}
+          stops={trip.stops}
+          tripCode={trip.id.slice(0, 8)}
+          vehiclePlate={vehicles.find((vehicle) => vehicle.id === trip.vehicleId)?.plate ?? null}
+        />
         {/*
          * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o
          * próximo passo. Elas viviam numa seção no meio da página, e a decisão exigia rolar.

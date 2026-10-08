@@ -6,13 +6,14 @@ import {
   TRIP_REPORT_DOCUMENT_BATCH_SIZE,
   type TripReportScope,
 } from './tripReport.service'
+import { buildTripExportFileName } from './tripExportFileName.service'
 import { buildTripReportSearch } from './tripReportClient.service'
 import { TRIP_ERROR } from './trip.constant'
 import type { TripReportFilters } from './tripReport.types'
 
 export const TRIP_PROOF_PDF_PATH = '/trip-document-report/proofs-pdf'
 export const TRIP_PROOF_PDF_TOO_LARGE_CODE = 'TRIP_PROOF_REPORT_TOO_LARGE'
-export const TRIP_PROOF_PDF_FILE_NAME = 'trip-proofs.pdf'
+export const TRIP_PROOF_PDF_BASE_NAME = 'trip-proofs'
 /** O PDF é uma resposta só: `documentIdIn` acima do teto da API não cabe em um pedido. */
 export const TRIP_PROOF_PDF_MAX_DOCUMENT_IDS = TRIP_REPORT_DOCUMENT_BATCH_SIZE
 const PDF_QUERY_LIMIT = 100
@@ -108,5 +109,8 @@ export async function exportTripProofPdf(input: ExportTripProofPdfInput): Promis
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   })
   input.signal?.throwIfAborted()
-  ;(input.savePdf ?? saveArchiveFile)({ blob, fileName: TRIP_PROOF_PDF_FILE_NAME })
+  ;(input.savePdf ?? saveArchiveFile)({
+    blob,
+    fileName: buildTripExportFileName({ baseName: TRIP_PROOF_PDF_BASE_NAME, extension: 'pdf' }),
+  })
 }

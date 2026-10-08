@@ -405,8 +405,8 @@ describe('um 403 na fila é recusa, nunca nova tentativa (spec 243 RF-3)', () =>
       return Promise.resolve('rejected' as const)
     }
 
-    const first = await drainQueue({ send, store })
-    const second = await drainQueue({ send, store })
+    const first = await drainQueue({ origin: 'immediate', send, store })
+    const second = await drainQueue({ origin: 'immediate', send, store })
 
     expect(first.rejected).toHaveLength(1)
     expect(first.remaining).toBe(0)

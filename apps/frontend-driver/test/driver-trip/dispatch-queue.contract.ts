@@ -130,12 +130,12 @@ describe('o despacho da viagem vai pela fila (spec 230)', () => {
       }
     }
 
-    const offline = await drainQueue({ send, store })
+    const offline = await drainQueue({ origin: 'immediate', send, store })
     expect(offline).toEqual({ rejected: [], remaining: 2, sent: 0 })
     expect(store.items()[0]?.report.kind).toBe('dispatch')
 
     isUp = true
-    const online = await drainQueue({ send, store })
+    const online = await drainQueue({ origin: 'immediate', send, store })
     expect(online).toEqual({ rejected: [], remaining: 0, sent: 2 })
     expect(order).toEqual(['/me/trips/current/dispatch', '/me/trips/current/stops/stop-1/arrive'])
   })

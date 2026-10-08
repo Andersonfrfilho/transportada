@@ -40,6 +40,7 @@ import {
   type DrainTriggerTarget,
   type PendingCounts,
 } from '../shared/pendingQueue.service'
+import type { DrainOrigin } from '../shared/retryBackoff.service'
 import {
   reduceProofPhotoToJpeg,
   shouldReduceProofFile,
@@ -188,7 +189,11 @@ export function useDriverTrip(
 
   const isDrainingRef = useRef(false)
   const hasPendingDrainRef = useRef(false)
-  const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
+  /** Spec 254: a repetição pendente guarda a origem — `immediate` vence `timer` ao juntar pedidos. */
+  const pendingDrainOriginRef = useRef<DrainOrigin>('timer')
+  const requestDrainRef = useRef<(only: string | undefined, origin: DrainOrigin) => void>(
+    () => undefined,
+  )
 
   /** Spec 212: as reduções do canhoto em voo — a varredura e a drenagem esperam por elas. */
   const [proofPhotoReductions] = useState<ProofPhotoReductions>(() => new Map())
@@ -203,13 +208,14 @@ export function useDriverTrip(
 
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
-    mutationFn: async (only?: string) => {
+    mutationFn: async (request: { only?: string; origin: DrainOrigin }) => {
       /** Spec 212: a foto grande presa (413) volta reduzida e sem causa antes de a fila ser lida. */
       await recoverProofPhotos()
       const client = getDriverTripClient()
       return drainQueueWithAttachments({
         attachmentStore,
-        ...(only === undefined ? {} : { only }),
+        ...(request.only === undefined ? {} : { only: request.only }),
+        origin: request.origin,
         send: async (report): Promise<AttachmentSendOutcome> => {
           try {
             await client.send(report)
@@ -282,7 +288,9 @@ export function useDriverTrip(
       isDrainingRef.current = false
       if (!hasPendingDrainRef.current) return
       hasPendingDrainRef.current = false
-      requestDrainRef.current(undefined)
+      const origin = pendingDrainOriginRef.current
+      pendingDrainOriginRef.current = 'timer'
+      requestDrainRef.current(undefined, origin)
     },
   })
 
@@ -306,13 +314,14 @@ export function useDriverTrip(
    * — o que já foi enviado não está mais na fila.
    */
   const requestDrain = useCallback(
-    (only?: string) => {
+    (only: string | undefined, origin: DrainOrigin) => {
       if (isDrainingRef.current) {
         hasPendingDrainRef.current = true
+        if (origin === 'immediate') pendingDrainOriginRef.current = 'immediate'
         return
       }
       isDrainingRef.current = true
-      drain.mutate(only)
+      drain.mutate(only === undefined ? { origin } : { only, origin })
     },
     [drain],
   )
@@ -332,10 +341,10 @@ export function useDriverTrip(
       /** Spec 212: a foto presa já sai reduzida quando a drenagem puder levá-la. */
       .then(() => recoverProofPhotos())
     /** "Abertura" (revisão M4): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
-    drainRef.current(undefined)
+    drainRef.current(undefined, 'immediate')
 
     const cancelTriggers = scheduleQueueDrainTriggers({
-      drain: () => drainRef.current(undefined),
+      drain: (origin) => drainRef.current(undefined, origin),
       getDrainable: () => drainableCountRef.current,
       onQueueSync: (sync) => {
         syncDrainTimerRef.current = sync
@@ -353,7 +362,7 @@ export function useDriverTrip(
     const result = await enqueueReport({ now: new Date(), report: fieldReport, store })
     if (!result.accepted) return result.reason
     await refreshQueueView()
-    requestDrain(undefined)
+    requestDrain(undefined, 'immediate')
     return 'queued'
   }
 
@@ -386,7 +395,7 @@ export function useDriverTrip(
     }
     if (!result.accepted) return result.reason
     await refreshQueueView()
-    requestDrain(undefined)
+    requestDrain(undefined, 'immediate')
     return isPhotoDropped ? 'photo-dropped' : 'queued'
   }
 
@@ -447,7 +456,7 @@ export function useDriverTrip(
     // A folga (`PROOF_AUTO_DRAIN_GRACE_MS`) é depois da redução, não no lugar dela — a versão leve
     // já está pronta quando a drenagem finalmente dispara.
     void reduction.finally(() => {
-      window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)
+      window.setTimeout(() => requestDrain(undefined, 'immediate'), PROOF_AUTO_DRAIN_GRACE_MS)
     })
     return 'queued'
   }
@@ -472,8 +481,8 @@ export function useDriverTrip(
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
     reportStopOccurrence,
-    sendAllNow: () => requestDrain(undefined),
-    sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
+    sendAllNow: () => requestDrain(undefined, 'immediate'),
+    sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey, 'immediate'),
     snapshot: currentTrip.data,
     status: currentTrip.isLoading ? 'loading' : currentTrip.isError ? 'error' : 'ready',
   } satisfies DriverTripController

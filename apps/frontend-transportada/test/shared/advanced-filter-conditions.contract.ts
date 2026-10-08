@@ -28,7 +28,7 @@ function readKey(tree: LocaleTree, path: string): unknown {
 /** Cada construtor de filtro avançado, com o hook que guarda o modelo e o locale do módulo. */
 const BUILDERS = [
   {
-    builder: 'src/modules/nfe-workspace/components/AdvancedFilterBuilder.component.tsx',
+    builder: 'src/modules/shared/nfe-filter/AdvancedFilterBuilder.component.tsx',
     hook: 'src/modules/nfe-workspace/hooks/useNfeDocumentTable.hook.ts',
     localeKey: 'documents.builder.clearConditions',
     locales: ['src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'],

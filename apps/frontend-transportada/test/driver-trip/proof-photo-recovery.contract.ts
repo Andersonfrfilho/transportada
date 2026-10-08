@@ -89,6 +89,7 @@ function reduceTo(bytes: number) {
 async function drain(attachmentStore: AttachmentStore, only?: string) {
   const sent: QueuedAttachment[] = []
   await drainQueueWithAttachments({
+    origin: 'immediate',
     attachmentStore,
     ...(only === undefined ? {} : { only }),
     send: () => Promise.resolve({ kind: 'sent' }),
@@ -287,12 +288,14 @@ describe('/minha-viagem: o hook liga a trava e a recuperação (spec 212)', () =
     expect(hook).toInclude('reduce: reduceProofPhotoToJpeg')
     expect(hook).toInclude('void reduction.finally(() => {')
     expect(hook).toInclude(
-      'window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)',
+      "window.setTimeout(() => requestDrain(undefined, 'immediate'), PROOF_AUTO_DRAIN_GRACE_MS)",
     )
   })
 
   it('a recuperação roda antes de cada drenagem e no boot', () => {
-    const mutationAt = hook.indexOf('mutationFn: async (only?: string) => {')
+    const mutationAt = hook.indexOf(
+      'mutationFn: async (request: { only?: string; origin: DrainOrigin }) => {',
+    )
     const recoverAt = hook.indexOf('await recoverProofPhotos()', mutationAt)
     const drainAt = hook.indexOf('return drainQueueWithAttachments(', mutationAt)
 
