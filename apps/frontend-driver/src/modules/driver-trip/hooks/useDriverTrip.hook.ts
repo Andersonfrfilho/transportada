@@ -397,9 +397,9 @@ export function useDriverTrip(
         ...(request.only === undefined ? {} : { only: request.only }),
         origin: request.origin,
         ownerSubHash: session.subHash,
-        send: async (stamped): Promise<AttachmentSendOutcome> => {
+        send: async (stamped, options): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(stamped)
+            await client.send(stamped, options)
             sentKeys.push(stamped.report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {

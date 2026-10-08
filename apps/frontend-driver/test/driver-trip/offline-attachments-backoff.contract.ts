@@ -7,9 +7,10 @@ import {
   type AttachmentStore,
   type QueuedAttachment,
 } from '@/modules/driver-trip/shared/offlineAttachments.service'
-import type {
-  OfflineQueueStore,
-  QueuedReport,
+import {
+  drainQueue,
+  type OfflineQueueStore,
+  type QueuedReport,
 } from '@/modules/driver-trip/shared/offlineQueue.service'
 
 /**
@@ -317,5 +318,39 @@ describe('lastAttemptAt sobrevive à remontagem do item recusado (spec 254)', ()
     expect(attachment?.rejectionCause).toBe('recusado')
     expect(readAttachmentField(attachment, 'attempts')).toBe(2)
     expect(readAttachmentField(attachment, 'lastAttemptAt')).toBe(lastAttemptAt)
+  })
+})
+
+describe('a drenagem diz ao envio qual tentativa é esta (spec 254 RF1)', () => {
+  it('drainQueueWithAttachments: item com 3 tentativas gravadas envia como a 4ª', async () => {
+    const received: unknown[] = []
+    await drainQueueWithAttachments({
+      attachmentStore: createMemoryAttachments([]),
+      now: clockAt(0),
+      origin: 'immediate',
+      send: ((_stamped: unknown, options: unknown) => {
+        received.push(options)
+        return Promise.resolve({ kind: 'sent' })
+      }) as never,
+      sendAttachment: () => Promise.resolve({ kind: 'sent' }),
+      store: createMemoryQueue([buildReport({ attempts: 3, key: 'cheguei' })]),
+    })
+
+    expect(received).toEqual([{ attempt: 4 }])
+  })
+
+  it('drainQueue: item novo envia como a 1ª tentativa', async () => {
+    const received: unknown[] = []
+    await drainQueue({
+      now: clockAt(0),
+      origin: 'immediate',
+      send: ((_stamped: unknown, options: unknown) => {
+        received.push(options)
+        return Promise.resolve('sent')
+      }) as never,
+      store: createMemoryQueue([buildReport({ attempts: 0, key: 'cheguei' })]),
+    })
+
+    expect(received).toEqual([{ attempt: 1 }])
   })
 })

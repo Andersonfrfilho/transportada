@@ -108,6 +108,7 @@ arquivo.
       chamada de `drain` sem `origin`, `Promise.all` novo (code-standart §15), strings repetidas.
 - [x] **T5.3** Auditoria go-live (code-standart §15 / `security.md` §1 e §3): log sem PII, corpo validado,
       limite na rota, ausência de stack em `500`.
+- [x] **T5.4** Passar `attempt` (`item.attempts + 1`) da drenagem (`drainQueue`, `drainQueueWithAttachments`) para `client.send`, fechando o MEDIUM do T5.2; teste primeiro.
 
 **Depois do deploy (fora desta spec, só com aprovação humana):** reproduzir em staging com login de motorista
 e viagem com entrega aberta fornecidos pelo usuário, e buscar `driver_client_diagnostic` no log do Railway.

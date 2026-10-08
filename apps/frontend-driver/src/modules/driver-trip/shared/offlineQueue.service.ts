@@ -2,6 +2,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
+import type { SendOptions } from './driverTripClient.service'
 import type {
   DriverFieldReport,
   DriverOccurrencePhoto,
@@ -219,7 +220,7 @@ export async function drainQueue(input: {
   readonly now?: Date
   readonly origin: DrainOrigin
   readonly random?: () => number
-  readonly send: (stamped: StampedReport) => Promise<DrainOutcome>
+  readonly send: (stamped: StampedReport, options: SendOptions) => Promise<DrainOutcome>
   readonly store: OfflineQueueStore
 }): Promise<DrainResult> {
   const readClock = (): Date => input.now ?? new Date()
@@ -234,7 +235,10 @@ export async function drainQueue(input: {
     if (input.origin === 'timer' && !isRetryDue({ item, now: readClock(), random: input.random })) {
       break
     }
-    const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
+    const outcome = await input.send(
+      { report: item.report, stamp: toEventClockStamp(item) },
+      { attempt: item.attempts + 1 },
+    )
     if (outcome === 'failed-network') {
       // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
       failedKey = item.report.idempotencyKey
