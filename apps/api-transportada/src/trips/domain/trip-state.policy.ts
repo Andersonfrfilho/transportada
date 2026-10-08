@@ -162,12 +162,28 @@ export function checkTripAcceptsLinkage(tripStatus: TripStatus): TripTransitionB
 }
 
 /**
- * Spec 153 T704 (M1/M3): os estados em que a rota planejada ainda é rascunho — os mesmos que
- * `checkTripAcceptsLinkage` libera. A partir do despacho o roteiro congelado é o que vale na rua, e
- * nem a limpeza da rota velha nem uma escrita atrasada do congelamento podem alcançá-lo.
+ * Spec 257 D1: a janela do vínculo **com a carga já na rua** — ação própria, com motivo, e nunca o
+ * vínculo comum afrouxado. Antes do despacho vale `checkTripAcceptsLinkage`; concluída e cancelada
+ * seguem recusadas com o motivo do estado.
+ */
+export function checkTripAcceptsLinkageAfterDispatch(
+  tripStatus: TripStatus,
+): TripTransitionBlock | null {
+  if (tripStatus === 'cancelled') return TRIP_TRANSITION_BLOCK.tripCancelled
+  if (tripStatus === 'completed') return TRIP_TRANSITION_BLOCK.tripCompleted
+  if (!isTripDispatched(tripStatus)) return TRIP_TRANSITION_BLOCK.tripNotDispatched
+
+  return null
+}
+
+/**
+ * Spec 153 T704 (M1/M3): os estados em que a rota planejada ainda é rascunho. A partir do despacho o
+ * roteiro congelado é o que vale na rua, e nem a limpeza da rota velha nem uma escrita atrasada do
+ * congelamento podem alcançá-lo. Lista própria: não deriva do vínculo de nota, que a spec 257 abre
+ * para a viagem na rua sem abrir a rota.
  */
 export const TRIP_STATUSES_BEFORE_DISPATCH = TRIP_STATUSES.filter(
-  (status) => checkTripAcceptsLinkage(status) === null,
+  (status) => status !== 'cancelled' && status !== 'completed' && !isTripDispatched(status),
 )
 
 /** Entregue e devolvida são terminais: a nota saiu do fluxo de separação para sempre. */
