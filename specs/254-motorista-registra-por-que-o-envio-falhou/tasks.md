@@ -63,7 +63,7 @@ arquivo.
 
 ## Fase 3 — Espaçamento da drenagem (painel primeiro, depois driver)
 
-> 🤖 Modelo: `sonnet` (T3.3 → `haiku`)
+> 🤖 Modelo: `sonnet`
 
 - [ ] **T3.1** `retryBackoff.service.ts` (puro: `computeRetryDelayMs`, `isRetryDue`; relógio e jitter
       injetáveis) no **painel** (origem da cópia, ADR-0075 §7). Gate: trecho da T1.3 sobre a fórmula verde.
@@ -115,7 +115,7 @@ e viagem com entrega aberta fornecidos pelo usuário, e buscar `driver_client_di
 antes de começar). Uma task por vez, na ordem do tasks.md. Trabalhe em worktree (make worktree NAME=spec-254).
 Já existe e não deve ser refeito: apps/frontend-driver/test/driver-trip/occurrence-upload-retry-loop.contract.ts — estenda-o na T1.3.
 Modelos: Fase 1 → executor model=sonnet (T1.1 🧠 → architect em opus, só veredito, sem código) ·
-Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet (T3.3 → haiku) ·
+Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet ·
 Fase 4 → executor model=sonnet · Fase 5 → haiku (T5.2 revisão → code-reviewer model=sonnet).
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
 Cada task fecha com typecheck + testes (script test da app, entrypoints explícitos; na API, contrato E integração) +
