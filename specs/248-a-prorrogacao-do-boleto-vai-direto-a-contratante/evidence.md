@@ -56,3 +56,28 @@ Pacotes instalados (`node_modules/.bun`):
 
 Confirmado após `git fetch`: `origin/staging` tem os commits `7e4fa0a46`, `3647eda84` e `187a9482d`
 (`spec 247`), e a pasta `specs/247-a-devolucao-soma-os-itens-linha-por-linha`. Pré-condição atendida.
+
+## Fase 1 — Painel e app tolerantes (etapa 1)
+
+### T1.1 — Painel tolera os campos do retorno (tipo, exceção por contratante, `contractorReply`)
+
+Arquivos: `apps/frontend-transportada/src/modules/trip/shared/occurrenceContractorReply.{constant,validation}.ts`
+(novos), `tripResponse.validation.ts` (chaves permitidas do tipo + `contractorReply` da ocorrência),
+`occurrenceAttachmentOverrides.validation.ts` (as três colunas da exceção por contratante),
+`trip.constant.ts` (`contractorReply` em `TRIP_OCCURRENCE_OPTIONAL_KEYS`). Teste novo:
+`test/occurrence-contractor-reply-tolerance.contract.test.ts`, na lista do `package.json`.
+
+Vocabulário e faixas em `occurrenceContractorReply.constant.ts` (espelham o `spec.md` § "Campos novos
+do tipo"); `contractorReplyWaitHours` aceita nulo (sem prazo); a exceção aceita nulo (herda).
+`contractorReply` é aceito como ausente, nulo ou objeto; o formato interno ainda não é lido pelo painel.
+
+Gates (frontend-transportada, 2026-10-08):
+
+- `bun run typecheck` → `tsc --noEmit`, sem erro.
+- `bun test ./test/occurrence-contractor-reply-tolerance.contract.test.ts` → 10 pass, 0 fail (novo).
+- `bun run test` (script da app) → 7675 pass, 0 fail, 39 arquivos.
+- `bun run lint` → 0 erro, 16 avisos (todos pré-existentes, nenhum nos arquivos tocados).
+- `bunx prettier --check` nos arquivos tocados → ok.
+- Recusa de valor fora do vocabulário, da faixa e de `contractorReply` não-objeto cobertas pelos testes
+  `recusa campo do retorno fora do vocabulário ou da faixa`, `recusa contractorReply que não é objeto` e
+  `recusa coluna da exceção fora do vocabulário`. Mutação (validação removida) não executada nesta task.

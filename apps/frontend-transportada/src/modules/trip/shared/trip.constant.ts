@@ -465,6 +465,7 @@ export const TRIP_OCCURRENCE_KEYS = [
 export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
   'actorName',
   'channel',
+  'contractorReply',
   'onBehalfOfDriverName',
   /**
    * Spec 161 T6/T22/T24: nasce opcional aqui só para não derrubar o parse do registro
