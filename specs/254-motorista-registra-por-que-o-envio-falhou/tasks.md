@@ -95,7 +95,7 @@ arquivo.
       `upload_confirm`/`report_send` (+ `send_failed` com `toAttachmentSendOutcome`), `photo_reduce`,
       `trip_open`, `baixa_total`. `flush` no fim da drenagem, em `online` e na volta de visibilidade.
       Gate: contratos existentes do driver verdes (nenhuma regra de ocorrência mudou — D2) + T1.4.
-- [ ] **T4.4** Atualizar `apps/frontend-driver/CLAUDE.md` (núcleo normativo: coletor é melhor-esforço,
+- [x] **T4.4** Atualizar `apps/frontend-driver/CLAUDE.md` (núcleo normativo: coletor é melhor-esforço,
       nunca entra em fila nem em `attempts`; backoff só no temporizador) e `docs/ai-context/frontend-driver.md`.
 
 ## Fase 5 — Fechamento
