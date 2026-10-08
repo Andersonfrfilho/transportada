@@ -22,6 +22,11 @@ import {
 } from './canhotoReviewResult.service'
 import { createTripReviewAdapters } from './tripReview.validation'
 import { parseCrewTransfer } from './tripCrewTransfer.validation'
+import { parseDocumentLinkAfterDispatch } from './tripDocumentLink.validation'
+import type {
+  LinkDocumentsAfterDispatchInput,
+  LinkDocumentsAfterDispatchResult,
+} from './tripDocumentLink.types'
 import type { CrewTransferResult, TransferTripCrewInput } from './tripCrewTransfer.types'
 import type {
   TripDocumentReview,
@@ -171,6 +176,10 @@ export type TripClient = Readonly<{
   changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
   /** Spec 249: `POST /trips/:id/crew-transfers` — a viagem que já saiu muda de tripulação, sem veículo. */
   transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
+  /** Spec 257 D2: `POST /trips/:id/documents/after-dispatch` — notas soltas para a viagem que já saiu. */
+  linkDocumentsAfterDispatch: (
+    input: LinkDocumentsAfterDispatchInput,
+  ) => Promise<LinkDocumentsAfterDispatchResult>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
    * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
@@ -807,6 +816,24 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       try {
         return {
           transfer: parseCrewTransfer(data.transfer),
+          trip: adapters.tripDetailFromApi(data.trip),
+        }
+      } catch {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+    },
+    async linkDocumentsAfterDispatch(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ nfeDocumentIds: input.nfeDocumentIds, reason: input.reason }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/after-dispatch`,
+      })
+      const data = readEnvelopeData(response)
+      if (!isRecord(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      try {
+        return {
+          link: parseDocumentLinkAfterDispatch(data.link),
           trip: adapters.tripDetailFromApi(data.trip),
         }
       } catch {

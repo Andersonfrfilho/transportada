@@ -17,9 +17,11 @@ import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripField
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
 import type { CrewTransferResult } from '../shared/tripCrewTransfer.types'
+import type { LinkDocumentsAfterDispatchResult } from '../shared/tripDocumentLink.types'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
 import { TripCrewDialog } from './TripCrewDialog.component'
 import { TripCrewTransferDialog } from './TripCrewTransferDialog.component'
+import { TripLinkDocumentsAfterDispatchDialog } from './TripLinkDocumentsAfterDispatchDialog.component'
 import styles from '../styles/trip.module.css'
 
 export type TripHeaderActionsProps = Readonly<{
@@ -45,6 +47,7 @@ export type TripHeaderActionsProps = Readonly<{
   isFiscalReadinessPanelVisible: boolean
   isPlanRoutePending: boolean
   isStartRoutePending: boolean
+  isLinkingDocuments: boolean
   isTransferringCrew: boolean
   onCancel: () => void
   /** Spec 217 T310: `PATCH /trips/:id/crew` — a viagem inteira volta atualizada (mesmo invalidate). */
@@ -55,6 +58,10 @@ export type TripHeaderActionsProps = Readonly<{
       vehicleId: string
     }>,
   ) => Promise<unknown>
+  /** Spec 257: `POST /trips/:id/documents/after-dispatch` — notas soltas entram na viagem que já saiu. */
+  onLinkDocumentsAfterDispatch: (
+    input: Readonly<{ nfeDocumentIds: readonly string[]; reason: string }>,
+  ) => Promise<LinkDocumentsAfterDispatchResult>
   /** Spec 249: `POST /trips/:id/crew-transfers` — a viagem que já saiu troca de tripulação, sem veículo. */
   onTransferCrew: (
     input: Readonly<{
@@ -105,6 +112,7 @@ export function TripHeaderActions({
   isFiscalReadinessPanelVisible,
   isPlanRoutePending,
   isStartRoutePending,
+  isLinkingDocuments,
   isTransferringCrew,
   onCancel,
   onChangeCrew,
@@ -113,6 +121,7 @@ export function TripHeaderActions({
   onPlanRoute,
   onSelectDriverId,
   onStartRoute,
+  onLinkDocumentsAfterDispatch,
   onTransferCrew,
   requiresTrailer,
   selectedDriverId,
@@ -123,6 +132,7 @@ export function TripHeaderActions({
   const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
   const [isCrewDialogOpen, setIsCrewDialogOpen] = useState(false)
   const [isCrewTransferDialogOpen, setIsCrewTransferDialogOpen] = useState(false)
+  const [isLinkDocumentsDialogOpen, setIsLinkDocumentsDialogOpen] = useState(false)
 
   const canStartRoute = canOfferTripFieldAction({
     action: 'startRoute',
@@ -140,7 +150,14 @@ export function TripHeaderActions({
     capabilities,
   })
 
-  if (!canManage && !canStartRoute && !canTransferCrew) return null
+  /** Spec 257: a mesma porta da transferência — `trip.report-on-behalf` — e a janela vem da API. */
+  const canLinkDocuments = canOfferTripFieldAction({
+    action: 'linkDocumentsAfterDispatch',
+    canReportOnBehalf,
+    capabilities,
+  })
+
+  if (!canManage && !canStartRoute && !canTransferCrew && !canLinkDocuments) return null
 
   const canPlanRoute = canManage && trip.status === 'draft'
   const canDispatch = canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
@@ -231,6 +248,7 @@ export function TripHeaderActions({
     !canCancel &&
     !canDefineCrew &&
     !canTransferCrew &&
+    !canLinkDocuments &&
     !canStartRoute &&
     readinessSummary === null &&
     openOccurrences === 0
@@ -298,6 +316,18 @@ export function TripHeaderActions({
         >
           <Icon name="truck" />
           {t('stateActions.transferCrew')}
+        </Button>
+      ) : null}
+      {canLinkDocuments ? (
+        <Button
+          disabled={isLinkingDocuments}
+          onClick={() => setIsLinkDocumentsDialogOpen(true)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="add" />
+          {t('stateActions.linkDocuments')}
         </Button>
       ) : null}
       {canDispatch ? (
@@ -403,6 +433,13 @@ export function TripHeaderActions({
         onClose={() => setIsCrewTransferDialogOpen(false)}
         onSubmit={onTransferCrew}
         trip={trip}
+      />
+
+      <TripLinkDocumentsAfterDispatchDialog
+        isOpen={isLinkDocumentsDialogOpen}
+        onClose={() => setIsLinkDocumentsDialogOpen(false)}
+        onSubmit={onLinkDocumentsAfterDispatch}
+        tripId={trip.id}
       />
     </div>
   )

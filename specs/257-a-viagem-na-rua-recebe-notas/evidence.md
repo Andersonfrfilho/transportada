@@ -43,3 +43,10 @@
 - Painel: kind `documents_added` (ícone `document`, tom neutro, fora do mapa), chave `documentsAdded` com chave exata (obrigatória só nesse kind, recusada nos outros), resumo com contagem, motivo e avisos de CT-e/MDF-e, textos pt-BR/en. Kind desconhecido segue descartado.
 - `test/trip/timeline-documents-added.contract.ts` (novo, registrado em `trip.contract.test.ts`); asserções dos contratos 249 e 228 ajustadas para o novo último kind.
 - `bun run typecheck` limpo; `bun run test` → 7677 pass / 0 fail.
+
+## T2.2
+
+- Painel: ação `linkDocumentsAfterDispatch` em `allowed-actions`, `client.linkDocumentsAfterDispatch` (`POST /trips/:id/documents/after-dispatch`, resposta de chave exata), `TripLinkDocumentsAfterDispatchDialog` (busca de notas, motivo obrigatório, aviso de que o roteiro não muda), resultado com notas puladas e alertas de CT-e/MDF-e, botão no cabeçalho atrás de `trip.report-on-behalf` + ação servida, textos pt-BR/en.
+- `test/trip/document-link-after-dispatch.contract.ts` (novo, em `trip.contract.test.ts`): ação conhecida/filtrada, botão, resposta exata, corpo e caminho do cliente, bloqueios, chave de erro, resultado e paridade de locales.
+- Smoke Playwright **não** adicionado nesta task: a cobertura é de contrato; fica registrado como lacuna.
+- `bun run typecheck` limpo; `bun run test` → 7688 pass / 0 fail.

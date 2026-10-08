@@ -13,6 +13,8 @@ export const TRIP_ALLOWED_ACTIONS = [
    * `route_planned`, nunca por `if` de status no cliente. */
   'defineCrew',
   'dispatch',
+  /** Spec 257: acrescentar notas à viagem que já saiu — só `trip.report-on-behalf`, servida pela API. */
+  'linkDocumentsAfterDispatch',
   'planRoute',
   'startRoute',
   /** Spec 249: trocar a tripulação da viagem que já saiu — só `trip.report-on-behalf`, servida pela API. */
