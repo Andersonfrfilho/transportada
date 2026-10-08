@@ -79,6 +79,9 @@ function buildHandler(input: {
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createTripDocumentReportRoutes({
+      exportTripProofPdf: async () => {
+        throw new Error('unexpected proofs-pdf call')
+      },
       listTripReport: createListTripReportUseCase({
         repository: new DrizzleTripReportRepository(input.database.db),
       }),

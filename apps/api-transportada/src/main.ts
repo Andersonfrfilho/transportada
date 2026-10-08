@@ -425,8 +425,11 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createExportTripProofPdfUseCase } from './trips/application/export-trip-proof-pdf.use-case.js'
 import { createListTripReportUseCase } from './trips/application/list-trip-report.use-case.js'
+import { DrizzleTripProofReportRepository } from './trips/infrastructure/drizzle-trip-proof-report.repository.js'
 import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
+import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -3179,8 +3182,19 @@ function createApplicationRoutes({
       },
       resolveClientIp,
     }),
-    /** Spec 253 RF1: o relatório de viagens, uma linha por nota (`trip.read`/`trip.report-on-behalf`). */
+    /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */
     ...createTripDocumentReportRoutes({
+      exportTripProofPdf: createExportTripProofPdfUseCase({
+        clock: () => new Date(),
+        proofRepository: new DrizzleTripProofReportRepository(database),
+        renderer: createTripProofPdfGateway(),
+        reportRepository: new DrizzleTripReportRepository(database),
+        storage: createNfeStorageGatewayFromEnvironment({
+          environment: process.env,
+          finalBucket: occurrenceStatementBucket,
+          stagingBucket: occurrenceStatementBucket,
+        }),
+      }),
       listTripReport: createListTripReportUseCase({
         repository: new DrizzleTripReportRepository(database),
       }),

@@ -101,6 +101,9 @@ function buildHandler(input: {
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createTripDocumentReportRoutes({
+      exportTripProofPdf: async () => {
+        throw new Error('unexpected proofs-pdf call')
+      },
       listTripReport: input.listTripReport ?? (async () => REPORT_RESULT),
     }),
     tenantContext: { resolveCompany: async () => context },

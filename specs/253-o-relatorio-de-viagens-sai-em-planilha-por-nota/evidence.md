@@ -50,3 +50,13 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - Arquivos: `src/trips/presentation/trip-document-report.routes.ts` (rota; `TRIP_FIELD_READ_POLICY` e `TRIP_FINANCIALS_POLICY` passaram a ser exportadas de `trip.routes.ts`, que tem 2549 linhas), wiring em `src/main.ts`, `test/trip-report-http*`, `test/integration/trip-document-report-end-to-end.integration.ts`, `package.json`.
 - O prefixo `/v1` é do edge: a rota é registrada como `/trip-document-report` (como `/trips`). Resposta `no-store`. O router não define `x-content-type-options` em nenhuma rota; não foi adicionado aqui.
 - Commit: ver `git log --grep "spec 253 T2.3"`.
+
+## T2.4 — PDF de canhotos GET /v1/trip-document-report/proofs-pdf (sonnet)
+
+- Spike EXIF (decisão): o `pdfkit` 0.19.1 lê e aplica a orientação EXIF do JPEG ao desenhar, então não há parser próprio. `orientation >= 5` troca largura e altura no cálculo do bloco; foto vertical gira 90° (`save`/`rotate(90, {origin})`/`restore`) numa caixa de ajuste trocada. `openImage` existe no pdfkit mas falta nos tipos instalados: cast local no gateway.
+- Contratos: `bun test --timeout 120000 ./test/trip-proof-pdf.contract.test.ts` (cwd=apps/api-transportada) → 32 pass, 0 fail (layout, use case, gateway com texto e páginas lidos por `unpdf`, rota).
+- Integração (HTTP inteiro + Postgres, `.env.test`, executou, não pulou): `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-proof-pdf-end-to-end.integration.ts` → 2 pass, 0 fail (PDF `application/pdf`, "Canhoto 1 de 2"/"2 de 2" na reentrega, outra empresa ausente, separador sem `R$`, motorista 403).
+- Tocados: `test/separator-role.contract.test.ts` (rota nova no array e na lista), `trip-report-http` e `trip-document-report-end-to-end` (stub de `exportTripProofPdf`), `rate-limited-routes` → 75 pass, 0 fail junto com os acima.
+- `bun run typecheck` → limpo. `bun run lint` → limpo (0 warnings).
+- Desvios: (1) o PDF é montado em Buffer e embrulhado em `ReadableStream`, não é stream de verdade (`bufferPages` precisa de todas as páginas para o "Página X de N"); as imagens são lidas uma a uma. (2) O teto de 200 conta notas (linhas do relatório), não canhotos. (3) `exportTripProofPdf` virou dependência obrigatória da rota; os dois chamadores existentes ganharam stub que lança. (4) Sem rate limit: a rota não envia e-mail nem tem custo externo.
+- Commits: ver `git log --grep "spec 253 T2.4"`.
