@@ -145,3 +145,10 @@ O município pode estar "Ativo na Plataforma" (integrado ao ADN) sem ser "operac
 3. Confirmação por escrito da Secretaria Municipal da Fazenda de Ribeirão Preto (qual canal recebe a DPS do contribuinte).
 4. Página oficial de gratuidade. Se 1 voltar 0, abrir ADR "não faremos" (aceite da T0.2) ou refazer o escopo para o
    webservice IssNet no padrão nacional.
+
+### Fechamento do Portão 1 (08/10/2026)
+
+O usuário informou no chat que **já há confirmação de que a prefeitura atende a emissão nacional**. Essa é a prova
+aceita para o Portão 1; ela supera os indícios para NÃO acima (aviso de 08/05/2026 e ISS.Net), que ficam como contexto.
+A origem da confirmação (documento ou e-mail da Fazenda) será anexada pelo usuário quando disponível. Pendências que
+seguem, sem bloquear: valor de `aderenteEmissorNacional` para 3543402 (mTLS, T0.3/T0.4) e página oficial de gratuidade.

@@ -18,11 +18,12 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
 
 - [x] **T0.1** `haiku` — Conferir spec 250 em `origin/staging` e ler as specs 032/040/175 (nada aqui
       duplica decisão delas). Aceite: lista de contratos herdados em `evidence.md`.
-- [ ] **T0.2** `sonnet` — Confirmar na API nacional (parâmetros municipais, produção restrita) que
+- [x] **T0.2** `sonnet` — Confirmar na API nacional (parâmetros municipais, produção restrita) que
       Ribeirão Preto aceita emissão direta pelo contribuinte, e registrar a fonte oficial da
       gratuidade. Aceite: resposta em `evidence.md`; sem ela, parar e abrir ADR "não faremos".
-      **PENDENTE (08/10/2026): INCONCLUSIVO, indícios para NÃO** — `aderenteEmissorNacional` de 3543402
-      exige mTLS (403) e a Prefeitura diz não fornecer emissor (IssNet). Ver `evidence.md` § T0.2.
+      **FECHADA (08/10/2026) por confirmação do usuário** de que a prefeitura atende a emissão nacional; a
+      medição de `aderenteEmissorNacional` (mTLS) segue como conferência técnica na T0.3/T0.4, não como
+      bloqueio. A gratuidade não tem página oficial acessível: tratar como indício. Ver `evidence.md` § T0.2.
 - [ ] **T0.3** `sonnet` — Ler o Swagger de produção restrita (ADN e Sefin) e transcrever para
       `plan.md`: qual serviço recebe a DPS, mTLS, corpo de emissão (compactação), consulta,
       cancelamento (evento), DANFSe, erros, limites. Se o Swagger recusar sem certificado, ler pelo
