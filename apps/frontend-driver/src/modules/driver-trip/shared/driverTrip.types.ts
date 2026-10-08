@@ -469,6 +469,8 @@ export type DriverOccurrenceType = Readonly<{
   declaredAmountScope?: string
   declaredAmountLabel?: string
   emailItemLineTemplate?: string
+  /** Spec 255 RF1: o ícone do design system; nulo ou ausente é sem ícone. Ausente é API anterior. */
+  iconName?: null | string
 }>
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
@@ -499,7 +501,31 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountScope?: unknown
     readonly declaredAmountLabel?: unknown
     readonly emailItemLineTemplate?: unknown
+    readonly iconName?: unknown
   }
+  /** Guarda de chave exata: rejeita chaves desconhecidas. */
+  const allowedKeys = new Set([
+    'id',
+    'name',
+    'attachmentMode',
+    'flow',
+    'itemsMode',
+    'noteMode',
+    'photoMode',
+    'signatureMode',
+    'stopKind',
+    'referenceNumberMode',
+    'referenceNumberLabel',
+    'declaredAmountMode',
+    'declaredAmountScope',
+    'declaredAmountLabel',
+    'emailItemLineTemplate',
+    'iconName',
+    'itemsMinimumCount',
+    'photoMinimumCount',
+  ])
+  const objectKeys = Object.keys(candidate)
+  if (!objectKeys.every((key) => allowedKeys.has(key))) return false
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
     candidate.attachmentMode,
@@ -532,6 +558,11 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
       typeof candidate.declaredAmountLabel === 'string') &&
     (candidate.emailItemLineTemplate === undefined ||
       typeof candidate.emailItemLineTemplate === 'string')
+  /** Spec 255: o ícone do tipo é opcional e pode ser string ou null. */
+  const hasKnownIconName =
+    candidate.iconName === undefined ||
+    candidate.iconName === null ||
+    typeof candidate.iconName === 'string'
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
@@ -539,7 +570,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownFlow &&
     hasKnownStopKind &&
     hasKnownDeclaredAmountScope &&
-    hasKnownNewFields
+    hasKnownNewFields &&
+    hasKnownIconName
   )
 }
 
