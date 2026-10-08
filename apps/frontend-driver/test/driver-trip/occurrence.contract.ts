@@ -258,6 +258,7 @@ describe('a ocorrência de nota sem foto vai pela fila (spec 226)', () => {
     await enqueueReport({ now: new Date(), report: buildReport(), store })
 
     const result = await drainQueue({
+      origin: 'immediate',
       send: async ({ report }) => {
         try {
           await client.send({ report, stamp: undefined })

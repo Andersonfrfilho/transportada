@@ -115,9 +115,7 @@ function buildReport(input: {
       location: null,
     },
   }
-  return input.lastAttemptAt === undefined
-    ? base
-    : ({ ...base, lastAttemptAt: input.lastAttemptAt } as QueuedReport)
+  return input.lastAttemptAt === undefined ? base : { ...base, lastAttemptAt: input.lastAttemptAt }
 }
 
 function readAttachmentField(

@@ -297,8 +297,8 @@ describe('o agendador da drenagem (M3)', () => {
     const runs: Array<string | undefined> = []
     const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
 
-    scheduler.request(undefined)
-    scheduler.request(undefined)
+    scheduler.request(undefined, 'immediate')
+    scheduler.request(undefined, 'immediate')
     expect(runs).toEqual([undefined])
 
     scheduler.settled()
@@ -311,10 +311,10 @@ describe('o agendador da drenagem (M3)', () => {
     const runs: Array<string | undefined> = []
     const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
 
-    scheduler.request(undefined)
-    scheduler.request('chave-a')
-    scheduler.request('chave-b')
-    scheduler.request('chave-a')
+    scheduler.request(undefined, 'immediate')
+    scheduler.request('chave-a', 'immediate')
+    scheduler.request('chave-b', 'immediate')
+    scheduler.request('chave-a', 'immediate')
     expect(runs).toEqual([undefined])
 
     scheduler.settled()
@@ -329,9 +329,9 @@ describe('o agendador da drenagem (M3)', () => {
     const runs: Array<string | undefined> = []
     const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
 
-    scheduler.request('chave-a')
-    scheduler.request(undefined)
-    scheduler.request('chave-b')
+    scheduler.request('chave-a', 'immediate')
+    scheduler.request(undefined, 'immediate')
+    scheduler.request('chave-b', 'immediate')
     scheduler.settled()
     scheduler.settled()
 

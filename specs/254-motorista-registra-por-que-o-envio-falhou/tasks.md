@@ -75,7 +75,7 @@ arquivo.
       tentativa, quando o primeiro item elegível está em espera (N3: nunca pular); `setInterval` chama `timer`, `online`/`pageshow`/visibilidade/"Enviar agora"/abertura
       chamam `immediate`; ajustar os hooks que chamam `drain`. Gate: typecheck pega chamada esquecida;
       contratos do painel verdes (`offline-queue`, `offline-attachments`, `pending-queue`, `session-drain`).
-- [ ] **T3.3** **Portar** o mesmo trecho para `apps/frontend-driver/` (os arquivos divergem do painel — não
+- [x] **T3.3** **Portar** o mesmo trecho para `apps/frontend-driver/` (os arquivos divergem do painel — não
       copiar por cima: preservar `ownerSubHash`, `createDrainScheduler`/cão de guarda, `recoverProofPhotos`);
       o agendador guarda a origem e `immediate` vence; ajustar o hook do driver. Aceite: T1.3 inteira verde +
       `copy-by-value-header.contract` verde + typecheck.

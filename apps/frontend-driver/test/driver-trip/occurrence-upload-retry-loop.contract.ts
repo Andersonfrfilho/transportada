@@ -88,7 +88,7 @@ async function runTicks(input: { ticks: number; storage: StorageBehavior }) {
   const { send, slotRequests } = buildHarness(input.storage)
 
   for (let tick = 0; tick < input.ticks; tick += 1) {
-    await drainQueue({ send, store })
+    await drainQueue({ origin: 'immediate', send, store })
   }
 
   return { queue: await store.read(), slotRequests }
@@ -220,9 +220,7 @@ function buildWaitingItem(input: {
       location: null,
     },
   }
-  return input.lastAttemptAt === undefined
-    ? base
-    : ({ ...base, lastAttemptAt: input.lastAttemptAt } as QueuedReport)
+  return input.lastAttemptAt === undefined ? base : { ...base, lastAttemptAt: input.lastAttemptAt }
 }
 
 describe('computeRetryDelayMs e isRetryDue (spec 254 RF8)', () => {
@@ -378,10 +376,7 @@ type SchedulerWithOrigin = Readonly<{
 function createOriginScheduler(
   runs: Array<[string | undefined, DrainOrigin]>,
 ): SchedulerWithOrigin {
-  const create = createDrainScheduler as unknown as (input: {
-    run: (only: string | undefined, origin: DrainOrigin) => void
-  }) => SchedulerWithOrigin
-  return create({ run: (only, origin) => runs.push([only, origin]) })
+  return createDrainScheduler({ run: (only, origin) => runs.push([only, origin]) })
 }
 
 describe('o agendador junta pedidos e immediate vence timer (spec 254 RF8)', () => {

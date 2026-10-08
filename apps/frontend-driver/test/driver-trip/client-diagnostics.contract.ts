@@ -515,7 +515,7 @@ describe('falha ao enviar diagnóstico não mexe na baixa nem em attempts (spec 
         }
       }
       for (let tick = 0; tick < 4; tick += 1) {
-        await drainQueue({ send, store })
+        await drainQueue({ origin: 'immediate', send, store })
         await harness.diagnostics.flush()
       }
       return { attempts: items.map((item) => item.attempts), slots: harness.slotRequests.length }

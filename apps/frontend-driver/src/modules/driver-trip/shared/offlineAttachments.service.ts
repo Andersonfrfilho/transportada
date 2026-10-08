@@ -3,6 +3,7 @@
 import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
 import type { DriverTripErrorDetail, OfflineQueueStore } from './offlineQueue.service'
+import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
 
 /**
  * Spec 082 D6: o comprovante entra na fila quando a entrega ainda não subiu. O blob mora numa store
@@ -20,6 +21,8 @@ export const ATTACHMENT_QUEUE_LIMIT = {
 export type AttachmentLimits = Readonly<{ maxCount: number; maxTotalBytes: number }>
 
 export type QueuedAttachment = Readonly<{
+  /** Spec 254: quantas vezes a rede recusou este anexo — a base do espaçamento do temporizador. */
+  attempts?: number
   /**
    * Idempotência **por anexo**, gerada na captura e persistida: é o `attachmentKey` do multipart, e
    * é o que impede o reenvio de duplicar o blob que já subiu.
@@ -34,6 +37,8 @@ export type QueuedAttachment = Readonly<{
   /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
   isUnverified?: true
   kind: 'cargo' | 'photo' | 'signature'
+  /** Spec 254: quando a rede recusou a última tentativa deste anexo. */
+  lastAttemptAt?: string
   /** Pedido do usuário (25/09): mesma marca do `deliver`/`return` desta parada, atrás do mesmo interruptor. */
   lateRegistration?: boolean
   /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
@@ -337,27 +342,36 @@ export type AttachmentDrainResult = Readonly<{
  * - **Evento aceito permanece aceito**: ele sai da fila na hora, e os anexos dele sobem em seguida.
  *   Anexo recusado ganha causa própria no próprio anexo — o reenvio manual não re-POSTa o evento.
  * - Grupo de anexos cujo evento já subiu numa drenagem anterior também drena aqui.
+ * - Spec 254: na origem `timer`, o primeiro item (evento ou anexo) ainda em espera **para** a
+ *   drenagem inteira — sem contar tentativa e sem pular, porque a ordem importa. `immediate` ignora
+ *   o espaçamento. Nada sai da fila por isso (spec 227 D1).
  */
 export async function drainQueueWithAttachments(input: {
   readonly attachmentStore: AttachmentStore
+  readonly now?: Date
   readonly only?: string
+  readonly origin: DrainOrigin
   /**
    * ADR-0075 §8: com dono, só sai o que é dele — nem o envio manual (`only`) manda item de outra
    * conta. Sem dono, a drenagem é a de sempre.
    */
   readonly ownerSubHash?: string
+  readonly random?: () => number
   readonly send: (stamped: StampedReport) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {
+  const readClock = (): Date => input.now ?? new Date()
   const queued = await input.store.read()
   const sentKeys = new Set<string>()
   const rejectionByKey = new Map<string, string>()
   const rejectionDetailsByKey = new Map<string, readonly DriverTripErrorDetail[]>()
   let failedNetworkKey: string | undefined
+  let failedNetworkAt: string | undefined
   let sent = 0
   let rejected = 0
-  let networkDown = false
+  /** Rede caída ou item em espera: nada mais sobe nesta drenagem. */
+  let isHalted = false
   let blockedByUnverified = false
 
   for (const item of queued) {
@@ -372,7 +386,12 @@ export async function drainQueueWithAttachments(input: {
      * entregaria numa parada em que o servidor não sabe que ele chegou.
      */
     if (item.isUnverified === true) blockedByUnverified = true
-    if (networkDown || blockedByUnverified || !isTargeted || skipRejected) continue
+    if (isHalted || blockedByUnverified || !isTargeted || skipRejected) continue
+
+    if (input.origin === 'timer' && !isRetryDue({ item, now: readClock(), random: input.random })) {
+      isHalted = true
+      continue
+    }
 
     const outcome = await input.send({ report: item.report, stamp: toEventClockStamp(item) })
     if (outcome.kind === 'sent') {
@@ -386,8 +405,9 @@ export async function drainQueueWithAttachments(input: {
       rejected += 1
       continue
     }
-    networkDown = true
+    isHalted = true
     failedNetworkKey = key
+    failedNetworkAt = readClock().toISOString()
   }
 
   /** Reconciliação por chave, na mesma transação: toque enfileirado durante o envio fica. */
@@ -404,6 +424,7 @@ export async function drainQueueWithAttachments(input: {
             ...(item.clockOffsetMs === undefined ? {} : { clockOffsetMs: item.clockOffsetMs }),
             createdAt: item.createdAt,
             ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
+            ...(item.lastAttemptAt === undefined ? {} : { lastAttemptAt: item.lastAttemptAt }),
             rejectionCause: cause,
             ...(details === undefined ? {} : { rejectionDetails: details }),
             report: item.report,
@@ -411,7 +432,9 @@ export async function drainQueueWithAttachments(input: {
           },
         ]
       }
-      if (key === failedNetworkKey) return [{ ...item, attempts: item.attempts + 1 }]
+      if (key === failedNetworkKey && failedNetworkAt !== undefined) {
+        return [{ ...item, attempts: item.attempts + 1, lastAttemptAt: failedNetworkAt }]
+      }
       return [item]
     }),
   )
@@ -422,12 +445,12 @@ export async function drainQueueWithAttachments(input: {
     punctuality?: ProofPunctuality
     receiverDrift?: ReceiverDriftFields
   }[] = []
-  if (!networkDown) {
+  if (!isHalted) {
     const queuedEventKeys = new Set(remainingQueue.map((item) => item.report.idempotencyKey))
     const groups = await input.attachmentStore.readAll()
 
     for (const [eventKey, attachments] of groups) {
-      if (networkDown) break
+      if (isHalted) break
       const isTargeted = input.only === undefined || eventKey === input.only
       /** O evento vai primeiro: grupo cujo evento ainda está na fila espera a vez dele. */
       if (!isTargeted || queuedEventKeys.has(eventKey)) continue
@@ -448,9 +471,31 @@ export async function drainQueueWithAttachments(input: {
           continue
         }
 
+        const isDue =
+          input.origin !== 'timer' ||
+          isRetryDue({
+            item: { attempts: attachment.attempts ?? 0, lastAttemptAt: attachment.lastAttemptAt },
+            now: readClock(),
+            random: input.random,
+          })
+        if (!isDue) {
+          isHalted = true
+          break
+        }
+
         const outcome = await input.sendAttachment(attachment)
         if (outcome.kind === 'failed-network') {
-          networkDown = true
+          const failedAt = readClock().toISOString()
+          await input.attachmentStore.update({
+            eventKey,
+            mutate: (current) =>
+              current.map((item) =>
+                item.attachmentKey === attachment.attachmentKey
+                  ? { ...item, attempts: (item.attempts ?? 0) + 1, lastAttemptAt: failedAt }
+                  : item,
+              ),
+          })
+          isHalted = true
           break
         }
         /**

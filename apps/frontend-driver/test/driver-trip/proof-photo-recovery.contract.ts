@@ -88,6 +88,7 @@ function reduceTo(bytes: number) {
 async function drain(attachmentStore: AttachmentStore, only?: string) {
   const sent: QueuedAttachment[] = []
   await drainQueueWithAttachments({
+    origin: 'immediate',
     attachmentStore,
     ...(only === undefined ? {} : { only }),
     send: () => Promise.resolve({ kind: 'sent' }),
