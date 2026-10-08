@@ -1075,6 +1075,14 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [], page: { nextCursor: null } })
   })
+  /** O filtro de contratante do relatório consulta o diretório ao abrir a lista; o smoke reprova qualquer falha de rede. */
+  await input.page.route(/\/contractors(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
   /**
    * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
    * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta
