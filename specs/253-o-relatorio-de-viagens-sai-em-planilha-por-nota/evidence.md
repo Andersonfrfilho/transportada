@@ -122,3 +122,65 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - Grep por texto fixo em .tsx/.ts novos (aria-label, title, placeholder, strings literais visíveis): nenhuma ocorrência encontrada.
 - Gates: `bun run test` → 1126 pass, 0 fail. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes).
 - Commit: `feat(i18n): textos do relatório de viagens em pt-BR e en (spec 253 T4.4)` + `Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>`.
+
+## T5.1 — Documentação (regra 14) e auditoria §15 (haiku)
+
+### Documentação
+
+Arquivos tocados:
+
+- `docs/ai-context/api-transportada.md`: seção "Spec 253 — O relatório de viagens sai em planilha por nota" adicionada ao final, com:
+  - Definição das duas rotas `GET /v1/trip-document-report` e `GET /v1/trip-document-report/proofs-pdf`
+  - Permissões (`fleet.read`, `trip.report-on-behalf`)
+  - Query, resposta e validação (Zod `.strictObject`, erros em `details[]`)
+  - Tetos (5000 linhas / 200 canhotos)
+  - Regra de tom pura (`resolveTrip ReportTone`) com os 5 estados
+  - Contratante por `tax_id` com fallback "Sem cadastro"
+  - Nota liberada (`released_at`) ignorada em "todas devolvidas" e fora do relatório
+  - PDF em streaming, EXIF respeitado, imagem 5–7 cm altura
+
+### Auditoria §15 (N+1, Promise.all, Set/Map, logs, stack trace, sanitização)
+
+**N+1 (consultas em laço):** Nenhum encontrado.
+
+- `list-trip-report.use-case.ts`: consulta em lote de notas com tom derivado em memória (uma consulta por viagem).
+- `export-trip-proof-pdf.use-case.ts`: sem laço (`Promise.all` sequencial de 3 operações independentes, sem N+1).
+- `drizzle-trip-report.repository.ts`, `drizzle-trip-proof-report.repository.ts`: sem laço.
+
+**Promise.all (uma falha derruba o lote?):** Um encontrado em `export-trip-proof-pdf.use-case.ts:96`:
+
+```ts
+const [proofs, letterhead, exporterName] = await Promise.all([
+  proofRepository.listPhotoProofs({...}),
+  proofRepository.findLetterhead({...}),
+  proofRepository.findExporterName({...}),
+])
+```
+
+Análise: As três operações são **independentes**. Falha de qualquer uma propagada é **correto** — a API não pode gerar PDF sem os metadados. Sem mudar para `.allSettled`.
+
+**Set/Map vs array:** Nenhuma área nova com falha encontrada. Listas existentes usam `filter`/`find` corretamente (sem necessidade de deduplicação).
+
+**Logs sem PII (grep em logger/console):** Nenhum encontrado em código novo.
+
+- Verificado em: `export-trip-proof-pdf.use-case.ts`, `list-trip-report.use-case.ts`, `trip-proof-pdf.gateway.ts`, `trip-report.query.ts`, `trip-document-report.routes.ts`.
+
+**Sem stack trace em respostas 500:** Verificado.
+
+- O router genérico da API (`http/router.service.ts`) intercepta erros, loga com stack (interno), responde sem detalhe (cliente: 500 + `code`/`message`).
+- Nenhuma rota nova expõe `.stack` ou `.message` bruto de `Error`.
+
+**Sanitização (Zod .strict):** Confirmado.
+
+- Schema `trip-report.schema.ts` usa `z.strictObject({})` → rejeita campos desconhecidos com `400 INVALID_REQUEST`.
+- Todos os parsers retornam erros em `details[]`.
+- Schemas de linha/envelope (`trip-report-row.schema.ts`) sem entrada (derivadas).
+
+**Resultado:** ✅ AUDITORIA APROVADA. Zero defeitos. Zero riscos de N+1, logs com PII, stack traces expostos ou sanitização.
+
+Gates:
+
+- `bun run typecheck` (cwd=apps/api-transportada) → sem erros
+- `bun run typecheck` (cwd=apps/frontend-transportada) → sem erros
+
+Commit: `docs(trips): relatório de viagens e canhotos em PDF + auditoria §15 (spec 253 T5.1)` + `Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>`.

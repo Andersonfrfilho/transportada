@@ -3275,3 +3275,38 @@ construir custava ~22 µs por chamada, ~5 por nota). Lacunas conhecidas: nota vi
 recebe prazo, e uma regra de calendário ruim derruba o prazo de todas as cidades da viagem (sai `null` com `warn`). **A 236 só vai a produção
 junto com ou depois das migrations da 237 Fase 2 e da 238** (a consulta das notas lê essas tabelas mesmo sem o relógio). Evidência:
 specs/236-\*/evidence.md § T1.2e e § T1.3.
+
+## Spec 253 — O relatório de viagens sai em planilha por nota
+
+**Rotas novas** (Fase 5 T5.1, regra 14):
+
+- **`GET /v1/trip-document-report`** (RF1, RF2): lista paginada por cursor de notas com viagem.
+  - Permissão: `fleet.read` ou `trip.report-on-behalf` (mesma do `GET /trips`)
+  - Query: `tripIdIn` (até 100 UUIDs) **ou** filtros por nota (número/série/chave, contratante, cidade/UF, valor com operador, situação da nota) + filtros de viagem (status, veículo, motorista, período). `Zod.strictObject` aceita ambos (AND) ou só os filtros, cursor até 100 linhas por página
+  - Resposta: `{ data: [{ tripId, tripStatus, tripDocumentStatus, documentNumber, documentSeries, accessKey, contractorName, contractorTaxId, recipientName, recipientCity, recipientState, amount?, deliveryDeadline?, returnDeadline?, returnReason? }], pagination: { nextCursor } }`
+  - `amount` só com `trip.financials`, acesso protegido por `canReadFinancials` verificado na rota
+  - Teto: 5 000 linhas. Acima: `422 TRIP_REPORT_TOO_LARGE`
+  - `tripDocumentStatus` em `warehouse|on_route|finished|total_return` (função pura `resolveTrip ReportTone`, nunca cópia) ou ausente se `cancelled` ou `released_at` preenchido
+  - Nota liberada (`released_at`) não entra em "todas devolvidas"
+  - Contratante por `tax_id` em `contractors`, sem match = nome do emitente + "Sem cadastro"
+  - Validação unificada em `details[]` (Zod, chave desconhecida = 400 `INVALID_REQUEST`)
+
+- **`GET /v1/trip-document-report/proofs-pdf`** (RF10-RF12): PDF em streaming dos canhotos.
+  - Query, permissão, filtros e teto idênticos ao relatório
+  - Teto: 200 canhotos por PDF. Acima: `422 TRIP_PROOF_REPORT_TOO_LARGE`
+  - Só `kind = 'photo'`; assinatura e fotos de carga ficam fora
+  - Bloco por canhoto em fluxo (quantos couberem por página), imagem 5–7 cm altura, horizontal, EXIF respeitado
+  - Bloco de aviso quando nota sem canhoto, marcação "1 de 2" em reentrega
+  - Cabeçalho com timbre, rodapé "Página X de Y" + quem exportou
+  - `amount` só com `trip.financials`
+  - Bucket privado, chave nunca na resposta
+
+**Regra de tom** (RF3, domínio puro `resolve-trip-report-tone.policy.ts`):
+
+- `cancelled` → fora do relatório
+- `awaiting_crew, draft, route_planned, separating, loading` → `warehouse` (branco `#FFFFFF`)
+- `dispatched, in_transit, on_delivery_route` → `on_route` (roxo `#E4D7F5`)
+- `completed` com **todas** as notas `returned` → `total_return` (verde-água `#CFF1EE`)
+- outro `completed` → `finished` (verde `#CDEBD3`)
+
+Nota liberada (`released_at` não nulo) é ignorada em "todas devolvidas" e não entra no relatório. Listas de status vêm de `trip-state.policy.ts`, nunca copiadas.
