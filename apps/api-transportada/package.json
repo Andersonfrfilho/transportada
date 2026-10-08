@@ -33,7 +33,7 @@
     "@adatechnology/cargo-placement": "0.1.0",
     "@adatechnology/document-intake": "0.1.0",
     "@adatechnology/drizzle-provider": "0.1.1",
-    "@adatechnology/fiscal-provider": "0.3.2",
+    "@adatechnology/fiscal-provider": "0.4.0",
     "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
     "@adatechnology/keycloak-admin": "1.0.1",
     "@adatechnology/keycloak-jwt": "0.1.1",

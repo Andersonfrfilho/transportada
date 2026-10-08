@@ -29,6 +29,7 @@ import type {
   NfeStatusWriteResult,
 } from '../../nfe-documents/types/nfe-document-status.types.js'
 import type { NfeWriteTransaction } from '../../nfe-documents/types/nfe-write-transaction.types.js'
+import { resolveRecipientEmail } from '../../nfe-imports/domain/recipient-email.policy.js'
 import { writeDocumentChildren } from '../../nfe-imports/infrastructure/drizzle-nfe-import-consumer.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -358,6 +359,13 @@ export class DrizzleNfeDistributionRepository {
     }
 
     const document = normalizedXml.document
+    const recipientEmail = resolveRecipientEmail(document.recipient?.email)
+    if (recipientEmail.wasRejected) {
+      this.#logger.warn('nfe_recipient_email_rejected', {
+        companyId,
+        rejectedRecipientEmailCount: 1,
+      })
+    }
     const initial = await resolveInitialDocumentStatus({
       accessKey: document.accessKey,
       companyId,
@@ -383,6 +391,7 @@ export class DrizzleNfeDistributionRepository {
         operationType: document.operationType,
         otherExpensesValue: document.totals.otherExpenses ?? '0',
         productsValue: document.totals.products,
+        recipientEmail: recipientEmail.email,
         series: document.series,
         source: DISTRIBUTION_SOURCE,
         status: initial.status,

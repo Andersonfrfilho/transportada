@@ -101,3 +101,23 @@ Gates (frontend-driver, 2026-10-08):
 - `bun run lint` (`eslint .`, cwd da app) → saída vazia, exit 0.
 - `bunx prettier --check` nos arquivos tocados → ok (o teste novo foi reformatado antes do check final).
 - Mutação (validação removida) não executada nesta task.
+
+## T2.2 — o worker grava o e-mail do destinatário da nota (2026-10-08)
+
+Mudança: `@adatechnology/fiscal-provider` 0.3.2 → 0.4.0 (api e worker, `bun.lock` atualizado). Migration aditiva
+`20261008163250_nfe_recipient_email` (`nfe_documents.recipient_email text` nula + CHECK de formato e `length <= 254`) com
+`rollback.sql`. Schemas Drizzle da api e do worker atualizados. Política pura `resolveRecipientEmail` (trim; vazio vira
+nulo; inválido ou > 254 vira nulo com `wasRejected`), usada pelo import e pela distribuição; o log
+`nfe_recipient_email_rejected` leva só `companyId` e `rejectedRecipientEmailCount`, nunca o endereço.
+
+**T3.1 NÃO deve criar a coluna `recipient_email`: ela já existe desde esta task.**
+
+Gates:
+
+- `make migration-test` → 160 pass, 0 fail; `bun run db:check` ok.
+- worker: `typecheck` ok, `lint` ok, `bun run test` → 2183 pass, 0 fail (12 testes novos da política).
+- worker integração (3 arquivos, incluindo o novo, em banco descartável migrado com o `db:migrate` da api) → 17 pass, 0 fail.
+- api: `typecheck` ok, `lint` ok, `bun run test` → 10964 pass, 0 fail.
+- `prettier --check` nos arquivos tocados → ok.
+
+Não executado: `make worker-integration` completo (só os 3 arquivos relevantes; o banco compartilhado estava meio migrado por outro worktree).
