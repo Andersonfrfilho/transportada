@@ -26,11 +26,11 @@ arquivo.
 
 > 🤖 Modelo: `sonnet` (T1.1 é 🧠 → `opus` via `architect`)
 
-- [ ] **T1.1 🧠** Validar com `architect` (opus) a decisão do `plan.md`: diagnóstico só como log, sem
+- [x] **T1.1 🧠** Validar com `architect` (opus) a decisão do `plan.md`: diagnóstico só como log, sem
       tabela; enums e limites do corpo; mensagem `driver_client_diagnostic`. Registrar o veredito em
       `evidence.md`. Se pedir tabela/migration → **parar e perguntar ao usuário**.
       Aceite: veredito escrito; nenhuma linha de código.
-- [ ] **T1.2** Contrato da API (`apps/api-transportada/test/me-client-diagnostics.contract.ts` + entrypoint):
+- [x] **T1.2** Contrato da API (`apps/api-transportada/test/me-client-diagnostics.contract.ts` + entrypoint):
       corpo válido → `204` e um log por evento; corpo com campo extra → `400` (`.strict()`); todos os erros
       juntos; `companyId` do corpo ignorado/rejeitado; sem permissão → `403`; limite C5 → `429` com
       `Retry-After`; teto C5 declarado na rota (o 429 do roteador já é coberto em `test/rate-limit/router.contract.ts`); log sem URL assinada/observação/coordenada (CA2).
@@ -43,7 +43,7 @@ arquivo.
       junta pedidos com `immediate` vencendo; `lastAttemptAt` sobrevive à remontagem do item recusado. Mesmo
       para a fila de anexos (`offline-attachments.contract`).
       Aceite: vermelho esperado (função e parâmetro `origin` ainda não existem).
-- [ ] **T1.4** Contrato do coletor (`apps/frontend-driver/test/driver-trip/client-diagnostics.contract.ts`
+- [x] **T1.4** Contrato do coletor (`apps/frontend-driver/test/driver-trip/client-diagnostics.contract.ts`
   - entrypoint): `record` nunca lança; buffer de 50 descarta o mais antigo; `flush` em lote ≤ 20; falha do
     `flush` não propaga e não mexe em `attempts` (CA5); evento de falha do `PUT` de rede sai com
     `step: upload_put`, `failureKind: network`, `attempt` crescente (CA1); varredura do JSON sem URL
@@ -54,9 +54,9 @@ arquivo.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** `trips.constant.ts`: mensagem de log, enums, limites, código `CLIENT_DIAGNOSTICS_INVALID`
+- [x] **T2.1** `trips.constant.ts`: mensagem de log, enums, limites, código `CLIENT_DIAGNOSTICS_INVALID`
       (strings repetidas viram constante — code-standart §16).
-- [ ] **T2.2** `record-client-diagnostics.use-case.ts` + `me-client-diagnostics.routes.ts`
+- [x] **T2.2** `record-client-diagnostics.use-case.ts` + `me-client-diagnostics.routes.ts`
       (molde de `me-location.routes.ts`: `defineRoute`, `parseBody` `.strict()`, política `trip.report`
       `scope: company`, balde de limite C5, `204`). Registrar a rota no roteador.
       Sem `resolveDriver`; limite C5 por configuração do balde; lista de campos permitidos no caso de uso.
