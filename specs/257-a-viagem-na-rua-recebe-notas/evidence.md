@@ -31,3 +31,9 @@
 - Contratos: vocabulário (kind, prioridade, chaves de `documentsAdded`), merge e isolamento por empresa/viagem da query nova; o teste de 196 T4.2 passou de 3 para 4 fontes sem ponto.
 - `bun run typecheck` limpo; `bun --env-file=../../.env.test test --timeout 120000` → 11000 pass / 0 fail.
 - Integração dos consumidores da timeline reexecutada à parte: `trip-crew-transfer-timeline.integration.ts` 4 pass / 0 fail; `event-location-stamp.integration.ts` 23 pass / 0 fail. A corrida completa de integração (iniciada com o código ainda em edição) acusou falhas nesses dois arquivos; ambos passam isolados, e a suíte completa é reexecutada no fechamento da T1.6.
+
+## T1.6
+
+- `test/integration/trip-cancel-releases-notes.integration.ts` (9 testes, na lista `test:integration`): cancelada a partir de `draft`, `route_planned`, `separating`, `loading`, `dispatched`, `in_transit` e `on_delivery_route` libera as duas notas e a linha permanece; nota já entregue não é liberada; a nota liberada entra na viagem socorrista que já saiu (`linkDocumentsAfterDispatch`, sem `skipped`).
+- D8 confirmado como já verdadeiro: nenhuma mudança em `markCancelled`.
+- `bun run typecheck` limpo; `bun --env-file=../../.env.test run test:integration` completo → 1310 pass / 0 fail / 8 skip (inclui os dois arquivos que a corrida anterior, feita com o código em edição, acusara; passam).
