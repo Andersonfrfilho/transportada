@@ -30,6 +30,15 @@ import { buildDeviceProfile } from './deviceProfile.service'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
+import {
+  EVENT_KIND_SEND_FAILED,
+  EVENT_KIND_STEP_TIMING,
+  STEP_REPORT_SEND,
+  STEP_TRIP_OPEN,
+  STEP_UPLOAD_CONFIRM,
+  STEP_UPLOAD_PUT,
+  STEP_UPLOAD_SLOT,
+} from './clientDiagnostics.constant'
 import { createClientDiagnostics, type ClientDiagnostics } from './clientDiagnostics.service'
 import type {
   DiagnosticFailureKind,
@@ -430,7 +439,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         context: {},
         dependencies,
         run: () => request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH }),
-        step: 'trip_open',
+        step: STEP_TRIP_OPEN,
       })
       return toDriverTripSnapshot(payload)
     },
@@ -489,7 +498,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         },
         dependencies,
         run: () => sendReport({ dependencies, options, stamped }),
-        step: 'report_send',
+        step: STEP_REPORT_SEND,
       })
     },
   }
@@ -675,7 +684,7 @@ async function uploadOccurrencePhoto(input: {
           path: uploadsPath,
         }),
       ),
-    step: 'upload_slot',
+    step: STEP_UPLOAD_SLOT,
   })
 
   await traceStep({
@@ -683,7 +692,7 @@ async function uploadOccurrencePhoto(input: {
     dependencies,
     run: () =>
       putOccurrencePhoto({ dependencies, photo: input.photo, uploadUrl: upload.uploadUrl }),
-    step: 'upload_put',
+    step: STEP_UPLOAD_PUT,
   })
 
   const confirmed = await traceStep({
@@ -695,7 +704,7 @@ async function uploadOccurrencePhoto(input: {
         method: 'POST',
         path: `${uploadsPath}/${upload.id}/confirm`,
       }),
-    step: 'upload_confirm',
+    step: STEP_UPLOAD_CONFIRM,
   })
   return readDataId(confirmed)
 }
@@ -759,7 +768,7 @@ async function traceStep<TResult>(params: TraceStepParams<TResult>): Promise<TRe
     diagnostics.record({
       ...context,
       durationMs: clock() - startedAt,
-      eventKind: 'step_timing',
+      eventKind: EVENT_KIND_STEP_TIMING,
       step,
     })
     return result
@@ -768,7 +777,7 @@ async function traceStep<TResult>(params: TraceStepParams<TResult>): Promise<TRe
       ...context,
       ...describeFailure(error),
       durationMs: clock() - startedAt,
-      eventKind: 'send_failed',
+      eventKind: EVENT_KIND_SEND_FAILED,
       step,
     })
     throw error

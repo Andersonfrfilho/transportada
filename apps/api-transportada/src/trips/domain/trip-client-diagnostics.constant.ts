@@ -29,7 +29,13 @@ export const DIAGNOSTIC_STEPS = [
   'report_send',
   'baixa_total',
 ] as const
-export const DIAGNOSTIC_FAILURE_KINDS = ['network', 'timeout', 'http_status', 'identity'] as const
+export const DIAGNOSTIC_FAILURE_KINDS = [
+  'network',
+  'timeout',
+  'http_status',
+  'identity',
+  'local',
+] as const
 export const DIAGNOSTIC_EFFECTIVE_TYPES = ['slow-2g', '2g', '3g', '4g'] as const
 
 /** Identificador técnico do tipo de relatório (`occurrence`, `documentOccurrence`…): nunca texto livre. */

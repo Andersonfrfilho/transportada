@@ -136,6 +136,26 @@ describe('rota de diagnóstico do cliente do motorista (spec 254 RF6/RF7)', () =
     expect(logs[1]?.metadata).toMatchObject({ durationMs: 1_840, step: 'baixa_total' })
   })
 
+  test('falha local do aparelho (foto que não reduz) é aceita e registrada', async () => {
+    const harness = await buildHarness()
+
+    const response = await harness.handle(
+      post({
+        events: [
+          {
+            eventKind: 'send_failed',
+            failureKind: 'local',
+            occurredAt: OCCURRED_AT,
+            step: 'photo_reduce',
+          },
+        ],
+      }),
+    )
+
+    expect(response.status).toBe(204)
+    expect(harness.diagnosticLogs()[0]?.metadata).toMatchObject({ failureKind: 'local' })
+  })
+
   test('o companyId do corpo é recusado, e o do log vem do contexto autenticado', async () => {
     const harness = await buildHarness()
     const otherCompanyId = '00000000-0000-4000-8000-000000000999'

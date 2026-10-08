@@ -9,6 +9,7 @@ import {
   getDriverTripClient,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
+import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
 import {
   readCurrentLocation,
   readDirectTapLocation,
@@ -605,8 +606,19 @@ export function useDriverTrip(
   function reportWithLocation(
     build: (location: DriverReportedLocation | null) => DriverFieldReport,
   ): Promise<DriverReportOutcome> {
+    const fieldReport = build(null)
+    return traceBaixaTotal({
+      clock: () => Date.now(),
+      record: (event) => getDriverDiagnostics().record(event),
+      reportKind: fieldReport.kind,
+      run: () => reportWithLocationUntraced(fieldReport),
+    })
+  }
+
+  function reportWithLocationUntraced(
+    fieldReport: DriverFieldReport,
+  ): Promise<DriverReportOutcome> {
     return persistWhileOpen(captureRegistry, async () => {
-      const fieldReport = build(null)
       const result = await enqueueReport({
         clockOffsetMs: driverClockOffset.read(),
         isUnverified: !session.canSync,

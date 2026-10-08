@@ -1,4 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  DIAGNOSTIC_EVENT_KINDS,
+  DIAGNOSTIC_FAILURE_KINDS,
+  DIAGNOSTIC_STEPS,
+} from './clientDiagnostics.constant'
 import type {
   DeviceProfile,
   DiagnosticEvent,
@@ -12,16 +17,8 @@ export const DIAGNOSTICS_BUFFER_LIMIT = 50
 export const DIAGNOSTICS_BATCH_LIMIT = 20
 
 /** Espelha o `.strict()` da rota: evento fora destes limites faria a API recusar o lote inteiro. */
-const EVENT_KINDS: ReadonlySet<string> = new Set(['send_failed', 'step_timing'])
-const STEPS: ReadonlySet<string> = new Set([
-  'trip_open',
-  'photo_reduce',
-  'upload_slot',
-  'upload_put',
-  'upload_confirm',
-  'report_send',
-  'baixa_total',
-])
+const EVENT_KINDS: ReadonlySet<string> = new Set(DIAGNOSTIC_EVENT_KINDS)
+const STEPS: ReadonlySet<string> = new Set(DIAGNOSTIC_STEPS)
 const MAX_DURATION_MS = 600_000
 const MAX_ATTEMPT = 10_000
 const MAX_PHOTO_BYTES = 50 * 1024 * 1024
@@ -30,12 +27,7 @@ const MAX_HTTP_STATUS = 599
 const MAX_KEY_LENGTH = 128
 const OPAQUE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/u
 const REPORT_KIND_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u
-const FAILURE_KINDS: ReadonlySet<DiagnosticFailureKind> = new Set([
-  'http_status',
-  'identity',
-  'network',
-  'timeout',
-])
+const FAILURE_KINDS: ReadonlySet<DiagnosticFailureKind> = new Set(DIAGNOSTIC_FAILURE_KINDS)
 /** Quem falhou foi o caminho: o mesmo lote pode passar depois. Os demais 4xx nunca passariam. */
 const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429])
 

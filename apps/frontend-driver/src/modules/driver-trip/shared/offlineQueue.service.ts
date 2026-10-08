@@ -2,7 +2,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { toEventClockStamp, type StampedReport } from './clockOffset.service'
 import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
-import type { SendOptions } from './driverTripClient.service'
 import type {
   DriverFieldReport,
   DriverOccurrencePhoto,
@@ -88,6 +87,9 @@ export type EventQueueLimits = Readonly<{ maxCount: number }>
 export type EnqueueReportResult =
   | Readonly<{ accepted: false; reason: 'count-limit' }>
   | Readonly<{ accepted: true; queue: readonly QueuedReport[] }>
+
+/** Qual tentativa é esta: só rotula o diagnóstico (spec 254), nunca decide nada. */
+export type DrainSendOptions = Readonly<{ attempt: number }>
 
 export type DrainOutcome = 'failed-network' | 'rejected' | 'sent'
 
@@ -220,7 +222,7 @@ export async function drainQueue(input: {
   readonly now?: Date
   readonly origin: DrainOrigin
   readonly random?: () => number
-  readonly send: (stamped: StampedReport, options: SendOptions) => Promise<DrainOutcome>
+  readonly send: (stamped: StampedReport, options: DrainSendOptions) => Promise<DrainOutcome>
   readonly store: OfflineQueueStore
 }): Promise<DrainResult> {
   const readClock = (): Date => input.now ?? new Date()

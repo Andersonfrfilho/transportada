@@ -1,9 +1,12 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { toEventClockStamp, type StampedReport } from './clockOffset.service'
-import type { SendOptions } from './driverTripClient.service'
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
-import type { DriverTripErrorDetail, OfflineQueueStore } from './offlineQueue.service'
+import type {
+  DrainSendOptions,
+  DriverTripErrorDetail,
+  OfflineQueueStore,
+} from './offlineQueue.service'
 import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
 
 /**
@@ -358,7 +361,10 @@ export async function drainQueueWithAttachments(input: {
    */
   readonly ownerSubHash?: string
   readonly random?: () => number
-  readonly send: (stamped: StampedReport, options: SendOptions) => Promise<AttachmentSendOutcome>
+  readonly send: (
+    stamped: StampedReport,
+    options: DrainSendOptions,
+  ) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {

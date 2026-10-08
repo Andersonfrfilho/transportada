@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-export type DiagnosticEventKind = 'send_failed' | 'step_timing'
+import type { DIAGNOSTIC_EVENT_KINDS, DIAGNOSTIC_FAILURE_KINDS } from './clientDiagnostics.constant'
 
-export type DiagnosticFailureKind = 'http_status' | 'identity' | 'network' | 'timeout'
+export type DiagnosticEventKind = (typeof DIAGNOSTIC_EVENT_KINDS)[number]
+
+export type DiagnosticFailureKind = (typeof DIAGNOSTIC_FAILURE_KINDS)[number]
 
 /** Lista fechada (spec 254 RF4): nada de texto livre, URL, coordenada nem observação. */
 export type DiagnosticInput = Readonly<{
