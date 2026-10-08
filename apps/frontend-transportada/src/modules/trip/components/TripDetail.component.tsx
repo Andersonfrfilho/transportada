@@ -116,8 +116,6 @@ import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.h
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
-  /** Quem criou a viagem, da linha do tempo: `undefined` enquanto não chegou, `null` sem ator humano. */
-  creatorName?: null | string | undefined
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
   /** Sem `trip.financials` o pedágio da rota some da tela — nunca zero (spec 153 D10). */
@@ -287,7 +285,6 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
 
 export function TripDetail({
   canAdjustTollBooth,
-  creatorName,
   canReadFinancials,
   drivers,
   linkForm,
@@ -846,11 +843,12 @@ export function TripDetail({
         </div>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
         <TripConferenceAction
-          creatorName={creatorName}
+          canReadCreator={workspace.controller.canReadTrips}
           documents={trip.documents}
           drivers={trip.drivers}
           stops={trip.stops}
           tripCode={trip.id.slice(0, 8)}
+          tripId={trip.id}
           vehiclePlate={vehicles.find((vehicle) => vehicle.id === trip.vehicleId)?.plate ?? null}
         />
         {/*

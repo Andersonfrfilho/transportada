@@ -8,6 +8,7 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { useTripCreatorName } from '../hooks/useTripCreatorName.hook'
 import { useTripConferencePdf } from '../hooks/useTripConferencePdf.hook'
 import { buildTripConference } from '../shared/tripConference.service'
 import { buildTripConferenceSheetLabels } from '../shared/tripConferenceLabels.service'
@@ -18,13 +19,14 @@ import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shar
 import styles from '../styles/trip.module.css'
 
 type TripConferenceDialogProps = Readonly<{
-  creatorName: null | string | undefined
+  canReadCreator: boolean
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   isOpen: boolean
   onClose: () => void
   stops: readonly TripStopDetail[]
   tripCode: string
+  tripId: string
   vehiclePlate: null | string
 }>
 
@@ -68,17 +70,19 @@ function TripConferenceRowView({ row }: TripConferenceRowViewProps) {
 type TripConferenceContentProps = Omit<TripConferenceDialogProps, 'isOpen'>
 
 function TripConferenceContent({
-  creatorName,
+  canReadCreator,
   documents,
   drivers,
   onClose,
   stops,
   tripCode,
+  tripId,
   vehiclePlate,
 }: TripConferenceContentProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
   const brand = useInstallationBrandView()
+  const creatorName = useTripCreatorName({ canRead: canReadCreator, tripId })
   const conference = buildTripConference({ documents, stops })
   const { rows, summary } = conference
   const labels = buildTripConferenceSheetLabels(t)

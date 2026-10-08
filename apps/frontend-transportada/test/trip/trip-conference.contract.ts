@@ -5,7 +5,11 @@ import {
   buildTripConference,
   extractCityFromStopLabel,
 } from '@/modules/trip/shared/tripConference.service'
-import { findTripCreatorName } from '@/modules/trip/shared/tripCreator.service'
+import {
+  findTripCreatorName,
+  MAX_PAGES_TO_FIND_CREATOR,
+  readTripCreatorName,
+} from '@/modules/trip/shared/tripCreator.service'
 import {
   buildTripConferencePdf,
   packCitiesIntoLines,
@@ -347,5 +351,49 @@ describe('packCitiesIntoLines', () => {
     const lines = packCitiesIntoLines({ cities: ['CIDADE ENORME'], maxWidth: 3, measure })
 
     expect(lines).toEqual(['CIDADE ENORME'])
+  })
+})
+
+describe('readTripCreatorName', () => {
+  const pageOf = (
+    items: readonly Partial<TripTimelineItem>[],
+    nextCursor: null | string,
+  ): TripTimelinePage => ({ items: items as readonly TripTimelineItem[], nextCursor })
+
+  it('segue os cursores até a página em que a criação aparece', async () => {
+    const cursors: (null | string)[] = []
+    const pages: Record<string, TripTimelinePage> = {
+      first: pageOf([{ actorName: 'X', kind: 'trip.status_changed' }], 'second'),
+      second: pageOf([{ actorName: 'Maria Souza', kind: 'trip.created' }], null),
+    }
+    const name = await readTripCreatorName((cursor) => {
+      cursors.push(cursor)
+      return Promise.resolve(pages[cursor === null ? 'first' : cursor] as TripTimelinePage)
+    })
+
+    expect(name).toBe('Maria Souza')
+    expect(cursors).toEqual([null, 'second'])
+  })
+
+  it('linha do tempo sem criação termina em null, sem pedir página a mais', async () => {
+    let calls = 0
+    const name = await readTripCreatorName(() => {
+      calls += 1
+      return Promise.resolve(pageOf([{ actorName: 'X', kind: 'trip.status_changed' }], null))
+    })
+
+    expect(name).toBeNull()
+    expect(calls).toBe(1)
+  })
+
+  it('para no teto de páginas mesmo com cursor sem fim', async () => {
+    let calls = 0
+    const name = await readTripCreatorName(() => {
+      calls += 1
+      return Promise.resolve(pageOf([], `cursor-${calls}`))
+    })
+
+    expect(name).toBeNull()
+    expect(calls).toBe(MAX_PAGES_TO_FIND_CREATOR)
   })
 })
