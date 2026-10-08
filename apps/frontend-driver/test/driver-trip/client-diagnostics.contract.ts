@@ -119,7 +119,7 @@ describe('record é síncrono e nunca lança (spec 254 RF5)', () => {
     }
     expect(() => diagnostics.record(buildInput(1))).not.toThrow()
     expect(diagnostics.record(buildInput(2))).toBeUndefined()
-    await expect(diagnostics.flush()).resolves.toBeUndefined()
+    await diagnostics.flush()
   })
 })
 
@@ -197,7 +197,7 @@ describe('o que acontece com o lote conforme a resposta (spec 254 RF5)', () => {
     })
 
     for (let index = 0; index < 3; index += 1) diagnostics.record(buildInput(index))
-    await expect(diagnostics.flush()).resolves.toBeUndefined()
+    await diagnostics.flush()
 
     isOnline = true
     await diagnostics.flush()
@@ -350,7 +350,7 @@ type Diagnosable = Readonly<{
   diagnostics: ClientDiagnostics
   collected: DiagnosticsBatch[]
   client: ReturnType<typeof createDriverTripClient>
-  sendWithAttempt: (attempt: number) => Promise<'sent' | string>
+  sendWithAttempt: (attempt: number) => Promise<string>
   slotRequests: string[]
 }>
 
@@ -410,7 +410,7 @@ async function buildDiagnosable(input: {
   const stamped = { report: buildReport(), stamp: undefined } as unknown as Parameters<
     typeof client.send
   >[0]
-  async function sendWithAttempt(attempt: number): Promise<'sent' | string> {
+  async function sendWithAttempt(attempt: number): Promise<string> {
     try {
       await (client.send as unknown as SendWithOptions)(stamped, { attempt })
       return 'sent'

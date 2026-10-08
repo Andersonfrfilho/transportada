@@ -87,7 +87,7 @@ arquivo.
 
 - [x] **T4.1** `stepTimer.service.ts`, `deviceProfile.service.ts` (verificar na hora se existe variável de
       versão do build; se não, `appVersion` é omitido e isso vai para `evidence.md`).
-- [ ] **T4.2** `clientDiagnostics.service.ts` + `sendClientDiagnostics` no `driverTripClient.service.ts`
+- [x] **T4.2** `clientDiagnostics.service.ts` + `sendClientDiagnostics` no `driverTripClient.service.ts`
       (corpo `.strict()` espelhando a rota; sem `await` no caminho do motorista; `400` descarta o lote; `429`/rede
       devolvem os eventos ao buffer limitado a 50; nunca instrumenta o próprio envio; publicar API antes do driver).
       Gate: T1.4 verde.

@@ -29,11 +29,19 @@ import {
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
+import type { ClientDiagnostics } from './clientDiagnostics.service'
+import type {
+  DiagnosticFailureKind,
+  DiagnosticsBatch,
+  DiagnosticsSendResult,
+  DiagnosticInput,
+} from './clientDiagnostics.types'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
+const CLIENT_DIAGNOSTICS_PATH = '/me/client-diagnostics'
 /** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
 const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
 
@@ -91,6 +99,8 @@ export class DriverTripRequestError extends Error {
   public readonly details: readonly DriverTripErrorDetail[] | undefined
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
   public readonly isOffline: boolean
+  /** Spec 254: a rede falhou porque o teto de espera estourou — o diagnóstico separa de "caiu". */
+  public readonly isTimeout: boolean
   /** O status HTTP da recusa — a tela de pendentes imprime `status + código` como causa legível. */
   public readonly status: number | undefined
 
@@ -98,12 +108,14 @@ export class DriverTripRequestError extends Error {
     code: string
     details?: readonly DriverTripErrorDetail[]
     isOffline: boolean
+    isTimeout?: boolean
     status?: number
   }) {
     super(input.code)
     this.code = input.code
     this.details = input.details
     this.isOffline = input.isOffline
+    this.isTimeout = input.isTimeout ?? false
     this.status = input.status
     this.name = 'DriverTripRequestError'
   }
@@ -145,6 +157,8 @@ type ClientDependencies = Readonly<{
   apiUrl: string
   /** Spec 234 D1: onde cada resposta bem-sucedida deixa o desvio do relógio; ausente, não se mede. */
   clockOffset?: ClockOffsetStore
+  /** Spec 254: só observa — nunca muda o resultado de um envio; ausente, não se mede. */
+  diagnostics?: Pick<ClientDiagnostics, 'record'> | undefined
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
   /** Só o teste passa, para fixar a hora do aparelho; em produção vale o `Date.now`. */
@@ -156,6 +170,8 @@ type ClientDependencies = Readonly<{
     uploadMilliseconds?: number
   }>
 }>
+
+export type SendOptions = Readonly<{ attempt: number }>
 
 export type DriverTripDocumentFile = Readonly<{ blob: Blob; fileName: string }>
 
@@ -224,7 +240,10 @@ export type DriverTripClient = Readonly<{
   /** Spec 189 T7.5: o consentimento de posição — `null` é "nunca consentiu" ou "retirou". */
   readLocationConsent: () => Promise<LocationConsent>
   /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
-  send: (stamped: StampedReport) => Promise<void>
+  /** `attempt` (spec 254) só rotula o diagnóstico; não muda o envio. */
+  send: (stamped: StampedReport, options?: SendOptions) => Promise<void>
+  /** Spec 254: sem diagnóstico sobre si mesmo — o envio do diagnóstico nunca passa pelo coletor. */
+  sendClientDiagnostics: (batch: DiagnosticsBatch) => Promise<DiagnosticsSendResult>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
   sendLocation: (
     position: Readonly<{ latitude: string; longitude: string }>,
@@ -439,14 +458,47 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
       return toLocationConsent(payload)
     },
-    async send({ report: queuedReport, stamp }) {
+    async sendClientDiagnostics(batch) {
+      try {
+        await request({
+          body: JSON.stringify(batch),
+          dependencies: withoutDiagnostics(dependencies),
+          method: 'POST',
+          path: CLIENT_DIAGNOSTICS_PATH,
+        })
+        return { status: 204 }
+      } catch (error) {
+        if (error instanceof DriverTripRequestError && error.status !== undefined) {
+          return { status: error.status }
+        }
+        throw error
+      }
+    },
+    async send({ report: queuedReport, stamp }, options) {
       const report = withLegacyLocation(queuedReport)
       if (report.kind === 'documentOccurrence') {
-        await sendDocumentOccurrence({ dependencies, report })
+        await sendDocumentOccurrence({
+          dependencies,
+          diagnostics: {
+            attempt: options?.attempt,
+            idempotencyKey: report.idempotencyKey,
+            reportKind: report.kind,
+          },
+          report,
+        })
         return
       }
       if (report.kind === 'stopOccurrencePhoto') {
-        await sendStopOccurrencePhoto({ dependencies, report, stamp })
+        await sendStopOccurrencePhoto({
+          dependencies,
+          diagnostics: {
+            attempt: options?.attempt,
+            idempotencyKey: report.occurrenceKey,
+            reportKind: report.kind,
+          },
+          report,
+          stamp,
+        })
         return
       }
       if (report.kind === 'proofReceiver') {
@@ -477,21 +529,27 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
  */
 async function sendDocumentOccurrence(input: {
   readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
 }): Promise<void> {
-  const { dependencies, report } = input
+  const { dependencies, diagnostics, report } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
   /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
   const [attachmentObjectIds, signatureObjectId] = await Promise.all([
     Promise.all(
       photos.map((photo) =>
-        uploadOccurrencePhoto({ dependencies, photo: photo.blob, uploadsPath }),
+        uploadOccurrencePhoto({ dependencies, diagnostics, photo: photo.blob, uploadsPath }),
       ),
     ),
     report.signature === undefined
       ? Promise.resolve(undefined)
-      : uploadOccurrencePhoto({ dependencies, photo: report.signature.blob, uploadsPath }),
+      : uploadOccurrencePhoto({
+          dependencies,
+          diagnostics,
+          photo: report.signature.blob,
+          uploadsPath,
+        }),
   ])
 
   await request({
@@ -540,13 +598,15 @@ function buildAttachmentFields(
  */
 async function sendStopOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
   readonly report: StopOccurrencePhotoReport
   readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, report, stamp } = input
+  const { dependencies, diagnostics, report, stamp } = input
   const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
   const attachmentObjectId = await uploadOccurrencePhoto({
     dependencies,
+    diagnostics,
     photo: report.photo.blob,
     uploadsPath: `${stopPath}/occurrence-uploads`,
   })
@@ -572,24 +632,59 @@ async function sendStopOccurrencePhoto(input: {
  */
 async function uploadOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
   readonly photo: Blob
   readonly uploadsPath: string
 }): Promise<string> {
-  const { uploadsPath } = input
-  const upload = toOccurrenceUpload(
-    await request({
-      body: JSON.stringify({ mimeType: input.photo.type, sizeBytes: input.photo.size }),
-      dependencies: input.dependencies,
-      method: 'POST',
-      path: uploadsPath,
-    }),
-  )
+  const { dependencies, uploadsPath } = input
+  const context = { ...input.diagnostics, photoBytes: input.photo.size }
+  const upload = await traceStep({
+    context,
+    dependencies,
+    run: async () =>
+      toOccurrenceUpload(
+        await request({
+          body: JSON.stringify({ mimeType: input.photo.type, sizeBytes: input.photo.size }),
+          dependencies,
+          method: 'POST',
+          path: uploadsPath,
+        }),
+      ),
+    step: 'upload_slot',
+  })
 
+  await traceStep({
+    context,
+    dependencies,
+    run: () =>
+      putOccurrencePhoto({ dependencies, photo: input.photo, uploadUrl: upload.uploadUrl }),
+    step: 'upload_put',
+  })
+
+  const confirmed = await traceStep({
+    context,
+    dependencies,
+    run: () =>
+      request({
+        dependencies,
+        method: 'POST',
+        path: `${uploadsPath}/${upload.id}/confirm`,
+      }),
+    step: 'upload_confirm',
+  })
+  return readDataId(confirmed)
+}
+
+async function putOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly photo: Blob
+  readonly uploadUrl: string
+}): Promise<void> {
   let response: Response
   try {
     // Sem `authorization`: o token da API não vai ao storage — a assinatura da URL é a credencial.
     response = await input.dependencies.fetch(
-      new Request(upload.uploadUrl, {
+      new Request(input.uploadUrl, {
         body: input.photo,
         cache: 'no-store',
         headers: { 'content-type': input.photo.type },
@@ -597,8 +692,8 @@ async function uploadOccurrencePhoto(input: {
         signal: abortSignalWithDeadline({ milliseconds: UPLOAD_TIMEOUT_MILLISECONDS }),
       }),
     )
-  } catch {
-    throw offline()
+  } catch (error) {
+    throw offline({ isTimeout: isDeadlineError(error) })
   }
   if (!response.ok) {
     throw new DriverTripRequestError({
@@ -607,13 +702,72 @@ async function uploadOccurrencePhoto(input: {
       status: response.status,
     })
   }
+}
 
-  const confirmed = await request({
-    dependencies: input.dependencies,
-    method: 'POST',
-    path: `${uploadsPath}/${upload.id}/confirm`,
-  })
-  return readDataId(confirmed)
+/** Contexto do envio que rotula o evento — só campos da lista permitida (spec 254 RF4). */
+type StepContext = Readonly<{
+  attempt?: number | undefined
+  idempotencyKey?: string | undefined
+  photoBytes?: number | undefined
+  reportKind?: string | undefined
+}>
+
+type TraceStepParams<TResult> = Readonly<{
+  context: StepContext
+  dependencies: ClientDependencies
+  run: () => Promise<TResult>
+  step: DiagnosticInput['step']
+}>
+
+/**
+ * Spec 254: observa o passo sem tocar no resultado — o que `run` devolve ou lança segue igual. Sem
+ * coletor, é só `run()`.
+ */
+async function traceStep<TResult>(params: TraceStepParams<TResult>): Promise<TResult> {
+  const { context, dependencies, step } = params
+  const diagnostics = dependencies.diagnostics
+  if (diagnostics === undefined) return params.run()
+  const clock = dependencies.now ?? Date.now
+  const startedAt = clock()
+  try {
+    const result = await params.run()
+    diagnostics.record({
+      ...context,
+      durationMs: clock() - startedAt,
+      eventKind: 'step_timing',
+      step,
+    })
+    return result
+  } catch (error) {
+    diagnostics.record({
+      ...context,
+      ...describeFailure(error),
+      durationMs: clock() - startedAt,
+      eventKind: 'send_failed',
+      step,
+    })
+    throw error
+  }
+}
+
+function describeFailure(
+  error: unknown,
+): Readonly<{ failureKind: DiagnosticFailureKind; httpStatus?: number }> {
+  if (error instanceof DriverTripRequestError) {
+    if (error.status !== undefined) return { failureKind: 'http_status', httpStatus: error.status }
+    if (error.isTimeout) return { failureKind: 'timeout' }
+    if (error.isOffline) return { failureKind: 'network' }
+    return { failureKind: 'http_status' }
+  }
+  return { failureKind: isIdentityError(error) ? 'identity' : 'network' }
+}
+
+function isDeadlineError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+}
+
+function withoutDiagnostics(dependencies: ClientDependencies): ClientDependencies {
+  return { ...dependencies, diagnostics: undefined }
 }
 
 function readData(payload: unknown): Record<string, unknown> {
@@ -649,8 +803,12 @@ function invalidResponse(): DriverTripRequestError {
 }
 
 /** Rede que não respondeu: o item fica na fila e tenta de novo. */
-function offline(): DriverTripRequestError {
-  return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+function offline(options?: Readonly<{ isTimeout: boolean }>): DriverTripRequestError {
+  return new DriverTripRequestError({
+    code: DRIVER_TRIP_ERROR.OFFLINE,
+    isOffline: true,
+    isTimeout: options?.isTimeout ?? false,
+  })
 }
 
 /**
@@ -666,7 +824,7 @@ async function getAccessTokenWithinDeadline(dependencies: ClientDependencies): P
       dependencies.getAccessToken(),
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(
-          () => reject(offline()),
+          () => reject(offline({ isTimeout: true })),
           dependencies.timeouts?.accessTokenMilliseconds ?? ACCESS_TOKEN_TIMEOUT_MILLISECONDS,
         )
       }),
@@ -899,9 +1057,9 @@ async function request(
     response = await input.dependencies.fetch(
       new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
     )
-  } catch {
+  } catch (error) {
     // Rede caída: quem chamou devolve o item para a fila em vez de dizer ao motorista que falhou.
-    throw offline()
+    throw offline({ isTimeout: isDeadlineError(error) })
   }
   if (response.ok) {
     recordClockOffset({ dependencies: input.dependencies, receivedAtMs: now(), response, sentAtMs })
