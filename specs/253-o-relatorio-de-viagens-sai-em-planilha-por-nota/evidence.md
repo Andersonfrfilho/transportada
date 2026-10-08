@@ -76,3 +76,10 @@ Nomes: `TRIP_STATUSES_BEFORE_DISPATCH`, `TRIP_ON_ROAD_STATUSES`, `TRIP_DISPATCHE
 - Contraste: `test/shared/spreadsheet-legend.contract.ts` (registrado em `test/shared.contract.test.ts`) tem a luminância relativa WCAG como função pura no teste, valida os extremos (21:1 e 1:1) e exige ≥ 4,5:1 de `bodyText` sobre cada um dos quatro tons (preto sobre o mais escuro, `#E4D7F5`, passa folgado). Também cobre a legenda: posição, rótulos, cores, crescimento do timbre.
 - `bun run test` (cwd=apps/frontend-transportada) → 7593 pass + 1104 pass (hooks), 0 fail. `bun run typecheck` → limpo. `bun run lint` → 0 erros (16 warnings preexistentes, nenhum em spreadsheet). Prettier limpo.
 - Commit: ver `git log --grep "spec 253 T3.2"`.
+
+## T4.1 — serviço e hook de exportação do relatório (sonnet)
+
+- Teste primeiro: `test/trip-hooks/trip-report-export.contract.ts` (registrado em `test/trip-hooks.contract.test.ts`, roda por `test:hooks`) com serviço falso: seleção ganha de filtro, `documentIds` para a aba de notas, paginação por cursor (limit 100) até o fim, progresso, 422 com teto, cancelamento sem erro.
+- `shared/tripReport.types.ts` (tipos redeclarados, `trip.types.ts` já tem 1501 linhas), `shared/tripReport.service.ts` (`fetchTripReport` sequencial, `TripReportTooLargeError` com `maxRows`, `resolveTripReportFilters`), `shared/tripReportClient.service.ts` (GET `/trip-document-report`; 422 `TRIP_REPORT_TOO_LARGE` vira o erro tipado, teto lido da mensagem), `hooks/useTripReportExport.hook.ts` (`exportReport`, `cancelExport`, `isExporting`, `progress`, `error`, `isTooLarge`, `maxRows`; `buildSpreadsheet` injetada, opcional).
+- `bun run test` (cwd=app) → 7593 pass + 1110 pass (hooks), 0 fail. `bun run typecheck` limpo. `bun run lint` 0 erros (16 warnings preexistentes).
+- Desvios: (1) serviços do módulo moram em `shared/*.service.ts` (não há `services/`). (2) Cliente HTTP próprio e pequeno em vez de método no `tripClient.service.ts` (1641 linhas, e o `requestError` dele descarta a mensagem que traz o teto). (3) Chaves i18n ficam para a T4.4: o hook expõe `isTooLarge`/`maxRows`, sem texto. (4) `progress` volta a `undefined` ao fim.
