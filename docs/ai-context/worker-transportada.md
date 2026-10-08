@@ -550,3 +550,13 @@ Falha | Cancelada`.
   que falha (rede, 5xx, nota ausente, corpo fora do formato) → `error`, recuperável pelo retry da fila.
   Motivo do banco: `'2'` → `servico_nao_prestado`; `'4'` → `outros` com `descricao` "Nota duplicada".
   PDF e XML seguem a versão da nota pelos mesmos gateways.
+
+## Nota vinculada à mão: o pull confere o valor (spec 250 T5.2)
+
+A tentativa de vínculo (`providerConfig.externalLink`) é a única em que o status pull **rejeita** o que a emissão
+normal adia. `not_found` → `rejected` `NFSE_EXTERNAL_LINK_NOT_FOUND`; `Sucesso` com `valor_servicos` diferente do
+`serviceAmount` congelado → `rejected` `NFSE_EXTERNAL_LINK_AMOUNT_MISMATCH` (comparação textual com zeros à direita
+removidos; valor ausente conta como divergência); `Falha` é rejeição comum. Tentativa normal com `not_found` continua
+adiada. O mapper v3 lê `valor_servicos` em `serviceAmount`. `canReuseProviderDocumentId` é falso se qualquer tentativa
+anterior for de vínculo. Núcleo: `resolveNfseReconciliationDecision` (`externalLink?`) em
+`nfse-reconciliation-outcome.policy.ts`.

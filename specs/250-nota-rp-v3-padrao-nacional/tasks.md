@@ -84,7 +84,8 @@ Teste novo entra na lista explícita do `package.json` da app.
       043/T010 (as 16 notas de Ribeirão Preto).
       **Desvio deliberado:** o vínculo leva a nota a `pending_authorization` e o status pull a autoriza (`authorized`
       direto não teria XML, PDF nem cancelamento). Desenho na ADR 0098 § "Desenho do vínculo (T5.1)"; evidência E23.
-- [ ] **T5.2** Implementar API + painel do vínculo, com contrato negativo (só nota rejeitada/falha).
+- [x] **T5.2** Implementar API + painel do vínculo, com contrato negativo (só nota rejeitada/falha).
+      Integração da API **não rodou** (Docker parado): ver E24.
 
 ## Fase 6 — Virada e fechamento
 

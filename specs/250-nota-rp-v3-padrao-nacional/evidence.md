@@ -429,3 +429,19 @@ Desenho feito pelo architect (opus) e gravado na ADR 0098 § "Desenho do víncul
 outbox, auditoria com ator, idempotência por chave, `id_nota` único por empresa, e no worker `not_found` e valor
 divergente rejeitam só tentativas de vínculo. Desvio da decisão 10: vai a `pending_authorization` e o status pull
 autoriza (XML, PDF e cancelamento só existem depois da consulta). Sem código nesta task.
+
+## E24 — T5.2: vínculo de nota externa implementado (07/10/2026)
+
+Contratos vermelhos antes do código nas três camadas. Commits: API `dda75e467`, worker `0aa916627`, painel `2c7fddb8a`.
+
+| App                   | typecheck | lint            | `bun run test`                          | prettier |
+| --------------------- | --------- | --------------- | --------------------------------------- | -------- |
+| api                   | ok        | ok (0 warnings) | contrato: 10859 pass / 25 skip / 0 fail | ok       |
+| worker                | ok        | ok              | 2167 pass / 0 fail                      | ok       |
+| frontend-transportada | ok        | ok (0 erros)    | 7611 pass / 0 fail                      | ok       |
+
+**Não verificado:** `test:integration` da API (inclui `nfse-external-link.integration.ts`, registrado). O Docker estava
+parado: Postgres recusou conexão (`PostgresError: Connection closed`), 820 falhas de ambiente em 1211 testes, nenhuma
+atribuível ao código. Rodar com `make up` antes de fechar a Fase 6. Não há teste de rotas contra OpenAPI no módulo.
+Desvios: `NFSE_CREDENTIAL_MISSING` é 422; auditoria sem `ipAddress`; sem arquivo central de códigos de erro; o worker
+trata `valor_servicos` ausente como divergência; `canReuseProviderDocumentId` bloqueia por qualquer vínculo anterior.
