@@ -37,6 +37,7 @@ import { OccurrenceEntryItems } from './OccurrenceEntryItems.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceItemQuantities } from './OccurrenceItemQuantities.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
+import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
 import { OccurrenceProductSelect } from './OccurrenceProductSelect.component'
 import {
   appendOccurrenceNotePreset,
@@ -256,10 +257,14 @@ export function TripOccurrences({
                         })
                       }}
                     >
+                      <OccurrenceTypeIcon iconName={occurrence.typeIconName} />
                       {occurrence.typeName}
                     </a>
                   ) : (
-                    <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                    <span className={styles.occurrenceEntryType}>
+                      <OccurrenceTypeIcon iconName={occurrence.typeIconName} />
+                      {occurrence.typeName}
+                    </span>
                   )}
                   <span className={styles.occurrenceEntryMoment}>
                     {formatMoment(occurrence.createdAt)}

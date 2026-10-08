@@ -290,3 +290,27 @@ estado e fila): a posição do ícone no chip é conferida no fonte, o markup se
 
 **Gates:** `bun run typecheck` (raiz) verde; `test` do `frontend-driver` 1426 pass / 0 fail; `bunx eslint --max-warnings=0` nos arquivos
 da task: exit 0; `format:check` (raiz) verde. `frontend-transportada` não tocado.
+
+## T3.4 — Cartão da ocorrência no painel com ícone (2026-10-08)
+
+**Caminhos que alimentam o cartão (RF6):**
+
+- `TripOccurrences` (cartão da ocorrência da viagem/nota) lê `TripOccurrence`, que vem de
+  `listTripOccurrences`/`findTripOccurrenceById` em `delivery-proof-read.support.ts` — já trazem
+  `typeIconName` desde a T2.2. Tipo (`trip.types.ts:208`), guarda (`tripResponse.validation.ts:1513`)
+  e lista de chaves exatas (`trip.constant.ts:499`) já toleravam a chave (T1.1): nada a mudar na API
+  nem na guarda.
+- Fora do escopo desta task, sem ícone e sem mudança: linha do feed (`trip-occurrence-feed.query.ts`,
+  tabela, não cartão), linha do tempo (`typeName` é referência de chave exata) e o item do
+  recebimento de carga (`CargoOccurrenceListItem`, outra leitura). Nenhum caminho precisou de
+  mudança aditiva na API.
+
+**Vermelho:** `test/trip/occurrence-card-type-icon.contract.tsx` (registrado em `trip.contract.test.ts`):
+2 fail (ícone antes do nome, com e sem link), 2755 pass; os casos de markup idêntico passam desde o início.
+
+**Verde:** `OccurrenceTypeIcon.component.tsx` (ícone decorativo `aria-hidden`, só nome do catálogo
+`OCCURRENCE_TYPE_ICON_NAMES`; nulo/ausente/desconhecido = `null`), usado dentro do link/span do tipo em
+`TripOccurrences`; classe `.occurrenceEntryTypeIcon` em `trip.module.css`. Sem ícone o markup é idêntico.
+
+**Gates:** `bun run typecheck` raiz limpo; `bun run test` da frontend-transportada 1130 pass / 0 fail;
+eslint `--max-warnings=0` nos arquivos tocados limpo; prettier aplicado. API não tocada (sem contrato/integração novos).

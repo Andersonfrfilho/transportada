@@ -4453,6 +4453,11 @@ button.occurrenceCaseBadge {
   font-weight: 600;
 }
 
+.occurrenceEntryTypeIcon {
+  margin-inline-end: var(--space-1);
+  vertical-align: text-bottom;
+}
+
 .occurrenceEntryLink {
   color: inherit;
   font-size: 0.9rem;
