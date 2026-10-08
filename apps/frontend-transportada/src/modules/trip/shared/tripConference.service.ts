@@ -21,6 +21,8 @@ export type TripConferenceRow = Readonly<{
 }>
 
 export type TripConferenceSummary = Readonly<{
+  /** As cidades da rota na ordem das paradas, sem repetir. */
+  cities: readonly string[]
   noteCount: number
   notesWithoutValue: number
   stopCount: number
@@ -62,6 +64,15 @@ function toRow(document: TripDocumentDetail, destinationLabel: string): TripConf
   }
 }
 
+function listRouteCities(orderedStops: readonly TripStopDetail[]): readonly string[] {
+  const cities = orderedStops
+    .filter((stop) => stop.documents.length > 0)
+    .map((stop) => extractCityFromStopLabel(stop.label))
+    .filter((city) => city !== '')
+
+  return [...new Set(cities)]
+}
+
 /** A conferência rápida da montagem: o que está na viagem, nota a nota, na ordem das paradas. */
 export function buildTripConference(source: TripConferenceSource): TripConference {
   const orderedStops = [...source.stops].sort((left, right) => left.sequence - right.sequence)
@@ -78,6 +89,7 @@ export function buildTripConference(source: TripConferenceSource): TripConferenc
   return {
     rows,
     summary: {
+      cities: listRouteCities(orderedStops),
       noteCount: rows.length,
       notesWithoutValue: rows.length - values.length,
       stopCount: orderedStops.filter((stop) => stop.documents.length > 0).length,

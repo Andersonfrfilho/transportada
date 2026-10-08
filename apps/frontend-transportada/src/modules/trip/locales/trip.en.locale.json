@@ -2494,6 +2494,11 @@
     "sheetVehicle": "Vehicle",
     "sheetTrip": "Trip",
     "sheetPrintedAt": "Issued on",
-    "sheetNotes": "Notes"
+    "sheetNotes": "Notes",
+    "downloadPdf": "Download PDF",
+    "pdfFailed": "Could not generate the PDF. Try again.",
+    "sheetCreatedBy": "Created by",
+    "createdBy": "Created by {{name}}",
+    "routeCities": "Route cities"
   }
 }

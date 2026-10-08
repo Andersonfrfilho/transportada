@@ -3609,6 +3609,12 @@ button.occurrenceCaseBadge {
     border: 1px solid black;
   }
 
+  .printSheetRoute {
+    margin: 0 0 var(--space-3);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+  }
+
   .printSheetField {
     display: grid;
     gap: 0.5mm;
@@ -3669,7 +3675,7 @@ button.occurrenceCaseBadge {
   }
 
   .printSheetTable th:nth-child(5) {
-    width: 38mm;
+    width: 52mm;
   }
 
   .printSheetTable th:nth-child(6) {
@@ -5726,6 +5732,17 @@ button.occurrenceCaseBadge {
   .conferenceTable td::before {
     content: none;
   }
+}
+
+.conferenceRoute {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.conferenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* Os três campos que o atendimento confere primeiro: nota, cliente e valor. */
