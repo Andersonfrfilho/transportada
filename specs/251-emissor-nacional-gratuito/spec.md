@@ -99,3 +99,13 @@ adaptador de novo, como a ADR-0029 previu.
    alternável)? Decide se v3 e nacional convivem no código ou a v3 é removida.
 4. **Contrato exato** (rotas, GZip/Base64, assinatura, códigos de erro, limites): sai da Fase 0, lendo
    o Swagger da produção restrita — não deste PDF.
+
+## Decisões do usuário (08/10/2026, durante a Fase 0)
+
+- **Nota RP sai do app e fica só na lib** (`@adatechnology/fiscal-provider`, repositório
+  `adatechnology-packages`). Nada de v2/v3 no `api`/`worker`/`cron` depois da primeira nota real pelo nacional;
+  não há contingência no app. Fecha o [NEEDS CLARIFICATION] 3 e torna a T6.2 da 250 desnecessária.
+  A reversibilidade passa a ser o git (a remoção é uma task isolada, depois da prova real).
+- **O A1 de produção da transportadora pode ser usado** para leitura em produção restrita (Swagger e
+  parâmetros municipais, só GET). Emissão real continua só na T4.2. **Anderson renova o A1** (vence em
+  05/11/2026) e o repassa ao cofre; o alerta D-30 avisa o Anderson.

@@ -32,7 +32,7 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       não oficial do Swagger (o oficial exige certificado: 403/TLS). Fechar com o A1 de homologação (T0.4). Ver `plan.md` § T0.3.
 - [ ] **T0.4** `sonnet` — Obter com o usuário o A1 de **homologação** (ou procedimento), confirmar a
       validade do A1 de produção (o da Nota RP vence em 05/11/2026) e quem renova.
-- [ ] **T0.5** 🧠 `opus` — ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
+- [ ] **T0.5** 🧠 `opus` — (destino da Nota RP já decidido pelo usuário: sai do app, fica só na lib) ADR **0099** "A NFS-e fala o Sistema Nacional": emenda 0029 e 0035; decide a
       sorte da Nota RP (contingência × remoção) e da T6.2 da 250 — fecha o [NEEDS CLARIFICATION] 3.
       Validar com `architect` antes de implementar. Numeração conferida em `origin/staging`.
 
@@ -74,6 +74,11 @@ Modelos (rules/model-economy.md): `haiku` = mecânica com aceite por comando; `s
       `make worker-integration` verdes.
 - [ ] **T4.2** humano — Virada em produção: nota de valor mínimo, conferida no portal nacional,
       aprovação humana. Mesma nota serve para fechar a 032/T030.
+- [ ] **T4.2b** `sonnet` — Remover a Nota RP do app (decisão de 08/10/2026), **só depois** da T4.2:
+      clientes v2/v3, roteio por versão, `NFSE_PROVIDER_API_VERSION`, limitador de 1 req/s, vínculo
+      externo e seus contratos; a lib `@adatechnology/fiscal-provider` não é tocada. `cTribNac`
+      (`national_taxation_code`) fica: é campo do padrão nacional. Aceite: `make check`,
+      `make migration-test` e grep sem `nota-rp` em `apps/`.
 - [ ] **T4.3** `haiku` — Documentar em `docs/ai-context/*`, `CLAUDE.md`; fechar a 250 conforme a
       decisão da T0.5.
 
