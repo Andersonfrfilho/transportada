@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
-import { NfeDocumentFilterPanel } from '@/modules/nfe-workspace/components/NfeDocumentFilterPanel.component'
+import { NfeDocumentFilterPanel } from '@/modules/shared/nfe-filter/NfeDocumentFilterPanel.component'
 import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { useNfeDocumentTable } from '@/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
@@ -155,7 +155,7 @@ export function TripDocumentSearch({
             />
           </label>
 
-          <NfeDocumentFilterPanel table={table} />
+          <NfeDocumentFilterPanel controller={table} />
 
           {isLoading ? null : (
             <p className={styles.hint}>

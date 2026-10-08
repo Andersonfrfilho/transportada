@@ -179,9 +179,9 @@ describe('cte issued filter contract', () => {
    */
   test('wires the filter into the simple bar, the pills and both locales', async () => {
     const [panel, pills, builder, ptLocale, enLocale] = await Promise.all([
-      readModule('src/modules/nfe-workspace/components/NfeDocumentFilterPanel.component.tsx'),
+      readModule('src/modules/shared/nfe-filter/NfeDocumentFilterPanel.component.tsx'),
       readModule('src/modules/nfe-workspace/shared/nfeDocumentFilterPills.service.ts'),
-      readModule('src/modules/nfe-workspace/components/AdvancedFilterBuilder.component.tsx'),
+      readModule('src/modules/shared/nfe-filter/AdvancedFilterBuilder.component.tsx'),
       readModule('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
       readModule('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
     ])

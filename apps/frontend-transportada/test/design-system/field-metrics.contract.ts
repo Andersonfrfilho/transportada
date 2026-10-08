@@ -6,6 +6,7 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const ROOT_STYLESHEET_PATH = 'src/styles/index.css'
 const SELECT_STYLES_PATH = 'src/components/ui/select.module.css'
 const NFE_STYLES_PATH = 'src/modules/nfe-workspace/styles/nfeWorkspace.module.css'
+const NFE_FILTER_STYLES_PATH = 'src/modules/shared/nfe-filter/nfeFilterPanel.module.css'
 const FIELD_TOKENS = [
   '--field-height: 3rem',
   '--field-height-compact: 2.4rem',
@@ -29,6 +30,7 @@ const COMPACT_HEIGHT_FIELDS = [
   { filePath: 'src/modules/cte-batch/styles/cteBatch.module.css', selector: null },
   { filePath: 'src/modules/mdfe-manifest/styles/mdfeManifest.module.css', selector: null },
   { filePath: NFE_STYLES_PATH, selector: null },
+  { filePath: NFE_FILTER_STYLES_PATH, selector: null },
   { filePath: 'src/modules/operations/styles/operationsWorkspace.module.css', selector: null },
   { filePath: 'src/modules/trip/styles/trip.module.css', selector: null },
 ] as const
@@ -129,7 +131,7 @@ describe('field metrics contract', () => {
   })
 
   test('keeps the filter bar fields on the compact metrics of the compact select', async () => {
-    const stylesheet = await readApplicationFile(NFE_STYLES_PATH)
+    const stylesheet = await readApplicationFile(NFE_FILTER_STYLES_PATH)
     const filterInput = listRules(stylesheet).find((rule) => rule.selector === '.filterInput')
 
     expect(filterInput?.body).toContain('min-height: var(--field-height-compact)')
