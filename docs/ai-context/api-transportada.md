@@ -3276,7 +3276,6 @@ recebe prazo, e uma regra de calendário ruim derruba o prazo de todas as cidade
 junto com ou depois das migrations da 237 Fase 2 e da 238** (a consulta das notas lê essas tabelas mesmo sem o relógio). Evidência:
 specs/236-\*/evidence.md § T1.2e e § T1.3.
 
-<<<<<<< HEAD
 ## Spec 253 — O relatório de viagens sai em planilha por nota
 
 **Rotas novas** (Fase 5 T5.1, regra 14):
@@ -3317,7 +3316,7 @@ Nota liberada (`released_at` não nulo) é ignorada em "todas devolvidas" e não
 - `contractorName` do relatório é `coalesce(contratante cadastrado, emitente da NF-e)`: nota sem cadastro mostra o nome do emitente, e o filtro "Sem cadastro" segue olhando só o cadastro. O PDF reaproveita a linha.
 - `GET /trip-document-report` (60/300 s) e `.../proofs-pdf` (10/300 s) declaram `rateLimit` no Postgres e estão em `test/rate-limited-routes.contract.test.ts`.
 - ⚠️ O PDF de canhotos é **bufferizado**, não stream real: `pdfkit` acumula tudo (`bufferPages`) e a resposta sai de uma vez. A memória fica limitada pelo teto de 200 blocos. Imagem que abre mas falha ao embutir cai no placeholder "Imagem indisponível" e loga `trip_proof_pdf.image_embed_failed` só com `tripId` e `proofIndex`; o nome do exportador (`findExporterName`) é best-effort e não derruba o PDF.
-=======
+
 ## Nota de serviço emitida no portal: o vínculo (spec 250 T5.2)
 
 `POST /v1/nfse-service-invoices/:id/external-link` (`nfse.issue`, `Idempotency-Key` obrigatório, corpo
@@ -3330,4 +3329,3 @@ mesma transação: tentativa `issue` `accepted` sem `provider_request_key` e sem
 vinculado na empresa → `409 NFSE_PROVIDER_DOCUMENT_ALREADY_LINKED` (índice único parcial); mesma chave com outro corpo →
 `409 IDEMPOTENCY_KEY_REUSED`. Sem credencial → `422 NFSE_CREDENTIAL_MISSING`. Núcleo:
 `nfse-invoice-external-link.use-case.ts`. Não existe teste que compare as rotas com um documento OpenAPI neste módulo.
->>>>>>> 994cb4076 (docs(250): T5.2 fechada — vínculo de nota externa (API, worker e painel), evidência E24)
