@@ -495,13 +495,13 @@ test('CA07: o temporizador drena sozinho e para quando não há mais pendência'
   expect(api.reports()).toEqual([])
 
   api.setOffline(false)
-  // Tique do temporizador: agora envia, e a fila zera.
-  await page.clock.fastForward('00:31')
+  // A falha acima adiou o item em 30 s ± 20 % (spec 254); 01:00 passa do teto de 36 s.
+  await page.clock.fastForward('01:00')
   await expect.poll(() => api.reports().length, { timeout: 10_000 }).toBe(1)
 
   const reportsAfterDrain = api.reports().length
   // Tique seguinte: sem nada pendente, o temporizador já parou — nenhuma requisição nova.
-  await page.clock.fastForward('00:31')
+  await page.clock.fastForward('01:00')
   expect(api.reports().length).toBe(reportsAfterDrain)
 })
 
