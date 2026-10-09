@@ -75,11 +75,7 @@ describe('origem de cada feriado (spec 252 T5.2)', () => {
         cell.textContent?.trim(),
       ),
     ).toContain('Origem')
-    expect(originCells(MUNICIPAL_HEADING)).toEqual([
-      'Cadastrado, todo ano',
-      'Importado (FeriadosAPI)',
-      'Cadastrado',
-    ])
+    expect(originCells(MUNICIPAL_HEADING)).toEqual(['Cadastrado', 'Importado', 'Cadastrado'])
   })
 
   it('API que ainda não manda a origem: a célula fica em branco, sem chutar "cadastrado"', async () => {
@@ -101,7 +97,7 @@ describe('origem de cada feriado (spec 252 T5.2)', () => {
     await mountPanel()
     await waitForText('Revolução Constitucionalista')
 
-    expect(originCells(STATE_HEADING)).toEqual(['Cadastrado', 'Importado (FeriadosAPI)'])
+    expect(originCells(STATE_HEADING)).toEqual(['Cadastrado', 'Importado'])
   })
 
   it('a linha importada oferece "Desligar" no lugar de "Excluir"; a digitada continua com "Excluir"', async () => {

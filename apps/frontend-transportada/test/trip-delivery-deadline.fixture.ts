@@ -142,3 +142,40 @@ export const DELIVERY_DEADLINE_STOPS = DELIVERY_DEADLINE_STOP_IDS.map((id, index
   label: STOP_LABELS[index] ?? '',
   sequence: index + 1,
 }))
+
+/**
+ * Spec 252 T5.3: as mesmas três paradas, com o aviso de feriado em duas delas (a primeira não tem). Campinas: feriado
+ * municipal importado; Ribeirão Preto: feriado nacional e um local cadastrado no mesmo dia. Só dado fictício.
+ */
+export const HOLIDAY_WARNING_STOPS = DELIVERY_DEADLINE_STOPS.map((stop, index) => {
+  if (index === 1) {
+    return {
+      ...stop,
+      holidayWarnings: [
+        {
+          cityIbgeCode: 3509502,
+          cityName: 'Campinas',
+          date: '2026-10-19',
+          reasons: [{ name: 'Aniversário da cidade', origin: 'imported', scope: 'municipal' }],
+        },
+      ],
+    }
+  }
+  if (index === 2) {
+    return {
+      ...stop,
+      holidayWarnings: [
+        {
+          cityIbgeCode: 3543402,
+          cityName: 'Ribeirão Preto',
+          date: '2026-11-02',
+          reasons: [
+            { name: 'all_souls_day', origin: 'code', scope: 'national' },
+            { name: 'Feriado local', origin: 'typed', scope: 'municipal' },
+          ],
+        },
+      ],
+    }
+  }
+  return stop
+})
