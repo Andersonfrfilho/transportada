@@ -5,6 +5,7 @@
  * cidade e dia das paradas e o aviso volta por parada, no lugar do aviso só nacional do término. Rota que cai devolve
  * ao aviso nacional de hoje, sem derrubar o roteiro. Dados sintéticos.
  */
+import { act } from 'react'
 import { describe, expect, it } from 'bun:test'
 
 import { useSolverCityOrder } from '../../src/modules/trip/hooks/useSolverCityOrder.hook'
@@ -18,7 +19,7 @@ import {
   type SolverStopInput,
 } from '../fixtures/solverSuggestion.fixture'
 
-import { renderHook, waitFor } from './renderHook.helper'
+import { renderHook } from './renderHook.helper'
 
 const CAMPINAS_KEY = '3509502|13010001|45'
 const CAMPINAS_OTHER_KEY = '3509502|13010002|10'
@@ -70,9 +71,15 @@ async function runSolver(
       vehicleId: 'vehicle-1',
     }),
   )
-  await hook.result().request()
-  await waitFor(() => expect(hook.result().state).not.toBe('pedindo'))
+  await requestSolver(hook)
   return hook
+}
+
+/** O pedido roda dentro de `act`: o estado que ele muda ao terminar tem de estar renderizado quando se lê. */
+async function requestSolver(hook: Readonly<{ result: () => { request: () => Promise<void> } }>) {
+  await act(async () => {
+    await hook.result().request()
+  })
 }
 
 describe('aviso de feriado por parada na montagem (spec 252 T5.3)', () => {
@@ -129,9 +136,9 @@ describe('aviso de feriado por parada na montagem (spec 252 T5.3)', () => {
       }),
     )
 
-    await hook.result().request()
-    await waitFor(() => expect(hook.result().state).toBe('ocioso'))
+    await requestSolver(hook)
 
+    expect(hook.result().state).toBe('ocioso')
     expect(orders).toHaveLength(1)
   })
 
@@ -185,10 +192,9 @@ describe('aviso de feriado por parada na montagem (spec 252 T5.3)', () => {
     })
     expect(hook.result().holidayWarnings.size).toBe(2)
 
-    await hook.result().request()
-    await waitFor(() => expect(hook.result().state).toBe('ocioso'))
-    await waitFor(() => expect(hook.result().holidayWarnings.size).toBe(0))
+    await requestSolver(hook)
 
+    expect(hook.result().holidayWarnings.size).toBe(0)
     expect(calls.items).toHaveLength(2)
   })
 })

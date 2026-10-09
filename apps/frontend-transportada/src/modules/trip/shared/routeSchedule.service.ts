@@ -20,6 +20,12 @@ export type RouteFinish = Readonly<{
 
 type ScheduleStop = Readonly<{ estimatedArrivalAt: null | string; sequence: number }>
 
+/**
+ * `includeNationalHoliday: false` é a montagem que já perguntou a `day-checks` (spec 252 T5.3): o feriado, nacional ou
+ * não, passa a ser aviso de cada parada, e o do término só repetiria a metade dele. O fim de semana continua aqui.
+ */
+type WarningOptions = Readonly<{ includeNationalHoliday: boolean }>
+
 const SECONDS_PER_MINUTE = 60
 
 /**
@@ -30,6 +36,7 @@ const SECONDS_PER_MINUTE = 60
 export function resolveRouteFinish(input: {
   readonly distanceMetres: null | number
   readonly durationSeconds: null | number
+  readonly includeNationalHoliday?: boolean
   readonly stops: readonly ScheduleStop[]
 }): RouteFinish {
   const ultima = [...input.stops]
@@ -46,7 +53,12 @@ export function resolveRouteFinish(input: {
       input.durationSeconds === null
         ? null
         : Math.round(input.durationSeconds / SECONDS_PER_MINUTE),
-    warnings: arrivalIso === null ? [] : resolveWarnings(arrivalIso),
+    warnings:
+      arrivalIso === null
+        ? []
+        : resolveWarnings(arrivalIso, {
+            includeNationalHoliday: input.includeNationalHoliday ?? true,
+          }),
   }
 }
 
@@ -57,11 +69,14 @@ export function resolveRouteFinish(input: {
  * à revelia de quem responde por ela. Estouro de janela do cliente já vem do solver, em
  * `violations` — é lá que ele deve ser lido, não recalculado aqui.
  */
-function resolveWarnings(arrivalIso: string): readonly RouteFinishWarning[] {
+function resolveWarnings(
+  arrivalIso: string,
+  options: WarningOptions,
+): readonly RouteFinishWarning[] {
   const dia = arrivalIso.slice(0, 10)
   const warnings: RouteFinishWarning[] = []
 
-  const feriado = findBrazilianHoliday(dia)
+  const feriado = options.includeNationalHoliday ? findBrazilianHoliday(dia) : undefined
   if (feriado !== undefined) warnings.push({ detail: feriado, kind: 'feriado' })
 
   /** `T12:00` neutraliza o fuso: `new Date('2026-09-05')` é meia-noite UTC e volta um dia em SP. */

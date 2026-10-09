@@ -46,6 +46,7 @@ import { TripArrivalDialog } from './TripArrivalDialog.component'
 import { TripDeliveryDeadlineBadge } from './TripDeliveryDeadlineBadge.component'
 import { TripDocumentData } from './TripDocumentData.component'
 import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
+import { TripStopHolidayBadge } from './TripStopHolidayBadge.component'
 import {
   TripStopOccurrenceDialog,
   type TripStopOccurrenceSubmission,
@@ -315,8 +316,13 @@ function TripStopCard({
    * `gap` da coluna abriria um respiro vazio entre o título e a lista de notas (`web.md` §10, sem
    * elemento fantasma ocupando ritmo vertical).
    */
+  const holidayWarnings = stop.holidayWarnings ?? []
   const hasCardMeta =
-    stop.hasOpenOccurrence === true || stop.arrivedAt !== null || canArrive || canRegisterOccurrence
+    stop.hasOpenOccurrence === true ||
+    stop.arrivedAt !== null ||
+    holidayWarnings.length > 0 ||
+    canArrive ||
+    canRegisterOccurrence
 
   return (
     <li
@@ -385,6 +391,10 @@ function TripStopCard({
               </span>
             ) : null}
             <StopExecution stop={stop} />
+            {/* Spec 252 T5.3: o feriado na entrega prevista desta parada. Só informa; nenhuma ação depende dele. */}
+            {holidayWarnings.length > 0 ? (
+              <TripStopHolidayBadge warnings={holidayWarnings} />
+            ) : null}
             {/*
              * Spec 180: as duas ações de campo por parada — vieram de `TripFieldActions`, que
              * existia só para elas. Mesmo gate de lá (`canReportOnBehalf` + capacidade da parada),

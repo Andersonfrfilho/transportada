@@ -13,6 +13,7 @@ import { describe, expect, it } from 'bun:test'
 import { i18n } from '../../src/modules/shared/i18n/i18n.service'
 import {
   createDayChecksClient,
+  DayChecksRequestError,
   type DayChecksClient,
 } from '../../src/modules/trip/shared/dayChecksClient.service'
 import {
@@ -137,10 +138,7 @@ describe('o aviso volta para a parada certa', () => {
   it('casa pelo par cidade e dia: as duas paradas de Campinas no dia 13, e só elas', () => {
     const byStop = matchDayCheckWarnings({ targets: plan.targets, warnings: [campinasWarning] })
 
-    expect([...byStop.keys()]).toEqual([
-      `${CAMPINAS}|13010001|45`,
-      `${CAMPINAS}|13010002|10`,
-    ])
+    expect([...byStop.keys()]).toEqual([`${CAMPINAS}|13010001|45`, `${CAMPINAS}|13010002|10`])
     expect(byStop.get(`${CAMPINAS}|13010001|45`)).toEqual([campinasWarning])
   })
 
@@ -340,6 +338,15 @@ describe('locale do aviso de feriado', () => {
   })
 })
 
+async function rejectionOf(run: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await run()
+  } catch (error) {
+    return error
+  }
+  throw new Error('NOT_REJECTED')
+}
+
 describe('cliente de `POST /business-calendar/day-checks`', () => {
   type Recorded = { body: string; headers: Headers; method: string; url: string }
 
@@ -393,14 +400,22 @@ describe('cliente de `POST /business-calendar/day-checks`', () => {
     for (const status of [403, 422, 500]) {
       const { client } = setup(() => json({ error: { code: 'X', message: 'x' } }, status))
 
-      await expect(client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }])).rejects.toThrow()
+      const failure = await rejectionOf(() =>
+        client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }]),
+      )
+
+      expect(failure).toBeInstanceOf(DayChecksRequestError)
     }
   })
 
   it('resposta fora do formato é recusada, não aceita pela metade', async () => {
     const { client } = setup(() => json({ data: [{ ...campinasWarning, cityIbgeCode: 'x' }] }))
 
-    await expect(client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }])).rejects.toThrow()
+    const failure = await rejectionOf(() =>
+      client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }]),
+    )
+
+    expect(failure).toBeInstanceOf(DayChecksRequestError)
   })
 
   it('rede que cai também é falha', async () => {
@@ -410,7 +425,11 @@ describe('cliente de `POST /business-calendar/day-checks`', () => {
       getAccessToken: () => Promise.resolve('t'),
     })
 
-    await expect(client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }])).rejects.toThrow()
+    const failure = await rejectionOf(() =>
+      client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }]),
+    )
+
+    expect(failure).toBeInstanceOf(DayChecksRequestError)
   })
 })
 
