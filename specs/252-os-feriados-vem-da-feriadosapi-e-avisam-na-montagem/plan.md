@@ -104,11 +104,13 @@ antes) com `migration.sql`, `rollback.sql` e `snapshot.json`; tabelas, colunas e
 (nenhum nome padrão do drizzle: o da FK de `municipal_holidays.provider_entry_id` teria 67 bytes). Ordem dentro do
 arquivo: primeiro as tabelas novas, depois as duas CHECK de `job` e a linha de `job_schedules` **pausada de fábrica**
 (`enabled = false`, `paused_at = now()`, `paused_origin = 'system'`, 86.400 s; D13), **por último** os comandos em
-`municipal_holidays` e `state_holidays` (lock retido até o `COMMIT` do lote, ADR-0096 §5). O `rollback.sql` recusa
-se houver execução da rotina aberta (`finished_at` nulo), apaga o histórico dela em `job_executions` e a linha de
-`job_schedules` (molde da 237), devolve as CHECK de `job` com a lista de antes, deixa as linhas importadas como datas
-digitadas comuns (o roteirizador continua respeitando-as) e apaga FKs, índices, colunas e tabelas novas. A cópia do
-schema no worker ganha só o que a rotina lê/escreve.
+`municipal_holidays` e `state_holidays` (lock retido até o `COMMIT` do lote, ADR-0096 §5; `state_holidays` primeiro e
+`municipal_holidays`, que o roteirizador lê, por último). O `rollback.sql` **recusa** se houver feriado importado
+(municipal ou estadual), supressão do operador ou execução da rotina aberta (`finished_at` nulo) — decisão da T2.2: sem
+recusa a proveniência some e a data vira "digitada" sem ninguém decidir; o operador apaga ou adota os importados antes. Sem
+elas, apaga o histórico da rotina em `job_executions` e a linha de `job_schedules` (molde da 237), devolve as CHECK de
+`job` com a lista de antes (as datas digitadas e as geradas por regra não são tocadas) e apaga FKs, índices, colunas e
+tabelas novas. A cópia do schema no worker ganha só o que a rotina lê/escreve.
 
 Catálogo: o painel aprende o nome primeiro (rótulo e locale), depois API, worker e cron com a migration.
 
