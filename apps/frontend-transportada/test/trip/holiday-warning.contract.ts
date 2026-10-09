@@ -8,7 +8,7 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 
 import { i18n } from '../../src/modules/shared/i18n/i18n.service'
 import {
@@ -416,6 +416,29 @@ describe('cliente de `POST /business-calendar/day-checks`', () => {
     )
 
     expect(failure).toBeInstanceOf(DayChecksRequestError)
+  })
+
+  it('o `fetch` leva um limite de 5 s: rota que não responde cai no aviso nacional, não espera sem fim (spec 252 T6.1b)', async () => {
+    const timeoutSpy = spyOn(AbortSignal, 'timeout')
+    try {
+      const signals: (AbortSignal | null | undefined)[] = []
+      const client = createDayChecksClient({
+        apiUrl: 'http://api.test',
+        fetch: (_input, init) => {
+          signals.push(init?.signal)
+          return Promise.resolve(json({ data: [] }))
+        },
+        getAccessToken: () => Promise.resolve('t'),
+      })
+
+      await client.check([{ cityIbgeCode: CAMPINAS, date: '2026-10-13' }])
+
+      expect(timeoutSpy).toHaveBeenCalledTimes(1)
+      expect(timeoutSpy).toHaveBeenCalledWith(5_000)
+      expect(signals[0]).toBe(timeoutSpy.mock.results[0]?.value as AbortSignal)
+    } finally {
+      timeoutSpy.mockRestore()
+    }
   })
 
   it('rede que cai também é falha', async () => {
