@@ -6,7 +6,7 @@
  * a entrada apontada perdeu a data (`removed_at`); nenhum id do cache sai. Junto de
  * `holiday-import-status.query.ts` e `holiday-import-usage.query.ts`, é um dos arquivos que a API deixa tocar o cache.
  */
-import { and, asc, eq, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, gte, isNotNull } from 'drizzle-orm'
 
 import { municipalHolidays } from '../../database/delivery-client.schema.js'
 import { holidayProviderEntries } from '../../database/holiday-provider.schema.js'
@@ -20,13 +20,14 @@ import type { BusinessCalendarDatabase } from './business-calendar-database.type
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 
 type Executor = Pick<BusinessCalendarDatabase, 'select'>
+type Scope = { readonly companyId: string; readonly today: string }
 
 const REMOVED_LIST_LIMIT = 200
 
 /** Os dois pedidos pedem um a mais que o teto: sobrar é o que diz que a lista foi cortada. */
 const REMOVED_QUERY_LIMIT = REMOVED_LIST_LIMIT + 1
 
-function listRemovedCityHolidays(executor: Executor, companyId: string) {
+function listRemovedCityHolidays(executor: Executor, { companyId, today }: Scope) {
   return executor
     .select({
       holidayId: municipalHolidays.id,
@@ -40,13 +41,17 @@ function listRemovedCityHolidays(executor: Executor, companyId: string) {
       eq(holidayProviderEntries.id, municipalHolidays.providerEntryId),
     )
     .where(
-      and(eq(municipalHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)),
+      and(
+        eq(municipalHolidays.companyId, companyId),
+        isNotNull(holidayProviderEntries.removedAt),
+        gte(municipalHolidays.holidayOn, today),
+      ),
     )
     .orderBy(asc(municipalHolidays.holidayOn), asc(municipalHolidays.cityIbgeCode))
     .limit(REMOVED_QUERY_LIMIT)
 }
 
-function listRemovedStateHolidays(executor: Executor, companyId: string) {
+function listRemovedStateHolidays(executor: Executor, { companyId, today }: Scope) {
   return executor
     .select({
       holidayId: stateHolidays.id,
@@ -56,18 +61,27 @@ function listRemovedStateHolidays(executor: Executor, companyId: string) {
     })
     .from(stateHolidays)
     .innerJoin(holidayProviderEntries, eq(holidayProviderEntries.id, stateHolidays.providerEntryId))
-    .where(and(eq(stateHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)))
+    .where(
+      and(
+        eq(stateHolidays.companyId, companyId),
+        isNotNull(holidayProviderEntries.removedAt),
+        gte(stateHolidays.holidayOn, today),
+      ),
+    )
     .orderBy(asc(stateHolidays.holidayOn), asc(stateHolidays.stateIbgeCode))
     .limit(REMOVED_QUERY_LIMIT)
 }
 
-/** A data que o fornecedor deixou de listar, nas linhas da própria empresa: elas ficam, sinalizadas. */
+/**
+ * A data que o fornecedor deixou de listar, nas linhas da própria empresa: elas ficam, sinalizadas. Só de
+ * hoje em diante: desligar data passada é sempre 409 (D7), então ela não tem o que oferecer ao operador.
+ */
 export async function listRemovedByProvider(
   executor: Executor,
-  companyId: string,
+  scope: Scope,
 ): Promise<HolidayImportRemovedList> {
-  const cityRows = await listRemovedCityHolidays(executor, companyId)
-  const stateRows = await listRemovedStateHolidays(executor, companyId)
+  const cityRows = await listRemovedCityHolidays(executor, scope)
+  const stateRows = await listRemovedStateHolidays(executor, scope)
   const merged: HolidayImportRemovedHoliday[] = [
     ...cityRows.map((row) => ({ ...row, scope: HOLIDAY_PROVIDER_SCOPE.CITY })),
     ...stateRows.map((row) => ({

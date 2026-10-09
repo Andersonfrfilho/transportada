@@ -108,12 +108,16 @@ export class DrizzleHolidayImportStatusRepository implements HolidayImportStatus
   public async readStatus(input: {
     readonly companyId: string
     readonly month: string
+    readonly today: string
     readonly years: BusinessCalendarCoverage
   }): Promise<HolidayImportStatus> {
     const { companyId, years } = input
     const totalCities = await countCompanyCities(this.database, companyId)
     const summary = await readFetchSummary(this.database, { companyId, years })
-    const removedByProvider = await listRemovedByProvider(this.database, companyId)
+    const removedByProvider = await listRemovedByProvider(this.database, {
+      companyId,
+      today: input.today,
+    })
     const monthlyRequests = await readMonthlyRequests(this.database, { month: input.month })
     const [settings] = await this.database
       .select({ isEnabled: companyHolidayImportSettings.isEnabled })

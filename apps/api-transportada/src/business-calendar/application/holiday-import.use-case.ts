@@ -79,10 +79,14 @@ export function createHolidayImportUseCases({
         return statusRepository.readStatus({
           companyId,
           month: `${today.slice(0, 7)}-01`,
+          today,
           years: resolveHorizon(today),
         })
       },
     },
-    suppressions: { execute: (input) => suppressionRepository.list(input) },
+    suppressions: {
+      execute: (input) =>
+        suppressionRepository.list({ ...input, today: resolveToday({ now: now() }) }),
+    },
   }
 }
