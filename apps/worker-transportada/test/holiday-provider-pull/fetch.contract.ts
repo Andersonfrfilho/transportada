@@ -425,6 +425,25 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(store.records.size).toBe(3)
   })
 
+  test('qualquer outra resposta do fornecedor (aqui um 404 de cidade) também zera a contagem de falhas seguidas', async () => {
+    let calls = 0
+    const { run } = setup({
+      respond: (request) => {
+        calls += 1
+        // 1 e 2: os nacionais falham; 3: a cidade responde 404; 4: falha de novo — são 3 no total, mas não seguidas.
+        if (calls === 3) return failWith(HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND)
+        if (calls <= 2 || calls === 4) return failWith(HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE)
+        return defaultResponse(request)
+      },
+    })
+
+    const tally = await run()
+
+    expect(tally.circuitOpened).toBeFalse()
+    expect(tally.unreachable).toBe(3)
+    expect(tally.requests).toBeGreaterThan(4)
+  })
+
   test('uma resposta boa no meio zera a contagem: 2 falhas, 1 boa, 2 falhas não abrem o disjuntor', async () => {
     let calls = 0
     const { run, store } = setup({
