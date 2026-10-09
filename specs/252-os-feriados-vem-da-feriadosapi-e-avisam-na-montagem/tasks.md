@@ -78,15 +78,15 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
       `source_rule_id`/`provider_entry_id`, CHECK de importada só `once` no estadual, índices parciais, CHECK de `job`
       com o nome novo, a linha de `job_schedules` **pausada de fábrica** (D13), os **nomes** de constraint e índice do
       ADR-0100 §3 (todos ≤ 63 bytes, nenhum padrão do drizzle), `rollback.sql` (estático). **Feita em 2026-10-07**
-      (`20b0cff74`, 118 pass / 13 fail pelo motivo certo). `evidence.md` § T2.1.
+      (`76d9245c2`, 118 pass / 13 fail pelo motivo certo). `evidence.md` § T2.1.
 - [ ] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
       hora de gerar — hoje `20261007205304`, da 250) + `rollback.sql` + `snapshot.json` + schema
       Drizzle; comandos em tabela publicada no fim do arquivo; `make migration-test`; `db:generate` = `no_changes`;
       integração do roteirizador verde depois dela. Revisão `opus` em passada separada. **Só staging.** (CA2)
-      **Entregue em `7e7a9ae4a`** (`20261007215646_holiday_provider_import`), **falta fechar com a T2.3:** o snapshot traz
+      **Entregue em `54539fce7`** (`20261009040622_holiday_provider_import`, rebaseada em staging `4f04022ba`), **falta fechar com a T2.3:** o snapshot traz
       `holiday.provider.pull` nas duas CHECK de `job` e o nome ainda não está no catálogo TS, então
       `schema-snapshot.contract` fica vermelho e `db:generate` não dá `no_changes` (com o nome provisório no catálogo:
-      131 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. Pendente: revisão `opus`.
+      138 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. Pendente: revisão `opus`.
       `evidence.md` § T2.2.
 - [ ] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
       locale pt-BR/en, `minimumIntervalSeconds: 3_600` e o vocabulário de falha; paridade verde nas quatro apps
