@@ -2,12 +2,19 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-width: 9rem;
+  min-width: 11rem;
+  white-space: normal;
 }
 
 .measure {
   display: flex;
   flex-direction: column;
+}
+
+/* As listras animadas dizem "carregando"; numa lista de 20 linhas a ocupação é um número parado. */
+.measure [role='progressbar'] > div::after {
+  animation: none;
+  opacity: 0;
 }
 
 .measureMissing {
@@ -31,11 +38,16 @@
   flex-direction: column;
   gap: var(--space-1);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .resultLine {
   color: var(--color-fog);
+}
+
+.resultPart {
+  display: block;
+  white-space: nowrap;
 }
 
 .profit {
@@ -55,7 +67,7 @@
 .mark {
   border-radius: var(--radius-sm, 0.25rem);
   background: color-mix(in srgb, var(--color-slate) 18%, transparent);
-  color: var(--color-slate);
+  color: var(--color-fog);
   font-size: var(--font-size-xs, 0.75rem);
   padding-inline: var(--space-2);
 }

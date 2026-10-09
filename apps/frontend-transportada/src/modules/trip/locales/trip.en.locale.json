@@ -1208,6 +1208,7 @@
         "trailerMissing": "no trailer attached"
       },
       "noVehicle": "No vehicle",
+      "overCapacity": "over the limit",
       "volume": "Volume",
       "volumeMissing": "no capacity in m³",
       "weight": "Weight",
