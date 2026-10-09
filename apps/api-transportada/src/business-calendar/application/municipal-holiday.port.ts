@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { ManagedHolidayOrigin, MunicipalHolidayKind } from '../domain/business-calendar.types.js'
+import type {
+  ManagedHolidayOrigin,
+  MunicipalHolidayKind,
+} from '../domain/business-calendar.types.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
 
 /**
