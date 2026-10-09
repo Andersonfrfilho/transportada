@@ -395,6 +395,7 @@ import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-iss
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
 import { readTripListFinancials } from './trips/application/read-trip-list-financials.use-case.js'
 import { readTripRevenueTotals } from './trips/application/read-trip-revenue-totals.use-case.js'
+import { readTripListOccupancies } from './trips/infrastructure/trip-list-occupancy.query.js'
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
@@ -2531,6 +2532,8 @@ function createApplicationRoutes({
     },
     locations: tripLocationRepository,
     logger,
+    /** Spec 259: peso e volume da linha de `/trips`, em lote, pelas mesmas políticas do detalhe. */
+    occupancies: { read: (input) => readTripListOccupancies(database, input) },
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })

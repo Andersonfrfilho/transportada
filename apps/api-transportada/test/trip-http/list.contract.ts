@@ -206,3 +206,36 @@ describe('GET /trips', () => {
     })
   })
 })
+
+describe('GET /trips occupancy (spec 259 RF1)', () => {
+  const OCCUPANCY = {
+    capacityUnknownReason: null,
+    volume: { documentsWithoutVolume: 0, occupancyRatio: '0.7500', source: 'measured' },
+    weight: { documentsWithoutWeight: 1, payloadRatio: '0.4000', source: 'declared' },
+  } as const
+
+  async function occupancyOf(occupancy: (typeof TRIP_PAGE.items)[number]['occupancy']) {
+    const [first] = TRIP_PAGE.items
+    const fixture = await createTripHttpFixture({
+      listTripsResult: { ...TRIP_PAGE, items: [{ ...first, occupancy }] } as typeof TRIP_PAGE,
+      permissions: READ_ONLY_PERMISSIONS,
+    })
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+    const body = (await response.json()) as { data: readonly Record<string, unknown>[] }
+
+    return body.data[0] ?? {}
+  }
+
+  test('serves the occupancy to who has no trip.financials: it is not money', async () => {
+    expect((await occupancyOf(OCCUPANCY)).occupancy).toEqual(OCCUPANCY)
+  })
+
+  test('serves null for a trip without vehicle, and omits the key when it was not computed', async () => {
+    const withoutVehicle = await occupancyOf(null)
+    const notComputed = await occupancyOf(undefined)
+
+    expect(Object.hasOwn(withoutVehicle, 'occupancy')).toBe(true)
+    expect(withoutVehicle.occupancy).toBeNull()
+    expect(Object.hasOwn(notComputed, 'occupancy')).toBe(false)
+  })
+})
