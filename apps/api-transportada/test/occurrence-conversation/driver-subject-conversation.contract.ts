@@ -426,6 +426,17 @@ const SUBJECT_SOURCE_FILES = [
   'application/driver-conversation-subject.port.ts',
   'application/driver-subject-access.service.ts',
   'application/driver-subject-write.port.ts',
+  'application/close-trip-subject-conversation.use-case.ts',
+  'application/list-office-subject-messages.use-case.ts',
+  'application/list-trip-subject-conversations.use-case.ts',
+  'application/mark-office-subject-read.use-case.ts',
+  'application/office-subject-access.service.ts',
+  'application/office-subject-conversation.port.ts',
+  'application/office-subject-conversation.types.ts',
+  'application/open-trip-subject-conversation.use-case.ts',
+  'application/request-office-subject-upload.use-case.ts',
+  'application/send-office-subject-message.support.ts',
+  'application/send-office-subject-message.use-case.ts',
   'application/driver-subject-conversation.types.ts',
   'application/list-my-subject-conversations.use-case.ts',
   'application/list-my-subject-messages.use-case.ts',
@@ -439,8 +450,15 @@ const SUBJECT_SOURCE_FILES = [
   'infrastructure/driver-subject-lookup.query.ts',
   'infrastructure/drizzle-driver-conversation-subject.repository.ts',
   'infrastructure/drizzle-driver-subject-write.repository.ts',
+  'infrastructure/drizzle-office-subject-conversation.repository.ts',
+  'infrastructure/office-subject-list.query.ts',
+  'infrastructure/office-subject-lookup.query.ts',
+  'infrastructure/office-subject-message.query.ts',
+  'infrastructure/office-subject-notifier.adapter.ts',
   'presentation/me-subject-conversation-write.routes.ts',
   'presentation/me-subject-conversation.routes.ts',
+  'presentation/office-subject-conversation-write.routes.ts',
+  'presentation/office-subject-conversation.routes.ts',
 ] as const
 
 describe('a conversa por assunto nunca decide (spec 260 D4)', () => {
@@ -470,6 +488,8 @@ describe('a conversa por assunto nunca decide (spec 260 D4)', () => {
       'application/reply-my-subject-conversation.support.ts',
       'application/reply-my-subject-conversation.use-case.ts',
       'presentation/me-subject-conversation-write.routes.ts',
+      'application/send-office-subject-message.use-case.ts',
+      'presentation/office-subject-conversation-write.routes.ts',
     ]) {
       const source = await readFile(new URL(file, root), 'utf8')
       expect(findDecisionWriters(source)).toEqual([])
@@ -483,7 +503,9 @@ describe('a conversa por assunto nunca decide (spec 260 D4)', () => {
 
   test('a lista de arquivos cobre tudo o que é da conversa por assunto', async () => {
     const files = (await readdir(root, { recursive: true })).filter((file) =>
-      /(subject-conversation|conversation-subject|driver-subject|my-subject)/u.test(file),
+      /(subject-conversation|conversation-subject|driver-subject|my-subject|office-subject|trip-subject)/u.test(
+        file,
+      ),
     )
     const covered = new Set<string>(SUBJECT_SOURCE_FILES)
     const uncovered = files

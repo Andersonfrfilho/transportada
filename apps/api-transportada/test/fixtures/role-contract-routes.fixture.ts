@@ -31,6 +31,8 @@ import { createDeliveryChargeRoutes } from '../../src/delivery-clients/presentat
 import { createMeOccurrenceConversationRoutes } from '../../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createMeSubjectConversationRoutes } from '../../src/occurrence-conversation/presentation/me-subject-conversation.routes'
 import { createMeSubjectConversationWriteRoutes } from '../../src/occurrence-conversation/presentation/me-subject-conversation-write.routes'
+import { createOfficeSubjectConversationRoutes } from '../../src/occurrence-conversation/presentation/office-subject-conversation.routes'
+import { createOfficeSubjectConversationWriteRoutes } from '../../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 
 /** Dependência falsa: a rota só é montada para ler a política dela. */
 export function buildRoleContractRoutes(
@@ -57,6 +59,10 @@ export function buildRoleContractRoutes(
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
+    // Spec 260 T2.4b: a conversa de nota e de viagem pelo escritório — `fleet.read` lê, `trip.manage` escreve;
+    // o ajudante (só `trip.read`) não alcança nenhuma.
+    ...createOfficeSubjectConversationRoutes(dependencies),
+    ...createOfficeSubjectConversationWriteRoutes(dependencies),
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),

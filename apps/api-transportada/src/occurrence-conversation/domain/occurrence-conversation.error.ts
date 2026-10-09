@@ -262,3 +262,17 @@ export class ConversationClosedError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 260 T2.4b (ADR-0101 §3): o escritório abre ou escreve na conversa de uma nota ou da viagem, mas a
+ * viagem não tem motorista principal com vínculo ativo — não há a quem entregar a mensagem.
+ */
+export class ConversationNoDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_NO_DRIVER',
+      message: 'The trip has no active driver to talk to',
+      status: 409,
+    })
+  }
+}

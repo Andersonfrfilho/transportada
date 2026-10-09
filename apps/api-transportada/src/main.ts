@@ -444,6 +444,17 @@ import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
 import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
+import { createOfficeSubjectConversationRoutes } from './occurrence-conversation/presentation/office-subject-conversation.routes.js'
+import { createOfficeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/office-subject-conversation-write.routes.js'
+import { createListTripSubjectConversationsUseCase } from './occurrence-conversation/application/list-trip-subject-conversations.use-case.js'
+import { createListOfficeSubjectMessagesUseCase } from './occurrence-conversation/application/list-office-subject-messages.use-case.js'
+import { createMarkOfficeSubjectReadUseCase } from './occurrence-conversation/application/mark-office-subject-read.use-case.js'
+import { createOpenTripSubjectConversationUseCase } from './occurrence-conversation/application/open-trip-subject-conversation.use-case.js'
+import { createCloseTripSubjectConversationUseCase } from './occurrence-conversation/application/close-trip-subject-conversation.use-case.js'
+import { createRequestOfficeSubjectUploadUseCase } from './occurrence-conversation/application/request-office-subject-upload.use-case.js'
+import { createSendOfficeSubjectMessageUseCase } from './occurrence-conversation/application/send-office-subject-message.use-case.js'
+import { createDrizzleOfficeSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-office-subject-conversation.repository.js'
+import { createOfficeSubjectNotifier } from './occurrence-conversation/infrastructure/office-subject-notifier.adapter.js'
 import { createReplyMySubjectConversationUseCase } from './occurrence-conversation/application/reply-my-subject-conversation.use-case.js'
 import { createRequestMySubjectUploadUseCase } from './occurrence-conversation/application/request-my-subject-upload.use-case.js'
 import { createDrizzleDriverSubjectWriteUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-subject-write.repository.js'
@@ -3432,6 +3443,54 @@ function createApplicationRoutes({
         unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /**
+     * Spec 260 T2.4b (ADR-0101): a conversa de nota e de viagem vista pelo escritório, por viagem. Ler é
+     * `fleet.read`; abrir, enviar, anexar e encerrar são `trip.manage`.
+     */
+    ...createOfficeSubjectConversationRoutes({
+      list: createListTripSubjectConversationsUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      markRead: createMarkOfficeSubjectReadUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      messages: createListOfficeSubjectMessagesUseCase({
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+    }),
+    ...createOfficeSubjectConversationWriteRoutes({
+      close: createCloseTripSubjectConversationUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      open: createOpenTripSubjectConversationUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      requestUpload: createRequestOfficeSubjectUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      send: createSendOfficeSubjectMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        notifier: createOfficeSubjectNotifier(
+          createDriverConversationNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+        ),
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
     }),
     ...createOccurrenceConversationUnassignedRoutes({
       assign: createAssignUnassignedMessageUseCase({

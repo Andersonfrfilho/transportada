@@ -94,6 +94,33 @@ CONVERSATION_CLOSED`. A ocorrência continua sempre `open`.
 `POST /occurrence-conversations/:id/read`. Escrita em nota e viagem: `trip.manage` (quem despacha fala com o motorista); a ocorrência
 continua com `occurrences.resolve`. Nota e viagem são só canal `app` na v1 (o envio grava `channel = 'app'`).
 
+**Como ficou (T2.4b).** Tudo parte da viagem do caminho; o assunto que não é dela (outra viagem, outra empresa, id inexistente) é o
+mesmo `404 CONVERSATION_NOT_FOUND`. `subjectType` aceita só `document | trip` — `occurrence` é `400` (a ocorrência não abre nem encerra por
+estas rotas).
+
+| Método e caminho                                        | Política      | Limite                                                               | Sucesso                                                       |
+| ------------------------------------------------------- | ------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `GET /trips/:tripId/conversations`                      | `fleet.read`  | —                                                                    | `200 { data: OfficeSummary[] }` (sem paginação, teto de 500)  |
+| `POST /trips/:tripId/conversations/open`                | `trip.manage` | **novo** `office-subject-conversation-state`: 60 / 300 s, Postgres   | `201 { data: OfficeSummary }`; `200` se já existia            |
+| `GET …/:subjectType/:subjectId/messages?before=&limit=` | `fleet.read`  | —                                                                    | `200 { data: Message[] }` crescente; sem conversa → `[]`      |
+| `POST …/:subjectType/:subjectId/messages`               | `trip.manage` | **mesmo** `OCCURRENCE_CONVERSATION_RATE_LIMIT` (balde compartilhado) | `201 { data: Message }`; repetição da chave `200`             |
+| `POST …/:subjectType/:subjectId/messages/read`          | `fleet.read`  | —                                                                    | `204` (marca lidas, por usuário, as mensagens do motorista)   |
+| `POST …/:subjectType/:subjectId/uploads`                | `trip.manage` | **mesmo** `OCCURRENCE_CONVERSATION_UPLOAD_RATE_LIMIT`                | `201 { data }`; exige conversa aberta antes (`404` se não há) |
+| `POST …/:subjectType/:subjectId/close`                  | `trip.manage` | `office-subject-conversation-state`                                  | `200 { data: OfficeSummary }`; idempotente                    |
+
+- `OfficeSummary` = o `Summary` do motorista com `driverName` (nome curto do destinatário, ou `null`) e `unreadCount` do ponto de vista
+  do escritório: mensagens `inbound` depois da última que **o usuário** marcou como lida (`occurrence_conversation_reads`).
+- **Abrir também reabre** a que o escritório encerrou, se o assunto continua válido; nota liberada ou viagem terminal é `409
+CONVERSATION_CLOSED`. Não existe rota `reopen`.
+- Abrir e enviar levam a conversa ao motorista **principal de agora** (`retarget`); sem principal com vínculo ativo, `409
+CONVERSATION_NO_DRIVER` (código novo). Enviar também cria a conversa se ainda não existe; pedir arquivo, não.
+- Envio: idempotência na operação `conversation.app.send`, com impressão digital `[empresa, autor, tipo, id, corpo, anexos]` — a mesma chave de
+  outro operador ou com outro corpo é `409 OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED`; a repetição responde mesmo se a conversa
+  encerrou depois. O aviso sai uma vez, depois da transação, pelo gateway de hoje com o rótulo do assunto (ponto de extensão da T2.5:
+  `office-subject-notifier.adapter.ts`).
+- Marcar lida usa rota nova por assunto (a antiga `POST /occurrence-conversations/:id/read` não confere a viagem e exigiria o id da
+  conversa na resposta); ela chama o mesmo escritor de leitura, sem alterá-lo.
+
 ## Aviso do sino (T2.5)
 
 `occurrence`: a mesma chave `trip.conversation-message`, mesmo template e marcador `occurrenceLabel`; o `payload` ganha campos extras

@@ -15,6 +15,7 @@ import { createContractorMailSettingsRoutes } from '../src/contractor-mail/prese
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
 import { createLocationRetentionSettingsRoutes } from '../src/companies/presentation/location-retention-settings.routes'
 import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.routes'
@@ -364,6 +365,59 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
   })
 
   /**
+   * Spec 260 T2.4b: o escritório fala com o motorista na nota e na viagem. Envio e subida de arquivo
+   * dividem o balde das rotas antigas do escritório (alternar de rota não dobra a cota); abrir e encerrar
+   * gravam linha e têm o balde deles.
+   */
+  test('a conversa de nota e de viagem pelo escritório conta no Postgres', () => {
+    const routes = createOfficeSubjectConversationWriteRoutes(unusedDependencies() as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'office-subject-conversation-state',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/open',
+      },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'office-subject-conversation-state',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
+      },
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',
+      },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'occurrence-conversation-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/uploads',
+      },
+    ])
+  })
+
+  /**
    * Spec 183 T702a: o motorista pede upload num balde próprio. T903 (achado S3): responder também —
    * cada resposta pode ler até 5 × 25 MB do bucket numa transação; ler segue sem teto.
    */
@@ -629,6 +683,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-subject-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/office-subject-conversation-write.routes.ts',
       'trips/presentation/me-client-diagnostics.routes.ts',
       'trips/presentation/me-location.routes.ts',
       'trips/presentation/me-proof-receiver.routes.ts',

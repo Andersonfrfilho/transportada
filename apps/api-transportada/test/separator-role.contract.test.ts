@@ -28,6 +28,8 @@ import { resolveCompanyPermissions } from '../src/identity/domain/authorization.
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createOfficeSubjectConversationRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation.routes'
+import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentation/quick-replies.routes'
 import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
@@ -106,6 +108,10 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
+    // Spec 260 T2.4b: a conversa de nota e de viagem. Ler é `fleet.read`; escrever é `trip.manage` — quem
+    // despacha fala com o motorista, e o separador monta e despacha. A ocorrência continua `occurrences.resolve`.
+    ...createOfficeSubjectConversationRoutes(dependencies),
+    ...createOfficeSubjectConversationWriteRoutes(dependencies),
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
@@ -354,6 +360,9 @@ describe('separator role contract', () => {
        * separador já enxerga cada uma delas espalhada; aqui é a mesma informação, só unida.
        */
       'GET /trips/:id/timeline',
+      // Spec 260 T2.4b: as conversas de nota e de viagem da viagem, lidas sob `fleet.read`.
+      'GET /trips/:tripId/conversations',
+      'GET /trips/:tripId/conversations/:subjectType/:subjectId/messages',
       /**
        * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
        * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
@@ -466,6 +475,12 @@ describe('separator role contract', () => {
       /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
       'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/schedule',
+      // Spec 260 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages/read',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/uploads',
+      'POST /trips/:tripId/conversations/open',
       /**
        * ⚠️ **Decisão escrita (spec 085 G002/G003):** o separador **alcança** a prévia de carga. Ela
        * responde "cabe no baú, e em que ordem entra?", que é a pergunta de quem carrega o caminhão
