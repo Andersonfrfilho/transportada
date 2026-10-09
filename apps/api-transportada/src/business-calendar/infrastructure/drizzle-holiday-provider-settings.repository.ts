@@ -15,23 +15,22 @@ import type {
   SaveHolidayProviderSettingsInput,
   SealedHolidayProviderToken,
 } from '../application/holiday-provider-settings.port.js'
-import {
-  BUSINESS_CALENDAR_AUDIT_ACTION,
-  BUSINESS_CALENDAR_AUDIT_TARGET,
-  HOLIDAY_IMPORT_CONFIGURE_PERMISSION,
-} from '../domain/business-calendar-audit.constant.js'
+import { BUSINESS_CALENDAR_AUDIT_ACTION } from '../domain/business-calendar-audit.constant.js'
 import { HolidayProviderSettingsVersionConflictError } from '../domain/holiday-provider-settings.error.js'
-import { appendBusinessCalendarAudit } from './business-calendar-audit.support.js'
 import type {
   BusinessCalendarDatabase,
   BusinessCalendarTransaction,
 } from './business-calendar-database.types.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
+import {
+  auditHolidayProviderSettings,
+  CHANGED_FIELD,
+  listChangedFields,
+} from './holiday-provider-settings-audit.support.js'
 
 type SettingsRow = typeof holidayProviderSettings.$inferSelect
 
 const PROVIDER = HOLIDAY_PROVIDER_SETTINGS_PROVIDERS[0]
-const CHANGED_FIELD = { BUDGET: 'monthlyRequestBudget', TOKEN: 'token' } as const
 
 /**
  * Spec 262 (ADR-0102 §3): a chave da FeriadosAPI e o orçamento da INSTALAÇÃO — tabela global, sem `company_id`, e este
@@ -87,7 +86,7 @@ export class DrizzleHolidayProviderSettingsRepository implements HolidayProvider
             .returning()
         )[0],
       )
-      await audit({
+      await auditHolidayProviderSettings({
         action: BUSINESS_CALENDAR_AUDIT_ACTION.HOLIDAY_PROVIDER_TOKEN_REMOVED,
         actor: input,
         after: row,
@@ -118,7 +117,7 @@ async function createSettings(params: {
   // Perdeu a corrida de criação: o envelope recém-selado (com o id que não vingou) é descartado.
   if (row === undefined) throw new HolidayProviderSettingsVersionConflictError()
 
-  await audit({
+  await auditHolidayProviderSettings({
     action: BUSINESS_CALENDAR_AUDIT_ACTION.HOLIDAY_PROVIDER_SETTINGS_SAVED,
     actor: input,
     after: row,
@@ -171,7 +170,7 @@ async function updateSettings(params: {
   )[0]
   if (row === undefined) throw new HolidayProviderSettingsVersionConflictError()
 
-  await audit({
+  await auditHolidayProviderSettings({
     action: BUSINESS_CALENDAR_AUDIT_ACTION.HOLIDAY_PROVIDER_SETTINGS_SAVED,
     actor: input,
     after: row,
@@ -186,51 +185,6 @@ function tokenColumns(sealed: SealedHolidayProviderToken | undefined) {
   return sealed === undefined
     ? {}
     : { tokenEnvelope: sealed.envelope, tokenHint: sealed.hint, tokenUpdatedAt: new Date() }
-}
-
-/** Em ordem alfabética: é o que a trilha grava em `metadata.changedFields`. */
-function listChangedFields(params: {
-  readonly input: SaveHolidayProviderSettingsInput
-  readonly previous: SettingsRow | undefined
-}): readonly string[] {
-  const { input, previous } = params
-  const budgetChanged =
-    input.monthlyRequestBudget !== undefined &&
-    input.monthlyRequestBudget !== previous?.monthlyRequestBudget
-  return [
-    ...(budgetChanged ? [CHANGED_FIELD.BUDGET] : []),
-    ...(input.sealedToken === undefined ? [] : [CHANGED_FIELD.TOKEN]),
-  ]
-}
-
-/** Nunca a chave, a dica nem o envelope: só se há chave, o orçamento e a versão. */
-function toSnapshot(row: SettingsRow): Record<string, unknown> {
-  return {
-    monthlyRequestBudget: row.monthlyRequestBudget,
-    tokenConfigured: row.tokenEnvelope !== null,
-    version: row.version.toString(),
-  }
-}
-
-async function audit(params: {
-  readonly action: string
-  readonly actor: BusinessCalendarActor
-  readonly after: SettingsRow
-  readonly before: SettingsRow | null
-  readonly changedFields: readonly string[]
-  readonly transaction: BusinessCalendarTransaction
-}): Promise<void> {
-  await appendBusinessCalendarAudit({
-    action: params.action,
-    actor: params.actor,
-    after: toSnapshot(params.after),
-    before: params.before === null ? null : toSnapshot(params.before),
-    entityId: params.after.id,
-    metadata: { changedFields: params.changedFields },
-    permission: HOLIDAY_IMPORT_CONFIGURE_PERMISSION,
-    target: BUSINESS_CALENDAR_AUDIT_TARGET.HOLIDAY_PROVIDER_SETTINGS,
-    transaction: params.transaction,
-  })
 }
 
 function toRecord(row: SettingsRow): HolidayProviderSettingsRecord {
