@@ -201,6 +201,31 @@ describe('o aviso de feriado nas paradas do motorista — quais paradas e que di
     ])
   })
 
+  test('sem ETA: a parada em andamento avisa para hoje; a que ainda não começou não pergunta ao calendário', async () => {
+    const arrived = buildStop({ arrivedAt: '2026-10-23T01:00:00.000Z', id: 'stop-arrived-no-eta' })
+    const notStarted = buildStop({ id: 'stop-not-started-no-eta' })
+    const harness = buildHarness({
+      calendar: warnEveryStop((item) => item.date),
+      contexts: [
+        buildContext('stop-arrived-no-eta', { estimatedArrivalAt: null }),
+        buildContext('stop-not-started-no-eta', { estimatedArrivalAt: null }),
+      ],
+    })
+
+    const [trip] = await attachDriverStopHolidayWarnings({
+      companyId: COMPANY_ID,
+      dependency: harness.dependency,
+      now: NIGHT_OF_22_IN_SAO_PAULO,
+      trips: [buildTrip([arrived, notStarted])],
+    })
+
+    expect(harness.calendarCalls[0]?.items.map(({ date, key }) => ({ date, key }))).toEqual([
+      { date: '2026-10-22', key: 'stop-arrived-no-eta' },
+    ])
+    expect(trip?.stops[0]?.holidayWarnings).toHaveLength(1)
+    expect('holidayWarnings' in (trip?.stops[1] ?? {})).toBe(false)
+  })
+
   test('parada sem contexto (sem ETA) e cidade que não é código IBGE não perguntam ao calendário', async () => {
     const harness = buildHarness({
       contexts: [

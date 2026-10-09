@@ -202,6 +202,39 @@ describe('o aviso de feriado nas paradas de GET /me/trips/current (spec 252 T4.3
   )
 
   testWithPostgres(
+    'a parada em andamento sem ETA também avisa para hoje; a que não começou e não tem ETA, não',
+    async () => {
+      await withCargoDatabase(async (database) => {
+        await seedTypedHoliday(database, {
+          cityIbgeCode: CAMPINAS,
+          companyId: COMPANY_ID,
+          holidayOn: '2026-10-21',
+        })
+        const driver = await seedDriverAccount(database, COMPANY_ID)
+        const seeded = await seedDriverTrip(database, {
+          companyId: COMPANY_ID,
+          driver,
+          stops: [
+            { cityCode: CAMPINAS, estimatedArrivalAt: null },
+            { cityCode: CAMPINAS, estimatedArrivalAt: null },
+          ],
+        })
+        await markStopInProgress(database, {
+          at: NOW,
+          kind: 'en_route',
+          stopId: seeded.stopIds[0] ?? '',
+        })
+
+        const stops = await readStopsAsJson(database, driver)
+
+        expect(stops[0]?.holidayWarnings).toEqual([expect.objectContaining({ date: '2026-10-21' })])
+        expect('holidayWarnings' in (stops[1] ?? {})).toBe(false)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'hoje é o dia civil de São Paulo: às 22h30 do dia 22 o dia ainda é 22, mesmo já sendo 23 em UTC',
     async () => {
       await withCargoDatabase(async (database) => {
@@ -356,11 +389,22 @@ describe('o aviso do motorista custa +5 consultas fixas (spec 252 T4.3, CA15)', 
   )
 
   testWithPostgres(
-    'sem parada aberta: +0; aberta mas sem ETA: só a consulta do contexto (+1)',
+    'sem parada aberta: +0; aberta sem ETA e sem começar: só o contexto (+1); em andamento sem ETA: +5',
     async () => {
       await withCargoDatabase(async (database) => {
         const closed = await seedDriverAccount(database, COMPANY_ID)
         const withoutEta = await seedDriverAccount(database, COMPANY_ID)
+        const inProgressWithoutEta = await seedDriverAccount(database, COMPANY_ID)
+        const inProgress = await seedDriverTrip(database, {
+          companyId: COMPANY_ID,
+          driver: inProgressWithoutEta,
+          stops: [{ cityCode: CAMPINAS, estimatedArrivalAt: null }],
+        })
+        await markStopInProgress(database, {
+          at: NOW,
+          kind: 'arrived',
+          stopId: inProgress.stopIds[0] ?? '',
+        })
         await seedDriverTrip(database, {
           companyId: COMPANY_ID,
           driver: closed,
@@ -376,6 +420,9 @@ describe('o aviso do motorista custa +5 consultas fixas (spec 252 T4.3, CA15)', 
 
         expect((await extraQueries(database, closed)).extra).toBe(0)
         expect((await extraQueries(database, withoutEta)).extra).toBe(CONTEXT_ONLY_EXTRA_QUERIES)
+        expect((await extraQueries(database, inProgressWithoutEta)).extra).toBe(
+          WARNING_EXTRA_QUERIES,
+        )
       })
     },
     60_000,
