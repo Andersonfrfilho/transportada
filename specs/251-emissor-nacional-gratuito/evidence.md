@@ -278,3 +278,26 @@ reaberto no código. Mudanças que viram task: **T2.0** (worker recusa versão d
 reservada à sonda (T1.2/T2.3b), pré-condição da T4.2b com `failed` ambíguo. A T6.2 da 250 fica **suspensa** (não
 cancelada) até a sonda. Achado da conferência: `nbs_code` já existe no perfil (`nfse.schema.ts:166`), sem coluna nova.
 Pendente: código oficial da recusa de duplicidade de DPS (Anexo I ou sonda).
+
+## Sonda T2.3b — resultado (08/10/2026, produção restrita, A1 real, `POST /SefinNacional/nfse`)
+
+Duas execuções, ambas **HTTP 400** da Sefin Nacional (`SefinNacional_1.6.0`, `tipoAmbiente 2`), série reservada 49999 e nDPS 1
+(`idDPS DPS354340226115686400019149999000000000000001`):
+
+1. Com `cTribMun=001` (valor inventado pela sonda): **`E0314`** — "o código de tributação municipal informado não existe ou
+   não está administrado pelo município". Erro da sonda, não do município; o campo é opcional no XSD e foi retirado.
+2. Sem `cTribMun`: **`E0039`** — "O município emissor informado na DPS deve estar parametrizado para utilizar os emissores
+   públicos nacionais, conforme parametrização do município no Sistema Nacional NFS-e."
+
+**O que ficou provado (oficial, resposta da Sefin):**
+
+- O mTLS com o A1 real **funciona** (a Sefin processou e respondeu em JSON; não houve 403 de certificado).
+- O XML da DPS 1.01 **passa** na validação da Sefin (estrutura, série 49999, `Id`, assinatura RSA-SHA1/c14n 1.0): nenhum erro
+  de esquema ou de assinatura veio antes do `E0039`.
+- **O cadastro do município bloqueia a emissão direta**: `aderenteEmissorNacional=0` para 3543402 (restrita e produção) é
+  o que dispara o `E0039`. A informação do usuário de que a Prefeitura "já aceita" não se reflete no cadastro nacional.
+- Um relato público (fórum ACBr) diz que o `E0039` sumiu para um desenvolvedor depois que o município corrigiu a
+  parametrização. O caminho para destravar é a **Prefeitura/Secretaria da Fazenda** atualizar o convênio no Sistema Nacional.
+
+**Pendente:** `cNBS` e o `cTribMun` correto (a ordem das validações impede saber se a Sefin os cobraria depois do `E0039`);
+a resposta de sucesso (201) e a `chaveAcesso` só virão com o município parametrizado. A sonda fica pronta para repetir.
