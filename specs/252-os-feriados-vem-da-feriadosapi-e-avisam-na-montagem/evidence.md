@@ -396,3 +396,91 @@ Mutações: as onze do quadro abaixo foram **reexecutadas depois do rebase**, co
 T2.3 (catálogo nas quatro cópias, com rótulo e locale); nenhuma rota, rotina ou cliente do fornecedor; nada em
 `apps/worker-transportada`; nada publicado (sem push); `make migration-test` literal (usa o Docker 65432 com I/O error: o
 corpo dele, `db:test`, rodou no Postgres nativo). Produção: nenhuma conexão.
+
+## T2.3 — `holiday.provider.pull` nas quatro cópias do catálogo (2026-10-09)
+
+Branch `work/252-t2-3`, a partir de `work/252-t2` (`ef512a6d6`). Commits, painel primeiro:
+
+- `2f6add63f` painel: `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts`.
+- `b49b22102` API: `src/shared/job-catalog.constant.ts` e `test/job-catalog/catalog.contract.ts` (lista literal e
+  `SEED_MIGRATIONS` com `20261009040622_holiday_provider_import`).
+- `f02ccbef6` worker: `src/shared/job-catalog.constant.ts` e `test/job-catalog/catalog.contract.ts`.
+- `fc777a9d5` cron: idem.
+
+A entrada é a mesma nas quatro: `failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response']`
+(ADR-0100, seção de erros), `minimumIntervalSeconds: 3_600`, no **fim** do `JOB_CATALOG` (a ordem é a das CHECK de `job`
+da migration).
+
+### Rótulo e locale no painel: não feitos (divergência do pedido)
+
+O pedido e `plan.md` linha 115 mandam rótulo e locale pt-BR/en no painel, "seguindo o molde". O molde não tem isso. A busca
+por `nfe.recipient-email.backfill`, `cargo-preview.retention.apply` e as demais rotinas em `apps/frontend-transportada` acha
+só `src/modules/shared/jobCatalog.constant.ts` e o teste de paridade. `OperationsDashboard.page.tsx` renderiza
+`<strong>{job}</strong>` com o nome cru, e `operationsWorkspace.locale.json` não tem nenhum rótulo de rotina. Não criei um
+mecanismo de rótulo só para esta rotina: isso é decisão de produto (um mapa cobrindo as 18 rotinas, ou chaves de locale por
+rotina). **Pendente de decisão.**
+
+### Paridade e a ordem de commits
+
+- O commit do painel **não passa sozinho**. O teste de paridade do painel lê o fonte da API
+  (`../../../api-transportada/src/shared/job-catalog.constant.ts`). Em `2f6add63f~1` esse fonte não tem a rotina (`grep -c` = 0),
+  então o teste fica vermelho até `b49b22102`. A ordem "painel primeiro" é de publicação, não de verde por commit.
+- Os commits de API, worker e cron passam sozinhos: cada teste de paridade lê só a própria app.
+
+### TDD: vermelho pelo motivo certo, antes do código
+
+- API, com a entrada só no teste: `bun test ./test/job-catalog.contract.test.ts ./test/database-migration.contract.test.ts`
+  → **6 fail**: `names every routine`, `accepts every interval the migration already seeded`, `gives each routine its own
+failure vocabulary`, `offers each routine…`, `never lends one routine…`, e o `schema-snapshot` com o diff de exatamente
+  as duas CHECK de `job` sem `holiday.provider.pull`.
+- Worker e cron, com a entrada só no teste: **2 fail** cada (`matches the API catalog…` e `offers each routine…`), diff da
+  entrada que falta.
+- Painel, com a API já atualizada e o painel sem a entrada: **1 fail**, diff de `{ failureOutcomes…, job: 'holiday.provider.pull' }`
+  removido (`Expected - 9, Received + 0` no bloco de paridade).
+
+Depois do código, verde: API 6/6 no arquivo de paridade e `schema-snapshot` verde; worker 5/5; cron 6/6; painel 6/6.
+
+### Gates
+
+Todos com a app como cwd.
+
+| Gate                                                                                                                        | Resultado                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API `bun run typecheck` / `bun run lint`                                                                                    | exit 0 / exit 0                                                                                                                                                                                                                                                                      |
+| API `bun --env-file=../../.env.test run test` (contratos)                                                                   | **11045 pass, 34 skip, 0 fail** (208 arquivos). Os 34 skip vêm de testes que dependem de ambiente; este worktree não tem `.env.test` (o do repositório principal aponta para a infra de E2E em 65432, que não usei). Na T2.2 havia 1 skip. Causa não confirmada além dessa hipótese. |
+| API `schema-snapshot` (T2.2, era vermelho)                                                                                  | **verde**                                                                                                                                                                                                                                                                            |
+| API `bun run db:generate`                                                                                                   | `{"status":"no_changes","dialect":"postgresql"}`                                                                                                                                                                                                                                     |
+| API `bun run db:test` (corpo do `make migration-test`) com `DRIZZLE_TEST_DATABASE_URL` em Postgres 18.4 nativo, porta 65433 | **175 pass, 0 fail** (T2.2: 174 pass, 1 fail). Postgres descartável em `scratchpad/pgdata-t23`, `LC_ALL=C` e socket Unix desligado (o locale `pt_BR` do cluster fazia o postmaster cair).                                                                                            |
+| Worker `bun run typecheck` / `bun run lint` / `bun run test`                                                                | exit 0 / exit 0 / **2191 pass, 0 fail** (102 arquivos)                                                                                                                                                                                                                               |
+| Cron `bun run typecheck` / `bun run lint` / `bun run test`                                                                  | exit 0 / exit 0 / **101 pass, 0 fail** (8 arquivos)                                                                                                                                                                                                                                  |
+| Painel `bun run typecheck` / `bun run lint` / `bun run test`                                                                | exit 0 / exit 0 / **8912 pass, 0 fail** (script com duas invocações: 7736 em 39 arquivos e 1176 em 1). Lint: 16 warnings preexistentes em `TripDocumentSearch.component.tsx` e `useTripAssemblyDraftLifecycle.hook.ts`, fora do diff                                                 |
+| Painel `test/shared/job-catalog.contract.ts` isolado                                                                        | **6 pass, 0 fail**                                                                                                                                                                                                                                                                   |
+| `bun run format:check` na raiz                                                                                              | exit 0 (`All matched files use Prettier code style!`)                                                                                                                                                                                                                                |
+
+### Mutação: o nome sai de uma cópia (cada uma restaurada; `git diff --quiet` em seguida = exit 0)
+
+Troquei `holiday.provider.pull` por `holiday.provider.pulls` numa cópia.
+
+| Cópia mutada                      | Teste que roda                                                         | Resultado                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Painel (`jobCatalog.constant.ts`) | `bun test ./test/shared/job-catalog.contract.ts`                       | **1 fail**: diff `"job": "holiday.provider.pull"` → `"holiday.provider.pulls"` |
+| API (`job-catalog.constant.ts`)   | `job-catalog.contract.test.ts` + `database-migration.contract.test.ts` | **6 fail** (incluindo o `schema-snapshot`)                                     |
+| Worker                            | `bun test ./test/job-catalog.contract.test.ts`                         | **2 fail**                                                                     |
+| Cron                              | `bun test ./test/job-catalog.contract.test.ts`                         | **2 fail**                                                                     |
+
+API, worker e cron foram mutados juntos porque cada teste lê só a própria app, então não se contaminam. O painel foi
+mutado sozinho porque lê a API. Restaurados: `git diff --quiet` das quatro cópias = exit 0 e `git status` limpo.
+
+### Comentários
+
+Os comentários das entradas novas não citam o número da spec, ao contrário dos vizinhos. Segui a regra global de código
+(sem referência a tarefa nos comentários). Não é divergência de comportamento.
+
+### O que não foi feito
+
+- Rótulo e locale do painel (acima), por ser decisão.
+- `make migration-test` literal: o Docker 65432 segue com I/O error. O corpo dele (`db:test`) rodou no Postgres nativo.
+- `test:integration` da API não rodou: a T2.3 não muda SQL nem comportamento de banco, só o catálogo.
+- Nada de push, nenhum registro da rotina no worker (T3.5), nenhum tick, nenhuma rota.
+- **Revisão `opus` da T2.2 (🧠) segue pendente**, em passada separada, como o próprio `tasks.md` pede.
+- Postgres descartável da porta 65433 é parado ao fim desta sessão.
