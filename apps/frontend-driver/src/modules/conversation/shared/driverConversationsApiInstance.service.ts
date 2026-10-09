@@ -20,6 +20,10 @@ export function setDriverConversationOwner(ownerKey: string | undefined): void {
   outboxOwnerKey = ownerKey
 }
 
+export function getDriverConversationOwner(): string | undefined {
+  return outboxOwnerKey
+}
+
 /** O adapter nasce uma vez: `api` com identidade nova a cada render recarregaria a lista. */
 export function getDriverConversationsApi(): DriverConversationsApi {
   driverConversationsApi ??= createDriverConversationsApi({

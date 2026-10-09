@@ -6,6 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { requestSignOut } from '@/modules/conversation/shared/conversationOutboxDiscard.service'
+import {
+  countCurrentOwnerPendingMessages,
+  discardCurrentConversationOutbox,
+} from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
 import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhonePanel.component'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
@@ -63,6 +68,7 @@ export function DriverProfilePage({
 }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
   const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false)
+  const [pendingChatMessageCount, setPendingChatMessageCount] = useState(0)
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const colorTheme = useColorTheme()
@@ -78,6 +84,8 @@ export function DriverProfilePage({
   function signOut(): Promise<void> {
     return signOutDriver({
       discardSnapshots: async () => {
+        /** LGPD (spec 260 T1b.7): texto e foto de mensagem não enviada saem antes do logout. */
+        await discardCurrentConversationOutbox()
         await discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() })
         /** A miniatura do canhoto é foto de entrega de terceiro: sai no mesmo toque. */
         await discardProofThumbnails({ store: createIndexedDbProofThumbnailStore() })
@@ -85,6 +93,19 @@ export function DriverProfilePage({
       logout: () => getKeycloakAuthProvider().logout(),
       reload: () => window.location.reload(),
     })
+  }
+
+  async function handleSignOutClick(): Promise<void> {
+    const decision = await requestSignOut({
+      countChatMessages: countCurrentOwnerPendingMessages,
+      ownEventCount: ownPendingCount,
+    })
+    if (decision.step === 'sign-out') {
+      await signOut()
+      return
+    }
+    setPendingChatMessageCount(decision.chatMessageCount)
+    setIsConfirmingSignOut(true)
   }
 
   const role = authMeQuery.data?.data.roles.find(
@@ -182,11 +203,16 @@ export function DriverProfilePage({
         Spec 189 T9.2 (segurança M2): sair com pendência própria deixaria no celular o evento, a
         foto, o documento e o nome do recebedor e a posição. O aviso oferece enviar ou descartar.
       */}
-      {isConfirmingSignOut && ownPendingCount > 0 ? (
+      {isConfirmingSignOut ? (
         <section className={styles.rejectedBanner} role="alert">
-          <p>{t('profile.signOutPending.notice', { count: ownPendingCount })}</p>
+          {ownPendingCount > 0 ? (
+            <p>{t('profile.signOutPending.notice', { count: ownPendingCount })}</p>
+          ) : null}
+          {pendingChatMessageCount > 0 ? (
+            <p>{t('profile.signOutPending.chatNotice', { count: pendingChatMessageCount })}</p>
+          ) : null}
           <div className={styles.actions}>
-            {canSync ? (
+            {canSync && ownPendingCount > 0 ? (
               <Button
                 type="button"
                 onClick={() => {
@@ -217,13 +243,7 @@ export function DriverProfilePage({
         className={styles.signOutButton}
         type="button"
         variant="secondary"
-        onClick={() => {
-          if (ownPendingCount > 0) {
-            setIsConfirmingSignOut(true)
-            return
-          }
-          void signOut()
-        }}
+        onClick={() => void handleSignOutClick()}
       >
         <Icon name="logout" />
         {t('profile.signOut')}

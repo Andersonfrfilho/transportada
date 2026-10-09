@@ -10,6 +10,7 @@ import { registerSW } from 'virtual:pwa-register'
 
 import { useConversationOutboxFlush } from '@/modules/conversation/hooks/useConversationOutboxFlush.hook'
 import { DriverConversationsPage } from '@/modules/conversation/pages/DriverConversations.page'
+import { discardOrphanedConversationOutboxFor } from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
 import { setDriverConversationOwner } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { DriverServiceWorkerUpdateNotice } from '@/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component'
@@ -280,6 +281,7 @@ async function startAuthenticated(root: Root): Promise<void> {
   queryClient.clear()
   const freshSnapshot = await adoptAuthorizedSnapshot({ payload: authorizedPayload, subHash })
   setDriverConversationOwner(subHash)
+  void discardOrphanedConversationOutboxFor(subHash)
   renderScreen(
     root,
     <DriverShell

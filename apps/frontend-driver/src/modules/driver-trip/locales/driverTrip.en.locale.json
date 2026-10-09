@@ -184,6 +184,8 @@
     "scoreTitle": "Your score",
     "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location or without its location, or never arrives. Each loss expires after 90 days.",
     "signOutPending": {
+      "chatNotice_one": "{{count}} chat message has not been sent. Signing out now discards it.",
+      "chatNotice_other": "{{count}} chat messages have not been sent. Signing out now discards them.",
       "cancel": "Stay",
       "discard": "Discard and sign out",
       "notice_one": "{{count}} of your records has not been sent. Signing out now leaves it on the phone — send it first or discard it.",

@@ -427,5 +427,9 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   `openConversation` (`POST .../conversations/open`, sem queda: 404 sem `CONVERSATION_NOT_FOUND`/501 = `CONVERSATIONS_UNAVAILABLE`, o botão
   some até recarregar) e navegam para `/conversas/:tipo/:id`. O cartão da parada só muda se a `OpenSubjectConversationProvider` estiver
   ligada (golden `test/fixtures/driver-stop-card.golden.html`); o selo lê a mesma query da aba (`conversationDigests.query.ts`), sem polling extra.
+- **"Sair" descarta o outbox do chat (LGPD, T1b.7).** Texto e foto de mensagem não enviada não ficam no aparelho: o "Sair" soma as
+  mensagens à contagem do aviso (`requestSignOut`) e, ao confirmar — ou sem pendência, de forma idempotente —, `discardCurrentConversationOutbox`
+  apaga o outbox do dono antes do logout; no boot, `discardOrphanedConversationOutboxFor(subHash)` apaga o de outros donos. Falha de
+  IndexedDB nunca bloqueia login nem logout (devolve `failed`, sem conteúdo). Teste: `conversation-outbox-discard.contract.ts`.
 - **Demonstração.** `scripts/driver-preview-conversations*.ts` serve as duas famílias de rota; reinicie a API de demonstração
   (porta 53901) depois de mudar o script.

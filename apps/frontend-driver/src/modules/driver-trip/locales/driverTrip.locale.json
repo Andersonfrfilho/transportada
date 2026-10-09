@@ -198,6 +198,8 @@
     "whatsappTitle": "WhatsApp",
     "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "signOutPending": {
+      "chatNotice_one": "{{count}} mensagem do chat ainda não foi enviada. Saindo agora, ela será descartada.",
+      "chatNotice_other": "{{count}} mensagens do chat ainda não foram enviadas. Saindo agora, elas serão descartadas.",
       "cancel": "Ficar",
       "discard": "Descartar e sair",
       "notice_one": "{{count}} registro seu ainda não subiu. Saindo agora, ele fica no celular — envie antes ou descarte.",
