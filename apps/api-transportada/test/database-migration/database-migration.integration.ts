@@ -17,6 +17,7 @@ import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
 import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertHolidayProviderImport } from './holiday-provider-import.assertion.js'
+import { assertHolidayProviderSettings } from './holiday-provider-settings.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
@@ -63,6 +64,7 @@ import {
   NFSE_TABLES,
   DELIVERY_CLIENT_TABLES,
   HOLIDAY_PROVIDER_TABLES,
+  HOLIDAY_PROVIDER_SETTINGS_TABLES,
   CONTRACTOR_PORTAL_TABLES,
   MULTI_VEHICLE_SUGGESTION_TABLES,
   WHATSAPP_CHANNEL_TABLES,
@@ -112,6 +114,7 @@ describe('Drizzle migration integration', () => {
             ...TRIP_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
+            ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
@@ -373,6 +376,11 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
         })
+        await assertHolidayProviderSettings({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -406,6 +414,7 @@ describe('Drizzle migration integration', () => {
             ...TRIP_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
+            ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,

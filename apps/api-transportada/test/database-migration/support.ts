@@ -206,6 +206,9 @@ export const HOLIDAY_PROVIDER_TABLES = [
   'holiday_import_suppressions',
 ] as const
 
+/** Spec 262: a chave selada da FeriadosAPI, numa migration própria (a 252 não a conhece). */
+export const HOLIDAY_PROVIDER_SETTINGS_TABLES = ['holiday_provider_settings'] as const
+
 /**
  * Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa.
  * Spec 143 D3: o valor geral da diária do motorista mora aqui pelo mesmo motivo do regime federal —
@@ -315,6 +318,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...TRIP_TABLES,
     ...DELIVERY_CLIENT_TABLES,
     ...HOLIDAY_PROVIDER_TABLES,
+    ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
     ...TRIP_FINANCIAL_TABLES,
     ...CONTRACTOR_PORTAL_TABLES,
     ...MULTI_VEHICLE_SUGGESTION_TABLES,
