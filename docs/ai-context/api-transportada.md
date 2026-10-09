@@ -3382,13 +3382,12 @@ um aviso por parada, `cityName` ausente e nunca `null`); a chave nem existe na p
 (`drizzle-current-driver-trip.repository.ts`) **não mudou**.
 
 **A regra.** Entram só as paradas **sem `completedAt`**; o contexto (`DrizzleDriverStopHolidayContextRepository.list`, UMA consulta: `trip_stops` × notas vivas (`released_at is null`) × participantes de destino ×
-`nfe_addresses`, escolha da spec 073 em memória) só devolve as que têm `estimated_arrival_at`. Data = dia civil de **São Paulo** da ETA — ou **hoje** (`resolveToday`, relógio injetado)
-quando a parada está em andamento (`arrived_at` ou `en_route_since`, ainda sem `completed_at`). Cidade = 1º segmento do `address_key` (`readStopCityCode`; código fora de `CITY_IBGE_CODE_PATTERN` = sem aviso).
-`cityName` = `nfe_addresses.city` do destino físico **só se** o código do endereço for o da parada (com desvio manual os dois diferem e o nome some). Parada em andamento **sem** ETA também não avisa
-(a regra do pedido é "não concluída com ETA"; decisão do executor, a confirmar com o usuário se o aviso de "hoje" deve valer sem ETA).
+`nfe_addresses`, escolha da spec 073 em memória) devolve as pedidas, com ou sem `estimated_arrival_at` (`null`). Data = dia civil de **São Paulo** da ETA — ou **hoje** (`resolveToday`, relógio injetado)
+quando a parada está em andamento (`arrived_at` ou `en_route_since`, ainda sem `completed_at`), **com ou sem ETA**; sem ETA e sem começar, nada. Cidade = 1º segmento do `address_key` (`readStopCityCode`; código fora de `CITY_IBGE_CODE_PATTERN` = sem aviso).
+`cityName` = `nfe_addresses.city` do destino físico **só se** o código do endereço for o da parada (com desvio manual os dois diferem e o nome some). Parada em andamento **sem** ETA avisa para hoje (ADR-0100 D12: "ou hoje quando a parada já está em andamento"; corrigido na rodada de fechamento da T4.3).
 
 **Custo.** Medido: a leitura inteira (vínculo, viagens, fotos pendentes e nota) custa **25 consultas fixas** (`driver-current-trip-query-count.integration.ts`, 1 ou 30 paradas). O aviso soma **+5 fixas**
-(1 de contexto + 4 do calendário, em série) com 1 parada ou 30 paradas em 30 cidades; **+1** quando há parada aberta mas nenhuma com ETA; **+0** sem parada aberta.
+(1 de contexto + 4 do calendário, em série) com 1 parada ou 30 paradas em 30 cidades; **+1** quando há parada aberta mas nenhuma que avise (sem ETA e sem começar); **+0** sem parada aberta.
 ⚠️ `nfe_addresses` não tem índice por `(company_id, participant_id)`: a junção do contexto (como a `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app — **não medido em escala**; se
 o `EXPLAIN` em volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
 
