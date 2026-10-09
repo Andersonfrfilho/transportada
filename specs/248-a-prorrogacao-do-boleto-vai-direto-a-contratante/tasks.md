@@ -67,6 +67,10 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 - [ ] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
       copiada; varredor `occurrence.automatic-mail.sweep`. Integração CA01 (registro pelo app **e**
       pelo fluxo de WhatsApp) e **CA04 — só a configuração decide** (mutação: `if` pelo nome).
+  - [x] **T4.4a** abertura do retorno em `executeSend` (só `automatic`), configuração efetiva copiada, CA01 e CA04
+        contra Postgres, duas mutações com execução vermelha (evidence.md).
+  - [ ] **T4.4b** varredor `occurrence.automatic-mail.sweep` (o `Promise.allSettled`/isolamento do §15 vale aqui);
+        e a CA01 pelos caminhos de entrada reais (app e WhatsApp) com o gancho.
 - [ ] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
       portal (API, depois do commit da mensagem do portal) aplicam a política; integração CA02 nos
       dois caminhos, resposta duplicada e empresa B (CA09).

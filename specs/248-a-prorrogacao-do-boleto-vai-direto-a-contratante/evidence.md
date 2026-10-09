@@ -261,3 +261,42 @@ mutação reprova lá também pela tabela espelhada.
 
 Execução verde depois de desfazer tudo: 319 pass, 0 fail (entrada `occurrence-conversation`), e os gates da T4.2 seguem
 valendo (a política não mudou).
+
+## T4.4a — abertura do retorno na transação do envio automático
+
+**Desenho.** Um ponto só: `executeSend` (`send-occurrence-mail.use-case.ts`), dentro da unidade de trabalho, depois de
+`recordConversationMessage` e antes de `saveIdempotency`, **só com `input.automatic === true`**. Fica fora a repetição
+(devolve a resposta gravada antes de chegar ali), o `skipped` (nunca chama `sendMail.send`) e o envio manual. A porta
+transacional ganhou `findContractorReplyConfiguration` e `openContractorReply`
+(`drizzle-occurrence-contractor-reply.repository.ts`): a leitura junta a ocorrência ao tipo com LEFT JOIN na exceção da
+contratante; a escrita é `INSERT ... ON CONFLICT (company_id, occurrence_id) DO NOTHING`, com `deadline_at = agora +
+waitHours` (nulo sem espera). A política pura `resolveContractorReplyConfiguration` (sobre `resolveWithOverrides`) só
+dá exceção a `mode`, `waitHours` e `forwardToNoteRecipient`; o resto vem do tipo; um esquema Zod com `version` valida a
+cópia antes do jsonb.
+
+**Decisão (configuração efetiva inválida).** Modo efetivo diferente de `off` mas combinação que o CHECK do tipo não vê
+(exceção liga o modo num tipo sem `emails_contractor`, sem texto ao motorista, alerta ligado sem prazo, encaminhamento com
+assunto/corpo em branco): **não abre retorno**, loga `occurrence_contractor_reply_configuration_invalid` só com
+`companyId` e `occurrenceId` (sem PII) e o envio segue. Abrir um retorno que nunca poderia ser decidido seria pior do que
+não abrir; derrubar o aviso à contratante por erro de cadastro, também.
+
+**Gates.** `bun run typecheck` 0 · `bun run lint` 0 · contrato `bun --env-file=../../.env.test test --timeout 120000`
+11107 pass, 0 fail, 25 skip (já existentes) · integração
+`occurrence-automatic-mail`, `occurrence-contractor-reply-opens` (nova, 5 testes), `occurrence-conversation-mail`: 12
+pass, 0 fail · prettier limpo · o schema não foi tocado (sem `db:generate`).
+
+**Mutações com execução vermelha** (`occurrence-contractor-reply-opens.integration.ts`, desfeitas com `cp` da cópia; verde
+depois):
+
+1. **`if` pelo nome do tipo** (`type.name === 'Prorrogação' ? 'off' : ...` na leitura) — 4 pass, 1 fail: CA04 `mesmo nome,
+configuração diferente`.
+2. **Ler o modo do tipo ignorando a exceção** (`mode: null` na exceção lida) — 4 pass, 1 fail: CA04 `a exceção da
+contratante muda modo, prazo e encaminhamento só da ocorrência dela`.
+
+**Desvios.** (a) A produção foi escrita antes dos contratos; os contratos foram escritos em seguida e a prova de que
+protegem são as duas mutações acima, não uma execução vermelha anterior ao código. (b) A CA01 roda pelo caso de uso
+automático real (leitor + envio Drizzle) e não pelos caminhos de entrada do app e do WhatsApp com o gancho
+(`main.ts`); isso fica na T4.4b junto do varredor. (c) CA01 e CA04 ficaram num arquivo novo
+(`occurrence-contractor-reply-opens.integration.ts`, na lista do `test:integration`) para não passar o arquivo existente
+de 200 linhas. (d) O relógio do envio nos testes é o fixo do fixture, então o prazo é comparado a `2026-09-24T18:00Z + espera`.
+(e) `main.ts` passa o `logger` ao envio automático (o manual não precisa).

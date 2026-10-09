@@ -929,6 +929,7 @@ function buildAutomaticOccurrenceMailHook(input: {
       reader: createAutomaticOccurrenceMailReader(input.database),
       sendMail: createSendOccurrenceMailUseCase({
         fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+        logger: input.logger,
         secretService: createContractorMailCredentialSecretService({
           envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
         }),
