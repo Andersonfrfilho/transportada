@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { CountBadge } from '@/components/ui/count-badge'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
@@ -19,6 +21,8 @@ import styles from '../styles/trip.module.css'
 import { TripReportExportButton } from './TripReportExportButton.component'
 import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
 import { TripReportFilterPanel } from './TripReportFilterPanel.component'
+
+const REPORT_PANEL_ID = 'trip-report-filters-panel'
 
 function labelOf(options: readonly MultiSelectOption[], value: string): string {
   return options.find((option) => option.value === value)?.label ?? value
@@ -41,6 +45,7 @@ type TripFiltersProps = Readonly<{
  */
 export function TripFilters({ contractors, drivers, table, vehicles }: TripFiltersProps) {
   const { t } = useTranslation('trip')
+  const [isReportPanelOpen, setIsReportPanelOpen] = useState(false)
 
   const vehicleOptions = useVehicleSelectOptions(vehicles)
   const driverOptions: readonly MultiSelectOption[] = drivers.map((driver) => ({
@@ -167,7 +172,25 @@ export function TripFilters({ contractors, drivers, table, vehicles }: TripFilte
         </label>
       </div>
 
-      <TripReportFilterPanel contractors={contractors} filters={table.reportFilters} />
+      <div className={styles.reportFilterToggle}>
+        <Button
+          aria-controls={REPORT_PANEL_ID}
+          aria-expanded={isReportPanelOpen}
+          onClick={() => setIsReportPanelOpen(!isReportPanelOpen)}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="filter" />
+          {t('filters.report.title')}
+          <CountBadge count={table.reportFilters.activeCount} />
+        </Button>
+      </div>
+      {isReportPanelOpen ? (
+        <div id={REPORT_PANEL_ID}>
+          <TripReportFilterPanel contractors={contractors} filters={table.reportFilters} />
+        </div>
+      ) : null}
       <div className={styles.reportExportBar}>
         <TripReportExportButton scope={{ filters: table.reportScope }} />
         <TripProofPdfExportButton scope={{ filters: table.reportScope }} />

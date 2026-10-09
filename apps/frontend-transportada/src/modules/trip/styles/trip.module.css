@@ -5591,6 +5591,11 @@ button.occurrenceCaseBadge {
   align-content: start;
 }
 
+.reportFilterToggle {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .reportFilters {
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: grid;
