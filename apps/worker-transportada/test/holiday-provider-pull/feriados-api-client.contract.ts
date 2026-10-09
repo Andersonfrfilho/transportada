@@ -3,12 +3,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import type { HolidayProviderRequest } from '../../src/holiday-provider-pull/application/holiday-provider-client.port.js'
 import {
   HOLIDAY_PROVIDER_ERROR_CODE,
   HolidayProviderError,
   type HolidayProviderErrorCode,
 } from '../../src/holiday-provider-pull/domain/holiday-provider.error.js'
+import type { HolidayProviderRequest } from '../../src/holiday-provider-pull/domain/holiday-provider.types.js'
 import { createFeriadosApiClient } from '../../src/holiday-provider-pull/infrastructure/feriados-api.client.js'
 import {
   buildFullPage,
