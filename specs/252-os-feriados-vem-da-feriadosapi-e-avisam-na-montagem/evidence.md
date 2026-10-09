@@ -1084,3 +1084,87 @@ contador `requests` da execução, e `national_mismatch` maior que zero é esper
 - **Achado fora do escopo, corrigido para o gate fechar:** a T4.2 acrescentou `readStopCityCode` a `stop-address-key.ts` da API e a cópia por valor do worker
   (`routing/domain/pool-address-key.ts`, com contrato de paridade) ficou para trás, derrubando `routing.contract.test.ts` em staging. Espelhei a
   função (8 linhas, commit separado `077d036c6`). Quem mexer na chave de parada da API precisa copiar para o worker no mesmo commit.
+
+## T4.3 — o aviso de feriado no app do motorista (2026-10-09)
+
+Worktree do agente, branch `work/252-t4-3` a partir de `origin/staging` (`e770d57ce`), Postgres nativo descartável (porta 65443, `LC_ALL=C initdb`, banco por teste; o `.env.test` aponta para o 65432, quebrado, e foi sobreposto por um
+env de teste só com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`). Commits: `c4357c333` (linha de base, verde), `44b020cf5` (testes, vermelhos), `8a5356eb5` (código), `70a6621e2` (testes de borda) e o de documentação.
+
+### Linha de base antes do código
+
+`driver-current-trip-query-count.integration.ts` mede o caso de uso `findCurrentDriverTrip` inteiro (vínculo, viagens, fotos pendentes, nota) contra `origin/staging`: **25 consultas**, as mesmas com 1 parada e com 30
+paradas em 30 cidades com 3 notas (fixas, sem N+1). O teste nasceu com um placeholder e falhou com `Expected: 0 / Received: 25`; fixado o 25, passa.
+
+### Vermelho pelo motivo certo, antes do código
+
+Contrato do aviso (`driver-stop-holiday-warning.contract.ts`): falha por **módulo ausente** (`attach-driver-stop-holiday-warnings.service.js`, `driver-stop-holiday-warning.port.js`), que derruba o arquivo inteiro — o mesmo motivo da
+T4.2 (rodado). As integrações novas importam `drizzle-driver-stop-holiday-context.repository.js`, que não existia: falham no import (não as rodei uma a uma antes do código). O contrato de isolamento (`driver-holiday-warning-isolation`) rodou à parte: **2 pass / 3 fail** (os 2 verdes são
+a agulha do calendário na nota/comprovante/leitura, que já valia por não haver import; os 3 vermelhos são "os arquivos do aviso existem", "não citam o prazo" e "o caso de uso chama o módulo").
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.3                                              | Onde                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `holidayWarnings` nas paradas de `GET /me/trips/current`               | `DriverTripStop.holidayWarnings?` (`find-current-driver-trip.use-case.ts`); `serializeTrip` repassa as paradas como estão                                                                                 |
+| Chamado pelo **caso de uso**, nunca pelo repositório da leitura        | `findCurrentDriverTrip` → `attachDriverStopHolidayWarnings` (`attach-driver-stop-holiday-warnings.service.ts`), depois do `Promise.all` e do recorte pelo vínculo; o repositório da leitura **não mudou** |
+| `readHolidayWarnings` direto, sem `trip-holiday-warning.support.ts`    | `DrizzleHolidayWarningRepository` (já existia) via `HolidayWarningPort`; o suporte do detalhe (que cita o prazo da 236) não é importado                                                                   |
+| Só parada não concluída com ETA; "hoje" com a parada em andamento      | `collectOpenStops` (sem `completedAt`), contexto só com ETA, `isInProgress` (`arrived_at` ou `en_route_since`) → `resolveToday` (dia civil de São Paulo, relógio injetado)                                |
+| `cityName`, ausente (nunca `null`), só se o código do endereço confere | `DrizzleDriverStopHolidayContextRepository` (1 consulta: ETA, `address_key`, endereço de destino da nota viva, escolha da spec 073 em memória) + `resolveCityName`                                        |
+| +5 fixas, com uma cidade ou várias                                     | 1 de contexto + 4 do calendário (`readHolidayWarnings`, em série, uma carga para todas as cidades)                                                                                                        |
+| Falha não derruba o snapshot; log só com ids e contagem                | `try/catch` em volta das duas leituras; `driver_holiday_warning_unavailable` com `companyId`, `tripIds`, `affectedStopCount` (+ `code` na recusa)                                                         |
+| Agulha do calendário/aviso no contrato de isolamento da nota           | `test/trip-domain/driver-holiday-warning-isolation.contract.ts`: fleet, cte, `delivery-proof-*`, `proof-pending.query.ts` e o repositório da leitura não citam `business-calendar` nem `holiday-warning`  |
+| Fiação                                                                 | `main.ts`: `driverHolidayWarnings` montado uma vez e passado só à rota do app (`findCurrentTrip` de `/me/trips/current`); o fluxo do WhatsApp não o recebe                                                |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                                                                                                                                                                                                                                           | Resultado                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit`                                                                                                                                                                                                                                                                                                            | exit 0                                                                                  |
+| `bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`                                                                                                                                                                                                                                                     | exit 0                                                                                  |
+| `bun --env-file=../../.env.test run test` (contratos; com o env de teste do Postgres nativo)                                                                                                                                                                                                                                   | **11157 pass, 1 skip (corpus PII sem env), 0 fail** (11137 ao fim da T4 2ª rodada: +20) |
+| integração nova: `driver-current-trip-holiday-warnings` / `-query-count` / `driver-holiday-independence` / `driver-stop-holiday-context`                                                                                                                                                                                       | **9 / 1 / 1 / 3 pass**, 0 fail, 0 skip                                                  |
+| `delivery-deadline-driver-independence`, `trip-detail-delivery-deadline*` (6), `trip-detail-query-count`, `trip-detail-holiday-warnings`, `holiday-warning-reader`                                                                                                                                                             | 1; 4+3+5+4+1+1; 4; 9; 3 pass — 0 fail, 0 skip                                           |
+| as de `/me/trips/current` e da nota: `me-trip` 21, `me-trip-departure` 12, `current-driver-trip-concluded-window` 4, `driver-snapshot-products` 5, `driver-score` 10, `driver-delivery-proof-read` 4, `driver-occurrence-{attachment-list,items}` 2 + 9, `mdfe-manifest-driver-capability` 1, `whatsapp-driver-flow-actions` 4 | todas 0 fail, 0 skip (cada uma sozinha)                                                 |
+| `bun run db:generate`                                                                                                                                                                                                                                                                                                          | `{"status":"no_changes"}`                                                               |
+| `bun run format:check` na raiz                                                                                                                                                                                                                                                                                                 | exit 0 ("All matched files use Prettier code style!")                                   |
+
+Nota sobre o `skip`: sem `DRIZZLE_TEST_DATABASE_URL` o `bun run test` dá 11133 pass / 25 skip (24 testes de migration/notificação que só rodam com banco); com o env apontando para o Postgres nativo, 1 skip, como na linha de base.
+
+### Mutações (restauradas pelo script; `git status` limpo no código; baseline 0 fail)
+
+| Mutação                                                                                                | Resultado                                                                  |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **aviso de outra cidade na parada** (cidade vem do endereço da nota, não da chave) — M1                | 3 fail (contrato: parada sem contexto, nome da cidade; integração: desvio) |
+| `cityName` sem conferir o código do endereço — M2                                                      | 2 fail (contrato do nome; integração do desvio)                            |
+| parada concluída entra no aviso — M3                                                                   | 5 fail                                                                     |
+| parada em andamento usa a ETA, não hoje — M4                                                           | 3 fail                                                                     |
+| dia da ETA em UTC / "hoje" em UTC — M5 / M6                                                            | 2 fail cada                                                                |
+| duas cargas de calendário (+9) / duas leituras de contexto (+6) — M7 / M7b                             | 2 / 5 fail                                                                 |
+| a falha do aviso derruba a leitura — M8                                                                | 3 fail (2 de contrato, 1 de integração)                                    |
+| o rastro vaza o rótulo (endereço) da parada — M9                                                       | 3 fail                                                                     |
+| **a nota descontar o feriado**: `score` nulo com aviso / fotos pendentes zeradas com aviso — M10 / M11 | 2 / 1 fail (integração de independência e contrato do caso de uso)         |
+| a rota descarta `holidayWarnings` — M12                                                                | 1 fail                                                                     |
+| a nota do motorista cita o calendário / o repositório da leitura cita o aviso — M13 / M14              | 1 fail cada (contrato de isolamento)                                       |
+| o aviso do motorista cita `trip-holiday-warning.support` / cita o prazo da 236 — M15 / M16             | 1 fail cada                                                                |
+| contexto sem filtro de empresa / sem filtro das paradas pedidas / lê a nota liberada — M17 / M18 / M19 | 1 fail cada (integração do contexto)                                       |
+| calendário carregado com outra empresa — M20                                                           | 6 fail                                                                     |
+| o caso de uso não chama o aviso — M21                                                                  | 10 fail                                                                    |
+
+Mutação **equivalente documentada**: tirar `isNotNull(tripStops.estimatedArrivalAt)` do contexto não muda a saída (`groupByStop` ignora linha sem ETA); o filtro existe para não ler à toa.
+A BOLA do recorte pelo vínculo é do repositório da leitura (`listActiveTrips`, não mudou): a integração prova que o motorista B, com viagem na mesma empresa, não recebe aviso nem id (viagem, parada) da viagem do A.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **Parada em andamento sem ETA não avisa.** A regra do pedido é "não concluída com ETA"; o ADR D12 diz "ou hoje com a parada em andamento". Segui o pedido (sem ETA, nada); se o usuário quiser que "hoje é feriado" valha sem ETA, é uma
+  mudança pequena no contexto (tirar o filtro de ETA) e no serviço.
+- **Custo por caso:** +5 com ao menos uma parada aberta com ETA; +1 se há parada aberta mas nenhuma com ETA (só o contexto); +0 sem parada aberta. A linha de base é **25 consultas**.
+- **`nfe_addresses` sem índice por `(company_id, participant_id)`:** a junção do contexto (a mesma classe da `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app. **Não medi em escala** (sem dados reais). Se o `EXPLAIN` em
+  volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
+- **O log de falha não é coalescido** (o detalhe usa um suporte que cita o prazo da 236, proibido aqui): a falha persistente repete a cada leitura do app.
+- **`package.json`:** o commit `44b020cf5` registrou os arquivos de integração com uma junção sem espaço (`…independence.integration.ts./test/integration/occurrence-template-values…`); o commit seguinte (`70a6621e2`) corrige. Em `44b020cf5` o
+  `test:integration` ficaria com um caminho inválido.
+- A guarda do app do motorista e o formato publicado não mudaram: `cityIbgeCode` numérico, `cityName` ausente (nunca `null`), `reasons[{ scope, origin, name }]`; o nome do feriado nacional é a chave estável (`independence_day`).
+
+### O que NÃO foi feito
+
+Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.

@@ -3366,9 +3366,41 @@ ETAs, **+4** fixas senão (viagem com 1 ou 40 paradas), em série; sem parada qu
 
 - ⚠️ `stop-label-refresh.contract` indexa o **primeiro** `stops: stopRecords.map(` do repositório: a lista de paradas do aviso é `warnableStops`, não outra chamada com esse texto.
 - ⚠️ A guarda do app do motorista e a do painel ignoram campo desconhecido, mas o painel **recusa** forma errada de `holidayWarnings` (T5.1): não mude o formato sem mudar os dois.
-- Não feito aqui (T4.3): o aviso em `GET /me/trips/current`; a agulha do calendário/aviso no contrato de isolamento da nota do motorista.
+- O aviso em `GET /me/trips/current` e a agulha do calendário/aviso no contrato de isolamento da nota do motorista são da T4.3 (seção abaixo).
 - Provas: `test/business-calendar/holiday-warning{,-reader,-isolation}.contract.ts`, `test/business-calendar-rules/day-checks.contract.ts`,
   `test/integration/holiday-warning-reader.integration.ts`, `test/integration/trip-detail-holiday-warnings.integration.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.2.
+
+## Spec 252 T4.3 — o aviso de feriado no app do motorista (ADR-0100 D12)
+
+**O que sai.** `GET /me/trips/current` → `data.trips[].stops[].holidayWarnings`, **o mesmo formato do detalhe** (`{ date, cityIbgeCode: number, cityName?, reasons: [{ scope, origin, name }] }`,
+um aviso por parada, `cityName` ausente e nunca `null`); a chave nem existe na parada sem aviso. `DriverTripStop.holidayWarnings?` é o único campo novo; `serializeTrip` repassa
+`trip.stops` como está (contrato `driver-stop-holiday-warning-route`). O app do motorista (T5.1b) já lê o campo como acessório.
+
+**Quem chama.** `findCurrentDriverTrip` recebe `holidayWarnings?: DriverHolidayWarningsDependency` (`{ calendar: HolidayWarningPort, contexts, logger? }`) e chama
+`attachDriverStopHolidayWarnings` **depois** do `Promise.all` da leitura (viagens já recortadas pelo vínculo do motorista — o BOLA continua sendo o `where` do repositório). Ausente
+(WhatsApp, testes) = sem aviso e sem consulta a mais. `main.ts` monta a dependência uma vez (`driverHolidayWarnings`) e só a rota do app a recebe. O repositório da leitura
+(`drizzle-current-driver-trip.repository.ts`) **não mudou**.
+
+**A regra.** Entram só as paradas **sem `completedAt`**; o contexto (`DrizzleDriverStopHolidayContextRepository.list`, UMA consulta: `trip_stops` × notas vivas (`released_at is null`) × participantes de destino ×
+`nfe_addresses`, escolha da spec 073 em memória) só devolve as que têm `estimated_arrival_at`. Data = dia civil de **São Paulo** da ETA — ou **hoje** (`resolveToday`, relógio injetado)
+quando a parada está em andamento (`arrived_at` ou `en_route_since`, ainda sem `completed_at`). Cidade = 1º segmento do `address_key` (`readStopCityCode`; código fora de `CITY_IBGE_CODE_PATTERN` = sem aviso).
+`cityName` = `nfe_addresses.city` do destino físico **só se** o código do endereço for o da parada (com desvio manual os dois diferem e o nome some). Parada em andamento **sem** ETA também não avisa
+(a regra do pedido é "não concluída com ETA"; decisão do executor, a confirmar com o usuário se o aviso de "hoje" deve valer sem ETA).
+
+**Custo.** Medido: a leitura inteira (vínculo, viagens, fotos pendentes e nota) custa **25 consultas fixas** (`driver-current-trip-query-count.integration.ts`, 1 ou 30 paradas). O aviso soma **+5 fixas**
+(1 de contexto + 4 do calendário, em série) com 1 parada ou 30 paradas em 30 cidades; **+1** quando há parada aberta mas nenhuma com ETA; **+0** sem parada aberta.
+⚠️ `nfe_addresses` não tem índice por `(company_id, participant_id)`: a junção do contexto (como a `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app — **não medido em escala**; se
+o `EXPLAIN` em volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
+
+**Falha.** Contexto ou calendário que cai (ou cidade que o calendário recusa) tira o aviso e loga `driver_holiday_warning_unavailable` com `companyId`, `tripIds`, `affectedStopCount` (e `code` na recusa) — nunca
+nome de cidade, endereço, destinatário nem a mensagem do erro. O log **não é coalescido** (o detalhe coalesce a recusa por viagem e código em 5 min com um suporte que carrega o prazo da 236, proibido aqui): a falha persistente repete a cada leitura do app; se virar ruído, coalescer num módulo próprio.
+
+**Isolamento (CA16).** `test/trip-domain/driver-holiday-warning-isolation.contract.ts`: `src/fleet/**`, `src/cte-*/**`, `delivery-proof-*.ts`, `proof-pending.query.ts` e o repositório da leitura **não citam** `business-calendar`
+nem `holiday-warning` (a lista é por texto: nem em comentário); os arquivos do aviso do motorista **não citam** `delivery-deadline` nem `trip-holiday-warning.support`. Integração
+`driver-holiday-independence.integration.ts`: a mesma pessoa, as mesmas notas, antes e depois de a empresa cadastrar feriado em todos os dias da história — `score`, penalidades e fotos pendentes idênticos.
+
+- Provas: `test/trip-domain/driver-stop-holiday-warning{,-route}.contract.ts`, `test/trip-domain/driver-holiday-warning-isolation.contract.ts`, `test/integration/driver-current-trip-holiday-warnings.integration.ts`,
+  `driver-current-trip-query-count.integration.ts`, `driver-holiday-independence.integration.ts`, `driver-stop-holiday-context.integration.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.3.
 
 ## Spec 253 — O relatório de viagens sai em planilha por nota
 

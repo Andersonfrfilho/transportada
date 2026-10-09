@@ -171,7 +171,7 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       `listStopAddresses` (+0 no detalhe), nulo quando o `city_code` do endereço não é a cidade da parada; contrato de
       contagem de consultas (+0 ou +4 fixas), leituras em série dentro de transação
       (`transaction-serial-queries.contract.test.ts`). (CA12, CA13)
-- [ ] **T4.3** `holidayWarnings` nas paradas de `GET /me/trips/current` (D12): data = dia civil de São Paulo do
+- [x] **T4.3** `holidayWarnings` nas paradas de `GET /me/trips/current` (D12): data = dia civil de São Paulo do
       `estimated_arrival_at`, ou **hoje** com a parada em andamento; paradas concluídas sem aviso; mesmo formato do
       detalhe, com `cityName`. **Antes do código:** medir e fixar em contrato a contagem de consultas atual da leitura
       do motorista; depois dela, **+5 fixas** com uma cidade ou com várias (4 do calendário carregado uma vez, em
@@ -185,7 +185,12 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       pontualidade do comprovante e `missingAfterHours` idênticos com e sem feriado (integração), e o contrato de
       isolamento (`trip-domain/delivery-deadline-isolation.contract.ts`) ganha a agulha do calendário/aviso para
       `driver-score.policy.ts`, `delivery-proof-*.ts` e `proof-pending.query.ts`. Mutação: o aviso de outra cidade
-      na parada, a nota descontar o feriado. (CA15, CA16)
+      na parada, a nota descontar o feriado. (CA15, CA16) **Feita em 2026-10-09** (`c4357c333` linha de base de 25
+      consultas, `44b020cf5` testes, `8a5356eb5` código, `70a6621e2` bordas): +5 fixas medidas (1 de contexto + 4 do
+      calendário; +1 sem ETA, +0 sem parada aberta), a agulha ficou num contrato próprio
+      (`driver-holiday-warning-isolation.contract.ts`, que vigia também o repositório da leitura), 21 mutações mortas,
+      11157 contratos e 24 arquivos de integração sem falha. Parada **em andamento sem ETA não avisa** (segui "não concluída com
+      ETA"); decisão aberta para o usuário. `evidence.md` § T4.3.
       **Fronteira do módulo (revisão da T4.2):** o aviso do motorista usa `readHolidayWarnings`
       (`business-calendar/infrastructure/holiday-warning.reader.ts`) **direto** e **nunca** importa
       `trips/infrastructure/trip-holiday-warning.support.ts`: este é o suporte do detalhe da viagem e carrega a agulha
