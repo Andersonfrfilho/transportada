@@ -27,6 +27,7 @@ import type { TripQueryable } from './trip-queryable.type.js'
 
 const TRIP_HOLIDAY_WARNING_UNAVAILABLE_MESSAGE = 'trip_holiday_warning_unavailable'
 const REFUSAL_THROTTLE_PREFIX = 'holiday-warning:'
+const READ_FAILED_CODE = 'read_failed'
 
 type WarnableStop = {
   readonly addressKey: string
@@ -103,7 +104,28 @@ function warnRefusals(
   }
 }
 
-/** O aviso de cada parada pelo id dela; calendário recusado tira o aviso da cidade, nunca derruba o detalhe. */
+/** Só ids, código e contagem: a mensagem do erro pode trazer texto da consulta e nunca vai ao log. */
+function warnReadFailure(
+  params: ReadTripStopHolidayWarningsParams,
+  affectedStopCount: number,
+): void {
+  const { logger } = params
+  if (logger === undefined) return
+  const throttleKey = `${REFUSAL_THROTTLE_PREFIX}${READ_FAILED_CODE}`
+  if (!shouldWarnRefusal({ code: throttleKey, now: params.now, tripId: params.tripId })) return
+  safeLogWarn({
+    logger,
+    message: TRIP_HOLIDAY_WARNING_UNAVAILABLE_MESSAGE,
+    metadata: {
+      affectedStopCount,
+      code: READ_FAILED_CODE,
+      companyId: params.companyId,
+      tripId: params.tripId,
+    },
+  })
+}
+
+/** O aviso de cada parada pelo id dela; calendário recusado ou leitura que falha tira o aviso, nunca derruba o detalhe. */
 export async function readTripStopHolidayWarnings(
   queryable: TripQueryable,
   params: ReadTripStopHolidayWarningsParams,
@@ -111,12 +133,17 @@ export async function readTripStopHolidayWarnings(
   const items = toItems(params)
   if (items.length === 0) return new Map()
 
-  const { refusals, warnings } = await readHolidayWarnings(queryable, {
-    companyId: params.companyId,
-    items,
-    knownCalendars: params.calendars,
-    referenceYear: Number(resolveToday({ now: params.now }).slice(0, 4)),
-  })
-  warnRefusals(params, refusals)
-  return warnings
+  try {
+    const { refusals, warnings } = await readHolidayWarnings(queryable, {
+      companyId: params.companyId,
+      items,
+      knownCalendars: params.calendars,
+      referenceYear: Number(resolveToday({ now: params.now }).slice(0, 4)),
+    })
+    warnRefusals(params, refusals)
+    return warnings
+  } catch {
+    warnReadFailure(params, items.length)
+    return new Map()
+  }
 }
