@@ -695,3 +695,70 @@ reprova é a integração do leitor.
 ### O que não foi feito
 
 T4.3 (`GET /me/trips/current`); worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration); nenhuma conexão com produção.
+
+## T4 — 2ª rodada: correções da revisão `opus` (2026-10-09)
+
+Mesma branch (`work/252-t4`), mesmo Postgres nativo (65441, banco descartável por teste). `git fetch origin`: `origin/staging` sem commit novo, então sem rebase;
+`bun install --frozen-lockfile` sem mudança. Commits: `588fd37de` (testes, vermelhos), `0fa7e54bf` (código) e o de documentação.
+
+### O que mudou
+
+| Item | Decisão/correção                                                                                                                                                                                                                                                                                                     |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1   | `PATCH` estadual que **muda a data** de uma importada: `409 HOLIDAY_IMPORT_DATE_LOCKED` (`assertImportedDateNotMoved`); nome/tipo e a mesma data continuam adotando; a digitada muda de data. ADR-0100 §4.3                                                                                                          |
+| M2   | Todo `DELETE` de digitada/adotada com data ≥ hoje (SP) grava a supressão `(escopo, código, data)` na mesma transação, `suppressionId` (ou `null`) na auditoria. Não grava: data passada, `yearly` estadual, e código de cidade fora de `CITY_IBGE_CODE_PATTERN`. ADR-0100 §4.4                                       |
+| M3   | Texto: "restaurar volta na próxima execução diária" (ADR §4.2, `tasks.md` T5.2); `HOLIDAY_IMPORT_PAST_DATE` e `HOLIDAY_IMPORT_DATE_LOCKED` nos critérios da T5.2; contrato da T3.4 (cache a cada ciclo, pulando supressões, sob o advisory lock `['business-calendar', companyId]`, supressões relidas na transação) |
+| L1   | `countPendingPairs` com piso em zero                                                                                                                                                                                                                                                                                 |
+| L2   | Teto único (200) **depois** de juntar cidade e estado; `removedByProvider` virou `{ items, truncated }` (o painel ainda não consome; `ai-context`, `CLAUDE.md` e `tasks.md` atualizados)                                                                                                                             |
+| L3   | `GET /holiday-imports/suppressions` paginada como `/cities` (`page`/`perPage ≤ 100`, envelope com `pagination`)                                                                                                                                                                                                      |
+| L4   | `SECURITY.md`: `fetchedAt`/`attempts` do cache permitem inferir entrega entre empresas da mesma instalação — aceito, mesmo dono                                                                                                                                                                                      |
+| L5   | O contrato de isolamento reprova `.select()` sem projeção nos dois `.query.ts` isentos                                                                                                                                                                                                                               |
+| L6   | **Pendente de medida:** o teto agregado de `removedByProvider` (200) e a latência do `readStatus` em uma instalação com milhares de cidades não foram medidos (sem dados reais); a T5.2 deve medir antes de publicar a tela                                                                                          |
+| L7   | `isBusinessCalendarErrorCode` (guarda de tipo) no lugar do `as` do leitor                                                                                                                                                                                                                                            |
+| L8   | `tasks.md` T4.3: o aviso do motorista usa `readHolidayWarnings` direto e nunca importa `trip-holiday-warning.support.ts` (carrega a agulha `delivery-deadline`)                                                                                                                                                      |
+| L9   | JSDoc do aviso movido para cima de `holidayWarnings` em `drizzle-trip.repository.ts`                                                                                                                                                                                                                                 |
+| L11  | O contador de consultas do teste de custo do aviso conta também `execute`                                                                                                                                                                                                                                            |
+| L12  | `GET /holiday-imports/status` recusa query desconhecida (`readListQuery` com conjunto vazio)                                                                                                                                                                                                                         |
+| L10  | pulado, como pedido                                                                                                                                                                                                                                                                                                  |
+
+### Vermelho antes do código
+
+`holiday-import-municipal` 11 pass / 3 fail; `-state` 8 pass / 4 fail; `-suppressions` 8 pass / 2 fail; `-status` 6 pass / 2 fail (todos pelo comportamento novo); contratos de rota,
+de casos de uso, de `countPendingPairs` e de isolamento vermelhos pelo formato novo.
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                     | Resultado                                                             |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `bunx tsc --noEmit` / `bunx eslint src test drizzle.config.ts eslint.config.js …`                        | exit 0 / exit 0                                                       |
+| `bun --env-file=../../.env.test run test` (contratos)                                                    | **11137 pass, 1 skip (corpus PII sem env), 0 fail** (era 11132)       |
+| integração `holiday-import-{municipal,state,suppressions,status}`                                        | **14 / 12 / 10 / 8 pass**, 0 fail, 0 skip                             |
+| `holiday-warning-reader` / `trip-detail-holiday-warnings` (contador agora com `execute`)                 | **3 / 9 pass**, 0 fail (os +0/+4/+6 se mantêm)                        |
+| as 13 do calendário (`business-calendar-*`, `municipal-holiday-*`)                                       | todas 0 fail, 0 skip (os `DELETE` de digitada agora gravam supressão) |
+| `trip-detail-delivery-deadline*` (6), `trip-detail-query-count`, `delivery-deadline-driver-independence` | 3+5+4+1+1+4, 4, 1 pass; 0 fail                                        |
+| `bun run db:generate`                                                                                    | `{"status":"no_changes"}`                                             |
+| `bun run format:check` na raiz                                                                           | exit 0                                                                |
+
+### Mutações (restauradas; `git diff --quiet` = 0)
+
+| Mutação                                                                                  | Resultado                                                                                                                    |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `PATCH` estadual deixa mudar a data da importada                                         | estadual: 1 fail                                                                                                             |
+| `DELETE` municipal não suprime / suprime data passada / sem a guarda do código de cidade | municipal: 2 / 1 / 1 fail                                                                                                    |
+| `DELETE` estadual não suprime / suprime data passada                                     | estadual: 2 / 1 fail                                                                                                         |
+| pendentes sem o piso em zero                                                             | contrato: 1 fail                                                                                                             |
+| removidos sem o teto único / nunca `truncated`                                           | status: 1 / 1 fail                                                                                                           |
+| supressões sem paginação                                                                 | suppressions: 1 fail                                                                                                         |
+| `status` aceita query                                                                    | rotas: 1 fail                                                                                                                |
+| consulta isenta com `.select()` sem projeção                                             | isolamento: 1 fail                                                                                                           |
+| guarda de código de erro trocada por prefixo de texto (L7)                               | **sobrevive** (equivalente: todo código do calendário começa com o prefixo); a guarda existe por tipo, não por comportamento |
+
+### Notas
+
+- O `tasks.md` T3.4 foi editado aqui e também pelo agente do worker: o conflito de merge, se houver, é só de texto.
+- A supressão por `DELETE` de digitada usa a CHECK `holiday_import_suppressions_scope_code_check` (código `^[1-5][0-9]{6}$`); a linha antiga de `municipal_holidays` aceita
+  qualquer sete dígitos (`0000000` num teste), por isso a guarda — sem ela o `DELETE` daria 500.
+
+### O que ficou de fora
+
+Rotas de `is_enabled`; a medida do teto agregado (L6); a agulha do contrato de isolamento da nota e o aviso do motorista (T4.3); worker (T3); telas; sem push.

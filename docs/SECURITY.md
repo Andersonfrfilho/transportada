@@ -110,6 +110,17 @@ nem empresa.
 passada mudaria o selo de prazo da nota já entregue). Restaurar não reinsere a linha na hora: o feriado volta no ciclo seguinte da
 rotina (a leitura do cache global pelas escritas é justamente o que o contrato acima proíbe).
 
+**Apagar também suprime (revisão, ADR-0100 §4.4):** todo `DELETE` de linha digitada ou adotada com data de hoje em diante grava a supressão
+`(escopo, código, data)` na mesma transação, com `suppressionId` na auditoria (`municipal-holiday.deleted` / `state-holiday.deleted`) — senão a
+importação traria a data de volta como "importada". Data passada não grava. **Mudar a data** de uma estadual importada é
+`409 HOLIDAY_IMPORT_DATE_LOCKED`: nome e tipo adotam, data não (desligue e cadastre).
+
+**Listas limitadas:** `GET /holiday-imports/suppressions` e `/cities` são paginadas (`perPage ≤ 100`); `removedByProvider` sai no máximo com 200 itens e
+`truncated: true` quando há mais; `GET /status` recusa query desconhecida.
+
+**Lacuna aceita (L4):** `fetchedAt`/`attempts` do status vêm do cache global por cidade; duas empresas da **mesma instalação** (mesmo dono, ADR-0021) que
+tenham a mesma cidade em comum conseguem inferir uma da outra que há entrega ali. Aceito: a instalação é de um único dono.
+
 **Origem:** spec 252 T4.1. Registrado em 2026-10-09.
 
 ### 2026-10-09 — spec 252 T4.2 — o aviso de feriado: `POST /business-calendar/day-checks` e `holidayWarnings` no detalhe da viagem

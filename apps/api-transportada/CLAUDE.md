@@ -83,12 +83,15 @@ em `municipal_holidays`/`state_holidays` (nunca junto com `source_rule_id`; no e
 vem do catálogo TS: o snapshot da migration já traz o nome novo, então o contrato `schema-snapshot` fica vermelho até a T2.3
 pôr `holiday.provider.pull` nas quatro cópias — a migration só vai ao ar com o catálogo. Detalhe: `specs/252-*/evidence.md` § T2.2.
 Gestão da importação (T4.1, ADR-0100 §4): a linha importada (`provider_entry_id` preenchido) **não é digitada**. `POST` na mesma data
-e `PATCH` a **adotam** (zeram `provider_entry_id`; `isSameTypedHoliday` nunca vale para ela; estadual igual, `POST` devolve 200); `DELETE`
+e `PATCH` de nome/tipo a **adotam** (zeram `provider_entry_id`; `isSameTypedHoliday` nunca vale para ela; estadual igual, `POST` devolve 200; **mudar a data**
+da estadual importada é `409 HOLIDAY_IMPORT_DATE_LOCKED`); `DELETE`
 a **desliga** (`holiday-import-disable.support.ts`: apaga a linha, grava `holiday_import_suppressions`, audita `holiday-import.disabled`,
-regenera a data da regra do dia; `409 HOLIDAY_IMPORT_PAST_DATE` antes de hoje, D7). `remove` recebe `today` (dia civil de São Paulo, do
+regenera a data da regra do dia; `409 HOLIDAY_IMPORT_PAST_DATE` antes de hoje, D7). **Todo `DELETE` de digitada/adotada com data ≥ hoje também grava a supressão**
+(`suppressDeleted*Holiday`, `suppressionId` na auditoria; data passada, `yearly` e código fora do padrão do cache não gravam). `remove` recebe `today` (dia civil de São Paulo, do
 relógio injetado — `resolveToday`) além de `currentYear`. `typedHolidaysKept` conta só `provider_entry_id IS NULL`. Rotas novas
 `/holiday-imports/{status,cities,suppressions}` (`settings.manage`, ler e escrever; `POST` desliga por `{ holidayId, scope }` `.strict()`,
-`DELETE …/suppressions/:id` restaura — a data volta no ciclo seguinte, a API não relê o cache). ⚠️ **As três tabelas globais do cache só
+`DELETE …/suppressions/:id` restaura — a data volta na próxima execução diária, a API não relê o cache; `GET /suppressions` e `/cities` paginadas, `/status` sem query,
+`removedByProvider` = `{ items ≤ 200, truncated }`). ⚠️ **As três tabelas globais do cache só
 são importadas por `holiday-import-status.query.ts` e `holiday-import-usage.query.ts`** (contrato
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
 que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de

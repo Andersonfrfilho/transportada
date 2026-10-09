@@ -3298,22 +3298,25 @@ specs/236-\*/evidence.md § T1.2e e § T1.3.
 **A linha importada não é digitada.** `municipal_holidays`/`state_holidays` com `provider_entry_id` preenchido entram na política como
 `once` (o filtro de `readTypedHolidays` não muda), mas as escritas da 238 passam a distingui-la:
 
-- **Adoção** (`POST` na mesma data, `PATCH` de nome/tipo/data): `provider_entry_id = null` na mesma instrução, auditoria `…saved|updated`
+- **Adoção** (`POST` na mesma data, `PATCH` de nome/tipo): `provider_entry_id = null` na mesma instrução, auditoria `…saved|updated`
   com `adoptedFromImport: true`. `isSameTypedHoliday` devolve `false` para a importada (o "mesmo cadastro de novo é no-op" não vale).
   No estadual o `POST` que acha a importada (qualquer nome) adota e responde `created: false` (200) em vez de 409
-  (`adoptImportedStateHoliday`). A digitada com outro nome segue 409.
+  (`adoptImportedStateHoliday`). A digitada com outro nome segue 409. **`PATCH` estadual que muda a data da importada: `409 HOLIDAY_IMPORT_DATE_LOCKED`** (`assertImportedDateNotMoved`;
+  o municipal já não aceita data no `PATCH`).
 - **Desligar** (`DELETE` da 238 ou `POST /holiday-imports/suppressions`): `holiday-import-disable.support.ts` apaga a linha, faz upsert em
   `holiday_import_suppressions` (uma por `(empresa, escopo, código, data)`; desligar de novo só renova quem e quando), regenera a data da
   regra do mesmo dia (municipal, ADR-0096 §6.6) e grava `holiday-import.disabled` — tudo na transação do chamador, sob o lock por
   empresa. `409 HOLIDAY_IMPORT_PAST_DATE` antes de `today` (D7); `409 HOLIDAY_NOT_IMPORTED` na rota de desligar sobre a digitada/gerada.
+- **`DELETE` de digitada/adotada ≥ hoje suprime** (`suppressDeletedMunicipalHoliday`/`…StateHoliday`, mesma transação; `suppressionId` ou `null` no `metadata` da auditoria `…deleted`):
+  data passada, `yearly` estadual e código de cidade fora de `CITY_IBGE_CODE_PATTERN` (a linha antiga aceita `^[0-9]{7}$`) não gravam, porque a CHECK da supressão recusaria.
 - `remove` (municipal e estadual) recebe `today` (`resolveToday({ now })`, dia civil de São Paulo). `typedHolidaysKept` conta só
   `provider_entry_id IS NULL`.
 
-**Rotas** (`/holiday-imports`, `settings.manage` ler e escrever): `GET /status` (`isEnabled`, `totalCities`, `pairs{done,failed,notCovered,
+**Rotas** (`/holiday-imports`, `settings.manage` ler e escrever): `GET /status` (sem query: desconhecida é 400; `isEnabled`, `totalCities`, `pairs{done,failed,notCovered,
 pending,quotaExhausted,total}` dos pares cidade×ano do horizonte — ano corrente e seguinte, D8 —, `failures[{errorCode,pairs}]`,
-`lastFetchedAt`, `month`, `monthlyRequests`, `removedByProvider[]` com `holidayId`/`scope`/`ibgeCode`/`holidayOn`/`name`), `GET /cities?page&perPage`
+`lastFetchedAt`, `month`, `monthlyRequests`, `removedByProvider: { items[] (≤ 200), truncated }` com `holidayId`/`scope`/`ibgeCode`/`holidayOn`/`name`), `GET /cities?page&perPage`
 (padrão 1×50, teto 100; por `document_count` desc; cada cidade traz `years[]` com `status`/`attempts`/`errorCode`/`fetchedAt`/`nextAttemptAt`, ano sem
-linha no cache é `pending`), `GET /suppressions`, `POST /suppressions` (`{ holidayId, scope: 'city'|'state' }`, 201), `DELETE /suppressions/:id`
+linha no cache é `pending`), `GET /suppressions?page&perPage` (paginada como `/cities`), `POST /suppressions` (`{ holidayId, scope: 'city'|'state' }`, 201), `DELETE /suppressions/:id`
 (204; ausente ou de outra empresa é no-op, sem auditoria). Visões em lista branca (`holiday-import.schema.ts`); nada de id do cache.
 
 **Isolamento da tabela global.** `holiday-import-status.query.ts` parte de `holiday_import_cities` (e das linhas da empresa para os
@@ -3324,7 +3327,7 @@ removidos) e junta o cache; `holiday-import-usage.query.ts` lê o contador do m�
   `/municipal-holidays` ou `/state-holidays`. A origem para a aba Calendário (T5.2) vem das rotas novas.
 - ⚠️ `tenant-safety.contract.ts` casa `.from(` por regex: `Array.from(` no módulo reprova (falso positivo conhecido) — use laço.
 - Lacunas: restaurar **não** reinsere a linha na hora (ADR-0100 §4 admite "na hora, se o cache já o tem"; a leitura do cache pela escrita
-  quebraria o contrato de isolamento) — a T3.4 precisa reaplicar do cache a cada ciclo, não só dos pares recém-buscados. Não há rota para ligar/desligar
+  quebraria o contrato de isolamento) — a T3.4 precisa reaplicar do cache a cada ciclo, não só dos pares recém-buscados, sob o mesmo advisory lock `['business-calendar', companyId]` e relendo as supressões dentro da transação (restaura volta na próxima execução diária). Não há rota para ligar/desligar
   `company_holiday_import_settings.is_enabled` (o status só a lê). `monthlyRequests` é da instalação.
 - Provas: `test/integration/holiday-import-{municipal,state,suppressions,status}.integration.ts`, `test/business-calendar-rules/holiday-import-*.contract.ts`,
   `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.1.

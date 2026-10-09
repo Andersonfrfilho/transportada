@@ -124,6 +124,11 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
 CONFLICT` sobre o predicado do único parcial `once`), só datas
       `>=` hoje em São Paulo (D7), nacional só paridade (`national_mismatch`), facultativo só no cache, `removed_at`
       sem apagar a linha da empresa. Confere no início que a Fase 1 está em staging. (CA4, CA6, CA10, CA11)
+      **Contrato com a T4.1 (revisão):** a aplicação lê o **cache** a cada ciclo — não só os pares recém-buscados —,
+      pulando as supressões, **sob o mesmo advisory lock** `['business-calendar', companyId]` da API
+      (`business-calendar-lock.support.ts`) e **relendo as supressões dentro da transação**: é o que faz a data
+      restaurada voltar na próxima execução diária e o `DELETE` (que agora suprime a data digitada/adotada de hoje em
+      diante) não perder para a importação.
 - [ ] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
       (vazio = ausente), registro condicional da rotina (`job_run_routine_missing` sem token), `.env.example` sem valor,
       `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9)
@@ -164,6 +169,10 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       isolamento (`trip-domain/delivery-deadline-isolation.contract.ts`) ganha a agulha do calendário/aviso para
       `driver-score.policy.ts`, `delivery-proof-*.ts` e `proof-pending.query.ts`. Mutação: o aviso de outra cidade
       na parada, a nota descontar o feriado. (CA15, CA16)
+      **Fronteira do módulo (revisão da T4.2):** o aviso do motorista usa `readHolidayWarnings`
+      (`business-calendar/infrastructure/holiday-warning.reader.ts`) **direto** e **nunca** importa
+      `trips/infrastructure/trip-holiday-warning.support.ts`: este é o suporte do detalhe da viagem e carrega a agulha
+      `delivery-deadline` (reaproveita o coalescedor de avisos do prazo), que o contrato de isolamento da nota proíbe.
 
 ## Fase 5 — Painel e app do motorista
 
@@ -181,7 +190,11 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       Nenhum código importado do painel (ADR-0075). Sai antes da API.
 - [ ] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
       fornecedor, status da importação; locale pt-BR/en. **Prints** 375/768/1280, claro e escuro, aprovados pelo
-      usuário antes de publicar.
+      usuário antes de publicar. **Critérios da API (T4.1):** "restaurar" volta **na próxima execução diária**, não na
+      hora (a tela não promete o contrário); `409 HOLIDAY_IMPORT_PAST_DATE` ao desligar data anterior a hoje e
+      `409 HOLIDAY_IMPORT_DATE_LOCKED` ao mudar a **data** de uma estadual importada ("desligue e cadastre") têm
+      mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
+      `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
 - [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
