@@ -53,7 +53,7 @@ describe('os casos de uso das datas fixas (spec 238 T1.3)', () => {
     return { calls, port }
   }
 
-  test('apagar leva o ano corrente: é ele que limita a regeneração da data da regra', async () => {
+  test('apagar leva o ano corrente e o dia de hoje de São Paulo (D7 do desligar)', async () => {
     const { calls, port } = recordingHolidayPort()
     const useCases = createMunicipalHolidaysUseCases({
       now: () => new Date('2026-10-07T15:00:00.000Z'),
@@ -63,7 +63,27 @@ describe('os casos de uso das datas fixas (spec 238 T1.3)', () => {
     await useCases.remove.execute({ ...ACTOR, id: HOLIDAY_ID })
 
     expect(calls).toEqual([
-      { input: { ...ACTOR, currentYear: 2026, id: HOLIDAY_ID }, name: 'remove' },
+      {
+        input: { ...ACTOR, currentYear: 2026, id: HOLIDAY_ID, today: '2026-10-07' },
+        name: 'remove',
+      },
+    ])
+  })
+
+  test('"hoje" é o dia civil de São Paulo, não o de UTC: 01h UTC ainda é a noite anterior', async () => {
+    const { calls, port } = recordingHolidayPort()
+    const useCases = createMunicipalHolidaysUseCases({
+      now: () => new Date('2027-01-01T01:30:00.000Z'),
+      repository: port,
+    })
+
+    await useCases.remove.execute({ ...ACTOR, id: HOLIDAY_ID })
+
+    expect(calls).toEqual([
+      {
+        input: { ...ACTOR, currentYear: 2026, id: HOLIDAY_ID, today: '2026-12-31' },
+        name: 'remove',
+      },
     ])
   })
 

@@ -170,6 +170,7 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
           ...actorOf(tenant, 'corr-delete'),
           currentYear: 2026,
           id: typed.id,
+          today: '2026-10-09',
         })
 
         const regenerated = await findHolidayRow(database, {
@@ -210,6 +211,7 @@ describe('digitar sobre a data de uma regra (spec 238 T1.3)', () => {
             ...actorOf(tenant, 'corr-delete'),
             currentYear: 2026,
             id: holiday.id,
+            today: '2026-10-09',
           })
         }
 

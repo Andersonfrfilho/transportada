@@ -74,13 +74,19 @@ describe('a empresa B diante dos dados da A: exclusão e geração (spec 238 T1.
         const { generated, holidays, rule, rules, state, states, tenantA, tenantB, typed } = fixture
 
         await rules.remove({ ...actorOf(tenantB, 'b1'), currentYear: 2026, id: rule.id })
-        await holidays.remove({ ...actorOf(tenantB, 'b2'), currentYear: 2026, id: typed.id })
+        await holidays.remove({
+          ...actorOf(tenantB, 'b2'),
+          currentYear: 2026,
+          id: typed.id,
+          today: '2026-10-09',
+        })
         await holidays.remove({
           ...actorOf(tenantB, 'b3'),
           currentYear: 2026,
           id: generated?.id ?? '',
+          today: '2026-10-09',
         })
-        await states.remove({ ...actorOf(tenantB, 'b4'), id: state.id })
+        await states.remove({ ...actorOf(tenantB, 'b4'), id: state.id, today: '2026-10-09' })
 
         expect(await rules.list({ companyId: tenantA.companyId, currentYear: 2026 })).toHaveLength(
           1,

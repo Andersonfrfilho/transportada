@@ -7,6 +7,7 @@
 import type { defineRoute } from '../../src/http/router.service'
 import { createBillingRoutes } from '../../src/billing/presentation/billing.routes'
 import { createBusinessCalendarSettingsRoutes } from '../../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createHolidayImportRoutes } from '../../src/business-calendar/presentation/holiday-import.routes'
 import { createMunicipalHolidayRoutes } from '../../src/business-calendar/presentation/municipal-holiday.routes'
 import { createMunicipalHolidayRuleRoutes } from '../../src/business-calendar/presentation/municipal-holiday-rule.routes'
 import { createStateHolidayRoutes } from '../../src/business-calendar/presentation/state-holiday.routes'
@@ -62,6 +63,7 @@ export function buildRoleContractRoutes(
     ...createMunicipalHolidayRuleRoutes(dependencies),
     ...createStateHolidayRoutes(dependencies),
     ...createBusinessCalendarSettingsRoutes(dependencies),
+    ...createHolidayImportRoutes(dependencies),
     // Rotas do app do motorista: `trip.read` abre as de leitura, `trip.report` as de escrita.
     ...createMeTripRoutes(dependencies),
     ...createDeliveryChargeRoutes(dependencies),

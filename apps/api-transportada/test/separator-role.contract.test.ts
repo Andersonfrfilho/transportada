@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createHolidayImportRoutes } from '../src/business-calendar/presentation/holiday-import.routes'
 import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
 import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
 import { createStateHolidayRoutes } from '../src/business-calendar/presentation/state-holiday.routes'
@@ -111,6 +112,8 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createMunicipalHolidayRuleRoutes(dependencies),
     ...createStateHolidayRoutes(dependencies),
     ...createBusinessCalendarSettingsRoutes(dependencies),
+    // Spec 252 T4.1: a gestão da importação de feriados é configuração (`settings.manage`, ler e escrever).
+    ...createHolidayImportRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
