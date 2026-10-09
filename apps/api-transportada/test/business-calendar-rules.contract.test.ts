@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './business-calendar-rules/holiday-routes-write.contract.js'
+import './business-calendar-rules/day-checks.contract.js'
 import './business-calendar-rules/holiday-import-routes.contract.js'
 import './business-calendar-rules/holiday-import-use-cases.contract.js'
 import './business-calendar-rules/holiday-routes.contract.js'
