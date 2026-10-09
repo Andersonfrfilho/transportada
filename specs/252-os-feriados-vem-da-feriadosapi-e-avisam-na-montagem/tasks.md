@@ -121,11 +121,14 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       2026-10-09** (`35d04a1d2` contratos e integração vermelhos, `601237d60` código): 6 integrações contra Postgres
       nativo, 13 mutações vermelhas, cursor em texto com microssegundos; o `EXPLAIN` confirma o índice do cursor e um
       `Seq Scan` em `nfe_addresses` por lote (sem índice novo; decisão do usuário, `evidence.md` § T3.2).
-- [ ] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
+- [x] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
       teto de 100 por ciclo, orçamento mensal incrementado antes da chamada por **upsert** (o primeiro pedido do mês
       cria a linha; mutação: `UPDATE` cru para no dia 1º), backoff 1 h/6 h/24 h até 7 dias, 401/403, 429 com
       `Retry-After`, `quota_exhausted`, `not_covered` (90 dias), cancelamento do operador conferido entre
-      requisições. (CA3, CA7)
+      requisições. (CA3, CA7) **Feita em 2026-10-09** (`d7b7fd062` contratos e integração
+      vermelhos, `e98589cb4` código, `524643828` e `3380298b3` reforços): CA3 e CA7 provados com relógio injetado e contra
+      Postgres (ciclo repetido = 0 requisições e 0 escritas por `xmin`), 23 mutações vermelhas, orçamento por upsert
+      (`UPDATE` cru derruba 7 testes); `evidence.md` § T3.3.
 - [ ] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
 CONFLICT` sobre o predicado do único parcial `once`), só datas
       `>=` hoje em São Paulo (D7), nacional só paridade (`national_mismatch`), facultativo só no cache, `removed_at`

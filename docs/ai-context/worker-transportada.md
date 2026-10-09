@@ -597,3 +597,17 @@ nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termo
   microssegundos. A junção dos endereços faz `Seq Scan` em `nfe_addresses` (sem índice por participante): custo
   limitado pelo teto de lotes; índice, se a medição em staging pedir, vai em migration própria (`CONCURRENTLY`).
   Cópias por valor com paridade: `src/database/holiday-import.schema.ts` e `holiday-provider.constant.ts`.
+- **Busca (T3.3)** — `application/fetch-holiday-provider.use-case.ts`. Fila é a própria `holiday_provider_fetches`: par sem linha,
+  com `next_attempt_at` nulo ou vencido é par para buscar, na ordem paridade nacional (1 por ano, só com demanda), pares
+  de estado existentes e cidades por `sum(document_count)` decrescente, nos anos `[corrente, seguinte]` de São Paulo
+  (D8; relógio injetado). **Antes de cada requisição**: parada do operador, teto de 100 por ciclo e `claimBudget` —
+  upsert `INSERT … ON CONFLICT (month) DO UPDATE … WHERE requests < $orçamento RETURNING` (o 1º pedido do mês cria a
+  linha; um `UPDATE` cru pararia a rotina para sempre) —, e então o limitador (`request-limiter.ts`, 1,2 s entre
+  inícios de requisição, relógio e `sleep` injetados). Desfechos: sucesso = `done`, `next_attempt_at` +180 dias;
+  404 = `not_covered` +90 dias; 5xx/rede/fora do formato = `failed`, recuo 1 h, 6 h, 24 h, 7 dias; 429 = `failed` com
+  `provider_rate_limited`, espera o `Retry-After` (1 h sem cabeçalho) e **encerra o ciclo**; 401/403 encerram sem tocar no
+  par; orçamento esgotado marca o par em curso e os que sobraram `quota_exhausted` até o dia 1º de São Paulo. Uma
+  cidade que falha não derruba as outras. Página cheia pede a seguinte só se trouxe data nova (no máximo 10). A resposta
+  boa grava entradas (chave `(scope, ibge_code, holiday_on)`; o estadual de uma cidade vai para `state` + UF), marca
+  `removed_at` só no escopo e código do par e só se a resposta listou data dele, e fecha o par, tudo numa transação.
+  O estadual só é pedido quando a resposta da cidade não o trouxe; quando trouxe, o par do estado fecha junto.
