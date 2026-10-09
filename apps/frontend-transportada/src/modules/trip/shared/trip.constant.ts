@@ -350,6 +350,8 @@ export const TRIP_OPTIONAL_KEYS = [
   'amounts',
   'estimatedArrivalFrozenAt',
   'estimatedFinishAt',
+  /** Spec 259: a ocupação da linha da lista — forma própria, validada em `tripListOccupancy.validation.ts`. */
+  'occupancy',
 ] as const
 
 export const TRIP_AMOUNTS_KEYS = ['revenueSource'] as const
@@ -360,7 +362,15 @@ export const TRIP_AMOUNTS_KEYS = ['revenueSource'] as const
  * resposta inteira, derrubando a listagem inteira do mesmo jeito que o C1/T701 derrubou a nota
  * fiscal. `revenueSource` continua obrigatória: ela não é dinheiro, é a origem do número.
  */
-export const TRIP_AMOUNTS_OPTIONAL_KEYS = ['documentsTotal', 'revenueTotal'] as const
+export const TRIP_AMOUNTS_OPTIONAL_KEYS = [
+  'documentsTotal',
+  'revenueTotal',
+  /** Spec 259: mesma redação por `trip.financials`, e a mesma regra de campo novo (spec 078 D2). */
+  'costTotal',
+  'hasGaps',
+  'marginPercentage',
+  'marginTotal',
+] as const
 
 /**
  * ⚠️ **Cópia por valor da API**, como `FUEL_TYPES`: o bundle não carrega código do servidor. Fonte:
@@ -407,7 +417,6 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   /** T18 (revisão, item 10): campo novo, mesma regra do opcional acima. */
   'capacityUnknownVehicleId',
   'cargoWeight',
-  'occupancy',
   /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */
   'trailer',
 ] as const
