@@ -295,7 +295,7 @@ describe('a descoberta de cidades por cursor (spec 252 T3.2)', () => {
     })
     let reads = 0
 
-    await buildUseCase({ batchSize: 2, store }).execute({
+    const tally = await buildUseCase({ batchSize: 2, store }).execute({
       isStopRequested: () => {
         reads += 1
         return store.saved.length >= 1
@@ -303,6 +303,8 @@ describe('a descoberta de cidades por cursor (spec 252 T3.2)', () => {
     })
 
     expect(store.saved).toHaveLength(1)
+    // A segunda empresa nem é aberta: ela não conta como processada.
+    expect(tally.companies).toBe(1)
     expect(store.reads.every((read) => read.companyId === COMPANY_A)).toBeTrue()
     expect(reads).toBeGreaterThan(0)
   })
