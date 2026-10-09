@@ -120,6 +120,25 @@ O texto do sino passa de "nova mensagem sobre a ocorrência X" para "Nova mensag
 "· Ocorrência: avaria · parada 3" / "· Viagem de 09/10". Continua **sem corpo da mensagem** (a mensagem
 fica atrás do login, 183 RF11).
 
+### D8 — Toda conversa tem um protocolo legível (decisão do dono, 2026-10-09)
+
+> _"Número — protocolo pode ser formado por data ou id curto."_ O motorista e o operador precisam **citar a
+> conversa** por telefone ou WhatsApp sem dizer um UUID.
+
+- **Formato:** `AAMMDD-XXXX` — a data de criação (fuso `America/Sao_Paulo`) + 4 caracteres de um alfabeto sem
+  ambíguos (`23456789ABCDEFGHJKMNPQRSTUVWXYZ`, sem `0 O 1 I L`). Ex.: `261009-K7M2`. São ~920 mil combinações por dia
+  e por empresa; colisão é recusada pelo índice único e o servidor sorteia de novo (até 5 vezes).
+- **Gerado pelo servidor, uma vez, na criação da conversa; imutável.** Nunca pelo cliente. Único por empresa
+  (`unique (company_id, protocol)`). Conversas já existentes ganham protocolo por backfill, com a data de criação
+  delas, na mesma migration aditiva (Fase 2).
+- **Aparece em:** cabeçalho da conversa (abaixo do título), linha da lista, painel do escritório (conversa da
+  ocorrência/nota/viagem) e na linha do tempo da viagem. Tocar/clicar copia (com aviso acessível). Não vai em log
+  com mensagem; é identificador opaco, não PII.
+- **Busca:** a lista do motorista aceita digitar o protocolo para achar a conversa (parcial, sem traço, sem caixa).
+- **No SDK:** campo **opcional** `protocol?: string` em `ParticipantConversationSummary` (aditivo, minor); o pacote
+  só exibe e copia — **não gera** protocolo e não conhece o formato (é do produto). Capacidade por ausência: sem o
+  campo nada é desenhado.
+
 ## Histórias priorizadas
 
 ### P1 — Ler e responder o escritório sobre uma ocorrência
@@ -173,6 +192,8 @@ motorista e fica em "Encerradas" (ainda legível).
 - **RF9** O aviso do sino carrega o assunto (D7) e o item abre a conversa (D6).
 - **RF10** Todo texto novo em `pt-BR` e `en`: o do SDK por `labels` (default em inglês + mapa recebido do
   produto); o do app em `.locale.json`. Nenhuma string de domínio no código do pacote.
+- **RF14** Toda conversa tem protocolo `AAMMDD-XXXX` gerado pelo servidor (D8), único por empresa, exibido no
+  cabeçalho e na lista do app, copiável por toque, e buscável na lista; o escritório o vê no painel.
 - **RF13** (plugar em outro app) A visão do participante recebe **só** um `ConversationsApi`, `labels`,
   `subjectGroups` e o tema. Provado por um segundo consumidor real: o portal da contratante
   (`apps/frontend-client`) abre a conversa dele com o mesmo componente, sem mudar o pacote.
@@ -211,6 +232,7 @@ motorista e fica em "Encerradas" (ainda legível).
 - A4 O motorista de outra viagem recebe `404` na conversa de nota/viagem (contrato negativo).
 - A5 Nenhuma mensagem altera tratativa, taxa ou acerto (mutação: remover a barreira reprova teste).
 - A6 `make check` verde nas três apps tocadas; `make migration-test` verde.
+- A9 Duas conversas nunca têm o mesmo protocolo na mesma empresa (teste de colisão forçada: o servidor sorteia de novo); o protocolo é imutável; aparece no app e no painel.
 - A8 O pacote publica com changeset e passe de revisão `opus`; os três consumidores
   (`frontend-driver`, `frontend-transportada`, `frontend-client`) ficam **na mesma versão** do
   `conversations-ui`; o portal da contratante renderiza a visão do participante (RF13).

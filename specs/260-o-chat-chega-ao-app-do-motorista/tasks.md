@@ -79,6 +79,15 @@
 pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
       portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.
 
+- [ ] **T1.9** `sonnet` — **Protocolo no SDK (D8, RF14):** `protocol?: string` (1..32, `[A-Za-z0-9-]`) em
+      `ParticipantConversationSummary` + schema; `ParticipantInbox` mostra o protocolo na linha (mono, discreto) e
+      `ParticipantThread` no cabeçalho, com botão de copiar (≥ 44px, `aria-live` "protocolo copiado", label por
+      prop `labels.copyProtocol`/`protocolCopied`); filtro de busca por protocolo na lista (função pura
+      `matchesProtocolQuery`: sem traço, sem caixa, parcial); ausente = nada desenhado. Changesets minor
+      (contracts 0.5.0, UI 0.6.0). **Novo ciclo de publicação:** passe de revisão `opus` (diff pequeno) e
+      aprovação do usuário antes do merge.
+- [ ] **T1.10** `sonnet` — Subir os 3 apps para a versão nova do `conversations-ui` (alinhar) e ligar o protocolo.
+
 ## Fase 1b — Plugar nos apps (alinhar versões)
 
 > 🤖 Modelo: `sonnet` (T1b.1 → `haiku`)
@@ -106,6 +115,9 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [x] **T1b.9** `sonnet` — (achado no navegador) o campo de resposta ficava abaixo da janela (y=771 em 766) e a barra
       inferior fixa cobria o fim; o toque no campo caía na aba "Conversas". A conversa agora ocupa a altura visível
       acima da barra (`--driver-bottom-bar-height`). Commit `2244f20a5`.
+- [ ] **T1b.10** `sonnet` — **Protocolo no app e na demo (D8):** adapter mapeia `protocol` da API; API de demonstração
+      devolve protocolos `AAMMDD-XXXX`; conferir no navegador (cabeçalho, lista, copiar, busca). Até a API
+      (T2.4) servir o campo, o adapter **não inventa** protocolo: sem campo, nada aparece.
 - [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
       escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
       implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
@@ -127,7 +139,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       demais herdam.**
 - [ ] **T2.2** `sonnet` — Contratos negativos antes: BOLA (nota/viagem alheia → 404), encerrada → 409,
       `open` idempotente, a conversa não decide (mutação).
-- [ ] **T2.3** `sonnet` — Migration aditiva + backfill + `rollback.sql` + `make migration-test`.
+- [ ] **T2.3** `sonnet` — Migration aditiva **+ coluna `protocol` (`AAMMDD-XXXX`, único por empresa, imutável) com backfill e gerador com retry de colisão (D8; teste de colisão forçada)**; + backfill + `rollback.sql` + `make migration-test`.
 - [ ] **T2.4** `sonnet` — Rotas `/me/trips/current/conversations/**` e `findMySubject`; **a API passa a ecoar `clientMessageId` nas mensagens e devolver `awaitingDriver`/`subjectLabel` na lista** (remove os dois remendos do adapter); rotas antigas
       intactas; OpenAPI gerado; teste de que toda rota aparece no documento.
 - [ ] **T2.5** `sonnet` — Aviso do sino com assunto (D7); `awaitingDriver` e `subjectLabel` no servidor.

@@ -71,6 +71,7 @@ O adapter do app não inverte nada.
 até 128 — casa com `requestSchemas.ts:21-22`); `ParticipantConversationSummary` (`subjectLabel`,
 `lastMessageAt: string | null`, `lastMessagePreview?`, `lastMessageDirection?`, `unreadCount`,
 `awaitingParticipant`, `status: 'open' | 'closed'`, `attributes?` — onde viaja o `tripId`);
+`protocol?: string` (D8 — referência legível gerada pelo produto, ex. `261009-K7M2`; o pacote só exibe e copia, nunca gera);
 `ParticipantConversationPage { data, nextCursor? }`; `ParticipantMessage` (`id`, `clientMessageId?`,
 `direction`, `authorName?`, `text?`, `attachments`, `createdAt`, `status?`, `readAt?`);
 `ParticipantAttachment`. Tudo com **schema zod** — a resposta da API é entrada não confiável.
