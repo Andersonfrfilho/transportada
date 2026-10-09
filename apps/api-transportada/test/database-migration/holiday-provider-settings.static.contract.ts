@@ -8,6 +8,9 @@
 import { join } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig } from 'drizzle-orm/pg-core'
+
+import { holidayProviderSettings } from '../../src/database/holiday-provider-settings.schema.js'
 
 import {
   BUDGET_MAX,
@@ -88,10 +91,10 @@ describe('the holiday provider settings migration enters additive', () => {
     const tokenCheck = instructions.slice(
       instructions.indexOf(`CONSTRAINT "${CONSTRAINT_NAMES.tokenCheck}"`),
     )
-    expect(tokenCheck).toContain(`jsonb_typeof("token_envelope") = 'object'`)
-    expect(tokenCheck).toContain('"token_hint" IS NOT NULL')
-    expect(tokenCheck).toContain('"token_updated_at" IS NOT NULL')
-    expect(tokenCheck).toContain('"token_envelope" IS NULL')
+    expect(tokenCheck).toMatch(/jsonb_typeof\("token_envelope"\) = 'object'/u)
+    expect(tokenCheck).toMatch(/"token_hint" IS NOT NULL/iu)
+    expect(tokenCheck).toMatch(/"token_updated_at" IS NOT NULL/iu)
+    expect(tokenCheck).toMatch(/"token_envelope" IS NULL/iu)
   })
 
   test('the rollback drops only the table, then the journal entry with ROW_COUNT, and never refuses', async () => {
@@ -116,5 +119,24 @@ describe('the holiday provider settings migration enters additive', () => {
     expect(instructions.match(/RAISE EXCEPTION/gu)).toHaveLength(1)
     expect(instructions).not.toMatch(/\bCASCADE\b|\bALTER\b|\bUPDATE\b|\bCONCURRENTLY\b/u)
     expect(text.trimEnd()).toEndWith('COMMIT;')
+  })
+
+  test('the TypeScript schema declares the same columns and constraints, so db:generate starts from the truth', () => {
+    const config = getTableConfig(holidayProviderSettings)
+
+    expect(config.name).toBe(TABLE_NAME)
+    expect(config.columns.map((column) => column.name)).toEqual([...COLUMN_NAMES])
+    expect(config.checks.map((check) => check.name).toSorted()).toEqual(
+      [
+        CONSTRAINT_NAMES.budgetCheck,
+        CONSTRAINT_NAMES.providerCheck,
+        CONSTRAINT_NAMES.tokenCheck,
+        CONSTRAINT_NAMES.versionCheck,
+      ].toSorted(),
+    )
+    expect(config.uniqueConstraints.map((unique) => unique.name)).toEqual([
+      CONSTRAINT_NAMES.providerUnique,
+    ])
+    expect(config.foreignKeys).toEqual([])
   })
 })

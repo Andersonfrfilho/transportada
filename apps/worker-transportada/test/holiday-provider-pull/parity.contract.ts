@@ -19,6 +19,10 @@ const API_CONSTANTS = new URL(
   '../../../api-transportada/src/shared/holiday-provider.constant.ts',
   import.meta.url,
 )
+const WORKER_PULL_CONSTANTS = new URL(
+  '../../src/holiday-provider-pull/domain/holiday-provider-pull.constant.ts',
+  import.meta.url,
+)
 const WORKER_STATES = new URL(
   '../../src/holiday-provider-pull/domain/brazilian-state.constant.ts',
   import.meta.url,
@@ -83,5 +87,23 @@ describe('o vocabulário do cache do fornecedor é o da API (spec 252 T3.2)', ()
     const api = await readFile(API_CALENDAR_CONSTANTS, 'utf8')
 
     expect(api).toContain(`export const CITY_IBGE_CODE_SOURCE = '${CITY_IBGE_CODE_PATTERN.source}'`)
+  })
+})
+
+describe('o orçamento mensal tem o mesmo padrão e o mesmo teto na API e no worker (spec 262)', () => {
+  test('as constantes do orçamento são idênticas, por valor', async () => {
+    const [worker, api] = await Promise.all([
+      readFile(WORKER_PULL_CONSTANTS, 'utf8'),
+      readFile(API_CONSTANTS, 'utf8'),
+    ])
+
+    for (const name of [
+      'FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET',
+      'FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET',
+    ]) {
+      expect(extractDeclaration({ name, source: worker })).toBe(
+        extractDeclaration({ name, source: api }),
+      )
+    }
   })
 })

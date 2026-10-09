@@ -96,6 +96,7 @@ import {
   holidayImportCities,
   holidayImportSuppressions,
 } from './holiday-import.schema.js'
+import { holidayProviderSettings } from './holiday-provider-settings.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -213,6 +214,7 @@ export * from './municipal-holiday-rule.schema.js'
 export * from './state-holiday.schema.js'
 export * from './holiday-provider.schema.js'
 export * from './holiday-import.schema.js'
+export * from './holiday-provider-settings.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -307,6 +309,7 @@ export const databaseSchema = {
   holidayImportCities,
   companyHolidayImportSettings,
   holidayImportSuppressions,
+  holidayProviderSettings,
   companyCrewSettings,
   deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,

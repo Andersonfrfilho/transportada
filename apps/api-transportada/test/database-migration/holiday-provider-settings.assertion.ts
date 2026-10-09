@@ -66,6 +66,7 @@ async function readConstraintNames(database: SQL): Promise<readonly string[]> {
   const rows = await database<Array<{ readonly conname: string }>>`
     select conname from pg_constraint
     where conrelid = to_regclass(${`public.${TABLE_NAME}`})
+      and contype in ('c', 'p', 'u')
     order by conname
   `
   return rows.map((row) => row.conname)
@@ -87,7 +88,7 @@ function insertRow(
       (provider, token_envelope, token_hint, token_updated_at, monthly_request_budget, version, updated_by_user_id)
     values (
       ${fields.provider ?? FERIADOS_API_PROVIDER},
-      ${fields.envelope ?? null}::jsonb,
+      ${fields.envelope ?? null}::text::jsonb,
       ${fields.hint ?? null},
       ${fields.tokenUpdatedAt ?? null}::timestamptz,
       ${fields.budget ?? 4500},
