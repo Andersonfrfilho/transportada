@@ -69,3 +69,15 @@ Conclusão: importando de arquivos-folha, o `/participant` fica ~47% menor que o
 minificado** e `buildOutput.test.ts` ganha a asserção "sem xyflow". Atenção: `MessageBubble` usa
 `useConversations()` (provider de operador); o `/participant` precisa de um provider mais leve ou de
 `ConversationsProvider` com `sse` opcional (decisão da T0.3).
+
+## Fase 1 — andamento (repo `adatechnology-packages`, branch `feat/participant-conversations`, worktree `adatechnology-packages-wt/participant-conversations`)
+
+| Task  | Commit    | Gate (conferido por mim, não só pelo relatório do executor)    |
+| ----- | --------- | -------------------------------------------------------------- |
+| T1.0a | `3c297f3` | `tsc` limpo · `bun test` 539 pass / 0 fail (4 vermelhos antes) |
+| T1.0b | `9b2b728` | `tsc` limpo · 547 pass / 0 fail (8 vermelhos antes)            |
+| T1.0c | `518859d` | `tsc` limpo · 548 pass / 0 fail                                |
+
+Ambiente: o baseline só fica verde depois de `pnpm run build` em `conversation-contracts`,
+`meta-whatsapp-contracts` e `conversations-ui` (dists gitignored); sem isso há falha de resolução anterior a
+qualquer mudança. Atribuição do commit da T1.0a saiu como "Haiku 5.5" (modelo real do executor).
