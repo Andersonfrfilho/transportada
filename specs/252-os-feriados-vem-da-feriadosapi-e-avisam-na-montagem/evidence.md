@@ -269,3 +269,113 @@ os testes seguram a regra é a mutação abaixo.
   tirar o spread de `holidayWarnings` em `toStop` → 1 teste do motorista falha (1410 pass / 1 fail); restaurado,
   `git diff --quiet` verde.
 - **Fora desta task:** nenhuma tela; a queda do `day-checks` no aviso nacional de hoje fica na T5.3.
+
+## T2.1 — contratos do modelo, antes da migration (2026-10-07)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t2` a partir de `origin/staging` (`c579e5107`), sem push. Postgres
+**nativo** descartável (Homebrew 18.4, porta 65433, cluster no scratchpad; o Docker 65432 segue com I/O error), com
+`DRIZZLE_TEST_DATABASE_URL`; o `.env`/`.env.test` do worktree são links para o checkout principal. Linha de base antes de
+tocar em qualquer coisa: `bun test ./test/database-migration.contract.test.ts` → **119 pass, 0 fail**.
+
+Commit `20b0cff74` — só teste, vermelho **pelo motivo certo**:
+
+- `test/database-migration/holiday-provider-import.constant.ts`: a lista de nomes do ADR-0100 §3 (tabelas, PK, únicos,
+  FK, CHECK, índices e o que entra nas duas tabelas publicadas), lida pelos dois contratos.
+- `holiday-provider-import.static.contract.ts` (11 testes sobre o texto da migration e do rollback): seis tabelas e
+  nenhuma outra; todo nome explícito e todo identificador ≤ 63 bytes; os **dez comandos** das tabelas publicadas, nessa
+  ordem e **os últimos** (`state_holidays` antes, `municipal_holidays` por último); as duas CHECK de `job` com a lista de
+  antes mais o nome novo, `NOT VALID` + `VALIDATE`; a linha de `job_schedules` **pausada de fábrica**
+  (`enabled = false`, `paused_origin = 'system'`, 86.400 s); uma única linha escrita; `lock_timeout` de 3 s devolvido ao
+  padrão; rollback que recusa antes de tocar em qualquer coisa, devolve as listas de `job` e desfaz a coluna antes de
+  derrubar a tabela que a FK referencia.
+- Integração (`holiday-provider-import*.assertion.ts`, ligada em `database-migration.integration.ts` e nas listas de
+  `support.ts`/`readBusinessTables`): nomes lidos de `pg_constraint`/`pg_indexes` contra a lista (o Postgres trunca calado
+  acima de 63 bytes); cada CHECK por um valor ruim e um bom; os únicos (inclusive o nacional `'BR'` duplicado); o upsert
+  do orçamento (1º pedido do mês cria a linha, o teto devolve vazio); a CHECK de exclusão `source_rule_id`/`provider_entry_id`;
+  importada só `once` no estadual; FK `RESTRICT` (`23001` ou `23503`); os dois índices parciais; a rotina pausada;
+  o rollback recusando e passando.
+- Vermelho medido: **118 pass, 13 fail** — 12 do contrato estático (`_holiday_provider_import migration is required`) e 1 da
+  integração (`readBusinessTables` sem as seis tabelas novas). Nada vermelho por erro de teste.
+
+## T2.2 — a migration (2026-10-07)
+
+Commit `7e7a9ae4a`: `drizzle/20261009040622_holiday_provider_import/` (`migration.sql`, `rollback.sql`, `snapshot.json`; o
+timestamp é posterior ao de `20261007205304_nfse_national_taxation`, a última em staging), schema Drizzle
+(`holiday-provider.schema.ts`, `holiday-import.schema.ts`, `provider_entry_id` em `delivery-client.schema.ts` e
+`state-holiday.schema.ts`, `holidayScopeCodeSql` em `schema-check.constant.ts`, vocabulário em
+`src/shared/holiday-provider.constant.ts`). O SQL das tabelas e das CHECK é o que o `db:generate --name tmp` gerou; à mão
+foram o `NOT VALID` + `VALIDATE`, as duas CHECK de `job`, o `INSERT` da rotina, a ordem do arquivo e o cabeçalho.
+
+### Escolhas dentro do ADR (para revisão)
+
+- **Rollback recusa** com feriado importado (municipal ou estadual), supressão do operador ou execução aberta da rotina. O
+  `plan.md` dizia "deixa as linhas importadas como datas digitadas"; o pedido da sessão mandou recusar linha importada, e
+  recusar é o lado seguro (sem recusa a proveniência some e a data vira "digitada" sem ninguém decidir). Para seguir, o
+  operador apaga ou adota os importados (o cabeçalho do `rollback.sql` diz como). Troca de critério = uma linha do `IF`.
+- Os ALTER vão **`state_holidays` primeiro, `municipal_holidays` por último**: o ACCESS EXCLUSIVE fica retido até o COMMIT
+  do lote, e a tabela que o roteirizador lê é a trancada por menos tempo.
+- FK com `ON DELETE RESTRICT ON UPDATE CASCADE` (convenção do repositório; o ADR só fixa o `RESTRICT`); índices parciais em
+  `(company_id, provider_entry_id)` (espelha `municipal_holidays_company_source_rule_idx`); ano do cache entre 1583 e 9999
+  (domínio do calendário); `month` do orçamento validado por `extract(day from "month") = 1`.
+- O código de cidade do cache, da demanda e da supressão usa `^[1-5][0-9]{6}$` (município IBGE de UF de 1 a 5), mais estrito
+  que a CHECK antiga de `municipal_holidays` (`^[0-9]{7}$`). **A descoberta (T3.2) tem de filtrar `nfe_addresses.city_code`
+  com o mesmo padrão antes do upsert**, ou um código lixo (ex.: `9999999`) derruba o lote inteiro.
+- PK inline leva o nome do Postgres (`<tabela>_pkey`); o integration confere os seis contra `pg_constraint`. Maior
+  identificador novo: `company_holiday_import_settings_company_id_companies_id_fk`, **58 bytes**.
+
+### Conflito com a regra "não adicionar o nome ao catálogo TS" (relatado, não burlado)
+
+A CHECK de `job` do schema TS é `inList(SCHEDULED_JOBS)`, derivada do catálogo de jobs. O `snapshot.json` da migration traz
+`holiday.provider.pull` nas duas CHECK (é o que o banco tem). Sem o nome no catálogo, o contrato
+`schema-snapshot.contract.ts › the latest snapshot matches the TypeScript schema` fica **vermelho** (o diff são exatamente
+as duas CHECK de `job`) e `db:generate` não responde `no_changes`. O snapshot "verde" seria o gerado do schema atual, sem o
+nome — mas aí ele mentiria sobre as duas CHECK e a T2.3 teria de editá-lo ou geraria uma migration redundante. Escolhido:
+snapshot fiel ao SQL, vermelho conhecido até a T2.3. **Prova de que é só isso:** com uma linha provisória no catálogo da API
+(`{ failureOutcomes: [], job: 'holiday.provider.pull', minimumIntervalSeconds: 3_600 }`, revertida em seguida) o
+`database-migration.contract.test.ts` deu **131 pass, 0 fail** e `bun run db:generate` respondeu `{"status":"no_changes"}`.
+Consequência: **a migration só vai ao ar junto com a T2.3** (catálogo nas quatro cópias), como já diz a ordem de publicação.
+
+### Infra de teste ajustada
+
+- `canhoto-read-queue.assertion.ts` e `business-calendar.assertion.ts` desfazem migrations **anteriores** com a nova ainda
+  aplicada: agora a nova sai antes (`rollbackHolidayProviderImportIfApplied`) e a reaplicação do fim delas a devolve. Sem
+  isso, o rollback da retenção recusava (linha de `job_schedules` fora da CHECK antiga) e o da `business_calendar` deixava
+  `provider_entry_id` e as FKs para trás.
+- `static-migration.contract.ts` ganhou o nome da pasta; `support.ts` e `database-migration.integration.ts`, as seis tabelas.
+- Três contratos de forma da 238 foram atualizados porque a coluna nova é a mudança pedida:
+  `municipal-holidays-additions`, `state-holidays-and-settings` (colunas, índice, FK) e `single-definitions`.
+- Dois acertos no contrato estático do T2.1 depois de escrever o SQL (não mudam o que ele prova): a PK inline não tem nome no
+  texto (o integration a confere), e a recusa do rollback cita o nome da rotina uma vez a mais (contagem de execução aberta).
+  E o teste de rollback da integração passou a isolar cada causa de recusa (a primeira versão deixava uma mutação sobreviver).
+
+### Gates (Postgres nativo 65433)
+
+| Gate                                                                                         | Resultado                                                                |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bun run db:test` (corpo do `make migration-test`; o alvo `make` usa o Docker quebrado)      | 167 pass, **1 fail** = `schema-snapshot` acima                           |
+| `bun test ./test/database-migration.contract.test.ts` (migração sobe, desce e sobe de novo)  | 130 pass, 1 fail (o mesmo); 131 pass com o nome provisório no catálogo   |
+| `bun --env-file=../../.env.test run test` (contratos da API, script do `package.json`)       | 10868 pass, 1 skip (corpus PII sem env), **1 fail** (o mesmo)            |
+| Integrações `business-calendar-*`, `municipal-holiday-*` (13 arquivos)                       | 51 pass, 0 fail, 0 skip                                                  |
+| Integrações do prazo da 236 (`trip-detail-delivery-deadline*`, independência do motorista)   | 19 pass, 0 fail                                                          |
+| Worker, roteirizador depois da migration (`route-optimization-municipal-holiday` + 3 outros) | 15 pass + 4 pass, 0 fail (banco migrado pela API em `t252_worker`)       |
+| `bunx tsc --noEmit` / `bunx eslint src test … --max-warnings=0` (cwd na app)                 | exit 0 / exit 0                                                          |
+| `db:generate` = `no_changes`                                                                 | só com o nome no catálogo (T2.3); hoje o diff são as duas CHECK de `job` |
+
+### Mutações (cada uma em cópia do arquivo, revertida; baseline = 1 fail conhecido do snapshot)
+
+| Mutação                                                                                | Resultado                                                                                         |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| CHECK de exclusão `rule_or_provider` vira `CHECK (true)`                               | **3 fail**: estático (dez comandos) + integração (`Expected PostgreSQL SQLSTATE 23514`)           |
+| CHECK `state_holidays_provider_once_check` vira `CHECK (true)`                         | **3 fail**: estático + integração (`23514` esperado)                                              |
+| Único do cache enfraquecido (`UNIQUE(scope, ibge_code, year, id)`, mesmo nome)         | **2 fail**: integração (`Expected PostgreSQL SQLSTATE 23505`: o nacional `'BR'` duplicado aceito) |
+| Único do cache removido                                                                | **3 fail**: estático (nome ausente) + integração (nomes ≠ `pg_constraint`)                        |
+| FK com o nome padrão do drizzle (67 bytes)                                             | **4 fail**: estático (nome/63 bytes e comando) + integração (o Postgres truncou calado)           |
+| Rotina sem a pausa de fábrica (`enabled = true`)                                       | **3 fail**: estático (D13) + integração (retrato da rotina)                                       |
+| Rollback ignora supressão / execução aberta / importado estadual / importado municipal | cada uma **2 fail** na integração (a recusa não veio)                                             |
+| Rollback devolve a CHECK de `job` com o nome novo                                      | **3 fail**: estático + integração                                                                 |
+
+### O que não foi feito
+
+T2.3 (catálogo nas quatro cópias, com rótulo e locale); nenhuma rota, rotina ou cliente do fornecedor; nada em
+`apps/worker-transportada`; nada publicado (sem push); `make migration-test` literal (usa o Docker 65432 com I/O error: o
+corpo dele, `db:test`, rodou no Postgres nativo). Produção: nenhuma conexão.
