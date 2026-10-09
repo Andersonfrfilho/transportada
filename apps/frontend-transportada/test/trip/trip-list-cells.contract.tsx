@@ -166,6 +166,41 @@ describe('TripOccupancyBars', () => {
     expect(markup).not.toContain('Volume 62% · acima do teto')
   })
 
+  it('ficha sem teto de carga mostra a barra de volume e diz "sem teto de carga" no peso, nunca 0%', () => {
+    const markup = bars({
+      occupancy: {
+        ...FULL_OCCUPANCY,
+        weight: { documentsWithoutWeight: 0, payloadRatio: null, source: 'declared' },
+      },
+    })
+
+    expect(markup).toContain('Volume 62%')
+    expect(markup).toContain('sem teto de carga')
+    expect(markup).not.toContain('Peso 0%')
+    expect(markup).not.toContain('NaN')
+  })
+
+  it('razão fora do intervalo não gera NaN% nem barra negativa', () => {
+    for (const ratio of ['-0.5', '1.2']) {
+      const markup = bars({
+        occupancy: {
+          ...FULL_OCCUPANCY,
+          weight: { documentsWithoutWeight: 0, payloadRatio: ratio, source: 'declared' },
+        },
+      })
+
+      expect(markup).not.toContain('NaN')
+    }
+    expect(
+      bars({
+        occupancy: {
+          ...FULL_OCCUPANCY,
+          weight: { documentsWithoutWeight: 0, payloadRatio: '1.2', source: 'declared' },
+        },
+      }),
+    ).toContain('Peso 120% · acima do teto')
+  })
+
   it('API anterior (sem o campo) mostra "—"', () => {
     expect(bars({ occupancy: undefined })).toContain('—')
   })

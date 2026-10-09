@@ -93,6 +93,24 @@ describe('a listagem de viagens aceita o item antigo e o novo (spec 259)', () =>
     })
   })
 
+  it('ficha sem teto de carga (payloadRatio null) preserva o volume e deixa o peso sem razão', () => {
+    const page = adapters.tripListFromApi(
+      listOf(
+        rawTrip({
+          occupancy: {
+            capacityUnknownReason: null,
+            volume: { documentsWithoutVolume: 0, occupancyRatio: '0.6200', source: 'measured' },
+            weight: { documentsWithoutWeight: 0, payloadRatio: null, source: 'declared' },
+          },
+        }),
+      ),
+    )
+    const summary = page.items[0]?.occupancySummary
+
+    expect(summary?.volume?.occupancyRatio).toBe('0.6200')
+    expect(summary?.weight?.payloadRatio).toBeNull()
+  })
+
   it('sem trip.financials o amounts não traz os campos novos e a lista passa', () => {
     const page = adapters.tripListFromApi(
       listOf(rawTrip({ amounts: { revenueSource: 'estimated' }, occupancy: NEW_OCCUPANCY })),

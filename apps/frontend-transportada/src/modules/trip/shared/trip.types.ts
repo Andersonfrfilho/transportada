@@ -103,7 +103,7 @@ export type TripListVolumeOccupancy = Readonly<{
 /** Spec 259: a fatia de peso da ocupação na linha da lista — `null` quando a ficha não tem teto. */
 export type TripListWeightOccupancy = Readonly<{
   documentsWithoutWeight: number
-  payloadRatio: string
+  payloadRatio: string | null
   source: TripCargoWeight['source']
 }>
 
@@ -803,13 +803,7 @@ export type TripCargoLayout = Readonly<{
    */
   layoutNotes?: readonly string[]
   stopArrangementReason?:
-    | 'fits'
-    | 'noBed'
-    | 'openBody'
-    | 'singleStop'
-    | 'tooWide'
-    | 'volumeDoesNotFit'
-    | 'weight'
+    'fits' | 'noBed' | 'openBody' | 'singleStop' | 'tooWide' | 'volumeDoesNotFit' | 'weight'
   /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
   freeRows: number
   /**
@@ -1423,13 +1417,7 @@ export type FindNfeDocumentByAccessKeyInput = Readonly<{
  * a criação morria no `202` sem nunca chegar a esperar o solver.
  */
 export type MultiVehicleSuggestionStatus =
-  | 'accepted'
-  | 'failed'
-  | 'queued'
-  | 'ready'
-  | 'rejected'
-  | 'running'
-  | 'stale'
+  'accepted' | 'failed' | 'queued' | 'ready' | 'rejected' | 'running' | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
   /**
