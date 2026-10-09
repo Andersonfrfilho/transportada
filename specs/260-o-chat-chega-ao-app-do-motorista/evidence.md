@@ -91,3 +91,25 @@ minificado** e `buildOutput.test.ts` ganha a asserção "sem xyflow". Atenção:
 Ambiente: o baseline só fica verde depois de `pnpm run build` em `conversation-contracts`,
 `meta-whatsapp-contracts` e `conversations-ui` (dists gitignored); sem isso há falha de resolução anterior a
 qualquer mudança. Atribuição do commit da T1.0a saiu como "Haiku 5.5" (modelo real do executor).
+
+## T1.8 — passe de revisão `opus` (2026-10-09): **REPROVADO para publicar nesta forma**
+
+Gates conferidos pelo revisor: contracts 60 pass · UI 658 pass · tsc e build limpos. Contrato e arquitetura
+**aprovados**; 0 críticos, **4 ALTO**, 10 MÉDIO, 10 BAIXO. Os dois ALTO mais fortes foram reconfirmados por grep
+(`isSending` nunca ligado em `ParticipantThreadScreen`; nenhuma rolagem no pacote; `loadMore` não exposto;
+`newMessagesCount` nunca passado).
+
+Bloqueiam a publicação (viram T1.8a/T1.8b): (1) envio duplo — o campo segue preenchido durante o envio e a falha deixa
+rascunho **e** bolha; (2) sem rolagem para a última mensagem; (3) falha de rede vira "sem conversas"; (4) inbox sem
+paginação; (5) `queued` remove a bolha local cedo; (6) `resolveAttachmentUrl` perde o `this`, `api` instável zera a
+conversa; (7) `markRead` não reage a `visibilitychange` com `subscribe`; (8) `isSending`/`newMessagesCount` não ligados;
+(9) README/contrato: eco de `clientMessageId` obrigatório, `api` estável, `schema.parse`/`encodeURIComponent`, aviso de
+`styles.css`. Decisão de comportamento público da 0.5.0, por isso corrige-se **antes** de publicar.
+
+Ficam como tasks posteriores: colisão de chaves de seção, ordenação por `Date.parse`, buraco após 30+ mensagens offline,
+allowlist de esquema de URL, anexo por `id`, label i18n e contraste do `StatusTicks`, foco ao trocar de tela, palavras
+do TMS em comentário/README/preview, `buildOutput.test` medindo com externos, happy-dom + Testing Library para hooks.
+
+Consumidores TransportAdA (grep real): usam só `MessageText`, `StatusTicks`, `DateDivider`, helpers e o tipo
+`MessagePayload` (que só **constroem**); nenhum `switch`/`Record` sobre o `ConversationChannel` do SDK — nada quebra
+com `app`/`portal`/`queued`/`bounced`. Risco fora do grep: Sakura/quickcart sem `styles.css` perdem formatação.

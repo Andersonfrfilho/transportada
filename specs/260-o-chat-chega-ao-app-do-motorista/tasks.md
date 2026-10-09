@@ -55,6 +55,24 @@
       antes do envio **sem esvaziar o rascunho**; reenvio repete o mesmo `clientMessageId`.
 - [x] **T1.7** `haiku` — Changeset **minor, sem pre mode** (contracts 0.4.0, UI 0.5.0); README com exemplo de
       adapter REST e aviso de `ConversationChannel` ampliado para quem tem `switch` exaustivo.
+- [ ] **T1.8a** `sonnet` — (passe opus: **REPROVADO**, ver `evidence.md`) **Envio, fila e rascunho:** limpar o campo ao
+      enviar (a bolha é a dona do conteúdo; texto+`File[]` vão para a pendente local); falha → bolha `failed` com
+      reenviar (mesmo `clientMessageId`), "descartar" e "editar" (devolve ao rascunho); `localPending`/`sentRecords`
+      sobem para `ParticipantConversations`, por assunto; `queued` mantém a pendente local até o host/servidor a
+      refletirem; `resolveAttachmentUrl` com `this` preservado; `reset` da conversa sem depender da identidade de
+      `api`; `markRead` reage a `visibilitychange` (com `subscribe` também) e revalida em `online`; reenviar só
+      quando houver como (falha do servidor e host sem `onRetryPending` = só "Falhou"). Atualizar o teste da T1.6.
+- [ ] **T1.8b** `sonnet` — **Estados e navegação:** rolar até a última mensagem ao abrir/ao chegar (se já estava
+      perto do fundo) e preservar a posição ao carregar antigas; estados `loading`/`error` com "tentar de novo"
+      na inbox e na conversa (`aria-busy`); paginação da inbox (`loadMore`, `loaded` sem descartar páginas
+      anexadas); `isSending` e `newMessagesCount` ligados e **obrigatórios** no `ParticipantThread` interno;
+      `MessageText` com `copyOnClick?`/`copiedLabel?` (visão do participante não copia ao tocar) e sem
+      `user-select: all`; README e contrato: eco de `clientMessageId` obrigatório, `api` estável, adapter com
+      `schema.parse` + `encodeURIComponent`, changeset avisando que `styles.css` é requisito.
+- [ ] **T1.8c** `sonnet` — **Operacional:** `npm pack` dos dois pacotes, `file:` nos três apps em worktree
+      descartável, `make check` e smoke do painel e do portal.
+- [ ] **T1.8d** 🧠 `opus` — **Re-passe de revisão** dos achados ALTO/bloqueantes corrigidos; só então PR → `main` →
+      `publish.yml` (**parar e pedir aprovação** antes do merge em `main`: publica pacote público no npm).
 - [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** antes de qualquer versão sair. Antes do merge: `npm
 pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
       portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.
