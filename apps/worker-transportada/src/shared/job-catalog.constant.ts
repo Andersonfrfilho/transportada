@@ -294,6 +294,16 @@ export const JOB_CATALOG = [
     /** Um dia: depois de pausada e retomada, a nota sem e-mail no XML é relida a cada ciclo. */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Importação de feriados da FeriadosAPI. Nasce pausada de fábrica: sem token, cada janela seria
+     * uma chamada recusada. Falha de fornecedor é código estável, nunca texto solto.
+     */
+    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    job: 'holiday.provider.pull',
+    /** Uma hora: a cota mensal é o teto real, e o piso de uma hora é cortesia com o fornecedor. */
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]
