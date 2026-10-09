@@ -7,6 +7,11 @@ export const CURRENT_TRIP_PATH = '/me/trips/current'
 
 export const CONVERSATIONS_PATH = `${CURRENT_TRIP_PATH}/conversations`
 
+export const CONVERSATIONS_OPEN_PATH = `${CONVERSATIONS_PATH}/open`
+
+/** O motorista abre conversa só de nota e de viagem; a de ocorrência nasce do registro dela (spec 260 D4). */
+export const OPENABLE_SUBJECT_TYPES = ['document', 'trip'] as const
+
 export const LEGACY_OCCURRENCE_CONVERSATIONS_PATH = `${CURRENT_TRIP_PATH}/occurrence-conversations`
 
 /** Código do 404 de "assunto inexistente" das rotas novas; outro 404 (ou 501) é rota ainda não implantada. */
@@ -38,6 +43,7 @@ export const UNREAD_CONVERSATIONS_QUERY_KEY = ['conversations', 'unread'] as con
 export const UNREAD_CONVERSATIONS_REFETCH_INTERVAL_MS = 60 * 1000
 
 export const DRIVER_CONVERSATION_ERROR = {
+  CONVERSATIONS_UNAVAILABLE: 'DRIVER_CONVERSATION_UNAVAILABLE',
   OUTBOX_OWNER_MISSING: 'DRIVER_CONVERSATION_OUTBOX_OWNER_MISSING',
   REQUEST_FAILED: 'DRIVER_CONVERSATION_REQUEST_FAILED',
   RESPONSE_INVALID: 'DRIVER_CONVERSATION_RESPONSE_INVALID',

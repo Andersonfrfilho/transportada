@@ -59,6 +59,21 @@
     "unreadCount": "{count} não lidas"
   },
   "loading": "Carregando conversas…",
+  "open": {
+    "ariaLabel": "{{label}} · {{context}}",
+    "error": {
+      "closed": "Esta conversa não pode mais ser aberta.",
+      "failed": "Não foi possível abrir. Toque para tentar de novo.",
+      "notFound": "Não encontramos essa conversa. Atualize a viagem e tente de novo.",
+      "rateLimited": "Muitas tentativas seguidas. Aguarde um pouco e toque de novo."
+    },
+    "label": "Falar com o escritório",
+    "offlineHint": "Precisa de conexão para abrir a conversa.",
+    "opening": "Abrindo…",
+    "unread_one": "{{count}} não lida",
+    "unread_other": "{{count}} não lidas",
+    "view": "Ver conversa"
+  },
   "subjectCard": {
     "document": "Nota fiscal",
     "occurrence": "Ocorrência",

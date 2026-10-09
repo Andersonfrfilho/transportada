@@ -122,11 +122,31 @@ export function createConversationHandlers(options: ConversationHandlersOptions)
     )
   }
 
+  const OPEN_BODY_KEYS = ['subjectId', 'subjectType']
+
+  /** `POST .../conversations/open`: só nota e viagem, corpo estrito; 201 ao criar, 200 se já existia. */
+  async function openConversation(request: Request): Promise<Response> {
+    const body = readRecord(await request.json().catch(() => undefined))
+    const { subjectId, subjectType } = body
+    const hasOnlyOpenKeys = Object.keys(body).every((key) => OPEN_BODY_KEYS.includes(key))
+    if (
+      !hasOnlyOpenKeys ||
+      typeof subjectId !== 'string' ||
+      (subjectType !== 'document' && subjectType !== 'trip')
+    ) {
+      return json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid body.' } }, 400)
+    }
+    const opened = repository.open({ subjectId, subjectType })
+    if (opened === undefined) return notFound('CONVERSATION_NOT_FOUND')
+    return json({ data: opened.summary }, opened.isNew ? 201 : 200)
+  }
+
   return {
     AUTO_REPLY_TEXT,
     empty,
     json,
     notFound,
+    openConversation,
     postMessage,
     requestUpload,
     toApiMessage,

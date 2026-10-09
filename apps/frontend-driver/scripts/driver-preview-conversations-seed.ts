@@ -36,8 +36,9 @@ export const PREVIEW_OCCURRENCE_IDS = {
   return: '00000000-0000-4000-8000-000000000268',
 } as const
 
-export const PREVIEW_DOCUMENT_ID = '00000000-0000-4000-8000-000000000265'
-export const PREVIEW_TRIP_ID = '00000000-0000-4000-8000-000000000266'
+/** Os ids de nota e de viagem são os que `driver-preview-api.ts` serve em `/me/trips/current` (nota 1 e viagem 1). */
+export const PREVIEW_DOCUMENT_ID = '00000000-0000-4000-8000-000000000201'
+export const PREVIEW_TRIP_ID = '00000000-0000-4000-8000-000000000100'
 
 function buildHistoryLines(): readonly SeedLine[] {
   return Array.from({ length: 35 }, (_, index): SeedLine => {
@@ -116,12 +117,12 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
   },
   {
     id: PREVIEW_DOCUMENT_ID,
-    label: 'NF 4521 · Casa Verde',
+    label: 'NF 900101 · Mercearia do Centro',
     lines: [
       {
         direction: 'outbound',
         isUnread: true,
-        text: 'A nota 4521 sai da Casa Verde antes das 14h. Confirme o horário.',
+        text: 'A nota 900101 sai da Mercearia do Centro antes das 14h. Confirme o horário.',
       },
     ],
     protocolSuffix: 'F8G3',
@@ -138,7 +139,7 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
   },
 ]
 
-function toProtocol(now: number, suffix: string): string {
+export function toProtocol(now: number, suffix: string): string {
   const date = new Date(now)
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${pad(date.getFullYear() % 100)}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${suffix}`

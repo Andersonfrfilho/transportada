@@ -5,6 +5,8 @@
  * `api-contract.md` (`/me/trips/current/conversations/**`) sobre um repositório em memória.
  * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.
  *
+ * Abrir: `POST /me/trips/current/conversations/open` {subjectType: document|trip, subjectId}.
+ *
  * Debug: `POST /__debug/conversations/reset`, `.../office-reply` {subjectId, text},
  * `.../fail-next` {count, status = 503}.
  */
@@ -143,6 +145,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
     }
     if (route === 'conversations' && request.method === 'GET') {
       return handlers.json({ data: repository.listSummaries(), pagination: { nextCursor: null } })
+    }
+    if (route === 'conversations/open' && request.method === 'POST') {
+      return handlers.openConversation(request)
     }
     const target = matchTarget(route)
     if (target === undefined) return undefined

@@ -9,7 +9,12 @@ import {
   DRIVER_AUTHOR,
   OFFICE_AUTHOR,
   PREVIEW_TRIP_ID,
+  toProtocol,
 } from './driver-preview-conversations-seed'
+import {
+  OPENABLE_PREVIEW_SUBJECTS,
+  randomProtocolSuffix,
+} from './driver-preview-conversations-subjects'
 import type {
   PreviewAttachment,
   PreviewConversation,
@@ -32,6 +37,8 @@ export type SendMessageResult = Readonly<{
   messageId: string
 }>
 
+type OpenConversationResult = Readonly<{ isNew: boolean; summary: Record<string, unknown> }>
+
 export type ConversationRepository = Readonly<{
   failNext: (input: Readonly<{ count: number; status?: number }>) => void
   has: (input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>) => boolean
@@ -41,6 +48,9 @@ export type ConversationRepository = Readonly<{
   /** Rota por assunto: todos os assuntos, no formato do `api-contract.md`. */
   listSummaries: () => readonly Record<string, unknown>[]
   markRead: (subjectId: string) => boolean
+  open: (
+    input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>,
+  ) => OpenConversationResult | undefined
   messages: (subjectId: string) => readonly PreviewMessage[] | undefined
   registerUpload: (
     input: Readonly<{ contentType: string; fileName: string; sizeBytes: number }>,
@@ -152,6 +162,26 @@ export function createConversationRepository(now: () => number = Date.now): Conv
       return true
     },
     messages: (subjectId) => find(subjectId)?.messages,
+    open({ subjectId, subjectType }) {
+      const existing = find(subjectId)
+      if (existing?.subjectType === subjectType) {
+        return { isNew: false, summary: toSummary(existing) }
+      }
+      const subject = OPENABLE_PREVIEW_SUBJECTS.find(
+        (candidate) => candidate.id === subjectId && candidate.subjectType === subjectType,
+      )
+      if (subject === undefined) return undefined
+      const created: PreviewConversation = {
+        channels: ['app'],
+        messages: [],
+        occurrenceId: subject.id,
+        occurrenceLabel: subject.label,
+        protocol: toProtocol(now(), randomProtocolSuffix()),
+        subjectType,
+      }
+      conversations.push(created)
+      return { isNew: true, summary: toSummary(created) }
+    },
     registerUpload(input) {
       const id = crypto.randomUUID()
       uploads.set(id, { ...input, id })

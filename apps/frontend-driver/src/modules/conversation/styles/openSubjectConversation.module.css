@@ -1,0 +1,51 @@
+.openSubject {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.openSubjectButton {
+  align-items: center;
+  background: none;
+  border: 1px solid var(--color-copper);
+  color: var(--color-fog);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+}
+
+.openSubjectButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.openSubjectButton:disabled {
+  border-color: color-mix(in srgb, var(--color-slate) 60%, transparent);
+  color: var(--color-slate);
+  cursor: not-allowed;
+}
+
+.openSubjectBadge {
+  background: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 0 var(--space-2);
+}
+
+.openSubjectHint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.openSubjectError {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.openSubjectError:empty {
+  display: none;
+}

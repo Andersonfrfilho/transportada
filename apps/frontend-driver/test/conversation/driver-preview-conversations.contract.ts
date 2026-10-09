@@ -131,7 +131,7 @@ describe('API de demonstração do motorista: conversas', () => {
       'trip',
     ])
     expect(data.find((item) => item.subjectId === PREVIEW_DOCUMENT_ID)?.subjectLabel).toBe(
-      'NF 4521 · Casa Verde',
+      'NF 900101 · Mercearia do Centro',
     )
     expect(data.find((item) => item.subjectId === PREVIEW_TRIP_ID)?.subjectLabel).toBe(
       'Viagem de 09/10',
@@ -165,5 +165,96 @@ describe('API de demonstração do motorista: conversas', () => {
     expect(((await wrongType?.json()) as { error: { code: string } }).error.code).toBe(
       'CONVERSATION_NOT_FOUND',
     )
+  })
+
+  describe('POST /me/trips/current/conversations/open (T3.3)', () => {
+    const OPEN_PATH = '/v1/me/trips/current/conversations/open'
+    const SECOND_DOCUMENT_ID = '00000000-0000-4000-8000-000000000202'
+    const FIRST_TRIP_ID = '00000000-0000-4000-8000-000000000100'
+    const OTHER_TRIP_ID = '00000000-0000-4000-8000-000000000300'
+
+    type OpenSummary = {
+      awaitingDriver: boolean
+      lastMessageAt: string | null
+      protocol: string
+      status: string
+      subjectId: string
+      subjectType: string
+      unreadCount: number
+    }
+
+    it('os assuntos de demonstração casam com os ids da nota 1 e da viagem 1 do /me/trips/current', () => {
+      expect(PREVIEW_DOCUMENT_ID).toBe('00000000-0000-4000-8000-000000000201')
+      expect(PREVIEW_TRIP_ID).toBe(FIRST_TRIP_ID)
+    })
+
+    it('cria a conversa de nota (201), é idempotente (200) e passa a aparecer na lista e nas mensagens', async () => {
+      const { call } = createRoutes()
+      const body = { subjectId: SECOND_DOCUMENT_ID, subjectType: 'document' }
+      const created = await call('POST', OPEN_PATH, { body })
+      const { data } = (await created?.json()) as { data: OpenSummary }
+      expect(created?.status).toBe(201)
+      expect(data).toMatchObject({
+        awaitingDriver: false,
+        lastMessageAt: null,
+        status: 'open',
+        subjectId: SECOND_DOCUMENT_ID,
+        subjectType: 'document',
+        unreadCount: 0,
+      })
+      expect(data.protocol).toMatch(/^\d{6}-[2-9A-HJKMNP-Z]{4}$/)
+      const again = await call('POST', OPEN_PATH, { body })
+      expect(again?.status).toBe(200)
+      expect(((await again?.json()) as { data: OpenSummary }).data.protocol).toBe(data.protocol)
+      const listed = await call('GET', '/v1/me/trips/current/conversations')
+      const { data: summaries } = (await listed?.json()) as { data: OpenSummary[] }
+      expect(summaries.filter((item) => item.subjectId === SECOND_DOCUMENT_ID)).toHaveLength(1)
+      const messages = await call(
+        'GET',
+        `/v1/me/trips/current/conversations/document/${SECOND_DOCUMENT_ID}/messages`,
+      )
+      expect(((await messages?.json()) as { data: unknown[] }).data).toEqual([])
+    })
+
+    it('cria a conversa da viagem e devolve 200 para a que já existe, com as não lidas', async () => {
+      const { call } = createRoutes()
+      const fresh = await call('POST', OPEN_PATH, {
+        body: { subjectId: OTHER_TRIP_ID, subjectType: 'trip' },
+      })
+      expect(fresh?.status).toBe(201)
+      const seeded = await call('POST', OPEN_PATH, {
+        body: { subjectId: PREVIEW_DOCUMENT_ID, subjectType: 'document' },
+      })
+      expect(seeded?.status).toBe(200)
+      expect(((await seeded?.json()) as { data: OpenSummary }).data.unreadCount).toBe(1)
+    })
+
+    it('id desconhecido é 404 CONVERSATION_NOT_FOUND; ocorrência e campo extra são 400', async () => {
+      const { call } = createRoutes()
+      const unknown = await call('POST', OPEN_PATH, {
+        body: { subjectId: '00000000-0000-4000-8000-0000000009ff', subjectType: 'document' },
+      })
+      expect(unknown?.status).toBe(404)
+      expect(((await unknown?.json()) as { error: { code: string } }).error.code).toBe(
+        'CONVERSATION_NOT_FOUND',
+      )
+      const occurrence = await call('POST', OPEN_PATH, {
+        body: { subjectId: DAMAGE, subjectType: 'occurrence' },
+      })
+      expect(occurrence?.status).toBe(400)
+      const extra = await call('POST', OPEN_PATH, {
+        body: { extra: 1, subjectId: SECOND_DOCUMENT_ID, subjectType: 'document' },
+      })
+      expect(extra?.status).toBe(400)
+    })
+
+    it('reset descarta as conversas criadas pelo open', async () => {
+      const { call, repository } = createRoutes()
+      await call('POST', OPEN_PATH, {
+        body: { subjectId: SECOND_DOCUMENT_ID, subjectType: 'document' },
+      })
+      repository.reset()
+      expect(repository.has({ subjectId: SECOND_DOCUMENT_ID, subjectType: 'document' })).toBe(false)
+    })
   })
 })

@@ -59,6 +59,21 @@
     "unreadCount": "{count} unread"
   },
   "loading": "Loading conversations…",
+  "open": {
+    "ariaLabel": "{{label}} · {{context}}",
+    "error": {
+      "closed": "This conversation can no longer be opened.",
+      "failed": "Could not open it. Tap to try again.",
+      "notFound": "We could not find this conversation. Refresh the trip and try again.",
+      "rateLimited": "Too many attempts in a row. Wait a moment and tap again."
+    },
+    "label": "Talk to the office",
+    "offlineHint": "Needs a connection to open the conversation.",
+    "opening": "Opening…",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "view": "View conversation"
+  },
   "subjectCard": {
     "document": "Invoice",
     "occurrence": "Occurrence",

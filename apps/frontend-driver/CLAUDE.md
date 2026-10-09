@@ -423,5 +423,9 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   mandou** — sem campo, nada aparece, nunca se inventa. `renderDriverSubjectIcon` mapeia o catálogo da spec 255 para o `<Icon>` do
   app e devolve `null` fora dele (o pacote usa o ícone do grupo). Rótulos novos do SDK entram em `conversation.locale.json` **e**
   `.en`; ao subir o pacote, confira as chaves de `participantLabels`.
+- **"Falar com o escritório" (T3.3).** Nota (dentro de `DocumentDetails`, pelo `DocumentConversationSlot`) e topo da viagem chamam
+  `openConversation` (`POST .../conversations/open`, sem queda: 404 sem `CONVERSATION_NOT_FOUND`/501 = `CONVERSATIONS_UNAVAILABLE`, o botão
+  some até recarregar) e navegam para `/conversas/:tipo/:id`. O cartão da parada só muda se a `OpenSubjectConversationProvider` estiver
+  ligada (golden `test/fixtures/driver-stop-card.golden.html`); o selo lê a mesma query da aba (`conversationDigests.query.ts`), sem polling extra.
 - **Demonstração.** `scripts/driver-preview-conversations*.ts` serve as duas famílias de rota; reinicie a API de demonstração
   (porta 53901) depois de mudar o script.

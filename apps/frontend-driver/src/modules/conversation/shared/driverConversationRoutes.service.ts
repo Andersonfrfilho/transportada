@@ -28,7 +28,7 @@ export type DriverConversationRoutes = Readonly<{
 }>
 
 /** 404 com o código de "assunto inexistente" é resposta da rota nova; qualquer outro 404 (ou 501) é rota ainda não implantada. */
-function isRouteMissing(error: unknown): boolean {
+export function isRouteMissing(error: unknown): boolean {
   if (!(error instanceof DriverConversationRequestError)) return false
   if (error.status === ROUTE_NOT_IMPLEMENTED_STATUS) return true
   return error.status === 404 && error.code !== CONVERSATION_NOT_FOUND_CODE

@@ -22,6 +22,11 @@ import {
   createDriverConversationSender,
   type DriverConversationSender,
 } from './driverConversationSender.service'
+import {
+  createDriverConversationOpenAvailability,
+  createDriverConversationOpener,
+  type DriverConversationOpenAvailability,
+} from './driverConversationOpen.service'
 import { createDriverConversationRoutes } from './driverConversationRoutes.service'
 import {
   DriverConversationRequestError,
@@ -54,8 +59,13 @@ export type DriverConversationsApiDependencies = Readonly<{
 
 /** O adapter do pacote mais o que o app liga por fora: a fila offline e seus gatilhos. */
 export type DriverConversationsApi = ParticipantConversationsApi &
+  Required<Pick<ParticipantConversationsApi, 'openConversation'>> &
   Pick<DriverConversationSender, 'flushOutbox' | 'retryPending'> &
-  Readonly<{ outbox: ConversationOutbox; requestRefresh: () => void }>
+  Readonly<{
+    openAvailability: DriverConversationOpenAvailability
+    outbox: ConversationOutbox
+    requestRefresh: () => void
+  }>
 
 function readBrowserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false
@@ -76,6 +86,12 @@ export function createDriverConversationsApi(
   const routes = createDriverConversationRoutes(http)
   const uploader = createDriverConversationUploader({ http, routes })
   const attachmentUrls = new Map<string, AttachmentUrlEntry>()
+  const openAvailability = createDriverConversationOpenAvailability()
+  const openConversation = createDriverConversationOpener({
+    availability: openAvailability,
+    fallbackSubjectLabel: dependencies.fallbackSubjectLabel,
+    http,
+  })
 
   async function fetchMessages(
     subject: ParticipantSubjectRef,
@@ -150,6 +166,8 @@ export function createDriverConversationsApi(
       }
       return refreshed.url
     },
+    openAvailability,
+    openConversation,
     outbox,
     requestRefresh: refreshTicker.requestRefresh,
     retryPending: sender.retryPending,
