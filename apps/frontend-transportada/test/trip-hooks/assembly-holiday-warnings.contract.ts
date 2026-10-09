@@ -19,7 +19,7 @@ import {
   type SolverStopInput,
 } from '../fixtures/solverSuggestion.fixture'
 
-import { renderHook } from './renderHook.helper'
+import { renderHook, waitFor } from './renderHook.helper'
 
 const CAMPINAS_KEY = '3509502|13010001|45'
 const CAMPINAS_OTHER_KEY = '3509502|13010002|10'
@@ -183,18 +183,33 @@ describe('aviso de feriado por parada na montagem (spec 252 T5.3)', () => {
     expect(calls.items).toHaveLength(0)
   })
 
-  it('uma nova rodada começa sem os avisos da anterior', async () => {
+  it('uma nova rodada começa sem os avisos da anterior, mesmo enquanto a rota ainda não respondeu', async () => {
     const calls: Calls = { items: [] }
-    const answers: (readonly HolidayWarning[])[] = [[warning], []]
+    let release: (warnings: readonly HolidayWarning[]) => void = () => undefined
+    const answers: (() => Promise<readonly HolidayWarning[]>)[] = [
+      () => Promise.resolve([warning]),
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    ]
     const hook = await runSolver({
-      dayChecks: dayChecksClient(calls, () => Promise.resolve(answers.shift() ?? [])),
+      dayChecks: dayChecksClient(calls, () => answers.shift()?.() ?? Promise.resolve([])),
       stops: CHRISTMAS_STOPS,
     })
     expect(hook.result().holidayWarnings.size).toBe(2)
 
-    await requestSolver(hook)
+    let second: Promise<void> = Promise.resolve()
+    await act(async () => {
+      second = hook.result().request()
+      await waitFor(() => expect(calls.items).toHaveLength(2))
+    })
 
     expect(hook.result().holidayWarnings.size).toBe(0)
-    expect(calls.items).toHaveLength(2)
+    await act(async () => {
+      release([])
+      await second
+    })
+    expect(hook.result().holidayWarnings.size).toBe(0)
   })
 })
