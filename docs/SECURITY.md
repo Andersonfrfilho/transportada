@@ -112,6 +112,25 @@ rotina (a leitura do cache global pelas escritas é justamente o que o contrato 
 
 **Origem:** spec 252 T4.1. Registrado em 2026-10-09.
 
+### 2026-10-09 — spec 252 T4.2 — o aviso de feriado: `POST /business-calendar/day-checks` e `holidayWarnings` no detalhe da viagem
+
+**Onde:** `api-transportada`, `business-calendar/presentation/day-checks.routes.ts` e `trips/infrastructure/trip-holiday-warning.support.ts`; ADR-0100 §6.
+
+**Quem alcança:** `day-checks` é `fleet.read` (como `GET /municipal-holidays`); o separador o alcança de propósito (monta o roteiro) e o ajudante e o motorista não — está
+enumerado em `test/separator-role.contract.test.ts`. É um `POST` só porque leva até 200 itens: não escreve nada. O corpo é `.strict()` (a empresa nunca vem dele; cidade só de UF
+existente, data civil válida, no máximo 200 itens) e a resposta é lista branca: data, código da cidade, e por causa o escopo, a origem e o nome do feriado — o que o
+cadastro do calendário já mostra a quem tem `fleet.read`. Nada de id de linha, de `companyId` nem de cadastro de outra empresa (provado com duas empresas em
+`test/integration/holiday-warning-reader.integration.ts`).
+
+**Custo e abuso:** quatro consultas fixas por chamada, em série, qualquer que seja o número de itens ou cidades; o teto de 200 itens e o de 5 anos de cobertura
+(`422 BUSINESS_CALENDAR_COVERAGE_TOO_WIDE`) limitam o trabalho. **Sem rate limit nesta rota** (o limite é opt-in por rota na API e a leitura não dispara custo externo;
+lacuna aceita: um usuário com `fleet.read` pode repetir a consulta). Sem dado pessoal em log: a recusa do calendário vira o aviso
+`trip_holiday_warning_unavailable` com ids da empresa, da viagem e códigos de cidade, nunca nome de cliente nem endereço.
+
+**O detalhe da viagem:** o campo é de resposta e só existe com o relógio injetado; a nota do motorista, a pontualidade do comprovante e o prazo da 236 não o leem.
+
+**Origem:** spec 252 T4.2. Registrado em 2026-10-09.
+
 ### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
 
 **Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,

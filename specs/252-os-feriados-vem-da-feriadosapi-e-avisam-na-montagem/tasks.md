@@ -143,7 +143,7 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       (molde `test/trip-domain/delivery-deadline-isolation.contract.ts`) — nenhum arquivo de `presentation` ou de
       repositório importa as três tabelas globais (`holiday_provider_fetches`, `_entries`, `_monthly_usage`), exceto a
       consulta agregada do status, que filtra pelas cidades da própria empresa.
-- [ ] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
+- [x] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
       até 200 itens, 400 a campo desconhecido e a > 200); `origin` (`code`/`typed`/`rule`/`imported`) nas regras e em
       `HolidayReason` (mapeadores leem `provider_entry_id`; o filtro de `readTypedHolidays` não muda); `cityName` de
       `listStopAddresses` (+0 no detalhe), nulo quando o `city_code` do endereço não é a cidade da parada; contrato de

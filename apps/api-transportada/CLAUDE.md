@@ -93,6 +93,20 @@ são importadas por `holiday-import-status.query.ts` e `holiday-import-usage.que
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
 que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de
 chaves exatas (`businessCalendarGuards.validation.ts`); a origem do feriado vai por rota nova. Detalhe: docs/ai-context § "Spec 252 T4.1".
+O aviso de feriado (T4.2, ADR-0100 §6): `HolidayReason` e as regras do calendário ganham `origin` (`code|typed|rule|imported`; regra sem origem
+vale `typed`; o mapper lê `provider_entry_id` — importada — e a regra "todo ano" é `rule`; o filtro de `readTypedHolidays` não muda).
+`holiday-warning.policy.ts` (pura) avisa o dia que fecha **por feriado** (domingo, e sábado quando não é útil, são o aviso de fim de semana
+que já existe) no formato **`{ date, cityIbgeCode: number, cityName?, reasons: [{ name, origin, scope }] }`** — o painel e o app do motorista
+já validam exatamente isto: `cityIbgeCode` **numérico**, `cityName` **ausente** (nunca `null` nem `""`) e o nome do nacional é a chave estável
+(`christmas`). `holiday-warning.reader.ts` (`readHolidayWarnings`) custa as **4 leituras do calendário em série, uma vez só** para todas as
+cidades, ou **+0** com `knownCalendars` que cubram os anos (recusa tipada por cidade em `refusals`, nunca derruba as outras); **não importa nem cita
+`delivery-deadline`** (contrato `holiday-warning-isolation`). `POST /business-calendar/day-checks` (`fleet.read`, até 200 `{ cityIbgeCode
+(string), date }` `.strict()`, responde só os dias que fecham por feriado; calendário recusado é 422). No detalhe da viagem
+(`trip-holiday-warning.support.ts`) `stops[].holidayWarnings` só existe com o relógio injetado, para parada **não concluída com ETA**: data = dia civil
+de São Paulo da ETA, cidade = 1º segmento do `address_key` (`readStopCityCode`), `cityName` do endereço da nota **só se o código dele for o da
+parada**; reaproveita os calendários do prazo da 236 (`calendarSink`) — **+0 ou +4**, nunca +10. A nota do motorista e o prazo não leem o aviso.
+⚠️ `stops: stopRecords.map(` só pode aparecer uma vez em `drizzle-trip.repository.ts` (`stop-label-refresh.contract` indexa o primeiro). Detalhe:
+docs/ai-context § "Spec 252 T4.2".
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
