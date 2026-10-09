@@ -570,6 +570,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
@@ -2193,6 +2194,12 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
+  /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverHolidayWarnings = {
+    calendar: new DrizzleHolidayWarningRepository(database),
+    contexts: new DrizzleDriverStopHolidayContextRepository(database),
+    logger,
+  }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -3787,6 +3794,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,
           scores: driverScoreRepository,

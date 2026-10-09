@@ -19,11 +19,14 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { DriverDocumentProduct } from '../domain/driver-document-products.policy.js'
+import { attachDriverStopHolidayWarnings } from './attach-driver-stop-holiday-warnings.service.js'
+import type { DriverHolidayWarningsDependency } from './driver-stop-holiday-warning.port.js'
 import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
 
 export type DriverTripDocument = {
@@ -99,6 +102,11 @@ export type DriverTripStop = {
   readonly enRouteSince: string | null
   /** Spec 206 D9: a hora do aparelho — a âncora que a 207 lê. `null` sem saída em aberto. */
   readonly enRouteTappedAt: string | null
+  /**
+   * Spec 252 T4.3 (ADR-0100 D12): a entrega cai em feriado da cidade da parada — só informa, nunca bloqueia
+   * nada. Ausente quando não há aviso (parada concluída, sem ETA, dia útil) ou quando o aviso falhou.
+   */
+  readonly holidayWarnings?: readonly HolidayWarning[]
   readonly id: string
   readonly label: string
   readonly latitude: string | null
@@ -184,6 +192,8 @@ export type FindCurrentDriverTripInput = {
   /** Spec 244 D2: `false` não lista as fotos pendentes (a conta não pode enviá-las). Ausente = `true`. */
   readonly canReportProofs?: boolean
   readonly companyId: string
+  /** Spec 252 T4.3: o aviso de feriado nas paradas. Ausente = sem aviso e sem consulta a mais. */
+  readonly holidayWarnings?: DriverHolidayWarningsDependency
   readonly membershipId: string
   /** O relógio da nota (RF9: penalidade vigente 90 dias) — injetado, nunca lido aqui. */
   readonly now: Date
@@ -232,5 +242,18 @@ export async function findCurrentDriverTrip(
     input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
   ])
 
-  return { isRegisteredDriver: true, pendingProofs, score: scores.get(driverId) ?? null, trips }
+  /** Depois do recorte pelo vínculo do motorista, e fora do `Promise.all`: o aviso é refinamento. */
+  const tripsWithWarnings = await attachDriverStopHolidayWarnings({
+    companyId: input.companyId,
+    ...(input.holidayWarnings === undefined ? {} : { dependency: input.holidayWarnings }),
+    now: input.now,
+    trips,
+  })
+
+  return {
+    isRegisteredDriver: true,
+    pendingProofs,
+    score: scores.get(driverId) ?? null,
+    trips: tripsWithWarnings,
+  }
 }
