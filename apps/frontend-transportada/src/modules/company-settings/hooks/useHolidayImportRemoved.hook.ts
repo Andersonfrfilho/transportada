@@ -7,6 +7,7 @@ import {
   describeBusinessCalendarRefusal,
   type BusinessCalendarRefusal,
 } from '../shared/businessCalendarRefusal.service'
+import { canDisableHolidayOn, readCalendarToday } from '../shared/businessCalendarHorizon.service'
 import type { HolidayImportRemoved } from '../shared/holidayImport.types'
 
 import { useHolidayPlaceLabels } from './useHolidayPlaceLabels.hook'
@@ -26,6 +27,12 @@ export function useHolidayImportRemoved(input: RemovedInput) {
   const [refusal, setRefusal] = useState<BusinessCalendarRefusal | undefined>(undefined)
   const items = query.data?.removedByProvider.items ?? NO_ITEMS
   const labelOf = useHolidayPlaceLabels(items)
+  const today = readCalendarToday(new Date())
+
+  /** Data que já passou a API não desliga (409): o botão nem aparece. */
+  function canDisable(item: HolidayImportRemoved): boolean {
+    return canDisableHolidayOn({ holidayOn: item.holidayOn, today })
+  }
 
   function ask(holidayId: string): void {
     setRefusal(undefined)
@@ -50,6 +57,7 @@ export function useHolidayImportRemoved(input: RemovedInput) {
   return {
     ask,
     askedId,
+    canDisable,
     cancel,
     confirm,
     isDisabling: disable.isPending,

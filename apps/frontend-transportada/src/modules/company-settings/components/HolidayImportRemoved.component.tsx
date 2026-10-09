@@ -67,7 +67,8 @@ export function HolidayImportRemoved({ companyId, enabled }: HolidayImportRemove
                     </Button>
                   </div>
                 </div>
-              ) : (
+              ) : null}
+              {removed.askedId !== item.holidayId && removed.canDisable(item) ? (
                 <Button
                   aria-label={t('import.removed.disableAria', { name: item.name })}
                   onClick={() => removed.ask(item.holidayId)}
@@ -77,7 +78,7 @@ export function HolidayImportRemoved({ companyId, enabled }: HolidayImportRemove
                   <Icon name="eye-off" />
                   {t('import.removed.disable')}
                 </Button>
-              )}
+              ) : null}
             </li>
           ))}
         </ul>
