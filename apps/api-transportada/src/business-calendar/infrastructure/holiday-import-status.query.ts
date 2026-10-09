@@ -5,17 +5,12 @@
  * fornecedor é global (sem `company_id`) e nunca sai cru; aqui ele só é lido A PARTIR da demanda da
  * própria empresa (`holiday_import_cities`) e das linhas dela, e o que sai é contagem, estado e a data das
  * cidades dela — nunca um id do cache nem uma cidade que a empresa não tem. Junto de
- * `holiday-import-usage.query.ts`, é um dos dois arquivos que a API deixa tocar o cache.
+ * `holiday-import-removed.query.ts` e `holiday-import-usage.query.ts`, é um dos arquivos que a API deixa tocar o cache.
  */
-import { and, asc, between, count, desc, eq, inArray, isNotNull, max } from 'drizzle-orm'
+import { and, asc, between, count, desc, eq, inArray, max } from 'drizzle-orm'
 
-import { municipalHolidays } from '../../database/delivery-client.schema.js'
 import { holidayImportCities } from '../../database/holiday-import.schema.js'
-import {
-  holidayProviderEntries,
-  holidayProviderFetches,
-} from '../../database/holiday-provider.schema.js'
-import { stateHolidays } from '../../database/state-holiday.schema.js'
+import { holidayProviderFetches } from '../../database/holiday-provider.schema.js'
 import {
   HOLIDAY_PROVIDER_FETCH_STATUS,
   HOLIDAY_PROVIDER_SCOPE,
@@ -24,17 +19,13 @@ import type {
   HolidayImportCityYear,
   HolidayImportFailure,
   HolidayImportPairCounts,
-  HolidayImportRemovedHoliday,
-  HolidayImportRemovedList,
 } from '../application/holiday-import.port.js'
 import type { BusinessCalendarCoverage } from '../domain/business-calendar.types.js'
 import type { BusinessCalendarDatabase } from './business-calendar-database.types.js'
-import { requirePersistedRow } from './business-calendar-persistence.support.js'
 
 type Executor = Pick<BusinessCalendarDatabase, 'select'>
 type Scope = { readonly companyId: string; readonly years: BusinessCalendarCoverage }
 
-const REMOVED_LIST_LIMIT = 200
 const UNKNOWN_ERROR_CODE = 'unknown'
 
 /** Só a demanda desta empresa se liga ao cache, e só nos anos do horizonte. */
@@ -87,66 +78,6 @@ export async function readFetchSummary(executor: Executor, scope: Scope): Promis
       notCovered: total(HOLIDAY_PROVIDER_FETCH_STATUS.NOT_COVERED),
       quotaExhausted: total(HOLIDAY_PROVIDER_FETCH_STATUS.QUOTA_EXHAUSTED),
     },
-  }
-}
-
-/** Os dois pedidos pedem um a mais que o teto: sobrar é o que diz que a lista foi cortada. */
-const REMOVED_QUERY_LIMIT = REMOVED_LIST_LIMIT + 1
-
-function listRemovedCityHolidays(executor: Executor, companyId: string) {
-  return executor
-    .select({
-      holidayId: municipalHolidays.id,
-      holidayOn: municipalHolidays.holidayOn,
-      ibgeCode: municipalHolidays.cityIbgeCode,
-      name: municipalHolidays.name,
-    })
-    .from(municipalHolidays)
-    .innerJoin(
-      holidayProviderEntries,
-      eq(holidayProviderEntries.id, municipalHolidays.providerEntryId),
-    )
-    .where(
-      and(eq(municipalHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)),
-    )
-    .orderBy(asc(municipalHolidays.holidayOn), asc(municipalHolidays.cityIbgeCode))
-    .limit(REMOVED_QUERY_LIMIT)
-}
-
-function listRemovedStateHolidays(executor: Executor, companyId: string) {
-  return executor
-    .select({
-      holidayId: stateHolidays.id,
-      holidayOn: stateHolidays.holidayOn,
-      ibgeCode: stateHolidays.stateIbgeCode,
-      name: stateHolidays.name,
-    })
-    .from(stateHolidays)
-    .innerJoin(holidayProviderEntries, eq(holidayProviderEntries.id, stateHolidays.providerEntryId))
-    .where(and(eq(stateHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)))
-    .orderBy(asc(stateHolidays.holidayOn), asc(stateHolidays.stateIbgeCode))
-    .limit(REMOVED_QUERY_LIMIT)
-}
-
-/** A data que o fornecedor deixou de listar, nas linhas da própria empresa: elas ficam, sinalizadas. */
-export async function listRemovedByProvider(
-  executor: Executor,
-  companyId: string,
-): Promise<HolidayImportRemovedList> {
-  const cityRows = await listRemovedCityHolidays(executor, companyId)
-  const stateRows = await listRemovedStateHolidays(executor, companyId)
-  const merged: HolidayImportRemovedHoliday[] = [
-    ...cityRows.map((row) => ({ ...row, scope: HOLIDAY_PROVIDER_SCOPE.CITY })),
-    ...stateRows.map((row) => ({
-      ...row,
-      holidayOn: requirePersistedRow(row.holidayOn),
-      scope: HOLIDAY_PROVIDER_SCOPE.STATE,
-    })),
-  ].sort((first, second) => first.holidayOn.localeCompare(second.holidayOn))
-
-  return {
-    items: merged.slice(0, REMOVED_LIST_LIMIT),
-    truncated: merged.length > REMOVED_LIST_LIMIT,
   }
 }
 
