@@ -124,3 +124,53 @@ describe('spec 252 (cartão de status honesto) — a última execução da rotin
     }
   })
 })
+
+const SETTINGS_REPOSITORY =
+  'src/business-calendar/infrastructure/drizzle-holiday-provider-settings.repository.ts'
+const SETTINGS_SCHEMA = 'src/database/holiday-provider-settings.schema.ts'
+const SETTINGS_NEEDLES = ['holidayProviderSettings', 'holiday-provider-settings.schema'] as const
+const SETTINGS_RAW_SQL = /\b(?:from|into|update|join)\s+"?holiday_provider_settings\b/iu
+
+describe('spec 262 — a chave selada da FeriadosAPI é da instalação e só o repositório dela a toca', () => {
+  test('a varredura acha o repositório e o schema da tabela', async () => {
+    const files = await listSourceFiles()
+
+    expect(files).toContain(SETTINGS_REPOSITORY)
+    expect(files).toContain(SETTINGS_SCHEMA)
+  })
+
+  test('só o repositório dela importa a tabela: rota, outro repositório, caso de uso e main não', async () => {
+    const importers: string[] = []
+    for (const file of await listSourceFiles()) {
+      if (file.startsWith(SCHEMA_DIRECTORY) || file === SETTINGS_REPOSITORY) continue
+      const source = await readSource(file)
+      if (
+        SETTINGS_NEEDLES.some((needle) => source.includes(needle)) ||
+        SETTINGS_RAW_SQL.test(source)
+      ) {
+        importers.push(file)
+      }
+    }
+
+    expect(importers).toEqual([])
+  })
+
+  test('o repositório devolve só o que `toRecord` escolhe: nunca a linha crua', async () => {
+    const source = await readSource(SETTINGS_REPOSITORY)
+
+    expect(source).toContain('holidayProviderSettings')
+    expect(source).toMatch(/function toRecord\(/u)
+    expect(source).not.toMatch(/return row\s*$/mu)
+  })
+
+  test('nenhum arquivo de presentation chega à tabela, ao envelope ou a quem alterou', async () => {
+    const offenders: string[] = []
+    for (const file of await listSourceFiles()) {
+      if (!file.includes('/presentation/')) continue
+      const source = await readSource(file)
+      if (/tokenEnvelope|token_envelope|updatedByUserId/u.test(source)) offenders.push(file)
+    }
+
+    expect(offenders).toEqual([])
+  })
+})
