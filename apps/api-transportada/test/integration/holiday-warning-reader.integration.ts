@@ -28,6 +28,7 @@ import {
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 const SANTOS = '3548500'
 const SAO_PAULO_STATE = '35'
+const NOW = () => new Date('2026-10-09T15:00:00.000Z')
 
 function item(city: string, date: string) {
   return { cityIbgeCode: city, date, key: `${city}:${date}` }
@@ -78,7 +79,7 @@ describe('o aviso lido das tabelas reais (spec 252 T4.2)', () => {
       await withBusinessCalendarDatabase(async (database) => {
         const tenant = await seedTenant(database)
         await seedCalendar(database, tenant)
-        const repository = new DrizzleHolidayWarningRepository(database.db)
+        const repository = new DrizzleHolidayWarningRepository(database.db, NOW)
 
         const { refusals, warnings } = await repository.read({
           companyId: tenant.companyId,
@@ -130,7 +131,7 @@ describe('o aviso lido das tabelas reais (spec 252 T4.2)', () => {
           holidayOn: '2026-11-12',
           ibgeCode: CAMPINAS,
         })
-        const repository = new DrizzleHolidayWarningRepository(database.db)
+        const repository = new DrizzleHolidayWarningRepository(database.db, NOW)
 
         const { warnings } = await repository.read({
           companyId: tenantA.companyId,
@@ -158,7 +159,7 @@ describe('o aviso lido das tabelas reais (spec 252 T4.2)', () => {
           holidayOn: '2026-11-10',
           ibgeCode: CAMPINAS,
         })
-        const repository = new DrizzleHolidayWarningRepository(database.db)
+        const repository = new DrizzleHolidayWarningRepository(database.db, NOW)
         const read = () =>
           repository.read({ companyId: tenant.companyId, items: [item(CAMPINAS, '2026-11-10')] })
 
@@ -173,6 +174,32 @@ describe('o aviso lido das tabelas reais (spec 252 T4.2)', () => {
 
         expect(before.warnings.size).toBe(1)
         expect(after.warnings.size).toBe(0)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'uma ETA absurda na mesma leitura não tira o aviso de ninguém: fora de [ano-1, ano+2] é descartada (T6.1b)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        await seedCalendar(database, tenant)
+        const repository = new DrizzleHolidayWarningRepository(database.db, NOW)
+
+        const { refusals, warnings } = await repository.read({
+          companyId: tenant.companyId,
+          items: [
+            item(CAMPINAS, '2026-11-10'),
+            item(SANTOS, '2026-12-08'),
+            item(SANTOS, '2040-12-08'),
+          ],
+        })
+
+        expect(refusals.size).toBe(0)
+        expect([...warnings.keys()].sort()).toEqual([
+          `${CAMPINAS}:2026-11-10`,
+          `${SANTOS}:2026-12-08`,
+        ])
       })
     },
   )
