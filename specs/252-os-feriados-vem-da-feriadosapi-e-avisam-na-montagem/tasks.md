@@ -187,10 +187,10 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       `driver-score.policy.ts`, `delivery-proof-*.ts` e `proof-pending.query.ts`. Mutação: o aviso de outra cidade
       na parada, a nota descontar o feriado. (CA15, CA16) **Feita em 2026-10-09** (`c4357c333` linha de base de 25
       consultas, `44b020cf5` testes, `8a5356eb5` código, `70a6621e2` bordas): +5 fixas medidas (1 de contexto + 4 do
-      calendário; +1 sem ETA, +0 sem parada aberta), a agulha ficou num contrato próprio
+      calendário; +1 se nenhuma parada aberta avisa, +0 sem parada aberta), a agulha ficou num contrato próprio
       (`driver-holiday-warning-isolation.contract.ts`, que vigia também o repositório da leitura), 21 mutações mortas,
-      11157 contratos e 24 arquivos de integração sem falha. Parada **em andamento sem ETA não avisa** (segui "não concluída com
-      ETA"); decisão aberta para o usuário. `evidence.md` § T4.3.
+      11157 contratos e 24 arquivos de integração sem falha. Parada **em andamento sem ETA também avisa para hoje** (ADR D12;
+      corrigido na rodada de fechamento); sem ETA e sem começar, nada. `evidence.md` § T4.3.
       **Fronteira do módulo (revisão da T4.2):** o aviso do motorista usa `readHolidayWarnings`
       (`business-calendar/infrastructure/holiday-warning.reader.ts`) **direto** e **nunca** importa
       `trips/infrastructure/trip-holiday-warning.support.ts`: este é o suporte do detalhe da viagem e carrega a agulha

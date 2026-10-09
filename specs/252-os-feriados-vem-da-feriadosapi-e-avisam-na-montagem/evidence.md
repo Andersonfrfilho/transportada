@@ -1155,15 +1155,33 @@ A BOLA do recorte pelo vínculo é do repositório da leitura (`listActiveTrips`
 
 ### Decisões e lacunas (para o orquestrador/usuário)
 
-- **Parada em andamento sem ETA não avisa.** A regra do pedido é "não concluída com ETA"; o ADR D12 diz "ou hoje com a parada em andamento". Segui o pedido (sem ETA, nada); se o usuário quiser que "hoje é feriado" valha sem ETA, é uma
-  mudança pequena no contexto (tirar o filtro de ETA) e no serviço.
-- **Custo por caso:** +5 com ao menos uma parada aberta com ETA; +1 se há parada aberta mas nenhuma com ETA (só o contexto); +0 sem parada aberta. A linha de base é **25 consultas**.
+- **Parada em andamento sem ETA avisa para hoje** (corrigido na rodada de fechamento, abaixo: o ADR D12 e o `tasks.md` dizem "ou hoje com a parada em andamento"; a primeira versão exigia ETA).
+- **Custo por caso (final):** +5 com ao menos uma parada aberta que avise (com ETA, ou em andamento mesmo sem ETA); +1 se há parada aberta mas nenhuma avisa (sem ETA e sem começar: só o contexto); +0 sem parada aberta. A linha de base é **25 consultas**.
 - **`nfe_addresses` sem índice por `(company_id, participant_id)`:** a junção do contexto (a mesma classe da `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app. **Não medi em escala** (sem dados reais). Se o `EXPLAIN` em
   volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
 - **O log de falha não é coalescido** (o detalhe usa um suporte que cita o prazo da 236, proibido aqui): a falha persistente repete a cada leitura do app.
 - **`package.json`:** o commit `44b020cf5` registrou os arquivos de integração com uma junção sem espaço (`…independence.integration.ts./test/integration/occurrence-template-values…`); o commit seguinte (`70a6621e2`) corrige. Em `44b020cf5` o
   `test:integration` ficaria com um caminho inválido.
 - A guarda do app do motorista e o formato publicado não mudaram: `cityIbgeCode` numérico, `cityName` ausente (nunca `null`), `reasons[{ scope, origin, name }]`; o nome do feriado nacional é a chave estável (`independence_day`).
+
+### Rodada de fechamento (2026-10-09): ETA opcional para a parada em andamento e rebase
+
+**Rebase** sobre `origin/staging` (`5e566edf2`, com T4.1/T4.2 e o worker da Fase 3): o único conflito foi de texto, em `evidence.md` (as seções do worker T3.1–T3.5 e esta, ambas mantidas). `package.json` sem conflito; o estado final do
+`test:integration` foi conferido (255 caminhos `./test/integration/*.ts`, nenhum duplicado, nenhum colado). `bun install --frozen-lockfile`: sem mudança. SHAs depois do rebase: `36e36afb0` (linha de base), `51284bc85` (testes
+vermelhos), `414afee58` (código), `9618d940c` (bordas), `e37ba3ef6` (documentação da 1ª rodada), `daae4d6a8` (vermelho da correção abaixo), `24c5661d4` (correção) e o de documentação. Os SHAs citados acima são os de antes do rebase.
+
+**A correção.** O ADR-0100 D12 diz "a data é a do `estimated_arrival_at` … ou **hoje** quando a parada já está em andamento", e o `tasks.md` T4.3 repete; a 1ª versão exigia ETA também da parada em andamento. Agora: em andamento
+(`arrived_at` ou `en_route_since`, sem `completed_at`) avisa para **hoje**, com ou sem ETA; fora de andamento, só com ETA. O contexto (`DrizzleDriverStopHolidayContextRepository`) deixou de filtrar por ETA (devolve `estimatedArrivalAt: null`);
+quem decide é `resolveWarningDate`, no serviço (o repositório não sabe o que é "em andamento").
+
+- Vermelho antes: contrato 1 fail (`sem ETA: a parada em andamento avisa para hoje…`); integração do aviso 8 pass / 2 fail (a parada em andamento sem ETA, e a contagem +5 desse caso); integração do contexto 2 pass / 1 fail.
+- Depois: contrato 541 pass; integração do aviso 10 pass; contexto 3 pass.
+- Mutações (restauradas; `git status` limpo): sem ETA o serviço descarta antes de olhar o andamento (N1) → 3 fail; sem ETA e sem começar também avisa hoje (N2) → 4 fail; o contexto volta a filtrar por ETA (N3) → 3 fail.
+- Custo final: +5 (com ETA, ou em andamento sem ETA), +1 (aberta sem ETA e sem começar), +0 (sem parada aberta), sobre 25.
+
+**Gates depois do rebase e da correção (cwd na app, Postgres nativo 65443):** `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` (com o env de teste do Postgres nativo) **11158 pass, 1 skip, 0 fail**; as
+24 integrações da lista acima, cada uma sozinha, 0 fail e 0 skip (10 / 1 / 1 / 3 nas novas); `db:generate` `{"status":"no_changes"}`; `bun run format:check` na raiz exit 0. Contrato de paridade do worker não rodado: nenhuma função
+compartilhada por valor mudou (`stop-address-key.ts` intacto).
 
 ### O que NÃO foi feito
 
