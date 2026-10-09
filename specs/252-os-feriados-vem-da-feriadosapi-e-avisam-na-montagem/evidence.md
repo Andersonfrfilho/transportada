@@ -624,3 +624,74 @@ página de cidades já nasce da demanda da empresa e o repositório casa por `ci
 ### O que não foi feito
 
 T4.2/T4.3; worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration nesta task); nenhuma conexão com produção.
+
+## T4.2 — o aviso de feriado na API (2026-10-09)
+
+Mesma sessão e mesmo Postgres nativo (65441) da T4.1. Commits: `d921cd91a` (testes, vermelhos) e `fb367ef51` (código), mais o de documentação.
+
+### Contratos antes do código (vermelho pelo motivo certo)
+
+Contratos de domínio, leitor, `day-checks` e isolamento: falham por **módulo ausente** (`holiday-warning.policy.js`, `day-checks.use-case.js`…), o que derruba o
+arquivo inteiro. `trip-detail-holiday-warnings.integration.ts`: **4 pass / 5 fail**, e os 5 pelo motivo certo (`holidayWarnings` `undefined` onde se esperava o
+aviso; contagem `+0` onde se esperava `+4`); os 4 verdes são os que já valiam (outra empresa, sem ETA/concluída, sem relógio, e o `+0` sem parada que avise).
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.2                                               | Onde                                                                                                                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin` (`code/typed/rule/imported`) nas regras e em `HolidayReason`   | `business-calendar.types.ts`, `business-calendar-build.policy.ts`, mapper (`provider_entry_id` → `imported`; regra anual → `rule`); o filtro de `readTypedHolidays` não mudou |
+| `holidayWarnings` nas paradas do `GET /trips/:id`                       | `trip-holiday-warning.support.ts` + `drizzle-trip.repository.ts` (aditivo, só com relógio injetado, parada não concluída com ETA)                                             |
+| `POST /business-calendar/day-checks` (`fleet.read`, ≤ 200, `.strict()`) | `day-checks.{schema,routes}.ts` + `day-checks.use-case.ts`; 400 a campo desconhecido, a 201 itens, a cidade de UF inexistente e a data impossível                             |
+| `cityName` de `listStopAddresses` (+0), nulo se o `city_code` difere    | `resolveCityName` no suporte do detalhe; a chave sai **ausente** (o guarda do painel recusa `null`)                                                                           |
+| contagem de consultas (+0 ou +4), em série dentro de transação          | `readHolidayWarnings` + `calendarSink` do prazo; `transaction-serial-queries.contract.test.ts` ganhou as duas funções                                                         |
+| módulo reaproveitável pela T4.3, sem importar o prazo                   | `holiday-warning.{policy,reader}` em `business-calendar/`; contrato `holiday-warning-isolation` (nenhum arquivo do módulo cita `delivery-deadline`)                           |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                                           | Resultado                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit` / `bunx eslint src test drizzle.config.ts eslint.config.js …`                                              | exit 0 / exit 0                                                                                            |
+| `bun --env-file=../../.env.test run test` (contratos, script do `package.json`)                                                | **11132 pass, 1 skip (corpus PII sem env), 0 fail** (11103 ao fim da T4.1)                                 |
+| integração `trip-detail-holiday-warnings` / `holiday-warning-reader`                                                           | **9 / 3 pass**, 0 fail, 0 skip                                                                             |
+| integrações da 236 e do detalhe: `trip-detail-delivery-deadline*` (6), `-query-count`, `delivery-deadline-driver-independence` | 3+5+4+1+1+4, 4 e 1 pass; 0 fail — o prazo e a contagem de antes não mudaram                                |
+| as quatro da T4.1 e as 13 do calendário (`business-calendar-*`, `municipal-holiday-*`)                                         | todas 0 fail, 0 skip (incluindo `business-calendar-load-rules`, que agora confere a origem `rule`/`typed`) |
+| `bun run db:generate`                                                                                                          | `{"status":"no_changes"}`                                                                                  |
+| `bun run format:check` na raiz                                                                                                 | exit 0                                                                                                     |
+
+### Mutações (cada uma restaurada; `git diff --quiet` = 0 ao fim; baseline 0 fail)
+
+| Mutação                                                                                           | Resultado                                                     |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| feriado em fim de semana avisa / nome do nacional vazio / `cityName` vazio entra                  | policy: 1 fail cada                                           |
+| origem sempre `typed` na razão (municipal 4 fail; estadual 1 fail)                                | contrato de domínio                                           |
+| leitor recarrega sempre / reaproveita sem checar cobertura / carga por cidade (N consultas)       | leitor: 2 / 1 / 1 fail                                        |
+| `Promise.all` no corpo do leitor                                                                  | `transaction-serial-queries`: 1 fail                          |
+| empresa errada na carga do leitor / mapper `imported`→`typed` / mapper regra→`typed`              | integração do leitor: 3 / 1 / 1 fail                          |
+| detalhe: data em UTC / parada concluída avisa / `cityName` sem conferir o código                  | integração do detalhe: 1 / 2 / 1 fail                         |
+| detalhe: ignora os calendários do prazo (+10) / o prazo não entrega o calendário (`calendarSink`) | integração do detalhe: 1 / 1 fail (a contagem +6)             |
+| cidade do 2º segmento do `address_key` (errado)                                                   | integração do detalhe: 5 fail                                 |
+| `day-checks`: sem teto de 200 / sem `.strict()` no corpo / no item / exige `settings.manage`      | rotas: 1 fail cada (a última também no contrato do separador) |
+| `day-checks`: sem dedupe / ignora recusa do calendário                                            | casos de uso: 1 fail cada                                     |
+| o leitor cita `delivery-deadline` num comentário                                                  | contrato de isolamento: 1 fail                                |
+
+Mutação **sem efeito no teste dela**, coberta pelo outro: `mapper imported→typed` não reprova `business-calendar-load-rules` (a fixture dele não tem linha importada); quem a
+reprova é a integração do leitor.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **O formato é o que os clientes publicados validam** (T5.1/T5.1b): `cityIbgeCode` **numérico** (a string faria o painel recusar o detalhe inteiro), `cityName` **ausente**
+  quando não se sabe (o guarda recusa `null`), `reasons[{ scope, origin, name }]`. O ADR descreve `cityIbgeCode` sem tipo; o pedido (`cityIbgeCode` string) do `day-checks` ficou
+  **string** no corpo (como toda rota do módulo) e **número** na resposta. O nome do feriado **nacional** é a chave estável (`independence_day`), porque o calendário nacional não
+  tem texto: a T5.3/T5.4 mapeiam a chave pelo locale.
+- **Só avisa o dia que fecha POR feriado.** Feriado num domingo (ou num sábado que não conta) fica no aviso de fim de semana que já existe — leitura do ADR §6 ("Fim de semana segue no
+  aviso que já existe").
+- **`day-checks` não devolve `cityName`**: o pedido não traz o endereço. A montagem (T5.3) já tem o nome da cidade.
+- **Cobertura global por chamada**: datas a mais de 5 anos entre si recusam todas as cidades da carga (`422 BUSINESS_CALENDAR_COVERAGE_TOO_WIDE`); na prática as ETAs ficam num ano.
+- **Sem rate limit** em `day-checks` (opt-in por rota na API; leitura sem custo externo) — registrado em `docs/SECURITY.md`.
+- **`separator-role.contract` ganhou `POST /business-calendar/day-checks`** (`fleet.read`): o separador monta o roteiro. O ajudante e o motorista não o alcançam.
+- **T4.3 (outro agente)** reaproveita `readHolidayWarnings` direto (sem `trip-delivery-deadline-*`) e acrescenta a agulha do calendário/aviso ao contrato de isolamento da nota; **não** foi
+  feito aqui.
+
+### O que não foi feito
+
+T4.3 (`GET /me/trips/current`); worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration); nenhuma conexão com produção.
