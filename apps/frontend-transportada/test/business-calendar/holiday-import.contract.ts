@@ -349,6 +349,7 @@ describe('leitura do status que a tela imprime', () => {
       buildImportStatus({
         failures: [
           { errorCode: 'provider_unreachable', pairs: 2 },
+          { errorCode: 'persistence_failed', pairs: 3 },
           { errorCode: 'algo_novo', pairs: 1 },
         ],
       }),
@@ -359,6 +360,11 @@ describe('leitura do status que a tela imprime', () => {
         code: 'provider_unreachable',
         messageKey: 'import.failures.provider_unreachable',
         pairs: 2,
+      },
+      {
+        code: 'persistence_failed',
+        messageKey: 'import.failures.persistence_failed',
+        pairs: 3,
       },
       { code: 'algo_novo', messageKey: 'import.failures.unknown', pairs: 1 },
     ])
@@ -372,6 +378,22 @@ describe('locale da importação', () => {
       expect(Object.keys(english.import.failures)).toContain(code)
     }
     expect(typeof portuguese.import.failures.unknown).toBe('string')
+  })
+
+  test('a falha de gravação da rotina tem texto próprio nos dois idiomas, não o genérico (spec 252 T6.1b)', () => {
+    const failures = { en: english.import.failures, pt: portuguese.import.failures } as Record<
+      string,
+      Record<string, string>
+    >
+
+    for (const language of ['en', 'pt'] as const) {
+      const messages = failures[language] ?? {}
+      expect(typeof messages.persistence_failed).toBe('string')
+      expect(messages.persistence_failed).not.toBe(messages.unknown)
+    }
+    expect(Object.keys(english.import.failures).sort()).toEqual(
+      Object.keys(portuguese.import.failures).sort(),
+    )
   })
 
   test('"restaurar" diz que volta na próxima execução diária, e não na hora', () => {
