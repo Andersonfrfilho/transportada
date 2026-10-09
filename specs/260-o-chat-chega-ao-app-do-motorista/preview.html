@@ -19,69 +19,365 @@
         --body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
         --touch: 2.75rem;
       }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: var(--asphalt); color: var(--fog); font-family: var(--body); line-height: 1.4; }
-      .page { width: min(100% - 2rem, 76rem); margin: 0 auto; padding: 1.5rem 0 3rem; }
-      h1 { font-size: 1.25rem; margin: 0 0 .25rem; }
-      .notice { border: 1px dashed color-mix(in srgb, var(--copper) 55%, transparent); color: var(--copper); font: .72rem var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: .5rem .75rem; margin: 1rem 0; }
-      .lead { color: var(--slate); max-width: 52rem; margin: 0 0 1rem; }
-      .grid { display: grid; gap: 2rem 1.5rem; grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr)); align-items: start; }
-      .col h2 { font: .75rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--copper); margin: 0 0 .5rem; }
-      .col p.why { color: var(--slate); font-size: .85rem; margin: .5rem 0 0; }
-      .phone { width: 100%; max-width: 22.5rem; height: 40rem; background: var(--asphalt); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-      .top { padding: .75rem 1rem; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: .5rem; }
-      .top h3 { margin: 0; font-size: 1rem; flex: 1; }
-      .btn { min-height: var(--touch); min-width: var(--touch); background: transparent; color: var(--fog); border: 1px solid var(--line); font: inherit; padding: 0 .75rem; cursor: pointer; }
-      .btn.primary { background: var(--copper); color: var(--asphalt); border-color: var(--copper); font-weight: 600; }
-      .scroll { flex: 1; overflow: auto; }
-      .chips { display: flex; gap: .5rem; padding: .625rem 1rem; overflow-x: auto; border-bottom: 1px solid var(--line); }
-      .chip { flex: none; min-height: 2.25rem; padding: 0 .75rem; border: 1px solid var(--line); background: transparent; color: var(--slate); font: .8rem var(--body); cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; }
-      .chip[aria-pressed='true'] { color: var(--asphalt); background: var(--fog); border-color: var(--fog); }
-      .chip b { font: .7rem var(--mono); background: var(--copper); color: var(--asphalt); padding: 0 .35rem; }
-      .sec { font: .68rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--slate); padding: .875rem 1rem .375rem; display: flex; justify-content: space-between; }
-      .sec.urgent { color: var(--copper); }
-      .row { width: 100%; display: grid; grid-template-columns: 2.25rem 1fr auto; gap: .625rem; padding: .75rem 1rem; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; text-align: left; font: inherit; min-height: var(--touch); cursor: pointer; }
-      .row.waiting { border-left: 3px solid var(--copper); background: color-mix(in srgb, var(--copper) 8%, transparent); }
-      .ico { width: 2.25rem; height: 2.25rem; border: 1px solid var(--line); display: grid; place-items: center; font: .7rem var(--mono); color: var(--copper); }
-      .kind { font: .64rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--slate); }
-      .title { font-weight: 600; font-size: .92rem; }
-      .prev { color: var(--slate); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .meta { text-align: right; font: .7rem var(--mono); color: var(--slate); }
-      .dot { display: inline-block; min-width: 1.25rem; background: var(--copper); color: var(--asphalt); font-weight: 700; padding: 0 .3rem; margin-top: .25rem; }
-      .nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
-      .nav span { min-height: 3.25rem; display: grid; place-items: center; font: .66rem var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--slate); position: relative; }
-      .nav span.on { color: var(--copper); box-shadow: inset 0 2px var(--copper); }
-      .nav i { position: absolute; top: .35rem; right: 28%; font-style: normal; background: var(--alert); color: #fff; padding: 0 .3rem; font-size: .65rem; }
-      .ctx { margin: .75rem 1rem; padding: .625rem .75rem; border: 1px solid var(--line); background: var(--graphite); display: grid; gap: .15rem; font-size: .82rem; }
-      .ctx a { color: var(--copper); font: .72rem var(--mono); text-decoration: underline; }
-      .thread { padding: .25rem 1rem 1rem; display: flex; flex-direction: column; gap: .5rem; }
-      .day { text-align: center; font: .65rem var(--mono); color: var(--slate); text-transform: uppercase; margin: .5rem 0; }
-      .b { max-width: 82%; padding: .5rem .7rem; font-size: .88rem; border: 1px solid var(--line); background: var(--graphite); }
-      .b.me { align-self: flex-end; background: color-mix(in srgb, var(--copper) 22%, var(--graphite)); border-color: color-mix(in srgb, var(--copper) 55%, transparent); }
-      .b small { display: block; margin-top: .25rem; font: .65rem var(--mono); color: var(--slate); }
-      .b .who { font: .65rem var(--mono); color: var(--copper); text-transform: uppercase; display: block; margin-bottom: .15rem; }
-      .quick { display: flex; gap: .5rem; padding: .5rem 1rem 0; overflow-x: auto; }
-      .composer { display: grid; grid-template-columns: var(--touch) 1fr var(--touch); gap: .5rem; padding: .5rem 1rem 1rem; }
-      .composer .in { min-height: var(--touch); border: 1px solid var(--line); padding: .7rem; color: var(--slate); font-size: .9rem; }
-      .tab-h { display: none; }
-      .card { margin: .75rem 1rem; padding: .75rem; border: 1px solid var(--line); background: var(--graphite); display: grid; gap: .5rem; }
-      .card .btn { width: 100%; }
-      .toast { margin: 1rem; padding: .625rem .75rem; border: 1px solid var(--line); border-left: 3px solid var(--ready); font-size: .82rem; background: var(--graphite); }
-      .hide { display: none !important; }
-      .switch { display: flex; gap: .5rem; margin: 0 0 1rem; flex-wrap: wrap; }
-      @media (prefers-reduced-motion: no-preference) { .row, .btn, .chip { transition: background .12s; } }
-      :focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--asphalt);
+        color: var(--fog);
+        font-family: var(--body);
+        line-height: 1.4;
+      }
+      .page {
+        width: min(100% - 2rem, 76rem);
+        margin: 0 auto;
+        padding: 1.5rem 0 3rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.25rem;
+      }
+      .notice {
+        border: 1px dashed color-mix(in srgb, var(--copper) 55%, transparent);
+        color: var(--copper);
+        font: 0.72rem var(--mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.5rem 0.75rem;
+        margin: 1rem 0;
+      }
+      .lead {
+        color: var(--slate);
+        max-width: 52rem;
+        margin: 0 0 1rem;
+      }
+      .grid {
+        display: grid;
+        gap: 2rem 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr));
+        align-items: start;
+      }
+      .col h2 {
+        font: 0.75rem var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--copper);
+        margin: 0 0 0.5rem;
+      }
+      .col p.why {
+        color: var(--slate);
+        font-size: 0.85rem;
+        margin: 0.5rem 0 0;
+      }
+      .phone {
+        width: 100%;
+        max-width: 22.5rem;
+        height: 40rem;
+        background: var(--asphalt);
+        border: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
+      .top {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .top h3 {
+        margin: 0;
+        font-size: 1rem;
+        flex: 1;
+      }
+      .btn {
+        min-height: var(--touch);
+        min-width: var(--touch);
+        background: transparent;
+        color: var(--fog);
+        border: 1px solid var(--line);
+        font: inherit;
+        padding: 0 0.75rem;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--copper);
+        color: var(--asphalt);
+        border-color: var(--copper);
+        font-weight: 600;
+      }
+      .scroll {
+        flex: 1;
+        overflow: auto;
+      }
+      .chips {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--line);
+      }
+      .chip {
+        flex: none;
+        min-height: 2.25rem;
+        padding: 0 0.75rem;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--slate);
+        font: 0.8rem var(--body);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .chip[aria-pressed='true'] {
+        color: var(--asphalt);
+        background: var(--fog);
+        border-color: var(--fog);
+      }
+      .chip b {
+        font: 0.7rem var(--mono);
+        background: var(--copper);
+        color: var(--asphalt);
+        padding: 0 0.35rem;
+      }
+      .sec {
+        font: 0.68rem var(--mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--slate);
+        padding: 0.875rem 1rem 0.375rem;
+        display: flex;
+        justify-content: space-between;
+      }
+      .sec.urgent {
+        color: var(--copper);
+      }
+      .row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 2.25rem 1fr auto;
+        gap: 0.625rem;
+        padding: 0.75rem 1rem;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        font: inherit;
+        min-height: var(--touch);
+        cursor: pointer;
+      }
+      .row.waiting {
+        border-left: 3px solid var(--copper);
+        background: color-mix(in srgb, var(--copper) 8%, transparent);
+      }
+      .ico {
+        width: 2.25rem;
+        height: 2.25rem;
+        border: 1px solid var(--line);
+        display: grid;
+        place-items: center;
+        font: 0.7rem var(--mono);
+        color: var(--copper);
+      }
+      .kind {
+        font: 0.64rem var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--slate);
+      }
+      .title {
+        font-weight: 600;
+        font-size: 0.92rem;
+      }
+      .prev {
+        color: var(--slate);
+        font-size: 0.82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .meta {
+        text-align: right;
+        font: 0.7rem var(--mono);
+        color: var(--slate);
+      }
+      .dot {
+        display: inline-block;
+        min-width: 1.25rem;
+        background: var(--copper);
+        color: var(--asphalt);
+        font-weight: 700;
+        padding: 0 0.3rem;
+        margin-top: 0.25rem;
+      }
+      .nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border-top: 1px solid var(--line);
+      }
+      .nav span {
+        min-height: 3.25rem;
+        display: grid;
+        place-items: center;
+        font: 0.66rem var(--mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--slate);
+        position: relative;
+      }
+      .nav span.on {
+        color: var(--copper);
+        box-shadow: inset 0 2px var(--copper);
+      }
+      .nav i {
+        position: absolute;
+        top: 0.35rem;
+        right: 28%;
+        font-style: normal;
+        background: var(--alert);
+        color: #fff;
+        padding: 0 0.3rem;
+        font-size: 0.65rem;
+      }
+      .ctx {
+        margin: 0.75rem 1rem;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid var(--line);
+        background: var(--graphite);
+        display: grid;
+        gap: 0.15rem;
+        font-size: 0.82rem;
+      }
+      .ctx a {
+        color: var(--copper);
+        font: 0.72rem var(--mono);
+        text-decoration: underline;
+      }
+      .thread {
+        padding: 0.25rem 1rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .day {
+        text-align: center;
+        font: 0.65rem var(--mono);
+        color: var(--slate);
+        text-transform: uppercase;
+        margin: 0.5rem 0;
+      }
+      .b {
+        max-width: 82%;
+        padding: 0.5rem 0.7rem;
+        font-size: 0.88rem;
+        border: 1px solid var(--line);
+        background: var(--graphite);
+      }
+      .b.me {
+        align-self: flex-end;
+        background: color-mix(in srgb, var(--copper) 22%, var(--graphite));
+        border-color: color-mix(in srgb, var(--copper) 55%, transparent);
+      }
+      .b small {
+        display: block;
+        margin-top: 0.25rem;
+        font: 0.65rem var(--mono);
+        color: var(--slate);
+      }
+      .b .who {
+        font: 0.65rem var(--mono);
+        color: var(--copper);
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 0.15rem;
+      }
+      .quick {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem 0;
+        overflow-x: auto;
+      }
+      .composer {
+        display: grid;
+        grid-template-columns: var(--touch) 1fr var(--touch);
+        gap: 0.5rem;
+        padding: 0.5rem 1rem 1rem;
+      }
+      .composer .in {
+        min-height: var(--touch);
+        border: 1px solid var(--line);
+        padding: 0.7rem;
+        color: var(--slate);
+        font-size: 0.9rem;
+      }
+      .tab-h {
+        display: none;
+      }
+      .card {
+        margin: 0.75rem 1rem;
+        padding: 0.75rem;
+        border: 1px solid var(--line);
+        background: var(--graphite);
+        display: grid;
+        gap: 0.5rem;
+      }
+      .card .btn {
+        width: 100%;
+      }
+      .toast {
+        margin: 1rem;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--ready);
+        font-size: 0.82rem;
+        background: var(--graphite);
+      }
+      .hide {
+        display: none !important;
+      }
+      .switch {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0 0 1rem;
+        flex-wrap: wrap;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .row,
+        .btn,
+        .chip {
+          transition: background 0.12s;
+        }
+      }
+      :focus-visible {
+        outline: 2px solid var(--copper);
+        outline-offset: 2px;
+      }
     </style>
   </head>
   <body>
     <main class="page">
       <h1>Conversas do motorista — spec 260</h1>
-      <p class="lead">Uma lista, um assunto por conversa. Tudo toca: troque a variante da lista, abra uma conversa, volte. Os dados são de exemplo.</p>
-      <div class="notice">Protótipo — nada aqui chama a API. Nasce no SDK (<code>conversations-ui/participant</code>) e é plugado no app.</div>
+      <p class="lead">
+        Uma lista, um assunto por conversa. Tudo toca: troque a variante da lista, abra uma
+        conversa, volte. Os dados são de exemplo.
+      </p>
+      <div class="notice">
+        Protótipo — nada aqui chama a API. Nasce no SDK (<code>conversations-ui/participant</code>)
+        e é plugado no app.
+      </div>
 
       <div class="switch" role="group" aria-label="Variante da lista">
-        <button class="chip" id="vA" aria-pressed="true" type="button">Variante A · seções por assunto (recomendada)</button>
-        <button class="chip" id="vB" aria-pressed="false" type="button">Variante B · filtros por assunto</button>
+        <button class="chip" id="vA" aria-pressed="true" type="button">
+          Variante A · seções por assunto (recomendada)
+        </button>
+        <button class="chip" id="vB" aria-pressed="false" type="button">
+          Variante B · filtros por assunto
+        </button>
       </div>
 
       <div class="grid">
@@ -89,52 +385,135 @@
         <section class="col" aria-labelledby="h1">
           <h2 id="h1">1 · Lista de conversas</h2>
           <div class="phone" id="inbox">
-            <div class="top"><h3>Conversas</h3><button class="btn" type="button" aria-label="Só não lidas">Não lidas</button></div>
+            <div class="top">
+              <h3>Conversas</h3>
+              <button class="btn" type="button" aria-label="Só não lidas">Não lidas</button>
+            </div>
             <div class="chips hide" id="filters" role="group" aria-label="Filtrar por assunto">
               <button class="chip" aria-pressed="true" type="button" data-f="all">Todas</button>
-              <button class="chip" aria-pressed="false" type="button" data-f="document">Notas <b>2</b></button>
-              <button class="chip" aria-pressed="false" type="button" data-f="occurrence">Ocorrências <b>1</b></button>
+              <button class="chip" aria-pressed="false" type="button" data-f="document">
+                Notas <b>2</b>
+              </button>
+              <button class="chip" aria-pressed="false" type="button" data-f="occurrence">
+                Ocorrências <b>1</b>
+              </button>
               <button class="chip" aria-pressed="false" type="button" data-f="trip">Viagem</button>
             </div>
             <div class="scroll" id="list">
-              <div class="sec urgent" data-g="wait"><span>Espera sua resposta</span><span>2</span></div>
-              <button class="row waiting" data-open="nf" data-g="wait" type="button"><span class="ico" aria-hidden="true">NF</span><span><span class="kind">Nota</span><br /><span class="title">NF 4521 · Casa Verde</span><br /><span class="prev">Essa nota está no caminhão? Cliente ligou…</span></span><span class="meta">14:41<br /><span class="dot">2</span></span></button>
-              <button class="row waiting" data-open="oc" data-g="wait" type="button"><span class="ico" aria-hidden="true">OC</span><span><span class="kind">Ocorrência · parada 3</span><br /><span class="title">Avaria · Mercado Sol</span><br /><span class="prev">Manda a foto da caixa aberta, por favor</span></span><span class="meta">13:05<br /><span class="dot">1</span></span></button>
-              <div class="sec" data-g="document" data-sec="document"><span>Notas</span><span>3</span></div>
-              <button class="row" data-open="nf" data-g="document" type="button"><span class="ico" aria-hidden="true">NF</span><span><span class="kind">Nota</span><br /><span class="title">NF 4498 · Padaria Central</span><br /><span class="prev">Você: canhoto assinado, segue a foto</span></span><span class="meta">Ontem<br /><span aria-label="lida">✓✓</span></span></button>
+              <div class="sec urgent" data-g="wait">
+                <span>Espera sua resposta</span><span>2</span>
+              </div>
+              <button class="row waiting" data-open="nf" data-g="wait" type="button">
+                <span class="ico" aria-hidden="true">NF</span
+                ><span
+                  ><span class="kind">Nota</span><br /><span class="title"
+                    >NF 4521 · Casa Verde</span
+                  ><br /><span class="prev">Essa nota está no caminhão? Cliente ligou…</span></span
+                ><span class="meta">14:41<br /><span class="dot">2</span></span>
+              </button>
+              <button class="row waiting" data-open="oc" data-g="wait" type="button">
+                <span class="ico" aria-hidden="true">OC</span
+                ><span
+                  ><span class="kind">Ocorrência · parada 3</span><br /><span class="title"
+                    >Avaria · Mercado Sol</span
+                  ><br /><span class="prev">Manda a foto da caixa aberta, por favor</span></span
+                ><span class="meta">13:05<br /><span class="dot">1</span></span>
+              </button>
+              <div class="sec" data-g="document" data-sec="document">
+                <span>Notas</span><span>3</span>
+              </div>
+              <button class="row" data-open="nf" data-g="document" type="button">
+                <span class="ico" aria-hidden="true">NF</span
+                ><span
+                  ><span class="kind">Nota</span><br /><span class="title"
+                    >NF 4498 · Padaria Central</span
+                  ><br /><span class="prev">Você: canhoto assinado, segue a foto</span></span
+                ><span class="meta">Ontem<br /><span aria-label="lida">✓✓</span></span>
+              </button>
               <div class="sec" data-g="occurrence"><span>Ocorrências</span><span>1</span></div>
-              <button class="row" data-open="oc" data-g="occurrence" type="button"><span class="ico" aria-hidden="true">OC</span><span><span class="kind">Ocorrência · parada 1</span><br /><span class="title">Cliente ausente · Loja 12</span><br /><span class="prev">Escritório: reagendado para amanhã</span></span><span class="meta">Seg<br /></span></button>
+              <button class="row" data-open="oc" data-g="occurrence" type="button">
+                <span class="ico" aria-hidden="true">OC</span
+                ><span
+                  ><span class="kind">Ocorrência · parada 1</span><br /><span class="title"
+                    >Cliente ausente · Loja 12</span
+                  ><br /><span class="prev">Escritório: reagendado para amanhã</span></span
+                ><span class="meta">Seg<br /></span>
+              </button>
               <div class="sec" data-g="trip"><span>Viagem</span><span>1</span></div>
-              <button class="row" data-open="trip" data-g="trip" type="button"><span class="ico" aria-hidden="true">VG</span><span><span class="kind">Viagem</span><br /><span class="title">Viagem 09/10 · Zona Norte</span><br /><span class="prev">Escritório: parada 6 saiu do roteiro</span></span><span class="meta">Seg<br /></span></button>
+              <button class="row" data-open="trip" data-g="trip" type="button">
+                <span class="ico" aria-hidden="true">VG</span
+                ><span
+                  ><span class="kind">Viagem</span><br /><span class="title"
+                    >Viagem 09/10 · Zona Norte</span
+                  ><br /><span class="prev">Escritório: parada 6 saiu do roteiro</span></span
+                ><span class="meta">Seg<br /></span>
+              </button>
               <div class="sec" data-g="closed"><span>Encerradas</span><span>4 ›</span></div>
             </div>
-            <nav class="nav" aria-label="Seções do app"><span>Viagem</span><span class="on" aria-current="page">Conversas<i>3</i></span><span>Fila</span><span>Perfil</span></nav>
+            <nav class="nav" aria-label="Seções do app">
+              <span>Viagem</span><span class="on" aria-current="page">Conversas<i>3</i></span
+              ><span>Fila</span><span>Perfil</span>
+            </nav>
           </div>
-          <p class="why"><strong>Por quê:</strong> o que espera resposta sobe sozinho; cada linha diz o assunto por <em>ícone + texto</em> (cor é reforço); encerradas recolhem. Variante B troca as seções por filtros fixos com contagem.</p>
+          <p class="why">
+            <strong>Por quê:</strong> o que espera resposta sobe sozinho; cada linha diz o assunto
+            por <em>ícone + texto</em> (cor é reforço); encerradas recolhem. Variante B troca as
+            seções por filtros fixos com contagem.
+          </p>
         </section>
 
         <!-- 2. conversa -->
         <section class="col" aria-labelledby="h2">
           <h2 id="h2">2 · A conversa (abre pela lista ou pelo sino)</h2>
           <div class="phone">
-            <div class="top"><button class="btn" type="button" aria-label="Voltar">‹</button><h3 id="tt">NF 4521 · Casa Verde</h3></div>
+            <div class="top">
+              <button class="btn" type="button" aria-label="Voltar">‹</button>
+              <h3 id="tt">NF 4521 · Casa Verde</h3>
+            </div>
             <div class="ctx" id="ctx">
               <span class="kind">Assunto · nota</span>
               <strong>NF 4521 · Casa Verde</strong>
               <span>Rua das Acácias, 210 · parada 4 · <em>carregada</em></span>
               <a href="#" onclick="return false">Ver a nota na viagem</a>
             </div>
-            <div class="scroll"><div class="thread">
-              <div class="day">Hoje</div>
-              <div class="b"><span class="who">Escritório · Marina</span>Essa nota está no caminhão? O cliente ligou perguntando.<small>14:38</small></div>
-              <div class="b"><span class="who">Escritório · Marina</span>Pode me mandar uma foto da etiqueta?<small>14:41</small></div>
-              <div class="b me">Está sim, parada 4. Mando já.<small>14:43 · ✓✓ lida</small></div>
-              <div class="b me">Sem sinal aqui, vai quando voltar<small>14:44 · <span style="color:var(--copper)">na fila · envia quando a rede voltar</span></small></div>
-            </div></div>
-            <div class="quick" role="group" aria-label="Respostas rápidas"><button class="chip" type="button">Já estou a caminho</button><button class="chip" type="button">Entregue</button><button class="chip" type="button">Cliente ausente</button></div>
-            <div class="composer"><button class="btn" type="button" aria-label="Foto ou arquivo">＋</button><div class="in">Escreva a resposta…</div><button class="btn primary" type="button" aria-label="Enviar">➤</button></div>
+            <div class="scroll">
+              <div class="thread">
+                <div class="day">Hoje</div>
+                <div class="b">
+                  <span class="who">Escritório · Marina</span>Essa nota está no caminhão? O cliente
+                  ligou perguntando.<small>14:38</small>
+                </div>
+                <div class="b">
+                  <span class="who">Escritório · Marina</span>Pode me mandar uma foto da
+                  etiqueta?<small>14:41</small>
+                </div>
+                <div class="b me">Está sim, parada 4. Mando já.<small>14:43 · ✓✓ lida</small></div>
+                <div class="b me">
+                  Sem sinal aqui, vai quando voltar<small
+                    >14:44 ·
+                    <span style="color: var(--copper)"
+                      >na fila · envia quando a rede voltar</span
+                    ></small
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="quick" role="group" aria-label="Respostas rápidas">
+              <button class="chip" type="button">Já estou a caminho</button
+              ><button class="chip" type="button">Entregue</button
+              ><button class="chip" type="button">Cliente ausente</button>
+            </div>
+            <div class="composer">
+              <button class="btn" type="button" aria-label="Foto ou arquivo">＋</button>
+              <div class="in">Escreva a resposta…</div>
+              <button class="btn primary" type="button" aria-label="Enviar">➤</button>
+            </div>
           </div>
-          <p class="why"><strong>Por quê:</strong> o cartão do assunto fica sempre no topo — ele nunca precisa lembrar do que se trata. Respostas rápidas para quem está com uma mão. Offline: a bolha mostra “na fila” e sai uma vez só. Rascunho é por conversa.</p>
+          <p class="why">
+            <strong>Por quê:</strong> o cartão do assunto fica sempre no topo — ele nunca precisa
+            lembrar do que se trata. Respostas rápidas para quem está com uma mão. Offline: a bolha
+            mostra “na fila” e sai uma vez só. Rascunho é por conversa.
+          </p>
         </section>
 
         <!-- 3. entradas -->
@@ -153,20 +532,33 @@
                 <span>Registrada 13:02</span>
                 <button class="btn" type="button">Abrir conversa da ocorrência</button>
               </div>
-              <div class="toast" role="status"><strong>Sino ·</strong> Nova mensagem · NF 4521 <span class="kind">— toque abre a conversa, não a lista</span></div>
+              <div class="toast" role="status">
+                <strong>Sino ·</strong> Nova mensagem · NF 4521
+                <span class="kind">— toque abre a conversa, não a lista</span>
+              </div>
             </div>
-            <nav class="nav" aria-label="Seções do app"><span class="on">Viagem</span><span>Conversas<i>3</i></span><span>Fila</span><span>Perfil</span></nav>
+            <nav class="nav" aria-label="Seções do app">
+              <span class="on">Viagem</span><span>Conversas<i>3</i></span
+              ><span>Fila</span><span>Perfil</span>
+            </nav>
           </div>
-          <p class="why"><strong>Por quê:</strong> três portas para a mesma conversa — aba com selo, botão no cartão da nota/ocorrência, e o aviso do sino citando o assunto. Quem abre conversa de nota/viagem é o escritório, ou o motorista por este botão.</p>
+          <p class="why">
+            <strong>Por quê:</strong> três portas para a mesma conversa — aba com selo, botão no
+            cartão da nota/ocorrência, e o aviso do sino citando o assunto. Quem abre conversa de
+            nota/viagem é o escritório, ou o motorista por este botão.
+          </p>
         </section>
       </div>
     </main>
     <script>
       const $ = (s, r = document) => r.querySelector(s)
       const $$ = (s, r = document) => [...r.querySelectorAll(s)]
-      const A = $('#vA'), B = $('#vB'), filters = $('#filters')
+      const A = $('#vA'),
+        B = $('#vB'),
+        filters = $('#filters')
       function setVariant(v) {
-        A.setAttribute('aria-pressed', v === 'A'); B.setAttribute('aria-pressed', v === 'B')
+        A.setAttribute('aria-pressed', v === 'A')
+        B.setAttribute('aria-pressed', v === 'B')
         filters.classList.toggle('hide', v === 'A')
         $$('#list [data-g="wait"]').forEach((e) => e.classList.toggle('hide', v === 'B'))
         applyFilter(v === 'A' ? 'all' : $('[data-f][aria-pressed="true"]').dataset.f)
@@ -177,19 +569,45 @@
           e.classList.toggle('hide', f !== 'all' && e.dataset.g !== f && e.dataset.g !== 'closed')
         })
       }
-      A.onclick = () => setVariant('A'); B.onclick = () => setVariant('B')
-      $$('[data-f]').forEach((b) => (b.onclick = () => { $$('[data-f]').forEach((x) => x.setAttribute('aria-pressed', x === b)); applyFilter(b.dataset.f) }))
+      A.onclick = () => setVariant('A')
+      B.onclick = () => setVariant('B')
+      $$('[data-f]').forEach(
+        (b) =>
+          (b.onclick = () => {
+            $$('[data-f]').forEach((x) => x.setAttribute('aria-pressed', x === b))
+            applyFilter(b.dataset.f)
+          }),
+      )
       const subjects = {
-        nf: ['NF 4521 · Casa Verde', 'Assunto · nota', 'Rua das Acácias, 210 · parada 4 · carregada', 'Ver a nota na viagem'],
-        oc: ['Avaria · Mercado Sol', 'Assunto · ocorrência', 'Parada 3 · caixa danificada · aguardando foto', 'Ver a ocorrência'],
-        trip: ['Viagem 09/10 · Zona Norte', 'Assunto · viagem', 'Próxima parada: 5 · 6 paradas restantes', 'Ver o roteiro'],
+        nf: [
+          'NF 4521 · Casa Verde',
+          'Assunto · nota',
+          'Rua das Acácias, 210 · parada 4 · carregada',
+          'Ver a nota na viagem',
+        ],
+        oc: [
+          'Avaria · Mercado Sol',
+          'Assunto · ocorrência',
+          'Parada 3 · caixa danificada · aguardando foto',
+          'Ver a ocorrência',
+        ],
+        trip: [
+          'Viagem 09/10 · Zona Norte',
+          'Assunto · viagem',
+          'Próxima parada: 5 · 6 paradas restantes',
+          'Ver o roteiro',
+        ],
       }
-      $$('[data-open]').forEach((r) => (r.onclick = () => {
-        const [t, k, d, l] = subjects[r.dataset.open]
-        $('#tt').textContent = t
-        const c = $('#ctx'); c.innerHTML = `<span class="kind">${k}</span><strong>${t}</strong><span>${d}</span><a href="#" onclick="return false">${l}</a>`
-        c.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }))
+      $$('[data-open]').forEach(
+        (r) =>
+          (r.onclick = () => {
+            const [t, k, d, l] = subjects[r.dataset.open]
+            $('#tt').textContent = t
+            const c = $('#ctx')
+            c.innerHTML = `<span class="kind">${k}</span><strong>${t}</strong><span>${d}</span><a href="#" onclick="return false">${l}</a>`
+            c.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+          }),
+      )
     </script>
   </body>
 </html>
