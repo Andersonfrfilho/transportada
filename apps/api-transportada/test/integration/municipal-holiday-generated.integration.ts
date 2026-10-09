@@ -58,6 +58,7 @@ describe('a data gerada só se mexe pela regra (spec 238 T1.3)', () => {
           ...actorOf(tenant, 'corr-1'),
           currentYear: 2026,
           id: generated?.id ?? '',
+          today: '2026-10-09',
         }),
       ).rejects.toBeInstanceOf(MunicipalHolidayGeneratedByRuleError)
 
@@ -134,6 +135,7 @@ describe('a data gerada só se mexe pela regra (spec 238 T1.3)', () => {
           ...actorOf(tenant, 'corr-1'),
           currentYear: 2026,
           id: crypto.randomUUID(),
+          today: '2026-10-09',
         })
         expect(await readAudits(database, tenant.companyId)).toHaveLength(0)
 
@@ -143,7 +145,12 @@ describe('a data gerada só se mexe pela regra (spec 238 T1.3)', () => {
           holidayOn: '2026-12-08',
           name: 'Padroeira',
         })
-        await holidays.remove({ ...actorOf(tenant, 'corr-3'), currentYear: 2026, id: typed.id })
+        await holidays.remove({
+          ...actorOf(tenant, 'corr-3'),
+          currentYear: 2026,
+          id: typed.id,
+          today: '2026-10-09',
+        })
 
         const audits = await readAudits(database, tenant.companyId)
         expect(audits.map((audit) => audit.action)).toEqual([
