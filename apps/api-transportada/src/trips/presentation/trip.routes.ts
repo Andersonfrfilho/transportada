@@ -831,13 +831,15 @@ export function createTripRoutes(
          * parcial (só `revenueSource`, por exemplo) ainda revela que a viagem tem receita calculada.
          * Spec 259: e sem `trip.financials` o custo nem chega a ser calculado (`includeFinancials`).
          */
-        const data = page.items.map((trip) =>
-          redactMoneyFields({
+        const data = page.items.map((trip) => ({
+          ...redactMoneyFields({
             canReadFinancials,
             fields: ['amounts'],
             record: serializeTrip({ canReadFinancials, trip }),
           }),
-        )
+          /** Spec 259: ausente é "não calculada" (chave fora do JSON); `null` é "viagem sem veículo". */
+          ...(trip.occupancy === undefined ? {} : { occupancy: trip.occupancy }),
+        }))
         return jsonResponse({
           body: { data, page: { nextCursor: page.nextCursor } },
           status: 200,
@@ -2287,7 +2289,8 @@ type SerializedTrip = Readonly<{
 
 function serializeTrip(input: {
   readonly canReadFinancials: boolean
-  readonly trip: Trip
+  /** Sem `occupancy`: a da linha é da listagem, a do detalhe é outra (spec 259). */
+  readonly trip: Omit<Trip, 'occupancy'>
 }): SerializedTrip {
   const trip = input.trip
   return {

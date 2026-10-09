@@ -8,6 +8,7 @@ import type { TripDocumentSeparationStatus, TripStatus } from '../../database/tr
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { DeliveryDeadlineView } from '../domain/delivery-deadline.types.js'
 import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
+import type { TripListOccupancy } from '../domain/trip-list-occupancy.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
@@ -86,6 +87,12 @@ export type Trip = {
   readonly companyId: string
   readonly createdAt: string
   readonly id: string
+  /**
+   * Spec 259: a ocupação na linha da lista — só a listagem a preenche. **Ausente** é "não calculada"
+   * (a leitura não pediu, ou falhou para esta viagem); `null` é "viagem sem veículo". O detalhe tem a
+   * sua própria `occupancy`, bem mais rica (ver `TripDetail`).
+   */
+  readonly occupancy?: TripListOccupancy | null
   /** Spec 065 D4c: `null` significa "derive da classificação das notas" — não "não precisa". */
   readonly requiresMdfe: boolean | null
   readonly requiresMdfeReason: null | string
@@ -304,7 +311,7 @@ export type TripTrailerView = {
   readonly plate: string
 }
 
-export type TripDetail = Trip & {
+export type TripDetail = Omit<Trip, 'occupancy'> & {
   /**
    * Spec 156 T8d: os três nascem juntos e só do encerramento **manual** pelo botão (`close`) — a
    * derivação automática (`deriveTripStatus`) também leva `status` a `completed` sozinha, e nesse

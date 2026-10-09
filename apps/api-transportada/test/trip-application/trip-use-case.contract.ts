@@ -894,7 +894,10 @@ describe('trip use case contract', () => {
   })
 
   test('delegates listing to the repository, scoped by company and paging', async () => {
-    const page: TripPage = { items: [openTrip()], nextCursor: 'cursor-value' }
+    /** A linha da lista é `Trip`, não `TripDetail`: a `occupancy` do detalhe é outro tipo (spec 259). */
+    const { occupancy: _detailOccupancy, ...detailWithoutOccupancy } = openTrip()
+    void _detailOccupancy
+    const page: TripPage = { items: [detailWithoutOccupancy], nextCursor: 'cursor-value' }
     const fixture = createFixture({ listResult: page })
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
 
