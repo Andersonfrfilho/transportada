@@ -8,7 +8,7 @@
 -- mais, e tudo no FIM do arquivo (`state_holidays` primeiro, `municipal_holidays`, que o roteirizador lê,
 -- por último):
 --   1. `ADD COLUMN "provider_entry_id" uuid`                       (nulo = digitada ou gerada por regra)
---   2. `ADD CONSTRAINT "..._provider_entry_fk"`                    (FK simples para o cache, `RESTRICT`)
+--   2. `ADD CONSTRAINT "..._provider_entry_fk"`                    (FK COMPOSTA para o cache: id, ibge e data; `RESTRICT`)
 --   3. `ADD CONSTRAINT "municipal_holidays_rule_or_provider_check"` / `"state_holidays_provider_once_check"`
 --      (`NOT VALID` + `VALIDATE`)
 --   4. `CREATE INDEX "..._provider_entry_idx"`                     (parcial, só `provider_entry_id` não nulo)
@@ -16,27 +16,32 @@
 -- Todo nome de constraint e de índice é explícito (o padrão do drizzle para a FK de `municipal_holidays`
 -- teria 67 bytes, acima dos 63 do Postgres, que trunca calado e faz o `snapshot.json` divergir do banco).
 --
--- Custo de lock a enxergar em produção (medir `count(*)` das duas tabelas e a duração do lote antes):
+-- Custo de lock a enxergar em produção (medir `count(*)` de `municipal_holidays` e `state_holidays` e a duração do
+-- lote antes; se forem grandes, o `VALIDATE` vai para migration própria e o índice parcial para `CONCURRENTLY`):
 --   * ⚠️ O `ADD COLUMN` toma ACCESS EXCLUSIVE em cada tabela publicada, e o Postgres só o solta no COMMIT.
 --     O migrador aplica TODAS as migrations pendentes numa transação só: o lock fica retido
 --     até o COMMIT do lote inteiro, não até o fim deste arquivo. Por isso os comandos dessas tabelas vão
 --     para o fim, e a tabela que o roteirizador lê é a última a ser trancada. Em produção: aplicar num
 --     deploy sem migration longa enfileirada atrás desta.
 --   * `provider_entry_id` anulável, sem default, é só catálogo: o `ADD COLUMN` não reescreve a tabela.
---   * O par `NOT VALID` + `VALIDATE` não encurta o lock retido: o `VALIDATE` roda na mesma transação.
---     Como a coluna nasce nula em todas as linhas, nenhuma CHECK nem FK tem o que conferir.
---   * A FK toma SHARE ROW EXCLUSIVE na tabela e no alvo; `CREATE INDEX` comum toma SHARE enquanto
---     constrói (o índice é parcial e nasce vazio, mas a varredura é da tabela inteira). `CONCURRENTLY` não
---     cabe numa transação. As tabelas são pequenas (feriado digitado à mão), mas confira.
---   * `job_schedules` e `job_executions` são minúsculas: o `DROP`/`ADD CONSTRAINT` toma ACCESS EXCLUSIVE
---     só durante o comando, e as duas CHECK entram `NOT VALID` e são validadas à parte.
+--   * ⚠️ Mas são três varreduras completas de cada tabela publicada, todas com o ACCESS EXCLUSIVE do
+--     `ADD COLUMN` ainda valendo: a validação da FK, o `VALIDATE` da CHECK e a construção do índice. O par
+--     `NOT VALID` + `VALIDATE` não encurta o lock retido, porque o `VALIDATE` roda na mesma transação; a coluna
+--     nasce nula, então nenhuma varredura acha o que reprovar, mas todas leem a tabela.
+--   * `CREATE INDEX` comum toma SHARE enquanto constrói; `CONCURRENTLY` não cabe numa transação.
+--   * ⚠️ `job_executions` e `job_schedules` ficam trancadas durante todo o trecho do calendário: o
+--     `DROP`/`ADD CONSTRAINT` toma ACCESS EXCLUSIVE e o Postgres o solta só no COMMIT do lote, não ao fim do comando.
+--     São minúsculas e as duas CHECK entram `NOT VALID` e são validadas à parte, mas a batida do cron e a tela de
+--     rotinas esperam o lote inteiro.
 --   * Cada tabela nova nasce vazia; as FKs para `companies` tomam SHARE ROW EXCLUSIVE nela por um instante.
 --   `lock_timeout` só limita a ESPERA para adquirir cada lock (aborta a migration se não vier em 3 s, em
 --   vez de enfileirar o tráfego atrás de uma transação longa); não limita quanto tempo o lock fica retido.
 --
 -- ⚠️ Reverter só com o worker também revertido, e só com o catálogo de jobs de antes no ar — senão a batida
 -- publica um job que a CHECK recusa. O rollback recusa se houver feriado importado, supressão do
--- operador ou execução aberta da rotina (dado que a versão antiga não guarda).
+-- operador, empresa que desligou a importação ou execução aberta da rotina (dado que a versão antiga não
+-- guarda). Ele descarta o cache do fornecedor, e refazê-lo custa cota (Q3). O rollback da `business_calendar`
+-- (238) recusa enquanto esta migration existir: desfazer esta antes.
 --
 -- ⚠️ Esta migration só pode ir ao ar junto com o catálogo de jobs que conhece `holiday.provider.pull`
 -- (API, worker, cron e painel): a CHECK de `job` do schema TS e a do banco precisam ser a mesma lista.
@@ -72,9 +77,11 @@ CREATE TABLE "holiday_provider_entries" (
 	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"removed_at" timestamp with time zone,
 	CONSTRAINT "holiday_provider_entries_scope_code_day_unique" UNIQUE("scope","ibge_code","holiday_on"),
+	CONSTRAINT "holiday_provider_entries_id_code_day_unique" UNIQUE("id","ibge_code","holiday_on"),
 	CONSTRAINT "holiday_provider_entries_scope_check" CHECK ("scope" in ('city', 'state', 'national')),
 	CONSTRAINT "holiday_provider_entries_scope_code_check" CHECK (("scope" = 'city' and "ibge_code" ~ '^[1-5][0-9]{6}$') or ("scope" = 'state' and "ibge_code" in ('11', '12', '13', '14', '15', '16', '17', '21', '22', '23', '24', '25', '26', '27', '28', '29', '31', '32', '33', '35', '41', '42', '43', '50', '51', '52', '53')) or ("scope" = 'national' and "ibge_code" = 'BR')),
 	CONSTRAINT "holiday_provider_entries_provider_type_check" CHECK ("provider_type" in ('NACIONAL', 'ESTADUAL', 'MUNICIPAL', 'FACULTATIVO')),
+	CONSTRAINT "holiday_provider_entries_scope_type_check" CHECK (("scope" = 'city' and "provider_type" in ('MUNICIPAL', 'FACULTATIVO')) or ("scope" = 'state' and "provider_type" in ('ESTADUAL', 'FACULTATIVO')) or ("scope" = 'national' and "provider_type" in ('NACIONAL', 'FACULTATIVO'))),
 	CONSTRAINT "holiday_provider_entries_name_check" CHECK (char_length("name") between 1 and 120)
 );
 --> statement-breakpoint
@@ -131,12 +138,12 @@ ALTER TABLE "job_schedules" VALIDATE CONSTRAINT "job_schedules_job_check";--> st
 INSERT INTO "job_schedules" ("job", "interval_seconds", "next_run_at", "enabled", "paused_at", "paused_origin") VALUES
 	('holiday.provider.pull', 86400, now(), false, now(), 'system');--> statement-breakpoint
 ALTER TABLE "state_holidays" ADD COLUMN "provider_entry_id" uuid;--> statement-breakpoint
-ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id") REFERENCES "holiday_provider_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
+ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id","state_ibge_code","holiday_on") REFERENCES "holiday_provider_entries"("id","ibge_code","holiday_on") ON DELETE RESTRICT ON UPDATE RESTRICT;--> statement-breakpoint
 ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_once_check" CHECK ("provider_entry_id" is null or "recurrence" = 'once') NOT VALID;--> statement-breakpoint
 ALTER TABLE "state_holidays" VALIDATE CONSTRAINT "state_holidays_provider_once_check";--> statement-breakpoint
 CREATE INDEX "state_holidays_provider_entry_idx" ON "state_holidays" ("company_id","provider_entry_id") WHERE "provider_entry_id" is not null;--> statement-breakpoint
 ALTER TABLE "municipal_holidays" ADD COLUMN "provider_entry_id" uuid;--> statement-breakpoint
-ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id") REFERENCES "holiday_provider_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
+ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id","city_ibge_code","holiday_on") REFERENCES "holiday_provider_entries"("id","ibge_code","holiday_on") ON DELETE RESTRICT ON UPDATE RESTRICT;--> statement-breakpoint
 ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_rule_or_provider_check" CHECK (not ("source_rule_id" is not null and "provider_entry_id" is not null)) NOT VALID;--> statement-breakpoint
 ALTER TABLE "municipal_holidays" VALIDATE CONSTRAINT "municipal_holidays_rule_or_provider_check";--> statement-breakpoint
 CREATE INDEX "municipal_holidays_provider_entry_idx" ON "municipal_holidays" ("company_id","provider_entry_id") WHERE "provider_entry_id" is not null;--> statement-breakpoint

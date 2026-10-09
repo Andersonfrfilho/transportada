@@ -10,6 +10,8 @@ import {
 import {
   HOLIDAY_PROVIDER_NATIONAL_CODE,
   HOLIDAY_PROVIDER_SCOPE,
+  HOLIDAY_PROVIDER_SCOPES,
+  HOLIDAY_PROVIDER_TYPES_BY_SCOPE,
   type HolidayProviderScope,
 } from '../shared/holiday-provider.constant.js'
 
@@ -45,3 +47,16 @@ export const holidayScopeCodeSql = (
     sql` or `,
   )
 }
+
+/** O tipo da entrada combina com o escopo (`HOLIDAY_PROVIDER_TYPES_BY_SCOPE`). */
+export const holidayScopeTypeSql = (columns: {
+  providerType: SQLWrapper
+  scope: SQLWrapper
+}): SQL =>
+  sql.join(
+    HOLIDAY_PROVIDER_SCOPES.map(
+      (holidayScope) =>
+        sql`(${columns.scope} = ${sql.raw(`'${holidayScope}'`)} and ${columns.providerType} in (${sql.raw(inList(HOLIDAY_PROVIDER_TYPES_BY_SCOPE[holidayScope]))}))`,
+    ),
+    sql` or `,
+  )

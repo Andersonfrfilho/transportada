@@ -14,6 +14,16 @@
 -- a tela de feriados e a leitura do calendário passam a falhar com 42P01.
 BEGIN;
 
+-- A importação de feriados (spec 252) pendura `provider_entry_id`, uma CHECK sobre `source_rule_id` e uma FK nas
+-- tabelas que este script derruba: recusa em vez de deixar a outra pela metade.
+DO $$
+BEGIN
+  IF to_regclass('public.holiday_provider_entries') IS NOT NULL THEN
+    RAISE EXCEPTION 'Rollback recusado: desfaça antes 20261009040622_holiday_provider_import (o rollback.sql dela), que depende de municipal_holidays.source_rule_id e de state_holidays';
+  END IF;
+END
+$$;
+
 -- `DROP COLUMN` e `DROP CONSTRAINT` tomam ACCESS EXCLUSIVE em `municipal_holidays` até o COMMIT: aborta
 -- em vez de enfileirar o roteirizador atrás de uma transação longa.
 SET LOCAL lock_timeout = '3s';

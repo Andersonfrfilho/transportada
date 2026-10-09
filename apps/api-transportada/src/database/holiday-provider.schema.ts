@@ -29,7 +29,7 @@ import {
   type HolidayProviderScope,
   type HolidayProviderType,
 } from '../shared/holiday-provider.constant.js'
-import { holidayScopeCodeSql, inList } from './schema-check.constant.js'
+import { holidayScopeCodeSql, holidayScopeTypeSql, inList } from './schema-check.constant.js'
 
 /**
  * Spec 252 / ADR-0100 §3: o cache GLOBAL do que a FeriadosAPI respondeu. Não tem `company_id` de
@@ -109,6 +109,12 @@ export const holidayProviderEntries = pgTable(
       table.ibgeCode,
       table.holidayOn,
     ),
+    /** Alvo da FK composta das linhas importadas: a linha da empresa só aponta para a entrada da MESMA data. */
+    unique('holiday_provider_entries_id_code_day_unique').on(
+      table.id,
+      table.ibgeCode,
+      table.holidayOn,
+    ),
     check(
       'holiday_provider_entries_scope_check',
       sql`${table.scope} in (${sql.raw(inList(HOLIDAY_PROVIDER_SCOPES))})`,
@@ -121,6 +127,7 @@ export const holidayProviderEntries = pgTable(
       'holiday_provider_entries_provider_type_check',
       sql`${table.providerType} in (${sql.raw(inList(HOLIDAY_PROVIDER_TYPES))})`,
     ),
+    check('holiday_provider_entries_scope_type_check', holidayScopeTypeSql(table)),
     check(
       'holiday_provider_entries_name_check',
       sql`char_length(${table.name}) between 1 and ${sql.raw(String(HOLIDAY_NAME_MAX_LENGTH))}`,

@@ -77,14 +77,21 @@ export const stateHolidays = pgTable(
       'state_holidays_name_check',
       sql`char_length(${table.name}) between 1 and ${sql.raw(String(HOLIDAY_NAME_MAX_LENGTH))}`,
     ),
-    /** O alvo é global e a entrada nunca é apagada (só ganha `removed_at`): `RESTRICT`. */
+    /**
+     * Composta: a linha importada é a data da entrada `state` (mesma UF, mesmo dia), nunca a de uma cidade.
+     * `RESTRICT` nos dois sentidos; MATCH SIMPLE, e a importada é só `once`, então `holiday_on` nunca é nulo nela.
+     */
     foreignKey({
-      columns: [table.providerEntryId],
-      foreignColumns: [holidayProviderEntries.id],
+      columns: [table.providerEntryId, table.stateIbgeCode, table.holidayOn],
+      foreignColumns: [
+        holidayProviderEntries.id,
+        holidayProviderEntries.ibgeCode,
+        holidayProviderEntries.holidayOn,
+      ],
       name: 'state_holidays_provider_entry_fk',
     })
       .onDelete('restrict')
-      .onUpdate('cascade'),
+      .onUpdate('restrict'),
     check(
       'state_holidays_provider_once_check',
       sql`${table.providerEntryId} is null or ${table.recurrence} = ${recurrenceIs(HOLIDAY_RECURRENCE.ONCE)}`,
