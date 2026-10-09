@@ -14,7 +14,7 @@ import type { HolidayProviderTokenSecretService } from './holiday-provider-token
 /** O corpo do `PUT` depois do Zod: a chave em claro só existe até aqui. */
 export type SaveHolidayProviderSettingsCommand = BusinessCalendarActor & {
   readonly expectedVersion: bigint | undefined
-  readonly monthlyRequestBudget: number | undefined
+  readonly monthlyRequestBudget: number | null | undefined
   readonly token: string | undefined
 }
 

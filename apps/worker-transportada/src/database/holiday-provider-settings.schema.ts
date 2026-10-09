@@ -16,7 +16,7 @@ export const holidayProviderSettings = pgTable('holiday_provider_settings', {
   tokenEnvelope: jsonb('token_envelope'),
   tokenHint: text('token_hint'),
   tokenUpdatedAt: timestamp('token_updated_at', { withTimezone: true }),
-  monthlyRequestBudget: integer('monthly_request_budget').notNull(),
+  monthlyRequestBudget: integer('monthly_request_budget'),
   version: bigint({ mode: 'bigint' }).notNull().default(1n),
   updatedByUserId: uuid('updated_by_user_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

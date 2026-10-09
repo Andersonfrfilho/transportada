@@ -15,7 +15,7 @@ export const CHANGED_FIELD = { BUDGET: 'monthlyRequestBudget', TOKEN: 'token' } 
 /** O que a trilha enxerga da linha: o envelope só entra como "existe ou não", nunca o conteúdo. */
 type AuditedRow = {
   readonly id: string
-  readonly monthlyRequestBudget: number
+  readonly monthlyRequestBudget: number | null
   readonly tokenEnvelope: unknown
   readonly version: bigint
 }
@@ -28,7 +28,7 @@ export function listChangedFields(params: {
   const { input, previous } = params
   const budgetChanged =
     input.monthlyRequestBudget !== undefined &&
-    input.monthlyRequestBudget !== previous?.monthlyRequestBudget
+    input.monthlyRequestBudget !== (previous?.monthlyRequestBudget ?? null)
   return [
     ...(budgetChanged ? [CHANGED_FIELD.BUDGET] : []),
     ...(input.sealedToken === undefined ? [] : [CHANGED_FIELD.TOKEN]),

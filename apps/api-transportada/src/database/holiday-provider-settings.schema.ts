@@ -29,6 +29,8 @@ import { inList } from './schema-check.constant.js'
  * `token_envelope` é o envelope A256GCM (o `keyId` mora dentro dele; não há coluna à parte), com AAD amarrado
  * ao `id` da linha. `token_hint` são os 4 últimos caracteres, em claro, só para a tela. CHECK aceita NULL:
  * a da chave exige cada campo com `is not null` à parte. Sem linha = sem chave e orçamento padrão.
+ * `monthly_request_budget` NULL = "o padrão" (4500): só o que o administrador definiu fica gravado, e o worker
+ * resolve `coalesce` com a constante.
  */
 export const holidayProviderSettings = pgTable(
   'holiday_provider_settings',
@@ -38,7 +40,7 @@ export const holidayProviderSettings = pgTable(
     tokenEnvelope: jsonb('token_envelope'),
     tokenHint: text('token_hint'),
     tokenUpdatedAt: timestamp('token_updated_at', { withTimezone: true }),
-    monthlyRequestBudget: integer('monthly_request_budget').notNull(),
+    monthlyRequestBudget: integer('monthly_request_budget'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     updatedByUserId: uuid('updated_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -52,7 +54,7 @@ export const holidayProviderSettings = pgTable(
     ),
     check(
       'holiday_provider_settings_budget_check',
-      sql`${table.monthlyRequestBudget} between ${sql.raw(String(FERIADOS_API_MIN_MONTHLY_REQUEST_BUDGET))} and ${sql.raw(String(FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET))}`,
+      sql`${table.monthlyRequestBudget} is null or ${table.monthlyRequestBudget} between ${sql.raw(String(FERIADOS_API_MIN_MONTHLY_REQUEST_BUDGET))} and ${sql.raw(String(FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET))}`,
     ),
     check('holiday_provider_settings_version_check', sql`${table.version} > 0`),
     check(

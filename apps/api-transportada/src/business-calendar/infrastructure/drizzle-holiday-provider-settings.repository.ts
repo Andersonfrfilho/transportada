@@ -4,10 +4,7 @@
 import { and, eq } from 'drizzle-orm'
 
 import { holidayProviderSettings } from '../../database/holiday-provider-settings.schema.js'
-import {
-  FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
-  HOLIDAY_PROVIDER_SETTINGS_PROVIDERS,
-} from '../../shared/holiday-provider.constant.js'
+import { HOLIDAY_PROVIDER_SETTINGS_PROVIDERS } from '../../shared/holiday-provider.constant.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import type {
   HolidayProviderSettingsPort,
@@ -107,8 +104,8 @@ async function createSettings(params: {
     .insert(holidayProviderSettings)
     .values({
       id: input.settingsId,
-      monthlyRequestBudget:
-        input.monthlyRequestBudget ?? FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
+      // NULL é "o padrão": o primeiro PUT com a chave não grava orçamento nenhum.
+      monthlyRequestBudget: input.monthlyRequestBudget ?? null,
       updatedByUserId: input.userId,
       ...tokenColumns(input.sealedToken),
     })

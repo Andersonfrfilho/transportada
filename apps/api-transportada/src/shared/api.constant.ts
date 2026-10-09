@@ -139,7 +139,11 @@ export const API_HOLIDAY_IMPORT_SUPPRESSIONS_PATH = `${API_HOLIDAY_IMPORTS_PATH}
 export const API_HOLIDAY_PROVIDER_SETTINGS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/provider-settings`
 export const API_HOLIDAY_PROVIDER_SETTINGS_TOKEN_PATH = `${API_HOLIDAY_PROVIDER_SETTINGS_PATH}/token`
 export const API_COMPANY_SETTINGS_HOLIDAY_IMPORT_PATH = '/company-settings/holiday-import'
-/** Trocar e remover a chave gastam o mesmo balde: 10 escritas por hora e por usuário, no Postgres. */
+/**
+ * Trocar e remover a chave gastam o mesmo balde: 10 escritas por hora, no Postgres, por empresa + usuário
+ * (`companyId:userId`). ⚠️ NÃO é um teto global da instalação: a chave é da instalação, mas cada administrador de
+ * cada empresa tem o próprio balde.
+ */
 export const HOLIDAY_PROVIDER_SETTINGS_RATE_LIMIT = {
   maxRequests: 10,
   scope: 'holiday-provider-settings',

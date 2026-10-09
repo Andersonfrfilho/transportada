@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "a9ea5d3b-f44e-4e3d-965b-a8113730ebe1",
+  "id": "bd6ec9b9-a490-4b88-9ff9-c1e0b44a71c5",
   "prevIds": [
     "8c0e7bb4-35ce-478e-9271-e8c6aab2e952"
   ],
@@ -16281,7 +16281,7 @@
     {
       "type": "integer",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -63823,7 +63823,7 @@
       "table": "holiday_provider_settings"
     },
     {
-      "value": "\"monthly_request_budget\" between 1 and 1000000",
+      "value": "\"monthly_request_budget\" is null or \"monthly_request_budget\" between 1 and 1000000",
       "name": "holiday_provider_settings_budget_check",
       "entityType": "checks",
       "schema": "public",

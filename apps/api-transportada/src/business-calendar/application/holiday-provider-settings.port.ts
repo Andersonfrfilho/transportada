@@ -11,7 +11,8 @@ import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
  */
 export type HolidayProviderSettingsRecord = {
   readonly id: string
-  readonly monthlyRequestBudget: number
+  /** `null` é o padrão da instalação (nada foi definido); o valor efetivo é resolvido na visão. */
+  readonly monthlyRequestBudget: number | null
   readonly tokenConfigured: boolean
   readonly tokenHint: string | null
   readonly tokenUpdatedAt: Date | null
@@ -27,7 +28,8 @@ export type SealedHolidayProviderToken = {
 export type SaveHolidayProviderSettingsInput = BusinessCalendarActor & {
   /** Ausente é a intenção de criar (`INSERT … ON CONFLICT DO NOTHING`); presente é `UPDATE … WHERE version`. */
   readonly expectedVersion: bigint | undefined
-  readonly monthlyRequestBudget: number | undefined
+  /** Ausente mantém; `null` volta ao padrão; número define. */
+  readonly monthlyRequestBudget: number | null | undefined
   /** Só a chave nova, já selada para `settingsId`: o texto em claro nunca chega à porta. */
   readonly sealedToken: SealedHolidayProviderToken | undefined
   /**

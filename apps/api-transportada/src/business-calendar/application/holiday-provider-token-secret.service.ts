@@ -40,7 +40,9 @@ export type HolidayProviderTokenSecretService = {
  * O AAD amarra o envelope à **linha**: `transportada:holiday-provider-token:v1:${settingsId}`. Envelope copiado para
  * outra instalação (chaveiro e id diferentes) não abre. O plaintext é UTF-8 de `{"token":"…"}`, `.strict()`.
  *
- * O worker abre este envelope com uma cópia por valor deste serviço (só `decrypt`).
+ * O worker abre este envelope com uma cópia por valor deste serviço (só `decrypt`). ⚠️ O `decrypt` daqui é a
+ * FONTE DE PARIDADE da T4.1: a cópia do worker repete o AAD, a regra da chave, o `.strict()` e o parse do envelope
+ * dentro do `try`; mudou algo aqui, o contrato de paridade da T4.1 tem de acompanhar.
  */
 export function createHolidayProviderTokenSecretService(input: {
   readonly envelopeProvider: SecretEnvelopeProvider

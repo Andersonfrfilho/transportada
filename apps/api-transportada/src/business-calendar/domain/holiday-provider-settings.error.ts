@@ -5,7 +5,10 @@
  * chave, o id da linha nem o motivo do cofre.
  */
 import { ApiError } from '../../shared/api.error.js'
-import { HOLIDAY_PROVIDER_SETTINGS_ERROR_CODE as CODE } from './holiday-provider-settings.constant.js'
+import {
+  HOLIDAY_PROVIDER_SETTINGS_ERROR_CODE as CODE,
+  HOLIDAY_PROVIDER_TOKEN_RULE_MESSAGE,
+} from './holiday-provider-settings.constant.js'
 
 /** Uma resposta só para tudo que envolve o segredo em repouso: o motivo real não sai da API. */
 export class HolidayProviderTokenUnavailableError extends ApiError {
@@ -23,7 +26,7 @@ export class HolidayProviderTokenFormatError extends ApiError {
   public constructor() {
     super({
       code: CODE.HOLIDAY_PROVIDER_TOKEN_INVALID,
-      details: [{ field: 'token', message: 'Must be 16 to 512 visible ASCII characters' }],
+      details: [{ field: 'token', message: HOLIDAY_PROVIDER_TOKEN_RULE_MESSAGE }],
       message: 'The token does not follow the accepted format',
       status: 400,
     })
