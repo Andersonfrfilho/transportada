@@ -7,12 +7,14 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { BUSINESS_CALENDAR_ERROR } from '@/modules/company-settings/shared/businessCalendar.constant'
 import { createBusinessCalendarClient } from '@/modules/company-settings/shared/businessCalendarClient.service'
 import {
   isMunicipalHoliday,
   isSavedMunicipalHoliday,
   isStateHoliday,
 } from '@/modules/company-settings/shared/businessCalendarGuards.validation'
+import { BusinessCalendarRequestError } from '@/modules/company-settings/shared/businessCalendarRequest.service'
 
 import {
   buildHoliday,
@@ -104,6 +106,7 @@ describe('o cliente do calendário com a API que já manda `origin`', () => {
 
   test('POST e PATCH de data fixa e estadual aceitam a resposta com origem', async () => {
     const saved = { ...buildSavedHoliday(), origin: 'typed' }
+    const updated = { ...buildHoliday(), origin: 'typed' }
     const state = { ...buildOnceStateHoliday(), origin: 'typed' }
 
     expect(
@@ -115,11 +118,11 @@ describe('o cliente do calendário com a API que já manda `origin`', () => {
       }),
     ).toEqual(saved as never)
     expect(
-      await clientAnswering(envelope(saved)).updateMunicipalHoliday({
+      await clientAnswering(envelope(updated)).updateMunicipalHoliday({
         changes: { name: 'Outro nome' },
-        id: saved.id,
+        id: updated.id,
       }),
-    ).toEqual(saved as never)
+    ).toEqual(updated as never)
     expect(
       await clientAnswering(envelope(state)).updateStateHoliday({
         changes: { name: 'Outro nome', recurrence: 'once' },
@@ -131,6 +134,16 @@ describe('o cliente do calendário com a API que já manda `origin`', () => {
   test('origem inválida na lista é recusada, não engolida', async () => {
     const answer = envelope([{ ...buildHoliday(), origin: 'manual' }])
 
-    await expect(clientAnswering(answer).listMunicipalHolidays()).rejects.toBeDefined()
+    const failure = await clientAnswering(answer)
+      .listMunicipalHolidays()
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+
+    expect(failure).toBeInstanceOf(BusinessCalendarRequestError)
+    expect((failure as BusinessCalendarRequestError).code).toBe(
+      BUSINESS_CALENDAR_ERROR.RESPONSE_INVALID,
+    )
   })
 })
