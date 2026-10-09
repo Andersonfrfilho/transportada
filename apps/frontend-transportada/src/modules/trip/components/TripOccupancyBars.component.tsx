@@ -12,6 +12,8 @@ type TripOccupancyBarsProps = Readonly<{
   occupancy: TripOccupancySummary | null | undefined
 }>
 
+const FULL_PERCENT = 100
+
 type MeasureKind = 'volume' | 'weight'
 
 type OccupancyMeasureProps = Readonly<{
@@ -38,7 +40,9 @@ function OccupancyMeasure({ kind, measure }: OccupancyMeasureProps) {
 
   const markText =
     measure.mark === null ? '' : ` · ${t(`listCells.occupancy.mark.${measure.mark}`)}`
-  const valueText = `${t(`listCells.occupancy.${kind}`)} ${measure.percent}%${markText}`
+  const overText =
+    measure.percent > FULL_PERCENT ? ` · ${t('listCells.occupancy.overCapacity')}` : ''
+  const valueText = `${t(`listCells.occupancy.${kind}`)} ${measure.percent}%${markText}${overText}`
 
   return (
     <div className={styles.measure}>
