@@ -34,3 +34,17 @@ unknownReason }` por item; `amounts.costTotal/marginTotal/marginPercentage` com 
 - Custo em lote pesa mais que a lista de hoje: medir tempo da página de 20 antes e depois (T2.4).
 - Paridade lista × detalhe é o risco de produto (dois números para a mesma pergunta): teste de paridade obrigatório.
 - Parser do painel publicado com lista fechada de chaves: publicar **painel tolerante antes da API** (ADR-0081 §9).
+
+## Contrato fechado na T1.1 (ver evidence.md)
+
+- `occupancy` por item: `null` sem veículo; senão `{ volume: { occupancyRatio, source, documentsWithoutVolume } | null,
+weight: { payloadRatio, source, documentsWithoutWeight } | null, capacityUnknownReason: string | null }`
+  (`Pick` dos tipos de `trip.port.ts`).
+- `TripAmounts` ganha `costTotal`, `marginTotal` (`money`), `marginPercentage: string | null` (`money`) e
+  `hasGaps: boolean` (`safe`).
+- Ocupação: extrair função pura `resolveTripOccupancyFromFacts` de `trip-occupancy.support.ts`; `loadTripOccupancy`
+  (detalhe) e o novo `loadTripOccupancies` (lista) a chamam. Peso: `loadDocumentCargoWeights` devolve peso e origem.
+- Custo: `readValuationContexts({ companyId, tripIds })` (~17 consultas fixas por página); dados da empresa uma vez;
+  a lista não chama a rota ao vivo do rascunho. `buildValuationFromContext` passa a pedir só `findApplicableRule`.
+- `list` recebe `includeFinancials` e pula o custo sem `trip.financials`.
+- Falha isolada por bloco (`allSettled`) e por viagem (try).
