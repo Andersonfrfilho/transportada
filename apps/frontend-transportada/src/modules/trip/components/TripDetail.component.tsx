@@ -113,6 +113,8 @@ import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.co
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
 import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
+import { SubjectConversationAction } from '@/modules/occurrence-conversation/components/SubjectConversationAction.component'
+import { TripConversationsPanel } from '@/modules/occurrence-conversation/components/TripConversationsPanel.component'
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
@@ -565,6 +567,17 @@ export function TripDetail({
         <TripDocumentOccurrences document={occurrencesDocument} workspace={workspace} />
       )
     },
+    renderConversation: (documentId: string) => (
+      <SubjectConversationAction
+        canManage={canManage}
+        canRead={canReadFleetDetails}
+        {...(workspace.companyId === undefined ? {} : { companyId: workspace.companyId })}
+        subjectId={documentId}
+        subjectType="document"
+        tripId={trip.id}
+        tripStatus={trip.status}
+      />
+    ),
     renderEvents: (documentId: string) => (
       <TripDocumentEvents
         documentId={documentId}
@@ -1399,6 +1412,15 @@ export function TripDetail({
           <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
         ) : null}
       </section>
+
+      {/* Spec 260 T3.1/T3.2: a conversa com o motorista — a da viagem e a de cada nota. */}
+      <TripConversationsPanel
+        canManage={canManage}
+        canRead={canReadFleetDetails}
+        {...(workspace.companyId === undefined ? {} : { companyId: workspace.companyId })}
+        tripId={trip.id}
+        tripStatus={trip.status}
+      />
 
       {/**
        * O roteiro se confere antes de a viagem sair. Ele fica acima das ações de propósito: quem

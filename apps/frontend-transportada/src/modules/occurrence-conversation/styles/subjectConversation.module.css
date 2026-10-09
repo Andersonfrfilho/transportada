@@ -1,0 +1,125 @@
+/* Spec 260 T3.1/T3.2: a conversa de nota e de viagem no painel. O fio, o balão e o compositor vêm de
+ * `occurrenceConversation.module.css` (os mesmos da ocorrência); aqui só o que é novo — cabeçalho,
+ * protocolo, selos e a lista da viagem. Tokens da casa, mobile primeiro. */
+
+.header {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.driver {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 80%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.protocol {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.protocolLabel {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.tagClosed {
+  border-color: color-mix(in srgb, var(--color-alert) 55%, transparent);
+}
+
+.unread {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  color: var(--color-asphalt);
+  background: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.actionGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.actionError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: var(--field-font-size-compact);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+.listItemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.listItemTitle {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.preview {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-size: var(--field-font-size-compact);
+}
+
+@media (min-width: 40rem) {
+  .listItem {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+}

@@ -143,6 +143,8 @@ export type TripStopDocumentActions = Readonly<{
   renderOccurrences: (documentId: string) => ReactNode
   /** Spec 233 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
   renderEvents: (documentId: string) => ReactNode
+  /** Spec 260 T3.1: "Falar com o motorista" desta nota — a ação autocontida da conversa; ausente, a linha não a oferece. */
+  renderConversation?: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   /** Spec 180: registra a ocorrência desta parada — o diálogo (`TripStopOccurrenceDialog`) mora aqui. */
@@ -713,6 +715,7 @@ function TripStopDocumentRow({
         </div>
       )}
       <div className={styles.rowActions}>
+        {actions.renderConversation?.(document.id)}
         {/*
          * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
          * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo do módulo dono. Sem documento
