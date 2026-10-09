@@ -191,6 +191,11 @@ estadual, municipal) e os mapeadores descartam o resto; o aviso (§6) ganha `ori
    "todo ano" estadual (sem data fixa) e o código de cidade que não cabe no padrão do cache também não.
 5. Quando o fornecedor **remove** uma data, `removed_at` é marcado no cache e a linha da empresa **fica**, sinalizada
    para o operador decidir. Nada é apagado em silêncio.
+6. **Contrato de resposta das listas.** `GET`, `POST` e `PATCH` de `/municipal-holidays` e `/state-holidays` trazem
+   `origin: 'typed' | 'imported'` em cada feriado: `imported` é a linha com `provider_entry_id` preenchido; `typed` é o
+   resto (digitada, adotada e gerada por regra — esta segue distinta por `generatedByRuleId`). É chave **aditiva**; o
+   id do cache nunca sai. Os guardas do painel antigo são de chaves exatas, então a API com `origin` só vai ao ar
+   **depois** do painel que a aceita (opcional): painel primeiro, API depois.
 
 ### 5. A rotina `holiday.provider.pull`
 

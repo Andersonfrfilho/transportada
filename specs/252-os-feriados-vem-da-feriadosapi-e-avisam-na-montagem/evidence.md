@@ -1287,3 +1287,49 @@ Mutação **equivalente documentada:** `enabled` da consulta de status sempre ve
 ### O que NÃO foi feito
 
 API, worker e app do motorista (T5.4, outro agente); push e publicação (**tela só sobe com os prints aprovados**); `L6` da T4 (medida do teto de 200 removidos e da latência do status com milhares de cidades — sem dados reais; a tela lista os 200 sem paginar); colunas estreitas da tabela a 1280 px (pré-existente: "Campinas" quebra no meio da palavra na coluna "Lugar"; a tabela da 238 já era assim); revisão de design comparando com os prints aprovados (T6.1).
+
+## origin nas listas
+
+Executor `sonnet`, worktree isolado, branch `work/252-origin` a partir de `origin/staging` (`40477e4f1`), **sem push**. Postgres 18 nativo descartável
+(porta 65444, `LC_ALL=C initdb`, banco por teste, apagado ao fim). Lacuna achada pela T5.2: as listas e as respostas de `POST`/`PATCH` não diziam qual linha é importada.
+
+**O contrato.** Cada feriado de `GET /municipal-holidays`, `GET /state-holidays` e das respostas de `POST`/`PATCH` das duas rotas ganha
+`origin: 'typed' | 'imported'`. `imported` quando `provider_entry_id` não é nulo; `typed` caso contrário — a gerada por regra, a digitada e a adotada (o `POST`/`PATCH`
+que adota zera o vínculo e responde `typed`). O que o painel recebia já distinguia a gerada por regra por `generatedByRuleId` (municipal); **nada foi removido nem
+renomeado**. O id do cache (`provider_entry_id`) não está no registro nem na visão. `origin` não é entrada: os esquemas são `.strict()` (400).
+`originOf` já existia no mapper (alimenta o aviso da T4.2); o tipo novo é `ManagedHolidayOrigin = typed | imported` em `business-calendar.types.ts`.
+
+> ⚠️ **REGRA DE ORDEM DE PUBLICAÇÃO — este código NÃO PODE ir antes do painel.** O painel hoje publicado tem guardas de chaves **exatas**
+> (`apps/frontend-transportada/src/modules/company-settings/shared/businessCalendarGuards.validation.ts`) e **recusaria** a resposta com a chave `origin`. O painel da T5.2
+> (`work/252-t5`, ainda não publicada) aceita `origin` como **opcional**. Ordem: **(1) painel, (2) esta API.** Nenhum push foi feito; a ordem é de quem publica.
+> Registrada também em `apps/api-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` § "Spec 252 — `origin` nas listas" e no ADR-0100 §4.6.
+
+**Vermelho antes (commit separado `bfdc7b215`).** Contratos das rotas (`holiday-routes`, `holiday-routes-write`, `state-routes`, `state-routes-other`): suíte
+`business-calendar-rules.contract.test.ts` **83 pass / 7 fail** (lista, POST e PATCH sem `origin`; `origin` na entrada ser 400 já passava, pelo `.strict()`).
+Integração nova `test/integration/holiday-origin.integration.ts` (banco real, 5 casos): **0 pass / 5 fail** (`origin` ausente).
+
+**Código (`289042099`).** `ManagedHolidayOrigin`; `origin` em `MunicipalHoliday` e `StateHolidayRecord`; `toHolidayRecord`/`toStateRecord` leem `originOf(row)`; as visões
+`toHolidayView` (e por ela `toSavedHolidayView`) e `toStateHolidayView` o serializam. A auditoria `…saved|updated|deleted` passa a levar `origin` nos snapshots (aditivo;
+os testes de auditoria usam `toMatchObject`). O fake de `holiday-use-cases.contract.ts` ganhou `origin: 'typed'` (tipo obrigatório).
+
+**Depois (gates, cwd `apps/api-transportada`).** `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` **11139 pass / 25 skip / 0 fail** (208 arquivos);
+integrações do calendário e dos feriados, **cada uma sozinha** (Postgres nativo, sem pular): 23 arquivos, **126 pass / 0 fail / 0 skip**
+(`business-calendar-*` 11 arquivos, `municipal-holiday-*` 2, `holiday-import-{municipal,state,status,suppressions}` 4, `holiday-origin` 5 testes, `holiday-warning-reader`,
+`driver-holiday-independence`, `driver-stop-holiday-context`, `driver-current-trip-holiday-warnings`, `trip-detail-holiday-warnings`); `db:generate` `{"status":"no_changes"}`.
+
+**Mutações** (cada uma restaurada; árvore limpa depois; colunas = falhas no contrato / na integração `holiday-origin`):
+
+| #   | Mutação                                                               | Contrato      | Integração (5) |
+| --- | --------------------------------------------------------------------- | ------------- | -------------- |
+| M1  | a visão municipal não serializa `origin`                              | 4 fail        | 3 fail         |
+| M2  | a visão estadual não serializa `origin`                               | 3 fail        | 2 fail         |
+| M3  | `originOf` invertida (nula = `imported`)                              | 0 (fake fixo) | **5 fail**     |
+| M4  | o id do cache vaza na resposta municipal (registro + visão espalhada) | 0 (fake fixo) | 2 fail         |
+| M5  | o id do cache vaza na resposta estadual                               | 0 (fake fixo) | 1 fail         |
+| M6  | a gerada por regra deixa de ser `typed`                               | 0 (fake fixo) | 1 fail         |
+
+(Os contratos de rota usam registros fixos, por isso só pegam a serialização; o que a origem vale vem do banco real, e quem o prova é a integração.)
+
+**O que NÃO foi feito.** Push (nem do painel, nem desta branch); `make migration-test` (sem migration; `db:generate` = `no_changes`); `make check` completo; mudança no painel
+(a T5.2 está na `work/252-t5`); contrato de tabela espelhada com o painel (o painel só tem o campo opcional); a auditoria antiga não é reescrita (só os eventos novos levam `origin`
+nos snapshots).
