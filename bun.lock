@@ -77,6 +77,7 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
+        "@adatechnology/conversation-contracts": "0.4.0",
         "@adatechnology/conversations-ui": "0.5.0",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
@@ -102,6 +103,8 @@
       "name": "@transportada/frontend-driver",
       "version": "0.1.0",
       "dependencies": {
+        "@adatechnology/conversation-contracts": "0.4.0",
+        "@adatechnology/conversations-ui": "0.5.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
