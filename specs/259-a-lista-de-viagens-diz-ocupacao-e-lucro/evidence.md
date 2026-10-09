@@ -86,3 +86,20 @@
   recorte da lista) e `list.contract.ts` +2 (sem `trip.financials` ainda serve `occupancy`; `null` sem veículo; chave ausente se não calculada).
   `bun test ./test/trip-infrastructure.contract.test.ts ./test/trip-http.contract.test.ts` → 424 pass.
 - `bunx tsc --noEmit`, eslint (--max-warnings=0) e prettier limpos.
+
+## T2.4 — isolamento de falha, aviso só de ids, medição do tempo, 2026-10-09
+
+- `trip.use-case.ts`: `enrichTripPage` — receita (`amounts`) segue propagando falha; custo e ocupação rodam em `Promise.allSettled` e cada bloco
+  que cai sai da página com `logger.warn` de `trip.list.financials_block_failed` / `trip.list.occupancy_block_failed` e metadados
+  `{ companyId, errorName, tripIds }` (nunca mensagem de erro, valor ou nome). Por viagem: `readTripListFinancials` (try por viagem,
+  `trip.list.financials_trip_failed`) e `assembleTripListOccupancies` (conta pura em try por viagem, `trip.list.occupancy_trip_failed`);
+  a lista não chama a rota ao vivo do rascunho (OSRM). Códigos em `trip-list-enrichment.constant.ts`.
+- Contratos novos: `trip-list-isolation.contract.ts` (5: tudo certo; ocupação cai; custo cai; as duas caem = lista de hoje; receita ainda propaga)
+  e `assembleTripListOccupancies` (ficha corrompida sai do mapa com aviso só de ids, as outras seguem, sem veículo = `null`).
+  `bun test` dos entrypoints trip-http + trip-application + trip-infrastructure + trip-valuation + trip-schema → 1184 pass, 0 fail.
+- Fixture compartilhada extraída para `test/fixtures/trip-list-world.fixture.ts`; integração `trip-list-occupancy-financials` → 9 pass.
+- **Tempo da página de 20 viagens** (Postgres local descartável, 3 notas por viagem, rota congelada; mediana de 15 execuções após aquecimento;
+  máquina de desenvolvimento, não produção): hoje (só receita) **5,8 ms** → com custo + ocupação em lote **13,7 ms** (+7,9 ms, min 13,0 / max 17,4).
+  Custo: leitura ingênua `readContext` × 20 em série **65,6 ms** contra **6,0 ms** em lote. Consultas: `readValuationContexts` **16** para 1 ou 20
+  viagens (`readContext` sozinho faz 17 por viagem, ~340 numa página de 20); `readTripListOccupancies` **10**.
+- `bunx tsc --noEmit`, eslint e prettier limpos.

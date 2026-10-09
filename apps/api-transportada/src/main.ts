@@ -2533,7 +2533,7 @@ function createApplicationRoutes({
     locations: tripLocationRepository,
     logger,
     /** Spec 259: peso e volume da linha de `/trips`, em lote, pelas mesmas políticas do detalhe. */
-    occupancies: { read: (input) => readTripListOccupancies(database, input) },
+    occupancies: { read: (input) => readTripListOccupancies(database, { ...input, logger }) },
     repository: tripRepository,
     routeFreezer: tripRouteTollFreezer,
   })
