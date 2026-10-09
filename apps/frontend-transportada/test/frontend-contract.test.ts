@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
+import { PENDING_API_PERMISSIONS } from './identity/pending-api-permissions.fixture'
+
 const APPLICATION_ROOT = new URL('..', import.meta.url)
 
 function readApplicationFile(filePath: string): Promise<string> {
@@ -286,12 +288,25 @@ describe('frontend foundation contract', () => {
     const apiPermissions = readLiterals(policySource, 'TRANSPORTADA_PERMISSIONS').filter(
       (permission) => permission !== 'companies.manage',
     )
-    const frontendPermissions = readLiterals(identityQuery, 'COMPANY_PERMISSIONS')
+    const allFrontendPermissions = readLiterals(identityQuery, 'COMPANY_PERMISSIONS')
+    const frontendPermissions = allFrontendPermissions.filter(
+      (permission) => !PENDING_API_PERMISSIONS.includes(permission),
+    )
     const apiRoles = readLiterals(schemaSource, 'COMPANY_ROLES')
     const frontendRoles = readLiterals(identityQuery, 'COMPANY_ROLES')
 
     expect(apiPermissions.length).toBeGreaterThan(0)
     expect(frontendPermissions).toEqual(apiPermissions)
+    for (const permission of PENDING_API_PERMISSIONS) {
+      expect({ inApi: apiPermissions.includes(permission), permission }).toEqual({
+        inApi: false,
+        permission,
+      })
+      expect({ inPanel: allFrontendPermissions.includes(permission), permission }).toEqual({
+        inPanel: true,
+        permission,
+      })
+    }
     expect(frontendRoles).toEqual(apiRoles)
   })
 

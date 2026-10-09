@@ -7,6 +7,7 @@ import {
   OTHER_PERMISSION_GROUP,
   PERMISSION_GROUPS,
 } from '../../src/modules/identity/shared/permissionGroups.constant'
+import { PENDING_API_PERMISSIONS } from './pending-api-permissions.fixture'
 
 const LOCALE_PATH = new URL(
   '../../src/modules/identity/locales/identity.locale.json',
@@ -20,9 +21,6 @@ const POLICY_PATH = new URL(
 
 /** `companies.manage` é reservada e sem consumidor (ADR-0021): a API não a serve, e a tela não a mostra. */
 const PLATFORM_PERMISSION = 'companies.manage'
-
-// Sai na T3.1 (spec 262), quando a API passar a conceder a permissão.
-const PERMISSIONS_AHEAD_OF_API: readonly string[] = ['holiday-import.configure']
 
 /**
  * Spec 144 T014b: permissão de máquina não se concede a pessoa, e a API não a serve no catálogo. O
@@ -141,7 +139,7 @@ describe('paridade com o catálogo da API', () => {
 
     for (const group of PERMISSION_GROUPS) {
       for (const permission of group.permissions) {
-        if (PERMISSIONS_AHEAD_OF_API.includes(permission)) continue
+        if (PENDING_API_PERMISSIONS.includes(permission)) continue
         expect({ permission, served: apiPermissions.has(permission) }).toEqual({
           permission,
           served: true,
@@ -150,14 +148,14 @@ describe('paridade com o catálogo da API', () => {
     }
   })
 
-  test('a lista adiantada só tem permissão agrupada, nomeada e ainda não concedida pela API', async () => {
+  test('a lista de pendentes só tem permissão agrupada, nomeada e ainda não concedida pela API', async () => {
     const apiPermissions = new Set<string>(await readApiPermissions())
     const grouped = new Set<string>(PERMISSION_GROUPS.flatMap((group) => [...group.permissions]))
     const locale = JSON.parse(await readFile(LOCALE_PATH, 'utf8')) as {
       users: { permission: Record<string, { label: string }> }
     }
 
-    for (const permission of PERMISSIONS_AHEAD_OF_API) {
+    for (const permission of PENDING_API_PERMISSIONS) {
       expect({ grouped: grouped.has(permission), permission }).toEqual({
         grouped: true,
         permission,
