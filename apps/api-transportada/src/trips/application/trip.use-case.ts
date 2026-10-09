@@ -32,6 +32,7 @@ import type {
   LinkTripDocumentsAfterDispatchResponse,
 } from './trip-document-link-after-dispatch.types.js'
 import type { TransferTripCrewInput, TransferTripCrewResult } from './trip-crew-transfer.types.js'
+import type { TripListFinancials } from './read-trip-list-financials.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
@@ -76,6 +77,11 @@ export type ListTripsInput = {
   readonly context: TripCompanyContext
   readonly cursor: string | null
   readonly filters?: TripFilters
+  /**
+   * Spec 259: custo e margem só se calculam para quem pode vê-los (`trip.financials`). Ausente é
+   * `false` — quem não pediu não paga pela conta.
+   */
+  readonly includeFinancials?: boolean
   readonly limit: number
 }
 
@@ -136,6 +142,15 @@ export function createTripUseCase(dependencies: {
       readonly companyId: string
       readonly tripIds: readonly string[]
     }): Promise<ReadonlyMap<string, TripAmounts>>
+  }
+  /**
+   * Spec 259: custo e margem por viagem da página, em lote. Opcional pelo mesmo motivo de `amounts`.
+   */
+  readonly financials?: {
+    read(input: {
+      readonly companyId: string
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, TripListFinancials>>
   }
   readonly repository: TripRepositoryPort
   /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
@@ -279,7 +294,7 @@ export function createTripUseCase(dependencies: {
       return { link, trip: await findTripOrThrow({ companyId, repository, tripId }) }
     },
 
-    async list({ context, cursor, filters, limit }) {
+    async list({ context, cursor, filters, includeFinancials, limit }) {
       const page = await repository.list({
         companyId: context.companyId,
         cursor,
@@ -298,9 +313,23 @@ export function createTripUseCase(dependencies: {
       })
       if (amounts === undefined) return page
 
+      const financials =
+        includeFinancials === true
+          ? await dependencies.financials?.read({
+              companyId: context.companyId,
+              tripIds: page.items.map((trip) => trip.id),
+            })
+          : undefined
+
       return {
         ...page,
-        items: page.items.map((trip) => ({ ...trip, amounts: amounts.get(trip.id) ?? null })),
+        items: page.items.map((trip) => ({
+          ...trip,
+          amounts: mergeTripAmounts({
+            amounts: amounts.get(trip.id) ?? null,
+            financials: financials?.get(trip.id),
+          }),
+        })),
       }
     },
 
@@ -460,6 +489,16 @@ export function createTripUseCase(dependencies: {
  * sequência que não existe mais, e a transação do vínculo já a apagou (T704 M1). O congelamento
  * roda **depois** da escrita principal e nunca a derruba.
  */
+/** Custo e margem só se somam à linha que já tem receita: sem `amounts` não há o que completar. */
+function mergeTripAmounts(input: {
+  readonly amounts: TripAmounts | null
+  readonly financials: TripListFinancials | undefined
+}): TripAmounts | null {
+  if (input.amounts === null || input.financials === undefined) return input.amounts
+
+  return { ...input.amounts, ...input.financials }
+}
+
 async function freezeRouteGracefully(input: {
   readonly companyId: string
   readonly logger: TripRouteFreezeLogger | undefined

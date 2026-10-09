@@ -43,6 +43,7 @@ describe('GET /trips', () => {
       {
         context: { ...COMPANY_CONTEXT, permissions: FINANCIALS_PERMISSIONS },
         cursor: null,
+        includeFinancials: true,
         limit: 25,
       },
     ])
@@ -71,6 +72,7 @@ describe('GET /trips', () => {
           statusEq: 'draft',
           vehicleIdEq: VEHICLE_ID,
         },
+        includeFinancials: false,
         limit: 5,
       },
     ])
@@ -100,6 +102,7 @@ describe('GET /trips', () => {
           statusIn: ['draft', 'loading'],
           vehicleIdIn: [VEHICLE_ID, SECOND_VEHICLE_ID],
         },
+        includeFinancials: false,
         limit: 25,
       },
     ])

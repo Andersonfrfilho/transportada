@@ -20,8 +20,18 @@ const ERROR_CODE_PREFIX = 'TRIP_REVENUE_TOTALS'
 
 /** O que a linha da listagem precisa saber sobre dinheiro, e nada além. */
 export type TripAmounts = Readonly<{
+  /**
+   * Spec 259: o resultado da viagem, da mesma conta do painel de valoração (`buildValuationFromContext`).
+   * Ausentes quando a leitura não pediu custo (sem `trip.financials`) ou quando ele falhou para esta
+   * viagem — a lista de hoje nunca fica pior por causa dele. `marginPercentage` é `null` com receita zero.
+   */
+  costTotal?: string
   /** Soma do valor das notas vinculadas. `null` quando nenhuma nota tem valor conhecido. */
   documentsTotal: null | string
+  /** O total sozinho mente quando falta parcela: a tela marca o lucro como parcial. */
+  hasGaps?: boolean
+  marginPercentage?: null | string
+  marginTotal?: string
   revenueSource: ValuationSource
   revenueTotal: string
 }>
@@ -33,7 +43,11 @@ export type TripAmounts = Readonly<{
  * classificação, `bun run typecheck` reprova antes de qualquer teste rodar.
  */
 export const TRIP_AMOUNTS_FIELD_POLICY = {
+  costTotal: 'money',
   documentsTotal: 'money',
+  hasGaps: 'safe',
+  marginPercentage: 'money',
+  marginTotal: 'money',
   revenueSource: 'safe',
   revenueTotal: 'money',
 } as const satisfies FieldPolicy<TripAmounts>
@@ -118,8 +132,8 @@ export async function readTripRevenueTotals(
  * A chave é a que a regra realmente discrimina — emitente, destino e a data que decide a vigência.
  * Duas notas da mesma carga para o mesmo cliente no mesmo dia são **uma** consulta.
  */
-function memoizeRule(
-  repository: TripRevenueTotalsPort,
+export function memoizeRule(
+  repository: Pick<TripRevenueTotalsPort, 'findApplicableRule'>,
 ): TripRevenueTotalsPort['findApplicableRule'] {
   const cache = new Map<string, Promise<ApplicableFreightRule | null>>()
 

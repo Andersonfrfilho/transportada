@@ -393,6 +393,7 @@ import { DrizzleMdfeIssuanceRepository } from './mdfe-manifests/infrastructure/d
 import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-manifest.repository'
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
+import { readTripListFinancials } from './trips/application/read-trip-list-financials.use-case.js'
 import { readTripRevenueTotals } from './trips/application/read-trip-revenue-totals.use-case.js'
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
@@ -2510,6 +2511,21 @@ function createApplicationRoutes({
           repository: {
             findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
             readDocumentsByTrip: (query) => tripValuationQuery.readDocumentsByTrip(query),
+          },
+        }),
+    },
+    /**
+     * Spec 259: custo e margem da página, da mesma conta do painel de valoração, em lote. Só roda para
+     * quem tem `trip.financials` (`includeFinancials`, decidido na rota).
+     */
+    financials: {
+      read: (input) =>
+        readTripListFinancials({
+          ...input,
+          logger,
+          repository: {
+            findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+            readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
           },
         }),
     },
