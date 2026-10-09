@@ -44,7 +44,7 @@ function extractColumnStatements(source: string): string[] {
 
     current.push(line.trim())
     if (line.trimEnd().endsWith(',')) {
-      statements.push(current.join(' '))
+      statements.push(current.join(''))
       current = undefined
     }
   }

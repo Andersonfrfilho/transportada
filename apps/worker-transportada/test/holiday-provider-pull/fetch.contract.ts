@@ -438,9 +438,12 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
       return calls > 3
     })
 
-    expect(tally.requests).toBeLessThanOrEqual(3)
-    expect(client.requests.length).toBe(tally.requests)
-    expect(store.records.size).toBeLessThanOrEqual(3)
+    expect(tally.requests).toBe(3)
+    expect(client.requests).toHaveLength(3)
+    // A 4ª requisição nem começou: o par seguinte não ganha linha nenhuma.
+    expect(
+      store.records.has(pairKey({ ibgeCode: CAMPINAS, scope: 'city', year: 2027 })),
+    ).toBeFalse()
   })
 
   test('na virada do ano em São Paulo o horizonte anda um ano', async () => {
