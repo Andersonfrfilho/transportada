@@ -91,5 +91,7 @@ número de viagens (sem N+1) e uma falha em ocupação ou custo de uma viagem n�
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: ocupação em lote verdadeira (reescrever `loadTripOccupancy` por `tripIds`) ou reuso do
-  carregador por viagem com concorrência limitada? Decide T1.1 com medição de consultas.]
+- Resolvida na T1.1: ocupação e custo em **lote verdadeiro** (ver `evidence.md`). Decisão assumida, aberta a
+  correção: viagem em rascunho **sem rota congelada** mostra combustível e pedágio como lacuna (`hasGaps` →
+  "parcial"), porque o detalhe calcula a rota na hora pelo OSRM e a lista não pode fazê-lo. Paridade lista ×
+  detalhe vale para viagens com rota congelada.
