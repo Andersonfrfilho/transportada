@@ -31,6 +31,20 @@ type ApiCatalogEntry = {
   readonly minimumIntervalSeconds: number
 }
 
+function withoutFailureOutcomes(entry: {
+  readonly job: string
+  readonly minimumIntervalSeconds: number
+}): { readonly job: string; readonly minimumIntervalSeconds: number } {
+  return { job: entry.job, minimumIntervalSeconds: entry.minimumIntervalSeconds }
+}
+
+function findMissingOutcomes(
+  panelOutcomes: readonly string[],
+  apiOutcomes: readonly string[],
+): readonly string[] {
+  return apiOutcomes.filter((outcome) => !panelOutcomes.includes(outcome))
+}
+
 function readApiNumber(name: string): number {
   const match = new RegExp(`export const ${name} = ([0-9_]+)`).exec(API_CATALOG_SOURCE)
   if (match?.[1] === undefined) throw new Error(`${name} not found in the API catalog`)
@@ -64,9 +78,32 @@ function readApiCatalog(): readonly ApiCatalogEntry[] {
 const CATALOG = readApiCatalog()
 
 describe('frontend job catalog', () => {
-  test('matches the API catalog: same routines, same order, same floors, same vocabularies', () => {
-    expect<readonly ApiCatalogEntry[]>(JOB_CATALOG).toEqual(CATALOG)
+  test('matches the API catalog: same routines, same order, same floors', () => {
+    expect<readonly unknown[]>(JOB_CATALOG.map(withoutFailureOutcomes)).toEqual(
+      CATALOG.map(withoutFailureOutcomes),
+    )
     expect<readonly string[]>(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
+  })
+
+  // A igualdade dos desfechos volta quando a API receber o nome (spec 262 T3.1).
+  test('offers every failure outcome the API offers, and may know more while the API catches up', () => {
+    for (const apiEntry of CATALOG) {
+      const panelEntry = JOB_CATALOG.find((entry) => entry.job === apiEntry.job)
+      expect(findMissingOutcomes(panelEntry?.failureOutcomes ?? [], apiEntry.failureOutcomes)).toEqual(
+        [],
+      )
+    }
+  })
+
+  test('pins the superset rule: the panel lacking an API outcome is red, knowing one more is green', () => {
+    expect(findMissingOutcomes(['a'], ['a', 'b'])).toEqual(['b'])
+    expect(findMissingOutcomes(['a', 'b'], ['a'])).toEqual([])
+  })
+
+  test('knows that an unreadable sealed key ends the holiday pull', () => {
+    expect<readonly string[]>(JOB_FAILURE_OUTCOMES['holiday.provider.pull']).toContain(
+      'credential_unreadable',
+    )
   })
 
   test('agrees with the API on the tick and on the ceiling that keeps interval from becoming a pause', () => {
