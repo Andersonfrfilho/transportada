@@ -128,3 +128,20 @@
 
 - Resolve a pendência de largura da T4.1: `updatedAt` saiu de `TRIP_COLUMN_KEYS` (`tripTable.service.ts`), do `renderCell` e dos locales `columns.updatedAt` (pt-BR e en). O campo segue no tipo `Trip` e no parser (a API continua mandando). A lista de colunas é afirmada por igualdade exata em `amount-columns.contract.ts` (com e sem `trip.financials`).
 - Gates (`apps/frontend-transportada`): `bun run test` → 7758 pass / 0 fail + `bun run test:hooks` → 1176 pass / 0 fail; `bun run typecheck` limpo; `eslint --max-warnings=0` e prettier limpos nos arquivos tocados.
+
+## T4.2 — gate final, 2026-10-09
+
+- `bun run format:check` (raiz) → único aviso `specs/260-*/preview.html` (outra sessão, não tocado). Por isso `make check` parou no primeiro passo; os demais passos rodaram à mão, na raiz:
+- `bun run lint` → exit 0 (16 warnings `react-hooks/exhaustive-deps` preexistentes em arquivos não tocados; as apps com `--max-warnings=0` passam); `bun run typecheck` → exit 0.
+- `bun run test` → exit 0: API contrato 11062 pass / 34 skip / 0 fail; worker 2191 pass; cron 101 pass; frontend-transportada 7758 pass + hooks 1176 pass; demais apps 89, 1486 e 131 pass; 0 fail em todas.
+- `bun run build` → exit 0.
+- `make migration-test` dispensado: `git diff --stat origin/staging...HEAD -- apps/api-transportada/drizzle` vazio (nenhuma migration na branch).
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-list-occupancy-financials.integration.ts` → 9 pass / 0 fail (Postgres local responde).
+
+## Revisão final — correções, 2026-10-09
+
+- A1: `weight.payloadRatio` é `string | null` (ficha sem teto). Antes, `readWeight` recusava `null` e a ocupação inteira virava "—"; agora o volume é preservado e o peso diz "sem teto de carga" (texto já existente `listCells.occupancy.weightMissing`, pt-BR e en), nunca 0%. Vermelho observado antes da correção: parser `Expected: "0.6200" / Received: undefined`; célula `aria-valuenow="NaN"` / `Peso NaN%`. Depois: 25 pass nos dois arquivos; `bun run test` 7761 + 1176 pass, 0 fail; typecheck, eslint `--max-warnings=0` e prettier limpos nos arquivos tocados.
+- M1: `ProgressBar` apara a largura em 0..100 (`resolveProgressPercent`), `isOverCapacity` e a marca "acima do teto" seguem pelo percentual real (1,2 → "Peso 120% · acima do teto"); razão negativa vira largura 0 (o texto mostra o número negativo, sem NaN). NaN não passa do parser (`readRatio`). Contrato novo cobre os dois casos.
+- B3: removido o `isNullableString(reason ?? null)` (código morto após `isOneOf`). B2: não há constante de fontes no módulo; mantido. B4: a tabela de viagens não usa view-preferences (nenhuma referência a `updatedAt`/colunas salvas em `modules/trip`), nada a tratar.
+- M4: `GET /trips` limita `limit` a 100 (`readPaging`/`parseLimit`, regex `1..100`). Os `inArray` da ocupação recebem 100 ids de viagem e os ids de notas; o estouro de 65.535 parâmetros só ocorreria com ~650 notas por viagem em média. Risco registrado, API inalterada.
+- M2 (conhecido, não alterado): o custo só soma à linha que já tem receita — decisão documentada da spec.
