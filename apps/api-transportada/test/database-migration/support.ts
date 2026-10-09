@@ -268,7 +268,7 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
     .toSorted()
 }
 
-type PostgresSqlState = '23001' | '23503' | '23505' | '23514' | '55000'
+type PostgresSqlState = '23001' | '23502' | '23503' | '23505' | '23514' | '55000'
 
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,

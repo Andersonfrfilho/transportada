@@ -11,9 +11,15 @@ import {
   assertProviderCacheConstraints,
   clearProviderCache,
 } from './holiday-provider-import-cache.assertion.js'
+import { assertProviderCacheIdentity } from './holiday-provider-import-cache-identity.assertion.js'
+import {
+  assertCompanyForeignKeysRestrict,
+  assertCompanyTableDetails,
+} from './holiday-provider-import-company-restrict.assertion.js'
 import { assertCompanyTables } from './holiday-provider-import-company.assertion.js'
 import { assertPublishedTables } from './holiday-provider-import-published.assertion.js'
 import {
+  assertBusinessCalendarRollbackWaitsForTheImport,
   assertHolidayProviderImportRollback,
   type RollbackProbe,
 } from './holiday-provider-import-rollback.assertion.js'
@@ -58,11 +64,15 @@ export async function assertHolidayProviderImport(
   expect(await readImportState(database)).toEqual(APPLIED_STATE)
 
   await assertProviderCacheConstraints(database)
+  await assertProviderCacheIdentity(database)
   await clearProviderCache(database)
-  await withOtherCompany(database, (otherCompanyId) =>
-    assertCompanyTables({ companyId, database, otherCompanyId }),
-  )
+  await withOtherCompany(database, async (otherCompanyId) => {
+    await assertCompanyTables({ companyId, database, otherCompanyId })
+    await assertCompanyTableDetails(database, otherCompanyId)
+    await assertCompanyForeignKeysRestrict(database, otherCompanyId)
+  })
   await assertPublishedTables(database, companyId)
+  await assertBusinessCalendarRollbackWaitsForTheImport(database, directories)
 
   await assertHolidayProviderImportRollback(probe, APPLIED_STATE, ROLLED_BACK_STATE)
 }

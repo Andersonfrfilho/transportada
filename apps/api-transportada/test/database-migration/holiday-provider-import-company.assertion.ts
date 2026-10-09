@@ -83,6 +83,10 @@ async function assertImportSettings({
       database`update company_holiday_import_settings set cursor_updated_at = now(), cursor_issued_at = now() where company_id = ${companyId}`,
     () =>
       database`update company_holiday_import_settings set cursor_document_id = ${half} where company_id = ${companyId}`,
+    () =>
+      database`update company_holiday_import_settings set cursor_issued_at = now() where company_id = ${companyId}`,
+    () =>
+      database`update company_holiday_import_settings set cursor_updated_at = now(), cursor_document_id = ${half} where company_id = ${companyId}`,
   ]
   for (const statement of partialCursors) {
     await expectQueryToFail(

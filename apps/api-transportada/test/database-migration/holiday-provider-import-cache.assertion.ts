@@ -24,6 +24,7 @@ type FetchValues = {
 }
 
 type EntryValues = {
+  readonly externalId?: string
   readonly holidayOn?: string
   readonly ibgeCode: string
   readonly name?: string
@@ -38,9 +39,9 @@ const insertFetch = (database: SQL, values: FetchValues) => database`
 `
 
 export const insertEntry = (database: SQL, values: EntryValues) => database`
-  insert into holiday_provider_entries (scope, ibge_code, holiday_on, name, provider_type)
+  insert into holiday_provider_entries (scope, ibge_code, holiday_on, name, provider_type, external_id)
   values (${values.scope}, ${values.ibgeCode}, ${values.holidayOn ?? '2026-12-08'},
-    ${values.name ?? 'Feriado'}, ${values.providerType ?? 'MUNICIPAL'})
+    ${values.name ?? 'Feriado'}, ${values.providerType ?? 'MUNICIPAL'}, ${values.externalId ?? null})
 `
 
 const BAD_SCOPE_CODES = [
@@ -169,14 +170,21 @@ async function assertEntries(database: SQL): Promise<void> {
       'holiday_provider_entries_name_check',
     )
   }
-  const providerTypes = ['NACIONAL', 'ESTADUAL', 'MUNICIPAL', 'FACULTATIVO']
-  for (const [index, providerType] of providerTypes.entries()) {
+  const validCombinations = [
+    ['city', CAMPINAS, 'MUNICIPAL'],
+    ['city', CAMPINAS, 'FACULTATIVO'],
+    ['state', SAO_PAULO_STATE, 'ESTADUAL'],
+    ['state', SAO_PAULO_STATE, 'FACULTATIVO'],
+    ['national', NATIONAL, 'NACIONAL'],
+    ['national', NATIONAL, 'FACULTATIVO'],
+  ] as const
+  for (const [index, [scope, ibgeCode, providerType]] of validCombinations.entries()) {
     await insertEntry(database, {
-      holidayOn: `2026-12-1${index}`,
-      ibgeCode: CAMPINAS,
+      holidayOn: `2026-11-1${index}`,
+      ibgeCode,
       name: 'x'.repeat(120),
       providerType,
-      scope: 'city',
+      scope,
     })
   }
   for (const values of [

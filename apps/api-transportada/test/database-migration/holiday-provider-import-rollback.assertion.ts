@@ -10,12 +10,18 @@ import { expect } from 'bun:test'
 import { join } from 'node:path'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { insertEntry } from './holiday-provider-import-cache.assertion.js'
+import {
+  buildRefusalCauses,
+  insertRefusalEntries,
+  refusalMessage,
+  type RefusalCounts,
+} from './holiday-provider-import-rollback-causes.assertion.js'
 import { JOB, MIGRATION_SUFFIX } from './holiday-provider-import.constant.js'
 import { readImportState, type ImportState } from './holiday-provider-import-state.assertion.js'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const CAMPINAS = '3509502'
+const BUSINESS_CALENDAR_SUFFIX = '_business_calendar'
 const SAO_PAULO_STATE = '35'
 
 export type RollbackProbe = {
@@ -59,73 +65,6 @@ export async function rollbackHolidayProviderImportIfApplied(
   if (failure !== undefined) throw failure
 }
 
-type RefusalCounts = readonly [number, number, number, number]
-
-function refusalMessage(counts: RefusalCounts): string {
-  const [municipal, state, suppressions, executions] = counts
-  return `Rollback recusado: ${municipal} feriado(s) municipal(is) importado(s), ${state} estadual(is) importado(s), ${suppressions} supressão(ões) e ${executions} execução(ões) aberta(s)`
-}
-
-/** Cada causa de recusa sozinha: a recusa de uma não pode ser mascarada pela presença de outra. */
-type RefusalCause = {
-  readonly counts: RefusalCounts
-  readonly create: (entryId: string) => Promise<void>
-  readonly remove: () => Promise<void>
-}
-
-function buildRefusalCauses(probe: RollbackProbe): readonly RefusalCause[] {
-  const { companyId, database, userId } = probe
-  return [
-    {
-      counts: [1, 0, 0, 0],
-      create: async (entryId) => {
-        await database`
-          insert into municipal_holidays (company_id, city_ibge_code, holiday_on, name, provider_entry_id)
-          values (${companyId}, ${CAMPINAS}, '2026-12-08', 'Importada', ${entryId})
-        `
-      },
-      remove: async () => {
-        await database`delete from municipal_holidays where provider_entry_id is not null`
-      },
-    },
-    {
-      counts: [0, 1, 0, 0],
-      create: async (entryId) => {
-        await database`
-          insert into state_holidays (company_id, state_ibge_code, recurrence, holiday_on, name, provider_entry_id)
-          values (${companyId}, ${SAO_PAULO_STATE}, 'once', '2026-07-09', 'Importada', ${entryId})
-        `
-      },
-      remove: async () => {
-        await database`delete from state_holidays where provider_entry_id is not null`
-      },
-    },
-    {
-      counts: [0, 0, 1, 0],
-      create: async () => {
-        await database`
-          insert into holiday_import_suppressions (company_id, scope, ibge_code, holiday_on, suppressed_by_user_id)
-          values (${companyId}, 'city', ${CAMPINAS}, '2026-12-09', ${userId})
-        `
-      },
-      remove: async () => {
-        await database`delete from holiday_import_suppressions`
-      },
-    },
-    {
-      counts: [0, 0, 0, 1],
-      create: async () => {
-        await database`
-          insert into job_executions (job, origin, correlation_id) values (${JOB}, 'schedule', 'holiday-probe')
-        `
-      },
-      remove: async () => {
-        await database`delete from job_executions where job = ${JOB}`
-      },
-    },
-  ]
-}
-
 async function assertRefused(
   probe: RollbackProbe,
   rollback: string,
@@ -143,22 +82,18 @@ async function assertEveryCauseRefuses(
   rollback: string,
   applied: ImportState,
 ): Promise<void> {
-  const { database } = probe
-  await insertEntry(database, { ibgeCode: CAMPINAS, scope: 'city' })
-  const [entry] = await database<Array<{ readonly id: string }>>`
-    select id from holiday_provider_entries where scope = 'city'
-  `
-  const entryId = entry?.id ?? ''
+  const entries = await insertRefusalEntries(probe.database)
   const causes = buildRefusalCauses(probe)
 
   for (const cause of causes) {
-    await cause.create(entryId)
+    await cause.create(entries)
     await assertRefused(probe, rollback, cause.counts, applied)
     await cause.remove()
   }
-  for (const cause of causes) await cause.create(entryId)
-  await assertRefused(probe, rollback, [1, 1, 1, 1], applied)
+  for (const cause of causes) await cause.create(entries)
+  await assertRefused(probe, rollback, [1, 1, 1, 1, 1], applied)
   for (const cause of causes) await cause.remove()
+  await probe.database`delete from holiday_provider_entries`
 }
 
 async function insertRowsTheRollbackMustKeep(probe: RollbackProbe): Promise<void> {
@@ -171,6 +106,8 @@ async function insertRowsTheRollbackMustKeep(probe: RollbackProbe): Promise<void
     insert into state_holidays (company_id, state_ibge_code, recurrence, holiday_on, name)
     values (${companyId}, ${SAO_PAULO_STATE}, 'once', '2026-09-21', 'Digitada')
   `
+  // Empresa com a importação ligada (o padrão) não é opt-out: não segura o rollback.
+  await database`insert into company_holiday_import_settings (company_id) values (${companyId})`
   await database`
     insert into job_executions (job, origin, correlation_id, finished_at, outcome)
     values (${JOB}, 'schedule', 'holiday-probe', now(), 'succeeded')
@@ -210,4 +147,24 @@ export async function assertHolidayProviderImportRollback(
   expect(await readImportState(database)).toEqual(applied)
   await database`delete from municipal_holidays where company_id = ${companyId}`
   await database`delete from state_holidays where company_id = ${companyId}`
+}
+
+/**
+ * A `business_calendar` (238) deixa a coluna `source_rule_id` e a tabela `state_holidays`, de que as
+ * CHECK e a FK desta migration dependem: o rollback dela recusa enquanto esta existir.
+ */
+export async function assertBusinessCalendarRollbackWaitsForTheImport(
+  database: SQL,
+  directories: readonly string[],
+): Promise<void> {
+  const calendar = directories.find((name) => name.endsWith(BUSINESS_CALENDAR_SUFFIX))
+  const importDirectory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
+  if (calendar === undefined || importDirectory === undefined) {
+    throw new Error('business_calendar and holiday_provider_import migrations are required')
+  }
+
+  const failure = await runRollback(database, await readRollbackScript(calendar))
+
+  expect(failure?.message).toContain(importDirectory)
+  expect(await readMigrationNames(database)).toContain(calendar)
 }
