@@ -33,6 +33,7 @@ import { readTripRevenueTotals } from '../../src/trips/application/read-trip-rev
 import {
   readTripValuation,
   type ApplicableFreightRule,
+  type TripValuationContext,
 } from '../../src/trips/application/read-trip-valuation.use-case.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
@@ -51,6 +52,13 @@ const FIFTY_KILOMETRES = 50_000
 const ONE_HOUR = 3_600
 const SHA = '2'.repeat(64)
 let documentSequence = 0
+let plateSequence = 0
+
+/** Placa Mercosul única por chamada: a placa é única na instalação, e o teste semeia várias empresas. */
+function nextPlate(): string {
+  plateSequence += 1
+  return `GCQ${Math.floor(plateSequence / 100) % 10}E${String(plateSequence % 100).padStart(2, '0')}`
+}
 
 const TEN_PERCENT_RULE: ApplicableFreightRule = {
   freightRuleId: '00000000-0000-4000-8000-000000000c01',
@@ -181,6 +189,120 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2)', () => {
   )
 })
 
+describe('o contexto de valoração em lote espelha o da viagem (spec 259, T2.1)', () => {
+  testWithPostgres(
+    'devolve, por viagem, o mesmo contexto de readContext',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const seeded = await seedTrips(database, world)
+        const tripIds = [seeded.capableTripId, seeded.incapableTripId, seeded.crewlessTripId]
+        const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
+
+        const batch = await query.readValuationContexts({ companyId: world.companyId, tripIds })
+
+        expect([...batch.keys()].sort()).toEqual([...tripIds].sort())
+        for (const tripId of tripIds) {
+          const single = await query.readContext({ companyId: world.companyId, tripId })
+          expect(inStableOrder(batch.get(tripId))).toEqual(inStableOrder(single))
+        }
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'faz o mesmo número de consultas para 1 viagem e para 20',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const tripIds: string[] = []
+        for (let index = 0; index < 20; index += 1) {
+          tripIds.push(
+            await seedTrip(database, {
+              documentWeights: ['120.000', null],
+              vehicleId: world.capableVehicleId,
+              world,
+            }),
+          )
+        }
+
+        const one = await countSelects(database, (query) =>
+          query.readValuationContexts({ companyId: world.companyId, tripIds: tripIds.slice(0, 1) }),
+        )
+        const twenty = await countSelects(database, (query) =>
+          query.readValuationContexts({ companyId: world.companyId, tripIds }),
+        )
+
+        expect(one).toBeGreaterThan(0)
+        expect(twenty).toBe(one)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'não alcança a viagem de outra empresa nem pelo id',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const mine = await seedWorld(database)
+        const theirs = await seedWorld(database)
+        const myTripId = await seedTrip(database, {
+          documentWeights: ['120.000'],
+          vehicleId: mine.capableVehicleId,
+          world: mine,
+        })
+        const theirTripId = await seedTrip(database, {
+          documentWeights: ['120.000'],
+          vehicleId: theirs.capableVehicleId,
+          world: theirs,
+        })
+        const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
+
+        const contexts = await query.readValuationContexts({
+          companyId: mine.companyId,
+          tripIds: [myTripId, theirTripId],
+        })
+
+        expect([...contexts.keys()]).toEqual([myTripId])
+        expect(contexts.get(myTripId)?.documents).toHaveLength(1)
+      })
+    },
+    60_000,
+  )
+})
+
+/** Conta cada `select` que a leitura dispara — o que o N+1 multiplicaria. */
+async function countSelects(
+  database: TestDatabase,
+  read: (query: DrizzleTripValuationQuery) => Promise<unknown>,
+): Promise<number> {
+  let selects = 0
+  const counting = new Proxy(database.db, {
+    get(target, property) {
+      const value: unknown = Reflect.get(target, property, target)
+      if (property === 'select') selects += 1
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+
+  await read(new DrizzleTripValuationQuery(counting, SILENT_LOGGER))
+
+  return selects
+}
+
+/** As notas não têm `order by`: a comparação ignora a ordem em que o Postgres as devolveu. */
+function inStableOrder(context: TripValuationContext | null | undefined) {
+  if (context === null || context === undefined) throw new Error('contexto ausente')
+
+  return {
+    ...context,
+    documents: [...context.documents].sort((left, right) =>
+      left.tripDocumentId.localeCompare(right.tripDocumentId),
+    ),
+  }
+}
+
 /** Lê a lista como o escritório com `trip.financials`: tudo ligado, exatamente como `main.ts` monta. */
 async function listAsOfficeWithFinancials(database: TestDatabase, world: World) {
   const useCase = createTripUseCase({
@@ -262,7 +384,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     fuelType: 'diesel-s10',
     id: capableVehicleId,
     otherCostsPerKilometer: '0.3000',
-    plate: 'GCQ8E48',
+    plate: nextPlate(),
     role: 'traction',
     state: 'SP',
     vehicleType: 'toco',
@@ -272,7 +394,7 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     companyId,
     fuelType: 'diesel-s10',
     id: incapableVehicleId,
-    plate: 'GCQ8E49',
+    plate: nextPlate(),
     role: 'traction',
     state: 'SP',
     vehicleType: 'tractor_unit',

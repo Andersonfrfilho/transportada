@@ -36,3 +36,16 @@
 
 - Os dois contratos novos (`trip-list-parser.contract.ts`, `trip-list-cells.contract.tsx`) entram por `test/trip.contract.test.ts`, que já está na lista explícita do `package.json` — não houve linha nova a acrescentar lá.
 - `bun run test` do painel (script, não `bun test` cru): 7758 pass / 0 fail no passo principal e 1176 pass / 0 fail em `test:hooks`, exit 0.
+
+## T2.1 — `readValuationContexts` em lote, 2026-10-09
+
+- `DrizzleTripValuationQuery.readValuationContexts({ companyId, tripIds })` → `Map<tripId, TripValuationContext>`; leituras por
+  viagem em `trip-valuation-batch.support.ts` (equipe, ajudantes, pedágio/avulso, taxas de entrega, esperas) e notas em
+  `readDocumentsOfTrips`; combustível via `readEffectiveFuelPrices` (fatos da empresa 1x, preço por produto distinto em memória).
+  Dados da empresa (diária geral, taxa de ajudante, taxas federais, perfis de ICMS) 1x por página. `readContext` não foi tocado.
+- Integração (Postgres descartável) em `trip-list-occupancy-financials.integration.ts`: contexto em lote **igual** ao de
+  `readContext` nas 3 viagens; **mesmo número de `select`s para 1 e para 20 viagens**; id de outra empresa não entra no mapa.
+  Run: 4 pass, 1 fail (a paridade da T1.2, que só fecha na T2.3 — esperado).
+- `test/trip-schema/tenant-safety.contract.ts` +4 testes (fonte): `bun test ./test/trip-schema.contract.test.ts` → 262 pass, 0 fail.
+- Regressão: `trip-valuation-document-figures` + `trip-financial-end-to-end` integração → 10 pass, 0 fail.
+- `bunx tsc --noEmit` limpo; eslint (--max-warnings=0) e prettier limpos nos arquivos tocados.

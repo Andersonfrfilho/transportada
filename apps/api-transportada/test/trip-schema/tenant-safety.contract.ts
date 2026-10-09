@@ -385,3 +385,55 @@ describe('dispatch readiness query tenant safety (spec 185 T3.1)', () => {
     expect(where).toInclude('tripDocuments.tripId')
   })
 })
+
+/**
+ * Spec 259 T2.1: as leituras em lote da valoração recebem **vários** `trip_id` de uma vez, e por isso
+ * um id de outra empresa na lista só é inofensivo se cada degrau carregar o tenant. Prova por texto de
+ * fonte, como as vizinhas; o comportamento (id alheio não entra no mapa) está na integração.
+ */
+describe('trip valuation batch reads tenant safety (spec 259 T2.1)', () => {
+  const batchSource = readFileSync(
+    new URL('../../src/trips/infrastructure/trip-valuation-batch.support.ts', import.meta.url),
+    'utf8',
+  )
+  const querySource = readFileSync(
+    new URL('../../src/trips/infrastructure/trip-valuation.query.ts', import.meta.url),
+    'utf8',
+  )
+  const batchMethod = querySource.slice(
+    querySource.indexOf('public async readValuationContexts('),
+    querySource.indexOf('private async readStopDwellsByTripOrNone('),
+  )
+
+  test('anchors every batch read of a per-trip table to the company', () => {
+    expect(batchSource).toContain('eq(tripDrivers.companyId, input.companyId)')
+    expect(batchSource).toContain('eq(tripCostEntries.companyId, input.companyId)')
+    expect(batchSource).toContain('eq(deliveryCharges.companyId, input.companyId)')
+    expect(batchSource).toContain('eq(tripStops.companyId, input.companyId)')
+    expect(batchSource.match(/inArray\(tripDrivers\.tripId/gu) ?? []).toHaveLength(2)
+  })
+
+  test('carries the company through every join of the batch reads', () => {
+    const joins = [
+      ...batchSource.split('.innerJoin(').slice(1),
+      ...batchSource.split('.leftJoin(').slice(1),
+    ]
+
+    expect(joins.length).toBeGreaterThan(0)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+  })
+
+  test('filters the trips and the documents of the batch by the tenant, never by id alone', () => {
+    expect(batchMethod).toContain('eq(trips.companyId, input.companyId)')
+    expect(batchMethod).toContain('eq(fleetVehicles.companyId, trips.companyId)')
+    expect(querySource).toContain(
+      'eq(tripDocuments.companyId, input.companyId),\n        inArray(tripDocuments.tripId',
+    )
+  })
+
+  test('reads only the trips the company owns: later reads use the ids the database confirmed', () => {
+    expect(batchMethod).toContain('tripIds: tripRows.map((row) => row.tripId)')
+  })
+})
