@@ -24,6 +24,11 @@ export type ReadHolidayWarningsParams = {
   readonly knownCalendars?: ReadonlyMap<string, BusinessCalendar>
 }
 
+/** `referenceYear` é o ano corrente de quem lê: só as datas de um ano atrás a dois adiante entram na leitura. */
+export type ReadHolidayWarningsInput = ReadHolidayWarningsParams & {
+  readonly referenceYear: number
+}
+
 export type HolidayWarningsResult = {
   readonly refusals: ReadonlyMap<string, BusinessCalendarErrorCode>
   readonly warnings: ReadonlyMap<string, HolidayWarning>

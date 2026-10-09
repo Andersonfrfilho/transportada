@@ -10,7 +10,7 @@
 import type {
   HolidayWarningItem,
   HolidayWarningsResult,
-  ReadHolidayWarningsParams,
+  ReadHolidayWarningsInput,
 } from '../application/holiday-warning.port.js'
 import {
   isBusinessCalendarErrorCode,
@@ -30,8 +30,17 @@ import {
 
 type Needs = ReadonlyMap<string, BusinessCalendarCoverage>
 
+const WINDOW_YEARS_BEFORE = 1
+const WINDOW_YEARS_AFTER = 2
+
 function yearOf(item: HolidayWarningItem): number {
   return Number(item.date.slice(0, 4))
+}
+
+/** Uma data absurda (ETA de 2040) alargaria a cobertura de todas as cidades e a recusaria: ela é descartada antes. */
+function isInsideWindow(item: HolidayWarningItem, referenceYear: number): boolean {
+  const year = yearOf(item)
+  return year >= referenceYear - WINDOW_YEARS_BEFORE && year <= referenceYear + WINDOW_YEARS_AFTER
 }
 
 /** Os anos que cada cidade precisa ter no calendário: do menor ao maior dos itens dela. */
@@ -94,9 +103,10 @@ async function loadMissing(
 
 export async function readHolidayWarnings(
   executor: BusinessCalendarRulesExecutor,
-  params: ReadHolidayWarningsParams,
+  params: ReadHolidayWarningsInput,
 ): Promise<HolidayWarningsResult> {
-  const needs = collectNeeds(params.items)
+  const items = params.items.filter((item) => isInsideWindow(item, params.referenceYear))
+  const needs = collectNeeds(items)
   const calendars = new Map<string, BusinessCalendar>()
   const missing = new Map<string, BusinessCalendarCoverage>()
   for (const [cityIbgeCode, need] of needs) {
@@ -111,7 +121,7 @@ export async function readHolidayWarnings(
   for (const [cityIbgeCode, calendar] of loaded.calendars) calendars.set(cityIbgeCode, calendar)
 
   const warnings = new Map<string, HolidayWarning>()
-  for (const item of params.items) {
+  for (const item of items) {
     const calendar = calendars.get(item.cityIbgeCode)
     if (calendar === undefined) continue
     const warning = buildHolidayWarning({
