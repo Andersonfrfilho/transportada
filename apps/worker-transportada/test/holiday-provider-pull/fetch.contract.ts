@@ -423,6 +423,8 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
       '35:2027',
     ])
     expect(withState.client.requests.filter((request) => request.scope === 'state')).toHaveLength(0)
+    // A resposta que já trouxe o estadual nem consulta a fila do estado.
+    expect(withState.events.some((event) => event.startsWith('ensure-state'))).toBeFalse()
     // A resposta da cidade que trouxe o estadual cobre o par do estado.
     expect(
       withState.store.records.get(pairKey({ ibgeCode: '35', scope: 'state', year: 2026 }))?.status,

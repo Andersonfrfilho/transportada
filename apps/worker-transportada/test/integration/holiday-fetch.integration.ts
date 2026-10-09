@@ -365,6 +365,21 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
       ['2036-09-07', false],
     ])
 
+    // Resposta que só trouxe o estadual, sem data nenhuma da cidade, também não marca nada.
+    await makeDue()
+    await build({
+      now,
+      respond: (request) =>
+        request.scope === 'city' && request.year === 2036 && request.ibgeCode === city
+          ? pageOf([entryOf({ date: '2036-07-09', ibgeCode: city.slice(0, 2), scope: 'state' })])
+          : standardResponse(request),
+    }).run()
+    expect(await readRemoved()).toEqual([
+      ['2036-05-01', false],
+      ['2036-06-10', true],
+      ['2036-09-07', false],
+    ])
+
     await makeDue()
     await build({ now, respond: withDates(['05-01', '06-10', '09-07']) }).run()
     expect(await readRemoved()).toEqual([

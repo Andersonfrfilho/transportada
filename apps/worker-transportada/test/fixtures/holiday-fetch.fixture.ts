@@ -107,6 +107,7 @@ export function buildInMemoryFetchStore(input: {
     },
     budgetGrants: () => grants,
     async ensureStatePair({ now, stateCode, year }) {
+      events.push(`ensure-state:${stateCode}:${year}`)
       const pair: FetchPair = { attempts: 0, ibgeCode: stateCode, scope: 'state', year }
       return isDue(pairKey(pair), now)
         ? { ...pair, attempts: records.get(pairKey(pair))?.attempts ?? 0 }
