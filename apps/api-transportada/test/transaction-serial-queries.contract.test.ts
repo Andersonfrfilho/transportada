@@ -62,6 +62,14 @@ const TRANSACTION_REACHABLE_FUNCTIONS = [
     signature: 'export async function loadBusinessCalendarRules(',
   },
   {
+    file: 'business-calendar/infrastructure/holiday-warning.reader.ts',
+    signature: 'export async function readHolidayWarnings(',
+  },
+  {
+    file: 'trips/infrastructure/trip-holiday-warning.support.ts',
+    signature: 'export async function readTripStopHolidayWarnings(',
+  },
+  {
     file: 'trips/infrastructure/trip-delivery-deadline.support.ts',
     signature: 'export async function readTripDeliveryDeadlines(',
   },

@@ -51,10 +51,11 @@ describe('spec 238 — explicar o dia', () => {
     expect(explainDay({ calendar, date: '2028-02-29' })).toEqual({
       isBusinessDay: false,
       reasons: [
-        { key: 'carnival', source: 'national' },
+        { key: 'carnival', origin: 'code', source: 'national' },
         {
           kind: 'city_anniversary',
           name: 'Aniversário inventado de Belo Horizonte',
+          origin: 'typed',
           source: 'municipal',
         },
       ],
@@ -77,7 +78,7 @@ describe('spec 238 — explicar o dia', () => {
 
     expect(explainDay({ calendar, date: '2026-11-15' })).toEqual({
       isBusinessDay: false,
-      reasons: [{ key: 'republic_proclamation', source: 'national' }],
+      reasons: [{ key: 'republic_proclamation', origin: 'code', source: 'national' }],
       weekend: 'sunday',
     })
     expect(explainDay({ calendar, date: '2026-11-16' }).isBusinessDay).toBe(true)
@@ -88,7 +89,7 @@ describe('spec 238 — explicar o dia', () => {
     const rioDeJaneiro = buildTestCalendar({ city: 'rioDeJaneiro', fromYear: 2026 })
 
     expect(explainDay({ calendar: saoPaulo, date: '2026-07-09' }).reasons).toEqual([
-      { name: 'Revolução Constitucionalista', source: 'state' },
+      { name: 'Revolução Constitucionalista', origin: 'typed', source: 'state' },
     ])
     expect(explainDay({ calendar: rioDeJaneiro, date: '2026-07-09' }).reasons).toEqual([])
   })

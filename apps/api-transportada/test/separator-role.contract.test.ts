@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
+import { createDayChecksRoutes } from '../src/business-calendar/presentation/day-checks.routes'
 import { createHolidayImportRoutes } from '../src/business-calendar/presentation/holiday-import.routes'
 import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
 import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
@@ -114,6 +115,8 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createBusinessCalendarSettingsRoutes(dependencies),
     // Spec 252 T4.1: a gestão da importação de feriados é configuração (`settings.manage`, ler e escrever).
     ...createHolidayImportRoutes(dependencies),
+    // Spec 252 T4.2: a consulta de dias de feriado da montagem é `fleet.read`, e o separador monta o roteiro.
+    ...createDayChecksRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
     // e separa no celular. Lê com `fleet.read` e escreve com `trip.manage`, as que já tinha.
     ...createCargoArrivalRoutes(dependencies),
@@ -360,6 +363,12 @@ describe('separator role contract', () => {
       /** Spec 167 (RF2/RF10): mesma permissão do registro — corrigir o conjunto de itens. */
       'PATCH /trips/:id/documents/:documentId/occurrences/:occurrenceId/items',
       'PATCH /trips/:id/stops/order',
+      /**
+       * Spec 252 T4.2 (ADR-0100 §6): a montagem consulta os dias de feriado das cidades do roteiro — a mesma
+       * `fleet.read` do `GET /municipal-holidays` acima, e o separador monta o roteiro. Só lê (o `POST` é
+       * consulta, não escrita), recorta pela empresa do contexto e não devolve cadastro, só o aviso.
+       */
+      'POST /business-calendar/day-checks',
       'POST /cargo-arrivals',
       'POST /cargo-arrivals/:id/close',
       /**

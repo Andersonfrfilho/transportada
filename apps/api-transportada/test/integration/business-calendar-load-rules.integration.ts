@@ -116,12 +116,14 @@ describe('a leitura das regras para a política (spec 238 T1.3)', () => {
           kind: 'city_anniversary',
           name: 'Aniversário de Campinas',
           occurrence: { day: 14, month: 7, recurrence: 'yearly' },
+          origin: 'rule',
         },
         {
           cityIbgeCode: CAMPINAS,
           kind: 'holiday',
           name: 'Digitado',
           occurrence: { date: '2026-10-13', recurrence: 'once' },
+          origin: 'typed',
         },
       ])
       expect(loaded.saturdayIsBusinessDay).toBe(true)
