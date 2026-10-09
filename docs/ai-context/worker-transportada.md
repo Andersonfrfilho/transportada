@@ -569,3 +569,20 @@ reescreve nota em andamento: a nota que já tem tentativa v2 continua falando v2
 até a próxima emissão. A virada para `v3` em produção é a T6.2 da spec 250, sob aprovação humana, e **não aconteceu**.
 O vínculo de nota emitida fora do sistema (`POST .../service-invoices/:id/external-link`) vai a `pending_authorization`
 e é o status pull acima que a autoriza ou rejeita.
+
+## A importação de feriados da FeriadosAPI (spec 252 Fase 3, ADR-0100) — rotina `holiday.provider.pull`
+
+Módulo `src/holiday-provider-pull/` (domínio, aplicação e infraestrutura como `fuel-price-pull/`). **Inerte sem
+`FERIADOS_API_TOKEN`:** sem o token a rotina não é registrada, nada sai do produto, e a linha de `job_schedules`
+nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termos, `[NEEDS CLARIFICATION]`).
+
+- **Cliente (T3.1)** — `infrastructure/feriados-api.client.ts`. `GET /api/v1/feriados/{cidade/<ibge>|estado/<sigla>|nacionais}?ano=Y&limit=100[&page=N]`
+  com `Authorization: Bearer`. A UF vai pela **sigla** (`BRAZILIAN_STATE_ABBREVIATION_BY_IBGE_CODE`). A guarda Zod
+  (`feriados-api.schema.ts`) exige `data` `DD/MM/AAAA` existente, `nome` de 1 a 120 caracteres (aparado e cortado) e
+  `tipo` do vocabulário; aceita a lista pelada ou em `data`; resposta fora disso é `malformed_response` inteira.
+  Cada entrada sai já com a chave do cache (`holiday-provider-entry.policy.ts`): o `ESTADUAL` de uma resposta de
+  cidade vira `scope=state` + UF, o `NACIONAL` fora do pedido nacional é descartado, e duas datas na mesma
+  `(escopo, ibge, data)` viram uma — vence a não facultativa. **O token não aparece em erro nenhum por construção:**
+  `HolidayProviderError` tem como mensagem só o próprio código (`malformed_response`, `provider_not_found`,
+  `provider_rate_limited`, `provider_unauthorized`, `provider_unreachable`); URL, cabeçalho, corpo e mensagem da
+  rede nunca entram (nem a mensagem do Zod, que ecoa o valor recusado).

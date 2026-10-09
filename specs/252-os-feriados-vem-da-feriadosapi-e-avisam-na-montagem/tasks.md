@@ -100,11 +100,14 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
 
 > 🤖 Modelo: `sonnet` (T3.5 em `haiku`)
 
-- [ ] **T3.1** Cliente HTTP da FeriadosAPI: `Authorization: Bearer`, guarda Zod com as chaves esperadas, erros tipados
+- [x] **T3.1** Cliente HTTP da FeriadosAPI: `Authorization: Bearer`, guarda Zod com as chaves esperadas, erros tipados
       (`provider_unreachable`, `provider_unauthorized`, `malformed_response`), `data` `DD/MM/AAAA` → `YYYY-MM-DD`
       validada; nome de 1 a 120 caracteres (`state_holidays_name_check`); duas entradas na mesma `(escopo, ibge,
 data)` → vence a não facultativa; fixture no formato da documentação (cidade, estado, nacional, facultativo,
-      página > 100). Token redigido em toda mensagem (molde `nota-rp-v2.client.ts` 158–161).
+      página > 100). Token redigido em toda mensagem (molde `nota-rp-v2.client.ts` 158–161). **Feita em 2026-10-09**
+      (`8571ad190` contrato vermelho, `ca44fe24a` código): o token fica fora de toda mensagem **por construção** (o erro só
+      carrega o próprio código), 19 testes, 10 mutações vermelhas; **lacunas** da forma de resposta real em
+      `evidence.md` § T3.1.
 - [ ] **T3.2** Descoberta por cursor (`nfe_documents_company_updated_issued_id_idx`, 2.000 por lote, 20 lotes por ciclo),
       destino físico pela mesma junção do roteirizador (uma consulta dos dois papéis por lote e a escolha com
       `resolvePhysicalDestination` em TypeScript; sem desvio manual), upsert em `holiday_import_cities`; empresa com

@@ -762,3 +762,41 @@ de casos de uso, de `countPendingPairs` e de isolamento vermelhos pelo formato n
 ### O que ficou de fora
 
 Rotas de `is_enabled`; a medida do teto agregado (L6); a agulha do contrato de isolamento da nota e o aviso do motorista (T4.3); worker (T3); telas; sem push.
+## T3.1 — cliente HTTP da FeriadosAPI (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t3` a partir de `origin/staging` (migration `20261009040622_holiday_provider_import` e catálogo de jobs já nele). Sem push. Nenhum teste chama a internet: o cliente recebe `fetch` e o token por injeção, e os testes usam respostas fixas (`test/fixtures/feriados-api.fixture.ts`, no formato da documentação pública). **Nenhuma resposta real da FeriadosAPI foi vista** — as lacunas estão abaixo.
+
+- **Vermelho antes (`8571ad190`):** o contrato importa os módulos que ainda não existiam; `bun test ./test/holiday-provider-pull.contract.test.ts` → `0 pass, 1 fail, 1 error` (`Cannot find module .../domain/brazilian-state.constant.js`). Vermelho por funcionalidade ausente, não por erro de teste.
+- **Verde (`ca44fe24a`):** `src/holiday-provider-pull/{domain,application,infrastructure}` — cliente, guarda Zod, erro tipado, política de classificação das entradas, data `DD/MM/AAAA`, sigla da UF. 19 testes novos em `test/holiday-provider-pull/` (lista explícita no `package.json`).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint ... --max-warnings=0` exit 0; `bun run test` **2210 pass, 0 fail** em 103 arquivos (linha de base 2191 em 102: +19 testes, +1 arquivo).
+
+### Mutações (cada uma aplicada em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim)
+
+| Mutação                                                                     | Resultado |
+| --------------------------------------------------------------------------- | --------- |
+| sem o cabeçalho `Authorization: Bearer`                                     | 1 fail    |
+| erro de rede relançado cru (a mensagem da rede, com o token, sairia)        | 2 fail    |
+| sem juntar a mesma `(escopo, ibge, data)`                                   | 1 fail    |
+| facultativo vence o municipal                                               | 1 fail    |
+| estadual da resposta de cidade gravado com o código da cidade               | 1 fail    |
+| data sem conferir a volta (`31/02`)                                         | 2 fail    |
+| 403 deixa de ser `provider_unauthorized`                                    | 1 fail    |
+| nome sem o teto de 120 caracteres                                           | 1 fail    |
+| `NACIONAL` numa resposta de cidade passa a ser gravado                      | 1 fail    |
+| `receivedCount` conta o que sobrou depois de juntar (quebraria a paginação) | 2 fail    |
+
+### Lacunas: o que a documentação não diz e o código assume
+
+Registradas em vez de adivinhadas; nenhuma muda o ADR, e todas se confirmam (ou não) no 1º ciclo real, que é passo do usuário:
+
+1. **Envelope da resposta.** Aceitam-se a lista pelada e `{ data: [...] }`; qualquer outra forma é `malformed_response` e nada é gravado. Chaves de paginação do envelope (total, página) não são lidas — a paginação decide por `receivedCount === 100`.
+2. **Paginação.** `limit=100` sempre; `page=N` só da 2ª página em diante (1-based, a suposição comum). Se a API contar de 0, a página 2 pularia dados.
+3. **Estado.** O caminho usa a **sigla** (`/estado/SP`), pela leitura de `/api/v1/feriados/estado/{uf}`; a tabela IBGE→sigla é nossa.
+4. **`facultativos`.** O parâmetro não é enviado (a URL do ADR §5 não o tem); se o padrão da API é omitir facultativos, o cache simplesmente não os terá (D5: só cache, sem efeito).
+5. **`codigo_ibge`/`uf` da resposta não são lidos.** A cidade da entrada é a do pedido; não há conferência cruzada, porque o formato do campo (7 ou 6 dígitos, texto ou número) não está documentado.
+6. **Como a API sinaliza plano/cota do provedor.** Não documentado: 401/403 encerram o ciclo como `provider_unauthorized` (ADR), 429 como limite com `Retry-After`; outros 4xx e 5xx viram `provider_unreachable`. Se o plano gratuito responder 402/403 para cidade do interior, o ciclo vai parar em `provider_unauthorized` na 1ª cidade — o sinal certo para o usuário olhar o plano (Q3).
+7. **Tipo desconhecido** (`tipo` fora de `NACIONAL`/`ESTADUAL`/`MUNICIPAL`/`FACULTATIVO`) recusa a resposta inteira, por desenho (contrato do fornecedor mudou).
+
+### O que não foi feito
+
+Rotina, descoberta, busca, aplicação, variáveis de ambiente e registro no `main.ts` (T3.2 a T3.5). Nada publicado.
