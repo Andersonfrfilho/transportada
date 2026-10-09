@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,10 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
+import {
+  shouldOpenTripFromRowClick,
+  INTERACTIVE_ELEMENT_SELECTOR,
+} from '../shared/tripRowClick.service'
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
@@ -81,6 +85,17 @@ export function TripTable({
   const [closing, setClosing] = useState(false)
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
+
+  function handleRowClick(event: MouseEvent<HTMLTableRowElement>, tripId: string) {
+    const target = event.target instanceof Element ? event.target : undefined
+    const shouldOpen = shouldOpenTripFromRowClick({
+      targetIsInteractive: target?.closest(INTERACTIVE_ELEMENT_SELECTOR) != null,
+      hasTextSelection: (window.getSelection()?.toString() ?? '') !== '',
+      button: event.button,
+      hasModifierKey: event.metaKey || event.ctrlKey || event.shiftKey || event.altKey,
+    })
+    if (shouldOpen) table.openTrip(tripId)
+  }
 
   function renderCell(trip: Trip, column: TripColumnKey) {
     if (column === 'status') {
@@ -356,7 +371,11 @@ export function TripTable({
           </thead>
           <tbody>
             {table.visibleItems.map((trip) => (
-              <tr key={trip.id}>
+              <tr
+                key={trip.id}
+                className={styles.clickableRow}
+                onClick={(event) => handleRowClick(event, trip.id)}
+              >
                 {canCancel || canClose ? (
                   <td>
                     {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
