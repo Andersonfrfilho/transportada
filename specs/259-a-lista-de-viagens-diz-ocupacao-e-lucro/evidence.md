@@ -49,3 +49,20 @@
 - `test/trip-schema/tenant-safety.contract.ts` +4 testes (fonte): `bun test ./test/trip-schema.contract.test.ts` → 262 pass, 0 fail.
 - Regressão: `trip-valuation-document-figures` + `trip-financial-end-to-end` integração → 10 pass, 0 fail.
 - `bunx tsc --noEmit` limpo; eslint (--max-warnings=0) e prettier limpos nos arquivos tocados.
+
+## T2.2 — `readTripListFinancials` e os campos de custo em `TripAmounts`, 2026-10-09
+
+- `read-trip-list-financials.use-case.ts`: lê os contextos em lote e chama `buildValuationFromContext` por viagem (busca de regra
+  memoizada com `memoizeRule`, agora exportada); `buildValuationFromContext` passou a pedir `Pick<TripValuationPort, 'findApplicableRule'>`.
+- `TripAmounts` ganha `costTotal`, `marginTotal`, `marginPercentage` (money) e `hasGaps` (safe) em `TRIP_AMOUNTS_FIELD_POLICY` — opcionais
+  no tipo: ausentes quando não se pediu custo (sem `trip.financials`) ou quando ele falhou naquela viagem.
+- `list` recebe `includeFinancials` (rota: `canReadFinancials`); sem ele o custo nem é lido. `main.ts` injeta `financials`.
+- Contratos: `test/trip-application/trip-list-financials.contract.ts` (novo, no entrypoint `trip-application.contract.test.ts`) — 7 testes
+  (mesma conta do painel, memoização 2 viagens = 1 consulta de regra, falha isolada com log só de ids, classificação `money`, merge por
+  `includeFinancials`). `list.contract.ts` ganhou `includeFinancials` nas 3 expectativas; os 2 contratos de texto de fonte do
+  `trip-valuation.query.ts` (`crew-zone-wiring`, `icms-projection`) passaram de 2 para 3 pontos de leitura (a viagem em lote).
+- `bun test ./test/trip-http.contract.test.ts ./test/trip-application.contract.test.ts ./test/trip-valuation.contract.test.ts` →
+  829 pass, 0 fail. Integração `trip-list-occupancy-financials`: paridade de **custo e margem** verde (3 viagens, `costTotal`,
+  `marginTotal`, `marginPercentage`, `hasGaps` e `revenueTotal` iguais ao `readTripValuation`); só a paridade de ocupação segue
+  vermelha (T2.3). `trip-valuation-document-figures` → 7 pass.
+- `bunx tsc --noEmit`, eslint (--max-warnings=0) e prettier limpos.

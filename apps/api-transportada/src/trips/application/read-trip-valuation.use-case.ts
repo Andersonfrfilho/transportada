@@ -459,7 +459,8 @@ async function resolvePreviewRoad(input: {
 export async function buildValuationFromContext(input: {
   readonly companyId: string
   readonly context: TripValuationContext
-  readonly repository: TripValuationPort
+  /** Só a busca de regra: o contexto já veio pronto, e a lista em lote não tem `readContext` a oferecer. */
+  readonly repository: Pick<TripValuationPort, 'findApplicableRule'>
 }): Promise<TripValuation> {
   const { context } = input
 
