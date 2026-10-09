@@ -93,12 +93,12 @@ describe('o feriado estadual (spec 238 T1.2)', () => {
         onUpdate: 'cascade',
       },
       {
-        columns: ['provider_entry_id'],
-        foreignColumns: ['id'],
+        columns: ['provider_entry_id', 'state_ibge_code', 'holiday_on'],
+        foreignColumns: ['id', 'ibge_code', 'holiday_on'],
         foreignTable: 'holiday_provider_entries',
         name: 'state_holidays_provider_entry_fk',
         onDelete: 'restrict',
-        onUpdate: 'cascade',
+        onUpdate: 'restrict',
       },
     ])
   })

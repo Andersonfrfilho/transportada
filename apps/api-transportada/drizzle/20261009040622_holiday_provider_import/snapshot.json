@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "716c3ae4-7884-402c-b71f-146b7c80e5c1",
+  "id": "4cd5782a-25e1-4e58-92fb-c2351ff7caf7",
   "prevIds": [
     "006a0815-6918-4626-b754-781db4a62b48"
   ],
@@ -47321,14 +47321,18 @@
     {
       "nameExplicit": true,
       "columns": [
-        "provider_entry_id"
+        "provider_entry_id",
+        "city_ibge_code",
+        "holiday_on"
       ],
       "schemaTo": "public",
       "tableTo": "holiday_provider_entries",
       "columnsTo": [
-        "id"
+        "id",
+        "ibge_code",
+        "holiday_on"
       ],
-      "onUpdate": "CASCADE",
+      "onUpdate": "RESTRICT",
       "onDelete": "RESTRICT",
       "name": "municipal_holidays_provider_entry_fk",
       "entityType": "fks",
@@ -48699,14 +48703,18 @@
     {
       "nameExplicit": true,
       "columns": [
-        "provider_entry_id"
+        "provider_entry_id",
+        "state_ibge_code",
+        "holiday_on"
       ],
       "schemaTo": "public",
       "tableTo": "holiday_provider_entries",
       "columnsTo": [
-        "id"
+        "id",
+        "ibge_code",
+        "holiday_on"
       ],
-      "onUpdate": "CASCADE",
+      "onUpdate": "RESTRICT",
       "onDelete": "RESTRICT",
       "name": "state_holidays_provider_entry_fk",
       "entityType": "fks",
@@ -58628,6 +58636,19 @@
     {
       "nameExplicit": true,
       "columns": [
+        "id",
+        "ibge_code",
+        "holiday_on"
+      ],
+      "nullsNotDistinct": false,
+      "name": "holiday_provider_entries_id_code_day_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "holiday_provider_entries"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
         "scope",
         "ibge_code",
         "year"
@@ -63507,6 +63528,13 @@
     {
       "value": "\"provider_type\" in ('NACIONAL', 'ESTADUAL', 'MUNICIPAL', 'FACULTATIVO')",
       "name": "holiday_provider_entries_provider_type_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_entries"
+    },
+    {
+      "value": "(\"scope\" = 'city' and \"provider_type\" in ('MUNICIPAL', 'FACULTATIVO')) or (\"scope\" = 'state' and \"provider_type\" in ('ESTADUAL', 'FACULTATIVO')) or (\"scope\" = 'national' and \"provider_type\" in ('NACIONAL', 'FACULTATIVO'))",
+      "name": "holiday_provider_entries_scope_type_check",
       "entityType": "checks",
       "schema": "public",
       "table": "holiday_provider_entries"

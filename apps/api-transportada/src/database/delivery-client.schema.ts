@@ -287,14 +287,22 @@ export const municipalHolidays = pgTable(
     index('municipal_holidays_company_source_rule_idx')
       .on(table.companyId, table.sourceRuleId)
       .where(sql`${table.sourceRuleId} is not null`),
-    /** O alvo é global e a entrada nunca é apagada (só ganha `removed_at`): `RESTRICT`. */
+    /**
+     * Composta: a linha importada é a data da entrada (mesma cidade, mesmo dia). O alvo é global e a
+     * entrada nunca é apagada (só ganha `removed_at`): `RESTRICT` nos dois sentidos, para um UPDATE na
+     * entrada nunca mover o feriado de uma empresa em silêncio. MATCH SIMPLE: sem `provider_entry_id`, nada a conferir.
+     */
     foreignKey({
-      columns: [table.providerEntryId],
-      foreignColumns: [holidayProviderEntries.id],
+      columns: [table.providerEntryId, table.cityIbgeCode, table.holidayOn],
+      foreignColumns: [
+        holidayProviderEntries.id,
+        holidayProviderEntries.ibgeCode,
+        holidayProviderEntries.holidayOn,
+      ],
       name: 'municipal_holidays_provider_entry_fk',
     })
       .onDelete('restrict')
-      .onUpdate('cascade'),
+      .onUpdate('restrict'),
     check(
       'municipal_holidays_rule_or_provider_check',
       sql`not (${table.sourceRuleId} is not null and ${table.providerEntryId} is not null)`,

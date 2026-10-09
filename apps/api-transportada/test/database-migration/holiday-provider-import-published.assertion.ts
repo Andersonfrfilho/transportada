@@ -122,7 +122,7 @@ async function assertStateHolidays(
     )
 
   await insertOnce(SAO_PAULO_STATE, '2026-07-09', stateEntryId)
-  await insertOnce(SAO_PAULO_STATE, '2026-12-08', null)
+  await insertOnce(SAO_PAULO_STATE, '2026-11-20', null)
   await insertYearly(7, null)
   await expectQueryToFail(
     insertYearly(8, stateEntryId),

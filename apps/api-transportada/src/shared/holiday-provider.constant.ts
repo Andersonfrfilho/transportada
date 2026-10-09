@@ -61,3 +61,19 @@ export const HOLIDAY_PROVIDER_TYPES = [
   HOLIDAY_PROVIDER_TYPE.MUNICIPAL,
   HOLIDAY_PROVIDER_TYPE.FACULTATIVE,
 ] as const
+
+/**
+ * O tipo que cada escopo aceita. O `FACULTATIVO` vale em todos (fica só no cache, D5). O que o
+ * fornecedor chama de estadual numa resposta de cidade é gravado com `scope = 'state'` e a UF.
+ */
+export const HOLIDAY_PROVIDER_TYPES_BY_SCOPE = {
+  [HOLIDAY_PROVIDER_SCOPE.CITY]: [
+    HOLIDAY_PROVIDER_TYPE.MUNICIPAL,
+    HOLIDAY_PROVIDER_TYPE.FACULTATIVE,
+  ],
+  [HOLIDAY_PROVIDER_SCOPE.STATE]: [HOLIDAY_PROVIDER_TYPE.STATE, HOLIDAY_PROVIDER_TYPE.FACULTATIVE],
+  [HOLIDAY_PROVIDER_SCOPE.NATIONAL]: [
+    HOLIDAY_PROVIDER_TYPE.NATIONAL,
+    HOLIDAY_PROVIDER_TYPE.FACULTATIVE,
+  ],
+} as const
