@@ -119,7 +119,9 @@ describe('as rotas antigas de /municipal-holidays: leitura e POST (spec 238 T1.3
   test('a lista diz a origem de cada data (importada ou digitada) e nunca expõe o vínculo com o cache', async () => {
     const { handle } = createFixture({ listed: [HOLIDAY, IMPORTED_HOLIDAY] })
 
-    const listed = (await responseData(await handle(jsonRequest({ method: 'GET', path: PATH })))) as readonly Record<string, unknown>[]
+    const listed = (await responseData(
+      await handle(jsonRequest({ method: 'GET', path: PATH })),
+    )) as readonly Record<string, unknown>[]
 
     expect(listed.map((holiday) => holiday.origin)).toEqual(['typed', 'imported'])
     for (const holiday of listed) {
