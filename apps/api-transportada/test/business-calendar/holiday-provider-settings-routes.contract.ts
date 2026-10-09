@@ -199,7 +199,7 @@ describe('PUT /holiday-imports/provider-settings (spec 262 RF4)', () => {
       { token: 'chave com espaço no meio 12345678' },
       { token: `acentuação-${SENTINEL_TOKEN}` },
       { token: `${SENTINEL_TOKEN}\u0007` },
-      { token: 12_345_678_901_234_567 },
+      { token: 1_234_567_890_123_456 },
       { monthlyRequestBudget: 0 },
       { monthlyRequestBudget: 1_000_001 },
       { monthlyRequestBudget: 1.5 },

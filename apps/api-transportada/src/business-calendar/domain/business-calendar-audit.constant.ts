@@ -6,7 +6,12 @@
  */
 export const BUSINESS_CALENDAR_AUDIT_PERMISSION = 'settings.manage'
 
+/** Spec 262: a chave da FeriadosAPI é da instalação, e a trilha registra a permissão dedicada que a rota exigiu. */
+export const HOLIDAY_IMPORT_CONFIGURE_PERMISSION = 'holiday-import.configure'
+
 export const BUSINESS_CALENDAR_AUDIT_TARGET = {
+  COMPANY_HOLIDAY_IMPORT_SETTINGS: 'company_holiday_import_settings',
+  HOLIDAY_PROVIDER_SETTINGS: 'holiday_provider_settings',
   HOLIDAY_IMPORT_SUPPRESSION: 'holiday_import_suppression',
   MUNICIPAL_HOLIDAY: 'municipal_holiday',
   MUNICIPAL_HOLIDAY_RULE: 'municipal_holiday_rule',
@@ -20,7 +25,10 @@ export type BusinessCalendarAuditTarget =
 
 export const BUSINESS_CALENDAR_AUDIT_ACTION = {
   HOLIDAY_IMPORT_DISABLED: 'holiday-import.disabled',
+  HOLIDAY_IMPORT_ENABLEMENT_CHANGED: 'holiday-import.enablement-changed',
   HOLIDAY_IMPORT_RESTORED: 'holiday-import.restored',
+  HOLIDAY_PROVIDER_SETTINGS_SAVED: 'holiday-provider-settings.saved',
+  HOLIDAY_PROVIDER_TOKEN_REMOVED: 'holiday-provider-settings.token-removed',
   MUNICIPAL_HOLIDAY_DELETED: 'municipal-holiday.deleted',
   MUNICIPAL_HOLIDAY_RULE_CREATED: 'municipal-holiday-rule.created',
   MUNICIPAL_HOLIDAY_RULE_DELETED: 'municipal-holiday-rule.deleted',

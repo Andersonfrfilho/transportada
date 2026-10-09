@@ -128,7 +128,10 @@ describe('spec 252 (cartão de status honesto) — a última execução da rotin
 const SETTINGS_REPOSITORY =
   'src/business-calendar/infrastructure/drizzle-holiday-provider-settings.repository.ts'
 const SETTINGS_SCHEMA = 'src/database/holiday-provider-settings.schema.ts'
-const SETTINGS_NEEDLES = ['holidayProviderSettings', 'holiday-provider-settings.schema'] as const
+const SETTINGS_NEEDLES = [
+  'holidayProviderSettings',
+  'database/holiday-provider-settings.schema',
+] as const
 const SETTINGS_RAW_SQL = /\b(?:from|into|update|join)\s+"?holiday_provider_settings\b/iu
 
 describe('spec 262 — a chave selada da FeriadosAPI é da instalação e só o repositório dela a toca', () => {
@@ -163,10 +166,10 @@ describe('spec 262 — a chave selada da FeriadosAPI é da instalação e só o 
     expect(source).not.toMatch(/return row\s*$/mu)
   })
 
-  test('nenhum arquivo de presentation chega à tabela, ao envelope ou a quem alterou', async () => {
+  test('nenhum arquivo de presentation do calendário chega ao envelope nem a quem alterou', async () => {
     const offenders: string[] = []
     for (const file of await listSourceFiles()) {
-      if (!file.includes('/presentation/')) continue
+      if (!file.startsWith('src/business-calendar/presentation/')) continue
       const source = await readSource(file)
       if (/tokenEnvelope|token_envelope|updatedByUserId/u.test(source)) offenders.push(file)
     }

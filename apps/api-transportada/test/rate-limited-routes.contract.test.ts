@@ -615,6 +615,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
 
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
+      'business-calendar/presentation/holiday-provider-settings.routes.ts',
       'cargo-receiving/presentation/cargo-arrival-occurrence.routes.ts',
       'cargo-receiving/presentation/cargo-preview.routes.ts',
       'cargo-receiving/presentation/contractor-preview-email.routes.ts',

@@ -16,6 +16,8 @@ type AppendAuditParams = {
   readonly before: object | null
   readonly entityId: string
   readonly metadata?: Readonly<Record<string, unknown>>
+  /** Padrão `settings.manage`; a chave da FeriadosAPI passa a permissão dedicada que a rota exigiu. */
+  readonly permission?: string
   readonly target: BusinessCalendarAuditTarget
   readonly transaction: BusinessCalendarTransaction
 }
@@ -33,7 +35,7 @@ export async function appendBusinessCalendarAudit(params: AppendAuditParams): Pr
     entityId: params.entityId,
     entityType: params.target,
     metadata: { ipAddress: actor.ipAddress, ...params.metadata },
-    permission: BUSINESS_CALENDAR_AUDIT_PERMISSION,
+    permission: params.permission ?? BUSINESS_CALENDAR_AUDIT_PERMISSION,
     targetId: params.entityId,
     targetType: params.target,
   })

@@ -135,6 +135,16 @@ export const API_HOLIDAY_IMPORTS_PATH = '/holiday-imports'
 export const API_HOLIDAY_IMPORT_STATUS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/status`
 export const API_HOLIDAY_IMPORT_CITIES_PATH = `${API_HOLIDAY_IMPORTS_PATH}/cities`
 export const API_HOLIDAY_IMPORT_SUPPRESSIONS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/suppressions`
+/** Spec 262 (ADR-0102): a chave da FeriadosAPI e o orçamento mensal, da INSTALAÇÃO; o liga/desliga é da empresa. */
+export const API_HOLIDAY_PROVIDER_SETTINGS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/provider-settings`
+export const API_HOLIDAY_PROVIDER_SETTINGS_TOKEN_PATH = `${API_HOLIDAY_PROVIDER_SETTINGS_PATH}/token`
+export const API_COMPANY_SETTINGS_HOLIDAY_IMPORT_PATH = '/company-settings/holiday-import'
+/** Trocar e remover a chave gastam o mesmo balde: 10 escritas por hora e por usuário, no Postgres. */
+export const HOLIDAY_PROVIDER_SETTINGS_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'holiday-provider-settings',
+  windowSeconds: 3_600,
+} as const
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
 export const API_OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'
