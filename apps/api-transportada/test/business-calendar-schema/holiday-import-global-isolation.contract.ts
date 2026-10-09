@@ -22,9 +22,11 @@ const GLOBAL_TABLE_NEEDLES = [
   'holiday-provider.schema',
 ] as const
 const AGGREGATED_STATUS_QUERIES = [
+  'src/business-calendar/infrastructure/holiday-import-removed.query.ts',
   'src/business-calendar/infrastructure/holiday-import-status.query.ts',
   'src/business-calendar/infrastructure/holiday-import-usage.query.ts',
 ] as const
+const STATUS_QUERY = 'src/business-calendar/infrastructure/holiday-import-status.query.ts'
 
 async function listSourceFiles(): Promise<readonly string[]> {
   const files: string[] = []
@@ -39,14 +41,14 @@ async function readSource(file: string): Promise<string> {
 }
 
 describe('spec 252 — o cache global do fornecedor de feriados não sai cru', () => {
-  test('a varredura acha as duas consultas agregadas do status e o schema do cache', async () => {
+  test('a varredura acha as consultas agregadas do status e o schema do cache', async () => {
     const files = await listSourceFiles()
 
     for (const query of AGGREGATED_STATUS_QUERIES) expect(files).toContain(query)
     expect(files).toContain('src/database/holiday-provider.schema.ts')
   })
 
-  test('só as consultas agregadas do status importam as tabelas do cache global', async () => {
+  test('só as consultas agregadas do status (status, removidos e uso) importam as tabelas do cache global', async () => {
     const importers: string[] = []
     for (const file of await listSourceFiles()) {
       if (file.startsWith(SCHEMA_DIRECTORY)) continue
@@ -59,10 +61,19 @@ describe('spec 252 — o cache global do fornecedor de feriados não sai cru', (
   })
 
   test('as consultas agregadas partem da demanda da empresa, não do cache', async () => {
-    const status = await readSource(AGGREGATED_STATUS_QUERIES[0])
+    const status = await readSource(STATUS_QUERY)
 
     expect(status).toContain('holidayImportCities')
     expect(status).toContain('companyId')
+  })
+
+  test('cada consulta isenta fica em até 200 linhas: a dos removidos mora no arquivo dela', async () => {
+    for (const query of AGGREGATED_STATUS_QUERIES) {
+      const lines = (await readSource(query)).trimEnd().split('\n').length
+
+      expect({ fitsInLimit: lines <= 200, query }).toEqual({ fitsInLimit: true, query })
+    }
+    expect(await readSource(STATUS_QUERY)).not.toContain('listRemovedByProvider')
   })
 
   test('as consultas isentas só leem colunas nomeadas do cache: nenhum `.select()` sem projeção (L5)', async () => {
