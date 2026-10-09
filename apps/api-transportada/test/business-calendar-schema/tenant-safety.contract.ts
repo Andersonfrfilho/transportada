@@ -18,6 +18,9 @@ const SUPPORT_ONLY = [
   'business-calendar-lock.support.ts',
   'business-calendar-persistence.support.ts',
   'business-calendar-rule.mapper.ts',
+  // Spec 252: o contador do mês é da instalação (cache global, sem `company_id`); a fronteira dele é o
+  // contrato `holiday-import-global-isolation`, e a prova com duas empresas é a integração do status.
+  'holiday-import-usage.query.ts',
 ]
 
 function repositorySources(): readonly { readonly name: string; readonly text: string }[] {

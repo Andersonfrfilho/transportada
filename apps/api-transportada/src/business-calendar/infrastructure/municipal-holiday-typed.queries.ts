@@ -2,7 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 238 T1.3b: a data digitada à mão (`source_rule_id` nulo) no dia de uma regra "todo ano". A regra
- * não a conhece, e ela segue valendo para o roteirizador depois que a regra muda ou some.
+ * não a conhece, e ela segue valendo para o roteirizador depois que a regra muda ou some. Spec 252: a
+ * importada (`provider_entry_id` preenchido) não é digitada — é do fornecedor, e só vira "digitada que
+ * ficou" depois de adotada.
  */
 import { and, count, eq, gte, isNull, sql, type SQL } from 'drizzle-orm'
 
@@ -37,6 +39,7 @@ export function buildTypedDayKey(input: {
 function typedConditions(input: TypedScope): readonly SQL[] {
   return [
     isNull(municipalHolidays.sourceRuleId),
+    isNull(municipalHolidays.providerEntryId),
     gte(
       municipalHolidays.holidayOn,
       formatCivilDate({ day: 1, month: 1, year: input.currentYear }),

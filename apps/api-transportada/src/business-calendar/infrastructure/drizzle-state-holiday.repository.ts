@@ -18,7 +18,9 @@ import type { BusinessCalendarDatabase } from './business-calendar-database.type
 import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toStateRecord } from './business-calendar-rule.mapper.js'
+import { disableImportedStateHoliday } from './holiday-import-disable.support.js'
 import {
+  adoptImportedStateHoliday,
   appendAudit,
   applyChanges,
   assertNoConflict,
@@ -29,7 +31,10 @@ import {
   toSetValues,
 } from './state-holiday.support.js'
 
-/** O lock por empresa serializa a conferência de conflito e a escrita; o unique parcial é a rede. */
+/**
+ * O lock por empresa serializa a conferência de conflito e a escrita; o unique parcial é a rede. O feriado
+ * importado (sempre `once`) é adotado ao ser cadastrado de novo ou editado, e desligado ao ser apagado.
+ */
 export class DrizzleStateHolidayRepository implements StateHolidayPort {
   public constructor(private readonly database: BusinessCalendarDatabase) {}
 
@@ -64,6 +69,9 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
     return this.database.transaction(async (transaction) => {
       await acquireBusinessCalendarLock({ companyId: input.companyId, transaction })
       const existing = await findSameDate({ candidate: input, transaction })
+      if (existing !== undefined && existing.providerEntryId !== null) {
+        return adoptImportedStateHoliday({ actor: input, existing, name: input.name, transaction })
+      }
       if (existing !== undefined) return resolveExistingStateHoliday({ existing, name: input.name })
 
       const row = requirePersistedRow(
@@ -110,7 +118,7 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
         (
           await transaction
             .update(stateHolidays)
-            .set({ ...values, updatedAt: new Date() })
+            .set({ ...values, providerEntryId: null, updatedAt: new Date() })
             .where(
               and(eq(stateHolidays.companyId, input.companyId), eq(stateHolidays.id, input.id)),
             )
@@ -122,6 +130,7 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
         actor: input,
         after: toStateRecord(row),
         before: toStateRecord(previous),
+        metadata: { adoptedFromImport: previous.providerEntryId !== null },
         row,
         transaction,
       })
@@ -130,11 +139,22 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
     })
   }
 
-  public async remove(input: BusinessCalendarActor & { readonly id: string }): Promise<void> {
+  public async remove(
+    input: BusinessCalendarActor & { readonly id: string; readonly today: string },
+  ): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await acquireBusinessCalendarLock({ companyId: input.companyId, transaction })
       const previous = await findRow({ companyId: input.companyId, id: input.id, transaction })
       if (previous === undefined) return
+      if (previous.providerEntryId !== null) {
+        await disableImportedStateHoliday({
+          actor: input,
+          row: previous,
+          today: input.today,
+          transaction,
+        })
+        return
+      }
 
       await transaction
         .delete(stateHolidays)

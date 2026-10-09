@@ -27,6 +27,14 @@ export const HOLIDAY_IMPORT_SUPPRESSION_SCOPES = [
   HOLIDAY_PROVIDER_SCOPE.CITY,
   HOLIDAY_PROVIDER_SCOPE.STATE,
 ] as const
+export type HolidayImportScope = (typeof HOLIDAY_IMPORT_SUPPRESSION_SCOPES)[number]
+
+export function isHolidayImportScope(value: string): value is HolidayImportScope {
+  return HOLIDAY_IMPORT_SUPPRESSION_SCOPES.some((scope) => scope === value)
+}
+
+/** D8 (ADR-0100): o horizonte da busca é o ano corrente e o seguinte. */
+export const HOLIDAY_IMPORT_HORIZON_EXTRA_YEARS = 1
 
 export const HOLIDAY_PROVIDER_FETCH_STATUS = {
   DONE: 'done',
