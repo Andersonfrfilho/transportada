@@ -6,7 +6,7 @@
  * UMA consulta para todas as paradas pedidas (a junção traz os dois papéis de destino e a escolha é a da
  * spec 073, em memória). Quem decide quais paradas são do motorista é o caso de uso: aqui só se recebe ids.
  */
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 
 import { nfeAddresses, nfeParticipants } from '../../database/nfe.schema.js'
 import { tripDocuments, tripStops } from '../../database/trip.schema.js'
@@ -25,7 +25,7 @@ import type { TripQueryable } from './trip-queryable.type.js'
 type StopAccumulator = {
   readonly addressKey: string
   readonly documents: Map<string, NfeDestinationRow[]>
-  readonly estimatedArrivalAt: Date
+  readonly estimatedArrivalAt: Date | null
 }
 
 type ContextRow = {
@@ -56,7 +56,6 @@ function chooseAddress(
 function groupByStop(rows: readonly ContextRow[]): ReadonlyMap<string, StopAccumulator> {
   const stops = new Map<string, StopAccumulator>()
   for (const row of rows) {
-    if (row.estimatedArrivalAt === null) continue
     const stop = stops.get(row.stopId) ?? {
       addressKey: row.addressKey,
       documents: new Map<string, NfeDestinationRow[]>(),
@@ -90,7 +89,7 @@ export class DrizzleDriverStopHolidayContextRepository implements DriverStopHoli
     }))
   }
 
-  /** Só paradas com ETA. A ordem das notas é a do vínculo, estável como a do romaneio do motorista. */
+  /** Com ou sem ETA (a em andamento avisa sem ela); quem decide é o serviço. A ordem das notas é a do vínculo, estável como a do romaneio do motorista. */
   private readRows(input: {
     readonly companyId: string
     readonly stopIds: readonly string[]
@@ -134,11 +133,7 @@ export class DrizzleDriverStopHolidayContextRepository implements DriverStopHoli
         ),
       )
       .where(
-        and(
-          eq(tripStops.companyId, input.companyId),
-          inArray(tripStops.id, [...input.stopIds]),
-          isNotNull(tripStops.estimatedArrivalAt),
-        ),
+        and(eq(tripStops.companyId, input.companyId), inArray(tripStops.id, [...input.stopIds])),
       )
       .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
   }

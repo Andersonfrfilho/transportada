@@ -18,12 +18,13 @@ export type DriverStopHolidayContext = {
   readonly address?: DriverStopHolidayAddress | undefined
   /** O 1º segmento é a cidade da parada: o destino físico, que o desvio manual move junto. */
   readonly addressKey: string
-  readonly estimatedArrivalAt: Date
+  /** `null` sem ETA: só a parada em andamento avisa assim (para hoje); as outras sem ETA não avisam. */
+  readonly estimatedArrivalAt: Date | null
   readonly stopId: string
 }
 
 export type DriverStopHolidayContextPort = {
-  /** Só paradas com ETA; as outras não voltam. Sempre uma consulta, para todas as paradas pedidas. */
+  /** Sempre uma consulta, para todas as paradas pedidas, com ou sem ETA. */
   list(input: {
     readonly companyId: string
     readonly stopIds: readonly string[]

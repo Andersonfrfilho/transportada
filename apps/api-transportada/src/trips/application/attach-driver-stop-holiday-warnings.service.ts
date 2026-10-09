@@ -3,7 +3,7 @@
  *
  * Spec 252 T4.3 (ADR-0100 D12): o aviso de feriado nas paradas da leitura do motorista. Chamado pelo caso de
  * uso, depois do recorte pelo vínculo do motorista — nunca pelo repositório da leitura. Só parada NÃO
- * concluída, com ETA; a data é o dia civil de São Paulo da ETA, ou HOJE com a parada em andamento. Custo
+ * concluída; a data é o dia civil de São Paulo da ETA (sem ETA, nada) ou HOJE com a parada em andamento, com ou sem ETA. Custo
  * fixo: uma consulta de contexto e uma carga de calendário (4 consultas) para todas as paradas e cidades.
  * Falha aqui só tira o aviso: a leitura do motorista é o caminho crítico e não pode cair por um refinamento.
  */
@@ -19,6 +19,7 @@ import {
   BUSINESS_CALENDAR_TIME_ZONE,
   CITY_IBGE_CODE_PATTERN,
 } from '../../business-calendar/domain/business-calendar.constant.js'
+import type { CivilDate } from '../../business-calendar/domain/business-calendar.types.js'
 import { safeLogWarn } from '../../logging/safe-logger.service.js'
 import { normalizeCityCode, readStopCityCode } from '../domain/stop-address-key.js'
 import type {
@@ -60,22 +61,34 @@ function resolveCityName(context: DriverStopHolidayContext, cityCode: string): s
   return normalizeCityCode(address.cityCode) === cityCode ? address.city : undefined
 }
 
+/** Em andamento: hoje. Senão a ETA; sem ETA e sem começar não há entrega prevista para avisar. */
+function resolveWarningDate(params: {
+  readonly context: DriverStopHolidayContext
+  readonly now: Date
+  readonly stop: DriverTripStop
+}): CivilDate | undefined {
+  const { context, now, stop } = params
+  if (isInProgress(stop)) return resolveToday({ now })
+  if (context.estimatedArrivalAt === null) return undefined
+
+  return toCivilDate({ instant: context.estimatedArrivalAt, timeZone: BUSINESS_CALENDAR_TIME_ZONE })
+}
+
 function toWarningItem(params: {
   readonly context: DriverStopHolidayContext
   readonly now: Date
   readonly stop: DriverTripStop
 }): HolidayWarningItem | undefined {
-  const { context, now, stop } = params
+  const { context, stop } = params
+  const date = resolveWarningDate(params)
   const cityCode = readStopCityCode(context.addressKey)
-  if (!CITY_IBGE_CODE_PATTERN.test(cityCode)) return undefined
+  if (date === undefined || !CITY_IBGE_CODE_PATTERN.test(cityCode)) return undefined
 
   const cityName = resolveCityName(context, cityCode)
   return {
     cityIbgeCode: cityCode,
     ...(cityName === undefined ? {} : { cityName }),
-    date: isInProgress(stop)
-      ? resolveToday({ now })
-      : toCivilDate({ instant: context.estimatedArrivalAt, timeZone: BUSINESS_CALENDAR_TIME_ZONE }),
+    date,
     key: stop.id,
   }
 }
