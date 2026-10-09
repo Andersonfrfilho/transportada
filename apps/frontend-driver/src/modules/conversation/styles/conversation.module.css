@@ -80,11 +80,11 @@
   color: var(--color-ink-on-accent);
   font-size: 0.6875rem;
   font-weight: 700;
+  inset-inline-start: calc(50% + var(--space-2));
   line-height: 1.125rem;
   min-width: 1.125rem;
   padding: 0 var(--space-1);
   position: absolute;
-  right: calc(var(--space-2) * -1);
   text-align: center;
-  top: calc(var(--space-2) * -1);
+  top: var(--space-1);
 }

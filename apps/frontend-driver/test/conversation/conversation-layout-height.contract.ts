@@ -40,3 +40,17 @@ describe('altura da conversa acima da barra inferior', () => {
     )
   })
 })
+
+describe('selo de não lidas na barra inferior', () => {
+  it('fica dentro da aba, deslocado do ícone e com folga da borda superior', () => {
+    const badge = extractRule(conversationCss, '.unreadBadge')
+    expect(badge).toContain('top: var(--space-1)')
+    expect(badge).toContain('inset-inline-start: calc(50% + var(--space-2))')
+    expect(badge).not.toMatch(/top:\s*calc\(/u)
+    expect(badge).not.toMatch(/(?:^|\s)right:/u)
+  })
+
+  it('o item da aba mantém o alvo de toque de 44px', () => {
+    expect(extractRule(tripCss, '.bottomBarItem')).toContain('min-height: 2.75rem')
+  })
+})

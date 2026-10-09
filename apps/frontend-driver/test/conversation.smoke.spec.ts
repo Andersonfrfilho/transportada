@@ -108,6 +108,37 @@ test('lista: filtros inteiros, busca visível, último item acima da barra, prot
   expect(last.bottom).toBeLessThanOrEqual(nav.top)
 })
 
+const BADGE_EDGE_GAP_PX = 4
+
+test('barra inferior: o selo de não lidas fica dentro da aba, com folga da borda superior', async ({
+  page,
+}) => {
+  await openConversationsTab(page)
+
+  const geometry = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label]')
+    const badge = nav?.querySelector('[class*="unreadBadge"]')
+    const item = badge?.closest('button')
+    if (!nav || !badge || !item) return undefined
+    const navBox = nav.getBoundingClientRect()
+    const badgeBox = badge.getBoundingClientRect()
+    const itemBox = item.getBoundingClientRect()
+    return {
+      badgeRight: badgeBox.right,
+      badgeTopGap: badgeBox.top - navBox.top,
+      itemHeight: itemBox.height,
+      itemLeft: itemBox.left,
+      itemRight: itemBox.right,
+      badgeLeft: badgeBox.left,
+    }
+  })
+  expect(geometry).toBeDefined()
+  expect(geometry?.badgeTopGap).toBeGreaterThanOrEqual(BADGE_EDGE_GAP_PX)
+  expect(geometry?.badgeRight).toBeLessThanOrEqual((geometry?.itemRight ?? 0) - BADGE_EDGE_GAP_PX)
+  expect(geometry?.badgeLeft).toBeGreaterThanOrEqual(geometry?.itemLeft ?? 0)
+  expect(geometry?.itemHeight).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX)
+})
+
 test('busca: protocolo em minúsculas e sem traço isola a nota; limpar volta a lista', async ({
   page,
 }) => {
