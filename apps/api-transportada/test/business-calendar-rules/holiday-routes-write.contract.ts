@@ -32,6 +32,7 @@ const HOLIDAY: MunicipalHoliday = {
   id: HOLIDAY_ID,
   kind: 'city_anniversary',
   name: 'Aniversário da cidade',
+  origin: 'typed',
 }
 const ACTOR = {
   companyId: COMPANY_CONTEXT.companyId,
