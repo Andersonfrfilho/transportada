@@ -5,7 +5,11 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { aliasedTable, and, asc, eq, inArray, sql, sum } from 'drizzle-orm'
 
 import type { FuelProduct } from '../../shared/fuel.constant.js'
-import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
+import {
+  readEffectiveFuelPrice,
+  readEffectiveFuelPrices,
+  toFuelProduct,
+} from './effective-fuel-price.query.js'
 import { cteBatchItemCharges, cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments, cteIssuancePayloads } from '../../database/cte-issuance.schema.js'
 import {
@@ -54,6 +58,13 @@ import type {
   TripValuationContext,
   TripValuationDocument,
 } from '../application/read-trip-valuation.use-case.js'
+import {
+  readCrewByTrip,
+  readDeliveryChargeTotalsByTrip,
+  readHelperCrewByTrip,
+  readRecordedCostTotalsByTrip,
+  readStopDwellsByTrip,
+} from './trip-valuation-batch.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -319,6 +330,168 @@ export class DrizzleTripValuationQuery {
               otherCostsPerKilometer: trip.otherCostsPerKilometer,
             },
     }
+  }
+
+  /**
+   * Spec 259: o contexto de **várias** viagens da página — cada leitura de `readContext` vira uma
+   * consulta por página (`inArray(trip_id)`), e o que é da empresa (combustível, diária, taxas federais,
+   * perfis de ICMS) é lido **uma vez**, não por viagem. O número de consultas independe do tamanho da
+   * página. Viagem que não é desta empresa não entra no mapa: o recorte por `companyId` está em toda leitura.
+   *
+   * ⚠️ É o espelho de `readContext`, e a conta é a mesma (`buildValuationFromContext`): o teste de paridade
+   * lista × detalhe (`trip-list-occupancy-financials.integration.ts`) é quem prova que não divergem.
+   */
+  public async readValuationContexts(input: {
+    readonly companyId: string
+    readonly tripIds: readonly string[]
+  }): Promise<ReadonlyMap<string, TripValuationContext>> {
+    const contexts = new Map<string, TripValuationContext>()
+    if (input.tripIds.length === 0) return contexts
+
+    const tripRows = await this.database
+      .select({
+        dailyAllowanceDays: trips.dailyAllowanceDays,
+        fuelType: fleetVehicles.fuelType,
+        kilometersPerLiter: fleetVehicles.averageConsumption,
+        otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+        plannedDistanceMeters: trips.plannedDistanceMeters,
+        plannedDurationSeconds: trips.plannedDurationSeconds,
+        plannedJourneyIncludesReturn: trips.plannedJourneyIncludesReturn,
+        plannedJourneySeconds: trips.plannedJourneySeconds,
+        plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
+        plannedRoute: trips.plannedRoute,
+        plannedToll: trips.plannedToll,
+        tripId: trips.id,
+        vehicleId: fleetVehicles.id,
+      })
+      .from(trips)
+      .leftJoin(
+        fleetVehicles,
+        and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
+      )
+      .where(and(eq(trips.companyId, input.companyId), inArray(trips.id, [...input.tripIds])))
+    if (tripRows.length === 0) return contexts
+
+    const scope = { companyId: input.companyId, tripIds: tripRows.map((row) => row.tripId) }
+    const [
+      fuelPrices,
+      documentsByTrip,
+      crewByTrip,
+      helperCrewByTrip,
+      helperCompanyDailyRate,
+      recordedCosts,
+      deliveryChargesByTrip,
+      federalRates,
+      profiles,
+      companyDailyAllowanceAmount,
+      stopsByTrip,
+    ] = await Promise.all([
+      readEffectiveFuelPrices(this.database, {
+        companyId: input.companyId,
+        products: tripRows.map((row) => toFuelProduct(row.fuelType)),
+      }),
+      this.readDocumentsOfTrips(scope),
+      readCrewByTrip(this.database, scope),
+      readHelperCrewByTrip(this.database, scope),
+      this.readHelperCompanyDailyRate({ companyId: input.companyId }),
+      readRecordedCostTotalsByTrip(this.database, scope),
+      readDeliveryChargeTotalsByTrip(this.database, scope),
+      this.readFederalRates({ companyId: input.companyId }),
+      this.readIcmsProfiles(input.companyId),
+      this.readCompanyDailyAllowanceAmount(input.companyId),
+      this.readStopDwellsByTripOrNone(scope),
+    ])
+
+    for (const trip of tripRows) {
+      const fuelProduct = toFuelProduct(trip.fuelType)
+      contexts.set(trip.tripId, {
+        companyDailyAllowanceAmount,
+        crew: crewByTrip.get(trip.tripId) ?? [],
+        dailyAllowanceDays: trip.dailyAllowanceDays,
+        deliveryChargesTotal: deliveryChargesByTrip.get(trip.tripId) ?? null,
+        distanceMeters: trip.plannedDistanceMeters,
+        documents: documentsByTrip.get(trip.tripId) ?? [],
+        emissionProfiles: profiles,
+        estimatedDurationSeconds: trip.plannedDurationSeconds,
+        federalRates,
+        fuelPricePerLiter: fuelProduct === null ? null : (fuelPrices.get(fuelProduct) ?? null),
+        helperCompanyDailyRate,
+        helperCrew: helperCrewByTrip.get(trip.tripId) ?? [],
+        journeyIncludesReturn: trip.plannedJourneyIncludesReturn,
+        journeySeconds: trip.plannedJourneySeconds,
+        legs: readApportionmentLegs(trip.plannedRoute),
+        manualCostTotal: recordedCosts.manualByTrip.get(trip.tripId) ?? null,
+        returnDistanceMetres: trip.plannedReturnDistanceMeters,
+        stops: stopsByTrip.get(trip.tripId) ?? [],
+        toll: parseTollRouteCost(trip.plannedToll),
+        tollTotal: recordedCosts.tollByTrip.get(trip.tripId) ?? null,
+        vehicle:
+          trip.vehicleId === null
+            ? null
+            : {
+                kilometersPerLiter: trip.kilometersPerLiter,
+                otherCostsPerKilometer: trip.otherCostsPerKilometer,
+              },
+      })
+    }
+
+    return contexts
+  }
+
+  /** A espera na parada é refinamento: falha vira "sem paradas" com o aviso, como em `readStopDwellsOrNone`. */
+  private async readStopDwellsByTripOrNone(input: {
+    readonly companyId: string
+    readonly tripIds: readonly string[]
+  }): Promise<ReadonlyMap<string, readonly ApportionmentStop[]>> {
+    return readStopDwellsByTrip(this.database, input).catch((error: unknown) => {
+      this.logger.warn(STOP_DWELLS_UNAVAILABLE, {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : 'unknown',
+        tripIds: input.tripIds,
+      })
+      return new Map<string, readonly ApportionmentStop[]>()
+    })
+  }
+
+  /** `readDocuments` para várias viagens: a mesma junção e o mesmo ICMS do CT-e, em duas consultas. */
+  private async readDocumentsOfTrips(input: {
+    readonly companyId: string
+    readonly tripIds: readonly string[]
+  }): Promise<ReadonlyMap<string, readonly TripValuationDocument[]>> {
+    const rows = await this.selectValuationDocuments(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.tripId, [...input.tripIds]),
+      ),
+    )
+    const icmsByDocument = await this.readIcmsByDocument({
+      companyId: input.companyId,
+      nfeDocumentIds: rows
+        .map((row) => row.nfeDocumentId)
+        .filter((documentId): documentId is string => documentId !== null),
+    })
+
+    const byTrip = new Map<string, TripValuationDocument[]>()
+    for (const row of rows) {
+      const document: TripValuationDocument = {
+        destinationCityCode: row.destinationCityCode,
+        destinationState: row.destinationState,
+        icmsAmount: icmsByDocument.get(row.nfeDocumentId ?? '') ?? null,
+        issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
+        measuredAmount: row.measuredAmount,
+        nfeDocumentId: row.nfeDocumentId,
+        nfeTotalAmount: row.nfeTotalAmount,
+        recipientTaxId: row.recipientTaxId,
+        senderTaxId: row.senderTaxId,
+        stopId: row.stopId,
+        tripDocumentId: row.tripDocumentId,
+      }
+      const bucket = byTrip.get(row.tripId)
+      if (bucket === undefined) byTrip.set(row.tripId, [document])
+      else bucket.push(document)
+    }
+
+    return byTrip
   }
 
   /**
