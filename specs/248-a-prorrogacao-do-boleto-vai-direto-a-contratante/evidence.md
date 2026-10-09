@@ -348,3 +348,23 @@ API pularia por motivo que o SQL não enxerga (ex.: sem destinatário) é revisi
 fechar; mitigado por exigir a contratante no SQL e pelo `excludeOccurrenceIds` no ciclo. (c) `make worker-integration`
 tem 3 falhas de infraestrutura local, listadas acima. (d) Sem rótulos novos de job no painel: o frontend só espelha o
 catálogo, e o teste de paridade passa.
+
+## T4.5 - Resposta por e-mail e pelo portal move o retorno (CA02, CA09)
+
+**Vermelho antes do código.** API, contrato do portal (`occurrence-conversation.contract.test.ts`): 339 pass, 1 fail
+(`applyContractorReply` chamado 0 vezes, esperado 1). API, integração do portal: a resposta seguia `awaiting_contractor`.
+API, `occurrence-contractor-reply-received.integration`: `SyntaxError`, export `applyContractorReplyToMessage` ausente.
+Worker, `occurrence-contractor-reply-received.integration`: 5 fail, o retorno seguia `awaiting_contractor` (depois de
+acertar a semente: chave de acesso de 44 dígitos e `config` como `jsonb` de objeto). Depois: api 6/0 e 7/0, worker 5/0.
+
+**Feito.** `applyContractorReplyToMessage` (API e worker, mesma decisão `decideContractorReply`): bloqueia o retorno da
+conversa por `company_id`, lê os anexos da mensagem, e move para `awaiting_operator` (aprovação), `reply_received`
+(automático) ou `needs_operator` com o motivo; grava o evento de ator `system`. Retorno em qualquer outro estado não muda,
+então reentrega e segunda resposta são no-op. Portal: porta `applyContractorReply` chamada na transação do envio, depois dos
+anexos. E-mail: chamada ao fim de `recordOccurrenceConversationMailReply`, só quando a mensagem acabou de nascer.
+
+**Gates.** typecheck e lint api/worker 0/0; contrato api 11119/0; worker `test` 2251/0; prettier limpo.
+
+**Desvios.** (a) A chamada do worker fica dentro de `recordOccurrenceConversationMailReply` (ali estão a conversa e o id da
+mensagem), não depois dele. (b) A "entrega ao motorista" da CA02 é a T4.6; aqui só o estado do retorno. (c) Schema do worker
+é cópia parcial (retorno e eventos); sem migration, `make migration-test` e `db:generate` não se aplicam.

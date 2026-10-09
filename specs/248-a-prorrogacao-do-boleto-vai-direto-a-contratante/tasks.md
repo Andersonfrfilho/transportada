@@ -71,7 +71,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
         contra Postgres, duas mutações com execução vermelha (evidence.md).
   - [x] **T4.4b** varredor `occurrence.automatic-mail.sweep` (o `Promise.allSettled`/isolamento do §15 vale aqui);
         e a CA01 pelos caminhos de entrada reais (app e WhatsApp) com o gancho.
-- [ ] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
+- [x] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
       portal (API, depois do commit da mensagem do portal) aplicam a política; integração CA02 nos
       dois caminhos, resposta duplicada e empresa B (CA09).
 - [ ] **T4.6** `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,

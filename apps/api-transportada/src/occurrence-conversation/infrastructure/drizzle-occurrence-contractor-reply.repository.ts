@@ -10,11 +10,14 @@ import {
   companyOccurrenceTypeContractorOverrides,
   companyOccurrenceTypes,
   occurrenceContractorReplies,
+  occurrenceContractorReplyEvents,
+  occurrenceConversationAttachments,
   tripDocumentOccurrences,
 } from '../../database/database.schema.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import type { StoredContractorReplyConfiguration } from '../application/occurrence-mail.port.js'
 import type { ContractorReplyConfiguration } from '../domain/contractor-reply-configuration.policy.js'
+import { decideContractorReply } from '../domain/contractor-reply.policy.js'
 
 export async function findContractorReplyConfiguration(
   queryable: TripQueryable,
@@ -113,4 +116,85 @@ export async function openContractorReply(
     .onConflictDoNothing({
       target: [occurrenceContractorReplies.companyId, occurrenceContractorReplies.occurrenceId],
     })
+}
+
+/** Moves the open reply of the conversation by the message that just arrived; any other state is left alone. */
+export async function applyContractorReplyToMessage(
+  queryable: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly conversationId: string
+    readonly messageId: string
+    readonly now: Date
+  },
+): Promise<void> {
+  const { companyId } = params
+  const [reply] = await queryable
+    .select({
+      config: occurrenceContractorReplies.config,
+      id: occurrenceContractorReplies.id,
+      status: occurrenceContractorReplies.status,
+    })
+    .from(occurrenceContractorReplies)
+    .where(
+      and(
+        eq(occurrenceContractorReplies.companyId, companyId),
+        eq(occurrenceContractorReplies.conversationId, params.conversationId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  if (reply === undefined) return
+
+  const attachments = await queryable
+    .select({
+      contentType: occurrenceConversationAttachments.contentType,
+      id: occurrenceConversationAttachments.id,
+    })
+    .from(occurrenceConversationAttachments)
+    .where(
+      and(
+        eq(occurrenceConversationAttachments.companyId, companyId),
+        eq(occurrenceConversationAttachments.messageId, params.messageId),
+      ),
+    )
+  const decision = decideContractorReply({
+    attachments,
+    reply: {
+      config: reply.config as ContractorReplyConfiguration,
+      status: reply.status,
+    },
+  })
+  if (decision.kind === 'ignore') return
+
+  const isAccepted = decision.kind === 'accept'
+  const toStatus = isAccepted
+    ? decision.nextStep === 'deliver'
+      ? 'reply_received'
+      : 'awaiting_operator'
+    : 'needs_operator'
+  const reason = isAccepted ? null : decision.reason
+  await queryable
+    .update(occurrenceContractorReplies)
+    .set({
+      reason,
+      replyAttachmentId: isAccepted ? decision.attachmentId : null,
+      replyMessageId: params.messageId,
+      status: toStatus,
+      updatedAt: params.now,
+    })
+    .where(
+      and(
+        eq(occurrenceContractorReplies.companyId, companyId),
+        eq(occurrenceContractorReplies.id, reply.id),
+      ),
+    )
+  await queryable.insert(occurrenceContractorReplyEvents).values({
+    actorKind: 'system',
+    companyId,
+    fromStatus: reply.status,
+    reason,
+    replyId: reply.id,
+    toStatus,
+  })
 }
