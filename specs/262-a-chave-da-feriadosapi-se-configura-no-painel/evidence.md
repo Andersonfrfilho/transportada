@@ -63,18 +63,37 @@ Nenhum `[NEEDS CLARIFICATION]` novo. Seguem da 252: Q3 (plano/cota) e Q4 (termos
 Branch `work/262-f1` a partir de `origin/staging` (`git fetch origin` exit 0; `git switch -c` exit 0); `bun install --frozen-lockfile`
 ok. Sem push.
 
+### Formato das pendências (autofechante)
+
+Dois contratos do painel leem o código da API e quebram se o painel conhecer algo antes dela. Em vez de afrouxá-los, cada um ganhou uma
+lista de **pendentes**: o painel **sem** os pendentes iguala a API; cada pendente tem de estar **ausente da API** e **presente no painel**.
+Quando a API receber o item, o contrato fica vermelho sozinho e a T3.1 é obrigada a apagar a lista e restaurar a igualdade estrita.
+
+- Desfechos: `PENDING_API_FAILURE_OUTCOMES` em `test/shared/job-catalog.contract.ts`.
+- Permissões: `PENDING_API_PERMISSIONS` em `test/identity/pending-api-permissions.fixture.ts`, usada por **dois** contratos:
+  `test/frontend-contract.test.ts` ("keeps the allowlist in sync with the API authorization policy", que compara `COMPANY_PERMISSIONS`
+  com a API **em ordem**; existia além do `permission-matrix`) e `test/identity/permission-matrix.contract.ts` ("não inventa
+  permissão que a API não concede").
+
 ### T1.1 — `credential_unreadable` no catálogo do painel
 
-- `jobCatalog.constant.ts`: `credential_unreadable` acrescentado ao fim de `failureOutcomes` de `holiday.provider.pull`.
-- **A armadilha, como prevista:** `test/shared/job-catalog.contract.ts` lê o fonte do catálogo da API e comparava o catálogo inteiro
-  com `toEqual`; o nome só no painel o deixaria vermelho. **Correção controlada:** a igualdade completa foi trocada por (a)
-  igualdade de `job` e `minimumIntervalSeconds` (mesma ordem), (b) `failureOutcomes` do painel **superconjunto** do da API
-  (`findMissingOutcomes`), com um comentário de uma linha dizendo que a igualdade volta na T3.1, (c) um teste que prende a regra
-  (painel faltando um desfecho da API → vermelho; painel com um a mais → verde) e (d) um teste que prende o nome novo no painel.
-  A igualdade volta na **T3.1** (a API e o cron ganham o nome); nota na task.
-- Vermelho antes: `bun test ./test/shared.contract.test.ts` → 424 pass, 1 fail ("knows that an unreadable sealed key ends the
-  holiday pull"; recebido `[provider_unreachable, provider_unauthorized, malformed_response]`).
-- Mutações (restauradas, `git diff --quiet` = 0): tirar `credential_unreadable` → 1 fail (o teste do nome); tirar `malformed_response`
-  (desfecho da API) do painel → 1 fail (o teste de superconjunto).
-- Gates (cwd `apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 0 erros (16 avisos antigos, nenhum em arquivo
-  tocado); `bun run test` exit 0 — 7851 pass / 0 fail (suíte principal) + 1247 pass / 0 fail (`test:hooks`).
+- `jobCatalog.constant.ts`: `credential_unreadable` no fim de `failureOutcomes` de `holiday.provider.pull`.
+- Vermelho antes: `shared.contract` 424 pass / 1 fail (o painel não tinha o nome).
+- Mutações (restauradas, `diff --quiet` = 0): tirar a palavra do painel → vermelho ("every pending outcome is known to the panel…");
+  tirar `malformed_response` do painel → vermelho (igualdade); **a API ganhar** `credential_unreadable` → vermelho em 2 testes
+  (autofechamento).
+
+### T1.2 — `holiday-import.configure` no painel
+
+- `COMPANY_PERMISSIONS` (no fim, após `occurrences.decide`), grupo `settings` de `PERMISSION_GROUPS`, locales pt/en
+  (`label` "Configurar a chave e o orçamento da importação de feriados" e `where`).
+- Contrato novo `test/identity/holiday-import-permission.contract.ts` (importado por `identity.contract.test.ts`): `isAuthMeResponse`
+  aceita o `/auth/me` com a permissão e continua recusando uma desconhecida; o grupo de Configurações a oferece.
+- Vermelho antes (commit `9de8356d0`): 2 fail (guarda recusava; grupo sem a permissão).
+- Mutações (restauradas, `diff --quiet` = 0): tirar de `COMPANY_PERMISSIONS` → 2 fail (`frontend-contract` e a guarda); **a API
+  ganhar** a permissão → 2 fail (`frontend-contract` e a lista de pendentes do `permission-matrix`).
+
+### Gates da Fase 1 (cwd `apps/frontend-transportada`)
+
+`bun run typecheck` exit 0; `bun run lint` exit 0 (0 erros, 16 avisos antigos, nenhum em arquivo tocado); `bun run test` exit 0 —
+7853 pass / 0 fail (suíte principal) + 1247 pass / 0 fail (`test:hooks`, parte do script `test`).

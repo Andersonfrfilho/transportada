@@ -54,14 +54,17 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts` (primeira das quatro cópias), com o contrato
       `test/shared/job-catalog.contract.ts` do painel. Aceite: `bun run typecheck`, `bun run lint`, `bun run test` (cwd
       `apps/frontend-transportada`) verdes; mutação: tirar a palavra deixa o contrato vermelho. ⚠️ **O contrato de paridade
-      do painel lê o fonte do catálogo da API**: acrescentar o nome só no painel o deixaria vermelho. Por isso o `failureOutcomes`
-      do painel passou a ser exigido como **superconjunto** do da API (demais chaves seguem em igualdade). **A igualdade volta na
-      T3.1**, quando a API receber o nome: restaurar o `toEqual` completo e apagar os testes de superconjunto.
-- [ ] **T1.2** `holiday-import.configure` conhecida pelo painel: `COMPANY_PERMISSIONS` (`identity/queries/useAuthMe.query.ts`),
+      do painel lê o fonte do catálogo da API**: o nome só no painel o deixaria vermelho. Por isso há a lista
+      `PENDING_API_FAILURE_OUTCOMES` no contrato: o painel **sem os pendentes** iguala a API, e cada pendente tem de estar
+      **ausente da API** e **presente no painel** — o contrato fica vermelho sozinho quando a API receber o nome (T3.1).
+- [x] **T1.2** `holiday-import.configure` conhecida pelo painel: `COMPANY_PERMISSIONS` (`identity/queries/useAuthMe.query.ts`),
       `PERMISSION_GROUPS` (`identity/shared/permissionGroups.constant.ts`, grupo de Configurações), locales do módulo `identity`
       (pt/en, rótulo "Configurar a chave e o orçamento da importação de feriados"). Contrato vermelho antes: `/auth/me` com a
       permissão é aceito por `isAuthMeResponse` (`test/identity/permission-matrix.contract.ts` ou contrato da guarda). Aceite: os
-      três comandos do painel verdes; mutação: tirar a permissão da lista → o contrato da guarda fica vermelho.
+      três comandos do painel verdes; mutação: tirar a permissão da lista → o contrato da guarda fica vermelho. ⚠️ Mesma
+      armadilha, em dois contratos que leem a API (`test/frontend-contract.test.ts` "keeps the allowlist in sync…" e
+      `permission-matrix.contract.ts` "não inventa…"): a lista `PENDING_API_PERMISSIONS`
+      (`test/identity/pending-api-permissions.fixture.ts`) os isenta, com a mesma regra autofechante (ausente da API, presente no painel).
 - [ ] **Publicação da Fase 1** em staging (`git fetch && git rebase origin/staging && … && git push origin HEAD:staging`),
       Deploy verde registrado em `evidence.md` **antes** da T3.1.
 
@@ -89,9 +92,10 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       `test/user-administration-application/role-permissions.contract.ts` e `test/separator-role.contract.test.ts`; e
       `credential_unreadable` nas cópias do catálogo da **API** e do **cron** (paridade `test/job-catalog/catalog.contract.ts` nas
       duas). Aceite: contratos da API e `bun run test` do cron verdes; mutação: a permissão em `operator` derruba o contrato do
-      papel. **Conferir antes do commit que a Fase 1 está em `origin/staging`** (`git merge-base --is-ancestor`). **Devolver a
-      igualdade ao contrato do painel** (`test/shared/job-catalog.contract.ts`): `toEqual` completo do catálogo e fim dos testes de
-      superconjunto, agora que a API tem `credential_unreadable` (T1.1). (CA10, CA11)
+      papel. **Conferir antes do commit que a Fase 1 está em `origin/staging`** (`git merge-base --is-ancestor`). **Apagar as pendências do painel**: `PENDING_API_PERMISSIONS` (o
+      arquivo `test/identity/pending-api-permissions.fixture.ts` e seus usos em `frontend-contract.test.ts` e
+      `permission-matrix.contract.ts`) e `PENDING_API_FAILURE_OUTCOMES` (`test/shared/job-catalog.contract.ts`), restaurando a
+      igualdade estrita — eles ficam vermelhos sozinhos quando a API concede a permissão e o desfecho (T1.1/T1.2). (CA10, CA11)
 - [ ] **T3.2** Selo da chave: `business-calendar/application/holiday-provider-token-secret.service.ts` (RF2, AAD
       `transportada:holiday-provider-token:v1:${settingsId}`, plaintext zerado, envelope `.strict()`, erro tipado sem mensagem do
       provedor). Contrato: abre com o AAD da linha, **não** abre com outro id, nem com outro `provider`; envelope malformado →
