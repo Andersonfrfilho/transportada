@@ -12,6 +12,10 @@ import type {
 } from '../../src/holiday-provider-pull/application/holiday-discovery.port.js'
 import { createDiscoverHolidayCitiesUseCase } from '../../src/holiday-provider-pull/application/discover-holiday-cities.use-case.js'
 import {
+  HOLIDAY_DISCOVERY_BATCH_SIZE,
+  HOLIDAY_DISCOVERY_MAX_BATCHES,
+} from '../../src/holiday-provider-pull/domain/holiday-provider-pull.constant.js'
+import {
   readDiscoveredCityCode,
   summarizeDocumentDestinations,
 } from '../../src/holiday-provider-pull/domain/holiday-city-discovery.policy.js'
@@ -177,6 +181,11 @@ describe('o destino físico da nota na descoberta (spec 252 T3.2)', () => {
 })
 
 describe('a descoberta de cidades por cursor (spec 252 T3.2)', () => {
+  test('os tetos são os do ADR-0100: 2.000 notas por lote e 20 lotes por empresa', () => {
+    expect(HOLIDAY_DISCOVERY_BATCH_SIZE).toBe(2000)
+    expect(HOLIDAY_DISCOVERY_MAX_BATCHES).toBe(20)
+  })
+
   test('lote misto: só os códigos válidos entram, o contador diz quantos saíram, o cursor andou', async () => {
     const documents = Array.from({ length: 7 }, (_, index) => buildDocument(index + 1))
     const cityCodes = ['3509502', null, '', '9999999', '3909502', '3509502', '3550308'] as const
