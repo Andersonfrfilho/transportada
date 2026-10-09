@@ -18,9 +18,11 @@ import {
   tripDrivers,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
+import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { requireOccurrenceId } from '../domain/occurrence-subject.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import {
   createConversationAttachmentTransactionPort,
@@ -74,7 +76,12 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
             eq(occurrenceConversations.participant, 'driver'),
             eq(occurrenceConversations.driverUserId, driverUserId),
             ...(occurrenceId === null
-              ? []
+              ? [
+                  eq(
+                    occurrenceConversations.subjectType,
+                    OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE,
+                  ),
+                ]
               : [eq(occurrenceConversations.occurrenceId, occurrenceId)]),
             eq(occurrenceConversationMessages.direction, 'outbound'),
             eq(occurrenceConversationMessages.channel, 'app'),
@@ -128,13 +135,15 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
             eq(occurrenceConversations.companyId, companyId),
             eq(occurrenceConversations.participant, 'driver'),
             eq(occurrenceConversations.driverUserId, driverUserId),
+            eq(occurrenceConversations.subjectType, OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE),
           ),
         )
         .groupBy(occurrenceConversations.occurrenceId)
         .orderBy(desc(sql`max(${occurrenceConversationMessages.createdAt})`))
         .limit(MY_CONVERSATIONS_LIMIT)
       const summaries = []
-      for (const row of rows) {
+      for (const candidate of rows) {
+        const row = { ...candidate, occurrenceId: requireOccurrenceId(candidate.occurrenceId) }
         const item = await findTripOccurrenceFeedItem(transaction, {
           companyId,
           occurrenceId: row.occurrenceId,
@@ -277,6 +286,7 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
           companyId: input.companyId,
           conversationId: input.conversationId,
           createdAt: input.createdAt,
+          clientMessageId: input.idempotencyKey,
           direction: input.direction,
           driverUserId: input.driverUserId,
           status: input.status,

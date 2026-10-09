@@ -16,6 +16,7 @@ import {
   occurrenceConversations,
   occurrenceConversationUnassigned,
 } from '../../database/database.schema.js'
+import { requireOccurrenceSubject } from '../domain/occurrence-subject.policy.js'
 import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
 import { attributableContractorConversation } from './attributable-conversation.query.js'
 import type {
@@ -202,7 +203,8 @@ export function createDrizzleOccurrenceConversationUnassignedReader(
             : contacts.find((candidate) => candidate.id === row.contractorContactId)
         const candidates = conversations
           .filter((conversation) => contractorIds.has(conversation.contractorId ?? ''))
-          .map((conversation): UnassignedCandidateView => {
+          .map((candidate): UnassignedCandidateView => {
+            const conversation = requireOccurrenceSubject(candidate)
             const last = lastByConversation.get(conversation.conversationId)
             return {
               contractorName:

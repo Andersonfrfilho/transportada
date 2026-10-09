@@ -26,6 +26,7 @@ import type {
   ContractorPortalConversationUnitOfWorkPort,
 } from '../application/contractor-portal-conversation.port.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { requireOccurrenceSubject } from '../domain/occurrence-subject.policy.js'
 import {
   createConversationAttachmentTransactionPort,
   readConversationAttachments,
@@ -219,7 +220,7 @@ function createTransactionPort(
           ),
         )
         .limit(1)
-      return row ?? null
+      return row === undefined ? null : requireOccurrenceSubject(row)
     },
 
     async findIdempotency({ companyId, idempotencyKey, operation }) {
