@@ -113,3 +113,36 @@ do TMS em comentário/README/preview, `buildOutput.test` medindo com externos, h
 Consumidores TransportAdA (grep real): usam só `MessageText`, `StatusTicks`, `DateDivider`, helpers e o tipo
 `MessagePayload` (que só **constroem**); nenhum `switch`/`Record` sobre o `ConversationChannel` do SDK — nada quebra
 com `app`/`portal`/`queued`/`bounced`. Risco fora do grep: Sakura/quickcart sem `styles.css` perdem formatação.
+
+## T1.8a–T1.8c — correções do passe opus e prova por tarball
+
+| Task  | Commit    | Gate (conferido por mim)                                                                                                   |
+| ----- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| T1.8a | `06bac72` | UI 673 pass / 0 fail · `tsc` e build limpos · envio duplo, `queued`, `this`, visibilidade                                  |
+| T1.8b | `d55bf51` | UI 708 pass / 0 fail · rolagem, loading/erro, paginação da inbox, props obrigatórias                                       |
+| fix   | `0ff1dea` | UI 709 pass / 0 fail · `MessageText` volta a copiar por padrão (compat. 0.3.1); o participante passa `copyOnClick={false}` |
+
+A T1.8b havia invertido o padrão de `copyOnClick` (de copiar para não copiar) — mudança de comportamento para
+`frontend-transportada` e `frontend-client` num release **minor**. Corrigido em `0ff1dea`; `copiedLabel` passa a ter
+padrão "Copied" (a 0.3.1 mostrava "Copiado!" fixo): os apps passam `copiedLabel="Copiado!"` ao subir (T1b.1).
+
+**T1.8c — instalação por tarball num worktree descartável (removido ao final, sem commit/push/publish):**
+`pnpm pack` de `conversation-contracts` e `conversations-ui`; `bun` resolveu os dois tarballs interdependentes por
+`overrides`. Baseline (0.3.1) × depois (tarballs):
+
+| App                   | typecheck | lint                              | test antes → depois         | build |
+| --------------------- | --------- | --------------------------------- | --------------------------- | ----- |
+| frontend-transportada | ok        | 0 erros, 16 warnings (= baseline) | 7736 + 1176 pass → idêntico | ok    |
+| frontend-client       | ok        | ok                                | 89 → 89 pass / 0 fail       | ok    |
+| frontend-driver       | ok        | ok                                | 1528 pass / 0 fail          | ok    |
+
+`import()` de `@adatechnology/conversations-ui/participant` no Vite do driver: chunk de **41,95 kB (12,82 kB gzip)**,
+chunk principal 695,75 → 695,95 kB, CSS inalterado. Sem regressão.
+
+**Não executado:** `make smoke` (Playwright), `make check` completo (`format:check` da raiz), integração, e verificação
+visual de `MessageText`/`StatusTicks` no navegador. O baseline de teste do driver não foi medido.
+
+**Achados da publicação:** (1) o tarball da UI declara `conversation-contracts` por versão fixa — **publicar o
+contracts ANTES da UI**; (2) o pacote não tem campo `files`, então um `pnpm pack` local levou lixo de `.omc/` (ignorado
+pelo git, não pelo npm; a publicação sai do checkout limpo do CI) — removido de `src/participant/`; (3) o tarball inclui
+`src/` e os testes (política já vigente da 0.4.2: 217 arquivos).
