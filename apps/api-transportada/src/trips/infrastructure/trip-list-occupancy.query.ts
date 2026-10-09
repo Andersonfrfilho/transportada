@@ -6,6 +6,8 @@ import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { fleetVehicles } from '../../database/fleet.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
 import { vehicleVolumeReferences } from '../../database/vehicle-volume-reference.schema.js'
+import { TRIP_LIST_ENRICHMENT_LOG } from '../application/trip-list-enrichment.constant.js'
+import type { TripRouteFreezeLogger } from '../application/freeze-trip-route-gracefully.js'
 import { buildTripListOccupancy } from '../domain/trip-list-occupancy.policy.js'
 import type { TripListOccupancy } from '../domain/trip-list-occupancy.policy.js'
 import { resolveTripCargoWeight, withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
@@ -33,21 +35,52 @@ type ReferenceFacts = NonNullable<TripOccupancyFacts['reference']>
 
 const NO_DOCUMENT_WEIGHT: DocumentCargoWeight = { grossWeightKilograms: null, source: null }
 
+/** O que se leu do banco para uma viagem da página — a conta é feita depois, em memória. */
+export type TripListOccupancyTripFacts = {
+  readonly facts: Omit<TripOccupancyFacts, 'cargo'>
+  readonly nfeDocumentIds: readonly string[]
+  readonly tripId: string
+  readonly vehicleId: string | null
+}
+
+export type TripListOccupancyFacts = {
+  readonly cargo: OccupancyCargoFacts
+  readonly trips: readonly TripListOccupancyTripFacts[]
+  readonly weights: ReadonlyMap<string, DocumentCargoWeight>
+}
+
 /**
  * Spec 259: a ocupação de **várias** viagens numa só passada — o veículo, a carreta, a referência de
  * catálogo, os fatores, os volumes, as caixas medidas e o peso saem uma vez para a página inteira
  * (~10 consultas, qualquer que seja o tamanho dela), e a conta é a de `resolveTripOccupancyFromFacts`,
  * a mesma do detalhe. Viagem sem veículo é `null`; viagem de outra empresa nem entra no mapa.
  *
- * As notas são as de `trip_documents.nfe_document_id`, sem filtrar liberadas — o mesmo critério do
- * detalhe (`readTripDetail`), e é ele que faz os dois números baterem.
+ * Falha na conta de uma viagem a deixa fora do mapa, com aviso só de ids: a lista de hoje nunca fica
+ * pior por causa da ocupação. Falha na leitura propaga — quem decide o que fazer com a página é o chamador.
  */
 export async function readTripListOccupancies(
   queryable: TripQueryable,
-  input: TripListOccupancyInput,
+  input: TripListOccupancyInput & { readonly logger?: TripRouteFreezeLogger | undefined },
 ): Promise<ReadonlyMap<string, TripListOccupancy | null>> {
-  const occupancies = new Map<string, TripListOccupancy | null>()
-  if (input.tripIds.length === 0) return occupancies
+  const facts = await readTripListOccupancyFacts(queryable, input)
+
+  return assembleTripListOccupancies({ companyId: input.companyId, facts, logger: input.logger })
+}
+
+/**
+ * As notas são as de `trip_documents.nfe_document_id`, sem filtrar liberadas — o mesmo critério do
+ * detalhe (`readTripDetail`), e é ele que faz os dois números baterem.
+ */
+export async function readTripListOccupancyFacts(
+  queryable: TripQueryable,
+  input: TripListOccupancyInput,
+): Promise<TripListOccupancyFacts> {
+  const empty: TripListOccupancyFacts = {
+    cargo: EMPTY_OCCUPANCY_CARGO_FACTS,
+    trips: [],
+    weights: new Map(),
+  }
+  if (input.tripIds.length === 0) return empty
 
   const tripRows = await queryable
     .select({
@@ -57,56 +90,43 @@ export async function readTripListOccupancies(
     })
     .from(trips)
     .where(and(eq(trips.companyId, input.companyId), inArray(trips.id, [...input.tripIds])))
-  if (tripRows.length === 0) return occupancies
+  if (tripRows.length === 0) return empty
 
-  const tripIds = tripRows.map((row) => row.id)
   const documentsByTrip = await readNfeDocumentIdsByTrip(queryable, {
     companyId: input.companyId,
-    tripIds,
+    tripIds: tripRows.map((row) => row.id),
   })
   const vehicleById = await readVehicles(queryable, {
     companyId: input.companyId,
     vehicleIds: tripRows.flatMap((row) => [row.vehicleId, row.trailerVehicleId]),
   })
-  const capacityFacts = new Map(
-    tripRows.map((row) => {
-      const vehicle = row.vehicleId === null ? undefined : vehicleById.get(row.vehicleId)
-      const trailer =
-        row.trailerVehicleId === null ? undefined : vehicleById.get(row.trailerVehicleId)
+  const vehicles = tripRows.map((row) => ({
+    trailer: row.trailerVehicleId === null ? undefined : vehicleById.get(row.trailerVehicleId),
+    vehicle: row.vehicleId === null ? undefined : vehicleById.get(row.vehicleId),
+  }))
+  const referenceByKey = await readReferences(queryable, vehicles)
+  const tripFacts = tripRows.map((row, index): TripListOccupancyTripFacts => {
+    const { trailer, vehicle } = vehicles[index] ?? { trailer: undefined, vehicle: undefined }
+    const reference =
+      vehicle === undefined
+        ? undefined
+        : referenceByKey.get(
+            buildReferenceMapKey(resolveOccupancyReferenceKey({ trailer, vehicle })),
+          )
 
-      return [row.id, { trailer, vehicle }] as const
-    }),
-  )
-  const referenceByKey = await readReferences(queryable, [...capacityFacts.values()])
-  const factsByTrip = new Map(
-    tripRows.map((row) => {
-      const { trailer, vehicle } = capacityFacts.get(row.id) ?? {
-        trailer: undefined,
-        vehicle: undefined,
-      }
-      const reference =
-        vehicle === undefined
-          ? undefined
-          : referenceByKey.get(
-              buildReferenceMapKey(resolveOccupancyReferenceKey({ trailer, vehicle })),
-            )
+    return {
+      facts: { reference, trailer, vehicle },
+      nfeDocumentIds: documentsByTrip.get(row.id) ?? [],
+      tripId: row.id,
+      vehicleId: row.vehicleId,
+    }
+  })
 
-      return [row.id, { reference, trailer, vehicle }] as const
-    }),
-  )
-
-  const allDocumentIds = unique([...documentsByTrip.values()].flat())
   const capableDocumentIds = unique(
-    tripRows.flatMap((row) => {
-      const facts = factsByTrip.get(row.id)
-
-      return facts !== undefined && hasKnownTripCapacity(facts)
-        ? (documentsByTrip.get(row.id) ?? [])
-        : []
-    }),
+    tripFacts.flatMap((trip) => (hasKnownTripCapacity(trip.facts) ? trip.nfeDocumentIds : [])),
   )
   /** Sem nota em viagem de capacidade conhecida não há o que medir: a conta do detalhe também não lê. */
-  const cargo: OccupancyCargoFacts =
+  const cargo =
     capableDocumentIds.length === 0
       ? EMPTY_OCCUPANCY_CARGO_FACTS
       : await loadOccupancyCargoFacts(queryable, {
@@ -115,42 +135,56 @@ export async function readTripListOccupancies(
         })
   const weights = await loadDocumentCargoWeights(queryable, {
     companyId: input.companyId,
-    nfeDocumentIds: allDocumentIds,
+    nfeDocumentIds: unique(tripFacts.flatMap((trip) => trip.nfeDocumentIds)),
   })
 
-  for (const row of tripRows) {
-    if (row.vehicleId === null) {
-      occupancies.set(row.id, null)
+  return { cargo, trips: tripFacts, weights }
+}
+
+/** A conta por viagem, pura: cada uma isolada das outras, para uma ficha corrompida não derrubar a página. */
+export function assembleTripListOccupancies(input: {
+  readonly companyId: string
+  readonly facts: TripListOccupancyFacts
+  readonly logger?: TripRouteFreezeLogger | undefined
+}): ReadonlyMap<string, TripListOccupancy | null> {
+  const occupancies = new Map<string, TripListOccupancy | null>()
+  const { cargo, weights } = input.facts
+
+  for (const trip of input.facts.trips) {
+    if (trip.vehicleId === null) {
+      occupancies.set(trip.tripId, null)
       continue
     }
-    const nfeDocumentIds = documentsByTrip.get(row.id) ?? []
-    const facts = factsByTrip.get(row.id) ?? {
-      reference: undefined,
-      trailer: undefined,
-      vehicle: undefined,
-    }
-    const result = resolveTripOccupancyFromFacts({
-      facts: { ...facts, cargo },
-      nfeDocumentIds,
-      vehicleId: row.vehicleId,
-    })
-    const cargoWeight = withPayloadCeiling({
-      maxPayloadKg: result.maxPayloadKg,
-      view: resolveTripCargoWeight({
-        documents: nfeDocumentIds.map(
-          (documentId) => weights.get(documentId) ?? NO_DOCUMENT_WEIGHT,
-        ),
-      }),
-    })
+    try {
+      const result = resolveTripOccupancyFromFacts({
+        facts: { ...trip.facts, cargo },
+        nfeDocumentIds: trip.nfeDocumentIds,
+        vehicleId: trip.vehicleId,
+      })
+      const cargoWeight = withPayloadCeiling({
+        maxPayloadKg: result.maxPayloadKg,
+        view: resolveTripCargoWeight({
+          documents: trip.nfeDocumentIds.map(
+            (documentId) => weights.get(documentId) ?? NO_DOCUMENT_WEIGHT,
+          ),
+        }),
+      })
 
-    occupancies.set(
-      row.id,
-      buildTripListOccupancy({
-        capacityUnknownReason: result.capacityUnknownReason,
-        cargoWeight,
-        volume: result.occupancy,
-      }),
-    )
+      occupancies.set(
+        trip.tripId,
+        buildTripListOccupancy({
+          capacityUnknownReason: result.capacityUnknownReason,
+          cargoWeight,
+          volume: result.occupancy,
+        }),
+      )
+    } catch (error) {
+      input.logger?.warn(TRIP_LIST_ENRICHMENT_LOG.occupancyTripFailed, {
+        companyId: input.companyId,
+        errorName: error instanceof Error ? error.name : 'unknown',
+        tripId: trip.tripId,
+      })
+    }
   }
 
   return occupancies

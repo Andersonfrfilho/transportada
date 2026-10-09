@@ -15,6 +15,7 @@ import {
   type OccupancyVehicleFacts,
 } from '../../src/trips/infrastructure/trip-occupancy.support.js'
 import { buildTripListOccupancy } from '../../src/trips/domain/trip-list-occupancy.policy.js'
+import { assembleTripListOccupancies } from '../../src/trips/infrastructure/trip-list-occupancy.query.js'
 
 const VEHICLE_ID = 'veiculo-1'
 
@@ -146,5 +147,53 @@ describe('buildTripListOccupancy (spec 259 RF1)', () => {
       volume: null,
       weight: { documentsWithoutWeight: 1, payloadRatio: null, source: 'estimated' },
     })
+  })
+})
+
+describe('assembleTripListOccupancies (spec 259 T2.4)', () => {
+  test('uma viagem com ficha corrompida sai do mapa com aviso só de ids, e as outras seguem', () => {
+    const warnings: { readonly message: string; readonly metadata: unknown }[] = []
+    const healthy = vehicleOf()
+    const corrupt = vehicleOf({ capacityM3: 'não-é-número', id: 'veiculo-2' })
+
+    const occupancies = assembleTripListOccupancies({
+      companyId: 'empresa-1',
+      facts: {
+        cargo: cargoOf(['nota-1', 'nota-2']),
+        trips: [
+          {
+            facts: { reference: undefined, trailer: undefined, vehicle: healthy },
+            nfeDocumentIds: ['nota-1'],
+            tripId: 'viagem-ok',
+            vehicleId: healthy.id,
+          },
+          {
+            facts: { reference: undefined, trailer: undefined, vehicle: corrupt },
+            nfeDocumentIds: ['nota-2'],
+            tripId: 'viagem-quebrada',
+            vehicleId: corrupt.id,
+          },
+          {
+            facts: { reference: undefined, trailer: undefined, vehicle: undefined },
+            nfeDocumentIds: [],
+            tripId: 'viagem-sem-veiculo',
+            vehicleId: null,
+          },
+        ],
+        weights: new Map(),
+      },
+      logger: { warn: (message, metadata) => warnings.push({ message, metadata }) },
+    })
+
+    expect([...occupancies.keys()]).toEqual(['viagem-ok', 'viagem-sem-veiculo'])
+    expect(occupancies.get('viagem-sem-veiculo')).toBeNull()
+    expect(occupancies.get('viagem-ok')?.volume?.occupancyRatio).toBe('0.0250')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.message).toBe('trip.list.occupancy_trip_failed')
+    expect(warnings[0]?.metadata).toMatchObject({
+      companyId: 'empresa-1',
+      tripId: 'viagem-quebrada',
+    })
+    expect(JSON.stringify(warnings)).not.toContain('não-é-número')
   })
 })

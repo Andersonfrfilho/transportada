@@ -33,6 +33,7 @@ import type {
 } from './trip-document-link-after-dispatch.types.js'
 import type { TransferTripCrewInput, TransferTripCrewResult } from './trip-crew-transfer.types.js'
 import type { TripListOccupancy } from '../domain/trip-list-occupancy.policy.js'
+import { TRIP_LIST_ENRICHMENT_LOG } from './trip-list-enrichment.constant.js'
 import type { TripListFinancials } from './read-trip-list-financials.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
@@ -313,40 +314,12 @@ export function createTripUseCase(dependencies: {
         limit,
       })
 
-      /**
-       * A conta de dinheiro é **opcional por dependência**, não por flag: instalação que não a
-       * injeta continua listando viagem com `amounts: null`, e a tela imprime a coluna vazia em vez
-       * de quebrar. É o mesmo desenho da porta de notificação do worker.
-       */
-      const tripIds = page.items.map((trip) => trip.id)
-      const amounts = await dependencies.amounts?.read({ companyId: context.companyId, tripIds })
-      const financials =
-        amounts !== undefined && includeFinancials === true
-          ? await dependencies.financials?.read({ companyId: context.companyId, tripIds })
-          : undefined
-      const occupancies = await dependencies.occupancies?.read({
+      return enrichTripPage({
         companyId: context.companyId,
-        tripIds,
+        dependencies,
+        includeFinancials: includeFinancials === true,
+        page,
       })
-      if (amounts === undefined && occupancies === undefined) return page
-
-      return {
-        ...page,
-        items: page.items.map((trip) => ({
-          ...trip,
-          ...(amounts === undefined
-            ? {}
-            : {
-                amounts: mergeTripAmounts({
-                  amounts: amounts.get(trip.id) ?? null,
-                  financials: financials?.get(trip.id),
-                }),
-              }),
-          ...(occupancies?.has(trip.id) === true
-            ? { occupancy: occupancies.get(trip.id) ?? null }
-            : {}),
-        })),
-      }
     },
 
     async releaseDocument({ context, documentId, tripId }) {
@@ -505,6 +478,89 @@ export function createTripUseCase(dependencies: {
  * sequência que não existe mais, e a transação do vínculo já a apagou (T704 M1). O congelamento
  * roda **depois** da escrita principal e nunca a derruba.
  */
+type TripPageEnrichmentDependencies = Pick<
+  Parameters<typeof createTripUseCase>[0],
+  'amounts' | 'financials' | 'logger' | 'occupancies'
+>
+
+/**
+ * O que a linha da lista ganha além da viagem: receita (`amounts`), custo e margem, ocupação.
+ *
+ * A conta de dinheiro é **opcional por dependência**, não por flag: instalação que não a injeta
+ * continua listando viagem com `amounts: null`, e a tela imprime a coluna vazia em vez de quebrar. É o
+ * mesmo desenho da porta de notificação do worker.
+ *
+ * ⚠️ Custo e ocupação são **refinamento** (code-standart §15): cada bloco falha sozinho, com aviso só de
+ * ids, e a página sai sem ele — nunca pior do que era sem eles. A receita segue propagando a falha,
+ * como sempre fez.
+ */
+async function enrichTripPage(input: {
+  readonly companyId: string
+  readonly dependencies: TripPageEnrichmentDependencies
+  readonly includeFinancials: boolean
+  readonly page: TripPage
+}): Promise<TripPage> {
+  const { companyId, dependencies, page } = input
+  const tripIds = page.items.map((trip) => trip.id)
+  const amounts = await dependencies.amounts?.read({ companyId, tripIds })
+  const [financialsResult, occupanciesResult] = await Promise.allSettled([
+    input.includeFinancials ? dependencies.financials?.read({ companyId, tripIds }) : undefined,
+    dependencies.occupancies?.read({ companyId, tripIds }),
+  ])
+  const financials = settledOrWarn({
+    code: TRIP_LIST_ENRICHMENT_LOG.financialsBlockFailed,
+    companyId,
+    logger: dependencies.logger,
+    result: financialsResult,
+    tripIds,
+  })
+  const occupancies = settledOrWarn({
+    code: TRIP_LIST_ENRICHMENT_LOG.occupancyBlockFailed,
+    companyId,
+    logger: dependencies.logger,
+    result: occupanciesResult,
+    tripIds,
+  })
+  if (amounts === undefined && occupancies === undefined) return page
+
+  return {
+    ...page,
+    items: page.items.map((trip) => ({
+      ...trip,
+      ...(amounts === undefined
+        ? {}
+        : {
+            amounts: mergeTripAmounts({
+              amounts: amounts.get(trip.id) ?? null,
+              financials: financials?.get(trip.id),
+            }),
+          }),
+      ...(occupancies?.has(trip.id) === true
+        ? { occupancy: occupancies.get(trip.id) ?? null }
+        : {}),
+    })),
+  }
+}
+
+/** O valor do bloco que deu certo; o que falhou vira aviso só de ids e código, e some da página. */
+function settledOrWarn<TValue>(input: {
+  readonly code: string
+  readonly companyId: string
+  readonly logger: TripRouteFreezeLogger | undefined
+  readonly result: PromiseSettledResult<TValue | undefined>
+  readonly tripIds: readonly string[]
+}): TValue | undefined {
+  if (input.result.status === 'fulfilled') return input.result.value
+
+  input.logger?.warn(input.code, {
+    companyId: input.companyId,
+    errorName: input.result.reason instanceof Error ? input.result.reason.name : 'unknown',
+    tripIds: input.tripIds,
+  })
+
+  return undefined
+}
+
 /** Custo e margem só se somam à linha que já tem receita: sem `amounts` não há o que completar. */
 function mergeTripAmounts(input: {
   readonly amounts: TripAmounts | null
