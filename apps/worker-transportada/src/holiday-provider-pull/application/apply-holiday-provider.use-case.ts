@@ -38,64 +38,75 @@ export type ApplyHolidayProviderUseCase = {
   }): Promise<ApplyTally>
 }
 
+type FailureLog = {
+  readonly companyId?: string
+  readonly correlationId: string | undefined
+  readonly error: unknown
+  readonly logger: WorkerLogger
+  readonly message: string
+}
+
+function logFailure(input: FailureLog): void {
+  // O nome do erro, nunca a mensagem: a do banco pode carregar o dado que falhou.
+  safeLogError({
+    logger: input.logger,
+    message: input.message,
+    metadata: {
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      reason: input.error instanceof Error ? input.error.name : 'UnknownError',
+    },
+  })
+}
+
+async function countMismatch(input: {
+  readonly correlationId: string | undefined
+  readonly dependencies: ApplyHolidayProviderDependencies
+  readonly now: Date
+  readonly tally: ApplyTally
+}): Promise<void> {
+  const { correlationId, dependencies, now, tally } = input
+
+  try {
+    const byYear = await dependencies.store.readNationalDates({ years: resolveHorizonYears(now) })
+    for (const [year, provider] of byYear) {
+      tally.nationalMismatch += countNationalMismatch({
+        code: listNationalHolidayDates(year),
+        provider,
+      })
+    }
+  } catch (error: unknown) {
+    tally.unexpectedFailures += 1
+    logFailure({
+      correlationId,
+      error,
+      logger: dependencies.logger,
+      message: 'holiday_apply_parity_failed',
+    })
+  }
+}
+
+function createEmptyTally(): ApplyTally {
+  return {
+    companies: 0,
+    failedCompanies: 0,
+    municipalInserted: 0,
+    nationalMismatch: 0,
+    stateInserted: 0,
+    unexpectedFailures: 0,
+  }
+}
+
 export function createApplyHolidayProviderUseCase(
   dependencies: ApplyHolidayProviderDependencies,
 ): ApplyHolidayProviderUseCase {
   const { logger, store } = dependencies
 
-  function logFailure(input: {
-    readonly correlationId: string | undefined
-    readonly error: unknown
-    readonly message: string
-    readonly companyId?: string
-  }): void {
-    // O nome do erro, nunca a mensagem: a do banco pode carregar o dado que falhou.
-    safeLogError({
-      logger,
-      message: input.message,
-      metadata: {
-        companyId: input.companyId,
-        correlationId: input.correlationId,
-        reason: input.error instanceof Error ? input.error.name : 'UnknownError',
-      },
-    })
-  }
-
-  async function countMismatch(input: {
-    readonly correlationId: string | undefined
-    readonly now: Date
-    readonly tally: ApplyTally
-  }): Promise<void> {
-    try {
-      const byYear = await store.readNationalDates({ years: resolveHorizonYears(input.now) })
-      for (const [year, provider] of byYear) {
-        input.tally.nationalMismatch += countNationalMismatch({
-          code: listNationalHolidayDates(year),
-          provider,
-        })
-      }
-    } catch (error: unknown) {
-      input.tally.unexpectedFailures += 1
-      logFailure({
-        correlationId: input.correlationId,
-        error,
-        message: 'holiday_apply_parity_failed',
-      })
-    }
-  }
-
   return {
     async execute({ correlationId, isStopRequested }) {
       const now = dependencies.now()
       const today = resolveSaoPauloCivilDate(now)
-      const tally: ApplyTally = {
-        companies: 0,
-        failedCompanies: 0,
-        municipalInserted: 0,
-        nationalMismatch: 0,
-        stateInserted: 0,
-        unexpectedFailures: 0,
-      }
+      const tally = createEmptyTally()
 
       for (const companyId of await store.listCompanies()) {
         if (isStopRequested()) break
@@ -106,11 +117,17 @@ export function createApplyHolidayProviderUseCase(
           tally.stateInserted += result.stateInserted
         } catch (error: unknown) {
           tally.failedCompanies += 1
-          logFailure({ companyId, correlationId, error, message: 'holiday_apply_company_failed' })
+          logFailure({
+            companyId,
+            correlationId,
+            error,
+            logger,
+            message: 'holiday_apply_company_failed',
+          })
         }
       }
 
-      await countMismatch({ correlationId, now, tally })
+      await countMismatch({ correlationId, dependencies, now, tally })
       return tally
     },
   }
