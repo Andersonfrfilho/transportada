@@ -87,11 +87,7 @@ export type OfficeSubjectUnitOfWorkPort = {
   ): Promise<TResult>
 }
 
-/**
- * O aviso ao motorista. Hoje o adaptador entrega pelo gateway da ocorrência, com o rótulo do assunto no
- * lugar do da ocorrência; a T2.5 troca o adaptador pela chave `trip.subject-conversation-message`
- * sem tocar nos casos de uso.
- */
+/** O aviso ao motorista (T2.5): o adaptador o entrega pela chave `trip.subject-conversation-message`. */
 export type OfficeSubjectNotifierPort = {
   notify(input: {
     readonly companyId: string

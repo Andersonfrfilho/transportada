@@ -7,6 +7,7 @@
  * conversa **dele**, de ocorrência de viagem **dele**. A conversa com a contratante nunca aparece.
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
+import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
@@ -94,6 +95,7 @@ export function createSendDriverAppMessageUseCase(dependencies: {
         if (target === null) throw new TripOccurrenceNotFoundError()
         const { driverUserId } = target
         if (driverUserId === null) throw new OccurrenceConversationDriverUnknownError()
+        let protocol = ''
 
         const executed = await replayOrRun({
           companyId: input.companyId,
@@ -138,11 +140,12 @@ export function createSendDriverAppMessageUseCase(dependencies: {
               transaction: transaction.attachments,
               uploadIds: attachmentIds,
             })
+            protocol = conversation.protocol
             return { conversationId: conversation.id, conversationMessageId: message.id }
           },
           transaction,
         })
-        return { ...executed, driverUserId, occurrenceLabel: target.occurrenceLabel }
+        return { ...executed, driverUserId, occurrenceLabel: target.occurrenceLabel, protocol }
       })
 
       /** Depois da transação, e só na primeira vez: o aviso é conveniência, nunca desfaz a mensagem. */
@@ -152,7 +155,10 @@ export function createSendDriverAppMessageUseCase(dependencies: {
             companyId: input.companyId,
             dedupeKey: outcome.result.conversationMessageId,
             occurrenceLabel: outcome.occurrenceLabel,
+            protocol: outcome.protocol,
             recipientUserId: outcome.driverUserId,
+            subjectId: input.occurrenceId,
+            subjectType: OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE,
           })
         } catch {
           // O notificador registra a própria falha; a mensagem já está na conversa.

@@ -56,6 +56,7 @@ function createTransaction(): DriverConversationTransactionPort {
     findOrCreateDriverConversation: async () => ({
       driverUserId: COMPANY_CONTEXT.userId,
       id: 'conversation-1',
+      protocol: '261009-AB12',
     }),
     insertMessage: async () => ({ id: '00000000-0000-4000-8000-000000260203' }),
     listAttachments: listNoAttachments,

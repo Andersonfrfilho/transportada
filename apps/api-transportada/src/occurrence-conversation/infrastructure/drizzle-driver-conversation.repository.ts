@@ -265,6 +265,7 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
         .select({
           driverUserId: occurrenceConversations.driverUserId,
           id: occurrenceConversations.id,
+          protocol: occurrenceConversations.protocol,
         })
         .from(occurrenceConversations)
         .where(where)
@@ -273,7 +274,11 @@ export function createTransactionPort(transaction: Transaction): DriverConversat
       if (conversation?.driverUserId == null) {
         throw new Error('driver conversation was not created')
       }
-      return { driverUserId: conversation.driverUserId, id: conversation.id }
+      return {
+        driverUserId: conversation.driverUserId,
+        id: conversation.id,
+        protocol: conversation.protocol,
+      }
     },
 
     async insertMessage(input) {

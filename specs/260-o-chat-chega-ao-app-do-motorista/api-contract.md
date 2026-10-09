@@ -129,3 +129,14 @@ CONVERSATION_NO_DRIVER` (código novo). Enviar também cria a conversa se ainda 
 {{subjectLabel}}. Abra Conversas no app para ler e responder."), `payload { subjectType, subjectId, subjectLabel, protocol }`, nunca o
 corpo; entrada em `NOTIFICATION_CATALOG` e `notification-preview.constant.ts`. O seed só cria template que **não existe**
 (`notification-template-seed.service.ts:51-60`): por isso a chave nova, e o texto da ocorrência (D7) fica como decisão do dono (T2.5b).
+
+### Como ficou (T2.5)
+
+O `createDriverConversationNotifier` roteia pelo `subjectType` (porta com `subjectType`, `subjectId` e `protocol` opcionais; sem eles é a chamada
+antiga, byte a byte). `occurrence` segue em `trip.conversation-message` com `payload { occurrenceLabel, subjectType, subjectId, subjectLabel,
+protocol }` (o `occurrenceLabel` e os demais campos do envelope — categoria, template, `dedupeKey`, destinatário — não mudaram; preso por constantes
+em `test/occurrence-conversation/driver-conversation-notifier.contract.ts`). `document`/`trip` vão por `trip.subject-conversation-message`
+(`dedupeKey` = `<chave>:<id da mensagem>`, como a da ocorrência), `payload { subjectType, subjectId, subjectLabel, protocol }`. O `protocol` da
+ocorrência vem de `findOrCreateDriverConversation`, que passou a devolvê-lo (lido na mesma transação do envio). Falha da fila continua só
+registrada. O catálogo e o preview ganharam a chave e o marcador `subjectLabel`; o seed a cria sozinho (só cria o que não existe). O guard de
+catálogo é relativo (conta chaves × entradas), então não precisou de ajuste; o texto da ocorrência segue o do seed (T2.5b, decisão do dono).

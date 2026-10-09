@@ -23,4 +23,6 @@ export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, stri
   plate: 'RTA2E19',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
+  /** Spec 260 T2.5: o aviso do sino da conversa de nota e de viagem. */
+  subjectLabel: 'NF 4512/1',
 }

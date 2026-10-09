@@ -9,6 +9,7 @@ import type {
   ConversationAttachmentRecord,
   ConversationAttachmentTransactionPort,
 } from './conversation-attachment.port.js'
+import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'
 import type {
   OccurrenceConversationKind,
   OccurrenceConversationMessageStatus,
@@ -100,7 +101,11 @@ export type DriverConversationTransactionPort = {
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
     readonly retarget: boolean
-  }): Promise<{ readonly driverUserId: string; readonly id: string }>
+  }): Promise<{
+    readonly driverUserId: string
+    readonly id: string
+    readonly protocol: string
+  }>
   insertMessage(input: {
     readonly authorUserId: null | string
     readonly bodyText: string
@@ -132,7 +137,12 @@ export type DriverConversationNotifierPort = {
   notify(input: {
     readonly companyId: string
     readonly dedupeKey: string
+    /** O rótulo do assunto (a nota, o tipo ou a viagem), nunca nome de pessoa. */
     readonly occurrenceLabel: string
+    /** Spec 260 T2.5: os três juntos dizem qual assunto o aviso abre; sem eles, é o aviso de ocorrência de sempre. */
+    readonly protocol?: string
     readonly recipientUserId: string
+    readonly subjectId?: string
+    readonly subjectType?: OccurrenceConversationSubjectType
   }): Promise<void>
 }

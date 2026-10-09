@@ -10,6 +10,7 @@ import { createListOfficeSubjectMessagesUseCase } from '../../src/occurrence-con
 import { createListTripSubjectConversationsUseCase } from '../../src/occurrence-conversation/application/list-trip-subject-conversations.use-case.js'
 import { createMarkOfficeSubjectReadUseCase } from '../../src/occurrence-conversation/application/mark-office-subject-read.use-case.js'
 import { createOpenTripSubjectConversationUseCase } from '../../src/occurrence-conversation/application/open-trip-subject-conversation.use-case.js'
+import type { OfficeSubjectNotifierPort } from '../../src/occurrence-conversation/application/office-subject-conversation.port.js'
 import { createRequestOfficeSubjectUploadUseCase } from '../../src/occurrence-conversation/application/request-office-subject-upload.use-case.js'
 import { createSendOfficeSubjectMessageUseCase } from '../../src/occurrence-conversation/application/send-office-subject-message.use-case.js'
 import { createDrizzleConversationUploadRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-conversation-attachment.repository.js'
@@ -24,7 +25,11 @@ export const OFFICE_KEY = 'office-send-key-0001'
 
 type Database = TestDatabase['db']
 
-export function createOfficeHarness(database: Database, clock: () => Date = () => new Date()) {
+export function createOfficeHarness(
+  database: Database,
+  clock: () => Date = () => new Date(),
+  notifierOverride?: OfficeSubjectNotifierPort,
+) {
   const driverSide = createWriteHarness(database, clock)
   const unitOfWork = createDrizzleOfficeSubjectUnitOfWork(database)
   const notices: unknown[] = []
@@ -47,7 +52,7 @@ export function createOfficeHarness(database: Database, clock: () => Date = () =
       send: createSendOfficeSubjectMessageUseCase({
         clock,
         fingerprintService,
-        notifier: { notify: async (input) => void notices.push(input) },
+        notifier: notifierOverride ?? { notify: async (input) => void notices.push(input) },
         storage: driverSide.storage,
         unitOfWork,
       }),

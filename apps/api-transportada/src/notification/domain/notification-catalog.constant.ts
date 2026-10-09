@@ -42,6 +42,12 @@ export const NOTIFICATION_TEMPLATE_KEY = {
    */
   TRIP_CONVERSATION_MESSAGE: 'trip.conversation-message',
   /**
+   * Spec 260 T2.5 (ADR-0101 §9): o mesmo aviso para a conversa de **nota** e de **viagem**. Chave nova de
+   * propósito: o seed só cria template que não existe, e o da ocorrência não pode mudar de texto aqui.
+   * Sem o corpo e sem nome de pessoa; o app abre o assunto pelo `subjectType`/`subjectId` do `payload`.
+   */
+  TRIP_SUBJECT_CONVERSATION_MESSAGE: 'trip.subject-conversation-message',
+  /**
    * Spec 183 T654 (RF21): a operação escreveu à contratante pelo portal. Só e-mail — o portal não
    * tem caixa de entrada — e **sem o corpo**: quem lê é quem entra no portal (ADR-0073).
    */
@@ -93,6 +99,18 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
     templates: {
       inbox: {
         body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
+      },
+    },
+  },
+  /** Spec 260 T2.5: a mensagem da operação sobre uma nota ou uma viagem; o rótulo diz qual. */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX],
+    placeholders: ['subjectLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_SUBJECT_CONVERSATION_MESSAGE,
+    templates: {
+      inbox: {
+        body: 'A operação mandou uma mensagem · {{subjectLabel}}. Abra Conversas no app para ler e responder.',
       },
     },
   },

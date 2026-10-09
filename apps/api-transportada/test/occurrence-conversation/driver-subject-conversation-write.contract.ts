@@ -115,7 +115,11 @@ function createWorld(state: {
     async findOrCreateDriverConversation(input: { driverUserId: string; retarget: boolean }) {
       calls.push({ input, name: 'findOrCreateDriverConversation' })
       const owner = state.conversationDriverUserId ?? input.driverUserId
-      return { driverUserId: input.retarget ? input.driverUserId : owner, id: CONVERSATION_ID }
+      return {
+        driverUserId: input.retarget ? input.driverUserId : owner,
+        id: CONVERSATION_ID,
+        protocol: '261009-AB12',
+      }
     },
   }
 

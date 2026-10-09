@@ -86,10 +86,15 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
           .select({
             driverUserId: occurrenceConversations.driverUserId,
             participant: occurrenceConversations.participant,
+            protocol: occurrenceConversations.protocol,
           })
           .from(occurrenceConversations)
           .where(eq(occurrenceConversations.id, sent.conversationId))
-        expect(conversation).toEqual({ driverUserId, participant: 'driver' })
+        expect(conversation).toEqual({
+          driverUserId,
+          participant: 'driver',
+          protocol: expect.stringMatching(/^\d{6}-[2-9A-HJKMNP-Z]{4}$/u),
+        })
         const stored = await database.db
           .select({
             channel: occurrenceConversationMessages.channel,
@@ -103,7 +108,10 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
             companyId,
             dedupeKey: sent.conversationMessageId,
             occurrenceLabel: expect.stringMatching(/^NF /u),
+            protocol: conversation?.protocol,
             recipientUserId: driverUserId,
+            subjectId: seeded.occurrenceId,
+            subjectType: 'occurrence',
           },
         ])
 

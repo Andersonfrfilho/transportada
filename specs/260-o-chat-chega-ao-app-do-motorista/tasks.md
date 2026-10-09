@@ -174,7 +174,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       compartilhados com as rotas antigas; **rotas antigas intactas**.
 - [ ] **T2.4b** `sonnet` — **Rotas do escritório** `/trips/:tripId/conversations/**` (`open`, mensagens, envio de arquivo, `close`), leitura por
       `POST /occurrence-conversations/:id/read`, escrita em nota/viagem com `trip.manage`, `retarget` no envio.
-- [ ] **T2.5** `sonnet` — **Aviso do sino**: `trip.conversation-message` ganha campos extras no `payload` (`subjectType`,
+- [x] **T2.5** `sonnet` — **Aviso do sino**: `trip.conversation-message` ganha campos extras no `payload` (`subjectType`,
       `subjectId`, `subjectLabel`, `protocol`) sem mudar template nem `dedupeKey`; **chave nova**
       `trip.subject-conversation-message` (nota e viagem) no catálogo e no preview; `noticeLabel` sem nome de pessoa.
 - [ ] **T2.5b** `sonnet` — (**depende de decisão do dono**) texto do D7 para o aviso da ocorrência, por `UPDATE` só onde o texto ainda é o

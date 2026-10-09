@@ -34,7 +34,7 @@ const DRIVER_ID = '00000000-0000-4000-8000-000000184005'
 const NOW = new Date('2026-09-24T17:00:00.000Z')
 
 type State = {
-  conversations: { driverUserId: string; id: string }[]
+  conversations: { driverUserId: string; id: string; protocol: string }[]
   /** O motorista principal da viagem agora (posição 1) e a tripulação, `driverId` → usuário. */
   crew: Map<string, string>
   target: null | string
@@ -100,7 +100,7 @@ function createFake(
     async findOrCreateDriverConversation({ driverUserId, retarget }) {
       const [found] = state.conversations
       if (found === undefined) {
-        const created = { driverUserId, id: 'conversation-1' }
+        const created = { driverUserId, id: 'conversation-1', protocol: '261009-AB12' }
         state.conversations.push(created)
         return { ...created }
       }
@@ -205,7 +205,10 @@ describe('o operador escreve ao motorista pelo app (spec 183 T601)', () => {
         companyId: COMPANY_ID,
         dedupeKey: 'message-1',
         occurrenceLabel: 'NF 4512/1',
+        protocol: '261009-AB12',
         recipientUserId: DRIVER_USER_ID,
+        subjectId: OCCURRENCE_ID,
+        subjectType: 'occurrence',
       },
     ])
   })
@@ -350,7 +353,7 @@ describe('a troca do motorista principal (spec 183 T903, C1)', () => {
     await fake.send.send({ ...SEND, bodyText: 'Troca de motorista.', idempotencyKey: 'key-0002' })
 
     expect(fake.state.conversations).toEqual([
-      { driverUserId: NEW_DRIVER_USER_ID, id: 'conversation-1' },
+      { driverUserId: NEW_DRIVER_USER_ID, id: 'conversation-1', protocol: '261009-AB12' },
     ])
     expect((await fake.list.list(NEW)).map((message) => message.bodyText)).toEqual([
       'Pode aguardar na doca?',

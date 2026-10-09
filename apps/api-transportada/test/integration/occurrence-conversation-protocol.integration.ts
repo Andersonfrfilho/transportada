@@ -54,12 +54,16 @@ describe('o protocolo da conversa contra Postgres (spec 260 T2.3b)', () => {
             retarget: false,
           }),
         )
-        expect(kept).toEqual({ driverUserId, id: created.id })
+        expect(kept).toEqual({ driverUserId, id: created.id, protocol: created.protocol })
 
         const retargeted = await unitOfWork.execute((port) =>
           port.findOrCreateDriverConversation({ ...subject, driverUserId: userId, retarget: true }),
         )
-        expect(retargeted).toEqual({ driverUserId: userId, id: created.id })
+        expect(retargeted).toEqual({
+          driverUserId: userId,
+          id: created.id,
+          protocol: created.protocol,
+        })
         const [after] = await database.db
           .select({ protocol: occurrenceConversations.protocol })
           .from(occurrenceConversations)

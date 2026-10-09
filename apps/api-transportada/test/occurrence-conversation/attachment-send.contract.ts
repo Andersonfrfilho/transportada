@@ -103,6 +103,7 @@ function driverTransaction(attachments: ConversationAttachmentTransactionPort) {
     findOrCreateDriverConversation: async ({ driverUserId }: { driverUserId: string }) => ({
       driverUserId,
       id: 'conversation-driver',
+      protocol: '261009-AB12',
     }),
     insertMessage: async () => ({ id: 'message-1' }),
     listAttachments: async () => [],
