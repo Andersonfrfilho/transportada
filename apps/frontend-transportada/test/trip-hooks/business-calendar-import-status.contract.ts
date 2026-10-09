@@ -69,19 +69,153 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
 
     await waitForText('Aguardando a primeira execução')
     expect(status()).toContain('Nenhuma busca feita ainda.')
-    expect(status()).toContain('retome-a em Operações')
+    expect(status()).toContain('Em Operações, confira se ela está pausada ou sem token.')
   })
 
-  it('sem cota: diz que as buscas voltam no dia 1º e conta os pares sem cota', async () => {
+  it('token errado: a rotina terminou recusada e nada foi gravado, então o cartão diz isso e não "aguardando"', async () => {
     businessCalendarDouble.importStatus = buildImportStatus({
-      pairs: { done: 4, failed: 0, notCovered: 1, pending: 0, quotaExhausted: 5, total: 10 },
+      lastFetchedAt: null,
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' },
+      pairs: { done: 0, failed: 0, notCovered: 0, pending: 10, quotaExhausted: 0, total: 10 },
     })
     await mountPanel()
 
-    await waitForText('Cota do fornecedor esgotada')
-    expect(status()).toContain('As buscas voltam no dia 1º do mês.')
-    expect(status()).toContain('Sem cota')
-    expect(status()).toContain('Sem cobertura do fornecedor')
+    await waitForText('Fornecedor recusou o acesso: token inválido ou plano sem cobertura')
+    expect(status()).not.toContain('Aguardando a primeira execução')
+    expect(status()).toContain('Confira a chave configurada e o plano contratado')
+    expect(status()).toContain('Operações')
+    expect(status()).toContain('Último ciclo da rotina: 09/10/2026')
+    expect(status()).toContain('10:00')
+  })
+
+  it('fornecedor fora do ar no último ciclo: diz que a rotina tenta de novo', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      lastFetchedAt: null,
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unreachable' },
+    })
+    await mountPanel()
+
+    await waitForText('Fornecedor indisponível, tentando de novo')
+    expect(status()).not.toContain('Aguardando a primeira execução')
+  })
+
+  it('resposta num formato que a rotina não entende: manda avisar o suporte', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'malformed_response' },
+    })
+    await mountPanel()
+
+    await waitForText('Resposta inesperada do fornecedor')
+    expect(status()).toContain('avise o suporte')
+  })
+
+  it('ciclo que terminou bem não muda a manchete', async () => {
+    await mountPanel()
+
+    await waitForText('Em dia')
+    expect(status()).toContain('Último ciclo da rotina: 09/10/2026')
+  })
+
+  it('API antiga, sem `lastRun`: a tela é a de antes e não inventa a linha do ciclo', async () => {
+    const { lastRun: omitted, ...oldStatus } = buildImportStatus()
+    expect(omitted).toBeDefined()
+    businessCalendarDouble.importStatus = oldStatus
+    await mountPanel()
+
+    await waitForText('Em dia')
+    expect(status()).not.toContain('Último ciclo da rotina')
+  })
+
+  it('cidades fora do plano: o aviso sai à parte, as demais seguem "em dia" e a falha não se repete na lista', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
+      pairs: {
+        done: 6,
+        failed: 2,
+        notCovered: 0,
+        pending: 2,
+        planRestricted: 2,
+        quotaExhausted: 0,
+        total: 10,
+      },
+    })
+    await mountPanel()
+
+    await waitForText('Em dia')
+    const warning = sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')
+    expect(warning?.textContent).toContain('2 buscas (cidade e ano) fora do plano contratado')
+    expect(warning?.textContent).toContain('As demais continuam sendo buscadas')
+    expect(status()).not.toContain('Falhas por motivo')
+    expect(status()).not.toContain('Com falha')
+  })
+
+  it('uma busca fora do plano fica no singular', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      pairs: {
+        done: 8,
+        failed: 1,
+        notCovered: 0,
+        pending: 1,
+        planRestricted: 1,
+        quotaExhausted: 0,
+        total: 10,
+      },
+    })
+    await mountPanel()
+
+    await waitForText('1 busca (cidade e ano) fora do plano contratado')
+  })
+
+  it('sem par fora do plano, não há aviso', async () => {
+    await mountPanel()
+
+    await waitForText('Em dia')
+    expect(sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')).toBeNull()
+  })
+
+  it('empresa desligada não mostra aviso de plano: nada é buscado', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      isEnabled: false,
+      pairs: {
+        done: 6,
+        failed: 2,
+        notCovered: 0,
+        pending: 2,
+        planRestricted: 2,
+        quotaExhausted: 0,
+        total: 10,
+      },
+    })
+    await mountPanel()
+
+    await waitForText('Desligada para esta empresa')
+    expect(sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')).toBeNull()
+  })
+
+  it('falha real junto do aviso de plano: "Com falhas" e o aviso aparecem juntos', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      failures: [
+        { errorCode: 'provider_plan_restricted', pairs: 2 },
+        { errorCode: 'persistence_failed', pairs: 1 },
+      ],
+      pairs: {
+        done: 5,
+        failed: 3,
+        notCovered: 0,
+        pending: 2,
+        planRestricted: 2,
+        quotaExhausted: 0,
+        total: 10,
+      },
+    })
+    await mountPanel()
+
+    await waitForText('Com falhas')
+    expect(
+      sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')?.textContent,
+    ).toContain('2 buscas')
+    expect(status()).toContain('O fornecedor respondeu, mas não foi possível gravar')
+    expect(status()).not.toContain('O plano do fornecedor não cobre esta consulta.')
   })
 
   it('com falhas: lista cada motivo por extenso, com a contagem no singular e no plural', async () => {

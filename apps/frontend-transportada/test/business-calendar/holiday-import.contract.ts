@@ -20,7 +20,10 @@ import {
   buildMunicipalRows,
   buildStateRows,
 } from '@/modules/company-settings/shared/businessCalendarRows.service'
-import { HOLIDAY_FETCH_FAILURE_CODES } from '@/modules/company-settings/shared/holidayImport.constant'
+import {
+  HOLIDAY_FETCH_FAILURE_CODES,
+  HOLIDAY_IMPORT_HEADLINE,
+} from '@/modules/company-settings/shared/holidayImport.constant'
 import {
   createHolidayImportClient,
   type HolidayImportClient,
@@ -127,6 +130,48 @@ describe('guardas da importação de feriados (chaves exatas)', () => {
     ).toBe(false)
   })
 
+  test('os campos novos do status são opcionais: sem `lastRun` nem `planRestricted` (API antiga) o status ainda vale', () => {
+    const { lastRun: omittedRun, ...withoutRun } = buildImportStatus()
+    const { planRestricted: omittedPlan, ...oldPairs } = buildImportStatus().pairs
+
+    expect(omittedRun).toBeDefined()
+    expect(omittedPlan).toBe(0)
+    expect(isHolidayImportStatus(withoutRun)).toBe(true)
+    expect(isHolidayImportStatus({ ...withoutRun, pairs: oldPairs })).toBe(true)
+  })
+
+  test('`lastRun` aceita o ciclo encerrado ou null, e recusa chave a mais ou tipo errado', () => {
+    const status = buildImportStatus()
+    const run = { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' }
+
+    expect(isHolidayImportStatus({ ...status, lastRun: run })).toBe(true)
+    expect(isHolidayImportStatus({ ...status, lastRun: null })).toBe(true)
+    expect(isHolidayImportStatus({ ...status, lastRun: { ...run, counters: {} } })).toBe(false)
+    expect(isHolidayImportStatus({ ...status, lastRun: { outcome: 'succeeded' } })).toBe(false)
+    expect(isHolidayImportStatus({ ...status, lastRun: { ...run, outcome: 7 } })).toBe(false)
+    expect(isHolidayImportStatus({ ...status, lastRun: { ...run, finishedAt: null } })).toBe(false)
+  })
+
+  test('`pairs.planRestricted` é número; chave desconhecida em `pairs` segue recusada', () => {
+    const status = buildImportStatus()
+
+    expect(
+      isHolidayImportStatus({ ...status, pairs: { ...status.pairs, planRestricted: 3 } }),
+    ).toBe(true)
+    expect(
+      isHolidayImportStatus({ ...status, pairs: { ...status.pairs, planRestricted: '3' } }),
+    ).toBe(false)
+    expect(isHolidayImportStatus({ ...status, pairs: { ...status.pairs, extra: 1 } })).toBe(false)
+  })
+
+  test('a chave nova não afrouxa a guarda: chave desconhecida no status segue recusada', () => {
+    const status = buildImportStatus({
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'succeeded' },
+    })
+
+    expect(isHolidayImportStatus({ ...status, budget: 1000 })).toBe(false)
+  })
+
   test('a supressão tem as cinco chaves e escopo `city` ou `state`', () => {
     expect(isHolidayImportSuppression(buildSuppression())).toBe(true)
     expect(isHolidayImportSuppression({ ...buildSuppression(), scope: 'national' })).toBe(false)
@@ -156,6 +201,24 @@ describe('cliente da importação de feriados', () => {
     expect(await client.getStatus()).toEqual(status)
     expect(calls[0]?.method).toBe('GET')
     expect(calls[0]?.url).toBe('http://api.test/holiday-imports/status')
+  })
+
+  test('GET /holiday-imports/status devolve intactos `lastRun` e `pairs.planRestricted`', async () => {
+    const status = buildImportStatus({
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' },
+      pairs: {
+        done: 0,
+        failed: 2,
+        notCovered: 0,
+        pending: 8,
+        planRestricted: 2,
+        quotaExhausted: 0,
+        total: 10,
+      },
+    })
+    const { client } = setup(() => json(envelope(status)))
+
+    expect(await client.getStatus()).toEqual(status)
   })
 
   test('status com formato inesperado é recusado como resposta inválida', async () => {
@@ -313,25 +376,136 @@ describe('leitura do status que a tela imprime', () => {
     expect(view.headline).toBe('disabled')
   })
 
-  test('falha vence cota; cota vence "em dia"', () => {
-    const quota = {
-      done: 5,
-      failed: 0,
-      notCovered: 0,
-      pending: 0,
-      quotaExhausted: 5,
-      total: 10,
-    }
+  test('a última execução recusada pelo fornecedor vence a espera: token errado não é "aguardando"', () => {
+    const view = resolveImportStatusView(
+      buildImportStatus({
+        lastFetchedAt: null,
+        lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' },
+        pairs: { done: 0, failed: 0, notCovered: 0, pending: 10, quotaExhausted: 0, total: 10 },
+      }),
+    )
 
-    expect(resolveImportStatusView(buildImportStatus({ pairs: quota })).headline).toBe('quota')
-    expect(
+    expect(view.headline).toBe('unauthorized')
+  })
+
+  test('cada falha de fornecedor da última execução tem a própria manchete', () => {
+    const headlineOf = (outcome: string) =>
       resolveImportStatusView(
-        buildImportStatus({
-          failures: [{ errorCode: 'provider_unauthorized', pairs: 2 }],
-          pairs: quota,
-        }),
-      ).headline,
-    ).toBe('failing')
+        buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }),
+      ).headline
+
+    expect(headlineOf('provider_unauthorized')).toBe('unauthorized')
+    expect(headlineOf('provider_unreachable')).toBe('unreachable')
+    expect(headlineOf('malformed_response')).toBe('malformed')
+  })
+
+  test('última execução que terminou bem, cancelada ou com desfecho desconhecido não manda na manchete', () => {
+    const headlineOf = (outcome: string) =>
+      resolveImportStatusView(
+        buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }),
+      ).headline
+
+    for (const outcome of ['succeeded', 'cancelled', 'abandoned', 'unexpected_error', 'novo']) {
+      expect(headlineOf(outcome)).toBe('healthy')
+    }
+  })
+
+  test('`lastRun` ausente (API antiga) ou null mantém o comportamento de antes', () => {
+    const { lastRun: omitted, ...withoutRun } = buildImportStatus({ lastFetchedAt: null })
+    const withNullRun = buildImportStatus({ lastFetchedAt: null, lastRun: null })
+
+    expect(omitted).toBeDefined()
+    expect(resolveImportStatusView(withoutRun).headline).toBe('waiting')
+    expect(resolveImportStatusView(withNullRun).headline).toBe('waiting')
+  })
+
+  test('empresa desligada vence até a recusa do fornecedor; a recusa vence as falhas por par', () => {
+    const run = { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' }
+    const failures = [{ errorCode: 'provider_unreachable', pairs: 2 }]
+
+    const disabled = buildImportStatus({ isEnabled: false, lastRun: run })
+    const refused = buildImportStatus({ failures, lastRun: run })
+
+    expect(resolveImportStatusView(disabled).headline).toBe('disabled')
+    expect(resolveImportStatusView(refused).headline).toBe('unauthorized')
+  })
+
+  test('par fora do plano não é falha: o aviso sai à parte e as demais cidades seguem "em dia"', () => {
+    const view = resolveImportStatusView(
+      buildImportStatus({
+        failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
+        pairs: {
+          done: 6,
+          failed: 2,
+          notCovered: 0,
+          pending: 2,
+          planRestricted: 2,
+          quotaExhausted: 0,
+          total: 10,
+        },
+      }),
+    )
+
+    expect(view.headline).toBe('healthy')
+    expect(view.planRestrictedPairs).toBe(2)
+    expect(view.failures).toEqual([])
+    expect(view.failedPairs).toBe(0)
+  })
+
+  test('falha real junto do par fora do plano: "com falhas", só com a falha real na lista', () => {
+    const view = resolveImportStatusView(
+      buildImportStatus({
+        failures: [
+          { errorCode: 'provider_plan_restricted', pairs: 2 },
+          { errorCode: 'persistence_failed', pairs: 1 },
+        ],
+        pairs: {
+          done: 5,
+          failed: 3,
+          notCovered: 0,
+          pending: 2,
+          planRestricted: 2,
+          quotaExhausted: 0,
+          total: 10,
+        },
+      }),
+    )
+
+    expect(view.headline).toBe('failing')
+    expect(view.failures.map((failure) => failure.code)).toEqual(['persistence_failed'])
+    expect(view.failedPairs).toBe(1)
+    expect(view.planRestrictedPairs).toBe(2)
+  })
+
+  test('API antiga, sem `planRestricted`: o par fora do plano continua falha na lista, como antes', () => {
+    const view = resolveImportStatusView(
+      buildImportStatus({
+        failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
+        pairs: { done: 6, failed: 2, notCovered: 0, pending: 2, quotaExhausted: 0, total: 10 },
+      }),
+    )
+
+    expect(view.headline).toBe('failing')
+    expect(view.planRestrictedPairs).toBe(0)
+    expect(view.failures.map((failure) => failure.code)).toEqual(['provider_plan_restricted'])
+    expect(view.failedPairs).toBe(2)
+  })
+
+  test('a data do último ciclo da rotina sai na visão; sem ciclo, null', () => {
+    const withoutCycle = buildImportStatus({ lastRun: null })
+
+    expect(resolveImportStatusView(buildImportStatus()).lastRunFinishedAt).toBe(
+      '2026-10-09T09:31:00.000Z',
+    )
+    expect(resolveImportStatusView(withoutCycle).lastRunFinishedAt).toBeNull()
+  })
+
+  test('a manchete de cota não existe mais: ninguém a alcançava', () => {
+    expect(Object.values(HOLIDAY_IMPORT_HEADLINE)).not.toContain('quota')
+    expect(Object.keys(portuguese.import.status.headline)).not.toContain('quota')
+    expect(Object.keys(portuguese.import.status.explain)).not.toContain('quota')
+    expect(Object.keys(english.import.status.headline)).not.toContain('quota')
+    expect(Object.keys(english.import.status.explain)).not.toContain('quota')
   })
 
   test('total zero não divide por zero', () => {
@@ -372,6 +546,51 @@ describe('leitura do status que a tela imprime', () => {
 })
 
 describe('locale da importação', () => {
+  test('toda manchete tem título e explicação nos dois idiomas, e os dois idiomas têm as mesmas chaves', () => {
+    for (const headline of Object.values(HOLIDAY_IMPORT_HEADLINE)) {
+      for (const messages of [portuguese.import.status, english.import.status]) {
+        expect(Object.keys(messages.headline)).toContain(headline)
+        expect(Object.keys(messages.explain)).toContain(headline)
+      }
+    }
+    expect(Object.keys(english.import.status).sort()).toEqual(
+      Object.keys(portuguese.import.status).sort(),
+    )
+  })
+
+  test('as manchetes de fornecedor dizem o que fazer, em pt-BR', () => {
+    const { explain, headline } = portuguese.import.status as unknown as {
+      explain: Record<string, string>
+      headline: Record<string, string>
+    }
+
+    expect(headline.unauthorized).toBe(
+      'Fornecedor recusou o acesso: token inválido ou plano sem cobertura',
+    )
+    expect(explain.unauthorized).toContain('chave')
+    expect(explain.unauthorized).toContain('plano')
+    expect(explain.unauthorized).toContain('Operações')
+    expect(headline.unreachable).toBe('Fornecedor indisponível, tentando de novo')
+    expect(headline.malformed).toBe('Resposta inesperada do fornecedor')
+    expect(explain.malformed).toContain('suporte')
+    expect(explain.waiting).toContain('Operações')
+    expect(explain.waiting).toContain('sem token')
+  })
+
+  test('o aviso de plano e a data do ciclo têm texto no singular e no plural, nos dois idiomas', () => {
+    const statuses = [portuguese.import.status, english.import.status] as unknown as Record<
+      string,
+      unknown
+    >[]
+
+    for (const messages of statuses) {
+      expect(typeof messages.planRestricted_one).toBe('string')
+      expect(typeof messages.planRestricted_other).toBe('string')
+      expect(typeof messages.planRestrictedHint).toBe('string')
+      expect(typeof messages.lastRun).toBe('string')
+    }
+  })
+
   test('todo código de falha da rotina tem texto nos dois idiomas', () => {
     for (const code of HOLIDAY_FETCH_FAILURE_CODES) {
       expect(Object.keys(portuguese.import.failures)).toContain(code)
