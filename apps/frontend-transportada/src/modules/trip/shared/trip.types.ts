@@ -82,6 +82,36 @@ export type TripAmounts = Readonly<{
   revenueSource: TripRevenueSource
   /** Ausente pelo mesmo motivo de `documentsTotal` (spec 153 T710) — nunca vira zero. */
   revenueTotal?: string
+  /**
+   * Spec 259: gasto, lucro e margem da mesma conta do detalhe. Nascem opcionais (spec 078 D2: o
+   * painel publica antes da API) e somem sem `trip.financials`, como a receita.
+   */
+  costTotal?: null | string
+  /** `true` quando a valoração tem lacuna (custo ou receita incompleta): o lucro sai marcado "parcial". */
+  hasGaps?: boolean
+  marginPercentage?: null | string
+  marginTotal?: null | string
+}>
+
+/** Spec 259: a fatia de volume da ocupação na linha da lista — `null` quando não há capacidade em m³. */
+export type TripListVolumeOccupancy = Readonly<{
+  documentsWithoutVolume: number
+  occupancyRatio: string
+  source: TripOccupancy['source']
+}>
+
+/** Spec 259: a fatia de peso da ocupação na linha da lista — `null` quando a ficha não tem teto. */
+export type TripListWeightOccupancy = Readonly<{
+  documentsWithoutWeight: number
+  payloadRatio: string
+  source: TripCargoWeight['source']
+}>
+
+/** Spec 259: o resumo de ocupação do item de `GET /trips`. Não é o `TripOccupancy` do detalhe. */
+export type TripOccupancySummary = Readonly<{
+  capacityUnknownReason: CapacityUnknownReason | null
+  volume: TripListVolumeOccupancy | null
+  weight: TripListWeightOccupancy | null
 }>
 
 export type Trip = Readonly<{
@@ -106,6 +136,11 @@ export type Trip = Readonly<{
   /** Spec 107 D3: o ETA mais tardio das paradas — quando este caminhão fica livre. */
   estimatedFinishAt?: null | string
   id: string
+  /**
+   * Spec 259: a ocupação da linha da lista (o campo `occupancy` do item, renomeado porque o detalhe
+   * usa o mesmo nome com outra forma). Ausente é API anterior, viagem sem veículo ou resposta malformada.
+   */
+  occupancySummary?: TripOccupancySummary | null
   /** Spec 065 D4c: `null` é "derive da classificação das notas", não "não precisa". */
   requiresMdfe: boolean | null
   requiresMdfeReason: null | string
