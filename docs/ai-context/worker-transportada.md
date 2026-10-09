@@ -584,7 +584,7 @@ nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termo
   cidade vira `scope=state` + UF, o `NACIONAL` fora do pedido nacional é descartado, e duas datas na mesma
   `(escopo, ibge, data)` viram uma — vence a não facultativa. **O token não aparece em erro nenhum por construção:**
   `HolidayProviderError` tem como mensagem só o próprio código (`malformed_response`, `provider_not_found`,
-  `provider_rate_limited`, `provider_unauthorized`, `provider_unreachable`); URL, cabeçalho, corpo e mensagem da
+  `provider_plan_restricted`, `provider_rate_limited`, `provider_unauthorized`, `provider_unreachable`); URL, cabeçalho, corpo e mensagem da
   rede nunca entram (nem a mensagem do Zod, que ecoa o valor recusado).
 - **Descoberta (T3.2)** — `application/discover-holiday-cities.use-case.ts`. Por empresa ativa e com a importação ligada
   (`company_holiday_import_settings.is_enabled`, sem linha vale ligada), anda `nfe_documents` pelo cursor do índice
@@ -605,8 +605,9 @@ nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termo
   linha; um `UPDATE` cru pararia a rotina para sempre) —, e então o limitador (`request-limiter.ts`, 1,2 s entre
   inícios de requisição, relógio e `sleep` injetados). Desfechos: sucesso = `done`, `next_attempt_at` +180 dias;
   404 = `not_covered` +90 dias; 5xx/rede/fora do formato = `failed`, recuo 1 h, 6 h, 24 h, 7 dias; 429 = `failed` com
-  `provider_rate_limited`, espera o `Retry-After` (1 h sem cabeçalho) e **encerra o ciclo**; 401/403 encerram sem tocar no
-  par; orçamento esgotado marca o par em curso e os que sobraram `quota_exhausted` até o dia 1º de São Paulo. Uma
+  `provider_rate_limited`, espera o `Retry-After` (1 h sem cabeçalho) e **encerra o ciclo**; 401 encerra sem tocar no
+  par; orçamento esgotado **só encerra o ciclo** (texto da T3.3 superado pela 2ª rodada, abaixo: nenhum par muda e
+  `quota_exhausted` já não é gravado). Uma
   cidade que falha não derruba as outras. Página cheia pede a seguinte só se trouxe data nova (no máximo 10). A resposta
   boa grava entradas (chave `(scope, ibge_code, holiday_on)`; o estadual de uma cidade vai para `state` + UF), marca
   `removed_at` só no escopo e código do par e só se a resposta listou data dele, e fecha o par, tudo numa transação.

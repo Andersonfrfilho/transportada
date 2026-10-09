@@ -493,7 +493,8 @@ Aba **Calendário**: três blocos novos ao fim — "Importação de feriados" (m
 (`removedByProvider` é `{ items, truncated }`) e "Feriados desligados" (`GET /holiday-imports/suppressions` paginada de 20). Linha **importada** oferece
 "Desligar" (`POST /holiday-imports/suppressions { holidayId, scope }`), não "Excluir"; **restaurar volta na próxima execução diária** e o texto diz isso.
 `409 HOLIDAY_IMPORT_PAST_DATE` / `HOLIDAY_IMPORT_DATE_LOCKED` / `HOLIDAY_NOT_IMPORTED` têm texto próprio. A coluna Origem lê `origin?: 'typed' | 'imported'`
-**opcional** da linha (a API ainda não o manda: sem ele a célula fica vazia, nunca "cadastrada" por chute). Cliente próprio
+**opcional** da linha (a API o manda desde 2026-10-09; sem ele a célula fica vazia, nunca "cadastrada" por chute). A manchete "Sem cota" hoje não
+aparece (a rotina não grava mais `quota_exhausted`; docs/ai-context § "Spec 252 T5.2/T5.3"). Cliente próprio
 (`holidayImportClient.service.ts`), guardas de chaves exatas, namespace `businessCalendar.import.*`. Contratos: `test/business-calendar/holiday-import.contract.ts`
 e `test/trip-hooks/business-calendar-import-*.contract.ts`.
 

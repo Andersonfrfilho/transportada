@@ -3344,8 +3344,9 @@ não tem linha gerada).
   a serializam. A auditoria `…saved|updated|deleted` passa a levar `origin` nos snapshots antes/depois (aditivo).
 - **O id do cache não sai** (`provider_entry_id` não está no registro nem na visão); `origin` não é entrada (corpo com `origin` é 400, os esquemas são `.strict()`).
 - ⚠️ **Ordem de publicação:** o painel publicado tem guardas de chaves **exatas** (`apps/frontend-transportada/src/modules/company-settings/shared/businessCalendarGuards.validation.ts`)
-  e **recusaria** a resposta com a chave nova. O painel da T5.2 (`work/252-t5`) aceita `origin` como **opcional**. Portanto: **painel primeiro, API depois**.
-  Esta mudança não foi publicada (sem push); quem publica escolhe a ordem.
+  e **recusaria** a resposta com a chave nova. O painel da T5.2 aceita `origin` como **opcional**. Portanto: **painel primeiro, API depois**.
+  **Em staging a ordem foi cumprida em 2026-10-09** (painel `9d8e285d9`, Deploy verde das 12:19Z; API `c315477a3`, Deploy verde das 12:37Z). **Em produção
+  a regra volta:** no `deploy.yml` o `deploy-frontend` tem `needs: deploy-api`, então um único PR sobe a API antes do painel; promover o painel antes ou aceitar a janela por decisão.
 - Provas: `test/business-calendar-rules/{holiday-routes,holiday-routes-write,state-routes,state-routes-other}.contract.ts`,
   `test/integration/holiday-origin.integration.ts` (banco real: importada, digitada, gerada, adoção por `POST` e por `PATCH`). Evidência e mutações:
   `specs/252-*/evidence.md` § "origin nas listas".

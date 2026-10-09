@@ -1517,8 +1517,10 @@ invalidam só o que mudou (`useHolidayImport.mutation.ts`; excluir/editar/adotar
 `unknown`) vem de `origin?` da linha; `HolidayTableRow` troca "Excluir" por "Desligar" na importada e `HolidayDeleteDialog` ganha a variante `imported` e a ressalva de que
 apagar a digitada de hoje em diante também a suprime.
 
-⚠️ **A API ainda não manda `origin` nas listas** (pendência no `evidence.md`): o guarda aceita a chave **opcional** (`hasKeys`), nunca amplia o conjunto de chaves aceitas além de
-`origin`. ⚠️ "Rotina pausada" não existe no status da importação: a manchete é "Aguardando a primeira execução". `/holiday-imports/cities` não tem tela.
+✅ **A API manda `origin` nas listas desde 2026-10-09** (`c315477a3`, publicada depois deste painel): o guarda aceita a chave **opcional** (`hasKeys`) e nunca amplia o conjunto de chaves aceitas além de
+`origin`; sem a chave a célula continua em branco. ⚠️ "Rotina pausada" não existe no status da importação: a manchete é "Aguardando a primeira execução". `/holiday-imports/cities` não tem tela.
+⚠️ **A manchete "Sem cota" hoje não aparece:** ela vem de `pairs.quotaExhausted > 0`, e a rotina, desde a 2ª rodada da Fase 3, não grava mais `quota_exhausted` (orçamento esgotado só encerra o
+ciclo). O consumo do mês aparece em "Requisições do mês". Decisão pendente da revisão final: a API expor o orçamento (o status só traz `monthlyRequests`) para a tela derivar o "sem cota", ou remover a manchete.
 
 **Montagem** (`modules/trip`): `holidayWarningPlan.service.ts` (`planDayChecks`, `matchDayCheckWarnings`, `toSaoPauloCivilDate`, teto `DAY_CHECKS_MAX_ITEMS = 200`),
 `solverHolidayWarnings.service.ts` (a pergunta e `isFinishCovered`: o término só deixa de avisar o feriado nacional quando a última parada foi conferida),
