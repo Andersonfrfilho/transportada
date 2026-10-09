@@ -110,6 +110,14 @@ de São Paulo da ETA, cidade = 1º segmento do `address_key` (`readStopCityCode`
 parada**; reaproveita os calendários do prazo da 236 (`calendarSink`) — **+0 ou +4**, nunca +10. A nota do motorista e o prazo não leem o aviso.
 ⚠️ `stops: stopRecords.map(` só pode aparecer uma vez em `drizzle-trip.repository.ts` (`stop-label-refresh.contract` indexa o primeiro). Detalhe:
 docs/ai-context § "Spec 252 T4.2".
+`GET /me/trips/current` também avisa (spec 252 T4.3, ADR-0100 D12): `stops[].holidayWarnings`, no mesmo formato do detalhe, **chamado pelo caso de uso**
+(`find-current-driver-trip.use-case.ts` → `attach-driver-stop-holiday-warnings.service.ts`), nunca pelo repositório da leitura, e **sem** `trip-holiday-warning.support.ts`
+(que carrega o prazo da 236): usa `DrizzleHolidayWarningRepository` (`readHolidayWarnings` direto) e `DrizzleDriverStopHolidayContextRepository` (UMA consulta: ETA,
+`address_key` e o endereço da nota). Só parada **não concluída com ETA**; data = dia civil de São Paulo da ETA, ou **hoje** com a parada em andamento (`arrived_at` ou
+`en_route_since`); `cityName` só se o código do endereço da nota for o da parada. Custo: **+5 consultas fixas** (1 de contexto + 4 do calendário, em série) sobre as 25 da leitura,
+com 1 ou 30 paradas; +1 sem ETA em nenhuma parada, +0 sem parada aberta. Falha ou calendário recusado só tira o aviso e loga `driver_holiday_warning_unavailable` (ids e contagem). A nota,
+a pontualidade do comprovante, `missingAfterHours` e o repositório da leitura **não citam** `business-calendar` nem `holiday-warning` — nem em comentário (contrato
+`driver-holiday-warning-isolation`). Detalhe: docs/ai-context § "Spec 252 T4.3".
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é

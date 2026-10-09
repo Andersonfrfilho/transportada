@@ -146,6 +146,27 @@ lacuna aceita: um usuário com `fleet.read` pode repetir a consulta). Sem dado p
 
 **Origem:** spec 252 T4.2. Registrado em 2026-10-09.
 
+### 2026-10-09 — spec 252 T4.3 — o aviso de feriado em `GET /me/trips/current`: o que o motorista passa a ler e o que continua fora do alcance dele
+
+**Onde:** `api-transportada`, `trips/application/attach-driver-stop-holiday-warnings.service.ts`, `trips/infrastructure/drizzle-driver-stop-holiday-context.repository.ts`; ADR-0100 D12.
+
+**O que o motorista passa a receber:** por parada **dele** (o recorte pelo vínculo `trip_drivers` é o `where` do repositório da leitura e não mudou), a data, o código IBGE da cidade e o nome dela
+(`nfe_addresses.city` da nota que ele já entrega), e por causa do fechamento o escopo, a origem e o **nome do feriado** que a empresa cadastrou ou importou. É o que a tela de cadastro do calendário já
+mostra a quem tem `fleet.read`; o motorista não ganha rota nova, nem permissão (`trip.read` de sempre). O nome do feriado nacional sai como chave estável, não como texto.
+
+**O que não sai:** nada de outra empresa (a carga do calendário leva o `companyId` do contexto autenticado — provado com feriado de outra empresa), nada de outra viagem (a consulta de contexto recebe só os ids das
+paradas das viagens que o recorte já devolveu, e filtra a empresa também), nada do cache global do fornecedor (o aviso lê só `municipal_holidays`/`state_holidays` da empresa, como o resto do calendário), nada do
+endereço além do nome do município e nada do documento do destinatário (a consulta nem seleciona o nome nem o CNPJ).
+
+**Custo e disponibilidade:** +5 consultas fixas por leitura (1 de contexto e 4 do calendário), com 1 ou 30 paradas; a leitura do app é o caminho crítico do motorista, então qualquer falha do aviso só tira o aviso
+(`driver_holiday_warning_unavailable`: `companyId`, `tripIds`, contagem e, na recusa do calendário, o código — nunca cidade, endereço, destinatário nem a mensagem do erro). **Lacuna aceita:** o log não é coalescido
+e `nfe_addresses` não tem índice por `(company_id, participant_id)` — a junção do contexto não foi medida em escala (como a `listStopAddresses` do detalhe).
+
+**A nota do motorista não muda com feriado (CA16):** o score, a pontualidade do comprovante, `missingAfterHours` e a fila de fotos pendentes não citam o calendário nem o aviso (contrato estático
+`driver-holiday-warning-isolation`, que vigia o texto dos arquivos, e integração antes/depois de cadastrar feriado em todos os dias da história).
+
+**Origem:** spec 252 T4.3. Registrado em 2026-10-09.
+
 ### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
 
 **Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,
