@@ -446,6 +446,10 @@
         "label": "Configurar a empresa",
         "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
       },
+      "holiday-import.configure": {
+        "label": "Configure the key and budget of the holiday import",
+        "where": "The access key to the holiday provider and the monthly request ceiling, for the whole installation."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."

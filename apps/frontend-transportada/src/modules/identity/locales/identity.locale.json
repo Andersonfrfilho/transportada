@@ -446,6 +446,10 @@
         "label": "Configurar a empresa",
         "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
       },
+      "holiday-import.configure": {
+        "label": "Configurar a chave e o orçamento da importação de feriados",
+        "where": "A chave de acesso ao fornecedor de feriados e o teto mensal de consultas, para toda a instalação."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."

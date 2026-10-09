@@ -92,6 +92,8 @@ export const COMPANY_PERMISSIONS = [
    * sai de carona com acompanhar entrega, pela mesma régua da ADR-0050 §6.
    */
   'occurrences.decide',
+  /** Spec 262 D6: a chave e o orçamento da importação de feriados são da instalação, não de `settings.manage`. */
+  'holiday-import.configure',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
