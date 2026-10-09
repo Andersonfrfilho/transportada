@@ -29,11 +29,15 @@ const EMPTY_DISCOVERY: DiscoveryTally = {
   failedCompanies: 0,
 }
 const EMPTY_FETCH: FetchTally = {
+  allNotFound: false,
   budgetExhausted: false,
   ceilingReached: false,
+  circuitOpened: false,
+  entriesDiscarded: 0,
   malformedResponses: 0,
   pairsFetched: 0,
   pairsNotCovered: 0,
+  planRestricted: 0,
   rateLimited: false,
   requests: 0,
   unauthorized: false,
@@ -163,6 +167,37 @@ describe('a rotina `holiday.provider.pull` (spec 252 T3.5)', () => {
       expect(result.outcome).toBe(expected as never)
       expect(isJobOutcome({ job: HOLIDAY_PROVIDER_PULL_JOB, outcome: result.outcome })).toBeTrue()
     }
+  })
+
+  test('um ciclo em que todo pedido deu 404 fecha em `malformed_response`, não em `succeeded`', async () => {
+    const { routine } = build({ fetch: { allNotFound: true, pairsNotCovered: 4, requests: 4 } })
+
+    const result = await routine.run(buildContext())
+
+    expect(result.outcome).toBe('malformed_response')
+  })
+
+  test('plano restrito: sem nenhum par buscado fecha em `provider_unauthorized`; com algum, é só contador', async () => {
+    const nothingWorked = build({ fetch: { pairsFetched: 0, planRestricted: 3, requests: 3 } })
+    const someWorked = build({ fetch: { pairsFetched: 2, planRestricted: 1, requests: 3 } })
+
+    const bad = await nothingWorked.routine.run(buildContext())
+    const fine = await someWorked.routine.run(buildContext())
+
+    expect(bad.outcome).toBe('provider_unauthorized')
+    expect(fine.outcome).toBe('succeeded')
+    expect(fine.counters).toMatchObject({ plan_restricted: 1 })
+  })
+
+  test('o disjuntor aberto e as datas descartadas aparecem nos contadores', async () => {
+    const { routine } = build({
+      fetch: { circuitOpened: true, entriesDiscarded: 7, requests: 3, unreachable: 3 },
+    })
+
+    const result = await routine.run(buildContext())
+
+    expect(result.outcome).toBe('provider_unreachable')
+    expect(result.counters).toMatchObject({ circuit_opened: 1, entries_discarded: 7 })
   })
 
   test('falha nossa vence a do fornecedor e fecha em `unexpected_error`', async () => {

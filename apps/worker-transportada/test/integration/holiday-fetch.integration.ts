@@ -222,13 +222,14 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
     expect([...rows].map((row) => Number(row.requests))).toEqual([2])
   })
 
-  test('orçamento esgotado deixa os pares que sobraram `quota_exhausted` até o dia 1º do mês seguinte', async () => {
+  test('orçamento esgotado só encerra o ciclo: nenhum par muda, e aumentar o orçamento solta o resto no ciclo seguinte', async () => {
     const [cityA, cityB] = [randomCityCode(), randomCityCode()] as [string, string]
     await seedDemand([
       [cityA, 20],
       [cityB, 10],
     ])
-    const { client, run } = build({ budget: 3, now: new Date('2032-03-15T12:00:00.000Z') })
+    const now = new Date('2032-03-15T12:00:00.000Z')
+    const { client, run } = build({ budget: 3, now })
 
     const tally = await run()
 
@@ -237,14 +238,66 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
     const usage = await db.execute<{ requests: number }>(sql`
       select requests from holiday_provider_monthly_usage where month = '2032-03-01'`)
     expect([...usage].map((row) => Number(row.requests))).toEqual([3])
-    const exhausted = await db.execute<{ next_attempt_at: Date; status: string }>(sql`
-      select status, next_attempt_at from holiday_provider_fetches
-      where status = 'quota_exhausted' and year between 2032 and 2033`)
-    const rows = [...exhausted]
-    expect(rows.length).toBeGreaterThan(0)
-    for (const row of rows) {
-      expect(new Date(row.next_attempt_at).toISOString()).toBe('2032-04-01T03:00:00.000Z')
-    }
+    const untouched = await db.execute<{ n: number }>(sql`
+      select count(*)::int as n from holiday_provider_fetches
+      where status = 'quota_exhausted' or (scope = 'city' and ibge_code = ${cityB} and year between 2032 and 2033)`)
+    expect(Number([...untouched][0]?.n)).toBe(0)
+
+    const bigger = build({ budget: 5000, now })
+    await bigger.run()
+    const fetched = bigger.client.requests
+      .filter((request) => request.scope === 'city')
+      .map((request) => `${request.ibgeCode}:${request.year}`)
+    expect(fetched).toEqual([`${cityA}:2033`, `${cityB}:2032`, `${cityB}:2033`])
+  })
+
+  test('resposta boa que o banco recusa (NUL no nome) deixa o par `failed` com recuo e não repete a requisição todo dia', async () => {
+    const [cityA, cityB] = [randomCityCode(), randomCityCode()] as [string, string]
+    await seedDemand([
+      [cityA, 20],
+      [cityB, 10],
+    ])
+    const now = new Date('2034-03-15T12:00:00.000Z')
+    const poisoned = (request: HolidayProviderRequest): HolidayProviderPage =>
+      request.scope === 'city' && request.ibgeCode === cityA
+        ? pageOf([
+            entryOf({
+              date: `${request.year}-07-14`,
+              ibgeCode: cityA,
+              name: 'Anivers\u0000ário',
+              scope: 'city',
+            }),
+          ])
+        : standardResponse(request)
+    const first = build({ now, respond: poisoned })
+
+    const tally = await first.run()
+
+    expect(tally.unexpectedFailures).toBeGreaterThanOrEqual(2)
+    const rows = await db.execute<{
+      attempts: number
+      last_error_code: string | null
+      next_attempt_at: Date
+      status: string
+    }>(sql`
+      select status, attempts, last_error_code, next_attempt_at from holiday_provider_fetches
+      where scope = 'city' and ibge_code = ${cityA} and year = 2034`)
+    const [row] = [...rows]
+    expect([row?.status, Number(row?.attempts), row?.last_error_code]).toEqual([
+      'failed',
+      1,
+      'persistence_failed',
+    ])
+    expect(new Date(row?.next_attempt_at ?? 0).getTime()).toBe(now.getTime() + 3_600_000)
+    const saved = await db.execute<{ n: number }>(sql`
+      select count(*)::int as n from holiday_provider_entries where scope = 'city' and ibge_code = ${cityA}`)
+    expect(Number([...saved][0]?.n)).toBe(0)
+    expect(first.client.requests.some((request) => request.ibgeCode === cityB)).toBeTrue()
+
+    // O mesmo dia, de novo: o par está no recuo e não é pedido outra vez.
+    const again = build({ now, respond: poisoned })
+    await again.run()
+    expect(again.client.requests.filter((request) => request.ibgeCode === cityA)).toHaveLength(0)
   })
 
   test('falha do fornecedor grava o recuo no par, 404 vira `not_covered` e só os pares vencidos voltam', async () => {
@@ -400,6 +453,14 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
     await db.execute(sql`
       insert into holiday_import_cities (company_id, city_ibge_code, document_count)
       values (${disabledCompany}, ${disabledCity}, 99)`)
+    const suspendedCompany = crypto.randomUUID()
+    const suspendedCity = randomCityCode()
+    await db.execute(
+      sql`insert into companies (id, status) values (${suspendedCompany}, 'disabled')`,
+    )
+    await db.execute(sql`
+      insert into holiday_import_cities (company_id, city_ibge_code, document_count)
+      values (${suspendedCompany}, ${suspendedCity}, 99)`)
     const { client, run } = build({ now: new Date('2038-03-15T12:00:00.000Z') })
 
     await run()
