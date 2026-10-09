@@ -197,9 +197,11 @@ null` em `municipal_holidays` e `state_holidays` (FK composta `(id, ibge, data)`
   com as outras rotinas opcionais.
 - Primeiro pedido do mês: o contador nasce no upsert (nunca um `UPDATE` sem linha que pararia a rotina).
 - Duas entradas do fornecedor no mesmo dia e cidade (facultativo e municipal): vence a não facultativa.
-- 401/403: ciclo encerra com `provider_unauthorized`, nenhuma requisição a mais.
+- 401: ciclo encerra com `provider_unauthorized`, nenhuma requisição a mais (402/403 numa cidade restringem só o par,
+  `provider_plan_restricted`, e o ciclo segue — 2ª rodada da Fase 3, ADR-0100 §5).
 - 429: ciclo encerra e o próximo respeita `Retry-After`.
-- Orçamento mensal atingido: pares ficam `quota_exhausted` até o dia 1º; não é falha.
+- Orçamento mensal atingido: o ciclo encerra e **nenhum par muda** (revisto na 2ª rodada da Fase 3; antes os pares
+  ficavam `quota_exhausted`); não é falha.
 - 404 ou cidade fora da cobertura: `not_covered`, nova tentativa em 90 dias.
 - 5xx/timeout: backoff 1 h, 6 h, 24 h, até 7 dias.
 - Resposta fora do formato: `malformed_response`, nada gravado daquele par.

@@ -1186,3 +1186,139 @@ compartilhada por valor mudou (`stop-address-key.ts` intacto).
 ### O que NÃO foi feito
 
 Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.
+
+## T6.1 — fechamento (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t6` a partir de `origin/staging` (`c5aa114a5`), **só documentação, sem push**. Nenhum arquivo de `apps/**/src` ou
+`test` foi tocado; não revisa nem muda código (a revisão final `opus` roda em separado, e os acréscimos dela a esta seção estão incorporados abaixo). **As seções antigas deste
+arquivo citam SHAs de antes dos rebases e de branches locais; os que valem são os do quadro abaixo**, achados com `git log origin/staging --grep` e conferidos com
+`merge-base --is-ancestor` contra `origin/staging` e `origin/main`.
+
+### Quadro único (SHAs em `origin/staging`, na ordem teste vermelho → código → reforços → documentação)
+
+"Deploy" é o primeiro run **verde** do workflow `Deploy` (branch `staging`) que contém o commit de código, em UTC, com o número do run; "produção" é `origin/main`
+(`a00ff8e63`, PR #154, 2026-10-09 03:13Z, Deploy verde `37878296967`).
+
+| Fase / task                                                | SHAs publicados em staging                                                                                                                                                                                                              | Deploy verde (UTC)                   | Produção |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------- |
+| Fundação: spec, plano, ADR-0100                            | `2d069a110` ADR, `bc81d064c` spec/plano/tarefas, `3f5f44e1c` SECURITY, `eaa2a7eb7` motorista (D12)                                                                                                                                      | só documentação                      | sim      |
+| T0.1 validação do ADR-0100 · T0.2 plano reconferido        | `e1b8a812a` · `eddd02018`, `c579e5107`                                                                                                                                                                                                  | só documentação                      | sim      |
+| T1.1 + T1.2 roteirizador por cidade (spec 238 "F1")        | `913aad994` (vermelho) · `4454228ac` (correção) · `1754e36e7` (evidência)                                                                                                                                                               | 2026-10-07 21:33Z, run `37690290352` | **sim**  |
+| T5.1 painel tolerante · T5.1b app do motorista tolerante   | `f37457a8d` (painel) · `928c7bb8c` (app; a mensagem diz "painel" por engano) · docs `bc4ad321b`, `a3a19e6e9`                                                                                                                            | 2026-10-07 22:07Z, run `37694127666` | **sim**  |
+| T2.1 contratos do modelo                                   | `76d9245c2`                                                                                                                                                                                                                             | 2026-10-09 04:53Z, run `37885956473` | não      |
+| T2.2 migration `20261009040622_holiday_provider_import`    | `54539fce7` · refeita sobre a staging nova `ef512a6d6` · 2ª rodada `648a346b8` (contratos) → `e24f3326b` (SQL) · docs `770ecd6fd`, `6548ead27`                                                                                          | idem (mesmo run)                     | não      |
+| T2.3 `holiday.provider.pull` nas quatro cópias do catálogo | `2f6add63f` painel · `b49b22102` API · `f02ccbef6` worker · `fc777a9d5` cron · docs `a42401e02`                                                                                                                                         | idem (mesmo run)                     | não      |
+| T4.1 gestão da importação (API)                            | `929cca352` → `c01dc388b` · docs `a8c4909fc` · 2ª rodada `588fd37de` → `0fa7e54bf` · docs `e770d57ce`                                                                                                                                   | 2026-10-09 06:42Z, run `37894932370` | não      |
+| T4.2 aviso de feriado: `day-checks` e detalhe da viagem    | `d921cd91a` → `fb367ef51` · docs `2dab86cb4`                                                                                                                                                                                            | idem (mesmo run)                     | não      |
+| T3.1 cliente HTTP da FeriadosAPI                           | `babc65e65` → `a85d55df8` · docs `b9961ca74`                                                                                                                                                                                            | 2026-10-09 07:03Z, run `37896868298` | não      |
+| T3.2 descoberta das cidades                                | `d747faf99` → `fa1a70809` · `c4ee4ca17` · docs `207261873`                                                                                                                                                                              | idem (mesmo run)                     | não      |
+| T3.3 busca no fornecedor                                   | `29ac494a7` → `b9a6c1b2a` · `3673bd1e5`, `e9c53cad9` · docs `74f6ac3d6`                                                                                                                                                                 | idem (mesmo run)                     | não      |
+| T3.4 aplicação no calendário                               | `0c14e9222` → `8a03ada89` · `86039a275` · docs `4d388ac5a`                                                                                                                                                                              | idem (mesmo run)                     | não      |
+| T3.5 registro condicional, ambiente e token fora do log    | `4e35fdd58` → `a8dd44342` · refatoração de tamanho `6bd0c39eb` · `ad48aea57` · docs `82f32956a`                                                                                                                                         | idem (mesmo run)                     | não      |
+| 2ª rodada da Fase 3 (revisão `opus`)                       | `470977bf9` → `4bcf3f0b6` · `e59567ebc` · paridade da chave de parada `077d036c6` · docs `891587b71`, `5e566edf2`                                                                                                                       | idem (mesmo run)                     | não      |
+| T4.3 aviso no `GET /me/trips/current`                      | `36e36afb0` (linha de base) · `51284bc85` (vermelhos) → `414afee58` · `9618d940c` · docs `e37ba3ef6` · fechamento `daae4d6a8` → `24c5661d4` · docs `40477e4f1`                                                                          | 2026-10-09 07:42Z, run `37900555259` | não      |
+| T5.4 aviso no app do motorista                             | `d6e6d2036` (código) · `98eb33641` (relógio corrigido) · docs `435b03926`                                                                                                                                                               | 2026-10-09 11:32Z, run `37924408807` | não      |
+| T5.2 aba Calendário · T5.3 avisos da montagem e selo       | T5.2 `eb409b3d6`, `68740c22e` (vermelhos) → `9d8e285d9` · `9038ec45c` (rótulos curtos e smoke de prints) · T5.3 `39fa8c293` → `e7a85b274` · `61a13b98e` · `c73387ba8` (largura cheia) · docs `5fa8a4b12` · prints aprovados `dff0b432d` | 2026-10-09 12:19Z, run `37929232812` | não      |
+| `origin` nas listas de feriado (API, **depois** do painel) | `86f537b72` (vermelhos) → `c315477a3` · `885fbda31` (prettier) · docs `c5aa114a5`                                                                                                                                                       | 2026-10-09 12:37Z, run `37931278933` | não      |
+| T6.1 documentação viva                                     | esta branch (`work/252-t6`), **sem push**                                                                                                                                                                                               | —                                    | não      |
+
+Observações do quadro: (1) o Deploy do `dff0b432d` (11:37Z) **falhou** (o `dc2a7cd63`, "prettier no evidence.md depois do rebase", o corrigiu; o run verde das 12:19Z é o dele); (2) a ordem
+de publicação do `origin` foi cumprida em staging: painel (12:19Z) antes da API (12:37Z); (3) a T5.4 (11:32Z) subiu antes das telas do painel (12:19Z), o que o plano permite (as três
+telas só dependem da API dos avisos); (4) a migration só existe em staging (Q2).
+
+### O que está em staging × o que falta para produção
+
+- **Em staging (tudo da 252):** migration, catálogo de jobs nas quatro apps (rotina pausada de fábrica), worker (rotina inerte sem token), API (gestão, avisos, `origin`), painel (aba
+  Calendário, avisos da montagem, selo do detalhe) e app do motorista (aviso por parada). Nada disso fala com o fornecedor: sem `FERIADOS_API_TOKEN` a rotina nem é registrada. O estado
+  vivo da linha de `job_schedules` em staging (pausada, `paused_origin = 'system'`) é o desenho da migration (D13); **não foi consultado nesta task**.
+- **Em produção (`main`):** só o roteirizador por cidade (T1.1/T1.2) e os clientes tolerantes (T5.1/T5.1b), pelo PR #154. **Falta tudo o mais**: migration (aprovação própria, Q2), API, worker,
+  cron, painel e app do motorista.
+
+### Promoção a produção: três PRs, nesta ordem
+
+O `deploy.yml` sobe a API **antes** do frontend (`deploy-frontend` tem `needs: deploy-api`). Um PR único `staging → main` poria no ar a API com `origin` antes do painel, e a aba Calendário de
+produção (guardas de chaves exatas) recusaria as listas até o painel entrar. Por isso:
+
+1. **PR1, só o painel tolerante:** guardas com `origin` opcional e o catálogo de jobs do painel com `holiday.provider.pull` (T5.1/T5.1b já estão em `main`; falta o catálogo `2f6add63f` e a
+   tolerância a `origin` que veio com a T5.2). Sem API nova, sem migration.
+2. **PR2, API com a migration, worker e cron:** a rotina nasce **pausada** e o worker fica **inerte sem token**. Esta é a que precisa de **aprovação própria do usuário** (migration, Q2).
+3. **PR3, as telas T5.2, T5.3 e T5.4 e a API do `origin`**, na ordem painel → API.
+
+Em **cada** PR: conferir a lista de commits contra `main` (o `staging` carrega trabalho de outras sessões e tem back-merge de `main`: montar a branch por `cherry-pick` sobre `origin/main`, como
+na memória "promover prod por branch própria", medindo por conteúdo e não por SHA); `make migration-test` e `db:generate` = `no_changes` no PR2; aprovação humana explícita antes de abrir
+e antes de mergear. **Antes da migration:** medir `select count(*) from municipal_holidays` e `from state_holidays` **no banco certo de produção (`Postgres-Hqfu`; o serviço "Postgres" é outro
+e dá número falso)**; se forem grandes, o `VALIDATE` da CHECK e qualquer índice saem do lote, fora do lock (plano § Riscos, "Lock em `municipal_holidays`/`state_holidays`").
+
+### Condição de promoção: `nfe_addresses` sem índice
+
+`nfe_addresses` não tem índice por `(company_id, participant_id)`. Três leitores fazem `Seq Scan` nela: `GET /me/trips/current` (a junção **nova** do aviso do motorista, T4.3; o caminho crítico do
+app), o detalhe da viagem (`listStopAddresses`) e a descoberta do worker (T3.2: 1,5 ms por lote com 2.100 notas, medido só em teste). **Condição para o PR2/PR3:** `EXPLAIN (ANALYZE)` dos três em
+base de tamanho real, ou uma migration própria com `CREATE INDEX CONCURRENTLY` (fora de transação, em arquivo à parte do lote da 252). Sem a medida, a leitura do motorista é a que mais arrisca.
+
+### Passos do USUÁRIO para ligar (nenhum é da IA)
+
+1. **Conta e chave na FeriadosAPI**, uma chave **por instalação** (o orçamento mora no banco de cada uma, ADR-0021; chave compartilhada divide os 60/min e a cota sem que um banco veja o outro).
+2. **Q3, plano:** escolher o plano (o Developer custa R$ 39/mês com 5.000 consultas; o gratuito cobre nacionais, estaduais e capitais, e o interior "consome cota" sem a documentação dizer quanto).
+3. **Q4, termos de uso:** confirmar com o fornecedor que **guardar** os feriados é permitido (a página de termos deu 404 em 2026-10-07). Sem isso, não configurar o token.
+4. **`FERIADOS_API_TOKEN`** no serviço do **worker** de staging (Railway; só ASCII visível; nunca com prefixo `VITE_`, nunca em terminal, log ou commit).
+5. **`FERIADOS_API_MONTHLY_REQUEST_BUDGET`:** deixar no valor do plano (o padrão é 4500 = 5.000 menos 10%); **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo, e o ciclo
+   seguinte já parte do mês gasto).
+6. **Despausar `holiday.provider.pull` no painel de Operações** (a linha nasce pausada de fábrica, `paused_origin = 'system'`; o painel mostra o nome cru da rotina, lacuna conhecida da T2.3).
+7. Acompanhar o 1º ciclo (roteiro abaixo) e só então pensar em produção.
+
+### Roteiro do 1º ciclo real (o que o `evidence.md` § "2ª rodada da Fase 3" e o `tasks.md` já trazem, mais a leitura da revisão final)
+
+Depois de despausar, conferir em staging **só por leitura**:
+
+- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`,
+  `provider_plan_restricted` e `persistence_failed` pedem leitura do log (só tem código, nome do erro e par).
+- **O desfecho da execução no painel de rotinas é a fonte para o 401:** `provider_unauthorized` por token recusado **não** aparece em `holiday_provider_fetches` (nenhum par muda). E atenção ao
+  rótulo: **plano restrito em TODAS as cidades buscadas fecha o ciclo como `provider_unauthorized`** ("token recusado" engana: é o plano; conferir o contador `plan_restricted`).
+- Contadores da execução a ler no painel: `requests`, `plan_restricted`, `entries_discarded` (data de outro ano), `discovery_discarded_city_codes` (código de cidade lixo), `national_mismatch`,
+  `municipal_inserted` e `state_inserted`.
+- `holiday_provider_monthly_usage.requests` do mês contra o contador `requests` da execução.
+- Por empresa: `select count(*) from municipal_holidays where company_id = … and provider_entry_id is not null` (e o mesmo em `state_holidays`) contra `municipal_inserted`/`state_inserted`.
+- **Duração do ciclo e lease:** o limitador custa 1,2 s por requisição, então 100 requisições ≈ 2 min de relógio; o lease da execução é de 30 s, renovado a cada 10 s
+  (`run-job-cycle.ts`). Conferir a duração no painel e que nenhuma execução ficou aberta (`job_executions.finished_at is null`).
+- `national_mismatch` maior que zero **é esperado** (o fornecedor lista a Páscoa; o código conta Carnaval e Corpus Christi).
+- As lacunas da forma de resposta (§ T3.1: envelope, paginação, caminho do estado pela sigla, `facultativos`, como o plano e a cota são sinalizados) se confirmam ou se corrigem aqui.
+- Volume esperado (ADR-0100 §5, amostra local): carga inicial ≈ 138 requisições em **2 dias** (teto de 100 por ciclo e ciclo diário), depois ≈ 23 por mês.
+- Na aba Calendário: o bloco "Importação de feriados" deixa de dizer "Aguardando a primeira execução", as linhas importadas aparecem com a origem "Importado" e "Desligar" tira uma data de verdade
+  (com a auditoria `holiday-import.disabled`).
+
+### Runbook de emergência (só por ordem do usuário; a IA não executa nada disto sozinha)
+
+Quando a importação trouxer dado errado ou o fornecedor mudar de comportamento, do mais leve ao mais pesado:
+
+1. **Parar a rotina:** pausar `holiday.provider.pull` no painel de Operações. Nada novo é buscado nem aplicado; o que já foi importado continua valendo.
+2. **Desligar uma empresa** (não há rota; é escrita no banco): `insert into company_holiday_import_settings (company_id, is_enabled) values ('<id>', false) on conflict (company_id) do update set
+is_enabled = false` (sem linha vale "ligada", por isso o `upsert`). A descoberta e a busca deixam de considerar a empresa.
+3. **Suprimir em lote** o que a importação não pode trazer de volta: `insert into holiday_import_suppressions (company_id, scope, ibge_code, holiday_on, suppressed_by_user_id) values (…)`, com `scope`
+   `city` (código de 7 dígitos) ou `state` (2 dígitos), `holiday_on` **>= hoje** em São Paulo e o id do usuário que mandou (NOT NULL); o único é `(company_id, scope, ibge_code, holiday_on)`, então
+   repetir é 23505. A aplicação pula a supressão; o "Restaurar" do painel apaga a linha.
+4. **Remover as linhas importadas de uma empresa** (só se o usuário mandar; apaga a data da empresa): `delete from municipal_holidays where company_id = '<id>' and provider_entry_id is not null` e
+   o mesmo em `state_holidays`. Sem a etapa 2 ou 3, a rotina reinsere no ciclo seguinte. A linha digitada, a adotada (`provider_entry_id` nulo) e a gerada por regra não são tocadas.
+5. **O `rollback.sql` da migration recusa** enquanto houver feriado importado, supressão, empresa com a importação desligada ou execução aberta: o rollback da migration vem **depois** de
+   esvaziar essas três coisas, nunca no lugar delas.
+
+Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data passada alteraria o selo de prazo de nota já entregue, e a supressão de data passada é recusada pela API.
+
+### Achados da T6.1 (para o usuário decidir; nada foi corrigido em código)
+
+1. **A manchete "Sem cota" do painel não aparece mais.** Ela nasce de `pairs.quotaExhausted > 0` (`holidayImportStatus.service.ts` 23), e a 2ª rodada da Fase 3 fez a cota esgotada **só encerrar o
+   ciclo**, sem marcar par `quota_exhausted`. O status só traz `monthlyRequests`, não o orçamento. Decisão: expor o orçamento no status para a tela derivar o "sem cota", ou tirar a manchete.
+   Registrado em `docs/ai-context/frontend-transportada.md`.
+2. **Ordem painel/API em produção:** resolvida no plano de três PRs acima.
+3. **`nfe_addresses` sem índice:** condição de promoção acima.
+4. **Textos de erro desatualizados, corrigidos aqui:** ADR-0100 §5, a linha de orçamento do `spec.md` e o bullet da T3.3 em `docs/ai-context/worker-transportada.md` ainda descreviam o desenho
+   da T0.1/T3.3.
+5. **Documentação que faltava, acrescentada aqui:** app do motorista (T5.1b e T5.4: `docs/ai-context/frontend-driver.md` e `apps/frontend-driver/CLAUDE.md`), `docs/spec/domain-model.md` e a nota do cron.
+   O `tasks.md` ainda dizia "publicação pendente da aprovação dos prints" na T5.4, que está publicada.
+6. **Lacunas herdadas e ainda abertas:** o painel de Operações mostra o nome cru `holiday.provider.pull` (T2.3, sem mecanismo de rótulo); a medida do teto de 200 removidos e da latência do status com
+   milhares de cidades (`L6` da T4, T5.2); o smoke Playwright do app do motorista (T5.4) não foi rodado.
+
+### O que falta para marcar a T6.1 `[x]`
+
+Esta task entregou a **documentação viva**. Ficam fora e continuam abertas: (a) a **revisão final `code-reviewer` `opus`** em passada separada (já rodou em paralelo; seus acréscimos de documentação
+estão acima), com a auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização), e os achados dela que virarem código; (b) a **revisão de design e usabilidade com o
+usuário** (web.md §15), tela real contra os prints aprovados, no painel (T5.2, T5.3) e no app do motorista (T5.4); (c) a decisão sobre os achados acima.
