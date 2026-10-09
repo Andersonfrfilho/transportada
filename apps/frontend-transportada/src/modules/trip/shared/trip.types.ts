@@ -103,7 +103,7 @@ export type TripListVolumeOccupancy = Readonly<{
 /** Spec 259: a fatia de peso da ocupação na linha da lista — `null` quando a ficha não tem teto. */
 export type TripListWeightOccupancy = Readonly<{
   documentsWithoutWeight: number
-  payloadRatio: string
+  payloadRatio: string | null
   source: TripCargoWeight['source']
 }>
 

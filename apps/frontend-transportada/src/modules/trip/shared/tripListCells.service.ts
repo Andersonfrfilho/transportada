@@ -43,7 +43,7 @@ export type OccupancyView =
   | Readonly<{ kind: 'measures'; volume: OccupancyMeasureView; weight: OccupancyMeasureView }>
 
 function weightMeasure(weight: TripListWeightOccupancy | null): OccupancyMeasureView {
-  if (weight === null) return { kind: 'missing', reason: null }
+  if (weight === null || weight.payloadRatio === null) return { kind: 'missing', reason: null }
 
   return {
     kind: 'bar',

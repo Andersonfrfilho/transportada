@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { CAPACITY_UNKNOWN_REASONS } from './trip.constant'
-import { isNullableString, isOneOf, isRecord, isUnsignedInteger } from './tripGuards.validation'
+import { isOneOf, isRecord, isUnsignedInteger } from './tripGuards.validation'
 import type {
   TripListVolumeOccupancy,
   TripListWeightOccupancy,
@@ -35,7 +35,7 @@ function readVolume(value: unknown): TripListVolumeOccupancy | null | undefined 
 function readWeight(value: unknown): TripListWeightOccupancy | null | undefined {
   if (value === null) return null
   if (!isRecord(value)) return undefined
-  const payloadRatio = readRatio(value.payloadRatio)
+  const payloadRatio = value.payloadRatio === null ? null : readRatio(value.payloadRatio)
   if (payloadRatio === undefined) return undefined
   if (!isOneOf(value.source, WEIGHT_SOURCES)) return undefined
   if (!isUnsignedInteger(value.documentsWithoutWeight)) return undefined
@@ -63,7 +63,6 @@ export function readTripListOccupancy(value: unknown): TripOccupancySummary | nu
   if (reason !== undefined && reason !== null && !isOneOf(reason, CAPACITY_UNKNOWN_REASONS)) {
     return undefined
   }
-  if (!isNullableString(reason ?? null)) return undefined
 
   return { capacityUnknownReason: reason ?? null, volume, weight }
 }

@@ -137,3 +137,11 @@
 - `bun run build` → exit 0.
 - `make migration-test` dispensado: `git diff --stat origin/staging...HEAD -- apps/api-transportada/drizzle` vazio (nenhuma migration na branch).
 - `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-list-occupancy-financials.integration.ts` → 9 pass / 0 fail (Postgres local responde).
+
+## Revisão final — correções, 2026-10-09
+
+- A1: `weight.payloadRatio` é `string | null` (ficha sem teto). Antes, `readWeight` recusava `null` e a ocupação inteira virava "—"; agora o volume é preservado e o peso diz "sem teto de carga" (texto já existente `listCells.occupancy.weightMissing`, pt-BR e en), nunca 0%. Vermelho observado antes da correção: parser `Expected: "0.6200" / Received: undefined`; célula `aria-valuenow="NaN"` / `Peso NaN%`. Depois: 25 pass nos dois arquivos; `bun run test` 7761 + 1176 pass, 0 fail; typecheck, eslint `--max-warnings=0` e prettier limpos nos arquivos tocados.
+- M1: `ProgressBar` apara a largura em 0..100 (`resolveProgressPercent`), `isOverCapacity` e a marca "acima do teto" seguem pelo percentual real (1,2 → "Peso 120% · acima do teto"); razão negativa vira largura 0 (o texto mostra o número negativo, sem NaN). NaN não passa do parser (`readRatio`). Contrato novo cobre os dois casos.
+- B3: removido o `isNullableString(reason ?? null)` (código morto após `isOneOf`). B2: não há constante de fontes no módulo; mantido. B4: a tabela de viagens não usa view-preferences (nenhuma referência a `updatedAt`/colunas salvas em `modules/trip`), nada a tratar.
+- M4: `GET /trips` limita `limit` a 100 (`readPaging`/`parseLimit`, regex `1..100`). Os `inArray` da ocupação recebem 100 ids de viagem e os ids de notas; o estouro de 65.535 parâmetros só ocorreria com ~650 notas por viagem em média. Risco registrado, API inalterada.
+- M2 (conhecido, não alterado): o custo só soma à linha que já tem receita — decisão documentada da spec.
