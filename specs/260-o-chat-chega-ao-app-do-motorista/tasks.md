@@ -79,14 +79,14 @@
 pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
       portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.
 
-- [ ] **T1.9** `sonnet` — **Protocolo no SDK (D8, RF14):** `protocol?: string` (1..32, `[A-Za-z0-9-]`) em
+- [x] **T1.9** `sonnet` — **Protocolo no SDK (D8, RF14):** `protocol?: string` (1..32, `[A-Za-z0-9-]`) em
       `ParticipantConversationSummary` + schema; `ParticipantInbox` mostra o protocolo na linha (mono, discreto) e
       `ParticipantThread` no cabeçalho, com botão de copiar (≥ 44px, `aria-live` "protocolo copiado", label por
       prop `labels.copyProtocol`/`protocolCopied`); filtro de busca por protocolo na lista (função pura
       `matchesProtocolQuery`: sem traço, sem caixa, parcial); ausente = nada desenhado. Changesets minor
       (contracts 0.5.0, UI 0.6.0). **Novo ciclo de publicação:** passe de revisão `opus` (diff pequeno) e
       aprovação do usuário antes do merge.
-- [ ] **T1.9b** `sonnet` — **Canais e ícone do assunto no SDK (D9, RF15), no MESMO branch/release da T1.9:** `channels?` e
+- [x] **T1.9b** `sonnet` — **Canais e ícone do assunto no SDK (D9, RF15), no MESMO branch/release da T1.9:** `channels?` e
       `iconName?` em `ParticipantConversationSummary` + schema; selos de canal (lucide, ícone + texto sr-only,
       `labels.channelApp/Whatsapp/Email/Portal/Webchat`) na linha e no cabeçalho; prop `renderSubjectIcon?` na tela
       composta (ausente = ícone do grupo); testes SSR; README; mesmo changeset. Passe `opus` do delta.

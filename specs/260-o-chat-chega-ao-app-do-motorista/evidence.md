@@ -217,3 +217,16 @@ permanente); anexo/foto; tela com leitor de acessibilidade; cenário com sessão
 de ~28 s vem do relógio de 30 s do flush (o 503 não dispara `online`).
 
 Limite conhecido do ticker: mensagem que chega entre a abertura da conversa e o primeiro snapshot só aparece na próxima mudança ou revalidação.
+
+## Release 2 do SDK — protocolo (D8) + canais e ícone do assunto (D9) — branch `feat/participant-protocol`
+
+| Commit    | O quê                                                                                                                       | Gate (conferido por mim) |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `63dca09` | `protocol?` no resumo; exibir na linha e no cabeçalho, copiar, buscar                                                       | UI 742 · contracts 64    |
+| `203ecdf` | correções do 1º passe: chips/contagens sem a busca, campo persiste, cópia com confirmação visível                           | UI 761                   |
+| `05c7414` | `channels?` e `iconName?`; selos de canal na linha e no cabeçalho; `renderSubjectIcon`                                      | UI 773 · contracts 67    |
+| `e12be29` | 2º passe: contraste do WhatsApp (2,97 → ≥ 3,54), selos da linha em `<span>` (sem `ul/li` em `button`), filtro preso → "All" | UI 779 · contracts 67    |
+
+Passe `opus` do release: 1º (63dca09) **aprovado com ressalvas** → corrigidas em `203ecdf`; 2º (63dca09..05c7414)
+**aprovado com ressalvas** (2 bloqueantes: contraste e `ul/li` dentro de `button`) → corrigidas em `e12be29`. Dúvida
+decidida: o ícone do assunto fica **só na linha** (D9). Versões esperadas: contracts 0.5.0, UI 0.6.0, module 0.4.2 (patch).
