@@ -300,3 +300,51 @@ automático real (leitor + envio Drizzle) e não pelos caminhos de entrada do ap
 (`occurrence-contractor-reply-opens.integration.ts`, na lista do `test:integration`) para não passar o arquivo existente
 de 200 linhas. (d) O relógio do envio nos testes é o fixo do fixture, então o prazo é comparado a `2026-09-24T18:00Z + espera`.
 (e) `main.ts` passa o `logger` ao envio automático (o manual não precisa).
+
+## T4.4b — varredor `occurrence.automatic-mail.sweep` e CA01 pelos caminhos de entrada
+
+**Desenho (validado pelo architect).** A rotina do worker lista candidatas por SQL e chama a rota do robô da API
+(`POST /trip-occurrences/:id/automatic-mail`, permissão `occurrence.automatic-mail`, só no papel `automation`, na lista
+de permissões só de serviço); copia o padrão de `canhoto-read` (token de cliente com margem de 30 s, `x-company-id`, 401
+derruba o token; 401/403 → `api_unauthorized`, 400/404/409 → rejeitada e contada, resto ou exceção de rede →
+`api_unreachable`; o erro carrega só resultado e status). A rota chama `createSendAutomaticOccurrenceMailUseCase`:
+`sent` → 200; `skipped/not_document` → 404; outros `skipped` → 200 `{outcome:'skipped', reason}`;
+`OccurrenceConversationIdempotencyKeyReusedError` → 200 `already_sent`. Fila: tipo com `emails_contractor`, estágio
+`delivery`/`separation`, nota com emitente casado a uma contratante da mesma empresa (CNPJ), não cancelada, criada entre 24 h e
+10 min atrás, sem linha em `idempotency_records` (`occurrence-conversation.mail.send` / `occurrence-auto-mail:<id>`), mais
+antigas primeiro, lote de 10, teto de 50 por ciclo, `excludeOccurrenceIds` (recusa não grava registro e voltaria no lote
+seguinte). `api_unreachable`/`api_unauthorized` encerram o ciclo com esse desfecho; recusa ou erro inesperado são
+contados e o laço segue (este último vai ao Sentry). A rotina nasce **pausada** (migration `20261009130000`, intervalo
+300 s, origem `system`) e só se registra com `config.mdfeAutoIssue`. Log: contagens e ids, nunca endereço ou número de nota.
+
+**Execuções vermelhas (antes de implementar).**
+
+- Permissão: 4 fail em `authorization`/`tenant-context` antes da mudança da política; 44 pass depois.
+- Rota da API (`test/occurrence-automatic-mail.contract.test.ts`): 0 pass, 1 fail, `Cannot find module
+'.../occurrence-automatic-mail.routes.js'`; depois 8 pass.
+- Contrato do worker: 0 pass, 1 fail, `Cannot find module
+'../../src/occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-api.error.js'`; depois 19 pass.
+- Integração da fila do worker: `Cannot find module '.../occurrence-automatic-mail-sweep.routine.js'`; depois 4 pass.
+- Catálogo/migration: `job-catalog.contract.test.ts` 12 pass, 1 fail (`ENOENT .../20261009130000_occurrence_automatic_mail_sweep_job/migration.sql`);
+  depois verde.
+
+**Gates (códigos de saída conferidos).** typecheck e lint: api 0/0, worker 0/0, cron 0/0; frontend typecheck 2 e lint 1,
+ambos pré-existentes (`jspdf`/`jspdf-autotable` ausentes no worktree, arquivos que esta task não tocou). Testes: api
+contrato 11118 pass/0 fail; worker `test` 2251/0; cron 101/0; frontend 7734 pass e 1 fail (`buildTripConferencePdf`, o
+mesmo `jspdf`). Integração api (`occurrence-automatic-mail-entry-paths`, `occurrence-contractor-reply-opens`) 7/0; worker
+`occurrence-automatic-mail-sweep.integration` 4/0 (após `db:migrate` no banco de teste local). `make migration-test` 172
+pass/0 fail, depois de incluir a migration nova primeiro na lista de rollbacks posteriores de
+`canhoto-read-queue.assertion.ts` (sem isso a CHECK antiga recusava a linha do relógio da rotina nova). `bun run
+db:generate` → `no_changes` (o `snapshot.json` veio do próprio gerador). Prettier limpo nos arquivos tocados. `make
+worker-integration` completo: 241 pass, 3 fail que pedem RabbitMQ/infra fora do ar (`ECONNREFUSED ::1:61672`: agregado,
+RabbitMQ, SIGTERM), sem relação com a task.
+
+**Desvios.** (a) A CA01 pelos caminhos de entrada **não** é vermelha: exercita código que já existia
+(`occurrence-automatic-mail-entry-paths.integration.ts`); o gancho `announce` (usado pelo app e pelo WhatsApp) chamado duas
+vezes com `settled()` deixa uma resposta `awaiting_contractor` com prazo `envio + 6 h` e saída no outbox, e o caso de uso da
+rota do robô chamado duas vezes devolve `sent` na repetição (mesma impressão) sem novo outbox. Não dá para subir o `main.ts`
+inteiro em teste; o caminho HTTP e o do worker são cobertos pelos testes da rota e do varredor. (b) Fila: ocorrência que a
+API pularia por motivo que o SQL não enxerga (ex.: sem destinatário) é revisitada a cada batida até a janela de 24 h
+fechar; mitigado por exigir a contratante no SQL e pelo `excludeOccurrenceIds` no ciclo. (c) `make worker-integration`
+tem 3 falhas de infraestrutura local, listadas acima. (d) Sem rótulos novos de job no painel: o frontend só espelha o
+catálogo, e o teste de paridade passa.

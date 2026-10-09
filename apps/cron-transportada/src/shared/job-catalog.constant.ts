@@ -303,6 +303,16 @@ export const JOB_CATALOG = [
     job: 'holiday.provider.pull',
     /** Uma hora: a cota mensal é o teto real, e o piso de uma hora é cortesia com o fornecedor. */
     minimumIntervalSeconds: 3_600,
+     * Spec 248 T4.4b: a ocorrência que o aviso automático não alcançou (a API caiu depois do commit, o
+     * e-mail ainda não estava pronto) é achada por consulta e enviada pela rota do robô, uma vez só
+     * pela chave de idempotência. O worker pede, a API decide e grava.
+     *
+     * Nasce **pausada** (a migration a semeia desligada): só liga com autorização do usuário em produção.
+     */
+    failureOutcomes: ['api_unreachable', 'api_unauthorized'],
+    job: 'occurrence.automatic-mail.sweep',
+    /** A batida: o aviso atrasado precisa sair enquanto a contratante ainda espera por ele. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
 ] as const
 
