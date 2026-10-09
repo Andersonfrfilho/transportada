@@ -5,6 +5,9 @@ import { isHolidayWarning } from './tripResponse.validation'
 
 const DAY_CHECKS_PATH = '/business-calendar/day-checks'
 
+/** A montagem não espera a rota: passado o limite, o aviso nacional de hoje segue sozinho. */
+const DAY_CHECKS_TIMEOUT_MILLISECONDS = 5_000
+
 export const DAY_CHECKS_ERROR = {
   REQUEST_FAILED: 'DAY_CHECKS_REQUEST_FAILED',
   RESPONSE_INVALID: 'DAY_CHECKS_RESPONSE_INVALID',
@@ -51,6 +54,7 @@ export function createDayChecksClient(dependencies: ClientDependencies): DayChec
           cache: 'no-store',
           headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
           method: 'POST',
+          signal: AbortSignal.timeout(DAY_CHECKS_TIMEOUT_MILLISECONDS),
         })
       } catch {
         throw new DayChecksRequestError(DAY_CHECKS_ERROR.REQUEST_FAILED)
