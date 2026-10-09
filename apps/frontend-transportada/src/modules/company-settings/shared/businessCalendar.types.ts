@@ -1,11 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
   HOLIDAY_KINDS,
+  HOLIDAY_ORIGINS,
   HOLIDAY_RECURRENCES,
   SETTINGS_ORIGINS,
 } from './businessCalendar.constant'
 
 export type HolidayKind = (typeof HOLIDAY_KINDS)[number]
+export type HolidayOrigin = (typeof HOLIDAY_ORIGINS)[number]
 export type HolidayRecurrence = (typeof HOLIDAY_RECURRENCES)[number]
 
 /** Sem linha gravada é resposta válida (padrão do sistema: segunda a sexta, `origin: 'default'`). */
@@ -29,7 +31,10 @@ export type MunicipalHolidayRule = Readonly<{
   updatedAt: string
 }>
 
-/** `generatedByRuleId` nulo é a data digitada à mão; preenchido, só a regra a muda. */
+/**
+ * `generatedByRuleId` nulo é a data digitada à mão; preenchido, só a regra a muda. `origin` diz se a data é do
+ * operador ou da FeriadosAPI: opcional, porque a API que o painel encontra pode ainda não mandá-lo (spec 252).
+ */
 export type MunicipalHoliday = Readonly<{
   cityIbgeCode: string
   generatedByRuleId: string | null
@@ -37,6 +42,7 @@ export type MunicipalHoliday = Readonly<{
   id: string
   kind: HolidayKind
   name: string
+  origin?: HolidayOrigin
 }>
 
 /** `adoptedFromRuleId` preenchido: a data era gerada por essa regra e passou a ser do operador. */
@@ -46,6 +52,7 @@ export type SavedMunicipalHoliday = MunicipalHoliday &
 type StateHolidayBase = Readonly<{
   id: string
   name: string
+  origin?: HolidayOrigin
   stateIbgeCode: string
   updatedAt: string
 }>

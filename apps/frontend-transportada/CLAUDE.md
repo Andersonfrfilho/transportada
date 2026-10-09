@@ -486,6 +486,9 @@ e **feriados estaduais**. Namespace i18n `businessCalendar` (arquivo próprio, p
   de 10 — tudo na URL com prefixo (`municipal…`, `state…`), sem apagar `?tab=`. Contratos: `test/business-calendar/*.contract.ts` (sem DOM) e
   `test/trip-hooks/business-calendar-*.contract.ts` (DOM; API dublada com as transições da T1.3 em `businessCalendarClientMocks.helper.ts`).
   ⚠️ `GET /municipal-holidays` é `fleet.read`: quem tem só `settings.manage` vê a falha dita na lista municipal. Detalhe: docs/ai-context § "Spec 238 Fase 2".
+- **`origin` opcional (spec 252, PR 1 de produção):** as guardas de feriado municipal/estadual aceitam `origin?: 'typed' | 'imported'` (ausente = API de
+  antes; valor inválido = recusado) para o painel sobreviver à API que o manda, que sobe antes dele. Nenhuma tela o lê ainda; contrato em
+  `test/business-calendar/origin-tolerance.contract.ts`.
 
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
