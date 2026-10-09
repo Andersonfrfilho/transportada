@@ -152,7 +152,9 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   só datas de hoje em diante em São Paulo; nacional só confere paridade). **Só registrada com `FERIADOS_API_TOKEN`**
   (vazio = ausente, boot verde, `job_run_routine_missing`); o token e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` só passam pelo
   schema de ambiente, nunca por `process.env` solto, e **nenhuma mensagem de erro carrega o token** (o erro do cliente
-  é só o código). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com
+  é só o código). **A resposta do fornecedor é hostil:** corpo com teto de 512 KB lido por stream, `Retry-After` entre 60 s e
+  24 h, controle removido do nome, 404 no nacional/estado = contrato quebrado, 3 falhas de rede seguidas abrem o disjuntor,
+  402/403 numa cidade restringe só o par por 30 dias, e orçamento esgotado só encerra o ciclo (nenhum par muda). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com
   contrato de paridade. Detalhe: docs/ai-context § "A importação de feriados da FeriadosAPI".
 
 ## O expurgo de posição (spec 196, ADR-0081)
