@@ -301,3 +301,25 @@ Duas execuções, ambas **HTTP 400** da Sefin Nacional (`SefinNacional_1.6.0`, `
 
 **Pendente:** `cNBS` e o `cTribMun` correto (a ordem das validações impede saber se a Sefin os cobraria depois do `E0039`);
 a resposta de sucesso (201) e a `chaveAcesso` só virão com o município parametrizado. A sonda fica pronta para repetir.
+
+## Manual Nota Control — "Manual Prático de Preenchimento, Nota Fiscal Modelo Nacional" v1.0 (14/04/2026)
+
+PDF de 16 páginas fornecido pelo usuário (Downloads), do fornecedor do ISS.Net. Trata do **formulário web do portal do
+município** (a nota no modelo nacional emitida pelo sistema da Prefeitura); **não** descreve API/webservice, Emissor
+Nacional do governo, preço nem homologação.
+
+- **Campos obrigatórios do formulário:** Atividade Municipal (da ficha cadastral do prestador na Prefeitura), Tributação
+  Nacional, **NBS** (liberada só depois da Tributação Nacional), valor, situação perante o Simples (Optante ME/EPP) e
+  regime de apuração, tributação do ISSQN, regime especial, percentual total de tributos do SN (no lugar dos três
+  percentuais federal/estadual/municipal), situação tributária do PIS/COFINS e tipo de retenção, e o grupo **IBS/CBS**
+  (indicador da operação, situação tributária e classificação tributária). Nota-exemplo: cTribNac 01.01.01, NBS
+  1.1502.10.00, atividade municipal [7820-5/00], layout "ISS.NET - Sistema Nota Control".
+- **Para a DPS:** a **Atividade Municipal** é o que a Sefin chama de código de tributação municipal. É o que o `E0314`
+  da sonda cobrou: o valor tem de existir **na ficha cadastral do prestador** (Prefeitura). A NBS é obrigatória no
+  portal; o grupo IBS/CBS aparece no formulário (para o Simples, a obrigação de CBS/IBS só vale em 01/01/2027).
+- **Leitura:** é compatível com `aderenteAmbienteNacional=1` e `aderenteEmissorNacional=0`: a Prefeitura emite o modelo
+  nacional **no sistema próprio** e compartilha com o ADN. O manual **não prova** emissão direta pelo Emissor Nacional.
+- **Suporte de Ribeirão Preto (Nota Control):** suporte.ribeiraopreto@notacontrol.com.br, (16) 3977-5720;
+  suporte@notaeletronica.com.br, (67) 3041-2075. Canal para perguntar custo, webservice e homologação.
+- **Ação do usuário:** consultar a **Ficha Cadastral** da transportadora no ISS.net Online ("Outras Opções") e anotar a
+  atividade municipal do serviço de transporte (cTribMun) e a NBS usada nas notas já emitidas.
