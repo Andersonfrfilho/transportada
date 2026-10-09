@@ -15,7 +15,10 @@ import {
   BUSINESS_CALENDAR_AUDIT_ACTION,
   BUSINESS_CALENDAR_AUDIT_TARGET,
 } from '../domain/business-calendar-audit.constant.js'
-import { StateHolidayConflictError } from '../domain/business-calendar-rule.error.js'
+import {
+  ImportedHolidayDateLockedError,
+  StateHolidayConflictError,
+} from '../domain/business-calendar-rule.error.js'
 import { HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
 import { appendBusinessCalendarAudit } from './business-calendar-audit.support.js'
 import type { BusinessCalendarTransaction } from './business-calendar-database.types.js'
@@ -69,6 +72,21 @@ export async function findSameDate(input: {
     )
     .limit(1)
   return existing
+}
+
+/**
+ * A importada é a data do fornecedor: nome e tipo adotam a linha, mas outra data é outra linha — desligue
+ * esta e cadastre a nova (o municipal já é assim: a data e a cidade são a identidade).
+ */
+export function assertImportedDateNotMoved(input: {
+  readonly changes: StateHolidayChanges
+  readonly previous: StateHolidayRow
+}): void {
+  const { changes, previous } = input
+  if (previous.providerEntryId === null || changes.recurrence !== HOLIDAY_RECURRENCE.ONCE) return
+  if (changes.holidayOn !== undefined && changes.holidayOn !== previous.holidayOn) {
+    throw new ImportedHolidayDateLockedError()
+  }
 }
 
 export async function assertNoConflict(input: {

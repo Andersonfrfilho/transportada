@@ -13,7 +13,7 @@ import type {
   ReadHolidayWarningsParams,
 } from '../application/holiday-warning.port.js'
 import {
-  BUSINESS_CALENDAR_ERROR_CODE,
+  isBusinessCalendarErrorCode,
   type BusinessCalendarErrorCode,
 } from '../domain/business-calendar.constant.js'
 import { BusinessCalendarError } from '../domain/business-calendar.error.js'
@@ -27,8 +27,6 @@ import {
   loadBusinessCalendarRules,
   type BusinessCalendarRulesExecutor,
 } from './business-calendar-rules.query.js'
-
-const ERROR_CODES: readonly string[] = Object.values(BUSINESS_CALENDAR_ERROR_CODE)
 
 type Needs = ReadonlyMap<string, BusinessCalendarCoverage>
 
@@ -55,8 +53,8 @@ function covers(calendar: BusinessCalendar, need: BusinessCalendarCoverage): boo
 }
 
 function toRefusalCode(error: unknown): BusinessCalendarErrorCode {
-  if (error instanceof BusinessCalendarError && ERROR_CODES.includes(error.code)) {
-    return error.code as BusinessCalendarErrorCode
+  if (error instanceof BusinessCalendarError && isBusinessCalendarErrorCode(error.code)) {
+    return error.code
   }
   throw error
 }

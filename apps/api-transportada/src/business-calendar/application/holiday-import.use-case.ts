@@ -16,6 +16,7 @@ import type {
   HolidayImportStatusPort,
   HolidayImportSuppression,
   HolidayImportSuppressionPort,
+  HolidayImportSuppressionsPage,
 } from './holiday-import.port.js'
 
 type Dependencies = {
@@ -38,8 +39,8 @@ export type HolidayImportUseCases = {
   readonly restore: Execution<BusinessCalendarActor & { readonly id: string }, void>
   readonly status: Execution<{ readonly companyId: string }, HolidayImportStatus>
   readonly suppressions: Execution<
-    { readonly companyId: string },
-    readonly HolidayImportSuppression[]
+    { readonly companyId: string; readonly page: number; readonly perPage: number },
+    HolidayImportSuppressionsPage
   >
 }
 

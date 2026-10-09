@@ -1629,11 +1629,12 @@ async function readTripDetail(
     }
     return undefined
   }
+
+  const warnableStops = stopRecords.map((row) => row.stop)
   /**
    * Spec 252 T4.2: o aviso de feriado por parada. Só com o relógio injetado (como o prazo), e reaproveita os
    * calendários que o prazo carregou: +0 consultas quando eles cobrem as ETAs, senão +4 fixas, em série.
    */
-  const warnableStops = stopRecords.map((row) => row.stop)
   const holidayWarnings =
     input.deliveryDeadlineContext === undefined
       ? new Map<string, HolidayWarning>()

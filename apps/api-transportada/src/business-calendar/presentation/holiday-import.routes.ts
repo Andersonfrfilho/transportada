@@ -18,8 +18,9 @@ import type { HolidayImportUseCases } from '../application/holiday-import.use-ca
 import { BUSINESS_CALENDAR_MANAGE_POLICY } from './business-calendar-policy.constant.js'
 import { jsonData, jsonPage, noContent } from './business-calendar-response.support.js'
 import {
-  parseCitiesQuery,
   parseDisableBody,
+  parseNoQuery,
+  parsePageQuery,
   toCityViews,
   toStatusView,
   toSuppressionView,
@@ -49,7 +50,7 @@ export function createHolidayImportRoutes(
         return jsonData({ data: toStatusView(status) })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => parseNoQuery(request),
       pathname: API_HOLIDAY_IMPORT_STATUS_PATH,
       policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
@@ -62,19 +63,24 @@ export function createHolidayImportRoutes(
         return jsonPage({ data: toCityViews(cities), ...input, total: cities.total })
       },
       method: 'GET',
-      parse: ({ request }) => parseCitiesQuery(request),
+      parse: ({ request }) => parsePageQuery(request),
       pathname: API_HOLIDAY_IMPORT_CITIES_PATH,
       policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),
-    defineRoute<undefined>({
-      async handle({ context }) {
+    defineRoute<{ readonly page: number; readonly perPage: number }>({
+      async handle({ context, input }) {
         const suppressions = await dependencies.suppressions.execute({
           companyId: context.scope.companyId,
+          ...input,
         })
-        return jsonData({ data: suppressions.map(toSuppressionView) })
+        return jsonPage({
+          data: suppressions.items.map(toSuppressionView),
+          ...input,
+          total: suppressions.total,
+        })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => parsePageQuery(request),
       pathname: API_HOLIDAY_IMPORT_SUPPRESSIONS_PATH,
       policy: BUSINESS_CALENDAR_MANAGE_POLICY,
     }),

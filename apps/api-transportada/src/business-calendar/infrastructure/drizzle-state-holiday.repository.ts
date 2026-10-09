@@ -18,11 +18,15 @@ import type { BusinessCalendarDatabase } from './business-calendar-database.type
 import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toStateRecord } from './business-calendar-rule.mapper.js'
-import { disableImportedStateHoliday } from './holiday-import-disable.support.js'
+import {
+  disableImportedStateHoliday,
+  suppressDeletedStateHoliday,
+} from './holiday-import-disable.support.js'
 import {
   adoptImportedStateHoliday,
   appendAudit,
   applyChanges,
+  assertImportedDateNotMoved,
   assertNoConflict,
   findRow,
   findSameDate,
@@ -105,6 +109,7 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
       if (previous.recurrence !== input.changes.recurrence) {
         throw new StateHolidayRecurrenceMismatchError()
       }
+      assertImportedDateNotMoved({ changes: input.changes, previous })
       const values = toSetValues(input.changes)
       await assertNoConflict({
         candidate: {
@@ -159,11 +164,18 @@ export class DrizzleStateHolidayRepository implements StateHolidayPort {
       await transaction
         .delete(stateHolidays)
         .where(and(eq(stateHolidays.companyId, input.companyId), eq(stateHolidays.id, input.id)))
+      const suppression = await suppressDeletedStateHoliday({
+        actor: input,
+        row: previous,
+        today: input.today,
+        transaction,
+      })
       await appendAudit({
         action: BUSINESS_CALENDAR_AUDIT_ACTION.STATE_HOLIDAY_DELETED,
         actor: input,
         after: null,
         before: toStateRecord(previous),
+        metadata: { suppressionId: suppression?.id ?? null },
         row: previous,
         transaction,
       })

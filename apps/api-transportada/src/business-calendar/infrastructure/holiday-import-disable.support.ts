@@ -15,6 +15,7 @@ import { HOLIDAY_PROVIDER_SCOPE } from '../../shared/holiday-provider.constant.j
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import { BUSINESS_CALENDAR_AUDIT_ACTION } from '../domain/business-calendar-audit.constant.js'
 import { ImportedHolidayInThePastError } from '../domain/business-calendar-rule.error.js'
+import { CITY_IBGE_CODE_PATTERN } from '../domain/business-calendar.constant.js'
 import type { BusinessCalendarTransaction } from './business-calendar-database.types.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toStateRecord } from './business-calendar-rule.mapper.js'
@@ -137,4 +138,46 @@ export async function disableImportedStateHoliday(
     transaction,
   })
   return suppression
+}
+
+type DeletedHolidayParams<TRow> = {
+  readonly actor: BusinessCalendarActor
+  readonly row: TRow
+  readonly today: string
+  readonly transaction: BusinessCalendarTransaction
+}
+
+/**
+ * Apagar a data digitada ou adotada, de hoje em diante, também a suprime: sem isso a importação a traria de
+ * volta como "importada" no ciclo seguinte. Data passada não grava (D7). O código de cidade da linha antiga
+ * (qualquer sete dígitos) pode não caber no padrão do cache; sem supressão possível, nada a manter fora.
+ */
+export async function suppressDeletedMunicipalHoliday(
+  input: DeletedHolidayParams<MunicipalRow>,
+): Promise<SuppressionRow | undefined> {
+  const { actor, row, transaction } = input
+  if (row.holidayOn < input.today || !CITY_IBGE_CODE_PATTERN.test(row.cityIbgeCode))
+    return undefined
+  return upsertSuppression({
+    actor,
+    holidayOn: row.holidayOn,
+    ibgeCode: row.cityIbgeCode,
+    scope: HOLIDAY_PROVIDER_SCOPE.CITY,
+    transaction,
+  })
+}
+
+/** O "todo ano" (`yearly`) não tem data fixa, e a importação só traz `once`: nada a suprimir. */
+export async function suppressDeletedStateHoliday(
+  input: DeletedHolidayParams<StateRow>,
+): Promise<SuppressionRow | undefined> {
+  const { actor, row, transaction } = input
+  if (row.holidayOn === null || row.holidayOn < input.today) return undefined
+  return upsertSuppression({
+    actor,
+    holidayOn: row.holidayOn,
+    ibgeCode: row.stateIbgeCode,
+    scope: HOLIDAY_PROVIDER_SCOPE.STATE,
+    transaction,
+  })
 }
