@@ -83,21 +83,24 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 
 > 🤖 Modelo: `sonnet` (T1b.1 → `haiku`)
 
-- [ ] **T1b.1** `haiku` — Dois commits: (a) `frontend-transportada` e `frontend-client` saem de 0.3.1 para 0.5.0,
+- [x] **T1b.1** `haiku` — Dois commits: (a) `frontend-transportada` e `frontend-client` saem de 0.3.1 para 0.5.0,
       com `make check` e smoke **antes** de qualquer tela nova; (b) `frontend-driver` declara `conversations-ui@0.5.0`
       e `conversation-contracts@0.4.0`, e `frontend-client` ganha `conversation-contracts@0.4.0`. Limpar
       `node_modules` aninhado se o export novo não aparecer.
-- [ ] **T1b.2** `sonnet` — Fiação no `frontend-driver`: `driverConversationsApi.service` sobre as rotas `/me` da
+- [x] **T1b.2** `sonnet` — Fiação no `frontend-driver`: `driverConversationsApi.service` sobre as rotas `/me` da
       183 (`subjectType: 'occurrence'`, `subjectId` = id da ocorrência), validando a resposta com os schemas do
       contracts; **fallback tolerante e temporário** de `subjectLabel` e `awaitingParticipant` (última mensagem
       `outbound` posterior à última `inbound`) até a API trazer os campos; `DriverConversations.page` (≤ ~150
       linhas) monta `<ParticipantConversations>` **uma vez** para `/conversas` e
       `/conversas/:subjectType/:subjectId`; `driverSubjectGroups.constant`; locales `pt-BR`/`en`; aba com selo;
       o sino só navega.
-- [ ] **T1b.3** `sonnet` — Offline (D5): `conversationOutbox.service` usa o `clientMessageId` como
+- [x] **T1b.3** `sonnet` — Offline (D5): `conversationOutbox.service` usa o `clientMessageId` como
       `Idempotency-Key`; offline, `sendMessage` devolve `{ outcome: 'queued' }`; hook lê a fila e alimenta
       `pendingMessages`; esvaziar a fila emite `conversation-changed`; liga `onRetryPending`. Teste: mesma chave
       duas vezes = uma bolha.
+- [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
+      escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
+      implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
 - [ ] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
       `<ParticipantConversations channel="portal">` (o microfone some sozinho) com um `ParticipantConversationsApi`
       próprio e um `subjectGroups`. Precisar mudar o pacote reprova a task.

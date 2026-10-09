@@ -178,3 +178,19 @@ mergeado em `f869d81c4`. O `publish.yml` publicou, conferido por `npm view`: `co
 `conversations-ui@0.5.0` (depende de `conversation-contracts` **0.4.0** exato) e `conversation-module@0.4.1`. Ordem
 resolvida sem a janela de `ETARGET`. Smoke Playwright e conferência visual de `MessageText`/`StatusTicks` ficaram
 **depois** do merge (aceito pelo usuário) — feitos na T1b.5/T4.2.
+
+## Fase 1b — andamento (apps do TransportAdA, branch `work/spec-260`)
+
+| Task  | Commit                   | Gate (conferido por mim)                                                                                                                                                      |
+| ----- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1b.1 | `767097d54`, `840546a1f` | os 3 apps em `conversations-ui@0.5.0`; transportada 7736+1176 pass, client 89, driver 1528; `bun install --frozen-lockfile` sem mudança; `copiedLabel` pt-BR nos dois painéis |
+| T1b.2 | `20fb674ac`              | driver: 1554 pass / 0 fail · typecheck/lint/build limpos · página 89 linhas · chunk lazy do `/participant` **37 KB (11,85 KB gzip)**, chunk principal sem `cv-p-`             |
+| T1b.3 | `1f758f8b7`              | driver: 1572 pass / 0 fail · typecheck/lint/build limpos · outbox próprio no IndexedDB, mesma `Idempotency-Key`, servidor falso conta POSTs                                   |
+
+Divergências aceitas: `frontend-client` não tem i18n (usa constante nomeada `COPIED_LABEL`, como o resto do app); a API
+devolve **200** (não 409) para a mesma chave e o mesmo pedido — 409 `IDEMPOTENCY_KEY_REUSED` é recusa real; a lista de
+conversas não traz direção, então `awaitingParticipant` é aproximado no adapter (temporário até **T2.5**) e o eco de
+`clientMessageId` é decorado no adapter (temporário até **T2.4**).
+
+**Não provado ainda:** nada foi visto em navegador; o store IndexedDB real não tem teste (sem `fake-indexeddb`); `navigator.locks`
+e os gatilhos reais (`online`, `pageshow`, visibilidade) não foram exercitados — vão para a T1b.5 (smoke) e a conferência no navegador.
