@@ -248,3 +248,20 @@ inicial + 5 repetições); (3) o trigger de UPDATE é `BEFORE UPDATE OF "protoco
 
 **Pendente fora do código:** medir `count(*)` de `occurrence_conversations` em produção antes do backfill; integração completa
 (`test:integration`, ~17 min) ainda não rodou — só os arquivos de conversa e de migration.
+
+## Fase 2 — T2.4 (rotas do motorista por assunto)
+
+| Parte   | Commit      | Gate (conferido por mim)                                                                                                                                                        |
+| ------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| leitura | `f63482804` | contrato 11207 pass / 25 skip / 0 fail · typecheck e lint limpos · lista com **4 consultas com 1, 10 e 30 conversas** (sem N+1; teto de 7 com os 3 assuntos)                    |
+| escrita | `8fb71edc1` | contrato 11237 pass / 0 fail · integração dos 3 arquivos novos **13 pass / 0 fail contra o Postgres real (reproduzido por mim)** · golden das rotas antigas verde sem alteração |
+
+Decisões do executor aceitas: rotas com `pathParameterFormat: 'raw'` (o roteador exige UUID em todo parâmetro e `:subjectType` não é);
+cursor `<iso>::<uuid>` validado na rota e `date_trunc('milliseconds')`; `applySubjectStatus` em lote (a antiga é linha a linha);
+`open` por SELECT + INSERT em savepoint (23505 do protocolo repete 1x; 23505 do assunto relê quem venceu) em vez de `ON CONFLICT`;
+ocorrência pelas rotas novas usa a **mesma operação de idempotência** das antigas (provado por mutação e por teste cruzado: enviada pela
+rota antiga e reenviada pela nova não duplica); resposta/upload sem `open` prévio: resposta faz find-or-create, upload dá 404.
+Prova de que a conversa não decide: varredura dos arquivos novos por `tripOccurrenceCases`/`deliveryCharges`, com o detector provado por mutação.
+
+**Não coberto:** colisão real do protocolo (23505 na repetição do INSERT) — o trigger já resolve dentro do banco, então a repetição no
+código não tem teste de colisão; assinatura real de URL do S3 (storage de teste é dublê em memória, como já era na 183).

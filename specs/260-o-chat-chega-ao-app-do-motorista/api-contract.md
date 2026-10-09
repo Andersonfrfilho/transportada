@@ -3,21 +3,22 @@
 > Desenho do `architect` (opus) para a [ADR-0101](../../docs/adr/0101-a-conversa-tem-assunto-e-protocolo.md), conferido contra o
 > código. **Regra do dono: tudo aditivo — as rotas e respostas atuais da conversa de ocorrência ficam idênticas.**
 > A API não tem OpenAPI (`apps/api-transportada/CLAUDE.md:71`): este arquivo + contrato sobre a tabela de rotas
-> + `docs/ai-context/api-transportada.md` fazem esse papel.
+>
+> - `docs/ai-context/api-transportada.md` fazem esse papel.
 
 ## Rotas do motorista (`/me`, novas)
 
 Mesmo `resolveDriver` (`403 DRIVER_NOT_REGISTERED`), `no-store` em toda resposta, `companyId` do contexto, envelope
 `{ data }` / `{ error: { code, message } }`.
 
-| Método e caminho                                                                                          | Política                | Limite                                                               | Sucesso                                                      |
-| --------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `GET /me/trips/current/conversations?cursor=`                                                             | `trip.read`             | —                                                                    | `200 { data: Summary[], pagination: { nextCursor: string \| null } }` |
-| `POST /me/trips/current/conversations/open` body `{ subjectType: 'document'\|'trip', subjectId: uuid }` (`.strict()`) | `trip.report`           | **novo** `driver-conversation-open`: 20 / 300 s, Postgres            | `201 { data: Summary }`; `200` se já existia                 |
-| `GET …/conversations/:subjectType/:subjectId/messages?before=<messageId>&limit=` (padrão 50, máx. 100)   | `trip.read`             | —                                                                    | `200 { data: Message[] }` crescente; assunto visível sem conversa → `[]` |
-| `POST …/:subjectType/:subjectId/messages` (`Idempotency-Key` obrigatório; body `{ body, attachmentIds? }` = `replySchema`) | `trip.report`           | **mesmo** `DRIVER_CONVERSATION_SEND_RATE_LIMIT`                      | `201 { data: Message }`; repetição `200 { data: Message }`   |
-| `POST …/:subjectType/:subjectId/messages/read`                                                            | `trip.read`             | —                                                                    | `204`                                                        |
-| `POST …/:subjectType/:subjectId/uploads`                                                                  | `trip.report`           | **mesmo** `DRIVER_CONVERSATION_UPLOAD_RATE_LIMIT`                    | `201 { data }` (forma de hoje)                               |
+| Método e caminho                                                                                                           | Política      | Limite                                                    | Sucesso                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET /me/trips/current/conversations?cursor=`                                                                              | `trip.read`   | —                                                         | `200 { data: Summary[], pagination: { nextCursor: string \| null } }`    |
+| `POST /me/trips/current/conversations/open` body `{ subjectType: 'document'\|'trip', subjectId: uuid }` (`.strict()`)      | `trip.report` | **novo** `driver-conversation-open`: 20 / 300 s, Postgres | `201 { data: Summary }`; `200` se já existia                             |
+| `GET …/conversations/:subjectType/:subjectId/messages?before=<messageId>&limit=` (padrão 50, máx. 100)                     | `trip.read`   | —                                                         | `200 { data: Message[] }` crescente; assunto visível sem conversa → `[]` |
+| `POST …/:subjectType/:subjectId/messages` (`Idempotency-Key` obrigatório; body `{ body, attachmentIds? }` = `replySchema`) | `trip.report` | **mesmo** `DRIVER_CONVERSATION_SEND_RATE_LIMIT`           | `201 { data: Message }`; repetição `200 { data: Message }`               |
+| `POST …/:subjectType/:subjectId/messages/read`                                                                             | `trip.read`   | —                                                         | `204`                                                                    |
+| `POST …/:subjectType/:subjectId/uploads`                                                                                   | `trip.report` | **mesmo** `DRIVER_CONVERSATION_UPLOAD_RATE_LIMIT`         | `201 { data }` (forma de hoje)                                           |
 
 `subjectType` ∈ `occurrence | document | trip`. Para `occurrence`, as rotas novas usam **as mesmas operações de idempotência**
 (`occurrence-conversation.app.reply` / `.app.send`) e os mesmos campos de impressão digital das antigas — uma mensagem que entrou
@@ -71,15 +72,15 @@ CONVERSATION_CLOSED`. A ocorrência continua sempre `open`.
 
 ## Erros (códigos estáveis; classes novas em `occurrence-conversation.error.ts`)
 
-| Status | Código                                       | Quando                                                                                                   |
-| ------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Status | Código                                                       | Quando                                                                                                        |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | 400    | o inválido genérico de `parseBody`/`parseUuidPathIdentifier` | `subjectType` fora do vocabulário, id que não é UUID, chave de idempotência inválida, `open` com `occurrence` |
-| 403    | `DRIVER_NOT_REGISTERED`                      | já existe                                                                                                |
-| 404    | **`CONVERSATION_NOT_FOUND`** (novo)          | assunto não visível/inexistente/de outra empresa/viagem alheia — também para `occurrence` nas rotas novas |
-| 409    | **`CONVERSATION_CLOSED`** (novo)             | resposta, envio de arquivo, envio do escritório ou `open` do motorista em conversa encerrada             |
-| 409    | `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`     | já existe                                                                                                |
-| 409    | `OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED` | já existe                                                                                            |
-| 429    | —                                            | limite de requisições                                                                                    |
+| 403    | `DRIVER_NOT_REGISTERED`                                      | já existe                                                                                                     |
+| 404    | **`CONVERSATION_NOT_FOUND`** (novo)                          | assunto não visível/inexistente/de outra empresa/viagem alheia — também para `occurrence` nas rotas novas     |
+| 409    | **`CONVERSATION_CLOSED`** (novo)                             | resposta, envio de arquivo, envio do escritório ou `open` do motorista em conversa encerrada                  |
+| 409    | `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`                     | já existe                                                                                                     |
+| 409    | `OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED`             | já existe                                                                                                     |
+| 429    | —                                                            | limite de requisições                                                                                         |
 
 ## Rótulos no servidor (`conversation-subject-label.policy.ts`, pura e testada)
 

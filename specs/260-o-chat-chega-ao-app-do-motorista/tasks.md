@@ -166,7 +166,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       tentativas) e `BEFORE UPDATE` (imutável) **criados por último**; teste de colisão forçada com `setseed`, de
       esgotamento (23505) e de imutabilidade; medir `count(*)` de `occurrence_conversations` em produção antes (relatar);
       `rollback.sql` (perda declarada dos protocolos); `make migration-test` aplica e reverte as duas migrations.
-- [ ] **T2.4** `sonnet` — **Rotas do motorista** `/me/trips/current/conversations` (lista paginada por cursor), `.../open`,
+- [x] **T2.4** `sonnet` — **Rotas do motorista** `/me/trips/current/conversations` (lista paginada por cursor), `.../open`,
       `.../:subjectType/:subjectId/messages|messages/read|uploads`; `findMySubject` (BOLA + `retarget`); consulta em lote
       (`driver-conversation-subject.query.ts`) com `subjectLabel`, `protocol`, `channels`, `iconName`, `awaitingDriver`,
       `status` efetivo, `lastMessagePreview`; eco de `clientMessageId` relendo a mensagem na repetição; política pura de
