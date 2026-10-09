@@ -18,7 +18,11 @@ const PRICED_TRIP_PAGE = {
     {
       ...TRIP,
       amounts: {
+        costTotal: '1100.0000',
         documentsTotal: '15000.0000',
+        hasGaps: true,
+        marginPercentage: '12.0000',
+        marginTotal: '150.0000',
         revenueSource: 'estimated',
         revenueTotal: '1250.0000',
       },
@@ -57,6 +61,38 @@ describe('GET /trips cuts amounts without trip.financials (spec 156 L6)', () => 
       const [trip] = await listTripsAs(permissionsOf(role))
 
       expect(trip?.amounts).toEqual(PRICED_TRIP_PAGE.items[0].amounts)
+    })
+  }
+})
+
+/**
+ * Spec 259 T2.5: custo, lucro e margem são dinheiro como a receita. Sem `trip.financials` o JSON não tem
+ * os campos novos — e nem o `hasGaps`, que sozinho já diria que a viagem tem custo calculado.
+ */
+describe('GET /trips cuts the cost fields without trip.financials (spec 259 T2.5)', () => {
+  const COST_FIELDS = ['costTotal', 'marginTotal', 'marginPercentage', 'hasGaps'] as const
+
+  for (const role of ['separator', 'viewer'] as const) {
+    test(`the ${role} response carries none of the cost fields anywhere in the JSON`, async () => {
+      const fixture = await createTripHttpFixture({
+        listTripsResult: PRICED_TRIP_PAGE,
+        permissions: permissionsOf(role),
+      })
+      const response = await fixture.handle(jsonRequest({ method: 'GET', path: TRIPS_PATH }))
+      const text = await response.text()
+
+      expect(response.status).toBe(200)
+      for (const field of COST_FIELDS) expect(text).not.toContain(field)
+    })
+  }
+
+  for (const role of ['finance', 'operator', 'company-admin'] as const) {
+    test(`the ${role} response carries the cost fields`, async () => {
+      const [trip] = await listTripsAs(permissionsOf(role))
+      const amounts = trip?.amounts as Record<string, unknown>
+
+      for (const field of COST_FIELDS) expect(Object.hasOwn(amounts, field)).toBe(true)
+      expect(amounts.marginTotal).toBe('150.0000')
     })
   }
 })

@@ -103,3 +103,15 @@
   Custo: leitura ingênua `readContext` × 20 em série **65,6 ms** contra **6,0 ms** em lote. Consultas: `readValuationContexts` **16** para 1 ou 20
   viagens (`readContext` sozinho faz 17 por viagem, ~340 numa página de 20); `readTripListOccupancies` **10**.
 - `bunx tsc --noEmit`, eslint e prettier limpos.
+
+## T2.5 — redação: sem `trip.financials` o JSON não tem custo, lucro nem margem, 2026-10-09
+
+- `list-money-redaction.contract.ts` +5 testes: para `separator` e `viewer` o texto inteiro da resposta de `GET /trips` não contém `costTotal`,
+  `marginTotal`, `marginPercentage` nem `hasGaps` (o `amounts` sai inteiro, como na spec 156 L6); para `finance`, `operator` e `company-admin`
+  os quatro campos estão em `amounts`. Reforço no `list.contract.ts` (T2.3): `occupancy` não é dinheiro e segue para quem não tem `trip.financials`.
+  A rota passa `includeFinancials: canReadFinancials`, então sem a permissão o custo nem é calculado (contrato `list.contract.ts`).
+- Provado por mutação: trocar `canReadFinancials` por `true` na redação da rota reprova 5 testes (incluindo os 2 novos); revertido.
+- `bun test ./test/trip-http.contract.test.ts` → 344 pass, 0 fail.
+- **Fechamento da fase API**: `bun --env-file=../../.env.test run test` (suíte de contrato inteira da API) → 11071 pass, 25 skip, 0 fail
+  (uma primeira execução teve 1 falha transitória em `test/deploy/keycloak-realm.contract.ts`, alheia a esta spec — não reproduziu em duas
+  execuções seguintes); `bunx tsc --noEmit`, `bunx eslint src test --max-warnings=0` e prettier limpos.
