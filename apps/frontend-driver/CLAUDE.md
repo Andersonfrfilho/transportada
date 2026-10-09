@@ -439,3 +439,11 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
   em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…
   já existem nos dois locales. Teste: `test/conversation/driver-message-status.contract.ts`, smoke "ticks" e "falha".
+- **Respostas prontas da empresa (T5.3, D11).** `GET /me/trips/current/quick-replies` → `{data:[{id,text}]}`; o serviço
+  `driverQuickReplies.service.ts` guarda a **última lista boa** no `localStorage` (chave por dono da sessão, sem dono não há cache) e a
+  usa só quando a resposta não chegou (rede, token, 5xx); 4xx (`409 DRIVER_NOT_REGISTERED`), corpo inválido e lista vazia = sem chips,
+  nunca erro na tela. `useDriverQuickReplies` (`networkMode: 'always'`, senão a consulta pausa offline) mapeia `{id,text}` para o
+  `QuickReply` do participante (`title` = texto cortado em 40, `body` = texto inteiro) e a página passa em `quickReplies`; tocar
+  PREENCHE, nunca envia (pacote). Demo API: `GET` da rota com 4 textos e `POST /__debug/conversations/quick-replies`
+  `{texts: string[], status?: 409|500}` (zera/troca/falha; `reset` restaura). Teste: `test/conversation/driver-quick-replies.contract.ts`,
+  smoke "respostas prontas".

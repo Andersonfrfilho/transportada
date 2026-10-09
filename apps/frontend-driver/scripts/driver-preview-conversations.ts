@@ -10,6 +10,10 @@
  * Debug: `POST /__debug/conversations/reset`, `.../office-reply` {subjectId, text},
  * `.../fail-next` {count, status = 503}, `.../office-read` {subjectId} (o escritório leu: as mensagens do
  * motorista passam de `delivered` ✓✓ cinza a `read` ✓✓ azul).
+ *
+ * Respostas prontas (T5.3): `GET /me/trips/current/quick-replies` → `{data: [{id, text}]}` (4 textos de
+ * partida; o `reset` as restaura). `POST /__debug/conversations/quick-replies` {texts: string[]} troca
+ * a lista (`[]` = empresa sem respostas) e {status: 409|500} faz a rota responder esse erro até o `reset`.
  */
 import {
   createConversationHandlers,
@@ -38,6 +42,12 @@ const OCCURRENCE_ROUTE = /^occurrences\/([^/]+)\/(messages\/read|messages|upload
 const SUBJECT_ROUTE =
   /^conversations\/(occurrence|document|trip)\/([^/]+)\/(messages\/read|messages|uploads)$/
 const STORAGE_ROUTE = /^\/__conversation-storage\/([^/]+)$/
+const DEFAULT_QUICK_REPLY_TEXTS: readonly string[] = [
+  'Cheguei ao local',
+  'Cliente ausente',
+  'Aguardando liberação da doca',
+  'Descarga concluída',
+]
 const ONE_PIXEL_PNG = Uint8Array.from(
   atob(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
@@ -98,14 +108,38 @@ async function handleTarget(
 export function createConversationRoutes(options: ConversationRoutesOptions): ConversationRoutes {
   const { repository } = options
   const handlers = createConversationHandlers(options)
+  let quickReplyTexts: readonly string[] = DEFAULT_QUICK_REPLY_TEXTS
+  let quickRepliesFailureStatus: number | undefined
+
+  function respondQuickReplies(): Response {
+    if (quickRepliesFailureStatus !== undefined) {
+      const code =
+        quickRepliesFailureStatus === 409 ? 'DRIVER_NOT_REGISTERED' : 'QUICK_REPLIES_UNAVAILABLE'
+      return handlers.json({ error: { code, message: code } }, quickRepliesFailureStatus)
+    }
+    return handlers.json({
+      data: quickReplyTexts.map((text, index) => ({ id: `quick-reply-${index + 1}`, text })),
+    })
+  }
+
+  function configureQuickReplies(body: Record<string, unknown>): Response {
+    if (Array.isArray(body.texts)) {
+      quickReplyTexts = body.texts.filter((text): text is string => typeof text === 'string')
+    }
+    quickRepliesFailureStatus = typeof body.status === 'number' ? body.status : undefined
+    return handlers.json({ data: { count: quickReplyTexts.length } })
+  }
 
   async function handleDebug(request: Request, pathname: string): Promise<Response | undefined> {
     if (request.method !== 'POST') return undefined
     const body = readRecord(await request.json().catch(() => undefined))
     if (pathname === '/__debug/conversations/reset') {
       repository.reset()
+      quickReplyTexts = DEFAULT_QUICK_REPLY_TEXTS
+      quickRepliesFailureStatus = undefined
       return handlers.json({ data: { reset: true } })
     }
+    if (pathname === '/__debug/conversations/quick-replies') return configureQuickReplies(body)
     if (pathname === '/__debug/conversations/fail-next') {
       const count = typeof body.count === 'number' ? body.count : 1
       const status = typeof body.status === 'number' ? body.status : undefined
@@ -147,6 +181,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
     const trip = TRIP_PREFIX.exec(pathname)
     if (trip === null) return undefined
     const route = pathname.slice(trip[0].length)
+    if (route === 'quick-replies' && request.method === 'GET') return respondQuickReplies()
     if (route === 'occurrence-conversations' && request.method === 'GET') {
       return handlers.json({ data: repository.list() })
     }

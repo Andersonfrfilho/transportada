@@ -9,6 +9,13 @@ export const CONVERSATIONS_PATH = `${CURRENT_TRIP_PATH}/conversations`
 
 export const CONVERSATIONS_OPEN_PATH = `${CONVERSATIONS_PATH}/open`
 
+export const QUICK_REPLIES_PATH = `${CURRENT_TRIP_PATH}/quick-replies`
+
+export const QUICK_REPLIES_QUERY_KEY = ['driver-conversations', 'quick-replies'] as const
+
+/** Servidor com defeito ou rede fora: o único caso em que a última lista guardada vale; 4xx é resposta, não queda. */
+export const SERVER_ERROR_MIN_STATUS = 500
+
 /** O motorista abre conversa só de nota e de viagem; a de ocorrência nasce do registro dela (spec 260 D4). */
 export const OPENABLE_SUBJECT_TYPES = ['document', 'trip'] as const
 

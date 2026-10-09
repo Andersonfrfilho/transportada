@@ -44,8 +44,12 @@ test.afterAll(() => {
   demoProcess?.kill()
 })
 
-async function openConversationsTab(page: Page): Promise<void> {
+async function openConversationsTab(
+  page: Page,
+  quickReplies?: Readonly<Record<string, unknown>>,
+): Promise<void> {
   await resetDemo()
+  if (quickReplies !== undefined) await postDebug('quick-replies', quickReplies)
   await routeApiToDemo(page)
   await loginAsLocalUser(page)
   await page.locator(NAV_SELECTOR).getByRole('button', { name: 'Conversas' }).click()
@@ -325,4 +329,40 @@ test('nota: a conversa abre com protocolo e selo; a viagem leva ao escritório',
   await expect(page.locator('.cv-p-protocol--header .cv-p-protocol__code')).toHaveText(
     PROTOCOL_FORMAT,
   )
+})
+
+test('respostas prontas: chips no compositor, tocar preenche sem enviar, e sem rede vale a última lista', async ({
+  page,
+}) => {
+  test.slow()
+  const chip = (name: string) => page.locator('.cv-p-quick .cv-p-chip', { hasText: name })
+  const input = page.locator('textarea.cv-p-composer__input')
+  await openConversationsTab(page)
+  await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
+  await expect(page.locator('.cv-p-quick .cv-p-chip')).toHaveCount(4)
+
+  await chip('Cheguei ao local').click()
+  await expect(input).toHaveValue('Cheguei ao local')
+  expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, 'Cheguei ao local')).toBe(0)
+  await expect(
+    page.locator('.cv-p-bubble--mine').filter({ hasText: 'Cheguei ao local' }),
+  ).toHaveCount(0)
+
+  await page.route('**/me/trips/current/quick-replies', (route) =>
+    route.abort('internetdisconnected'),
+  )
+  await page.waitForLoadState('networkidle')
+  await page.reload()
+  await expect(input).toBeVisible()
+  await expect(page.locator('.cv-p-quick .cv-p-chip')).toHaveCount(4)
+  await expect(chip('Descarga concluída')).toBeVisible()
+})
+
+test('respostas prontas: empresa sem lista (ou motorista sem cadastro) não desenha chips nem quebra a tela', async ({
+  page,
+}) => {
+  await openConversationsTab(page, { status: 409 })
+  await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
+  await expect(page.locator('textarea.cv-p-composer__input')).toBeVisible()
+  await expect(page.locator('.cv-p-quick')).toHaveCount(0)
 })

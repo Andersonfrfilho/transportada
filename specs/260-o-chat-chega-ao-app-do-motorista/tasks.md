@@ -218,7 +218,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       só ativas, ordem do cadastro); contrato (as rotas e respostas antigas idênticas — golden), tabela de rotas, integração com banco, `make migration-test`.
 - [ ] **T5.2** `sonnet` — **Painel:** seção "Respostas do motorista" nas configurações (mesmo cadastro: criar, editar, ativar/desativar, ordenar) +
       chips das respostas do público `driver` no compositor da conversa do escritório por assunto (T3.1/T3.2); sem mudar a conversa de ocorrência.
-- [ ] **T5.3** `sonnet` — **App do motorista:** adapter + query com cache da última lista (offline), `quickReplies` passado ao pacote, rota na API de
+- [x] **T5.3** `sonnet` — **App do motorista:** adapter + query com cache da última lista (offline), `quickReplies` passado ao pacote, rota na API de
       demonstração, locales, testes e smoke (chips visíveis, tocar preenche e NÃO envia, offline usa a lista guardada).
 
 - [x] **T5.4** `sonnet` — **Estados de entrega (ticks) da mensagem do motorista:** API deriva `delivered`/`read` nas rotas novas

@@ -390,3 +390,33 @@ devolver `delivered`) e `-scale` fixava 4 consultas por lista (agora 5, a do `of
 **Armadilha do próprio teste.** O smoke "ticks" antigo passava mesmo com o defeito: o ciclo de 15 s que absorve a mensagem recém-enviada
 (`lastMessageAt` novo) refazia a conversa e já trazia o `read`. O teste novo espera primeiro uma resposta da lista (o ciclo que absorve o envio)
 e só então posta `office-read`; também prova que o documento não foi recarregado (marcador em `window`).
+
+## T5.3 — Respostas prontas no app do motorista (D11)
+
+**O que mudou.** `driverQuickReplies.service.ts` busca `GET /me/trips/current/quick-replies` pelo cliente HTTP do módulo e guarda a **última
+lista boa** no `localStorage` (chave por dono da sessão; sem dono, sem cache). O cache só vale quando a resposta **não chegou** (rede, token,
+5xx); 4xx (`409 DRIVER_NOT_REGISTERED`) esvazia lista e cache; corpo ilegível ou item malformado = lista vazia sem apagar o cache (portal
+de rede devolve 200 com HTML). Nunca lança: a tela não cai por causa de chip. `useDriverQuickReplies` (react-query, `networkMode: 'always'`,
+senão a consulta pausa offline) mapeia `{id,text}` para o `QuickReply` do participante (`title` cortado em 40, `body` inteiro) e
+`DriverConversations.page.tsx` passa em `quickReplies`; tocar PREENCHE e não envia (comportamento do pacote). Locales: `quickRepliesGroup`
+já existia nos dois. Demo API: rota com 4 textos e `POST /__debug/conversations/quick-replies` `{texts, status}` (`reset` restaura).
+
+**Gates (números reais).**
+
+| Gate                                                                          | Resultado                                        |
+| ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| App `bun run typecheck` / `bun run lint` (cwd `apps/frontend-driver`)         | limpos                                           |
+| App `bun run test`                                                            | 1691 pass, 0 fail (+7: 6 do serviço, 1 da demo)  |
+| Smoke `conversation.smoke.spec.ts` (build + preview 53112, bypass), 13 testes | 13 passed (2,6 min); 2 novos "respostas prontas" |
+
+**Mutações (a correção arrancada faz o teste falhar).**
+
+- Serviço: sem leitura do cache: 1 fail ("sem rede"). Todo erro tratado como queda: 2 fail (409 e malformada). Sem validar item: 1 fail
+  (malformada). Sem gravar o cache: 2 fail (sucesso e "sem rede"). Chave sem exigir dono: 1 fail (sem dono não há cache).
+- Demo: `reset` sem restaurar a lista: 1 fail.
+- Smoke: página sem `quickReplies={quickReplies}`: "chips no compositor" falha (4 chips esperados). Cache ignorado: o mesmo teste falha no
+  trecho sem rede (rota abortada + reload). Debug ignorando `status`: "sem lista" falha (chips aparecem).
+
+**Limites honestos.** "Tocar preenche e não envia" é do pacote (o smoke prova o efeito: campo preenchido, zero mensagem no servidor, nenhuma
+bolha), então não há mutação nossa que o quebre. O `abort` do Playwright não põe `navigator.onLine` em falso: `networkMode: 'always'` fica
+provado só pelo raciocínio (a consulta pausada offline nunca chamaria a busca), não por mutação.

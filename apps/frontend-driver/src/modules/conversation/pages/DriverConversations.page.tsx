@@ -23,6 +23,7 @@ import {
 
 import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
+import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
@@ -39,6 +40,7 @@ export function DriverConversationsPage() {
   const queryClient = useQueryClient()
   const api = getDriverConversationsApi()
   const { onRetryPending, pendingMessages } = useConversationOutbox(api)
+  const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
   const subjectGroups = buildDriverSubjectGroups({
@@ -88,6 +90,7 @@ export function DriverConversationsPage() {
             selected={selected}
             subjectGroups={subjectGroups}
             pendingMessages={pendingMessages}
+            quickReplies={quickReplies}
             onBack={handleBack}
             onRetryPending={onRetryPending}
             onSelect={handleSelect}

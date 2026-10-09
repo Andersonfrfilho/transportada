@@ -280,4 +280,25 @@ describe('API de demonstração do motorista: conversas', () => {
       expect(repository.has({ subjectId: SECOND_DOCUMENT_ID, subjectType: 'document' })).toBe(false)
     })
   })
+
+  it('respostas prontas: 4 de partida, troca/zera/falha por debug e reset restaura', async () => {
+    const { call } = createRoutes()
+    const path = '/v1/me/trips/current/quick-replies'
+    const read = async () =>
+      ((await (await call('GET', path))?.json()) as { data: { id: string; text: string }[] }).data
+    expect((await read()).map((item) => item.text)).toEqual([
+      'Cheguei ao local',
+      'Cliente ausente',
+      'Aguardando liberação da doca',
+      'Descarga concluída',
+    ])
+    await call('POST', '/__debug/conversations/quick-replies', { body: { texts: ['Só esta'] } })
+    expect((await read()).map((item) => item.text)).toEqual(['Só esta'])
+    await call('POST', '/__debug/conversations/quick-replies', { body: { texts: [] } })
+    expect(await read()).toEqual([])
+    await call('POST', '/__debug/conversations/quick-replies', { body: { status: 409 } })
+    expect((await call('GET', path))?.status).toBe(409)
+    await call('POST', '/__debug/conversations/reset')
+    expect(await read()).toHaveLength(4)
+  })
 })
