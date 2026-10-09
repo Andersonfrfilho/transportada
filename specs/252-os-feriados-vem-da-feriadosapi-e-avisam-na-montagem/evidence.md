@@ -1232,6 +1232,7 @@ claro e 14,04:1 escuro**, fonte 16 px, nenhum foco dentro do aviso, sem rolagem 
 
 **O que NÃO foi feito:** push/publicação; revisão de design com o usuário (T6.1); smoke Playwright; documentação viva do app
 (`docs/ai-context/frontend-driver.md`, CLAUDE.md da app), fica para a T6.1.
+
 ## T5.2 e T5.3 — a aba Calendário e o aviso por parada no painel (2026-10-09)
 
 Executor `sonnet`, worktree isolado, branch `work/252-t5` a partir de `origin/staging` (`40477e4f1`), sem push. **Tela: publicação pendente da aprovação do usuário sobre os prints.** Commits: `95751934b` e `202ca1499` (testes da T5.2, vermelhos), `6b3fbc198` (código da T5.2), `317e6ae35` (testes da T5.3, vermelhos), `a2191e8a9` (código da T5.3), `5f67a4c00` (mutante sobrevivente morto), `a4ec3b326` (rótulos curtos de origem e o smoke de prints) e o de documentação.
