@@ -59,3 +59,11 @@ export function buildStopAddressKey(components: StopAddressComponents): string |
 
   return `${cityCode}|${postalCode}|${number}`
 }
+
+/**
+ * A cidade da parada é o 1º segmento da chave (`cidade|CEP|número`); vazio quando a chave não a traz. É o
+ * destino físico da nota, e o desvio manual de endereço a move junto com a parada.
+ */
+export function readStopCityCode(addressKey: string): string {
+  return normalizeCityCode(addressKey.split('|')[0] ?? '')
+}

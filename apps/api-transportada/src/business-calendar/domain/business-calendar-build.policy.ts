@@ -8,6 +8,7 @@
 import {
   BUSINESS_CALENDAR_ERROR_CODE,
   BUSINESS_CALENDAR_MAX_COVERAGE_SPAN_YEARS,
+  HOLIDAY_ORIGIN,
 } from './business-calendar.constant.js'
 import { BusinessCalendarError } from './business-calendar.error.js'
 import type {
@@ -74,20 +75,34 @@ export function buildBusinessCalendar(params: BuildBusinessCalendarParams): Busi
   const reasonsByDate: ReasonsByDate = new Map()
   for (const year of listCoveredYears(coverage)) {
     for (const { date, key } of listNationalHolidays(year)) {
-      appendReason({ date, reason: { key, source: 'national' }, reasonsByDate })
+      appendReason({
+        date,
+        reason: { key, origin: HOLIDAY_ORIGIN.CODE, source: 'national' },
+        reasonsByDate,
+      })
     }
   }
 
   for (const rule of stateRules.filter((candidate) => candidate.stateIbgeCode === stateIbgeCode)) {
     for (const date of expandOccurrence({ coverage, occurrence: rule.occurrence })) {
-      appendReason({ date, reason: { name: rule.name, source: 'state' }, reasonsByDate })
+      const reason: HolidayReason = {
+        name: rule.name,
+        origin: rule.origin ?? HOLIDAY_ORIGIN.TYPED,
+        source: 'state',
+      }
+      appendReason({ date, reason, reasonsByDate })
     }
   }
 
   for (const rule of municipalRules.filter(
     (candidate) => candidate.cityIbgeCode === cityIbgeCode,
   )) {
-    const reason: HolidayReason = { kind: rule.kind, name: rule.name, source: 'municipal' }
+    const reason: HolidayReason = {
+      kind: rule.kind,
+      name: rule.name,
+      origin: rule.origin ?? HOLIDAY_ORIGIN.TYPED,
+      source: 'municipal',
+    }
     for (const date of expandOccurrence({ coverage, occurrence: rule.occurrence })) {
       appendReason({ date, reason, reasonsByDate })
     }

@@ -42,6 +42,17 @@ export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set(
   BRAZILIAN_STATE_IBGE_CODE_LIST,
 )
 
+/**
+ * De onde veio o feriado que fecha o dia (spec 252 T4.2): o calendário nacional é do código; o resto vem do
+ * cadastro — digitado à mão, gerado pela regra "todo ano" ou importado do fornecedor.
+ */
+export const HOLIDAY_ORIGIN = {
+  CODE: 'code',
+  IMPORTED: 'imported',
+  RULE: 'rule',
+  TYPED: 'typed',
+} as const
+
 export const BUSINESS_CALENDAR_ERROR_CODE = {
   COVERAGE_TOO_WIDE: 'BUSINESS_CALENDAR_COVERAGE_TOO_WIDE',
   INVALID_CITY: 'BUSINESS_CALENDAR_INVALID_CITY',

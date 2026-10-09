@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  HOLIDAY_ORIGIN,
   HOLIDAY_RECURRENCE,
   MUNICIPAL_HOLIDAY_KIND,
   NationalHolidayKey,
@@ -21,16 +22,22 @@ export type HolidayOccurrence =
 export type MunicipalHolidayKind =
   (typeof MUNICIPAL_HOLIDAY_KIND)[keyof typeof MUNICIPAL_HOLIDAY_KIND]
 
+export type HolidayOrigin = (typeof HOLIDAY_ORIGIN)[keyof typeof HOLIDAY_ORIGIN]
+
 export type MunicipalHolidayRule = {
   readonly cityIbgeCode: string
   readonly kind: MunicipalHolidayKind
   readonly name: string
   readonly occurrence: HolidayOccurrence
+  /** Ausente: regra montada à mão, que vale como digitada. */
+  readonly origin?: HolidayOrigin
 }
 
 export type StateHolidayRule = {
   readonly name: string
   readonly occurrence: HolidayOccurrence
+  /** Ausente: regra montada à mão, que vale como digitada. */
+  readonly origin?: HolidayOrigin
   /** Dois dígitos: o prefixo do código IBGE das cidades daquela UF. */
   readonly stateIbgeCode: string
 }
@@ -42,9 +49,18 @@ export type NationalHoliday = {
 
 /** O nome nacional é do locale; o estadual e o municipal são do cadastro. */
 export type HolidayReason =
-  | { readonly key: NationalHolidayKey; readonly source: 'national' }
-  | { readonly name: string; readonly source: 'state' }
-  | { readonly kind: MunicipalHolidayKind; readonly name: string; readonly source: 'municipal' }
+  | {
+      readonly key: NationalHolidayKey
+      readonly origin: HolidayOrigin
+      readonly source: 'national'
+    }
+  | { readonly name: string; readonly origin: HolidayOrigin; readonly source: 'state' }
+  | {
+      readonly kind: MunicipalHolidayKind
+      readonly name: string
+      readonly origin: HolidayOrigin
+      readonly source: 'municipal'
+    }
 
 export type BusinessCalendarCoverage = {
   readonly fromYear: number

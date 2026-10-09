@@ -45,6 +45,7 @@ import type {
   TripFilters,
   TripPage,
   TripRepositoryPort,
+  TripStopDetail,
   TripTrailerView,
 } from '../application/trip.port.js'
 import {
@@ -104,6 +105,7 @@ import {
   readTripDeliveryDeadlines,
   type DeliveryDeadlineReadContext,
 } from './trip-delivery-deadline.support.js'
+import { readTripStopHolidayWarnings } from './trip-holiday-warning.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
@@ -129,6 +131,8 @@ import type { PendingMeasurementBoxLookupPort } from '../application/pending-mea
 import type { CargoLayoutPendingMeasurement } from '../application/read-cargo-layout.types.js'
 import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
+import type { BusinessCalendar } from '../../business-calendar/domain/business-calendar.types.js'
+import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -1518,10 +1522,12 @@ async function readTripDetail(
    * Spec 236 RF5: desvio manual, entrega e calendário — seis consultas fixas por viagem, só quando alguma
    * nota tem chegada e prazo (nenhuma, senão), em série: o `queryable` pode ser transação.
    */
+  const deadlineCalendars = new Map<string, BusinessCalendar>()
   const deliveryDeadlines =
     input.deliveryDeadlineContext === undefined
       ? new Map<string, NonNullable<TripDocumentDetail['deliveryDeadline']>>()
       : await readTripDeliveryDeadlines(queryable, {
+          calendarSink: deadlineCalendars,
           companyId: input.companyId,
           context: input.deliveryDeadlineContext,
           notes: documentRecords.map(toDeliveryDeadlineNote),
@@ -1622,6 +1628,29 @@ async function readTripDetail(
       if (address !== undefined) return address
     }
     return undefined
+  }
+  /**
+   * Spec 252 T4.2: o aviso de feriado por parada. Só com o relógio injetado (como o prazo), e reaproveita os
+   * calendários que o prazo carregou: +0 consultas quando eles cobrem as ETAs, senão +4 fixas, em série.
+   */
+  const warnableStops = stopRecords.map((row) => row.stop)
+  const holidayWarnings =
+    input.deliveryDeadlineContext === undefined
+      ? new Map<string, HolidayWarning>()
+      : await readTripStopHolidayWarnings(queryable, {
+          addressOf,
+          calendars: deadlineCalendars,
+          companyId: input.companyId,
+          ...(input.deliveryDeadlineContext.logger === undefined
+            ? {}
+            : { logger: input.deliveryDeadlineContext.logger }),
+          now: input.deliveryDeadlineContext.clock.now(),
+          stops: warnableStops,
+          tripId: input.tripId,
+        })
+  const holidayWarningsOf = (stopId: string): Pick<TripStopDetail, 'holidayWarnings'> => {
+    const warning = holidayWarnings.get(stopId)
+    return warning === undefined ? {} : { holidayWarnings: [warning] }
   }
   const labelOf = (stopId: string, stored: string): string => {
     for (const document of documentsByStopId.get(stopId) ?? []) {
@@ -1730,6 +1759,7 @@ async function readTripDetail(
       longitude: row.longitude,
       cityCode: addressOf(row.stop.id)?.components.cityCode ?? '',
       state: addressOf(row.stop.id)?.state ?? '',
+      ...holidayWarningsOf(row.stop.id),
       /** Spec 164 T15 (RF21): o sinal do mapa — deriva das notas já agrupadas, sem consulta nova. */
       hasOpenOccurrence: (documentsByStopId.get(row.stop.id) ?? []).some(
         (document) => document.openOccurrenceCase,

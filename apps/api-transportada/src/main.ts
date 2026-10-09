@@ -621,17 +621,20 @@ import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastruc
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
 import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
+import { createDayChecksUseCase } from './business-calendar/application/day-checks.use-case.js'
 import { createHolidayImportUseCases } from './business-calendar/application/holiday-import.use-case.js'
 import { createMunicipalHolidayRulesUseCases } from './business-calendar/application/municipal-holiday-rules.use-case.js'
 import { createMunicipalHolidaysUseCases } from './business-calendar/application/municipal-holidays.use-case.js'
 import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
 import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
+import { DrizzleHolidayWarningRepository } from './business-calendar/infrastructure/drizzle-holiday-warning.repository.js'
 import { DrizzleHolidayImportStatusRepository } from './business-calendar/infrastructure/drizzle-holiday-import-status.repository.js'
 import { DrizzleHolidayImportSuppressionRepository } from './business-calendar/infrastructure/drizzle-holiday-import-suppression.repository.js'
 import { DrizzleMunicipalHolidayRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
 import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday-rule.repository.js'
 import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
 import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
+import { createDayChecksRoutes } from './business-calendar/presentation/day-checks.routes.js'
 import { createHolidayImportRoutes } from './business-calendar/presentation/holiday-import.routes.js'
 import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
 import { createMunicipalHolidayRuleRoutes } from './business-calendar/presentation/municipal-holiday-rule.routes.js'
@@ -2977,6 +2980,11 @@ function createApplicationRoutes({
         repository: new DrizzleBusinessCalendarSettingsRepository(database),
       }),
       resolveClientIp,
+    }),
+    ...createDayChecksRoutes({
+      dayChecks: createDayChecksUseCase({
+        repository: new DrizzleHolidayWarningRepository(database),
+      }),
     }),
     ...createHolidayImportRoutes({
       ...createHolidayImportUseCases({

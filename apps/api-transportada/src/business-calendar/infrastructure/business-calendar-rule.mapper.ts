@@ -9,9 +9,10 @@ import type { MunicipalHolidayRuleRecord } from '../application/municipal-holida
 import type { MunicipalHoliday } from '../application/municipal-holiday.port.js'
 import type { StateHolidayRecord } from '../application/state-holiday.port.js'
 import { BusinessCalendarPersistenceError } from '../domain/business-calendar-rule.error.js'
-import { HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
+import { HOLIDAY_ORIGIN, HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
 import { isMunicipalHolidayKind } from '../domain/holiday-rule.policy.js'
 import type {
+  HolidayOrigin,
   MunicipalHolidayKind,
   MunicipalHolidayRule,
   StateHolidayRule,
@@ -52,6 +53,11 @@ export function toHolidayRecord(row: HolidayRow): MunicipalHoliday {
   }
 }
 
+/** `provider_entry_id` preenchido é o feriado importado; sem ele, é a data do operador. */
+function originOf(row: { readonly providerEntryId: string | null }): HolidayOrigin {
+  return row.providerEntryId === null ? HOLIDAY_ORIGIN.TYPED : HOLIDAY_ORIGIN.IMPORTED
+}
+
 /** A regra "todo ano" entra na política como `yearly`; a política a expande por ano. */
 export function toYearlyMunicipalRule(row: RuleRow): MunicipalHolidayRule {
   return {
@@ -59,6 +65,7 @@ export function toYearlyMunicipalRule(row: RuleRow): MunicipalHolidayRule {
     kind: readKind(row.kind),
     name: row.name,
     occurrence: { day: row.day, month: row.month, recurrence: HOLIDAY_RECURRENCE.YEARLY },
+    origin: HOLIDAY_ORIGIN.RULE,
   }
 }
 
@@ -69,6 +76,7 @@ export function toOnceMunicipalRule(row: HolidayRow): MunicipalHolidayRule {
     kind: readKind(row.kind),
     name: row.name,
     occurrence: { date: row.holidayOn, recurrence: HOLIDAY_RECURRENCE.ONCE },
+    origin: originOf(row),
   }
 }
 
@@ -88,6 +96,7 @@ export function toStateRule(row: StateHolidayRow): StateHolidayRule {
   return {
     name: row.name,
     occurrence: toStateOccurrence(row),
+    origin: originOf(row),
     stateIbgeCode: row.stateIbgeCode,
   }
 }
