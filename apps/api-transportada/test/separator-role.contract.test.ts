@@ -7,6 +7,7 @@ import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
 import { createDayChecksRoutes } from '../src/business-calendar/presentation/day-checks.routes'
 import { createHolidayImportRoutes } from '../src/business-calendar/presentation/holiday-import.routes'
+import { createHolidayImportEnablementRoutes } from '../src/business-calendar/presentation/holiday-import-enablement.routes'
 import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/presentation/holiday-provider-settings.routes'
 import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
 import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
@@ -119,6 +120,8 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 262: a chave da FeriadosAPI é da instalação — ler é `settings.manage`, escrever é `holiday-import.configure`
     // (só o `company-admin`). O separador não alcança nenhuma das três rotas.
     ...createHolidayProviderSettingsRoutes(dependencies),
+    // Spec 262 T3.4: o liga/desliga da importação da empresa é configuração (`settings.manage`, ler e escrever).
+    ...createHolidayImportEnablementRoutes(dependencies),
     // Spec 252 T4.2: a consulta de dias de feriado da montagem é `fleet.read`, e o separador monta o roteiro.
     ...createDayChecksRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere

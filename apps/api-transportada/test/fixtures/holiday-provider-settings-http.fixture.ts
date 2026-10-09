@@ -32,15 +32,26 @@ export function createHolidayProviderSettingsHttpFixture(input: {
   readonly useCases: HolidayProviderSettingsUseCases
   readonly userId: string
 }): HolidayProviderSettingsHttpFixture {
+  const { useCases, ...rest } = input
+  return createRoutesHttpFixture({
+    ...rest,
+    routes: createHolidayProviderSettingsRoutes({ ...useCases, resolveClientIp: () => CLIENT_IP }),
+  })
+}
+
+/** O roteador de verdade com quaisquer rotas do calendário, para os contratos do liga/desliga também. */
+export function createRoutesHttpFixture(input: {
+  readonly companyId: string
+  readonly permissions: readonly string[]
+  readonly rateLimitWindows?: RateLimitWindowStorePort
+  readonly routes: Parameters<typeof createTestRouter>[0]['routes']
+  readonly userId: string
+}): HolidayProviderSettingsHttpFixture {
   const logs: string[] = []
-  const context = authenticatedContext(input)
   const router = createTestRouter({
-    context,
+    context: authenticatedContext(input),
     ...(input.rateLimitWindows === undefined ? {} : { rateLimitWindows: input.rateLimitWindows }),
-    routes: createHolidayProviderSettingsRoutes({
-      ...input.useCases,
-      resolveClientIp: () => CLIENT_IP,
-    }),
+    routes: input.routes,
   })
   const record = (level: string) => (message: string, metadata?: Record<string, unknown>) => {
     logs.push(`${level} ${message} ${JSON.stringify(metadata ?? {})}`)
