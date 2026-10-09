@@ -29,10 +29,16 @@ export function TripResultCell({ amounts }: TripResultCellProps) {
       )}
       {view.margin === null ? null : (
         <span className={`${styles.resultLine} ${marginClassName}`}>
-          {t(marginLabel, { amount: formatAmount(view.margin) })}
-          {view.marginPercentage === null
-            ? null
-            : ` · ${t('listCells.result.margin', { percent: view.marginPercentage })}`}
+          <span className={styles.resultPart}>
+            {t(marginLabel, { amount: formatAmount(view.margin) })}
+          </span>
+          {view.marginPercentage === null ? null : (
+            <span className={styles.resultPart}>
+              {t('listCells.result.margin', {
+                percent: view.marginPercentage.replace('.', ','),
+              })}
+            </span>
+          )}
         </span>
       )}
       {view.marks.length === 0 ? null : (

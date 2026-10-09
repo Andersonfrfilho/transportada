@@ -1208,6 +1208,7 @@
         "trailerMissing": "sem carreta atrelada"
       },
       "noVehicle": "Sem veículo",
+      "overCapacity": "acima do teto",
       "volume": "Volume",
       "volumeMissing": "sem capacidade em m³",
       "weight": "Peso",

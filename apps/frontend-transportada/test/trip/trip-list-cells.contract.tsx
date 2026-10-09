@@ -162,7 +162,8 @@ describe('TripOccupancyBars', () => {
       },
     })
 
-    expect(markup).toContain('Peso 130%')
+    expect(markup).toContain('Peso 130% · acima do teto')
+    expect(markup).not.toContain('Volume 62% · acima do teto')
   })
 
   it('API anterior (sem o campo) mostra "—"', () => {
@@ -182,7 +183,7 @@ describe('TripResultCell', () => {
     expect(markup).toContain('800,00')
     expect(markup).toContain('Lucro')
     expect(markup).toContain('200,00')
-    expect(markup).toContain('20.00% de margem')
+    expect(markup).toContain('20,00% de margem')
     expect(markup).not.toContain('previsto')
     expect(markup).not.toContain('parcial')
   })
