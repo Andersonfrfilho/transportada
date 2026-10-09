@@ -7,7 +7,10 @@
  * quando o código dele é o da parada. Parada concluída ou sem ETA não avisa. Os calendários que o prazo
  * já carregou são reaproveitados; senão, as quatro leituras de sempre, uma vez só, em série.
  */
-import { toCivilDate } from '../../business-calendar/application/civil-date.service.js'
+import {
+  resolveToday,
+  toCivilDate,
+} from '../../business-calendar/application/civil-date.service.js'
 import type { HolidayWarningItem } from '../../business-calendar/application/holiday-warning.port.js'
 import {
   BUSINESS_CALENDAR_TIME_ZONE,
@@ -112,6 +115,7 @@ export async function readTripStopHolidayWarnings(
     companyId: params.companyId,
     items,
     knownCalendars: params.calendars,
+    referenceYear: Number(resolveToday({ now: params.now }).slice(0, 4)),
   })
   warnRefusals(params, refusals)
   return warnings

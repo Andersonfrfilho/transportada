@@ -2196,7 +2196,7 @@ function createApplicationRoutes({
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
   /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
   const driverHolidayWarnings = {
-    calendar: new DrizzleHolidayWarningRepository(database),
+    calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
     contexts: new DrizzleDriverStopHolidayContextRepository(database),
     logger,
   }
@@ -2990,7 +2990,7 @@ function createApplicationRoutes({
     }),
     ...createDayChecksRoutes({
       dayChecks: createDayChecksUseCase({
-        repository: new DrizzleHolidayWarningRepository(database),
+        repository: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
       }),
     }),
     ...createHolidayImportRoutes({
