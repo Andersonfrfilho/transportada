@@ -635,3 +635,25 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   O contrato `token-privacy.contract.ts` roda a rotina inteira com o cliente HTTP de verdade e um fornecedor que ecoa o
   token de seis jeitos (rede, 500, 401, 429, corpo que não é JSON, nome de feriado) e procura o segredo no log, nos
   contadores e no que a rotina grava.
+- **2ª rodada da revisão (cliente e busca)** — o cliente recusa o corpo declarado ou lido acima de **512 KB** (lê por stream com
+  teto, nunca `response.json()` cru), a página acima de 100 itens, o nome acima de 1.000 caracteres e o id acima de 64; remove
+  caractere de controle e de formato (NUL, RLO, zero-width) do nome e do id; descarta e **conta** a data de outro ano que o
+  pedido; não segue redirecionamento (`redirect: 'error'`); e o `Retry-After` fica entre **60 s e 24 h**, qualquer que seja o
+  valor ou a data. O erro de transporte guarda só o **nome** do erro (`reason`). Status: **401** encerra o ciclo
+  (`provider_unauthorized`); **402/403** numa cidade grava o par `failed` com `provider_plan_restricted` por 30 dias e o ciclo
+  **segue** (contador `plan_restricted`), no nacional ou no estado encerra como não autorizado; **404** numa cidade é
+  `not_covered`, mas no nacional ou no estado é **contrato quebrado** (`malformed_response`, recuo de 1 h, ciclo para), e um
+  ciclo em que **todo** pedido deu 404 fecha `malformed_response`. **Disjuntor:** 3 `provider_unreachable` seguidos encerram
+  o ciclo e os pares que sobraram ficam intactos. **Orçamento esgotado só encerra o ciclo** — nenhum par muda, então aumentar o
+  orçamento solta tudo no ciclo seguinte; o contador do mês sobe imediatamente antes da chamada (depois do limitador), e só a
+  queda do processo nesse intervalo gasta uma requisição que não saiu. **Falha de gravação depois de resposta boa** (dado que o
+  banco recusa) grava o par `failed` (`persistence_failed`) com recuo, em comando à parte, para a requisição não se repetir
+  todo dia. `FERIADOS_API_TOKEN` só aceita ASCII visível (`^[\x21-\x7E]+$`) e o orçamento vai de 1 a 1.000.000; os dois derrubam o boot.
+
+- **Roteiro do 1º ciclo real** (passo do usuário, depois de Q3/Q4): configurar o token e **deixar o orçamento no valor do plano**
+  (**não testar com orçamento baixo**: o orçamento esgotado encerra o ciclo e o ciclo seguinte só segue com a conta do mês já
+  gasta). Despausar a rotina e acompanhar: `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2`
+  (esperado: `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` ou
+  `persistence_failed` pedem leitura do log, que só tem código, nome do erro e par); `holiday_provider_monthly_usage.requests` do
+  mês contra o contador `requests` da execução; `national_mismatch` **maior que zero é esperado** (o fornecedor lista a Páscoa e
+  o código conta Carnaval e Corpus Christi). O painel de rotinas mostra os contadores e o desfecho da execução.

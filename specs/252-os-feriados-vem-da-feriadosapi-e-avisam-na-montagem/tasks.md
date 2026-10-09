@@ -242,6 +242,19 @@ registrar em `evidence.md` →
 telas depois dos prints aprovados → produção por PR `staging → main` com aprovação humana (a migration com aprovação
 própria).
 
+### Roteiro do 1º ciclo real (passo do usuário, depois de Q3 e Q4)
+
+Configurar `FERIADOS_API_TOKEN` e **deixar o orçamento no valor do plano — não testar com orçamento baixo** (o orçamento
+esgotado só encerra o ciclo e o ciclo seguinte já parte do mês gasto). Despausar `holiday.provider.pull` e conferir, em
+staging, só por leitura:
+
+- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no
+  máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` e `persistence_failed`
+  pedem leitura do log (só tem código, nome do erro e par);
+- `holiday_provider_monthly_usage.requests` do mês contra o contador `requests` da execução no painel de rotinas;
+- `national_mismatch` maior que zero **é esperado** (o fornecedor lista a Páscoa; o código conta Carnaval e Corpus Christi);
+- as lacunas da forma de resposta (`evidence.md` § T3.1) se confirmam ou se corrigem aqui.
+
 ## Prompt de execução
 
 ```text
