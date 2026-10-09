@@ -60,7 +60,8 @@ o valor do acerto.
 
 ### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
 
-**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (ainda não implementada; spec 252, ADR-0100).
+**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (spec 252, ADR-0100). **Implementada em 2026-10-09
+(T3.1 a T3.5) e inerte:** sem `FERIADOS_API_TOKEN` ela não é registrada, e a linha dela em `job_schedules` nasce pausada.
 
 **O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
 global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
@@ -71,10 +72,13 @@ não foi aceito**.
 **O que sai:** só código IBGE da cidade (ou UF) e ano, com `Authorization: Bearer <FERIADOS_API_TOKEN>`. Nunca
 `companyId`, nome de cliente ou endereço. Feriado não é dado pessoal.
 
-**O que segura (desenho, a provar nas tasks):** token só no worker, opcional (sem ele a rotina não é registrada e nada
-sai); header redigido no log (contrato, CA9); orçamento mensal e teto por ciclo no banco; resposta guardada por Zod
-(`malformed_response`, nada gravado); falha do fornecedor nunca derruba nada do negócio; origem "Importado
-(FeriadosAPI)" visível e desligamento auditado.
+**O que segura (provado nas tasks T3.1 a T3.5; a origem visível e o desligamento auditado são das Fases 4 e 5):** token
+só no worker, opcional (sem ele a rotina não é registrada e nada sai; nenhuma outra app o lê, por contrato); **o token
+não aparece em nenhuma mensagem de erro por construção** (o erro do cliente carrega só o código) e um contrato roda a
+rotina inteira com um fornecedor que ecoa o token de seis jeitos e o procura no log e nos contadores (CA9); orçamento
+mensal incrementado por upsert **antes** de cada chamada, teto de 100 requisições por ciclo e espaçamento de 1,2 s;
+resposta guardada por Zod (`malformed_response`, nada gravado); falha do fornecedor nunca derruba nada do negócio; a
+linha digitada e a gerada por regra vencem a importada, e a aplicação toma a trava de calendário da empresa.
 
 **Pendência (passo do usuário):** confirmar com o fornecedor que guardar os feriados é permitido **antes** de
 configurar `FERIADOS_API_TOKEN` (spec 252 Q4, `[NEEDS CLARIFICATION]`). Ao ligar, `feriadosapi.com` entra na lista de

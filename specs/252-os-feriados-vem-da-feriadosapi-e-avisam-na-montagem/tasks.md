@@ -2,7 +2,7 @@
 
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
 > rotina** (configurar `FERIADOS_API_TOKEN` e despausar a rotina, que nasce pausada de fábrica — D13), que é passo do
-> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07); **T2.1, T2.2 e T2.3 feitas** (2026-10-09; a revisão `opus` da T2.2 segue pendente, em passada separada).
+> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07); **T2.1, T2.2 e T2.3 feitas** (2026-10-09; a revisão `opus` da T2.2 segue pendente, em passada separada). **T3.1 a T3.5 feitas** (2026-10-09, branch `work/252-t3`, sem push; a rotina nasce inerte sem token).
 
 Uma task por vez, na ordem. Cada task fecha com: **contrato vermelho antes** (pelo motivo certo), `bun run typecheck`,
 lint com a app como cwd, teste pelo **script `test` do `package.json`** (nunca `bun test` cru; na API contrato e
@@ -141,9 +141,12 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       integração vermelhos, `9b1450794` código, `a52a193ad` ajuste de dado de teste): Fase 1 conferida em `origin/staging`
       (`4454228ac`), aplicação por empresa sob a trava de calendário da 238, 11 integrações contra Postgres, 18 mutações
       vermelhas; `evidence.md` § T3.4.
-- [ ] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
+- [x] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
       (vazio = ausente), registro condicional da rotina (`job_run_routine_missing` sem token), `.env.example` sem valor,
-      `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9)
+      `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9) **Feita em 2026-10-09** (`9b64e1726` contratos
+      vermelhos, `264b7f31a` código): sem token a rotina não é registrada e o boot segue verde; orçamento inteiro `>= 1`
+      (padrão 4500, Q3 aberta); o token não aparece em log, contador nem erro com o cliente HTTP de verdade e um
+      fornecedor que o ecoa de seis jeitos; 13 mutações vermelhas; `evidence.md` § T3.5 e "Fechamento da Fase 3".
 
 ## Fase 4 — API
 
