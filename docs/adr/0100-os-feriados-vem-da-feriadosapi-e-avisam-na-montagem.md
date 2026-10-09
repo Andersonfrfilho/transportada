@@ -7,6 +7,8 @@
 - **Emenda:** ADR-0048 §3 ("nenhuma fonte pública de feriado municipal é confiável") e o "Fora do escopo" da spec 238
   ("importar feriados de fonte pública … nunca carga automática")
 - **Citações:** ADR-0021, ADR-0044 §3, ADR-0048 §3, ADR-0062, ADR-0094, ADR-0096, specs 060, 073, 186, 236, 237, 238
+- **Emendado por:** ADR-0102 (spec 262, proposta em 2026-10-09) — D9 (orçamento) e D10 (token) passam ao banco, configurados
+  no painel; ver § Emendas.
 
 ## Contexto
 
@@ -344,3 +346,11 @@ um banco veja o outro: uma chave por instalação, ou o orçamento de cada uma d
   quando configurado, pela importação". O texto histórico do ADR-0048 fica; uma nota no topo aponta para cá.
 - **Spec 238, "Fora do escopo"** — "Importar feriados de fonte pública … nunca carga automática" é revogado pela spec
   252 para a FeriadosAPI. O CSV manual (P3 da 238) continua fora. Nota no topo da spec 238 aponta para cá.
+- **Este ADR, D9 e D10 — emendados pelo ADR-0102 (spec 262, proposta em 2026-10-09; vale quando a 262 for publicada).** A
+  chave da FeriadosAPI deixa de ser `FERIADOS_API_TOKEN` e o orçamento deixa de ser `FERIADOS_API_MONTHLY_REQUEST_BUDGET`: os
+  dois moram em `holiday_provider_settings` (a chave selada pelo chaveiro de aplicação, como a NFS-e e o Resend) e se configuram
+  no painel, com a permissão `holiday-import.configure`. A rotina passa a ser registrada sempre e lê a configuração a cada
+  ciclo; sem chave ela não faz requisição e fecha com o contador `token_missing` (não mais `job_run_routine_missing`); chave que
+  não abre fecha `credential_unreadable`. **D13 continua:** a rotina nasce pausada e despausar segue em Operações. O
+  liga/desliga por empresa (`company_holiday_import_settings.is_enabled`) ganha rota e tela. Até a 262 ser publicada, vale o
+  texto de D9/D10 acima.

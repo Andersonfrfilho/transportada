@@ -144,6 +144,16 @@ do erro e par.
 **Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
 `feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
 
+**Emenda planejada (spec 262, ADR-0102 — proposta em 2026-10-09, ainda não implementada):** a chave deixa a variável de
+ambiente e passa a morar **selada no banco** (`holiday_provider_settings.token_envelope`, envelope A256GCM com o chaveiro de
+aplicação e AAD por linha), configurada no painel por quem tem a permissão nova `holiday-import.configure` (só `company-admin`);
+o orçamento mensal vai para a mesma linha. É a mesma exceção ao "segredo só em variável de ambiente" que a credencial da NFS-e, o
+certificado A1 e a chave do Resend já fazem: o segredo-raiz (`ENCRYPTION_KEYRING_JSON`) continua só no ambiente e o backup do
+banco leva só o envelope. A chave nunca sai por rota (só `tokenConfigured` e os 4 últimos caracteres), nunca entra em log,
+auditoria ou mensagem de erro, e o worker continua sendo a **única** app que fala com `feriadosapi.com` (a API não testa a chave).
+Risco novo, aceito pelo ADR-0021: qualquer `company-admin` de qualquer empresa da instalação troca a chave da instalação
+(auditoria na empresa do ator). Até a 262 ser publicada, vale o texto acima; a T6.1 da 262 troca esta nota pela entrada própria.
+
 **Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07; atualizado em 2026-10-09 (T6.1).
 
 ### 2026-10-09 — spec 252 T4.1 — a gestão da importação de feriados: quem alcança, o que audita e por que o cache global não sai cru
