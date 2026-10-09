@@ -75,10 +75,10 @@ async function runStage<TTally>(input: {
   }
 }
 
-async function runCycle(input: {
+async function runStages(input: {
   readonly context: JobRoutineContext
   readonly dependencies: HolidayProviderPullRoutineDependencies
-}): Promise<JobRoutineResult> {
+}): Promise<CycleState> {
   const { context, dependencies } = input
   const { correlationId, isStopRequested } = context
   const state: CycleState = {
@@ -110,14 +110,24 @@ async function runCycle(input: {
     state,
   })
 
+  return state
+}
+
+async function runCycle(input: {
+  readonly context: JobRoutineContext
+  readonly dependencies: HolidayProviderPullRoutineDependencies
+}): Promise<JobRoutineResult> {
+  const { context, dependencies } = input
+  const state = await runStages(input)
   const counters = buildCounters(state)
   const outcome = resolveOutcome(state)
+
   safeLogInfo({
     logger: dependencies.logger,
     message: 'holiday_provider_pull_cycle_finished',
     metadata: {
       ...counters,
-      correlationId,
+      correlationId: context.correlationId,
       executionId: context.executionId,
       outcome,
     },

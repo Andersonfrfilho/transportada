@@ -15,6 +15,7 @@ import {
 import { nfeAddresses, nfeParticipants } from '../../database/nfe.schema.js'
 import { PHYSICAL_DESTINATION_ORIGINS } from '../../routing/domain/physical-destination.policy.js'
 import type {
+  DestinationRow,
   DiscoveryCompany,
   DiscoveryCursor,
   HolidayDiscoveryStore,
@@ -59,52 +60,99 @@ function toCompany(row: CompanyRow): DiscoveryCompany {
   }
 }
 
+type Transaction = Parameters<Parameters<HolidayDiscoveryDatabase['transaction']>[0]>[0]
+
+async function upsertCityCounts(transaction: Transaction, params: SaveDiscoveryBatchParams) {
+  const { cityCounts, companyId, seenAt } = params
+  if (cityCounts.size === 0) return
+
+  await transaction
+    .insert(holidayImportCities)
+    .values(
+      [...cityCounts].map(([cityIbgeCode, documentCount]) => ({
+        cityIbgeCode,
+        companyId,
+        documentCount,
+        lastSeenAt: seenAt,
+      })),
+    )
+    .onConflictDoUpdate({
+      set: {
+        documentCount: sql`${holidayImportCities.documentCount} + excluded.document_count`,
+        lastSeenAt: sql`excluded.last_seen_at`,
+      },
+      target: [holidayImportCities.companyId, holidayImportCities.cityIbgeCode],
+    })
+}
+
+async function upsertCursor(transaction: Transaction, params: SaveDiscoveryBatchParams) {
+  const { companyId, cursor } = params
+
+  await transaction
+    .insert(companyHolidayImportSettings)
+    .values({
+      companyId,
+      cursorDocumentId: cursor.documentId,
+      cursorIssuedAt: sql`${cursor.issuedAt}::timestamptz`,
+      cursorUpdatedAt: sql`${cursor.updatedAt}::timestamptz`,
+    })
+    .onConflictDoUpdate({
+      set: {
+        cursorDocumentId: sql`excluded.cursor_document_id`,
+        cursorIssuedAt: sql`excluded.cursor_issued_at`,
+        cursorUpdatedAt: sql`excluded.cursor_updated_at`,
+      },
+      target: companyHolidayImportSettings.companyId,
+    })
+}
+
 async function saveBatch(
   database: HolidayDiscoveryDatabase,
   params: SaveDiscoveryBatchParams,
 ): Promise<void> {
-  const { cityCounts, companyId, cursor, seenAt } = params
-
   // Uma transação: o lote contado e o cursor movido juntos, ou nenhum dos dois — senão a falha entre
   // os dois recontaria o lote no ciclo seguinte.
   await database.transaction(async (transaction) => {
-    if (cityCounts.size > 0) {
-      await transaction
-        .insert(holidayImportCities)
-        .values(
-          [...cityCounts].map(([cityIbgeCode, documentCount]) => ({
-            cityIbgeCode,
-            companyId,
-            documentCount,
-            lastSeenAt: seenAt,
-          })),
-        )
-        .onConflictDoUpdate({
-          set: {
-            documentCount: sql`${holidayImportCities.documentCount} + excluded.document_count`,
-            lastSeenAt: sql`excluded.last_seen_at`,
-          },
-          target: [holidayImportCities.companyId, holidayImportCities.cityIbgeCode],
-        })
-    }
-
-    await transaction
-      .insert(companyHolidayImportSettings)
-      .values({
-        companyId,
-        cursorDocumentId: cursor.documentId,
-        cursorIssuedAt: sql`${cursor.issuedAt}::timestamptz`,
-        cursorUpdatedAt: sql`${cursor.updatedAt}::timestamptz`,
-      })
-      .onConflictDoUpdate({
-        set: {
-          cursorDocumentId: sql`excluded.cursor_document_id`,
-          cursorIssuedAt: sql`excluded.cursor_issued_at`,
-          cursorUpdatedAt: sql`excluded.cursor_updated_at`,
-        },
-        target: companyHolidayImportSettings.companyId,
-      })
+    await upsertCityCounts(transaction, params)
+    await upsertCursor(transaction, params)
   })
+}
+
+async function readDestinationRows(
+  database: HolidayDiscoveryDatabase,
+  params: { readonly companyId: string; readonly documentIds: readonly string[] },
+): Promise<readonly DestinationRow[]> {
+  const rows = await database
+    .select({
+      cityCode: nfeAddresses.cityCode,
+      documentId: nfeParticipants.documentId,
+      number: nfeAddresses.number,
+      postalCode: nfeAddresses.postalCode,
+      role: nfeParticipants.role,
+    })
+    .from(nfeParticipants)
+    .innerJoin(
+      nfeAddresses,
+      and(
+        eq(nfeAddresses.companyId, nfeParticipants.companyId),
+        eq(nfeAddresses.participantId, nfeParticipants.id),
+      ),
+    )
+    .where(
+      and(
+        eq(nfeParticipants.companyId, params.companyId),
+        inArray(nfeParticipants.documentId, [...params.documentIds]),
+        inArray(nfeParticipants.role, [...PHYSICAL_DESTINATION_ORIGINS]),
+      ),
+    )
+
+  return rows.map((row) => ({
+    cityCode: row.cityCode,
+    documentId: row.documentId,
+    number: row.number,
+    origin: row.role === 'delivery' ? ('delivery' as const) : ('recipient' as const),
+    postalCode: row.postalCode,
+  }))
 }
 
 export function createDrizzleHolidayDiscoveryStore(
@@ -116,39 +164,7 @@ export function createDrizzleHolidayDiscoveryStore(
       return [...rows].map(toCompany)
     },
 
-    async readDestinations({ companyId, documentIds }) {
-      const rows = await database
-        .select({
-          cityCode: nfeAddresses.cityCode,
-          documentId: nfeParticipants.documentId,
-          number: nfeAddresses.number,
-          postalCode: nfeAddresses.postalCode,
-          role: nfeParticipants.role,
-        })
-        .from(nfeParticipants)
-        .innerJoin(
-          nfeAddresses,
-          and(
-            eq(nfeAddresses.companyId, nfeParticipants.companyId),
-            eq(nfeAddresses.participantId, nfeParticipants.id),
-          ),
-        )
-        .where(
-          and(
-            eq(nfeParticipants.companyId, companyId),
-            inArray(nfeParticipants.documentId, [...documentIds]),
-            inArray(nfeParticipants.role, [...PHYSICAL_DESTINATION_ORIGINS]),
-          ),
-        )
-
-      return rows.map((row) => ({
-        cityCode: row.cityCode,
-        documentId: row.documentId,
-        number: row.number,
-        origin: row.role === 'delivery' ? ('delivery' as const) : ('recipient' as const),
-        postalCode: row.postalCode,
-      }))
-    },
+    readDestinations: (params) => readDestinationRows(database, params),
 
     async readDocumentBatch(input) {
       const rows = await database.execute<DocumentRow>(buildDocumentBatchQuery(input))

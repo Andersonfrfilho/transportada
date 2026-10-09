@@ -14,6 +14,7 @@ import { createApplyHolidayProviderUseCase } from '../application/apply-holiday-
 import { createDiscoverHolidayCitiesUseCase } from '../application/discover-holiday-cities.use-case.js'
 import { createFetchHolidayProviderUseCase } from '../application/fetch-holiday-provider.use-case.js'
 import { createHolidayProviderPullRoutine } from '../application/holiday-provider-pull.routine.js'
+import type { RequestClock } from '../application/request-limiter.js'
 import {
   FERIADOS_API_BASE_URL,
   FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
@@ -24,6 +25,11 @@ import { createDrizzleHolidayApplyStore } from './drizzle-holiday-apply.store.js
 import { createDrizzleHolidayDiscoveryStore } from './drizzle-holiday-discovery.store.js'
 import { createDrizzleHolidayFetchStore } from './drizzle-holiday-fetch.store.js'
 import { createFeriadosApiClient } from './feriados-api.client.js'
+
+const SYSTEM_CLOCK: RequestClock = {
+  nowMilliseconds: () => Date.now(),
+  sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+}
 
 export type HolidayProviderPullDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -58,10 +64,7 @@ export function buildHolidayProviderPullRegistry(input: {
           timeoutInMilliseconds: FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
           token: settings.token,
         }),
-        clock: {
-          nowMilliseconds: () => Date.now(),
-          sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-        },
+        clock: SYSTEM_CLOCK,
         logger,
         now,
         store: createDrizzleHolidayFetchStore(database),

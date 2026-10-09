@@ -8,18 +8,16 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, gte, isNull, lte, notInArray, sql } from 'drizzle-orm'
 
-import {
-  holidayProviderEntries,
-  holidayProviderFetches,
-} from '../../database/holiday-provider.schema.js'
+import { holidayProviderEntries } from '../../database/holiday-provider.schema.js'
 import type {
   HolidayFetchStore,
   SaveFetchSuccessParams,
 } from '../application/holiday-fetch.port.js'
 import { buildSuccessRecord } from '../domain/holiday-fetch-record.policy.js'
-import type { FetchPair, FetchRecord } from '../domain/holiday-fetch.types.js'
+import type { FetchPair } from '../domain/holiday-fetch.types.js'
 import { HOLIDAY_PROVIDER_SCOPE } from '../domain/holiday-provider.constant.js'
 
+import { upsertFetchRecords } from './drizzle-holiday-fetch-record.writer.js'
 import {
   buildClaimBudgetQuery,
   buildDuePairsQuery,
@@ -36,43 +34,6 @@ type PairRow = {
   readonly ibge_code: string
   readonly scope: FetchPair['scope']
   readonly year: number
-}
-
-async function upsertFetchRecords(
-  executor: Executor,
-  records: readonly FetchRecord[],
-): Promise<void> {
-  if (records.length === 0) return
-
-  await executor
-    .insert(holidayProviderFetches)
-    .values(
-      records.map((record) => ({
-        attempts: record.attempts,
-        fetchedAt: record.fetchedAt,
-        ibgeCode: record.pair.ibgeCode,
-        lastErrorCode: record.errorCode,
-        nextAttemptAt: record.nextAttemptAt,
-        scope: record.pair.scope,
-        status: record.status,
-        year: record.pair.year,
-      })),
-    )
-    .onConflictDoUpdate({
-      set: {
-        attempts: sql`excluded.attempts`,
-        // A tentativa que falhou não apaga a data da última busca boa.
-        fetchedAt: sql`coalesce(excluded.fetched_at, ${holidayProviderFetches.fetchedAt})`,
-        lastErrorCode: sql`excluded.last_error_code`,
-        nextAttemptAt: sql`excluded.next_attempt_at`,
-        status: sql`excluded.status`,
-      },
-      target: [
-        holidayProviderFetches.scope,
-        holidayProviderFetches.ibgeCode,
-        holidayProviderFetches.year,
-      ],
-    })
 }
 
 async function upsertEntries(executor: Executor, params: SaveFetchSuccessParams): Promise<void> {
@@ -140,6 +101,45 @@ async function markRemovedEntries(
     )
 }
 
+async function saveSuccess(
+  database: HolidayFetchDatabase,
+  params: SaveFetchSuccessParams,
+): Promise<void> {
+  await database.transaction(async (transaction) => {
+    await upsertEntries(transaction, params)
+    await markRemovedEntries(transaction, params)
+
+    const closed = [buildSuccessRecord(params)]
+    if (params.stateCovered !== undefined) {
+      const { stateCode, year } = params.stateCovered
+      const pair = { attempts: 0, ibgeCode: stateCode, scope: HOLIDAY_PROVIDER_SCOPE.STATE, year }
+      closed.push(
+        buildSuccessRecord({ nextAttemptAt: params.nextAttemptAt, now: params.now, pair }),
+      )
+    }
+    await upsertFetchRecords(transaction, closed)
+  })
+}
+
+async function readStatePair(
+  database: HolidayFetchDatabase,
+  params: { readonly now: Date; readonly stateCode: string; readonly year: number },
+): Promise<FetchPair | undefined> {
+  await database.execute(buildEnsureStatePairQuery(params))
+  const rows = await database.execute<{ attempts: number; is_due: boolean }>(
+    buildReadStatePairQuery(params),
+  )
+  const [row] = [...rows]
+  if (row === undefined || !row.is_due) return undefined
+
+  return {
+    attempts: Number(row.attempts),
+    ibgeCode: params.stateCode,
+    scope: HOLIDAY_PROVIDER_SCOPE.STATE,
+    year: params.year,
+  }
+}
+
 export function createDrizzleHolidayFetchStore(database: HolidayFetchDatabase): HolidayFetchStore {
   return {
     async claimBudget(input) {
@@ -147,20 +147,7 @@ export function createDrizzleHolidayFetchStore(database: HolidayFetchDatabase): 
       return [...rows].length > 0
     },
 
-    async ensureStatePair({ now, stateCode, year }) {
-      await database.execute(buildEnsureStatePairQuery({ stateCode, year }))
-      const rows = await database.execute<{ attempts: number; is_due: boolean }>(
-        buildReadStatePairQuery({ now, stateCode, year }),
-      )
-      const [row] = [...rows]
-      if (row === undefined || !row.is_due) return undefined
-      return {
-        attempts: Number(row.attempts),
-        ibgeCode: stateCode,
-        scope: HOLIDAY_PROVIDER_SCOPE.STATE,
-        year,
-      }
-    },
+    ensureStatePair: (params) => readStatePair(database, params),
 
     async listDuePairs(input) {
       const rows = await database.execute<PairRow>(buildDuePairsQuery(input))
@@ -174,28 +161,6 @@ export function createDrizzleHolidayFetchStore(database: HolidayFetchDatabase): 
 
     recordFetches: (records) => upsertFetchRecords(database, records),
 
-    async saveSuccess(params) {
-      await database.transaction(async (transaction) => {
-        await upsertEntries(transaction, params)
-        await markRemovedEntries(transaction, params)
-
-        const closed = [buildSuccessRecord(params)]
-        if (params.stateCovered !== undefined) {
-          closed.push(
-            buildSuccessRecord({
-              nextAttemptAt: params.nextAttemptAt,
-              now: params.now,
-              pair: {
-                attempts: 0,
-                ibgeCode: params.stateCovered.stateCode,
-                scope: HOLIDAY_PROVIDER_SCOPE.STATE,
-                year: params.stateCovered.year,
-              },
-            }),
-          )
-        }
-        await upsertFetchRecords(transaction, closed)
-      })
-    },
+    saveSuccess: (params) => saveSuccess(database, params),
   }
 }

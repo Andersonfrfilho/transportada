@@ -40,9 +40,57 @@ export type DiscoverHolidayCitiesUseCase = {
 }
 
 type CompanyParams = {
+  readonly batchSize: number
   readonly company: DiscoveryCompany
+  readonly dependencies: DiscoverHolidayCitiesDependencies
   readonly isStopRequested: () => boolean
+  readonly maxBatches: number
   readonly tally: DiscoveryTally
+}
+
+async function discoverCompany(params: CompanyParams): Promise<void> {
+  const { batchSize, company, dependencies, isStopRequested, maxBatches, tally } = params
+  const { store } = dependencies
+  let { cursor } = company
+
+  for (let batch = 0; batch < maxBatches && !isStopRequested(); batch += 1) {
+    const documents = await store.readDocumentBatch({
+      companyId: company.companyId,
+      cursor,
+      limit: batchSize,
+    })
+    const last = documents.at(-1)
+    if (last === undefined) return
+
+    const documentIds = documents.map((document) => document.documentId)
+    const rows = await store.readDestinations({ companyId: company.companyId, documentIds })
+    const summary = summarizeDocumentDestinations({ documentIds, rows })
+
+    await store.saveBatch({
+      cityCounts: summary.cityCounts,
+      companyId: company.companyId,
+      cursor: last,
+      seenAt: dependencies.now(),
+    })
+
+    cursor = last
+    tally.batches += 1
+    tally.documentsRead += documents.length
+    tally.discardedCityCodes += summary.discardedCityCodes
+    tally.documentsWithoutDestination += summary.documentsWithoutDestination
+    if (documents.length < batchSize) return
+  }
+}
+
+function createEmptyTally(): DiscoveryTally {
+  return {
+    batches: 0,
+    companies: 0,
+    discardedCityCodes: 0,
+    documentsRead: 0,
+    documentsWithoutDestination: 0,
+    failedCompanies: 0,
+  }
 }
 
 export function createDiscoverHolidayCitiesUseCase(
@@ -50,60 +98,23 @@ export function createDiscoverHolidayCitiesUseCase(
 ): DiscoverHolidayCitiesUseCase {
   const batchSize = dependencies.batchSize ?? HOLIDAY_DISCOVERY_BATCH_SIZE
   const maxBatches = dependencies.maxBatches ?? HOLIDAY_DISCOVERY_MAX_BATCHES
-  const { store } = dependencies
-
-  async function discoverCompany({
-    company,
-    isStopRequested,
-    tally,
-  }: CompanyParams): Promise<void> {
-    let { cursor } = company
-
-    for (let batch = 0; batch < maxBatches && !isStopRequested(); batch += 1) {
-      const documents = await store.readDocumentBatch({
-        companyId: company.companyId,
-        cursor,
-        limit: batchSize,
-      })
-      const last = documents.at(-1)
-      if (last === undefined) return
-
-      const documentIds = documents.map((document) => document.documentId)
-      const rows = await store.readDestinations({ companyId: company.companyId, documentIds })
-      const summary = summarizeDocumentDestinations({ documentIds, rows })
-
-      await store.saveBatch({
-        cityCounts: summary.cityCounts,
-        companyId: company.companyId,
-        cursor: last,
-        seenAt: dependencies.now(),
-      })
-
-      cursor = last
-      tally.batches += 1
-      tally.documentsRead += documents.length
-      tally.discardedCityCodes += summary.discardedCityCodes
-      tally.documentsWithoutDestination += summary.documentsWithoutDestination
-      if (documents.length < batchSize) return
-    }
-  }
 
   return {
     async execute({ correlationId, isStopRequested }) {
-      const tally: DiscoveryTally = {
-        batches: 0,
-        companies: 0,
-        discardedCityCodes: 0,
-        documentsRead: 0,
-        documentsWithoutDestination: 0,
-        failedCompanies: 0,
-      }
+      const tally = createEmptyTally()
 
-      for (const company of await store.listCompanies()) {
+      for (const company of await dependencies.store.listCompanies()) {
         if (isStopRequested()) break
         tally.companies += 1
         try {
-          await discoverCompany({ company, isStopRequested, tally })
+          await discoverCompany({
+            batchSize,
+            company,
+            dependencies,
+            isStopRequested,
+            maxBatches,
+            tally,
+          })
         } catch (error: unknown) {
           tally.failedCompanies += 1
           // O nome do erro, nunca a mensagem: a do banco ou da rede pode carregar o dado que falhou.
