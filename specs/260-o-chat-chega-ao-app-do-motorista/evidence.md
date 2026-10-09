@@ -170,3 +170,11 @@ conferir `npm view` das três versões **antes** de subir os apps (T1b.x).
 
 **Ainda não executado antes do merge:** `make smoke` (Playwright) e verificação visual de `MessageText`/`StatusTicks`
 no painel e no portal.
+
+## T1.8 — publicação (aprovada pelo usuário; feita pela CI/CD)
+
+PR [adatechnology-packages#128](https://github.com/Andersonfrfilho/adatechnology-packages/pull/128) (CI verde, `MERGEABLE/CLEAN`)
+mergeado em `f869d81c4`. O `publish.yml` publicou, conferido por `npm view`: `conversation-contracts@0.4.0`,
+`conversations-ui@0.5.0` (depende de `conversation-contracts` **0.4.0** exato) e `conversation-module@0.4.1`. Ordem
+resolvida sem a janela de `ETARGET`. Smoke Playwright e conferência visual de `MessageText`/`StatusTicks` ficaram
+**depois** do merge (aceito pelo usuário) — feitos na T1b.5/T4.2.
