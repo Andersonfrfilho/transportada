@@ -48,6 +48,14 @@ export function normalizeCityCode(cityCode: null | string): string {
   return (cityCode ?? '').trim()
 }
 
+/**
+ * A cidade da parada é o 1º segmento da chave (`cidade|CEP|número`) — o destino físico da nota; vazio quando a chave não
+ * a traz. Cópia por valor de `readStopCityCode` da API.
+ */
+export function readStopCityCode(addressKey: string): string {
+  return normalizeCityCode(addressKey.split('|')[0] ?? '')
+}
+
 export function buildStopAddressKey(components: StopAddressComponents): null | string {
   const postalCode = normalizePostalCode(components.postalCode)
   if (postalCode === null) return null

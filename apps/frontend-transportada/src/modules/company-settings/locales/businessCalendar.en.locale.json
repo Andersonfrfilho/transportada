@@ -49,7 +49,8 @@
       "submitCreate": "Register holiday",
       "editing": "Editing: {{name}}",
       "lockedHint": "The city and the recurrence cannot be edited: to change them, delete and register again.",
-      "lockedHintDate": "City and date cannot be edited: to change them, delete and register again."
+      "lockedHintDate": "City and date cannot be edited: to change them, delete and register again.",
+      "importedHint": "This date came from FeriadosAPI. Editing the name or the kind makes it yours: it stops being imported."
     },
     "table": {
       "region": "Registered municipal holidays",
@@ -58,7 +59,8 @@
       "when": "When",
       "name": "Name",
       "actions": "Actions",
-      "ruleSchedule": "Every year, {{date}} — generated through {{year}}"
+      "ruleSchedule": "Every year, {{date}} — generated through {{year}}",
+      "origin": "Origin"
     },
     "horizon": {
       "notice": "Some rules have dates generated only through {{year}}: after that the routing stops closing those cities' customers.",
@@ -77,7 +79,8 @@
       "stateAria": "State",
       "submitCreate": "Register state holiday",
       "editing": "Editing: {{name}}",
-      "lockedHint": "The state and the recurrence cannot be edited: to change them, delete and register again."
+      "lockedHint": "The state and the recurrence cannot be edited: to change them, delete and register again.",
+      "importedHint": "This date came from FeriadosAPI. Changing the name makes it yours; for another date, turn this one off and register the new one."
     },
     "table": {
       "region": "Registered state holidays",
@@ -85,7 +88,8 @@
       "when": "When",
       "name": "Name",
       "actions": "Actions",
-      "yearlySchedule": "Every year, {{date}}"
+      "yearlySchedule": "Every year, {{date}}",
+      "origin": "Origin"
     }
   },
   "form": {
@@ -175,7 +179,9 @@
     "pageOf": "Page {{page}} of {{count}}",
     "previousPage": "Previous page",
     "nextPage": "Next page",
-    "count": "{{shown}} of {{total}} holidays"
+    "count": "{{shown}} of {{total}} holidays",
+    "disable": "Turn off",
+    "disableAria": "Turn off {{name}}"
   },
   "filters": {
     "clear": "Clear filters",
@@ -215,7 +221,14 @@
       "confirm": "Delete holiday"
     },
     "typedKept_one": "{{count}} typed date on this day remains in force.",
-    "typedKept_other": "{{count}} typed dates on this day remain in force."
+    "typedKept_other": "{{count}} typed dates on this day remain in force.",
+    "disabling": "Turning off…",
+    "imported": {
+      "title": "Turn off the imported holiday “{{name}}”?",
+      "body": "The date stops counting and does not come back in the next import runs. To bring it back, restore it in Turned-off holidays: it returns on the next daily run, not right away.",
+      "confirm": "Turn off holiday"
+    },
+    "suppressionNote": "Dates from today onwards that you delete also stop being imported from FeriadosAPI. To bring them back, restore them in Turned-off holidays."
   },
   "errors": {
     "generic": "The action could not be completed. Try again.",
@@ -244,6 +257,117 @@
     "BUSINESS_CALENDAR_INVALID_COVERAGE": "Invalid calendar period.",
     "BUSINESS_CALENDAR_COVERAGE_TOO_WIDE": "Calendar period too wide.",
     "BUSINESS_CALENDAR_OUT_OF_COVERAGE": "Date outside the period the calendar covers.",
-    "BUSINESS_CALENDAR_TOO_MANY_RULES": "Too many rules to build the calendar."
+    "BUSINESS_CALENDAR_TOO_MANY_RULES": "Too many rules to build the calendar.",
+    "HOLIDAY_IMPORT_PAST_DATE": "Only a date from today onwards can be turned off: past dates stay as they are.",
+    "HOLIDAY_IMPORT_DATE_LOCKED": "The date of an imported holiday cannot be changed. Turn this one off and register the new date.",
+    "HOLIDAY_NOT_IMPORTED": "This holiday is not imported: use Delete. The list was refreshed."
+  },
+  "import": {
+    "title": "Holiday import",
+    "hint": "FeriadosAPI brings, once a day, the municipal and state holidays of the cities on your invoices. What you register wins over the imported one on the same date. Imported municipal holidays count in the delivery deadline and close the city's customers in the route; state ones only count in the deadline.",
+    "legend": {
+      "title": "How to read the Origin column",
+      "national": "National: comes from the system calendar and applies to every city; it is not edited here.",
+      "state": "State: applies to every city in the state.",
+      "typed": "Registered: typed by you; it wins over the imported one on the same date.",
+      "imported": "Imported: brought from FeriadosAPI; you can turn it off."
+    },
+    "status": {
+      "title": "Import status",
+      "loading": "Loading the import status",
+      "headline": {
+        "healthy": "Up to date",
+        "waiting": "Waiting for the first run",
+        "unauthorized": "Provider refused access: invalid token or plan without coverage",
+        "unreachable": "Provider unavailable, trying again",
+        "malformed": "Unexpected provider response",
+        "failing": "With failures",
+        "disabled": "Turned off for this company"
+      },
+      "explain": {
+        "healthy": "The daily routine fetched the holidays of the tracked cities.",
+        "waiting": "The daily routine has not fetched anything yet. In Operations, check whether it is paused or has no token.",
+        "unauthorized": "The provider refused the routine's last cycle. Check the configured key and the plan contracted with the provider; in Operations, see whether the routine is paused or has no token.",
+        "unreachable": "The provider did not answer in the last cycle. The routine retries on its own in the next cycle; nothing needs to be done now.",
+        "malformed": "The provider answered in a format the routine does not understand and nothing was stored. The contract may have changed: tell support.",
+        "failing": "Some fetches failed. The routine retries on its own, with growing intervals.",
+        "disabled": "This company does not take part in the import: nothing is fetched or stored."
+      },
+      "progress": "{{done}} of {{total}} fetches done",
+      "lastFetched": "Last fetch: {{date}}",
+      "neverFetched": "No fetch yet.",
+      "lastRun": "Last routine cycle: {{date}}",
+      "planRestricted_one": "{{count}} fetch (city and year) outside the contracted plan",
+      "planRestricted_other": "{{count}} fetches (city and year) outside the contracted plan",
+      "planRestrictedHint": "The provider plan does not cover these cities. The others are still fetched; only a plan change fixes it.",
+      "cities": "Tracked cities: {{count}}",
+      "monthlyRequests": "Requests this month (whole installation): {{count}}",
+      "pairs": {
+        "pending": "Pending",
+        "failed": "Failed",
+        "notCovered": "Not covered by the provider",
+        "quotaExhausted": "Out of quota"
+      },
+      "failuresTitle": "Failures by reason",
+      "failureCount_one": "{{count}} fetch",
+      "failureCount_other": "{{count}} fetches"
+    },
+    "failures": {
+      "malformed_response": "The provider answered in an unexpected format; nothing was stored.",
+      "persistence_failed": "The provider answered, but the holidays could not be stored; the routine tries again.",
+      "provider_not_found": "The provider did not find the city; the routine retries in 90 days.",
+      "provider_plan_restricted": "The provider plan does not cover this query.",
+      "provider_rate_limited": "The provider asked to wait; the routine tries again later.",
+      "provider_unauthorized": "The provider refused the access key. Check the configured key.",
+      "provider_unreachable": "Could not reach the provider.",
+      "unknown": "Failure not recognized by the screen."
+    },
+    "removed": {
+      "title": "Removed by the provider",
+      "hint": "The provider stopped listing these dates. They stay in your calendar until you decide: to keep them, edit the name or the kind in the table (the date becomes yours); to drop them, turn them off.",
+      "empty": "No date was removed by the provider.",
+      "truncated": "There are more removed dates than fit in this list. The rest show up when you handle these.",
+      "disable": "Turn off",
+      "disableAria": "Turn off {{name}}",
+      "confirmPrompt": "Turn off “{{name}}”? It does not come back in the next runs.",
+      "confirm": "Yes, turn off",
+      "cancel": "Cancel",
+      "disabling": "Turning off…",
+      "scope": {
+        "city": "City",
+        "state": "State"
+      }
+    },
+    "suppressions": {
+      "title": "Turned-off holidays",
+      "hint": "Turned-off dates do not come back on their own. Restoring a date brings it back on the next daily run of the routine, not right away.",
+      "loading": "Loading the turned-off holidays",
+      "empty": "No turned-off holidays.",
+      "region": "Turned-off holidays",
+      "place": "Place",
+      "scope": "Scope",
+      "when": "Date",
+      "disabledOn": "Turned off on",
+      "actions": "Actions",
+      "scopes": {
+        "city": "City",
+        "state": "State"
+      },
+      "restore": "Restore",
+      "restoreAria": "Restore the holiday of {{place}} on {{date}}",
+      "restoring": "Restoring…",
+      "restoredNotice": "Restored. The date comes back on the next daily run of the routine.",
+      "count": "{{count}} turned off",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "pageOf": "Page {{page}} of {{count}}"
+    },
+    "origin": {
+      "typed": "Registered",
+      "imported": "Imported",
+      "rule": "Registered",
+      "unknown": "—",
+      "unknownAria": "Origin not informed"
+    }
   }
 }

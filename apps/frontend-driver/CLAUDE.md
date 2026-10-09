@@ -391,3 +391,16 @@ temporizador de 30 s repetia o fluxo inteiro. Duas peças, ambas sem tocar regra
   (227 D1).
 
 Detalhe e medições: `docs/ai-context/frontend-driver.md` § "Spec 254".
+
+## O feriado na cidade da parada (spec 252 T5.1b e T5.4, ADR-0100 §6)
+
+`GET /me/trips/current` traz `stops[].holidayWarnings` (data civil, `cityIbgeCode`, `cityName` e `reasons[]` com escopo, origem e nome). A guarda
+(`readHolidayWarnings`) o lê como **acessório**: ausente ou malformado vira lista vazia, **nunca** `DriverTripResponseError`, e ele viaja no snapshot do aparelho. O
+`DriverHolidayNotice` (componente próprio, fora do `DriverStopCard` de 75 KB) mostra uma linha neutra por aviso — "Hoje é feriado em Campinas (…). Confirme com o cliente antes de ir." —
+**sem toque, sem foco e sem esconder ou travar nenhuma ação** da parada (iniciar trajeto, chegar, entregar, ocorrência).
+
+- **"Hoje" é o dia civil de São Paulo no relógio corrigido pelo desvio de `clockOffset.service.ts`**, não o fuso do aparelho; aviso de data anterior a hoje some, data malformada não vira texto.
+- **Feriado nacional chega como chave estável** e o texto é do locale (`holidayWarning.national.*`); `NATIONAL_HOLIDAY_KEYS` é cópia por valor da API, presa por contrato.
+- A nota do motorista não muda com feriado (CA16, contrato na API). Nada é importado do painel (ADR-0075).
+
+Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".

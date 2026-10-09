@@ -10,6 +10,7 @@ import {
   createBusinessCalendarClient,
   type BusinessCalendarClient,
 } from './businessCalendarClient.service'
+import { createHolidayImportClient, type HolidayImportClient } from './holidayImportClient.service'
 
 /** `state` é a sigla (`SP`): é o que o provedor do IBGE (BrasilAPI) aceita. */
 export type MunicipalityDirectory = (
@@ -18,6 +19,15 @@ export type MunicipalityDirectory = (
 
 export function getBusinessCalendarClient(): BusinessCalendarClient {
   return createBusinessCalendarClient({
+    apiBaseUrl: getIdentityEnvironment().apiBaseUrl,
+    fetch: (request) => fetch(request),
+    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+  })
+}
+
+/** A gestão da importação de feriados (spec 252): as mesmas dependências do calendário, outro cliente. */
+export function getHolidayImportClient(): HolidayImportClient {
+  return createHolidayImportClient({
     apiBaseUrl: getIdentityEnvironment().apiBaseUrl,
     fetch: (request) => fetch(request),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),

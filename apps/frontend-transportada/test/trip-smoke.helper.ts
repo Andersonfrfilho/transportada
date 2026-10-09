@@ -16,6 +16,7 @@ import {
 import {
   DELIVERY_DEADLINE_DOCUMENTS,
   DELIVERY_DEADLINE_STOPS,
+  HOLIDAY_WARNING_STOPS,
 } from './trip-delivery-deadline.fixture'
 import { type Page, type Route } from '@playwright/test'
 
@@ -84,6 +85,7 @@ type DocumentsMode =
   | 'all-authorized'
   | 'delivered-proof'
   | 'delivery-deadline'
+  | 'holiday-warning'
   | 'document-cost'
   | 'document-cost-open'
   | 'dispatch-flow'
@@ -639,6 +641,11 @@ const DOCUMENT_COST_STOPS = DOCUMENT_COST_STOP_IDS.map((id, index) => ({
   sequence: index + 1,
 }))
 
+/** Spec 252 T5.3: o aviso de feriado usa a mesma viagem do prazo (236), só com os avisos nas paradas. */
+function isDeliveryDeadlineMode(mode: DocumentsMode): boolean {
+  return mode === 'delivery-deadline' || mode === 'holiday-warning'
+}
+
 function isDocumentCostMode(mode: DocumentsMode): boolean {
   return mode === 'document-cost' || mode === 'document-cost-open'
 }
@@ -771,7 +778,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
         ? DOCUMENT_COST_DOCUMENTS
         : mode === 'note-accordion'
           ? NOTE_ACCORDION_DOCUMENTS
-          : mode === 'delivery-deadline'
+          : isDeliveryDeadlineMode(mode)
             ? DELIVERY_DEADLINE_DOCUMENTS
             : mode === 'delivered-proof'
               ? [PROOF_DELIVERED_DOCUMENT]
@@ -806,7 +813,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           ? 'dispatched'
           : mode === 'document-cost'
             ? 'completed'
-            : mode === 'note-accordion' || mode === 'delivery-deadline'
+            : mode === 'note-accordion' || isDeliveryDeadlineMode(mode)
               ? 'in_transit'
               : BASE_TRIP.status,
     amounts: null,
@@ -838,8 +845,10 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       ? DOCUMENT_COST_STOPS
       : mode === 'note-accordion'
         ? NOTE_ACCORDION_STOPS
-        : mode === 'delivery-deadline'
-          ? DELIVERY_DEADLINE_STOPS
+        : isDeliveryDeadlineMode(mode)
+          ? mode === 'holiday-warning'
+            ? HOLIDAY_WARNING_STOPS
+            : DELIVERY_DEADLINE_STOPS
           : mode === 'delivered-proof'
             ? [PROOF_STOP]
             : mode === 'stop-card-states'
@@ -1293,7 +1302,7 @@ async function registerTripMocks(
     await fulfillJson(route, { data: tripDetail(input.mode) })
   })
   if (input.mode === 'note-accordion') await registerNoteAccordionMocks(input.page)
-  if (input.mode === 'delivery-deadline') await registerDeliveryDeadlineMocks(input.page)
+  if (isDeliveryDeadlineMode(input.mode)) await registerDeliveryDeadlineMocks(input.page)
 }
 
 /** Spec 236: nota aberta lê comprovante, ocorrências e produtos; o prazo é o assunto, então todos vêm vazios. */

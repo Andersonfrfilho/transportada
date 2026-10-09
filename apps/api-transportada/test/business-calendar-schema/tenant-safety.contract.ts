@@ -21,6 +21,9 @@ const SUPPORT_ONLY = [
   // Spec 252: o contador do mês é da instalação (cache global, sem `company_id`); a fronteira dele é o
   // contrato `holiday-import-global-isolation`, e a prova com duas empresas é a integração do status.
   'holiday-import-usage.query.ts',
+  // Spec 252 (cartão de status honesto): o último ciclo da rotina também é da instalação (`job_executions` não tem
+  // empresa no ciclo agendado); o contrato de isolamento prende a projeção a `outcome` e `finishedAt`.
+  'holiday-import-last-run.query.ts',
 ]
 
 function repositorySources(): readonly { readonly name: string; readonly text: string }[] {

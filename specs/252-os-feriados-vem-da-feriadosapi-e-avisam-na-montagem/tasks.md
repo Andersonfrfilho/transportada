@@ -213,17 +213,24 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       `DriverTripStop`, para o snapshot guardado no aparelho (`tripSnapshot.service.ts`) carregá-lo (snapshot antigo
       sem o campo lê como lista vazia). Sem tela ainda.
       Nenhum código importado do painel (ADR-0075). Sai antes da API.
-- [ ] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
+- [x] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
       fornecedor, status da importação; locale pt-BR/en. **Prints** 375/768/1280, claro e escuro, aprovados pelo
       usuário antes de publicar. **Critérios da API (T4.1):** "restaurar" volta **na próxima execução diária**, não na
       hora (a tela não promete o contrário); `409 HOLIDAY_IMPORT_PAST_DATE` ao desligar data anterior a hoje e
       `409 HOLIDAY_IMPORT_DATE_LOCKED` ao mudar a **data** de uma estadual importada ("desligue e cadastre") têm
       mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
       `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
-- [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
+      **Feita em 2026-10-09 (código e prints; prints aprovados pelo usuário em 2026-10-09 e publicados):** `evidence.md` § T5.2 e T5.3.
+      **Origem e ordem de publicação (cumprida):** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e
+      `/state-holidays` trazem `origin: 'typed' | 'imported'` (`evidence.md` § "origin nas listas"). O painel publicado tinha
+      guardas de chaves exatas e recusaria a chave, então o **painel (com `origin` opcional) entrou em staging antes da API**:
+      painel `9d8e285d9` (Deploy verde 2026-10-09 12:19Z), API `c315477a3` (12:37Z). **Em produção a ordem volta a valer** (o
+      `deploy-frontend` tem `needs: deploy-api`: um PR único sobe a API antes do painel).
+- [x] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
-- [ ] **T5.4** Aviso no app do motorista, por parada da viagem dele, num componente próprio (molde dos
+      **Feita em 2026-10-09 (código e prints; prints aprovados pelo usuário em 2026-10-09 e publicados):** `evidence.md` § T5.2 e T5.3.
+- [x] **T5.4** Aviso no app do motorista, por parada da viagem dele, num componente próprio (molde dos
       `Driver*Notice.component.tsx`; o `DriverStopCard.component.tsx` já tem 75 KB): texto curto e de campo ("Hoje é
       feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir."; em data futura, "Dia 13/10 é
       feriado em …"; "hoje" só quando a data do aviso é o dia civil de São Paulo no relógio do aparelho corrigido por
@@ -231,7 +238,8 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo ≥ 44 px se
       houver toque; locale pt-BR/en no padrão do app. **Offline:** o aviso vem do snapshot guardado; sem rede mostra
       o último conhecido e não inventa. **Prints** 375/768/1280, claro e escuro, aprovados pelo usuário antes de
-      publicar. (CA15, CA17)
+      publicar. (CA15, CA17) **Feita em 2026-10-09 e publicada em staging** (`d6e6d2036` código, `98eb33641` relógio, `435b03926`
+      evidência; Deploy verde 2026-10-09 11:32Z); prints aprovados pelo usuário em 2026-10-09 (`dff0b432d`). `evidence.md` § T5.4.
 
 ## Fase 6 — Fechamento
 
@@ -249,6 +257,9 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       (a) a revisão final `code-reviewer` `opus` + auditoria do §15; (b) a revisão de design e usabilidade com o usuário,
       tela real contra os prints aprovados, no painel e no app do motorista; (c) decidir os achados abertos listados em
       `evidence.md` § "T6.1 — fechamento" (manchete "Sem cota" inalcançável, ordem painel/API em produção).
+      **Decidido em 2026-10-09 (usuário: "fecha as decisões abertas"), branch `work/252-status`, sem push:** a manchete de cota saiu e o cartão de status dá a
+      verdade pelo último ciclo da rotina (`lastRun`) e pelas buscas fora do plano (`pairs.planRestricted`); painel com os campos opcionais ANTES da API.
+      `evidence.md` § "Cartão de status honesto". Falta só a aprovação dos prints pelo usuário para publicar.
 
 ## Publicação
 

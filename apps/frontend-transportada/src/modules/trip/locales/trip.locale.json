@@ -2538,5 +2538,35 @@
     "sheetCreatedBy": "Criada por",
     "createdBy": "Criada por {{name}}",
     "routeCities": "Cidades da rota"
+  },
+  "holidayWarning": {
+    "sentence": "Entrega prevista em {{date}}{{place}}: {{reasons}}. Confira se o cliente recebe.",
+    "place": " em {{city}}",
+    "reason": "feriado {{scope}} — {{name}}{{origin}}",
+    "origin": " ({{origin}})",
+    "originName": {
+      "imported": "importado",
+      "typed": "cadastrado"
+    },
+    "scope": {
+      "national": "nacional",
+      "state": "estadual",
+      "municipal": "municipal"
+    },
+    "badge": "Feriado em {{date}}",
+    "national": {
+      "all_souls_day": "Finados",
+      "black_consciousness": "Consciência Negra",
+      "carnival": "Carnaval",
+      "christmas": "Natal",
+      "corpus_christi": "Corpus Christi",
+      "good_friday": "Sexta-feira Santa",
+      "independence_day": "Independência do Brasil",
+      "labour_day": "Dia do Trabalho",
+      "our_lady_of_aparecida": "Nossa Senhora Aparecida",
+      "republic_proclamation": "Proclamação da República",
+      "tiradentes": "Tiradentes",
+      "universal_fraternization": "Confraternização Universal"
+    }
   }
 }

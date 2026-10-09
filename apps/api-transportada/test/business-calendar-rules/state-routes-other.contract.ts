@@ -28,6 +28,7 @@ const ONCE: StateHolidayRecord = {
   holidayOn: '2026-07-09',
   id: STATE_HOLIDAY_ID,
   name: 'Revolução Constitucionalista',
+  origin: 'typed',
   recurrence: 'once',
   stateIbgeCode: '35',
   updatedAt: UPDATED_AT,
@@ -37,6 +38,7 @@ const YEARLY: StateHolidayRecord = {
   id: STATE_HOLIDAY_ID,
   month: 7,
   name: 'Revolução Constitucionalista',
+  origin: 'typed',
   recurrence: 'yearly',
   stateIbgeCode: '35',
   updatedAt: UPDATED_AT,
@@ -48,11 +50,11 @@ const ONCE_BODY = {
   stateIbgeCode: '35',
 } as const
 
-function createFixture(permissions?: CompanyContext['permissions']) {
+function createFixture(permissions?: CompanyContext['permissions'], listed = [ONCE, YEARLY]) {
   const calls: RecordedCalls = {}
   const routes = createStateHolidayRoutes({
     create: recordingUseCase(calls, 'create', { created: true, holiday: ONCE }),
-    list: recordingUseCase(calls, 'list', [ONCE, YEARLY]),
+    list: recordingUseCase(calls, 'list', listed),
     remove: recordingUseCase(calls, 'remove', undefined),
     resolveClientIp: () => RESOLVED_IP,
     update: recordingUseCase(calls, 'update', YEARLY),
@@ -109,6 +111,7 @@ describe('o feriado estadual: edição, leitura e permissão (spec 238 T1.3)', (
         holidayOn: '2026-07-09',
         id: STATE_HOLIDAY_ID,
         name: 'Revolução Constitucionalista',
+        origin: 'typed',
         recurrence: 'once',
         stateIbgeCode: '35',
         updatedAt: '2026-10-07T13:00:00.000Z',
@@ -118,6 +121,7 @@ describe('o feriado estadual: edição, leitura e permissão (spec 238 T1.3)', (
         id: STATE_HOLIDAY_ID,
         month: 7,
         name: 'Revolução Constitucionalista',
+        origin: 'typed',
         recurrence: 'yearly',
         stateIbgeCode: '35',
         updatedAt: '2026-10-07T13:00:00.000Z',
@@ -129,6 +133,59 @@ describe('o feriado estadual: edição, leitura e permissão (spec 238 T1.3)', (
         400,
       )
     }
+  })
+
+  test('a lista diz a origem do feriado estadual (importado ou digitado) e não expõe o vínculo com o cache', async () => {
+    const imported: StateHolidayRecord = { ...ONCE, origin: 'imported' }
+    const { handle } = createFixture(undefined, [imported, YEARLY])
+
+    const listed = (await responseData(
+      await handle(jsonRequest({ method: 'GET', path: PATH })),
+    )) as readonly Record<string, unknown>[]
+
+    expect(listed.map((holiday) => holiday.origin)).toEqual(['imported', 'typed'])
+    expect(Object.keys(listed[0] ?? {}).sort()).toEqual([
+      'holidayOn',
+      'id',
+      'name',
+      'origin',
+      'recurrence',
+      'stateIbgeCode',
+      'updatedAt',
+    ])
+    expect(Object.keys(listed[1] ?? {}).sort()).toEqual([
+      'day',
+      'id',
+      'month',
+      'name',
+      'origin',
+      'recurrence',
+      'stateIbgeCode',
+      'updatedAt',
+    ])
+  })
+
+  test('o POST e o PATCH trazem a origem; origin não é entrada (400)', async () => {
+    const { calls, handle } = createFixture()
+    const path = `${PATH}/${STATE_HOLIDAY_ID}`
+
+    const created = await handle(jsonRequest({ body: ONCE_BODY, method: 'POST', path: PATH }))
+    const patched = await handle(
+      jsonRequest({ body: { name: 'Novo', recurrence: 'yearly' }, method: 'PATCH', path }),
+    )
+    const forgedCreate = await handle(
+      jsonRequest({ body: { ...ONCE_BODY, origin: 'imported' }, method: 'POST', path: PATH }),
+    )
+    const forgedPatch = await handle(
+      jsonRequest({ body: { origin: 'typed', recurrence: 'once' }, method: 'PATCH', path }),
+    )
+
+    expect(await responseData(created)).toMatchObject({ origin: 'typed' })
+    expect(await responseData(patched)).toMatchObject({ origin: 'typed' })
+    expect(forgedCreate.status).toBe(400)
+    expect(forgedPatch.status).toBe(400)
+    expect(calls.create).toHaveLength(1)
+    expect(calls.update).toHaveLength(1)
   })
 
   test('sem settings.manage, nenhuma das quatro: 403', async () => {

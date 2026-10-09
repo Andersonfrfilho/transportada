@@ -42,6 +42,7 @@ import {
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import type { TripClient } from '../shared/tripClient.service'
+import { AssemblyStopHolidayNotice } from './AssemblyStopHolidayNotice.component'
 import { RouteChoiceOptions } from './RouteChoiceOptions.component'
 import { RouteTollSummary } from './RouteTollSummary.component'
 import {
@@ -1054,6 +1055,18 @@ export function TripAssemblyMap({
                 </Button>
               )}
             </div>
+            {/*
+              Spec 252 T5.3: o feriado da entrega prevista desta parada, na LARGURA CHEIA da linha — abaixo do
+              corpo e dos botões. Dentro do corpo ele dividia a coluna com as setas e quebrava a cada duas
+              palavras no celular. Só informa; nada desabilita.
+            */}
+            {(solver.holidayWarnings.get(point.stopKey) ?? []).map((warning) => (
+              <AssemblyStopHolidayNotice
+                key={`${String(warning.cityIbgeCode)}:${warning.date}`}
+                placeLabel={point.label}
+                warning={warning}
+              />
+            ))}
           </li>,
           ...tollRows(leadingLegCount + index),
         ])}

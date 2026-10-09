@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { MunicipalHolidayKind } from '../domain/business-calendar.types.js'
+import type {
+  ManagedHolidayOrigin,
+  MunicipalHolidayKind,
+} from '../domain/business-calendar.types.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
 
 /**
@@ -16,6 +19,8 @@ export type MunicipalHoliday = {
   readonly id: string
   readonly kind: MunicipalHolidayKind
   readonly name: string
+  /** `imported` quando a linha aponta para o cache do fornecedor; a digitada e a gerada por regra são `typed`. */
+  readonly origin: ManagedHolidayOrigin
 }
 
 /** A data e a cidade são a identidade da linha: mudar uma delas é apagar e criar outra. */

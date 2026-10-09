@@ -12,7 +12,7 @@ import { BusinessCalendarPersistenceError } from '../domain/business-calendar-ru
 import { HOLIDAY_ORIGIN, HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
 import { isMunicipalHolidayKind } from '../domain/holiday-rule.policy.js'
 import type {
-  HolidayOrigin,
+  ManagedHolidayOrigin,
   MunicipalHolidayKind,
   MunicipalHolidayRule,
   StateHolidayRule,
@@ -50,11 +50,12 @@ export function toHolidayRecord(row: HolidayRow): MunicipalHoliday {
     id: row.id,
     kind: readKind(row.kind),
     name: row.name,
+    origin: originOf(row),
   }
 }
 
 /** `provider_entry_id` preenchido é o feriado importado; sem ele, é a data do operador. */
-function originOf(row: { readonly providerEntryId: string | null }): HolidayOrigin {
+function originOf(row: { readonly providerEntryId: string | null }): ManagedHolidayOrigin {
   return row.providerEntryId === null ? HOLIDAY_ORIGIN.TYPED : HOLIDAY_ORIGIN.IMPORTED
 }
 
@@ -105,6 +106,7 @@ export function toStateRecord(row: StateHolidayRow): StateHolidayRecord {
   const shared = {
     id: row.id,
     name: row.name,
+    origin: originOf(row),
     stateIbgeCode: row.stateIbgeCode,
     updatedAt: row.updatedAt,
   }

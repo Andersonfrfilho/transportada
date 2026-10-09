@@ -1,0 +1,51 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * Spec 252 T5.3: o aviso de feriado. O selo tem a medida, a borda e a tipografia dos selos vizinhos (prazo da 236,
+ * situação da separação); o tom cobre diz "confira", não "erro". O texto da montagem usa a tinta de apoio do bloco.
+ */
+.badge {
+  --holiday-ink: var(--color-copper-ink);
+  --holiday-border: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  --holiday-fill: color-mix(in srgb, var(--color-copper) 12%, transparent);
+
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  min-height: var(--control-height-dense);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--holiday-border);
+  color: var(--holiday-ink);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--holiday-fill);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Uma linha de leitura dentro da parada: a barra cobre à esquerda a separa das notas sem virar um alerta. */
+/*
+ * A linha da parada é um grid de duas colunas (corpo e botões): o aviso ocupa as duas, na largura cheia, alinhado ao texto
+ * da parada (depois do disco e do vão) — numa coluna só ele quebrava a cada duas palavras a 375 px.
+ */
+.notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  margin-inline-start: calc(var(--space-6) + var(--space-2));
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--color-copper);
+  color: var(--color-fog);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
+}

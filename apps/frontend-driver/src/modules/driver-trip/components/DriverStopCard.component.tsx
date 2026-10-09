@@ -9,6 +9,7 @@ import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 
+import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
@@ -41,6 +42,7 @@ import {
 } from '../shared/proofUploadStatus.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
+import { readCorrectedNowMs } from '../shared/holidayWarning.service'
 import {
   type DriverDeliveryProofSettings,
   type DriverOccurrenceTypesState,
@@ -461,6 +463,9 @@ export function DriverStopCard({
           )}
         </button>
       </h2>
+
+      {/* Spec 252 T5.4: fora do botão e do corpo recolhido — aparece com o cartão fechado e nunca decide ação. */}
+      <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />
 
       {notice === undefined ? null : (
         <p className={styles.activityNotice} role="status">

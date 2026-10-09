@@ -243,3 +243,26 @@ lista da API como texto e a confere; `icon.tsx` ganhou os glyphs que faltavam co
 - **Lacunas conhecidas:** `baixa_total` não tem passo próprio (é o `report_send` de cada nota); `attempt` não chega nos eventos da drenagem
   porque a fila não o expõe ao `send`; a falha aparece duas vezes (no passo e em `report_send`) — de propósito, o envoltório cobre POST simples.
 - **Rota:** só `safeLogInfo` `driver_client_diagnostic`, sem tabela; 6 req/60 s, `204`, `400 CLIENT_DIAGNOSTICS_INVALID`.
+
+## Spec 252 — O feriado na cidade da parada (T5.1b e T5.4, ADR-0100 §6 e D12)
+
+**Arquivos-chave:** `driverTripResponse.validation.ts` (`readHolidayWarnings`), `driverTrip.types.ts` (`HolidayWarning`, `HolidayReason`, `DriverTripStop.holidayWarnings`),
+`holidayWarning.service.ts` (`resolveSaoPauloCivilDate`, `applyClockOffset`, `readCorrectedNowMs`, `listHolidayNoticeLines`), `holidayWarning.constant.ts` (fuso, as 12 chaves
+nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNotice.module.css`, bloco `holidayWarning` nos dois locales (pt-BR/en) e uma linha em
+`DriverStopCard.component.tsx`. Contratos: `holiday-warning.contract.ts` e `holiday-warning-notice.contract.tsx`, registrados em `driver-trip.contract.test.ts`
+(a tolerância da guarda, T5.1b, está em `driverTripResponse.validation.contract.test.ts`). A paridade das chaves nacionais lê o fonte da API como texto, em `holiday-warning.contract.ts`.
+
+- **A guarda lê o aviso como acessório (T5.1b).** `GET /me/trips/current` ganhou `stops[].holidayWarnings`; ausente (API antiga) ou malformado vira lista vazia, item sem
+  motivo é descartado, e **nunca** `DriverTripResponseError`. O campo só entra na parada quando há aviso, e viaja no `DriverTripSnapshot` do aparelho: snapshot antigo sem o campo
+  lê como lista vazia. Tipos **duplicados por valor** (ADR-0075), nada importado do painel.
+- **O texto é de campo e neutro** (RF14): "Hoje é feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir." / "Dia 13/10 é feriado em …"; sem `cityName`, sem
+  a cidade. Feriado nacional chega como **chave estável** (`reasons[].name`) e o texto é do locale (`holidayWarning.national.*`; chave desconhecida cai em "Feriado nacional", nunca na chave
+  crua); estadual e municipal chegam com o nome pronto (em branco cai no rótulo do escopo).
+- **"Hoje" é o dia civil de São Paulo no relógio corrigido do aparelho** (`America/Sao_Paulo`, não o fuso do celular; o desvio é o de `clockOffset.service.ts`). Aviso com data **anterior
+  a hoje** nesse relógio não aparece (venceu); data malformada não vira texto. O app mostra `DD/MM` e só diz "hoje" quando a data é a de hoje.
+- **Nunca esconde nem bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência: o aviso fica **fora do cabeçalho-botão e do corpo recolhido** do cartão (aparece com ele fechado),
+  é `aside` sem toque, sem foco e sem animação, e nenhuma ação do cartão lê `holidayWarnings` (mutação M9). Contraste do texto sobre o véu: 9,55:1 no claro e 14,04:1 no escuro.
+- **Offline:** o aviso vem do snapshot guardado; sem rede mostra o último conhecido e não inventa.
+- **Cópia por valor com paridade:** `NATIONAL_HOLIDAY_KEYS` repete a lista da API (a mutação que tira `tiradentes` reprova o contrato).
+- **Preview:** `DRIVER_PREVIEW_HOLIDAYS=on` em `scripts/driver-preview-api.ts` devolve avisos nacional, estadual e municipal; sem a variável a resposta é a de sempre.
+- **Não exercitado:** o smoke Playwright (exige login real no Keycloak local). Os prints de 375/768/1280, claro e escuro, foram aprovados pelo usuário em 2026-10-09.

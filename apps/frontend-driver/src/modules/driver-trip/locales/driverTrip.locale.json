@@ -14,6 +14,33 @@
     "detail": "Aqui você vê as paradas, as notas e o manifesto. Chegada, entrega, devolução e ocorrência são do motorista.",
     "title": "Você acompanha esta viagem como ajudante"
   },
+  "holidayWarning": {
+    "future": "Dia {{date}} é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
+    "futureWithoutCity": "Dia {{date}} é feriado ({{reasons}}). Confirme com o cliente antes de ir.",
+    "label": "Aviso de feriado",
+    "national": {
+      "all_souls_day": "Finados",
+      "black_consciousness": "Consciência Negra",
+      "carnival": "Carnaval",
+      "christmas": "Natal",
+      "corpus_christi": "Corpus Christi",
+      "good_friday": "Sexta-feira Santa",
+      "independence_day": "Independência do Brasil",
+      "labour_day": "Dia do Trabalho",
+      "our_lady_of_aparecida": "Nossa Senhora Aparecida",
+      "republic_proclamation": "Proclamação da República",
+      "tiradentes": "Tiradentes",
+      "universal_fraternization": "Confraternização Universal"
+    },
+    "scope": {
+      "municipal": "Feriado municipal",
+      "national": "Feriado nacional",
+      "other": "Feriado",
+      "state": "Feriado estadual"
+    },
+    "today": "Hoje é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
+    "todayWithoutCity": "Hoje é feriado ({{reasons}}). Confirme com o cliente antes de ir."
+  },
   "dispatch": {
     "queued": "Início da viagem aguardando envio — sobe quando o sinal voltar. Você já pode registrar as paradas.",
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",

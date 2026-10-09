@@ -100,6 +100,7 @@ export function parseStateHolidayListQuery(request: Request): { readonly stateIb
 export type StateHolidayView = {
   readonly id: string
   readonly name: string
+  readonly origin: StateHolidayRecord['origin']
   readonly recurrence: StateHolidayRecord['recurrence']
   readonly stateIbgeCode: string
   readonly updatedAt: string
@@ -109,6 +110,7 @@ export function toStateHolidayView(holiday: StateHolidayRecord): StateHolidayVie
   const shared = {
     id: holiday.id,
     name: holiday.name,
+    origin: holiday.origin,
     recurrence: holiday.recurrence,
     stateIbgeCode: holiday.stateIbgeCode,
     updatedAt: holiday.updatedAt.toISOString(),

@@ -24,6 +24,12 @@ export type MunicipalHolidayKind =
 
 export type HolidayOrigin = (typeof HOLIDAY_ORIGIN)[keyof typeof HOLIDAY_ORIGIN]
 
+/** O que a gestão distingue numa linha da empresa: importada do fornecedor ou do operador (gerada por regra inclusive). */
+export type ManagedHolidayOrigin = Extract<
+  HolidayOrigin,
+  typeof HOLIDAY_ORIGIN.IMPORTED | typeof HOLIDAY_ORIGIN.TYPED
+>
+
 export type MunicipalHolidayRule = {
   readonly cityIbgeCode: string
   readonly kind: MunicipalHolidayKind

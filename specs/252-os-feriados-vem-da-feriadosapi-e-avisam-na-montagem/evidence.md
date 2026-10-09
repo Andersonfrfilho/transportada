@@ -1187,6 +1187,153 @@ compartilhada por valor mudou (`stop-address-key.ts` intacto).
 
 Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.
 
+## T5.4 — aviso de feriado no app do motorista (2026-10-09, branch `work/252-t5-4` sobre `origin/staging`)
+
+**Pronta no código; publicação pendente: tela só sobe com os prints aprovados pelo usuário.** Prints fora do repositório até a aprovação, em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-252-motorista/`.
+
+**O que entrou (só `apps/frontend-driver`, nada importado do painel):** `DriverHolidayNotice.component.tsx` (componente próprio),
+`holidayWarning.service.ts` / `holidayWarning.constant.ts` (dia civil de São Paulo, relógio corrigido pelo desvio de `clockOffset.service.ts`,
+linhas visíveis), `holidayNotice.module.css`, bloco `holidayWarning` nos dois locales (pt-BR/en, as 12 chaves nacionais estáveis traduzidas) e
+uma linha no `DriverStopCard`: o aviso fica **fora do cabeçalho-botão e do corpo recolhido** (aparece com o cartão fechado) e nenhuma ação do
+cartão lê `holidayWarnings`. `scripts/driver-preview-api.ts` ganhou o cenário `DRIVER_PREVIEW_HOLIDAYS=on` (sem a variável, a resposta é a de sempre).
+
+**Decisões de UX:** texto da spec (RF14) — "Hoje é feriado em Campinas (…). Confirme com o cliente antes de ir." / "Dia 13/10 é feriado em …";
+sem `cityName`, sem cidade. Nacional = chave estável traduzida (chave desconhecida cai em "Feriado nacional", nunca na chave crua);
+estadual/municipal = nome como veio (em branco cai no rótulo do escopo). Aviso com data passada no relógio corrigido **não aparece** (venceu);
+data malformada não vira texto. Neutro (véu do cinza do token, tinta do tema), sem toque, sem foco, sem animação, com quebra de palavra.
+
+**Vermelho antes:** `bun test test/driver-trip.contract.test.ts` → `Cannot find module …DriverHolidayNotice.component` (0 pass, 1 fail).
+
+**Gates (cwd `apps/frontend-driver`):** `bun run typecheck` exit 0; `bun run lint` exit 0; `bun run test` **1528 pass, 0 fail** (+45 sobre o
+staging, 1483: 43 do aviso e 2 do relógio corrigido, em `holiday-warning.contract.ts` e `holiday-warning-notice.contract.tsx`, registrados em
+`driver-trip.contract.test.ts`); `bun run build` exit 0 (`dist.contract` 6 pass; `dist/` apagado); `bun run format:check` na raiz exit 0.
+Smoke Playwright **não rodado**: exige login real no Keycloak local com a senha do `.env` e o build na 53112.
+
+**Mutações** (cada uma restaurada com `git checkout -- <arquivo>` e `git diff --quiet` exit 0):
+
+| #   | Mutação                                               | Resultado                                  |
+| --- | ----------------------------------------------------- | ------------------------------------------ |
+| M1  | tirar o corte de data passada                         | 2 fail                                     |
+| M2  | `isToday: true`                                       | 2 fail                                     |
+| M3  | fuso `UTC` no lugar de `America/Sao_Paulo`            | 2 fail                                     |
+| M4  | `applyClockOffset` ignora o desvio                    | 1 fail                                     |
+| M4b | `readCorrectedNowMs` ignora o armazenamento do desvio | 1 fail                                     |
+| M5  | chave nacional desconhecida mostra o nome cru         | 1 fail                                     |
+| M6  | aviso movido para dentro do corpo recolhido           | 1 fail                                     |
+| M7  | `cityName` sem `trim`                                 | 1 fail                                     |
+| M8  | tirar `tiradentes` da lista nacional                  | 1 fail (paridade com a API)                |
+| M9  | "Cheguei"/"Iniciar rota" condicionado ao aviso        | 2 fail (um é o contrato antigo do Cheguei) |
+
+**Prints** (app real em dev, Keycloak local, API de demonstração com dados fictícios, `getComputedStyle` conferido): 375/768/1280 claro e
+escuro com as três paradas (nacional hoje, estadual daqui a 4 dias, municipal sem cidade); sem aviso (375); boot sem rede com snapshot guardado
+**com** aviso e **sem** o campo (375; sonda do Keycloak e API abortadas, a tela abre do IndexedDB). Contraste do texto sobre o véu: **9,55:1
+claro e 14,04:1 escuro**, fonte 16 px, nenhum foco dentro do aviso, sem rolagem horizontal, "Iniciar rota" habilitado nos estados com aviso.
+
+**O que NÃO foi feito:** push/publicação; revisão de design com o usuário (T6.1); smoke Playwright; documentação viva do app
+(`docs/ai-context/frontend-driver.md`, CLAUDE.md da app), fica para a T6.1.
+
+## T5.2 e T5.3 — a aba Calendário e o aviso por parada no painel (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t5` a partir de `origin/staging` (`40477e4f1`), sem push. **Tela: publicação pendente da aprovação do usuário sobre os prints.** Commits: `95751934b` e `202ca1499` (testes da T5.2, vermelhos), `6b3fbc198` (código da T5.2), `317e6ae35` (testes da T5.3, vermelhos), `a2191e8a9` (código da T5.3), `5f67a4c00` (mutante sobrevivente morto), `a4ec3b326` (rótulos curtos de origem e o smoke de prints) e o de documentação.
+
+### Vermelho antes do código
+
+T5.2: contrato puro com módulo ausente (`holidayImportClient.service`); DOM `test:hooks` com 514 falhas em cascata na suíte inteira (os três arquivos novos estouram o prazo de 5 s do `waitFor` e o `act` pendente derruba os seguintes — o vermelho é do arquivo novo, o resto é efeito). T5.3: contrato puro com módulo ausente (`dayChecksClient.service`).
+
+### O que a T5.2 passou a fazer
+
+| Pedido                                           | Onde                                                                                                                                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origem de cada feriado                           | coluna "Origem" (`HolidayOriginBadge`) nas duas tabelas; `provenance` da linha (`rule`/`typed`/`imported`/`unknown`); legenda das quatro origens em "Importação de feriados"                 |
+| Desligar importados                              | linha importada oferece "Desligar" (não "Excluir"), diálogo próprio, `POST /holiday-imports/suppressions { holidayId, scope }`                                                               |
+| Restaurar                                        | "Feriados desligados" (lista paginada de 20, `page`/`perPage`), `DELETE …/suppressions/:id`; o aviso diz "volta na próxima execução diária", e a dica do bloco também                        |
+| Removidos pelo fornecedor                        | `removedByProvider` lido como `{ items, truncated }`; com `truncated` a tela avisa que há mais; "Desligar" com confirmação no próprio item (editar a linha a adota — dito no texto do bloco) |
+| Estado da importação                             | manchete (em dia / aguardando 1ª execução / sem cota / com falhas / desligada), barra, contagens, falhas por motivo; erro de leitura com "Tentar de novo"                                    |
+| `409 HOLIDAY_IMPORT_PAST_DATE` e `…_DATE_LOCKED` | texto próprio em `errors.*` (e `HOLIDAY_NOT_IMPORTED`); a data travada também tem dica no formulário de edição da importada                                                                  |
+| Apagar um feriado digitado também o suprime      | a confirmação de excluir (data fixa municipal e estadual de data fixa) diz que a data deixa de ser importada e como restaurar                                                                |
+
+### O que a T5.3 passou a fazer
+
+`useSolverCityOrder` faz **uma** chamada a `POST /business-calendar/day-checks` quando o solver termina (pares cidade × dia únicos; cidade = 1º segmento da `addressKey`, dia = civil de São Paulo da ETA; teto de 200 pares — acima disso não pergunta). O aviso volta por parada (`AssemblyStopHolidayNotice`, `<p>` neutro com cidade, escopo, nome e origem, "Confira se o cliente recebe."). O término deixa de repetir o feriado nacional **só quando a última parada foi conferida**; rota caída, resposta fora do formato ou pares demais mantêm o aviso nacional de hoje, e a ordem do solver é aplicada de qualquer jeito. No detalhe, `TripStopHolidayBadge` (selo "Feriado em dd/mm/aaaa" no molde do selo do prazo, frase inteira na dica e para leitor de tela). Nada disso entra em condição de `disabled` ("Criar viagem" não conhece o aviso — contrato).
+
+### Gates (cwd `apps/frontend-transportada`, 2026-10-09)
+
+| Gate                                                            | Resultado                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `bun run typecheck`                                             | exit 0                                                                             |
+| `bun run lint`                                                  | 0 erros (16 avisos, todos de arquivos que não toquei)                              |
+| `bun run test` (script, nunca `bun test` cru)                   | **7794 pass / 0 fail** (era 7581) + `test:hooks` **1231 pass / 0 fail** (era 1104) |
+| estabilidade dos DOM da T5.2 (111 testes)                       | 10 execuções 0 falha; 3 sob CPU ocupada (6 `yes`) 0 falha                          |
+| estabilidade dos DOM da T5.3 (17 testes)                        | 10 execuções 0 falha; 3 sob CPU ocupada 0 falha                                    |
+| `bun run format:check` na raiz                                  | exit 0 (depois de `prettier --write` em 4 arquivos de teste)                       |
+| prints: 18 telas × 3 larguras × 2 temas = **108**, todos verdes | sem rolagem lateral, sem corte, contraste ≥ mínimo, alvo de toque a 375 px         |
+
+### Mutações (cada uma restaurada; diff vazio ao fim)
+
+T5.2 — 16 mortas: guarda do status aceita última busca de qualquer tipo / guarda aceita `origin` qualquer / origem ausente vira `typed` / importada com "Excluir" / estadual desligado com escopo `city` / municipal com `state` / empresa desligada não vence / cota vence falha / página não vai na query / ressalva da exclusão em toda exclusão / sem ressalva na digitada / restaurar sem aviso / `truncated` nunca avisa / `HOLIDAY_IMPORT_DATE_LOCKED` fora da lista de códigos / desligar não relê as listas / lugar sempre pelo código.
+T5.3 — 17 mortas: dia em UTC / cidade pelo último segmento / um par por parada / 200 já é grande / acima de 200 segue / casar só pela cidade / término mantém o nacional com a rota respondida / término nunca volta ao nacional / falha da rota derruba o roteiro / avisos da rodada anterior sobrevivem (**sobreviveu na 1ª tentativa; o teste foi reforçado com a resposta presa e morreu**) / selo do detalhe some / aviso da montagem some da lista / frase perde a origem / nacional sem nome do locale / frase manda bloquear / cliente sem token / cliente sem validar o aviso.
+Mutação **equivalente documentada:** `enabled` da consulta de status sempre verdadeiro não muda a saída (o painel só monta os blocos com `settings.manage`).
+
+### Decisões de UX
+
+- **A API não manda a origem por linha** (`GET /municipal-holidays` e `/state-holidays` têm chaves exatas e a T4.1 não as ampliou). O painel aceita `origin?: 'typed' | 'imported'` **opcional** em cada linha; sem o campo, a célula fica em branco ("Origem não informada" para leitor de tela) e a linha mantém "Excluir" (o `DELETE` da API já desliga a importada). **Pendência de API (T4.x):** acrescentar `origin` (`provider_entry_id` nulo = `typed`) às duas listas e às respostas do `POST`/`PATCH`; painel tolerante antes, API depois.
+- "Rotina pausada" não existe no status (o pausar é de `job_schedules`): a tela mostra **"Aguardando a primeira execução"** (`lastFetchedAt` nulo) e manda retomar a rotina em Operações; "desligada" é `isEnabled = false`.
+- Rótulos curtos "Cadastrado" / "Importado" (a legenda diz FeriadosAPI); o longo quebrava a tabela. Regra "todo ano" é "Cadastrado" (a coluna Quando já diz "Todo ano").
+- "Removidos pelo fornecedor": só "Desligar" (confirmação inline); "manter" é editar o nome ou o tipo na tabela (a adoção da T4.1) — dito no texto, sem botão novo.
+- A lista `/holiday-imports/cities` não ganhou tela (não pedida).
+- Blocos novos ao **fim** da aba (Sábado, municipais, estaduais, importação, removidos, desligados); texto de aviso do roteiro da 238 intacto.
+
+### O que NÃO foi feito
+
+API, worker e app do motorista (T5.4, outro agente); push e publicação (**tela só sobe com os prints aprovados**); `L6` da T4 (medida do teto de 200 removidos e da latência do status com milhares de cidades — sem dados reais; a tela lista os 200 sem paginar); colunas estreitas da tabela a 1280 px (pré-existente: "Campinas" quebra no meio da palavra na coluna "Lugar"; a tabela da 238 já era assim); revisão de design comparando com os prints aprovados (T6.1).
+
+## origin nas listas
+
+Executor `sonnet`, worktree isolado, branch `work/252-origin` a partir de `origin/staging` (`40477e4f1`), **sem push**. Postgres 18 nativo descartável
+(porta 65444, `LC_ALL=C initdb`, banco por teste, apagado ao fim). Lacuna achada pela T5.2: as listas e as respostas de `POST`/`PATCH` não diziam qual linha é importada.
+
+**O contrato.** Cada feriado de `GET /municipal-holidays`, `GET /state-holidays` e das respostas de `POST`/`PATCH` das duas rotas ganha
+`origin: 'typed' | 'imported'`. `imported` quando `provider_entry_id` não é nulo; `typed` caso contrário — a gerada por regra, a digitada e a adotada (o `POST`/`PATCH`
+que adota zera o vínculo e responde `typed`). O que o painel recebia já distinguia a gerada por regra por `generatedByRuleId` (municipal); **nada foi removido nem
+renomeado**. O id do cache (`provider_entry_id`) não está no registro nem na visão. `origin` não é entrada: os esquemas são `.strict()` (400).
+`originOf` já existia no mapper (alimenta o aviso da T4.2); o tipo novo é `ManagedHolidayOrigin = typed | imported` em `business-calendar.types.ts`.
+
+> ⚠️ **REGRA DE ORDEM DE PUBLICAÇÃO — este código NÃO PODE ir antes do painel.** O painel hoje publicado tem guardas de chaves **exatas**
+> (`apps/frontend-transportada/src/modules/company-settings/shared/businessCalendarGuards.validation.ts`) e **recusaria** a resposta com a chave `origin`. O painel da T5.2
+> (`work/252-t5`, ainda não publicada) aceita `origin` como **opcional**. Ordem: **(1) painel, (2) esta API.** Nenhum push foi feito; a ordem é de quem publica.
+> Registrada também em `apps/api-transportada/CLAUDE.md`, `docs/ai-context/api-transportada.md` § "Spec 252 — `origin` nas listas" e no ADR-0100 §4.6.
+
+**Vermelho antes (commit separado `bfdc7b215`).** Contratos das rotas (`holiday-routes`, `holiday-routes-write`, `state-routes`, `state-routes-other`): suíte
+`business-calendar-rules.contract.test.ts` **83 pass / 7 fail** (lista, POST e PATCH sem `origin`; `origin` na entrada ser 400 já passava, pelo `.strict()`).
+Integração nova `test/integration/holiday-origin.integration.ts` (banco real, 5 casos): **0 pass / 5 fail** (`origin` ausente).
+
+**Código (`289042099`).** `ManagedHolidayOrigin`; `origin` em `MunicipalHoliday` e `StateHolidayRecord`; `toHolidayRecord`/`toStateRecord` leem `originOf(row)`; as visões
+`toHolidayView` (e por ela `toSavedHolidayView`) e `toStateHolidayView` o serializam. A auditoria `…saved|updated|deleted` passa a levar `origin` nos snapshots (aditivo;
+os testes de auditoria usam `toMatchObject`). O fake de `holiday-use-cases.contract.ts` ganhou `origin: 'typed'` (tipo obrigatório).
+
+**Depois (gates, cwd `apps/api-transportada`).** `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` **11139 pass / 25 skip / 0 fail** (208 arquivos);
+integrações do calendário e dos feriados, **cada uma sozinha** (Postgres nativo, sem pular): 23 arquivos, **126 pass / 0 fail / 0 skip**
+(`business-calendar-*` 11 arquivos, `municipal-holiday-*` 2, `holiday-import-{municipal,state,status,suppressions}` 4, `holiday-origin` 5 testes, `holiday-warning-reader`,
+`driver-holiday-independence`, `driver-stop-holiday-context`, `driver-current-trip-holiday-warnings`, `trip-detail-holiday-warnings`); `db:generate` `{"status":"no_changes"}`.
+
+**Mutações** (cada uma restaurada; árvore limpa depois; colunas = falhas no contrato / na integração `holiday-origin`):
+
+| #   | Mutação                                                               | Contrato      | Integração (5) |
+| --- | --------------------------------------------------------------------- | ------------- | -------------- |
+| M1  | a visão municipal não serializa `origin`                              | 4 fail        | 3 fail         |
+| M2  | a visão estadual não serializa `origin`                               | 3 fail        | 2 fail         |
+| M3  | `originOf` invertida (nula = `imported`)                              | 0 (fake fixo) | **5 fail**     |
+| M4  | o id do cache vaza na resposta municipal (registro + visão espalhada) | 0 (fake fixo) | 2 fail         |
+| M5  | o id do cache vaza na resposta estadual                               | 0 (fake fixo) | 1 fail         |
+| M6  | a gerada por regra deixa de ser `typed`                               | 0 (fake fixo) | 1 fail         |
+
+(Os contratos de rota usam registros fixos, por isso só pegam a serialização; o que a origem vale vem do banco real, e quem o prova é a integração.)
+
+**O que NÃO foi feito.** Push (nem do painel, nem desta branch); `make migration-test` (sem migration; `db:generate` = `no_changes`); `make check` completo; mudança no painel
+(a T5.2 está na `work/252-t5`); contrato de tabela espelhada com o painel (o painel só tem o campo opcional); a auditoria antiga não é reescrita (só os eventos novos levam `origin`
+nos snapshots).
+
 ## T6.1 — fechamento (2026-10-09)
 
 Executor `sonnet`, worktree isolado, branch `work/252-t6` a partir de `origin/staging` (`c5aa114a5`), **só documentação, sem push**. Nenhum arquivo de `apps/**/src` ou
@@ -1311,7 +1458,8 @@ Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data pa
 
 1. **A manchete "Sem cota" do painel não aparece mais.** Ela nasce de `pairs.quotaExhausted > 0` (`holidayImportStatus.service.ts` 23), e a 2ª rodada da Fase 3 fez a cota esgotada **só encerrar o
    ciclo**, sem marcar par `quota_exhausted`. O status só traz `monthlyRequests`, não o orçamento. Decisão: expor o orçamento no status para a tela derivar o "sem cota", ou tirar a manchete.
-   Registrado em `docs/ai-context/frontend-transportada.md`.
+   Registrado em `docs/ai-context/frontend-transportada.md`. **Decidido pelo usuário em 2026-10-09 ("fecha as decisões abertas"): tirar a manchete e fazer o cartão dizer a verdade
+   pelo último ciclo da rotina — ver § "Cartão de status honesto".**
 2. **Ordem painel/API em produção:** resolvida no plano de três PRs acima.
 3. **`nfe_addresses` sem índice:** condição de promoção acima.
 4. **Textos de erro desatualizados, corrigidos aqui:** ADR-0100 §5, a linha de orçamento do `spec.md` e o bullet da T3.3 em `docs/ai-context/worker-transportada.md` ainda descreviam o desenho
@@ -1480,3 +1628,80 @@ Contratos novos (vermelhos antes, commit `6720448de`): `nfe-addresses-participan
 
 Push; produção (nenhum passo acima foi executado nela); índice `CONCURRENTLY` à mão em staging (a migration comum bastou: tabela pequena e o migrador roda no deploy); mudança do tamanho do lote da descoberta
 ou de `random_page_cost`; investigação do `Seq Scan on trip_documents` do Q3; `make migration-test` pelo alvo do Makefile (rodei o corpo, `bun run db:test`, no Postgres nativo); `make check` completo.
+
+## Cartão de status honesto (2026-10-09, branch `work/252-status` sobre `origin/staging`)
+
+Decisão do usuário ("fecha as decisões abertas"). Problema, vindo da revisão final: (a) token errado (401 encerra o ciclo sem gravar nada em `holiday_provider_fetches`) deixava o cartão em
+"Aguardando a primeira execução"; (b) a manchete "Cota do fornecedor esgotada" ficou inalcançável (a rotina não grava mais `quota_exhausted`, e a API nem conhece o orçamento, que é env do
+worker); (c) plano restrito em TODAS as cidades fecha o ciclo como `provider_unauthorized` ("token recusado"), mas o problema é o plano.
+
+### O que mudou
+
+| Onde       | Mudança                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API        | `GET /holiday-imports/status` ganha `lastRun: { outcome, finishedAt } \| null` (último ciclo ENCERRADO de `holiday.provider.pull`, de `job_executions`, só desfecho do catálogo e data) e `pairs.planRestricted` (pares da empresa com `provider_plan_restricted`, subconjunto de `failed`). Consulta nova `holiday-import-last-run.query.ts`; nenhuma tabela, nenhuma migration                                                                                                                                   |
+| Isolamento | A consulta de `job_executions` fica FORA das isentas do contrato do cache global; o contrato prende a projeção a `outcome` e `finishedAt` e proíbe o cache nela; `SUPPORT_ONLY` do `tenant-safety.contract.ts` ganha o arquivo (o ciclo agendado não tem empresa)                                                                                                                                                                                                                                                  |
+| Painel     | A manchete sai de `lastRun.outcome`: `provider_unauthorized` → "Fornecedor recusou o acesso: token inválido ou plano sem cobertura" (+ conferir chave e plano, ver Operações); `provider_unreachable` → "Fornecedor indisponível, tentando de novo"; `malformed_response` → "Resposta inesperada do fornecedor" (avisar o suporte). `waiting` manda conferir em Operações se a rotina está pausada ou sem token. Par fora do plano é aviso à parte e não bloqueia o "Em dia". Linha "Último ciclo da rotina: data" |
+| Painel     | A manchete `quota` (código morto) saiu do código, do locale (pt/en), do CSS e dos testes                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Guardas    | `lastRun` e `pairs.planRestricted` entram como OPCIONAIS (`hasKeys` com `allowed`/`required`); chave desconhecida segue recusada. Ausentes = comportamento de antes                                                                                                                                                                                                                                                                                                                                                |
+
+**Prioridade da manchete:** desligada → desfecho do último ciclo (os três de fornecedor) → falha por par → aguardando → em dia. Os outros desfechos (`succeeded`, `cancelled`, `abandoned`, `unexpected_error`,
+qualquer novo) não mandam na manchete. Par fora do plano, quando a API manda a contagem, sai da lista de falhas e do contador "Com falha".
+
+### Ordem de publicação (nesta task não se publicou nada)
+
+**Painel antes da API.** O painel publicado hoje tem chaves EXATAS em `status` (`holidayImportGuards.validation.ts`) e recusaria a resposta com `lastRun`/`planRestricted` (a aba cairia em "resposta fora do
+formato"). O painel desta branch aceita os campos como opcionais; depois dele a API pode subir. Em produção vale a mesma regra do `origin` (`deploy-frontend` tem `needs: deploy-api`: o painel vai num PR antes).
+
+### Commits (cada um com caminhos explícitos, `--no-verify`)
+
+| Passo                                          | SHA         |
+| ---------------------------------------------- | ----------- |
+| API, teste vermelho                            | `e97ba0ed9` |
+| API, exceção do `tenant-safety` (teste)        | `e755f0a2f` |
+| API, código                                    | `da7750b56` |
+| Painel, teste vermelho                         | `3f6349610` |
+| Painel, código                                 | `0f78685f2` |
+| Painel, asserção sem `toBeNull()` em nó do DOM | `fe79e5e53` |
+| Prints (smoke)                                 | `fdebb8d55` |
+
+### Gates (Postgres NATIVO descartável na 65446, apagado ao fim; cwd nas apps)
+
+- API: `tsc` exit 0; `eslint` exit 0 (`--max-warnings=0`); `bun --env-file=../../.env.test run test` **11174 pass / 1 skip / 0 fail** (208 arquivos; antes 11170: +2 de rota, +2 de isolamento); integrações, cada uma
+  sozinha, **0 fail, 0 skip**: `holiday-import-status` 14 (antes 10, +4), `holiday-import-suppressions` 11, `holiday-import-municipal` 14, `holiday-import-state` 12, `holiday-origin` 5;
+  `db:generate` `{"status":"no_changes"}`.
+- Painel: `tsc` exit 0; `eslint` 0 erros (16 avisos preexistentes em arquivos que esta task não toca; os arquivos tocados passam com `--max-warnings=0`); `bun run test` **7816 pass + 1242 pass / 0 fail**
+  (antes 7799 + 1233); `test:hooks` **13 execuções, 13 verdes, 1242 pass / 0 fail em cada** (10 normais + 3 sob carga de CPU, um `yes` por núcleo, 11 núcleos).
+- Raiz: `bun run format:check` exit 0 ("All matched files use Prettier code style!"), com o `prettier --write` dos `.md` tocados antes.
+
+### Mutações (cada uma em cópia, restaurada; `git status` limpo no código depois)
+
+API (11, scripts no scratchpad): sem filtro de job (2 vermelhos), aceita ciclo aberto (1), ordem ascendente (1), `planRestricted` conta todo `failed` (2), código de plano errado (1), repositório sem `lastRun` (1), visão perde
+`lastRun` (2), visão perde `planRestricted` (1), visão vaza `counters` (1), consulta projeta coluna a mais (1), `status.query` passa a ler `job_executions` (1). **11 de 11 mortas.**
+
+Painel (15): guarda sem a chave opcional `lastRun` (6 no contrato), `lastRun` sem checar o desfecho (1), `planRestricted` sem checar tipo (1), guarda sem a chave opcional `planRestricted` (7), recusa do ciclo não manda
+na manchete (3 + DOM), empresa desligada não vence (2 + DOM), par fora do plano segue na lista (2 + DOM), contador de falha sem descontar o plano (2 + DOM), espera vence a recusa (1 + DOM), indisponível mapeado como recusa
+(1 + DOM), aviso com a empresa desligada (DOM), aviso com zero (DOM), cartão sem a linha do último ciclo (DOM), fato "Com falha" sem descontar o plano (DOM), título do token trocado no locale (1 + DOM). **15 de 15 mortas.**
+⚠️ Um primeiro lote de mutações deu "0 vermelhos" no DOM em duas delas: não era sobrevivência, era o Bun caindo (SIGTRAP, rc 133, sem relatório) ao imprimir um nó do happy-dom numa asserção `toBeNull()` que falha. As
+asserções passaram a contar (`querySelectorAll(...).length`) e o script de mutação passou a acusar "PROCESSO CAIU".
+
+### Prints (tela só sobe com o print aprovado pelo usuário)
+
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-252-status/` (fora do repositório): 8 telas × 375/768/1280 ×
+claro/escuro = 48 PNG — `importacao-em-dia`, `importacao-rotina-pausada`, `importacao-token-recusado`, `importacao-fornecedor-indisponivel`, `importacao-resposta-inesperada`, `importacao-com-falhas`,
+`importacao-fora-do-plano`, `importacao-desligada`. Build real com `VITE_SMOKE_AUTH_BYPASS`, `vite preview` do binário da app na porta 53420 (conferida livre antes e o PID morto ao fim), API dublada, dado fictício; o
+smoke passou os 126 testes (estouro horizontal, recorte, contraste ≥ mínimo e alvos de toque em 375). O cenário "sem cota" do smoke foi trocado pelos quatro novos. A tela `importacao-erro` não mudou e não foi regerada.
+
+### Decisões e lacunas (para o usuário)
+
+- **Palavra do aviso de plano.** O pedido dizia "N cidades fora do plano contratado", mas `pairs.planRestricted` conta PARES (cidade e ano; o horizonte tem dois anos): uma cidade restrita contaria 2. A tela diz
+  "N buscas (cidade e ano) fora do plano contratado" para não mentir no número. Trocar é uma linha de locale (`import.status.planRestricted_*`) — mas contar cidades distintas exigiria outra consulta na API.
+- **`lastRun` é da instalação.** O ciclo manual de qualquer empresa entra, e só `outcome` + `finishedAt` saem. Rotina pausada depois de um ciclo recusado continua mostrando a recusa até o próximo ciclo (a data do ciclo
+  aparece na tela, então a leitura continua honesta).
+- **`pairs.quotaExhausted` continua no contrato e na lista de fatos** ("Sem cota: N" só aparece se houver par nesse estado; hoje nenhum é gravado). Só a MANCHETE saiu.
+- Desfechos `cancelled`, `abandoned` e `unexpected_error` do último ciclo não têm manchete própria (caem na de antes); `unexpected_error` em produção seria lacuna de vocabulário a nomear na rotina.
+
+### O que NÃO foi feito
+
+Push; publicação de qualquer coisa; worker (o resumo `provider_unauthorized` para plano restrito total continua como está — o texto do painel cobre as duas causas); migration; `make check`, `make migration-test` e
+`make smoke` completos; smoke Playwright do app do motorista; a tela de erro do status; tarefa de produção.

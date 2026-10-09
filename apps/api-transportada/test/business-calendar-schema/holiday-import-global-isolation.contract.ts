@@ -27,6 +27,7 @@ const AGGREGATED_STATUS_QUERIES = [
   'src/business-calendar/infrastructure/holiday-import-usage.query.ts',
 ] as const
 const STATUS_QUERY = 'src/business-calendar/infrastructure/holiday-import-status.query.ts'
+const LAST_RUN_QUERY = 'src/business-calendar/infrastructure/holiday-import-last-run.query.ts'
 
 async function listSourceFiles(): Promise<readonly string[]> {
   const files: string[] = []
@@ -97,5 +98,29 @@ describe('spec 252 — o cache global do fornecedor de feriados não sai cru', (
     }
 
     expect(offenders).toEqual([])
+  })
+})
+
+describe('spec 252 (cartão de status honesto) — a última execução da rotina não é cache do fornecedor', () => {
+  test('mora em consulta própria, fora das isentas: `job_executions` é da instalação, não do cache', async () => {
+    const files = await listSourceFiles()
+
+    expect(files).toContain(LAST_RUN_QUERY)
+    expect(AGGREGATED_STATUS_QUERIES as readonly string[]).not.toContain(LAST_RUN_QUERY)
+    expect(await readSource(STATUS_QUERY)).not.toContain('jobExecutions')
+  })
+
+  test('a consulta filtra pelo job da rotina e projeta só `outcome` e `finishedAt`', async () => {
+    const source = await readSource(LAST_RUN_QUERY)
+    const projection = source.match(/\.select\(\{([^}]*)\}\)/u)?.[1] ?? ''
+
+    expect(source).toContain('jobExecutions')
+    expect(source).toMatch(/eq\(jobExecutions\.job,/u)
+    expect(source).toMatch(/isNotNull\(jobExecutions\.finishedAt\)/u)
+    expect(projection.match(/\w+(?=:)/gu)?.sort()).toEqual(['finishedAt', 'outcome'])
+    for (const needle of GLOBAL_TABLE_NEEDLES) expect(source).not.toContain(needle)
+    for (const column of ['counters', 'correlationId', 'requestedBy', 'companyId']) {
+      expect(projection).not.toContain(column)
+    }
   })
 })

@@ -2538,5 +2538,35 @@
     "sheetCreatedBy": "Created by",
     "createdBy": "Created by {{name}}",
     "routeCities": "Route cities"
+  },
+  "holidayWarning": {
+    "sentence": "Expected delivery on {{date}}{{place}}: {{reasons}}. Check whether the customer receives.",
+    "place": " in {{city}}",
+    "reason": "{{scope}} holiday — {{name}}{{origin}}",
+    "origin": " ({{origin}})",
+    "originName": {
+      "imported": "imported",
+      "typed": "registered"
+    },
+    "scope": {
+      "national": "national",
+      "state": "state",
+      "municipal": "municipal"
+    },
+    "badge": "Holiday on {{date}}",
+    "national": {
+      "all_souls_day": "All Souls’ Day",
+      "black_consciousness": "Black Consciousness Day",
+      "carnival": "Carnival",
+      "christmas": "Christmas",
+      "corpus_christi": "Corpus Christi",
+      "good_friday": "Good Friday",
+      "independence_day": "Independence Day",
+      "labour_day": "Labour Day",
+      "our_lady_of_aparecida": "Our Lady of Aparecida",
+      "republic_proclamation": "Republic Proclamation Day",
+      "tiradentes": "Tiradentes Day",
+      "universal_fraternization": "New Year’s Day"
+    }
   }
 }

@@ -31,6 +31,16 @@ const HOLIDAY: MunicipalHoliday = {
   id: HOLIDAY_ID,
   kind: 'city_anniversary',
   name: 'Aniversário da cidade',
+  origin: 'typed',
+}
+const IMPORTED_HOLIDAY: MunicipalHoliday = {
+  cityIbgeCode: '3509502',
+  generatedByRuleId: null,
+  holidayOn: '2026-11-20',
+  id: 'f0f0f0f0-0000-4000-8000-000000000020',
+  kind: 'holiday',
+  name: 'Consciência Negra',
+  origin: 'imported',
 }
 const ACTOR = {
   companyId: COMPANY_CONTEXT.companyId,
@@ -43,13 +53,14 @@ const FLEET_PERMISSIONS: CompanyContext['permissions'] = new Set(['fleet.read', 
 function createFixture(
   input: {
     readonly adoptedFromRuleId?: string | null
+    readonly listed?: readonly MunicipalHoliday[]
     readonly removeError?: Error
     readonly permissions?: CompanyContext['permissions']
   } = {},
 ) {
   const calls: RecordedCalls = {}
   const routes = createMunicipalHolidayRoutes({
-    list: recordingUseCase(calls, 'list', [HOLIDAY]),
+    list: recordingUseCase(calls, 'list', input.listed ?? [HOLIDAY]),
     remove: {
       async execute(call) {
         calls.remove = [...(calls.remove ?? []), structuredClone(call)]
@@ -92,6 +103,7 @@ describe('as rotas antigas de /municipal-holidays: leitura e POST (spec 238 T1.3
         id: HOLIDAY_ID,
         kind: 'city_anniversary',
         name: 'Aniversário da cidade',
+        origin: 'typed',
       },
     ])
     expect(calls.list).toEqual([
@@ -102,6 +114,55 @@ describe('as rotas antigas de /municipal-holidays: leitura e POST (spec 238 T1.3
         to: '2026-12-31',
       },
     ])
+  })
+
+  test('a lista diz a origem de cada data (importada ou digitada) e nunca expõe o vínculo com o cache', async () => {
+    const { handle } = createFixture({ listed: [HOLIDAY, IMPORTED_HOLIDAY] })
+
+    const listed = (await responseData(
+      await handle(jsonRequest({ method: 'GET', path: PATH })),
+    )) as readonly Record<string, unknown>[]
+
+    expect(listed.map((holiday) => holiday.origin)).toEqual(['typed', 'imported'])
+    for (const holiday of listed) {
+      expect(Object.keys(holiday).sort()).toEqual([
+        'cityIbgeCode',
+        'generatedByRuleId',
+        'holidayOn',
+        'id',
+        'kind',
+        'name',
+        'origin',
+      ])
+    }
+  })
+
+  test('a resposta do POST e a do PATCH trazem a origem que o caso de uso devolveu', async () => {
+    const { handle } = createFixture()
+
+    const created = await handle(jsonRequest({ body: BODY, method: 'POST', path: PATH }))
+    const patched = await handle(
+      jsonRequest({ body: { name: 'Novo' }, method: 'PATCH', path: `${PATH}/${HOLIDAY_ID}` }),
+    )
+
+    expect(await responseData(created)).toMatchObject({ origin: 'typed' })
+    expect(await responseData(patched)).toMatchObject({ origin: 'typed' })
+  })
+
+  test('origin não é entrada: o corpo que a traz é 400', async () => {
+    const { calls, handle } = createFixture()
+
+    const created = await handle(
+      jsonRequest({ body: { ...BODY, origin: 'imported' }, method: 'POST', path: PATH }),
+    )
+    const patched = await handle(
+      jsonRequest({ body: { origin: 'typed' }, method: 'PATCH', path: `${PATH}/${HOLIDAY_ID}` }),
+    )
+
+    expect(created.status).toBe(400)
+    expect(patched.status).toBe(400)
+    expect(calls.save).toEqual([])
+    expect(calls.update).toEqual([])
   })
 
   test('recusa data que não existe, janela invertida e município que não é código IBGE', async () => {
@@ -153,6 +214,7 @@ describe('as rotas antigas de /municipal-holidays: leitura e POST (spec 238 T1.3
       id: HOLIDAY_ID,
       kind: 'city_anniversary',
       name: 'Aniversário da cidade',
+      origin: 'typed',
     })
     expect(await responseData(created)).toMatchObject({ adoptedFromRuleId: null })
   })

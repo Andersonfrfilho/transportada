@@ -13,7 +13,9 @@ import {
   holidayImportCities,
   holidayProviderFetches,
   holidayProviderMonthlyUsage,
+  jobExecutions,
 } from '../../src/database/database.schema.js'
+import type { JobOutcome } from '../../src/shared/job-catalog.constant.js'
 import {
   CAMPINAS,
   databaseUrl,
@@ -277,6 +279,143 @@ describe('o status da importação agrega o cache só para as cidades da empresa
       })
     },
   )
+})
+
+type SeedExecutionParams = {
+  readonly finishedAt?: Date
+  readonly job: 'holiday.provider.pull' | 'nfe.recipient-email.backfill'
+  readonly outcome?: JobOutcome
+  readonly startedAt: Date
+}
+
+async function seedExecution(database: TestDatabase, params: SeedExecutionParams): Promise<void> {
+  await database.db.insert(jobExecutions).values({
+    correlationId: `holiday-status-${params.startedAt.toISOString()}`,
+    job: params.job,
+    origin: 'schedule',
+    startedAt: params.startedAt,
+    ...(params.finishedAt === undefined ? {} : { finishedAt: params.finishedAt }),
+    ...(params.outcome === undefined ? {} : { outcome: params.outcome }),
+  })
+}
+
+describe('a última execução da rotina e os pares fora do plano (spec 252, cartão de status honesto)', () => {
+  testWithPostgres(
+    'lastRun é a última execução ENCERRADA da rotina: ignora a aberta e a de outra rotina',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const finishedAt = new Date('2026-10-09T11:05:00.000Z')
+        await seedExecution(database, {
+          finishedAt: new Date('2026-10-09T09:05:00.000Z'),
+          job: 'holiday.provider.pull',
+          outcome: 'provider_unreachable',
+          startedAt: new Date('2026-10-09T09:00:00.000Z'),
+        })
+        await seedExecution(database, {
+          finishedAt,
+          job: 'holiday.provider.pull',
+          outcome: 'provider_unauthorized',
+          startedAt: new Date('2026-10-09T11:00:00.000Z'),
+        })
+        await seedExecution(database, {
+          finishedAt: new Date('2026-10-09T12:05:00.000Z'),
+          job: 'nfe.recipient-email.backfill',
+          outcome: 'succeeded',
+          startedAt: new Date('2026-10-09T12:00:00.000Z'),
+        })
+        await seedExecution(database, {
+          job: 'holiday.provider.pull',
+          startedAt: new Date('2026-10-09T13:00:00.000Z'),
+        })
+        const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+        const status = await repository.readStatus({
+          companyId: tenant.companyId,
+          month: MONTH,
+          today: TODAY,
+          years: YEARS,
+        })
+
+        expect(status.lastRun).toEqual({ finishedAt, outcome: 'provider_unauthorized' })
+      })
+    },
+  )
+
+  testWithPostgres('sem nenhum ciclo encerrado da rotina, lastRun é null', async () => {
+    await withBusinessCalendarDatabase(async (database) => {
+      const tenant = await seedTenant(database)
+      await seedExecution(database, {
+        finishedAt: new Date('2026-10-09T12:05:00.000Z'),
+        job: 'nfe.recipient-email.backfill',
+        outcome: 'succeeded',
+        startedAt: new Date('2026-10-09T12:00:00.000Z'),
+      })
+      const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+      const status = await repository.readStatus({
+        companyId: tenant.companyId,
+        month: MONTH,
+        today: TODAY,
+        years: YEARS,
+      })
+
+      expect(status.lastRun).toBeNull()
+    })
+  })
+
+  testWithPostgres(
+    'planRestricted conta só os pares da empresa com esse código, sem os da outra empresa nem outros erros',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const { tenantA, tenantB } = await seedTwoTenants(database)
+        await seedFetch(database, {
+          cityIbgeCode: SANTOS,
+          lastErrorCode: 'provider_plan_restricted',
+          status: 'failed',
+          year: 2027,
+        })
+        await seedFetch(database, {
+          cityIbgeCode: RIBEIRAO_PRETO,
+          lastErrorCode: 'provider_plan_restricted',
+          status: 'failed',
+          year: 2027,
+        })
+        const repository = new DrizzleHolidayImportStatusRepository(database.db)
+        const read = (tenant: Tenant) =>
+          repository.readStatus({
+            companyId: tenant.companyId,
+            month: MONTH,
+            today: TODAY,
+            years: YEARS,
+          })
+
+        const statusA = await read(tenantA)
+        const statusB = await read(tenantB)
+
+        expect(statusA.pairs.planRestricted).toBe(1)
+        expect(statusA.pairs.failed).toBe(2)
+        expect(statusA.pairs.pending).toBe(1)
+        expect(statusB.pairs.planRestricted).toBe(1)
+      })
+    },
+  )
+
+  testWithPostgres('sem par fora do plano, planRestricted é 0', async () => {
+    await withBusinessCalendarDatabase(async (database) => {
+      const { tenantA } = await seedTwoTenants(database)
+      const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+      const status = await repository.readStatus({
+        companyId: tenantA.companyId,
+        month: MONTH,
+        today: TODAY,
+        years: YEARS,
+      })
+
+      expect(status.pairs.planRestricted).toBe(0)
+    })
+  })
 })
 
 describe('os removidos pelo fornecedor são só os de hoje em diante (spec 252 T6.1b)', () => {

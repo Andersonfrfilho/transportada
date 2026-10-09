@@ -41,6 +41,7 @@ describe('os casos de uso das datas fixas (spec 238 T1.3)', () => {
             id: HOLIDAY_ID,
             kind: 'holiday',
             name: 'Feriado',
+            origin: 'typed',
           },
         }
       },

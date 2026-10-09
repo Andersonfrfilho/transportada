@@ -49,7 +49,8 @@
       "submitCreate": "Cadastrar feriado",
       "editing": "Editando: {{name}}",
       "lockedHint": "A cidade e a recorrência não se editam: para mudá-las, exclua e cadastre de novo.",
-      "lockedHintDate": "Cidade e data não se editam: para mudá-las, exclua e cadastre de novo."
+      "lockedHintDate": "Cidade e data não se editam: para mudá-las, exclua e cadastre de novo.",
+      "importedHint": "Esta data veio da FeriadosAPI. Editar o nome ou o tipo a torna sua: ela deixa de ser importada."
     },
     "table": {
       "region": "Feriados municipais cadastrados",
@@ -58,7 +59,8 @@
       "when": "Quando",
       "name": "Nome",
       "actions": "Ações",
-      "ruleSchedule": "Todo ano, {{date}} — gerado até {{year}}"
+      "ruleSchedule": "Todo ano, {{date}} — gerado até {{year}}",
+      "origin": "Origem"
     },
     "horizon": {
       "notice": "Há regras com datas geradas só até {{year}}: depois disso o roteiro deixa de fechar os clientes dessas cidades.",
@@ -77,7 +79,8 @@
       "stateAria": "UF",
       "submitCreate": "Cadastrar feriado estadual",
       "editing": "Editando: {{name}}",
-      "lockedHint": "A UF e a recorrência não se editam: para mudá-las, exclua e cadastre de novo."
+      "lockedHint": "A UF e a recorrência não se editam: para mudá-las, exclua e cadastre de novo.",
+      "importedHint": "Esta data veio da FeriadosAPI. Mudar o nome a torna sua; para outra data, desligue esta e cadastre a nova."
     },
     "table": {
       "region": "Feriados estaduais cadastrados",
@@ -85,7 +88,8 @@
       "when": "Quando",
       "name": "Nome",
       "actions": "Ações",
-      "yearlySchedule": "Todo ano, {{date}}"
+      "yearlySchedule": "Todo ano, {{date}}",
+      "origin": "Origem"
     }
   },
   "form": {
@@ -175,7 +179,9 @@
     "pageOf": "Página {{page}} de {{count}}",
     "previousPage": "Página anterior",
     "nextPage": "Próxima página",
-    "count": "{{shown}} de {{total}} feriados"
+    "count": "{{shown}} de {{total}} feriados",
+    "disable": "Desligar",
+    "disableAria": "Desligar {{name}}"
   },
   "filters": {
     "clear": "Limpar filtros",
@@ -215,7 +221,14 @@
       "confirm": "Excluir feriado"
     },
     "typedKept_one": "{{count}} data digitada neste dia continua valendo.",
-    "typedKept_other": "{{count}} datas digitadas neste dia continuam valendo."
+    "typedKept_other": "{{count}} datas digitadas neste dia continuam valendo.",
+    "disabling": "Desligando…",
+    "imported": {
+      "title": "Desligar o feriado importado “{{name}}”?",
+      "body": "A data deixa de valer e não volta nas próximas execuções da importação. Para trazê-la de volta, restaure em Feriados desligados: ela volta na próxima execução diária, não na hora.",
+      "confirm": "Desligar feriado"
+    },
+    "suppressionNote": "Datas de hoje em diante apagadas também deixam de ser importadas da FeriadosAPI. Para trazê-las de volta, restaure em Feriados desligados."
   },
   "errors": {
     "generic": "Não foi possível concluir a ação. Tente de novo.",
@@ -244,6 +257,117 @@
     "BUSINESS_CALENDAR_INVALID_COVERAGE": "Período do calendário inválido.",
     "BUSINESS_CALENDAR_COVERAGE_TOO_WIDE": "Período do calendário largo demais.",
     "BUSINESS_CALENDAR_OUT_OF_COVERAGE": "Data fora do período que o calendário cobre.",
-    "BUSINESS_CALENDAR_TOO_MANY_RULES": "Há regras demais para montar o calendário."
+    "BUSINESS_CALENDAR_TOO_MANY_RULES": "Há regras demais para montar o calendário.",
+    "HOLIDAY_IMPORT_PAST_DATE": "Só dá para desligar uma data de hoje em diante: as que já passaram ficam como estão.",
+    "HOLIDAY_IMPORT_DATE_LOCKED": "A data de um feriado importado não se muda. Desligue este e cadastre a nova data.",
+    "HOLIDAY_NOT_IMPORTED": "Este feriado não é importado: use Excluir. A lista foi atualizada."
+  },
+  "import": {
+    "title": "Importação de feriados",
+    "hint": "A FeriadosAPI traz, uma vez por dia, os feriados municipais e estaduais das cidades das suas notas. O que você cadastra vence o importado da mesma data. Os municipais importados contam no prazo de entrega e fecham os clientes da cidade no roteiro; os estaduais só contam no prazo.",
+    "legend": {
+      "title": "Como ler a coluna Origem",
+      "national": "Nacional: vem do calendário do sistema e vale para todas as cidades; não se edita aqui.",
+      "state": "Estadual: vale para todas as cidades da UF.",
+      "typed": "Cadastrado: digitado por você; vence o importado da mesma data.",
+      "imported": "Importado: trazido da FeriadosAPI; você pode desligá-lo."
+    },
+    "status": {
+      "title": "Estado da importação",
+      "loading": "Carregando o estado da importação",
+      "headline": {
+        "healthy": "Em dia",
+        "waiting": "Aguardando a primeira execução",
+        "unauthorized": "Fornecedor recusou o acesso: token inválido ou plano sem cobertura",
+        "unreachable": "Fornecedor indisponível, tentando de novo",
+        "malformed": "Resposta inesperada do fornecedor",
+        "failing": "Com falhas",
+        "disabled": "Desligada para esta empresa"
+      },
+      "explain": {
+        "healthy": "A rotina diária buscou os feriados das cidades acompanhadas.",
+        "waiting": "A rotina diária ainda não buscou nada. Em Operações, confira se ela está pausada ou sem token.",
+        "unauthorized": "O fornecedor recusou o último ciclo da rotina. Confira a chave configurada e o plano contratado no fornecedor; em Operações, veja se a rotina está pausada ou sem token.",
+        "unreachable": "O fornecedor não respondeu no último ciclo. A rotina tenta de novo sozinha no próximo ciclo; nada precisa ser feito agora.",
+        "malformed": "O fornecedor respondeu num formato que a rotina não entende e nada foi gravado. O contrato pode ter mudado: avise o suporte.",
+        "failing": "Algumas buscas falharam. A rotina tenta de novo sozinha, com intervalo crescente.",
+        "disabled": "Esta empresa não participa da importação: nada é buscado nem gravado."
+      },
+      "progress": "{{done}} de {{total}} buscas concluídas",
+      "lastFetched": "Última busca: {{date}}",
+      "neverFetched": "Nenhuma busca feita ainda.",
+      "lastRun": "Último ciclo da rotina: {{date}}",
+      "planRestricted_one": "{{count}} busca (cidade e ano) fora do plano contratado",
+      "planRestricted_other": "{{count}} buscas (cidade e ano) fora do plano contratado",
+      "planRestrictedHint": "O plano do fornecedor não cobre estas cidades. As demais continuam sendo buscadas; só uma mudança de plano resolve.",
+      "cities": "Cidades acompanhadas: {{count}}",
+      "monthlyRequests": "Requisições do mês (toda a instalação): {{count}}",
+      "pairs": {
+        "pending": "Pendentes",
+        "failed": "Com falha",
+        "notCovered": "Sem cobertura do fornecedor",
+        "quotaExhausted": "Sem cota"
+      },
+      "failuresTitle": "Falhas por motivo",
+      "failureCount_one": "{{count}} busca",
+      "failureCount_other": "{{count}} buscas"
+    },
+    "failures": {
+      "malformed_response": "O fornecedor respondeu num formato inesperado; nada foi gravado.",
+      "persistence_failed": "O fornecedor respondeu, mas não foi possível gravar os feriados; a rotina tenta de novo.",
+      "provider_not_found": "O fornecedor não encontrou a cidade; a rotina tenta de novo em 90 dias.",
+      "provider_plan_restricted": "O plano do fornecedor não cobre esta consulta.",
+      "provider_rate_limited": "O fornecedor pediu para esperar; a rotina volta a tentar depois.",
+      "provider_unauthorized": "O fornecedor recusou a chave de acesso. Confira a chave configurada.",
+      "provider_unreachable": "Não foi possível falar com o fornecedor.",
+      "unknown": "Falha não reconhecida pela tela."
+    },
+    "removed": {
+      "title": "Removidos pelo fornecedor",
+      "hint": "O fornecedor deixou de listar estas datas. Elas continuam no seu calendário até você decidir: para mantê-las, edite o nome ou o tipo na tabela (a data passa a ser sua); para tirá-las, desligue.",
+      "empty": "Nenhuma data foi removida pelo fornecedor.",
+      "truncated": "Há mais datas removidas do que cabem nesta lista. As demais aparecem quando você tratar estas.",
+      "disable": "Desligar",
+      "disableAria": "Desligar {{name}}",
+      "confirmPrompt": "Desligar “{{name}}”? Ela não volta nas próximas execuções.",
+      "confirm": "Sim, desligar",
+      "cancel": "Cancelar",
+      "disabling": "Desligando…",
+      "scope": {
+        "city": "Cidade",
+        "state": "Estado"
+      }
+    },
+    "suppressions": {
+      "title": "Feriados desligados",
+      "hint": "Datas desligadas não voltam sozinhas. Restaurar uma data a devolve na próxima execução diária da rotina, não na hora.",
+      "loading": "Carregando os feriados desligados",
+      "empty": "Nenhum feriado desligado.",
+      "region": "Feriados desligados",
+      "place": "Lugar",
+      "scope": "Escopo",
+      "when": "Data",
+      "disabledOn": "Desligado em",
+      "actions": "Ações",
+      "scopes": {
+        "city": "Cidade",
+        "state": "Estado"
+      },
+      "restore": "Restaurar",
+      "restoreAria": "Restaurar o feriado de {{place}} em {{date}}",
+      "restoring": "Restaurando…",
+      "restoredNotice": "Restaurado. A data volta na próxima execução diária da rotina.",
+      "count": "{{count}} desligados",
+      "previousPage": "Página anterior",
+      "nextPage": "Próxima página",
+      "pageOf": "Página {{page}} de {{count}}"
+    },
+    "origin": {
+      "typed": "Cadastrado",
+      "imported": "Importado",
+      "rule": "Cadastrado",
+      "unknown": "—",
+      "unknownAria": "Origem não informada"
+    }
   }
 }

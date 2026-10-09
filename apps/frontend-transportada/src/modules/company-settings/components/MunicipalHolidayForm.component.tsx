@@ -48,6 +48,9 @@ export function MunicipalHolidayForm({
           <p className={styles.hint}>
             {t(isTypedDate ? 'municipal.form.lockedHintDate' : 'municipal.form.lockedHint')}
           </p>
+          {controller.editing.provenance === 'imported' ? (
+            <p className={styles.hint}>{t('municipal.form.importedHint')}</p>
+          ) : null}
         </>
       )}
       <div className={styles.fieldGrid}>

@@ -16,9 +16,12 @@ type CompanyScope = Readonly<{ companyId: string | undefined }>
 /**
  * A data digitada muda a lista de datas e a contagem "datas digitadas no dia da regra" (`typedHolidaysKept`), que
  * vem da leitura das regras. Editar e apagar reconciliam também na falha: o 409 de data gerada quer dizer que a
- * lista estava velha.
+ * lista estava velha. Apagar uma digitada também a suprime da importação, e adotar uma importada a tira de
+ * "removidos pelo fornecedor": o estado da importação e a lista de desligados mudam junto (spec 252).
  */
 const HOLIDAY_RESOURCES = [
+  BUSINESS_CALENDAR_RESOURCE.HOLIDAY_IMPORT_STATUS,
+  BUSINESS_CALENDAR_RESOURCE.HOLIDAY_IMPORT_SUPPRESSIONS,
   BUSINESS_CALENDAR_RESOURCE.MUNICIPAL_HOLIDAYS,
   BUSINESS_CALENDAR_RESOURCE.MUNICIPAL_RULES,
 ] as const

@@ -92,12 +92,19 @@ regenera a data da regra do dia; `409 HOLIDAY_IMPORT_PAST_DATE` antes de hoje, D
 relógio injetado — `resolveToday`) além de `currentYear`. `typedHolidaysKept` conta só `provider_entry_id IS NULL`. Rotas novas
 `/holiday-imports/{status,cities,suppressions}` (`settings.manage`, ler e escrever; `POST` desliga por `{ holidayId, scope }` `.strict()`,
 `DELETE …/suppressions/:id` restaura — a data volta na próxima execução diária, a API não relê o cache; `GET /suppressions` e `/cities` paginadas, `/status` sem query,
-`removedByProvider` = `{ items ≤ 200, truncated }`; **removidos e supressões listam só `holiday_on >= hoje`** — dia civil de São Paulo do relógio injetado —,
+`removedByProvider` = `{ items ≤ 200, truncated }`, `lastRun` = `{ outcome, finishedAt } | null` (último ciclo ENCERRADO de `holiday.provider.pull`, lido de `job_executions` em
+`holiday-import-last-run.query.ts` — só o desfecho do catálogo e a data, nunca contador, erro nem correlação) e `pairs.planRestricted` (pares da empresa com
+`last_error_code = 'provider_plan_restricted'`, subconjunto de `failed`); **removidos e supressões listam só `holiday_on >= hoje`** — dia civil de São Paulo do relógio injetado —,
 porque desligar data passada é sempre 409 e restaurá-la prometeria o que a D7 nunca cumpre; o total da supressão conta só o que aparece). ⚠️ **As três tabelas globais do cache só
 são importadas por `holiday-import-status.query.ts`, `holiday-import-removed.query.ts` e `holiday-import-usage.query.ts`** (contrato
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
-que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de
-chaves exatas (`businessCalendarGuards.validation.ts`); a origem do feriado vai por rota nova. Detalhe: docs/ai-context § "Spec 252 T4.1".
+que as importe reprova. `GET`, `POST` e `PATCH` de `/municipal-holidays` e `/state-holidays` devolvem `origin: 'typed' | 'imported'` em cada feriado (`imported` =
+`provider_entry_id` preenchido; `typed` no resto, a gerada por regra e a adotada inclusive — a gerada segue distinta por `generatedByRuleId`); o id
+do cache nunca sai. ⚠️ **Regra de ordem de publicação: a API com `origin` NÃO vai antes do painel da T5.2** (cumprida em staging em 2026-10-09: painel `9d8e285d9`,
+depois a API `c315477a3`; **em produção vale de novo**: no `deploy.yml` o `deploy-frontend` tem `needs: deploy-api`, então um único PR `staging → main` sobe a API antes do painel e abre uma janela em que a aba Calendário de produção recusa as listas; o painel vai num PR antes, ou a janela é aceita por decisão do usuário). Os guardas do painel
+publicado (`businessCalendarGuards.validation.ts`) são de chaves **exatas** e recusariam a resposta com a chave nova; o painel da T5.2 aceita
+`origin` como opcional. Publicar: painel, depois API. Detalhe: docs/ai-context § "Spec 252 — `origin` nas listas". ⚠️ **`lastRun` e `pairs.planRestricted` seguem a mesma regra:** o painel
+publicado tem guardas de chaves exatas do `status`, então o painel com os campos opcionais (cartão de status honesto) vai ANTES da API.
 O aviso de feriado (T4.2, ADR-0100 §6): `HolidayReason` e as regras do calendário ganham `origin` (`code|typed|rule|imported`; regra sem origem
 vale `typed`; o mapper lê `provider_entry_id` — importada — e a regra "todo ano" é `rule`; o filtro de `readTypedHolidays` não muda).
 `holiday-warning.policy.ts` (pura) avisa o dia que fecha **por feriado** (domingo, e sábado quando não é útil, são o aviso de fim de semana

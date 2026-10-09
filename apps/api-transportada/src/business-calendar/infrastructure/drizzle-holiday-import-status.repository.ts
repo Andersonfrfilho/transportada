@@ -25,6 +25,7 @@ import {
   listCompanyCities,
   readFetchSummary,
 } from './holiday-import-status.query.js'
+import { readLastHolidayPullRun } from './holiday-import-last-run.query.js'
 import { listRemovedByProvider } from './holiday-import-removed.query.js'
 import { readMonthlyRequests } from './holiday-import-usage.query.js'
 
@@ -119,6 +120,7 @@ export class DrizzleHolidayImportStatusRepository implements HolidayImportStatus
       today: input.today,
     })
     const monthlyRequests = await readMonthlyRequests(this.database, { month: input.month })
+    const lastRun = await readLastHolidayPullRun(this.database)
     const [settings] = await this.database
       .select({ isEnabled: companyHolidayImportSettings.isEnabled })
       .from(companyHolidayImportSettings)
@@ -131,6 +133,7 @@ export class DrizzleHolidayImportStatusRepository implements HolidayImportStatus
       failures: summary.failures,
       isEnabled: settings?.isEnabled ?? true,
       lastFetchedAt: summary.lastFetchedAt,
+      lastRun,
       month: input.month,
       monthlyRequests,
       pairs: {

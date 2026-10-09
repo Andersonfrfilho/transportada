@@ -22,6 +22,8 @@
 const PORT = Number(process.env.DRIVER_PREVIEW_API_PORT ?? 53901)
 const REAL_API = process.env.DRIVER_PREVIEW_REAL_API ?? 'http://localhost:53001'
 const PREVIEW_ORIGIN = process.env.DRIVER_PREVIEW_ORIGIN ?? 'http://localhost:53200'
+/** Spec 252 T5.4: `on` acrescenta avisos de feriado às três paradas da 1ª viagem; sem a variável, a resposta é a de sempre. */
+const HOLIDAY_SCENARIO = process.env.DRIVER_PREVIEW_HOLIDAYS ?? 'off'
 
 const CORS_HEADERS = {
   'access-control-allow-credentials': 'true',
@@ -201,7 +203,52 @@ let enRouteTappedAt: string | null = null
 /** Spec 206 D3: chave de idempotência já vista, para o replay de `depart`/`cancel-departure` liquidar. */
 const seenIdempotencyKeys = new Set<string>()
 
+type PreviewHolidayWarning = {
+  cityIbgeCode: number
+  cityName?: string
+  date: string
+  reasons: readonly { name: string; origin: string; scope: string }[]
+}
+
+/** O dia civil de São Paulo daqui a `days` dias — o mesmo corte que a API usa para o aviso. */
+function saoPauloCivilDate(days: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+  }).format(Date.now() + days * 86_400_000)
+}
+
+/** Nacional hoje, estadual daqui a 4 dias e municipal hoje sem nome de cidade (a API omite quando não sabe). */
+function previewHolidayWarnings(
+  scenario: 'national' | 'state' | 'municipal',
+): readonly PreviewHolidayWarning[] | undefined {
+  if (HOLIDAY_SCENARIO !== 'on') return undefined
+  const warnings: Record<typeof scenario, PreviewHolidayWarning> = {
+    municipal: {
+      cityIbgeCode: 3550308,
+      date: saoPauloCivilDate(0),
+      reasons: [{ name: 'Aniversário da cidade', origin: 'imported', scope: 'municipal' }],
+    },
+    national: {
+      cityIbgeCode: 3550308,
+      cityName: 'São Paulo',
+      date: saoPauloCivilDate(0),
+      reasons: [{ name: 'independence_day', origin: 'code', scope: 'national' }],
+    },
+    state: {
+      cityIbgeCode: 3550308,
+      cityName: 'São Paulo',
+      date: saoPauloCivilDate(4),
+      reasons: [{ name: 'Revolução Constitucionalista', origin: 'typed', scope: 'state' }],
+    },
+  }
+  return [warnings[scenario]]
+}
+
 function stop(input: {
+  holidayWarnings?: readonly PreviewHolidayWarning[] | undefined
   deliveryProof?: {
     photo: string
     receivedBy: string
@@ -238,6 +285,7 @@ function stop(input: {
     /** Spec 206 D9: aditivo — só a parada a caminho carrega os dois; as outras vêm `null`. */
     enRouteSince: input.id === enRouteStopId ? enRouteSince : null,
     enRouteTappedAt: input.id === enRouteStopId ? enRouteTappedAt : null,
+    ...(input.holidayWarnings === undefined ? {} : { holidayWarnings: input.holidayWarnings }),
     id: input.id,
     label: input.label,
     latitude: String(input.latitude),
@@ -281,6 +329,7 @@ function snapshot() {
                   weight: '8.20',
                 }),
               ],
+              holidayWarnings: previewHolidayWarnings('national'),
               id: '00000000-0000-4000-8000-000000000101',
               label: 'Praça da Sé, 100 — Centro, São Paulo',
               latitude: -23.5505,
@@ -301,6 +350,7 @@ function snapshot() {
                   weight: '20.00',
                 }),
               ],
+              holidayWarnings: previewHolidayWarnings('state'),
               id: '00000000-0000-4000-8000-000000000102',
               label: 'Av. Paulista, 1500 — Bela Vista, São Paulo',
               latitude: -23.5614,
@@ -330,6 +380,7 @@ function snapshot() {
                   weight: '4.00',
                 }),
               ],
+              holidayWarnings: previewHolidayWarnings('municipal'),
               id: '00000000-0000-4000-8000-000000000103',
               label: 'Rua Vergueiro, 3000 — Vila Mariana, São Paulo',
               latitude: -23.5893,
