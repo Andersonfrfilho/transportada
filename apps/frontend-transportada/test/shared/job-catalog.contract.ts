@@ -89,9 +89,9 @@ describe('frontend job catalog', () => {
   test('offers every failure outcome the API offers, and may know more while the API catches up', () => {
     for (const apiEntry of CATALOG) {
       const panelEntry = JOB_CATALOG.find((entry) => entry.job === apiEntry.job)
-      expect(findMissingOutcomes(panelEntry?.failureOutcomes ?? [], apiEntry.failureOutcomes)).toEqual(
-        [],
-      )
+      expect(
+        findMissingOutcomes(panelEntry?.failureOutcomes ?? [], apiEntry.failureOutcomes),
+      ).toEqual([])
     }
   })
 

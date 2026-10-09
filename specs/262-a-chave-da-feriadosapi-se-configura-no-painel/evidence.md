@@ -57,3 +57,24 @@ inteiro; `apps/api-transportada/CLAUDE.md` (núcleo, calendário e importação)
 ### Abertos
 
 Nenhum `[NEEDS CLARIFICATION]` novo. Seguem da 252: Q3 (plano/cota) e Q4 (termos de uso), passos do usuário para **ligar**.
+
+## Fase 1 — O painel aprende antes
+
+Branch `work/262-f1` a partir de `origin/staging` (`git fetch origin` exit 0; `git switch -c` exit 0); `bun install --frozen-lockfile`
+ok. Sem push.
+
+### T1.1 — `credential_unreadable` no catálogo do painel
+
+- `jobCatalog.constant.ts`: `credential_unreadable` acrescentado ao fim de `failureOutcomes` de `holiday.provider.pull`.
+- **A armadilha, como prevista:** `test/shared/job-catalog.contract.ts` lê o fonte do catálogo da API e comparava o catálogo inteiro
+  com `toEqual`; o nome só no painel o deixaria vermelho. **Correção controlada:** a igualdade completa foi trocada por (a)
+  igualdade de `job` e `minimumIntervalSeconds` (mesma ordem), (b) `failureOutcomes` do painel **superconjunto** do da API
+  (`findMissingOutcomes`), com um comentário de uma linha dizendo que a igualdade volta na T3.1, (c) um teste que prende a regra
+  (painel faltando um desfecho da API → vermelho; painel com um a mais → verde) e (d) um teste que prende o nome novo no painel.
+  A igualdade volta na **T3.1** (a API e o cron ganham o nome); nota na task.
+- Vermelho antes: `bun test ./test/shared.contract.test.ts` → 424 pass, 1 fail ("knows that an unreadable sealed key ends the
+  holiday pull"; recebido `[provider_unreachable, provider_unauthorized, malformed_response]`).
+- Mutações (restauradas, `git diff --quiet` = 0): tirar `credential_unreadable` → 1 fail (o teste do nome); tirar `malformed_response`
+  (desfecho da API) do painel → 1 fail (o teste de superconjunto).
+- Gates (cwd `apps/frontend-transportada`): `bun run typecheck` limpo; `bun run lint` 0 erros (16 avisos antigos, nenhum em arquivo
+  tocado); `bun run test` exit 0 — 7851 pass / 0 fail (suíte principal) + 1247 pass / 0 fail (`test:hooks`).
