@@ -547,3 +547,80 @@ foram reexecutadas sobre a pasta nova e seguem vermelhas.
 
 Nada de T3 (rotina, cliente, descoberta) nem de rota; nenhum mecanismo de rótulo no painel; sem push. `make migration-test`
 literal não rodou (Docker 65432 com I/O error): o corpo dele, `db:test`, rodou no Postgres nativo. Produção: nenhuma conexão.
+
+## T4.1 — a gestão da importação de feriados na API (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t4` a partir de `origin/staging` (`6548ead27`), sem push. Postgres 18.4
+**nativo** descartável (porta 65441, cluster no scratchpad, `LC_ALL=C`, socket Unix desligado); o Docker 65432 segue quebrado.
+`DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL`/`DATABASE_URL` apontados para ele; integrações **uma por vez**, nenhuma pulou.
+Commits: `929cca352` (testes, vermelhos), `c01dc388b` (código) e o de documentação.
+
+### Contratos antes do código (vermelho pelo motivo certo)
+
+`holiday-import-municipal.integration.ts` **3 pass / 9 fail** (a importada não era adotada, o `DELETE` não gravava supressão nem
+auditoria, `typedHolidaysKept` contava a importada; os 3 verdes são o `DELETE` da digitada, a regeneração da regra e o isolamento da
+empresa B, que já valiam); `holiday-import-state.integration.ts` **3 pass / 5 fail** (mesmos motivos). Os contratos de rota, de caso de uso
+e as integrações das supressões e do status falham por **módulo ausente** (`holiday-import.use-case.js`, `…routes.js`,
+`drizzle-holiday-import-*.repository.js`), e o contrato estático de isolamento por 2 asserções (as consultas agregadas não existiam).
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.1                                    | Onde                                                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` na mesma data adota (zera `provider_entry_id`)        | `upsertTypedHoliday` (municipal) e `adoptImportedStateHoliday` (estadual); `isSameTypedHoliday` é falso para a importada                          |
+| `PATCH` adota                                                | repositórios municipal e estadual (`.set({ …changes, providerEntryId: null })`)                                                                   |
+| `DELETE` numa importada **é** o desligar                     | `holiday-import-disable.support.ts`: supressão + auditoria `holiday-import.disabled` + regenera a regra do dia; D7 `409 HOLIDAY_IMPORT_PAST_DATE` |
+| `typedHolidaysKept` só `provider_entry_id IS NULL`           | `municipal-holiday-typed.queries.ts`                                                                                                              |
+| desligar/restaurar e status                                  | `/holiday-imports/{status,cities,suppressions}` (`settings.manage`, `POST` `.strict()`, `companyId` do contexto)                                  |
+| cache global só agregado, filtrado pelas cidades da empresa  | `holiday-import-status.query.ts` (parte de `holiday_import_cities`) e `holiday-import-usage.query.ts` (contador do mês)                           |
+| contrato de isolamento (molde `delivery-deadline-isolation`) | `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`                                                                       |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                            | Resultado                                                                                           |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit`                                                             | exit 0                                                                                              |
+| `bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`      | exit 0                                                                                              |
+| `bun --env-file=../../.env.test run test` (contratos, script do `package.json`) | **11103 pass, 1 skip (corpus PII sem env, como na linha de base), 0 fail** (era 11082)              |
+| integração `holiday-import-municipal` / `-state` / `-suppressions` / `-status`  | **12 / 8 / 9 / 7 pass**, 0 fail, 0 skip                                                             |
+| integrações tocadas pela assinatura de `remove` e pelo adotar                   | `business-calendar-*` (11 arquivos), `municipal-holiday-generated` 4 e `-interplay` 6: todas 0 fail |
+| `bun run db:generate`                                                           | `{"status":"no_changes"}` (nenhuma migration, nenhum schema novo)                                   |
+| `bun run format:check` na raiz                                                  | exit 0                                                                                              |
+
+### Mutações (cada uma restaurada; `git diff --quiet` = 0 ao fim; baseline 0 fail)
+
+| Mutação                                                                                   | Resultado                                                       |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| upsert municipal não zera `provider_entry_id`                                             | municipal: 4 fail                                               |
+| `isSameTypedHoliday` trata a importada como a mesma digitada                              | municipal: 2 fail                                               |
+| `PATCH` municipal não adota / `PATCH` estadual não adota                                  | municipal: 1 fail / estadual: 1 fail                            |
+| `POST` estadual não adota                                                                 | estadual: 2 fail                                                |
+| `DELETE` de importada não desliga (municipal / estadual)                                  | municipal: 3 fail / estadual: 2 fail                            |
+| D7 removido / D7 com `<=`                                                                 | 1 fail em cada um dos 3 arquivos / municipal: 1 fail            |
+| `typedHolidaysKept` conta a importada                                                     | municipal: 2 fail                                               |
+| regeneração da regra do dia some / ação de auditoria errada / supressão sem o ator        | municipal: 1 fail cada                                          |
+| restaurar sem filtro de empresa / desligar por id sem filtro de empresa                   | suppressions: 1 fail cada                                       |
+| desligar aceita a digitada (sem `HOLIDAY_NOT_IMPORTED`)                                   | suppressions: 1 fail                                            |
+| status agrega o cache de todas as empresas / removidos de outra empresa / cidades alheias | status: 2 / 1 / 2 fail                                          |
+| rotas com a política de leitura / corpo sem `.strict()` / `perPage` sem teto              | rotas: 1 fail cada                                              |
+| "hoje" em UTC no lugar de São Paulo                                                       | rotas e casos de uso: 5 fail                                    |
+| arquivo de `presentation` importando `holidayProviderFetches`                             | contrato de isolamento: 2 fail (arquivo removido; árvore limpa) |
+
+Mutação **equivalente documentada**: tirar o `inArray(cityCodes)` ou o filtro de empresa de `listCityFetches` não muda a saída, porque a
+página de cidades já nasce da demanda da empresa e o repositório casa por `cityIbgeCode` — a fronteira está em `listCompanyCities`, mutada acima.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **Restaurar volta no ciclo seguinte, não na hora.** O ADR-0100 §4 aceita "ou na hora, se o cache já o tem"; reinserir na hora exigiria uma
+  segunda leitura do cache global fora das duas consultas agregadas, que o contrato de isolamento proíbe. **A T3.4 precisa reaplicar do cache a
+  cada ciclo** (não só os pares recém-buscados), senão a data restaurada só volta quando o par for rebuscado (180 dias).
+- **Os guardas do painel são de chaves exatas** (`businessCalendarGuards.validation.ts`): por isso nenhuma chave nova entrou nas respostas de
+  `/municipal-holidays` e `/state-holidays`; a origem para a aba Calendário (T5.2) vem das rotas novas.
+- **Sem rota para ligar/desligar `company_holiday_import_settings.is_enabled`**: o RF9/T4.1 não a pede; o status só a lê.
+- **`monthlyRequests` é da instalação** (`holiday_provider_monthly_usage` não tem empresa): um inteiro, sem cidade nem data; registrado em
+  `docs/SECURITY.md`. O arquivo dessa leitura é o único acréscimo ao `SUPPORT_ONLY` do `tenant-safety.contract.ts`.
+- `remove` (municipal e estadual) ganhou `today` obrigatório; `createStateHolidaysUseCases` ganhou `now`.
+
+### O que não foi feito
+
+T4.2/T4.3; worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration nesta task); nenhuma conexão com produção.

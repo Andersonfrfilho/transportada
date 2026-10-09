@@ -82,6 +82,36 @@ destinos de saída (T6.1).
 
 **Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07.
 
+### 2026-10-09 — spec 252 T4.1 — a gestão da importação de feriados: quem alcança, o que audita e por que o cache global não sai cru
+
+**Onde:** `api-transportada`, `business-calendar/presentation/holiday-import.routes.ts` (`GET /holiday-imports/status`,
+`GET /holiday-imports/cities`, `GET|POST /holiday-imports/suppressions`, `DELETE /holiday-imports/suppressions/:id`) e as
+escritas da 238 sobre a linha importada (`POST|PATCH|DELETE /municipal-holidays`, `/state-holidays`); ADR-0100 §3–§4.
+
+**Quem alcança:** `settings.manage` para ler **e** para escrever (só `company-admin`); o separador e o ajudante não
+(enumerado em `test/separator-role.contract.test.ts`). A empresa e o ator vêm só do contexto; o corpo do desligar é `.strict()`
+(`{ holidayId, scope }`) e recusa `companyId`. Id de outra empresa é ausência (404 ao desligar, no-op ao restaurar), nunca 409.
+
+**Auditoria:** desligar grava `holiday-import.disabled` (alvo `municipal_holiday`/`state_holiday`, antes da linha, `scope`,
+`suppressionId`, `regeneratedFromRuleId`) e restaurar grava `holiday-import.restored` (alvo `holiday_import_suppression`), os dois
+com ator, IP do salto conhecido e correlation id, **na mesma transação** da supressão. Adotar (POST/PATCH sobre a importada) grava
+`municipal-holiday.{saved,updated}` / `state-holiday.updated` com `adoptedFromImport: true`.
+
+**O cache global não sai cru:** `holiday_provider_fetches/_entries/_monthly_usage` não têm `company_id`. Nenhum arquivo de
+`presentation` nem repositório os importa, exceto `holiday-import-status.query.ts` (parte da demanda da própria empresa,
+`holiday_import_cities`, e das linhas dela; devolve contagem, estado e a data das cidades dela, nunca um id do cache) e
+`holiday-import-usage.query.ts` (o contador do mês da instalação). Contrato estático
+`test/business-calendar-schema/holiday-import-global-isolation.contract.ts` + prova com duas empresas em
+`test/integration/holiday-import-status.integration.ts`. **Lacuna aceita:** `monthlyRequests` é o contador da instalação (ADR-0021:
+um deploy por transportadora); uma instalação com mais de uma empresa mostra o mesmo número a todas — um inteiro, sem cidade, data
+nem empresa.
+
+**Desligar só vale de hoje em diante (D7):** a linha passada responde `409 HOLIDAY_IMPORT_PAST_DATE` e nada muda (apagar data
+passada mudaria o selo de prazo da nota já entregue). Restaurar não reinsere a linha na hora: o feriado volta no ciclo seguinte da
+rotina (a leitura do cache global pelas escritas é justamente o que o contrato acima proíbe).
+
+**Origem:** spec 252 T4.1. Registrado em 2026-10-09.
+
 ### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
 
 **Onde:** `api-transportada`, `business-calendar/presentation/` (`/municipal-holiday-rules`, `/state-holidays`,

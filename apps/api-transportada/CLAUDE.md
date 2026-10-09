@@ -82,6 +82,17 @@ em `municipal_holidays`/`state_holidays` (nunca junto com `source_rule_id`; no e
 `job_schedules`. O `rollback.sql` **recusa** com feriado importado, supressão ou execução aberta. ⚠️ A CHECK de `job` do schema
 vem do catálogo TS: o snapshot da migration já traz o nome novo, então o contrato `schema-snapshot` fica vermelho até a T2.3
 pôr `holiday.provider.pull` nas quatro cópias — a migration só vai ao ar com o catálogo. Detalhe: `specs/252-*/evidence.md` § T2.2.
+Gestão da importação (T4.1, ADR-0100 §4): a linha importada (`provider_entry_id` preenchido) **não é digitada**. `POST` na mesma data
+e `PATCH` a **adotam** (zeram `provider_entry_id`; `isSameTypedHoliday` nunca vale para ela; estadual igual, `POST` devolve 200); `DELETE`
+a **desliga** (`holiday-import-disable.support.ts`: apaga a linha, grava `holiday_import_suppressions`, audita `holiday-import.disabled`,
+regenera a data da regra do dia; `409 HOLIDAY_IMPORT_PAST_DATE` antes de hoje, D7). `remove` recebe `today` (dia civil de São Paulo, do
+relógio injetado — `resolveToday`) além de `currentYear`. `typedHolidaysKept` conta só `provider_entry_id IS NULL`. Rotas novas
+`/holiday-imports/{status,cities,suppressions}` (`settings.manage`, ler e escrever; `POST` desliga por `{ holidayId, scope }` `.strict()`,
+`DELETE …/suppressions/:id` restaura — a data volta no ciclo seguinte, a API não relê o cache). ⚠️ **As três tabelas globais do cache só
+são importadas por `holiday-import-status.query.ts` e `holiday-import-usage.query.ts`** (contrato
+`test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
+que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de
+chaves exatas (`businessCalendarGuards.validation.ts`); a origem do feriado vai por rota nova. Detalhe: docs/ai-context § "Spec 252 T4.1".
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
