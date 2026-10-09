@@ -28,12 +28,19 @@ describe('permissão do calendário (spec 238 RF7)', () => {
     expect(businessCalendarDouble.calls).toEqual([])
   })
 
-  it('com a permissão: os três blocos e o aviso fixo do roteiro', async () => {
+  it('com a permissão: os blocos do calendário, os da importação e o aviso fixo do roteiro', async () => {
     await mountPanel(true)
 
     await waitForText('Feriados estaduais')
     const headings = [...document.querySelectorAll('h3')].map((heading) => heading.textContent)
-    expect(headings).toEqual(['Sábado', 'Feriados municipais', 'Feriados estaduais'])
+    expect(headings).toEqual([
+      'Sábado',
+      'Feriados municipais',
+      'Feriados estaduais',
+      'Importação de feriados',
+      'Removidos pelo fornecedor',
+      'Feriados desligados',
+    ])
     expect(text()).toContain(
       'O roteiro fecha os clientes da cidade nas datas geradas por esta regra',
     )

@@ -241,7 +241,7 @@ describe('recusas novas da importação (409)', () => {
 
   test('a data passada diz que só vale de hoje em diante; a data travada manda desligar e cadastrar', () => {
     expect(portuguese.errors.HOLIDAY_IMPORT_PAST_DATE).toContain('hoje em diante')
-    expect(portuguese.errors.HOLIDAY_IMPORT_DATE_LOCKED).toContain('desligue')
+    expect(portuguese.errors.HOLIDAY_IMPORT_DATE_LOCKED).toContain('Desligue')
     expect(portuguese.errors.HOLIDAY_IMPORT_DATE_LOCKED).toContain('cadastre')
   })
 })
@@ -382,6 +382,6 @@ describe('locale da importação', () => {
 
   test('apagar um feriado digitado também o suprime: a confirmação avisa', () => {
     expect(portuguese.dialog.suppressionNote).toContain('FeriadosAPI')
-    expect(portuguese.dialog.suppressionNote).toContain('Desligados')
+    expect(portuguese.dialog.suppressionNote).toContain('Feriados desligados')
   })
 })

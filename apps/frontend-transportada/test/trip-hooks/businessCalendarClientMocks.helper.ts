@@ -10,6 +10,11 @@ import { mock } from 'bun:test'
 
 import { BusinessCalendarRequestError } from '@/modules/company-settings/shared/businessCalendarRequest.service'
 import type { BusinessCalendarClient } from '@/modules/company-settings/shared/businessCalendarClient.service'
+import type { HolidayImportClient } from '@/modules/company-settings/shared/holidayImportClient.service'
+import type {
+  HolidayImportStatus,
+  HolidayImportSuppression,
+} from '@/modules/company-settings/shared/holidayImport.types'
 import type {
   BusinessCalendarSettings,
   MunicipalHoliday,
@@ -18,6 +23,7 @@ import type {
 } from '@/modules/company-settings/shared/businessCalendar.types'
 
 import { buildSettings } from '../fixtures/businessCalendar.fixture'
+import { buildImportStatus } from '../fixtures/holidayImport.fixture'
 
 export const DOUBLE_CURRENT_YEAR = 2026
 const HORIZON_YEARS = 10
@@ -29,31 +35,37 @@ export const businessCalendarDouble: {
   /** Falha o próximo pedido que casar com `"MÉTODO caminho"`; `'hold'` o deixa pendente para sempre. */
   failNext: Map<string, BusinessCalendarRequestError | 'hold'>
   holidays: MunicipalHoliday[]
+  importStatus: HolidayImportStatus
   municipalities: Record<string, readonly MunicipalityEntry[] | 'failure'>
   nextId: number
   rules: MunicipalHolidayRule[]
   settings: BusinessCalendarSettings
   stateHolidays: StateHoliday[]
+  suppressions: HolidayImportSuppression[]
 } = {
   calls: [],
   failNext: new Map(),
   holidays: [],
+  importStatus: buildImportStatus(),
   municipalities: {},
   nextId: 1,
   rules: [],
   settings: buildSettings(),
   stateHolidays: [],
+  suppressions: [],
 }
 
 export function resetBusinessCalendarDouble(): void {
   Object.assign(businessCalendarDouble, {
     calls: [],
     holidays: [],
+    importStatus: buildImportStatus(),
     municipalities: {},
     nextId: 1,
     rules: [],
     settings: buildSettings(),
     stateHolidays: [],
+    suppressions: [],
   })
   businessCalendarDouble.failNext.clear()
 }
@@ -229,6 +241,11 @@ const rulesClient: Pick<
     }),
 }
 
+/** T4.1: editar nome ou tipo de uma importada a adota — vira digitada. Sem `origin` na linha, nada a adotar. */
+function adopt<TRow extends Readonly<{ origin?: 'imported' | 'typed' }>>(row: TRow): TRow {
+  return row.origin === 'imported' ? { ...row, origin: 'typed' } : row
+}
+
 function findHoliday(holidayId: string): MunicipalHoliday {
   const holiday = businessCalendarDouble.holidays.find((candidate) => candidate.id === holidayId)
   return holiday ?? refuse('MUNICIPAL_HOLIDAY_NOT_FOUND', 404)
@@ -290,7 +307,7 @@ const holidaysClient: Pick<
         const stored = findHoliday(holidayId)
         if (stored.generatedByRuleId !== null)
           return refuse('MUNICIPAL_HOLIDAY_GENERATED_BY_RULE', 409)
-        const updated = { ...stored, ...changes }
+        const updated = adopt({ ...stored, ...changes })
         businessCalendarDouble.holidays = businessCalendarDouble.holidays.map((holiday) =>
           holiday.id === holidayId ? updated : holiday,
         )
@@ -359,7 +376,15 @@ const stateClient: Pick<
           return refuse('STATE_HOLIDAY_RECURRENCE_MISMATCH', 400)
         const { recurrence: ignored, ...fields } = changes
         void ignored
-        const updated = { ...stored, ...fields } as StateHoliday
+        const movesDate =
+          'holidayOn' in fields &&
+          stored.recurrence === 'once' &&
+          fields.holidayOn !== undefined &&
+          fields.holidayOn !== stored.holidayOn
+        if (stored.origin === 'imported' && movesDate) {
+          return refuse('HOLIDAY_IMPORT_DATE_LOCKED', 409)
+        }
+        const updated = adopt({ ...stored, ...fields }) as StateHoliday
         businessCalendarDouble.stateHolidays = businessCalendarDouble.stateHolidays.map(
           (holiday) => (holiday.id === holidayId ? updated : holiday),
         )
@@ -389,6 +414,75 @@ const settingsClient: Pick<BusinessCalendarClient, 'getSettings' | 'saveSettings
     }),
 }
 
+const DOUBLE_TODAY = '2026-10-07'
+
+function takeImported(
+  input: Readonly<{ holidayId: string; scope: 'city' | 'state' }>,
+): HolidayImportSuppression {
+  const row =
+    input.scope === 'city'
+      ? businessCalendarDouble.holidays.find((holiday) => holiday.id === input.holidayId)
+      : businessCalendarDouble.stateHolidays.find((holiday) => holiday.id === input.holidayId)
+  if (row === undefined) return refuse('HOLIDAY_NOT_IMPORTED', 409)
+  if (row.origin !== 'imported') return refuse('HOLIDAY_NOT_IMPORTED', 409)
+  const holidayOn = 'holidayOn' in row ? row.holidayOn : DOUBLE_TODAY
+  if (holidayOn < DOUBLE_TODAY) return refuse('HOLIDAY_IMPORT_PAST_DATE', 409)
+  const ibgeCode = 'cityIbgeCode' in row ? row.cityIbgeCode : row.stateIbgeCode
+  const suppression: HolidayImportSuppression = {
+    holidayOn,
+    ibgeCode,
+    id: id('suppression'),
+    scope: input.scope,
+    suppressedAt: '2026-10-07T12:00:00.000Z',
+  }
+  businessCalendarDouble.holidays = businessCalendarDouble.holidays.filter(
+    (holiday) => holiday.id !== input.holidayId,
+  )
+  businessCalendarDouble.stateHolidays = businessCalendarDouble.stateHolidays.filter(
+    (holiday) => holiday.id !== input.holidayId,
+  )
+  const removed = businessCalendarDouble.importStatus.removedByProvider
+  businessCalendarDouble.importStatus = {
+    ...businessCalendarDouble.importStatus,
+    removedByProvider: {
+      items: removed.items.filter((item) => item.holidayId !== input.holidayId),
+      truncated: removed.truncated,
+    },
+  }
+  businessCalendarDouble.suppressions = [...businessCalendarDouble.suppressions, suppression]
+  return suppression
+}
+
+const importClient: HolidayImportClient = {
+  disable: (input) =>
+    record({
+      body: input,
+      key: 'POST /holiday-imports/suppressions',
+      run: () => takeImported(input),
+    }),
+  getStatus: () =>
+    record({ key: 'GET /holiday-imports/status', run: () => businessCalendarDouble.importStatus }),
+  listSuppressions: ({ page, perPage }) =>
+    record({
+      key: `GET /holiday-imports/suppressions?page=${String(page)}&perPage=${String(perPage)}`,
+      run: () => ({
+        items: businessCalendarDouble.suppressions.slice((page - 1) * perPage, page * perPage),
+        page,
+        perPage,
+        total: businessCalendarDouble.suppressions.length,
+      }),
+    }),
+  restore: (suppressionId) =>
+    record({
+      key: `DELETE /holiday-imports/suppressions/${suppressionId}`,
+      run: () => {
+        businessCalendarDouble.suppressions = businessCalendarDouble.suppressions.filter(
+          (suppression) => suppression.id !== suppressionId,
+        )
+      },
+    }),
+}
+
 const client: BusinessCalendarClient = {
   ...holidaysClient,
   ...rulesClient,
@@ -398,6 +492,7 @@ const client: BusinessCalendarClient = {
 
 void mock.module('@/modules/company-settings/shared/businessCalendarClient.provider', () => ({
   getBusinessCalendarClient: () => client,
+  getHolidayImportClient: () => importClient,
   getMunicipalityDirectory: () => (input: Readonly<{ state: string }>) => {
     businessCalendarDouble.calls.push(`DIRECTORY ${input.state}`)
     const entries = businessCalendarDouble.municipalities[input.state] ?? []
