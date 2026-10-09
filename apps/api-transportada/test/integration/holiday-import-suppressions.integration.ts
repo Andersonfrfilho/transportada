@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { holidayImportSuppressions } from '../../src/database/database.schema.js'
 import { DrizzleHolidayImportSuppressionRepository } from '../../src/business-calendar/infrastructure/drizzle-holiday-import-suppression.repository.js'
 import { DrizzleMunicipalHolidayRepository } from '../../src/business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
 import {
@@ -322,7 +323,12 @@ describe('listar as supressões (spec 252 T4.1)', () => {
         scope: 'city',
       })
 
-      const page = await repository.list({ companyId: tenantA.companyId, page: 1, perPage: 50 })
+      const page = await repository.list({
+        companyId: tenantA.companyId,
+        page: 1,
+        perPage: 50,
+        today: TODAY,
+      })
 
       expect(page.total).toBe(2)
       expect(page.items.map((item) => [item.scope, item.ibgeCode, item.holidayOn])).toEqual([
@@ -350,10 +356,44 @@ describe('listar as supressões (spec 252 T4.1)', () => {
         })
       }
 
-      const second = await repository.list({ companyId: tenant.companyId, page: 2, perPage: 2 })
+      const second = await repository.list({
+        companyId: tenant.companyId,
+        page: 2,
+        perPage: 2,
+        today: TODAY,
+      })
 
       expect(second.total).toBe(3)
       expect(second.items.map((item) => item.holidayOn)).toEqual(['2026-11-22'])
     })
   })
+
+  testWithPostgres(
+    'supressão de data passada não é listada nem contada: restaurar não a devolveria (D7)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const repository = new DrizzleHolidayImportSuppressionRepository(database.db)
+        for (const holidayOn of ['2026-10-08', TODAY, '2026-11-20']) {
+          await database.db.insert(holidayImportSuppressions).values({
+            companyId: tenant.companyId,
+            holidayOn,
+            ibgeCode: CAMPINAS,
+            scope: 'city',
+            suppressedByUserId: tenant.userId,
+          })
+        }
+
+        const page = await repository.list({
+          companyId: tenant.companyId,
+          page: 1,
+          perPage: 50,
+          today: TODAY,
+        })
+
+        expect(page.total).toBe(2)
+        expect(page.items.map((item) => item.holidayOn)).toEqual([TODAY, '2026-11-20'])
+      })
+    },
+  )
 })
