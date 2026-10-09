@@ -39,3 +39,9 @@ export const CONVERSATION_OUTBOX_LOCK_NAME = 'transportada.conversation-outbox.f
 
 /** Status HTTP em que repetir com a mesma chave é o certo: sessão a renovar, limite de taxa, tempo. */
 export const RETRYABLE_CLIENT_STATUSES: readonly number[] = [401, 408, 425, 429]
+
+/** Quanto o app espera entre duas buscas de mensagem nova com a conversa aberta e a aba visível. */
+export const CONVERSATION_REFRESH_INTERVAL_MS = 15 * 1000
+
+/** Teto de ciclos pulados depois de falhas seguidas, para não martelar a API instável. */
+export const CONVERSATION_REFRESH_MAX_SKIPPED_CYCLES = 7

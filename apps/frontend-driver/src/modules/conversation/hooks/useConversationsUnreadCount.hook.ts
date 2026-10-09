@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 
@@ -14,6 +15,16 @@ const UNREAD_CONVERSATIONS_STALE_TIME_MS = 30 * 1000
 /** O selo da aba: soma de `unreadCount` da lista, revalidada ao voltar o foco. Sem rede, nem pergunta. */
 export function useConversationsUnreadCount(): number {
   const { canSync } = useDriverSession()
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!canSync) return undefined
+    return getDriverConversationsApi().subscribe?.((event) => {
+      if (event.type !== 'inbox-changed') return
+      void queryClient.invalidateQueries({ queryKey: UNREAD_CONVERSATIONS_QUERY_KEY })
+    })
+  }, [canSync, queryClient])
+
   const { data } = useQuery({
     enabled: canSync,
     queryFn: async () => {

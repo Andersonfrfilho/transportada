@@ -60,6 +60,7 @@ function createHarness(initialMode: ServerMode = 'ok') {
     http,
     isOnline: () => isOnline,
     outbox,
+    refreshEnvironment: { isVisible: () => false },
   })
   api.subscribe?.((event) => events.push(event))
   return {

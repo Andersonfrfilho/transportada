@@ -7,9 +7,15 @@ import {
 } from '@adatechnology/conversation-contracts'
 import type { ParticipantConversationsApi } from '@adatechnology/conversations-ui/participant'
 
+import { createBrowserRefreshEnvironment } from './conversationRefreshBrowser.service'
+import {
+  createConversationRefreshTicker,
+  type ConversationRefreshTickerDependencies,
+} from './conversationRefreshTicker.service'
 import type { ConversationOutbox } from './conversationOutbox.service'
 import {
   ATTACHMENT_URL_MAX_AGE_MS,
+  CONVERSATION_REFRESH_INTERVAL_MS,
   CURRENT_TRIP_PATH,
   DRIVER_CONVERSATION_ERROR,
 } from './driverConversation.constant'
@@ -33,6 +39,7 @@ import {
   toConversationSummaryCandidate,
   toParticipantMessageCandidate,
 } from './driverConversationsMapper.service'
+import type { ConversationSnapshot } from './conversationSnapshot.service'
 import { createDriverConversationUploader } from './driverConversationUploads.service'
 
 export type DriverConversationsApiDependencies = Readonly<{
@@ -42,12 +49,18 @@ export type DriverConversationsApiDependencies = Readonly<{
   isOnline?: () => boolean
   now?: () => Date
   outbox: ConversationOutbox
+  refreshEnvironment?: Partial<
+    Pick<
+      ConversationRefreshTickerDependencies,
+      'bindTriggers' | 'intervalMs' | 'isOnline' | 'isVisible' | 'startTimer'
+    >
+  >
 }>
 
 /** O adapter do pacote mais o que o app liga por fora: a fila offline e seus gatilhos. */
 export type DriverConversationsApi = ParticipantConversationsApi &
   Pick<DriverConversationSender, 'flushOutbox' | 'retryPending'> &
-  Readonly<{ outbox: ConversationOutbox }>
+  Readonly<{ outbox: ConversationOutbox; requestRefresh: () => void }>
 
 function readBrowserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false
@@ -97,6 +110,45 @@ export function createDriverConversationsApi(
     return echo.decorate(messages)
   }
 
+  async function listConversations() {
+    const payload = await http.getJson(`${CURRENT_TRIP_PATH}/occurrence-conversations`)
+    const candidates = readDataArray(payload).map((raw) => {
+      const { occurrenceId, lastMessageAt, unreadCount } = (raw ?? {}) as Record<string, unknown>
+      const remembered = awaitingByConversation.get(String(occurrenceId))
+      // temporário até a API trazer awaitingDriver (spec 260 T2.5)
+      const isAwaiting =
+        Number(unreadCount) > 0 ||
+        (remembered !== undefined &&
+          remembered.lastMessageAt === lastMessageAt &&
+          remembered.isAwaiting)
+      return toConversationSummaryCandidate({
+        fallbackSubjectLabel: dependencies.fallbackSubjectLabel(),
+        isAwaitingParticipant: isAwaiting,
+        raw,
+      })
+    })
+    return participantConversationPageSchema.parse({ data: candidates })
+  }
+
+  async function fetchSnapshot(): Promise<ConversationSnapshot> {
+    const page = await listConversations()
+    return page.data.map((conversation) => ({
+      lastMessageAt: conversation.lastMessageAt,
+      subject: {
+        subjectId: conversation.subjectId,
+        subjectType: conversation.subjectType,
+      },
+      unreadCount: conversation.unreadCount,
+    }))
+  }
+
+  const refreshTicker = createConversationRefreshTicker({
+    ...createBrowserRefreshEnvironment(),
+    fetchSnapshot,
+    intervalMs: CONVERSATION_REFRESH_INTERVAL_MS,
+    ...dependencies.refreshEnvironment,
+  })
+
   const sender = createDriverConversationSender({
     echo,
     http,
@@ -109,25 +161,7 @@ export function createDriverConversationsApi(
   return {
     fetchMessages: (subject) => fetchMessages(subject),
     flushOutbox: sender.flushOutbox,
-    async listConversations() {
-      const payload = await http.getJson(`${CURRENT_TRIP_PATH}/occurrence-conversations`)
-      const candidates = readDataArray(payload).map((raw) => {
-        const { occurrenceId, lastMessageAt, unreadCount } = (raw ?? {}) as Record<string, unknown>
-        const remembered = awaitingByConversation.get(String(occurrenceId))
-        // temporário até a API trazer awaitingDriver (spec 260 T2.5)
-        const isAwaiting =
-          Number(unreadCount) > 0 ||
-          (remembered !== undefined &&
-            remembered.lastMessageAt === lastMessageAt &&
-            remembered.isAwaiting)
-        return toConversationSummaryCandidate({
-          fallbackSubjectLabel: dependencies.fallbackSubjectLabel(),
-          isAwaitingParticipant: isAwaiting,
-          raw,
-        })
-      })
-      return participantConversationPageSchema.parse({ data: candidates })
-    },
+    listConversations,
     async markRead(subject) {
       await http.postJson(`${messagesPath(subject)}/read`)
     },
@@ -144,14 +178,20 @@ export function createDriverConversationsApi(
       return refreshed.url
     },
     outbox,
+    requestRefresh: refreshTicker.requestRefresh,
     retryPending: sender.retryPending,
     sendMessage: sender.sendMessage,
     subscribe(listener) {
-      return outbox.subscribe((event) => {
+      const unsubscribeOutbox = outbox.subscribe((event) => {
         if (event.type !== 'message-settled') return
         listener({ subject: event.subject, type: 'conversation-changed' })
         listener({ type: 'inbox-changed' })
       })
+      const unsubscribeRefresh = refreshTicker.subscribe(listener)
+      return () => {
+        unsubscribeOutbox()
+        unsubscribeRefresh()
+      }
     },
   }
 }

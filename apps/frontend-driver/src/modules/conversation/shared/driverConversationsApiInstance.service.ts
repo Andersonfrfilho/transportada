@@ -46,3 +46,8 @@ export function getDriverConversationsApi(): DriverConversationsApi {
   })
   return driverConversationsApi
 }
+
+/** Gancho para quem sabe que chegou mensagem (sino em tempo real): busca já, sem esperar o próximo ciclo. */
+export function requestConversationRefresh(): void {
+  driverConversationsApi?.requestRefresh()
+}
