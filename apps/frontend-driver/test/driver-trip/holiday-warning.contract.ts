@@ -5,10 +5,12 @@ import { describe, expect, test } from 'bun:test'
 
 import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
+import { createClockOffsetStore } from '@/modules/driver-trip/shared/clockOffset.service'
 import { NATIONAL_HOLIDAY_KEYS } from '@/modules/driver-trip/shared/holidayWarning.constant'
 import {
   applyClockOffset,
   listHolidayNoticeLines,
+  readCorrectedNowMs,
   resolveSaoPauloCivilDate,
 } from '@/modules/driver-trip/shared/holidayWarning.service'
 import type { HolidayWarning } from '@/modules/driver-trip/shared/driverTrip.types'
@@ -50,6 +52,22 @@ describe('dia civil de São Paulo (spec 252 T5.4)', () => {
 
     expect(resolveSaoPauloCivilDate(correctedNowMs)).toBe('2026-10-12')
     expect(resolveSaoPauloCivilDate(deviceNowMs)).toBe('2026-10-13')
+  })
+
+  test('o relógio corrigido lê o desvio guardado do aparelho', () => {
+    const clockOffset = createClockOffsetStore()
+    clockOffset.write(3_600_000)
+
+    const correctedNowMs = readCorrectedNowMs(clockOffset)
+
+    expect(correctedNowMs - Date.now()).toBeGreaterThan(3_600_000 - 1_000)
+    expect(correctedNowMs - Date.now()).toBeLessThan(3_600_000 + 1_000)
+  })
+
+  test('sem desvio guardado o relógio corrigido é o do aparelho', () => {
+    const correctedNowMs = readCorrectedNowMs(createClockOffsetStore())
+
+    expect(Math.abs(correctedNowMs - Date.now())).toBeLessThan(1_000)
   })
 
   test('sem desvio medido o relógio do aparelho vale como está', () => {

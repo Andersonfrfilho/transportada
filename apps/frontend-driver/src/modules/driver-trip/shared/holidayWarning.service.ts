@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { driverClockOffset } from './clockOffset.service'
+import { driverClockOffset, type ClockOffsetStore } from './clockOffset.service'
 import type { HolidayReason, HolidayWarning } from './driverTrip.types'
 import { HOLIDAY_TIME_ZONE } from './holidayWarning.constant'
 
@@ -32,8 +32,8 @@ export function applyClockOffset(input: {
 }
 
 /** O relógio do aparelho corrigido pelo último desvio medido (`clockOffset.service.ts`); sem medida, o do aparelho. */
-export function readCorrectedNowMs(): number {
-  return applyClockOffset({ deviceNowMs: Date.now(), offsetMs: driverClockOffset.read() })
+export function readCorrectedNowMs(clockOffset: ClockOffsetStore = driverClockOffset): number {
+  return applyClockOffset({ deviceNowMs: Date.now(), offsetMs: clockOffset.read() })
 }
 
 /** Data fora do formato ou impossível não vira texto: o aviso é acessório e não inventa. */
