@@ -132,7 +132,7 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.1** Rotas de gestão (`settings.manage`, `.strict()`, `companyId` do contexto, `audit_logs` na mesma
+- [x] **T4.1** Rotas de gestão (`settings.manage`, `.strict()`, `companyId` do contexto, `audit_logs` na mesma
       transação): desligar (só de hoje em diante)/restaurar importado, adoção pelo `PATCH` de nome/tipo **e pelo
       `POST` da mesma data** (zeram `provider_entry_id`; `isSameTypedHoliday` não vale para importada), o `DELETE` da
       238 numa importada **é** o desligar (supressão + auditoria; regenera a data da regra do dia, ADR-0096 §6.6),
