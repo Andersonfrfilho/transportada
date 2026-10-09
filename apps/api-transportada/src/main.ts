@@ -625,6 +625,7 @@ import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
 import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
 import { createDayChecksUseCase } from './business-calendar/application/day-checks.use-case.js'
+import { createHolidayImportEnablementUseCases } from './business-calendar/application/holiday-import-enablement.use-case.js'
 import { createHolidayImportUseCases } from './business-calendar/application/holiday-import.use-case.js'
 import { createHolidayProviderSettingsUseCases } from './business-calendar/application/holiday-provider-settings.use-case.js'
 import { createHolidayProviderTokenSecretService } from './business-calendar/application/holiday-provider-token-secret.service.js'
@@ -633,6 +634,7 @@ import { createMunicipalHolidaysUseCases } from './business-calendar/application
 import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
 import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
 import { DrizzleHolidayWarningRepository } from './business-calendar/infrastructure/drizzle-holiday-warning.repository.js'
+import { DrizzleHolidayImportEnablementRepository } from './business-calendar/infrastructure/drizzle-holiday-import-enablement.repository.js'
 import { DrizzleHolidayImportStatusRepository } from './business-calendar/infrastructure/drizzle-holiday-import-status.repository.js'
 import { DrizzleHolidayImportSuppressionRepository } from './business-calendar/infrastructure/drizzle-holiday-import-suppression.repository.js'
 import { DrizzleHolidayProviderSettingsRepository } from './business-calendar/infrastructure/drizzle-holiday-provider-settings.repository.js'
@@ -641,6 +643,7 @@ import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infra
 import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
 import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
 import { createDayChecksRoutes } from './business-calendar/presentation/day-checks.routes.js'
+import { createHolidayImportEnablementRoutes } from './business-calendar/presentation/holiday-import-enablement.routes.js'
 import { createHolidayImportRoutes } from './business-calendar/presentation/holiday-import.routes.js'
 import { createHolidayProviderSettingsRoutes } from './business-calendar/presentation/holiday-provider-settings.routes.js'
 import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
@@ -3021,6 +3024,12 @@ function createApplicationRoutes({
         ...businessCalendarClock,
         statusRepository: new DrizzleHolidayImportStatusRepository(database),
         suppressionRepository: new DrizzleHolidayImportSuppressionRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createHolidayImportEnablementRoutes({
+      ...createHolidayImportEnablementUseCases({
+        repository: new DrizzleHolidayImportEnablementRepository(database),
       }),
       resolveClientIp,
     }),
