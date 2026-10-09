@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ParticipantAttachment } from '@adatechnology/conversation-contracts'
 
+import { conversationSubjectKey } from './conversationSnapshot.service'
 import {
   DRIVER_CONVERSATION_SUBJECT_TYPE,
   PARTICIPANT_CHANNELS,
@@ -103,6 +104,22 @@ export function toConversationSummaryCandidate(input: ConversationSummaryInput):
     subjectType: summary.subjectType,
     unreadCount: summary.unreadCount,
   }
+}
+
+/** `officeReadAt` por assunto, direto do payload: o schema do pacote não o conhece, só o snapshot do refresh. */
+export function readOfficeReadAtBySubject(payload: unknown): ReadonlyMap<string, string> {
+  const readAtBySubject = new Map<string, string>()
+  for (const raw of readDataArray(payload)) {
+    const { officeReadAt, subjectId, subjectType } = asRecord(raw)
+    if (
+      typeof officeReadAt === 'string' &&
+      typeof subjectId === 'string' &&
+      typeof subjectType === 'string'
+    ) {
+      readAtBySubject.set(conversationSubjectKey({ subjectId, subjectType }), officeReadAt)
+    }
+  }
+  return readAtBySubject
 }
 
 /** Resumo da rota antiga (só ocorrência): sem a direção da última mensagem, "espera resposta" é ter não lida. */

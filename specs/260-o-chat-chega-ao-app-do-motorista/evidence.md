@@ -354,3 +354,39 @@ O app já aceitava `delivered`/`read` (`PARTICIPANT_MESSAGE_STATUSES`) e os rót
 
 **Observações.** Os dois testes de smoke antigos que esperavam o texto "Enviada" agora aceitam "Enviada" ou "Entregue" (o servidor passou a
 confirmar a mensagem). A falha de teste de "reenviar" usa `fail-next` com status 422 (recusa permanente → estado `failed` do outbox).
+
+## T5.5 — ✓✓ azul com a conversa aberta (2026-10-09)
+
+**Defeito (medido no preview).** Com a conversa aberta, quando o escritório lia, o ✓✓ azul só aparecia ao recarregar: o refresh de 15 s compara só
+a lista de conversas, e ler não muda `lastMessageAt` nem `unreadCount`, então nenhum `conversation-changed` disparava.
+
+**O que mudou (aditivo).** API: o resumo de `GET /me/trips/current/conversations` e do `/open` ganha `officeReadAt` (ISO, ausente se ninguém do
+escritório leu até uma mensagem do motorista), por `readOfficeReadAtByConversation` — uma consulta em lote por página. App: o snapshot guarda
+`officeReadAt` por conversa (lido do payload cru: o schema do pacote não o recebe) e `diffConversationSnapshots` marca a conversa como alterada
+quando ele muda. Demo API: o resumo o devolve e `POST /__debug/conversations/office-read` o atualiza. Rotas antigas da 183 e SDK intactos.
+
+**Gates (números reais).**
+
+| Gate                                                                          | Resultado                                             |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| API `bun run typecheck` / `eslint` (src + testes tocados)                     | limpos                                                |
+| API `bun --env-file=../../.env.test test --timeout 120000` (contrato)         | 11312 pass, 25 skip, 0 fail                           |
+| API integração `driver-subject-conversation`, `-write`, `-scale` (Postgres)   | 15 pass, 0 fail                                       |
+| App `bun run typecheck` / `bun run lint`                                      | limpos                                                |
+| App `bun run test`                                                            | 1684 pass, 0 fail (+3 novos)                          |
+| Smoke `conversation.smoke.spec.ts` (build + preview 53112, bypass), 11 testes | 11 passed (2,5 min); novo "ticks sem recarregar" 46 s |
+
+**Dois testes de integração estavam desatualizados e foram acertados.** `-write` esperava `status: null` na resposta do envio (a T5.4 passou a
+devolver `delivered`) e `-scale` fixava 4 consultas por lista (agora 5, a do `officeReadAt`, constante com 1, 10 e 30 conversas).
+
+**Mutações (a correção arrancada faz o teste falhar).**
+
+- API contrato: resumo sem o spread de `officeReadAt`: 2 fail (lista e open). Lista em loop (uma consulta por conversa): 1 fail (exige uma só chamada em lote).
+- API integração: SQL sem `ne(reads.userId, driverUserId)` (leitura do próprio motorista contaria): 1 fail. `exists` aceitando também `outbound`
+  (leitura que não alcança mensagem do motorista contaria): 1 fail. N+1 no use case: `-scale` mede 34 consultas com 30 conversas, 1 fail.
+- App: diff sem a comparação de `officeReadAt`: 3 fail (diff, ticker e adapter com payload cru).
+- Smoke: com o diff mutado, "ticks sem recarregar" falha por timeout de 20 s esperando `.cv-status-ticks--read`.
+
+**Armadilha do próprio teste.** O smoke "ticks" antigo passava mesmo com o defeito: o ciclo de 15 s que absorve a mensagem recém-enviada
+(`lastMessageAt` novo) refazia a conversa e já trazia o `read`. O teste novo espera primeiro uma resposta da lista (o ciclo que absorve o envio)
+e só então posta `office-read`; também prova que o documento não foi recarregado (marcador em `window`).

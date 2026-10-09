@@ -72,6 +72,7 @@ function toSummary(conversation: PreviewConversation): Record<string, unknown> {
     ...(last === undefined
       ? {}
       : { lastMessageDirection: last.direction, lastMessagePreview: last.bodyText.slice(0, 140) }),
+    ...(conversation.officeReadAt === undefined ? {} : { officeReadAt: conversation.officeReadAt }),
     protocol: conversation.protocol,
     status: 'open',
     subjectId: conversation.occurrenceId,
@@ -141,6 +142,7 @@ export function createConversationRepository(now: () => number = Date.now): Conv
       for (const message of conversation.messages) {
         if (message.direction === 'inbound') message.status = 'read'
       }
+      conversation.officeReadAt = new Date().toISOString()
       return true
     },
     injectOfficeMessage(input) {

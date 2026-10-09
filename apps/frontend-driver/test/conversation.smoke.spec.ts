@@ -251,6 +251,38 @@ test('ticks: ✓✓ cinza ao ser registrada, ✓✓ azul quando o escritório l�
   await expect(bubble.locator('.cv-status-ticks--delivered')).toHaveCount(0)
 })
 
+test('ticks sem recarregar: com a conversa aberta, a leitura do escritório vira ✓✓ azul em até 20 s', async ({
+  page,
+}) => {
+  test.slow()
+  const text = 'Conferindo a leitura sem recarregar'
+  await openConversationsTab(page)
+  await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
+  await page.locator('textarea.cv-p-composer__input').fill(text)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  const bubble = page.locator('.cv-p-bubble--mine').filter({ hasText: text })
+  await expect(bubble.locator('.cv-status-ticks--delivered')).toBeVisible({
+    timeout: ARRIVAL_TIMEOUT_MS,
+  })
+  // Sem esperar um ciclo do relógio, o tique que absorve a mensagem enviada refaz a conversa e esconde a falta do officeReadAt.
+  await page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      /\/conversations\/?$/u.test(new URL(response.url()).pathname),
+    { timeout: 30_000 },
+  )
+  await page.waitForTimeout(500)
+  await page.evaluate(() => {
+    Reflect.set(window, '__sameDocument', true)
+  })
+
+  await postDebug('office-read', { subjectId: PREVIEW_OCCURRENCE_IDS.damage })
+  await expect(bubble.locator('.cv-status-ticks--read')).toBeVisible({
+    timeout: ARRIVAL_TIMEOUT_MS,
+  })
+  expect(await page.evaluate(() => Reflect.get(window, '__sameDocument') === true)).toBe(true)
+})
+
 test('falha: recusa do servidor mostra "reenviar" e o toque entrega uma só', async ({ page }) => {
   test.slow()
   const text = 'Mensagem que o servidor recusa de vez'

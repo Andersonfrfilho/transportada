@@ -16,9 +16,12 @@ import {
 } from '../../src/modules/conversation/shared/conversationRefreshTicker.service'
 import { CONVERSATION_REFRESH_INTERVAL_MS } from '../../src/modules/conversation/shared/driverConversation.constant'
 
-function snapshotOf(...entries: readonly [string, string | null, number][]): ConversationSnapshot {
-  return entries.map(([subjectId, lastMessageAt, unreadCount]) => ({
+function snapshotOf(
+  ...entries: readonly [string, string | null, number, (string | null)?][]
+): ConversationSnapshot {
+  return entries.map(([subjectId, lastMessageAt, unreadCount, officeReadAt]) => ({
     lastMessageAt,
+    officeReadAt: officeReadAt ?? null,
     subject: { subjectId, subjectType: 'occurrence' },
     unreadCount,
   }))
@@ -43,6 +46,20 @@ describe('diffConversationSnapshots (spec 260)', () => {
     const result = diffConversationSnapshots(snapshotOf(['a', 't1', 0]), snapshotOf(['a', 't1', 2]))
     expect(result.changedSubjects.map((subject) => subject.subjectId)).toEqual(['a'])
     expect(result.inboxChanged).toBe(true)
+  })
+
+  it('officeReadAt novo ou diferente conta como mudança, com a lista igual (o escritório leu)', () => {
+    const unread = snapshotOf(['a', 't1', 0])
+    const read = snapshotOf(['a', 't1', 0, 'r1'])
+    const readAgain = snapshotOf(['a', 't1', 0, 'r2'])
+    expect(diffConversationSnapshots(unread, read).changedSubjects).toEqual([
+      { subjectId: 'a', subjectType: 'occurrence' },
+    ])
+    expect(diffConversationSnapshots(read, readAgain).inboxChanged).toBe(true)
+    expect(diffConversationSnapshots(read, read)).toEqual({
+      changedSubjects: [],
+      inboxChanged: false,
+    })
   })
 
   it('nada mudou: sem assuntos e sem inbox', () => {
@@ -140,6 +157,17 @@ describe('createConversationRefreshTicker (spec 260)', () => {
 
     await harness.tick()
 
+    expect(harness.events).toEqual([
+      { subject: { subjectId: 'a', subjectType: 'occurrence' }, type: 'conversation-changed' },
+      { type: 'inbox-changed' },
+    ])
+  })
+
+  it('o escritório leu (só officeReadAt mudou): emite conversation-changed da conversa', async () => {
+    const harness = createHarness()
+    await startWithBaseline(harness)
+    harness.setSnapshot(snapshotOf(['a', 't1', 0, '2026-10-09T12:00:00.000Z']))
+    await harness.tick()
     expect(harness.events).toEqual([
       { subject: { subjectId: 'a', subjectType: 'occurrence' }, type: 'conversation-changed' },
       { type: 'inbox-changed' },
@@ -280,6 +308,73 @@ describe('driverConversationsApi.subscribe com o ticker (spec 260)', () => {
     await settle()
 
     expect(events.map((event) => event.type)).toEqual(['conversation-changed', 'inbox-changed'])
+    unsubscribe?.()
+  })
+})
+
+describe('driverConversationsApi: officeReadAt só no snapshot (spec 260 T5.5)', () => {
+  it('a leitura do escritório dispara conversation-changed e não vaza para o resumo do pacote', async () => {
+    const server: { officeReadAt?: string } = {}
+    let timerCallback: (() => void) | undefined
+    const events: ParticipantConversationEvent[] = []
+    const api = createDriverConversationsApi({
+      fallbackSubjectLabel: () => 'Viagem',
+      http: createDriverConversationHttp({
+        baseUrl: 'https://api.test/v1',
+        fetch: () =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                data: [
+                  {
+                    awaitingDriver: false,
+                    lastMessageAt: '2026-10-09T10:00:00.000Z',
+                    ...(server.officeReadAt === undefined
+                      ? {}
+                      : { officeReadAt: server.officeReadAt }),
+                    status: 'open',
+                    subjectId: 'trip-1',
+                    subjectLabel: 'Viagem',
+                    subjectType: 'trip',
+                    unreadCount: 0,
+                  },
+                ],
+                pagination: { nextCursor: null },
+              }),
+              { status: 200 },
+            ),
+          ),
+        getAccessToken: () => Promise.resolve('token'),
+      }),
+      outbox: createConversationOutbox({
+        getOwnerKey: () => 'owner-1',
+        random: () => 0.5,
+        runExclusive: (run) => run(),
+        store: createMemoryOutboxStore(),
+      }),
+      refreshEnvironment: {
+        bindTriggers: () => () => undefined,
+        isOnline: () => true,
+        isVisible: () => true,
+        startTimer: (callback) => {
+          timerCallback = callback
+          return () => undefined
+        },
+      },
+    })
+    const unsubscribe = api.subscribe?.((event) => events.push(event))
+    await settle()
+    server.officeReadAt = '2026-10-09T10:05:00.000Z'
+
+    timerCallback?.()
+    await settle()
+
+    expect(events).toEqual([
+      { subject: { subjectId: 'trip-1', subjectType: 'trip' }, type: 'conversation-changed' },
+      { type: 'inbox-changed' },
+    ])
+    const page = await api.listConversations()
+    expect(page.data[0]).not.toHaveProperty('officeReadAt')
     unsubscribe?.()
   })
 })

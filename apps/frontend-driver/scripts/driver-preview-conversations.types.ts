@@ -29,6 +29,8 @@ export type PreviewConversation = {
   readonly channels: readonly PreviewChannel[]
   readonly iconName?: string
   readonly messages: PreviewMessage[]
+  /** Quando o escritório leu pela última vez; o resumo o devolve e o app compara no refresh. */
+  officeReadAt?: string
   readonly occurrenceId: string
   readonly occurrenceLabel: string
   /** Formato `AAMMDD-XXXX`, alfabeto sem 0, 1, I, L e O. */

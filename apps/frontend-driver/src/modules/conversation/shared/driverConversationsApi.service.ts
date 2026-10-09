@@ -36,11 +36,12 @@ import {
   readAttachmentUrls,
   readDataArray,
   readNextCursor,
+  readOfficeReadAtBySubject,
   toConversationSummaryCandidate,
   toLegacyConversationSummaryCandidate,
   toParticipantMessageCandidate,
 } from './driverConversationsMapper.service'
-import type { ConversationSnapshot } from './conversationSnapshot.service'
+import { conversationSubjectKey, type ConversationSnapshot } from './conversationSnapshot.service'
 import { createDriverConversationUploader } from './driverConversationUploads.service'
 
 export type DriverConversationsApiDependencies = Readonly<{
@@ -109,23 +110,36 @@ export function createDriverConversationsApi(
     return messages
   }
 
-  async function listConversations(params?: Readonly<{ cursor?: string }>) {
-    const { isLegacy, payload } = await routes.list(params?.cursor)
+  async function loadConversationPage(cursor?: string) {
+    const { isLegacy, payload } = await routes.list(cursor)
     const toCandidate = isLegacy
       ? toLegacyConversationSummaryCandidate
       : toConversationSummaryCandidate
     const fallbackSubjectLabel = dependencies.fallbackSubjectLabel()
     const nextCursor = isLegacy ? undefined : readNextCursor(payload)
-    return participantConversationPageSchema.parse({
+    const page = participantConversationPageSchema.parse({
       data: readDataArray(payload).map((raw) => toCandidate({ fallbackSubjectLabel, raw })),
       ...(nextCursor === undefined ? {} : { nextCursor }),
     })
+    return { page, payload }
+  }
+
+  async function listConversations(params?: Readonly<{ cursor?: string }>) {
+    return (await loadConversationPage(params?.cursor)).page
   }
 
   async function fetchSnapshot(): Promise<ConversationSnapshot> {
-    const page = await listConversations()
+    const { page, payload } = await loadConversationPage()
+    const officeReadAtBySubject = readOfficeReadAtBySubject(payload)
     return page.data.map((conversation) => ({
       lastMessageAt: conversation.lastMessageAt,
+      officeReadAt:
+        officeReadAtBySubject.get(
+          conversationSubjectKey({
+            subjectId: conversation.subjectId,
+            subjectType: conversation.subjectType,
+          }),
+        ) ?? null,
       subject: {
         subjectId: conversation.subjectId,
         subjectType: conversation.subjectType,

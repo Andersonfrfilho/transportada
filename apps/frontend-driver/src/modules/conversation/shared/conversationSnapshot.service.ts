@@ -3,6 +3,8 @@ import type { ParticipantSubjectRef } from '@adatechnology/conversation-contract
 
 export type ConversationSnapshotEntry = Readonly<{
   lastMessageAt: string | null
+  /** Quando o escritório leu até uma mensagem do motorista: ler não muda a lista, mas muda o tick. */
+  officeReadAt: string | null
   subject: ParticipantSubjectRef
   unreadCount: number
 }>
@@ -14,23 +16,26 @@ export type ConversationSnapshotDiff = Readonly<{
   inboxChanged: boolean
 }>
 
-function keyOf(subject: ParticipantSubjectRef): string {
+export function conversationSubjectKey(subject: ParticipantSubjectRef): string {
   return `${subject.subjectType}:${subject.subjectId}`
 }
 
-/** Assunto novo, `lastMessageAt` ou `unreadCount` diferente: qualquer um deles pede revalidar. */
+/** Assunto novo, `lastMessageAt`, `unreadCount` ou `officeReadAt` diferente: qualquer um deles pede revalidar. */
 export function diffConversationSnapshots(
   previous: ConversationSnapshot,
   current: ConversationSnapshot,
 ): ConversationSnapshotDiff {
-  const previousByKey = new Map(previous.map((entry) => [keyOf(entry.subject), entry]))
+  const previousByKey = new Map(
+    previous.map((entry) => [conversationSubjectKey(entry.subject), entry]),
+  )
   const changedSubjects = current
     .filter((entry) => {
-      const before = previousByKey.get(keyOf(entry.subject))
+      const before = previousByKey.get(conversationSubjectKey(entry.subject))
       return (
         before === undefined ||
         before.lastMessageAt !== entry.lastMessageAt ||
-        before.unreadCount !== entry.unreadCount
+        before.unreadCount !== entry.unreadCount ||
+        before.officeReadAt !== entry.officeReadAt
       )
     })
     .map((entry) => entry.subject)

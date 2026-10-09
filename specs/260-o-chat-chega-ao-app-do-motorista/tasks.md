@@ -224,6 +224,9 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [x] **T5.4** `sonnet` — **Estados de entrega (ticks) da mensagem do motorista:** API deriva `delivered`/`read` nas rotas novas
       (`api-contract.md` § "Estados de entrega"), app repassa e mostra relógio/✓/✓✓ cinza/✓✓ azul/reenviar, demo API com `office-read`;
       contrato, integração com banco e smoke "ticks" + "falha" provados por mutação (`evidence.md` § T5.4).
+- [x] **T5.5** `sonnet` — **✓✓ azul com a conversa aberta:** o resumo da lista e do `/open` ganham `officeReadAt` (em lote, sem N+1); o snapshot do
+      refresh de 15 s o compara e dispara `conversation-changed`; demo API o devolve; contrato, integração, app e smoke "ticks sem recarregar"
+      provados por mutação (`evidence.md` § T5.5).
 
 **Fora das tasks (aprovação humana):** produção (PR staging→main) e remover a tela antiga do painel
 (Fase 10 da 189).
