@@ -611,3 +611,14 @@ nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termo
   boa grava entradas (chave `(scope, ibge_code, holiday_on)`; o estadual de uma cidade vai para `state` + UF), marca
   `removed_at` só no escopo e código do par e só se a resposta listou data dele, e fecha o par, tudo numa transação.
   O estadual só é pedido quando a resposta da cidade não o trouxe; quando trouxe, o par do estado fecha junto.
+- **Aplicação (T3.4)** — `application/apply-holiday-provider.use-case.ts`. Só banco, **uma transação por empresa** sob a mesma
+  trava de calendário que as rotas da 238 tomam (`pg_advisory_xact_lock` com `SHA-256(["business-calendar", companyId])`;
+  cópia por valor com contrato linha a linha): o operador que desliga e a rotina que importa não escrevem juntos.
+  Dentro da empresa, SQL por conjunto: `MUNICIPAL` → `municipal_holidays … ON CONFLICT (company_id, city_ibge_code,
+holiday_on) DO NOTHING` (a digitada e a gerada por regra vencem), pulando supressão do operador e entrada com
+  `removed_at`; `ESTADUAL` → `state_holidays` `once` marcado com a entrada, só das UFs das cidades da empresa, com o `ON
+CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o `yearly` digitado (D6). Só datas `>=` hoje em
+  São Paulo (D7). `FACULTATIVO` e `NACIONAL` nunca viram linha da empresa; a divergência entre o `NACIONAL` do cache e o
+  calendário do código (`national-holiday.policy.ts`, cópia só das datas, igual à da API de 2000 a 2100) é só contada
+  (`national_mismatch`). Idempotente: repetir o ciclo não escreve nada. Os `INSERT … SELECT` não usam schema Drizzle; o
+  roteirizador continua lendo `municipal_holidays` por data fixa, e a linha importada tem a mesma forma da digitada.

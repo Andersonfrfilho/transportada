@@ -129,7 +129,7 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       vermelhos, `e98589cb4` código, `524643828` e `3380298b3` reforços): CA3 e CA7 provados com relógio injetado e contra
       Postgres (ciclo repetido = 0 requisições e 0 escritas por `xmin`), 23 mutações vermelhas, orçamento por upsert
       (`UPDATE` cru derruba 7 testes); `evidence.md` § T3.3.
-- [ ] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
+- [x] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
 CONFLICT` sobre o predicado do único parcial `once`), só datas
       `>=` hoje em São Paulo (D7), nacional só paridade (`national_mismatch`), facultativo só no cache, `removed_at`
       sem apagar a linha da empresa. Confere no início que a Fase 1 está em staging. (CA4, CA6, CA10, CA11)
@@ -137,7 +137,10 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       pulando as supressões, **sob o mesmo advisory lock** `['business-calendar', companyId]` da API
       (`business-calendar-lock.support.ts`) e **relendo as supressões dentro da transação**: é o que faz a data
       restaurada voltar na próxima execução diária e o `DELETE` (que agora suprime a data digitada/adotada de hoje em
-      diante) não perder para a importação.
+      diante) não perder para a importação. **Feita em 2026-10-09** (`938a4357e` contratos e
+      integração vermelhos, `9b1450794` código, `a52a193ad` ajuste de dado de teste): Fase 1 conferida em `origin/staging`
+      (`4454228ac`), aplicação por empresa sob a trava de calendário da 238, 11 integrações contra Postgres, 18 mutações
+      vermelhas; `evidence.md` § T3.4.
 - [ ] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
       (vazio = ausente), registro condicional da rotina (`job_run_routine_missing` sem token), `.env.example` sem valor,
       `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9)
