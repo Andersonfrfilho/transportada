@@ -212,12 +212,19 @@ painel; painel primeiro). Três etapas idempotentes por ciclo:
 3. **Aplicação (só banco, SQL por conjunto).** `MUNICIPAL` → `municipal_holidays … ON CONFLICT DO NOTHING`, pulando as
    suprimidas; `ESTADUAL` → `state_holidays` `once` marcado (D6); só datas `>=` hoje em São Paulo (D7).
 
-**Erros:** 401/403 encerram o ciclo com `provider_unauthorized` sem nova requisição; 429 encerra e respeita
-`Retry-After`; cota esgotada marca `quota_exhausted` até o dia 1º (não é falha); 404 ou fora da cobertura marca
-`not_covered` e retenta em 90 dias; 5xx/timeout → backoff 1 h, 6 h, 24 h, até 7 dias; resposta fora do formato
-(guarda Zod com as chaves esperadas) → `malformed_response`, nada gravado. Vocabulário de falha:
-`provider_unreachable`, `provider_unauthorized`, `malformed_response`. O contador mensal é incrementado **antes** de
-cada chamada e a rotina para ao atingir o orçamento.
+**Erros (texto da T0.1, corrigido pela 2ª rodada da revisão `opus` da Fase 3, 2026-10-09):** 401 encerra o ciclo com
+`provider_unauthorized` sem nova requisição; **402/403 numa cidade** grava o par `failed` com `provider_plan_restricted`
+por 30 dias e o ciclo segue (no nacional ou no estado encerra como `provider_unauthorized`); 429 encerra e respeita
+`Retry-After` (entre 60 s e 24 h); **cota esgotada só encerra o ciclo** — nenhum par muda, então um orçamento maior solta
+tudo no ciclo seguinte (o status `quota_exhausted` segue permitido pela CHECK da §3, mas a rotina já não o grava); 404 em
+cidade ou fora da cobertura marca `not_covered` e retenta em 90 dias, enquanto 404 no **nacional ou no estado** é contrato
+quebrado (`malformed_response`, recuo de 1 h, o ciclo para); 5xx/timeout → backoff 1 h, 6 h, 24 h, até 7 dias, e 3
+`provider_unreachable` seguidos abrem o disjuntor; resposta fora do formato (guarda Zod com as chaves esperadas) →
+`malformed_response`, nada gravado; resposta boa que o banco recusa → par `failed` com `persistence_failed` e recuo.
+Vocabulário de falha **do job** (as quatro cópias do catálogo, sem mudança): `provider_unreachable`,
+`provider_unauthorized`, `malformed_response`; `provider_plan_restricted`, `provider_rate_limited` e `persistence_failed`
+são códigos **do par**. O contador mensal é incrementado por upsert **depois do limitador e imediatamente antes do envio**
+(só a queda do processo nesse intervalo gasta uma requisição que não saiu) e a rotina para ao atingir o orçamento.
 
 **Estimativa (amostra local):** carga inicial ≈ 138 requisições (67 cidades × 2 anos = 134, mais 2 de paridade nacional e
 2 estaduais de SP, se a resposta da cidade não os trouxer), ≈ 2,8 min de relógio no total, em **2 dias** (o teto é 100
@@ -268,7 +275,9 @@ um banco veja o outro: uma chave por instalação, ou o orçamento de cada uma d
   não leem o calendário nem o aviso (contrato de isolamento, como a 236 CA6).
 - **Ordem de publicação:** painel tolerante e app do motorista tolerante → API → telas. O campo é de **resposta**: a
   regra "`.strict()` exige API antes do app" do `apps/api-transportada/CLAUDE.md` vale para corpo de requisição, e
-  aqui a ordem é a inversa.
+  aqui a ordem é a inversa. **Cumprida em staging em 2026-10-09:** os clientes tolerantes (T5.1/T5.1b) já estavam em
+  `main` (promoção de 2026-10-09, PR #154), a API dos avisos (T4.2, T4.3) entrou em seguida e as telas (T5.2 a T5.4) só depois dos prints
+  aprovados.
 
 ## Consequências
 
