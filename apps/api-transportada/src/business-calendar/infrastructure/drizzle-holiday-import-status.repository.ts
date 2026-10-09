@@ -23,9 +23,9 @@ import {
   countCompanyCities,
   listCityFetches,
   listCompanyCities,
-  listRemovedByProvider,
   readFetchSummary,
 } from './holiday-import-status.query.js'
+import { listRemovedByProvider } from './holiday-import-removed.query.js'
 import { readMonthlyRequests } from './holiday-import-usage.query.js'
 
 function listYears(years: BusinessCalendarCoverage): readonly number[] {
