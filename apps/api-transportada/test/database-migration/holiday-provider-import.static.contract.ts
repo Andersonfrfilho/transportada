@@ -20,7 +20,7 @@ import {
 } from './holiday-provider-import.constant.js'
 import { listMigrationDirectories, migrationsDirectory } from './support.js'
 
-const RETENTION_SUFFIX = '_cargo_preview_retention'
+const PREVIOUS_JOB_LIST_SUFFIX = '_nfe_recipient_email_backfill_job'
 
 const PUBLISHED_TABLE_STATEMENTS = [
   `ALTER TABLE "state_holidays" ADD COLUMN "provider_entry_id" uuid`,
@@ -55,9 +55,9 @@ const splitStatements = (text: string): readonly string[] =>
     .filter((statement) => statement !== '' && !statement.startsWith('SET LOCAL'))
 
 async function readPreviousJobs(): Promise<readonly string[]> {
-  const retention = stripComments(await readFileText(RETENTION_SUFFIX, 'migration.sql'))
+  const previous = stripComments(await readFileText(PREVIOUS_JOB_LIST_SUFFIX, 'migration.sql'))
   const match = /ADD CONSTRAINT "job_schedules_job_check" CHECK \("job" in \(([^)]*)\)\)/u.exec(
-    retention,
+    previous,
   )
   return [...(match?.[1] ?? '').matchAll(/'([^']+)'/gu)].map((item) => item[1] ?? '')
 }

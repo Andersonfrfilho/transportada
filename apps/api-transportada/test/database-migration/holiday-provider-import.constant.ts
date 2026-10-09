@@ -8,7 +8,7 @@
 import { HOLIDAY_PROVIDER_TABLES } from './support.js'
 
 export const MIGRATION_SUFFIX = '_holiday_provider_import'
-export const PREVIOUS_MIGRATION = '20261007205304_nfse_national_taxation'
+export const PREVIOUS_MIGRATION = '20261008183714_trip_document_link_events'
 export const JOB = 'holiday.provider.pull'
 export const POSTGRES_IDENTIFIER_MAX_BYTES = 63
 

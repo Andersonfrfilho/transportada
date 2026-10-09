@@ -272,12 +272,12 @@ os testes seguram a regra é a mutação abaixo.
 
 ## T2.1 — contratos do modelo, antes da migration (2026-10-07)
 
-Executor `sonnet`, worktree isolado, branch `work/252-t2` a partir de `origin/staging` (`c579e5107`), sem push. Postgres
+Executor `sonnet`, worktree isolado, branch `work/252-t2` a partir de `origin/staging` (`c579e5107`; depois rebaseada em `4f04022ba`, 223 commits à frente), sem push. Postgres
 **nativo** descartável (Homebrew 18.4, porta 65433, cluster no scratchpad; o Docker 65432 segue com I/O error), com
 `DRIZZLE_TEST_DATABASE_URL`; o `.env`/`.env.test` do worktree são links para o checkout principal. Linha de base antes de
 tocar em qualquer coisa: `bun test ./test/database-migration.contract.test.ts` → **119 pass, 0 fail**.
 
-Commit `20b0cff74` — só teste, vermelho **pelo motivo certo**:
+Commit `76d9245c2` (era `20b0cff74` antes do rebase) — só teste, vermelho **pelo motivo certo**:
 
 - `test/database-migration/holiday-provider-import.constant.ts`: a lista de nomes do ADR-0100 §3 (tabelas, PK, únicos,
   FK, CHECK, índices e o que entra nas duas tabelas publicadas), lida pelos dois contratos.
@@ -299,8 +299,8 @@ Commit `20b0cff74` — só teste, vermelho **pelo motivo certo**:
 
 ## T2.2 — a migration (2026-10-07)
 
-Commit `7e7a9ae4a`: `drizzle/20261009040622_holiday_provider_import/` (`migration.sql`, `rollback.sql`, `snapshot.json`; o
-timestamp é posterior ao de `20261007205304_nfse_national_taxation`, a última em staging), schema Drizzle
+Commit `54539fce7` (era `7e7a9ae4a`): `drizzle/20261009040622_holiday_provider_import/` (`migration.sql`, `rollback.sql`, `snapshot.json`; o
+timestamp é posterior ao de `20261008183714_trip_document_link_events`, a última em staging depois do rebase), schema Drizzle
 (`holiday-provider.schema.ts`, `holiday-import.schema.ts`, `provider_entry_id` em `delivery-client.schema.ts` e
 `state-holiday.schema.ts`, `holidayScopeCodeSql` em `schema-check.constant.ts`, vocabulário em
 `src/shared/holiday-provider.constant.ts`). O SQL das tabelas e das CHECK é o que o `db:generate --name tmp` gerou; à mão
@@ -348,18 +348,35 @@ Consequência: **a migration só vai ao ar junto com a T2.3** (catálogo nas qua
   texto (o integration a confere), e a recusa do rollback cita o nome da rotina uma vez a mais (contagem de execução aberta).
   E o teste de rollback da integração passou a isolar cada causa de recusa (a primeira versão deixava uma mutação sobreviver).
 
-### Gates (Postgres nativo 65433)
+### Rebase em `origin/staging` (2026-10-09) e reexecução dos gates
 
-| Gate                                                                                         | Resultado                                                                |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `bun run db:test` (corpo do `make migration-test`; o alvo `make` usa o Docker quebrado)      | 167 pass, **1 fail** = `schema-snapshot` acima                           |
-| `bun test ./test/database-migration.contract.test.ts` (migração sobe, desce e sobe de novo)  | 130 pass, 1 fail (o mesmo); 131 pass com o nome provisório no catálogo   |
-| `bun --env-file=../../.env.test run test` (contratos da API, script do `package.json`)       | 10868 pass, 1 skip (corpus PII sem env), **1 fail** (o mesmo)            |
-| Integrações `business-calendar-*`, `municipal-holiday-*` (13 arquivos)                       | 51 pass, 0 fail, 0 skip                                                  |
-| Integrações do prazo da 236 (`trip-detail-delivery-deadline*`, independência do motorista)   | 19 pass, 0 fail                                                          |
-| Worker, roteirizador depois da migration (`route-optimization-municipal-holiday` + 3 outros) | 15 pass + 4 pass, 0 fail (banco migrado pela API em `t252_worker`)       |
-| `bunx tsc --noEmit` / `bunx eslint src test … --max-warnings=0` (cwd na app)                 | exit 0 / exit 0                                                          |
-| `db:generate` = `no_changes`                                                                 | só com o nome no catálogo (T2.3); hoje o diff são as duas CHECK de `job` |
+`origin/staging` andou 223 commits e trouxe quatro migrations depois da minha (`20261008024137_occurrence_type_icon`,
+`…163250_nfe_recipient_email`, `…164340_nfe_recipient_email_backfill_job`, `…183714_trip_document_link_events`). Efeitos:
+
+- A pasta foi **renomeada** para `20261009040622_holiday_provider_import` (depois de `20261008183714`); o `rollback.sql`
+  (nome do journal) e o `CLAUDE.md` foram ajustados, e o `snapshot.json` foi **regerado** sobre a cadeia nova
+  (`db:generate --name tmp` com a minha pasta fora, snapshot movido para a minha, `migration.sql` gerado conferido
+  statement a statement contra o meu) e só então recebeu o nome da rotina nas duas CHECK de `job`.
+- A 248 (`nfe.recipient-email.backfill`) também ampliou a CHECK de `job` e semeia a linha **pausada de fábrica** (mesmo padrão
+  da D13). A lista da minha migration passou a ter 18 nomes (os 16 de antes, `nfe.recipient-email.backfill` e
+  `holiday.provider.pull`); o rollback devolve a lista com 17. O contrato estático lê a "lista de antes" da migration da 248.
+- Conflitos de rebase: `canhoto-read-queue.assertion.ts` (a staging já tinha virado uma lista de migrations posteriores;
+  a nova entra antes) e `static-migration.contract.ts` (lista de pastas) — resolvidos mantendo os dois lados.
+
+### Gates (Postgres nativo 65433, depois do rebase)
+
+| Gate                                                                                                 | Resultado                                                                                |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `bun run db:test` (corpo do `make migration-test`; o alvo `make` usa o Docker quebrado)              | 174 pass, **1 fail** = `schema-snapshot` acima                                           |
+| `bun test ./test/database-migration.contract.test.ts` com o nome provisório no catálogo              | **138 pass, 0 fail** (a pasta sobe, desce na ordem inversa e sobe de novo)               |
+| `bun run db:generate` com o nome provisório no catálogo                                              | `{"status":"no_changes"}` (provisório revertido; `git diff` do catálogo vazio)           |
+| `bun --env-file=../../.env.test run test` (contratos da API, script do `package.json`)               | 11077 pass, 1 skip (corpus PII sem env), **1 fail** (o mesmo `schema-snapshot`)          |
+| Integrações `business-calendar-*`, `municipal-holiday-*` e prazo da 236 (20 arquivos)                | 70 pass, 0 fail, 0 skip                                                                  |
+| Worker, roteirizador (`route-optimization-municipal-holiday`, `-pool`, `geocoded-…`, `-trip-weight`) | 19 pass, 0 fail (banco recriado e migrado pela API, journal termina em `20261009040622`) |
+| `bunx tsc --noEmit` / `bunx eslint src test … --max-warnings=0` (cwd na app)                         | exit 0 / exit 0                                                                          |
+| `bun run format:check` na raiz                                                                       | verde (`All matched files use Prettier code style`)                                      |
+
+Mutações: as onze do quadro abaixo foram **reexecutadas depois do rebase**, com os mesmos números de falha.
 
 ### Mutações (cada uma em cópia do arquivo, revertida; baseline = 1 fail conhecido do snapshot)
 

@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "6b5e737b-1d10-45d7-891f-91178f777f3d",
+  "id": "716c3ae4-7884-402c-b71f-146b7c80e5c1",
   "prevIds": [
-    "b685ccc8-da17-4849-8518-5f564580ccda"
+    "006a0815-6918-4626-b754-781db4a62b48"
   ],
   "ddl": [
     {
@@ -1113,6 +1113,12 @@
     {
       "isRlsEnabled": false,
       "name": "trip_document_events",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "trip_document_link_events",
       "entityType": "tables",
       "schema": "public"
     },
@@ -5004,6 +5010,19 @@
       "generated": null,
       "identity": null,
       "name": "authorization_protocol",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "nfe_documents"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_email",
       "entityType": "columns",
       "schema": "public",
       "table": "nfe_documents"
@@ -15656,19 +15675,6 @@
       "table": "state_holidays"
     },
     {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "provider_entry_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "state_holidays"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -15690,6 +15696,19 @@
       "generated": null,
       "identity": null,
       "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "state_holidays"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_entry_id",
       "entityType": "columns",
       "schema": "public",
       "table": "state_holidays"
@@ -29894,6 +29913,19 @@
       "table": "company_occurrence_types"
     },
     {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "icon_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -31010,6 +31042,149 @@
       "entityType": "columns",
       "schema": "public",
       "table": "trip_document_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "trip_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "nfe_document_ids",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_stop_ids",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mdfe_document_divergence",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "documents_without_cte",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_link_events"
     },
     {
       "type": "uuid",
@@ -43401,6 +43576,41 @@
           "opclass": null
         },
         {
+          "value": "trip_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_link_events_company_trip_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "stored_object_id",
           "isExpression": false,
           "asc": true,
@@ -52109,6 +52319,42 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "trip_document_link_events_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "trip_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trips",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_link_events_company_trip_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_document_occurrence_attachments_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -56574,6 +56820,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "trip_document_link_events_pkey",
+      "schema": "public",
+      "table": "trip_document_link_events",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "trip_document_occurrence_attachments_pkey",
       "schema": "public",
       "table": "trip_document_occurrence_attachments",
@@ -59756,6 +60012,18 @@
         "id"
       ],
       "nullsNotDistinct": false,
+      "name": "trip_document_link_events_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
       "name": "trip_document_occurrence_attachments_company_id_id_unique",
       "entityType": "uniques",
       "schema": "public",
@@ -61088,6 +61356,13 @@
       "table": "nfe_document_status_changes"
     },
     {
+      "value": "\"recipient_email\" is null or (length(\"recipient_email\") <= 254 and \"recipient_email\" ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$')",
+      "name": "nfe_documents_recipient_email_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "nfe_documents"
+    },
+    {
       "value": "\"access_key\" ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'",
       "name": "nfe_documents_access_key_check",
       "entityType": "checks",
@@ -61571,7 +61846,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'holiday.provider.pull')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -61613,7 +61888,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'holiday.provider.pull')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -66212,6 +66487,13 @@
       "table": "company_occurrence_types"
     },
     {
+      "value": "\"icon_name\" is null or \"icon_name\" in ('alert', 'camera', 'clipboard-list', 'clock', 'document', 'invoice', 'message', 'money', 'package', 'truck')",
+      "name": "company_occurrence_types_icon_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
       "value": "length(\"requested_by\") > 0",
       "name": "delivery_address_overrides_requested_by_check",
       "entityType": "checks",
@@ -66511,6 +66793,34 @@
       "entityType": "checks",
       "schema": "public",
       "table": "trip_document_events"
+    },
+    {
+      "value": "\"channel\" in ('driver_app', 'office', 'whatsapp', 'backoffice')",
+      "name": "trip_document_link_events_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "value": "char_length(\"reason\") between 1 and 500",
+      "name": "trip_document_link_events_reason_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "value": "jsonb_typeof(\"nfe_document_ids\") = 'array' and jsonb_array_length(\"nfe_document_ids\") >= 1 and jsonb_typeof(\"created_stop_ids\") = 'array'",
+      "name": "trip_document_link_events_shape_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_link_events"
+    },
+    {
+      "value": "\"documents_without_cte\" >= 0",
+      "name": "trip_document_link_events_without_cte_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_link_events"
     },
     {
       "value": "\"position\" between 1 and 5",
