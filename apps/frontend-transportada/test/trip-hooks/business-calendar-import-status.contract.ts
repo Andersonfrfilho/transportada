@@ -56,7 +56,8 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
     const bar = sectionOf(HEADING).querySelector('progress')
     expect(bar?.getAttribute('value')).toBe('8')
     expect(bar?.getAttribute('max')).toBe('10')
-    expect(bar?.getAttribute('aria-label')).toBe('8 de 10 buscas concluídas')
+    const labelId = bar?.getAttribute('aria-labelledby') ?? ''
+    expect(document.getElementById(labelId)?.textContent).toBe('8 de 10 buscas concluídas')
   })
 
   it('nunca buscou: aguarda a primeira execução e diz onde retomar a rotina pausada', async () => {
@@ -96,7 +97,9 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
     await waitForText('Com falhas')
     const lines = [...sectionOf(HEADING).querySelectorAll('li')].map((item) => item.textContent)
     expect(lines).toContain('Não foi possível falar com o fornecedor.2 buscas')
-    expect(lines).toContain('O fornecedor recusou a chave de acesso. Confira a chave configurada.1 busca')
+    expect(lines).toContain(
+      'O fornecedor recusou a chave de acesso. Confira a chave configurada.1 busca',
+    )
   })
 
   it('código de falha desconhecido cai no texto genérico, sem sumir da lista', async () => {

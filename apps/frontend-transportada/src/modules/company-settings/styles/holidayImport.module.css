@@ -1,0 +1,188 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * Spec 252 T5.2: a importação de feriados na aba Calendário — a origem de cada data, o estado da rotina e as listas de
+ * desligados e removidos. Mesmos tokens e mesmo molde de selo dos blocos vizinhos (`businessCalendar.module.css`,
+ * `tripDeliveryDeadline.module.css`); cantos retos, rótulo em fonte utilitária, mobile-first.
+ */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* O selo da origem: o tom só muda a cor, o texto diz a origem (nunca só a cor). */
+.originBadge {
+  --origin-ink: var(--color-slate-ink);
+  --origin-border: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  --origin-fill: transparent;
+
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  min-height: var(--control-height-dense);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--origin-border);
+  color: var(--origin-ink);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--origin-fill);
+}
+
+.originBadge[data-origin='imported'] {
+  --origin-ink: var(--color-copper-ink);
+  --origin-border: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  --origin-fill: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legend {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.legendList,
+.facts,
+.failureList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate-ink);
+  font-size: 0.9rem;
+  list-style: none;
+}
+
+.statusCard {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+}
+
+.statusCard p {
+  margin: 0;
+}
+
+.headline {
+  --headline-ink: var(--color-slate-ink);
+
+  color: var(--headline-ink);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.headline[data-headline='healthy'] {
+  --headline-ink: var(--color-ready-ink);
+}
+
+.headline[data-headline='quota'] {
+  --headline-ink: var(--color-copper-ink);
+}
+
+.headline[data-headline='failing'] {
+  --headline-ink: var(--color-alert-ink);
+}
+
+.progress {
+  width: 100%;
+  height: 0.5rem;
+  border: 0;
+  appearance: none;
+  background: color-mix(in srgb, var(--color-slate) 25%, transparent);
+}
+
+.progress::-webkit-progress-bar {
+  background: color-mix(in srgb, var(--color-slate) 25%, transparent);
+}
+
+.progress::-webkit-progress-value {
+  background: var(--color-copper);
+}
+
+.progress::-moz-progress-bar {
+  background: var(--color-copper);
+}
+
+.failures {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.failureList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.failureCount {
+  color: var(--color-alert-ink);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.removedList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.removedItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
+}
+
+.removedBody {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.confirm p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.restored {
+  margin: 0;
+  color: var(--color-ready-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+@media (min-width: 40rem) {
+  .removedItem {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}

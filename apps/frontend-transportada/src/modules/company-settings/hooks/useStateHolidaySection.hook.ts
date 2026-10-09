@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useStateHolidaysQuery } from '../queries/useBusinessCalendar.query'
+import { useDisableImportedHolidayMutation } from '../mutations/useHolidayImport.mutation'
 import { useDeleteStateHolidayMutation } from '../mutations/useStateHolidays.mutation'
 import { BRAZILIAN_STATES } from '../shared/businessCalendar.constant'
 import { buildStateRows } from '../shared/businessCalendarRows.service'
@@ -25,8 +26,15 @@ export function useStateHolidaySection(input: SectionInput) {
   const feedback = useHolidayFeedback()
   const form = useStateHolidayForm({ companyId, feedback, rows })
   const deleteHoliday = useDeleteStateHolidayMutation({ companyId })
+  const disableImported = useDisableImportedHolidayMutation({ companyId })
   const remover = useHolidayDelete({
-    remove: (row) => deleteHoliday.mutateAsync(row.id),
+    remove: async (row) => {
+      if (row.provenance === 'imported') {
+        await disableImported.mutateAsync({ holidayId: row.id, scope: 'state' })
+        return
+      }
+      await deleteHoliday.mutateAsync(row.id)
+    },
     rows,
   })
 

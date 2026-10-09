@@ -50,15 +50,15 @@ const STATE_ONCE_KEYS = [...STATE_SHARED_KEYS, 'holidayOn'] as const
 const STATE_YEARLY_KEYS = [...STATE_SHARED_KEYS, 'day', 'month'] as const
 const SUMMARY_KEYS = ['holidaysCreated', 'rulesProcessed'] as const
 
-function isString(value: unknown): value is string {
+export function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
-function isNumber(value: unknown): value is number {
+export function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isNullableString(value: unknown): value is string | null {
+export function isNullableString(value: unknown): value is string | null {
   return value === null || isString(value)
 }
 

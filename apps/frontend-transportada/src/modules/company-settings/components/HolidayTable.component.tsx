@@ -50,6 +50,7 @@ export function HolidayTable({
                 sort={table.state.sort}
               />
             ))}
+            <th scope="col">{t(`${namespace}.table.origin`)}</th>
             <th scope="col">{t(`${namespace}.table.actions`)}</th>
           </tr>
         </thead>

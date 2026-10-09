@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useDisableImportedHolidayMutation } from '../mutations/useHolidayImport.mutation'
 import { useDeleteMunicipalHolidayMutation } from '../mutations/useMunicipalHolidays.mutation'
 import { useDeleteRuleMutation } from '../mutations/useMunicipalRules.mutation'
 import {
@@ -25,9 +26,17 @@ export function useMunicipalHolidaySection(input: SectionInput) {
   const form = useMunicipalHolidayForm({ companyId, feedback, rows: data.rows })
   const deleteRule = useDeleteRuleMutation({ companyId })
   const deleteHoliday = useDeleteMunicipalHolidayMutation({ companyId })
+  const disableImported = useDisableImportedHolidayMutation({ companyId })
   const remover = useHolidayDelete({
-    remove: (row) =>
-      row.origin === 'rule' ? deleteRule.mutateAsync(row.id) : deleteHoliday.mutateAsync(row.id),
+    remove: async (row) => {
+      if (row.provenance === 'imported') {
+        await disableImported.mutateAsync({ holidayId: row.id, scope: 'city' })
+        return
+      }
+      await (row.origin === 'rule'
+        ? deleteRule.mutateAsync(row.id)
+        : deleteHoliday.mutateAsync(row.id))
+    },
     rows: data.rows,
   })
   const materialization = useMaterialization({ companyId })

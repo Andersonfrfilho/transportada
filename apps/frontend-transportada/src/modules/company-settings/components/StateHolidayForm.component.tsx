@@ -40,6 +40,9 @@ export function StateHolidayForm({ controller, feedback, onShortcut }: StateHoli
             {t('state.form.editing', { name: controller.editing.name })}
           </p>
           <p className={styles.hint}>{t('state.form.lockedHint')}</p>
+          {controller.editing.provenance === 'imported' ? (
+            <p className={styles.hint}>{t('state.form.importedHint')}</p>
+          ) : null}
         </>
       )}
       <div className={styles.fieldGrid}>

@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { HOLIDAY_KIND, HOLIDAY_RECURRENCE, STATE_CODE_LENGTH } from './businessCalendar.constant'
+import { HOLIDAY_PROVENANCE } from './holidayImport.constant'
 import type {
   HolidayKind,
+  HolidayOrigin,
   HolidayRecurrence,
   MunicipalHoliday,
   MunicipalHolidayRule,
@@ -30,6 +32,7 @@ export type HolidayRow = Readonly<{
   origin: HolidayRowSource['origin']
   placeCode: string
   placeLabel: string
+  provenance: HolidayProvenance
   recurrence: HolidayRecurrence
   source: HolidayRowSource
   stateIbgeCode: string
@@ -37,6 +40,14 @@ export type HolidayRow = Readonly<{
 }>
 
 type LabelOf = (code: string) => string
+
+/** De onde a linha vem: regra "todo ano", digitada, importada — ou desconhecida, quando a API não diz. */
+export type HolidayProvenance = (typeof HOLIDAY_PROVENANCE)[keyof typeof HOLIDAY_PROVENANCE]
+
+/** `origin` ausente é a API que ainda não manda a origem: a tela não chuta "cadastrada" para o que pode ser importado. */
+function provenanceOf(origin: HolidayOrigin | undefined): HolidayProvenance {
+  return origin ?? HOLIDAY_PROVENANCE.UNKNOWN
+}
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')
@@ -59,6 +70,7 @@ function ruleRow(input: Readonly<{ labelOf: LabelOf; rule: MunicipalHolidayRule 
     origin: 'rule',
     placeCode: rule.cityIbgeCode,
     placeLabel: labelOf(rule.cityIbgeCode),
+    provenance: HOLIDAY_PROVENANCE.RULE,
     recurrence: HOLIDAY_RECURRENCE.YEARLY,
     source: { origin: 'rule', rule },
     stateIbgeCode: rule.cityIbgeCode.slice(0, STATE_CODE_LENGTH),
@@ -82,6 +94,7 @@ function dateRow(input: Readonly<{ holiday: MunicipalHoliday; labelOf: LabelOf }
     origin: 'date',
     placeCode: holiday.cityIbgeCode,
     placeLabel: labelOf(holiday.cityIbgeCode),
+    provenance: provenanceOf(holiday.origin),
     recurrence: HOLIDAY_RECURRENCE.ONCE,
     source: { holiday, origin: 'date' },
     stateIbgeCode: holiday.cityIbgeCode.slice(0, STATE_CODE_LENGTH),
@@ -121,6 +134,7 @@ function stateRow(input: Readonly<{ holiday: StateHoliday; labelOf: LabelOf }>):
       ...shared,
       dateKey: dateKeyOfIso(holiday.holidayOn),
       holidayOn: holiday.holidayOn,
+      provenance: provenanceOf(holiday.origin),
       recurrence: HOLIDAY_RECURRENCE.ONCE,
     }
   }
@@ -129,6 +143,7 @@ function stateRow(input: Readonly<{ holiday: StateHoliday; labelOf: LabelOf }>):
     dateKey: dateKeyOf({ day: holiday.day, month: holiday.month, year: '0000' }),
     day: holiday.day,
     month: holiday.month,
+    provenance: HOLIDAY_PROVENANCE.TYPED,
     recurrence: HOLIDAY_RECURRENCE.YEARLY,
   }
 }
