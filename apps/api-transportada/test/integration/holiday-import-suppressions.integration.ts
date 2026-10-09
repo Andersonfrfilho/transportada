@@ -322,12 +322,38 @@ describe('listar as supressões (spec 252 T4.1)', () => {
         scope: 'city',
       })
 
-      const listed = await repository.list({ companyId: tenantA.companyId })
+      const page = await repository.list({ companyId: tenantA.companyId, page: 1, perPage: 50 })
 
-      expect(listed.map((item) => [item.scope, item.ibgeCode, item.holidayOn])).toEqual([
+      expect(page.total).toBe(2)
+      expect(page.items.map((item) => [item.scope, item.ibgeCode, item.holidayOn])).toEqual([
         ['state', SAO_PAULO_STATE, FUTURE_DAY],
         ['city', CAMPINAS, '2026-12-08'],
       ])
+    })
+  })
+
+  testWithPostgres('pagina por posição e conta o total da empresa (L3)', async () => {
+    await withBusinessCalendarDatabase(async (database) => {
+      const tenant = await seedTenant(database)
+      const repository = new DrizzleHolidayImportSuppressionRepository(database.db)
+      for (const holidayOn of ['2026-11-20', '2026-11-21', '2026-11-22']) {
+        const imported = await seedImportedMunicipalHoliday(database, tenant, {
+          holidayOn,
+          ibgeCode: CAMPINAS,
+        })
+        await repository.disable({
+          ...actorOf(tenant, `d-${holidayOn}`),
+          currentYear: 2026,
+          holidayId: imported.id,
+          scope: 'city',
+          today: TODAY,
+        })
+      }
+
+      const second = await repository.list({ companyId: tenant.companyId, page: 2, perPage: 2 })
+
+      expect(second.total).toBe(3)
+      expect(second.items.map((item) => item.holidayOn)).toEqual(['2026-11-22'])
     })
   })
 })

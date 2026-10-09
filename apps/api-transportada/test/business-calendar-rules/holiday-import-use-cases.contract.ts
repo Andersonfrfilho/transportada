@@ -31,7 +31,7 @@ const EMPTY_STATUS = {
   month: '2026-10-01',
   monthlyRequests: 0,
   pairs: { done: 0, failed: 0, notCovered: 0, pending: 0, quotaExhausted: 0, total: 0 },
-  removedByProvider: [],
+  removedByProvider: { items: [], truncated: false },
   totalCities: 0,
 } as const
 
@@ -60,7 +60,7 @@ function recordingPorts() {
     },
     list: async (input) => {
       calls.push({ input, name: 'list' })
-      return []
+      return { items: [], total: 0 }
     },
     restore: async (input) => {
       calls.push({ input, name: 'restore' })
@@ -147,11 +147,11 @@ describe('os casos de uso da gestão da importação de feriados (spec 252 T4.1)
     const { calls, useCases } = useCasesAt('2026-10-09T15:00:00.000Z')
 
     await useCases.restore.execute({ ...ACTOR, id: SUPPRESSION_ID })
-    await useCases.suppressions.execute({ companyId: ACTOR.companyId })
+    await useCases.suppressions.execute({ companyId: ACTOR.companyId, page: 2, perPage: 10 })
 
     expect(calls).toEqual([
       { input: { ...ACTOR, id: SUPPRESSION_ID }, name: 'restore' },
-      { input: { companyId: ACTOR.companyId }, name: 'list' },
+      { input: { companyId: ACTOR.companyId, page: 2, perPage: 10 }, name: 'list' },
     ])
   })
 })

@@ -113,50 +113,94 @@ describe('POST na data de um feriado estadual importado é adoção (spec 252 T4
   })
 })
 
-describe('PATCH num feriado estadual importado é adoção (spec 252 T4.1)', () => {
+describe('PATCH num feriado estadual importado (spec 252 T4.1, M1)', () => {
+  testWithPostgres('mudar o nome adota: zera o vínculo com o fornecedor', async () => {
+    await withBusinessCalendarDatabase(async (database) => {
+      const tenant = await seedTenant(database)
+      const states = new DrizzleStateHolidayRepository(database.db)
+      const imported = await seedImportedStateHoliday(database, tenant, {
+        holidayOn: FUTURE_DAY,
+        ibgeCode: SAO_PAULO_STATE,
+      })
+
+      await states.update({
+        ...actorOf(tenant, 'patch-name'),
+        changes: { name: 'Renomeado', recurrence: 'once' },
+        id: imported.id,
+      })
+      await states.update({
+        ...actorOf(tenant, 'patch-same-date'),
+        changes: { holidayOn: FUTURE_DAY, recurrence: 'once' },
+        id: imported.id,
+      })
+
+      const row = await findStateHolidayRow(database, {
+        companyId: tenant.companyId,
+        holidayOn: FUTURE_DAY,
+        stateIbgeCode: SAO_PAULO_STATE,
+      })
+      expect(row).toMatchObject({ name: 'Renomeado', providerEntryId: null })
+      const audits = await readAudits(database, tenant.companyId)
+      expect(audits[0]?.metadata).toMatchObject({ adoptedFromImport: true })
+    })
+  })
+
   testWithPostgres(
-    'mudar o nome ou a data zera o vínculo com o fornecedor (a FK composta não segura mais a linha)',
+    'mudar a DATA da importada é 409 HOLIDAY_IMPORT_DATE_LOCKED: desligue e cadastre, nada muda',
     async () => {
       await withBusinessCalendarDatabase(async (database) => {
         const tenant = await seedTenant(database)
         const states = new DrizzleStateHolidayRepository(database.db)
-        const byName = await seedImportedStateHoliday(database, tenant, {
+        const imported = await seedImportedStateHoliday(database, tenant, {
           holidayOn: FUTURE_DAY,
           ibgeCode: SAO_PAULO_STATE,
         })
-        const byDate = await seedImportedStateHoliday(database, tenant, {
-          holidayOn: '2026-12-08',
-          ibgeCode: SAO_PAULO_STATE,
-        })
 
-        await states.update({
-          ...actorOf(tenant, 'patch-name'),
-          changes: { name: 'Renomeado', recurrence: 'once' },
-          id: byName.id,
-        })
-        await states.update({
-          ...actorOf(tenant, 'patch-date'),
-          changes: { holidayOn: '2026-12-09', recurrence: 'once' },
-          id: byDate.id,
-        })
+        const failure = await states
+          .update({
+            ...actorOf(tenant, 'patch-date'),
+            changes: { holidayOn: '2026-12-09', name: 'Outro nome', recurrence: 'once' },
+            id: imported.id,
+          })
+          .then(
+            () => undefined,
+            (error: unknown) => error as { code: string; status: number },
+          )
 
-        const renamed = await findStateHolidayRow(database, {
-          companyId: tenant.companyId,
-          holidayOn: FUTURE_DAY,
-          stateIbgeCode: SAO_PAULO_STATE,
-        })
-        const moved = await findStateHolidayRow(database, {
-          companyId: tenant.companyId,
-          holidayOn: '2026-12-09',
-          stateIbgeCode: SAO_PAULO_STATE,
-        })
-        expect(renamed).toMatchObject({ name: 'Renomeado', providerEntryId: null })
-        expect(moved).toMatchObject({ id: byDate.id, providerEntryId: null })
-        const audits = await readAudits(database, tenant.companyId)
-        expect(audits[0]?.metadata).toMatchObject({ adoptedFromImport: true })
+        expect(failure).toMatchObject({ code: 'HOLIDAY_IMPORT_DATE_LOCKED', status: 409 })
+        expect(
+          await findStateHolidayRow(database, {
+            companyId: tenant.companyId,
+            holidayOn: FUTURE_DAY,
+            stateIbgeCode: SAO_PAULO_STATE,
+          }),
+        ).toMatchObject({ name: imported.name, providerEntryId: imported.providerEntryId })
+        expect(await readAudits(database, tenant.companyId)).toEqual([])
       })
     },
   )
+
+  testWithPostgres('a digitada continua podendo mudar de data', async () => {
+    await withBusinessCalendarDatabase(async (database) => {
+      const tenant = await seedTenant(database)
+      const states = new DrizzleStateHolidayRepository(database.db)
+      const { holiday } = await states.create({
+        ...actorOf(tenant, 'typed'),
+        holidayOn: FUTURE_DAY,
+        name: 'Digitada',
+        recurrence: 'once',
+        stateIbgeCode: SAO_PAULO_STATE,
+      })
+
+      const moved = await states.update({
+        ...actorOf(tenant, 'move'),
+        changes: { holidayOn: '2026-12-09', recurrence: 'once' },
+        id: holiday.id,
+      })
+
+      expect(moved).toMatchObject({ holidayOn: '2026-12-09' })
+    })
+  })
 })
 
 describe('DELETE num feriado estadual importado é desligar (spec 252 T4.1, CA5)', () => {
@@ -229,24 +273,86 @@ describe('DELETE num feriado estadual importado é desligar (spec 252 T4.1, CA5)
     })
   })
 
-  testWithPostgres('apagar a digitada segue como antes: sem supressão', async () => {
+  testWithPostgres(
+    'apagar a digitada de hoje em diante grava a supressão da data, com o id na auditoria (M2)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const states = new DrizzleStateHolidayRepository(database.db)
+        const { holiday } = await states.create({
+          ...actorOf(tenant, 'typed'),
+          holidayOn: FUTURE_DAY,
+          name: 'Digitada',
+          recurrence: 'once',
+          stateIbgeCode: SAO_PAULO_STATE,
+        })
+
+        await states.remove({ ...actorOf(tenant, 'delete'), id: holiday.id, today: TODAY })
+
+        const suppressions = await readSuppressions(database, tenant.companyId)
+        expect(suppressions).toEqual([
+          expect.objectContaining({
+            holidayOn: FUTURE_DAY,
+            ibgeCode: SAO_PAULO_STATE,
+            scope: 'state',
+          }),
+        ])
+        const audit = (await readAudits(database, tenant.companyId)).at(-1)
+        expect(audit).toMatchObject({ action: 'state-holiday.deleted' })
+        expect(audit?.metadata).toMatchObject({ suppressionId: suppressions[0]?.id })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a adotada também: depois de adotar, apagar não deixa a importação trazer de volta',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const states = new DrizzleStateHolidayRepository(database.db)
+        const imported = await seedImportedStateHoliday(database, tenant, {
+          holidayOn: FUTURE_DAY,
+          ibgeCode: SAO_PAULO_STATE,
+        })
+        await states.update({
+          ...actorOf(tenant, 'adopt'),
+          changes: { name: 'Adotada', recurrence: 'once' },
+          id: imported.id,
+        })
+
+        await states.remove({ ...actorOf(tenant, 'delete'), id: imported.id, today: TODAY })
+
+        expect(await readSuppressions(database, tenant.companyId)).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres('data passada, e o "todo ano" (sem data), não gravam supressão', async () => {
     await withBusinessCalendarDatabase(async (database) => {
       const tenant = await seedTenant(database)
       const states = new DrizzleStateHolidayRepository(database.db)
-      const { holiday } = await states.create({
-        ...actorOf(tenant, 'typed'),
-        holidayOn: FUTURE_DAY,
-        name: 'Digitada',
+      const past = await states.create({
+        ...actorOf(tenant, 'past'),
+        holidayOn: PAST_DAY,
+        name: 'Passada',
         recurrence: 'once',
         stateIbgeCode: SAO_PAULO_STATE,
       })
+      const yearly = await states.create({
+        ...actorOf(tenant, 'yearly'),
+        day: 20,
+        month: 11,
+        name: 'Todo ano',
+        recurrence: 'yearly',
+        stateIbgeCode: SAO_PAULO_STATE,
+      })
 
-      await states.remove({ ...actorOf(tenant, 'delete'), id: holiday.id, today: TODAY })
+      await states.remove({ ...actorOf(tenant, 'd1'), id: past.holiday.id, today: TODAY })
+      await states.remove({ ...actorOf(tenant, 'd2'), id: yearly.holiday.id, today: TODAY })
 
       expect(await readSuppressions(database, tenant.companyId)).toEqual([])
-      expect((await readAudits(database, tenant.companyId)).at(-1)).toMatchObject({
-        action: 'state-holiday.deleted',
-      })
+      const audits = await readAudits(database, tenant.companyId)
+      expect(audits.at(-1)?.metadata).toMatchObject({ suppressionId: null })
     })
   })
 

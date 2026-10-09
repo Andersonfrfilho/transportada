@@ -49,15 +49,18 @@ const STATUS: HolidayImportStatus = {
   month: '2026-10-01',
   monthlyRequests: 37,
   pairs: { done: 1, failed: 1, notCovered: 0, pending: 2, quotaExhausted: 0, total: 4 },
-  removedByProvider: [
-    {
-      holidayId: HOLIDAY_ID,
-      holidayOn: '2026-11-20',
-      ibgeCode: '3509502',
-      name: 'Removido',
-      scope: 'city',
-    },
-  ],
+  removedByProvider: {
+    items: [
+      {
+        holidayId: HOLIDAY_ID,
+        holidayOn: '2026-11-20',
+        ibgeCode: '3509502',
+        name: 'Removido',
+        scope: 'city',
+      },
+    ],
+    truncated: false,
+  },
   totalCities: 2,
 }
 const CITIES: HolidayImportCitiesPage = {
@@ -89,7 +92,7 @@ function createFixture(permissions?: CompanyContext['permissions']) {
     resolveClientIp: () => RESOLVED_IP,
     restore: recordingUseCase(calls, 'restore', undefined),
     status: recordingUseCase(calls, 'status', STATUS),
-    suppressions: recordingUseCase(calls, 'suppressions', [SUPPRESSION]),
+    suppressions: recordingUseCase(calls, 'suppressions', { items: [SUPPRESSION], total: 1 }),
   })
   return {
     calls,
@@ -121,7 +124,19 @@ describe('GET /holiday-imports/status (spec 252 T4.1)', () => {
       lastFetchedAt: '2026-10-01T10:00:00.000Z',
       monthlyRequests: 37,
       pairs: { done: 1, failed: 1, notCovered: 0, pending: 2, quotaExhausted: 0, total: 4 },
+      removedByProvider: { truncated: false },
     })
+  })
+
+  test('query desconhecida é 400: a rota não tem filtro (L12)', async () => {
+    const { calls, handle } = createFixture()
+
+    for (const query of ['x=1', 'companyId=22222222-2222-4222-8222-222222222222']) {
+      const response = await handle(jsonRequest({ method: 'GET', path: `${PATH}/status?${query}` }))
+
+      expect(response.status).toBe(400)
+    }
+    expect(calls.status).toEqual([])
   })
 
   test('sem busca registrada, a data da última busca é null', async () => {
@@ -133,7 +148,7 @@ describe('GET /holiday-imports/status (spec 252 T4.1)', () => {
         resolveClientIp: () => RESOLVED_IP,
         restore: recordingUseCase(calls, 'restore', undefined),
         status: recordingUseCase(calls, 'status', { ...STATUS, lastFetchedAt: null }),
-        suppressions: recordingUseCase(calls, 'suppressions', []),
+        suppressions: recordingUseCase(calls, 'suppressions', { items: [], total: 0 }),
       }),
     })
 
@@ -196,22 +211,42 @@ describe('GET /holiday-imports/cities (spec 252 T4.1)', () => {
 })
 
 describe('GET /holiday-imports/suppressions (spec 252 T4.1)', () => {
-  test('lista as supressões da empresa, com a data em ISO', async () => {
+  test('lista as supressões da empresa, paginadas como as cidades, com a data em ISO (L3)', async () => {
     const { calls, handle } = createFixture()
 
     const response = await handle(jsonRequest({ method: 'GET', path: `${PATH}/suppressions` }))
 
     expect(response.status).toBe(200)
-    expect(calls.suppressions).toEqual([{ companyId: COMPANY_CONTEXT.companyId }])
-    expect(await responseData(response)).toEqual([
-      {
-        holidayOn: '2026-11-20',
-        ibgeCode: '3509502',
-        id: SUPPRESSION_ID,
-        scope: 'city',
-        suppressedAt: '2026-10-09T12:00:00.000Z',
-      },
+    expect(calls.suppressions).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, page: 1, perPage: 50 },
     ])
+    expect(await response.json()).toEqual({
+      data: [
+        {
+          holidayOn: '2026-11-20',
+          ibgeCode: '3509502',
+          id: SUPPRESSION_ID,
+          scope: 'city',
+          suppressedAt: '2026-10-09T12:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, perPage: 50, total: 1 },
+    })
+  })
+
+  test('page e perPage vão ao caso de uso; fora do limite ou desconhecido é 400', async () => {
+    const { calls, handle } = createFixture()
+    const get = (query: string) =>
+      handle(jsonRequest({ method: 'GET', path: `${PATH}/suppressions?${query}` }))
+
+    expect((await get('page=2&perPage=100')).status).toBe(200)
+    expect(calls.suppressions).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, page: 2, perPage: 100 },
+    ])
+    for (const query of ['page=0', 'perPage=101', 'perPage=x', 'page=1&page=2', 'limit=10']) {
+      expect((await get(query)).status).toBe(400)
+    }
+    expect(calls.suppressions).toHaveLength(1)
   })
 })
 
