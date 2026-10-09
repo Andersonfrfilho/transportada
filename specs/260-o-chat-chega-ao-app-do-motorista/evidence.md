@@ -305,3 +305,21 @@ no CSS do app até a 0.6.1 entrar.
 
 **Não provado:** o painel do escritório e o botão "Falar com o escritório" do motorista nunca foram vistos rodando (o painel exige API real
 e Keycloak; a demo do motorista agora serve `conversations/open`); smoke Playwright (T1b.5); descarte do outbox no logout (T1b.7).
+
+## Design da conversa (iteração com o dono, 2026-10-09) — SDK `conversations-ui` 0.7.0 (PR #131)
+
+Do pedido "botão de voltar estranho" + "inspire-se no WhatsApp" ao resultado aprovado. Quatro passes `opus` sobre o PR; o último
+confirmou 0 diferenças de markup em 58 casos contra a 0.4.2 publicada e golden G1–G10 intactos (o SDK **não impacta outros fluxos**).
+
+| Etapa                                 | Commit    | O que                                                                                                                           |
+| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| cabeçalho enxuto + avatar de iniciais | `7d7a34b` | copiar só ícone, canais inline, `avatars="initials"`                                                                            |
+| rabinho da bolha                      | `0e92f91` | triângulos com borda contínua, tema reto e arredondado                                                                          |
+| correções do passe                    | `40378d4` | foco do título visível (B1), toque do copiar sem invadir o título (B2), forced-colors (B3), minor (B4), 8 mutações mortas (B5)  |
+| redesenho "WhatsApp no nosso estilo"  | `fa9eba1` | voltar em ícone, tile do assunto, wallpaper, pílula de dia, hora+ticks na bolha, compositor com ícones                          |
+| achados do 3º passe                   | `a72f745` | auto-grow sem barra fantasma, teste de dia independente de fuso (mutação morta em UTC/SP/Auckland), propriedades lógicas, print |
+
+**Defeitos que só o navegador mostrou nesta rodada:** botão de voltar "‹" em caixa desalinhada; ícone do canal solto numa linha própria;
+botão largo "Copiar protocolo"; título repetido no cartão do assunto; a faixa de filtros cortada (21 px) — corrigida na 0.6.1 (PR #130).
+**Armadilha de ambiente:** o Vite pré-otimiza o pacote do SDK com cache imutável; trocar o conteúdo sem mudar a versão deixa o navegador
+com a cópia velha (página em branco). No worktree de preview o pacote ficou fora do `optimizeDeps`.

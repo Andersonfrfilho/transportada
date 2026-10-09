@@ -154,6 +154,20 @@ fica atrás do login, 183 RF11).
   do grupo.
 - **Fora desta decisão:** selo de canal **por mensagem** na bolha (183 D2) — evolução posterior.
 
+### D10 — A conversa segue o desenho do WhatsApp, no estilo do app (pedido do dono, 2026-10-09)
+
+> _"Se inspire no design que temos do WhatsApp, mas voltado para o nosso estilo da aplicação."_ Resultado aprovado pelo dono:
+> _"foi o melhor resultado de design"._ (Visão do participante do SDK `conversations-ui` 0.7.0; só `/participant`.)
+
+- **Cabeçalho:** seta de voltar **só ícone** (sem caixa, toque 44×44) → tile 40×40 com o **ícone do assunto** (o mesmo da lista) →
+  título em 1 linha → meta com **protocolo + copiar em ícone + canal inline**. Sem título repetido em cartão; o eyebrow do grupo só
+  aparece quando não há tile.
+- **Corpo:** fundo com padrão pontilhado sutil (CSS puro, `--cv-p-wallpaper`), **pílula de dia** centralizada, bolhas com **rabinho** no
+  canto inferior (esquerdo na recebida, direito na própria), **hora e ticks** no pé da bolha, **avatar de iniciais** do autor (o SDK não
+  tem foto; o host pode passar uma por `renderAuthorAvatar`).
+- **Compositor:** clipe de anexo, campo que cresce até ~4 linhas, enviar com ícone; `Enter` quebra linha (teclado virtual).
+- **Fora:** RTL no rabinho (limitação conhecida), foto de usuário (não existe no cadastro), selo de canal por mensagem.
+
 ## Histórias priorizadas
 
 ### P1 — Ler e responder o escritório sobre uma ocorrência
