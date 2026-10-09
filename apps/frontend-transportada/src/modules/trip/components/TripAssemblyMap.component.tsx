@@ -42,6 +42,7 @@ import {
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import type { TripClient } from '../shared/tripClient.service'
+import { AssemblyStopHolidayNotice } from './AssemblyStopHolidayNotice.component'
 import { RouteChoiceOptions } from './RouteChoiceOptions.component'
 import { RouteTollSummary } from './RouteTollSummary.component'
 import {
@@ -884,6 +885,14 @@ export function TripAssemblyMap({
                     {t('assemblyMap.approximate')}
                   </span>
                 ) : null}
+                {/* Spec 252 T5.3: o feriado que cai na entrega prevista desta parada. Só informa; nada desabilita. */}
+                {(solver.holidayWarnings.get(point.stopKey) ?? []).map((warning) => (
+                  <AssemblyStopHolidayNotice
+                    key={`${String(warning.cityIbgeCode)}:${warning.date}`}
+                    placeLabel={point.label}
+                    warning={warning}
+                  />
+                ))}
                 {point.notes.map((note) => (
                   <span className={styles.assemblyStopNote} key={note.id}>
                     {describeNote(note)}

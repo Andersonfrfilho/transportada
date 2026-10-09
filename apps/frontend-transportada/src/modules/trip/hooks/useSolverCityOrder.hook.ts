@@ -6,8 +6,16 @@ import type { RouteSuggestionClient } from '@/modules/routing/shared/routeSugges
 
 import type { AssemblyCityOrder } from '../shared/assemblyOrder.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+import { getDayChecksClient } from '../shared/dayChecksClient.provider'
+import type { DayChecksClient } from '../shared/dayChecksClient.service'
+import {
+  askHolidayWarnings,
+  isFinishCovered,
+  NO_HOLIDAY_WARNINGS,
+} from '../shared/solverHolidayWarnings.service'
 import { documentIdsOf, toCityOrderFromSolver } from '../shared/solverCityOrder.service'
 import { resolveRouteFinish, type RouteFinish } from '../shared/routeSchedule.service'
+import type { HolidayWarning } from '../shared/trip.types'
 
 /** Mesmo ritmo do painel da viagem: o worker resolve, e a tela pergunta de novo. */
 const POLL_INTERVAL_MILLISECONDS = 2_000
@@ -23,6 +31,11 @@ export type SolverCityOrderController = Readonly<{
   errorCode: null | string
   /** O término previsto do roteiro, do último `estimatedArrivalAt`. `null` antes do primeiro pedido. */
   finish: RouteFinish | null
+  /**
+   * Spec 252 T5.3: o aviso de feriado de cada parada, pela chave dela, vindo de UMA chamada a `day-checks` quando o
+   * solver termina. Vazio quando a rota caiu — e aí o término volta ao aviso nacional de hoje.
+   */
+  holidayWarnings: ReadonlyMap<string, readonly HolidayWarning[]>
   request: () => Promise<void>
   state: SolverOrderState
 }>
@@ -46,6 +59,8 @@ export type SolverCityOrderController = Readonly<{
  */
 export function useSolverCityOrder(input: {
   readonly client?: RouteSuggestionClient
+  /** Injetável como o `client`: o contrato prova a chamada única e a queda sem rede. */
+  readonly dayChecksClient?: DayChecksClient
   /** Ausente é mapa somente-leitura: quem hospeda nem sempre é dono da ordem (spec 110 D3). */
   readonly onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
   readonly order: AssemblyCityOrder
@@ -55,6 +70,7 @@ export function useSolverCityOrder(input: {
   const [state, setState] = useState<SolverOrderState>('ocioso')
   const [errorCode, setErrorCode] = useState<null | string>(null)
   const [finish, setFinish] = useState<RouteFinish | null>(null)
+  const [holidayWarnings, setHolidayWarnings] = useState(NO_HOLIDAY_WARNINGS)
   const cancelled = useRef(false)
 
   useEffect(() => {
@@ -76,6 +92,7 @@ export function useSolverCityOrder(input: {
 
     setState('pedindo')
     setErrorCode(null)
+    setHolidayWarnings(NO_HOLIDAY_WARNINGS)
 
     const routeClient = client ?? getRouteSuggestionClient()
     try {
@@ -98,10 +115,17 @@ export function useSolverCityOrder(input: {
       }
 
       onOrderChange?.(toCityOrderFromSolver({ order, stops: pronta.stops }))
+      const answer = await askHolidayWarnings({
+        client: latest.current.dayChecksClient ?? getDayChecksClient(),
+        stops: pronta.stops,
+      })
+      if (cancelled.current) return
+      setHolidayWarnings(answer?.byStop ?? NO_HOLIDAY_WARNINGS)
       setFinish(
         resolveRouteFinish({
           distanceMetres: pronta.estimatedDistanceMeters,
           durationSeconds: pronta.estimatedDurationSeconds,
+          includeNationalHoliday: !isFinishCovered({ answer, stops: pronta.stops }),
           stops: pronta.stops,
         }),
       )
@@ -113,7 +137,7 @@ export function useSolverCityOrder(input: {
     }
   }, [])
 
-  return { blockReason, errorCode, finish, request, state }
+  return { blockReason, errorCode, finish, holidayWarnings, request, state }
 }
 
 function resolveBlockReason(input: {
