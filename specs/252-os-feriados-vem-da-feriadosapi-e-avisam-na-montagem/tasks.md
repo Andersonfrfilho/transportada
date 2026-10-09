@@ -221,7 +221,9 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
       `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
       **Feita em 2026-10-09 (código e prints; prints aprovados pelo usuário em 2026-10-09 e publicados):** `evidence.md` § T5.2 e T5.3.
-      ⚠️ A origem **por linha** depende de `origin` nas listas da API (pendência: sem o campo hoje; o painel já o tolera).
+      **Origem e ordem de publicação:** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e `/state-holidays`
+      trazem `origin: 'typed' | 'imported'` (branch `work/252-origin`; `evidence.md` § "origin nas listas"). O painel publicado
+      tem guardas de chaves exatas e recusaria a chave: **painel (com `origin` opcional) primeiro, API depois**.
 - [x] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)

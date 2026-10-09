@@ -3323,14 +3323,32 @@ linha no cache é `pending`), `GET /suppressions?page&perPage` (paginada como `/
 removidos) e junta o cache; `holiday-import-usage.query.ts` lê o contador do mês (instalação, sem empresa) e é a única exceção ao
 `tenant-safety.contract.ts` (`SUPPORT_ONLY`). Os dois são os únicos arquivos que importam as tabelas globais.
 
-- ⚠️ Os guardas do painel (`businessCalendarGuards.validation.ts`) são de chaves **exatas**: nenhuma chave nova em respostas de
-  `/municipal-holidays` ou `/state-holidays`. A origem para a aba Calendário (T5.2) vem das rotas novas.
+- ⚠️ Os guardas do painel (`businessCalendarGuards.validation.ts`) são de chaves **exatas**. Nesta task nenhuma chave entrou em
+  `/municipal-holidays` ou `/state-holidays`; a origem para a aba Calendário (T5.2) veio depois — ver § "Spec 252 — `origin` nas listas".
 - ⚠️ `tenant-safety.contract.ts` casa `.from(` por regex: `Array.from(` no módulo reprova (falso positivo conhecido) — use laço.
 - Lacunas: restaurar **não** reinsere a linha na hora (ADR-0100 §4 admite "na hora, se o cache já o tem"; a leitura do cache pela escrita
   quebraria o contrato de isolamento) — a T3.4 precisa reaplicar do cache a cada ciclo, não só dos pares recém-buscados, sob o mesmo advisory lock `['business-calendar', companyId]` e relendo as supressões dentro da transação (restaura volta na próxima execução diária). Não há rota para ligar/desligar
   `company_holiday_import_settings.is_enabled` (o status só a lê). `monthlyRequests` é da instalação.
 - Provas: `test/integration/holiday-import-{municipal,state,suppressions,status}.integration.ts`, `test/business-calendar-rules/holiday-import-*.contract.ts`,
   `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.1.
+
+## Spec 252 — `origin` nas listas (lacuna achada pela T5.2, ADR-0100 §4)
+
+`GET /municipal-holidays`, `GET /state-holidays` e as respostas de `POST` e `PATCH` das duas rotas ganham `origin: 'typed' | 'imported'` em cada
+feriado. **Só isso entrou**: nada foi removido nem renomeado (o municipal segue com `generatedByRuleId`, que distingue a gerada por regra; o estadual
+não tem linha gerada).
+
+- **Regra:** `imported` quando `provider_entry_id` não é nulo, `typed` caso contrário — a gerada por regra, a digitada e a adotada (o `POST`/`PATCH` que
+  adota zera o vínculo e responde `typed`). Vem de `originOf` em `business-calendar-rule.mapper.ts` (a mesma função que já alimenta o aviso, T4.2), na
+  `MunicipalHoliday`/`StateHolidayRecord` (`origin: ManagedHolidayOrigin`, em `business-calendar.types.ts`), e as visões `toHolidayView`/`toStateHolidayView`
+  a serializam. A auditoria `…saved|updated|deleted` passa a levar `origin` nos snapshots antes/depois (aditivo).
+- **O id do cache não sai** (`provider_entry_id` não está no registro nem na visão); `origin` não é entrada (corpo com `origin` é 400, os esquemas são `.strict()`).
+- ⚠️ **Ordem de publicação:** o painel publicado tem guardas de chaves **exatas** (`apps/frontend-transportada/src/modules/company-settings/shared/businessCalendarGuards.validation.ts`)
+  e **recusaria** a resposta com a chave nova. O painel da T5.2 (`work/252-t5`) aceita `origin` como **opcional**. Portanto: **painel primeiro, API depois**.
+  Esta mudança não foi publicada (sem push); quem publica escolhe a ordem.
+- Provas: `test/business-calendar-rules/{holiday-routes,holiday-routes-write,state-routes,state-routes-other}.contract.ts`,
+  `test/integration/holiday-origin.integration.ts` (banco real: importada, digitada, gerada, adoção por `POST` e por `PATCH`). Evidência e mutações:
+  `specs/252-*/evidence.md` § "origin nas listas".
 
 ## Spec 252 T4.2 — o aviso de feriado na API (ADR-0100 §6)
 

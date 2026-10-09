@@ -96,8 +96,11 @@ relógio injetado — `resolveToday`) além de `currentYear`. `typedHolidaysKept
 porque desligar data passada é sempre 409 e restaurá-la prometeria o que a D7 nunca cumpre; o total da supressão conta só o que aparece). ⚠️ **As três tabelas globais do cache só
 são importadas por `holiday-import-status.query.ts`, `holiday-import-removed.query.ts` e `holiday-import-usage.query.ts`** (contrato
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
-que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de
-chaves exatas (`businessCalendarGuards.validation.ts`); a origem do feriado vai por rota nova. Detalhe: docs/ai-context § "Spec 252 T4.1".
+que as importe reprova. `GET`, `POST` e `PATCH` de `/municipal-holidays` e `/state-holidays` devolvem `origin: 'typed' | 'imported'` em cada feriado (`imported` =
+`provider_entry_id` preenchido; `typed` no resto, a gerada por regra e a adotada inclusive — a gerada segue distinta por `generatedByRuleId`); o id
+do cache nunca sai. ⚠️ **Regra de ordem de publicação: a API com `origin` NÃO vai antes do painel da T5.2.** Os guardas do painel
+publicado (`businessCalendarGuards.validation.ts`) são de chaves **exatas** e recusariam a resposta com a chave nova; o painel da T5.2 aceita
+`origin` como opcional. Publicar: painel, depois API. Detalhe: docs/ai-context § "Spec 252 — `origin` nas listas".
 O aviso de feriado (T4.2, ADR-0100 §6): `HolidayReason` e as regras do calendário ganham `origin` (`code|typed|rule|imported`; regra sem origem
 vale `typed`; o mapper lê `provider_entry_id` — importada — e a regra "todo ano" é `rule`; o filtro de `readTypedHolidays` não muda).
 `holiday-warning.policy.ts` (pura) avisa o dia que fecha **por feriado** (domingo, e sábado quando não é útil, são o aviso de fim de semana
