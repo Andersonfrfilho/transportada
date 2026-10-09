@@ -202,3 +202,23 @@ Gates: `bun run typecheck` ok; `bun run db:generate` → `no_changes`; `bun run 
 
 Gates: `bun run typecheck` ok; `bun run lint` ok; `bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts`
 → 128 pass, 0 fail; `make migration-test` → 169 pass, 0 fail.
+
+## T3.3 — Mutações da T3.2, cada uma com a execução vermelha
+
+Cada mutação foi aplicada em `drizzle/20261009022945_occurrence_contractor_reply/migration.sql`, rodou `make migration-test`
+(exit 2) e foi desfeita com `git checkout`; o `git diff` ficou vazio depois de cada uma.
+
+1. **Tirar a CHECK `company_occurrence_types_forward_automatic_needs_reply_check`** — 166 pass, 3 fail: o teste de integração
+   (`applies, constrains, rolls back, and reapplies`) com `Expected PostgreSQL SQLSTATE 23514` no caso `automatic` com modo
+   `off` (`occurrence-contractor-reply-type.assertion.ts`), mais dois contratos estáticos (fragmento ausente; forma das quatro
+   CHECKs cruzadas).
+2. **Padrão de `forward_to_note_recipient` = `'automatic'`** — 166 pass, 3 fail: a própria migration cai nas linhas existentes
+   (`PostgresError: check constraint "company_occurrence_types_forward_automatic_needs_reply_check" of relation
+"company_occurrence_types" is violated by some row`, o que também derruba o backfill de viagens e o teste de integração),
+   mais o contrato estático do padrão constante.
+3. **`actor_user_id` nulo com `trigger = 'operator'`** (CHECK trocada por `"actor_user_id" is null or "trigger" = 'operator'`)
+   — 168 pass, 1 fail: integração com `Expected PostgreSQL SQLSTATE 23514` em `assertDeliveryConstraints`
+   (`-rows.assertion.ts:126`, o caso operador sem ator). Uma primeira versão da mutação, que afrouxava também o vocabulário,
+   falhou por outro caso (`Expected trigger_check, Received actor_check`); foi descartada por ser grosseira.
+
+Execução verde depois de desfazer tudo: `make migration-test` → 169 pass, 0 fail, exit 0.
