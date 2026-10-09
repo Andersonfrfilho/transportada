@@ -87,6 +87,7 @@ describe('helper role contract', () => {
       'GET /me/trips/current/manifests/:manifestId/damdfe',
       'GET /me/trips/current/occurrence-conversations',
       'GET /me/trips/current/occurrences/:id/messages',
+      'GET /me/trips/current/quick-replies',
       'POST /me/trips/current/conversations/:subjectType/:subjectId/messages/read',
       'POST /me/trips/current/occurrences/:id/messages/read',
     ])

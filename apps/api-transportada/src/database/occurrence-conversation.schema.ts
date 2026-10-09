@@ -549,8 +549,14 @@ export const occurrenceConversationUnassigned = pgTable(
 )
 
 /** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — a mesma divisão das abas. */
-export const COMPANY_QUICK_REPLY_AUDIENCES = OCCURRENCE_CONVERSATION_PARTICIPANTS
-export type CompanyQuickReplyAudience = OccurrenceConversationParticipant
+export const COMPANY_QUICK_REPLY_AUDIENCES = [
+  ...OCCURRENCE_CONVERSATION_PARTICIPANTS,
+  'driver_reply',
+] as const
+export type CompanyQuickReplyAudience = (typeof COMPANY_QUICK_REPLY_AUDIENCES)[number]
+
+/** Spec 260 D11: as respostas prontas do MOTORISTA ao escritório (as demais são do escritório a eles). */
+export const DRIVER_REPLY_AUDIENCE = 'driver_reply' satisfies CompanyQuickReplyAudience
 
 /** O teto do texto de uma resposta rápida (RF12): é um começo de mensagem, não um modelo. */
 export const COMPANY_QUICK_REPLY_MAX_LENGTH = 500

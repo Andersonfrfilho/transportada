@@ -442,6 +442,7 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createMeQuickReplyRoutes } from './occurrence-conversation/presentation/me-quick-replies.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
 import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
 import { createOfficeSubjectConversationRoutes } from './occurrence-conversation/presentation/office-subject-conversation.routes.js'
@@ -3688,6 +3689,13 @@ function createApplicationRoutes({
       quickReplies: createQuickRepliesUseCase({
         unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
       }),
+    }),
+    /** Spec 260 T5.1 (D11): as respostas prontas do motorista (público `driver_reply`), lidas pelo app. */
+    ...createMeQuickReplyRoutes({
+      quickReplies: createQuickRepliesUseCase({
+        unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },

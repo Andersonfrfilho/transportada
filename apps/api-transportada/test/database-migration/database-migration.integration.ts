@@ -27,6 +27,7 @@ import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-refe
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
+import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
 import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-index.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
@@ -397,6 +398,12 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
           userId: identityFixture.userId,
+        })
+        await assertQuickReplyDriverAudience({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         const postIdentityRollbacks = await Promise.all(

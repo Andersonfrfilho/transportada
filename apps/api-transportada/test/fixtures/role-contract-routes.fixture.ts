@@ -29,6 +29,7 @@ import { createTripRoutes } from '../../src/trips/presentation/trip.routes'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes'
 import { createDeliveryChargeRoutes } from '../../src/delivery-clients/presentation/delivery-charge.routes'
 import { createMeOccurrenceConversationRoutes } from '../../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createMeQuickReplyRoutes } from '../../src/occurrence-conversation/presentation/me-quick-replies.routes'
 import { createMeSubjectConversationRoutes } from '../../src/occurrence-conversation/presentation/me-subject-conversation.routes'
 import { createMeSubjectConversationWriteRoutes } from '../../src/occurrence-conversation/presentation/me-subject-conversation-write.routes'
 import { createOfficeSubjectConversationRoutes } from '../../src/occurrence-conversation/presentation/office-subject-conversation.routes'
@@ -80,5 +81,7 @@ export function buildRoleContractRoutes(
     ...createMeOccurrenceConversationRoutes(dependencies),
     ...createMeSubjectConversationRoutes(dependencies),
     ...createMeSubjectConversationWriteRoutes(dependencies),
+    // Spec 260 T5.1: as respostas prontas do motorista — `trip.read`, como a leitura da conversa.
+    ...createMeQuickReplyRoutes(dependencies),
   ]
 }
