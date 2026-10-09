@@ -16,16 +16,26 @@
 
 /* A barra inferior é fixa: a área da conversa tem a altura que sobra, e o campo de texto nunca fica sob ela. */
 .conversationShell {
+  bottom: var(--driver-bottom-bar-height);
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--space-16));
+  left: 0;
   min-height: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
 }
 
 .conversationMain {
   display: flex;
   flex: 1;
   flex-direction: column;
+  min-height: 0;
+}
+
+.conversationMain > :global(.cv-p-root) {
+  flex: 1;
+  height: auto;
   min-height: 0;
 }
 

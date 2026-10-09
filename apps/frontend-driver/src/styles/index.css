@@ -16,6 +16,8 @@
   --color-slate: #8fa3ad;
   /* O texto que senta sobre o cobre: cópia do token do painel (ui-button-default). */
   --color-ink-on-accent: #10222c;
+  /* Barra inferior fixa: item de 44px + padding + borda, mais a área segura do aparelho. */
+  --driver-bottom-bar-height: calc(3.8125rem + env(safe-area-inset-bottom, 0px));
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
