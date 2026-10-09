@@ -38,7 +38,7 @@ function countingDatabase(db: TestDatabase['db']) {
 
 describe('o contexto das paradas do aviso do motorista (spec 252 T4.3)', () => {
   testWithPostgres(
-    'devolve só as paradas pedidas, da empresa, com ETA — e o endereço de destino da nota',
+    'devolve só as paradas pedidas e da empresa (com ou sem ETA) — e o endereço de destino da nota',
     async () => {
       await withCargoDatabase(async (database, tenants) => {
         const own = await seedTripWithStops(database, {
@@ -61,13 +61,18 @@ describe('o contexto das paradas do aviso do motorista (spec 252 T4.3)', () => {
           stopIds: [first, withoutEta, foreign.stopIds[0] ?? ''],
         })
 
-        expect(contexts).toHaveLength(1)
-        expect(contexts[0]).toMatchObject({
+        expect(contexts.map((context) => context.stopId).toSorted()).toEqual(
+          [first, withoutEta].toSorted(),
+        )
+        const withEta = contexts.find((context) => context.stopId === first)
+        expect(withEta).toMatchObject({
           address: { city: 'Campinas', cityCode: CAMPINAS },
           estimatedArrivalAt: ETA,
-          stopId: first,
         })
-        expect(contexts[0]?.addressKey.startsWith(`${CAMPINAS}|`)).toBe(true)
+        expect(withEta?.addressKey.startsWith(`${CAMPINAS}|`)).toBe(true)
+        expect(contexts.find((context) => context.stopId === withoutEta)?.estimatedArrivalAt).toBe(
+          null,
+        )
         expect(contexts.map((context) => context.stopId)).not.toContain(second)
         expect(await repository.list({ companyId: COMPANY_ID, stopIds: [] })).toEqual([])
       })
