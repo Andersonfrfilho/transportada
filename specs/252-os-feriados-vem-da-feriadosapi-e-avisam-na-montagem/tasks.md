@@ -221,9 +221,11 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
       `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
       **Feita em 2026-10-09 (código e prints; prints aprovados pelo usuário em 2026-10-09 e publicados):** `evidence.md` § T5.2 e T5.3.
-      **Origem e ordem de publicação:** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e `/state-holidays`
-      trazem `origin: 'typed' | 'imported'` (branch `work/252-origin`; `evidence.md` § "origin nas listas"). O painel publicado
-      tem guardas de chaves exatas e recusaria a chave: **painel (com `origin` opcional) primeiro, API depois**.
+      **Origem e ordem de publicação (cumprida):** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e
+      `/state-holidays` trazem `origin: 'typed' | 'imported'` (`evidence.md` § "origin nas listas"). O painel publicado tinha
+      guardas de chaves exatas e recusaria a chave, então o **painel (com `origin` opcional) entrou em staging antes da API**:
+      painel `9d8e285d9` (Deploy verde 2026-10-09 12:19Z), API `c315477a3` (12:37Z). **Em produção a ordem volta a valer** (o
+      `deploy-frontend` tem `needs: deploy-api`: um PR único sobe a API antes do painel).
 - [x] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
@@ -236,8 +238,8 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo ≥ 44 px se
       houver toque; locale pt-BR/en no padrão do app. **Offline:** o aviso vem do snapshot guardado; sem rede mostra
       o último conhecido e não inventa. **Prints** 375/768/1280, claro e escuro, aprovados pelo usuário antes de
-      publicar. (CA15, CA17) **Feita no código em 2026-10-09** (branch `work/252-t5-4`); **publicação pendente da
-      aprovação dos prints pelo usuário**. `evidence.md` § T5.4.
+      publicar. (CA15, CA17) **Feita em 2026-10-09 e publicada em staging** (`d6e6d2036` código, `98eb33641` relógio, `435b03926`
+      evidência; Deploy verde 2026-10-09 11:32Z); prints aprovados pelo usuário em 2026-10-09 (`dff0b432d`). `evidence.md` § T5.4.
 
 ## Fase 6 — Fechamento
 

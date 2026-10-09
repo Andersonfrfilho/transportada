@@ -195,7 +195,8 @@ estadual, municipal) e os mapeadores descartam o resto; o aviso (§6) ganha `ori
    `origin: 'typed' | 'imported'` em cada feriado: `imported` é a linha com `provider_entry_id` preenchido; `typed` é o
    resto (digitada, adotada e gerada por regra — esta segue distinta por `generatedByRuleId`). É chave **aditiva**; o
    id do cache nunca sai. Os guardas do painel antigo são de chaves exatas, então a API com `origin` só vai ao ar
-   **depois** do painel que a aceita (opcional): painel primeiro, API depois.
+   **depois** do painel que a aceita (opcional): painel primeiro, API depois. **Cumprida em 2026-10-09:** o painel da
+   T5.2 (`9d8e285d9`) entrou em staging antes da API (`c315477a3`).
 
 ### 5. A rotina `holiday.provider.pull`
 

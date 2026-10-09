@@ -100,7 +100,8 @@ são importadas por `holiday-import-status.query.ts`, `holiday-import-removed.qu
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
 que as importe reprova. `GET`, `POST` e `PATCH` de `/municipal-holidays` e `/state-holidays` devolvem `origin: 'typed' | 'imported'` em cada feriado (`imported` =
 `provider_entry_id` preenchido; `typed` no resto, a gerada por regra e a adotada inclusive — a gerada segue distinta por `generatedByRuleId`); o id
-do cache nunca sai. ⚠️ **Regra de ordem de publicação: a API com `origin` NÃO vai antes do painel da T5.2.** Os guardas do painel
+do cache nunca sai. ⚠️ **Regra de ordem de publicação: a API com `origin` NÃO vai antes do painel da T5.2** (cumprida em staging em 2026-10-09: painel `9d8e285d9`,
+depois a API `c315477a3`; **em produção vale de novo**: no `deploy.yml` o `deploy-frontend` tem `needs: deploy-api`, então um único PR `staging → main` sobe a API antes do painel e abre uma janela em que a aba Calendário de produção recusa as listas; o painel vai num PR antes, ou a janela é aceita por decisão do usuário). Os guardas do painel
 publicado (`businessCalendarGuards.validation.ts`) são de chaves **exatas** e recusariam a resposta com a chave nova; o painel da T5.2 aceita
 `origin` como opcional. Publicar: painel, depois API. Detalhe: docs/ai-context § "Spec 252 — `origin` nas listas". ⚠️ **`lastRun` e `pairs.planRestricted` seguem a mesma regra:** o painel
 publicado tem guardas de chaves exatas do `status`, então o painel com os campos opcionais (cartão de status honesto) vai ANTES da API.
