@@ -1,72 +1,125 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect } from 'react'
+import { ConversationThread } from '@adatechnology/conversations-ui/participant'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import {
   useCloseSubjectConversationMutation,
-  useMarkSubjectReadMutation,
   useOpenSubjectConversationMutation,
+  useRefreshSubjectConversations,
   useSubjectConversationsQuery,
-  useSubjectMessagesQuery,
 } from '../queries/subjectConversation.query'
 import {
   findSubjectConversation,
   resolveSubjectConversationAccess,
   resolveSubjectConversationErrorKey,
 } from '../shared/subjectConversation.service'
-import type { SubjectConversationRef } from '../shared/subjectConversation.types'
-import styles from '../styles/occurrenceConversation.module.css'
-import { SubjectConversationComposer } from './SubjectConversationComposer.component'
-import { SubjectConversationHeader } from './SubjectConversationHeader.component'
-import { SubjectConversationThread } from './SubjectConversationThread.component'
+import type {
+  SubjectConversationRef,
+  SubjectConversationSummary,
+} from '../shared/subjectConversation.types'
+import { buildSubjectThreadLabels } from '../shared/subjectThreadLabels.service'
+import { useSubjectThread } from '../shared/useSubjectThread.hook'
+import styles from '../styles/subjectConversation.module.css'
+import { SubjectThreadActions } from './SubjectThreadActions.component'
 
 type SubjectConversationPanelProps = Readonly<{
   canManage: boolean
   companyId?: string
+  onClose: () => void
   subject: SubjectConversationRef
   tripStatus: string
 }>
 
+type SubjectThreadViewProps = Readonly<{
+  canManage: boolean
+  onClose: () => void
+  subject: SubjectConversationRef
+  summary: SubjectConversationSummary
+  tripStatus: string
+}>
+
+function SubjectThreadView({
+  canManage,
+  onClose,
+  subject,
+  summary,
+  tripStatus,
+}: SubjectThreadViewProps) {
+  const { i18n, t } = useTranslation('subjectConversation')
+  const { api, threadQuickReplies, threadSubject } = useSubjectThread(subject)
+  const refresh = useRefreshSubjectConversations()
+  const open = useOpenSubjectConversationMutation()
+  const close = useCloseSubjectConversationMutation()
+  const access = resolveSubjectConversationAccess({ canManage, summary, tripStatus })
+  const closedNotice = access.isClosed
+    ? t(summary.status === 'closed' ? 'panel.closedNotice' : 'panel.tripOverNotice')
+    : t('panel.readOnlyNotice')
+  const stateError = open.error ?? close.error
+  const driverLabel =
+    summary.driverName === null
+      ? t('panel.noDriverName')
+      : t('panel.driver', { name: summary.driverName })
+
+  return (
+    <div className={styles.threadPanel}>
+      <ConversationThread
+        api={api}
+        avatars="initials"
+        channels={[...summary.channels]}
+        className={styles.conversationTheme ?? ''}
+        counterpartLabel={driverLabel}
+        headerActions={
+          <SubjectThreadActions
+            canClose={access.canClose}
+            canOpen={access.canOpen}
+            isPending={open.isPending || close.isPending}
+            onClose={() => close.mutate(subject)}
+            onOpen={() => open.mutate(subject)}
+          />
+        }
+        labels={buildSubjectThreadLabels((key) => t(key), closedNotice)}
+        locale={i18n.language}
+        onBack={onClose}
+        onMarkedRead={refresh}
+        perspective="operator"
+        protocol={summary.protocol}
+        quickReplies={threadQuickReplies}
+        status={access.canSend ? 'open' : 'closed'}
+        subject={threadSubject}
+        title={summary.subjectLabel}
+      />
+      {stateError === null ? null : (
+        <p className={styles.notice} role="alert">
+          {t(`error.${resolveSubjectConversationErrorKey(stateError)}`)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /**
- * Spec 260 T3.2: a conversa de um assunto (nota ou viagem) do ponto de vista do escritório. O resumo
- * (protocolo, canais, status, não lidas) e as mensagens se releem a cada 15 s e ao voltar o foco; abrir
- * a conversa com mensagem do motorista a marca como lida para quem a abriu.
+ * Spec 260 T5.2-B (D10): a conversa de um assunto (nota ou viagem) do ponto de vista do escritório, no mesmo
+ * desenho do app do motorista — o `ConversationThread` do SDK com `perspective="operator"`. O resumo
+ * (protocolo, canais, estado) se relê a cada 15 s; o fio e a leitura (✓✓ azul do motorista) são do SDK.
  */
 export function SubjectConversationPanel({
   canManage,
   companyId,
+  onClose,
   subject,
   tripStatus,
 }: SubjectConversationPanelProps) {
   const { t } = useTranslation('subjectConversation')
-  const identity = companyId === undefined ? {} : { companyId }
   const conversations = useSubjectConversationsQuery({
-    ...identity,
+    ...(companyId === undefined ? {} : { companyId }),
     enabled: true,
     poll: true,
     tripId: subject.tripId,
   })
-  const messages = useSubjectMessagesQuery({ ...identity, enabled: true, subject })
-  const open = useOpenSubjectConversationMutation()
-  const close = useCloseSubjectConversationMutation()
-  const { mutate: markRead } = useMarkSubjectReadMutation()
   const summary = findSubjectConversation(conversations.data, subject)
-  const access = resolveSubjectConversationAccess({ canManage, summary, tripStatus })
-  const unreadCount = summary?.unreadCount ?? 0
-
-  const { subjectId, subjectType, tripId } = subject
-  useEffect(() => {
-    if (messages.isSuccess && unreadCount > 0) markRead({ subjectId, subjectType, tripId })
-  }, [markRead, messages.isSuccess, subjectId, subjectType, tripId, unreadCount])
-
-  if (
-    messages.isLoading ||
-    conversations.isLoading ||
-    (summary === undefined && conversations.isFetching)
-  ) {
+  if (summary === undefined && conversations.isFetching) {
     return (
       <SkeletonGroup label={t('panel.loading')}>
         <Skeleton height="2rem" width="40%" />
@@ -74,56 +127,20 @@ export function SubjectConversationPanel({
       </SkeletonGroup>
     )
   }
-  if (messages.isError || summary === undefined) {
+  if (summary === undefined) {
     return (
-      <p className={styles.hint} role="alert">
+      <p className={styles.notice} role="alert">
         {t('panel.error')}
       </p>
     )
   }
-
-  const stateError = open.error ?? close.error
   return (
-    <div className={styles.panel}>
-      <SubjectConversationHeader summary={summary} />
-      {(messages.data ?? []).length === 0 ? (
-        <p className={styles.hint}>{t('panel.empty')}</p>
-      ) : (
-        <SubjectConversationThread messages={messages.data ?? []} />
-      )}
-      {access.isClosed ? (
-        <p className={styles.hint} role="status">
-          {summary.status === 'closed' ? t('panel.closedNotice') : t('panel.tripOverNotice')}
-        </p>
-      ) : null}
-      {access.canSend ? <SubjectConversationComposer subject={subject} /> : null}
-      {stateError === null ? null : (
-        <p className={styles.error} role="alert">
-          {t(`error.${resolveSubjectConversationErrorKey(stateError)}`)}
-        </p>
-      )}
-      <div className={styles.footer}>
-        {access.canClose ? (
-          <Button
-            disabled={close.isPending}
-            onClick={() => close.mutate(subject)}
-            type="button"
-            variant="secondary"
-          >
-            {close.isPending ? t('panel.closing') : t('panel.close')}
-          </Button>
-        ) : null}
-        {access.canOpen ? (
-          <Button
-            disabled={open.isPending}
-            onClick={() => open.mutate(subject)}
-            type="button"
-            variant="secondary"
-          >
-            {open.isPending ? t('panel.reopening') : t('panel.reopen')}
-          </Button>
-        ) : null}
-      </div>
-    </div>
+    <SubjectThreadView
+      canManage={canManage}
+      onClose={onClose}
+      subject={subject}
+      summary={summary}
+      tripStatus={tripStatus}
+    />
   )
 }

@@ -10,6 +10,7 @@ import { act, createElement } from 'react'
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 
 import { OccurrenceConversationRequestError } from '../../src/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
+import type { OccurrenceConversationMessage } from '../../src/modules/occurrence-conversation/shared/occurrenceConversation.types'
 import type { SubjectConversationClient } from '../../src/modules/occurrence-conversation/shared/subjectConversationClient.service'
 import type { SubjectConversationSummary } from '../../src/modules/occurrence-conversation/shared/subjectConversation.types'
 
@@ -20,12 +21,23 @@ const DOCUMENT_ID = 'document-1'
 
 const fakes: {
   closed: unknown[]
+  markedRead: unknown[]
+  messages: OccurrenceConversationMessage[]
   openError: Error | undefined
   opened: unknown[]
   quickReplies: { id: string; text: string }[]
   sent: unknown[]
   summaries: SubjectConversationSummary[]
-} = { closed: [], openError: undefined, opened: [], quickReplies: [], sent: [], summaries: [] }
+} = {
+  closed: [],
+  markedRead: [],
+  messages: [],
+  openError: undefined,
+  opened: [],
+  quickReplies: [],
+  sent: [],
+  summaries: [],
+}
 
 function summary(overrides: Partial<SubjectConversationSummary> = {}): SubjectConversationSummary {
   return {
@@ -50,8 +62,11 @@ const client: SubjectConversationClient = {
     return Promise.resolve(summary({ status: 'closed' }))
   },
   listConversations: () => Promise.resolve([...fakes.summaries]),
-  listMessages: () => Promise.resolve([]),
-  markRead: () => Promise.resolve(),
+  listMessages: () => Promise.resolve([...fakes.messages]),
+  markRead: (input) => {
+    fakes.markedRead.push(input)
+    return Promise.resolve()
+  },
   openConversation: (input) => {
     fakes.opened.push(input)
     if (fakes.openError !== undefined) return Promise.reject(fakes.openError)
@@ -63,7 +78,7 @@ const client: SubjectConversationClient = {
   requestUpload: () => Promise.resolve({ uploadId: 'u', uploadUrl: 'https://storage.test/u' }),
   sendMessage: (input) => {
     fakes.sent.push(input)
-    return Promise.resolve()
+    return Promise.resolve(null)
   },
 }
 
@@ -102,12 +117,14 @@ function renderAction(overrides: ActionOverrides = {}) {
   )
 }
 
-const buttonLabels = (): string[] =>
-  [...document.body.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+const labelOf = (button: Element): string =>
+  button.getAttribute('aria-label') ?? button.textContent?.trim() ?? ''
+
+const buttonLabels = (): string[] => [...document.body.querySelectorAll('button')].map(labelOf)
 
 async function clickButton(label: RegExp): Promise<void> {
   const button = [...document.body.querySelectorAll('button')].find((candidate) =>
-    label.test(candidate.textContent ?? ''),
+    label.test(labelOf(candidate)),
   )
   if (button === undefined) throw new Error(`BUTTON_NOT_FOUND:${label.source}`)
   await act(async () => {
@@ -119,6 +136,8 @@ async function clickButton(label: RegExp): Promise<void> {
 
 beforeEach(() => {
   fakes.closed = []
+  fakes.markedRead = []
+  fakes.messages = []
   fakes.openError = undefined
   fakes.opened = []
   fakes.quickReplies = []
@@ -253,23 +272,14 @@ describe('o botão da conversa com o motorista (spec 260 T3.1)', () => {
     await clickButton(/Conversa com o motorista/u)
     await waitFor(() => expect(document.body.querySelector('textarea')).not.toBeNull())
 
-    await clickButton(/Resposta rápida/u)
-    const option = [...document.body.querySelectorAll('[role="option"]')].find((candidate) =>
-      /doca 2/u.test(candidate.textContent ?? ''),
-    ) as HTMLElement | undefined
-    expect(option).toBeDefined()
-    await act(async () => {
-      option?.click()
-      await Promise.resolve()
-    })
-    await settle()
+    await clickButton(/doca 2/u)
 
     const textarea = document.body.querySelector('textarea') as HTMLTextAreaElement
     expect(textarea.value).toBe('Pode descarregar na doca 2.')
     expect(fakes.sent).toEqual([])
   })
 
-  it('sem respostas prontas cadastradas: nenhum seletor no compositor', async () => {
+  it('sem respostas prontas cadastradas: nenhum chip no compositor', async () => {
     fakes.summaries = [summary()]
     await renderAction()
     await waitFor(() =>
@@ -278,7 +288,54 @@ describe('o botão da conversa com o motorista (spec 260 T3.1)', () => {
     await clickButton(/Conversa com o motorista/u)
     await waitFor(() => expect(document.body.querySelector('textarea')).not.toBeNull())
 
-    expect(buttonLabels().some((label) => /Resposta rápida/u.test(label))).toBe(false)
+    expect(buttonLabels().some((label) => /doca 2/u.test(label))).toBe(false)
+    expect(document.body.querySelector('[aria-label="Respostas rápidas"]')).toBeNull()
+  })
+
+  it('o fio é o do escritório: a bolha da empresa é a própria, a do motorista não, e a leitura chama a rota', async () => {
+    const base = {
+      attachments: [],
+      bodyText: 'Pode entregar amanhã?',
+      channel: 'app',
+      createdAt: '2026-10-09T12:00:00.000Z',
+      statusTimes: {},
+    } as const
+    fakes.messages = [
+      {
+        ...base,
+        author: { kind: 'operation', name: 'Operadora Lima', userId: '' },
+        direction: 'outbound',
+        id: 'm-1',
+        status: 'read',
+      },
+      {
+        ...base,
+        author: { kind: 'driver', name: 'Marcos S.', userId: '' },
+        bodyText: 'Pode sim',
+        direction: 'inbound',
+        id: 'm-2',
+        status: null,
+      },
+    ]
+    fakes.summaries = [summary({ unreadCount: 1 })]
+    await renderAction()
+    await waitFor(() =>
+      expect(buttonLabels().some((label) => /Conversa com o motorista/u.test(label))).toBe(true),
+    )
+    await clickButton(/Conversa com o motorista/u)
+
+    await waitFor(() =>
+      expect(document.body.querySelectorAll('.cv-p-bubble--mine')).toHaveLength(1),
+    )
+    expect(document.body.querySelector('.cv-p-bubble--mine')?.textContent).toContain(
+      'Pode entregar',
+    )
+    expect(document.body.textContent).toContain('Motorista: Marcos S.')
+    await waitFor(() =>
+      expect(fakes.markedRead).toEqual([
+        { subjectId: DOCUMENT_ID, subjectType: 'document', tripId: TRIP_ID },
+      ]),
+    )
   })
 
   it('viagem sem motorista: a recusa da API vira frase clara, sem diálogo', async () => {

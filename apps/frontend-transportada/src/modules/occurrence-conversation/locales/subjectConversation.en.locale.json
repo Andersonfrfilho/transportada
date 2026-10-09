@@ -25,13 +25,11 @@
     "portal": "Portal"
   },
   "dialog": {
-    "title": "Conversation with the driver",
-    "close": "Close the conversation window"
+    "title": "Conversation with the driver"
   },
   "panel": {
     "driver": "Driver: {{name}}",
     "noDriverName": "Trip driver",
-    "empty": "No messages yet. What you write reaches the driver's app.",
     "loading": "Loading the conversation",
     "error": "Could not load the conversation. Try again in a moment.",
     "closedNotice": "Conversation closed. The history stays here, but messages cannot be sent.",
@@ -39,19 +37,54 @@
     "close": "Close conversation",
     "closing": "Closing…",
     "reopen": "Reopen conversation",
-    "reopening": "Reopening…"
+    "reopening": "Reopening…",
+    "closeShort": "Close",
+    "reopenShort": "Reopen",
+    "readOnlyNotice": "You can read this conversation, but not send messages."
   },
   "thread": {
-    "newMessages_one": "{{count}} new message from the driver",
-    "newMessages_other": "{{count}} new messages from the driver"
-  },
-  "composer": {
-    "message": "Message to the driver",
-    "send": "Send",
-    "sending": "Sending…",
-    "error": {
-      "required": "Write a message or attach a file.",
-      "tooLong": "The message is longer than allowed."
+    "labels": {
+      "attach": "Attach",
+      "attachmentTooLarge": "File is over the allowed size.",
+      "attachmentTypeNotAccepted": "File type not accepted.",
+      "attachmentsList": "Selected attachments",
+      "back": "Close the conversation",
+      "channelApp": "App",
+      "channelEmail": "Email",
+      "channelPortal": "Portal",
+      "channelWebchat": "Web chat",
+      "channelWhatsapp": "WhatsApp",
+      "channelsGroup": "Channels of this conversation",
+      "copyProtocol": "Copy protocol",
+      "copyValue": "Copy",
+      "discard": "Discard",
+      "downloadAttachment": "Download",
+      "edit": "Edit",
+      "externalLinkHint": "opens in a new tab",
+      "loadError": "Could not load. Try again.",
+      "loadMore": "Load more",
+      "loadOlder": "Earlier messages",
+      "loading": "Loading…",
+      "me": "Office",
+      "messageInputLabel": "Message to the driver",
+      "messageInputPlaceholder": "Write to the driver",
+      "newMessages": "New messages from the driver",
+      "notFound": "Conversation not found.",
+      "protocolCopied": "Protocol copied",
+      "protocolPrefix": "Protocol",
+      "quickRepliesGroup": "Quick replies",
+      "removeAttachment": "Remove attachment",
+      "retry": "Resend",
+      "scrollToLatest": "Go to the latest message",
+      "send": "Send",
+      "statusDelivered": "Delivered",
+      "statusFailed": "Failed — tap to resend",
+      "statusFailedShort": "Failed",
+      "statusQueued": "Queued · sends when the network is back",
+      "statusRead": "Read by the driver",
+      "statusSending": "Sending",
+      "statusSent": "Sent",
+      "valueCopied": "Copied"
     }
   },
   "error": {
@@ -60,10 +93,6 @@
     "noDriver": "The trip has no driver with an active assignment; there is nobody to write to.",
     "notFound": "This conversation does not belong to this trip.",
     "driverChanged": "The conversation moved to another driver on the trip. Open it again to talk to them."
-  },
-  "sendRecovery": {
-    "uploadExpired": "The file upload expired. Tap send again to upload it once more.",
-    "alreadySent": "This message had already been sent. Check the conversation and send again if needed."
   },
   "list": {
     "title": "Conversations with the driver",

@@ -180,18 +180,20 @@ describe('as respostas prontas do motorista (spec 260 T5.2-A, D11)', () => {
     }
   })
 
-  test('o compositor por assunto oferece as respostas do escritório ao motorista e só preenche', () => {
-    const composer = readFileSync(
-      'src/modules/occurrence-conversation/components/SubjectConversationComposer.component.tsx',
-      'utf8',
-    )
+  test('o fio por assunto oferece as respostas do escritório ao motorista como chips do SDK (que só preenchem)', () => {
+    const composer =
+      readFileSync(
+        'src/modules/occurrence-conversation/components/SubjectConversationPanel.component.tsx',
+        'utf8',
+      ) +
+      readFileSync('src/modules/occurrence-conversation/shared/useSubjectThread.hook.ts', 'utf8')
     const conversations = readFileSync(
       'src/modules/occurrence-conversation/components/OccurrenceConversations.component.tsx',
       'utf8',
     )
 
-    expect(composer).toMatch(/<QuickReplyPicker\s+audience="driver"/u)
-    expect(composer).toContain('setDraft((current) => insertQuickReply(current, text))')
+    expect(composer).toContain("useComposerQuickRepliesQuery('driver')")
+    expect(composer).toContain('quickReplies={threadQuickReplies}')
     expect(conversations).not.toContain('driver_reply')
   })
 })

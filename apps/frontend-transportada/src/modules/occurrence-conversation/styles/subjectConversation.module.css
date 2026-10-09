@@ -1,21 +1,67 @@
-/* Spec 260 T3.1/T3.2: a conversa de nota e de viagem no painel. O fio, o balão e o compositor vêm de
- * `occurrenceConversation.module.css` (os mesmos da ocorrência); aqui só o que é novo — cabeçalho,
- * protocolo, selos e a lista da viagem. Tokens da casa, mobile primeiro. */
+/* Spec 260 T3.1/T3.2/T5.2-B: a conversa de nota e de viagem no painel. O fio, o balão e o compositor são do
+ * `ConversationThread` do SDK; aqui só o diálogo, o mapa dos `--cv-p-*` para os tokens da casa, o protocolo,
+ * os selos e a lista da viagem. Mobile primeiro. */
 
-.header {
-  display: grid;
-  gap: var(--space-2);
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
-.header h3 {
-  margin: 0;
-  font-size: 1rem;
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
 }
 
-.driver {
+.threadPanel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.threadPanel > :global(.cv-p-root) {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+/* `--cv-p-highlight` é fundo de balão: precisa ser opaco (mistura sobre o fundo, nunca transparente). */
+.conversationTheme {
+  --cv-p-surface: var(--color-asphalt);
+  --cv-p-surface-raised: var(--color-graphite);
+  --cv-p-text: var(--color-fog);
+  --cv-p-text-muted: var(--color-slate-muted);
+  --cv-p-border: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  --cv-p-accent: var(--color-copper-ink);
+  --cv-p-accent-contrast: var(--color-ink-on-accent);
+  --cv-p-highlight: color-mix(in srgb, var(--color-copper) 12%, var(--color-asphalt));
+  --cv-p-danger: var(--color-alert-ink);
+  --cv-p-radius: 0;
+  --cv-p-tick: var(--color-slate-muted);
+  --cv-p-tick-read: color-mix(in srgb, #1e9bd7 65%, var(--color-fog));
+
+  font-family: var(--font-body);
+}
+
+.notice {
   margin: 0;
-  color: color-mix(in srgb, var(--color-fog) 80%, transparent);
-  font-family: var(--font-utility);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-slate-muted);
   font-size: var(--field-font-size-compact);
 }
 
@@ -121,5 +167,17 @@
   .listItem {
     grid-template-columns: 1fr auto;
     align-items: start;
+  }
+
+  /* Tela cheia no celular (`web.md` §10); do tablet para cima, caixa com margem. */
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(46rem, 100%);
+    height: auto;
+    min-height: min(44rem, 100%);
+    max-height: min(48rem, 100%);
   }
 }

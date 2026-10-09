@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ConversationThreadProps } from '@adatechnology/conversations-ui/participant'
+
 import type { QuickReply, QuickReplyAudience } from './occurrenceConversation.types'
 
 /** O teto do texto, igual ao CHECK do banco e ao caso de uso da API (RF12). */
@@ -46,4 +48,18 @@ export function quickRepliesOf(
   return replies
     .filter((reply) => reply.audience === audience)
     .toSorted((left, right) => left.position - right.position)
+}
+
+type ThreadQuickReply = NonNullable<ConversationThreadProps['quickReplies']>[number]
+
+const THREAD_QUICK_REPLY_TITLE_MAX_LENGTH = 40
+
+/** As respostas ativas do público no formato dos chips do SDK; o atalho `/` não é usado aqui. */
+export function toThreadQuickReplies(replies: readonly QuickReply[]): ThreadQuickReply[] {
+  return replies.map((reply, index) => ({
+    body: reply.text,
+    id: reply.id,
+    shortcut: `reply-${index + 1}`,
+    title: reply.text.slice(0, THREAD_QUICK_REPLY_TITLE_MAX_LENGTH),
+  }))
 }

@@ -371,12 +371,15 @@ async function source(path: string): Promise<string> {
 }
 
 describe('a thread e as telas novas (spec 260 T3.2)', () => {
-  test('o fio novo anuncia mensagem nova em região polite, como o da ocorrência', async () => {
-    const thread = await source(
-      'occurrence-conversation/components/SubjectConversationThread.component.tsx',
+  test('o diálogo é o ConversationThread do SDK na visão do escritório, sem fio nem compositor próprios', async () => {
+    const panel = await source(
+      'occurrence-conversation/components/SubjectConversationPanel.component.tsx',
     )
-    expect(thread).toMatch(/aria-live="polite"/u)
-    expect(thread).toContain('countNewIncomingMessages')
+    expect(panel).toContain("from '@adatechnology/conversations-ui/participant'")
+    expect(panel).toContain('perspective="operator"')
+    expect(panel).toContain('headerActions=')
+    expect(panel).toContain('quickReplies={threadQuickReplies}')
+    expect(panel).not.toMatch(/<textarea|<form/u)
   })
 
   test('a leitura se atualiza a cada 15 s e ao voltar o foco, sem nunca devolver false', async () => {
@@ -391,8 +394,9 @@ describe('a thread e as telas novas (spec 260 T3.2)', () => {
       'occurrence-conversation/components/SubjectConversationAction.component.tsx',
       'occurrence-conversation/components/SubjectConversationDialog.component.tsx',
       'occurrence-conversation/components/SubjectConversationPanel.component.tsx',
-      'occurrence-conversation/components/SubjectConversationThread.component.tsx',
-      'occurrence-conversation/components/SubjectConversationComposer.component.tsx',
+      'occurrence-conversation/components/SubjectConversationTags.component.tsx',
+      'occurrence-conversation/components/SubjectThreadActions.component.tsx',
+      'occurrence-conversation/shared/useSubjectThread.hook.ts',
       'occurrence-conversation/components/TripConversationsPanel.component.tsx',
     ]
     for (const file of files) {

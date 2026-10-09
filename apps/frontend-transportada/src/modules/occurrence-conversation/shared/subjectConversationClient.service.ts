@@ -49,7 +49,7 @@ export type SubjectConversationClient = Readonly<{
       body: string
       idempotencyKey: string
     },
-  ) => Promise<void>
+  ) => Promise<null | OccurrenceConversationMessage>
 }>
 
 function includes<TValue extends string>(list: readonly TValue[], value: unknown): value is TValue {
@@ -181,11 +181,12 @@ export function createSubjectConversationClient(
       )
     },
     async sendMessage({ attachmentIds, body, idempotencyKey, ...subject }) {
-      await requestJson(dependencies, `${subjectPath(subject)}/messages`, {
+      const payload = await requestJson(dependencies, `${subjectPath(subject)}/messages`, {
         body: withAttachments({ body }, attachmentIds),
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })
+      return toMessage(readData(payload))
     },
   }
 }

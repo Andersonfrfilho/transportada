@@ -5,7 +5,6 @@ import { Icon } from '@/components/ui/icon'
 
 import type { SubjectConversationSummary } from '../shared/subjectConversation.types'
 import styles from '../styles/subjectConversation.module.css'
-import { SubjectConversationProtocol } from './SubjectConversationProtocol.component'
 
 /** Selos de canal (ícone e texto — a cor nunca fala sozinha) e o estado da conversa. */
 export function SubjectConversationTags({
@@ -24,24 +23,5 @@ export function SubjectConversationTags({
         {t(`status.${summary.status}`)}
       </li>
     </ul>
-  )
-}
-
-/** O cabeçalho da conversa: assunto, motorista, protocolo, canais e estado. */
-export function SubjectConversationHeader({
-  summary,
-}: Readonly<{ summary: SubjectConversationSummary }>) {
-  const { t } = useTranslation('subjectConversation')
-  return (
-    <header className={styles.header}>
-      <h3>{summary.subjectLabel}</h3>
-      <p className={styles.driver}>
-        {summary.driverName === null
-          ? t('panel.noDriverName')
-          : t('panel.driver', { name: summary.driverName })}
-      </p>
-      <SubjectConversationProtocol protocol={summary.protocol} />
-      <SubjectConversationTags summary={summary} />
-    </header>
   )
 }

@@ -8,7 +8,7 @@ import { countSubjectUnread } from '../shared/subjectConversation.service'
 import styles from '../styles/occurrenceConversation.module.css'
 import listStyles from '../styles/subjectConversation.module.css'
 import { SubjectConversationAction } from './SubjectConversationAction.component'
-import { SubjectConversationTags } from './SubjectConversationHeader.component'
+import { SubjectConversationTags } from './SubjectConversationTags.component'
 
 type TripConversationsPanelProps = Readonly<{
   canManage: boolean

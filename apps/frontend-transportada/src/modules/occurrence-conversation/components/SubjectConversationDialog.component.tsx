@@ -2,11 +2,10 @@
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { SubjectConversationRef } from '../shared/subjectConversation.types'
-import styles from '../styles/occurrenceConversation.module.css'
+import styles from '../styles/subjectConversation.module.css'
 import { SubjectConversationPanel } from './SubjectConversationPanel.component'
 
 type SubjectConversationDialogProps = Readonly<{
@@ -27,32 +26,21 @@ export function SubjectConversationDialog({
 }: SubjectConversationDialogProps) {
   const { t } = useTranslation('subjectConversation')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
-  const titleId = `subject-conversation-title-${subject.subjectType}-${subject.subjectId}`
 
   return createPortal(
     <div className={styles.overlay} onKeyDown={handleKeyDown} role="presentation">
       <div
-        aria-labelledby={titleId}
+        aria-label={t('dialog.title')}
         aria-modal="true"
         className={styles.dialog}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
-        <header className={styles.dialogHeader}>
-          <h2 id={titleId}>{t('dialog.title')}</h2>
-          <button
-            aria-label={t('dialog.close')}
-            className={styles.iconAction}
-            onClick={onClose}
-            type="button"
-          >
-            <Icon name="close" />
-          </button>
-        </header>
         <SubjectConversationPanel
           canManage={canManage}
           {...(companyId === undefined ? {} : { companyId })}
+          onClose={onClose}
           subject={subject}
           tripStatus={tripStatus}
         />

@@ -25,13 +25,11 @@
     "portal": "Portal"
   },
   "dialog": {
-    "title": "Conversa com o motorista",
-    "close": "Fechar a conversa"
+    "title": "Conversa com o motorista"
   },
   "panel": {
     "driver": "Motorista: {{name}}",
     "noDriverName": "Motorista da viagem",
-    "empty": "Nenhuma mensagem ainda. O que você escrever chega ao app do motorista.",
     "loading": "Carregando a conversa",
     "error": "Não foi possível carregar a conversa. Tente de novo em instantes.",
     "closedNotice": "Conversa encerrada. O histórico continua aqui, mas não dá para enviar mensagens.",
@@ -39,19 +37,54 @@
     "close": "Encerrar conversa",
     "closing": "Encerrando…",
     "reopen": "Reabrir conversa",
-    "reopening": "Reabrindo…"
+    "reopening": "Reabrindo…",
+    "closeShort": "Encerrar",
+    "reopenShort": "Reabrir",
+    "readOnlyNotice": "Você pode ler esta conversa, mas não enviar mensagens."
   },
   "thread": {
-    "newMessages_one": "{{count}} mensagem nova do motorista",
-    "newMessages_other": "{{count}} mensagens novas do motorista"
-  },
-  "composer": {
-    "message": "Mensagem ao motorista",
-    "send": "Enviar",
-    "sending": "Enviando…",
-    "error": {
-      "required": "Escreva uma mensagem ou anexe um arquivo.",
-      "tooLong": "A mensagem passou do tamanho permitido."
+    "labels": {
+      "attach": "Anexar",
+      "attachmentTooLarge": "Arquivo acima do tamanho permitido.",
+      "attachmentTypeNotAccepted": "Tipo de arquivo não aceito.",
+      "attachmentsList": "Anexos selecionados",
+      "back": "Fechar a conversa",
+      "channelApp": "App",
+      "channelEmail": "E-mail",
+      "channelPortal": "Portal",
+      "channelWebchat": "Chat da web",
+      "channelWhatsapp": "WhatsApp",
+      "channelsGroup": "Canais desta conversa",
+      "copyProtocol": "Copiar protocolo",
+      "copyValue": "Copiar",
+      "discard": "Descartar",
+      "downloadAttachment": "Baixar",
+      "edit": "Editar",
+      "externalLinkHint": "abre em nova aba",
+      "loadError": "Não foi possível carregar. Tente de novo.",
+      "loadMore": "Carregar mais",
+      "loadOlder": "Mensagens anteriores",
+      "loading": "Carregando…",
+      "me": "Escritório",
+      "messageInputLabel": "Mensagem ao motorista",
+      "messageInputPlaceholder": "Escreva ao motorista",
+      "newMessages": "Novas mensagens do motorista",
+      "notFound": "Conversa não encontrada.",
+      "protocolCopied": "Protocolo copiado",
+      "protocolPrefix": "Protocolo",
+      "quickRepliesGroup": "Respostas rápidas",
+      "removeAttachment": "Remover anexo",
+      "retry": "Reenviar",
+      "scrollToLatest": "Ir para a última mensagem",
+      "send": "Enviar",
+      "statusDelivered": "Entregue",
+      "statusFailed": "Falhou — toque para reenviar",
+      "statusFailedShort": "Falhou",
+      "statusQueued": "Na fila · envia quando a rede voltar",
+      "statusRead": "Lida pelo motorista",
+      "statusSending": "Enviando",
+      "statusSent": "Enviada",
+      "valueCopied": "Copiado"
     }
   },
   "error": {
@@ -60,10 +93,6 @@
     "noDriver": "A viagem não tem motorista com vínculo ativo; não há a quem escrever.",
     "notFound": "Esta conversa não pertence a esta viagem.",
     "driverChanged": "A conversa passou a outro motorista da viagem. Abra-a de novo para falar com ele."
-  },
-  "sendRecovery": {
-    "uploadExpired": "O envio do arquivo venceu. Toque em enviar de novo para subir outra vez.",
-    "alreadySent": "Esta mensagem já tinha sido enviada. Confira a conversa e envie de novo se precisar."
   },
   "list": {
     "title": "Conversas com o motorista",

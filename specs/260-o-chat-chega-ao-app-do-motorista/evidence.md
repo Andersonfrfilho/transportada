@@ -438,3 +438,24 @@ limpo · `bun run lint` 0 errors (16 warnings antigos) · prettier limpo.
 **Mutações.** Compositor sem o `QuickReplyPicker`: 1 fail no DOM e 1 no contrato de fonte. `AUDIENCES` sem `driver_reply`: 1 fail.
 Guarda do cliente sem `driver_reply`: 1 fail. (Primeira rodada do hooks falhou 2 testes por falta de `VITE_API_URL` quando o seletor
 passou a montar a consulta; resolvido dublando a consulta no teste.)
+
+## T5.2-B — Painel: o diálogo do escritório é o `ConversationThread` do SDK (D10)
+
+- **Bump:** os três apps em `@adatechnology/conversations-ui` 0.8.0 (commit `8c7c0a2f3`); typecheck dos três limpo. O painel ganhou `@adatechnology/conversation-contracts` 0.5.0
+  (só tipos) e importa `@adatechnology/conversations-ui/styles.css` no `main.tsx` (o painel não tinha; o pacote traz `:where(*){border-color}` de especificidade 0, sem outro seletor global).
+- **Tela:** `SubjectConversationPanel` renderiza `<ConversationThread perspective="operator">` (título, protocolo, canais, `counterpartLabel` = motorista,
+  `avatars="initials"`, chips das respostas `driver`, `status` closed sem compositor, `headerActions` = Encerrar/Reabrir em `SubjectThreadActions`, `onBack` = fechar).
+  Adaptador `subjectThreadApi.service.ts` sobre as rotas existentes (`GET/POST …/messages`, `…/messages/read`, `…/uploads`), chave `subject-message:<clientMessageId>`,
+  upload reaproveitado entre tentativas, `subscribe` a cada 15 s/foco. Removidos: Composer, Thread, Header (Tags ficou), `useSubjectMessagesQuery`, `useSendSubjectMessageMutation`, locales `composer.*`/`sendRecovery`/`panel.empty`.
+  Tema `--cv-p-*` nos tokens do painel; `--cv-p-highlight` opaco (12% cobre sobre o fundo), ticks em `--color-slate-muted` e azul misturado ao `--color-fog`.
+- **Contraste (medido, claro/escuro):** texto 9,5–13,8:1; texto discreto 5,3–7,0:1; link do acento sobre a bolha própria 4,62/5,21:1 (22% de cobre dava 4,04/4,36 e reprovava);
+  ticks 3,9–6,3:1; perigo 5,2–6,4:1.
+- **Testes:** `subject-thread-api.contract.ts` (novo, 8), `subject-conversation-action.contract.ts` (DOM: bolha `.cv-p-bubble--mine`, markRead, chips, closed, Encerrar/Reabrir),
+  `modal-dialog-fullscreen` (novo diálogo na lista). **Gates (cwd `apps/frontend-transportada`):** typecheck limpo; lint 0 errors (16 warnings antigos); `bun run test` 7866 pass/0 fail;
+  `test:hooks` 1248 pass/0 fail; prettier limpo.
+- **Mutações (cada correção arrancada falha o teste):** `perspective="participant"` (1 fail), `status` sempre open (2), sem chips (1), `markRead` no-op (2), chave sem prefixo (3),
+  `direction` invertida (2), destaque translúcido (1).
+- **Navegador (2026-10-09):** não há API de preview do painel (a real exige Postgres/Keycloak). Subi o diálogo isolado (harness descartável, removido) no Vite do painel com
+  `VITE_SMOKE_AUTH_BYPASS` e uma API fake das rotas do escritório: 3 bolhas `.cv-p-bubble--mine` (escritório) e a do motorista com avatar "MS"; ticks `cv-status-ticks--read/delivered/sent`
+  ("Lida pelo motorista"); tocar o chip preenche, Enviar posta uma vez (sem bolha duplicada); com mensagem do motorista não lida e aba visível, `POST …/messages/read` chamado 1 vez.
+  Prints 375 e desktop vistos. **Não verificado:** o painel real (TripDetail) e anexos/áudio no fio; a gravação de áudio do compositor antigo deixou de existir (o SDK só anexa arquivo).
