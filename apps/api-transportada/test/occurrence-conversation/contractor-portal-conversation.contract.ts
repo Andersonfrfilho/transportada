@@ -82,6 +82,9 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
     ],
   }
   const transaction: ContractorPortalConversationTransactionPort = {
+    async applyContractorReply(input) {
+      fake.calls.push({ input, name: 'applyContractorReply' })
+    },
     attachments: {
       attachUpload: async () => undefined,
       lockPendingUploads: async () => [],
@@ -262,6 +265,30 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
       companyId: COMPANY_ID,
       conversationId: CONVERSATION_ID,
       createdAt: NOW,
+    })
+  })
+
+  /** Spec 248 T4.5: a resposta pelo portal move o retorno na mesma transação, uma vez por mensagem nova. */
+  test('o envio aplica a resposta ao retorno com a mensagem gravada; o replay não aplica de novo', async () => {
+    const { fake, useCase } = createFake()
+    const send = () =>
+      useCase.send({
+        bodyText: 'Mandei a nota.',
+        context: CONTEXT,
+        idempotencyKey: 'portal-send-key-0001',
+        ref: REF,
+      })
+
+    await send()
+    await send()
+
+    const applied = fake.calls.filter((call) => call.name === 'applyContractorReply')
+    expect(applied).toHaveLength(1)
+    expect(applied[0]?.input).toEqual({
+      companyId: COMPANY_ID,
+      conversationId: CONVERSATION_ID,
+      messageId: 'message-internal-new',
+      now: NOW,
     })
   })
 
