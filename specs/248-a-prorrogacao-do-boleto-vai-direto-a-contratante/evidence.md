@@ -234,3 +234,11 @@ Execução vermelha (a política ainda não existe), de `apps/api-transportada`:
 `bun --env-file=../../.env.test test --timeout 120000 ./test/occurrence-conversation.contract.test.ts` →
 `error: Cannot find module '../../src/occurrence-conversation/domain/contractor-reply.policy.js'`, 0 pass, 1 fail, 1 error.
 O commit da T4.1 é vermelho de propósito (contrato antes do código); a T4.2 fecha.
+
+## T4.2 — `decideContractorReply` e `decideAlert` nas duas apps
+
+`src/occurrence-conversation/domain/contractor-reply.policy.ts` (cópia por valor idêntica na API e no worker, mais a cópia
+de `src/shared/occurrence-contractor-reply.constant.ts` no worker). Contrato da T4.1 verde: 319 pass na entrada
+`occurrence-conversation` da API. Gates: `bun run typecheck` e `bun run lint` exit 0 nas duas apps; contrato da API
+(`bun --env-file=../../.env.test test --timeout 120000`) 11087 pass, 0 fail; worker (`bun run test`) 2232 pass, 0 fail;
+prettier limpo.

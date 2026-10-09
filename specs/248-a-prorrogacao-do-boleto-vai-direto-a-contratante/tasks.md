@@ -61,7 +61,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 - [x] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
       0/1/N anexos, tipo pelos bytes, já entregue, cancelado, tratado; `decideAlert` (prazo,
       intervalo, teto, paradas).
-- [ ] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
+- [x] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
 - [ ] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
       alertar depois do teto; ler o modo do tipo em vez da cópia do retorno.
 - [ ] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
