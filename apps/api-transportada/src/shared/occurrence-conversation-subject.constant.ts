@@ -23,3 +23,7 @@ export const CLIENT_MESSAGE_ID_MIN_LENGTH = 16
 export const CLIENT_MESSAGE_ID_MAX_LENGTH = 256
 /** O limite de repetição do regex do Postgres é 255: o tamanho fica fora do padrão. */
 export const CLIENT_MESSAGE_ID_CHARACTERS_PATTERN = '^[A-Za-z0-9._:-]+$'
+
+/** ADR-0101 D5: o banco sorteia o sufixo; o TS só descreve o formato (sem I, L, O, 0 nem 1) e o contrato o prende ao SQL. */
+export const CONVERSATION_PROTOCOL_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+export const CONVERSATION_PROTOCOL_PATTERN = '^[0-9]{6}-[2-9A-HJKMNP-Z]{4}$'

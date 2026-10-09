@@ -32,6 +32,7 @@ import {
   CLIENT_MESSAGE_ID_CHARACTERS_PATTERN,
   CLIENT_MESSAGE_ID_MAX_LENGTH,
   CLIENT_MESSAGE_ID_MIN_LENGTH,
+  CONVERSATION_PROTOCOL_PATTERN,
   OCCURRENCE_CONVERSATION_SUBJECT,
   OCCURRENCE_CONVERSATION_SUBJECT_TYPES,
   type OccurrenceConversationSubjectType,
@@ -97,6 +98,11 @@ export const occurrenceConversations = pgTable(
     /** Spec 260: o vínculo nota-viagem (`trip_documents.id`) da conversa de nota. */
     tripDocumentId: uuid('trip_document_id'),
     participant: text().$type<OccurrenceConversationParticipant>().notNull(),
+    /**
+     * Spec 260 D8: `AAMMDD-XXXX`, gerado pelo trigger `BEFORE INSERT` e imutável (`BEFORE UPDATE`). O padrão
+     * `''` é só a sentinela que deixa o INSERT existente intocado: o CHECK o recusa e o trigger sempre o troca.
+     */
+    protocol: text().notNull().default(''),
     contractorId: uuid('contractor_id'),
     /** O usuário do motorista (vínculo ativo): é por ele que o app e o WhatsApp verificado chegam. */
     driverUserId: uuid('driver_user_id'),
@@ -122,6 +128,7 @@ export const occurrenceConversations = pgTable(
       table.participant,
     ),
     unique('occurrence_conversations_public_ref_unique').on(table.publicRef),
+    unique('occurrence_conversations_company_protocol_unique').on(table.companyId, table.protocol),
     uniqueIndex('occurrence_conversations_document_subject_unique')
       .on(table.companyId, table.tripDocumentId, table.participant)
       .where(
@@ -185,6 +192,10 @@ export const occurrenceConversations = pgTable(
       sql`(${table.subjectType} = 'occurrence' and ${table.occurrenceKind} is not null and ${table.occurrenceId} is not null and ${table.tripId} is null and ${table.tripDocumentId} is null)
         or (${table.subjectType} = 'document' and ${table.participant} = 'driver' and ${table.tripId} is not null and ${table.tripDocumentId} is not null and ${table.occurrenceKind} is null and ${table.occurrenceId} is null)
         or (${table.subjectType} = 'trip' and ${table.participant} = 'driver' and ${table.tripId} is not null and ${table.tripDocumentId} is null and ${table.occurrenceKind} is null and ${table.occurrenceId} is null)`,
+    ),
+    check(
+      'occurrence_conversations_protocol_check',
+      sql`${table.protocol} ~ ${sql.raw(`'${CONVERSATION_PROTOCOL_PATTERN}'`)}`,
     ),
     check(
       'occurrence_conversations_participant_check',
