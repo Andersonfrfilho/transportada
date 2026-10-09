@@ -355,8 +355,8 @@
     },
     "origin": {
       "typed": "Registered",
-      "imported": "Imported (FeriadosAPI)",
-      "rule": "Registered, every year",
+      "imported": "Imported",
+      "rule": "Registered",
       "unknown": "—",
       "unknownAria": "Origin not informed"
     }
