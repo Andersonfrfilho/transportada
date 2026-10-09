@@ -115,9 +115,14 @@ FK de `municipal_holidays.provider_entry_id` teria 67 bytes, acima dos 63 do Pos
   `…_attempts_check`, índice `holiday_provider_fetches_status_next_attempt_idx`.
 - `holiday_provider_entries` — `id`, `scope`, `ibge_code`, `holiday_on`, `name` (1 a 120 caracteres, o teto de
   `state_holidays_name_check`), `provider_type`, `external_id`, `is_banking`, `first_seen_at`, `last_seen_at`,
-  `removed_at`. Nomes: `holiday_provider_entries_scope_code_day_unique`, `…_scope_check`, `…_scope_code_check`,
-  `…_provider_type_check`, `…_name_check`. Duas entradas da mesma resposta na mesma `(scope, ibge_code, holiday_on)`
-  (um `FACULTATIVO` e um `MUNICIPAL` no mesmo dia): vence a não facultativa.
+  `removed_at`. Nomes: `holiday_provider_entries_scope_code_day_unique`, `…_id_code_day_unique` (`(id, ibge_code,
+holiday_on)`, o alvo da FK composta abaixo), `…_scope_check`, `…_scope_code_check`, `…_provider_type_check`,
+  `…_scope_type_check`, `…_name_check`. Duas entradas da mesma resposta na mesma `(scope, ibge_code, holiday_on)`
+  (um `FACULTATIVO` e um `MUNICIPAL` no mesmo dia): vence a não facultativa — o banco recusa a segunda (23505), seja qual
+  for o tipo ou o `external_id`. **O tipo combina com o escopo** (`…_scope_type_check`): `city` aceita `MUNICIPAL` e
+  `FACULTATIVO`, `state` aceita `ESTADUAL` e `FACULTATIVO`, `national` aceita `NACIONAL` e `FACULTATIVO`. O feriado
+  estadual que vem na resposta de uma **cidade** é gravado com `scope = 'state'` e a UF (os 2 primeiros dígitos do
+  código da cidade), nunca com o código da cidade.
 - `holiday_provider_monthly_usage` — `month` (`date`, sempre o dia 1º; chave primária), `requests`. Nomes:
   `holiday_provider_monthly_usage_month_check`, `…_requests_check`. O incremento é um **upsert** (`INSERT … VALUES
 ($m, 1) ON CONFLICT (month) DO UPDATE SET requests = requests + 1 WHERE requests < $budget RETURNING requests`): um
@@ -140,9 +145,12 @@ As três por empresa referenciam só `companies` (FK simples por `company_id`, c
 para outra tabela de tenant, então não há FK composta a criar.
 
 **Em tabelas já publicadas:** `municipal_holidays.provider_entry_id uuid null` e `state_holidays.provider_entry_id uuid
-null`, cada uma com FK simples para `holiday_provider_entries(id)` `ON DELETE RESTRICT` (o alvo é global, sem
-`company_id`; a entrada nunca é apagada, só ganha `removed_at`): `municipal_holidays_provider_entry_fk` e
-`state_holidays_provider_entry_fk`. CHECK `municipal_holidays_rule_or_provider_check` (`source_rule_id` e
+null`, cada uma com FK **composta** para `holiday_provider_entries(id, ibge_code, holiday_on)`: `municipal_holidays
+(provider_entry_id, city_ibge_code, holiday_on)` e `state_holidays (provider_entry_id, state_ibge_code, holiday_on)`,
+`MATCH SIMPLE` (sem `provider_entry_id` nada é conferido), `ON DELETE RESTRICT ON UPDATE RESTRICT` (o alvo é global, sem
+`company_id`; a entrada nunca é apagada, só ganha `removed_at`, e um UPDATE nela nunca move o feriado de uma empresa).
+Assim a linha importada **é** a data da entrada — uma linha estadual de SP não liga a entrada de Campinas, nem uma
+data trocada: `municipal_holidays_provider_entry_fk` e `state_holidays_provider_entry_fk` (23503). CHECK `municipal_holidays_rule_or_provider_check` (`source_rule_id` e
 `provider_entry_id` nunca os dois) e `state_holidays_provider_once_check` (importada só `once`, D6); índices parciais
 `municipal_holidays_provider_entry_idx` e `state_holidays_provider_entry_idx` (`provider_entry_id is not null`). O
 `ON CONFLICT` do estadual nomeia o predicado do único parcial `state_holidays_company_state_once_unique` (`WHERE
