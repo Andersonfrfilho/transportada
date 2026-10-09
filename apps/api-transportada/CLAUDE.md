@@ -82,6 +82,7 @@ em `municipal_holidays`/`state_holidays` (nunca junto com `source_rule_id`; no e
 `job_schedules`. O `rollback.sql` **recusa** com feriado importado, supressão ou execução aberta. ⚠️ A CHECK de `job` do schema
 vem do catálogo TS: o snapshot da migration já traz o nome novo, então o contrato `schema-snapshot` fica vermelho até a T2.3
 pôr `holiday.provider.pull` nas quatro cópias — a migration só vai ao ar com o catálogo. Detalhe: `specs/252-*/evidence.md` § T2.2.
+`nfe_addresses` tem índice `nfe_addresses_company_participant_idx (company_id, participant_id)` em migration **própria** (`20261009160300_nfe_addresses_participant_index`, só staging autorizada): a FK composta não indexa o lado filho. ⚠️ Em **produção**, criar o índice antes `CONCURRENTLY` à mão (a migration usa `IF NOT EXISTS`, recusa índice INVÁLIDO e vira no-op); o migrador roda em transação e não aceita `CONCURRENTLY`. Planos e passos: `specs/252-*/evidence.md` § "Índice de nfe_addresses".
 Gestão da importação (T4.1, ADR-0100 §4): a linha importada (`provider_entry_id` preenchido) **não é digitada**. `POST` na mesma data
 e `PATCH` de nome/tipo a **adotam** (zeram `provider_entry_id`; `isSameTypedHoliday` nunca vale para ela; estadual igual, `POST` devolve 200; **mudar a data**
 da estadual importada é `409 HOLIDAY_IMPORT_DATE_LOCKED`); `DELETE`

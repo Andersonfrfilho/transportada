@@ -827,7 +827,7 @@ Mesmo worktree e branch (`work/252-t3`). Postgres 18.4 **nativo** descartável n
 | lote com cursor `(updated_at, issued_at, id) > (...)`                                         | mesmo índice, `Index Cond: ROW(...) > ROW(...)`, 1.501 linhas, 24 buffers                                                            | 0,42 ms |
 | junção dos endereços do lote (`nfe_participants` ⋈ `nfe_addresses`, `document_id = ANY(...)`) | `nfe_participants_company_document_role_unique` por índice; **`Seq Scan on nfe_addresses`** filtrado por `company_id` (2.100 linhas) | 1,5 ms  |
 
-**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário.
+**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário. **Fechado depois:** índice criado em migration própria (só staging), com planos antes/depois em § "Índice de nfe_addresses"; o lote cheio de 2.000 continua varrendo.
 
 ### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim da 1ª rodada)
 
@@ -1402,6 +1402,10 @@ e dá número falso)**; se forem grandes, o `VALIDATE` da CHECK e qualquer índi
 app), o detalhe da viagem (`listStopAddresses`) e a descoberta do worker (T3.2: 1,5 ms por lote com 2.100 notas, medido só em teste). **Condição para o PR2/PR3:** `EXPLAIN (ANALYZE)` dos três em
 base de tamanho real, ou uma migration própria com `CREATE INDEX CONCURRENTLY` (fora de transação, em arquivo à parte do lote da 252). Sem a medida, a leitura do motorista é a que mais arrisca.
 
+**Atualização (2026-10-09, decisão do usuário "fecha as decisões abertas"): resolvida em staging, aberta em produção.** A migration própria existe
+(`20261009160300_nfe_addresses_participant_index`, autorizada **só para staging**) e a medida está em § "Índice de nfe_addresses" abaixo. **Condição para o PR2/PR3 em produção:** aprovação própria
+do usuário **e** o índice criado `CONCURRENTLY` à mão no banco de produção ANTES do PR da migration (passos em § "Índice de nfe_addresses" → "Produção"); a migration é então um no-op.
+
 ### Passos do USUÁRIO para ligar (nenhum é da IA)
 
 1. **Conta e chave na FeriadosAPI**, uma chave **por instalação** (o orçamento mora no banco de cada uma, ADR-0021; chave compartilhada divide os 60/min e a cota sem que um banco veja o outro).
@@ -1540,3 +1544,86 @@ transação e as consultas seguintes do detalhe falham do mesmo jeito que antes;
 **O que NÃO foi feito.** Push; o cartão de status (manchetes/cota); worker; migration; `make check`, `make migration-test`, `make smoke` completos; o botão "Desligar" das
 linhas IMPORTADAS da tabela (`HolidayTableRow`) segue sem o corte por data passada (a API devolve 409 e o texto dele já é dito; fora do que foi pedido); o `try/catch` do item 4
 dentro de transação de escrita (acima).
+
+## Índice de nfe_addresses (2026-10-09)
+
+Decisão do usuário "fecha as decisões abertas": a junção `nfe_participants` ⋈ `nfe_addresses` por `(company_id, participant_id)` fazia `Seq Scan` (T3.2) e é lida pela descoberta do worker, por
+`listStopAddresses` (detalhe da viagem) e pela junção do aviso do motorista (`drizzle-driver-stop-holiday-context.repository.ts`, em `GET /me/trips/current`). A FK composta
+`nfe_addresses_company_participant_fk` **não cria índice** no lado filho. Migration aditiva **própria**, autorizada **só para staging**.
+
+Branch `work/252-nfe-addresses-index` (a partir de `origin/staging` = `5bfc520a8`), sem push. Pasta `drizzle/20261009160300_nfe_addresses_participant_index/`: `migration.sql`, `rollback.sql`, `snapshot.json`
+(encadeado no de `holiday_provider_import`, timestamp posterior ao último de `origin/staging` na hora). Schema Drizzle: `index('nfe_addresses_company_participant_idx').on(companyId, participantId)` em `nfe.schema.ts`.
+
+### Escolha: (a) `CREATE INDEX` comum, e por quê
+
+O migrador (`runDatabaseMigrations` → `migrate()` do `drizzle-orm/bun-sql`) aplica **todas as pendentes numa transação só**. Provado, não suposto: com `CONCURRENTLY` na migration, o migrador falha com
+`CREATE INDEX CONCURRENTLY cannot run inside a transaction block` (mutação M4 abaixo, 23 testes de banco vermelhos). Nenhuma migration do repositório usa `CONCURRENTLY` (as que o citam, em comentário,
+dizem o mesmo). Não inventei mecanismo fora de transação. Logo (a), com a análise de lock no cabeçalho do `migration.sql`:
+
+- `SHARE` em `nfe_addresses` até o COMMIT do lote: leitura segue; INSERT/UPDATE/DELETE esperam (a importação de NF-e, `upload` e `distribution`). Nenhuma escrita do motorista toca esta tabela.
+- `SET LOCAL lock_timeout = '3s'` em volta (aborta em vez de enfileirar tráfego), devolvido ao padrão no fim da pasta.
+- **`IF NOT EXISTS`** para o caminho de produção abaixo, mais um **guarda**: se o índice existir **INVÁLIDO** (resto de um `CONCURRENTLY` interrompido), a migration aborta com mensagem, porque
+  `IF NOT EXISTS` casa pelo nome e aceitaria o índice quebrado calado.
+- Medido: `count(*)` = **201.000** linhas (heap 28 MB), `CREATE INDEX` em transação **203 ms**, índice **9.784 kB**; `CONCURRENTLY` (sem escrita concorrente) 214 ms.
+
+### Produção (NÃO feito; exige aprovação própria do usuário)
+
+1. Medir `select count(*) from nfe_addresses` no banco certo (`Postgres-Hqfu`; o serviço "Postgres" é outro e dá número falso). A construção é linear: ~1 ms por mil linhas nesta máquina; a de produção
+   é mais lenta (disco de rede, escrita concorrente).
+2. **Antes do PR que traz a migration**, criar o índice à mão, em autocommit, fora do migrador (não bloqueia escrita):
+   `CREATE INDEX CONCURRENTLY IF NOT EXISTS nfe_addresses_company_participant_idx ON nfe_addresses (company_id, participant_id);` — mesmo nome, mesmas colunas, sem `WHERE` (o contrato de banco confere a definição).
+3. Conferir: `select indisvalid from pg_index where indexrelid = 'nfe_addresses_company_participant_idx'::regclass;` deve dar `t`. Se `f`: `DROP INDEX CONCURRENTLY nfe_addresses_company_participant_idx;` e refazer o 2.
+4. A migration então vira no-op (só grava o journal). Reverter: `rollback.sql` (`DROP INDEX IF EXISTS`; nenhum dado se perde).
+
+### Volume sintético e planos (Postgres 18.4 nativo, `EXPLAIN (ANALYZE, BUFFERS)`, segunda execução = cache quente)
+
+Banco descartável migrado pelo próprio migrador até `holiday_provider_import`; 3 empresas, **67.000 notas, 201.000 `nfe_participants` e 201.000 `nfe_addresses`** (150 mil / 45 mil / 6 mil por empresa),
+4.000 paradas e 8.000 `trip_documents` na empresa grande. Divergência do pedido ("20 mil participantes"): `nfe_participants` é **por nota** (`unique (company_id, document_id, role)`), então
+3 participantes por nota e 1 endereço por participante é a razão do schema; manter 10 endereços por participante não existe no modelo. `vacuum analyze` antes de cada medida.
+
+| Consulta                                                         | Antes                                                                                                 | Depois                                                                                                         |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Q3 `GET /me/trips/current` (junção do aviso, 40 paradas)         | `Seq Scan on nfe_addresses` (150.000 linhas, 51.000 removidas), 4.179 buffers, **25,3 ms** (1ª: 32,5) | `Nested Loop` + `Index Scan using nfe_addresses_company_participant_idx`, 1.173 buffers, **1,75 ms** (1ª: 6,8) |
+| Q2 `listStopAddresses` (detalhe da viagem, 80 notas, 160 linhas) | `Parallel Seq Scan on nfe_addresses`, 4.554 buffers, **15,6 ms** (1ª: 41,5)                           | `Nested Loop` + `Index Scan` pelo índice novo, 942 buffers, **0,41 ms** (1ª: 1,3)                              |
+| Q1 descoberta do worker, lote de **2.000 notas** (4.000 linhas)  | `Parallel Seq Scan on nfe_addresses`, 6.735 buffers, **36,7 ms** (1ª: 157,8)                          | **inalterada: ainda `Parallel Seq Scan`**, 6.735 buffers, 19,7 ms (1ª: 46,5; diferença é ruído de cache)       |
+| Q1 com lote de 200 notas (400 linhas)                            | —                                                                                                     | `Nested Loop` + `Index Scan` pelo índice novo, 0,95 ms                                                         |
+
+**Q1 não mudou no lote cheio, e é honesto dizer.** Com 2.000 notas o planejador estima 4.000 buscas por índice (custo 15.862) contra uma junção por hash sobre a varredura (custo 10.943) e escolhe a
+varredura. Forçando o índice (`enable_seqscan/hashjoin/mergejoin = off`) o lote cheio roda em 9,8 ms quentes (255 ms na primeira, com 1.854 leituras) — o índice não piora nada e entra sozinho abaixo de
+algumas centenas de notas, mas **o lote de 2.000 do worker continua varrendo a empresa**. O teto de 20 lotes por empresa por ciclo diário limita o custo (≈ 0,4–0,7 s por empresa por dia nesta escala).
+Reduzir o lote para a faixa do índice, ou ajustar `random_page_cost` (padrão 4,0, pensado para disco giratório), são decisões separadas e **não foram tomadas**. O ganho é nas duas leituras que
+rodam com tráfego: o aviso do motorista (**25,3 → 1,75 ms**, 3,6x menos buffers) e o detalhe da viagem (**15,6 → 0,41 ms**). Resto no plano de Q3 fora desta task: `Seq Scan on trip_documents` (8.000 linhas,
+138 buffers) — não investigado, tabela pequena na amostra.
+
+### Gates (Postgres nativo 65447, descartável)
+
+| Gate                                                                                                                                                                                                                                                                                                                                                                                                                                              | Resultado                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `bun run typecheck` / `bun run lint` (cwd na app)                                                                                                                                                                                                                                                                                                                                                                                                 | exit 0 / exit 0 (`--max-warnings=0`)                               |
+| `bun --env-file=../../.env.test run test` (contratos da API)                                                                                                                                                                                                                                                                                                                                                                                      | **11.150 pass, 25 skip, 0 fail**                                   |
+| `bun run db:test` (`DRIZZLE_TEST_DATABASE_URL` no nativo)                                                                                                                                                                                                                                                                                                                                                                                         | **183 pass, 0 fail, 0 skip** — a asserção de banco do índice rodou |
+| `bun run db:generate`                                                                                                                                                                                                                                                                                                                                                                                                                             | `no_changes`; `db:check` "Everything's fine"                       |
+| Integrações da API, uma por vez, sem pular: `driver-stop-holiday-context` 3 · `driver-current-trip-holiday-warnings` 10 · `driver-holiday-independence` 1 · `holiday-warning-reader` 4 · `trip-detail-holiday-warnings` 10 · `trip-detail-query-count` 4 · `trip-occurrence-feed-document` 6 · `me-trip` 21 · `me-trip-departure` 12 · `holiday-import-municipal` 14 · `business-calendar-state-and-settings` 6 · `municipal-holiday-interplay` 6 | todas exit 0, 0 fail                                               |
+| Integração do worker `holiday-discovery` (`DATABASE_URL` num banco migrado)                                                                                                                                                                                                                                                                                                                                                                       | 6 pass, 0 fail                                                     |
+
+Contratos novos (vermelhos antes, commit `6720448de`): `nfe-addresses-participant-index.static.contract.ts` (nome ≤ 63 bytes, um só `CREATE INDEX IF NOT EXISTS` sem `CONCURRENTLY`, guarda de índice inválido,
+`lock_timeout` em volta, rollback só `DROP INDEX IF EXISTS` + journal com `ROW_COUNT`, schema TS declara o mesmo índice) e `nfe-addresses-participant-index.assertion.ts` (definição em `pg_indexes`, plano com as
+**duas** colunas no `Index Cond`, migration repetida sem erro, índice inválido recusado, rollback tira só ele e a migration reaplica; ligada em `database-migration.integration.ts`).
+
+### Mutações (cada uma em cópia do arquivo, restaurada por `cmp`; rodam o contrato estático e o `db:test`)
+
+| Mutação                                                   | Resultado                                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| M1 índice só com `("company_id")`                         | estático 1 fail; `db:test` 2 fail                                                          |
+| M2 nome com 84 bytes (acima dos 63 do Postgres)           | estático 1 fail; `db:test` 2 fail                                                          |
+| M3 sem `IF NOT EXISTS`                                    | estático 1 fail; `db:test` 2 fail                                                          |
+| M4 `CREATE INDEX CONCURRENTLY`                            | estático 1 fail; `db:test` **23 fail** (o migrador recusa dentro da transação)             |
+| M5 guarda de índice inválido neutralizado                 | estático 1 fail; `db:test` 2 fail                                                          |
+| M6 `DROP INDEX` sem `IF EXISTS` no rollback               | estático 1 fail; `db:test` 2 fail                                                          |
+| M7 índice removido do schema TS                           | 2 fail (estático + `schema-snapshot`, snapshot vs. schema); igual no `db:test`             |
+| M8 guarda `ROW_COUNT` do journal neutralizada no rollback | estático 1 fail; `db:test` 1 fail — **só o estático pega** (o banco nunca erra a contagem) |
+
+### O que NÃO foi feito
+
+Push; produção (nenhum passo acima foi executado nela); índice `CONCURRENTLY` à mão em staging (a migration comum bastou: tabela pequena e o migrador roda no deploy); mudança do tamanho do lote da descoberta
+ou de `random_page_cost`; investigação do `Seq Scan on trip_documents` do Q3; `make migration-test` pelo alvo do Makefile (rodei o corpo, `bun run db:test`, no Postgres nativo); `make check` completo.
