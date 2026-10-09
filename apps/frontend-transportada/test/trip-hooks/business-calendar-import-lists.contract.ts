@@ -37,10 +37,15 @@ const REMOVED = 'Removidos pelo fornecedor'
 const SUPPRESSIONS = 'Feriados desligados'
 const SUPPRESS_CALL = 'POST /holiday-imports/suppressions'
 
+/** Datas longe no futuro e no passado: a tela compara com o relógio real, e a lista não pode envelhecer. */
+const FUTURE_DAY = '2099-11-20'
+const PAST_DAY = '2020-11-20'
+const PAST_HOLIDAY_ID = '6f5cae40-3d9f-4ab2-87e8-9f4a1d3b2c53'
+
 function removedItem() {
   return {
     holidayId: REMOVED_HOLIDAY_ID,
-    holidayOn: '2026-11-20',
+    holidayOn: FUTURE_DAY,
     ibgeCode: '3509502',
     name: 'Consciência Negra',
     scope: 'city' as const,
@@ -52,7 +57,7 @@ function seedRemoved(truncated = false): void {
     {
       ...buildHoliday({
         cityIbgeCode: '3509502',
-        holidayOn: '2026-11-20',
+        holidayOn: FUTURE_DAY,
         id: REMOVED_HOLIDAY_ID,
         name: 'Consciência Negra',
       }),
@@ -87,7 +92,7 @@ describe('removidos pelo fornecedor (spec 252 T5.2)', () => {
     await waitFor(() => expect(sectionOf(REMOVED).querySelectorAll('li').length).toBe(1))
     const block = sectionOf(REMOVED).textContent ?? ''
     expect(block).toContain('Consciência Negra')
-    expect(block).toContain('20/11/2026')
+    expect(block).toContain('20/11/2099')
     expect(block).toContain('Cidade')
     expect(block).toContain('edite o nome ou o tipo na tabela')
     expect(block).not.toContain('Há mais datas removidas')
@@ -100,6 +105,26 @@ describe('removidos pelo fornecedor (spec 252 T5.2)', () => {
     await waitFor(() =>
       expect(sectionOf(REMOVED).textContent).toContain('Há mais datas removidas do que cabem'),
     )
+  })
+
+  it('data que já passou fica listada, mas sem "Desligar": a API recusaria com 409 (D7)', async () => {
+    seedRemoved()
+    businessCalendarDouble.importStatus = buildImportStatus({
+      removedByProvider: {
+        items: [
+          { ...removedItem(), holidayId: PAST_HOLIDAY_ID, holidayOn: PAST_DAY, name: 'Passada' },
+          removedItem(),
+        ],
+        truncated: false,
+      },
+    })
+    await mountPanel()
+
+    await waitFor(() => expect(sectionOf(REMOVED).querySelectorAll('li').length).toBe(2))
+    expect(sectionOf(REMOVED).textContent).toContain('Passada')
+    expect(sectionOf(REMOVED).textContent).toContain('20/11/2020')
+    expect(hasButtonIn(sectionOf(REMOVED), 'Desligar Passada')).toBe(false)
+    expect(hasButtonIn(sectionOf(REMOVED), 'Desligar Consciência Negra')).toBe(true)
   })
 
   it('"Desligar" pergunta antes; cancelar não chama a API', async () => {
