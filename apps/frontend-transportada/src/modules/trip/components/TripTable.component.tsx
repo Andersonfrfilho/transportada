@@ -92,7 +92,6 @@ export function TripTable({
     if (column === 'occupancy') return renderOccupancy(trip)
     if (column === 'result') return renderResult(trip)
     if (column === 'createdAt') return formatMoment(trip.createdAt)
-    if (column === 'updatedAt') return formatMoment(trip.updatedAt)
 
     return trip[column]
   }

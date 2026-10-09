@@ -61,7 +61,6 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
       'revenue',
       'result',
       'createdAt',
-      'updatedAt',
     ])
   })
 
@@ -168,7 +167,6 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
       'status',
       'occupancy',
       'createdAt',
-      'updatedAt',
     ])
     expect([...visibleTripColumns({ canReadFinancials: true })]).toEqual([...TRIP_COLUMN_KEYS])
   })

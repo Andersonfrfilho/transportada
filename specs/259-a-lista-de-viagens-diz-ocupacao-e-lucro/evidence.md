@@ -123,3 +123,8 @@
 - Contraste medido (composto sobre o fundo real): escuro ≥ 7,3:1 em todos os textos; claro ≥ 5,0:1; barra × pista 4,6:1 (claro) e 7,5:1 (escuro); prejuízo sai com a palavra "Prejuízo" e sinal, além do vermelho em negrito. `role=group` "Ocupação do veículo" com `progressbar` nomeado (Peso/Volume) e `aria-valuetext` completo; células sem foco próprio (nada novo a tabular).
 - **Pendência (decisão do usuário):** a tabela passou de 1035 px para 1398 px de largura mínima e o contêiner do painel tem 1206 px, então ela rola na horizontal dentro do wrapper (`overflow-x: auto`, a página não rola) em qualquer desktop. Quebrar datas, "Ganho" e "Ações" recupera só ~40 px das 192 que faltam. Caminhos: esconder "Atualizada em" por padrão, fundir "Valor da carga"/"Ganho" ao Resultado, ou alargar `--layout-width` nesta tela. A 375 px a tabela não vira cartão (como `cargo-receiving` faz): Ocupação fica a ~340 px de rolagem.
 - Gates (`apps/frontend-transportada`): `bun run test` → 7758 pass / 0 fail + `test:hooks` 1176 pass / 0 fail; `bun run typecheck` limpo; `eslint --max-warnings=0` e prettier limpos nos arquivos tocados.
+
+## Decisão do usuário: coluna "Atualizada em" sai da tabela, 2026-10-09
+
+- Resolve a pendência de largura da T4.1: `updatedAt` saiu de `TRIP_COLUMN_KEYS` (`tripTable.service.ts`), do `renderCell` e dos locales `columns.updatedAt` (pt-BR e en). O campo segue no tipo `Trip` e no parser (a API continua mandando). A lista de colunas é afirmada por igualdade exata em `amount-columns.contract.ts` (com e sem `trip.financials`).
+- Gates (`apps/frontend-transportada`): `bun run test` → 7758 pass / 0 fail + `bun run test:hooks` → 1176 pass / 0 fail; `bun run typecheck` limpo; `eslint --max-warnings=0` e prettier limpos nos arquivos tocados.
