@@ -3313,11 +3313,20 @@ specs/236-\*/evidence.md § T1.2e e § T1.3.
   `provider_entry_id IS NULL`.
 
 **Rotas** (`/holiday-imports`, `settings.manage` ler e escrever): `GET /status` (sem query: desconhecida é 400; `isEnabled`, `totalCities`, `pairs{done,failed,notCovered,
-pending,quotaExhausted,total}` dos pares cidade×ano do horizonte — ano corrente e seguinte, D8 —, `failures[{errorCode,pairs}]`,
-`lastFetchedAt`, `month`, `monthlyRequests`, `removedByProvider: { items[] (≤ 200), truncated }` com `holidayId`/`scope`/`ibgeCode`/`holidayOn`/`name`), `GET /cities?page&perPage`
+pending,planRestricted,quotaExhausted,total}` dos pares cidade×ano do horizonte — ano corrente e seguinte, D8 —, `failures[{errorCode,pairs}]`,
+`lastFetchedAt`, `lastRun: { outcome, finishedAt } | null`, `month`, `monthlyRequests`, `removedByProvider: { items[] (≤ 200), truncated }` com `holidayId`/`scope`/`ibgeCode`/`holidayOn`/`name`), `GET /cities?page&perPage`
 (padrão 1×50, teto 100; por `document_count` desc; cada cidade traz `years[]` com `status`/`attempts`/`errorCode`/`fetchedAt`/`nextAttemptAt`, ano sem
 linha no cache é `pending`), `GET /suppressions?page&perPage` (paginada como `/cities`), `POST /suppressions` (`{ holidayId, scope: 'city'|'state' }`, 201), `DELETE /suppressions/:id`
 (204; ausente ou de outra empresa é no-op, sem auditoria). Visões em lista branca (`holiday-import.schema.ts`); nada de id do cache.
+
+**`lastRun` e `planRestricted` (cartão de status honesto, 2026-10-09).** `lastRun` é o último ciclo ENCERRADO de `holiday.provider.pull` (`finished_at IS NOT NULL`, mais recente por
+`started_at`, índice `job_executions_job_started_at_idx`), de `holiday-import-last-run.query.ts`: só `outcome` (vocabulário do catálogo: `succeeded`, `provider_unreachable`,
+`provider_unauthorized`, `malformed_response`…) e `finishedAt`. É dado da INSTALAÇÃO, não da empresa: o ciclo agendado não tem `company_id`, e o manual de qualquer empresa também
+entra — por isso só o desfecho sai. A consulta fica **fora** das isentas do contrato de isolamento (`job_executions` não é o cache do fornecedor; o contrato prende a projeção a
+`outcome` e `finishedAt`) e, como a do contador do mês, na lista `SUPPORT_ONLY` de `tenant-safety.contract.ts`. `pairs.planRestricted` sai de `readFetchSummary` (a mesma agregação por
+status e código de erro, recortada pelas cidades da empresa): subconjunto de `failed`, então `pending` não o desconta duas vezes. Existe porque o cartão do painel dizia "aguardando"
+com o token errado (401 encerra o ciclo sem gravar nada no cache), e "token recusado" com o plano restrito em todas as cidades (o resumo do worker usa `provider_unauthorized`
+nesse caso). Constantes: `HOLIDAY_PROVIDER_PULL_JOB` e `HOLIDAY_PROVIDER_PLAN_RESTRICTED_ERROR_CODE` em `shared/holiday-provider.constant.ts`.
 
 **Isolamento da tabela global.** `holiday-import-status.query.ts` parte de `holiday_import_cities` (e das linhas da empresa para os
 removidos) e junta o cache; `holiday-import-usage.query.ts` lê o contador do mês (instalação, sem empresa) e é a única exceção ao

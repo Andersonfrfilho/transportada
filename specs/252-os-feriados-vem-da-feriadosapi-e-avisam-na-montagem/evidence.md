@@ -1458,7 +1458,8 @@ Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data pa
 
 1. **A manchete "Sem cota" do painel não aparece mais.** Ela nasce de `pairs.quotaExhausted > 0` (`holidayImportStatus.service.ts` 23), e a 2ª rodada da Fase 3 fez a cota esgotada **só encerrar o
    ciclo**, sem marcar par `quota_exhausted`. O status só traz `monthlyRequests`, não o orçamento. Decisão: expor o orçamento no status para a tela derivar o "sem cota", ou tirar a manchete.
-   Registrado em `docs/ai-context/frontend-transportada.md`.
+   Registrado em `docs/ai-context/frontend-transportada.md`. **Decidido pelo usuário em 2026-10-09 ("fecha as decisões abertas"): tirar a manchete e fazer o cartão dizer a verdade
+   pelo último ciclo da rotina — ver § "Cartão de status honesto".**
 2. **Ordem painel/API em produção:** resolvida no plano de três PRs acima.
 3. **`nfe_addresses` sem índice:** condição de promoção acima.
 4. **Textos de erro desatualizados, corrigidos aqui:** ADR-0100 §5, a linha de orçamento do `spec.md` e o bullet da T3.3 em `docs/ai-context/worker-transportada.md` ainda descreviam o desenho
@@ -1627,3 +1628,80 @@ Contratos novos (vermelhos antes, commit `6720448de`): `nfe-addresses-participan
 
 Push; produção (nenhum passo acima foi executado nela); índice `CONCURRENTLY` à mão em staging (a migration comum bastou: tabela pequena e o migrador roda no deploy); mudança do tamanho do lote da descoberta
 ou de `random_page_cost`; investigação do `Seq Scan on trip_documents` do Q3; `make migration-test` pelo alvo do Makefile (rodei o corpo, `bun run db:test`, no Postgres nativo); `make check` completo.
+
+## Cartão de status honesto (2026-10-09, branch `work/252-status` sobre `origin/staging`)
+
+Decisão do usuário ("fecha as decisões abertas"). Problema, vindo da revisão final: (a) token errado (401 encerra o ciclo sem gravar nada em `holiday_provider_fetches`) deixava o cartão em
+"Aguardando a primeira execução"; (b) a manchete "Cota do fornecedor esgotada" ficou inalcançável (a rotina não grava mais `quota_exhausted`, e a API nem conhece o orçamento, que é env do
+worker); (c) plano restrito em TODAS as cidades fecha o ciclo como `provider_unauthorized` ("token recusado"), mas o problema é o plano.
+
+### O que mudou
+
+| Onde       | Mudança                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API        | `GET /holiday-imports/status` ganha `lastRun: { outcome, finishedAt } \| null` (último ciclo ENCERRADO de `holiday.provider.pull`, de `job_executions`, só desfecho do catálogo e data) e `pairs.planRestricted` (pares da empresa com `provider_plan_restricted`, subconjunto de `failed`). Consulta nova `holiday-import-last-run.query.ts`; nenhuma tabela, nenhuma migration                                                                                                                                   |
+| Isolamento | A consulta de `job_executions` fica FORA das isentas do contrato do cache global; o contrato prende a projeção a `outcome` e `finishedAt` e proíbe o cache nela; `SUPPORT_ONLY` do `tenant-safety.contract.ts` ganha o arquivo (o ciclo agendado não tem empresa)                                                                                                                                                                                                                                                  |
+| Painel     | A manchete sai de `lastRun.outcome`: `provider_unauthorized` → "Fornecedor recusou o acesso: token inválido ou plano sem cobertura" (+ conferir chave e plano, ver Operações); `provider_unreachable` → "Fornecedor indisponível, tentando de novo"; `malformed_response` → "Resposta inesperada do fornecedor" (avisar o suporte). `waiting` manda conferir em Operações se a rotina está pausada ou sem token. Par fora do plano é aviso à parte e não bloqueia o "Em dia". Linha "Último ciclo da rotina: data" |
+| Painel     | A manchete `quota` (código morto) saiu do código, do locale (pt/en), do CSS e dos testes                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Guardas    | `lastRun` e `pairs.planRestricted` entram como OPCIONAIS (`hasKeys` com `allowed`/`required`); chave desconhecida segue recusada. Ausentes = comportamento de antes                                                                                                                                                                                                                                                                                                                                                |
+
+**Prioridade da manchete:** desligada → desfecho do último ciclo (os três de fornecedor) → falha por par → aguardando → em dia. Os outros desfechos (`succeeded`, `cancelled`, `abandoned`, `unexpected_error`,
+qualquer novo) não mandam na manchete. Par fora do plano, quando a API manda a contagem, sai da lista de falhas e do contador "Com falha".
+
+### Ordem de publicação (nesta task não se publicou nada)
+
+**Painel antes da API.** O painel publicado hoje tem chaves EXATAS em `status` (`holidayImportGuards.validation.ts`) e recusaria a resposta com `lastRun`/`planRestricted` (a aba cairia em "resposta fora do
+formato"). O painel desta branch aceita os campos como opcionais; depois dele a API pode subir. Em produção vale a mesma regra do `origin` (`deploy-frontend` tem `needs: deploy-api`: o painel vai num PR antes).
+
+### Commits (cada um com caminhos explícitos, `--no-verify`)
+
+| Passo                                          | SHA         |
+| ---------------------------------------------- | ----------- |
+| API, teste vermelho                            | `e97ba0ed9` |
+| API, exceção do `tenant-safety` (teste)        | `e755f0a2f` |
+| API, código                                    | `da7750b56` |
+| Painel, teste vermelho                         | `3f6349610` |
+| Painel, código                                 | `0f78685f2` |
+| Painel, asserção sem `toBeNull()` em nó do DOM | `fe79e5e53` |
+| Prints (smoke)                                 | `fdebb8d55` |
+
+### Gates (Postgres NATIVO descartável na 65446, apagado ao fim; cwd nas apps)
+
+- API: `tsc` exit 0; `eslint` exit 0 (`--max-warnings=0`); `bun --env-file=../../.env.test run test` **11174 pass / 1 skip / 0 fail** (208 arquivos; antes 11170: +2 de rota, +2 de isolamento); integrações, cada uma
+  sozinha, **0 fail, 0 skip**: `holiday-import-status` 14 (antes 10, +4), `holiday-import-suppressions` 11, `holiday-import-municipal` 14, `holiday-import-state` 12, `holiday-origin` 5;
+  `db:generate` `{"status":"no_changes"}`.
+- Painel: `tsc` exit 0; `eslint` 0 erros (16 avisos preexistentes em arquivos que esta task não toca; os arquivos tocados passam com `--max-warnings=0`); `bun run test` **7816 pass + 1242 pass / 0 fail**
+  (antes 7799 + 1233); `test:hooks` **13 execuções, 13 verdes, 1242 pass / 0 fail em cada** (10 normais + 3 sob carga de CPU, um `yes` por núcleo, 11 núcleos).
+- Raiz: `bun run format:check` exit 0 ("All matched files use Prettier code style!"), com o `prettier --write` dos `.md` tocados antes.
+
+### Mutações (cada uma em cópia, restaurada; `git status` limpo no código depois)
+
+API (11, scripts no scratchpad): sem filtro de job (2 vermelhos), aceita ciclo aberto (1), ordem ascendente (1), `planRestricted` conta todo `failed` (2), código de plano errado (1), repositório sem `lastRun` (1), visão perde
+`lastRun` (2), visão perde `planRestricted` (1), visão vaza `counters` (1), consulta projeta coluna a mais (1), `status.query` passa a ler `job_executions` (1). **11 de 11 mortas.**
+
+Painel (15): guarda sem a chave opcional `lastRun` (6 no contrato), `lastRun` sem checar o desfecho (1), `planRestricted` sem checar tipo (1), guarda sem a chave opcional `planRestricted` (7), recusa do ciclo não manda
+na manchete (3 + DOM), empresa desligada não vence (2 + DOM), par fora do plano segue na lista (2 + DOM), contador de falha sem descontar o plano (2 + DOM), espera vence a recusa (1 + DOM), indisponível mapeado como recusa
+(1 + DOM), aviso com a empresa desligada (DOM), aviso com zero (DOM), cartão sem a linha do último ciclo (DOM), fato "Com falha" sem descontar o plano (DOM), título do token trocado no locale (1 + DOM). **15 de 15 mortas.**
+⚠️ Um primeiro lote de mutações deu "0 vermelhos" no DOM em duas delas: não era sobrevivência, era o Bun caindo (SIGTRAP, rc 133, sem relatório) ao imprimir um nó do happy-dom numa asserção `toBeNull()` que falha. As
+asserções passaram a contar (`querySelectorAll(...).length`) e o script de mutação passou a acusar "PROCESSO CAIU".
+
+### Prints (tela só sobe com o print aprovado pelo usuário)
+
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-252-status/` (fora do repositório): 8 telas × 375/768/1280 ×
+claro/escuro = 48 PNG — `importacao-em-dia`, `importacao-rotina-pausada`, `importacao-token-recusado`, `importacao-fornecedor-indisponivel`, `importacao-resposta-inesperada`, `importacao-com-falhas`,
+`importacao-fora-do-plano`, `importacao-desligada`. Build real com `VITE_SMOKE_AUTH_BYPASS`, `vite preview` do binário da app na porta 53420 (conferida livre antes e o PID morto ao fim), API dublada, dado fictício; o
+smoke passou os 126 testes (estouro horizontal, recorte, contraste ≥ mínimo e alvos de toque em 375). O cenário "sem cota" do smoke foi trocado pelos quatro novos. A tela `importacao-erro` não mudou e não foi regerada.
+
+### Decisões e lacunas (para o usuário)
+
+- **Palavra do aviso de plano.** O pedido dizia "N cidades fora do plano contratado", mas `pairs.planRestricted` conta PARES (cidade e ano; o horizonte tem dois anos): uma cidade restrita contaria 2. A tela diz
+  "N buscas (cidade e ano) fora do plano contratado" para não mentir no número. Trocar é uma linha de locale (`import.status.planRestricted_*`) — mas contar cidades distintas exigiria outra consulta na API.
+- **`lastRun` é da instalação.** O ciclo manual de qualquer empresa entra, e só `outcome` + `finishedAt` saem. Rotina pausada depois de um ciclo recusado continua mostrando a recusa até o próximo ciclo (a data do ciclo
+  aparece na tela, então a leitura continua honesta).
+- **`pairs.quotaExhausted` continua no contrato e na lista de fatos** ("Sem cota: N" só aparece se houver par nesse estado; hoje nenhum é gravado). Só a MANCHETE saiu.
+- Desfechos `cancelled`, `abandoned` e `unexpected_error` do último ciclo não têm manchete própria (caem na de antes); `unexpected_error` em produção seria lacuna de vocabulário a nomear na rotina.
+
+### O que NÃO foi feito
+
+Push; publicação de qualquer coisa; worker (o resumo `provider_unauthorized` para plano restrito total continua como está — o texto do painel cobre as duas causas); migration; `make check`, `make migration-test` e
+`make smoke` completos; smoke Playwright do app do motorista; a tela de erro do status; tarefa de produção.

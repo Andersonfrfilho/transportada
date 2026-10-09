@@ -1519,8 +1519,17 @@ apagar a digitada de hoje em diante também a suprime.
 
 ✅ **A API manda `origin` nas listas desde 2026-10-09** (`c315477a3`, publicada depois deste painel): o guarda aceita a chave **opcional** (`hasKeys`) e nunca amplia o conjunto de chaves aceitas além de
 `origin`; sem a chave a célula continua em branco. ⚠️ "Rotina pausada" não existe no status da importação: a manchete é "Aguardando a primeira execução". `/holiday-imports/cities` não tem tela.
-⚠️ **A manchete "Sem cota" hoje não aparece:** ela vem de `pairs.quotaExhausted > 0`, e a rotina, desde a 2ª rodada da Fase 3, não grava mais `quota_exhausted` (orçamento esgotado só encerra o
-ciclo). O consumo do mês aparece em "Requisições do mês". Decisão pendente da revisão final: a API expor o orçamento (o status só traz `monthlyRequests`) para a tela derivar o "sem cota", ou remover a manchete.
+✅ **Cartão de status honesto (decidido pelo usuário em 2026-10-09; `evidence.md` § "Cartão de status honesto").** A manchete "Sem cota" saiu (a rotina não grava mais
+`quota_exhausted` e a API nem conhece o orçamento, que é env do worker; o consumo continua em "Requisições do mês"). Quem decide a manchete é `resolveHeadline` em
+`holidayImportStatus.service.ts`, por prioridade: empresa desligada → `lastRun.outcome` (`provider_unauthorized` = "Fornecedor recusou o acesso: token inválido ou plano sem
+cobertura", `provider_unreachable` = "Fornecedor indisponível, tentando de novo", `malformed_response` = "Resposta inesperada do fornecedor"; os outros desfechos —
+`succeeded`, `cancelled`, `abandoned`, `unexpected_error` e qualquer um novo — não mandam) → falha por par → "Aguardando a primeira execução" → "Em dia". O texto de "waiting" manda
+conferir em Operações se a rotina está pausada ou sem token. **Par fora do plano é aviso, não falha:** `pairs.planRestricted > 0` mostra o bloco
+`[data-warning="plan-restricted"]` ("N buscas (cidade e ano) fora do plano contratado" — a contagem é de PARES, então a frase não diz "cidades"), tira
+`provider_plan_restricted` da lista de falhas e do contador "Com falha", e não impede o "Em dia" das demais. Quem não manda a contagem (API anterior) mantém o comportamento de antes.
+⚠️ **`lastRun` e `pairs.planRestricted` são OPCIONAIS nas guardas** (`hasKeys` com `allowed`/`required`; chave desconhecida segue recusada): o painel publicado antes desta
+mudança tem chaves EXATAS e recusaria o status novo. **Ordem de publicação: painel, depois API.** A linha "Último ciclo da rotina" só aparece com `lastRun` não nulo.
+⚠️ Teste de DOM: **nunca `expect(node).toBeNull()`** — o Bun cai (SIGTRAP, sem relatório) ao imprimir um elemento do happy-dom numa asserção que falha; conte (`querySelectorAll(...).length`).
 
 **Montagem** (`modules/trip`): `holidayWarningPlan.service.ts` (`planDayChecks`, `matchDayCheckWarnings`, `toSaoPauloCivilDate`, teto `DAY_CHECKS_MAX_ITEMS = 200`),
 `solverHolidayWarnings.service.ts` (a pergunta e `isFinishCovered`: o término só deixa de avisar o feriado nacional quando a última parada foi conferida),
