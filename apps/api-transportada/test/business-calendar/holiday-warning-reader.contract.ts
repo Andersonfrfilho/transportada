@@ -17,6 +17,7 @@ import { createRecordingSelectExecutor } from '../fixtures/recording-select-exec
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const CAMPINAS = '3509502'
+const REFERENCE_YEAR = 2026
 const SANTOS = '3548500'
 /** Sete dígitos no padrão do município, mas a UF `34` não existe. */
 const UNKNOWN_STATE_CITY = '3400000'
@@ -27,6 +28,15 @@ const IMPORTED_ROW = {
   name: 'Aniversário de Campinas',
   providerEntryId: '22222222-2222-4222-8222-222222222222',
   sourceRuleId: null,
+}
+
+function importedOn(holidayOn: string, entryNumber: number) {
+  return {
+    ...IMPORTED_ROW,
+    holidayOn,
+    name: `Feriado de ${holidayOn}`,
+    providerEntryId: `22222222-2222-4222-8222-${String(entryNumber).padStart(12, '0')}`,
+  }
 }
 
 function recorder(rows: readonly unknown[] = []) {
@@ -61,6 +71,7 @@ describe('spec 252 T4.2 — o custo do aviso é fixo e em série', () => {
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [],
     })
 
@@ -75,10 +86,12 @@ describe('spec 252 T4.2 — o custo do aviso é fixo e em série', () => {
 
     await readHolidayWarnings(small.executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [item(CAMPINAS, '2026-07-14')],
     })
     await readHolidayWarnings(large.executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: cities.flatMap((city) =>
         ['2026-07-14', '2026-07-15', '2026-08-03'].map((date) => item(city, date)),
       ),
@@ -95,6 +108,7 @@ describe('spec 252 T4.2 — o custo do aviso é fixo e em série', () => {
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [
         { ...item(CAMPINAS, '2026-07-14'), cityName: 'Campinas' },
         item(CAMPINAS, '2026-07-15'),
@@ -121,6 +135,7 @@ describe('spec 252 T4.2 — o calendário que a 236 já carregou não se carrega
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [item(CAMPINAS, '2026-10-20'), item(CAMPINAS, '2027-03-02')],
       knownCalendars: known,
     })
@@ -137,6 +152,7 @@ describe('spec 252 T4.2 — o calendário que a 236 já carregou não se carrega
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [item(CAMPINAS, '2026-10-20'), item(SANTOS, '2026-07-14')],
       knownCalendars: known,
     })
@@ -156,6 +172,7 @@ describe('spec 252 T4.2 — o calendário que a 236 já carregou não se carrega
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [item(CAMPINAS, '2026-07-14')],
       knownCalendars: known,
     })
@@ -171,6 +188,7 @@ describe('spec 252 T4.2 — calendário recusado não derruba o resto', () => {
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
+      referenceYear: REFERENCE_YEAR,
       items: [item(UNKNOWN_STATE_CITY, '2026-07-14'), item(CAMPINAS, '2026-07-14')],
     })
 
@@ -178,16 +196,72 @@ describe('spec 252 T4.2 — calendário recusado não derruba o resto', () => {
     expect([...result.warnings.keys()]).toEqual([`${CAMPINAS}:2026-07-14`])
   })
 
-  test('datas que a cobertura de cinco anos não alcança são recusa tipada, não aviso nem erro solto', async () => {
-    const { executor } = recorder()
+  test('uma ETA de 2031 misturada a uma normal não derruba a leitura: a normal ainda avisa (T6.1b)', async () => {
+    const { executor, stats } = recorder([IMPORTED_ROW, importedOn('2031-07-14', 1)])
 
     const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
       companyId: COMPANY_ID,
-      items: [item(CAMPINAS, '2026-07-14'), item(CAMPINAS, '2040-07-14')],
+      items: [item(CAMPINAS, '2026-07-14'), item(CAMPINAS, '2031-07-14')],
+      referenceYear: REFERENCE_YEAR,
     })
 
-    expect(result.refusals.get(CAMPINAS)).toBe('BUSINESS_CALENDAR_COVERAGE_TOO_WIDE')
+    expect(result.refusals.size).toBe(0)
+    expect([...result.warnings.keys()]).toEqual([`${CAMPINAS}:2026-07-14`])
+    expect(stats.queryCount).toBe(4)
+  })
+
+  test('o absurdo de uma cidade não tira o aviso de outra cidade da mesma leitura (T6.1b)', async () => {
+    const { executor } = recorder([IMPORTED_ROW, { ...IMPORTED_ROW, cityIbgeCode: SANTOS }])
+
+    const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
+      companyId: COMPANY_ID,
+      items: [item(SANTOS, '2040-07-14'), item(CAMPINAS, '2026-07-14')],
+      referenceYear: REFERENCE_YEAR,
+    })
+
+    expect(result.refusals.size).toBe(0)
+    expect([...result.warnings.keys()]).toEqual([`${CAMPINAS}:2026-07-14`])
+  })
+
+  test('a janela vai de um ano atrás a dois adiante: 2025 e 2028 entram, 2024 e 2029 não (T6.1b)', async () => {
+    const { executor, stats } = recorder([
+      importedOn('2025-07-14', 1),
+      importedOn('2028-07-14', 2),
+      importedOn('2024-07-15', 3),
+      importedOn('2029-07-16', 4),
+    ])
+
+    const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
+      companyId: COMPANY_ID,
+      items: [
+        item(CAMPINAS, '2024-07-15'),
+        item(CAMPINAS, '2025-07-14'),
+        item(CAMPINAS, '2028-07-14'),
+        item(CAMPINAS, '2029-07-16'),
+      ],
+      referenceYear: REFERENCE_YEAR,
+    })
+
+    expect(result.refusals.size).toBe(0)
+    expect([...result.warnings.keys()].sort()).toEqual([
+      `${CAMPINAS}:2025-07-14`,
+      `${CAMPINAS}:2028-07-14`,
+    ])
+    expect(stats.queryCount).toBe(4)
+  })
+
+  test('só itens fora da janela: nada é carregado (T6.1b)', async () => {
+    const { executor, stats } = recorder()
+
+    const result = await readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
+      companyId: COMPANY_ID,
+      items: [item(CAMPINAS, '2040-07-14'), item(CAMPINAS, '2010-07-14')],
+      referenceYear: REFERENCE_YEAR,
+    })
+
+    expect(stats.queryCount).toBe(0)
     expect(result.warnings.size).toBe(0)
+    expect(result.refusals.size).toBe(0)
   })
 
   test('falha do banco propaga: o chamador decide se derruba a leitura', async () => {
@@ -196,6 +270,7 @@ describe('spec 252 T4.2 — calendário recusado não derruba o resto', () => {
     await expect(
       readHolidayWarnings(executor as BusinessCalendarRulesExecutor, {
         companyId: COMPANY_ID,
+        referenceYear: REFERENCE_YEAR,
         items: [item(CAMPINAS, '2026-07-14')],
       }),
     ).rejects.toThrow('DB_DOWN')
