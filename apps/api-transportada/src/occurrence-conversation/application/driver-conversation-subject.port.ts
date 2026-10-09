@@ -124,6 +124,14 @@ export type DriverSubjectTransactionPort = {
     readonly conversationId: string
     readonly driverUserId: string
   }): Promise<Date | null>
+  /**
+   * Spec 260 (T5.5): em lote, o `read_at` mais recente de um usuário do ESCRITÓRIO cuja leitura alcança
+   * alguma mensagem do motorista, por conversa; sem leitura dessas, a conversa não entra no mapa. Uma consulta.
+   */
+  readOfficeReadAtByConversation(input: {
+    readonly companyId: string
+    readonly conversationIds: readonly string[]
+  }): Promise<ReadonlyMap<string, Date>>
   /** Em ordem crescente; `before` é o id da mensagem mais antiga que o app já tem. */
   listSubjectMessages(input: {
     readonly before: null | string

@@ -73,6 +73,7 @@ type Calls = { name: string; input: unknown }[]
 function createFake(state: {
   readonly hasMore?: boolean
   readonly messages?: readonly SubjectMessageRecord[]
+  readonly officeReadAt?: ReadonlyMap<string, Date>
   readonly officeReadHorizon?: Date | null
   readonly rows?: readonly SubjectConversationRow[]
   readonly subject?: MyConversationSubject | null
@@ -96,6 +97,10 @@ function createFake(state: {
     listSubjectMessages: async (input) => {
       calls.push({ input, name: 'listSubjectMessages' })
       return state.messages ?? []
+    },
+    readOfficeReadAtByConversation: async (input) => {
+      calls.push({ input, name: 'readOfficeReadAtByConversation' })
+      return state.officeReadAt ?? new Map()
     },
     readOfficeReadHorizon: async (input) => {
       calls.push({ input, name: 'readOfficeReadHorizon' })
@@ -144,6 +149,27 @@ describe('a lista de conversas por assunto (spec 260 T2.4)', () => {
       },
     ])
     expect(result.nextCursor).toBeNull()
+  })
+
+  test('officeReadAt: presente só na conversa que o escritório leu; uma consulta em lote para a página', async () => {
+    const OTHER_CONVERSATION_ID = '00000000-0000-4000-8000-000000260008'
+    const readAt = new Date('2026-10-09T14:30:00.000Z')
+    const fake = createFake({
+      officeReadAt: new Map([[CONVERSATION_ID, readAt]]),
+      rows: [row(), row({ conversationId: OTHER_CONVERSATION_ID })],
+    })
+    const { data } = await createListMySubjectConversationsUseCase({
+      clock: () => NOW,
+      unitOfWork: fake.unitOfWork,
+    }).list({ ...IDENTITY, cursor: null })
+    expect(data[0]).toMatchObject({ officeReadAt: '2026-10-09T14:30:00.000Z' })
+    expect(data[1]).not.toHaveProperty('officeReadAt')
+    const batchCalls = fake.calls.filter((call) => call.name === 'readOfficeReadAtByConversation')
+    expect(batchCalls).toHaveLength(1)
+    expect(batchCalls[0]?.input).toEqual({
+      companyId: COMPANY_ID,
+      conversationIds: [CONVERSATION_ID, OTHER_CONVERSATION_ID],
+    })
   })
 
   test('baixar é entregar, só para as conversas da página', async () => {
@@ -230,6 +256,16 @@ describe('abrir a conversa por assunto (spec 260 D4)', () => {
       subjectType: 'document',
       tripId: TRIP_ID,
     })
+  })
+
+  test('o resumo do open também traz o officeReadAt quando o escritório leu', async () => {
+    const readAt = new Date('2026-10-09T14:45:00.000Z')
+    const read = await open(
+      createFake({ officeReadAt: new Map([[CONVERSATION_ID, readAt]]), subject: subject() }),
+    )
+    expect(read.summary.officeReadAt).toBe('2026-10-09T14:45:00.000Z')
+    const unread = await open(createFake({ subject: subject() }))
+    expect(unread.summary).not.toHaveProperty('officeReadAt')
   })
 
   test('ocorrência não se abre pelo motorista: 400 antes de tocar o banco', async () => {

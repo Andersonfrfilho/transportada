@@ -34,9 +34,15 @@ export function createListMySubjectConversationsUseCase(dependencies: {
           conversationIds: page.rows.map((row) => row.conversationId),
           incoming: 'delivered',
         })
+        const officeReadAt = await transaction.readOfficeReadAtByConversation({
+          companyId: input.companyId,
+          conversationIds: page.rows.map((row) => row.conversationId),
+        })
         const last = page.rows.at(-1)
         return {
-          data: page.rows.map(toSubjectConversationSummary),
+          data: page.rows.map((row) =>
+            toSubjectConversationSummary(row, officeReadAt.get(row.conversationId)),
+          ),
           nextCursor:
             page.hasMore && last !== undefined
               ? encodeKeysetCursor({ createdAt: last.sortAt, id: last.conversationId })

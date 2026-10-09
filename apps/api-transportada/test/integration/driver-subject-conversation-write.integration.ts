@@ -93,7 +93,7 @@ describe('a escrita da conversa por assunto do motorista contra Postgres (spec 2
           channel: 'app',
           clientMessageId: KEY,
           direction: 'inbound',
-          status: null,
+          status: 'delivered',
         })
         const tripSent = await harness.reply.reply({
           ...actor,

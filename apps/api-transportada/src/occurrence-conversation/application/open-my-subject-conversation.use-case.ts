@@ -66,7 +66,14 @@ export function createOpenMySubjectConversationUseCase(dependencies: {
         })
         const row = page.rows[0]
         if (row === undefined) throw new Error('subject conversation was not readable after open')
-        return { created: conversation.created, summary: toSubjectConversationSummary(row) }
+        const officeReadAt = await transaction.readOfficeReadAtByConversation({
+          companyId: input.companyId,
+          conversationIds: [row.conversationId],
+        })
+        return {
+          created: conversation.created,
+          summary: toSubjectConversationSummary(row, officeReadAt.get(row.conversationId)),
+        }
       }),
   }
 }

@@ -161,6 +161,7 @@ function createWorld(state: {
     listMySubjects: async () => ({ hasMore: false, rows: [] }),
     listSubjectMessages: async () => [],
     readOfficeReadHorizon: async () => null,
+    readOfficeReadAtByConversation: async () => new Map(),
   }
 
   const oldPort: DriverConversationTransactionPort = {
@@ -512,6 +513,7 @@ describe('o pedido de upload por assunto (spec 260 T2.4)', () => {
             listMySubjects: async () => ({ hasMore: false, rows: [] }),
             listSubjectMessages: async () => [],
             readOfficeReadHorizon: async () => null,
+            readOfficeReadAtByConversation: async () => new Map(),
           }),
       },
     })

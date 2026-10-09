@@ -3563,3 +3563,7 @@ As mensagens do motorista (`inbound`, status nulo no banco) chegavam ao app como
 `/me/trips/current/conversations/**` o `status` agora é derivado na leitura: `delivered` (dois ticks cinza) ou `read` (azul, quando um usuário do
 escritório — não o motorista da conversa — tem em `occurrence_conversation_reads` uma leitura que alcança a mensagem, por `created_at`).
 Uma consulta por página (`readOfficeReadHorizon`), sem migration. Detalhe em `specs/260-*/api-contract.md` § "Estados de entrega".
+
+T5.5: o resumo da lista (`GET /me/trips/current/conversations`) e o do `/open` trazem `officeReadAt` (ISO, ausente se ninguém do escritório leu até uma
+mensagem do motorista), em lote por página (`readOfficeReadAtByConversation`, lista constante em 5 consultas). O app compara no refresh de 15 s para
+refazer a conversa aberta quando o escritório lê; as rotas antigas da 183 não mudam.

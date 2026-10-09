@@ -181,6 +181,47 @@ async function readOfficeReadHorizon(
   return row?.horizon ?? null
 }
 
+async function readOfficeReadAtByConversation(
+  transaction: Transaction,
+  input: Parameters<DriverSubjectTransactionPort['readOfficeReadAtByConversation']>[0],
+): Promise<ReadonlyMap<string, Date>> {
+  if (input.conversationIds.length === 0) return new Map()
+  const reads = occurrenceConversationReads
+  const readMessage = alias(occurrenceConversationMessages, 'office_read_message')
+  const rows = await transaction
+    .select({ conversationId: reads.conversationId, readAt: max(reads.readAt) })
+    .from(reads)
+    .innerJoin(
+      occurrenceConversations,
+      and(
+        eq(occurrenceConversations.companyId, reads.companyId),
+        eq(occurrenceConversations.id, reads.conversationId),
+      ),
+    )
+    .innerJoin(
+      readMessage,
+      and(eq(readMessage.companyId, reads.companyId), eq(readMessage.id, reads.lastReadMessageId)),
+    )
+    .where(
+      and(
+        eq(reads.companyId, input.companyId),
+        inArray(reads.conversationId, [...input.conversationIds]),
+        ne(reads.userId, occurrenceConversations.driverUserId),
+        sql`exists (select 1 from occurrence_conversation_messages driver_message
+          where driver_message.company_id = ${reads.companyId}
+            and driver_message.conversation_id = ${reads.conversationId}
+            and driver_message.direction = 'inbound'
+            and driver_message.created_at <= ${readMessage.createdAt})`,
+      ),
+    )
+    .groupBy(reads.conversationId)
+  const horizons = new Map<string, Date>()
+  for (const found of rows) {
+    if (found.readAt !== null) horizons.set(found.conversationId, found.readAt)
+  }
+  return horizons
+}
+
 export function createDriverSubjectTransactionPort(
   transaction: Transaction,
 ): DriverSubjectTransactionPort {
@@ -191,6 +232,7 @@ export function createDriverSubjectTransactionPort(
     listAttachments: (input) => readConversationAttachments(transaction, input),
     listMySubjects: (input) => listSubjectConversationRows(transaction, input),
     readOfficeReadHorizon: (input) => readOfficeReadHorizon(transaction, input),
+    readOfficeReadAtByConversation: (input) => readOfficeReadAtByConversation(transaction, input),
     async listSubjectMessages(input) {
       const messages = occurrenceConversationMessages
       const olderThanBefore =

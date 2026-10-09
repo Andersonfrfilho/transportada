@@ -150,3 +150,12 @@ cinza — a empresa a registrou) ou `'read'` (dois ticks azuis — algum usuári
 uuid). A mensagem `outbound` segue com o status que já tem. Sem coluna nem migration: uma consulta em lote por página
 (`readOfficeReadHorizon`, o `max(created_at)` das mensagens lidas por usuários que não são o motorista). O `POST` devolve `'delivered'`.
 Política pura: `domain/driver-own-message-status.policy.ts`.
+
+### `officeReadAt` no resumo da conversa (T5.5)
+
+O resumo de `GET /me/trips/current/conversations` e o de `POST …/conversations/open` ganham o campo opcional `officeReadAt` (ISO): o `read_at` mais
+recente de um usuário do **escritório** (diferente do `driver_user_id` da conversa) cuja leitura alcança alguma mensagem `inbound` do motorista
+(`created_at` da mensagem lida >= o de alguma `inbound`). Ausente quando ninguém do escritório leu até uma mensagem do motorista. É a pista para o
+app refazer a conversa **aberta**: ler não muda `lastMessageAt` nem `unreadCount`, então sem ele o ✓✓ azul só apareceria ao recarregar. Uma consulta
+em lote para a página inteira (`readOfficeReadAtByConversation`; a lista segue em 5 consultas com 1, 10 ou 30 conversas), sem migration. Aditivo: as
+rotas antigas da 183 e o schema do pacote de contratos não o conhecem; o app só o usa no snapshot do refresh de 15 s.

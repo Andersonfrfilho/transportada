@@ -410,4 +410,66 @@ describe('a conversa por assunto do motorista contra Postgres (spec 260 T2.4)', 
     },
     90_000,
   )
+  testWithPostgres(
+    'officeReadAt na lista: só leitura do escritório que alcança mensagem do motorista (T5.5)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { company } = seeded
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const actor = {
+          companyId: company.companyId,
+          driverId: company.firstDriverId,
+          driverUserId,
+        }
+        const harness = createSubjectHarness(database.db)
+        const tripId = await firstTripOf(database.db, company)
+        await harness.open.open({ ...actor, subjectId: tripId, subjectType: 'trip' })
+        const [conversation] = await database.db
+          .select({ id: occurrenceConversations.id })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.subjectType, 'trip'))
+        if (conversation === undefined) throw new Error('EXPECTED_CONVERSATION')
+        const base = {
+          conversationId: conversation.id,
+          driverUserId,
+          operatorUserId: company.userId,
+        }
+        const at = (minutes: number) => new Date(Date.UTC(2026, 9, 9, 12, minutes))
+        const officeMessage = await insertSubjectMessage(database.db, {
+          ...base,
+          body: 'escritório',
+          createdAt: at(1),
+          direction: 'outbound',
+        })
+        const driverMessage = await insertSubjectMessage(database.db, {
+          ...base,
+          body: 'motorista',
+          createdAt: at(2),
+          direction: 'inbound',
+        })
+        const officeReadAtOf = async () =>
+          (await harness.list.list({ ...actor, cursor: null })).data[0]?.officeReadAt
+        const markRead = (userId: string, lastReadMessageId: string, readAt: Date) =>
+          database.db.insert(occurrenceConversationReads).values({
+            companyId: company.companyId,
+            conversationId: conversation.id,
+            lastReadMessageId,
+            readAt,
+            userId,
+          })
+        expect(await officeReadAtOf()).toBeUndefined()
+        await markRead(driverUserId, driverMessage, at(5))
+        expect(await officeReadAtOf()).toBeUndefined()
+        await markRead(company.userId, officeMessage, at(6))
+        expect(await officeReadAtOf()).toBeUndefined()
+        await database.db
+          .update(occurrenceConversationReads)
+          .set({ lastReadMessageId: driverMessage, readAt: at(7) })
+          .where(eq(occurrenceConversationReads.userId, company.userId))
+        expect(await officeReadAtOf()).toBe(at(7).toISOString())
+      })
+    },
+    90_000,
+  )
 })

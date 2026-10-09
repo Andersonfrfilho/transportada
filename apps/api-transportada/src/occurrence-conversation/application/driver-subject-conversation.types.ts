@@ -23,6 +23,8 @@ export type DriverSubjectConversationSummary = {
   readonly lastMessageAt: string | null
   readonly lastMessageDirection?: 'inbound' | 'outbound'
   readonly lastMessagePreview?: string
+  /** Quando o escritório leu até uma mensagem do motorista; o app compara para refazer a conversa aberta. */
+  readonly officeReadAt?: string
   readonly protocol: string
   readonly status: EffectiveConversationStatus
   readonly subjectId: string
@@ -39,6 +41,7 @@ export type DriverSubjectMessage = Omit<SubjectMessageRecord, 'createdAt'> & {
 
 export function toSubjectConversationSummary(
   row: SubjectConversationRow,
+  officeReadAt?: Date,
 ): DriverSubjectConversationSummary {
   const status = resolveEffectiveConversationStatus(row)
   return {
@@ -52,6 +55,7 @@ export function toSubjectConversationSummary(
     ...(row.lastMessagePreview === null || row.lastMessagePreview === ''
       ? {}
       : { lastMessagePreview: row.lastMessagePreview }),
+    ...(officeReadAt === undefined ? {} : { officeReadAt: officeReadAt.toISOString() }),
     protocol: row.protocol,
     status,
     subjectId: row.subjectId,
