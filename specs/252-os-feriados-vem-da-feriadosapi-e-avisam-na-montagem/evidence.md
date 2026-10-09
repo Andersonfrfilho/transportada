@@ -762,6 +762,7 @@ de casos de uso, de `countPendingPairs` e de isolamento vermelhos pelo formato n
 ### O que ficou de fora
 
 Rotas de `is_enabled`; a medida do teto agregado (L6); a agulha do contrato de isolamento da nota e o aviso do motorista (T4.3); worker (T3); telas; sem push.
+
 ## T3.1 — cliente HTTP da FeriadosAPI (2026-10-09)
 
 Executor `sonnet`, worktree isolado, branch `work/252-t3` a partir de `origin/staging` (migration `20261009040622_holiday_provider_import` e catálogo de jobs já nele). Sem push. Nenhum teste chama a internet: o cliente recebe `fetch` e o token por injeção, e os testes usam respostas fixas (`test/fixtures/feriados-api.fixture.ts`, no formato da documentação pública). **Nenhuma resposta real da FeriadosAPI foi vista** — as lacunas estão abaixo.
@@ -1075,4 +1076,11 @@ contador `requests` da execução, e `national_mismatch` maior que zero é esper
   mais 30 novas, uma por correção). Duas precisaram de teste na rodada: o disjuntor não zerava com outro erro (`S16`, caso do 404 de cidade) e uma
   mutação ficou ambígua pelo texto (`R1`, refeita). A `P19` (marcar a cota por par) foi removida de propósito: é o comportamento que o item 7 aboliu.
   Árvore restaurada ao fim de cada rodada.
-- Gates: ver o fechamento no relato (typecheck, lint, `bun run test`, integrações uma por vez, `bun run build`, `format:check` na raiz).
+- **Gates depois do `git fetch` + `git rebase origin/staging`** (a staging andou com a T4.1, a T4.2 e a revisão da T4; conflitos só de
+  texto em `evidence.md` e `tasks.md`, resolvidos mantendo os dois lados; `bun install --frozen-lockfile` sem mudança): `tsc --noEmit` exit 0;
+  `eslint src test --max-warnings=0` exit 0; `bun run test` **2312 pass, 0 fail** em 103 arquivos; `bun run build` exit 0; `format:check` na raiz verde;
+  integração contra Postgres 18.4 nativo (65442, migrado de novo pela API), um arquivo por vez, **0 skip**: `holiday-discovery` 6, `holiday-fetch` 8,
+  `holiday-apply` 12, `route-optimization-municipal-holiday` 15, `job-run-execution` 11.
+- **Achado fora do escopo, corrigido para o gate fechar:** a T4.2 acrescentou `readStopCityCode` a `stop-address-key.ts` da API e a cópia por valor do worker
+  (`routing/domain/pool-address-key.ts`, com contrato de paridade) ficou para trás, derrubando `routing.contract.test.ts` em staging. Espelhei a
+  função (8 linhas, commit separado `077d036c6`). Quem mexer na chave de parada da API precisa copiar para o worker no mesmo commit.

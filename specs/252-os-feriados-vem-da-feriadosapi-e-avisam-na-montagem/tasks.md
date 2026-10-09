@@ -128,7 +128,9 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       requisições. (CA3, CA7) **Feita em 2026-10-09** (`d7b7fd062` contratos e integração
       vermelhos, `e98589cb4` código, `524643828` e `3380298b3` reforços): CA3 e CA7 provados com relógio injetado e contra
       Postgres (ciclo repetido = 0 requisições e 0 escritas por `xmin`), 23 mutações vermelhas, orçamento por upsert
-      (`UPDATE` cru derruba 7 testes); `evidence.md` § T3.3.
+      (`UPDATE` cru derruba 7 testes); `evidence.md` § T3.3. **2ª rodada (revisão `opus`, 2026-10-09):** 404 de contrato,
+      `Retry-After` domado, corpo com teto, controle removido, disjuntor, `provider_plan_restricted` por par e **cota
+      esgotada que só encerra o ciclo** (sem `quota_exhausted` por par) — `evidence.md` § "2ª rodada da Fase 3".
 - [x] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
 CONFLICT` sobre o predicado do único parcial `once`), só datas
       `>=` hoje em São Paulo (D7), nacional só paridade (`national_mismatch`), facultativo só no cache, `removed_at`
