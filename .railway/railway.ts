@@ -165,6 +165,10 @@ export default defineRailway((ctx) => {
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
+      /** Spec 252: orçamento de requisições do mês (vazio vale 4500). Só o worker lê. */
+      FERIADOS_API_MONTHLY_REQUEST_BUDGET: preserve(),
+      /** Spec 252: token da FeriadosAPI — passo do usuário; sem ele a rotina não é registrada. Só o worker lê. */
+      FERIADOS_API_TOKEN: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),
       /** `${{api.GOOGLE_MAPS_API_KEY}}` no painel (8551016e) — referência, não cópia do segredo. */

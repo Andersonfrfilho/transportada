@@ -5,6 +5,12 @@ export const HOLIDAY_PROVIDER_PULL_JOB = 'holiday.provider.pull'
 
 export const FERIADOS_API_BASE_URL = 'https://feriadosapi.com'
 
+/**
+ * Padrão de `FERIADOS_API_MONTHLY_REQUEST_BUDGET`: o limite do plano Developer (5.000 consultas por mês)
+ * menos 10% de folga. O plano e o valor são a Q3 da spec 252, ainda em aberto: o usuário configura.
+ */
+export const FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET = 4500
+
 /** O máximo que a documentação aceita em `limit`. */
 export const FERIADOS_API_PAGE_SIZE = 100
 
