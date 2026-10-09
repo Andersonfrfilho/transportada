@@ -24,12 +24,24 @@ export const HOLIDAY_FETCH_FAILURE_CODES = [
   'provider_unreachable',
 ] as const
 
+/** O par que o plano contratado não cobre: sai da lista de falhas e vira aviso à parte. */
+export const HOLIDAY_PLAN_RESTRICTED_CODE = 'provider_plan_restricted'
+
 export const HOLIDAY_IMPORT_HEADLINE = {
   DISABLED: 'disabled',
   FAILING: 'failing',
   HEALTHY: 'healthy',
-  QUOTA: 'quota',
+  MALFORMED: 'malformed',
+  UNAUTHORIZED: 'unauthorized',
+  UNREACHABLE: 'unreachable',
   WAITING: 'waiting',
+} as const
+
+/** O desfecho de falha do último ciclo da rotina (vocabulário do catálogo) e a manchete que ele ganha. */
+export const HOLIDAY_RUN_FAILURE_HEADLINE = {
+  malformed_response: HOLIDAY_IMPORT_HEADLINE.MALFORMED,
+  provider_unauthorized: HOLIDAY_IMPORT_HEADLINE.UNAUTHORIZED,
+  provider_unreachable: HOLIDAY_IMPORT_HEADLINE.UNREACHABLE,
 } as const
 
 export const HOLIDAY_PROVENANCE = {

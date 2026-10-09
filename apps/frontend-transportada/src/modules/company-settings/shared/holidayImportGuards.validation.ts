@@ -1,10 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+import { hasExactKeys, hasKeys } from '@/modules/shared/objectKeys.service'
 
 import { isNullableString, isNumber, isString } from './businessCalendarGuards.validation'
 import { HOLIDAY_IMPORT_SCOPES } from './holidayImport.constant'
 import type {
   HolidayImportFailure,
+  HolidayImportLastRun,
   HolidayImportPairCounts,
   HolidayImportRemoved,
   HolidayImportRemovedList,
@@ -26,7 +27,10 @@ const STATUS_KEYS = [
   'removedByProvider',
   'totalCities',
 ] as const
+const OPTIONAL_STATUS_KEYS = ['lastRun'] as const
 const PAIR_KEYS = ['done', 'failed', 'notCovered', 'pending', 'quotaExhausted', 'total'] as const
+const OPTIONAL_PAIR_KEYS = ['planRestricted'] as const
+const LAST_RUN_KEYS = ['finishedAt', 'outcome'] as const
 const FAILURE_KEYS = ['errorCode', 'pairs'] as const
 const REMOVED_LIST_KEYS = ['items', 'truncated'] as const
 const REMOVED_KEYS = ['holidayId', 'holidayOn', 'ibgeCode', 'name', 'scope'] as const
@@ -45,8 +49,21 @@ function isEveryItem<TItem>(
   return Array.isArray(value) && value.every(guard)
 }
 
+/** Os campos do cartão honesto são opcionais: o painel é publicado antes da API, e a chave ausente vale como antes. */
 function isPairCounts(value: unknown): value is HolidayImportPairCounts {
-  return hasExactKeys(value, PAIR_KEYS) && PAIR_KEYS.every((key) => isNumber(value[key]))
+  const allowed = [...PAIR_KEYS, ...OPTIONAL_PAIR_KEYS]
+  return (
+    hasKeys(value, { allowed, required: PAIR_KEYS }) &&
+    allowed.every((key) => !(key in value) || isNumber(value[key]))
+  )
+}
+
+function isLastRun(value: unknown): value is HolidayImportLastRun {
+  return hasExactKeys(value, LAST_RUN_KEYS) && isString(value.finishedAt) && isString(value.outcome)
+}
+
+function isOptionalLastRun(value: Record<string, unknown>): boolean {
+  return !('lastRun' in value) || value.lastRun === null || isLastRun(value.lastRun)
 }
 
 function isFailure(value: unknown): value is HolidayImportFailure {
@@ -74,7 +91,8 @@ function isRemovedList(value: unknown): value is HolidayImportRemovedList {
 
 export function isHolidayImportStatus(value: unknown): value is HolidayImportStatus {
   return (
-    hasExactKeys(value, STATUS_KEYS) &&
+    hasKeys(value, { allowed: [...STATUS_KEYS, ...OPTIONAL_STATUS_KEYS], required: STATUS_KEYS }) &&
+    isOptionalLastRun(value) &&
     isEveryItem(value.failures, isFailure) &&
     typeof value.isEnabled === 'boolean' &&
     isNullableString(value.lastFetchedAt) &&

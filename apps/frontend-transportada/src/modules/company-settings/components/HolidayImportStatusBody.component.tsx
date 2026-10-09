@@ -10,6 +10,8 @@ import styles from '../styles/holidayImport.module.css'
 const PROGRESS_LABEL_ID = 'holiday-import-progress-label'
 const PAIR_KEYS = ['pending', 'failed', 'notCovered', 'quotaExhausted'] as const
 
+type PairFact = (typeof PAIR_KEYS)[number]
+
 type HolidayImportStatusBodyProps = Readonly<{ status: HolidayImportStatus }>
 
 /**
@@ -23,6 +25,13 @@ export function HolidayImportStatusBody({ status }: HolidayImportStatusBodyProps
     done: view.progress.done,
     total: view.progress.total,
   })
+  const pairFacts: Readonly<Record<PairFact, number>> = {
+    failed: view.failedPairs,
+    notCovered: status.pairs.notCovered,
+    pending: status.pairs.pending,
+    quotaExhausted: status.pairs.quotaExhausted,
+  }
+  const hasPlanWarning = status.isEnabled && view.planRestrictedPairs > 0
 
   return (
     <div aria-label={t('import.status.title')} className={styles.statusCard} role="group">
@@ -30,6 +39,12 @@ export function HolidayImportStatusBody({ status }: HolidayImportStatusBodyProps
         {t(`import.status.headline.${view.headline}`)}
       </p>
       <p className={businessCalendarStyles.hint}>{t(`import.status.explain.${view.headline}`)}</p>
+      {hasPlanWarning ? (
+        <div className={styles.warning} data-warning="plan-restricted">
+          <p>{t('import.status.planRestricted', { count: view.planRestrictedPairs })}</p>
+          <p className={businessCalendarStyles.hint}>{t('import.status.planRestrictedHint')}</p>
+        </div>
+      ) : null}
       <p className={businessCalendarStyles.hint} id={PROGRESS_LABEL_ID}>
         {progressText}
       </p>
@@ -50,11 +65,21 @@ export function HolidayImportStatusBody({ status }: HolidayImportStatusBodyProps
                 }),
               })}
         </li>
+        {view.lastRunFinishedAt === null ? null : (
+          <li>
+            {t('import.status.lastRun', {
+              date: formatInstantDateTime({
+                language: i18n.language,
+                value: view.lastRunFinishedAt,
+              }),
+            })}
+          </li>
+        )}
         <li>{t('import.status.cities', { count: status.totalCities })}</li>
         <li>{t('import.status.monthlyRequests', { count: status.monthlyRequests })}</li>
-        {PAIR_KEYS.filter((key) => status.pairs[key] > 0).map((key) => (
+        {PAIR_KEYS.filter((key) => pairFacts[key] > 0).map((key) => (
           <li key={key}>
-            {t(`import.status.pairs.${key}`)}: {status.pairs[key]}
+            {t(`import.status.pairs.${key}`)}: {pairFacts[key]}
           </li>
         ))}
       </ul>

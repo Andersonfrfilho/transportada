@@ -278,20 +278,28 @@
       "headline": {
         "healthy": "Em dia",
         "waiting": "Aguardando a primeira execução",
-        "quota": "Cota do fornecedor esgotada",
+        "unauthorized": "Fornecedor recusou o acesso: token inválido ou plano sem cobertura",
+        "unreachable": "Fornecedor indisponível, tentando de novo",
+        "malformed": "Resposta inesperada do fornecedor",
         "failing": "Com falhas",
         "disabled": "Desligada para esta empresa"
       },
       "explain": {
         "healthy": "A rotina diária buscou os feriados das cidades acompanhadas.",
-        "waiting": "A rotina diária ainda não buscou nada. Se ela estiver pausada, retome-a em Operações.",
-        "quota": "A cota mensal do fornecedor acabou. As buscas voltam no dia 1º do mês.",
+        "waiting": "A rotina diária ainda não buscou nada. Em Operações, confira se ela está pausada ou sem token.",
+        "unauthorized": "O fornecedor recusou o último ciclo da rotina. Confira a chave configurada e o plano contratado no fornecedor; em Operações, veja se a rotina está pausada ou sem token.",
+        "unreachable": "O fornecedor não respondeu no último ciclo. A rotina tenta de novo sozinha no próximo ciclo; nada precisa ser feito agora.",
+        "malformed": "O fornecedor respondeu num formato que a rotina não entende e nada foi gravado. O contrato pode ter mudado: avise o suporte.",
         "failing": "Algumas buscas falharam. A rotina tenta de novo sozinha, com intervalo crescente.",
         "disabled": "Esta empresa não participa da importação: nada é buscado nem gravado."
       },
       "progress": "{{done}} de {{total}} buscas concluídas",
       "lastFetched": "Última busca: {{date}}",
       "neverFetched": "Nenhuma busca feita ainda.",
+      "lastRun": "Último ciclo da rotina: {{date}}",
+      "planRestricted_one": "{{count}} busca (cidade e ano) fora do plano contratado",
+      "planRestricted_other": "{{count}} buscas (cidade e ano) fora do plano contratado",
+      "planRestrictedHint": "O plano do fornecedor não cobre estas cidades. As demais continuam sendo buscadas; só uma mudança de plano resolve.",
       "cities": "Cidades acompanhadas: {{count}}",
       "monthlyRequests": "Requisições do mês (toda a instalação): {{count}}",
       "pairs": {
