@@ -177,3 +177,28 @@ Decisões:
 Gates: `bun run typecheck` ok; `bun run db:generate` → `no_changes`; `bun run db:check` ok;
 `bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts` → 128 pass, 0 fail;
 `make migration-test` (Docker disponível) → 169 pass, 0 fail (apply, rollback e reapply da migration).
+
+## T3.2 — Integração da migration contra o Postgres real
+
+`test/database-migration/occurrence-contractor-reply-constraints.assertion.ts` (orquestra), `-type.assertion.ts`,
+`-rows.assertion.ts` e `.fixture.ts`, chamado de `database-migration.integration.ts` logo antes do rollback da mesma migration.
+
+- Padrões: a migration é desfeita, um tipo é gravado **sem** as colunas novas, a migration é reaplicada, e as 13 colunas
+  têm o padrão literal (sem `UPDATE`). O literal vive no teste, não é lido da constante.
+- Tipo: 22 casos recusados, cada um com o **nome** da CHECK (vocabulários, faixas 1–168 / 15–1440 / 1–96, 1000/200/4000
+  caracteres, `requires_mail`, `alert_wait`, `forward_automatic_needs_reply` — inclusive `automatic` com modo `off` —,
+  `forward_needs_text`) e 15 aceitos nas bordas.
+- Retorno: `handled ⇔ autor e nota` (quatro formas), `reason`, `config`, `alert_count`, nota 1–500; unicidade por ocorrência.
+- Entregas: vocabulários, `address` só em e-mail e até 254, `sent ⇔ sent_at`, `operator ⇔ actor_user_id`, chave vazia,
+  unicidade `(company_id, idempotency_key)`.
+- Eventos: vocabulários, `system ⇔ sem ator`, `UPDATE` e `DELETE` recusados (55000, linha intacta).
+- `RESTRICT`: apagar a ocorrência (23503) e apagar o retorno com evento (23503) falham.
+- Fora do escopo: as três CHECKs da exceção da contratante (pedem contratante gravada); ficam no contrato estático da T3.1.
+- Limpeza: `TRUNCATE` das três tabelas (não dispara o trigger) e remoção das linhas da fixture, porque o rollback recusa
+  retorno gravado.
+- Desvio: os casos nasceram verdes (a migration da T3.1 já os satisfaz); a prova de que cada um pega é a T3.3.
+- Primeiras execuções vermelhas por defeito do **teste**, não da migration: `config` enviado como texto virava string JSON
+  (`config_check` no lugar de `status_check`) e `actor_kind = 'robot'` sem ator também reprova `actor_check`.
+
+Gates: `bun run typecheck` ok; `bun run lint` ok; `bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts`
+→ 128 pass, 0 fail; `make migration-test` → 169 pass, 0 fail.

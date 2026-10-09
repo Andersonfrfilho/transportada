@@ -47,7 +47,7 @@ No worker, `make worker-integration` provisiona o banco descartável.
       `occurrence_contractor_replies`,
       `occurrence_contractor_reply_deliveries`, `occurrence_contractor_reply_events`, FKs compostas,
       índice parcial, `tenant-safety.contract.ts`; `rollback.sql`; `make migration-test`.
-- [ ] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
+- [x] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
       `trigger = operator ⇔ actor_user_id`, unicidade por ocorrência e por `idempotency_key`.
 - [ ] **T3.3** Mutações da T3.2 registradas: tirar a CHECK `forward_to_note_recipient = automatic ⇒
 modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `actor_user_id` nulo

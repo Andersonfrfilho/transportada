@@ -34,6 +34,7 @@ import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertOccurrenceContractorReplyRollback } from './occurrence-contractor-reply.assertion.js'
+import { assertOccurrenceContractorReplyConstraints } from './occurrence-contractor-reply-constraints.assertion.js'
 import { assertNfeRecipientEmailRollback } from './nfe-recipient-email.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
 import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
@@ -197,6 +198,15 @@ describe('Drizzle migration integration', () => {
         })
 
         await assertOccurrenceStopKindBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceContractorReplyConstraints({
           companyId: identityFixture.companyId,
           connectionString,
           database,
