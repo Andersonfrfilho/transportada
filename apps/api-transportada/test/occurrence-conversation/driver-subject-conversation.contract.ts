@@ -425,15 +425,21 @@ function findDecisionWriters(source: string): readonly string[] {
 const SUBJECT_SOURCE_FILES = [
   'application/driver-conversation-subject.port.ts',
   'application/driver-subject-access.service.ts',
+  'application/driver-subject-write.port.ts',
   'application/driver-subject-conversation.types.ts',
   'application/list-my-subject-conversations.use-case.ts',
   'application/list-my-subject-messages.use-case.ts',
   'application/mark-my-subject-read.use-case.ts',
   'application/open-my-subject-conversation.use-case.ts',
+  'application/reply-my-subject-conversation.support.ts',
+  'application/reply-my-subject-conversation.use-case.ts',
+  'application/request-my-subject-upload.use-case.ts',
   'infrastructure/driver-conversation-subject.query.ts',
   'infrastructure/driver-subject-facts.query.ts',
   'infrastructure/driver-subject-lookup.query.ts',
   'infrastructure/drizzle-driver-conversation-subject.repository.ts',
+  'infrastructure/drizzle-driver-subject-write.repository.ts',
+  'presentation/me-subject-conversation-write.routes.ts',
   'presentation/me-subject-conversation.routes.ts',
 ] as const
 
@@ -457,6 +463,22 @@ describe('a conversa por assunto nunca decide (spec 260 D4)', () => {
     expect(findDecisionWriters(source)).toEqual([])
     const mutated = `${source}\nimport { tripOccurrenceCases } from '../../database/trip.schema.js'\n`
     expect(findDecisionWriters(mutated)).toEqual(['tripOccurrenceCases'])
+  })
+
+  test('mutação: o detector pega a tratativa e o acerto nos arquivos de escrita', async () => {
+    for (const file of [
+      'application/reply-my-subject-conversation.support.ts',
+      'application/reply-my-subject-conversation.use-case.ts',
+      'presentation/me-subject-conversation-write.routes.ts',
+    ]) {
+      const source = await readFile(new URL(file, root), 'utf8')
+      expect(findDecisionWriters(source)).toEqual([])
+      const mutated = `${source}\nimport { recordOccurrenceSettlement } from './record-occurrence-settlement.use-case.js'\n`
+      expect(findDecisionWriters(mutated)).toEqual(['record-occurrence-settlement.use-case'])
+      expect(findDecisionWriters(`${source}\nconst table = 'delivery_charges'\n`)).toEqual([
+        'delivery_charges',
+      ])
+    }
   })
 
   test('a lista de arquivos cobre tudo o que é da conversa por assunto', async () => {

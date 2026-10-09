@@ -155,7 +155,9 @@ async function applySubjectStatus(
     where m.company_id = ${input.companyId} and m.id = v.id`)
 }
 
-function createTransactionPort(transaction: Transaction): DriverSubjectTransactionPort {
+export function createDriverSubjectTransactionPort(
+  transaction: Transaction,
+): DriverSubjectTransactionPort {
   return {
     applySubjectStatus: (input) => applySubjectStatus(transaction, input),
     findMySubject: (input) => findMySubjectByIdentity(transaction, input),
@@ -204,6 +206,8 @@ export function createDrizzleDriverSubjectUnitOfWork(
 ): DriverSubjectUnitOfWorkPort {
   return {
     execute: (operation) =>
-      database.transaction((transaction) => operation(createTransactionPort(transaction))),
+      database.transaction((transaction) =>
+        operation(createDriverSubjectTransactionPort(transaction)),
+      ),
   }
 }

@@ -20,6 +20,10 @@ export const OPENABLE_SUBJECT_TYPES = [
 ] as const
 export type OpenableSubjectType = (typeof OPENABLE_SUBJECT_TYPES)[number]
 
+export function isOpenableSubjectType(subjectType: string): subjectType is OpenableSubjectType {
+  return OPENABLE_SUBJECT_TYPES.some((openable) => openable === subjectType)
+}
+
 /** A ordem estável dos selos de canal na lista e no cabeçalho. */
 export const SUBJECT_CHANNEL_ORDER = ['app', 'whatsapp', 'email', 'portal'] as const
 export type SubjectChannel = (typeof SUBJECT_CHANNEL_ORDER)[number]
@@ -28,3 +32,6 @@ export type SubjectChannel = (typeof SUBJECT_CHANNEL_ORDER)[number]
 export const CONVERSATION_PROTOCOL_UNIQUE_CONSTRAINT =
   'occurrence_conversations_company_protocol_unique'
 export const CONVERSATION_PROTOCOL_INSERT_ATTEMPTS = 2
+
+/** A idempotência da resposta de nota e de viagem; a de ocorrência segue a operação antiga, para a fila offline não duplicar. */
+export const REPLY_SUBJECT_APP_MESSAGE_OPERATION = 'conversation.app.reply'

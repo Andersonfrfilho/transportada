@@ -443,6 +443,10 @@ import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
 import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
+import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
+import { createReplyMySubjectConversationUseCase } from './occurrence-conversation/application/reply-my-subject-conversation.use-case.js'
+import { createRequestMySubjectUploadUseCase } from './occurrence-conversation/application/request-my-subject-upload.use-case.js'
+import { createDrizzleDriverSubjectWriteUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-subject-write.repository.js'
 import { createListMySubjectConversationsUseCase } from './occurrence-conversation/application/list-my-subject-conversations.use-case.js'
 import { createListMySubjectMessagesUseCase } from './occurrence-conversation/application/list-my-subject-messages.use-case.js'
 import { createMarkMySubjectReadUseCase } from './occurrence-conversation/application/mark-my-subject-read.use-case.js'
@@ -3407,6 +3411,24 @@ function createApplicationRoutes({
         unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
       }),
       open: createOpenMySubjectConversationUseCase({
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 260 T2.4: o lado de escrita — resposta com eco do `clientMessageId` e envio de arquivo. */
+    ...createMeSubjectConversationWriteRoutes({
+      reply: createReplyMySubjectConversationUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverSubjectWriteUnitOfWork(database),
+      }),
+      requestUpload: createRequestMySubjectUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
         unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),

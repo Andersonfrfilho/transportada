@@ -37,14 +37,17 @@ export const REPLY_DRIVER_APP_MESSAGE_OPERATION = 'occurrence-conversation.app.r
 const ENCODER = new TextEncoder()
 
 /** A mesma chave com outro pedido é 409; com o mesmo, devolve o que foi gravado. */
-async function replayOrRun<TResult>(input: {
+export async function replayOrRun<TResult>(input: {
   readonly companyId: string
   readonly fields: readonly string[]
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly idempotencyKey: string
   readonly operation: string
   readonly run: () => Promise<TResult>
-  readonly transaction: DriverConversationTransactionPort
+  readonly transaction: Pick<
+    DriverConversationTransactionPort,
+    'findIdempotency' | 'saveIdempotency'
+  >
 }): Promise<{ readonly replayed: boolean; readonly result: TResult }> {
   const fingerprint = await input.fingerprintService.create({
     fields: input.fields.map((value) => ENCODER.encode(value)),

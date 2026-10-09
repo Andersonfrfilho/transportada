@@ -32,9 +32,10 @@ import {
 
 const READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 const REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
-const CONVERSATIONS_PATH = '/me/trips/current/conversations'
+export const CONVERSATIONS_PATH = '/me/trips/current/conversations'
 const OPEN_PATH = `${CONVERSATIONS_PATH}/open`
-const MESSAGES_PATH = `${CONVERSATIONS_PATH}/:subjectType/:subjectId/messages`
+export const SUBJECT_PATH = `${CONVERSATIONS_PATH}/:subjectType/:subjectId`
+const MESSAGES_PATH = `${SUBJECT_PATH}/messages`
 const READ_PATH = `${MESSAGES_PATH}/read`
 
 /** Abrir conversa cria linha: balde próprio, no Postgres, para um app em loop não encher a tabela. */
@@ -58,19 +59,19 @@ const cursorSchema = z.string().refine((value) => {
 })
 const messagesLimitSchema = z.coerce.number().int().min(1).max(DRIVER_SUBJECT_MESSAGES_MAX_LIMIT)
 
-function jsonResponse(body: object, status = 200): Response {
+export function jsonResponse(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
     headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
     status,
   })
 }
 
-type SubjectPath = {
+export type SubjectPath = {
   readonly subjectId: string
   readonly subjectType: OccurrenceConversationSubjectType
 }
 
-function parseSubjectPath(pathParameters: Readonly<Record<string, string>>): SubjectPath {
+export function parseSubjectPath(pathParameters: Readonly<Record<string, string>>): SubjectPath {
   return {
     subjectId: parseUuidPathIdentifier(pathParameters.subjectId ?? ''),
     subjectType: parseAgainstSchema(subjectTypeSchema, pathParameters.subjectType),

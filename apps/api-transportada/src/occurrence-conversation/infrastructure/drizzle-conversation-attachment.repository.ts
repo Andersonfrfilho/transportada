@@ -41,8 +41,9 @@ export function createDrizzleConversationUploadRepository(
         fileName: input.fileName,
         id: input.id,
         objectKey: input.objectKey,
-        occurrenceId: input.occurrenceId,
-        occurrenceKind: input.occurrenceKind,
+        ...('conversationId' in input
+          ? { conversationId: input.conversationId }
+          : { occurrenceId: input.occurrenceId, occurrenceKind: input.occurrenceKind }),
         participant: input.participant,
         requestedByUserId: input.requestedByUserId,
       })
@@ -102,8 +103,12 @@ export function createConversationAttachmentTransactionPort(
           and(
             eq(occurrenceConversationUploads.companyId, target.companyId),
             inArray(occurrenceConversationUploads.id, [...ids]),
-            eq(occurrenceConversationUploads.occurrenceKind, target.occurrenceKind),
-            eq(occurrenceConversationUploads.occurrenceId, target.occurrenceId),
+            'conversationId' in target
+              ? eq(occurrenceConversationUploads.conversationId, target.conversationId)
+              : and(
+                  eq(occurrenceConversationUploads.occurrenceKind, target.occurrenceKind),
+                  eq(occurrenceConversationUploads.occurrenceId, target.occurrenceId),
+                ),
             eq(occurrenceConversationUploads.participant, target.participant),
             eq(occurrenceConversationUploads.channel, target.channel),
             eq(occurrenceConversationUploads.requestedByUserId, target.requestedByUserId),

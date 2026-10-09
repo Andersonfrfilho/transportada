@@ -11,15 +11,28 @@ import type {
   OccurrenceConversationParticipant,
 } from '../../database/occurrence-conversation.schema.js'
 
-/** A conversa e o canal a que o anexo vai, e quem pediu. Tudo vem do contexto, nunca do corpo. */
-export type ConversationUploadTarget = {
+type ConversationUploadTargetBase = {
   readonly channel: OccurrenceConversationChannel
   readonly companyId: string
-  readonly occurrenceId: string
-  readonly occurrenceKind: OccurrenceConversationKind
   readonly participant: OccurrenceConversationParticipant
   readonly requestedByUserId: string
 }
+
+/** A conversa de ocorrência, pelo alvo de sempre (`occurrence_kind` + `occurrence_id`). */
+export type OccurrenceConversationUploadTarget = ConversationUploadTargetBase & {
+  readonly occurrenceId: string
+  readonly occurrenceKind: OccurrenceConversationKind
+}
+
+/** Spec 260: a conversa de nota ou de viagem, apontada pelo `conversation_id`. */
+export type SubjectConversationUploadTarget = ConversationUploadTargetBase & {
+  readonly conversationId: string
+}
+
+/** A conversa e o canal a que o anexo vai, e quem pediu. Tudo vem do contexto, nunca do corpo. */
+export type ConversationUploadTarget =
+  | OccurrenceConversationUploadTarget
+  | SubjectConversationUploadTarget
 
 export type PendingConversationUpload = {
   readonly bucket: string

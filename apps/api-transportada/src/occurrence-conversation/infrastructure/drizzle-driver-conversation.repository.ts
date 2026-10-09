@@ -51,7 +51,7 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
-function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
+export function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
     listAttachments: (input) => readConversationAttachments(transaction, input),
