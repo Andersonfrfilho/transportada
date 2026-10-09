@@ -84,8 +84,8 @@ describe('the holiday provider settings migration enters additive', () => {
     const instructions = withoutComments(text)
 
     expect(instructions).toContain(`"provider" in ('feriadosapi')`)
-    expect(instructions).toContain(
-      `"monthly_request_budget" between ${BUDGET_MIN} and ${BUDGET_MAX}`,
+    expect(instructions).toMatch(
+      new RegExp(`"monthly_request_budget" between ${BUDGET_MIN} and ${BUDGET_MAX}\\)`, 'u'),
     )
     expect(instructions).toContain('"version" > 0')
     const tokenCheck = instructions.slice(
