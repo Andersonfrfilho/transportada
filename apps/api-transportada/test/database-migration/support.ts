@@ -194,6 +194,19 @@ export const DELIVERY_CLIENT_TABLES = [
 ] as const
 
 /**
+ * Spec 252 T2.2 / ADR-0100 §3: o cache global do fornecedor de feriados (sem `company_id`) e, por empresa,
+ * a demanda de cidades, o cursor da descoberta e as supressões do operador.
+ */
+export const HOLIDAY_PROVIDER_TABLES = [
+  'holiday_provider_fetches',
+  'holiday_provider_entries',
+  'holiday_provider_monthly_usage',
+  'holiday_import_cities',
+  'company_holiday_import_settings',
+  'holiday_import_suppressions',
+] as const
+
+/**
  * Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa.
  * Spec 143 D3: o valor geral da diária do motorista mora aqui pelo mesmo motivo do regime federal —
  * é configuração de dinheiro da empresa que a conta da viagem lê.
@@ -255,7 +268,7 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
     .toSorted()
 }
 
-type PostgresSqlState = '23001' | '23503' | '23505' | '23514' | '55000'
+type PostgresSqlState = '23001' | '23502' | '23503' | '23505' | '23514' | '55000'
 
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,
@@ -301,6 +314,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...NFSE_TABLES,
     ...TRIP_TABLES,
     ...DELIVERY_CLIENT_TABLES,
+    ...HOLIDAY_PROVIDER_TABLES,
     ...TRIP_FINANCIAL_TABLES,
     ...CONTRACTOR_PORTAL_TABLES,
     ...MULTI_VEHICLE_SUGGESTION_TABLES,

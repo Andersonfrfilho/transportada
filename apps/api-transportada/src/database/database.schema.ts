@@ -86,6 +86,16 @@ import { companyLocationRetentionSettings } from './company-location-retention-s
 import { companyBusinessCalendarSettings } from './company-business-calendar-settings.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { stateHolidays } from './state-holiday.schema.js'
+import {
+  holidayProviderEntries,
+  holidayProviderFetches,
+  holidayProviderMonthlyUsage,
+} from './holiday-provider.schema.js'
+import {
+  companyHolidayImportSettings,
+  holidayImportCities,
+  holidayImportSuppressions,
+} from './holiday-import.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -201,6 +211,8 @@ export * from './company-location-retention-settings.schema.js'
 export * from './company-business-calendar-settings.schema.js'
 export * from './municipal-holiday-rule.schema.js'
 export * from './state-holiday.schema.js'
+export * from './holiday-provider.schema.js'
+export * from './holiday-import.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -289,6 +301,12 @@ export const databaseSchema = {
   companyBusinessCalendarSettings,
   municipalHolidayRules,
   stateHolidays,
+  holidayProviderFetches,
+  holidayProviderEntries,
+  holidayProviderMonthlyUsage,
+  holidayImportCities,
+  companyHolidayImportSettings,
+  holidayImportSuppressions,
   companyCrewSettings,
   deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,

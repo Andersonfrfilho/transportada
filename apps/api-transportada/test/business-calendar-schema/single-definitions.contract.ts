@@ -97,6 +97,7 @@ describe('o que vem do banco passa por guarda de tipo (spec 238 T1.3b)', () => {
         id: RULE_ROW.id,
         kind: 'feast',
         name: 'Aniversário',
+        providerEntryId: null,
         sourceRuleId: null,
       }),
     ).toThrow()

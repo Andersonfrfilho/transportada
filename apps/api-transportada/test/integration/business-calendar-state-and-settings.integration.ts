@@ -128,8 +128,8 @@ describe('o feriado estadual (spec 238 T1.3)', () => {
       const repository = new DrizzleStateHolidayRepository(database.db)
       const { holiday: created } = await repository.create({ ...actorOf(tenant, 'c1'), ...ONCE })
 
-      await repository.remove({ ...actorOf(tenant, 'c2'), id: created.id })
-      await repository.remove({ ...actorOf(tenant, 'c3'), id: created.id })
+      await repository.remove({ ...actorOf(tenant, 'c2'), id: created.id, today: '2026-10-09' })
+      await repository.remove({ ...actorOf(tenant, 'c3'), id: created.id, today: '2026-10-09' })
 
       expect(await database.db.select().from(stateHolidays)).toHaveLength(0)
       expect((await readAudits(database, tenant.companyId)).map((audit) => audit.action)).toEqual([

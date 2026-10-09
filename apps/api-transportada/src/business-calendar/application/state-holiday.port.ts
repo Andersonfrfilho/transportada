@@ -41,7 +41,10 @@ export type StateHolidayPort = {
     readonly companyId: string
     readonly stateIbgeCode?: string
   }): Promise<readonly StateHolidayRecord[]>
-  remove(input: BusinessCalendarActor & { readonly id: string }): Promise<void>
+  /** O importado é desligado (supressão, só de `today` em diante); o digitado é apagado. */
+  remove(
+    input: BusinessCalendarActor & { readonly id: string; readonly today: string },
+  ): Promise<void>
   update(
     input: BusinessCalendarActor & {
       readonly changes: StateHolidayChanges

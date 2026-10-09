@@ -254,6 +254,7 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
 import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
 import { CARGO_PREVIEW_RETENTION_JOB } from './cargo-preview-retention/domain/cargo-preview-retention.constant.js'
 import { createDrizzleApplyCargoPreviewRetentionBatch } from './cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
@@ -1464,6 +1465,16 @@ export async function startWorkerRuntime(
                   }),
                 }),
               }),
+          /**
+           * Spec 252 (ADR-0100): registrada só com o token da FeriadosAPI. Sem ele nada sai do produto e
+           * a janela pousaria em `job_run_routine_missing` — a linha de `job_schedules` nasce pausada
+           * de fábrica, então ela nem abre até o usuário configurar o token e despausar.
+           */
+          ...buildHolidayProviderPullRegistry({
+            config,
+            database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            logger,
+          }),
           /**
            * Spec 222 T6.7: registrada só com o crachá do worker declarado — o worker lê a fila por SQL
            * mas reporta pela rota do robô, e sem credencial a janela pousa em `job_run_routine_missing`

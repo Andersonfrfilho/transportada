@@ -103,7 +103,16 @@ ready | failed` (`failed` exige `error_code` `PREVIEW_*`). O arquivo fica no buc
   (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
 - MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
   cliente — e a exceção do cliente vence o feriado, para o CD que trabalha no feriado não sumir do
-  roteiro justamente no dia em que é o único aberto.
+  roteiro justamente no dia em que é o único aberto. Quando a importação da FeriadosAPI está ligada (spec 252,
+  ADR-0100), a linha pode ser **importada** (`provider_entry_id` preenchido, mesma regra para `StateHoliday`); a
+  digitada e a gerada por regra vencem, e editar nome ou tipo da importada a **adota**.
+- HolidayProviderFetch, HolidayProviderEntry e HolidayProviderMonthlyUsage: o cache **global** do fornecedor
+  (sem `company_id`, como `geocoded_addresses`; nenhuma rota o devolve cru). O par `(escopo, código IBGE, ano)`
+  vira busca; a entrada é a data do fornecedor, que nunca é apagada (só ganha `removed_at`); o uso do mês é um
+  contador por instalação.
+- HolidayImportCity, CompanyHolidayImportSettings e HolidayImportSuppression: o que é da empresa na importação —
+  a demanda (cidades de destino físico das notas, por volume), o cursor da descoberta com o interruptor, e a
+  supressão do operador (a data desligada que a importação não traz de volta).
 - TripStopSchedule: o agendamento da parada — um por parada, e ele **bloqueia o despacho** enquanto
   estiver pendente ou recusado. O protocolo viaja até o motorista: um agendamento que o sistema
   conhece e ele não é um agendamento que não existe.
@@ -177,6 +186,10 @@ id, return_occurrence_id)` → `trip_document_occurrences(company_id, cargo_arri
   vínculo **desta** prévia (`(company_id, preview_id, matched_document_id)`);
   `cargo_preview_route_loads` 1:1 por prévia; `contractor_recipient_aliases(company_id, contractor_id,
 recipient_code)` unique.
+- `holiday_provider_fetches(scope, ibge_code, year)` e `holiday_provider_entries(scope, ibge_code, holiday_on)` unique (`ibge_code`
+  nunca nulo: nacional é `'BR'`); `municipal_holidays` e `state_holidays` ligam a entrada por FK **composta** `(provider_entry_id,
+código, data)`, e a linha vem de regra **ou** do fornecedor, nunca dos dois; a importada estadual é só `once`;
+  `holiday_import_suppressions(company_id, scope, ibge_code, holiday_on)` unique.
 - índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
 - ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 

@@ -42,6 +42,17 @@ export const BRAZILIAN_STATE_IBGE_CODES: ReadonlySet<string> = new Set(
   BRAZILIAN_STATE_IBGE_CODE_LIST,
 )
 
+/**
+ * De onde veio o feriado que fecha o dia (spec 252 T4.2): o calendário nacional é do código; o resto vem do
+ * cadastro — digitado à mão, gerado pela regra "todo ano" ou importado do fornecedor.
+ */
+export const HOLIDAY_ORIGIN = {
+  CODE: 'code',
+  IMPORTED: 'imported',
+  RULE: 'rule',
+  TYPED: 'typed',
+} as const
+
 export const BUSINESS_CALENDAR_ERROR_CODE = {
   COVERAGE_TOO_WIDE: 'BUSINESS_CALENDAR_COVERAGE_TOO_WIDE',
   INVALID_CITY: 'BUSINESS_CALENDAR_INVALID_CITY',
@@ -56,6 +67,9 @@ export const BUSINESS_CALENDAR_ERROR_CODE = {
 
 /** Recusas das rotas de cadastro; as da política (acima) são 422, estas seguem o verbo HTTP. */
 export const BUSINESS_CALENDAR_RULE_ERROR_CODE = {
+  HOLIDAY_IMPORT_DATE_LOCKED: 'HOLIDAY_IMPORT_DATE_LOCKED',
+  HOLIDAY_IMPORT_PAST_DATE: 'HOLIDAY_IMPORT_PAST_DATE',
+  HOLIDAY_NOT_IMPORTED: 'HOLIDAY_NOT_IMPORTED',
   MUNICIPAL_HOLIDAY_GENERATED_BY_RULE: 'MUNICIPAL_HOLIDAY_GENERATED_BY_RULE',
   MUNICIPAL_HOLIDAY_NOT_FOUND: 'MUNICIPAL_HOLIDAY_NOT_FOUND',
   MUNICIPAL_HOLIDAY_RULE_CONFLICT: 'MUNICIPAL_HOLIDAY_RULE_CONFLICT',
@@ -68,6 +82,10 @@ export const BUSINESS_CALENDAR_RULE_ERROR_CODE = {
 
 export type BusinessCalendarErrorCode =
   (typeof BUSINESS_CALENDAR_ERROR_CODE)[keyof typeof BUSINESS_CALENDAR_ERROR_CODE]
+
+export function isBusinessCalendarErrorCode(value: string): value is BusinessCalendarErrorCode {
+  return Object.values<string>(BUSINESS_CALENDAR_ERROR_CODE).includes(value)
+}
 
 export const NATIONAL_HOLIDAY_KEY = {
   ALL_SOULS_DAY: 'all_souls_day',

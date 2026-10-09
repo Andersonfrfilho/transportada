@@ -25,6 +25,7 @@ import {
   MUNICIPAL_HOLIDAY_KIND,
   MUNICIPAL_HOLIDAY_KINDS,
 } from '../shared/business-calendar.constant.js'
+import { holidayProviderEntries } from './holiday-provider.schema.js'
 import { companies } from './identity.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { storedObjects } from './storage.schema.js'
@@ -234,8 +235,8 @@ export const deliveryClientExceptions = pgTable(
  * lá, e repetir a data em quarenta cadastros é o caminho mais curto para trinta e nove ficarem
  * desatualizados.
  *
- * Alimentado à mão: nenhuma fonte pública de feriado municipal é confiável o bastante para virar
- * dependência. Data sem cadastro é dia útil.
+ * Alimentado à mão e, quando a rotina está configurada, pela FeriadosAPI (ADR-0100, que emenda a
+ * decisão original de que nenhuma fonte pública bastava). Data sem cadastro é dia útil.
  */
 export const municipalHolidays = pgTable(
   'municipal_holidays',
@@ -250,6 +251,8 @@ export const municipalHolidays = pgTable(
     kind: text().notNull().default(MUNICIPAL_HOLIDAY_KIND.HOLIDAY),
     /** Nulo = digitada à mão. Preenchido = gerada de uma regra "todo ano", que a leva ao ser apagada. */
     sourceRuleId: uuid('source_rule_id'),
+    /** Spec 252: preenchido = importada do fornecedor. Nunca junto com `source_rule_id`; editar nome ou tipo a adota (zera). */
+    providerEntryId: uuid('provider_entry_id'),
   },
   (table) => [
     foreignKey({
@@ -284,6 +287,29 @@ export const municipalHolidays = pgTable(
     index('municipal_holidays_company_source_rule_idx')
       .on(table.companyId, table.sourceRuleId)
       .where(sql`${table.sourceRuleId} is not null`),
+    /**
+     * Composta: a linha importada é a data da entrada (mesma cidade, mesmo dia). O alvo é global e a
+     * entrada nunca é apagada (só ganha `removed_at`): `RESTRICT` nos dois sentidos, para um UPDATE na
+     * entrada nunca mover o feriado de uma empresa em silêncio. MATCH SIMPLE: sem `provider_entry_id`, nada a conferir.
+     */
+    foreignKey({
+      columns: [table.providerEntryId, table.cityIbgeCode, table.holidayOn],
+      foreignColumns: [
+        holidayProviderEntries.id,
+        holidayProviderEntries.ibgeCode,
+        holidayProviderEntries.holidayOn,
+      ],
+      name: 'municipal_holidays_provider_entry_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    check(
+      'municipal_holidays_rule_or_provider_check',
+      sql`not (${table.sourceRuleId} is not null and ${table.providerEntryId} is not null)`,
+    ),
+    index('municipal_holidays_provider_entry_idx')
+      .on(table.companyId, table.providerEntryId)
+      .where(sql`${table.providerEntryId} is not null`),
   ],
 )
 

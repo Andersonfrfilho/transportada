@@ -269,3 +269,1214 @@ os testes seguram a regra é a mutação abaixo.
   tirar o spread de `holidayWarnings` em `toStop` → 1 teste do motorista falha (1410 pass / 1 fail); restaurado,
   `git diff --quiet` verde.
 - **Fora desta task:** nenhuma tela; a queda do `day-checks` no aviso nacional de hoje fica na T5.3.
+
+## T2.1 — contratos do modelo, antes da migration (2026-10-07)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t2` a partir de `origin/staging` (`c579e5107`; depois rebaseada em `4f04022ba`, 223 commits à frente), sem push. Postgres
+**nativo** descartável (Homebrew 18.4, porta 65433, cluster no scratchpad; o Docker 65432 segue com I/O error), com
+`DRIZZLE_TEST_DATABASE_URL`; o `.env`/`.env.test` do worktree são links para o checkout principal. Linha de base antes de
+tocar em qualquer coisa: `bun test ./test/database-migration.contract.test.ts` → **119 pass, 0 fail**.
+
+Commit `76d9245c2` (era `20b0cff74` antes do rebase) — só teste, vermelho **pelo motivo certo**:
+
+- `test/database-migration/holiday-provider-import.constant.ts`: a lista de nomes do ADR-0100 §3 (tabelas, PK, únicos,
+  FK, CHECK, índices e o que entra nas duas tabelas publicadas), lida pelos dois contratos.
+- `holiday-provider-import.static.contract.ts` (11 testes sobre o texto da migration e do rollback): seis tabelas e
+  nenhuma outra; todo nome explícito e todo identificador ≤ 63 bytes; os **dez comandos** das tabelas publicadas, nessa
+  ordem e **os últimos** (`state_holidays` antes, `municipal_holidays` por último); as duas CHECK de `job` com a lista de
+  antes mais o nome novo, `NOT VALID` + `VALIDATE`; a linha de `job_schedules` **pausada de fábrica**
+  (`enabled = false`, `paused_origin = 'system'`, 86.400 s); uma única linha escrita; `lock_timeout` de 3 s devolvido ao
+  padrão; rollback que recusa antes de tocar em qualquer coisa, devolve as listas de `job` e desfaz a coluna antes de
+  derrubar a tabela que a FK referencia.
+- Integração (`holiday-provider-import*.assertion.ts`, ligada em `database-migration.integration.ts` e nas listas de
+  `support.ts`/`readBusinessTables`): nomes lidos de `pg_constraint`/`pg_indexes` contra a lista (o Postgres trunca calado
+  acima de 63 bytes); cada CHECK por um valor ruim e um bom; os únicos (inclusive o nacional `'BR'` duplicado); o upsert
+  do orçamento (1º pedido do mês cria a linha, o teto devolve vazio); a CHECK de exclusão `source_rule_id`/`provider_entry_id`;
+  importada só `once` no estadual; FK `RESTRICT` (`23001` ou `23503`); os dois índices parciais; a rotina pausada;
+  o rollback recusando e passando.
+- Vermelho medido: **118 pass, 13 fail** — 12 do contrato estático (`_holiday_provider_import migration is required`) e 1 da
+  integração (`readBusinessTables` sem as seis tabelas novas). Nada vermelho por erro de teste.
+
+## T2.2 — a migration (2026-10-07)
+
+Commit `54539fce7` (era `7e7a9ae4a`): `drizzle/20261009040622_holiday_provider_import/` (`migration.sql`, `rollback.sql`, `snapshot.json`; o
+timestamp é posterior ao de `20261008183714_trip_document_link_events`, a última em staging depois do rebase), schema Drizzle
+(`holiday-provider.schema.ts`, `holiday-import.schema.ts`, `provider_entry_id` em `delivery-client.schema.ts` e
+`state-holiday.schema.ts`, `holidayScopeCodeSql` em `schema-check.constant.ts`, vocabulário em
+`src/shared/holiday-provider.constant.ts`). O SQL das tabelas e das CHECK é o que o `db:generate --name tmp` gerou; à mão
+foram o `NOT VALID` + `VALIDATE`, as duas CHECK de `job`, o `INSERT` da rotina, a ordem do arquivo e o cabeçalho.
+
+### Escolhas dentro do ADR (para revisão)
+
+- **Rollback recusa** com feriado importado (municipal ou estadual), supressão do operador ou execução aberta da rotina. O
+  `plan.md` dizia "deixa as linhas importadas como datas digitadas"; o pedido da sessão mandou recusar linha importada, e
+  recusar é o lado seguro (sem recusa a proveniência some e a data vira "digitada" sem ninguém decidir). Para seguir, o
+  operador apaga ou adota os importados (o cabeçalho do `rollback.sql` diz como). Troca de critério = uma linha do `IF`.
+- Os ALTER vão **`state_holidays` primeiro, `municipal_holidays` por último**: o ACCESS EXCLUSIVE fica retido até o COMMIT
+  do lote, e a tabela que o roteirizador lê é a trancada por menos tempo.
+- FK com `ON DELETE RESTRICT ON UPDATE CASCADE` (convenção do repositório; o ADR só fixa o `RESTRICT`); índices parciais em
+  `(company_id, provider_entry_id)` (espelha `municipal_holidays_company_source_rule_idx`); ano do cache entre 1583 e 9999
+  (domínio do calendário); `month` do orçamento validado por `extract(day from "month") = 1`.
+- O código de cidade do cache, da demanda e da supressão usa `^[1-5][0-9]{6}$` (município IBGE de UF de 1 a 5), mais estrito
+  que a CHECK antiga de `municipal_holidays` (`^[0-9]{7}$`). **A descoberta (T3.2) tem de filtrar `nfe_addresses.city_code`
+  com o mesmo padrão antes do upsert**, ou um código lixo (ex.: `9999999`) derruba o lote inteiro.
+- PK inline leva o nome do Postgres (`<tabela>_pkey`); o integration confere os seis contra `pg_constraint`. Maior
+  identificador novo: `company_holiday_import_settings_company_id_companies_id_fk`, **58 bytes**.
+
+### Conflito com a regra "não adicionar o nome ao catálogo TS" (relatado, não burlado)
+
+A CHECK de `job` do schema TS é `inList(SCHEDULED_JOBS)`, derivada do catálogo de jobs. O `snapshot.json` da migration traz
+`holiday.provider.pull` nas duas CHECK (é o que o banco tem). Sem o nome no catálogo, o contrato
+`schema-snapshot.contract.ts › the latest snapshot matches the TypeScript schema` fica **vermelho** (o diff são exatamente
+as duas CHECK de `job`) e `db:generate` não responde `no_changes`. O snapshot "verde" seria o gerado do schema atual, sem o
+nome — mas aí ele mentiria sobre as duas CHECK e a T2.3 teria de editá-lo ou geraria uma migration redundante. Escolhido:
+snapshot fiel ao SQL, vermelho conhecido até a T2.3. **Prova de que é só isso:** com uma linha provisória no catálogo da API
+(`{ failureOutcomes: [], job: 'holiday.provider.pull', minimumIntervalSeconds: 3_600 }`, revertida em seguida) o
+`database-migration.contract.test.ts` deu **131 pass, 0 fail** e `bun run db:generate` respondeu `{"status":"no_changes"}`.
+Consequência: **a migration só vai ao ar junto com a T2.3** (catálogo nas quatro cópias), como já diz a ordem de publicação.
+
+### Infra de teste ajustada
+
+- `canhoto-read-queue.assertion.ts` e `business-calendar.assertion.ts` desfazem migrations **anteriores** com a nova ainda
+  aplicada: agora a nova sai antes (`rollbackHolidayProviderImportIfApplied`) e a reaplicação do fim delas a devolve. Sem
+  isso, o rollback da retenção recusava (linha de `job_schedules` fora da CHECK antiga) e o da `business_calendar` deixava
+  `provider_entry_id` e as FKs para trás.
+- `static-migration.contract.ts` ganhou o nome da pasta; `support.ts` e `database-migration.integration.ts`, as seis tabelas.
+- Três contratos de forma da 238 foram atualizados porque a coluna nova é a mudança pedida:
+  `municipal-holidays-additions`, `state-holidays-and-settings` (colunas, índice, FK) e `single-definitions`.
+- Dois acertos no contrato estático do T2.1 depois de escrever o SQL (não mudam o que ele prova): a PK inline não tem nome no
+  texto (o integration a confere), e a recusa do rollback cita o nome da rotina uma vez a mais (contagem de execução aberta).
+  E o teste de rollback da integração passou a isolar cada causa de recusa (a primeira versão deixava uma mutação sobreviver).
+
+### Rebase em `origin/staging` (2026-10-09) e reexecução dos gates
+
+`origin/staging` andou 223 commits e trouxe quatro migrations depois da minha (`20261008024137_occurrence_type_icon`,
+`…163250_nfe_recipient_email`, `…164340_nfe_recipient_email_backfill_job`, `…183714_trip_document_link_events`). Efeitos:
+
+- A pasta foi **renomeada** para `20261009040622_holiday_provider_import` (depois de `20261008183714`); o `rollback.sql`
+  (nome do journal) e o `CLAUDE.md` foram ajustados, e o `snapshot.json` foi **regerado** sobre a cadeia nova
+  (`db:generate --name tmp` com a minha pasta fora, snapshot movido para a minha, `migration.sql` gerado conferido
+  statement a statement contra o meu) e só então recebeu o nome da rotina nas duas CHECK de `job`.
+- A 248 (`nfe.recipient-email.backfill`) também ampliou a CHECK de `job` e semeia a linha **pausada de fábrica** (mesmo padrão
+  da D13). A lista da minha migration passou a ter 18 nomes (os 16 de antes, `nfe.recipient-email.backfill` e
+  `holiday.provider.pull`); o rollback devolve a lista com 17. O contrato estático lê a "lista de antes" da migration da 248.
+- Conflitos de rebase: `canhoto-read-queue.assertion.ts` (a staging já tinha virado uma lista de migrations posteriores;
+  a nova entra antes) e `static-migration.contract.ts` (lista de pastas) — resolvidos mantendo os dois lados.
+
+### Gates (Postgres nativo 65433, depois do rebase)
+
+| Gate                                                                                                 | Resultado                                                                                |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `bun run db:test` (corpo do `make migration-test`; o alvo `make` usa o Docker quebrado)              | 174 pass, **1 fail** = `schema-snapshot` acima                                           |
+| `bun test ./test/database-migration.contract.test.ts` com o nome provisório no catálogo              | **138 pass, 0 fail** (a pasta sobe, desce na ordem inversa e sobe de novo)               |
+| `bun run db:generate` com o nome provisório no catálogo                                              | `{"status":"no_changes"}` (provisório revertido; `git diff` do catálogo vazio)           |
+| `bun --env-file=../../.env.test run test` (contratos da API, script do `package.json`)               | 11077 pass, 1 skip (corpus PII sem env), **1 fail** (o mesmo `schema-snapshot`)          |
+| Integrações `business-calendar-*`, `municipal-holiday-*` e prazo da 236 (20 arquivos)                | 70 pass, 0 fail, 0 skip                                                                  |
+| Worker, roteirizador (`route-optimization-municipal-holiday`, `-pool`, `geocoded-…`, `-trip-weight`) | 19 pass, 0 fail (banco recriado e migrado pela API, journal termina em `20261009040622`) |
+| `bunx tsc --noEmit` / `bunx eslint src test … --max-warnings=0` (cwd na app)                         | exit 0 / exit 0                                                                          |
+| `bun run format:check` na raiz                                                                       | verde (`All matched files use Prettier code style`)                                      |
+
+Mutações: as onze do quadro abaixo foram **reexecutadas depois do rebase**, com os mesmos números de falha.
+
+### Mutações (cada uma em cópia do arquivo, revertida; baseline = 1 fail conhecido do snapshot)
+
+| Mutação                                                                                | Resultado                                                                                         |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| CHECK de exclusão `rule_or_provider` vira `CHECK (true)`                               | **3 fail**: estático (dez comandos) + integração (`Expected PostgreSQL SQLSTATE 23514`)           |
+| CHECK `state_holidays_provider_once_check` vira `CHECK (true)`                         | **3 fail**: estático + integração (`23514` esperado)                                              |
+| Único do cache enfraquecido (`UNIQUE(scope, ibge_code, year, id)`, mesmo nome)         | **2 fail**: integração (`Expected PostgreSQL SQLSTATE 23505`: o nacional `'BR'` duplicado aceito) |
+| Único do cache removido                                                                | **3 fail**: estático (nome ausente) + integração (nomes ≠ `pg_constraint`)                        |
+| FK com o nome padrão do drizzle (67 bytes)                                             | **4 fail**: estático (nome/63 bytes e comando) + integração (o Postgres truncou calado)           |
+| Rotina sem a pausa de fábrica (`enabled = true`)                                       | **3 fail**: estático (D13) + integração (retrato da rotina)                                       |
+| Rollback ignora supressão / execução aberta / importado estadual / importado municipal | cada uma **2 fail** na integração (a recusa não veio)                                             |
+| Rollback devolve a CHECK de `job` com o nome novo                                      | **3 fail**: estático + integração                                                                 |
+
+### O que não foi feito
+
+T2.3 (catálogo nas quatro cópias, com rótulo e locale); nenhuma rota, rotina ou cliente do fornecedor; nada em
+`apps/worker-transportada`; nada publicado (sem push); `make migration-test` literal (usa o Docker 65432 com I/O error: o
+corpo dele, `db:test`, rodou no Postgres nativo). Produção: nenhuma conexão.
+
+## T2.3 — `holiday.provider.pull` nas quatro cópias do catálogo (2026-10-09)
+
+Branch `work/252-t2-3`, a partir de `work/252-t2` (`ef512a6d6`). Commits, painel primeiro:
+
+- `2f6add63f` painel: `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts`.
+- `b49b22102` API: `src/shared/job-catalog.constant.ts` e `test/job-catalog/catalog.contract.ts` (lista literal e
+  `SEED_MIGRATIONS` com `20261009040622_holiday_provider_import`).
+- `f02ccbef6` worker: `src/shared/job-catalog.constant.ts` e `test/job-catalog/catalog.contract.ts`.
+- `fc777a9d5` cron: idem.
+
+A entrada é a mesma nas quatro: `failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response']`
+(ADR-0100, seção de erros), `minimumIntervalSeconds: 3_600`, no **fim** do `JOB_CATALOG` (a ordem é a das CHECK de `job`
+da migration).
+
+### Rótulo e locale no painel: não feitos (divergência do pedido)
+
+O pedido e `plan.md` linha 115 mandam rótulo e locale pt-BR/en no painel, "seguindo o molde". O molde não tem isso. A busca
+por `nfe.recipient-email.backfill`, `cargo-preview.retention.apply` e as demais rotinas em `apps/frontend-transportada` acha
+só `src/modules/shared/jobCatalog.constant.ts` e o teste de paridade. `OperationsDashboard.page.tsx` renderiza
+`<strong>{job}</strong>` com o nome cru, e `operationsWorkspace.locale.json` não tem nenhum rótulo de rotina. Não criei um
+mecanismo de rótulo só para esta rotina: isso é decisão de produto (um mapa cobrindo as 18 rotinas, ou chaves de locale por
+rotina). **Pendente de decisão.**
+
+### Paridade e a ordem de commits
+
+- O commit do painel **não passa sozinho**. O teste de paridade do painel lê o fonte da API
+  (`../../../api-transportada/src/shared/job-catalog.constant.ts`). Em `2f6add63f~1` esse fonte não tem a rotina (`grep -c` = 0),
+  então o teste fica vermelho até `b49b22102`. A ordem "painel primeiro" é de publicação, não de verde por commit.
+- Os commits de API, worker e cron passam sozinhos: cada teste de paridade lê só a própria app.
+
+### TDD: vermelho pelo motivo certo, antes do código
+
+- API, com a entrada só no teste: `bun test ./test/job-catalog.contract.test.ts ./test/database-migration.contract.test.ts`
+  → **6 fail**: `names every routine`, `accepts every interval the migration already seeded`, `gives each routine its own
+failure vocabulary`, `offers each routine…`, `never lends one routine…`, e o `schema-snapshot` com o diff de exatamente
+  as duas CHECK de `job` sem `holiday.provider.pull`.
+- Worker e cron, com a entrada só no teste: **2 fail** cada (`matches the API catalog…` e `offers each routine…`), diff da
+  entrada que falta.
+- Painel, com a API já atualizada e o painel sem a entrada: **1 fail**, diff de `{ failureOutcomes…, job: 'holiday.provider.pull' }`
+  removido (`Expected - 9, Received + 0` no bloco de paridade).
+
+Depois do código, verde: API 6/6 no arquivo de paridade e `schema-snapshot` verde; worker 5/5; cron 6/6; painel 6/6.
+
+### Gates
+
+Todos com a app como cwd.
+
+| Gate                                                                                                                        | Resultado                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API `bun run typecheck` / `bun run lint`                                                                                    | exit 0 / exit 0                                                                                                                                                                                                                                                                      |
+| API `bun --env-file=../../.env.test run test` (contratos)                                                                   | **11045 pass, 34 skip, 0 fail** (208 arquivos). Os 34 skip vêm de testes que dependem de ambiente; este worktree não tem `.env.test` (o do repositório principal aponta para a infra de E2E em 65432, que não usei). Na T2.2 havia 1 skip. Causa não confirmada além dessa hipótese. |
+| API `schema-snapshot` (T2.2, era vermelho)                                                                                  | **verde**                                                                                                                                                                                                                                                                            |
+| API `bun run db:generate`                                                                                                   | `{"status":"no_changes","dialect":"postgresql"}`                                                                                                                                                                                                                                     |
+| API `bun run db:test` (corpo do `make migration-test`) com `DRIZZLE_TEST_DATABASE_URL` em Postgres 18.4 nativo, porta 65433 | **175 pass, 0 fail** (T2.2: 174 pass, 1 fail). Postgres descartável em `scratchpad/pgdata-t23`, `LC_ALL=C` e socket Unix desligado (o locale `pt_BR` do cluster fazia o postmaster cair).                                                                                            |
+| Worker `bun run typecheck` / `bun run lint` / `bun run test`                                                                | exit 0 / exit 0 / **2191 pass, 0 fail** (102 arquivos)                                                                                                                                                                                                                               |
+| Cron `bun run typecheck` / `bun run lint` / `bun run test`                                                                  | exit 0 / exit 0 / **101 pass, 0 fail** (8 arquivos)                                                                                                                                                                                                                                  |
+| Painel `bun run typecheck` / `bun run lint` / `bun run test`                                                                | exit 0 / exit 0 / **8912 pass, 0 fail** (script com duas invocações: 7736 em 39 arquivos e 1176 em 1). Lint: 16 warnings preexistentes em `TripDocumentSearch.component.tsx` e `useTripAssemblyDraftLifecycle.hook.ts`, fora do diff                                                 |
+| Painel `test/shared/job-catalog.contract.ts` isolado                                                                        | **6 pass, 0 fail**                                                                                                                                                                                                                                                                   |
+| `bun run format:check` na raiz                                                                                              | exit 0 (`All matched files use Prettier code style!`)                                                                                                                                                                                                                                |
+
+### Mutação: o nome sai de uma cópia (cada uma restaurada; `git diff --quiet` em seguida = exit 0)
+
+Troquei `holiday.provider.pull` por `holiday.provider.pulls` numa cópia.
+
+| Cópia mutada                      | Teste que roda                                                         | Resultado                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Painel (`jobCatalog.constant.ts`) | `bun test ./test/shared/job-catalog.contract.ts`                       | **1 fail**: diff `"job": "holiday.provider.pull"` → `"holiday.provider.pulls"` |
+| API (`job-catalog.constant.ts`)   | `job-catalog.contract.test.ts` + `database-migration.contract.test.ts` | **6 fail** (incluindo o `schema-snapshot`)                                     |
+| Worker                            | `bun test ./test/job-catalog.contract.test.ts`                         | **2 fail**                                                                     |
+| Cron                              | `bun test ./test/job-catalog.contract.test.ts`                         | **2 fail**                                                                     |
+
+API, worker e cron foram mutados juntos porque cada teste lê só a própria app, então não se contaminam. O painel foi
+mutado sozinho porque lê a API. Restaurados: `git diff --quiet` das quatro cópias = exit 0 e `git status` limpo.
+
+### Comentários
+
+Os comentários das entradas novas não citam o número da spec, ao contrário dos vizinhos. Segui a regra global de código
+(sem referência a tarefa nos comentários). Não é divergência de comportamento.
+
+### O que não foi feito
+
+- Rótulo e locale do painel (acima), por ser decisão.
+- `make migration-test` literal: o Docker 65432 segue com I/O error. O corpo dele (`db:test`) rodou no Postgres nativo.
+- `test:integration` da API não rodou: a T2.3 não muda SQL nem comportamento de banco, só o catálogo.
+- Nada de push, nenhum registro da rotina no worker (T3.5), nenhum tick, nenhuma rota.
+- **Revisão `opus` da T2.2 (🧠) segue pendente**, em passada separada, como o próprio `tasks.md` pede.
+- Postgres descartável da porta 65433 é parado ao fim desta sessão.
+
+## T2.2 — 2ª rodada: correções da revisão `opus` (2026-10-09)
+
+Executor `sonnet`, branch `work/252-t2-fix` a partir de `work/252-t2-3` (T2.3 já dentro: o catálogo tem o nome, então
+`schema-snapshot` está verde e `db:generate` dá `no_changes` sem nome provisório). `origin/staging` não tinha migration mais
+nova que `20261008183714`; a pasta continua `20261009040622_holiday_provider_import`, editada no lugar (ainda não publicada),
+sem migration nova. Postgres 18.4 nativo na 65433, parado ao fim. Contratos primeiro e vermelhos
+(`648a346b8`: 135 pass, 7 fail — 6 do contrato estático e a integração, que cai na comparação de nomes e esconde o resto),
+depois o SQL e o schema (`e24f3326b`), depois estes docs.
+
+| Item  | O que mudou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1    | Testes de NOT NULL (`scope`, `ibge_code`, `year`, `holiday_on`) em `holiday_provider_fetches` e `_entries`: 23502. **Guardam comportamento que já existia** (nasceram verdes); a prova é a mutação.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| M3    | Identidade D2: `FACULTATIVO` no mesmo `(scope, ibge, data)` de um `MUNICIPAL` e a mesma chave com outro `external_id` dão 23505. Também nasceram verdes (o único já era `(scope, ibge_code, holiday_on)`); a mutação que alarga o único os derruba.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| M4    | `rollback.sql` recusa também `company_holiday_import_settings.is_enabled = false` (mensagem com 5 contagens); cabeçalho diz que o cache é descartado e refazer custa cota. Um teste por causa isolada e todas juntas; empresa com a importação ligada não segura o rollback.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| M5    | `unique (id, ibge_code, holiday_on)` em `holiday_provider_entries` (`holiday_provider_entries_id_code_day_unique`, 43 bytes); FK composta `municipal_holidays (provider_entry_id, city_ibge_code, holiday_on)` e `state_holidays (provider_entry_id, state_ibge_code, holiday_on)`, `MATCH SIMPLE`, `RESTRICT/RESTRICT` (antes `RESTRICT/CASCADE`); CHECK `holiday_provider_entries_scope_type_check` (41 bytes) com o vocabulário real: `city` → `MUNICIPAL`/`FACULTATIVO`, `state` → `ESTADUAL`/`FACULTATIVO`, `national` → `NACIONAL`/`FACULTATIVO`. A ordem dos comandos nas tabelas publicadas não mudou (state antes de municipal, no fim). O teste antigo que ligava uma linha estadual a uma entrada `city` (`published.assertion.ts`) foi corrigido: agora há uma entrada `state` própria. |
+| L3    | `LOCK TABLE … IN SHARE ROW EXCLUSIVE MODE` (as 6 tabelas que a recusa lê ou o rollback altera, `company_holiday_import_settings` incluída) antes do `DO` da recusa. Só contrato estático (a janela é de concorrência).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| L5    | `drizzle/20261007140303_business_calendar/rollback.sql` recusa se `to_regclass('public.holiday_provider_entries') is not null`, mandando desfazer a `20261009040622_holiday_provider_import` antes. Teste de integração roda o rollback da 238 com a 252 aplicada e espera a recusa; as asserções que já desfaziam a 238 desfazem a 252 antes.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| L1/L2 | Só texto: o lock é retido até o COMMIT do lote (não "só durante o comando"), `job_executions`/`job_schedules` ficam trancadas durante o trecho do calendário, e são **três varreduras completas** de cada tabela publicada (FK, `VALIDATE`, índice) sob ACCESS EXCLUSIVE.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| L7    | `indexdef` de `holiday_provider_fetches_status_next_attempt_idx` e `holiday_import_cities_city_idx`; defaults `status 'pending'`/`attempts 0` inserindo sem as colunas; NOT NULL de `suppressed_by_user_id`; `ON DELETE RESTRICT` das 3 FKs para `companies` (aceita 23001 e 23503); `cursor_check` com "só issued" e "updated + document".                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+**Medir antes de produção (L1/L2):** `count(*)` de `municipal_holidays` e `state_holidays` e a duração do lote; se forem
+grandes, o `VALIDATE` vai para migration própria e o índice parcial para `CREATE INDEX CONCURRENTLY` (fora da transação).
+Sem mudar SQL por isso agora.
+
+**Docs:** ADR-0100 §3 (entrada, unique composto, escopo×tipo, estadual vindo da resposta de uma cidade gravado com
+`scope='state'` e a UF, FK composta), `spec.md` RF2, `plan.md` (FK composta e a lacuna do rótulo), `tasks.md` (T2.3 sem
+"rótulo e locale": o painel não tem mecanismo de rótulo por rotina e mostra o nome cru em `OperationsDashboard.page.tsx`,
+lacuna conhecida sem criar mecanismo; T3.2 com o lote venenoso M2; T4.1 com o contrato de isolamento da tabela global).
+
+### Gates (2ª rodada, Postgres nativo 65433)
+
+| Gate                                                                                               | Resultado                                           |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `bun run db:test` (corpo do `make migration-test`)                                                 | 179 pass, 0 fail                                    |
+| `bun test ./test/database-migration.contract.test.ts` (sobe, desce na ordem inversa, sobe de novo) | 142 pass, 0 fail (`schema-snapshot` verde)          |
+| `bun run db:generate`                                                                              | `{"status":"no_changes"}`                           |
+| `bun --env-file=../../.env.test run test` (contratos da API, script do `package.json`)             | 11082 pass, 0 fail, 1 skip (corpus PII sem env)     |
+| Integrações `business-calendar-*`, `municipal-holiday-*` e prazo da 236 (20 arquivos)              | 70 pass, 0 fail, 0 skip                             |
+| Worker, roteirizador (4 arquivos) em banco migrado pela API                                        | 19 pass, 0 fail                                     |
+| `bunx tsc --noEmit` / `bunx eslint src test … --max-warnings=0` (cwd na app)                       | exit 0 / exit 0                                     |
+| `bun run format:check` na raiz                                                                     | verde (`All matched files use Prettier code style`) |
+
+### Mutações da 2ª rodada (cada uma em cópia do arquivo, revertida; baseline 0 fail)
+
+| Mutação                                                                                                                                       | Resultado                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `year` / `holiday_on` / `ibge_code` sem NOT NULL (3 mutações)                                                                                 | cada uma 1 fail na integração (`Expected PostgreSQL SQLSTATE 23502`) |
+| Único da entrada alargado (`+ provider_type, external_id`)                                                                                    | 1 fail na integração (23505)                                         |
+| Rollback ignora a empresa com a importação desligada                                                                                          | 1 fail na integração (a recusa não veio)                             |
+| FK do estadual / do municipal volta a simples                                                                                                 | cada uma 2 fail: estático (comandos) + integração (23503 esperado)   |
+| `scope_type_check` neutralizada (`true or …`)                                                                                                 | 2 fail: estático + integração (23514 esperado)                       |
+| `LOCK TABLE` sem `municipal_holidays`                                                                                                         | 1 fail estático                                                      |
+| Guarda do rollback da 238 desarmada (`IF false`)                                                                                              | 2 fail: estático + integração (a 238 desfez com a 252 aplicada)      |
+| Índice da demanda alargado; default `status = 'done'`; `suppressed_by` anulável; FK de `companies` com `CASCADE`; `cursor_check` enfraquecida | cada uma 1 fail na integração                                        |
+
+As mutações da 1ª rodada (CHECK de exclusão, único nacional, nome de 67 bytes, pausa de fábrica e as quatro causas de recusa)
+foram reexecutadas sobre a pasta nova e seguem vermelhas.
+
+### O que não foi feito
+
+Nada de T3 (rotina, cliente, descoberta) nem de rota; nenhum mecanismo de rótulo no painel; sem push. `make migration-test`
+literal não rodou (Docker 65432 com I/O error): o corpo dele, `db:test`, rodou no Postgres nativo. Produção: nenhuma conexão.
+
+## T4.1 — a gestão da importação de feriados na API (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t4` a partir de `origin/staging` (`6548ead27`), sem push. Postgres 18.4
+**nativo** descartável (porta 65441, cluster no scratchpad, `LC_ALL=C`, socket Unix desligado); o Docker 65432 segue quebrado.
+`DRIZZLE_TEST_DATABASE_URL`/`API_TEST_DATABASE_URL`/`DATABASE_URL` apontados para ele; integrações **uma por vez**, nenhuma pulou.
+Commits: `929cca352` (testes, vermelhos), `c01dc388b` (código) e o de documentação.
+
+### Contratos antes do código (vermelho pelo motivo certo)
+
+`holiday-import-municipal.integration.ts` **3 pass / 9 fail** (a importada não era adotada, o `DELETE` não gravava supressão nem
+auditoria, `typedHolidaysKept` contava a importada; os 3 verdes são o `DELETE` da digitada, a regeneração da regra e o isolamento da
+empresa B, que já valiam); `holiday-import-state.integration.ts` **3 pass / 5 fail** (mesmos motivos). Os contratos de rota, de caso de uso
+e as integrações das supressões e do status falham por **módulo ausente** (`holiday-import.use-case.js`, `…routes.js`,
+`drizzle-holiday-import-*.repository.js`), e o contrato estático de isolamento por 2 asserções (as consultas agregadas não existiam).
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.1                                    | Onde                                                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` na mesma data adota (zera `provider_entry_id`)        | `upsertTypedHoliday` (municipal) e `adoptImportedStateHoliday` (estadual); `isSameTypedHoliday` é falso para a importada                          |
+| `PATCH` adota                                                | repositórios municipal e estadual (`.set({ …changes, providerEntryId: null })`)                                                                   |
+| `DELETE` numa importada **é** o desligar                     | `holiday-import-disable.support.ts`: supressão + auditoria `holiday-import.disabled` + regenera a regra do dia; D7 `409 HOLIDAY_IMPORT_PAST_DATE` |
+| `typedHolidaysKept` só `provider_entry_id IS NULL`           | `municipal-holiday-typed.queries.ts`                                                                                                              |
+| desligar/restaurar e status                                  | `/holiday-imports/{status,cities,suppressions}` (`settings.manage`, `POST` `.strict()`, `companyId` do contexto)                                  |
+| cache global só agregado, filtrado pelas cidades da empresa  | `holiday-import-status.query.ts` (parte de `holiday_import_cities`) e `holiday-import-usage.query.ts` (contador do mês)                           |
+| contrato de isolamento (molde `delivery-deadline-isolation`) | `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`                                                                       |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                            | Resultado                                                                                           |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit`                                                             | exit 0                                                                                              |
+| `bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`      | exit 0                                                                                              |
+| `bun --env-file=../../.env.test run test` (contratos, script do `package.json`) | **11103 pass, 1 skip (corpus PII sem env, como na linha de base), 0 fail** (era 11082)              |
+| integração `holiday-import-municipal` / `-state` / `-suppressions` / `-status`  | **12 / 8 / 9 / 7 pass**, 0 fail, 0 skip                                                             |
+| integrações tocadas pela assinatura de `remove` e pelo adotar                   | `business-calendar-*` (11 arquivos), `municipal-holiday-generated` 4 e `-interplay` 6: todas 0 fail |
+| `bun run db:generate`                                                           | `{"status":"no_changes"}` (nenhuma migration, nenhum schema novo)                                   |
+| `bun run format:check` na raiz                                                  | exit 0                                                                                              |
+
+### Mutações (cada uma restaurada; `git diff --quiet` = 0 ao fim; baseline 0 fail)
+
+| Mutação                                                                                   | Resultado                                                       |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| upsert municipal não zera `provider_entry_id`                                             | municipal: 4 fail                                               |
+| `isSameTypedHoliday` trata a importada como a mesma digitada                              | municipal: 2 fail                                               |
+| `PATCH` municipal não adota / `PATCH` estadual não adota                                  | municipal: 1 fail / estadual: 1 fail                            |
+| `POST` estadual não adota                                                                 | estadual: 2 fail                                                |
+| `DELETE` de importada não desliga (municipal / estadual)                                  | municipal: 3 fail / estadual: 2 fail                            |
+| D7 removido / D7 com `<=`                                                                 | 1 fail em cada um dos 3 arquivos / municipal: 1 fail            |
+| `typedHolidaysKept` conta a importada                                                     | municipal: 2 fail                                               |
+| regeneração da regra do dia some / ação de auditoria errada / supressão sem o ator        | municipal: 1 fail cada                                          |
+| restaurar sem filtro de empresa / desligar por id sem filtro de empresa                   | suppressions: 1 fail cada                                       |
+| desligar aceita a digitada (sem `HOLIDAY_NOT_IMPORTED`)                                   | suppressions: 1 fail                                            |
+| status agrega o cache de todas as empresas / removidos de outra empresa / cidades alheias | status: 2 / 1 / 2 fail                                          |
+| rotas com a política de leitura / corpo sem `.strict()` / `perPage` sem teto              | rotas: 1 fail cada                                              |
+| "hoje" em UTC no lugar de São Paulo                                                       | rotas e casos de uso: 5 fail                                    |
+| arquivo de `presentation` importando `holidayProviderFetches`                             | contrato de isolamento: 2 fail (arquivo removido; árvore limpa) |
+
+Mutação **equivalente documentada**: tirar o `inArray(cityCodes)` ou o filtro de empresa de `listCityFetches` não muda a saída, porque a
+página de cidades já nasce da demanda da empresa e o repositório casa por `cityIbgeCode` — a fronteira está em `listCompanyCities`, mutada acima.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **Restaurar volta no ciclo seguinte, não na hora.** O ADR-0100 §4 aceita "ou na hora, se o cache já o tem"; reinserir na hora exigiria uma
+  segunda leitura do cache global fora das duas consultas agregadas, que o contrato de isolamento proíbe. **A T3.4 precisa reaplicar do cache a
+  cada ciclo** (não só os pares recém-buscados), senão a data restaurada só volta quando o par for rebuscado (180 dias).
+- **Os guardas do painel são de chaves exatas** (`businessCalendarGuards.validation.ts`): por isso nenhuma chave nova entrou nas respostas de
+  `/municipal-holidays` e `/state-holidays`; a origem para a aba Calendário (T5.2) vem das rotas novas.
+- **Sem rota para ligar/desligar `company_holiday_import_settings.is_enabled`**: o RF9/T4.1 não a pede; o status só a lê.
+- **`monthlyRequests` é da instalação** (`holiday_provider_monthly_usage` não tem empresa): um inteiro, sem cidade nem data; registrado em
+  `docs/SECURITY.md`. O arquivo dessa leitura é o único acréscimo ao `SUPPORT_ONLY` do `tenant-safety.contract.ts`.
+- `remove` (municipal e estadual) ganhou `today` obrigatório; `createStateHolidaysUseCases` ganhou `now`.
+
+### O que não foi feito
+
+T4.2/T4.3; worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration nesta task); nenhuma conexão com produção.
+
+## T4.2 — o aviso de feriado na API (2026-10-09)
+
+Mesma sessão e mesmo Postgres nativo (65441) da T4.1. Commits: `d921cd91a` (testes, vermelhos) e `fb367ef51` (código), mais o de documentação.
+
+### Contratos antes do código (vermelho pelo motivo certo)
+
+Contratos de domínio, leitor, `day-checks` e isolamento: falham por **módulo ausente** (`holiday-warning.policy.js`, `day-checks.use-case.js`…), o que derruba o
+arquivo inteiro. `trip-detail-holiday-warnings.integration.ts`: **4 pass / 5 fail**, e os 5 pelo motivo certo (`holidayWarnings` `undefined` onde se esperava o
+aviso; contagem `+0` onde se esperava `+4`); os 4 verdes são os que já valiam (outra empresa, sem ETA/concluída, sem relógio, e o `+0` sem parada que avise).
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.2                                               | Onde                                                                                                                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin` (`code/typed/rule/imported`) nas regras e em `HolidayReason`   | `business-calendar.types.ts`, `business-calendar-build.policy.ts`, mapper (`provider_entry_id` → `imported`; regra anual → `rule`); o filtro de `readTypedHolidays` não mudou |
+| `holidayWarnings` nas paradas do `GET /trips/:id`                       | `trip-holiday-warning.support.ts` + `drizzle-trip.repository.ts` (aditivo, só com relógio injetado, parada não concluída com ETA)                                             |
+| `POST /business-calendar/day-checks` (`fleet.read`, ≤ 200, `.strict()`) | `day-checks.{schema,routes}.ts` + `day-checks.use-case.ts`; 400 a campo desconhecido, a 201 itens, a cidade de UF inexistente e a data impossível                             |
+| `cityName` de `listStopAddresses` (+0), nulo se o `city_code` difere    | `resolveCityName` no suporte do detalhe; a chave sai **ausente** (o guarda do painel recusa `null`)                                                                           |
+| contagem de consultas (+0 ou +4), em série dentro de transação          | `readHolidayWarnings` + `calendarSink` do prazo; `transaction-serial-queries.contract.test.ts` ganhou as duas funções                                                         |
+| módulo reaproveitável pela T4.3, sem importar o prazo                   | `holiday-warning.{policy,reader}` em `business-calendar/`; contrato `holiday-warning-isolation` (nenhum arquivo do módulo cita `delivery-deadline`)                           |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                                           | Resultado                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit` / `bunx eslint src test drizzle.config.ts eslint.config.js …`                                              | exit 0 / exit 0                                                                                            |
+| `bun --env-file=../../.env.test run test` (contratos, script do `package.json`)                                                | **11132 pass, 1 skip (corpus PII sem env), 0 fail** (11103 ao fim da T4.1)                                 |
+| integração `trip-detail-holiday-warnings` / `holiday-warning-reader`                                                           | **9 / 3 pass**, 0 fail, 0 skip                                                                             |
+| integrações da 236 e do detalhe: `trip-detail-delivery-deadline*` (6), `-query-count`, `delivery-deadline-driver-independence` | 3+5+4+1+1+4, 4 e 1 pass; 0 fail — o prazo e a contagem de antes não mudaram                                |
+| as quatro da T4.1 e as 13 do calendário (`business-calendar-*`, `municipal-holiday-*`)                                         | todas 0 fail, 0 skip (incluindo `business-calendar-load-rules`, que agora confere a origem `rule`/`typed`) |
+| `bun run db:generate`                                                                                                          | `{"status":"no_changes"}`                                                                                  |
+| `bun run format:check` na raiz                                                                                                 | exit 0                                                                                                     |
+
+### Mutações (cada uma restaurada; `git diff --quiet` = 0 ao fim; baseline 0 fail)
+
+| Mutação                                                                                           | Resultado                                                     |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| feriado em fim de semana avisa / nome do nacional vazio / `cityName` vazio entra                  | policy: 1 fail cada                                           |
+| origem sempre `typed` na razão (municipal 4 fail; estadual 1 fail)                                | contrato de domínio                                           |
+| leitor recarrega sempre / reaproveita sem checar cobertura / carga por cidade (N consultas)       | leitor: 2 / 1 / 1 fail                                        |
+| `Promise.all` no corpo do leitor                                                                  | `transaction-serial-queries`: 1 fail                          |
+| empresa errada na carga do leitor / mapper `imported`→`typed` / mapper regra→`typed`              | integração do leitor: 3 / 1 / 1 fail                          |
+| detalhe: data em UTC / parada concluída avisa / `cityName` sem conferir o código                  | integração do detalhe: 1 / 2 / 1 fail                         |
+| detalhe: ignora os calendários do prazo (+10) / o prazo não entrega o calendário (`calendarSink`) | integração do detalhe: 1 / 1 fail (a contagem +6)             |
+| cidade do 2º segmento do `address_key` (errado)                                                   | integração do detalhe: 5 fail                                 |
+| `day-checks`: sem teto de 200 / sem `.strict()` no corpo / no item / exige `settings.manage`      | rotas: 1 fail cada (a última também no contrato do separador) |
+| `day-checks`: sem dedupe / ignora recusa do calendário                                            | casos de uso: 1 fail cada                                     |
+| o leitor cita `delivery-deadline` num comentário                                                  | contrato de isolamento: 1 fail                                |
+
+Mutação **sem efeito no teste dela**, coberta pelo outro: `mapper imported→typed` não reprova `business-calendar-load-rules` (a fixture dele não tem linha importada); quem a
+reprova é a integração do leitor.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **O formato é o que os clientes publicados validam** (T5.1/T5.1b): `cityIbgeCode` **numérico** (a string faria o painel recusar o detalhe inteiro), `cityName` **ausente**
+  quando não se sabe (o guarda recusa `null`), `reasons[{ scope, origin, name }]`. O ADR descreve `cityIbgeCode` sem tipo; o pedido (`cityIbgeCode` string) do `day-checks` ficou
+  **string** no corpo (como toda rota do módulo) e **número** na resposta. O nome do feriado **nacional** é a chave estável (`independence_day`), porque o calendário nacional não
+  tem texto: a T5.3/T5.4 mapeiam a chave pelo locale.
+- **Só avisa o dia que fecha POR feriado.** Feriado num domingo (ou num sábado que não conta) fica no aviso de fim de semana que já existe — leitura do ADR §6 ("Fim de semana segue no
+  aviso que já existe").
+- **`day-checks` não devolve `cityName`**: o pedido não traz o endereço. A montagem (T5.3) já tem o nome da cidade.
+- **Cobertura global por chamada**: datas a mais de 5 anos entre si recusam todas as cidades da carga (`422 BUSINESS_CALENDAR_COVERAGE_TOO_WIDE`); na prática as ETAs ficam num ano.
+- **Sem rate limit** em `day-checks` (opt-in por rota na API; leitura sem custo externo) — registrado em `docs/SECURITY.md`.
+- **`separator-role.contract` ganhou `POST /business-calendar/day-checks`** (`fleet.read`): o separador monta o roteiro. O ajudante e o motorista não o alcançam.
+- **T4.3 (outro agente)** reaproveita `readHolidayWarnings` direto (sem `trip-delivery-deadline-*`) e acrescenta a agulha do calendário/aviso ao contrato de isolamento da nota; **não** foi
+  feito aqui.
+
+### O que não foi feito
+
+T4.3 (`GET /me/trips/current`); worker (T3); telas; nada publicado (sem push); `make migration-test` (sem migration); nenhuma conexão com produção.
+
+## T4 — 2ª rodada: correções da revisão `opus` (2026-10-09)
+
+Mesma branch (`work/252-t4`), mesmo Postgres nativo (65441, banco descartável por teste). `git fetch origin`: `origin/staging` sem commit novo, então sem rebase;
+`bun install --frozen-lockfile` sem mudança. Commits: `588fd37de` (testes, vermelhos), `0fa7e54bf` (código) e o de documentação.
+
+### O que mudou
+
+| Item | Decisão/correção                                                                                                                                                                                                                                                                                                     |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1   | `PATCH` estadual que **muda a data** de uma importada: `409 HOLIDAY_IMPORT_DATE_LOCKED` (`assertImportedDateNotMoved`); nome/tipo e a mesma data continuam adotando; a digitada muda de data. ADR-0100 §4.3                                                                                                          |
+| M2   | Todo `DELETE` de digitada/adotada com data ≥ hoje (SP) grava a supressão `(escopo, código, data)` na mesma transação, `suppressionId` (ou `null`) na auditoria. Não grava: data passada, `yearly` estadual, e código de cidade fora de `CITY_IBGE_CODE_PATTERN`. ADR-0100 §4.4                                       |
+| M3   | Texto: "restaurar volta na próxima execução diária" (ADR §4.2, `tasks.md` T5.2); `HOLIDAY_IMPORT_PAST_DATE` e `HOLIDAY_IMPORT_DATE_LOCKED` nos critérios da T5.2; contrato da T3.4 (cache a cada ciclo, pulando supressões, sob o advisory lock `['business-calendar', companyId]`, supressões relidas na transação) |
+| L1   | `countPendingPairs` com piso em zero                                                                                                                                                                                                                                                                                 |
+| L2   | Teto único (200) **depois** de juntar cidade e estado; `removedByProvider` virou `{ items, truncated }` (o painel ainda não consome; `ai-context`, `CLAUDE.md` e `tasks.md` atualizados)                                                                                                                             |
+| L3   | `GET /holiday-imports/suppressions` paginada como `/cities` (`page`/`perPage ≤ 100`, envelope com `pagination`)                                                                                                                                                                                                      |
+| L4   | `SECURITY.md`: `fetchedAt`/`attempts` do cache permitem inferir entrega entre empresas da mesma instalação — aceito, mesmo dono                                                                                                                                                                                      |
+| L5   | O contrato de isolamento reprova `.select()` sem projeção nos dois `.query.ts` isentos                                                                                                                                                                                                                               |
+| L6   | **Pendente de medida:** o teto agregado de `removedByProvider` (200) e a latência do `readStatus` em uma instalação com milhares de cidades não foram medidos (sem dados reais); a T5.2 deve medir antes de publicar a tela                                                                                          |
+| L7   | `isBusinessCalendarErrorCode` (guarda de tipo) no lugar do `as` do leitor                                                                                                                                                                                                                                            |
+| L8   | `tasks.md` T4.3: o aviso do motorista usa `readHolidayWarnings` direto e nunca importa `trip-holiday-warning.support.ts` (carrega a agulha `delivery-deadline`)                                                                                                                                                      |
+| L9   | JSDoc do aviso movido para cima de `holidayWarnings` em `drizzle-trip.repository.ts`                                                                                                                                                                                                                                 |
+| L11  | O contador de consultas do teste de custo do aviso conta também `execute`                                                                                                                                                                                                                                            |
+| L12  | `GET /holiday-imports/status` recusa query desconhecida (`readListQuery` com conjunto vazio)                                                                                                                                                                                                                         |
+| L10  | pulado, como pedido                                                                                                                                                                                                                                                                                                  |
+
+### Vermelho antes do código
+
+`holiday-import-municipal` 11 pass / 3 fail; `-state` 8 pass / 4 fail; `-suppressions` 8 pass / 2 fail; `-status` 6 pass / 2 fail (todos pelo comportamento novo); contratos de rota,
+de casos de uso, de `countPendingPairs` e de isolamento vermelhos pelo formato novo.
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                     | Resultado                                                             |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `bunx tsc --noEmit` / `bunx eslint src test drizzle.config.ts eslint.config.js …`                        | exit 0 / exit 0                                                       |
+| `bun --env-file=../../.env.test run test` (contratos)                                                    | **11137 pass, 1 skip (corpus PII sem env), 0 fail** (era 11132)       |
+| integração `holiday-import-{municipal,state,suppressions,status}`                                        | **14 / 12 / 10 / 8 pass**, 0 fail, 0 skip                             |
+| `holiday-warning-reader` / `trip-detail-holiday-warnings` (contador agora com `execute`)                 | **3 / 9 pass**, 0 fail (os +0/+4/+6 se mantêm)                        |
+| as 13 do calendário (`business-calendar-*`, `municipal-holiday-*`)                                       | todas 0 fail, 0 skip (os `DELETE` de digitada agora gravam supressão) |
+| `trip-detail-delivery-deadline*` (6), `trip-detail-query-count`, `delivery-deadline-driver-independence` | 3+5+4+1+1+4, 4, 1 pass; 0 fail                                        |
+| `bun run db:generate`                                                                                    | `{"status":"no_changes"}`                                             |
+| `bun run format:check` na raiz                                                                           | exit 0                                                                |
+
+### Mutações (restauradas; `git diff --quiet` = 0)
+
+| Mutação                                                                                  | Resultado                                                                                                                    |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `PATCH` estadual deixa mudar a data da importada                                         | estadual: 1 fail                                                                                                             |
+| `DELETE` municipal não suprime / suprime data passada / sem a guarda do código de cidade | municipal: 2 / 1 / 1 fail                                                                                                    |
+| `DELETE` estadual não suprime / suprime data passada                                     | estadual: 2 / 1 fail                                                                                                         |
+| pendentes sem o piso em zero                                                             | contrato: 1 fail                                                                                                             |
+| removidos sem o teto único / nunca `truncated`                                           | status: 1 / 1 fail                                                                                                           |
+| supressões sem paginação                                                                 | suppressions: 1 fail                                                                                                         |
+| `status` aceita query                                                                    | rotas: 1 fail                                                                                                                |
+| consulta isenta com `.select()` sem projeção                                             | isolamento: 1 fail                                                                                                           |
+| guarda de código de erro trocada por prefixo de texto (L7)                               | **sobrevive** (equivalente: todo código do calendário começa com o prefixo); a guarda existe por tipo, não por comportamento |
+
+### Notas
+
+- O `tasks.md` T3.4 foi editado aqui e também pelo agente do worker: o conflito de merge, se houver, é só de texto.
+- A supressão por `DELETE` de digitada usa a CHECK `holiday_import_suppressions_scope_code_check` (código `^[1-5][0-9]{6}$`); a linha antiga de `municipal_holidays` aceita
+  qualquer sete dígitos (`0000000` num teste), por isso a guarda — sem ela o `DELETE` daria 500.
+
+### O que ficou de fora
+
+Rotas de `is_enabled`; a medida do teto agregado (L6); a agulha do contrato de isolamento da nota e o aviso do motorista (T4.3); worker (T3); telas; sem push.
+
+## T3.1 — cliente HTTP da FeriadosAPI (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t3` a partir de `origin/staging` (migration `20261009040622_holiday_provider_import` e catálogo de jobs já nele). Sem push. Nenhum teste chama a internet: o cliente recebe `fetch` e o token por injeção, e os testes usam respostas fixas (`test/fixtures/feriados-api.fixture.ts`, no formato da documentação pública). **Nenhuma resposta real da FeriadosAPI foi vista** — as lacunas estão abaixo.
+
+- **Vermelho antes (`8571ad190`):** o contrato importa os módulos que ainda não existiam; `bun test ./test/holiday-provider-pull.contract.test.ts` → `0 pass, 1 fail, 1 error` (`Cannot find module .../domain/brazilian-state.constant.js`). Vermelho por funcionalidade ausente, não por erro de teste.
+- **Verde (`ca44fe24a`):** `src/holiday-provider-pull/{domain,application,infrastructure}` — cliente, guarda Zod, erro tipado, política de classificação das entradas, data `DD/MM/AAAA`, sigla da UF. 19 testes novos em `test/holiday-provider-pull/` (lista explícita no `package.json`).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint ... --max-warnings=0` exit 0; `bun run test` **2210 pass, 0 fail** em 103 arquivos (linha de base 2191 em 102: +19 testes, +1 arquivo).
+
+### Mutações (cada uma aplicada em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim)
+
+| Mutação                                                                     | Resultado |
+| --------------------------------------------------------------------------- | --------- |
+| sem o cabeçalho `Authorization: Bearer`                                     | 1 fail    |
+| erro de rede relançado cru (a mensagem da rede, com o token, sairia)        | 2 fail    |
+| sem juntar a mesma `(escopo, ibge, data)`                                   | 1 fail    |
+| facultativo vence o municipal                                               | 1 fail    |
+| estadual da resposta de cidade gravado com o código da cidade               | 1 fail    |
+| data sem conferir a volta (`31/02`)                                         | 2 fail    |
+| 403 deixa de ser `provider_unauthorized`                                    | 1 fail    |
+| nome sem o teto de 120 caracteres                                           | 1 fail    |
+| `NACIONAL` numa resposta de cidade passa a ser gravado                      | 1 fail    |
+| `receivedCount` conta o que sobrou depois de juntar (quebraria a paginação) | 2 fail    |
+
+### Lacunas: o que a documentação não diz e o código assume
+
+Registradas em vez de adivinhadas; nenhuma muda o ADR, e todas se confirmam (ou não) no 1º ciclo real, que é passo do usuário:
+
+1. **Envelope da resposta.** Aceitam-se a lista pelada e `{ data: [...] }`; qualquer outra forma é `malformed_response` e nada é gravado. Chaves de paginação do envelope (total, página) não são lidas — a paginação decide por `receivedCount === 100`.
+2. **Paginação.** `limit=100` sempre; `page=N` só da 2ª página em diante (1-based, a suposição comum). Se a API contar de 0, a página 2 pularia dados.
+3. **Estado.** O caminho usa a **sigla** (`/estado/SP`), pela leitura de `/api/v1/feriados/estado/{uf}`; a tabela IBGE→sigla é nossa.
+4. **`facultativos`.** O parâmetro não é enviado (a URL do ADR §5 não o tem); se o padrão da API é omitir facultativos, o cache simplesmente não os terá (D5: só cache, sem efeito).
+5. **`codigo_ibge`/`uf` da resposta não são lidos.** A cidade da entrada é a do pedido; não há conferência cruzada, porque o formato do campo (7 ou 6 dígitos, texto ou número) não está documentado.
+6. **Como a API sinaliza plano/cota do provedor.** Não documentado: 401/403 encerram o ciclo como `provider_unauthorized` (ADR), 429 como limite com `Retry-After`; outros 4xx e 5xx viram `provider_unreachable`. Se o plano gratuito responder 402/403 para cidade do interior, o ciclo vai parar em `provider_unauthorized` na 1ª cidade — o sinal certo para o usuário olhar o plano (Q3).
+7. **Tipo desconhecido** (`tipo` fora de `NACIONAL`/`ESTADUAL`/`MUNICIPAL`/`FACULTATIVO`) recusa a resposta inteira, por desenho (contrato do fornecedor mudou).
+
+### O que não foi feito
+
+Rotina, descoberta, busca, aplicação, variáveis de ambiente e registro no `main.ts` (T3.2 a T3.5). Nada publicado.
+
+## T3.2 — descoberta das cidades de destino (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`). Postgres 18.4 **nativo** descartável na porta 65442 (cluster no scratchpad, `LC_ALL=C`, socket Unix desligado), migrado pela API (`db:migrate`, journal até `20261009040622_holiday_provider_import`); o Docker 65432 segue com I/O error. Parado ao fim da sessão.
+
+- **Vermelho antes (`35d04a1d2`):** contratos e integração importam módulos que não existiam (`Cannot find module .../src/database/holiday-import.schema.js`); 0 pass, 1 fail, 1 error.
+- **Verde (`601237d60`, mais o reforço do teste de parada):** `domain/holiday-city-discovery.policy.ts`, `application/discover-holiday-cities.use-case.ts` + porta, `infrastructure/{holiday-discovery.query.ts,drizzle-holiday-discovery.store.ts}` e a cópia do schema `src/database/holiday-import.schema.ts` (três tabelas, só colunas).
+- **Contratos:** `test/holiday-provider-pull/{discovery,parity,schema-parity}.contract.ts` — 18 testes novos; entre eles o **lote venenoso** (um lote com `3509502`, `null`, `''`, `9999999`, `3909502`, `3509502`, `3550308`: só os válidos entram, o contador diz 4 descartados, o cursor andou até a última nota) e o lote só de lixo (nada gravado, cursor avança). Paridade de cópia por valor: o vocabulário do cache (`holiday-provider.constant.ts`), a lista das 27 UFs, o padrão `^[1-5][0-9]{6}$` e as 16 colunas das três tabelas de importação, lidas do texto da API.
+- **Integração (`test/integration/holiday-discovery.integration.ts`, contra o Postgres, 6 pass, 0 skip):** a entrega vence o destinatário e o CEP inutilizável cai para o destinatário; o lote venenoso real não derruba o `holiday_import_cities_city_check`; empresa com `is_enabled = false`, empresa `disabled` e a de outra empresa; cursor por vários lotes (`batchSize` 1 e 3) com **duas notas separadas por microssegundos** (o `Date` do JavaScript as juntaria) sem pular nem recontar; segundo ciclo sem nada novo não recontou.
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2229 pass, 0 fail** (103 arquivos; antes 2210).
+
+### Decisões de implementação dentro do ADR
+
+- O cursor viaja como **texto do Postgres** (`::text`, `::timestamptz`), nunca `Date`: com milissegundos, a última nota de um lote voltava no lote seguinte e era recontada a cada ciclo (a mutação N6 prova).
+- Lote e cursor na **mesma transação** (`saveBatch`): falhar entre os dois recontaria o lote. `document_count` soma por upsert (`+ excluded.document_count`) e é aproximado, como o ADR diz.
+- Uma nota conta **uma vez**, na cidade do destino físico dela (`resolvePhysicalDestination`, cópia do worker); nota sem nenhum endereço de entrega/destinatário é contada à parte (`documentsWithoutDestination`) e o cursor passa por ela.
+- O código descartado vira só um **contador** (`discardedCityCodes`); nenhum valor, nome ou endereço vai para log. A falha de uma empresa loga o `companyId` (identificador opaco), o `correlationId` e o **nome** do erro, nunca a mensagem.
+
+### EXPLAIN do lote (Postgres 18.4, 2.100 notas da empresa de teste, `EXPLAIN (ANALYZE, BUFFERS)`)
+
+| Consulta                                                                                      | Plano                                                                                                                                | Tempo   |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| lote de 2.000 notas, sem cursor                                                               | `Index Only Scan Backward using nfe_documents_company_updated_issued_id_idx`, `Heap Fetches: 0`, 33 buffers                          | 0,66 ms |
+| lote com cursor `(updated_at, issued_at, id) > (...)`                                         | mesmo índice, `Index Cond: ROW(...) > ROW(...)`, 1.501 linhas, 24 buffers                                                            | 0,42 ms |
+| junção dos endereços do lote (`nfe_participants` ⋈ `nfe_addresses`, `document_id = ANY(...)`) | `nfe_participants_company_document_role_unique` por índice; **`Seq Scan on nfe_addresses`** filtrado por `company_id` (2.100 linhas) | 1,5 ms  |
+
+**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário. **Fechado depois:** índice criado em migration própria (só staging), com planos antes/depois em § "Índice de nfe_addresses"; o lote cheio de 2.000 continua varrendo.
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim da 1ª rodada)
+
+| Mutação                                        | Resultado                                                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sem conferir a UF do prefixo (`3909502` entra) | 4 fail                                                                                                                                                  |
+| sem a forma de sete dígitos (`350950` entra)   | 1 fail                                                                                                                                                  |
+| sem filtro nenhum (só descarta nulo e vazio)   | 6 fail (inclui a CHECK do banco recusando o lote)                                                                                                       |
+| cursor não avança dentro do ciclo              | 3 fail                                                                                                                                                  |
+| cursor não é gravado (`setWhere false`)        | 1 fail                                                                                                                                                  |
+| instantes truncados em milissegundos           | 1 fail (o caso dos microssegundos)                                                                                                                      |
+| destinatário sempre vence a entrega            | 2 fail                                                                                                                                                  |
+| importação desligada não é pulada              | 1 fail                                                                                                                                                  |
+| empresa suspensa não é pulada                  | 1 fail                                                                                                                                                  |
+| parada pedida não é lida entre lotes           | 1 fail                                                                                                                                                  |
+| parada pedida não é lida entre empresas        | **sobreviveu** na 1ª rodada (a checagem por lote já impedia a leitura); o teste passou a afirmar `tally.companies`, e a mutação ficou vermelha (1 fail) |
+| falha de uma empresa derruba o ciclo           | 1 fail                                                                                                                                                  |
+| teto de 20 lotes alterado                      | 1 fail                                                                                                                                                  |
+
+### O que não foi feito
+
+Busca, aplicação, rotina, variáveis de ambiente e registro no `main.ts` (T3.3 a T3.5). Nenhum índice novo. Nada publicado.
+
+## T3.3 — busca no fornecedor (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (porta 65442). Nenhum teste chama a internet: o fornecedor é um dublê injetado (`buildScriptedClient`), o relógio e o `sleep` também (`buildFakeClock`: o `sleep` só adianta um relógio monotônico).
+
+- **Vermelho antes (`d7b7fd062`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../src/database/holiday-provider.schema.js`); contratos da política de datas, do fluxo da busca e da paridade, mais a integração contra o Postgres.
+- **Verde (`e98589cb4`):** `application/{fetch-holiday-provider.use-case,holiday-fetch.port,request-limiter}.ts`, `domain/{holiday-provider-schedule,holiday-fetch-record}.policy.ts`, `infrastructure/{drizzle-holiday-fetch.store,holiday-fetch.query}.ts` e a cópia do schema `src/database/holiday-provider.schema.ts` (três tabelas, só colunas, com paridade coluna a coluna).
+- **Provas:** 24 testes de contrato novos (`fetch.contract.ts`, `fetch-policy.contract.ts` e a paridade das 22 colunas do cache) e 7 de integração (`test/integration/holiday-fetch.integration.ts`, 0 skip, relançados duas vezes no mesmo banco sem colisão: anos 2030 a 2040 e códigos de cidade aleatórios por execução).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2253 pass, 0 fail** (103 arquivos; antes 2229).
+
+### O que cada critério provou
+
+- **CA3** — 3 cidades × 2 anos dão **6 requisições de cidade** (mais as 2 de paridade nacional, D4), todas espaçadas de **1,2 s ou mais** no relógio injetado (a espera desconta o tempo que a chamada anterior levou: 700 ms quando a resposta demora 500); **repetir o ciclo dá 0 requisições e 0 escritas** — nos contratos pelo número de eventos e, no Postgres, comparando `xmin` e o conteúdo de todas as linhas de `holiday_provider_fetches`, `holiday_provider_entries` e `holiday_provider_monthly_usage`.
+- **CA7** — 401 e 403 encerram o ciclo sem nova requisição e sem tocar no par; 429 encerra e o par só volta depois do `Retry-After` (uma hora quando a resposta não traz o cabeçalho; as tentativas do par não sobem); o contador do mês sobe **antes** de cada chamada (a ordem `claim`, `request` é afirmada) e **nunca passa do orçamento**. O primeiro pedido do mês cria a linha (upsert), provado no Postgres: `claimBudget(2)` devolve `true, true, false, false` e a linha fecha em 2.
+- **Orçamento esgotado** — o par em curso e os que sobraram viram `quota_exhausted` com `next_attempt_at` na meia-noite do dia 1º de São Paulo (`2026-11-01T03:00:00Z`); não é falha.
+- **Teto** — 100 requisições por ciclo (contando páginas e o estadual de reforço): 60 cidades × 2 anos + 2 nacionais = 122 pares → 100, 22 e 0 nos três ciclos.
+- **Recuo** — 5xx, rede e resposta fora do formato gravam `failed` com 1 h, 6 h, 24 h e, dali em diante, 7 dias (o 4º valor repete como teto); 404 grava `not_covered` por 90 dias; ambos seguem para o par seguinte (uma cidade que falha não derruba o ciclo).
+- **Cache** — as chaves são as do ADR: o estadual da resposta de uma cidade vai para `scope=state` + UF (uma data por ano, mesmo vindo de várias cidades), o nacional só da busca própria, o `FACULTATIVO` fica no cache. `removed_at` marca a data que o fornecedor deixou de listar **só no escopo e no código do próprio par**, só com resposta que listou alguma data dele; a data que volta ganha `removed_at = null`; lista vazia e resposta só com o estadual não marcam nada.
+- **Estadual** — pedido uma vez por UF e ano só quando a resposta da cidade não o trouxe; quando trouxe, o par do estado fecha como `done` junto (e a fila do estado nem é consultada).
+- **Demanda** — ordem por `sum(document_count)` decrescente; a demanda de empresa com `is_enabled = false` não é buscada.
+
+### Decisões de implementação dentro do ADR
+
+- **429 e a rotina:** o par grava `failed` com `last_error_code = provider_rate_limited` e o ciclo termina. O desfecho do ciclo (que palavra do catálogo) é decidido na rotina (T3.4/T3.5), não aqui.
+- **Ordem da fila** — a paridade nacional primeiro (uma por ano do horizonte, só se há demanda), depois os pares de estado que já existem (para retentar o que falhou) e depois as cidades. O estado nunca é criado por demanda: nasce quando a resposta da cidade não o traz.
+- **Paginação** — `limit=100` sempre; a página seguinte só quando a anterior veio cheia **e trouxe data nova** (uma API que ignora `page` devolve a mesma página: a 2ª não traz nada novo e a busca para), no máximo 10 páginas; parar no meio por teto ou parada deixa o par intacto (nada parcial é gravado).
+- **Parada do operador** é lida antes de cada requisição; 401/403 não grava nada no par, mas a requisição já foi contada no orçamento (o contador sobe antes da chamada, como o ADR manda).
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 nas duas rodadas)
+
+| Mutação                                               | Resultado                                                                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| orçamento por `UPDATE` cru (a mutação que o ADR pede) | 7 fail                                                                                                                          |
+| orçamento esgotado ignorado                           | 3 fail                                                                                                                          |
+| sem o limitador entre requisições                     | 2 fail                                                                                                                          |
+| espaçamento de 1,0 s                                  | 2 fail                                                                                                                          |
+| teto de 101 por ciclo                                 | 1 fail                                                                                                                          |
+| 401 não encerra o ciclo                               | 1 fail                                                                                                                          |
+| 429 ignora o `Retry-After`                            | 1 fail                                                                                                                          |
+| `not_covered` por 30 dias                             | 2 fail                                                                                                                          |
+| recuo sempre de 1 h                                   | 3 fail                                                                                                                          |
+| par vencido ignora `next_attempt_at`                  | 2 fail                                                                                                                          |
+| demanda crescente                                     | 1 fail                                                                                                                          |
+| demanda de empresa desligada entra                    | 1 fail                                                                                                                          |
+| remoção sem o filtro do código do par                 | 1 fail                                                                                                                          |
+| data que volta continua removida                      | 1 fail                                                                                                                          |
+| estadual pedido mesmo com a cidade trazendo           | **sobreviveu** na 1ª rodada (a fila do estado já devolvia vazio); o teste passou a afirmar que a fila nem é consultada → 1 fail |
+| remoção marca com resposta só de estadual             | **sobreviveu** na 1ª rodada; passou a existir o caso → 1 fail                                                                   |
+| par do estado não coberto pela resposta da cidade     | 1 fail                                                                                                                          |
+| paginação sem a guarda de página repetida             | 1 fail                                                                                                                          |
+| quota esgotada não gravada                            | 2 fail                                                                                                                          |
+| cota até o fuso errado                                | 3 fail                                                                                                                          |
+| horizonte de um ano só                                | 9 fail                                                                                                                          |
+| falha inesperada derruba o ciclo                      | 1 fail                                                                                                                          |
+| falha gravada sem subir as tentativas                 | 3 fail                                                                                                                          |
+
+### O que não foi feito
+
+Aplicação (T3.4), variáveis de ambiente, rotina e registro no `main.ts` (T3.5): a busca **ainda não tem quem a chame** em produção. Nada publicado.
+
+## T3.4 — aplicação dos feriados importados (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (porta 65442).
+
+**Fase 1 conferida no início (ADR-0100 §1):** `4454228ac` (correção do roteirizador por cidade) e `913aad994` (teste vermelho) são ancestrais de `origin/staging` e do `HEAD` desta branch (`git merge-base --is-ancestor`, exit 0 nos três); `test/route-optimization-municipal-holiday.integration.test.ts` rodou contra o banco já com a migration da 252: **15 pass, 0 fail**. Além disso a aplicação ganhou um contrato que não deixa a regra mudar calado: o feriado da cidade B não fecha o cliente da cidade A, e o mesmo CNPJ com paradas nas duas cidades fecha só a de B (`resolveStopWindows`).
+
+- **Vermelho antes (`938a4357e`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../apply-holiday-provider.use-case.js`).
+- **Verde (`9b1450794`):** `application/{apply-holiday-provider.use-case,holiday-apply.port}.ts`, `domain/{national-holiday,national-holiday-parity}.policy.ts`, `infrastructure/{drizzle-holiday-apply.store,holiday-apply.query,business-calendar-lock.support}.ts`. Nenhum schema novo: o `INSERT … SELECT` por conjunto é SQL cru (as tabelas `municipal_holidays` e `state_holidays` já têm a cópia mínima do roteirizador, que não foi tocada).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2262 pass, 0 fail** (103 arquivos; antes 2253). Integração `test/integration/holiday-apply.integration.ts`: **11 pass, 0 skip**, relançada duas vezes no mesmo banco (anos 2050 a 2060).
+
+### O que cada critério provou
+
+- **CA4** — a data digitada mantém o nome e a importada do mesmo dia não é gravada; a **gerada por regra** (`source_rule_id` preenchido) também vence; `ON CONFLICT (company_id, city_ibge_code, holiday_on) DO NOTHING`. Repetir o ciclo dá 0 linhas inseridas e 0 escritas (`xmin` das linhas da empresa idêntico).
+- **CA5 (lado da rotina)** — a supressão do operador impede a volta; apagar a supressão faz o feriado voltar no ciclo seguinte; a supressão é da empresa (a outra empresa com a mesma cidade recebe a data). O estadual tem a mesma supressão, com `scope = state`.
+- **CA6** — a entrada que o fornecedor removeu (`removed_at`) não entra; a linha da empresa já importada **fica**.
+- **CA10** — `FACULTATIVO` e `NACIONAL` não são aplicados. A divergência nacional é **contada** (`national_mismatch`, diferença simétrica entre o `NACIONAL` do cache e o calendário do código) e nunca gravada; só entram anos com a busca nacional `done`.
+- **CA11 / D7** — só datas de hoje em diante, em dia civil de São Paulo do relógio injetado: ontem não entra, hoje entra (`>=`). A contagem de hoje foi provada com um instante que é dia seguinte em UTC e o mesmo dia em São Paulo.
+- **D6** — o estadual vira `state_holidays` `once` marcado (`provider_entry_id`) só para as UFs das cidades da empresa; um `once` digitado na mesma data vence (`ON CONFLICT … WHERE recurrence = 'once' DO NOTHING`, o predicado do único parcial) e um `yearly` digitado no mesmo dia e mês também (`NOT EXISTS`).
+- **Empresa com a importação desligada** não recebe nada; a outra recebe.
+- **Trava de calendário por empresa (a mesma da 238):** a aplicação toma `pg_advisory_xact_lock` com o identificador que a API deriva (`SHA-256(["business-calendar", companyId])`, 8 primeiros bytes, big-endian com sinal) antes de escrever. Cópia por valor com contrato linha a linha; e uma integração prende a aplicação atrás de uma transação que segura a trava (`blocked`) e a vê terminar depois que ela solta. Sem a trava, um "desligar" do operador que comita entre a leitura da supressão e o `INSERT` da rotina deixaria a data voltar.
+- **Paridade do calendário nacional** — `domain/national-holiday.policy.ts` é cópia por valor só das **datas** (9 fixos, Carnaval em dois dias, Sexta-feira Santa e Corpus Christi; Páscoa de Meeus), comparada com `listNationalHolidays` da API **ano a ano de 2000 a 2100** por import dinâmico no teste.
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 na 1ª rodada)
+
+| Mutação                                        | Resultado                                                                                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| municipal sobrescreve a digitada (`DO UPDATE`) | 1 fail                                                                                                                                              |
+| municipal ignora a supressão                   | 1 fail                                                                                                                                              |
+| municipal aceita datas passadas                | 1 fail                                                                                                                                              |
+| municipal só depois de hoje (`>`)              | 1 fail                                                                                                                                              |
+| facultativo vira municipal                     | **sobreviveu** na 1ª rodada (a data do facultativo do teste era anterior a hoje e caía na regra de D7 antes); data corrigida para o futuro → 1 fail |
+| municipal ignora a remoção do fornecedor       | 1 fail                                                                                                                                              |
+| estadual ignora o anual digitado               | 1 fail                                                                                                                                              |
+| estadual de todas as UFs                       | 1 fail                                                                                                                                              |
+| estadual ignora a supressão                    | 1 fail                                                                                                                                              |
+| estadual sobrescreve o `once` digitado         | 1 fail                                                                                                                                              |
+| sem a trava de calendário                      | 1 fail                                                                                                                                              |
+| trava derivada de outro texto                  | 1 fail (paridade com a API)                                                                                                                         |
+| paridade ignora a data a mais do fornecedor    | 1 fail                                                                                                                                              |
+| "hoje" pelo dia UTC                            | 1 fail                                                                                                                                              |
+| falha de uma empresa derruba a aplicação       | 1 fail                                                                                                                                              |
+| paridade lê ano sem busca concluída            | 1 fail                                                                                                                                              |
+| empresa com a importação desligada entra       | 1 fail                                                                                                                                              |
+| nome do estadual trocado                       | 1 fail                                                                                                                                              |
+
+### Decisões de implementação dentro do ADR
+
+- A aplicação roda **por empresa, em transação própria**, e não num único `INSERT` global: é isso que permite a trava de calendário por empresa. Dentro da empresa o SQL é por conjunto (um `INSERT … SELECT` para o municipal, outro para o estadual).
+- A lista de empresas da aplicação é a das que têm demanda (`holiday_import_cities`), ativas e com a importação ligada; `applyCompany` em si não relê `is_enabled`.
+- O municipal importado entra com `kind = 'holiday'` (o padrão da coluna); o rótulo `city_anniversary` é só das regras da 238.
+
+### O que não foi feito
+
+Rotina que une as três etapas, variáveis de ambiente, registro condicional no `main.ts` e `.env.example`/`.railway/railway.ts` (T3.5): a aplicação **ainda não tem quem a chame**. Nenhuma rota de gestão (T4.1). Nada publicado.
+
+## T3.5 — o registro condicional, a configuração e o token fora de todo log (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`).
+
+- **Vermelho antes (`9b64e1726`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../holiday-provider-pull.routine.js`).
+- **Verde (`264b7f31a`):** `application/holiday-provider-pull.routine.ts`, `infrastructure/holiday-provider-pull.registry.ts`, `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` em `config/environment.schema.ts` (tipo `HolidayProviderPullEnvironment` em `shared/worker.types.ts`), a chamada em `main.ts`, `.env.example` (as duas sem valor) e `.railway/railway.ts` (as duas com `preserve()`, só no worker).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2287 pass, 0 fail** (103 arquivos; antes 2262); `bun run build` exit 0 (o entrypoint `main.ts` empacota com a rotina nova); `bun run format:check` na raiz verde.
+
+### O que cada critério provou
+
+- **CA8** — sem token: `parseWorkerEnvironment` não devolve `holidayProviderPull` (a chave nem existe), vazio e só espaços são ausência, o boot segue verde e `buildHolidayProviderPullRegistry` devolve vazio; uma janela dessa rotina num registro sem ela fecha em `unexpected_error` com `job_run_routine_missing` no log (contrato com o `createJobCycle` de verdade). Com token a rotina é registrada com o nome do catálogo. A linha de `job_schedules` nasce pausada pela migration da T2.2 (D13), então a janela diária nem abre sem o usuário despausar.
+- **Configuração** — orçamento inteiro `>= 1`, aparado; `0`, `-5`, `1.5`, `abc`, `1e3x` e `12 345` derrubam o boot com ou sem token; sozinho, sem token, o orçamento não liga nada; o erro de configuração não carrega o valor do token. **Padrão do orçamento: 4500** (plano Developer, 5.000 por mês, menos 10%, a proposta da Q3 — a Q3 segue aberta e o usuário confirma).
+- **CA9** — `token-privacy.contract.ts` roda a rotina **inteira** (descoberta, busca e aplicação, com o cliente HTTP de verdade e o `fetch` injetado) contra um fornecedor que ecoa o token na mensagem da rede, no corpo de um 500, de um 401, de um 429, num corpo que não é JSON e num nome de feriado, e contra um banco cuja mensagem de erro carrega o token: o log, os contadores, o desfecho e o que a rotina grava são serializados e nenhum contém o token. Nenhuma outra app lê a variável (varredura de `apps/*/src`), e no worker só o schema de ambiente a conhece.
+- **A rotina** — etapas em ordem, parada pedida lida antes de cada etapa, etapa que estoura não impede as seguintes (só tocam o banco) e fecha em `unexpected_error`; falha nossa vence a do fornecedor; entre as do fornecedor `provider_unauthorized` > `malformed_response` > `provider_unreachable` (o 429 entra aqui, e a espera do `Retry-After` já está gravada no par); orçamento do mês e teto do ciclo são contadores (`budget_exhausted`, `ceiling_reached`), não falha. Todo desfecho devolvido pertence ao vocabulário do catálogo para o job (`isJobOutcome`).
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0)
+
+| Mutação                                  | Resultado |
+| ---------------------------------------- | --------- |
+| orçamento aceita zero                    | 1 fail    |
+| padrão do orçamento de 5000              | 1 fail    |
+| a ausência do token não desliga a rotina | 3 fail    |
+| registro sem token registra mesmo assim  | 2 fail    |
+| falha nossa não vence a do fornecedor    | 3 fail    |
+| resposta fora do formato antes do 401    | 1 fail    |
+| etapa que estoura derruba o ciclo        | 2 fail    |
+| parada pedida não lida entre as etapas   | 1 fail    |
+| log da etapa carrega a mensagem do erro  | 2 fail    |
+| log do par carrega a mensagem do erro    | 1 fail    |
+| token fora do `railway.ts`               | 1 fail    |
+| a rotina não entra no `main.ts`          | 1 fail    |
+| 429 vira sucesso                         | 2 fail    |
+
+### Decisões de implementação dentro do ADR
+
+- **Padrão do orçamento (4500)** é por delegação, na linha da proposta da Q3; o usuário confirma ao configurar o token.
+- **429 → `provider_unreachable`:** o ADR não nomeia a palavra do catálogo para o 429; é a que mais se aproxima ("o fornecedor não nos deu o que pedimos") e é visível no painel, ao contrário de `succeeded`. Trocar é uma linha em `resolveOutcome`.
+- **Orçamento torto derruba o boot mesmo sem token:** um número declarado e errado é engano de configuração, como o grupo pela metade das agências.
+
+## Fechamento da Fase 3 (T3.1 a T3.5, 2026-10-09)
+
+Branch `work/252-t3` a partir de `origin/staging`, **sem push**. Commits (do mais antigo ao mais novo): contratos vermelhos `8571ad190`, `35d04a1d2`, `d7b7fd062`, `938a4357e`, `9b64e1726`; código `ca44fe24a`, `601237d60`, `e98589cb4`, `9b1450794`, `264b7f31a`; reforços de teste `deada2a7c`, `524643828`, `3380298b3`, `a52a193ad`; documentação `d6e7c4d10`, `b10a34250`, `9d5147c58`, `9e13f0066` e o desta seção.
+
+| Gate final                                                                                     | Resultado                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bunx tsc --noEmit` / `bunx eslint src test --max-warnings=0` (cwd `apps/worker-transportada`) | exit 0 / exit 0                                                                                                                                              |
+| `bun run test` do worker                                                                       | **2287 pass, 0 fail** em 103 arquivos (linha de base antes da Fase 3: 2191 em 102; +96 testes de contrato, +1 arquivo de entrada)                            |
+| `bun run build` do worker                                                                      | exit 0                                                                                                                                                       |
+| Integração contra Postgres 18.4 nativo (porta 65442), um arquivo por vez, 0 skip               | `holiday-discovery` 6 pass · `holiday-fetch` 7 pass · `holiday-apply` 12 pass · `job-run-execution` 11 pass · `route-optimization-municipal-holiday` 15 pass |
+| `bun run format:check` na raiz                                                                 | verde                                                                                                                                                        |
+| Mutações                                                                                       | T3.1 10 · T3.2 13 · T3.3 23 · T3.4 18 · T3.5 13 = **77 mutações, todas vermelhas** (4 sobreviveram na 1ª rodada, viraram teste e ficaram vermelhas)          |
+
+### Lacunas conhecidas e o que o usuário ainda decide
+
+1. **Forma de resposta real da FeriadosAPI** (T3.1, lista de 7 itens): envelope (lista pelada ou `{ data: [...] }`), paginação (`page` 1-based, decidida por `receivedCount === 100`), caminho do estado pela sigla, parâmetro `facultativos` não enviado, `codigo_ibge`/`uf` da resposta não lidos, como a API sinaliza plano/cota (402/403/429) e tipo desconhecido recusando a resposta inteira. **Nenhuma resposta real foi vista** — o 1º ciclo real, passo do usuário, confirma ou corrige.
+2. **`nfe_addresses` sem índice por `(company_id, participant_id)`:** o `EXPLAIN` confirma `Seq Scan` por lote da descoberta (1,5 ms com 2.100 notas). Índice, se a medição em staging pedir, vai em migration própria `CONCURRENTLY` (decisão do usuário, não desta task).
+3. **Padrão do orçamento 4500 e o 429 como `provider_unreachable`:** decisões por delegação acima.
+4. **A rotina não foi executada de ponta a ponta contra o fornecedor nem contra o `main.ts` vivo** (sem token e sem RabbitMQ): cada etapa foi provada contra o Postgres e o cliente contra um `fetch` injetado; a composição do `main.ts` é coberta por contrato de texto e por `bun run build`.
+5. **Passos do usuário para ligar** (Q3/Q4, `[NEEDS CLARIFICATION]`): confirmar termos e plano, configurar `FERIADOS_API_TOKEN` (e, se quiser, o orçamento) no worker de staging e despausar `holiday.provider.pull` no painel.
+
+### Acréscimos da Fase 3 (2026-10-09, depois do fechamento)
+
+- **Restaurar a supressão (aviso da T4.1):** a rota de restaurar da API só apaga a supressão e **não lê o cache global**
+  (contrato de isolamento); quem reaplica é a rotina. A aplicação já relê o cache `holiday_provider_entries` inteiro, para
+  as cidades e UFs da empresa, **a cada ciclo** (não só dos pares recém-buscados), pulando supressão, com a digitada
+  vencendo, só datas >= hoje e `removed_at is null`. Novo teste de integração em `holiday-apply.integration.ts`: o ciclo
+  completo (busca + aplicação) com o repositório real e um fornecedor que conta requisições — a rotina importa, o "desligar"
+  da API (apaga a linha e grava a supressão) não volta no ciclo seguinte, apagar a supressão faz a linha voltar no ciclo
+  seguinte, e as três rodadas depois da 1ª **não fazem nenhuma requisição** ao fornecedor. Integração da aplicação: **12 pass**.
+- **Tamanho (padrão do repositório):** a busca foi dividida em `fetch-holiday-provider.use-case.ts`,
+  `fetch-holiday-pair.service.ts`, `fetch-holiday-failure.service.ts` e `holiday-fetch-cycle.types.ts`, e as lojas Drizzle
+  ganharam funções menores; todo arquivo do módulo tem <= 200 linhas e nenhuma função passa de 40 (conferido com
+  `max-lines-per-function`). Sem mudar comportamento: `bun run test` **2287 pass, 0 fail**, as integrações de novo verdes e
+  as **77 mutações reexecutadas com os mesmos testes (todas vermelhas, árvore restaurada ao fim de cada rodada)**.
+
+## 2ª rodada da Fase 3 — correções da revisão `opus` (2026-10-09)
+
+A revisão liberou ir a staging **inerte** e pediu estas correções antes de ligar. Mesma branch `work/252-t3`, sem push, mesmo
+Postgres 18.4 nativo descartável (porta 65442), nenhum teste chama a internet nem usa token real. Ordem: contratos vermelhos
+(`208b35b0f`: `120 tests, 27 fail` pelo motivo certo — comportamento ausente, não erro de teste), código (`115f43b7f`), reforço do
+disjuntor (um teste a mais) e esta documentação.
+
+| #   | Correção                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Onde                                                                                             | Prova                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 404 em `national`/`state` é contrato quebrado: `failed` com `malformed_response`, recuo de 1 h, o ciclo para; 404 em cidade segue `not_covered`; ciclo em que **todo** pedido deu 404 fecha `malformed_response`                                                                                                                                                                                                                                                                                       | `fetch-holiday-failure.service.ts`, `holiday-provider-pull-summary.ts`                           | contratos `fetch.contract` e `routine.contract`                                                                                                                                                    |
+| 2   | `Retry-After` entre 60 s e 24 h (número enorme, negativo, `0`, data no passado, data no ano 9999, `> 2^53`; ilegível = sem valor)                                                                                                                                                                                                                                                                                                                                                                      | `feriados-api.body.ts`                                                                           | 11 casos no contrato do cliente                                                                                                                                                                    |
+| 3   | `content-length` > 512 KB recusado sem ler o corpo; corpo lido por stream com teto (para de ler); página `.max(100)`; nome `.max(1000)` antes do trim; id `.max(64)`                                                                                                                                                                                                                                                                                                                                   | `feriados-api.body.ts`, `feriados-api.schema.ts`                                                 | contratos do cliente (o stream de teste só puxa quando lido)                                                                                                                                       |
+| 4   | `\p{Cc}` e `\p{Cf}` saem do nome e do id (nome só de controle = resposta fora do formato); falha de **persistência** depois de resposta boa grava o par `failed` (`persistence_failed`) com recuo, em comando à parte                                                                                                                                                                                                                                                                                  | `feriados-api.schema.ts`, `fetch-holiday-pair.service.ts`, `fetch-holiday-failure.service.ts`    | contrato com a gravação falhando e **integração com NUL no nome** (o Postgres recusa; o par fica `failed`, tentativa 1, +1 h, nenhuma entrada gravada, e o ciclo seguinte não repete a requisição) |
+| 5   | Disjuntor: 3 `provider_unreachable` **seguidos** encerram o ciclo e os pares restantes ficam intactos; qualquer outra resposta (boa, 404…) zera a contagem                                                                                                                                                                                                                                                                                                                                             | `fetch-holiday-failure.service.ts`, `fetch-holiday-pair.service.ts`                              | 4 contratos                                                                                                                                                                                        |
+| 5b  | Contador do mês: **mantive o incremento antes da chamada** (atômico no banco) e o movi para **depois do limitador e imediatamente antes do envio**; só a queda do processo nesse intervalo gasta uma requisição que não saiu. Opção mais simples; nunca subestima o gasto                                                                                                                                                                                                                              | `fetch-holiday-pair.service.ts`                                                                  | contrato `claim` → `request` alternados                                                                                                                                                            |
+| 6   | 401 encerra o ciclo (`provider_unauthorized`); 402/403 em **cidade** grava o par `failed` com `provider_plan_restricted` por 30 dias e o ciclo **segue**, com contador `plan_restricted`; 402/403 em national/state encerra como `provider_unauthorized`. O código novo é **do par**: o vocabulário do job e as quatro cópias do catálogo **não mudaram**. Sem nenhum par buscado e com plano restrito, o ciclo fecha `provider_unauthorized`                                                          | `feriados-api.client.ts`, `fetch-holiday-failure.service.ts`, `holiday-provider-pull-summary.ts` | contratos                                                                                                                                                                                          |
+| 7   | Cota esgotada **só encerra o ciclo**: nenhum par muda (some `markQuotaExhausted`), e o ciclo seguinte com orçamento maior solta tudo                                                                                                                                                                                                                                                                                                                                                                   | `fetch-holiday-provider.use-case.ts`                                                             | contrato + integração (3 requisições no orçamento 3; no 2º ciclo com 5000 saem as outras 3)                                                                                                        |
+| 8   | Data de ano diferente do pedido descartada e **contada** (`entries_discarded`); orçamento `.max(1_000_000)`; token `^[\x21-\x7E]+$` (derruba o boot, sem eco do valor); `redirect: 'error'`; falha de transporte guarda só `error.name` (`reason`) e é logada com o código; `ensureStatePair` que falha é logado com o par **do estado**; `enabled_demand` filtra `companies.status = 'active'` (integração com empresa `disabled`); literais de escopo do TypeScript viram `HOLIDAY_PROVIDER_SCOPE.*` | vários                                                                                           | contratos e integração                                                                                                                                                                             |
+
+Divergência com o pedido: o item 2 pede teste de "`RangeError` impossível"; cobri com a data no ano 9999 e `Infinity` (número de 21
+dígitos), que antes virariam uma data inválida em `toISOString`. A leitura do `Retry-After` que o item descreve fica no cliente, e a
+espera padrão de 1 h sem cabeçalho segue na política.
+
+### Roteiro do 1º ciclo real (item 9)
+
+Em `tasks.md` § "Roteiro do 1º ciclo real" e em `docs/ai-context/worker-transportada.md`: configurar o token e **deixar o orçamento no
+valor do plano — não testar com orçamento baixo** (o ciclo seguinte já parte do mês gasto); observáveis, só por leitura:
+`select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2`, `holiday_provider_monthly_usage.requests` contra o
+contador `requests` da execução, e `national_mismatch` maior que zero é esperado.
+
+### Mutações e gates
+
+- **106 mutações, todas vermelhas** (as 76 que o refactor e as correções ainda tocam, reexecutadas e remapeadas para os arquivos novos,
+  mais 30 novas, uma por correção). Duas precisaram de teste na rodada: o disjuntor não zerava com outro erro (`S16`, caso do 404 de cidade) e uma
+  mutação ficou ambígua pelo texto (`R1`, refeita). A `P19` (marcar a cota por par) foi removida de propósito: é o comportamento que o item 7 aboliu.
+  Árvore restaurada ao fim de cada rodada.
+- **Gates depois do `git fetch` + `git rebase origin/staging`** (a staging andou com a T4.1, a T4.2 e a revisão da T4; conflitos só de
+  texto em `evidence.md` e `tasks.md`, resolvidos mantendo os dois lados; `bun install --frozen-lockfile` sem mudança): `tsc --noEmit` exit 0;
+  `eslint src test --max-warnings=0` exit 0; `bun run test` **2312 pass, 0 fail** em 103 arquivos; `bun run build` exit 0; `format:check` na raiz verde;
+  integração contra Postgres 18.4 nativo (65442, migrado de novo pela API), um arquivo por vez, **0 skip**: `holiday-discovery` 6, `holiday-fetch` 8,
+  `holiday-apply` 12, `route-optimization-municipal-holiday` 15, `job-run-execution` 11.
+- **Achado fora do escopo, corrigido para o gate fechar:** a T4.2 acrescentou `readStopCityCode` a `stop-address-key.ts` da API e a cópia por valor do worker
+  (`routing/domain/pool-address-key.ts`, com contrato de paridade) ficou para trás, derrubando `routing.contract.test.ts` em staging. Espelhei a
+  função (8 linhas, commit separado `077d036c6`). Quem mexer na chave de parada da API precisa copiar para o worker no mesmo commit.
+
+## T4.3 — o aviso de feriado no app do motorista (2026-10-09)
+
+Worktree do agente, branch `work/252-t4-3` a partir de `origin/staging` (`e770d57ce`), Postgres nativo descartável (porta 65443, `LC_ALL=C initdb`, banco por teste; o `.env.test` aponta para o 65432, quebrado, e foi sobreposto por um
+env de teste só com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`). Commits: `c4357c333` (linha de base, verde), `44b020cf5` (testes, vermelhos), `8a5356eb5` (código), `70a6621e2` (testes de borda) e o de documentação.
+
+### Linha de base antes do código
+
+`driver-current-trip-query-count.integration.ts` mede o caso de uso `findCurrentDriverTrip` inteiro (vínculo, viagens, fotos pendentes, nota) contra `origin/staging`: **25 consultas**, as mesmas com 1 parada e com 30
+paradas em 30 cidades com 3 notas (fixas, sem N+1). O teste nasceu com um placeholder e falhou com `Expected: 0 / Received: 25`; fixado o 25, passa.
+
+### Vermelho pelo motivo certo, antes do código
+
+Contrato do aviso (`driver-stop-holiday-warning.contract.ts`): falha por **módulo ausente** (`attach-driver-stop-holiday-warnings.service.js`, `driver-stop-holiday-warning.port.js`), que derruba o arquivo inteiro — o mesmo motivo da
+T4.2 (rodado). As integrações novas importam `drizzle-driver-stop-holiday-context.repository.js`, que não existia: falham no import (não as rodei uma a uma antes do código). O contrato de isolamento (`driver-holiday-warning-isolation`) rodou à parte: **2 pass / 3 fail** (os 2 verdes são
+a agulha do calendário na nota/comprovante/leitura, que já valia por não haver import; os 3 vermelhos são "os arquivos do aviso existem", "não citam o prazo" e "o caso de uso chama o módulo").
+
+### O que a API passou a fazer
+
+| Pedido do `tasks.md` T4.3                                              | Onde                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `holidayWarnings` nas paradas de `GET /me/trips/current`               | `DriverTripStop.holidayWarnings?` (`find-current-driver-trip.use-case.ts`); `serializeTrip` repassa as paradas como estão                                                                                 |
+| Chamado pelo **caso de uso**, nunca pelo repositório da leitura        | `findCurrentDriverTrip` → `attachDriverStopHolidayWarnings` (`attach-driver-stop-holiday-warnings.service.ts`), depois do `Promise.all` e do recorte pelo vínculo; o repositório da leitura **não mudou** |
+| `readHolidayWarnings` direto, sem `trip-holiday-warning.support.ts`    | `DrizzleHolidayWarningRepository` (já existia) via `HolidayWarningPort`; o suporte do detalhe (que cita o prazo da 236) não é importado                                                                   |
+| Só parada não concluída com ETA; "hoje" com a parada em andamento      | `collectOpenStops` (sem `completedAt`), contexto só com ETA, `isInProgress` (`arrived_at` ou `en_route_since`) → `resolveToday` (dia civil de São Paulo, relógio injetado)                                |
+| `cityName`, ausente (nunca `null`), só se o código do endereço confere | `DrizzleDriverStopHolidayContextRepository` (1 consulta: ETA, `address_key`, endereço de destino da nota viva, escolha da spec 073 em memória) + `resolveCityName`                                        |
+| +5 fixas, com uma cidade ou várias                                     | 1 de contexto + 4 do calendário (`readHolidayWarnings`, em série, uma carga para todas as cidades)                                                                                                        |
+| Falha não derruba o snapshot; log só com ids e contagem                | `try/catch` em volta das duas leituras; `driver_holiday_warning_unavailable` com `companyId`, `tripIds`, `affectedStopCount` (+ `code` na recusa)                                                         |
+| Agulha do calendário/aviso no contrato de isolamento da nota           | `test/trip-domain/driver-holiday-warning-isolation.contract.ts`: fleet, cte, `delivery-proof-*`, `proof-pending.query.ts` e o repositório da leitura não citam `business-calendar` nem `holiday-warning`  |
+| Fiação                                                                 | `main.ts`: `driverHolidayWarnings` montado uma vez e passado só à rota do app (`findCurrentTrip` de `/me/trips/current`); o fluxo do WhatsApp não o recebe                                                |
+
+### Gates (cwd na app, 2026-10-09)
+
+| Gate                                                                                                                                                                                                                                                                                                                           | Resultado                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit`                                                                                                                                                                                                                                                                                                            | exit 0                                                                                  |
+| `bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`                                                                                                                                                                                                                                                     | exit 0                                                                                  |
+| `bun --env-file=../../.env.test run test` (contratos; com o env de teste do Postgres nativo)                                                                                                                                                                                                                                   | **11157 pass, 1 skip (corpus PII sem env), 0 fail** (11137 ao fim da T4 2ª rodada: +20) |
+| integração nova: `driver-current-trip-holiday-warnings` / `-query-count` / `driver-holiday-independence` / `driver-stop-holiday-context`                                                                                                                                                                                       | **9 / 1 / 1 / 3 pass**, 0 fail, 0 skip                                                  |
+| `delivery-deadline-driver-independence`, `trip-detail-delivery-deadline*` (6), `trip-detail-query-count`, `trip-detail-holiday-warnings`, `holiday-warning-reader`                                                                                                                                                             | 1; 4+3+5+4+1+1; 4; 9; 3 pass — 0 fail, 0 skip                                           |
+| as de `/me/trips/current` e da nota: `me-trip` 21, `me-trip-departure` 12, `current-driver-trip-concluded-window` 4, `driver-snapshot-products` 5, `driver-score` 10, `driver-delivery-proof-read` 4, `driver-occurrence-{attachment-list,items}` 2 + 9, `mdfe-manifest-driver-capability` 1, `whatsapp-driver-flow-actions` 4 | todas 0 fail, 0 skip (cada uma sozinha)                                                 |
+| `bun run db:generate`                                                                                                                                                                                                                                                                                                          | `{"status":"no_changes"}`                                                               |
+| `bun run format:check` na raiz                                                                                                                                                                                                                                                                                                 | exit 0 ("All matched files use Prettier code style!")                                   |
+
+Nota sobre o `skip`: sem `DRIZZLE_TEST_DATABASE_URL` o `bun run test` dá 11133 pass / 25 skip (24 testes de migration/notificação que só rodam com banco); com o env apontando para o Postgres nativo, 1 skip, como na linha de base.
+
+### Mutações (restauradas pelo script; `git status` limpo no código; baseline 0 fail)
+
+| Mutação                                                                                                | Resultado                                                                  |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **aviso de outra cidade na parada** (cidade vem do endereço da nota, não da chave) — M1                | 3 fail (contrato: parada sem contexto, nome da cidade; integração: desvio) |
+| `cityName` sem conferir o código do endereço — M2                                                      | 2 fail (contrato do nome; integração do desvio)                            |
+| parada concluída entra no aviso — M3                                                                   | 5 fail                                                                     |
+| parada em andamento usa a ETA, não hoje — M4                                                           | 3 fail                                                                     |
+| dia da ETA em UTC / "hoje" em UTC — M5 / M6                                                            | 2 fail cada                                                                |
+| duas cargas de calendário (+9) / duas leituras de contexto (+6) — M7 / M7b                             | 2 / 5 fail                                                                 |
+| a falha do aviso derruba a leitura — M8                                                                | 3 fail (2 de contrato, 1 de integração)                                    |
+| o rastro vaza o rótulo (endereço) da parada — M9                                                       | 3 fail                                                                     |
+| **a nota descontar o feriado**: `score` nulo com aviso / fotos pendentes zeradas com aviso — M10 / M11 | 2 / 1 fail (integração de independência e contrato do caso de uso)         |
+| a rota descarta `holidayWarnings` — M12                                                                | 1 fail                                                                     |
+| a nota do motorista cita o calendário / o repositório da leitura cita o aviso — M13 / M14              | 1 fail cada (contrato de isolamento)                                       |
+| o aviso do motorista cita `trip-holiday-warning.support` / cita o prazo da 236 — M15 / M16             | 1 fail cada                                                                |
+| contexto sem filtro de empresa / sem filtro das paradas pedidas / lê a nota liberada — M17 / M18 / M19 | 1 fail cada (integração do contexto)                                       |
+| calendário carregado com outra empresa — M20                                                           | 6 fail                                                                     |
+| o caso de uso não chama o aviso — M21                                                                  | 10 fail                                                                    |
+
+Mutação **equivalente documentada**: tirar `isNotNull(tripStops.estimatedArrivalAt)` do contexto não muda a saída (`groupByStop` ignora linha sem ETA); o filtro existe para não ler à toa.
+A BOLA do recorte pelo vínculo é do repositório da leitura (`listActiveTrips`, não mudou): a integração prova que o motorista B, com viagem na mesma empresa, não recebe aviso nem id (viagem, parada) da viagem do A.
+
+### Decisões e lacunas (para o orquestrador/usuário)
+
+- **Parada em andamento sem ETA avisa para hoje** (corrigido na rodada de fechamento, abaixo: o ADR D12 e o `tasks.md` dizem "ou hoje com a parada em andamento"; a primeira versão exigia ETA).
+- **Custo por caso (final):** +5 com ao menos uma parada aberta que avise (com ETA, ou em andamento mesmo sem ETA); +1 se há parada aberta mas nenhuma avisa (sem ETA e sem começar: só o contexto); +0 sem parada aberta. A linha de base é **25 consultas**.
+- **`nfe_addresses` sem índice por `(company_id, participant_id)`:** a junção do contexto (a mesma classe da `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app. **Não medi em escala** (sem dados reais). Se o `EXPLAIN` em
+  volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
+- **O log de falha não é coalescido** (o detalhe usa um suporte que cita o prazo da 236, proibido aqui): a falha persistente repete a cada leitura do app.
+- **`package.json`:** o commit `44b020cf5` registrou os arquivos de integração com uma junção sem espaço (`…independence.integration.ts./test/integration/occurrence-template-values…`); o commit seguinte (`70a6621e2`) corrige. Em `44b020cf5` o
+  `test:integration` ficaria com um caminho inválido.
+- A guarda do app do motorista e o formato publicado não mudaram: `cityIbgeCode` numérico, `cityName` ausente (nunca `null`), `reasons[{ scope, origin, name }]`; o nome do feriado nacional é a chave estável (`independence_day`).
+
+### Rodada de fechamento (2026-10-09): ETA opcional para a parada em andamento e rebase
+
+**Rebase** sobre `origin/staging` (`5e566edf2`, com T4.1/T4.2 e o worker da Fase 3): o único conflito foi de texto, em `evidence.md` (as seções do worker T3.1–T3.5 e esta, ambas mantidas). `package.json` sem conflito; o estado final do
+`test:integration` foi conferido (255 caminhos `./test/integration/*.ts`, nenhum duplicado, nenhum colado). `bun install --frozen-lockfile`: sem mudança. SHAs depois do rebase: `36e36afb0` (linha de base), `51284bc85` (testes
+vermelhos), `414afee58` (código), `9618d940c` (bordas), `e37ba3ef6` (documentação da 1ª rodada), `daae4d6a8` (vermelho da correção abaixo), `24c5661d4` (correção) e o de documentação. Os SHAs citados acima são os de antes do rebase.
+
+**A correção.** O ADR-0100 D12 diz "a data é a do `estimated_arrival_at` … ou **hoje** quando a parada já está em andamento", e o `tasks.md` T4.3 repete; a 1ª versão exigia ETA também da parada em andamento. Agora: em andamento
+(`arrived_at` ou `en_route_since`, sem `completed_at`) avisa para **hoje**, com ou sem ETA; fora de andamento, só com ETA. O contexto (`DrizzleDriverStopHolidayContextRepository`) deixou de filtrar por ETA (devolve `estimatedArrivalAt: null`);
+quem decide é `resolveWarningDate`, no serviço (o repositório não sabe o que é "em andamento").
+
+- Vermelho antes: contrato 1 fail (`sem ETA: a parada em andamento avisa para hoje…`); integração do aviso 8 pass / 2 fail (a parada em andamento sem ETA, e a contagem +5 desse caso); integração do contexto 2 pass / 1 fail.
+- Depois: contrato 541 pass; integração do aviso 10 pass; contexto 3 pass.
+- Mutações (restauradas; `git status` limpo): sem ETA o serviço descarta antes de olhar o andamento (N1) → 3 fail; sem ETA e sem começar também avisa hoje (N2) → 4 fail; o contexto volta a filtrar por ETA (N3) → 3 fail.
+- Custo final: +5 (com ETA, ou em andamento sem ETA), +1 (aberta sem ETA e sem começar), +0 (sem parada aberta), sobre 25.
+
+**Gates depois do rebase e da correção (cwd na app, Postgres nativo 65443):** `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` (com o env de teste do Postgres nativo) **11158 pass, 1 skip, 0 fail**; as
+24 integrações da lista acima, cada uma sozinha, 0 fail e 0 skip (10 / 1 / 1 / 3 nas novas); `db:generate` `{"status":"no_changes"}`; `bun run format:check` na raiz exit 0. Contrato de paridade do worker não rodado: nenhuma função
+compartilhada por valor mudou (`stop-address-key.ts` intacto).
+
+### O que NÃO foi feito
+
+Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.
+
+## T6.1 — fechamento (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t6` a partir de `origin/staging` (`c5aa114a5`), **só documentação, sem push**. Nenhum arquivo de `apps/**/src` ou
+`test` foi tocado; não revisa nem muda código (a revisão final `opus` roda em separado, e os acréscimos dela a esta seção estão incorporados abaixo). **As seções antigas deste
+arquivo citam SHAs de antes dos rebases e de branches locais; os que valem são os do quadro abaixo**, achados com `git log origin/staging --grep` e conferidos com
+`merge-base --is-ancestor` contra `origin/staging` e `origin/main`.
+
+### Quadro único (SHAs em `origin/staging`, na ordem teste vermelho → código → reforços → documentação)
+
+"Deploy" é o primeiro run **verde** do workflow `Deploy` (branch `staging`) que contém o commit de código, em UTC, com o número do run; "produção" é `origin/main`
+(`a00ff8e63`, PR #154, 2026-10-09 03:13Z, Deploy verde `37878296967`).
+
+| Fase / task                                                | SHAs publicados em staging                                                                                                                                                                                                              | Deploy verde (UTC)                   | Produção |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------- |
+| Fundação: spec, plano, ADR-0100                            | `2d069a110` ADR, `bc81d064c` spec/plano/tarefas, `3f5f44e1c` SECURITY, `eaa2a7eb7` motorista (D12)                                                                                                                                      | só documentação                      | sim      |
+| T0.1 validação do ADR-0100 · T0.2 plano reconferido        | `e1b8a812a` · `eddd02018`, `c579e5107`                                                                                                                                                                                                  | só documentação                      | sim      |
+| T1.1 + T1.2 roteirizador por cidade (spec 238 "F1")        | `913aad994` (vermelho) · `4454228ac` (correção) · `1754e36e7` (evidência)                                                                                                                                                               | 2026-10-07 21:33Z, run `37690290352` | **sim**  |
+| T5.1 painel tolerante · T5.1b app do motorista tolerante   | `f37457a8d` (painel) · `928c7bb8c` (app; a mensagem diz "painel" por engano) · docs `bc4ad321b`, `a3a19e6e9`                                                                                                                            | 2026-10-07 22:07Z, run `37694127666` | **sim**  |
+| T2.1 contratos do modelo                                   | `76d9245c2`                                                                                                                                                                                                                             | 2026-10-09 04:53Z, run `37885956473` | não      |
+| T2.2 migration `20261009040622_holiday_provider_import`    | `54539fce7` · refeita sobre a staging nova `ef512a6d6` · 2ª rodada `648a346b8` (contratos) → `e24f3326b` (SQL) · docs `770ecd6fd`, `6548ead27`                                                                                          | idem (mesmo run)                     | não      |
+| T2.3 `holiday.provider.pull` nas quatro cópias do catálogo | `2f6add63f` painel · `b49b22102` API · `f02ccbef6` worker · `fc777a9d5` cron · docs `a42401e02`                                                                                                                                         | idem (mesmo run)                     | não      |
+| T4.1 gestão da importação (API)                            | `929cca352` → `c01dc388b` · docs `a8c4909fc` · 2ª rodada `588fd37de` → `0fa7e54bf` · docs `e770d57ce`                                                                                                                                   | 2026-10-09 06:42Z, run `37894932370` | não      |
+| T4.2 aviso de feriado: `day-checks` e detalhe da viagem    | `d921cd91a` → `fb367ef51` · docs `2dab86cb4`                                                                                                                                                                                            | idem (mesmo run)                     | não      |
+| T3.1 cliente HTTP da FeriadosAPI                           | `babc65e65` → `a85d55df8` · docs `b9961ca74`                                                                                                                                                                                            | 2026-10-09 07:03Z, run `37896868298` | não      |
+| T3.2 descoberta das cidades                                | `d747faf99` → `fa1a70809` · `c4ee4ca17` · docs `207261873`                                                                                                                                                                              | idem (mesmo run)                     | não      |
+| T3.3 busca no fornecedor                                   | `29ac494a7` → `b9a6c1b2a` · `3673bd1e5`, `e9c53cad9` · docs `74f6ac3d6`                                                                                                                                                                 | idem (mesmo run)                     | não      |
+| T3.4 aplicação no calendário                               | `0c14e9222` → `8a03ada89` · `86039a275` · docs `4d388ac5a`                                                                                                                                                                              | idem (mesmo run)                     | não      |
+| T3.5 registro condicional, ambiente e token fora do log    | `4e35fdd58` → `a8dd44342` · refatoração de tamanho `6bd0c39eb` · `ad48aea57` · docs `82f32956a`                                                                                                                                         | idem (mesmo run)                     | não      |
+| 2ª rodada da Fase 3 (revisão `opus`)                       | `470977bf9` → `4bcf3f0b6` · `e59567ebc` · paridade da chave de parada `077d036c6` · docs `891587b71`, `5e566edf2`                                                                                                                       | idem (mesmo run)                     | não      |
+| T4.3 aviso no `GET /me/trips/current`                      | `36e36afb0` (linha de base) · `51284bc85` (vermelhos) → `414afee58` · `9618d940c` · docs `e37ba3ef6` · fechamento `daae4d6a8` → `24c5661d4` · docs `40477e4f1`                                                                          | 2026-10-09 07:42Z, run `37900555259` | não      |
+| T5.4 aviso no app do motorista                             | `d6e6d2036` (código) · `98eb33641` (relógio corrigido) · docs `435b03926`                                                                                                                                                               | 2026-10-09 11:32Z, run `37924408807` | não      |
+| T5.2 aba Calendário · T5.3 avisos da montagem e selo       | T5.2 `eb409b3d6`, `68740c22e` (vermelhos) → `9d8e285d9` · `9038ec45c` (rótulos curtos e smoke de prints) · T5.3 `39fa8c293` → `e7a85b274` · `61a13b98e` · `c73387ba8` (largura cheia) · docs `5fa8a4b12` · prints aprovados `dff0b432d` | 2026-10-09 12:19Z, run `37929232812` | não      |
+| `origin` nas listas de feriado (API, **depois** do painel) | `86f537b72` (vermelhos) → `c315477a3` · `885fbda31` (prettier) · docs `c5aa114a5`                                                                                                                                                       | 2026-10-09 12:37Z, run `37931278933` | não      |
+| T6.1 documentação viva                                     | esta branch (`work/252-t6`), **sem push**                                                                                                                                                                                               | —                                    | não      |
+
+Observações do quadro: (1) o Deploy do `dff0b432d` (11:37Z) **falhou** (o `dc2a7cd63`, "prettier no evidence.md depois do rebase", o corrigiu; o run verde das 12:19Z é o dele); (2) a ordem
+de publicação do `origin` foi cumprida em staging: painel (12:19Z) antes da API (12:37Z); (3) a T5.4 (11:32Z) subiu antes das telas do painel (12:19Z), o que o plano permite (as três
+telas só dependem da API dos avisos); (4) a migration só existe em staging (Q2).
+
+### O que está em staging × o que falta para produção
+
+- **Em staging (tudo da 252):** migration, catálogo de jobs nas quatro apps (rotina pausada de fábrica), worker (rotina inerte sem token), API (gestão, avisos, `origin`), painel (aba
+  Calendário, avisos da montagem, selo do detalhe) e app do motorista (aviso por parada). Nada disso fala com o fornecedor: sem `FERIADOS_API_TOKEN` a rotina nem é registrada. O estado
+  vivo da linha de `job_schedules` em staging (pausada, `paused_origin = 'system'`) é o desenho da migration (D13); **não foi consultado nesta task**.
+- **Em produção (`main`):** só o roteirizador por cidade (T1.1/T1.2) e os clientes tolerantes (T5.1/T5.1b), pelo PR #154. **Falta tudo o mais**: migration (aprovação própria, Q2), API, worker,
+  cron, painel e app do motorista.
+
+### Promoção a produção: três PRs, nesta ordem
+
+O `deploy.yml` sobe a API **antes** do frontend (`deploy-frontend` tem `needs: deploy-api`). Um PR único `staging → main` poria no ar a API com `origin` antes do painel, e a aba Calendário de
+produção (guardas de chaves exatas) recusaria as listas até o painel entrar. Por isso:
+
+1. **PR1, só o painel tolerante:** guardas com `origin` opcional e o catálogo de jobs do painel com `holiday.provider.pull` (T5.1/T5.1b já estão em `main`; falta o catálogo `2f6add63f` e a
+   tolerância a `origin` que veio com a T5.2). Sem API nova, sem migration.
+2. **PR2, API com a migration, worker e cron:** a rotina nasce **pausada** e o worker fica **inerte sem token**. Esta é a que precisa de **aprovação própria do usuário** (migration, Q2).
+3. **PR3, as telas T5.2, T5.3 e T5.4 e a API do `origin`**, na ordem painel → API.
+
+Em **cada** PR: conferir a lista de commits contra `main` (o `staging` carrega trabalho de outras sessões e tem back-merge de `main`: montar a branch por `cherry-pick` sobre `origin/main`, como
+na memória "promover prod por branch própria", medindo por conteúdo e não por SHA); `make migration-test` e `db:generate` = `no_changes` no PR2; aprovação humana explícita antes de abrir
+e antes de mergear. **Antes da migration:** medir `select count(*) from municipal_holidays` e `from state_holidays` **no banco certo de produção (`Postgres-Hqfu`; o serviço "Postgres" é outro
+e dá número falso)**; se forem grandes, o `VALIDATE` da CHECK e qualquer índice saem do lote, fora do lock (plano § Riscos, "Lock em `municipal_holidays`/`state_holidays`").
+
+### Condição de promoção: `nfe_addresses` sem índice
+
+`nfe_addresses` não tem índice por `(company_id, participant_id)`. Três leitores fazem `Seq Scan` nela: `GET /me/trips/current` (a junção **nova** do aviso do motorista, T4.3; o caminho crítico do
+app), o detalhe da viagem (`listStopAddresses`) e a descoberta do worker (T3.2: 1,5 ms por lote com 2.100 notas, medido só em teste). **Condição para o PR2/PR3:** `EXPLAIN (ANALYZE)` dos três em
+base de tamanho real, ou uma migration própria com `CREATE INDEX CONCURRENTLY` (fora de transação, em arquivo à parte do lote da 252). Sem a medida, a leitura do motorista é a que mais arrisca.
+
+**Atualização (2026-10-09, decisão do usuário "fecha as decisões abertas"): resolvida em staging, aberta em produção.** A migration própria existe
+(`20261009160300_nfe_addresses_participant_index`, autorizada **só para staging**) e a medida está em § "Índice de nfe_addresses" abaixo. **Condição para o PR2/PR3 em produção:** aprovação própria
+do usuário **e** o índice criado `CONCURRENTLY` à mão no banco de produção ANTES do PR da migration (passos em § "Índice de nfe_addresses" → "Produção"); a migration é então um no-op.
+
+### Passos do USUÁRIO para ligar (nenhum é da IA)
+
+1. **Conta e chave na FeriadosAPI**, uma chave **por instalação** (o orçamento mora no banco de cada uma, ADR-0021; chave compartilhada divide os 60/min e a cota sem que um banco veja o outro).
+2. **Q3, plano:** escolher o plano (o Developer custa R$ 39/mês com 5.000 consultas; o gratuito cobre nacionais, estaduais e capitais, e o interior "consome cota" sem a documentação dizer quanto).
+3. **Q4, termos de uso:** confirmar com o fornecedor que **guardar** os feriados é permitido (a página de termos deu 404 em 2026-10-07). Sem isso, não configurar o token.
+4. **`FERIADOS_API_TOKEN`** no serviço do **worker** de staging (Railway; só ASCII visível; nunca com prefixo `VITE_`, nunca em terminal, log ou commit).
+5. **`FERIADOS_API_MONTHLY_REQUEST_BUDGET`:** deixar no valor do plano (o padrão é 4500 = 5.000 menos 10%); **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo, e o ciclo
+   seguinte já parte do mês gasto).
+6. **Despausar `holiday.provider.pull` no painel de Operações** (a linha nasce pausada de fábrica, `paused_origin = 'system'`; o painel mostra o nome cru da rotina, lacuna conhecida da T2.3).
+7. Acompanhar o 1º ciclo (roteiro abaixo) e só então pensar em produção.
+
+### Roteiro do 1º ciclo real (o que o `evidence.md` § "2ª rodada da Fase 3" e o `tasks.md` já trazem, mais a leitura da revisão final)
+
+Depois de despausar, conferir em staging **só por leitura**:
+
+- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`,
+  `provider_plan_restricted` e `persistence_failed` pedem leitura do log (só tem código, nome do erro e par).
+- **O desfecho da execução no painel de rotinas é a fonte para o 401:** `provider_unauthorized` por token recusado **não** aparece em `holiday_provider_fetches` (nenhum par muda). E atenção ao
+  rótulo: **plano restrito em TODAS as cidades buscadas fecha o ciclo como `provider_unauthorized`** ("token recusado" engana: é o plano; conferir o contador `plan_restricted`).
+- Contadores da execução a ler no painel: `requests`, `plan_restricted`, `entries_discarded` (data de outro ano), `discovery_discarded_city_codes` (código de cidade lixo), `national_mismatch`,
+  `municipal_inserted` e `state_inserted`.
+- `holiday_provider_monthly_usage.requests` do mês contra o contador `requests` da execução.
+- Por empresa: `select count(*) from municipal_holidays where company_id = … and provider_entry_id is not null` (e o mesmo em `state_holidays`) contra `municipal_inserted`/`state_inserted`.
+- **Duração do ciclo e lease:** o limitador custa 1,2 s por requisição, então 100 requisições ≈ 2 min de relógio; o lease da execução é de 30 s, renovado a cada 10 s
+  (`run-job-cycle.ts`). Conferir a duração no painel e que nenhuma execução ficou aberta (`job_executions.finished_at is null`).
+- `national_mismatch` maior que zero **é esperado** (o fornecedor lista a Páscoa; o código conta Carnaval e Corpus Christi).
+- As lacunas da forma de resposta (§ T3.1: envelope, paginação, caminho do estado pela sigla, `facultativos`, como o plano e a cota são sinalizados) se confirmam ou se corrigem aqui.
+- Volume esperado (ADR-0100 §5, amostra local): carga inicial ≈ 138 requisições em **2 dias** (teto de 100 por ciclo e ciclo diário), depois ≈ 23 por mês.
+- Na aba Calendário: o bloco "Importação de feriados" deixa de dizer "Aguardando a primeira execução", as linhas importadas aparecem com a origem "Importado" e "Desligar" tira uma data de verdade
+  (com a auditoria `holiday-import.disabled`).
+
+### Runbook de emergência (só por ordem do usuário; a IA não executa nada disto sozinha)
+
+Quando a importação trouxer dado errado ou o fornecedor mudar de comportamento, do mais leve ao mais pesado:
+
+1. **Parar a rotina:** pausar `holiday.provider.pull` no painel de Operações. Nada novo é buscado nem aplicado; o que já foi importado continua valendo.
+2. **Desligar uma empresa** (não há rota; é escrita no banco): `insert into company_holiday_import_settings (company_id, is_enabled) values ('<id>', false) on conflict (company_id) do update set
+is_enabled = false` (sem linha vale "ligada", por isso o `upsert`). A descoberta e a busca deixam de considerar a empresa.
+3. **Suprimir em lote** o que a importação não pode trazer de volta: `insert into holiday_import_suppressions (company_id, scope, ibge_code, holiday_on, suppressed_by_user_id) values (…)`, com `scope`
+   `city` (código de 7 dígitos) ou `state` (2 dígitos), `holiday_on` **>= hoje** em São Paulo e o id do usuário que mandou (NOT NULL); o único é `(company_id, scope, ibge_code, holiday_on)`, então
+   repetir é 23505. A aplicação pula a supressão; o "Restaurar" do painel apaga a linha.
+4. **Remover as linhas importadas de uma empresa** (só se o usuário mandar; apaga a data da empresa): `delete from municipal_holidays where company_id = '<id>' and provider_entry_id is not null` e
+   o mesmo em `state_holidays`. Sem a etapa 2 ou 3, a rotina reinsere no ciclo seguinte. A linha digitada, a adotada (`provider_entry_id` nulo) e a gerada por regra não são tocadas.
+5. **O `rollback.sql` da migration recusa** enquanto houver feriado importado, supressão, empresa com a importação desligada ou execução aberta: o rollback da migration vem **depois** de
+   esvaziar essas três coisas, nunca no lugar delas.
+
+Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data passada alteraria o selo de prazo de nota já entregue, e a supressão de data passada é recusada pela API.
+
+### Achados da T6.1 (para o usuário decidir; nada foi corrigido em código)
+
+1. **A manchete "Sem cota" do painel não aparece mais.** Ela nasce de `pairs.quotaExhausted > 0` (`holidayImportStatus.service.ts` 23), e a 2ª rodada da Fase 3 fez a cota esgotada **só encerrar o
+   ciclo**, sem marcar par `quota_exhausted`. O status só traz `monthlyRequests`, não o orçamento. Decisão: expor o orçamento no status para a tela derivar o "sem cota", ou tirar a manchete.
+   Registrado em `docs/ai-context/frontend-transportada.md`.
+2. **Ordem painel/API em produção:** resolvida no plano de três PRs acima.
+3. **`nfe_addresses` sem índice:** condição de promoção acima.
+4. **Textos de erro desatualizados, corrigidos aqui:** ADR-0100 §5, a linha de orçamento do `spec.md` e o bullet da T3.3 em `docs/ai-context/worker-transportada.md` ainda descreviam o desenho
+   da T0.1/T3.3.
+5. **Documentação que faltava, acrescentada aqui:** app do motorista (T5.1b e T5.4: `docs/ai-context/frontend-driver.md` e `apps/frontend-driver/CLAUDE.md`), `docs/spec/domain-model.md` e a nota do cron.
+   O `tasks.md` ainda dizia "publicação pendente da aprovação dos prints" na T5.4, que está publicada.
+6. **Lacunas herdadas e ainda abertas:** o painel de Operações mostra o nome cru `holiday.provider.pull` (T2.3, sem mecanismo de rótulo); a medida do teto de 200 removidos e da latência do status com
+   milhares de cidades (`L6` da T4, T5.2); o smoke Playwright do app do motorista (T5.4) não foi rodado.
+
+### O que falta para marcar a T6.1 `[x]`
+
+Esta task entregou a **documentação viva**. Ficam fora e continuam abertas: (a) a **revisão final `code-reviewer` `opus`** em passada separada (já rodou em paralelo; seus acréscimos de documentação
+estão acima), com a auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização), e os achados dela que virarem código; (b) a **revisão de design e usabilidade com o
+usuário** (web.md §15), tela real contra os prints aprovados, no painel (T5.2, T5.3) e no app do motorista (T5.4); (c) a decisão sobre os achados acima.
+
+## T6.1b — correções da revisão final (2026-10-09, branch `work/252-t6b` sobre `origin/staging`)
+
+Sete correções pequenas da revisão `opus` final, em `apps/api-transportada` e `apps/frontend-transportada`. Cada uma com teste vermelho antes (commit
+separado), mutação e commit isolado. Nada de worker, nada de migration, o cartão de status (manchetes/cota) intocado.
+
+| #   | Correção                                                                                                                                                                                                                       | Vermelho / código                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 2   | `holiday-import-status.query.ts` (202 linhas) perde a consulta dos removidos para `holiday-import-removed.query.ts`: 133 + 98 linhas; o contrato de isolamento do cache global ganha o arquivo novo e um teto de 200 linhas    | `b6c7a392a` / `598093779`                                   |
+| 1   | API: removidos e supressões só de `holiday_on >= hoje` (dia civil de São Paulo, relógio injetado), ordem ascendente, total e paginação da supressão contam só o que aparece. Painel: o removido de data passada sem "Desligar" | `a03f53ceb` / `c6a94b52a`; painel `51655793c` / `d74d178e7` |
+| 3   | `readHolidayWarnings` descarta o item fora de `[ano-1, ano+2]` antes de carregar a cobertura (`referenceYear` do chamador; o repositório recebe o relógio)                                                                     | `921b2b277` / `65fb7ffdb`                                   |
+| 4   | `readTripStopHolidayWarnings`: a falha da leitura vira "sem aviso" (`try/catch`), com log `trip_holiday_warning_unavailable` `{ code: 'read_failed', companyId, tripId, affectedStopCount }`, coalescido como os outros        | `eeead24b2` / `eac1453d0`                                   |
+| 5   | Painel: `persistence_failed` no vocabulário de falhas, texto pt-BR e en                                                                                                                                                        | `8e4845bda` / `cbd695fee`                                   |
+| 6   | Painel: `AbortSignal.timeout(5_000)` no `fetch` de `day-checks`                                                                                                                                                                | `720256adc` / `d9654bfd9`                                   |
+| 7   | Painel: o selo `TripStopHolidayBadge` com `tabIndex={0}`; a dica abre no foco                                                                                                                                                  | `11393a89d` / `a8d99c70e`                                   |
+
+**Item 1 — decisões.** `readStatus` e `list` das supressões ganham `today` (obrigatório nas duas portas); o caso de uso o deriva de `resolveToday({ now: now() })`, o mesmo
+de `disable`. `>=`, não `>`: o dia de hoje ainda se desliga (D7). Os removidos continuam em ordem ascendente por data, agora todos futuros, e o teto de 200 conta só o que
+aparece (teste com 201 passados + 1 futuro: `truncated: false`, 1 item). No painel, `canDisableHolidayOn` compara `AAAA-MM-DD` com `readCalendarToday` (fuso de São
+Paulo, não do navegador); o item passado segue listado e dito (a decisão de "manter" é editar na tabela), só o botão some. As datas do contrato do painel passaram a `2099-11-20`
+(futuro) e `2020-11-20` (passado): a tela compara com o relógio real e a lista não pode envelhecer em 20/11/2026.
+
+**Item 3 — decisão.** O exemplo do pedido (ETA em 2031 com uma normal em 2026) tem span 5 e a cobertura aceita span ≤ 5, então SOZINHO ele não era recusado; o que derrubava as
+cidades era um ano mais longe (2040). O teste cobre os dois: 2031 (descartado da janela, não vira aviso) e 2040 (antes: `COVERAGE_TOO_WIDE` para a cidade inteira). Fora da janela
+não há aviso nem recusa, e se todos os itens estão fora nada é carregado (+0). A janela mora em duas constantes do leitor (`1` antes, `2` depois). Os chamadores:
+o detalhe da viagem passa o ano do relógio dele; o repositório de aviso (usado pela montagem e pelo app do motorista) recebe `now` no construtor (`main.ts` passa o relógio do
+calendário; o padrão é `new Date()`).
+
+**Item 4 — limite conhecido.** O `catch` cobre o detalhe lido FORA de transação (`GET /trips/:id`). Dentro da transação de uma escrita (`close` etc.), um erro SQL aborta a
+transação e as consultas seguintes do detalhe falham do mesmo jeito que antes; o `catch` não piora esse caminho, mas também não o conserta.
+
+**Gates (cwd nas apps; Postgres NATIVO descartável na porta 65445, `DRIZZLE_TEST_DATABASE_URL`).**
+
+- API: `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` **11170 pass / 1 skip / 0 fail** (208 arquivos, 11171 testes);
+  integrações, cada uma sozinha (`./test/integration/x.integration.ts`), **17 arquivos, 0 fail, 0 skip**: `holiday-import-status` 10, `holiday-import-suppressions` 11,
+  `holiday-import-municipal` 14, `holiday-import-state` 12, `holiday-origin` 5, `holiday-warning-reader` 4, `trip-detail-holiday-warnings` 10, `driver-current-trip-holiday-warnings` 10,
+  `driver-holiday-independence` 1, `driver-stop-holiday-context` 3, `driver-current-trip-query-count` 1, `trip-detail-query-count` 4, `trip-detail-delivery-deadline` 4,
+  `trip-detail-delivery-deadline-count` 3, `business-calendar-rules` 3, `business-calendar-tenant-safety` 2, `municipal-holiday-interplay` 6; `db:generate` `{"status":"no_changes"}`.
+- Painel: `tsc` exit 0; `eslint .` exit 0; `bun run test` **7799 + 1233 pass / 0 fail** (duas invocações do script); `test:hooks` **13 execuções, 13 verdes, 1233 pass / 0 fail em cada**
+  (10 normais + 3 sob carga de CPU, um `yes` por núcleo).
+- Raiz: `bun run format:check` exit 0 ("All matched files use Prettier code style!").
+
+**Mutações** (cada uma restaurada; arquivo de volta ao conteúdo do commit):
+
+| #         | Mutação                                             | Resultado                                          |
+| --------- | --------------------------------------------------- | -------------------------------------------------- |
+| M1        | removidos municipais sem o `gte(hoje)`              | 2 fail (integração do status)                      |
+| M2        | removidos estaduais sem o `gte(hoje)`               | 1 fail                                             |
+| M3        | supressões sem o `gte(hoje)`                        | 1 fail (integração das supressões)                 |
+| M4        | caso de uso das supressões com `today` fixo em 1970 | 1 fail (contrato dos casos de uso)                 |
+| M5        | leitor sem o filtro de janela                       | 4 fail (contrato do leitor)                        |
+| M6        | janela para trás de 0 ano                           | 1 fail                                             |
+| M7        | janela para frente de 3 anos                        | 1 fail                                             |
+| M8        | repositório do aviso com ano fixo 2000              | 4 fail (integração do leitor)                      |
+| M9        | detalhe da viagem relança a falha do aviso          | 3 fail (contrato) / 1 fail (integração do detalhe) |
+| M10       | falha engolida, mas sem log                         | 2 fail                                             |
+| M11       | log de falha sem coalescer                          | 1 fail                                             |
+| M13       | botão "Desligar" sempre aparece                     | 1 fail (DOM da lista de removidos)                 |
+| M14       | `>` no lugar de `>=` (hoje deixa de valer)          | 1 fail                                             |
+| M15       | "hoje" pelo fuso UTC                                | 1 fail                                             |
+| M16       | `persistence_failed` fora do vocabulário            | 1 fail                                             |
+| M17 / M18 | texto da falha ausente em en / em pt                | 2 fail cada                                        |
+| M19       | `fetch` de `day-checks` sem `signal`                | 1 fail                                             |
+| M20       | limite de 50 s em vez de 5 s                        | 1 fail                                             |
+| M21       | selo sem `tabIndex`                                 | 1 fail (DOM)                                       |
+| M22       | `tabIndex={-1}`                                     | 1 fail                                             |
+| M23       | dica sem a frase (`label` vazio)                    | 1 fail                                             |
+
+**O que NÃO foi feito.** Push; o cartão de status (manchetes/cota); worker; migration; `make check`, `make migration-test`, `make smoke` completos; o botão "Desligar" das
+linhas IMPORTADAS da tabela (`HolidayTableRow`) segue sem o corte por data passada (a API devolve 409 e o texto dele já é dito; fora do que foi pedido); o `try/catch` do item 4
+dentro de transação de escrita (acima).
+
+## Índice de nfe_addresses (2026-10-09)
+
+Decisão do usuário "fecha as decisões abertas": a junção `nfe_participants` ⋈ `nfe_addresses` por `(company_id, participant_id)` fazia `Seq Scan` (T3.2) e é lida pela descoberta do worker, por
+`listStopAddresses` (detalhe da viagem) e pela junção do aviso do motorista (`drizzle-driver-stop-holiday-context.repository.ts`, em `GET /me/trips/current`). A FK composta
+`nfe_addresses_company_participant_fk` **não cria índice** no lado filho. Migration aditiva **própria**, autorizada **só para staging**.
+
+Branch `work/252-nfe-addresses-index` (a partir de `origin/staging` = `5bfc520a8`), sem push. Pasta `drizzle/20261009160300_nfe_addresses_participant_index/`: `migration.sql`, `rollback.sql`, `snapshot.json`
+(encadeado no de `holiday_provider_import`, timestamp posterior ao último de `origin/staging` na hora). Schema Drizzle: `index('nfe_addresses_company_participant_idx').on(companyId, participantId)` em `nfe.schema.ts`.
+
+### Escolha: (a) `CREATE INDEX` comum, e por quê
+
+O migrador (`runDatabaseMigrations` → `migrate()` do `drizzle-orm/bun-sql`) aplica **todas as pendentes numa transação só**. Provado, não suposto: com `CONCURRENTLY` na migration, o migrador falha com
+`CREATE INDEX CONCURRENTLY cannot run inside a transaction block` (mutação M4 abaixo, 23 testes de banco vermelhos). Nenhuma migration do repositório usa `CONCURRENTLY` (as que o citam, em comentário,
+dizem o mesmo). Não inventei mecanismo fora de transação. Logo (a), com a análise de lock no cabeçalho do `migration.sql`:
+
+- `SHARE` em `nfe_addresses` até o COMMIT do lote: leitura segue; INSERT/UPDATE/DELETE esperam (a importação de NF-e, `upload` e `distribution`). Nenhuma escrita do motorista toca esta tabela.
+- `SET LOCAL lock_timeout = '3s'` em volta (aborta em vez de enfileirar tráfego), devolvido ao padrão no fim da pasta.
+- **`IF NOT EXISTS`** para o caminho de produção abaixo, mais um **guarda**: se o índice existir **INVÁLIDO** (resto de um `CONCURRENTLY` interrompido), a migration aborta com mensagem, porque
+  `IF NOT EXISTS` casa pelo nome e aceitaria o índice quebrado calado.
+- Medido: `count(*)` = **201.000** linhas (heap 28 MB), `CREATE INDEX` em transação **203 ms**, índice **9.784 kB**; `CONCURRENTLY` (sem escrita concorrente) 214 ms.
+
+### Produção (NÃO feito; exige aprovação própria do usuário)
+
+1. Medir `select count(*) from nfe_addresses` no banco certo (`Postgres-Hqfu`; o serviço "Postgres" é outro e dá número falso). A construção é linear: ~1 ms por mil linhas nesta máquina; a de produção
+   é mais lenta (disco de rede, escrita concorrente).
+2. **Antes do PR que traz a migration**, criar o índice à mão, em autocommit, fora do migrador (não bloqueia escrita):
+   `CREATE INDEX CONCURRENTLY IF NOT EXISTS nfe_addresses_company_participant_idx ON nfe_addresses (company_id, participant_id);` — mesmo nome, mesmas colunas, sem `WHERE` (o contrato de banco confere a definição).
+3. Conferir: `select indisvalid from pg_index where indexrelid = 'nfe_addresses_company_participant_idx'::regclass;` deve dar `t`. Se `f`: `DROP INDEX CONCURRENTLY nfe_addresses_company_participant_idx;` e refazer o 2.
+4. A migration então vira no-op (só grava o journal). Reverter: `rollback.sql` (`DROP INDEX IF EXISTS`; nenhum dado se perde).
+
+### Volume sintético e planos (Postgres 18.4 nativo, `EXPLAIN (ANALYZE, BUFFERS)`, segunda execução = cache quente)
+
+Banco descartável migrado pelo próprio migrador até `holiday_provider_import`; 3 empresas, **67.000 notas, 201.000 `nfe_participants` e 201.000 `nfe_addresses`** (150 mil / 45 mil / 6 mil por empresa),
+4.000 paradas e 8.000 `trip_documents` na empresa grande. Divergência do pedido ("20 mil participantes"): `nfe_participants` é **por nota** (`unique (company_id, document_id, role)`), então
+3 participantes por nota e 1 endereço por participante é a razão do schema; manter 10 endereços por participante não existe no modelo. `vacuum analyze` antes de cada medida.
+
+| Consulta                                                         | Antes                                                                                                 | Depois                                                                                                         |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Q3 `GET /me/trips/current` (junção do aviso, 40 paradas)         | `Seq Scan on nfe_addresses` (150.000 linhas, 51.000 removidas), 4.179 buffers, **25,3 ms** (1ª: 32,5) | `Nested Loop` + `Index Scan using nfe_addresses_company_participant_idx`, 1.173 buffers, **1,75 ms** (1ª: 6,8) |
+| Q2 `listStopAddresses` (detalhe da viagem, 80 notas, 160 linhas) | `Parallel Seq Scan on nfe_addresses`, 4.554 buffers, **15,6 ms** (1ª: 41,5)                           | `Nested Loop` + `Index Scan` pelo índice novo, 942 buffers, **0,41 ms** (1ª: 1,3)                              |
+| Q1 descoberta do worker, lote de **2.000 notas** (4.000 linhas)  | `Parallel Seq Scan on nfe_addresses`, 6.735 buffers, **36,7 ms** (1ª: 157,8)                          | **inalterada: ainda `Parallel Seq Scan`**, 6.735 buffers, 19,7 ms (1ª: 46,5; diferença é ruído de cache)       |
+| Q1 com lote de 200 notas (400 linhas)                            | —                                                                                                     | `Nested Loop` + `Index Scan` pelo índice novo, 0,95 ms                                                         |
+
+**Q1 não mudou no lote cheio, e é honesto dizer.** Com 2.000 notas o planejador estima 4.000 buscas por índice (custo 15.862) contra uma junção por hash sobre a varredura (custo 10.943) e escolhe a
+varredura. Forçando o índice (`enable_seqscan/hashjoin/mergejoin = off`) o lote cheio roda em 9,8 ms quentes (255 ms na primeira, com 1.854 leituras) — o índice não piora nada e entra sozinho abaixo de
+algumas centenas de notas, mas **o lote de 2.000 do worker continua varrendo a empresa**. O teto de 20 lotes por empresa por ciclo diário limita o custo (≈ 0,4–0,7 s por empresa por dia nesta escala).
+Reduzir o lote para a faixa do índice, ou ajustar `random_page_cost` (padrão 4,0, pensado para disco giratório), são decisões separadas e **não foram tomadas**. O ganho é nas duas leituras que
+rodam com tráfego: o aviso do motorista (**25,3 → 1,75 ms**, 3,6x menos buffers) e o detalhe da viagem (**15,6 → 0,41 ms**). Resto no plano de Q3 fora desta task: `Seq Scan on trip_documents` (8.000 linhas,
+138 buffers) — não investigado, tabela pequena na amostra.
+
+### Gates (Postgres nativo 65447, descartável)
+
+| Gate                                                                                                                                                                                                                                                                                                                                                                                                                                              | Resultado                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `bun run typecheck` / `bun run lint` (cwd na app)                                                                                                                                                                                                                                                                                                                                                                                                 | exit 0 / exit 0 (`--max-warnings=0`)                               |
+| `bun --env-file=../../.env.test run test` (contratos da API)                                                                                                                                                                                                                                                                                                                                                                                      | **11.150 pass, 25 skip, 0 fail**                                   |
+| `bun run db:test` (`DRIZZLE_TEST_DATABASE_URL` no nativo)                                                                                                                                                                                                                                                                                                                                                                                         | **183 pass, 0 fail, 0 skip** — a asserção de banco do índice rodou |
+| `bun run db:generate`                                                                                                                                                                                                                                                                                                                                                                                                                             | `no_changes`; `db:check` "Everything's fine"                       |
+| Integrações da API, uma por vez, sem pular: `driver-stop-holiday-context` 3 · `driver-current-trip-holiday-warnings` 10 · `driver-holiday-independence` 1 · `holiday-warning-reader` 4 · `trip-detail-holiday-warnings` 10 · `trip-detail-query-count` 4 · `trip-occurrence-feed-document` 6 · `me-trip` 21 · `me-trip-departure` 12 · `holiday-import-municipal` 14 · `business-calendar-state-and-settings` 6 · `municipal-holiday-interplay` 6 | todas exit 0, 0 fail                                               |
+| Integração do worker `holiday-discovery` (`DATABASE_URL` num banco migrado)                                                                                                                                                                                                                                                                                                                                                                       | 6 pass, 0 fail                                                     |
+
+Contratos novos (vermelhos antes, commit `6720448de`): `nfe-addresses-participant-index.static.contract.ts` (nome ≤ 63 bytes, um só `CREATE INDEX IF NOT EXISTS` sem `CONCURRENTLY`, guarda de índice inválido,
+`lock_timeout` em volta, rollback só `DROP INDEX IF EXISTS` + journal com `ROW_COUNT`, schema TS declara o mesmo índice) e `nfe-addresses-participant-index.assertion.ts` (definição em `pg_indexes`, plano com as
+**duas** colunas no `Index Cond`, migration repetida sem erro, índice inválido recusado, rollback tira só ele e a migration reaplica; ligada em `database-migration.integration.ts`).
+
+### Mutações (cada uma em cópia do arquivo, restaurada por `cmp`; rodam o contrato estático e o `db:test`)
+
+| Mutação                                                   | Resultado                                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| M1 índice só com `("company_id")`                         | estático 1 fail; `db:test` 2 fail                                                          |
+| M2 nome com 84 bytes (acima dos 63 do Postgres)           | estático 1 fail; `db:test` 2 fail                                                          |
+| M3 sem `IF NOT EXISTS`                                    | estático 1 fail; `db:test` 2 fail                                                          |
+| M4 `CREATE INDEX CONCURRENTLY`                            | estático 1 fail; `db:test` **23 fail** (o migrador recusa dentro da transação)             |
+| M5 guarda de índice inválido neutralizado                 | estático 1 fail; `db:test` 2 fail                                                          |
+| M6 `DROP INDEX` sem `IF EXISTS` no rollback               | estático 1 fail; `db:test` 2 fail                                                          |
+| M7 índice removido do schema TS                           | 2 fail (estático + `schema-snapshot`, snapshot vs. schema); igual no `db:test`             |
+| M8 guarda `ROW_COUNT` do journal neutralizada no rollback | estático 1 fail; `db:test` 1 fail — **só o estático pega** (o banco nunca erra a contagem) |
+
+### O que NÃO foi feito
+
+Push; produção (nenhum passo acima foi executado nela); índice `CONCURRENTLY` à mão em staging (a migration comum bastou: tabela pequena e o migrador roda no deploy); mudança do tamanho do lote da descoberta
+ou de `random_page_cost`; investigação do `Seq Scan on trip_documents` do Q3; `make migration-test` pelo alvo do Makefile (rodei o corpo, `bun run db:test`, no Postgres nativo); `make check` completo.

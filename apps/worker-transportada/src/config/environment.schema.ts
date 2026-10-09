@@ -3,10 +3,15 @@
  */
 import { z } from 'zod'
 
+import {
+  FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
+  FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET,
+} from '../holiday-provider-pull/domain/holiday-provider-pull.constant.js'
 import type {
   CteTechnicalResponsibleEnvironment,
   MdfeAutoIssueEnvironment,
   FuelPricePullEnvironment,
+  HolidayProviderPullEnvironment,
   IdentityDocumentBackfillEnvironment,
   WorkerEnvironment,
   EmailDeliveryEnvironment,
@@ -90,6 +95,11 @@ const workerEnvironmentSchema = z
       .trim()
       .optional()
       .transform((value) => (value === undefined || value.length === 0 ? undefined : value)),
+    // ADR-0100 D10: o token da FeriadosAPI e o teto de requisições do mês. Opcionais, vazio é ausente:
+    // sem o token a rotina `holiday.provider.pull` não é registrada e nada sai do produto. O token mora só
+    // aqui. Orçamento torto derruba o boot, com ou sem token (sem ele o contador do mês perderia o sentido).
+    FERIADOS_API_MONTHLY_REQUEST_BUDGET: optionalPositiveInteger(),
+    FERIADOS_API_TOKEN: optionalToken(),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
     // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
@@ -222,6 +232,7 @@ export function parseWorkerEnvironment(
     ...(result.data.GOOGLE_MAPS_API_KEY === undefined
       ? {}
       : { googleMapsApiKey: result.data.GOOGLE_MAPS_API_KEY }),
+    ...toHolidayProviderPull(result.data),
     ...(technicalResponsible === undefined
       ? {}
       : { cteTechnicalResponsible: technicalResponsible }),
@@ -255,6 +266,24 @@ export function parseWorkerEnvironment(
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
+  }
+}
+
+/** Quem liga a rotina é a presença do token; o orçamento só o limita (vazio vale o padrão da Q3). */
+function toHolidayProviderPull(
+  data: Readonly<{
+    FERIADOS_API_MONTHLY_REQUEST_BUDGET?: number | undefined
+    FERIADOS_API_TOKEN?: string | undefined
+  }>,
+): { readonly holidayProviderPull?: HolidayProviderPullEnvironment } {
+  if (data.FERIADOS_API_TOKEN === undefined) return {}
+
+  return {
+    holidayProviderPull: {
+      monthlyRequestBudget:
+        data.FERIADOS_API_MONTHLY_REQUEST_BUDGET ?? FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
+      token: data.FERIADOS_API_TOKEN,
+    },
   }
 }
 
@@ -401,6 +430,36 @@ function protocolUrl<const TProtocols extends readonly string[]>(
     .refine((value) => protocols.includes(new URL(value).protocol), {
       message: 'Unsupported connection protocol',
     })
+}
+
+/**
+ * ASCII visível, sem espaço: é o que cabe num cabeçalho `Authorization`. Espaço, acento ou quebra de
+ * linha no meio é token colado errado (ou injeção de cabeçalho), e o boot cai em vez de mandar a
+ * requisição torta todo dia. O erro é o genérico: o valor nunca aparece na mensagem.
+ */
+function optionalToken(): z.ZodType<string | undefined, string | undefined> {
+  return optionalText().refine((value) => value === undefined || /^[\x21-\x7E]+$/u.test(value), {
+    message: 'Invalid token',
+  })
+}
+
+/** Inteiro a partir de 1; vazio é ausência, e qualquer outra coisa derruba o boot. */
+function optionalPositiveInteger(): z.ZodType<number | undefined, string | undefined> {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .pipe(
+      z.union([
+        z.undefined(),
+        z
+          .string()
+          .regex(/^[0-9]+$/u)
+          .transform(Number)
+          .pipe(z.number().int().min(1).max(FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET)),
+      ]),
+    )
+    .optional()
 }
 
 /** Declarada e vazia é ausência: o `.env.example` escreve o padrão desligado sem derrubar o boot. */

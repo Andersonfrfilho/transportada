@@ -50,15 +50,59 @@ export async function findByDay(input: {
   return row
 }
 
-/** Digitada, com o mesmo nome e (quando o corpo traz) o mesmo tipo: não há o que gravar nem auditar. */
+/**
+ * Digitada, com o mesmo nome e (quando o corpo traz) o mesmo tipo: não há o que gravar nem auditar. A
+ * importada nunca é "a mesma": cadastrá-la é adoção, e a linha deixa de ser do fornecedor.
+ */
 export function isSameTypedHoliday(input: {
   readonly input: { readonly kind?: string; readonly name: string }
   readonly previous: HolidayRow
 }): boolean {
   const { input: requested, previous } = input
-  if (previous.sourceRuleId !== null) return false
+  if (previous.sourceRuleId !== null || previous.providerEntryId !== null) return false
   if (previous.name !== requested.name) return false
   return requested.kind === undefined || requested.kind === previous.kind
+}
+
+/**
+ * Grava a data do operador. Sobre uma linha que já existe é correção do nome ou adoção: a gerada deixa a regra
+ * (`source_rule_id`) e a importada deixa o fornecedor (`provider_entry_id`), e a linha vira digitada.
+ */
+export async function upsertTypedHoliday(input: {
+  readonly holiday: {
+    readonly cityIbgeCode: string
+    readonly companyId: string
+    readonly holidayOn: string
+    readonly kind?: HolidayRow['kind']
+    readonly name: string
+  }
+  readonly transaction: BusinessCalendarTransaction
+}): Promise<HolidayRow> {
+  const { holiday } = input
+  const [row] = await input.transaction
+    .insert(municipalHolidays)
+    .values({
+      cityIbgeCode: holiday.cityIbgeCode,
+      companyId: holiday.companyId,
+      holidayOn: holiday.holidayOn,
+      name: holiday.name,
+      ...(holiday.kind === undefined ? {} : { kind: holiday.kind }),
+    })
+    .onConflictDoUpdate({
+      set: {
+        name: holiday.name,
+        providerEntryId: null,
+        sourceRuleId: null,
+        ...(holiday.kind === undefined ? {} : { kind: holiday.kind }),
+      },
+      target: [
+        municipalHolidays.companyId,
+        municipalHolidays.cityIbgeCode,
+        municipalHolidays.holidayOn,
+      ],
+    })
+    .returning()
+  return requirePersistedRow(row)
 }
 
 type RegenerateParams = {

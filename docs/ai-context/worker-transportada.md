@@ -569,3 +569,92 @@ reescreve nota em andamento: a nota que já tem tentativa v2 continua falando v2
 até a próxima emissão. A virada para `v3` em produção é a T6.2 da spec 250, sob aprovação humana, e **não aconteceu**.
 O vínculo de nota emitida fora do sistema (`POST .../service-invoices/:id/external-link`) vai a `pending_authorization`
 e é o status pull acima que a autoriza ou rejeita.
+
+## A importação de feriados da FeriadosAPI (spec 252 Fase 3, ADR-0100) — rotina `holiday.provider.pull`
+
+Módulo `src/holiday-provider-pull/` (domínio, aplicação e infraestrutura como `fuel-price-pull/`). **Inerte sem
+`FERIADOS_API_TOKEN`:** sem o token a rotina não é registrada, nada sai do produto, e a linha de `job_schedules`
+nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termos, `[NEEDS CLARIFICATION]`).
+
+- **Cliente (T3.1)** — `infrastructure/feriados-api.client.ts`. `GET /api/v1/feriados/{cidade/<ibge>|estado/<sigla>|nacionais}?ano=Y&limit=100[&page=N]`
+  com `Authorization: Bearer`. A UF vai pela **sigla** (`BRAZILIAN_STATE_ABBREVIATION_BY_IBGE_CODE`). A guarda Zod
+  (`feriados-api.schema.ts`) exige `data` `DD/MM/AAAA` existente, `nome` de 1 a 120 caracteres (aparado e cortado) e
+  `tipo` do vocabulário; aceita a lista pelada ou em `data`; resposta fora disso é `malformed_response` inteira.
+  Cada entrada sai já com a chave do cache (`holiday-provider-entry.policy.ts`): o `ESTADUAL` de uma resposta de
+  cidade vira `scope=state` + UF, o `NACIONAL` fora do pedido nacional é descartado, e duas datas na mesma
+  `(escopo, ibge, data)` viram uma — vence a não facultativa. **O token não aparece em erro nenhum por construção:**
+  `HolidayProviderError` tem como mensagem só o próprio código (`malformed_response`, `provider_not_found`,
+  `provider_plan_restricted`, `provider_rate_limited`, `provider_unauthorized`, `provider_unreachable`); URL, cabeçalho, corpo e mensagem da
+  rede nunca entram (nem a mensagem do Zod, que ecoa o valor recusado).
+- **Descoberta (T3.2)** — `application/discover-holiday-cities.use-case.ts`. Por empresa ativa e com a importação ligada
+  (`company_holiday_import_settings.is_enabled`, sem linha vale ligada), anda `nfe_documents` pelo cursor do índice
+  `nfe_documents_company_updated_issued_id_idx` (2.000 notas por lote, 20 lotes por empresa e ciclo), lê os endereços
+  `delivery`/`recipient` do lote numa consulta e escolhe o destino com `resolvePhysicalDestination` — a mesma função
+  do roteirizador, sem desvio manual. **O código de cidade é filtrado em TypeScript antes do upsert** (`^[1-5][0-9]{6}$`
+  e UF do prefixo entre as 27): `null`, vazio, `9999999` e `3909502` viram só um contador (`discardedCityCodes`), porque
+  a CHECK `holiday_import_cities_city_check` recusaria o lote inteiro por um código lixo. Lote e cursor gravam na
+  mesma transação; **o cursor viaja como texto do Postgres** (`::text`/`::timestamptz`) para não perder os
+  microssegundos. A junção dos endereços faz `Seq Scan` em `nfe_addresses` (sem índice por participante): custo
+  limitado pelo teto de lotes; índice, se a medição em staging pedir, vai em migration própria (`CONCURRENTLY`).
+  Cópias por valor com paridade: `src/database/holiday-import.schema.ts` e `holiday-provider.constant.ts`.
+- **Busca (T3.3)** — `application/fetch-holiday-provider.use-case.ts`. Fila é a própria `holiday_provider_fetches`: par sem linha,
+  com `next_attempt_at` nulo ou vencido é par para buscar, na ordem paridade nacional (1 por ano, só com demanda), pares
+  de estado existentes e cidades por `sum(document_count)` decrescente, nos anos `[corrente, seguinte]` de São Paulo
+  (D8; relógio injetado). **Antes de cada requisição**: parada do operador, teto de 100 por ciclo e `claimBudget` —
+  upsert `INSERT … ON CONFLICT (month) DO UPDATE … WHERE requests < $orçamento RETURNING` (o 1º pedido do mês cria a
+  linha; um `UPDATE` cru pararia a rotina para sempre) —, e então o limitador (`request-limiter.ts`, 1,2 s entre
+  inícios de requisição, relógio e `sleep` injetados). Desfechos: sucesso = `done`, `next_attempt_at` +180 dias;
+  404 = `not_covered` +90 dias; 5xx/rede/fora do formato = `failed`, recuo 1 h, 6 h, 24 h, 7 dias; 429 = `failed` com
+  `provider_rate_limited`, espera o `Retry-After` (1 h sem cabeçalho) e **encerra o ciclo**; 401 encerra sem tocar no
+  par; orçamento esgotado **só encerra o ciclo** (texto da T3.3 superado pela 2ª rodada, abaixo: nenhum par muda e
+  `quota_exhausted` já não é gravado). Uma
+  cidade que falha não derruba as outras. Página cheia pede a seguinte só se trouxe data nova (no máximo 10). A resposta
+  boa grava entradas (chave `(scope, ibge_code, holiday_on)`; o estadual de uma cidade vai para `state` + UF), marca
+  `removed_at` só no escopo e código do par e só se a resposta listou data dele, e fecha o par, tudo numa transação.
+  O estadual só é pedido quando a resposta da cidade não o trouxe; quando trouxe, o par do estado fecha junto.
+- **Aplicação (T3.4)** — `application/apply-holiday-provider.use-case.ts`. Só banco, **uma transação por empresa** sob a mesma
+  trava de calendário que as rotas da 238 tomam (`pg_advisory_xact_lock` com `SHA-256(["business-calendar", companyId])`;
+  cópia por valor com contrato linha a linha): o operador que desliga e a rotina que importa não escrevem juntos.
+  Dentro da empresa, SQL por conjunto: `MUNICIPAL` → `municipal_holidays … ON CONFLICT (company_id, city_ibge_code,
+holiday_on) DO NOTHING` (a digitada e a gerada por regra vencem), pulando supressão do operador e entrada com
+  `removed_at`; `ESTADUAL` → `state_holidays` `once` marcado com a entrada, só das UFs das cidades da empresa, com o `ON
+CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o `yearly` digitado (D6). Só datas `>=` hoje em
+  São Paulo (D7). `FACULTATIVO` e `NACIONAL` nunca viram linha da empresa; a divergência entre o `NACIONAL` do cache e o
+  calendário do código (`national-holiday.policy.ts`, cópia só das datas, igual à da API de 2000 a 2100) é só contada
+  (`national_mismatch`). Idempotente: repetir o ciclo não escreve nada. Os `INSERT … SELECT` não usam schema Drizzle; o
+  roteirizador continua lendo `municipal_holidays` por data fixa, e a linha importada tem a mesma forma da digitada.
+- **A rotina e a configuração (T3.5)** — `application/holiday-provider-pull.routine.ts` encadeia descoberta → busca → aplicação,
+  lendo a parada pedida antes de cada etapa; etapa que estoura é contada e as seguintes ainda rodam. Desfecho: falha nossa
+  (`unexpected_error`) vence a do fornecedor, e entre as do fornecedor `provider_unauthorized`, `malformed_response`,
+  `provider_unreachable` (inclui o 429); orçamento do mês e teto do ciclo são contadores, não falha. O registro é
+  `infrastructure/holiday-provider-pull.registry.ts`, chamado pelo `main.ts`: **sem `FERIADOS_API_TOKEN` devolve vazio** (boot
+  verde, nada sai do produto, `job_run_routine_missing`). `FERIADOS_API_TOKEN` (opcional, vazio = ausente) e
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro >= 1; vazio vale **4500**, plano Developer menos 10% — a Q3 segue aberta;
+  valor torto derruba o boot, com ou sem token) são lidos só em `config/environment.schema.ts`; `.env.example` os traz sem
+  valor e `.railway/railway.ts` só no serviço do worker, com `preserve()`. **Para ligar** (passos do usuário, depois de
+  confirmar termos e plano, Q3/Q4): configurar o token no worker de staging e despausar a rotina no painel de rotinas.
+  O contrato `token-privacy.contract.ts` roda a rotina inteira com o cliente HTTP de verdade e um fornecedor que ecoa o
+  token de seis jeitos (rede, 500, 401, 429, corpo que não é JSON, nome de feriado) e procura o segredo no log, nos
+  contadores e no que a rotina grava.
+- **2ª rodada da revisão (cliente e busca)** — o cliente recusa o corpo declarado ou lido acima de **512 KB** (lê por stream com
+  teto, nunca `response.json()` cru), a página acima de 100 itens, o nome acima de 1.000 caracteres e o id acima de 64; remove
+  caractere de controle e de formato (NUL, RLO, zero-width) do nome e do id; descarta e **conta** a data de outro ano que o
+  pedido; não segue redirecionamento (`redirect: 'error'`); e o `Retry-After` fica entre **60 s e 24 h**, qualquer que seja o
+  valor ou a data. O erro de transporte guarda só o **nome** do erro (`reason`). Status: **401** encerra o ciclo
+  (`provider_unauthorized`); **402/403** numa cidade grava o par `failed` com `provider_plan_restricted` por 30 dias e o ciclo
+  **segue** (contador `plan_restricted`), no nacional ou no estado encerra como não autorizado; **404** numa cidade é
+  `not_covered`, mas no nacional ou no estado é **contrato quebrado** (`malformed_response`, recuo de 1 h, ciclo para), e um
+  ciclo em que **todo** pedido deu 404 fecha `malformed_response`. **Disjuntor:** 3 `provider_unreachable` seguidos encerram
+  o ciclo e os pares que sobraram ficam intactos. **Orçamento esgotado só encerra o ciclo** — nenhum par muda, então aumentar o
+  orçamento solta tudo no ciclo seguinte; o contador do mês sobe imediatamente antes da chamada (depois do limitador), e só a
+  queda do processo nesse intervalo gasta uma requisição que não saiu. **Falha de gravação depois de resposta boa** (dado que o
+  banco recusa) grava o par `failed` (`persistence_failed`) com recuo, em comando à parte, para a requisição não se repetir
+  todo dia. `FERIADOS_API_TOKEN` só aceita ASCII visível (`^[\x21-\x7E]+$`) e o orçamento vai de 1 a 1.000.000; os dois derrubam o boot.
+
+- **Roteiro do 1º ciclo real** (passo do usuário, depois de Q3/Q4): configurar o token e **deixar o orçamento no valor do plano**
+  (**não testar com orçamento baixo**: o orçamento esgotado encerra o ciclo e o ciclo seguinte só segue com a conta do mês já
+  gasta). Despausar a rotina e acompanhar: `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2`
+  (esperado: `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` ou
+  `persistence_failed` pedem leitura do log, que só tem código, nome do erro e par); `holiday_provider_monthly_usage.requests` do
+  mês contra o contador `requests` da execução; `national_mismatch` **maior que zero é esperado** (o fornecedor lista a Páscoa e
+  o código conta Carnaval e Corpus Christi). O painel de rotinas mostra os contadores e o desfecho da execução.

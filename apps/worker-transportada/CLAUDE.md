@@ -143,6 +143,20 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   trava do contratante sem esperar. Prévia com item em aberto nunca é tocada. `CARGO_PREVIEW_RETENTION_DAYS` é
   cópia byte a byte da API. Detalhe: docs/ai-context § "A retenção de 90 dias dos dados da planilha".
 
+- **Os feriados vêm da FeriadosAPI por uma rotina daqui, e ela é inerte sem token** (spec 252, ADR-0100) —
+  `holiday.provider.pull` (`src/holiday-provider-pull/`, diária, pausada de fábrica pela migration): descobre as
+  cidades de destino físico das notas (cursor, `resolvePhysicalDestination`, código de cidade filtrado em TypeScript
+  **antes** do upsert), busca `(cidade, ano)` no fornecedor com limitador de 1,2 s, teto de 100 requisições por ciclo e
+  orçamento mensal por **upsert** (incrementado antes da chamada), e aplica no calendário da empresa com
+  `ON CONFLICT DO NOTHING` sob a trava de calendário da 238 (digitada e gerada por regra vencem; supressão respeitada;
+  só datas de hoje em diante em São Paulo; nacional só confere paridade). **Só registrada com `FERIADOS_API_TOKEN`**
+  (vazio = ausente, boot verde, `job_run_routine_missing`); o token e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` só passam pelo
+  schema de ambiente, nunca por `process.env` solto, e **nenhuma mensagem de erro carrega o token** (o erro do cliente
+  é só o código). **A resposta do fornecedor é hostil:** corpo com teto de 512 KB lido por stream, `Retry-After` entre 60 s e
+  24 h, controle removido do nome, 404 no nacional/estado = contrato quebrado, 3 falhas de rede seguidas abrem o disjuntor,
+  402/403 numa cidade restringe só o par por 30 dias, e orçamento esgotado só encerra o ciclo (nenhum par muda). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com
+  contrato de paridade. Detalhe: docs/ai-context § "A importação de feriados da FeriadosAPI".
+
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e

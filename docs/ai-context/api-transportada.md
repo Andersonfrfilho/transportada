@@ -3293,6 +3293,114 @@ recebe prazo, e uma regra de calendário ruim derruba o prazo de todas as cidade
 junto com ou depois das migrations da 237 Fase 2 e da 238** (a consulta das notas lê essas tabelas mesmo sem o relógio). Evidência:
 specs/236-\*/evidence.md § T1.2e e § T1.3.
 
+## Spec 252 T4.1 — a gestão da importação de feriados (ADR-0100 §4)
+
+**A linha importada não é digitada.** `municipal_holidays`/`state_holidays` com `provider_entry_id` preenchido entram na política como
+`once` (o filtro de `readTypedHolidays` não muda), mas as escritas da 238 passam a distingui-la:
+
+- **Adoção** (`POST` na mesma data, `PATCH` de nome/tipo): `provider_entry_id = null` na mesma instrução, auditoria `…saved|updated`
+  com `adoptedFromImport: true`. `isSameTypedHoliday` devolve `false` para a importada (o "mesmo cadastro de novo é no-op" não vale).
+  No estadual o `POST` que acha a importada (qualquer nome) adota e responde `created: false` (200) em vez de 409
+  (`adoptImportedStateHoliday`). A digitada com outro nome segue 409. **`PATCH` estadual que muda a data da importada: `409 HOLIDAY_IMPORT_DATE_LOCKED`** (`assertImportedDateNotMoved`;
+  o municipal já não aceita data no `PATCH`).
+- **Desligar** (`DELETE` da 238 ou `POST /holiday-imports/suppressions`): `holiday-import-disable.support.ts` apaga a linha, faz upsert em
+  `holiday_import_suppressions` (uma por `(empresa, escopo, código, data)`; desligar de novo só renova quem e quando), regenera a data da
+  regra do mesmo dia (municipal, ADR-0096 §6.6) e grava `holiday-import.disabled` — tudo na transação do chamador, sob o lock por
+  empresa. `409 HOLIDAY_IMPORT_PAST_DATE` antes de `today` (D7); `409 HOLIDAY_NOT_IMPORTED` na rota de desligar sobre a digitada/gerada.
+- **`DELETE` de digitada/adotada ≥ hoje suprime** (`suppressDeletedMunicipalHoliday`/`…StateHoliday`, mesma transação; `suppressionId` ou `null` no `metadata` da auditoria `…deleted`):
+  data passada, `yearly` estadual e código de cidade fora de `CITY_IBGE_CODE_PATTERN` (a linha antiga aceita `^[0-9]{7}$`) não gravam, porque a CHECK da supressão recusaria.
+- `remove` (municipal e estadual) recebe `today` (`resolveToday({ now })`, dia civil de São Paulo). `typedHolidaysKept` conta só
+  `provider_entry_id IS NULL`.
+
+**Rotas** (`/holiday-imports`, `settings.manage` ler e escrever): `GET /status` (sem query: desconhecida é 400; `isEnabled`, `totalCities`, `pairs{done,failed,notCovered,
+pending,quotaExhausted,total}` dos pares cidade×ano do horizonte — ano corrente e seguinte, D8 —, `failures[{errorCode,pairs}]`,
+`lastFetchedAt`, `month`, `monthlyRequests`, `removedByProvider: { items[] (≤ 200), truncated }` com `holidayId`/`scope`/`ibgeCode`/`holidayOn`/`name`), `GET /cities?page&perPage`
+(padrão 1×50, teto 100; por `document_count` desc; cada cidade traz `years[]` com `status`/`attempts`/`errorCode`/`fetchedAt`/`nextAttemptAt`, ano sem
+linha no cache é `pending`), `GET /suppressions?page&perPage` (paginada como `/cities`), `POST /suppressions` (`{ holidayId, scope: 'city'|'state' }`, 201), `DELETE /suppressions/:id`
+(204; ausente ou de outra empresa é no-op, sem auditoria). Visões em lista branca (`holiday-import.schema.ts`); nada de id do cache.
+
+**Isolamento da tabela global.** `holiday-import-status.query.ts` parte de `holiday_import_cities` (e das linhas da empresa para os
+removidos) e junta o cache; `holiday-import-usage.query.ts` lê o contador do mês (instalação, sem empresa) e é a única exceção ao
+`tenant-safety.contract.ts` (`SUPPORT_ONLY`). Os dois são os únicos arquivos que importam as tabelas globais.
+
+- ⚠️ Os guardas do painel (`businessCalendarGuards.validation.ts`) são de chaves **exatas**: nenhuma chave nova em respostas de
+  `/municipal-holidays` ou `/state-holidays`. A origem para a aba Calendário (T5.2) vem das rotas novas.
+- ⚠️ `tenant-safety.contract.ts` casa `.from(` por regex: `Array.from(` no módulo reprova (falso positivo conhecido) — use laço.
+- Lacunas: restaurar **não** reinsere a linha na hora (ADR-0100 §4 admite "na hora, se o cache já o tem"; a leitura do cache pela escrita
+  quebraria o contrato de isolamento) — a T3.4 precisa reaplicar do cache a cada ciclo, não só dos pares recém-buscados, sob o mesmo advisory lock `['business-calendar', companyId]` e relendo as supressões dentro da transação (restaura volta na próxima execução diária). Não há rota para ligar/desligar
+  `company_holiday_import_settings.is_enabled` (o status só a lê). `monthlyRequests` é da instalação.
+- Provas: `test/integration/holiday-import-{municipal,state,suppressions,status}.integration.ts`, `test/business-calendar-rules/holiday-import-*.contract.ts`,
+  `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.1.
+
+## Spec 252 T4.2 — o aviso de feriado na API (ADR-0100 §6)
+
+**Origem.** `HolidayOrigin` = `code` (calendário nacional do código), `typed` (data do operador), `rule` (regra "todo ano") e `imported`
+(fornecedor). `MunicipalHolidayRule`/`StateHolidayRule` ganham `origin?` (ausente = `typed`, para regra montada à mão) e `HolidayReason` ganha `origin`
+(obrigatório). O mapper (`business-calendar-rule.mapper.ts`) decide: `provider_entry_id` preenchido → `imported`; regra anual → `rule`; o resto →
+`typed`. `loadBusinessCalendarRules` não muda de filtro nem de contagem de consultas.
+
+**O formato (fixado pelos clientes já publicados, T5.1/T5.1b).** `holidayWarnings: [{ date, cityIbgeCode, cityName?, reasons: [{ scope, origin, name }] }]` com
+`scope` ∈ `national|state|municipal`. ⚠️ `cityIbgeCode` é **número** (o guarda do painel e o do app recusam `string`; um aviso com a forma errada derrubaria o detalhe
+inteiro no painel), `cityName` **some** quando não se sabe (o guarda recusa `null`) e o nome do feriado nacional é a **chave estável** (`independence_day`) — o texto
+é do locale de quem mostra (T5.3/T5.4 mapeiam a chave). A data é `YYYY-MM-DD` civil de São Paulo.
+
+**A política** (`holiday-warning.policy.ts`): avisa quando `explainDay` tem causa e o dia não é fim de semana fechado (domingo; sábado quando o sábado não conta).
+Sábado com `saturdayIsBusinessDay` e feriado avisa. Data fora da cobertura é `BUSINESS_CALENDAR_OUT_OF_COVERAGE` (nunca "sem feriado").
+
+**O leitor** (`readHolidayWarnings(executor, { companyId, items, knownCalendars? })`, `items[{ key, cityIbgeCode, cityName?, date }]` → `{ warnings: Map<key, aviso>,
+refusals: Map<cidade, código> }`): junta as cidades **sem calendário conhecido que cubra os anos dos itens**, faz **uma** carga (`loadBusinessCalendarRules`, 4 consultas
+em série) com a cobertura do menor ao maior ano de todas elas e monta um calendário por cidade; recusa tipada (`UNKNOWN_STATE`, `COVERAGE_TOO_WIDE`, `TOO_MANY_RULES`…)
+vira `refusals` daquela cidade. Cobertura global: datas a mais de 5 anos entre si recusam **todas** as cidades da carga — o `day-checks` devolve 422, o detalhe só
+tira o aviso (e loga `trip_holiday_warning_unavailable`, ids e código, coalescido por viagem e código em 5 min). Reaproveitável pelo app do motorista (T4.3): não
+importa nem cita o prazo da 236.
+
+**`POST /business-calendar/day-checks`** (`fleet.read`; o separador o alcança, enumerado em `test/separator-role.contract.test.ts`): `{ items: [{ cityIbgeCode: "3509502", date: "2026-07-14" }] }`,
+1 a 200 itens, `.strict()` no corpo e no item, cidade no padrão do município **e de UF existente**, data civil válida; pares repetidos viram uma consulta; resposta
+`{ data: [aviso] }` só com os dias que fecham por feriado, na ordem do pedido, sem `cityName` (a rota não conhece o endereço). Calendário recusado: 422 com o código.
+
+**No detalhe** (`GET /trips/:id` e toda escrita que devolve o detalhe, inclusive dentro de transação): `stops[].holidayWarnings` (um aviso, array por contrato) só com o relógio
+injetado (o mesmo `deliveryDeadlineContext` do prazo), para parada **sem `completedAt` e com ETA**. Cidade = 1º segmento do `address_key` (`readStopCityCode`;
+código inválido ou vazio = sem aviso); `cityName` = `nfe_addresses.city` do destino físico **só se** `components.cityCode` do endereço for o da parada (com desvio manual os
+dois diferem e o nome some). `readTripDeliveryDeadlines` preenche `calendarSink` com os calendários que montou, e o aviso os reaproveita: **+0** consultas quando cobrem as
+ETAs, **+4** fixas senão (viagem com 1 ou 40 paradas), em série; sem parada que avise, +0. O prazo e as notas (`documents`) saem **idênticos** com e sem aviso.
+
+- ⚠️ `stop-label-refresh.contract` indexa o **primeiro** `stops: stopRecords.map(` do repositório: a lista de paradas do aviso é `warnableStops`, não outra chamada com esse texto.
+- ⚠️ A guarda do app do motorista e a do painel ignoram campo desconhecido, mas o painel **recusa** forma errada de `holidayWarnings` (T5.1): não mude o formato sem mudar os dois.
+- O aviso em `GET /me/trips/current` e a agulha do calendário/aviso no contrato de isolamento da nota do motorista são da T4.3 (seção abaixo).
+- Provas: `test/business-calendar/holiday-warning{,-reader,-isolation}.contract.ts`, `test/business-calendar-rules/day-checks.contract.ts`,
+  `test/integration/holiday-warning-reader.integration.ts`, `test/integration/trip-detail-holiday-warnings.integration.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.2.
+
+## Spec 252 T4.3 — o aviso de feriado no app do motorista (ADR-0100 D12)
+
+**O que sai.** `GET /me/trips/current` → `data.trips[].stops[].holidayWarnings`, **o mesmo formato do detalhe** (`{ date, cityIbgeCode: number, cityName?, reasons: [{ scope, origin, name }] }`,
+um aviso por parada, `cityName` ausente e nunca `null`); a chave nem existe na parada sem aviso. `DriverTripStop.holidayWarnings?` é o único campo novo; `serializeTrip` repassa
+`trip.stops` como está (contrato `driver-stop-holiday-warning-route`). O app do motorista (T5.1b) já lê o campo como acessório.
+
+**Quem chama.** `findCurrentDriverTrip` recebe `holidayWarnings?: DriverHolidayWarningsDependency` (`{ calendar: HolidayWarningPort, contexts, logger? }`) e chama
+`attachDriverStopHolidayWarnings` **depois** do `Promise.all` da leitura (viagens já recortadas pelo vínculo do motorista — o BOLA continua sendo o `where` do repositório). Ausente
+(WhatsApp, testes) = sem aviso e sem consulta a mais. `main.ts` monta a dependência uma vez (`driverHolidayWarnings`) e só a rota do app a recebe. O repositório da leitura
+(`drizzle-current-driver-trip.repository.ts`) **não mudou**.
+
+**A regra.** Entram só as paradas **sem `completedAt`**; o contexto (`DrizzleDriverStopHolidayContextRepository.list`, UMA consulta: `trip_stops` × notas vivas (`released_at is null`) × participantes de destino ×
+`nfe_addresses`, escolha da spec 073 em memória) devolve as pedidas, com ou sem `estimated_arrival_at` (`null`). Data = dia civil de **São Paulo** da ETA — ou **hoje** (`resolveToday`, relógio injetado)
+quando a parada está em andamento (`arrived_at` ou `en_route_since`, ainda sem `completed_at`), **com ou sem ETA**; sem ETA e sem começar, nada. Cidade = 1º segmento do `address_key` (`readStopCityCode`; código fora de `CITY_IBGE_CODE_PATTERN` = sem aviso).
+`cityName` = `nfe_addresses.city` do destino físico **só se** o código do endereço for o da parada (com desvio manual os dois diferem e o nome some). Parada em andamento **sem** ETA avisa para hoje (ADR-0100 D12: "ou hoje quando a parada já está em andamento"; corrigido na rodada de fechamento da T4.3).
+
+**Custo.** Medido: a leitura inteira (vínculo, viagens, fotos pendentes e nota) custa **25 consultas fixas** (`driver-current-trip-query-count.integration.ts`, 1 ou 30 paradas). O aviso soma **+5 fixas**
+(1 de contexto + 4 do calendário, em série) com 1 parada ou 30 paradas em 30 cidades; **+1** quando há parada aberta mas nenhuma que avise (sem ETA e sem começar); **+0** sem parada aberta.
+⚠️ `nfe_addresses` não tem índice por `(company_id, participant_id)`: a junção do contexto (como a `listStopAddresses` do detalhe) pode varrer a tabela a cada abertura do app — **não medido em escala**; se
+o `EXPLAIN` em volume real incomodar, o índice vai em migration própria (`CONCURRENTLY`).
+
+**Falha.** Contexto ou calendário que cai (ou cidade que o calendário recusa) tira o aviso e loga `driver_holiday_warning_unavailable` com `companyId`, `tripIds`, `affectedStopCount` (e `code` na recusa) — nunca
+nome de cidade, endereço, destinatário nem a mensagem do erro. O log **não é coalescido** (o detalhe coalesce a recusa por viagem e código em 5 min com um suporte que carrega o prazo da 236, proibido aqui): a falha persistente repete a cada leitura do app; se virar ruído, coalescer num módulo próprio.
+
+**Isolamento (CA16).** `test/trip-domain/driver-holiday-warning-isolation.contract.ts`: `src/fleet/**`, `src/cte-*/**`, `delivery-proof-*.ts`, `proof-pending.query.ts` e o repositório da leitura **não citam** `business-calendar`
+nem `holiday-warning` (a lista é por texto: nem em comentário); os arquivos do aviso do motorista **não citam** `delivery-deadline` nem `trip-holiday-warning.support`. Integração
+`driver-holiday-independence.integration.ts`: a mesma pessoa, as mesmas notas, antes e depois de a empresa cadastrar feriado em todos os dias da história — `score`, penalidades e fotos pendentes idênticos.
+
+- Provas: `test/trip-domain/driver-stop-holiday-warning{,-route}.contract.ts`, `test/trip-domain/driver-holiday-warning-isolation.contract.ts`, `test/integration/driver-current-trip-holiday-warnings.integration.ts`,
+  `driver-current-trip-query-count.integration.ts`, `driver-holiday-independence.integration.ts`, `driver-stop-holiday-context.integration.ts`. Evidência e mutações: `specs/252-*/evidence.md` § T4.3.
+
 ## Spec 253 — O relatório de viagens sai em planilha por nota
 
 **Rotas novas** (Fase 5 T5.1, regra 14):

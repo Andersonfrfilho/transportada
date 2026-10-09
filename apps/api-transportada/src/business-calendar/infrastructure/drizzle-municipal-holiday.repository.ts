@@ -19,17 +19,23 @@ import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toHolidayRecord } from './business-calendar-rule.mapper.js'
 import {
+  disableImportedMunicipalHoliday,
+  suppressDeletedMunicipalHoliday,
+} from './holiday-import-disable.support.js'
+import {
   audit,
   findByDay,
   findById,
   isSameTypedHoliday,
   regenerateRuleDate,
+  upsertTypedHoliday,
 } from './municipal-holiday.support.js'
 
 /**
- * A tabela que o roteirizador lê, com a data digitada e a gerada lado a lado. A digitada manda; a
- * gerada só se mexe pela regra (409). Apagar uma digitada sobre o dia de uma regra gera a da regra
- * de novo, senão o roteiro perderia a data.
+ * A tabela que o roteirizador lê, com a data digitada, a gerada e a importada lado a lado. A digitada
+ * manda; a gerada só se mexe pela regra (409); a importada, ao ser editada ou cadastrada de novo, vira
+ * digitada (adoção) e, ao ser apagada, é desligada (supressão). Apagar uma digitada ou desligar uma
+ * importada sobre o dia de uma regra gera a da regra de novo, senão o roteiro perderia a data.
  */
 export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
   public constructor(private readonly database: BusinessCalendarDatabase) {}
@@ -59,8 +65,9 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
   }
 
   /**
-   * Recadastrar o mesmo dia corrige o nome; sobre uma data gerada é adoção, e a linha vira do operador
-   * (`adoptedFromRuleId` diz de qual regra). O mesmo cadastro de novo não muda nada e não audita.
+   * Recadastrar o mesmo dia corrige o nome; sobre uma data gerada ou importada é adoção, e a linha vira
+   * do operador (`adoptedFromRuleId` diz de qual regra). O mesmo cadastro de novo, numa digitada, não muda
+   * nada e não audita.
    */
   public save(input: SaveMunicipalHolidayInput): Promise<SaveMunicipalHolidayResult> {
     return this.database.transaction(async (transaction) => {
@@ -71,38 +78,14 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         return { adoptedFromRuleId: null, holiday: toHolidayRecord(previous) }
       }
       const adoptedFromRuleId = previous?.sourceRuleId ?? null
-      const row = requirePersistedRow(
-        (
-          await transaction
-            .insert(municipalHolidays)
-            .values({
-              cityIbgeCode: input.cityIbgeCode,
-              companyId,
-              holidayOn: input.holidayOn,
-              name: input.name,
-              ...(input.kind === undefined ? {} : { kind: input.kind }),
-            })
-            .onConflictDoUpdate({
-              set: {
-                name: input.name,
-                sourceRuleId: null,
-                ...(input.kind === undefined ? {} : { kind: input.kind }),
-              },
-              target: [
-                municipalHolidays.companyId,
-                municipalHolidays.cityIbgeCode,
-                municipalHolidays.holidayOn,
-              ],
-            })
-            .returning()
-        )[0],
-      )
+      const adoptedFromImport = previous !== undefined && previous.providerEntryId !== null
+      const row = await upsertTypedHoliday({ holiday: input, transaction })
       await audit({
         action: BUSINESS_CALENDAR_AUDIT_ACTION.MUNICIPAL_HOLIDAY_SAVED,
         actor: input,
         after: row,
         before: previous,
-        metadata: { adoptedFromRuleId },
+        metadata: { adoptedFromImport, adoptedFromRuleId },
         transaction,
       })
 
@@ -127,7 +110,7 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         (
           await transaction
             .update(municipalHolidays)
-            .set(input.changes)
+            .set({ ...input.changes, providerEntryId: null })
             .where(
               and(
                 eq(municipalHolidays.companyId, companyId),
@@ -142,6 +125,7 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         actor: input,
         after: row,
         before: previous,
+        metadata: { adoptedFromImport: previous.providerEntryId !== null },
         transaction,
       })
 
@@ -150,7 +134,11 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
   }
 
   public async remove(
-    input: BusinessCalendarActor & { readonly currentYear: number; readonly id: string },
+    input: BusinessCalendarActor & {
+      readonly currentYear: number
+      readonly id: string
+      readonly today: string
+    },
   ): Promise<void> {
     await this.database.transaction(async (transaction) => {
       const { companyId } = input
@@ -158,6 +146,16 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
       const previous = await findById({ companyId, id: input.id, transaction })
       if (previous === undefined) return
       if (previous.sourceRuleId !== null) throw new MunicipalHolidayGeneratedByRuleError()
+      if (previous.providerEntryId !== null) {
+        await disableImportedMunicipalHoliday({
+          actor: input,
+          currentYear: input.currentYear,
+          row: previous,
+          today: input.today,
+          transaction,
+        })
+        return
+      }
 
       await transaction
         .delete(municipalHolidays)
@@ -170,12 +168,18 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         removed: previous,
         transaction,
       })
+      const suppression = await suppressDeletedMunicipalHoliday({
+        actor: input,
+        row: previous,
+        today: input.today,
+        transaction,
+      })
       await audit({
         action: BUSINESS_CALENDAR_AUDIT_ACTION.MUNICIPAL_HOLIDAY_DELETED,
         actor: input,
         after: null,
         before: previous,
-        metadata: { regeneratedFromRuleId },
+        metadata: { regeneratedFromRuleId, suppressionId: suppression?.id ?? null },
         transaction,
       })
     })

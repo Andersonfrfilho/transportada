@@ -142,6 +142,12 @@ const CATALOG = [
     job: 'nfe.recipient-email.backfill',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Fornecedor externo com cota mensal: o teto real é a cota, o piso de uma hora é cortesia. */
+    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    job: 'holiday.provider.pull',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 describe('worker job catalog', () => {

@@ -570,6 +570,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
@@ -621,14 +622,21 @@ import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastruc
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
 import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
+import { createDayChecksUseCase } from './business-calendar/application/day-checks.use-case.js'
+import { createHolidayImportUseCases } from './business-calendar/application/holiday-import.use-case.js'
 import { createMunicipalHolidayRulesUseCases } from './business-calendar/application/municipal-holiday-rules.use-case.js'
 import { createMunicipalHolidaysUseCases } from './business-calendar/application/municipal-holidays.use-case.js'
 import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
 import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
+import { DrizzleHolidayWarningRepository } from './business-calendar/infrastructure/drizzle-holiday-warning.repository.js'
+import { DrizzleHolidayImportStatusRepository } from './business-calendar/infrastructure/drizzle-holiday-import-status.repository.js'
+import { DrizzleHolidayImportSuppressionRepository } from './business-calendar/infrastructure/drizzle-holiday-import-suppression.repository.js'
 import { DrizzleMunicipalHolidayRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
 import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday-rule.repository.js'
 import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
 import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
+import { createDayChecksRoutes } from './business-calendar/presentation/day-checks.routes.js'
+import { createHolidayImportRoutes } from './business-calendar/presentation/holiday-import.routes.js'
 import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
 import { createMunicipalHolidayRuleRoutes } from './business-calendar/presentation/municipal-holiday-rule.routes.js'
 import { createStateHolidayRoutes } from './business-calendar/presentation/state-holiday.routes.js'
@@ -2186,6 +2194,12 @@ function createApplicationRoutes({
     cargoLayoutLeaseOptions,
   )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database, logger)
+  /** Spec 252 T4.3 (D12): o aviso de feriado nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverHolidayWarnings = {
+    calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
+    contexts: new DrizzleDriverStopHolidayContextRepository(database),
+    logger,
+  }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -2962,12 +2976,28 @@ function createApplicationRoutes({
       resolveClientIp,
     }),
     ...createStateHolidayRoutes({
-      ...createStateHolidaysUseCases({ repository: new DrizzleStateHolidayRepository(database) }),
+      ...createStateHolidaysUseCases({
+        ...businessCalendarClock,
+        repository: new DrizzleStateHolidayRepository(database),
+      }),
       resolveClientIp,
     }),
     ...createBusinessCalendarSettingsRoutes({
       ...createBusinessCalendarSettingsUseCases({
         repository: new DrizzleBusinessCalendarSettingsRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createDayChecksRoutes({
+      dayChecks: createDayChecksUseCase({
+        repository: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
+      }),
+    }),
+    ...createHolidayImportRoutes({
+      ...createHolidayImportUseCases({
+        ...businessCalendarClock,
+        statusRepository: new DrizzleHolidayImportStatusRepository(database),
+        suppressionRepository: new DrizzleHolidayImportSuppressionRepository(database),
       }),
       resolveClientIp,
     }),
@@ -3764,6 +3794,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,
           scores: driverScoreRepository,

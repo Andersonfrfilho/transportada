@@ -60,7 +60,14 @@ o valor do acerto.
 
 ### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
 
-**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (ainda não implementada; spec 252, ADR-0100).
+**Onde:** `worker-transportada`, rotina `holiday.provider.pull` (spec 252, ADR-0100). **Implementada em 2026-10-09
+(T3.1 a T3.5, mais a 2ª rodada da revisão) e inerte:** sem `FERIADOS_API_TOKEN` ela não é registrada, e a linha dela em
+`job_schedules` nasce pausada (D13).
+
+**Destino de saída: `feriadosapi.com`** (host fixo no código, `FERIADOS_API_BASE_URL`; não é configurável). O **worker é a
+única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam nem leem o token (contrato). O token
+`FERIADOS_API_TOKEN` existe **só no serviço do worker** (`.railway/railway.ts`, `preserve()`; `.env.example` sem valor) e
+passa só pelo schema de ambiente validado. Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
 
 **O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
 global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
@@ -68,19 +75,157 @@ respondeu **404** em 2026-10-07 e a documentação **não diz se os dados podem 
 risco que os termos do Google Maps Platform (spec 186, ADR-0044 §3), aceito lá por decisão do usuário; aqui **ainda
 não foi aceito**.
 
-**O que sai:** só código IBGE da cidade (ou UF) e ano, com `Authorization: Bearer <FERIADOS_API_TOKEN>`. Nunca
-`companyId`, nome de cliente ou endereço. Feriado não é dado pessoal.
+**O que sai:** só o **código IBGE** da cidade (ou a sigla da UF) e o **ano**, com `Authorization: Bearer
+<FERIADOS_API_TOKEN>`. **Nenhum dado pessoal é enviado:** nunca `companyId`, nome de cliente, CNPJ, endereço ou nota.
+Feriado não é dado pessoal. A cidade vem das notas da própria empresa, mas só o código dela cruza a fronteira.
 
-**O que segura (desenho, a provar nas tasks):** token só no worker, opcional (sem ele a rotina não é registrada e nada
-sai); header redigido no log (contrato, CA9); orçamento mensal e teto por ciclo no banco; resposta guardada por Zod
-(`malformed_response`, nada gravado); falha do fornecedor nunca derruba nada do negócio; origem "Importado
-(FeriadosAPI)" visível e desligamento auditado.
+**O que está publicado (staging, deploys verdes de 2026-10-09; produção só leva o roteirizador por cidade e os clientes
+tolerantes):** a migration aditiva `20261009040622_holiday_provider_import` (cache global do fornecedor sem `company_id`,
+demanda/cursor/supressões por empresa e `provider_entry_id` em `municipal_holidays` e `state_holidays`; `rollback.sql` recusa
+feriado importado, supressão e execução aberta); a rotina `holiday.provider.pull` nas quatro cópias do catálogo (pausada
+de fábrica); as rotas de gestão `/holiday-imports/*` e a adoção/desligamento sobre `/municipal-holidays` e `/state-holidays`
+(T4.1, abaixo); `POST /business-calendar/day-checks` e `holidayWarnings` no detalhe da viagem (T4.2) e em
+`GET /me/trips/current` (T4.3); a aba Calendário, o aviso por parada na montagem e o aviso no app do motorista (T5.2 a
+T5.4). Detalhe e SHAs: `specs/252-*/evidence.md` § "T6.1 — fechamento".
 
-**Pendência (passo do usuário):** confirmar com o fornecedor que guardar os feriados é permitido **antes** de
-configurar `FERIADOS_API_TOKEN` (spec 252 Q4, `[NEEDS CLARIFICATION]`). Ao ligar, `feriadosapi.com` entra na lista de
-destinos de saída (T6.1).
+**O que segura (provado nas tasks T3.1 a T3.5 e na 2ª rodada):**
 
-**Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07.
+- **Token:** só no worker, opcional (sem ele a rotina não é registrada e nada sai); só ASCII visível (`^[\x21-\x7E]+$`),
+  senão o boot cai sem ecoar o valor. **Não aparece em nenhuma mensagem de erro por construção** (o erro do cliente
+  carrega só o código; `reason` é só o nome do erro de transporte) e um contrato roda a rotina inteira com um fornecedor
+  que ecoa o token de seis jeitos e o procura no log e nos contadores (CA9). `redirect: 'error'`: o cabeçalho nunca segue
+  para outro host.
+- **Custo:** orçamento mensal da instalação incrementado por upsert imediatamente antes de cada chamada
+  (`FERIADOS_API_MONTHLY_REQUEST_BUDGET`, inteiro de 1 a 1.000.000, padrão 4500), teto de 100 requisições por ciclo,
+  espaçamento de 1,2 s e disjuntor de 3 falhas de rede seguidas. Orçamento esgotado só encerra o ciclo.
+- **Resposta hostil:** corpo com teto de 512 KB lido por stream, página de até 100 itens, nome sem caractere de controle ou
+  de formato, `Retry-After` limitado entre 60 s e 24 h, guarda Zod (`malformed_response`, nada gravado), data de outro ano
+  descartada e contada, 404 em escopo nacional/estadual tratado como contrato quebrado.
+- **Convivência:** falha do fornecedor nunca derruba nada do negócio; a linha digitada e a gerada por regra vencem a
+  importada; a aplicação toma a trava de calendário da empresa; só datas de hoje em diante; o desligamento é auditado e a
+  origem fica visível (Fases 4 e 5).
+
+**A superfície das telas (T5.2 a T5.4):** o **nome do feriado é texto do fornecedor** (ou do operador) e chega a três telas — a aba Calendário e o aviso da montagem do painel, o selo do detalhe da
+viagem e o aviso no app do motorista. Todas o renderizam como texto de React (nenhuma usa `dangerouslySetInnerHTML`, conferido em 2026-10-09), e a rotina já o entrega aparado, com no máximo 120
+caracteres e sem caractere de controle ou de formato (NUL, RLO, zero-width). O feriado nacional não viaja como texto: é uma chave estável traduzida no cliente. As telas só **informam**: o aviso
+nunca desabilita "Criar viagem" nem bloqueia ação do motorista. O desligar/restaurar é `settings.manage` com auditoria (T4.1, abaixo); a tela do motorista não ganha rota nem permissão.
+
+**Códigos de falha:** a execução da rotina fecha com `provider_unauthorized`, `malformed_response` ou `provider_unreachable`
+(vocabulário do job, igual nas quatro cópias do catálogo; o 429 conta como `provider_unreachable`). Cada **par** (cidade,
+ano) no cache guarda, em `last_error_code`, além desses: `provider_rate_limited` (429, espera o `Retry-After`),
+`provider_plan_restricted` (402/403 numa **cidade**: o par fica `failed` por 30 dias e o ciclo segue; no nacional ou no
+estado encerra como `provider_unauthorized`) e `persistence_failed` (resposta boa que o banco recusou, com recuo, para a
+requisição não se repetir todo dia). Nenhum deles carrega URL, cabeçalho, corpo ou mensagem de rede; o log tem código, nome
+do erro e par.
+
+**Pontos aceitos (decisão registrada, não esquecida):**
+
+- **Sinal entre empresas da mesma instalação (L4):** `fetchedAt` e `attempts` do status vêm do cache global por cidade;
+  duas empresas do mesmo dono (ADR-0021) com a mesma cidade em comum inferem uma da outra que há entrega ali.
+- **`monthlyRequests` é o contador da instalação:** uma instalação com mais de uma empresa mostra o mesmo inteiro a todas,
+  sem cidade, data nem empresa.
+- **`POST /business-calendar/day-checks` sem rate limit** (limite é opt-in por rota, a leitura não dispara custo externo):
+  um usuário com `fleet.read` pode repetir a consulta; o teto de 200 itens e de 5 anos limita cada chamada.
+- **Chave de uma instalação não vale para outra:** o orçamento de um banco não vê o do outro (uma chave por instalação,
+  ADR-0100 §5).
+
+**Riscos abertos (passos do usuário, nada disso foi decidido pela IA):**
+
+- **Q4, termos de uso** (`[NEEDS CLARIFICATION]`): confirmar com o fornecedor que guardar os feriados é permitido **antes**
+  de configurar `FERIADOS_API_TOKEN`. Enquanto isso o produto não envia nada.
+- **Q3, plano e cota** (`[NEEDS CLARIFICATION]`): a documentação não diz quanto uma cidade do interior consome; o padrão
+  4500 pressupõe o plano Developer (5.000 por mês, menos 10% de folga). Orçamento não se testa baixo no 1º ciclo.
+- **Índice de `nfe_addresses`:** a descoberta faz `Seq Scan` por lote (1,5 ms com 2.100 notas no teste) e a leitura do
+  motorista (`GET /me/trips/current`) junta a mesma tabela sem índice por `(company_id, participant_id)`. Índice, se a
+  medição em staging pedir, vai em migration própria `CONCURRENTLY`.
+- **Forma de resposta real do fornecedor:** nenhuma resposta real foi vista; a guarda Zod foi escrita pela documentação
+  (`evidence.md` § T3.1). O 1º ciclo real confirma ou corrige.
+
+**Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
+`feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
+
+**Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07; atualizado em 2026-10-09 (T6.1).
+
+### 2026-10-09 — spec 252 T4.1 — a gestão da importação de feriados: quem alcança, o que audita e por que o cache global não sai cru
+
+**Onde:** `api-transportada`, `business-calendar/presentation/holiday-import.routes.ts` (`GET /holiday-imports/status`,
+`GET /holiday-imports/cities`, `GET|POST /holiday-imports/suppressions`, `DELETE /holiday-imports/suppressions/:id`) e as
+escritas da 238 sobre a linha importada (`POST|PATCH|DELETE /municipal-holidays`, `/state-holidays`); ADR-0100 §3–§4.
+
+**Quem alcança:** `settings.manage` para ler **e** para escrever (só `company-admin`); o separador e o ajudante não
+(enumerado em `test/separator-role.contract.test.ts`). A empresa e o ator vêm só do contexto; o corpo do desligar é `.strict()`
+(`{ holidayId, scope }`) e recusa `companyId`. Id de outra empresa é ausência (404 ao desligar, no-op ao restaurar), nunca 409.
+
+**Auditoria:** desligar grava `holiday-import.disabled` (alvo `municipal_holiday`/`state_holiday`, antes da linha, `scope`,
+`suppressionId`, `regeneratedFromRuleId`) e restaurar grava `holiday-import.restored` (alvo `holiday_import_suppression`), os dois
+com ator, IP do salto conhecido e correlation id, **na mesma transação** da supressão. Adotar (POST/PATCH sobre a importada) grava
+`municipal-holiday.{saved,updated}` / `state-holiday.updated` com `adoptedFromImport: true`.
+
+**O cache global não sai cru:** `holiday_provider_fetches/_entries/_monthly_usage` não têm `company_id`. Nenhum arquivo de
+`presentation` nem repositório os importa, exceto `holiday-import-status.query.ts` (parte da demanda da própria empresa,
+`holiday_import_cities`, e das linhas dela; devolve contagem, estado e a data das cidades dela, nunca um id do cache) e
+`holiday-import-usage.query.ts` (o contador do mês da instalação). Contrato estático
+`test/business-calendar-schema/holiday-import-global-isolation.contract.ts` + prova com duas empresas em
+`test/integration/holiday-import-status.integration.ts`. **Lacuna aceita:** `monthlyRequests` é o contador da instalação (ADR-0021:
+um deploy por transportadora); uma instalação com mais de uma empresa mostra o mesmo número a todas — um inteiro, sem cidade, data
+nem empresa.
+
+**Desligar só vale de hoje em diante (D7):** a linha passada responde `409 HOLIDAY_IMPORT_PAST_DATE` e nada muda (apagar data
+passada mudaria o selo de prazo da nota já entregue). Restaurar não reinsere a linha na hora: o feriado volta no ciclo seguinte da
+rotina (a leitura do cache global pelas escritas é justamente o que o contrato acima proíbe).
+
+**Apagar também suprime (revisão, ADR-0100 §4.4):** todo `DELETE` de linha digitada ou adotada com data de hoje em diante grava a supressão
+`(escopo, código, data)` na mesma transação, com `suppressionId` na auditoria (`municipal-holiday.deleted` / `state-holiday.deleted`) — senão a
+importação traria a data de volta como "importada". Data passada não grava. **Mudar a data** de uma estadual importada é
+`409 HOLIDAY_IMPORT_DATE_LOCKED`: nome e tipo adotam, data não (desligue e cadastre).
+
+**Listas limitadas:** `GET /holiday-imports/suppressions` e `/cities` são paginadas (`perPage ≤ 100`); `removedByProvider` sai no máximo com 200 itens e
+`truncated: true` quando há mais; `GET /status` recusa query desconhecida.
+
+**Lacuna aceita (L4):** `fetchedAt`/`attempts` do status vêm do cache global por cidade; duas empresas da **mesma instalação** (mesmo dono, ADR-0021) que
+tenham a mesma cidade em comum conseguem inferir uma da outra que há entrega ali. Aceito: a instalação é de um único dono.
+
+**Origem:** spec 252 T4.1. Registrado em 2026-10-09.
+
+### 2026-10-09 — spec 252 T4.2 — o aviso de feriado: `POST /business-calendar/day-checks` e `holidayWarnings` no detalhe da viagem
+
+**Onde:** `api-transportada`, `business-calendar/presentation/day-checks.routes.ts` e `trips/infrastructure/trip-holiday-warning.support.ts`; ADR-0100 §6.
+
+**Quem alcança:** `day-checks` é `fleet.read` (como `GET /municipal-holidays`); o separador o alcança de propósito (monta o roteiro) e o ajudante e o motorista não — está
+enumerado em `test/separator-role.contract.test.ts`. É um `POST` só porque leva até 200 itens: não escreve nada. O corpo é `.strict()` (a empresa nunca vem dele; cidade só de UF
+existente, data civil válida, no máximo 200 itens) e a resposta é lista branca: data, código da cidade, e por causa o escopo, a origem e o nome do feriado — o que o
+cadastro do calendário já mostra a quem tem `fleet.read`. Nada de id de linha, de `companyId` nem de cadastro de outra empresa (provado com duas empresas em
+`test/integration/holiday-warning-reader.integration.ts`).
+
+**Custo e abuso:** quatro consultas fixas por chamada, em série, qualquer que seja o número de itens ou cidades; o teto de 200 itens e o de 5 anos de cobertura
+(`422 BUSINESS_CALENDAR_COVERAGE_TOO_WIDE`) limitam o trabalho. **Sem rate limit nesta rota** (o limite é opt-in por rota na API e a leitura não dispara custo externo;
+lacuna aceita: um usuário com `fleet.read` pode repetir a consulta). Sem dado pessoal em log: a recusa do calendário vira o aviso
+`trip_holiday_warning_unavailable` com ids da empresa, da viagem e códigos de cidade, nunca nome de cliente nem endereço.
+
+**O detalhe da viagem:** o campo é de resposta e só existe com o relógio injetado; a nota do motorista, a pontualidade do comprovante e o prazo da 236 não o leem.
+
+**Origem:** spec 252 T4.2. Registrado em 2026-10-09.
+
+### 2026-10-09 — spec 252 T4.3 — o aviso de feriado em `GET /me/trips/current`: o que o motorista passa a ler e o que continua fora do alcance dele
+
+**Onde:** `api-transportada`, `trips/application/attach-driver-stop-holiday-warnings.service.ts`, `trips/infrastructure/drizzle-driver-stop-holiday-context.repository.ts`; ADR-0100 D12.
+
+**O que o motorista passa a receber:** por parada **dele** (o recorte pelo vínculo `trip_drivers` é o `where` do repositório da leitura e não mudou), a data, o código IBGE da cidade e o nome dela
+(`nfe_addresses.city` da nota que ele já entrega), e por causa do fechamento o escopo, a origem e o **nome do feriado** que a empresa cadastrou ou importou. É o que a tela de cadastro do calendário já
+mostra a quem tem `fleet.read`; o motorista não ganha rota nova, nem permissão (`trip.read` de sempre). O nome do feriado nacional sai como chave estável, não como texto.
+
+**O que não sai:** nada de outra empresa (a carga do calendário leva o `companyId` do contexto autenticado — provado com feriado de outra empresa), nada de outra viagem (a consulta de contexto recebe só os ids das
+paradas das viagens que o recorte já devolveu, e filtra a empresa também), nada do cache global do fornecedor (o aviso lê só `municipal_holidays`/`state_holidays` da empresa, como o resto do calendário), nada do
+endereço além do nome do município e nada do documento do destinatário (a consulta nem seleciona o nome nem o CNPJ).
+
+**Custo e disponibilidade:** +5 consultas fixas por leitura (1 de contexto e 4 do calendário), com 1 ou 30 paradas; a leitura do app é o caminho crítico do motorista, então qualquer falha do aviso só tira o aviso
+(`driver_holiday_warning_unavailable`: `companyId`, `tripIds`, contagem e, na recusa do calendário, o código — nunca cidade, endereço, destinatário nem a mensagem do erro). **Lacuna aceita:** o log não é coalescido
+e `nfe_addresses` não tem índice por `(company_id, participant_id)` — a junção do contexto não foi medida em escala (como a `listStopAddresses` do detalhe).
+
+**A nota do motorista não muda com feriado (CA16):** o score, a pontualidade do comprovante, `missingAfterHours` e a fila de fotos pendentes não citam o calendário nem o aviso (contrato estático
+`driver-holiday-warning-isolation`, que vigia o texto dos arquivos, e integração antes/depois de cadastrar feriado em todos os dias da história).
+
+**Origem:** spec 252 T4.3. Registrado em 2026-10-09.
 
 ### 2026-10-07 — spec 238 T1.3 — as rotas do calendário de dias úteis: o que escrevem, quem alcança e o que ainda não protegem
 

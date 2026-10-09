@@ -6,6 +6,7 @@ import { expect } from 'bun:test'
 import { join } from 'node:path'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { rollbackHolidayProviderImportIfApplied } from './holiday-provider-import-rollback.assertion.js'
 import { migrationsDirectory } from './support.js'
 
 const CANHOTO_READ_MIGRATION_SUFFIX = '_trip_canhoto_read_job'
@@ -44,8 +45,9 @@ export async function assertCanhotoReadQueue(probe: CanhotoReadQueueProbe): Prom
   const plan = await readQueuePlan(database)
   expect(plan).toContain(`Index Scan using ${INDEX_NAME}`)
 
-  // Ordem inversa: a migration que depois ampliou as mesmas CHECK de `job` sai antes, ou a CHECK antiga
-  // recusaria a linha do relógio da rotina nova.
+  // Ordem inversa: as migrations que depois ampliaram as mesmas CHECK de `job` saem antes, ou a CHECK
+  // antiga recusaria a linha do relógio da rotina nova.
+  await rollbackHolidayProviderImportIfApplied(database, probe.directories)
   for (const suffix of LATER_JOB_MIGRATION_SUFFIXES) {
     const laterDirectory = probe.directories.find((name) => name.endsWith(suffix))
     if (laterDirectory === undefined) continue

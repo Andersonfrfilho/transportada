@@ -3,6 +3,7 @@
  */
 import { MunicipalHolidayNotFoundError } from '../domain/business-calendar-rule.error.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
+import { resolveToday } from './civil-date.service.js'
 import { resolveCurrentYear } from './municipal-holiday-materialization.service.js'
 import type {
   MunicipalHoliday,
@@ -44,8 +45,14 @@ export function createMunicipalHolidaysUseCases({
   return {
     list: { execute: (input) => repository.list(input) },
     remove: {
-      execute: (input) =>
-        repository.remove({ ...input, currentYear: resolveCurrentYear({ now: now() }) }),
+      execute: (input) => {
+        const instant = now()
+        return repository.remove({
+          ...input,
+          currentYear: resolveCurrentYear({ now: instant }),
+          today: resolveToday({ now: instant }),
+        })
+      },
     },
     save: { execute: (input) => repository.save(input) },
     update: {

@@ -151,6 +151,12 @@ const CATALOG = [
     job: 'nfe.recipient-email.backfill',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Fornecedor externo com cota mensal: o teto real é a cota, o piso de uma hora é cortesia. */
+    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    job: 'holiday.provider.pull',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 /**
@@ -174,6 +180,7 @@ const SEED_MIGRATIONS = [
   '20261002120000_trip_canhoto_read_job',
   '20261007133324_cargo_preview_retention',
   '20261008164340_nfe_recipient_email_backfill_job',
+  '20261009040622_holiday_provider_import',
 ] as const
 
 describe('job catalog', () => {

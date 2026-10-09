@@ -40,6 +40,7 @@ describe('o feriado estadual (spec 238 T1.2)', () => {
       'name',
       'created_at',
       'updated_at',
+      'provider_entry_id',
     ])
     expect(requiredColumnNames(stateHolidays)).toEqual([
       'id',
@@ -71,6 +72,7 @@ describe('o feriado estadual (spec 238 T1.2)', () => {
     expect(indexColumnsByName(stateHolidays)).toEqual({
       state_holidays_company_state_once_unique: ['company_id', 'state_ibge_code', 'holiday_on'],
       state_holidays_company_state_yearly_unique: ['company_id', 'state_ibge_code', 'month', 'day'],
+      state_holidays_provider_entry_idx: ['company_id', 'provider_entry_id'],
     })
     expect(where.state_holidays_company_state_once_unique).toBe(
       '"state_holidays"."recurrence" = \'once\'',
@@ -89,6 +91,14 @@ describe('o feriado estadual (spec 238 T1.2)', () => {
         name: 'state_holidays_company_id_companies_id_fk',
         onDelete: 'restrict',
         onUpdate: 'cascade',
+      },
+      {
+        columns: ['provider_entry_id', 'state_ibge_code', 'holiday_on'],
+        foreignColumns: ['id', 'ibge_code', 'holiday_on'],
+        foreignTable: 'holiday_provider_entries',
+        name: 'state_holidays_provider_entry_fk',
+        onDelete: 'restrict',
+        onUpdate: 'restrict',
       },
     ])
   })

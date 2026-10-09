@@ -7,6 +7,7 @@
 export const BUSINESS_CALENDAR_AUDIT_PERMISSION = 'settings.manage'
 
 export const BUSINESS_CALENDAR_AUDIT_TARGET = {
+  HOLIDAY_IMPORT_SUPPRESSION: 'holiday_import_suppression',
   MUNICIPAL_HOLIDAY: 'municipal_holiday',
   MUNICIPAL_HOLIDAY_RULE: 'municipal_holiday_rule',
   MUNICIPAL_HOLIDAY_RULES: 'municipal_holiday_rules',
@@ -18,6 +19,8 @@ export type BusinessCalendarAuditTarget =
   (typeof BUSINESS_CALENDAR_AUDIT_TARGET)[keyof typeof BUSINESS_CALENDAR_AUDIT_TARGET]
 
 export const BUSINESS_CALENDAR_AUDIT_ACTION = {
+  HOLIDAY_IMPORT_DISABLED: 'holiday-import.disabled',
+  HOLIDAY_IMPORT_RESTORED: 'holiday-import.restored',
   MUNICIPAL_HOLIDAY_DELETED: 'municipal-holiday.deleted',
   MUNICIPAL_HOLIDAY_RULE_CREATED: 'municipal-holiday-rule.created',
   MUNICIPAL_HOLIDAY_RULE_DELETED: 'municipal-holiday-rule.deleted',

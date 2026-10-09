@@ -434,6 +434,8 @@ export const nfeAddresses = pgTable(
     index('nfe_addresses_company_postal_code_idx')
       .on(table.companyId, table.postalCode)
       .where(sql`${table.postalCode} is not null`),
+    // A FK composta não cria índice no lado filho: sem ele cada junção por participante varre a tabela
+    index('nfe_addresses_company_participant_idx').on(table.companyId, table.participantId),
   ],
 )
 

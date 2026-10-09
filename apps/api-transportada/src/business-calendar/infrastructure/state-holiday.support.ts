@@ -11,11 +11,18 @@ import type {
   StateHolidayInput,
   StateHolidayRecord,
 } from '../application/state-holiday.port.js'
-import { BUSINESS_CALENDAR_AUDIT_TARGET } from '../domain/business-calendar-audit.constant.js'
-import { StateHolidayConflictError } from '../domain/business-calendar-rule.error.js'
+import {
+  BUSINESS_CALENDAR_AUDIT_ACTION,
+  BUSINESS_CALENDAR_AUDIT_TARGET,
+} from '../domain/business-calendar-audit.constant.js'
+import {
+  ImportedHolidayDateLockedError,
+  StateHolidayConflictError,
+} from '../domain/business-calendar-rule.error.js'
 import { HOLIDAY_RECURRENCE } from '../domain/business-calendar.constant.js'
 import { appendBusinessCalendarAudit } from './business-calendar-audit.support.js'
 import type { BusinessCalendarTransaction } from './business-calendar-database.types.js'
+import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toStateRecord } from './business-calendar-rule.mapper.js'
 
 type StateHolidayRow = typeof stateHolidays.$inferSelect
@@ -65,6 +72,21 @@ export async function findSameDate(input: {
     )
     .limit(1)
   return existing
+}
+
+/**
+ * A importada é a data do fornecedor: nome e tipo adotam a linha, mas outra data é outra linha — desligue
+ * esta e cadastre a nova (o municipal já é assim: a data e a cidade são a identidade).
+ */
+export function assertImportedDateNotMoved(input: {
+  readonly changes: StateHolidayChanges
+  readonly previous: StateHolidayRow
+}): void {
+  const { changes, previous } = input
+  if (previous.providerEntryId === null || changes.recurrence !== HOLIDAY_RECURRENCE.ONCE) return
+  if (changes.holidayOn !== undefined && changes.holidayOn !== previous.holidayOn) {
+    throw new ImportedHolidayDateLockedError()
+  }
 }
 
 export async function assertNoConflict(input: {
@@ -129,6 +151,7 @@ export async function appendAudit(input: {
   readonly actor: BusinessCalendarActor
   readonly after: StateHolidayRecord | null
   readonly before: StateHolidayRecord | null
+  readonly metadata?: Readonly<Record<string, unknown>>
   readonly row: StateHolidayRow
   readonly transaction: BusinessCalendarTransaction
 }): Promise<void> {
@@ -138,7 +161,37 @@ export async function appendAudit(input: {
     after: input.after,
     before: input.before,
     entityId: input.row.id,
+    ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
     target: BUSINESS_CALENDAR_AUDIT_TARGET.STATE_HOLIDAY,
     transaction: input.transaction,
   })
+}
+
+/**
+ * Cadastrar a data de um feriado importado é adoção (ADR-0100 §4): a linha segue a mesma, com o nome do
+ * operador, e deixa de apontar para o cache — sem isso o ciclo seguinte a trataria como do fornecedor.
+ */
+export async function adoptImportedStateHoliday(input: {
+  readonly actor: BusinessCalendarActor
+  readonly existing: StateHolidayRow
+  readonly name: string
+  readonly transaction: BusinessCalendarTransaction
+}): Promise<CreateStateHolidayResult> {
+  const { actor, existing, transaction } = input
+  const [row] = await transaction
+    .update(stateHolidays)
+    .set({ name: input.name, providerEntryId: null, updatedAt: new Date() })
+    .where(and(eq(stateHolidays.companyId, actor.companyId), eq(stateHolidays.id, existing.id)))
+    .returning()
+  const adopted = requirePersistedRow(row)
+  await appendAudit({
+    action: BUSINESS_CALENDAR_AUDIT_ACTION.STATE_HOLIDAY_UPDATED,
+    actor,
+    after: toStateRecord(adopted),
+    before: toStateRecord(existing),
+    metadata: { adoptedFromImport: true },
+    row: adopted,
+    transaction,
+  })
+  return { created: false, holiday: toStateRecord(adopted) }
 }

@@ -115,9 +115,14 @@ FK de `municipal_holidays.provider_entry_id` teria 67 bytes, acima dos 63 do Pos
   `…_attempts_check`, índice `holiday_provider_fetches_status_next_attempt_idx`.
 - `holiday_provider_entries` — `id`, `scope`, `ibge_code`, `holiday_on`, `name` (1 a 120 caracteres, o teto de
   `state_holidays_name_check`), `provider_type`, `external_id`, `is_banking`, `first_seen_at`, `last_seen_at`,
-  `removed_at`. Nomes: `holiday_provider_entries_scope_code_day_unique`, `…_scope_check`, `…_scope_code_check`,
-  `…_provider_type_check`, `…_name_check`. Duas entradas da mesma resposta na mesma `(scope, ibge_code, holiday_on)`
-  (um `FACULTATIVO` e um `MUNICIPAL` no mesmo dia): vence a não facultativa.
+  `removed_at`. Nomes: `holiday_provider_entries_scope_code_day_unique`, `…_id_code_day_unique` (`(id, ibge_code,
+holiday_on)`, o alvo da FK composta abaixo), `…_scope_check`, `…_scope_code_check`, `…_provider_type_check`,
+  `…_scope_type_check`, `…_name_check`. Duas entradas da mesma resposta na mesma `(scope, ibge_code, holiday_on)`
+  (um `FACULTATIVO` e um `MUNICIPAL` no mesmo dia): vence a não facultativa — o banco recusa a segunda (23505), seja qual
+  for o tipo ou o `external_id`. **O tipo combina com o escopo** (`…_scope_type_check`): `city` aceita `MUNICIPAL` e
+  `FACULTATIVO`, `state` aceita `ESTADUAL` e `FACULTATIVO`, `national` aceita `NACIONAL` e `FACULTATIVO`. O feriado
+  estadual que vem na resposta de uma **cidade** é gravado com `scope = 'state'` e a UF (os 2 primeiros dígitos do
+  código da cidade), nunca com o código da cidade.
 - `holiday_provider_monthly_usage` — `month` (`date`, sempre o dia 1º; chave primária), `requests`. Nomes:
   `holiday_provider_monthly_usage_month_check`, `…_requests_check`. O incremento é um **upsert** (`INSERT … VALUES
 ($m, 1) ON CONFLICT (month) DO UPDATE SET requests = requests + 1 WHERE requests < $budget RETURNING requests`): um
@@ -140,9 +145,12 @@ As três por empresa referenciam só `companies` (FK simples por `company_id`, c
 para outra tabela de tenant, então não há FK composta a criar.
 
 **Em tabelas já publicadas:** `municipal_holidays.provider_entry_id uuid null` e `state_holidays.provider_entry_id uuid
-null`, cada uma com FK simples para `holiday_provider_entries(id)` `ON DELETE RESTRICT` (o alvo é global, sem
-`company_id`; a entrada nunca é apagada, só ganha `removed_at`): `municipal_holidays_provider_entry_fk` e
-`state_holidays_provider_entry_fk`. CHECK `municipal_holidays_rule_or_provider_check` (`source_rule_id` e
+null`, cada uma com FK **composta** para `holiday_provider_entries(id, ibge_code, holiday_on)`: `municipal_holidays
+(provider_entry_id, city_ibge_code, holiday_on)` e `state_holidays (provider_entry_id, state_ibge_code, holiday_on)`,
+`MATCH SIMPLE` (sem `provider_entry_id` nada é conferido), `ON DELETE RESTRICT ON UPDATE RESTRICT` (o alvo é global, sem
+`company_id`; a entrada nunca é apagada, só ganha `removed_at`, e um UPDATE nela nunca move o feriado de uma empresa).
+Assim a linha importada **é** a data da entrada — uma linha estadual de SP não liga a entrada de Campinas, nem uma
+data trocada: `municipal_holidays_provider_entry_fk` e `state_holidays_provider_entry_fk` (23503). CHECK `municipal_holidays_rule_or_provider_check` (`source_rule_id` e
 `provider_entry_id` nunca os dois) e `state_holidays_provider_once_check` (importada só `once`, D6); índices parciais
 `municipal_holidays_provider_entry_idx` e `state_holidays_provider_entry_idx` (`provider_entry_id is not null`). O
 `ON CONFLICT` do estadual nomeia o predicado do único parcial `state_holidays_company_state_once_unique` (`WHERE
@@ -166,16 +174,22 @@ estadual, municipal) e os mapeadores descartam o resto; o aviso (§6) ganha `ori
 
 1. Digitada vence; gerada por regra vence a importada (D3).
 2. **Desligar** um feriado importado apaga a linha, grava `holiday_import_suppressions` e `audit_logs` (ator) e ele
-   **não volta** no ciclo seguinte. **Restaurar** apaga a supressão e o feriado volta no ciclo seguinte (ou na hora,
-   se o cache já o tem). Desligar vale só para datas de hoje em diante (D7). O `DELETE` que a 238 já tem
+   **não volta** no ciclo seguinte. **Restaurar** apaga a supressão e o feriado volta na **próxima execução diária** da
+   rotina (a API não relê o cache global: o contrato de isolamento da tabela global proíbe). Desligar vale só para datas de hoje em diante (D7). O `DELETE` que a 238 já tem
    (`/municipal-holidays/:id`, `/state-holidays/:id`), numa linha importada, **é** o desligar: sem a supressão a
    linha voltaria no ciclo seguinte. Como no `DELETE` da digitada, a data da regra do mesmo dia é gerada de novo
    (ADR-0096 §6.6).
 3. **Editar nome ou tipo** de uma importada é **adoção**: `provider_entry_id = null`, a linha vira digitada (mesmo
    raciocínio do ADR-0096 §6.4). Vale para o `PATCH` e para o `POST` da mesma data (hoje os dois tratam a importada
    como digitada e não zerariam `provider_entry_id`; o "mesmo cadastro de novo não grava" da 238 não se aplica a uma
-   importada). `typedHolidaysKept` (ADR-0096 §6.4) passa a contar só `provider_entry_id IS NULL`.
-4. Quando o fornecedor **remove** uma data, `removed_at` é marcado no cache e a linha da empresa **fica**, sinalizada
+   importada). `typedHolidaysKept` (ADR-0096 §6.4) passa a contar só `provider_entry_id IS NULL`. O `PATCH` que **muda
+   a data** de uma importada (só o estadual a aceita) não adota: é `409 HOLIDAY_IMPORT_DATE_LOCKED` — desligue e
+   cadastre a data nova, como o municipal já é por desenho (a data e a cidade são a identidade da linha).
+4. Todo `DELETE` de linha **digitada ou adotada** com data de hoje em diante (dia civil de São Paulo) também grava a
+   supressão `(escopo, código, data)` na mesma transação, com o `suppressionId` na auditoria: senão a importação
+   traria a data de volta, como "importada", no ciclo seguinte ao "apaguei". Data anterior a hoje não grava (D7); o
+   "todo ano" estadual (sem data fixa) e o código de cidade que não cabe no padrão do cache também não.
+5. Quando o fornecedor **remove** uma data, `removed_at` é marcado no cache e a linha da empresa **fica**, sinalizada
    para o operador decidir. Nada é apagado em silêncio.
 
 ### 5. A rotina `holiday.provider.pull`
@@ -198,12 +212,19 @@ painel; painel primeiro). Três etapas idempotentes por ciclo:
 3. **Aplicação (só banco, SQL por conjunto).** `MUNICIPAL` → `municipal_holidays … ON CONFLICT DO NOTHING`, pulando as
    suprimidas; `ESTADUAL` → `state_holidays` `once` marcado (D6); só datas `>=` hoje em São Paulo (D7).
 
-**Erros:** 401/403 encerram o ciclo com `provider_unauthorized` sem nova requisição; 429 encerra e respeita
-`Retry-After`; cota esgotada marca `quota_exhausted` até o dia 1º (não é falha); 404 ou fora da cobertura marca
-`not_covered` e retenta em 90 dias; 5xx/timeout → backoff 1 h, 6 h, 24 h, até 7 dias; resposta fora do formato
-(guarda Zod com as chaves esperadas) → `malformed_response`, nada gravado. Vocabulário de falha:
-`provider_unreachable`, `provider_unauthorized`, `malformed_response`. O contador mensal é incrementado **antes** de
-cada chamada e a rotina para ao atingir o orçamento.
+**Erros (texto da T0.1, corrigido pela 2ª rodada da revisão `opus` da Fase 3, 2026-10-09):** 401 encerra o ciclo com
+`provider_unauthorized` sem nova requisição; **402/403 numa cidade** grava o par `failed` com `provider_plan_restricted`
+por 30 dias e o ciclo segue (no nacional ou no estado encerra como `provider_unauthorized`); 429 encerra e respeita
+`Retry-After` (entre 60 s e 24 h); **cota esgotada só encerra o ciclo** — nenhum par muda, então um orçamento maior solta
+tudo no ciclo seguinte (o status `quota_exhausted` segue permitido pela CHECK da §3, mas a rotina já não o grava); 404 em
+cidade ou fora da cobertura marca `not_covered` e retenta em 90 dias, enquanto 404 no **nacional ou no estado** é contrato
+quebrado (`malformed_response`, recuo de 1 h, o ciclo para); 5xx/timeout → backoff 1 h, 6 h, 24 h, até 7 dias, e 3
+`provider_unreachable` seguidos abrem o disjuntor; resposta fora do formato (guarda Zod com as chaves esperadas) →
+`malformed_response`, nada gravado; resposta boa que o banco recusa → par `failed` com `persistence_failed` e recuo.
+Vocabulário de falha **do job** (as quatro cópias do catálogo, sem mudança): `provider_unreachable`,
+`provider_unauthorized`, `malformed_response`; `provider_plan_restricted`, `provider_rate_limited` e `persistence_failed`
+são códigos **do par**. O contador mensal é incrementado por upsert **depois do limitador e imediatamente antes do envio**
+(só a queda do processo nesse intervalo gasta uma requisição que não saiu) e a rotina para ao atingir o orçamento.
 
 **Estimativa (amostra local):** carga inicial ≈ 138 requisições (67 cidades × 2 anos = 134, mais 2 de paridade nacional e
 2 estaduais de SP, se a resposta da cidade não os trouxer), ≈ 2,8 min de relógio no total, em **2 dias** (o teto é 100
@@ -254,7 +275,9 @@ um banco veja o outro: uma chave por instalação, ou o orçamento de cada uma d
   não leem o calendário nem o aviso (contrato de isolamento, como a 236 CA6).
 - **Ordem de publicação:** painel tolerante e app do motorista tolerante → API → telas. O campo é de **resposta**: a
   regra "`.strict()` exige API antes do app" do `apps/api-transportada/CLAUDE.md` vale para corpo de requisição, e
-  aqui a ordem é a inversa.
+  aqui a ordem é a inversa. **Cumprida em staging em 2026-10-09:** os clientes tolerantes (T5.1/T5.1b) já estavam em
+  `main` (promoção de 2026-10-09, PR #154), a API dos avisos (T4.2, T4.3) entrou em seguida e as telas (T5.2 a T5.4) só depois dos prints
+  aprovados.
 
 ## Consequências
 

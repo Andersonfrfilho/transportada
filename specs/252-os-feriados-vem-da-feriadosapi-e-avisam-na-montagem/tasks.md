@@ -2,8 +2,10 @@
 
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
 > rotina** (configurar `FERIADOS_API_TOKEN` e despausar a rotina, que nasce pausada de fábrica — D13), que é passo do
-> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07): a próxima é a T2.1; T5.1 e
-> T5.1b podem correr em paralelo (dependem só da T0.1).
+> usuário. Migration **só staging** (Q2). **Fases 0 a 5 feitas e publicadas em staging** (2026-10-07 e 2026-10-09; SHAs e deploys
+> no quadro de `evidence.md` § "T6.1 — fechamento"); a rotina nasce inerte sem token e pausada. **Produção ainda não leva a 252**
+> (só o roteirizador por cidade e os clientes tolerantes, PR #154). **T6.1: a documentação viva está feita** (2026-10-09, branch
+> `work/252-t6`); **faltam a revisão final `opus` e a revisão de design com o usuário.**
 
 Uma task por vez, na ordem. Cada task fecha com: **contrato vermelho antes** (pelo motivo certo), `bun run typecheck`,
 lint com a app como cwd, teste pelo **script `test` do `package.json`** (nunca `bun test` cru; na API contrato e
@@ -74,65 +76,105 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
 
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — revisão `opus`; T2.3 em `haiku`)
 
-- [ ] **T2.1** Contratos e integração do modelo **antes**: tabelas, únicos, CHECK de exclusão mútua
+- [x] **T2.1** Contratos e integração do modelo **antes**: tabelas, únicos, CHECK de exclusão mútua
       `source_rule_id`/`provider_entry_id`, CHECK de importada só `once` no estadual, índices parciais, CHECK de `job`
       com o nome novo, a linha de `job_schedules` **pausada de fábrica** (D13), os **nomes** de constraint e índice do
-      ADR-0100 §3 (todos ≤ 63 bytes, nenhum padrão do drizzle), `rollback.sql` (estático).
-- [ ] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
+      ADR-0100 §3 (todos ≤ 63 bytes, nenhum padrão do drizzle), `rollback.sql` (estático). **Feita em 2026-10-07**
+      (`76d9245c2`, 118 pass / 13 fail pelo motivo certo). `evidence.md` § T2.1.
+- [x] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
       hora de gerar — hoje `20261007205304`, da 250) + `rollback.sql` + `snapshot.json` + schema
       Drizzle; comandos em tabela publicada no fim do arquivo; `make migration-test`; `db:generate` = `no_changes`;
       integração do roteirizador verde depois dela. Revisão `opus` em passada separada. **Só staging.** (CA2)
-- [ ] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
-      locale pt-BR/en, `minimumIntervalSeconds: 3_600` e o vocabulário de falha; paridade verde nas quatro apps
+      **Entregue em `54539fce7`** (`20261009040622_holiday_provider_import`, rebaseada em staging `4f04022ba`), **fechada pela T2.3 (`b49b22102`):** o snapshot traz
+      `holiday.provider.pull` nas duas CHECK de `job` e o nome ainda não está no catálogo TS, então
+      `schema-snapshot.contract` fica vermelho e `db:generate` não dá `no_changes` (com o nome provisório no catálogo:
+      138 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. **2ª rodada
+      (revisão `opus`, 2026-10-09):** NOT NULL e identidade D2 do cache, FK composta entrada×linha e escopo×tipo na entrada,
+      rollback recusa também a empresa com a importação desligada e trava as tabelas, rollback da 238 recusa enquanto a
+      importação existir, testes de índice/default/`RESTRICT`. `evidence.md` § T2.2 (2ª rodada).
+- [x] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com
+      `minimumIntervalSeconds: 3_600` e o vocabulário de falha (**sem** rótulo nem locale: o painel não tem mecanismo de rótulo
+      por rotina e mostra o nome cru em `OperationsDashboard.page.tsx` — lacuna conhecida, sem criar mecanismo); paridade verde nas quatro apps
       (`test/job-catalog/catalog.contract.ts` na API, no worker e no cron; `test/shared/job-catalog.contract.ts` no
-      painel).
+      painel). **Fecha também o contrato `schema-snapshot` da T2.2** (a CHECK de `job` do schema vem do catálogo da API) e o
+      `db:generate` = `no_changes`: rodar `bun run test` da API e `bun run db:generate` (esperado `no_changes`) ao fim. **Feita em 2026-10-09** (`2f6add63f`, `b49b22102`, `f02ccbef6`, `fc777a9d5`): `db:generate` = `no_changes`, `schema-snapshot` verde, paridade verde nas quatro. **Rótulo e locale do painel não feitos**: o molde não tem mecanismo de rótulo por rotina, então é decisão pendente (`evidence.md` § T2.3).
 
 ## Fase 3 — A rotina no worker
 
 > 🤖 Modelo: `sonnet` (T3.5 em `haiku`)
 
-- [ ] **T3.1** Cliente HTTP da FeriadosAPI: `Authorization: Bearer`, guarda Zod com as chaves esperadas, erros tipados
+- [x] **T3.1** Cliente HTTP da FeriadosAPI: `Authorization: Bearer`, guarda Zod com as chaves esperadas, erros tipados
       (`provider_unreachable`, `provider_unauthorized`, `malformed_response`), `data` `DD/MM/AAAA` → `YYYY-MM-DD`
       validada; nome de 1 a 120 caracteres (`state_holidays_name_check`); duas entradas na mesma `(escopo, ibge,
 data)` → vence a não facultativa; fixture no formato da documentação (cidade, estado, nacional, facultativo,
-      página > 100). Token redigido em toda mensagem (molde `nota-rp-v2.client.ts` 158–161).
-- [ ] **T3.2** Descoberta por cursor (`nfe_documents_company_updated_issued_id_idx`, 2.000 por lote, 20 lotes por ciclo),
+      página > 100). Token redigido em toda mensagem (molde `nota-rp-v2.client.ts` 158–161). **Feita em 2026-10-09**
+      (`8571ad190` contrato vermelho, `ca44fe24a` código): o token fica fora de toda mensagem **por construção** (o erro só
+      carrega o próprio código), 19 testes, 10 mutações vermelhas; **lacunas** da forma de resposta real em
+      `evidence.md` § T3.1.
+- [x] **T3.2** Descoberta por cursor (`nfe_documents_company_updated_issued_id_idx`, 2.000 por lote, 20 lotes por ciclo),
       destino físico pela mesma junção do roteirizador (uma consulta dos dois papéis por lote e a escolha com
       `resolvePhysicalDestination` em TypeScript; sem desvio manual), upsert em `holiday_import_cities`; empresa com
       `is_enabled = false` pulada. `EXPLAIN` do lote registrado (`nfe_addresses` sem índice por participante; índice,
-      se preciso, em migration própria). Integração contra Postgres.
-- [ ] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
+      se preciso, em migration própria). Integração contra Postgres. **Lote venenoso (M2):** o código de cidade que
+      sai de `resolvePhysicalDestination` é filtrado **em TypeScript, antes do upsert**, com `^[1-5][0-9]{6}$` mais prefixo
+      de UF válido (`BRAZILIAN_STATE_IBGE_CODE_LIST`), descartando `null`, `''`, `9999999` e `3909502`: a CHECK
+      `holiday_import_cities_city_check` recusaria o lote inteiro por um só código lixo. O descarte vira contador (sem PII:
+      só a contagem e o motivo) e o **cursor avança**, para o lote não travar a empresa. Contrato com um lote misto
+      (válidos + os quatro lixos): só os válidos entram, o contador diz quantos saíram, o cursor andou. **Feita em
+      2026-10-09** (`35d04a1d2` contratos e integração vermelhos, `601237d60` código): 6 integrações contra Postgres
+      nativo, 13 mutações vermelhas, cursor em texto com microssegundos; o `EXPLAIN` confirma o índice do cursor e um
+      `Seq Scan` em `nfe_addresses` por lote (sem índice novo; decisão do usuário, `evidence.md` § T3.2).
+- [x] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
       teto de 100 por ciclo, orçamento mensal incrementado antes da chamada por **upsert** (o primeiro pedido do mês
       cria a linha; mutação: `UPDATE` cru para no dia 1º), backoff 1 h/6 h/24 h até 7 dias, 401/403, 429 com
       `Retry-After`, `quota_exhausted`, `not_covered` (90 dias), cancelamento do operador conferido entre
-      requisições. (CA3, CA7)
-- [ ] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
+      requisições. (CA3, CA7) **Feita em 2026-10-09** (`d7b7fd062` contratos e integração
+      vermelhos, `e98589cb4` código, `524643828` e `3380298b3` reforços): CA3 e CA7 provados com relógio injetado e contra
+      Postgres (ciclo repetido = 0 requisições e 0 escritas por `xmin`), 23 mutações vermelhas, orçamento por upsert
+      (`UPDATE` cru derruba 7 testes); `evidence.md` § T3.3. **2ª rodada (revisão `opus`, 2026-10-09):** 404 de contrato,
+      `Retry-After` domado, corpo com teto, controle removido, disjuntor, `provider_plan_restricted` por par e **cota
+      esgotada que só encerra o ciclo** (sem `quota_exhausted` por par) — `evidence.md` § "2ª rodada da Fase 3".
+- [x] **T3.4** Aplicação: municipal `ON CONFLICT DO NOTHING` pulando supressões, estadual `once` marcado (D6, `ON
 CONFLICT` sobre o predicado do único parcial `once`), só datas
       `>=` hoje em São Paulo (D7), nacional só paridade (`national_mismatch`), facultativo só no cache, `removed_at`
       sem apagar a linha da empresa. Confere no início que a Fase 1 está em staging. (CA4, CA6, CA10, CA11)
-- [ ] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
+      **Contrato com a T4.1 (revisão):** a aplicação lê o **cache** a cada ciclo — não só os pares recém-buscados —,
+      pulando as supressões, **sob o mesmo advisory lock** `['business-calendar', companyId]` da API
+      (`business-calendar-lock.support.ts`) e **relendo as supressões dentro da transação**: é o que faz a data
+      restaurada voltar na próxima execução diária e o `DELETE` (que agora suprime a data digitada/adotada de hoje em
+      diante) não perder para a importação. **Feita em 2026-10-09** (`938a4357e` contratos e
+      integração vermelhos, `9b1450794` código, `a52a193ad` ajuste de dado de teste): Fase 1 conferida em `origin/staging`
+      (`4454228ac`), aplicação por empresa sob a trava de calendário da 238, 11 integrações contra Postgres, 18 mutações
+      vermelhas; `evidence.md` § T3.4.
+- [x] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
       (vazio = ausente), registro condicional da rotina (`job_run_routine_missing` sem token), `.env.example` sem valor,
-      `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9)
+      `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9) **Feita em 2026-10-09** (`9b64e1726` contratos
+      vermelhos, `264b7f31a` código): sem token a rotina não é registrada e o boot segue verde; orçamento inteiro `>= 1`
+      (padrão 4500, Q3 aberta); o token não aparece em log, contador nem erro com o cliente HTTP de verdade e um
+      fornecedor que o ecoa de seis jeitos; 13 mutações vermelhas; `evidence.md` § T3.5 e "Fechamento da Fase 3".
 
 ## Fase 4 — API
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T4.1** Rotas de gestão (`settings.manage`, `.strict()`, `companyId` do contexto, `audit_logs` na mesma
+- [x] **T4.1** Rotas de gestão (`settings.manage`, `.strict()`, `companyId` do contexto, `audit_logs` na mesma
       transação): desligar (só de hoje em diante)/restaurar importado, adoção pelo `PATCH` de nome/tipo **e pelo
       `POST` da mesma data** (zeram `provider_entry_id`; `isSameTypedHoliday` não vale para importada), o `DELETE` da
       238 numa importada **é** o desligar (supressão + auditoria; regenera a data da regra do dia, ADR-0096 §6.6),
       `typedHolidaysKept` conta só `provider_entry_id IS NULL`, o mesmo nas rotas de `state_holidays`; status da
       importação (o cache global só agregado para as cidades da empresa). Arquivos: `drizzle-municipal-holiday.repository.ts`
       65–182, `municipal-holiday.support.ts` 54–61, `municipal-holiday-typed.queries.ts` 37–48 e os de
-      `state_holidays`. Integração contra Postgres. (CA5)
-- [ ] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
+      `state_holidays`. Integração contra Postgres. (CA5) **Isolamento da tabela global:** contrato de isolamento
+      (molde `test/trip-domain/delivery-deadline-isolation.contract.ts`) — nenhum arquivo de `presentation` ou de
+      repositório importa as três tabelas globais (`holiday_provider_fetches`, `_entries`, `_monthly_usage`), exceto a
+      consulta agregada do status, que filtra pelas cidades da própria empresa.
+- [x] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
       até 200 itens, 400 a campo desconhecido e a > 200); `origin` (`code`/`typed`/`rule`/`imported`) nas regras e em
       `HolidayReason` (mapeadores leem `provider_entry_id`; o filtro de `readTypedHolidays` não muda); `cityName` de
       `listStopAddresses` (+0 no detalhe), nulo quando o `city_code` do endereço não é a cidade da parada; contrato de
       contagem de consultas (+0 ou +4 fixas), leituras em série dentro de transação
       (`transaction-serial-queries.contract.test.ts`). (CA12, CA13)
-- [ ] **T4.3** `holidayWarnings` nas paradas de `GET /me/trips/current` (D12): data = dia civil de São Paulo do
+- [x] **T4.3** `holidayWarnings` nas paradas de `GET /me/trips/current` (D12): data = dia civil de São Paulo do
       `estimated_arrival_at`, ou **hoje** com a parada em andamento; paradas concluídas sem aviso; mesmo formato do
       detalhe, com `cityName`. **Antes do código:** medir e fixar em contrato a contagem de consultas atual da leitura
       do motorista; depois dela, **+5 fixas** com uma cidade ou com várias (4 do calendário carregado uma vez, em
@@ -146,7 +188,16 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       pontualidade do comprovante e `missingAfterHours` idênticos com e sem feriado (integração), e o contrato de
       isolamento (`trip-domain/delivery-deadline-isolation.contract.ts`) ganha a agulha do calendário/aviso para
       `driver-score.policy.ts`, `delivery-proof-*.ts` e `proof-pending.query.ts`. Mutação: o aviso de outra cidade
-      na parada, a nota descontar o feriado. (CA15, CA16)
+      na parada, a nota descontar o feriado. (CA15, CA16) **Feita em 2026-10-09** (`c4357c333` linha de base de 25
+      consultas, `44b020cf5` testes, `8a5356eb5` código, `70a6621e2` bordas): +5 fixas medidas (1 de contexto + 4 do
+      calendário; +1 se nenhuma parada aberta avisa, +0 sem parada aberta), a agulha ficou num contrato próprio
+      (`driver-holiday-warning-isolation.contract.ts`, que vigia também o repositório da leitura), 21 mutações mortas,
+      11157 contratos e 24 arquivos de integração sem falha. Parada **em andamento sem ETA também avisa para hoje** (ADR D12;
+      corrigido na rodada de fechamento); sem ETA e sem começar, nada. `evidence.md` § T4.3.
+      **Fronteira do módulo (revisão da T4.2):** o aviso do motorista usa `readHolidayWarnings`
+      (`business-calendar/infrastructure/holiday-warning.reader.ts`) **direto** e **nunca** importa
+      `trips/infrastructure/trip-holiday-warning.support.ts`: este é o suporte do detalhe da viagem e carrega a agulha
+      `delivery-deadline` (reaproveita o coalescedor de avisos do prazo), que o contrato de isolamento da nota proíbe.
 
 ## Fase 5 — Painel e app do motorista
 
@@ -164,7 +215,11 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       Nenhum código importado do painel (ADR-0075). Sai antes da API.
 - [ ] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
       fornecedor, status da importação; locale pt-BR/en. **Prints** 375/768/1280, claro e escuro, aprovados pelo
-      usuário antes de publicar.
+      usuário antes de publicar. **Critérios da API (T4.1):** "restaurar" volta **na próxima execução diária**, não na
+      hora (a tela não promete o contrário); `409 HOLIDAY_IMPORT_PAST_DATE` ao desligar data anterior a hoje e
+      `409 HOLIDAY_IMPORT_DATE_LOCKED` ao mudar a **data** de uma estadual importada ("desligue e cadastre") têm
+      mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
+      `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
 - [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
@@ -184,43 +239,59 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
 
 - [ ] **T6.1** Revisão de design e usabilidade (web.md §15) comparando a tela real com os prints aprovados,
       no painel e no app do motorista (T5.4); documentação viva (`plan.md` § Documentação viva), `feriadosapi.com` como
-      destino de saída numa atualização da entrada da 252 em `docs/SECURITY.md` (61–83; não há lista de destinos à
-      parte); revisão final com `code-reviewer` `opus` em passada separada; auditoria do §15 do
+      destino de saída numa atualização da entrada da 252 em `docs/SECURITY.md` (61–148 depois da atualização; não há
+      lista de destinos à parte); revisão final com `code-reviewer` `opus` em passada separada; auditoria do §15 do
       `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização).
+      **Feito em 2026-10-09 (executor `sonnet`, só documentação, branch `work/252-t6`, sem push):** `docs/SECURITY.md`
+      (destino de saída, estado publicado, códigos de falha do par, pontos aceitos e riscos abertos), `plan.md` § "Conferência da
+      T6.1", docs que faltavam (`domain-model.md`, `frontend-driver.md` e o `CLAUDE.md` do app do motorista, `cron-transportada.md`),
+      ADR-0100 §4/§5/§6, e o quadro único da spec em `evidence.md` § "T6.1 — fechamento". **Falta para marcar `[x]`:**
+      (a) a revisão final `code-reviewer` `opus` + auditoria do §15; (b) a revisão de design e usabilidade com o usuário,
+      tela real contra os prints aprovados, no painel e no app do motorista; (c) decidir os achados abertos listados em
+      `evidence.md` § "T6.1 — fechamento" (manchete "Sem cota" inalcançável, ordem painel/API em produção).
 
 ## Publicação
 
-T1.2 sai sozinha (**feito**, `4454228ac`) → T2.2 com T2.3 (painel antes) → **painel tolerante (T5.1) e app do
-motorista tolerante (T5.1b)** → API (Fase 4) → worker (Fase 3), **inerte sem token** e com a rotina pausada de fábrica →
-o usuário confirma termos e plano (Q3, Q4), configura o token em staging e despausa a rotina → acompanhar o 1º ciclo e
-registrar em `evidence.md` →
-telas depois dos prints aprovados → produção por PR `staging → main` com aprovação humana (a migration com aprovação
-própria).
+**Estado real (2026-10-09):** T1.2 saiu sozinha (`4454228ac`, staging em 2026-10-07 e em produção pelo PR #154) → painel
+tolerante (T5.1) e app do motorista tolerante (T5.1b) (staging em 2026-10-07; produção pelo PR #154) → migration com o catálogo
+(T2.2 e T2.3, staging em 2026-10-09 04:53Z) → API da gestão e dos avisos (T4.1, T4.2) e worker inerte (Fase 3) → API do
+motorista (T4.3) → app do motorista (T5.4) → painel (T5.2, T5.3) → API com `origin` (**depois** do painel). Tudo em staging, com
+Deploy verde (quadro em `evidence.md` § "T6.1 — fechamento"). **Faltam, nesta ordem:** o usuário confirma termos e plano (Q3, Q4),
+configura o token em staging e despausa a rotina → acompanhar o 1º ciclo e registrar em `evidence.md` → revisão final
+`opus` e revisão de design → produção por PR `staging → main` com aprovação humana (a migration com aprovação própria, e o painel
+antes da API por causa do `origin`).
+
+### Roteiro do 1º ciclo real (passo do usuário, depois de Q3 e Q4)
+
+Configurar `FERIADOS_API_TOKEN` e **deixar o orçamento no valor do plano — não testar com orçamento baixo** (o orçamento
+esgotado só encerra o ciclo e o ciclo seguinte já parte do mês gasto). Despausar `holiday.provider.pull` e conferir, em
+staging, só por leitura:
+
+- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no
+  máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` e `persistence_failed`
+  pedem leitura do log (só tem código, nome do erro e par);
+- `holiday_provider_monthly_usage.requests` do mês contra o contador `requests` da execução no painel de rotinas;
+- `national_mismatch` maior que zero **é esperado** (o fornecedor lista a Páscoa; o código conta Carnaval e Corpus Christi);
+- as lacunas da forma de resposta (`evidence.md` § T3.1) se confirmam ou se corrigem aqui.
 
 ## Prompt de execução
 
+Fases 0 a 5 estão feitas e em staging, e a documentação da T6.1 também (branch `work/252-t6`, ainda sem push). O que resta é a
+revisão final, a revisão de design com o usuário e, depois dos passos do usuário (Q3, Q4, token, despausar), a promoção. **A spec
+tem `[NEEDS CLARIFICATION]` aberto (Q3, Q4): isso não bloqueia a revisão, bloqueia ligar a rotina.**
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/252-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem/
-(leia spec.md, plan.md, tasks.md, evidence.md § T0.1/T0.2 e docs/adr/0100-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem.md
-antes de começar). Fase 0 e Fase 1 já fechadas (ADR-0100 aceita; roteirizador por cidade em staging, 4454228ac):
-comece na T2.1. Uma task por vez, na ordem do tasks.md, em worktree/branch próprios a partir de origin/staging (git
-fetch antes; confira que 252 e o ADR 0100 seguem sendo desta spec e qual é a última migration em staging).
-Modelos: Fase 2 → T2.1 executor model=sonnet,
-T2.2 🧠 executor model=sonnet com revisão code-reviewer model=opus em passada separada, T2.3 executor model=haiku ·
-Fase 3 → T3.1–T3.4 executor model=sonnet, T3.5 executor model=haiku · Fase 4 (T4.1–T4.3) → executor model=sonnet ·
-Fase 5 → T5.1 e T5.1b executor model=haiku, T5.2, T5.3 e T5.4 executor model=sonnet · T6.1 → executor model=sonnet e
-revisão final code-reviewer model=opus.
-Ordem de publicação: migration com catálogo (painel antes; nomes explícitos do ADR-0100 §3; rotina pausada de
-fábrica) → painel tolerante (T5.1) e app do motorista tolerante (T5.1b) → API (Fase 4) → worker inerte sem token →
-telas (T5.2, T5.3, T5.4) só com prints aprovados.
-App do motorista é app separada (ADR-0075): nada importado do painel; a nota do motorista não muda com feriado.
+/oh-my-claudecode:autopilot Feche a T6.1 da spec specs/252-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem/ (leia spec.md,
+plan.md, tasks.md e evidence.md § "T6.1 — fechamento" antes de começar; a documentação viva já está feita). Em worktree/branch
+próprios a partir de origin/staging (fetch antes; confira que a branch work/252-t6 foi publicada).
+Modelos: revisão final → code-reviewer model=opus, em passada separada, sobre o código das Fases 2 a 5 (migration, rotina, rotas,
+avisos, telas), com a auditoria do §15 do code-standart.md (N+1, Promise.all, logs sem PII, sanitização); achados viram tasks
+em fase barata (executor model=sonnet) e fecham com contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do
+package.json, mutação, format:check na raiz e commit isolado com caminhos explícitos (--no-verify, nunca git add -A).
+Decida ou pergunte os achados abertos de evidence.md § "T6.1 — fechamento" (manchete "Sem cota" inalcançável; ordem painel/API
+em produção; índice de nfe_addresses).
+A revisão de design e usabilidade (web.md §15, tela real contra os prints aprovados, painel e app do motorista) é com o usuário.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com: contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do package.json (API:
-contrato e integração são dois comandos, com --env-file=../../.env.test), integração contra Postgres que responda,
-mutação, format:check na raiz, commit isolado com caminhos explícitos (--no-verify, nunca git add -A), evidência em
-evidence.md. Migration: make migration-test e db:generate = no_changes.
-A rotina só grava em municipal_holidays depois de a T1.2 estar publicada em staging.
-Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), migration destrutiva, configurar
-ou pedir FERIADOS_API_TOKEN ou despausar a rotina (Q3 e Q4 são [NEEDS CLARIFICATION]; token e despausa são passos do
-usuário), mudar o contrato do solver, e qualquer tela publicada sem print aprovado.
+Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), configurar ou pedir FERIADOS_API_TOKEN,
+despausar a rotina holiday.provider.pull, mudar o contrato do solver e qualquer tela publicada sem print aprovado.
 ```

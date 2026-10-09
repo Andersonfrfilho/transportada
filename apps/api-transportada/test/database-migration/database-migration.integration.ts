@@ -16,6 +16,7 @@ import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
 import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
+import { assertHolidayProviderImport } from './holiday-provider-import.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
@@ -24,6 +25,7 @@ import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.asse
 import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-index.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
@@ -60,6 +62,7 @@ import {
   MDFE_TABLES,
   NFSE_TABLES,
   DELIVERY_CLIENT_TABLES,
+  HOLIDAY_PROVIDER_TABLES,
   CONTRACTOR_PORTAL_TABLES,
   MULTI_VEHICLE_SUGGESTION_TABLES,
   WHATSAPP_CHANNEL_TABLES,
@@ -108,6 +111,7 @@ describe('Drizzle migration integration', () => {
             ...NFSE_TABLES,
             ...TRIP_TABLES,
             ...DELIVERY_CLIENT_TABLES,
+            ...HOLIDAY_PROVIDER_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
@@ -357,6 +361,18 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           userId: identityFixture.userId,
         })
+        await assertHolidayProviderImport({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertNfeAddressesParticipantIndex({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -389,6 +405,7 @@ describe('Drizzle migration integration', () => {
             ...NFSE_TABLES,
             ...TRIP_TABLES,
             ...DELIVERY_CLIENT_TABLES,
+            ...HOLIDAY_PROVIDER_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,

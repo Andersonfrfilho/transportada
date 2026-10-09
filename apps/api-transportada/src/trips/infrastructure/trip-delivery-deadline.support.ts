@@ -143,6 +143,9 @@ export async function readTripDeliveryDeadlines(
     companyId: params.companyId,
     coverage: resolveCoverage(located, now),
   })
+  for (const [cityIbgeCode, city] of cityCalendars) {
+    if ('calendar' in city) params.calendarSink?.set(cityIbgeCode, city.calendar)
+  }
   const views = new Map<string, DeliveryDeadlineView>()
   const refusals: Refusals = new Map()
   for (const entry of located) {
