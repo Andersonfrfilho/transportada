@@ -32,38 +32,59 @@ type TripConferenceDialogProps = Readonly<{
 
 type TripConferenceRowViewProps = Readonly<{ row: TripConferenceRow }>
 
+type TripConferenceStopGroup = Readonly<{
+  city: string
+  destinationLabel: string
+  rows: readonly TripConferenceRow[]
+  volumes: number
+}>
+
 const NON_BREAKING_SPACE = /\u00a0/gu
+
+function groupRowsByStop(rows: readonly TripConferenceRow[]): readonly TripConferenceStopGroup[] {
+  const groups = new Map<string, TripConferenceRow[]>()
+  for (const row of rows) {
+    const group = groups.get(row.destinationLabel) ?? []
+    group.push(row)
+    groups.set(row.destinationLabel, group)
+  }
+  return [...groups.entries()].map(([destinationLabel, groupRows]) => ({
+    city: groupRows[0]?.city ?? '',
+    destinationLabel,
+    rows: groupRows,
+    volumes: groupRows.reduce((total, row) => total + (row.volumeCount ?? 0), 0),
+  }))
+}
 
 function TripConferenceRowView({ row }: TripConferenceRowViewProps) {
   const { t } = useTranslation('trip')
   const unknown = t('conference.unknown')
 
   return (
-    <tr>
-      <td className={styles.conferenceKey} data-label={t('conference.noteColumn')}>
-        <span>
-          {row.noteNumber === '' ? unknown : row.noteNumber}
-          {row.noteSeries === '' ? null : (
-            <span className={styles.hint}>
-              {' '}
-              {t('conference.series', { series: row.noteSeries })}
-            </span>
-          )}
-        </span>
-      </td>
-      <td className={styles.conferenceKey} data-label={t('conference.clientColumn')}>
+    <li className={styles.conferenceNote}>
+      <span className={styles.conferenceNoteNumber}>
+        {row.noteNumber === '' ? unknown : row.noteNumber}
+        {row.noteSeries === '' ? null : (
+          <span className={styles.hint}> {t('conference.series', { series: row.noteSeries })}</span>
+        )}
+      </span>
+      <span className={styles.conferenceNoteClient}>
         {row.clientName === '' ? unknown : row.clientName}
-      </td>
-      <td data-label={t('conference.destinationColumn')}>
+      </span>
+      <span className={styles.conferenceNoteAddress}>
+        <Icon name="map-pin" />
         {row.destinationLabel === '' ? t('conference.noStop') : row.destinationLabel}
-      </td>
-      <td className={styles.conferenceKey} data-label={t('conference.valueColumn')}>
+      </span>
+      <span className={styles.conferenceNoteMeta}>
+        <Icon name="package" />
+        {row.volumeCount ?? unknown}
+      </span>
+      <span className={styles.conferenceNoteValue}>
         {row.totalValue === null
           ? unknown
           : formatAmount(row.totalValue).replace(NON_BREAKING_SPACE, ' ')}
-      </td>
-      <td data-label={t('conference.volumesColumn')}>{row.volumeCount ?? unknown}</td>
-    </tr>
+      </span>
+    </li>
   )
 }
 
@@ -107,7 +128,7 @@ function TripConferenceContent({
       <div
         aria-labelledby="trip-conference-title"
         aria-modal="true"
-        className={styles.mdfeGateDialog}
+        className={`${styles.mdfeGateDialog} ${styles.conferenceDialog}`}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -127,20 +148,42 @@ function TripConferenceContent({
           </button>
         </header>
 
+        <div className={styles.conferenceIdentity}>
+          <span className={styles.conferenceChip}>
+            <Icon name="document" />
+            <code>{tripCode}</code>
+          </span>
+          {vehiclePlate === null ? null : (
+            <span className={styles.conferenceChip}>
+              <Icon name="truck" />
+              {vehiclePlate}
+            </span>
+          )}
+          {drivers.map((driver) => (
+            <span className={styles.conferenceChip} key={driver.driverId}>
+              {driver.driverName}
+            </span>
+          ))}
+        </div>
+
         <dl className={styles.conferenceSummary}>
           <div>
+            <Icon name="invoice" />
             <dt>{t('conference.notes')}</dt>
             <dd>{summary.noteCount}</dd>
           </div>
           <div>
+            <Icon name="map-pin" />
             <dt>{t('conference.stops')}</dt>
             <dd>{summary.stopCount}</dd>
           </div>
           <div>
+            <Icon name="money" />
             <dt>{t('conference.totalValue')}</dt>
             <dd>{formatAmount(summary.totalValue).replace(NON_BREAKING_SPACE, ' ')}</dd>
           </div>
           <div>
+            <Icon name="package" />
             <dt>{t('conference.volumes')}</dt>
             <dd>{summary.totalVolumes}</dd>
           </div>
@@ -182,24 +225,37 @@ function TripConferenceContent({
         {rows.length === 0 ? (
           <p className={styles.hint}>{t('conference.empty')}</p>
         ) : (
-          <div className={styles.tableScroll}>
-            <table className={`${styles.dataTable} ${styles.conferenceTable}`}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('conference.noteColumn')}</th>
-                  <th scope="col">{t('conference.clientColumn')}</th>
-                  <th scope="col">{t('conference.destinationColumn')}</th>
-                  <th scope="col">{t('conference.valueColumn')}</th>
-                  <th scope="col">{t('conference.volumesColumn')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <TripConferenceRowView key={row.documentId} row={row} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ol className={styles.conferenceStops}>
+            {groupRowsByStop(rows).map((group, index) => (
+              <li className={styles.conferenceStop} key={group.destinationLabel}>
+                <header className={styles.conferenceStopHeader}>
+                  <span className={styles.conferenceStopIndex}>{index + 1}</span>
+                  <span className={styles.conferenceStopLabel}>
+                    {group.city === '' ? t('conference.noStop') : group.city}
+                  </span>
+                  <span className={styles.conferenceStopNotes}>
+                    {group.rows.map((row) => (
+                      <span className={styles.conferenceChip} key={row.documentId}>
+                        <Icon name="invoice" />
+                        {row.noteNumber === '' ? t('conference.unknown') : row.noteNumber}
+                      </span>
+                    ))}
+                  </span>
+                  <span className={styles.conferenceStopTotals}>
+                    {t('conference.stopTotals', {
+                      notes: group.rows.length,
+                      volumes: group.volumes,
+                    })}
+                  </span>
+                </header>
+                <ul className={styles.conferenceNotes}>
+                  {group.rows.map((row) => (
+                    <TripConferenceRowView key={row.documentId} row={row} />
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
     </div>,

@@ -1707,6 +1707,11 @@ footer {
     display: none;
   }
 
+  /* Folha em portal que imprime sozinha: o app inteiro (e a região de carga dentro dele) sai do layout. */
+  body:has([data-print-region='exclusive']) > :not([data-print-region='exclusive']) {
+    display: none;
+  }
+
   [data-print-region],
   [data-print-region] * {
     visibility: visible;

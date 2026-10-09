@@ -17,6 +17,9 @@ const HEADER_FILL = 217
 const ZEBRA_FILL = 242
 const SUPPORTED_LOGO_TYPES = new Set(['image/png', 'image/jpeg'])
 /** Colunas fixas (mm): a do cliente fica com o que sobra de uma A4 paisagem. */
+const FIELD_LABEL_HEIGHT_MM = 4.5
+const FIELD_LINE_HEIGHT_MM = 3.8
+const FIELD_ROW_GAP_MM = 1.5
 const COLUMN_WIDTHS_MM = { 0: 10, 1: 20, 2: 22, 4: 52, 5: 28, 6: 32, 7: 18, 8: 28 } as const
 
 /** A lista quebra entre cidades, nunca no meio do nome de uma: "SANTA RITA DO PASSA QUATRO" fica inteira. */
@@ -90,17 +93,30 @@ export async function buildTripConferencePdf(input: BuildTripConferencePdfInput)
   cursorY += 4
 
   const fieldWidth = (pageWidth - PAGE_MARGIN_MM * 2) / 3
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  const wrappedValues = sheet.fields.map(
+    (field) => doc.splitTextToSize(field.value, fieldWidth - 4) as string[],
+  )
+  const rowCount = Math.ceil(sheet.fields.length / 3)
+  const rowOffsets: number[] = []
+  let rowsHeight = 0
+  for (let row = 0; row < rowCount; row += 1) {
+    rowOffsets.push(rowsHeight)
+    const rowLines = Math.max(1, ...wrappedValues.slice(row * 3, row * 3 + 3).map((l) => l.length))
+    rowsHeight += FIELD_LABEL_HEIGHT_MM + rowLines * FIELD_LINE_HEIGHT_MM + FIELD_ROW_GAP_MM
+  }
   sheet.fields.forEach((field, index) => {
     const x = PAGE_MARGIN_MM + (index % 3) * fieldWidth
-    const y = cursorY + Math.floor(index / 3) * 9
+    const y = cursorY + (rowOffsets[Math.floor(index / 3)] ?? 0)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6.5)
     doc.text(field.label.toUpperCase(), x, y + 2)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
-    doc.text(field.value, x, y + 6.5, { maxWidth: fieldWidth - 4 })
+    doc.text(wrappedValues[index] ?? [], x, y + FIELD_LABEL_HEIGHT_MM + 2)
   })
-  cursorY += Math.ceil(sheet.fields.length / 3) * 9
+  cursorY += rowsHeight
 
   if (sheet.routeCities !== '') {
     doc.setFont('helvetica', 'normal')
