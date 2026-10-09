@@ -99,6 +99,7 @@ export type StatusView = {
   readonly failures: readonly { readonly errorCode: string; readonly pairs: number }[]
   readonly isEnabled: boolean
   readonly lastFetchedAt: string | null
+  readonly lastRun: { readonly finishedAt: string; readonly outcome: string } | null
   readonly month: string
   readonly monthlyRequests: number
   readonly pairs: HolidayImportStatus['pairs']
@@ -114,6 +115,10 @@ export function toStatusView(status: HolidayImportStatus): StatusView {
     failures: status.failures.map(({ errorCode, pairs }) => ({ errorCode, pairs })),
     isEnabled: status.isEnabled,
     lastFetchedAt: status.lastFetchedAt === null ? null : status.lastFetchedAt.toISOString(),
+    lastRun:
+      status.lastRun === null
+        ? null
+        : { finishedAt: status.lastRun.finishedAt.toISOString(), outcome: status.lastRun.outcome },
     month: status.month,
     monthlyRequests: status.monthlyRequests,
     pairs: {
@@ -121,6 +126,7 @@ export function toStatusView(status: HolidayImportStatus): StatusView {
       failed: status.pairs.failed,
       notCovered: status.pairs.notCovered,
       pending: status.pairs.pending,
+      planRestricted: status.pairs.planRestricted,
       quotaExhausted: status.pairs.quotaExhausted,
       total: status.pairs.total,
     },

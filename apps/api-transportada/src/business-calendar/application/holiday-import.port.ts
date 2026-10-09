@@ -54,6 +54,8 @@ export type HolidayImportPairCounts = {
   readonly failed: number
   readonly notCovered: number
   readonly pending: number
+  /** Subconjunto de `failed`: pares que o plano contratado não cobre. */
+  readonly planRestricted: number
   readonly quotaExhausted: number
   readonly total: number
 }
@@ -78,10 +80,18 @@ export type HolidayImportRemovedList = {
   readonly truncated: boolean
 }
 
+/** Só o desfecho (vocabulário do catálogo) e quando terminou: a última execução ENCERRADA da rotina. */
+export type HolidayImportLastRun = {
+  readonly finishedAt: Date
+  readonly outcome: string
+}
+
 export type HolidayImportStatus = {
   readonly failures: readonly HolidayImportFailure[]
   readonly isEnabled: boolean
   readonly lastFetchedAt: Date | null
+  /** `null`: a rotina nunca encerrou um ciclo (nasce pausada, ou sem token nunca é registrada). */
+  readonly lastRun: HolidayImportLastRun | null
   /** O primeiro dia do mês do orçamento. */
   readonly month: string
   /** Requisições do mês na instalação (o contador é do banco, não da empresa). */
