@@ -56,8 +56,10 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
     expect([...TRIP_COLUMN_KEYS]).toEqual([
       'vehicleId',
       'status',
+      'occupancy',
       'cargoValue',
       'revenue',
+      'result',
       'createdAt',
       'updatedAt',
     ])
@@ -160,10 +162,11 @@ describe('as colunas de dinheiro da listagem de viagens', () => {
    * coluna não pode continuar lá dizendo "sem valor" — seria afirmar que a viagem não tem carga
    * valorada, quando o que falta é a permissão. A coluna sai, como o painel de resultado do detalhe.
    */
-  it('tira as duas colunas de dinheiro de quem não tem trip.financials', () => {
+  it('tira as colunas de dinheiro de quem não tem trip.financials', () => {
     expect([...visibleTripColumns({ canReadFinancials: false })]).toEqual([
       'vehicleId',
       'status',
+      'occupancy',
       'createdAt',
       'updatedAt',
     ])
