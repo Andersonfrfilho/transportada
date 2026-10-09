@@ -90,7 +90,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `iconName?` em `ParticipantConversationSummary` + schema; selos de canal (lucide, ícone + texto sr-only,
       `labels.channelApp/Whatsapp/Email/Portal/Webchat`) na linha e no cabeçalho; prop `renderSubjectIcon?` na tela
       composta (ausente = ícone do grupo); testes SSR; README; mesmo changeset. Passe `opus` do delta.
-- [ ] **T1.10** `sonnet` — Subir os 3 apps para a versão nova do `conversations-ui` (alinhar) e ligar o protocolo.
+- [x] **T1.10** `sonnet` — Subir os 3 apps para a versão nova do `conversations-ui` (alinhar) e ligar o protocolo.
 
 ## Fase 1b — Plugar nos apps (alinhar versões)
 
@@ -119,10 +119,10 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [x] **T1b.9** `sonnet` — (achado no navegador) o campo de resposta ficava abaixo da janela (y=771 em 766) e a barra
       inferior fixa cobria o fim; o toque no campo caía na aba "Conversas". A conversa agora ocupa a altura visível
       acima da barra (`--driver-bottom-bar-height`). Commit `2244f20a5`.
-- [ ] **T1b.10** `sonnet` — **Protocolo no app e na demo (D8):** adapter mapeia `protocol` da API; API de demonstração
+- [x] **T1b.10** `sonnet` — **Protocolo no app e na demo (D8):** adapter mapeia `protocol` da API; API de demonstração
       devolve protocolos `AAMMDD-XXXX`; conferir no navegador (cabeçalho, lista, copiar, busca). Até a API
       (T2.4) servir o campo, o adapter **não inventa** protocolo: sem campo, nada aparece.
-- [ ] **T1b.11** `sonnet` — **Canais e ícone no app (D9):** adapter mapeia `channels` e `iconName`; `renderSubjectIcon` usa o
+- [x] **T1b.11** `sonnet` — **Canais e ícone no app (D9):** adapter mapeia `channels` e `iconName`; `renderSubjectIcon` usa o
       `<Icon name>` do app (catálogo da 255); labels pt-BR dos canais; API de demonstração devolve `channels`
       (`app`, `whatsapp`) e `iconName` por conversa; conferir no navegador.
 - [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
@@ -172,7 +172,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `status` efetivo, `lastMessagePreview`; eco de `clientMessageId` relendo a mensagem na repetição; política pura de
       rótulo (`conversation-subject-label.policy.ts`); erros `CONVERSATION_NOT_FOUND` e `CONVERSATION_CLOSED`; limites
       compartilhados com as rotas antigas; **rotas antigas intactas**.
-- [ ] **T2.4b** `sonnet` — **Rotas do escritório** `/trips/:tripId/conversations/**` (`open`, mensagens, envio de arquivo, `close`), leitura por
+- [x] **T2.4b** `sonnet` — **Rotas do escritório** `/trips/:tripId/conversations/**` (`open`, mensagens, envio de arquivo, `close`), leitura por
       `POST /occurrence-conversations/:id/read`, escrita em nota/viagem com `trip.manage`, `retarget` no envio.
 - [x] **T2.5** `sonnet` — **Aviso do sino**: `trip.conversation-message` ganha campos extras no `payload` (`subjectType`,
       `subjectId`, `subjectLabel`, `protocol`) sem mudar template nem `dedupeKey`; **chave nova**

@@ -265,3 +265,21 @@ Prova de que a conversa não decide: varredura dos arquivos novos por `tripOccur
 
 **Não coberto:** colisão real do protocolo (23505 na repetição do INSERT) — o trigger já resolve dentro do banco, então a repetição no
 código não tem teste de colisão; assinatura real de URL do S3 (storage de teste é dublê em memória, como já era na 183).
+
+## Fase 2 (continuação) e Fase 1b — protocolo, canais e ícone no app
+
+| Task / marco            | Commit / PR                           | Gate (conferido por mim)                                                                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SDK release 2           | PR #129 → `79ab60a`                   | publicados `conversation-contracts@0.5.0`, `conversations-ui@0.6.0`, `conversation-module@0.4.2` (a UI fixa contracts 0.5.0); 3 passes `opus`; **0 diferenças em 48 casos** de markup contra o tarball 0.4.2 publicado (regra: SDK não impacta outros fluxos) |
+| T2.4b escritório        | `daa355374`                           | contrato 11272 pass / 0 fail · integração 18 pass (3 arquivos, Postgres real)                                                                                                                                                                                 |
+| T2.5 aviso do sino      | `77ff97b60`                           | contrato 11283 pass · integração 11 pass · golden do aviso da ocorrência byte a byte                                                                                                                                                                          |
+| fix preview painel      | `a41132a1d`                           | `NOTIFICATION_PREVIEW_PAYLOAD` sem `subjectLabel` quebrava o contrato do painel (herança da T2.5) → painel 7831 + 1233 pass / 0 fail                                                                                                                          |
+| T1.10 / T1b.10 / T1b.11 | `9690f34f2`, `58b8df372`, `5ef2d208d` | 3 apps em 0.6.0 / 0.5.0; painéis sem `copiedLabel` (padrão volta a "Copiado!"); driver 1615 pass; rotas novas por assunto **com fallback** para as antigas (404 sem `CONVERSATION_NOT_FOUND` ou 501)                                                          |
+
+### Verificação no navegador (375×812, tema escuro, árvore `spec-260`)
+
+- Lista: protocolo (`261009-K7M2`), selo de canal por item (`app`; `app` + `whatsapp` na recusa), ícone por tipo (alerta, câmera, relógio, nota, balão, caminhão), seção "Espera sua resposta", filtros por assunto (Todas / Ocorrências / Notas fiscais / Viagem), campo de busca.
+- Busca: `f8g3` (minúsculo, sem traço) achou só "NF 4521 · Casa Verde"; chips mantiveram as contagens.
+- Conversa de nota (`/conversas/document/…`): cabeçalho com protocolo, botão "Copiar protocolo" (44 px), selo "App", cartão "Nota fiscal", composer acima da barra.
+- **Defeito achado só no navegador:** a faixa de filtros media 21 px com chips de 44 px (`flex-shrink` em coluna flex com `overflow:auto`). Regra injetada → 65 px, chips inteiros. Correção no SDK: **PR #130** (patch 0.6.1, só `.cv-p-*`, teste por parser de CSS + mutação). Pendente de passe `opus` e merge.
+- Armadilha de ambiente: depois de subir a versão do pacote o Vite serviu o bundle antigo (cache de dependências); reiniciado com `--force`.
