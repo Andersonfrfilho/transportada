@@ -22,6 +22,8 @@ import type { Trip, TripStatus } from '../shared/trip.types'
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
+import { TripOccupancyBars } from './TripOccupancyBars.component'
+import { TripResultCell } from './TripResultCell.component'
 import { TripReportExportButton } from './TripReportExportButton.component'
 import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
@@ -87,6 +89,8 @@ export function TripTable({
     if (column === 'vehicleId') return renderVehicle(trip)
     if (column === 'cargoValue') return renderCargoValue(trip)
     if (column === 'revenue') return renderRevenue(trip)
+    if (column === 'occupancy') return renderOccupancy(trip)
+    if (column === 'result') return renderResult(trip)
     if (column === 'createdAt') return formatMoment(trip.createdAt)
     if (column === 'updatedAt') return formatMoment(trip.updatedAt)
 
@@ -132,6 +136,23 @@ export function TripTable({
         )}
       </span>
     )
+  }
+
+  /** Spec 259: viagem cancelada não tem ocupação nem resultado úteis — a linha diz "—". */
+  function renderOccupancy(trip: Trip) {
+    if (trip.status === 'cancelled')
+      return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+
+    return (
+      <TripOccupancyBars hasVehicle={trip.vehicleId !== null} occupancy={trip.occupancySummary} />
+    )
+  }
+
+  function renderResult(trip: Trip) {
+    if (trip.status === 'cancelled')
+      return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+
+    return <TripResultCell amounts={trip.amounts} />
   }
 
   /**
@@ -314,17 +335,21 @@ export function TripTable({
               <th scope="col">{t('columns.id')}</th>
               {table.columns.map((column) => (
                 <th key={column} scope="col">
-                  <button
-                    className={styles.sortButton}
-                    onClick={() => table.toggleSort(column)}
-                    type="button"
-                  >
-                    {t(`columns.${column}`)}
-                    <span className={styles.sortIndicator} aria-hidden="true">
-                      {sortIndicator(column)}
-                    </span>
-                    <span className={styles.srOnly}>{sortLabel(column)}</span>
-                  </button>
+                  {column === 'occupancy' ? (
+                    t(`columns.${column}`)
+                  ) : (
+                    <button
+                      className={styles.sortButton}
+                      onClick={() => table.toggleSort(column)}
+                      type="button"
+                    >
+                      {t(`columns.${column}`)}
+                      <span className={styles.sortIndicator} aria-hidden="true">
+                        {sortIndicator(column)}
+                      </span>
+                      <span className={styles.srOnly}>{sortLabel(column)}</span>
+                    </button>
+                  )}
                 </th>
               ))}
               <th scope="col">{t('actions.title')}</th>
