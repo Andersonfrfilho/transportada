@@ -153,7 +153,9 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       `return {}` (linha 42) e com o `envelopeProvider` do `main.ts`; a busca recebe chave e orçamento do ciclo; `token_missing`,
       `token_unreadable` e `credential_unreadable` no resumo. Contratos **antes**: sem linha → 0 requisições, `token_missing = 1`,
       descoberta e aplicação rodaram, `succeeded`; envelope ilegível → 0 requisições, `credential_unreadable`; com chave → o
-      `Authorization` do fornecedor falso é o da chave do banco e o orçamento é o do banco; troca entre dois ciclos vale no
+      `Authorization` do fornecedor falso é o da chave do banco e o orçamento é o do banco **com `coalesce(monthly_request_budget, 4500)`
+      (M1: a coluna é NULL = padrão; cobrir linha com orçamento NULL e com orçamento definido; a constante é a de
+      `FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET`)**; troca entre dois ciclos vale no
       segundo; `token-privacy.contract.ts` com a chave vinda do banco (sentinela em log, contadores, desfecho). Aceite:
       `bun run test` e `bun run build` do worker; integrações `holiday-fetch`, `holiday-apply`, `job-run-execution` 0 skip;
       mutações: ler da variável; ignorar o orçamento do banco; `token_unreadable` virar `succeeded`. (CA7, CA8)

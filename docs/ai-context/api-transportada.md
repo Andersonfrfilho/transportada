@@ -3549,3 +3549,10 @@ preço do combustível resolvido em memória) alimentando `buildValuationFromCon
 - `readContext` por viagem continua intacto (17 consultas): testes dependem dos internos dele. Mudou a conta de um lado, mude o
   lote junto — o contrato `test/integration/trip-list-occupancy-financials.integration.ts` compara lista × detalhe.
 - Publicar o painel (parser tolerante) **antes** da API. Spec e medições: `specs/259-*/evidence.md`.
+
+## Spec 262 (Fases 2 e 3) — a chave da FeriadosAPI e o liga/desliga da importação (ADR-0102)
+
+- `holiday_provider_settings` (migration `20261009223052_…`, só staging): uma linha por fornecedor da instalação; `token_envelope`
+  A256GCM com AAD pelo `id` da linha, `token_hint` (4 últimos), `version`, `monthly_request_budget` **anulável (NULL = padrão 4500)**.
+- `GET`/`PUT`/`DELETE …/provider-settings[/token]` e `GET|PUT /company-settings/holiday-import`: permissões, limitador (por empresa+usuário) e
+  auditoria em `CLAUDE.md` da API e `docs/SECURITY.md`. O texto completo de fechamento vem na T6.1.

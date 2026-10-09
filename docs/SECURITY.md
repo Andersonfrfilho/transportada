@@ -145,7 +145,8 @@ do erro e par.
 **Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
 `feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
 
-**Emenda planejada (spec 262, ADR-0102 — aceita em 2026-10-09, ainda não implementada):** a chave deixa a variável de
+**Emenda (spec 262, ADR-0102 — aceita em 2026-10-09; a API que recebe e sela a chave está implementada em staging, Fases 2 e 3, e o worker ainda não):**
+a chave deixa a variável de
 ambiente e passa a morar **selada no banco** (`holiday_provider_settings.token_envelope`, envelope A256GCM com o chaveiro de
 aplicação e AAD por linha), configurada no painel por quem tem a permissão nova `holiday-import.configure` (só `company-admin`);
 o orçamento mensal vai para a mesma linha. É a mesma exceção ao "segredo só em variável de ambiente" que a credencial da NFS-e, o
@@ -159,6 +160,26 @@ passa a **receber e selar** a chave, e o worker segue sendo a única app que a *
 já está em `main` e o worker de produção lê `FERIADOS_API_TOKEN`; o Gate A (conferir **só o nome** da variável, a saída nunca com
 valor) é obrigatório antes de publicar o worker da 262. Até a 262 ser publicada, vale o texto acima; a T6.1 da 262 troca esta
 nota pela entrada própria e reescreve as linhas sobre quem lê o token.
+
+**Estado real da API em staging (spec 262, Fases 2 e 3) e o que ela NÃO garante:**
+
+- A API **recebe e sela** a chave: `PUT /holiday-imports/provider-settings` (permissão `holiday-import.configure`, só `company-admin`,
+  concedível por grupo), selo A256GCM do chaveiro com AAD `transportada:holiday-provider-token:v1:${settingsId}`, escrita e
+  auditoria na mesma transação, corpo estrito, limitador `postgres` de 10 escritas por hora. Nenhuma resposta, linha de log ou
+  coluna de `audit_logs` leva a chave (provado por sentinela nos contratos e na integração `holiday-provider-settings`).
+- **O teto de 10 por hora é por empresa + usuário (`companyId:userId`), NÃO global da instalação:** cada administrador de cada
+  empresa tem o próprio balde, então vários administradores somam mais do que 10 trocas por hora na instalação.
+- **Onde o texto em claro da chave passa pela memória da API durante o `PUT`** (lista honesta, não uma garantia de limpeza): o
+  corpo cru da requisição, a string decodificada dele, o objeto do `JSON.parse` (a string do campo), a string aparada pelo Zod
+  (cópia), o `JSON.stringify` do plaintext que vai ao selo, o `Uint8Array` do `TextEncoder` e as cópias internas do WebCrypto.
+  O `fill(0)` zera **só um** desses pedaços (o `Uint8Array` que a API segura, e o AAD); os demais ficam até o coletor de lixo e
+  não são zeráveis em JS. Mitigação real: a chave nunca é gravada em log, auditoria, métrica nem mensagem de erro; não é
+  mitigação de dump de memória (captura de exceção e scrubber do Sentry ficam como tarefa à parte).
+- **A dica de 4 caracteres é visível** a qualquer usuário com `settings.manage` de **qualquer** empresa da instalação
+  (`GET /holiday-imports/provider-settings` devolve `tokenHint` e `tokenUpdatedAt`; nunca o envelope nem quem alterou).
+- Risco aceito (ADR-0021): o administrador de qualquer empresa com `holiday-import.configure` **sobrescreve** a chave da
+  instalação; a trilha cai na empresa dele e a linha guarda `updated_by_user_id`. Contrato que prende isso:
+  `holiday-provider-settings.integration.ts` ("o administrador da empresa B sobrescreve a chave e a auditoria cai em B").
 
 **Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07; atualizado em 2026-10-09 (T6.1).
 

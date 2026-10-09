@@ -44,10 +44,12 @@ Pedido do usuário (2026-10-09): **a chave, o orçamento mensal e o liga/desliga
   fornecedor, a cota e o contador do mês são da instalação — ADR-0021, ADR-0100 §5). Colunas: `id uuid` (pk, entra no AAD),
   `provider text` único (`'feriadosapi'`), `token_envelope jsonb` (envelope A256GCM; **sem coluna `key_id`**: o envelope já
   carrega `keyId`, como `nfse_provider_credentials`, `digital_certificates` e `contractor_mail_settings`), `token_hint text` (os
-  4 últimos caracteres, em claro), `token_updated_at`, `monthly_request_budget integer` (1 a 1.000.000), `version bigint`
+  4 últimos caracteres, em claro), `token_updated_at`, `monthly_request_budget integer NULL` (1 a 1.000.000; **NULL = o padrão**, decisão M1 da revisão), `version bigint`
   (concorrência otimista, molde do `expectedVersion` da 143), `updated_by_user_id uuid` (sem FK, rastro), `created_at`,
   `updated_at`. CHECKs e nomes explícitos (ADR-0102 §3, o maior com 41 bytes). Sem linha = sem chave e orçamento padrão
-  (4500, o padrão da 252, Q3 aberta).
+  (4500, o padrão da 252, Q3 aberta). **M1:** linha com o orçamento NULL = o mesmo padrão — só o que o administrador DEFINIU
+  fica gravado, o primeiro `PUT` com a chave **não** grava orçamento, e o worker resolve `coalesce(monthly_request_budget, 4500)`
+  com a constante (Fase 4, T4.2). A CHECK diz `is null or between 1 and 1000000`.
   **Corrige o esperado:** o nome `holiday_provider_installation_settings` (38 bytes) estouraria 63 bytes no
   `…_monthly_request_budget_check`; `holiday_provider_settings` segue o prefixo das tabelas globais da 252.
 - **D2 — Rotas.** Instalação: `GET /holiday-imports/provider-settings` (`settings.manage`), `PUT` (`holiday-import.configure`)
@@ -144,15 +146,17 @@ cryptography.envelopeKeyRing)`, `main.ts` 588, 998, 1039, …). API e worker usa
 | null, tokenUpdatedAt: string | null, monthlyRequestBudget: number, budgetOrigin: 'default' | 'installation', version:
 string | null, updatedAt: string | null } }`, `cache-control: no-store`, lista branca de campos (nunca espalhar o registro).
   Sem linha: `tokenConfigured: false`, `budgetOrigin: 'default'`, `monthlyRequestBudget: 4500`, `version: null`. Nunca o
-  envelope, nunca o token, nunca quem alterou.
+  envelope, nunca o token, nunca quem alterou. **M1:** `monthlyRequestBudget` é o valor **efetivo** (4500 quando a coluna é
+  NULL) e `budgetOrigin` é `'installation'` só quando há valor gravado.
 - **RF4 — `PUT /holiday-imports/provider-settings`** (`holiday-import.configure`, limitador `{ store: 'postgres', scope:
 'holiday-provider-settings', maxRequests: 10, windowSeconds: 3600 }`): corpo `.strict()` `{ token?, monthlyRequestBudget?,
 expectedVersion? }`, pelo menos um de `token`/`monthlyRequestBudget`. `token`: aparado, 16 a 512 caracteres ASCII visíveis
-  (`^[\x21-\x7E]{16,512}$`, o mesmo alfabeto que o worker exige hoje). `monthlyRequestBudget`: inteiro 1 a 1.000.000.
+  (`^[\x21-\x7E]{16,512}$`, o mesmo alfabeto que o worker exige hoje). `monthlyRequestBudget`: inteiro 1 a 1.000.000 **ou `null`** (volta ao padrão; aceito no corpo `.strict()`; criar a linha só com
+  `null` é `400`).
   `expectedVersion` ausente = intenção de criar (`INSERT … ON CONFLICT (provider) DO NOTHING`); presente = `UPDATE … WHERE
 version = $expected`; perdeu a corrida → `409 HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT` (se o `INSERT … ON CONFLICT DO NOTHING` não
   inserir nada, o envelope recém-selado é **descartado** e a resposta é o `409`). Token omitido mantém o envelope
-  (molde do `apiKey` opcional da 143); orçamento omitido mantém o gravado (ou o padrão, ao criar). Responde a mesma visão do
+  (molde do `apiKey` opcional da 143); orçamento omitido mantém o gravado (ao criar, o primeiro `PUT` **não grava** orçamento: fica NULL = padrão; `null` explícito grava NULL). Responde a mesma visão do
   RF3. Auditoria `holiday-provider-settings.saved` na mesma transação, `entity_type = 'holiday_provider_settings'`,
   `entity_id` = id da linha, `permission = 'holiday-import.configure'`, `before`/`after` só com `{ tokenConfigured,
 monthlyRequestBudget, version }` e `metadata.changedFields` (`token` e/ou `monthlyRequestBudget`); **nunca** token, dica ou

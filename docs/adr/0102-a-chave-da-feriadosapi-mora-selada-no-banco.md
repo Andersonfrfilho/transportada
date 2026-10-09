@@ -55,7 +55,7 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
   mês (`holiday_provider_*`, ADR-0100 D1): a conta do fornecedor e a cota são da instalação. `provider` (`'feriadosapi'`,
   único) é a chave natural; `token_envelope jsonb` (envelope selado, **sem coluna `key_id` à parte** — o envelope já carrega
   `keyId`, como nos três precedentes), `token_hint` (os 4 últimos caracteres, em claro, só para a tela), `token_updated_at`,
-  `monthly_request_budget` (1 a 1.000.000), `version` (concorrência otimista), `updated_by_user_id` (sem FK, rastro).
+  `monthly_request_budget` (1 a 1.000.000, **NULL = o padrão**: só o que o administrador definiu fica gravado e o worker resolve `coalesce` com a constante), `version` (concorrência otimista), `updated_by_user_id` (sem FK, rastro).
 - **D2 — API.** `GET /holiday-imports/provider-settings` (`settings.manage`; nunca devolve o token: `tokenConfigured`,
   `tokenHint`, `tokenUpdatedAt`, `monthlyRequestBudget`, `budgetOrigin`, `version`, `updatedAt`), `PUT` do mesmo caminho
   (corpo `.strict()` `{ token?, monthlyRequestBudget?, expectedVersion? }`) e `DELETE …/provider-settings/token`, os dois com
@@ -113,10 +113,10 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
 Sem ENUM nativo, todo nome explícito e contado (o maior tem 41 bytes):
 
 - `holiday_provider_settings` (25) — `id uuid pk default gen_random_uuid()`, `provider text not null default 'feriadosapi'`,
-  `token_envelope jsonb null`, `token_hint text null`, `token_updated_at timestamptz null`, `monthly_request_budget integer not
-null`, `version bigint not null default 1`, `updated_by_user_id uuid not null`, `created_at`, `updated_at`.
+  `token_envelope jsonb null`, `token_hint text null`, `token_updated_at timestamptz null`, `monthly_request_budget integer null`
+  (NULL = o padrão, 4500), `version bigint not null default 1`, `updated_by_user_id uuid not null`, `created_at`, `updated_at`.
 - `holiday_provider_settings_provider_unique` (41), `…_provider_check` (40, `provider in ('feriadosapi')`),
-  `…_budget_check` (38, `between 1 and 1000000`), `…_version_check` (39, `> 0`), `…_token_check` (37: os três campos da chave
+  `…_budget_check` (38, `is null or between 1 and 1000000`), `…_version_check` (39, `> 0`), `…_token_check` (37: os três campos da chave
   nulos juntos, ou envelope `jsonb_typeof = 'object'`, dica com exatamente 4 caracteres ASCII visíveis e data preenchidos
   juntos).
 

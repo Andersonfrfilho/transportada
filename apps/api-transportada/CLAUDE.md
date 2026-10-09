@@ -129,6 +129,12 @@ docs/ai-context § "Spec 252 T4.2".
 com 1 ou 30 paradas; +1 com parada aberta mas nenhuma que avise (sem ETA e sem começar), +0 sem parada aberta. Falha ou calendário recusado só tira o aviso e loga `driver_holiday_warning_unavailable` (ids e contagem). A nota,
 a pontualidade do comprovante, `missingAfterHours` e o repositório da leitura **não citam** `business-calendar` nem `holiday-warning` — nem em comentário (contrato
 `driver-holiday-warning-isolation`). Detalhe: docs/ai-context § "Spec 252 T4.3".
+A chave da FeriadosAPI e o liga/desliga (spec 262, ADR-0102; Fases 2 e 3 em staging): tabela da INSTALAÇÃO `holiday_provider_settings` (sem `company_id`; chave
+selada A256GCM com AAD `…holiday-provider-token:v1:${settingsId}`, dica de 4 caracteres, `version`, orçamento NULL = o padrão 4500 — o `GET` devolve o valor
+efetivo e `budgetOrigin`). Rotas `GET` (`settings.manage`) e `PUT`/`DELETE …/token` (`holiday-import.configure`, só `company-admin`, balde `postgres`
+`holiday-provider-settings` de 10/h por empresa+usuário, **não** global) em `/holiday-imports/provider-settings`, e `GET|PUT /company-settings/holiday-import`
+(`settings.manage`; upsert só de `is_enabled`). Só `drizzle-holiday-provider-settings.repository.ts` importa a tabela (contrato
+`holiday-import-global-isolation`); `settingsId` é gerado antes de selar; nada de chave em resposta, log ou auditoria. Detalhe: `specs/262-*/evidence.md`.
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é

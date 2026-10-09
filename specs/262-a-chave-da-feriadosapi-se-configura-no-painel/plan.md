@@ -99,7 +99,8 @@ mesmo commit em que a API concede a permissão e o desfecho, e a igualdade estri
 ### Fase 2 — Dado
 
 Migration `<timestamp>_holiday_provider_settings` (`migration.sql`, `rollback.sql`, `snapshot.json`): a tabela de ADR-0102 §3,
-nomes explícitos. Sem comando em tabela publicada, sem CHECK de `job`, sem linha semeada (sem linha = padrão). `rollback.sql`:
+nomes explícitos. `monthly_request_budget` é anulável e NULL = o padrão (M1): o worker resolve `coalesce` com a constante.
+Sem comando em tabela publicada, sem CHECK de `job`, sem linha semeada (sem linha = padrão). `rollback.sql`:
 `DROP TABLE` + journal com `ROW_COUNT` (molde da `20261009160300`), sem recusa (D11). **Timestamp maior que
 `20261009205256`** (as migrations da 260 em `work/spec-260`; gerar na hora, E15). Schema Drizzle em
 `api-transportada/src/database/holiday-provider-settings.schema.ts` (exportado por `database.schema.ts`) e cópia só com colunas
