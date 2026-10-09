@@ -137,6 +137,7 @@
     "failed": "Não foi possível obter o documento agora. A chave acima continua valendo para conferência."
   },
   "nav": {
+    "conversations": "Conversas",
     "label": "Seções do aplicativo",
     "notifications": "Notificações",
     "profile": "Perfil",

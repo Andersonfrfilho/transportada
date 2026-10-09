@@ -264,10 +264,7 @@ export function DriverTripWorkspacePage() {
             <Skeleton variant="block" />
           </SkeletonGroup>
         </main>
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -279,10 +276,7 @@ export function DriverTripWorkspacePage() {
         <main className={styles.shell}>
           <p role="alert">{t('error')}</p>
         </main>
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -304,10 +298,7 @@ export function DriverTripWorkspacePage() {
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
           stops={trip?.stops ?? []}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -367,10 +358,7 @@ export function DriverTripWorkspacePage() {
           queueView={driverTrip.queueView}
           snapshot={snapshot}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -390,10 +378,7 @@ export function DriverTripWorkspacePage() {
           onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
           onOpenQueue={() => navigateToDriverSection('queue')}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -988,10 +973,7 @@ export function DriverTripWorkspacePage() {
           </ul>
         )}
       </main>
-      <DriverBottomBar
-        section={section}
-        onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-      />
+      <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
     </div>
   )
 }

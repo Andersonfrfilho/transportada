@@ -1,0 +1,44 @@
+{
+  "groups": {
+    "occurrence": "Occurrences"
+  },
+  "labels": {
+    "attach": "Attach",
+    "attachmentTooLarge": "File is over 25 MB.",
+    "back": "Back",
+    "closedNotice": "This conversation was closed.",
+    "discard": "Discard",
+    "edit": "Edit",
+    "emptyInbox": "No conversations yet",
+    "filterAll": "All",
+    "inboxTitle": "Conversations",
+    "loadError": "Could not load. Try again.",
+    "loadMore": "Load more",
+    "loadOlder": "Earlier messages",
+    "loading": "Loading…",
+    "me": "Me",
+    "messageInputLabel": "Message",
+    "messageInputPlaceholder": "Write to the office",
+    "newMessages": "New messages",
+    "notFound": "Conversation not found.",
+    "retry": "Resend",
+    "sectionAwaiting": "Waiting for your reply",
+    "sectionClosed": "Closed",
+    "sectionOther": "Other",
+    "send": "Send",
+    "statusDelivered": "Delivered",
+    "statusFailed": "Failed — tap to resend",
+    "statusFailedShort": "Failed",
+    "statusQueued": "Queued · sends when the network is back",
+    "statusRead": "Read",
+    "statusSending": "Sending",
+    "statusSent": "Sent",
+    "unreadCount": "{count} unread"
+  },
+  "loading": "Loading conversations…",
+  "subjectCard": {
+    "occurrence": "Occurrence"
+  },
+  "subjectFallback": "Occurrence",
+  "title": "Conversations"
+}

@@ -10,6 +10,11 @@ import { describe, expect, it } from 'bun:test'
  * JSON não entra na lista: `*.locale.json` não aceita comentário, então não leva cabeçalho.
  */
 const COPIED_FILES: ReadonlyArray<readonly [path: string, origin: string]> = [
+  // conversation (spec 260 T1b.2)
+  [
+    'src/modules/conversation/shared/driverConversationsHttp.service.ts',
+    'apps/frontend-transportada/src/modules/occurrence-conversation/shared/occurrenceConversationClient.service.ts',
+  ],
   // driver-trip: components
   [
     'src/modules/driver-trip/components/DriverBottomBar.component.tsx',

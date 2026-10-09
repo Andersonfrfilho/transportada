@@ -1,0 +1,44 @@
+{
+  "groups": {
+    "occurrence": "Ocorrências"
+  },
+  "labels": {
+    "attach": "Anexar",
+    "attachmentTooLarge": "Arquivo acima de 25 MB.",
+    "back": "Voltar",
+    "closedNotice": "Esta conversa foi encerrada.",
+    "discard": "Descartar",
+    "edit": "Editar",
+    "emptyInbox": "Nenhuma conversa ainda",
+    "filterAll": "Todas",
+    "inboxTitle": "Conversas",
+    "loadError": "Não foi possível carregar. Tente de novo.",
+    "loadMore": "Carregar mais",
+    "loadOlder": "Mensagens anteriores",
+    "loading": "Carregando…",
+    "me": "Eu",
+    "messageInputLabel": "Mensagem",
+    "messageInputPlaceholder": "Escreva para o escritório",
+    "newMessages": "Novas mensagens",
+    "notFound": "Conversa não encontrada.",
+    "retry": "Reenviar",
+    "sectionAwaiting": "Espera sua resposta",
+    "sectionClosed": "Encerradas",
+    "sectionOther": "Outros",
+    "send": "Enviar",
+    "statusDelivered": "Entregue",
+    "statusFailed": "Falhou — toque para reenviar",
+    "statusFailedShort": "Falhou",
+    "statusQueued": "Na fila · envia quando a rede voltar",
+    "statusRead": "Lida",
+    "statusSending": "Enviando",
+    "statusSent": "Enviada",
+    "unreadCount": "{count} não lidas"
+  },
+  "loading": "Carregando conversas…",
+  "subjectCard": {
+    "occurrence": "Ocorrência"
+  },
+  "subjectFallback": "Ocorrência",
+  "title": "Conversas"
+}

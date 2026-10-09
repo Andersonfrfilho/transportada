@@ -150,6 +150,7 @@
     "title": "MDF-e for this trip"
   },
   "nav": {
+    "conversations": "Conversations",
     "label": "Application sections",
     "notifications": "Notifications",
     "profile": "Profile",

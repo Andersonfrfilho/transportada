@@ -1,0 +1,80 @@
+/* O pacote lê `--cv-p-*`; aqui eles apontam para os tokens do app (escuro, cobre, cantos retos). */
+.conversationTheme {
+  --cv-p-surface: var(--color-asphalt);
+  --cv-p-surface-raised: var(--color-graphite);
+  --cv-p-text: var(--color-fog);
+  --cv-p-text-muted: var(--color-slate);
+  --cv-p-border: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  --cv-p-accent: var(--color-copper);
+  --cv-p-accent-contrast: var(--color-ink-on-accent);
+  --cv-p-highlight: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  --cv-p-danger: var(--color-alert);
+  --cv-p-radius: 0;
+
+  font-family: var(--font-body);
+}
+
+/* A barra inferior é fixa: a área da conversa tem a altura que sobra, e o campo de texto nunca fica sob ela. */
+.conversationShell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--space-16));
+  min-height: 0;
+}
+
+.conversationMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.loadingNotice {
+  color: var(--color-slate);
+  margin: 0;
+  padding: var(--space-4);
+}
+
+.subjectCard {
+  align-items: center;
+  background: var(--color-graphite);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.subjectCardTitle {
+  flex: 1;
+  font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.subjectCardType {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.tabIcon {
+  display: inline-flex;
+  position: relative;
+}
+
+.unreadBadge {
+  background: var(--color-copper);
+  border-radius: 0;
+  color: var(--color-ink-on-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.125rem;
+  min-width: 1.125rem;
+  padding: 0 var(--space-1);
+  position: absolute;
+  right: calc(var(--space-2) * -1);
+  text-align: center;
+  top: calc(var(--space-2) * -1);
+}
