@@ -46,9 +46,18 @@ const STATUS: HolidayImportStatus = {
   failures: [{ errorCode: 'provider_unreachable', pairs: 1 }],
   isEnabled: true,
   lastFetchedAt: new Date('2026-10-01T10:00:00.000Z'),
+  lastRun: { finishedAt: new Date('2026-10-09T13:00:00.000Z'), outcome: 'provider_unauthorized' },
   month: '2026-10-01',
   monthlyRequests: 37,
-  pairs: { done: 1, failed: 1, notCovered: 0, pending: 2, quotaExhausted: 0, total: 4 },
+  pairs: {
+    done: 1,
+    failed: 1,
+    notCovered: 0,
+    pending: 2,
+    planRestricted: 1,
+    quotaExhausted: 0,
+    total: 4,
+  },
   removedByProvider: {
     items: [
       {
@@ -114,6 +123,7 @@ describe('GET /holiday-imports/status (spec 252 T4.1)', () => {
       'failures',
       'isEnabled',
       'lastFetchedAt',
+      'lastRun',
       'month',
       'monthlyRequests',
       'pairs',
@@ -122,10 +132,47 @@ describe('GET /holiday-imports/status (spec 252 T4.1)', () => {
     ])
     expect(data).toMatchObject({
       lastFetchedAt: '2026-10-01T10:00:00.000Z',
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' },
       monthlyRequests: 37,
-      pairs: { done: 1, failed: 1, notCovered: 0, pending: 2, quotaExhausted: 0, total: 4 },
+      pairs: {
+        done: 1,
+        failed: 1,
+        notCovered: 0,
+        pending: 2,
+        planRestricted: 1,
+        quotaExhausted: 0,
+        total: 4,
+      },
       removedByProvider: { truncated: false },
     })
+  })
+
+  test('a última execução da rotina é só `{ outcome, finishedAt }`: nada de contador, erro ou correlação (spec 252 cartão honesto)', async () => {
+    const { handle } = createFixture()
+
+    const response = await handle(jsonRequest({ method: 'GET', path: `${PATH}/status` }))
+
+    const data = await responseData<{ readonly lastRun: Record<string, unknown> }>(response)
+    expect(Object.keys(data.lastRun).sort()).toEqual(['finishedAt', 'outcome'])
+  })
+
+  test('rotina que nunca terminou um ciclo: `lastRun` é null, e a chave continua na resposta', async () => {
+    const calls: RecordedCalls = {}
+    const handle = createHttpHandler({
+      routes: createHolidayImportRoutes({
+        cities: recordingUseCase(calls, 'cities', CITIES),
+        disable: recordingUseCase(calls, 'disable', SUPPRESSION),
+        resolveClientIp: () => RESOLVED_IP,
+        restore: recordingUseCase(calls, 'restore', undefined),
+        status: recordingUseCase(calls, 'status', { ...STATUS, lastRun: null }),
+        suppressions: recordingUseCase(calls, 'suppressions', { items: [], total: 0 }),
+      }),
+    })
+
+    const response = await handle(jsonRequest({ method: 'GET', path: `${PATH}/status` }))
+
+    const data = await responseData<Record<string, unknown>>(response)
+    expect(data).toHaveProperty('lastRun', null)
   })
 
   test('query desconhecida é 400: a rota não tem filtro (L12)', async () => {
