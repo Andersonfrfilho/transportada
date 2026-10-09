@@ -13,3 +13,26 @@ export const FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS = 15_000
 /** Descoberta (ADR-0100 §5): até 2.000 notas por lote e 20 lotes por empresa em cada ciclo. */
 export const HOLIDAY_DISCOVERY_BATCH_SIZE = 2000
 export const HOLIDAY_DISCOVERY_MAX_BATCHES = 20
+
+/** Busca (ADR-0100 §5, D9): 1,2 s entre requisições (~50/min, abaixo dos 60/min do fornecedor). */
+export const FERIADOS_API_REQUEST_SPACING_MILLISECONDS = 1200
+
+/** Teto de requisições por ciclo, contando páginas e o estadual de reforço. */
+export const HOLIDAY_PROVIDER_CYCLE_REQUEST_CEILING = 100
+
+/** Segurança contra a API que ignora `page` e devolve sempre uma página cheia. */
+export const HOLIDAY_PROVIDER_MAX_PAGES = 10
+
+/** D8: o par `(cidade, ano)` já buscado é rebuscado depois de 180 dias; o fora de cobertura, de 90. */
+export const HOLIDAY_PROVIDER_REFETCH_DAYS = 180
+export const HOLIDAY_PROVIDER_NOT_COVERED_RETRY_DAYS = 90
+
+/** 1 h, 6 h, 24 h e, dali em diante, 7 dias (o teto do recuo). */
+export const HOLIDAY_PROVIDER_FAILURE_BACKOFF_HOURS = [1, 6, 24, 168] as const
+
+/** Sem `Retry-After` no 429, espera uma hora. */
+export const HOLIDAY_PROVIDER_DEFAULT_RETRY_AFTER_SECONDS = 3600
+
+/** O produto fixa o fuso em São Paulo (ADR-0096 Q3); sem horário de verão desde 2019. */
+export const HOLIDAY_PROVIDER_TIME_ZONE = 'America/Sao_Paulo'
+export const HOLIDAY_PROVIDER_UTC_OFFSET = '-03:00'
