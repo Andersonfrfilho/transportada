@@ -65,7 +65,8 @@ o valor do acerto.
 `job_schedules` nasce pausada (D13).
 
 **Destino de saída: `feriadosapi.com`** (host fixo no código, `FERIADOS_API_BASE_URL`; não é configurável). O **worker é a
-única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam nem leem o token (contrato). O token
+única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam nem leem o token (contrato; ⚠️ a 262 muda
+a parte do "leem": a API passa a **receber e selar** a chave, ver a Emenda abaixo). O token
 `FERIADOS_API_TOKEN` existe **só no serviço do worker** (`.railway/railway.ts`, `preserve()`; `.env.example` sem valor) e
 passa só pelo schema de ambiente validado. Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
 
@@ -144,7 +145,7 @@ do erro e par.
 **Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
 `feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
 
-**Emenda planejada (spec 262, ADR-0102 — proposta em 2026-10-09, ainda não implementada):** a chave deixa a variável de
+**Emenda planejada (spec 262, ADR-0102 — aceita em 2026-10-09, ainda não implementada):** a chave deixa a variável de
 ambiente e passa a morar **selada no banco** (`holiday_provider_settings.token_envelope`, envelope A256GCM com o chaveiro de
 aplicação e AAD por linha), configurada no painel por quem tem a permissão nova `holiday-import.configure` (só `company-admin`);
 o orçamento mensal vai para a mesma linha. É a mesma exceção ao "segredo só em variável de ambiente" que a credencial da NFS-e, o
@@ -152,7 +153,12 @@ certificado A1 e a chave do Resend já fazem: o segredo-raiz (`ENCRYPTION_KEYRIN
 banco leva só o envelope. A chave nunca sai por rota (só `tokenConfigured` e os 4 últimos caracteres), nunca entra em log,
 auditoria ou mensagem de erro, e o worker continua sendo a **única** app que fala com `feriadosapi.com` (a API não testa a chave).
 Risco novo, aceito pelo ADR-0021: qualquer `company-admin` de qualquer empresa da instalação troca a chave da instalação
-(auditoria na empresa do ator). Até a 262 ser publicada, vale o texto acima; a T6.1 da 262 troca esta nota pela entrada própria.
+(auditoria na empresa do ator). **Segundo risco novo:** a chave também fica **em claro na memória da API durante o `PUT`** (chega
+no corpo da requisição; o selo zera o `Uint8Array`, o corpo não) — a frase "API … nunca leem o token" acima deixa de valer: a API
+passa a **receber e selar** a chave, e o worker segue sendo a única app que a **usa** contra o fornecedor. **Produção:** a 252
+já está em `main` e o worker de produção lê `FERIADOS_API_TOKEN`; o Gate A (conferir **só o nome** da variável, a saída nunca com
+valor) é obrigatório antes de publicar o worker da 262. Até a 262 ser publicada, vale o texto acima; a T6.1 da 262 troca esta
+nota pela entrada própria e reescreve as linhas sobre quem lê o token.
 
 **Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07; atualizado em 2026-10-09 (T6.1).
 

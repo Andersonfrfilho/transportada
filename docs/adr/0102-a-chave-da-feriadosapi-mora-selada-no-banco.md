@@ -1,7 +1,9 @@
 # ADR 0102 — A chave da FeriadosAPI mora selada no banco e se configura no painel
 
-- **Status:** proposta (2026-10-09, desenho do `architect`; validar contra o código na T0.1 da spec 262). Vale para
-  staging; produção exige aprovação humana própria e vem **depois** da promoção da 252.
+- **Status:** aceita (2026-10-09, desenho do `architect` validado contra o código na T0.1 da spec 262; as correções da
+  validação estão no texto abaixo e em `specs/262-…/evidence.md` § T0.1, emendas E1–E16). Vale para staging; produção exige
+  aprovação humana própria. **A 252 já está em `main`** (PRs #155 `a158bd687`, #156 `4d01307c4` e #159 `63b55be61`, de
+  2026-10-09): o worker de produção lê `FERIADOS_API_TOKEN`, então o Gate A (D4) em produção é obrigatório.
 - **Data:** 2026-10-09
 - **Nasce da spec 262**
 - **Emenda:** ADR-0100 D9 (o orçamento mensal deixa de ser `FERIADOS_API_MONTHLY_REQUEST_BUDGET`) e D10 ("o token mora
@@ -14,7 +16,7 @@
 
 A 252 (ADR-0100 D10) pôs a chave da FeriadosAPI em `FERIADOS_API_TOKEN` e o orçamento em
 `FERIADOS_API_MONTHLY_REQUEST_BUDGET`, as duas **só no worker** (`apps/worker-transportada/src/config/environment.schema.ts`
-98–102 e 272–288). Sem token a rotina nem é registrada (`holiday-provider-pull.registry.ts` 36–41); despausada sem token, a
+98–102 e 272–288). Sem token a rotina nem é registrada (`holiday-provider-pull.registry.ts` 36–42); despausada sem token, a
 janela pousa em `job_run_routine_missing` e fecha `unexpected_error` (`job-run/application/run-job-cycle.ts` 102–113). Ligar a
 importação exige alguém com acesso ao Railway — a transportadora não consegue fazer sozinha, e o produto é instalado um por
 transportadora (ADR-0021), com o administrador dela como dono do ambiente.
@@ -63,14 +65,30 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
   (contador `token_missing`) e o ciclo fecha pelo resto (`succeeded` quando nada mais falhou): **nenhuma requisição sai**, e a
   descoberta e a aplicação (só banco) continuam. Chave que não abre (chave do chaveiro removida, AAD trocado, envelope
   corrompido): a busca não roda (contador `token_unreadable`) e o ciclo fecha **`credential_unreadable`**, desfecho novo nas
-  quatro cópias do catálogo (painel primeiro).
+  quatro cópias do catálogo (painel primeiro). **Precedente do registro:** `trip.location.purge` (spec 239; `main.ts` 1302;
+  `apps/worker-transportada/CLAUDE.md` 160–169) — registrada sempre, lê a configuração a cada ciclo e, sem configuração, fecha
+  `succeeded`; o registro parcial é permitido pelo contrato do worker (`CLAUDE.md` do worker 19–25). `geocoding.refine` **não** é
+  precedente de registro (é registrada só com a chave, `main.ts` 1242–1251); só confirma que ausência de chave não é falha.
+  Os nomes ficam distintos de propósito: a NFS-e usa a causa `credential_unreadable` mas grava o desfecho `credential_missing`
+  (`nfse-status-pull-failure.policy.ts` 27) porque lá credencial ausente é falha; aqui chave ausente não é falha, e o desfecho só
+  nomeia "há chave e ela não abre".
 - **D4 — `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saem, sem fallback** (molde da 239 D3). Dois lugares para
-  a mesma chave fariam o "Remover chave" da tela mentir enquanto a variável existir. Gate A antes do deploy do worker: conferir
-  (só o nome) se a variável existe no worker de cada ambiente; se existir, a chave é colada na tela antes.
+  a mesma chave fariam o "Remover chave" da tela mentir enquanto a variável existir. **Gate A** antes da **publicação da Fase 4
+  inteira** (a T4.2 já deixa de ler a variável): conferir **só o nome** da variável no worker de staging **e de produção** (o
+  worker de produção já tem a 252 e lê a variável); se existir, a chave é colada na tela antes do deploy do worker. **A saída do
+  Gate A nunca pode conter um valor.** Listar as variáveis do worker pelo `railway variables` comum, mesmo "filtrando o nome",
+  imprime a linha com o valor e queima o segredo (`security.md` §4): usa-se um comando que imprima só nomes (por exemplo
+  `railway variables --service worker --environment <env> --json | jq -r 'keys[] | select(startswith("FERIADOS_API"))'`, com a
+  flag `--json` a conferir na versão instalada antes) ou a aba Variables do Railway, que mascara o valor.
 - **D5 — O worker já tem o chaveiro.** `parseWorkerCryptographicConfiguration` é obrigatório no boot (`main.ts` 527;
   `config/cryptographic-configuration.schema.ts` 34–35) e `.railway/railway.ts` 166–167 já dá `ENCRYPTION_*` ao worker (ele abre
   as credenciais da NFS-e, do certificado e do Resend). **Nenhum passo de infraestrutura novo.** O AAD
-  `transportada:holiday-provider-token:v1:${settingsId}` é cópia por valor nas duas apps, com contrato de paridade.
+  `transportada:holiday-provider-token:v1:${settingsId}` é cópia por valor nas duas apps, com contrato de paridade. O
+  `settingsId` é gerado pelo caso de uso (`crypto.randomUUID()`) **antes** de selar e inserido explicitamente (o AAD precisa do
+  id antes de a linha existir); se o `INSERT … ON CONFLICT DO NOTHING` não inserir nada, o envelope é descartado e a API
+  responde `409`. O plaintext é UTF-8 de JSON `{"token":"…"}`, validado com `.strict()` e a mesma regex na abertura, na API e no
+  worker; a paridade cobre o AAD **e** o formato. Qualquer erro na abertura, inclusive o do Zod do envelope, vira
+  `token_unreadable`.
 - **D6 — Permissão dedicada `holiday-import.configure`, só no papel `company-admin`.** Escrever a chave e o orçamento é ato
   sobre a **instalação**; `settings.manage` dado por grupo (para editar feriado, por exemplo) não leva a chave de carona
   (raciocínio do `cargo.measure`). Ler continua `settings.manage`.
@@ -80,9 +98,13 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
 - **D9 — A API não testa a chave no fornecedor.** O worker continua sendo a única app que fala com `feriadosapi.com`
   (`docs/SECURITY.md`, entrada da 252); a chave errada aparece no ciclo seguinte como `provider_unauthorized`.
 - **D10 — Ordem de publicação:** painel tolerante (catálogo com `credential_unreadable` **e** a permissão nova) → migration +
-  API + cópias de backend do catálogo → Gate A → worker → telas. **O painel tolerante vai primeiro por obrigação:** a guarda de
-  `/auth/me` recusa permissão desconhecida (`useAuthMe.query.ts` 120–128 e 162, `isLiteralArray`) e todo `company-admin` perderia o
-  painel.
+  API + cópias de backend do catálogo → Gate A → worker → telas. **O painel tolerante vai primeiro por obrigação, e a obrigação é
+  da permissão:** a guarda de `/auth/me` recusa permissão desconhecida (`useAuthMe.query.ts`, `isLiteralArray` 122–130 e uso em
+  164; 120–128 e 162 antes da Fase 1; idem em `origin/main`) e todo `company-admin` perderia o painel. O **desfecho** novo não
+  quebra o painel (`holidayImportGuards.validation.ts` 62 aceita qualquer string em `outcome`; `isJobOutcome` só é chamado em
+  `nfeWorkspaceClient.service.ts` 551, para a distribuição de NF-e); o catálogo também vai primeiro por convenção da 252 e pela
+  direção do contrato de paridade, que lê o fonte da API (a Fase 1 usa listas de pendentes autofechantes). O app do motorista não
+  valida `permissions`.
 - **D11 — Rollback:** `rollback.sql` apaga a tabela (nenhum dado de negócio: a chave se reemite no fornecedor) e só roda **depois**
   de reverter o worker.
 
@@ -118,12 +140,19 @@ cursor da descoberta grava só o cursor, `drizzle-holiday-discovery.store.ts` 88
   quem trocou (a tela mostra só a data): mostrar o nome vazaria pessoa de outra empresa. Aceito: a instalação tem um único dono.
 - **Chave em claro em memória durante o ciclo** (string JS, não zerável). A mesma do envelope da NFS-e e do Resend; nunca em log,
   contador, desfecho ou erro (contrato da 252 CA9 estendido à leitura do banco).
+- **A chave também fica em claro na memória da API durante o `PUT`.** Ela chega no corpo da requisição e vive no processo da API
+  (o `Uint8Array` do selo é zerado; o corpo e a string do Zod não) até a resposta; nunca em log, auditoria, mensagem de erro ou
+  métrica. Muda uma afirmação da 252: a frase "API, cron, painel e app do motorista nunca … leem o token" (`docs/SECURITY.md`,
+  entrada da 252) deixa de ser verdade — a API passa a **receber e selar** a chave; o worker segue sendo a única app que a
+  **usa** contra o fornecedor. Registrado em `docs/SECURITY.md` na T6.1.
 - **Rotação do chaveiro:** a chave antiga precisa ficar no chaveiro até a chave da FeriadosAPI ser salva de novo; senão o ciclo
   fecha `credential_unreadable` (visível no cartão e em Operações). Consulta de conferência em `plan.md`.
 - **Formato real da chave desconhecido** (lacuna da 252 T3.1): o mínimo de 16 caracteres pode recusar uma chave real mais curta;
   a recusa é clara e o ajuste é uma constante com contrato.
 - **Gate A pulado:** chave na variável e não no banco = a busca para em silêncio depois do deploy do worker. Por isso o gate é
-  passo obrigatório da task do worker.
+  passo obrigatório antes da publicação da Fase 4 inteira, **em produção também** (a 252 já está em `main`).
+- **Gate A que vaza a chave:** o `railway variables` comum imprime o valor; o gate usa só comando que liste nomes ou a aba
+  Variables, e a saída nunca pode conter um valor. Chave que apareceu em terminal é chave queimada.
 
 ## Alternativas descartadas
 
