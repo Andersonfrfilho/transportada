@@ -1,4 +1,7 @@
 {
+  "message": {
+    "copiedLabel": "Copied"
+  },
   "tabs": {
     "ariaLabel": "Occurrence conversations",
     "contractor": "Contractor",

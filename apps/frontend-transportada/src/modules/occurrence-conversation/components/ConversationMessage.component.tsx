@@ -190,7 +190,7 @@ export function ConversationMessage({
 
         {message.bodyText === '' ? null : (
           <div className={styles.body}>
-            <MessageText message={toPayload(message)} />
+            <MessageText message={toPayload(message)} copiedLabel={t('message.copiedLabel')} />
           </div>
         )}
         <ConversationAttachments
