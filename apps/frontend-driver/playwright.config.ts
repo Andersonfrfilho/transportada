@@ -33,6 +33,7 @@ export default defineConfig({
   testDir: './test',
   testMatch: process.env.PLAYWRIGHT_TEST_MATCH ?? [
     'driver-app.smoke.spec.ts',
+    'conversation.smoke.spec.ts',
     'driver-service-worker.smoke.spec.ts',
   ],
   workers: 1,
