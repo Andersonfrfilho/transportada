@@ -25,6 +25,7 @@ import type {
   HolidayImportFailure,
   HolidayImportPairCounts,
   HolidayImportRemovedHoliday,
+  HolidayImportRemovedList,
 } from '../application/holiday-import.port.js'
 import type { BusinessCalendarCoverage } from '../domain/business-calendar.types.js'
 import type { BusinessCalendarDatabase } from './business-calendar-database.types.js'
@@ -89,12 +90,11 @@ export async function readFetchSummary(executor: Executor, scope: Scope): Promis
   }
 }
 
-/** A data que o fornecedor deixou de listar, nas linhas da própria empresa: elas ficam, sinalizadas. */
-export async function listRemovedByProvider(
-  executor: Executor,
-  companyId: string,
-): Promise<readonly HolidayImportRemovedHoliday[]> {
-  const cityRows = await executor
+/** Os dois pedidos pedem um a mais que o teto: sobrar é o que diz que a lista foi cortada. */
+const REMOVED_QUERY_LIMIT = REMOVED_LIST_LIMIT + 1
+
+function listRemovedCityHolidays(executor: Executor, companyId: string) {
+  return executor
     .select({
       holidayId: municipalHolidays.id,
       holidayOn: municipalHolidays.holidayOn,
@@ -110,8 +110,11 @@ export async function listRemovedByProvider(
       and(eq(municipalHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)),
     )
     .orderBy(asc(municipalHolidays.holidayOn), asc(municipalHolidays.cityIbgeCode))
-    .limit(REMOVED_LIST_LIMIT)
-  const stateRows = await executor
+    .limit(REMOVED_QUERY_LIMIT)
+}
+
+function listRemovedStateHolidays(executor: Executor, companyId: string) {
+  return executor
     .select({
       holidayId: stateHolidays.id,
       holidayOn: stateHolidays.holidayOn,
@@ -122,9 +125,17 @@ export async function listRemovedByProvider(
     .innerJoin(holidayProviderEntries, eq(holidayProviderEntries.id, stateHolidays.providerEntryId))
     .where(and(eq(stateHolidays.companyId, companyId), isNotNull(holidayProviderEntries.removedAt)))
     .orderBy(asc(stateHolidays.holidayOn), asc(stateHolidays.stateIbgeCode))
-    .limit(REMOVED_LIST_LIMIT)
+    .limit(REMOVED_QUERY_LIMIT)
+}
 
-  return [
+/** A data que o fornecedor deixou de listar, nas linhas da própria empresa: elas ficam, sinalizadas. */
+export async function listRemovedByProvider(
+  executor: Executor,
+  companyId: string,
+): Promise<HolidayImportRemovedList> {
+  const cityRows = await listRemovedCityHolidays(executor, companyId)
+  const stateRows = await listRemovedStateHolidays(executor, companyId)
+  const merged: HolidayImportRemovedHoliday[] = [
     ...cityRows.map((row) => ({ ...row, scope: HOLIDAY_PROVIDER_SCOPE.CITY })),
     ...stateRows.map((row) => ({
       ...row,
@@ -132,6 +143,11 @@ export async function listRemovedByProvider(
       scope: HOLIDAY_PROVIDER_SCOPE.STATE,
     })),
   ].sort((first, second) => first.holidayOn.localeCompare(second.holidayOn))
+
+  return {
+    items: merged.slice(0, REMOVED_LIST_LIMIT),
+    truncated: merged.length > REMOVED_LIST_LIMIT,
+  }
 }
 
 type CityRow = {

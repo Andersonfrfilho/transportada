@@ -58,6 +58,21 @@ function toCityYear(fetch: CityFetchRow): HolidayImportCityYear {
   }
 }
 
+/**
+ * O que falta do total. As leituras do status são consultas separadas: uma busca que termina entre elas pode
+ * somar mais do que o total, e pendente negativo seria número sem sentido na tela.
+ */
+export function countPendingPairs(input: {
+  readonly done: number
+  readonly failed: number
+  readonly notCovered: number
+  readonly quotaExhausted: number
+  readonly total: number
+}): number {
+  const fetched = input.done + input.failed + input.notCovered + input.quotaExhausted
+  return Math.max(0, input.total - fetched)
+}
+
 export class DrizzleHolidayImportStatusRepository implements HolidayImportStatusPort {
   public constructor(private readonly database: BusinessCalendarDatabase) {}
 
@@ -116,8 +131,7 @@ export class DrizzleHolidayImportStatusRepository implements HolidayImportStatus
       monthlyRequests,
       pairs: {
         ...counted,
-        pending:
-          total - counted.done - counted.failed - counted.notCovered - counted.quotaExhausted,
+        pending: countPendingPairs({ ...counted, total }),
         total,
       },
       removedByProvider,

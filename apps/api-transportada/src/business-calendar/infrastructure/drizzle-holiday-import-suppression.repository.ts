@@ -5,7 +5,7 @@
  * transação do `audit_logs`. Id de outra empresa é ausência — 404 ao desligar, no-op ao restaurar —, nunca
  * um 409 que confirmasse que ele existe.
  */
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, count, eq } from 'drizzle-orm'
 
 import { holidayImportSuppressions } from '../../database/holiday-import.schema.js'
 import {
@@ -17,6 +17,7 @@ import type {
   DisableImportedHolidayInput,
   HolidayImportSuppression,
   HolidayImportSuppressionPort,
+  HolidayImportSuppressionsPage,
 } from '../application/holiday-import.port.js'
 import {
   BUSINESS_CALENDAR_AUDIT_ACTION,
@@ -82,7 +83,13 @@ export class DrizzleHolidayImportSuppressionRepository implements HolidayImportS
 
   public async list(input: {
     readonly companyId: string
-  }): Promise<readonly HolidayImportSuppression[]> {
+    readonly page: number
+    readonly perPage: number
+  }): Promise<HolidayImportSuppressionsPage> {
+    const [counted] = await this.database
+      .select({ total: count() })
+      .from(holidayImportSuppressions)
+      .where(eq(holidayImportSuppressions.companyId, input.companyId))
     const rows = await this.database
       .select()
       .from(holidayImportSuppressions)
@@ -92,7 +99,9 @@ export class DrizzleHolidayImportSuppressionRepository implements HolidayImportS
         asc(holidayImportSuppressions.scope),
         asc(holidayImportSuppressions.ibgeCode),
       )
-    return rows.map(toSuppression)
+      .limit(input.perPage)
+      .offset((input.page - 1) * input.perPage)
+    return { items: rows.map(toSuppression), total: counted?.total ?? 0 }
   }
 
   public disable(input: DisableImportedHolidayInput): Promise<HolidayImportSuppression> {

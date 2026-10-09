@@ -107,6 +107,17 @@ export class ImportedHolidayInThePastError extends ApiError {
   }
 }
 
+/** A importada é a data do fornecedor: mudar a data é desligar esta e cadastrar outra, nunca editar a linha. */
+export class ImportedHolidayDateLockedError extends ApiError {
+  public constructor() {
+    super({
+      code: CODE.HOLIDAY_IMPORT_DATE_LOCKED,
+      message: 'An imported holiday date cannot be changed: disable it and register another',
+      status: 409,
+    })
+  }
+}
+
 /** A digitada e a gerada por regra não têm o que desligar: o caminho delas é o `DELETE` do feriado. */
 export class HolidayNotImportedError extends ApiError {
   public constructor() {

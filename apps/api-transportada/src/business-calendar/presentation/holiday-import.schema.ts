@@ -16,7 +16,8 @@ import type {
   HolidayImportSuppression,
 } from '../application/holiday-import.port.js'
 
-const CITIES_QUERY_KEYS: ReadonlySet<string> = new Set(['page', 'perPage'])
+const PAGE_QUERY_KEYS: ReadonlySet<string> = new Set(['page', 'perPage'])
+const NO_QUERY_KEYS: ReadonlySet<string> = new Set()
 const DEFAULT_PAGE = 1
 const DEFAULT_PER_PAGE = 50
 const MAX_PAGE = 10_000
@@ -36,7 +37,7 @@ export function parseDisableBody(request: Request): Promise<DisableHolidayBody> 
   return parseBody(disableSchema, request)
 }
 
-type CitiesQuery = { readonly page: number; readonly perPage: number }
+type PageQuery = { readonly page: number; readonly perPage: number }
 
 function readBoundedInteger(input: {
   readonly field: string
@@ -52,8 +53,14 @@ function readBoundedInteger(input: {
   return value
 }
 
-export function parseCitiesQuery(request: Request): CitiesQuery {
-  const params = readListQuery(new URL(request.url), CITIES_QUERY_KEYS)
+/** Rota sem filtro: query nenhuma é aceita, para o cliente não crer que filtrou. */
+export function parseNoQuery(request: Request): undefined {
+  readListQuery(new URL(request.url), NO_QUERY_KEYS)
+  return undefined
+}
+
+export function parsePageQuery(request: Request): PageQuery {
+  const params = readListQuery(new URL(request.url), PAGE_QUERY_KEYS)
   return {
     page: readBoundedInteger({
       fallback: DEFAULT_PAGE,
@@ -95,7 +102,10 @@ export type StatusView = {
   readonly month: string
   readonly monthlyRequests: number
   readonly pairs: HolidayImportStatus['pairs']
-  readonly removedByProvider: HolidayImportStatus['removedByProvider']
+  readonly removedByProvider: {
+    readonly items: HolidayImportStatus['removedByProvider']['items']
+    readonly truncated: boolean
+  }
   readonly totalCities: number
 }
 
@@ -114,13 +124,16 @@ export function toStatusView(status: HolidayImportStatus): StatusView {
       quotaExhausted: status.pairs.quotaExhausted,
       total: status.pairs.total,
     },
-    removedByProvider: status.removedByProvider.map((holiday) => ({
-      holidayId: holiday.holidayId,
-      holidayOn: holiday.holidayOn,
-      ibgeCode: holiday.ibgeCode,
-      name: holiday.name,
-      scope: holiday.scope,
-    })),
+    removedByProvider: {
+      items: status.removedByProvider.items.map((holiday) => ({
+        holidayId: holiday.holidayId,
+        holidayOn: holiday.holidayOn,
+        ibgeCode: holiday.ibgeCode,
+        name: holiday.name,
+        scope: holiday.scope,
+      })),
+      truncated: status.removedByProvider.truncated,
+    },
     totalCities: status.totalCities,
   }
 }

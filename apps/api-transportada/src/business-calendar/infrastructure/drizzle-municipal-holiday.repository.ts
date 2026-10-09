@@ -18,7 +18,10 @@ import type { BusinessCalendarDatabase } from './business-calendar-database.type
 import { acquireBusinessCalendarLock } from './business-calendar-lock.support.js'
 import { requirePersistedRow } from './business-calendar-persistence.support.js'
 import { toHolidayRecord } from './business-calendar-rule.mapper.js'
-import { disableImportedMunicipalHoliday } from './holiday-import-disable.support.js'
+import {
+  disableImportedMunicipalHoliday,
+  suppressDeletedMunicipalHoliday,
+} from './holiday-import-disable.support.js'
 import {
   audit,
   findByDay,
@@ -165,12 +168,18 @@ export class DrizzleMunicipalHolidayRepository implements MunicipalHolidayPort {
         removed: previous,
         transaction,
       })
+      const suppression = await suppressDeletedMunicipalHoliday({
+        actor: input,
+        row: previous,
+        today: input.today,
+        transaction,
+      })
       await audit({
         action: BUSINESS_CALENDAR_AUDIT_ACTION.MUNICIPAL_HOLIDAY_DELETED,
         actor: input,
         after: null,
         before: previous,
-        metadata: { regeneratedFromRuleId },
+        metadata: { regeneratedFromRuleId, suppressionId: suppression?.id ?? null },
         transaction,
       })
     })

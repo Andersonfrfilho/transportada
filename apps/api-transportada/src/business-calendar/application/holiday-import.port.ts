@@ -29,10 +29,19 @@ export type DisableImportedHolidayInput = BusinessCalendarActor & {
   readonly today: string
 }
 
+export type HolidayImportSuppressionsPage = {
+  readonly items: readonly HolidayImportSuppression[]
+  readonly total: number
+}
+
 export type HolidayImportSuppressionPort = {
   /** Apaga a linha importada, grava a supressão e audita; só de `today` em diante. */
   disable(input: DisableImportedHolidayInput): Promise<HolidayImportSuppression>
-  list(input: { readonly companyId: string }): Promise<readonly HolidayImportSuppression[]>
+  list(input: {
+    readonly companyId: string
+    readonly page: number
+    readonly perPage: number
+  }): Promise<HolidayImportSuppressionsPage>
   /** Apaga a supressão; o feriado volta no ciclo seguinte. Id ausente ou de outra empresa é no-op. */
   restore(input: BusinessCalendarActor & { readonly id: string }): Promise<void>
 }
@@ -61,6 +70,12 @@ export type HolidayImportRemovedHoliday = {
   readonly scope: HolidayImportScope
 }
 
+/** `truncated`: há mais removidos do que o teto da lista; os que sobram aparecem quando os primeiros forem tratados. */
+export type HolidayImportRemovedList = {
+  readonly items: readonly HolidayImportRemovedHoliday[]
+  readonly truncated: boolean
+}
+
 export type HolidayImportStatus = {
   readonly failures: readonly HolidayImportFailure[]
   readonly isEnabled: boolean
@@ -70,7 +85,7 @@ export type HolidayImportStatus = {
   /** Requisições do mês na instalação (o contador é do banco, não da empresa). */
   readonly monthlyRequests: number
   readonly pairs: HolidayImportPairCounts
-  readonly removedByProvider: readonly HolidayImportRemovedHoliday[]
+  readonly removedByProvider: HolidayImportRemovedList
   readonly totalCities: number
 }
 

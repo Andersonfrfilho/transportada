@@ -67,6 +67,7 @@ export const BUSINESS_CALENDAR_ERROR_CODE = {
 
 /** Recusas das rotas de cadastro; as da política (acima) são 422, estas seguem o verbo HTTP. */
 export const BUSINESS_CALENDAR_RULE_ERROR_CODE = {
+  HOLIDAY_IMPORT_DATE_LOCKED: 'HOLIDAY_IMPORT_DATE_LOCKED',
   HOLIDAY_IMPORT_PAST_DATE: 'HOLIDAY_IMPORT_PAST_DATE',
   HOLIDAY_NOT_IMPORTED: 'HOLIDAY_NOT_IMPORTED',
   MUNICIPAL_HOLIDAY_GENERATED_BY_RULE: 'MUNICIPAL_HOLIDAY_GENERATED_BY_RULE',
@@ -81,6 +82,10 @@ export const BUSINESS_CALENDAR_RULE_ERROR_CODE = {
 
 export type BusinessCalendarErrorCode =
   (typeof BUSINESS_CALENDAR_ERROR_CODE)[keyof typeof BUSINESS_CALENDAR_ERROR_CODE]
+
+export function isBusinessCalendarErrorCode(value: string): value is BusinessCalendarErrorCode {
+  return Object.values<string>(BUSINESS_CALENDAR_ERROR_CODE).includes(value)
+}
 
 export const NATIONAL_HOLIDAY_KEY = {
   ALL_SOULS_DAY: 'all_souls_day',
