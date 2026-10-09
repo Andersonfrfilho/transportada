@@ -5,6 +5,14 @@
  * viajam para CHECK do banco (texto + CHECK, sem ENUM nativo), então mudar um é migration.
  */
 
+import type { ScheduledJob } from './job-catalog.constant.js'
+
+/** A rotina do worker que alimenta o cache; é por este nome que o status acha o último ciclo dela. */
+export const HOLIDAY_PROVIDER_PULL_JOB = 'holiday.provider.pull' satisfies ScheduledJob
+
+/** O código que o par recebe quando o plano contratado não cobre a cidade (402/403 numa consulta de cidade). */
+export const HOLIDAY_PROVIDER_PLAN_RESTRICTED_ERROR_CODE = 'provider_plan_restricted'
+
 /** O nacional não tem município nem UF: o código é `BR`, porque nulo deixaria o único sem efeito. */
 export const HOLIDAY_PROVIDER_NATIONAL_CODE = 'BR'
 

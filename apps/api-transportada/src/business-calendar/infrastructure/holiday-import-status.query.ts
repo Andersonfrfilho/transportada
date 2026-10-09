@@ -13,6 +13,7 @@ import { holidayImportCities } from '../../database/holiday-import.schema.js'
 import { holidayProviderFetches } from '../../database/holiday-provider.schema.js'
 import {
   HOLIDAY_PROVIDER_FETCH_STATUS,
+  HOLIDAY_PROVIDER_PLAN_RESTRICTED_ERROR_CODE,
   HOLIDAY_PROVIDER_SCOPE,
 } from '../../shared/holiday-provider.constant.js'
 import type {
@@ -66,6 +67,9 @@ export async function readFetchSummary(executor: Executor, scope: Scope): Promis
 
   const total = (status: string) =>
     rows.filter((row) => row.status === status).reduce((sum, row) => sum + row.pairs, 0)
+  const planRestricted = rows
+    .filter((row) => row.errorCode === HOLIDAY_PROVIDER_PLAN_RESTRICTED_ERROR_CODE)
+    .reduce((sum, row) => sum + row.pairs, 0)
   const fetchedAt = rows.flatMap((row) => (row.lastFetchedAt === null ? [] : [row.lastFetchedAt]))
   return {
     failures: rows
@@ -76,6 +80,7 @@ export async function readFetchSummary(executor: Executor, scope: Scope): Promis
       done: total(HOLIDAY_PROVIDER_FETCH_STATUS.DONE),
       failed: total(HOLIDAY_PROVIDER_FETCH_STATUS.FAILED),
       notCovered: total(HOLIDAY_PROVIDER_FETCH_STATUS.NOT_COVERED),
+      planRestricted,
       quotaExhausted: total(HOLIDAY_PROVIDER_FETCH_STATUS.QUOTA_EXHAUSTED),
     },
   }
