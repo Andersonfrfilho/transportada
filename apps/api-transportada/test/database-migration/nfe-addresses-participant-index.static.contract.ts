@@ -48,7 +48,7 @@ describe('the nfe_addresses participant index enters additive', () => {
     )
   })
 
-  test('the migration is one plain CREATE INDEX IF NOT EXISTS between the lock_timeout guards', async () => {
+  test('the migration refuses an INVALID leftover, then one plain CREATE INDEX IF NOT EXISTS, between the lock_timeout guards', async () => {
     const { text } = await readMigration('migration.sql')
     const instructions = withoutComments(text)
 
@@ -56,11 +56,12 @@ describe('the nfe_addresses participant index enters additive', () => {
     expect(instructions).toContain(CREATE_INDEX)
     // O migrador roda o lote numa transação: `CONCURRENTLY` aborta com 25001.
     expect(instructions).not.toContain('CONCURRENTLY')
-    expect(instructions).not.toMatch(/\bWHERE\b|\bUNIQUE\b|\bINCLUDE\b/u)
     expect(instructions).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE|INSERT|TRUNCATE)\b/u)
 
     const order = [
       `SET LOCAL lock_timeout = '3s';`,
+      'NOT "indisvalid"',
+      'RAISE EXCEPTION',
       CREATE_INDEX,
       'SET LOCAL lock_timeout = DEFAULT;',
     ].map((fragment) => positionOf(instructions, fragment))
@@ -73,7 +74,8 @@ describe('the nfe_addresses participant index enters additive', () => {
       'BEGIN;',
       `DROP INDEX IF EXISTS "${INDEX_NAME}";`,
       `WHERE "name" = '${directory}'`,
-      'ROW_COUNT',
+      'GET DIAGNOSTICS deleted_migrations = ROW_COUNT;',
+      'IF deleted_migrations <> 1 THEN',
       'COMMIT;',
     ].map((fragment) => positionOf(text, fragment))
 
@@ -89,9 +91,9 @@ describe('the nfe_addresses participant index enters additive', () => {
       (index) => index.config.name === INDEX_NAME,
     )
 
-    expect(declared?.config.columns.map((column) => ('name' in column ? column.name : ''))).toEqual([
-      ...INDEX_COLUMNS,
-    ])
+    expect(declared?.config.columns.map((column) => ('name' in column ? column.name : ''))).toEqual(
+      [...INDEX_COLUMNS],
+    )
     expect(declared?.config.unique).toBe(false)
     expect(declared?.config.where).toBeUndefined()
   })

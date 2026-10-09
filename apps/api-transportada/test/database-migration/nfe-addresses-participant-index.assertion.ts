@@ -36,11 +36,26 @@ export async function assertNfeAddressesParticipantIndex(
   expect(plan).toMatch(new RegExp(`Index Scan using ${INDEX_NAME}`, 'u'))
   expect(plan).toMatch(/Index Cond: \(\(company_id = .*\) AND \(participant_id = /u)
 
-  const migration = await Bun.file(join(migrationsDirectory.pathname, directory, 'migration.sql')).text()
+  const migration = await Bun.file(
+    join(migrationsDirectory.pathname, directory, 'migration.sql'),
+  ).text()
   await database.begin((transaction) => transaction.unsafe(migration))
   expect(await readIndexDefinition(database)).toBe(INDEX_DEFINITION)
 
-  const rollback = await Bun.file(join(migrationsDirectory.pathname, directory, 'rollback.sql')).text()
+  // `IF NOT EXISTS` aceitaria calado o resto de um CONCURRENTLY interrompido: a migration recusa.
+  await database.unsafe(
+    `update pg_index set indisvalid = false where indexrelid = '${INDEX_NAME}'::regclass`,
+  )
+  await expect(database.begin((transaction) => transaction.unsafe(migration))).rejects.toThrow(
+    'INVÁLIDO',
+  )
+  await database.unsafe(
+    `update pg_index set indisvalid = true where indexrelid = '${INDEX_NAME}'::regclass`,
+  )
+
+  const rollback = await Bun.file(
+    join(migrationsDirectory.pathname, directory, 'rollback.sql'),
+  ).text()
   await database.unsafe(`drop index ${INDEX_NAME}`)
   await database.unsafe(rollback)
   expect(await readIndexDefinition(database)).toBeNull()
