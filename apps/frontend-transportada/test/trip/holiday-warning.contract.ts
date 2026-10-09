@@ -444,6 +444,19 @@ describe('a fiação das telas (o aviso só informa)', () => {
     expect(map).toContain('solver.holidayWarnings.get(point.stopKey)')
   })
 
+  it('o aviso da montagem é filho da linha, depois dos botões, e ocupa a largura cheia dela', () => {
+    const map = read('components/TripAssemblyMap.component.tsx')
+    const css = read('styles/tripHolidayWarning.module.css')
+
+    expect(map.indexOf('<AssemblyStopHolidayNotice')).toBeGreaterThan(
+      map.indexOf('className={styles.assemblyStopActions}'),
+    )
+    expect(map.indexOf('<AssemblyStopHolidayNotice')).toBeLessThan(
+      map.indexOf('...tollRows(leadingLegCount + index)'),
+    )
+    expect(css).toMatch(/\.notice \{[^}]*grid-column: 1 \/ -1;/u)
+  })
+
   it('o detalhe da viagem põe o selo na parada, e o selo não toca nas ações', () => {
     const list = read('components/TripStopList.component.tsx')
 

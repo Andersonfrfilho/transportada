@@ -33,8 +33,14 @@
 }
 
 /* Uma linha de leitura dentro da parada: a barra cobre à esquerda a separa das notas sem virar um alerta. */
+/*
+ * A linha da parada é um grid de duas colunas (corpo e botões): o aviso ocupa as duas, na largura cheia, alinhado ao texto
+ * da parada (depois do disco e do vão) — numa coluna só ele quebrava a cada duas palavras a 375 px.
+ */
 .notice {
+  grid-column: 1 / -1;
   margin: 0;
+  margin-inline-start: calc(var(--space-6) + var(--space-2));
   padding: var(--space-1) var(--space-2);
   border-left: 3px solid var(--color-copper);
   color: var(--color-fog);

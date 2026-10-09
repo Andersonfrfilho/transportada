@@ -885,14 +885,6 @@ export function TripAssemblyMap({
                     {t('assemblyMap.approximate')}
                   </span>
                 ) : null}
-                {/* Spec 252 T5.3: o feriado que cai na entrega prevista desta parada. Só informa; nada desabilita. */}
-                {(solver.holidayWarnings.get(point.stopKey) ?? []).map((warning) => (
-                  <AssemblyStopHolidayNotice
-                    key={`${String(warning.cityIbgeCode)}:${warning.date}`}
-                    placeLabel={point.label}
-                    warning={warning}
-                  />
-                ))}
                 {point.notes.map((note) => (
                   <span className={styles.assemblyStopNote} key={note.id}>
                     {describeNote(note)}
@@ -1063,6 +1055,18 @@ export function TripAssemblyMap({
                 </Button>
               )}
             </div>
+            {/*
+              Spec 252 T5.3: o feriado da entrega prevista desta parada, na LARGURA CHEIA da linha — abaixo do
+              corpo e dos botões. Dentro do corpo ele dividia a coluna com as setas e quebrava a cada duas
+              palavras no celular. Só informa; nada desabilita.
+            */}
+            {(solver.holidayWarnings.get(point.stopKey) ?? []).map((warning) => (
+              <AssemblyStopHolidayNotice
+                key={`${String(warning.cityIbgeCode)}:${warning.date}`}
+                placeLabel={point.label}
+                warning={warning}
+              />
+            ))}
           </li>,
           ...tollRows(leadingLegCount + index),
         ])}
