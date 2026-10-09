@@ -461,8 +461,7 @@
     "blocker": {
       "noDocuments": "Choose at least one note.",
       "reasonRequired": "Enter the reason to finish.",
-      "reasonTooLong": "The reason is over 500 characters.",
-      "tooManyDocuments": "Choose at most 300 notes at a time."
+      "reasonTooLong": "The reason is over 500 characters."
     },
     "error": {
       "generic": "Could not add the notes right now. Try again.",
@@ -2487,6 +2486,10 @@
     "title_other": "Close {{count}} trips"
   },
   "proofPdfExport": {
+    "planning": "Counting the stubs to split the PDF…",
+    "part": "Generating PDF {{current}} of {{total}}…",
+    "cancel": "Cancel",
+    "cancelled": "Export cancelled. {{saved}} file(s) already downloaded.",
     "button": "Export proofs (PDF)",
     "exporting": "Generating PDF…",
     "tooManyDocuments": "Select up to {{max}} invoices or refine the filter to export the proofs.",
@@ -2541,6 +2544,7 @@
     "volumesColumn": "Volumes",
     "series": "series {{series}}",
     "unknown": "—",
+    "stopTotals": "{{notes}} note(s) · {{volumes}} volume(s)",
     "noStop": "No stop assigned",
     "empty": "No notes in this trip yet.",
     "print": "Print for signature",

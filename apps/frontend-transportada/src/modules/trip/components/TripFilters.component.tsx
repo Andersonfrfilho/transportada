@@ -162,6 +162,7 @@ export function TripFilters({ contractors, drivers, table, vehicles }: TripFilte
           <DateRangePicker
             ariaLabel={t('filters.createdRange')}
             clearLabel={t('dateRange.clear')}
+            compact={false}
             from={table.filters.createdFrom ?? ''}
             nextMonthLabel={t('dateRange.nextMonth')}
             onChange={(from, to) => table.setDateRange(from, to)}

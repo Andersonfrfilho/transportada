@@ -211,9 +211,10 @@ const NO_PROOF_BADGES: ReadonlyMap<string, TripDocumentProofBadges> = new Map()
 const NO_DOCUMENTS: readonly TripDocumentDetail[] = []
 
 function statusClassName(status: TripStatus): string {
-  return status === 'completed' || status === 'cancelled'
-    ? `${styles.statusBadge} ${styles.statusReady}`
-    : `${styles.statusBadge}`
+  if (status === 'completed') return `${styles.statusBadge} ${styles.statusReady}`
+  if (status === 'cancelled') return `${styles.statusBadge} ${styles.statusCancelled}`
+
+  return `${styles.statusBadge}`
 }
 
 const closedAtFormatter = new Intl.DateTimeFormat('pt-BR', {

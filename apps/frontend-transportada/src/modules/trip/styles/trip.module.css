@@ -3642,6 +3642,7 @@ button.occurrenceCaseBadge {
   .printSheetField {
     display: grid;
     gap: 0.5mm;
+    min-width: 0;
   }
 
   .printSheetField dt {
@@ -3654,7 +3655,9 @@ button.occurrenceCaseBadge {
   .printSheetField dd {
     margin: 0;
     font-size: 0.78rem;
+    overflow-wrap: anywhere;
     text-transform: uppercase;
+    white-space: normal;
   }
 
   .printSheetTable {
@@ -5812,6 +5815,12 @@ button.occurrenceCaseBadge {
 /* Título, selos e botão têm alturas diferentes (texto, selo, alvo de toque): centralizados, não pela linha de base. */
 .tripDetailHead {
   align-items: center;
+  justify-content: flex-start;
+}
+
+/* Com `space-between` o selo caía no meio do cabeçalho; ele e as ações seguintes vão juntos ao canto direito. */
+.tripDetailHead > .statusBadge {
+  margin-left: auto;
 }
 
 /* O identificador é anotação do título, não um campo: sem caixa própria. */
@@ -5822,4 +5831,299 @@ button.occurrenceCaseBadge {
   color: var(--color-slate);
   font-family: var(--font-utility);
   font-size: 0.78rem;
+}
+
+/* Cartão centrado no desktop: a casca `mdfeGate*` é tela cheia, feita para formulário no celular. */
+@media (min-width: 40rem) {
+  .conferenceDialog {
+    width: min(100% - var(--layout-gutter), 62rem);
+    height: auto;
+    max-height: 90vh;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  }
+}
+
+.conferenceActions {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+/* Conferência: números em destaque, rótulo discreto e cabeçalho separado do corpo. */
+.conferenceDialog .mdfeGateHeader {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+.conferenceSummary div {
+  border-color: color-mix(in srgb, var(--color-slate) 24%, transparent);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.conferenceSummary dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.conferenceSummary dd {
+  font-family: var(--font-utility);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-fog);
+}
+
+.conferenceDialog .tableScroll {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+/* Mesma altura dos campos compactos do painel de notas que vem logo acima. */
+.fieldGrid input.compactInput {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
+@media (min-width: 40rem) {
+  .conferenceTable th,
+  .conferenceTable td {
+    padding: var(--space-2) var(--space-3);
+    vertical-align: top;
+  }
+
+  .conferenceTable td {
+    white-space: normal;
+  }
+
+  .conferenceTable td.conferenceKey:first-child,
+  .conferenceTable td:nth-child(4) {
+    white-space: nowrap;
+  }
+
+  .conferenceTable th:nth-child(4),
+  .conferenceTable th:nth-child(5),
+  .conferenceTable td:nth-child(4),
+  .conferenceTable td:nth-child(5) {
+    text-align: right;
+  }
+}
+
+.conferenceIdentity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.conferenceChip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+/* Ícone no canto do cartão de resumo: o olho acha "valor" ou "volumes" antes de ler o rótulo. */
+.conferenceSummary div {
+  position: relative;
+}
+
+.conferenceSummary div > svg {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  color: var(--color-copper);
+  opacity: 0.8;
+}
+
+.conferenceTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-slate) 8%, transparent);
+}
+
+.conferenceTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-graphite);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.conferenceChip {
+  text-transform: none;
+}
+
+/* Conferência por parada: cada destino é um cartão com as notas dele, em vez de uma tabela de cinco colunas. */
+.conferenceStops,
+.conferenceNotes {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conferenceNotes {
+  gap: 0;
+}
+
+.conferenceStop {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.conferenceStopHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.conferenceStopIndex {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+.conferenceStopLabel {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.conferenceStopTotals {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.conferenceNote {
+  display: grid;
+  gap: var(--space-1) var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.conferenceNote + .conferenceNote {
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.conferenceNoteNumber {
+  font-family: var(--font-utility);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.conferenceNoteClient {
+  grid-column: 1;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.conferenceNoteMeta {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-self: end;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.conferenceNoteValue {
+  grid-column: 2;
+  justify-self: end;
+  font-family: var(--font-utility);
+  font-weight: 700;
+}
+
+@media (min-width: 40rem) {
+  .conferenceNote {
+    grid-template-columns: 9rem minmax(0, 1fr) 4.5rem 8rem;
+  }
+
+  .conferenceNoteClient,
+  .conferenceNoteValue {
+    grid-column: auto;
+  }
+}
+
+.conferenceNoteClient {
+  color: var(--color-fog);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.conferenceNoteAddress {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  gap: var(--space-1);
+  align-items: flex-start;
+  color: var(--color-slate);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .conferenceNoteAddress {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .conferenceNoteNumber {
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+}
+
+.conferenceStopNotes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.conferenceStopLabel {
+  flex: 0 1 auto;
+}
+
+.conferenceStopNotes {
+  flex: 1 1 auto;
+}
+
+.proofProgress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  font-size: 0.85rem;
+}
+
+.proofProgress progress {
+  flex: 1 1 8rem;
+  min-width: 0;
+  height: var(--space-2);
+  accent-color: var(--color-copper);
 }

@@ -461,8 +461,7 @@
     "blocker": {
       "noDocuments": "Escolha ao menos uma nota.",
       "reasonRequired": "Informe o motivo para concluir.",
-      "reasonTooLong": "O motivo passa de 500 caracteres.",
-      "tooManyDocuments": "Escolha no máximo 300 notas por vez."
+      "reasonTooLong": "O motivo passa de 500 caracteres."
     },
     "error": {
       "generic": "Não foi possível acrescentar as notas agora. Tente de novo.",
@@ -2487,6 +2486,10 @@
     "title_other": "Encerrar {{count}} viagens"
   },
   "proofPdfExport": {
+    "planning": "Contando os canhotos para dividir o PDF…",
+    "part": "Gerando o PDF {{current}} de {{total}}…",
+    "cancel": "Cancelar",
+    "cancelled": "Exportação cancelada. {{saved}} arquivo(s) já baixado(s).",
     "button": "Exportar canhotos (PDF)",
     "exporting": "Gerando PDF…",
     "tooManyDocuments": "Selecione até {{max}} notas ou refine o filtro para exportar os canhotos.",
@@ -2541,6 +2544,7 @@
     "volumesColumn": "Volumes",
     "series": "série {{series}}",
     "unknown": "—",
+    "stopTotals": "{{notes}} nota(s) · {{volumes}} volume(s)",
     "noStop": "Sem parada definida",
     "empty": "Nenhuma nota nesta viagem ainda.",
     "print": "Imprimir para assinatura",
