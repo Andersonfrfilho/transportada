@@ -153,7 +153,12 @@ const CATALOG = [
   },
   {
     /** Fornecedor externo com cota mensal: o teto real é a cota, o piso de uma hora é cortesia. */
-    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    failureOutcomes: [
+      'provider_unreachable',
+      'provider_unauthorized',
+      'malformed_response',
+      'credential_unreadable',
+    ],
     job: 'holiday.provider.pull',
     minimumIntervalSeconds: 3600,
   },

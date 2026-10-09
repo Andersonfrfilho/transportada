@@ -85,6 +85,8 @@ describe('authorization contract', () => {
       'occurrences.resolve',
       // Spec 164 T9: o contratante decide a tratativa que chegou até ele — só o papel contractor
       'occurrences.decide',
+      // Spec 262 / ADR-0102 D6: a chave e o orçamento da FeriadosAPI são da instalação — só o company-admin
+      'holiday-import.configure',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -119,6 +121,7 @@ describe('authorization contract', () => {
         'trip.financials',
         'cargo.measure',
         'occurrences.resolve',
+        'holiday-import.configure',
       ],
       finance: [
         'cte.read',
@@ -222,6 +225,32 @@ describe('authorization contract', () => {
     ] as const) {
       expect(resolveCompanyPermissions([role]).has('occurrences.resolve')).toBe(false)
     }
+  })
+
+  /**
+   * Spec 262 / ADR-0102 D6: a chave da FeriadosAPI e o orçamento mensal são ato sobre a INSTALAÇÃO.
+   * `settings.manage` concedido por grupo (para cadastrar feriado, por exemplo) não leva a chave de carona:
+   * a permissão é dedicada, só do `company-admin`, e continua concedível por grupo (o admin controla os grupos).
+   */
+  test('grants holiday-import.configure only to the company-admin, and keeps it grantable by group', () => {
+    expect(resolveCompanyPermissions(['company-admin']).has('holiday-import.configure')).toBe(true)
+    for (const role of [
+      'finance',
+      'fiscal',
+      'operator',
+      'viewer',
+      'driver',
+      'aggregate',
+      'separator',
+      'helper',
+      'contractor',
+      'automation',
+    ] as const) {
+      expect(resolveCompanyPermissions([role]).has('holiday-import.configure')).toBe(false)
+    }
+    expect(isCompanyPermission('holiday-import.configure')).toBe(true)
+    expect(isGrantablePermission('holiday-import.configure')).toBe(true)
+    expect(SERVICE_ONLY_PERMISSIONS).not.toContain('holiday-import.configure')
   })
 
   // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota

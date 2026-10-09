@@ -56,6 +56,15 @@ describe('matriz de papel e permissão', () => {
     }
   })
 
+  /** Spec 262 D6: a tela de grupos oferece a permissão dedicada, e só o company-admin a concede por papel. */
+  test('oferece holiday-import.configure no catálogo e a mostra só no company-admin', () => {
+    expect(matrix.permissions).toContain('holiday-import.configure')
+    const holders = matrix.roles
+      .filter((entry) => entry.permissions.includes('holiday-import.configure'))
+      .map((entry) => entry.role)
+    expect(holders).toEqual(['company-admin'])
+  })
+
   test('não oferece permissão de serviço, e o papel automation segue mostrando todas', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)

@@ -586,3 +586,16 @@ describe('cargo.measure — a permissão de quem mede a caixa', () => {
     }
   })
 })
+
+/**
+ * Spec 262 / ADR-0102 D6: o separador monta a viagem no galpão e o ajudante só acompanha; nenhum dos dois
+ * configura a chave da FeriadosAPI nem o orçamento mensal da instalação.
+ */
+describe('holiday-import.configure — a chave da FeriadosAPI não chega ao galpão', () => {
+  test('não chega ao separador nem ao ajudante, e o separador não ganha settings.manage por isso', () => {
+    for (const role of ['separator', 'helper'] as const) {
+      expect(resolveCompanyPermissions([role])).not.toContain('holiday-import.configure')
+    }
+    expect(resolveCompanyPermissions(['separator'])).not.toContain('settings.manage')
+  })
+})
