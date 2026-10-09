@@ -5,7 +5,7 @@
  * transação do `audit_logs`. Id de outra empresa é ausência — 404 ao desligar, no-op ao restaurar —, nunca
  * um 409 que confirmasse que ele existe.
  */
-import { and, asc, count, eq } from 'drizzle-orm'
+import { and, asc, count, eq, gte } from 'drizzle-orm'
 
 import { holidayImportSuppressions } from '../../database/holiday-import.schema.js'
 import {
@@ -85,15 +85,20 @@ export class DrizzleHolidayImportSuppressionRepository implements HolidayImportS
     readonly companyId: string
     readonly page: number
     readonly perPage: number
+    readonly today: string
   }): Promise<HolidayImportSuppressionsPage> {
+    const upcoming = and(
+      eq(holidayImportSuppressions.companyId, input.companyId),
+      gte(holidayImportSuppressions.holidayOn, input.today),
+    )
     const [counted] = await this.database
       .select({ total: count() })
       .from(holidayImportSuppressions)
-      .where(eq(holidayImportSuppressions.companyId, input.companyId))
+      .where(upcoming)
     const rows = await this.database
       .select()
       .from(holidayImportSuppressions)
-      .where(eq(holidayImportSuppressions.companyId, input.companyId))
+      .where(upcoming)
       .orderBy(
         asc(holidayImportSuppressions.holidayOn),
         asc(holidayImportSuppressions.scope),

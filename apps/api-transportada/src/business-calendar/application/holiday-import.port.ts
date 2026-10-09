@@ -37,10 +37,12 @@ export type HolidayImportSuppressionsPage = {
 export type HolidayImportSuppressionPort = {
   /** Apaga a linha importada, grava a supressão e audita; só de `today` em diante. */
   disable(input: DisableImportedHolidayInput): Promise<HolidayImportSuppression>
+  /** Só de `today` em diante: restaurar data passada prometeria o que a rotina nunca cumpre (D7). */
   list(input: {
     readonly companyId: string
     readonly page: number
     readonly perPage: number
+    readonly today: string
   }): Promise<HolidayImportSuppressionsPage>
   /** Apaga a supressão; o feriado volta no ciclo seguinte. Id ausente ou de outra empresa é no-op. */
   restore(input: BusinessCalendarActor & { readonly id: string }): Promise<void>
@@ -120,6 +122,7 @@ export type HolidayImportStatusPort = {
   readStatus(input: {
     readonly companyId: string
     readonly month: string
+    readonly today: string
     readonly years: BusinessCalendarCoverage
   }): Promise<HolidayImportStatus>
 }
