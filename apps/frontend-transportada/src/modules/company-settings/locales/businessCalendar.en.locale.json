@@ -306,6 +306,7 @@
     },
     "failures": {
       "malformed_response": "The provider answered in an unexpected format; nothing was stored.",
+      "persistence_failed": "The provider answered, but the holidays could not be stored; the routine tries again.",
       "provider_not_found": "The provider did not find the city; the routine retries in 90 days.",
       "provider_plan_restricted": "The provider plan does not cover this query.",
       "provider_rate_limited": "The provider asked to wait; the routine tries again later.",

@@ -16,6 +16,7 @@ export const HOLIDAY_IMPORT_FIRST_PAGE = 1
 /** O vocabulário de falha que a rotina grava no cache; o que não está aqui cai no texto genérico. */
 export const HOLIDAY_FETCH_FAILURE_CODES = [
   'malformed_response',
+  'persistence_failed',
   'provider_not_found',
   'provider_plan_restricted',
   'provider_rate_limited',

@@ -306,6 +306,7 @@
     },
     "failures": {
       "malformed_response": "O fornecedor respondeu num formato inesperado; nada foi gravado.",
+      "persistence_failed": "O fornecedor respondeu, mas não foi possível gravar os feriados; a rotina tenta de novo.",
       "provider_not_found": "O fornecedor não encontrou a cidade; a rotina tenta de novo em 90 dias.",
       "provider_plan_restricted": "O plano do fornecedor não cobre esta consulta.",
       "provider_rate_limited": "O fornecedor pediu para esperar; a rotina volta a tentar depois.",
