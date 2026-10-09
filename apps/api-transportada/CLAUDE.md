@@ -91,8 +91,9 @@ regenera a data da regra do dia; `409 HOLIDAY_IMPORT_PAST_DATE` antes de hoje, D
 relógio injetado — `resolveToday`) além de `currentYear`. `typedHolidaysKept` conta só `provider_entry_id IS NULL`. Rotas novas
 `/holiday-imports/{status,cities,suppressions}` (`settings.manage`, ler e escrever; `POST` desliga por `{ holidayId, scope }` `.strict()`,
 `DELETE …/suppressions/:id` restaura — a data volta na próxima execução diária, a API não relê o cache; `GET /suppressions` e `/cities` paginadas, `/status` sem query,
-`removedByProvider` = `{ items ≤ 200, truncated }`). ⚠️ **As três tabelas globais do cache só
-são importadas por `holiday-import-status.query.ts` e `holiday-import-usage.query.ts`** (contrato
+`removedByProvider` = `{ items ≤ 200, truncated }`; **removidos e supressões listam só `holiday_on >= hoje`** — dia civil de São Paulo do relógio injetado —,
+porque desligar data passada é sempre 409 e restaurá-la prometeria o que a D7 nunca cumpre; o total da supressão conta só o que aparece). ⚠️ **As três tabelas globais do cache só
+são importadas por `holiday-import-status.query.ts`, `holiday-import-removed.query.ts` e `holiday-import-usage.query.ts`** (contrato
 `test/business-calendar-schema/holiday-import-global-isolation.contract.ts`): rota, repositório de escrita e qualquer outro módulo
 que as importe reprova. ⚠️ **Não acrescente chave a resposta de `/municipal-holidays` ou `/state-holidays`**: os guardas do painel são de
 chaves exatas (`businessCalendarGuards.validation.ts`); a origem do feriado vai por rota nova. Detalhe: docs/ai-context § "Spec 252 T4.1".
@@ -102,12 +103,14 @@ vale `typed`; o mapper lê `provider_entry_id` — importada — e a regra "todo
 que já existe) no formato **`{ date, cityIbgeCode: number, cityName?, reasons: [{ name, origin, scope }] }`** — o painel e o app do motorista
 já validam exatamente isto: `cityIbgeCode` **numérico**, `cityName` **ausente** (nunca `null` nem `""`) e o nome do nacional é a chave estável
 (`christmas`). `holiday-warning.reader.ts` (`readHolidayWarnings`) custa as **4 leituras do calendário em série, uma vez só** para todas as
-cidades, ou **+0** com `knownCalendars` que cubram os anos (recusa tipada por cidade em `refusals`, nunca derruba as outras); **não importa nem cita
+cidades, ou **+0** com `knownCalendars` que cubram os anos (recusa tipada por cidade em `refusals`, nunca derruba as outras); **descarta o item com data fora de
+`[ano-1, ano+2]` antes de carregar a cobertura** (`referenceYear` do chamador — o repositório recebe o relógio —, para uma ETA absurda não recusar a leitura inteira); **não importa nem cita
 `delivery-deadline`** (contrato `holiday-warning-isolation`). `POST /business-calendar/day-checks` (`fleet.read`, até 200 `{ cityIbgeCode
 (string), date }` `.strict()`, responde só os dias que fecham por feriado; calendário recusado é 422). No detalhe da viagem
 (`trip-holiday-warning.support.ts`) `stops[].holidayWarnings` só existe com o relógio injetado, para parada **não concluída com ETA**: data = dia civil
 de São Paulo da ETA, cidade = 1º segmento do `address_key` (`readStopCityCode`), `cityName` do endereço da nota **só se o código dele for o da
-parada**; reaproveita os calendários do prazo da 236 (`calendarSink`) — **+0 ou +4**, nunca +10. A nota do motorista e o prazo não leem o aviso.
+parada**; reaproveita os calendários do prazo da 236 (`calendarSink`) — **+0 ou +4**, nunca +10. Falha da leitura só tira o aviso (`try/catch`, log
+`trip_holiday_warning_unavailable` com `code: 'read_failed'`, ids e contagem, coalescido): `GET /trips/:id` responde igual. A nota do motorista e o prazo não leem o aviso.
 ⚠️ `stops: stopRecords.map(` só pode aparecer uma vez em `drizzle-trip.repository.ts` (`stop-label-refresh.contract` indexa o primeiro). Detalhe:
 docs/ai-context § "Spec 252 T4.2".
 `GET /me/trips/current` também avisa (spec 252 T4.3, ADR-0100 D12): `stops[].holidayWarnings`, no mesmo formato do detalhe, **chamado pelo caso de uso**

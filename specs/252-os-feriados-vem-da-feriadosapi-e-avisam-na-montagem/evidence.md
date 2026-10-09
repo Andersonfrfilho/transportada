@@ -1322,3 +1322,74 @@ Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data pa
 Esta task entregou a **documentação viva**. Ficam fora e continuam abertas: (a) a **revisão final `code-reviewer` `opus`** em passada separada (já rodou em paralelo; seus acréscimos de documentação
 estão acima), com a auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização), e os achados dela que virarem código; (b) a **revisão de design e usabilidade com o
 usuário** (web.md §15), tela real contra os prints aprovados, no painel (T5.2, T5.3) e no app do motorista (T5.4); (c) a decisão sobre os achados acima.
+
+## T6.1b — correções da revisão final (2026-10-09, branch `work/252-t6b` sobre `origin/staging`)
+
+Sete correções pequenas da revisão `opus` final, em `apps/api-transportada` e `apps/frontend-transportada`. Cada uma com teste vermelho antes (commit
+separado), mutação e commit isolado. Nada de worker, nada de migration, o cartão de status (manchetes/cota) intocado.
+
+| #   | Correção                                                                                                                                                                                                                       | Vermelho / código                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 2   | `holiday-import-status.query.ts` (202 linhas) perde a consulta dos removidos para `holiday-import-removed.query.ts`: 133 + 98 linhas; o contrato de isolamento do cache global ganha o arquivo novo e um teto de 200 linhas    | `b6c7a392a` / `598093779`                                   |
+| 1   | API: removidos e supressões só de `holiday_on >= hoje` (dia civil de São Paulo, relógio injetado), ordem ascendente, total e paginação da supressão contam só o que aparece. Painel: o removido de data passada sem "Desligar" | `a03f53ceb` / `c6a94b52a`; painel `51655793c` / `d74d178e7` |
+| 3   | `readHolidayWarnings` descarta o item fora de `[ano-1, ano+2]` antes de carregar a cobertura (`referenceYear` do chamador; o repositório recebe o relógio)                                                                     | `921b2b277` / `65fb7ffdb`                                   |
+| 4   | `readTripStopHolidayWarnings`: a falha da leitura vira "sem aviso" (`try/catch`), com log `trip_holiday_warning_unavailable` `{ code: 'read_failed', companyId, tripId, affectedStopCount }`, coalescido como os outros        | `eeead24b2` / `eac1453d0`                                   |
+| 5   | Painel: `persistence_failed` no vocabulário de falhas, texto pt-BR e en                                                                                                                                                        | `8e4845bda` / `cbd695fee`                                   |
+| 6   | Painel: `AbortSignal.timeout(5_000)` no `fetch` de `day-checks`                                                                                                                                                                | `720256adc` / `d9654bfd9`                                   |
+| 7   | Painel: o selo `TripStopHolidayBadge` com `tabIndex={0}`; a dica abre no foco                                                                                                                                                  | `11393a89d` / `a8d99c70e`                                   |
+
+**Item 1 — decisões.** `readStatus` e `list` das supressões ganham `today` (obrigatório nas duas portas); o caso de uso o deriva de `resolveToday({ now: now() })`, o mesmo
+de `disable`. `>=`, não `>`: o dia de hoje ainda se desliga (D7). Os removidos continuam em ordem ascendente por data, agora todos futuros, e o teto de 200 conta só o que
+aparece (teste com 201 passados + 1 futuro: `truncated: false`, 1 item). No painel, `canDisableHolidayOn` compara `AAAA-MM-DD` com `readCalendarToday` (fuso de São
+Paulo, não do navegador); o item passado segue listado e dito (a decisão de "manter" é editar na tabela), só o botão some. As datas do contrato do painel passaram a `2099-11-20`
+(futuro) e `2020-11-20` (passado): a tela compara com o relógio real e a lista não pode envelhecer em 20/11/2026.
+
+**Item 3 — decisão.** O exemplo do pedido (ETA em 2031 com uma normal em 2026) tem span 5 e a cobertura aceita span ≤ 5, então SOZINHO ele não era recusado; o que derrubava as
+cidades era um ano mais longe (2040). O teste cobre os dois: 2031 (descartado da janela, não vira aviso) e 2040 (antes: `COVERAGE_TOO_WIDE` para a cidade inteira). Fora da janela
+não há aviso nem recusa, e se todos os itens estão fora nada é carregado (+0). A janela mora em duas constantes do leitor (`1` antes, `2` depois). Os chamadores:
+o detalhe da viagem passa o ano do relógio dele; o repositório de aviso (usado pela montagem e pelo app do motorista) recebe `now` no construtor (`main.ts` passa o relógio do
+calendário; o padrão é `new Date()`).
+
+**Item 4 — limite conhecido.** O `catch` cobre o detalhe lido FORA de transação (`GET /trips/:id`). Dentro da transação de uma escrita (`close` etc.), um erro SQL aborta a
+transação e as consultas seguintes do detalhe falham do mesmo jeito que antes; o `catch` não piora esse caminho, mas também não o conserta.
+
+**Gates (cwd nas apps; Postgres NATIVO descartável na porta 65445, `DRIZZLE_TEST_DATABASE_URL`).**
+
+- API: `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` **11170 pass / 1 skip / 0 fail** (208 arquivos, 11171 testes);
+  integrações, cada uma sozinha (`./test/integration/x.integration.ts`), **17 arquivos, 0 fail, 0 skip**: `holiday-import-status` 10, `holiday-import-suppressions` 11,
+  `holiday-import-municipal` 14, `holiday-import-state` 12, `holiday-origin` 5, `holiday-warning-reader` 4, `trip-detail-holiday-warnings` 10, `driver-current-trip-holiday-warnings` 10,
+  `driver-holiday-independence` 1, `driver-stop-holiday-context` 3, `driver-current-trip-query-count` 1, `trip-detail-query-count` 4, `trip-detail-delivery-deadline` 4,
+  `trip-detail-delivery-deadline-count` 3, `business-calendar-rules` 3, `business-calendar-tenant-safety` 2, `municipal-holiday-interplay` 6; `db:generate` `{"status":"no_changes"}`.
+- Painel: `tsc` exit 0; `eslint .` exit 0; `bun run test` **7799 + 1233 pass / 0 fail** (duas invocações do script); `test:hooks` **13 execuções, 13 verdes, 1233 pass / 0 fail em cada**
+  (10 normais + 3 sob carga de CPU, um `yes` por núcleo).
+- Raiz: `bun run format:check` exit 0 ("All matched files use Prettier code style!").
+
+**Mutações** (cada uma restaurada; arquivo de volta ao conteúdo do commit):
+
+| #         | Mutação                                             | Resultado                                          |
+| --------- | --------------------------------------------------- | -------------------------------------------------- |
+| M1        | removidos municipais sem o `gte(hoje)`              | 2 fail (integração do status)                      |
+| M2        | removidos estaduais sem o `gte(hoje)`               | 1 fail                                             |
+| M3        | supressões sem o `gte(hoje)`                        | 1 fail (integração das supressões)                 |
+| M4        | caso de uso das supressões com `today` fixo em 1970 | 1 fail (contrato dos casos de uso)                 |
+| M5        | leitor sem o filtro de janela                       | 4 fail (contrato do leitor)                        |
+| M6        | janela para trás de 0 ano                           | 1 fail                                             |
+| M7        | janela para frente de 3 anos                        | 1 fail                                             |
+| M8        | repositório do aviso com ano fixo 2000              | 4 fail (integração do leitor)                      |
+| M9        | detalhe da viagem relança a falha do aviso          | 3 fail (contrato) / 1 fail (integração do detalhe) |
+| M10       | falha engolida, mas sem log                         | 2 fail                                             |
+| M11       | log de falha sem coalescer                          | 1 fail                                             |
+| M13       | botão "Desligar" sempre aparece                     | 1 fail (DOM da lista de removidos)                 |
+| M14       | `>` no lugar de `>=` (hoje deixa de valer)          | 1 fail                                             |
+| M15       | "hoje" pelo fuso UTC                                | 1 fail                                             |
+| M16       | `persistence_failed` fora do vocabulário            | 1 fail                                             |
+| M17 / M18 | texto da falha ausente em en / em pt                | 2 fail cada                                        |
+| M19       | `fetch` de `day-checks` sem `signal`                | 1 fail                                             |
+| M20       | limite de 50 s em vez de 5 s                        | 1 fail                                             |
+| M21       | selo sem `tabIndex`                                 | 1 fail (DOM)                                       |
+| M22       | `tabIndex={-1}`                                     | 1 fail                                             |
+| M23       | dica sem a frase (`label` vazio)                    | 1 fail                                             |
+
+**O que NÃO foi feito.** Push; o cartão de status (manchetes/cota); worker; migration; `make check`, `make migration-test`, `make smoke` completos; o botão "Desligar" das
+linhas IMPORTADAS da tabela (`HolidayTableRow`) segue sem o corte por data passada (a API devolve 409 e o texto dele já é dito; fora do que foi pedido); o `try/catch` do item 4
+dentro de transação de escrita (acima).
