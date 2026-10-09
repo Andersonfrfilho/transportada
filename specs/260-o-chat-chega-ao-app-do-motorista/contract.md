@@ -54,6 +54,13 @@ export interface ParticipantConversationsApi {
 }
 ```
 
+**Contrato do adapter (obrigatório):** (a) toda mensagem criada por `sendMessage` devolve o `clientMessageId`
+recebido (o mesmo do `Idempotency-Key`) — é o eco que casa a bolha local com a mensagem do servidor — e o servidor
+trata com segurança duas requisições simultâneas com a mesma chave (uma cria, a outra devolve a mesma mensagem);
+(b) `api` precisa ter identidade **estável** (adapter criado uma vez, fora do render); (c) o adapter valida a
+resposta com `participantConversationPageSchema.parse(...)` e `z.array(participantMessageSchema).parse(...)` e usa
+`encodeURIComponent` em todo segmento de URL; (d) `@adatechnology/conversations-ui/styles.css` é requisito.
+
 Sem `subscribe`, a visão revalida em mount, `focus`, `visibilitychange` e `online`.
 **`direction` é sempre na perspectiva da empresa**; dentro do pacote `isMine = direction === 'inbound'`.
 O adapter do app não inverte nada.
