@@ -179,7 +179,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `trip.subject-conversation-message` (nota e viagem) no catálogo e no preview; `noticeLabel` sem nome de pessoa.
 - [ ] **T2.5b** `sonnet` — (**depende de decisão do dono**) texto do D7 para o aviso da ocorrência, por `UPDATE` só onde o texto ainda é o
       do seed original. Fora do caminho crítico.
-- [ ] **T2.6** `sonnet` — **Integração**: `bun --env-file=../../.env.test run test:integration` nos arquivos tocados (migration, lista,
+- [x] **T2.6** `sonnet` — **Integração**: `bun --env-file=../../.env.test run test:integration` nos arquivos tocados (migration, lista,
       `open`, `retarget`, colisão, envio de arquivo por `conversation_id`, limpeza de teste frente às FKs restrict).
       Contrato verde **não** basta; banco indisponível = parar e relatar, nunca publicar.
 - [ ] **T2.7** `haiku` — O adapter do app passa às rotas novas e remove os remendos de `awaitingParticipant` e do eco
@@ -189,11 +189,11 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** `sonnet` — Botão "Falar com o motorista" na nota (detalhe da viagem) e na viagem; abre/
+- [x] **T3.1** `sonnet` — Botão "Falar com o motorista" na nota (detalhe da viagem) e na viagem; abre/
       reabre a conversa (`open` idempotente).
-- [ ] **T3.2** `sonnet` — A conversa do assunto na aba do motorista do painel (mesma `Thread`), com o
+- [x] **T3.2** `sonnet` — A conversa do assunto na aba do motorista do painel (mesma `Thread`), com o
       botão de encerrar.
-- [ ] **T3.3** `sonnet` — Motorista abre conversa de nota/viagem pelo app ("Falar com o escritório" no
+- [x] **T3.3** `sonnet` — Motorista abre conversa de nota/viagem pelo app ("Falar com o escritório" no
       cartão da nota e no topo da viagem) com o rate limit de `open`.
 
 ## Fase 4 — Revisão de design e usabilidade (obrigatória, termina a spec)

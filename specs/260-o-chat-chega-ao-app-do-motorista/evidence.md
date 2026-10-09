@@ -283,3 +283,25 @@ código não tem teste de colisão; assinatura real de URL do S3 (storage de tes
 - Conversa de nota (`/conversas/document/…`): cabeçalho com protocolo, botão "Copiar protocolo" (44 px), selo "App", cartão "Nota fiscal", composer acima da barra.
 - **Defeito achado só no navegador:** a faixa de filtros media 21 px com chips de 44 px (`flex-shrink` em coluna flex com `overflow:auto`). Regra injetada → 65 px, chips inteiros. Correção no SDK: **PR #130** (patch 0.6.1, só `.cv-p-*`, teste por parser de CSS + mutação). Pendente de passe `opus` e merge.
 - Armadilha de ambiente: depois de subir a versão do pacote o Vite serviu o bundle antigo (cache de dependências); reiniciado com `--force`.
+
+## T2.6 — integração completa da API (a que faltava)
+
+`bun --env-file=../../.env.test run test:integration` (a lista inteira do script, 267 arquivos, Postgres do host 65432, banco descartável por teste):
+**1462 pass / 8 skip / 0 fail** em 2189 s (~36 min; mais lento que os ~17 min das notas por ter dividido a máquina com a suíte de
+contrato e os executores). `EXIT:0`. Inclui as migrations (`database-migration.contract.test.ts`), as 3 suítes de conversa por assunto
+(motorista leitura/escrita, escritório), o aviso do sino e o protocolo. Conferido no log, não no relatório de agente.
+
+## Fase 3 — escritório e motorista abrem a conversa
+
+| Task        | Commit      | Gate (conferido por mim)                                                                                                  |
+| ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| T3.1 / T3.2 | `b455c93a1` | painel: typecheck limpo · 7854 + 1245 pass / 0 fail · só arquivos novos no módulo de conversa (a de ocorrência não mudou) |
+| T3.3        | `877e00ff2` | driver: 1665 pass / 0 fail · typecheck e lint limpos · golden do cartão da parada                                         |
+| remendo CSS | `1e64bdd96` | faixa de filtros 21 px → **65 px**, 4 chips de 44 px (medido no navegador)                                                |
+
+**O que o usuário viu "estranho" em `/conversas`:** a faixa de filtros cortada. Causa no SDK (`.cv-p-filters` encolhia em coluna flex);
+correção publicável no **PR #130** (patch 0.6.1, aprovado com ressalvas pelo `opus`, ressalvas de teste fechadas); remendo equivalente
+no CSS do app até a 0.6.1 entrar.
+
+**Não provado:** o painel do escritório e o botão "Falar com o escritório" do motorista nunca foram vistos rodando (o painel exige API real
+e Keycloak; a demo do motorista agora serve `conversations/open`); smoke Playwright (T1b.5); descarte do outbox no logout (T1b.7).
