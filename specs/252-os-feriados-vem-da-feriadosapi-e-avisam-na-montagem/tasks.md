@@ -2,8 +2,7 @@
 
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
 > rotina** (configurar `FERIADOS_API_TOKEN` e despausar a rotina, que nasce pausada de fábrica — D13), que é passo do
-> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07); **T2.1 feita e T2.2 entregue**
-> (fecha com a T2.3): a próxima é a T2.3; T5.1 e T5.1b podem correr em paralelo (dependem só da T0.1).
+> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07); **T2.1, T2.2 e T2.3 feitas** (2026-10-09; a revisão `opus` da T2.2 segue pendente, em passada separada).
 
 Uma task por vez, na ordem. Cada task fecha com: **contrato vermelho antes** (pelo motivo certo), `bun run typecheck`,
 lint com a app como cwd, teste pelo **script `test` do `package.json`** (nunca `bun test` cru; na API contrato e
@@ -79,20 +78,20 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
       com o nome novo, a linha de `job_schedules` **pausada de fábrica** (D13), os **nomes** de constraint e índice do
       ADR-0100 §3 (todos ≤ 63 bytes, nenhum padrão do drizzle), `rollback.sql` (estático). **Feita em 2026-10-07**
       (`76d9245c2`, 118 pass / 13 fail pelo motivo certo). `evidence.md` § T2.1.
-- [ ] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
+- [x] **T2.2** 🧠 Migration aditiva (`<timestamp>_holiday_provider_import`; timestamp depois do último de staging na
       hora de gerar — hoje `20261007205304`, da 250) + `rollback.sql` + `snapshot.json` + schema
       Drizzle; comandos em tabela publicada no fim do arquivo; `make migration-test`; `db:generate` = `no_changes`;
       integração do roteirizador verde depois dela. Revisão `opus` em passada separada. **Só staging.** (CA2)
-      **Entregue em `54539fce7`** (`20261009040622_holiday_provider_import`, rebaseada em staging `4f04022ba`), **falta fechar com a T2.3:** o snapshot traz
+      **Entregue em `54539fce7`** (`20261009040622_holiday_provider_import`, rebaseada em staging `4f04022ba`), **fechada pela T2.3 (`b49b22102`):** o snapshot traz
       `holiday.provider.pull` nas duas CHECK de `job` e o nome ainda não está no catálogo TS, então
       `schema-snapshot.contract` fica vermelho e `db:generate` não dá `no_changes` (com o nome provisório no catálogo:
       138 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. Pendente: revisão `opus`.
       `evidence.md` § T2.2.
-- [ ] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
+- [x] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
       locale pt-BR/en, `minimumIntervalSeconds: 3_600` e o vocabulário de falha; paridade verde nas quatro apps
       (`test/job-catalog/catalog.contract.ts` na API, no worker e no cron; `test/shared/job-catalog.contract.ts` no
       painel). **Fecha também o contrato `schema-snapshot` da T2.2** (a CHECK de `job` do schema vem do catálogo da API) e o
-      `db:generate` = `no_changes`: rodar `bun run test` da API e `bun run db:generate` (esperado `no_changes`) ao fim.
+      `db:generate` = `no_changes`: rodar `bun run test` da API e `bun run db:generate` (esperado `no_changes`) ao fim. **Feita em 2026-10-09** (`2f6add63f`, `b49b22102`, `f02ccbef6`, `fc777a9d5`): `db:generate` = `no_changes`, `schema-snapshot` verde, paridade verde nas quatro. **Rótulo e locale do painel não feitos**: o molde não tem mecanismo de rótulo por rotina, então é decisão pendente (`evidence.md` § T2.3).
 
 ## Fase 3 — A rotina no worker
 
