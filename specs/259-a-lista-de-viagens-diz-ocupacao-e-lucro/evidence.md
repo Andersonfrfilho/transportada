@@ -128,3 +128,12 @@
 
 - Resolve a pendência de largura da T4.1: `updatedAt` saiu de `TRIP_COLUMN_KEYS` (`tripTable.service.ts`), do `renderCell` e dos locales `columns.updatedAt` (pt-BR e en). O campo segue no tipo `Trip` e no parser (a API continua mandando). A lista de colunas é afirmada por igualdade exata em `amount-columns.contract.ts` (com e sem `trip.financials`).
 - Gates (`apps/frontend-transportada`): `bun run test` → 7758 pass / 0 fail + `bun run test:hooks` → 1176 pass / 0 fail; `bun run typecheck` limpo; `eslint --max-warnings=0` e prettier limpos nos arquivos tocados.
+
+## T4.2 — gate final, 2026-10-09
+
+- `bun run format:check` (raiz) → único aviso `specs/260-*/preview.html` (outra sessão, não tocado). Por isso `make check` parou no primeiro passo; os demais passos rodaram à mão, na raiz:
+- `bun run lint` → exit 0 (16 warnings `react-hooks/exhaustive-deps` preexistentes em arquivos não tocados; as apps com `--max-warnings=0` passam); `bun run typecheck` → exit 0.
+- `bun run test` → exit 0: API contrato 11062 pass / 34 skip / 0 fail; worker 2191 pass; cron 101 pass; frontend-transportada 7758 pass + hooks 1176 pass; demais apps 89, 1486 e 131 pass; 0 fail em todas.
+- `bun run build` → exit 0.
+- `make migration-test` dispensado: `git diff --stat origin/staging...HEAD -- apps/api-transportada/drizzle` vazio (nenhuma migration na branch).
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-list-occupancy-financials.integration.ts` → 9 pass / 0 fail (Postgres local responde).
