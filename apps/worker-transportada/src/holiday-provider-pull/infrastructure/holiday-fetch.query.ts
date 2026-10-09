@@ -28,6 +28,7 @@ export function buildDuePairsQuery(input: {
     enabled_demand as (
       select c.city_ibge_code as ibge_code, sum(c.document_count)::bigint as total
       from holiday_import_cities c
+      join companies co on co.id = c.company_id and co.status = 'active'
       left join company_holiday_import_settings s on s.company_id = c.company_id
       where coalesce(s.is_enabled, true)
       group by c.city_ibge_code

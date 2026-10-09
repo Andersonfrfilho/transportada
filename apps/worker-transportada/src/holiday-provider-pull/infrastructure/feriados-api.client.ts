@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Fronteira com a FeriadosAPI (ADR-0100). Sai daqui só o código IBGE (ou a UF) e o ano, com o token
- * no cabeçalho `Authorization`; a resposta é fato público e entra por uma guarda Zod. Nenhum erro
- * carrega URL, cabeçalho, corpo ou mensagem da rede — ver `HolidayProviderError`.
+ * no cabeçalho `Authorization`; a resposta é fato público e entra por uma guarda Zod, depois de um
+ * corpo com teto. Nenhum erro carrega URL, cabeçalho, corpo ou mensagem da rede — ver
+ * `HolidayProviderError`. Redirecionamento não é seguido: o token não viaja para onde o fornecedor mandar.
  */
 import type {
   HolidayProviderClient,
@@ -19,6 +20,7 @@ import {
 import type { HolidayProviderRequest } from '../domain/holiday-provider.types.js'
 import { FERIADOS_API_PAGE_SIZE } from '../domain/holiday-provider-pull.constant.js'
 
+import { readBoundedJson, readRetryAfterSeconds } from './feriados-api.body.js'
 import { readProviderItems } from './feriados-api.schema.js'
 
 export type FeriadosApiFetch = (url: string, init: RequestInit) => Promise<Response>
@@ -32,7 +34,6 @@ export type FeriadosApiClientDependencies = {
 }
 
 const API_PATH = '/api/v1/feriados'
-const MILLISECONDS_PER_SECOND = 1000
 const FIRST_PAGE = 1
 
 function resolveEndpoint(request: HolidayProviderRequest): string {
@@ -57,20 +58,7 @@ function buildUrl(input: {
   return `${base}${API_PATH}/${resolveEndpoint(request)}?ano=${request.year}&limit=${FERIADOS_API_PAGE_SIZE}${pageQuery}`
 }
 
-/** `Retry-After` vem em segundos ou como data HTTP; ausente ou ilegível fica sem valor. */
-function readRetryAfterSeconds(input: {
-  readonly header: string | null
-  readonly now: Date
-}): number | undefined {
-  const { header, now } = input
-  if (header === null || header.trim().length === 0) return undefined
-  if (/^\d+$/u.test(header.trim())) return Number(header.trim())
-
-  const retryAt = Date.parse(header)
-  if (Number.isNaN(retryAt)) return undefined
-  return Math.max(0, Math.ceil((retryAt - now.getTime()) / MILLISECONDS_PER_SECOND))
-}
-
+/** 401: o token foi recusado. 402/403: o plano não cobre o pedido — quem decide o que isso significa é o escopo. */
 function toStatusError(input: {
   readonly now: Date
   readonly response: Response
@@ -78,12 +66,13 @@ function toStatusError(input: {
   const { now, response } = input
   const { status } = response
 
-  if (status === 401 || status === 403) {
+  if (status === 401)
     return new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.UNAUTHORIZED })
+  if (status === 402 || status === 403) {
+    return new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.PLAN_RESTRICTED })
   }
-  if (status === 404) {
+  if (status === 404)
     return new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND })
-  }
   if (status === 429) {
     return new HolidayProviderError({
       code: HOLIDAY_PROVIDER_ERROR_CODE.RATE_LIMITED,
@@ -94,14 +83,6 @@ function toStatusError(input: {
     })
   }
   return new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE })
-}
-
-async function readJsonBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json()
-  } catch {
-    throw new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.MALFORMED_RESPONSE })
-  }
 }
 
 export function createFeriadosApiClient(
@@ -118,10 +99,15 @@ export function createFeriadosApiClient(
           authorization: `Bearer ${dependencies.token}`,
         },
         method: 'GET',
+        redirect: 'error',
         signal: AbortSignal.timeout(dependencies.timeoutInMilliseconds),
       })
-    } catch {
-      throw new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE })
+    } catch (error: unknown) {
+      // Só o nome do erro (`TypeError`, `TimeoutError`): a mensagem da rede pode ecoar o cabeçalho.
+      throw new HolidayProviderError({
+        code: HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE,
+        reason: error instanceof Error ? error.name : 'UnknownError',
+      })
     }
   }
 
@@ -130,13 +116,15 @@ export function createFeriadosApiClient(
       const response = await send(buildUrl({ base, request }))
       if (!response.ok) throw toStatusError({ now: now(), response })
 
-      const items = readProviderItems(await readJsonBody(response))
+      const items = readProviderItems(await readBoundedJson(response))
       if (items === undefined) {
         throw new HolidayProviderError({ code: HOLIDAY_PROVIDER_ERROR_CODE.MALFORMED_RESPONSE })
       }
 
+      const classified = classifyProviderItems({ items, request })
       return {
-        entries: classifyProviderItems({ items, request }),
+        discardedCount: classified.discardedCount,
+        entries: classified.entries,
         receivedCount: items.length,
       }
     },

@@ -9,13 +9,13 @@ import type { FetchPair, FetchRecord } from './holiday-fetch.types.js'
 import {
   HOLIDAY_PROVIDER_DEFAULT_RETRY_AFTER_SECONDS,
   HOLIDAY_PROVIDER_NOT_COVERED_RETRY_DAYS,
+  HOLIDAY_PROVIDER_PLAN_RESTRICTED_RETRY_DAYS,
   HOLIDAY_PROVIDER_REFETCH_DAYS,
 } from './holiday-provider-pull.constant.js'
 import {
   addDays,
   addSeconds,
   resolveFailureNextAttemptAt,
-  resolveNextMonthStart,
 } from './holiday-provider-schedule.policy.js'
 
 type RecordParams = {
@@ -86,14 +86,14 @@ export function buildRateLimitedRecord(
   }
 }
 
-/** Orçamento do mês atingido: o par espera o dia 1º, e isso não é falha. */
-export function buildQuotaExhaustedRecord({ now, pair }: RecordParams): FetchRecord {
+/** 402/403 numa cidade: o plano não a cobre. As tentativas não sobem, e o par só volta em 30 dias. */
+export function buildPlanRestrictedRecord({ now, pair }: RecordParams): FetchRecord {
   return {
     attempts: pair.attempts,
-    errorCode: null,
+    errorCode: 'provider_plan_restricted',
     fetchedAt: null,
-    nextAttemptAt: resolveNextMonthStart(now),
+    nextAttemptAt: addDays({ date: now, days: HOLIDAY_PROVIDER_PLAN_RESTRICTED_RETRY_DAYS }),
     pair,
-    status: HOLIDAY_PROVIDER_FETCH_STATUS.QUOTA_EXHAUSTED,
+    status: HOLIDAY_PROVIDER_FETCH_STATUS.FAILED,
   }
 }

@@ -55,16 +55,24 @@ function resolveStorageKey({ item, request }: ResolveParams): StorageKey | undef
   }
 }
 
-export function classifyProviderItems({
-  items,
-  request,
-}: ClassifyParams): readonly ProviderHolidayEntry[] {
-  const entries = items.flatMap((item) => {
+export type ClassifiedProviderItems = {
+  /** Datas de outro ano que o pedido: o horizonte é o do pedido, e uma data fora dele não entra no cache. */
+  readonly discardedCount: number
+  readonly entries: readonly ProviderHolidayEntry[]
+}
+
+export function classifyProviderItems({ items, request }: ClassifyParams): ClassifiedProviderItems {
+  const requestedYear = String(request.year)
+  const sameYear = items.filter((item) => item.date.slice(0, 4) === requestedYear)
+  const entries = sameYear.flatMap((item) => {
     const key = resolveStorageKey({ item, request })
     return key === undefined ? [] : [{ ...item, ...key }]
   })
 
-  return mergeProviderEntries(entries)
+  return {
+    discardedCount: items.length - sameYear.length,
+    entries: mergeProviderEntries(entries),
+  }
 }
 
 /** Duas datas na mesma `(escopo, ibge, data)` viram uma: vence a não facultativa (ADR-0100 §3). */

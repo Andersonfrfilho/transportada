@@ -13,6 +13,7 @@ import {
   HOLIDAY_PROVIDER_TYPES,
 } from '../domain/holiday-provider.constant.js'
 import type { ProviderHolidayItem } from '../domain/holiday-provider.types.js'
+import { FERIADOS_API_PAGE_SIZE } from '../domain/holiday-provider-pull.constant.js'
 import { parseProviderDate } from '../domain/provider-date.policy.js'
 
 const providerDateSchema = z
@@ -20,33 +21,51 @@ const providerDateSchema = z
   .transform((text) => parseProviderDate(text))
   .pipe(z.string())
 
+/** Caracteres de controle (NUL, quebra de linha) e de formato (RLO, zero-width) não entram em nome nem em id. */
+const CONTROL_AND_FORMAT_CHARACTERS = /[\p{Cc}\p{Cf}]/gu
+
+const NAME_MAX_RAW_LENGTH = 1000
+const EXTERNAL_ID_MAX_LENGTH = 64
+
+const stripControlCharacters = (text: string) => text.replace(CONTROL_AND_FORMAT_CHARACTERS, '')
+
 const providerNameSchema = z
   .string()
-  .trim()
-  .min(1)
+  .max(NAME_MAX_RAW_LENGTH)
+  .transform(stripControlCharacters)
+  .pipe(z.string().trim().min(1))
   .transform((text) => Array.from(text).slice(0, HOLIDAY_NAME_MAX_LENGTH).join('').trim())
+
+function toExternalId(id: string | number | null | undefined): string | null {
+  if (id === undefined || id === null) return null
+  const cleaned = stripControlCharacters(String(id))
+  return cleaned === '' ? null : cleaned
+}
 
 const providerItemSchema = z
   .object({
     bancario: z.boolean().nullish(),
     data: providerDateSchema,
-    id: z.union([z.string(), z.number()]).nullish(),
+    id: z.union([z.string().max(EXTERNAL_ID_MAX_LENGTH), z.number()]).nullish(),
     nome: providerNameSchema,
     tipo: z.enum(HOLIDAY_PROVIDER_TYPES),
   })
   .transform(
     (raw): ProviderHolidayItem => ({
       date: raw.data,
-      externalId: raw.id === undefined || raw.id === null || raw.id === '' ? null : String(raw.id),
+      externalId: toExternalId(raw.id),
       isBanking: raw.bancario ?? false,
       name: raw.nome,
       providerType: raw.tipo,
     }),
   )
 
+/** Uma página tem no máximo `limit` itens: mais que isso não é a resposta que pedimos. */
+const providerPageSchema = z.array(providerItemSchema).max(FERIADOS_API_PAGE_SIZE)
+
 const providerResponseSchema = z.union([
-  z.array(providerItemSchema),
-  z.object({ data: z.array(providerItemSchema) }).transform((envelope) => envelope.data),
+  providerPageSchema,
+  z.object({ data: providerPageSchema }).transform((envelope) => envelope.data),
 ])
 
 /** `undefined` quando a resposta não tem a forma esperada — o chamador a recusa inteira. */

@@ -3,7 +3,10 @@
  */
 import { z } from 'zod'
 
-import { FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET } from '../holiday-provider-pull/domain/holiday-provider-pull.constant.js'
+import {
+  FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
+  FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET,
+} from '../holiday-provider-pull/domain/holiday-provider-pull.constant.js'
 import type {
   CteTechnicalResponsibleEnvironment,
   MdfeAutoIssueEnvironment,
@@ -96,7 +99,7 @@ const workerEnvironmentSchema = z
     // sem o token a rotina `holiday.provider.pull` não é registrada e nada sai do produto. O token mora só
     // aqui. Orçamento torto derruba o boot, com ou sem token (sem ele o contador do mês perderia o sentido).
     FERIADOS_API_MONTHLY_REQUEST_BUDGET: optionalPositiveInteger(),
-    FERIADOS_API_TOKEN: optionalText(),
+    FERIADOS_API_TOKEN: optionalToken(),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
     // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
@@ -429,6 +432,17 @@ function protocolUrl<const TProtocols extends readonly string[]>(
     })
 }
 
+/**
+ * ASCII visível, sem espaço: é o que cabe num cabeçalho `Authorization`. Espaço, acento ou quebra de
+ * linha no meio é token colado errado (ou injeção de cabeçalho), e o boot cai em vez de mandar a
+ * requisição torta todo dia. O erro é o genérico: o valor nunca aparece na mensagem.
+ */
+function optionalToken(): z.ZodType<string | undefined, string | undefined> {
+  return optionalText().refine((value) => value === undefined || /^[\x21-\x7E]+$/u.test(value), {
+    message: 'Invalid token',
+  })
+}
+
 /** Inteiro a partir de 1; vazio é ausência, e qualquer outra coisa derruba o boot. */
 function optionalPositiveInteger(): z.ZodType<number | undefined, string | undefined> {
   return z
@@ -442,7 +456,7 @@ function optionalPositiveInteger(): z.ZodType<number | undefined, string | undef
           .string()
           .regex(/^[0-9]+$/u)
           .transform(Number)
-          .pipe(z.number().int().min(1)),
+          .pipe(z.number().int().min(1).max(FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET)),
       ]),
     )
     .optional()
