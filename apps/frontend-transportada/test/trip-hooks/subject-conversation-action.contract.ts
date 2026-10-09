@@ -22,9 +22,10 @@ const fakes: {
   closed: unknown[]
   openError: Error | undefined
   opened: unknown[]
+  quickReplies: { id: string; text: string }[]
   sent: unknown[]
   summaries: SubjectConversationSummary[]
-} = { closed: [], openError: undefined, opened: [], sent: [], summaries: [] }
+} = { closed: [], openError: undefined, opened: [], quickReplies: [], sent: [], summaries: [] }
 
 function summary(overrides: Partial<SubjectConversationSummary> = {}): SubjectConversationSummary {
   return {
@@ -71,6 +72,13 @@ void mock.module(
   () => ({ getSubjectConversationClient: () => client }),
 )
 
+void mock.module('../../src/modules/occurrence-conversation/queries/quickReplies.query', () => ({
+  QUICK_REPLIES_QUERY_KEY: 'occurrence-quick-replies',
+  useComposerQuickRepliesQuery: () => ({ data: fakes.quickReplies }),
+  useQuickRepliesQuery: () => ({ data: [] }),
+  useQuickReplyMutations: () => ({}),
+}))
+
 const { SubjectConversationAction } = await import(
   '../../src/modules/occurrence-conversation/components/SubjectConversationAction.component'
 )
@@ -113,6 +121,7 @@ beforeEach(() => {
   fakes.closed = []
   fakes.openError = undefined
   fakes.opened = []
+  fakes.quickReplies = []
   fakes.sent = []
   fakes.summaries = []
 })
@@ -232,6 +241,44 @@ describe('o botão da conversa com o motorista (spec 260 T3.1)', () => {
 
     await clickButton(/Encerrar conversa/u)
     await waitFor(() => expect(fakes.closed).toHaveLength(1))
+  })
+
+  it('com respostas prontas do escritório ao motorista: escolher PREENCHE o campo e não envia', async () => {
+    fakes.summaries = [summary()]
+    fakes.quickReplies = [{ id: 'qr-1', text: 'Pode descarregar na doca 2.' }]
+    await renderAction()
+    await waitFor(() =>
+      expect(buttonLabels().some((label) => /Conversa com o motorista/u.test(label))).toBe(true),
+    )
+    await clickButton(/Conversa com o motorista/u)
+    await waitFor(() => expect(document.body.querySelector('textarea')).not.toBeNull())
+
+    await clickButton(/Resposta rápida/u)
+    const option = [...document.body.querySelectorAll('[role="option"]')].find((candidate) =>
+      /doca 2/u.test(candidate.textContent ?? ''),
+    ) as HTMLElement | undefined
+    expect(option).toBeDefined()
+    await act(async () => {
+      option?.click()
+      await Promise.resolve()
+    })
+    await settle()
+
+    const textarea = document.body.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea.value).toBe('Pode descarregar na doca 2.')
+    expect(fakes.sent).toEqual([])
+  })
+
+  it('sem respostas prontas cadastradas: nenhum seletor no compositor', async () => {
+    fakes.summaries = [summary()]
+    await renderAction()
+    await waitFor(() =>
+      expect(buttonLabels().some((label) => /Conversa com o motorista/u.test(label))).toBe(true),
+    )
+    await clickButton(/Conversa com o motorista/u)
+    await waitFor(() => expect(document.body.querySelector('textarea')).not.toBeNull())
+
+    expect(buttonLabels().some((label) => /Resposta rápida/u.test(label))).toBe(false)
   })
 
   it('viagem sem motorista: a recusa da API vira frase clara, sem diálogo', async () => {

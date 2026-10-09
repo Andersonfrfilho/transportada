@@ -162,8 +162,8 @@ export type UnassignedMessage = Readonly<{
   senderAddress: string
 }>
 
-/** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — as mesmas abas da conversa. */
-export type QuickReplyAudience = 'contractor' | 'driver'
+/** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — as mesmas abas da conversa; `driver_reply` (260 D11) é a do motorista ao escritório. */
+export type QuickReplyAudience = 'contractor' | 'driver' | 'driver_reply'
 
 export type QuickReply = Readonly<{
   active: boolean

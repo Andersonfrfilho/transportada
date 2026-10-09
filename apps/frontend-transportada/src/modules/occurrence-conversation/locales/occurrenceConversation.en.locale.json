@@ -147,14 +147,16 @@
     "pick": "Quick reply",
     "loading": "Loading quick replies",
     "loadError": "Could not load the quick replies. Try again in a moment.",
-    "description": "Ready texts offered by the composer of each conversation tab. Picking one only inserts the text; the writer still edits it before sending. Deactivating removes it from the composer without deleting it.",
+    "description": "Ready texts offered by the composer of each conversation tab. Picking one only inserts the text; the writer still edits it before sending. Deactivating removes it from the composer without deleting it. Driver replies are the ready messages the driver app offers above the text field.",
     "audience": {
       "contractor": "For the contractor",
-      "driver": "For the driver"
+      "driver": "For the driver",
+      "driver_reply": "Driver replies"
     },
     "new": {
       "contractor": "New reply for the contractor",
-      "driver": "New reply for the driver"
+      "driver": "New reply for the driver",
+      "driver_reply": "New driver reply to the office"
     },
     "empty": "No reply yet.",
     "limit": "Up to 500 characters.",

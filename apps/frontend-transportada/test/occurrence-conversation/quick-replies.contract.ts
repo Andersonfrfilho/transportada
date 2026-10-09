@@ -132,3 +132,66 @@ describe('as respostas rápidas por texto de fonte (spec 183 T701)', () => {
     expect(dialog).toMatch(/<QuickReplyPicker\s+audience="contractor"/u)
   })
 })
+
+describe('as respostas prontas do motorista (spec 260 T5.2-A, D11)', () => {
+  test('o cliente aceita o público driver_reply e o cadastro o envia à API', async () => {
+    const requests: Request[] = []
+    const client = createClient(
+      [
+        Response.json({ data: [reply({ audience: 'driver_reply', id: 'dr-1' })] }),
+        Response.json({ data: reply({ audience: 'driver_reply' }) }, { status: 201 }),
+      ],
+      requests,
+    )
+
+    expect((await client.listAll()).map((item) => item.audience)).toEqual(['driver_reply'])
+    await client.create({ audience: 'driver_reply', text: 'Cheguei ao destino.' })
+
+    expect(await requests[1]?.json()).toEqual({
+      audience: 'driver_reply',
+      text: 'Cheguei ao destino.',
+    })
+  })
+
+  test('o público de motorista não se mistura com o do escritório ao motorista', () => {
+    const replies = [
+      reply({ audience: 'driver', id: 'office-to-driver' }),
+      reply({ audience: 'driver_reply', id: 'driver-reply' }),
+    ]
+
+    expect(quickRepliesOf(replies, 'driver_reply').map((item) => item.id)).toEqual(['driver-reply'])
+    expect(quickRepliesOf(replies, 'driver').map((item) => item.id)).toEqual(['office-to-driver'])
+  })
+
+  test('o painel de Configurações tem a seção do motorista, com textos nos dois idiomas', () => {
+    const panel = readFileSync(
+      'src/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component.tsx',
+      'utf8',
+    )
+    const base = 'src/modules/occurrence-conversation/locales/occurrenceConversation'
+    expect(panel).toMatch(/AUDIENCES[^=]*=\s*\['contractor', 'driver', 'driver_reply'\]/u)
+
+    for (const file of [`${base}.locale.json`, `${base}.en.locale.json`]) {
+      const { quickReplies } = JSON.parse(readFileSync(file, 'utf8')) as {
+        quickReplies: { audience: Record<string, string>; new: Record<string, string> }
+      }
+      expect(quickReplies.audience.driver_reply).toBeString()
+      expect(quickReplies.new.driver_reply).toBeString()
+    }
+  })
+
+  test('o compositor por assunto oferece as respostas do escritório ao motorista e só preenche', () => {
+    const composer = readFileSync(
+      'src/modules/occurrence-conversation/components/SubjectConversationComposer.component.tsx',
+      'utf8',
+    )
+    const conversations = readFileSync(
+      'src/modules/occurrence-conversation/components/OccurrenceConversations.component.tsx',
+      'utf8',
+    )
+
+    expect(composer).toMatch(/<QuickReplyPicker\s+audience="driver"/u)
+    expect(composer).toContain('setDraft((current) => insertQuickReply(current, text))')
+    expect(conversations).not.toContain('driver_reply')
+  })
+})

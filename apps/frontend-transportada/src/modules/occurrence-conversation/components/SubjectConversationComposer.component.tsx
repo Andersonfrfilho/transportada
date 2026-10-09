@@ -13,6 +13,7 @@ import {
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
 } from '../shared/occurrenceConversation.service'
+import { insertQuickReply } from '../shared/quickReplies.service'
 import {
   createSubjectMessageIdempotencyKey,
   resolveSubjectConversationErrorKey,
@@ -20,6 +21,7 @@ import {
 import type { SubjectConversationRef } from '../shared/subjectConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
+import { QuickReplyPicker } from './QuickReplyPicker.component'
 
 function newKey(): string {
   return createSubjectMessageIdempotencyKey(() => crypto.randomUUID())
@@ -77,6 +79,11 @@ export function SubjectConversationComposer({
         handleSubmit()
       }}
     >
+      <QuickReplyPicker
+        audience="driver"
+        disabled={send.isPending}
+        onPick={(text) => setDraft((current) => insertQuickReply(current, text))}
+      />
       <label className={styles.field}>
         <span>{t('composer.message')}</span>
         <textarea

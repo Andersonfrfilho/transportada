@@ -17,7 +17,7 @@ import {
 } from '../shared/quickReplies.service'
 import styles from '../styles/occurrenceConversation.module.css'
 
-const AUDIENCES: readonly QuickReplyAudience[] = ['contractor', 'driver']
+const AUDIENCES: readonly QuickReplyAudience[] = ['contractor', 'driver', 'driver_reply']
 
 type Mutations = ReturnType<typeof useQuickReplyMutations>
 

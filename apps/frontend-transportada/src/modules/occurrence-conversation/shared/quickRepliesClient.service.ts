@@ -22,7 +22,9 @@ function toQuickReply(value: unknown): null | QuickReply {
     !isString(value.text) ||
     typeof value.active !== 'boolean' ||
     typeof value.position !== 'number' ||
-    (value.audience !== 'contractor' && value.audience !== 'driver')
+    (value.audience !== 'contractor' &&
+      value.audience !== 'driver' &&
+      value.audience !== 'driver_reply')
   ) {
     return null
   }

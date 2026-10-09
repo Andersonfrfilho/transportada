@@ -147,14 +147,16 @@
     "pick": "Resposta rápida",
     "loading": "Carregando as respostas rápidas",
     "loadError": "Não foi possível carregar as respostas rápidas. Tente de novo em instantes.",
-    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar.",
+    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar. As respostas do motorista são as mensagens prontas que o app do motorista oferece acima do campo de texto.",
     "audience": {
       "contractor": "Para a contratante",
-      "driver": "Para o motorista"
+      "driver": "Para o motorista",
+      "driver_reply": "Respostas do motorista"
     },
     "new": {
       "contractor": "Nova resposta para a contratante",
-      "driver": "Nova resposta para o motorista"
+      "driver": "Nova resposta para o motorista",
+      "driver_reply": "Nova resposta do motorista"
     },
     "empty": "Nenhuma resposta cadastrada.",
     "limit": "Até 500 caracteres.",

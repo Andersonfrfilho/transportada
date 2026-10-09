@@ -420,3 +420,21 @@ já existia nos dois. Demo API: rota com 4 textos e `POST /__debug/conversations
 **Limites honestos.** "Tocar preenche e não envia" é do pacote (o smoke prova o efeito: campo preenchido, zero mensagem no servidor, nenhuma
 bolha), então não há mutação nossa que o quebre. O `abort` do Playwright não põe `navigator.onLine` em falso: `networkMode: 'always'` fica
 provado só pelo raciocínio (a consulta pausada offline nunca chamaria a busca), não por mutação.
+
+## T5.2-A — Painel: respostas do motorista e chips no compositor por assunto
+
+- Cadastro: `QuickRepliesSettingsPanel` ganha a seção "Respostas do motorista" (público `driver_reply`, D11), no mesmo cadastro —
+  criar, editar, ativar/desativar e ordenar pelas mesmas linhas; tipo `QuickReplyAudience` e guarda do cliente aceitam o valor novo;
+  textos pt-BR/en nos `occurrenceConversation*.locale.json`.
+- Compositor: `SubjectConversationComposer` ofereceu `QuickReplyPicker audience="driver"` (as respostas do escritório ao motorista);
+  escolher só preenche (`insertQuickReply`), nunca envia; sem lista, o seletor não existe. `OccurrenceConversations` intacto.
+- Testes: `test/occurrence-conversation/quick-replies.contract.ts` (+4: cliente com `driver_reply`, filtro por público, painel+locales,
+  compositor) e `test/trip-hooks/subject-conversation-action.contract.ts` (+2 no DOM: preenche sem enviar; sem lista, sem seletor; o
+  hook de consulta é dublado com `mock.module`). Sem smoke Playwright desta tela (não existia).
+
+**Gates (cwd `apps/frontend-transportada`).** `bun run test`: 7858 pass / 0 fail + test:hooks 1247 pass / 0 fail · `bun run typecheck`
+limpo · `bun run lint` 0 errors (16 warnings antigos) · prettier limpo.
+
+**Mutações.** Compositor sem o `QuickReplyPicker`: 1 fail no DOM e 1 no contrato de fonte. `AUDIENCES` sem `driver_reply`: 1 fail.
+Guarda do cliente sem `driver_reply`: 1 fail. (Primeira rodada do hooks falhou 2 testes por falta de `VITE_API_URL` quando o seletor
+passou a montar a consulta; resolvido dublando a consulta no teste.)
