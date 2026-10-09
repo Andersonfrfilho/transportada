@@ -58,7 +58,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 > 🤖 Modelo: `sonnet` (T4.4, T4.7 e T4.9 são 🧠 — `opus`: ação automática sem humano, envio a
 > terceiro e retomada pela mensagem do motorista)
 
-- [ ] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
+- [x] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
       0/1/N anexos, tipo pelos bytes, já entregue, cancelado, tratado; `decideAlert` (prazo,
       intervalo, teto, paradas).
 - [ ] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.

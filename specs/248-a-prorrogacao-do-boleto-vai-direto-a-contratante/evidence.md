@@ -222,3 +222,15 @@ Cada mutação foi aplicada em `drizzle/20261009022945_occurrence_contractor_rep
    falhou por outro caso (`Expected trigger_check, Received actor_check`); foi descartada por ser grosseira.
 
 Execução verde depois de desfazer tudo: `make migration-test` → 169 pass, 0 fail, exit 0.
+
+## T4.1 — Contrato da decisão do retorno, vermelho antes da implementação
+
+`test/occurrence-conversation/contractor-reply.contract.ts` (a mesma tabela, byte a byte, na API e no worker) cobre
+`decideContractorReply` (0/1/N anexos, tipo pelos bytes e não pelo nome, já entregue, cancelado, tratado, já respondido,
+modo `off`, cópia da configuração vence o tipo de hoje) e `decideAlert` (prazo, intervalo, teto, paradas, janela pendente).
+O `contractor-reply-parity.contract.ts` do worker compara política, constantes e contrato com a cópia da API.
+
+Execução vermelha (a política ainda não existe), de `apps/api-transportada`:
+`bun --env-file=../../.env.test test --timeout 120000 ./test/occurrence-conversation.contract.test.ts` →
+`error: Cannot find module '../../src/occurrence-conversation/domain/contractor-reply.policy.js'`, 0 pass, 1 fail, 1 error.
+O commit da T4.1 é vermelho de propósito (contrato antes do código); a T4.2 fecha.

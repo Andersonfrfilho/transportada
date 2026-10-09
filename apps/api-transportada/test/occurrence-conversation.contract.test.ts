@@ -34,3 +34,4 @@ import './occurrence-conversation/me-subject-conversation-write-routes.contract.
 import './occurrence-conversation/office-subject-conversation.contract.js'
 import './occurrence-conversation/office-subject-conversation-routes.contract.js'
 import './occurrence-conversation/driver-conversation-notifier.contract.js'
+import './occurrence-conversation/contractor-reply.contract.js'
