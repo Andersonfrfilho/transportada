@@ -803,7 +803,13 @@ export type TripCargoLayout = Readonly<{
    */
   layoutNotes?: readonly string[]
   stopArrangementReason?:
-    'fits' | 'noBed' | 'openBody' | 'singleStop' | 'tooWide' | 'volumeDoesNotFit' | 'weight'
+    | 'fits'
+    | 'noBed'
+    | 'openBody'
+    | 'singleStop'
+    | 'tooWide'
+    | 'volumeDoesNotFit'
+    | 'weight'
   /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
   freeRows: number
   /**
@@ -1417,7 +1423,13 @@ export type FindNfeDocumentByAccessKeyInput = Readonly<{
  * a criação morria no `202` sem nunca chegar a esperar o solver.
  */
 export type MultiVehicleSuggestionStatus =
-  'accepted' | 'failed' | 'queued' | 'ready' | 'rejected' | 'running' | 'stale'
+  | 'accepted'
+  | 'failed'
+  | 'queued'
+  | 'ready'
+  | 'rejected'
+  | 'running'
+  | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
   /**
