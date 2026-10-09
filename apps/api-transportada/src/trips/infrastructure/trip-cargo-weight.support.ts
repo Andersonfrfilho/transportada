@@ -12,29 +12,37 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { nfeVolumes } from '../../database/nfe.schema.js'
+import type { CargoWeightSource } from '../../nfe-documents/domain/cargo-weight.policy.js'
 import { resolveDocumentCargoWeight } from '../../nfe-documents/domain/document-cargo-weight.policy.js'
 import type { TripCargoWeightView } from '../application/trip.port.js'
 import { resolveTripCargoWeight } from '../domain/trip-cargo-weight.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
+export type DocumentCargoWeight = {
+  readonly grossWeightKilograms: string | null
+  /** A origem do peso (`declared` ou `estimated`); `null` quando a nota não tem peso conhecido. */
+  readonly source: CargoWeightSource | null
+}
+
+const NO_DOCUMENT_CARGO_WEIGHT: DocumentCargoWeight = { grossWeightKilograms: null, source: null }
+
 /**
- * A soma em SQL é equivalente à soma volume a volume, e é por isso que a linha agregada pode
- * atravessar a política por nota como se fosse um volume só: o ramo declarado soma `pesoB` (e
- * volume sem massa contribui zero de qualquer modo), e o estimado é `qVol total × padrão`. Quem
- * decide a origem continua sendo um lugar só.
+ * O peso e a origem de **cada nota** de uma lista, em duas consultas — a soma em SQL é equivalente à
+ * soma volume a volume, e é por isso que a linha agregada pode atravessar a política por nota como se
+ * fosse um volume só: o ramo declarado soma `pesoB` (e volume sem massa contribui zero de qualquer
+ * modo), e o estimado é `qVol total × padrão`. Quem decide a origem continua sendo um lugar só.
+ *
+ * Spec 259: o mapa cobre toda nota pedida (nota sem volume é `{ null, null }`), e a lista de viagens
+ * o lê para a página inteira de uma vez.
  */
-export async function loadTripCargoWeight(
+export async function loadDocumentCargoWeights(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
   },
-): Promise<{
-  readonly view: null | TripCargoWeightView
-  /** Spec 085 G006: o peso por nota, para o alerta de concentração somar por parada. */
-  readonly weightByDocument: ReadonlyMap<string, string | null>
-}> {
-  if (input.nfeDocumentIds.length === 0) return { view: null, weightByDocument: new Map() }
+): Promise<ReadonlyMap<string, DocumentCargoWeight>> {
+  if (input.nfeDocumentIds.length === 0) return new Map()
 
   // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
   const volumes = await queryable
@@ -60,19 +68,43 @@ export async function loadTripCargoWeight(
   const defaultWeightPerVolume = settings?.defaultVolumeWeight ?? null
   const byDocument = new Map(volumes.map((row) => [row.documentId, row]))
 
-  const documents = input.nfeDocumentIds.map((documentId) => {
-    const row = byDocument.get(documentId)
-    if (row === undefined) return { grossWeightKilograms: null, source: null }
+  return new Map(
+    input.nfeDocumentIds.map((documentId) => {
+      const row = byDocument.get(documentId)
+      if (row === undefined) return [documentId, NO_DOCUMENT_CARGO_WEIGHT] as const
 
-    const resolved = resolveDocumentCargoWeight({
-      defaultWeightPerVolume,
-      volumes: [{ grossWeight: row.grossWeight, quantity: row.quantity }],
-    })
-    return {
-      grossWeightKilograms: resolved?.grossWeight ?? null,
-      source: resolved?.source ?? null,
-    }
-  })
+      const resolved = resolveDocumentCargoWeight({
+        defaultWeightPerVolume,
+        volumes: [{ grossWeight: row.grossWeight, quantity: row.quantity }],
+      })
+      return [
+        documentId,
+        {
+          grossWeightKilograms: resolved?.grossWeight ?? null,
+          source: resolved?.source ?? null,
+        },
+      ] as const
+    }),
+  )
+}
+
+export async function loadTripCargoWeight(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  },
+): Promise<{
+  readonly view: null | TripCargoWeightView
+  /** Spec 085 G006: o peso por nota, para o alerta de concentração somar por parada. */
+  readonly weightByDocument: ReadonlyMap<string, string | null>
+}> {
+  if (input.nfeDocumentIds.length === 0) return { view: null, weightByDocument: new Map() }
+
+  const weights = await loadDocumentCargoWeights(queryable, input)
+  const documents = input.nfeDocumentIds.map(
+    (documentId) => weights.get(documentId) ?? NO_DOCUMENT_CARGO_WEIGHT,
+  )
 
   return {
     view: resolveTripCargoWeight({ documents }),

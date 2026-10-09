@@ -66,3 +66,23 @@
   `marginTotal`, `marginPercentage`, `hasGaps` e `revenueTotal` iguais ao `readTripValuation`); só a paridade de ocupação segue
   vermelha (T2.3). `trip-valuation-document-figures` → 7 pass.
 - `bunx tsc --noEmit`, eslint (--max-warnings=0) e prettier limpos.
+
+## T2.3 — ocupação em lote e `occupancy` na linha da lista, 2026-10-09
+
+- `trip-occupancy.support.ts`: extraída a função pura `resolveTripOccupancyFromFacts` (e `hasKnownTripCapacity`,
+  `resolveOccupancyReferenceKey`, `loadOccupancyCargoFacts`); `loadTripOccupancy` (detalhe) só lê e chama a função, com os **mesmos cortes**
+  de leitura de antes (sem veículo / sem capacidade não lê carga). `trip-cargo-weight.support.ts`: `loadDocumentCargoWeights` devolve peso e
+  origem por nota; `loadTripCargoWeight` passou a chamá-la (mesmas 2 consultas, mesmo resultado).
+- `trip-list-occupancy.query.ts` (`readTripListOccupancies`): viagens + notas + veículos/carreta + referência + fatores + volumes + caixas
+  medidas + peso = **10 consultas por página**, qualquer que seja o tamanho dela; viagem sem veículo → `null`; empresa alheia não entra.
+  `Trip.occupancy?` (ausente = não calculada; `null` = sem veículo) → `TripListOccupancy` em `domain/trip-list-occupancy.policy.ts`;
+  `TripDetail` passou a `Omit<Trip, 'occupancy'> & {...}` (a `occupancy` do detalhe é outro tipo e **não mudou**).
+- Detalhe intocado, provado: 8 integrações de ocupação/planta/carreta/revisão (`trip-detail-query-count`, `trip-capacity-unknown-reason`,
+  `trip-cargo-carrier`, `trip-cargo-layout-read`, `package-box-unit-estimate`, `trip-cargo-preview-layout`, `trip-repository`,
+  `trip-document-review`) + a nova → **67 pass, 0 fail**; contratos `cargo-weight` + `cargo-volume` + `transaction-serial-queries` → 201 pass.
+- Paridade de **ocupação e peso** lista × detalhe verde, agora com 4 viagens (inclui cavalo + carreta: capacidade `30.000000` e teto
+  `5000.0000` são os da carreta). 3 integrações novas: mesmas consultas para 1 e 20 viagens, empresa alheia fora, sem veículo = `null`.
+- Contratos: `occupancy-from-facts.contract.ts` (novo, 5 testes: órfã, cavalo sem carreta, carreta, fatos de mais notas = mesmo resultado,
+  recorte da lista) e `list.contract.ts` +2 (sem `trip.financials` ainda serve `occupancy`; `null` sem veículo; chave ausente se não calculada).
+  `bun test ./test/trip-infrastructure.contract.test.ts ./test/trip-http.contract.test.ts` → 424 pass.
+- `bunx tsc --noEmit`, eslint (--max-warnings=0) e prettier limpos.

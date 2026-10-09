@@ -36,6 +36,7 @@ import {
   type ApplicableFreightRule,
   type TripValuationContext,
 } from '../../src/trips/application/read-trip-valuation.use-case.js'
+import { readTripListOccupancies } from '../../src/trips/infrastructure/trip-list-occupancy.query.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 
@@ -88,6 +89,8 @@ const FROZEN_ROUTE = {
 
 type World = {
   readonly capableVehicleId: string
+  readonly trailerId: string
+  readonly tractorId: string
   readonly companyId: string
   readonly driverId: string
   readonly importId: string
@@ -100,6 +103,7 @@ type SeededTrips = {
   readonly capableTripId: string
   readonly crewlessTripId: string
   readonly incapableTripId: string
+  readonly trailerTripId: string
 }
 
 describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2/T2.2/T2.3)', () => {
@@ -109,7 +113,7 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2/T2.2/T2.3)'
       await withDisposableDatabase(async (database) => {
         const world = await seedWorld(database)
         const seeded = await seedTrips(database, world)
-        const tripIds = [seeded.capableTripId, seeded.incapableTripId, seeded.crewlessTripId]
+        const tripIds = Object.values(seeded)
 
         const items = await listAsOfficeWithFinancials(database, world)
 
@@ -137,7 +141,7 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2/T2.2/T2.3)'
       await withDisposableDatabase(async (database) => {
         const world = await seedWorld(database)
         const seeded = await seedTrips(database, world)
-        const tripIds = [seeded.capableTripId, seeded.incapableTripId, seeded.crewlessTripId]
+        const tripIds = Object.values(seeded)
 
         const items = await listAsOfficeWithFinancials(database, world)
         const repository = new DrizzleTripRepository(database.db)
@@ -196,7 +200,14 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2/T2.2/T2.3)'
           tripId: seeded.crewlessTripId,
         })
         const valuation = await valuate(database, world.companyId, seeded.capableTripId)
+        const withTrailer = await repository.findById({
+          companyId: world.companyId,
+          tripId: seeded.trailerTripId,
+        })
 
+        /** Spec 147: quem carrega é a carreta — a capacidade e o teto de peso são os dela, não os do cavalo. */
+        expect(withTrailer?.occupancy?.capacityM3).toBe('30.000000')
+        expect(withTrailer?.cargoWeight?.maxPayloadKg).toBe('5000.0000')
         expect(capable?.occupancy?.occupancyRatio).not.toBeNull()
         expect(capable?.cargoWeight?.payloadRatio).not.toBeNull()
         expect(capable?.cargoWeight?.documentsWithoutWeight).toBe(1)
@@ -217,7 +228,7 @@ describe('o contexto de valoração em lote espelha o da viagem (spec 259, T2.1)
       await withDisposableDatabase(async (database) => {
         const world = await seedWorld(database)
         const seeded = await seedTrips(database, world)
-        const tripIds = [seeded.capableTripId, seeded.incapableTripId, seeded.crewlessTripId]
+        const tripIds = Object.values(seeded)
         const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
 
         const batch = await query.readValuationContexts({ companyId: world.companyId, tripIds })
@@ -324,6 +335,111 @@ function inStableOrder(context: TripValuationContext | null | undefined) {
   }
 }
 
+describe('a ocupação em lote não cresce com a página e não cruza empresas (spec 259, T2.3)', () => {
+  testWithPostgres(
+    'faz o mesmo número de consultas para 1 viagem e para 20',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const tripIds: string[] = []
+        for (let index = 0; index < 20; index += 1) {
+          tripIds.push(
+            await seedTrip(database, {
+              documentWeights: ['120.000', null],
+              vehicleId: world.capableVehicleId,
+              world,
+            }),
+          )
+        }
+
+        const one = await countSelectsOf(database, (counting) =>
+          readTripListOccupancies(counting, {
+            companyId: world.companyId,
+            tripIds: tripIds.slice(0, 1),
+          }),
+        )
+        const twenty = await countSelectsOf(database, (counting) =>
+          readTripListOccupancies(counting, { companyId: world.companyId, tripIds }),
+        )
+
+        expect(one).toBeGreaterThan(0)
+        expect(twenty).toBe(one)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'viagem de outra empresa não entra no mapa, nem pelo id',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const mine = await seedWorld(database)
+        const theirs = await seedWorld(database)
+        const myTripId = await seedTrip(database, {
+          documentWeights: ['120.000'],
+          vehicleId: mine.capableVehicleId,
+          world: mine,
+        })
+        const theirTripId = await seedTrip(database, {
+          documentWeights: ['120.000'],
+          vehicleId: theirs.capableVehicleId,
+          world: theirs,
+        })
+
+        const occupancies = await readTripListOccupancies(database.db, {
+          companyId: mine.companyId,
+          tripIds: [myTripId, theirTripId],
+        })
+
+        expect([...occupancies.keys()]).toEqual([myTripId])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'viagem sem veículo é null, não um objeto vazio',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const tripId = await seedTrip(database, {
+          documentWeights: ['80.000'],
+          vehicleId: null,
+          world,
+        })
+
+        const occupancies = await readTripListOccupancies(database.db, {
+          companyId: world.companyId,
+          tripIds: [tripId],
+        })
+
+        expect(occupancies.get(tripId)).toBeNull()
+        expect(occupancies.has(tripId)).toBe(true)
+      })
+    },
+    60_000,
+  )
+})
+
+/** Conta cada `select` que a leitura em lote dispara, num queryable que repassa tudo ao banco real. */
+async function countSelectsOf(
+  database: TestDatabase,
+  read: (counting: TestDatabase['db']) => Promise<unknown>,
+): Promise<number> {
+  let selects = 0
+  const counting = new Proxy(database.db, {
+    get(target, property) {
+      const value: unknown = Reflect.get(target, property, target)
+      if (property === 'select') selects += 1
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+
+  await read(counting)
+
+  return selects
+}
+
 /** Lê a lista como o escritório com `trip.financials`: tudo ligado, exatamente como `main.ts` monta. */
 async function listAsOfficeWithFinancials(database: TestDatabase, world: World) {
   const useCase = createTripUseCase({
@@ -352,6 +468,7 @@ async function listAsOfficeWithFinancials(database: TestDatabase, world: World) 
         }),
     },
     locations: { purgeByTrip: () => Promise.resolve() },
+    occupancies: { read: (input) => readTripListOccupancies(database.db, input) },
     repository: new DrizzleTripRepository(database.db),
   })
   const page = await useCase.list({
@@ -386,6 +503,8 @@ async function seedWorld(database: TestDatabase): Promise<World> {
   const userId = crypto.randomUUID()
   const capableVehicleId = crypto.randomUUID()
   const incapableVehicleId = crypto.randomUUID()
+  const tractorId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
   const importId = crypto.randomUUID()
   const xmlObjectId = crypto.randomUUID()
@@ -431,6 +550,30 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     state: 'SP',
     vehicleType: 'tractor_unit',
   })
+  await database.db.insert(fleetVehicles).values([
+    {
+      averageConsumption: '3.0000',
+      capacityKg: '9000.000',
+      companyId,
+      fuelType: 'diesel-s10',
+      id: tractorId,
+      plate: nextPlate(),
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    },
+    {
+      capacityKg: '5000.000',
+      capacityM3: '30.000',
+      companyId,
+      id: trailerId,
+      loadingAccess: 'open',
+      plate: nextPlate(),
+      role: 'trailer',
+      state: 'SP',
+      vehicleType: '',
+    },
+  ])
   await database.db.insert(fleetDrivers).values({
     companyId,
     dailyAllowanceAmount: '350.0000',
@@ -468,6 +611,8 @@ async function seedWorld(database: TestDatabase): Promise<World> {
     driverId,
     importId,
     incapableVehicleId,
+    tractorId,
+    trailerId,
     userId,
     xmlObjectId,
   }
@@ -490,6 +635,12 @@ async function seedTrips(database: TestDatabase, world: World): Promise<SeededTr
       vehicleId: world.incapableVehicleId,
       world,
     }),
+    trailerTripId: await seedTrip(database, {
+      documentWeights: ['200.000', '300.000'],
+      trailerVehicleId: world.trailerId,
+      vehicleId: world.tractorId,
+      world,
+    }),
   }
 }
 
@@ -498,6 +649,7 @@ async function seedTrip(
   database: TestDatabase,
   input: {
     readonly documentWeights: readonly (string | null)[]
+    readonly trailerVehicleId?: string
     readonly vehicleId: string | null
     readonly world: World
   },
@@ -516,6 +668,7 @@ async function seedTrip(
     plannedRoute: FROZEN_ROUTE,
     plannedRouteFrozenAt: new Date('2026-10-02T06:00:00.000Z'),
     status: hasVehicle ? 'draft' : 'awaiting_crew',
+    trailerVehicleId: input.trailerVehicleId ?? null,
     vehicleId: input.vehicleId,
   })
   if (hasVehicle) {

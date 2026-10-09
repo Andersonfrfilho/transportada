@@ -32,6 +32,7 @@ import type {
   LinkTripDocumentsAfterDispatchResponse,
 } from './trip-document-link-after-dispatch.types.js'
 import type { TransferTripCrewInput, TransferTripCrewResult } from './trip-crew-transfer.types.js'
+import type { TripListOccupancy } from '../domain/trip-list-occupancy.policy.js'
 import type { TripListFinancials } from './read-trip-list-financials.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
@@ -151,6 +152,16 @@ export function createTripUseCase(dependencies: {
       readonly companyId: string
       readonly tripIds: readonly string[]
     }): Promise<ReadonlyMap<string, TripListFinancials>>
+  }
+  /**
+   * Spec 259: a ocupação por viagem da página, em lote. Opcional pelo mesmo motivo de `amounts`: a
+   * lista continua respondendo sem ela.
+   */
+  readonly occupancies?: {
+    read(input: {
+      readonly companyId: string
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, TripListOccupancy | null>>
   }
   readonly repository: TripRepositoryPort
   /** T704 L7: a falha do congelamento vira aviso com os ids, nunca silêncio. */
@@ -307,28 +318,33 @@ export function createTripUseCase(dependencies: {
        * injeta continua listando viagem com `amounts: null`, e a tela imprime a coluna vazia em vez
        * de quebrar. É o mesmo desenho da porta de notificação do worker.
        */
-      const amounts = await dependencies.amounts?.read({
-        companyId: context.companyId,
-        tripIds: page.items.map((trip) => trip.id),
-      })
-      if (amounts === undefined) return page
-
+      const tripIds = page.items.map((trip) => trip.id)
+      const amounts = await dependencies.amounts?.read({ companyId: context.companyId, tripIds })
       const financials =
-        includeFinancials === true
-          ? await dependencies.financials?.read({
-              companyId: context.companyId,
-              tripIds: page.items.map((trip) => trip.id),
-            })
+        amounts !== undefined && includeFinancials === true
+          ? await dependencies.financials?.read({ companyId: context.companyId, tripIds })
           : undefined
+      const occupancies = await dependencies.occupancies?.read({
+        companyId: context.companyId,
+        tripIds,
+      })
+      if (amounts === undefined && occupancies === undefined) return page
 
       return {
         ...page,
         items: page.items.map((trip) => ({
           ...trip,
-          amounts: mergeTripAmounts({
-            amounts: amounts.get(trip.id) ?? null,
-            financials: financials?.get(trip.id),
-          }),
+          ...(amounts === undefined
+            ? {}
+            : {
+                amounts: mergeTripAmounts({
+                  amounts: amounts.get(trip.id) ?? null,
+                  financials: financials?.get(trip.id),
+                }),
+              }),
+          ...(occupancies?.has(trip.id) === true
+            ? { occupancy: occupancies.get(trip.id) ?? null }
+            : {}),
         })),
       }
     },
