@@ -20,6 +20,9 @@ export const HOLIDAY_RECURRENCES = [HOLIDAY_RECURRENCE.YEARLY, HOLIDAY_RECURRENC
 
 export const SETTINGS_ORIGINS = ['company', 'default'] as const
 
+/** De onde veio a data que a API conhece: digitada pelo operador ou importada da FeriadosAPI (spec 252). */
+export const HOLIDAY_ORIGINS = ['typed', 'imported'] as const
+
 export const HOLIDAY_NAME_MAX_LENGTH = 120
 
 /** A API gera 10 anos na escrita da regra; abaixo do ano corrente + 2 a tela avisa (ADR-0096 §6). */
@@ -102,6 +105,9 @@ export const BUSINESS_CALENDAR_REFUSAL_CODES = [
   'BUSINESS_CALENDAR_UNKNOWN_STATE',
   'DATABASE_UNAVAILABLE',
   'FORBIDDEN',
+  'HOLIDAY_IMPORT_DATE_LOCKED',
+  'HOLIDAY_IMPORT_PAST_DATE',
+  'HOLIDAY_NOT_IMPORTED',
   'INVALID_REQUEST',
   'MUNICIPAL_HOLIDAY_GENERATED_BY_RULE',
   'MUNICIPAL_HOLIDAY_NOT_FOUND',

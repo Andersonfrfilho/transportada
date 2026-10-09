@@ -97,7 +97,7 @@ describe('tabela dos feriados municipais (spec 238 T2.1, web.md §7)', () => {
       cell.getAttribute('data-label'),
     )
 
-    expect(headers).toEqual(['Lugar', 'Tipo', 'Quando', 'Nome', 'Ações'])
+    expect(headers).toEqual(['Lugar', 'Tipo', 'Quando', 'Nome', 'Origem', 'Ações'])
     expect(cells).toEqual(headers)
   })
 

@@ -1,7 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { hasExactKeys, hasKeys } from '@/modules/shared/objectKeys.service'
 
-import { HOLIDAY_KINDS, HOLIDAY_RECURRENCE, SETTINGS_ORIGINS } from './businessCalendar.constant'
+import {
+  HOLIDAY_KINDS,
+  HOLIDAY_ORIGINS,
+  HOLIDAY_RECURRENCE,
+  SETTINGS_ORIGINS,
+} from './businessCalendar.constant'
 import type {
   BusinessCalendarSettings,
   MaterializationSummary,
@@ -37,26 +42,33 @@ const HOLIDAY_KEYS = [
   'kind',
   'name',
 ] as const
+const HOLIDAY_OPTIONAL_KEYS = [...HOLIDAY_KEYS, 'origin'] as const
 const SAVED_HOLIDAY_KEYS = [...HOLIDAY_KEYS, 'adoptedFromRuleId'] as const
+const SAVED_HOLIDAY_OPTIONAL_KEYS = [...SAVED_HOLIDAY_KEYS, 'origin'] as const
 const STATE_SHARED_KEYS = ['id', 'name', 'recurrence', 'stateIbgeCode', 'updatedAt'] as const
 const STATE_ONCE_KEYS = [...STATE_SHARED_KEYS, 'holidayOn'] as const
 const STATE_YEARLY_KEYS = [...STATE_SHARED_KEYS, 'day', 'month'] as const
 const SUMMARY_KEYS = ['holidaysCreated', 'rulesProcessed'] as const
 
-function isString(value: unknown): value is string {
+export function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
-function isNumber(value: unknown): value is number {
+export function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isNullableString(value: unknown): value is string | null {
+export function isNullableString(value: unknown): value is string | null {
   return value === null || isString(value)
 }
 
 function isKind(value: unknown): boolean {
   return HOLIDAY_KINDS.some((kind) => kind === value)
+}
+
+/** Ausente é a API que ainda não manda a origem; presente tem de ser uma das duas. */
+function isOptionalOrigin(value: unknown): boolean {
+  return value === undefined || HOLIDAY_ORIGINS.some((origin) => origin === value)
 }
 
 export function isDataEnvelope(value: unknown): value is Readonly<{ data: unknown }> {
@@ -100,19 +112,25 @@ function hasHolidayFields(value: Record<string, unknown>): boolean {
 }
 
 export function isMunicipalHoliday(value: unknown): value is MunicipalHoliday {
-  return hasExactKeys(value, HOLIDAY_KEYS) && hasHolidayFields(value)
+  return (
+    hasKeys(value, { allowed: HOLIDAY_OPTIONAL_KEYS, required: HOLIDAY_KEYS }) &&
+    hasHolidayFields(value) &&
+    isOptionalOrigin(value.origin)
+  )
 }
 
 export function isSavedMunicipalHoliday(value: unknown): value is SavedMunicipalHoliday {
   return (
-    hasExactKeys(value, SAVED_HOLIDAY_KEYS) &&
+    hasKeys(value, { allowed: SAVED_HOLIDAY_OPTIONAL_KEYS, required: SAVED_HOLIDAY_KEYS }) &&
     hasHolidayFields(value) &&
-    isNullableString(value.adoptedFromRuleId)
+    isNullableString(value.adoptedFromRuleId) &&
+    isOptionalOrigin(value.origin)
   )
 }
 
 function hasStateSharedFields(value: Record<string, unknown>): boolean {
   return (
+    isOptionalOrigin(value.origin) &&
     isString(value.id) &&
     isString(value.name) &&
     isString(value.stateIbgeCode) &&
@@ -121,7 +139,7 @@ function hasStateSharedFields(value: Record<string, unknown>): boolean {
 }
 
 export function isStateHoliday(value: unknown): value is StateHoliday {
-  if (hasExactKeys(value, STATE_ONCE_KEYS)) {
+  if (hasKeys(value, { allowed: [...STATE_ONCE_KEYS, 'origin'], required: STATE_ONCE_KEYS })) {
     return (
       value.recurrence === HOLIDAY_RECURRENCE.ONCE &&
       hasStateSharedFields(value) &&
@@ -129,7 +147,7 @@ export function isStateHoliday(value: unknown): value is StateHoliday {
     )
   }
   return (
-    hasExactKeys(value, STATE_YEARLY_KEYS) &&
+    hasKeys(value, { allowed: [...STATE_YEARLY_KEYS, 'origin'], required: STATE_YEARLY_KEYS }) &&
     value.recurrence === HOLIDAY_RECURRENCE.YEARLY &&
     hasStateSharedFields(value) &&
     isNumber(value.day) &&

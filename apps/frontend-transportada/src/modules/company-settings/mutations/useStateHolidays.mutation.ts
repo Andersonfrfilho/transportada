@@ -10,14 +10,21 @@ import {
 
 type CompanyScope = Readonly<{ companyId: string | undefined }>
 
-/** Feriado estadual não é materializado nem lido pelo roteiro: só a própria lista muda. */
+/**
+ * Feriado estadual não é materializado nem lido pelo roteiro: só a própria lista muda — e, na importação, a
+ * supressão que o `DELETE` grava e a adoção que tira a data de "removidos pelo fornecedor" (spec 252).
+ */
 function useStateInvalidation(input: CompanyScope): () => Promise<void> {
   const queryClient = useQueryClient()
   return () =>
     invalidateBusinessCalendar({
       companyId: input.companyId,
       queryClient,
-      resources: [BUSINESS_CALENDAR_RESOURCE.STATE_HOLIDAYS],
+      resources: [
+        BUSINESS_CALENDAR_RESOURCE.HOLIDAY_IMPORT_STATUS,
+        BUSINESS_CALENDAR_RESOURCE.HOLIDAY_IMPORT_SUPPRESSIONS,
+        BUSINESS_CALENDAR_RESOURCE.STATE_HOLIDAYS,
+      ],
     })
 }
 

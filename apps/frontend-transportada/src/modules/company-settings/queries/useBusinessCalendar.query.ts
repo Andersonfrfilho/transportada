@@ -19,6 +19,8 @@ import {
 } from '../shared/businessCalendarClient.provider'
 
 export const BUSINESS_CALENDAR_RESOURCE = {
+  HOLIDAY_IMPORT_STATUS: 'holiday-import-status',
+  HOLIDAY_IMPORT_SUPPRESSIONS: 'holiday-import-suppressions',
   MUNICIPAL_HOLIDAYS: 'municipal-holidays',
   MUNICIPAL_RULES: 'municipal-rules',
   SETTINGS: 'settings',
