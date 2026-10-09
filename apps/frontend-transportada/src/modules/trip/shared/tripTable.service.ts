@@ -18,7 +18,6 @@ export const TRIP_COLUMN_KEYS = [
   'revenue',
   'result',
   'createdAt',
-  'updatedAt',
 ] as const
 export type TripColumnKey = (typeof TRIP_COLUMN_KEYS)[number]
 
@@ -100,7 +99,7 @@ function compareMoney(column: TripColumnKey, left: Trip, right: Trip): number {
 function columnValue(row: Trip, column: TripColumnKey): string {
   /** Spec 217: viagem `awaiting_crew` ainda sem veículo — a ausência ordena como o fim do alfabeto. */
   if (column === 'vehicleId') return row.vehicleId ?? ''
-  if (column === 'status' || column === 'createdAt' || column === 'updatedAt') return row[column]
+  if (column === 'status' || column === 'createdAt') return row[column]
 
   return ''
 }
