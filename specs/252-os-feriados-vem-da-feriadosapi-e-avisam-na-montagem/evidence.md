@@ -849,3 +849,62 @@ Mesmo worktree e branch (`work/252-t3`). Postgres 18.4 **nativo** descartável n
 ### O que não foi feito
 
 Busca, aplicação, rotina, variáveis de ambiente e registro no `main.ts` (T3.3 a T3.5). Nenhum índice novo. Nada publicado.
+
+## T3.3 — busca no fornecedor (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (porta 65442). Nenhum teste chama a internet: o fornecedor é um dublê injetado (`buildScriptedClient`), o relógio e o `sleep` também (`buildFakeClock`: o `sleep` só adianta um relógio monotônico).
+
+- **Vermelho antes (`d7b7fd062`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../src/database/holiday-provider.schema.js`); contratos da política de datas, do fluxo da busca e da paridade, mais a integração contra o Postgres.
+- **Verde (`e98589cb4`):** `application/{fetch-holiday-provider.use-case,holiday-fetch.port,request-limiter}.ts`, `domain/{holiday-provider-schedule,holiday-fetch-record}.policy.ts`, `infrastructure/{drizzle-holiday-fetch.store,holiday-fetch.query}.ts` e a cópia do schema `src/database/holiday-provider.schema.ts` (três tabelas, só colunas, com paridade coluna a coluna).
+- **Provas:** 24 testes de contrato novos (`fetch.contract.ts`, `fetch-policy.contract.ts` e a paridade das 22 colunas do cache) e 7 de integração (`test/integration/holiday-fetch.integration.ts`, 0 skip, relançados duas vezes no mesmo banco sem colisão: anos 2030 a 2040 e códigos de cidade aleatórios por execução).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2253 pass, 0 fail** (103 arquivos; antes 2229).
+
+### O que cada critério provou
+
+- **CA3** — 3 cidades × 2 anos dão **6 requisições de cidade** (mais as 2 de paridade nacional, D4), todas espaçadas de **1,2 s ou mais** no relógio injetado (a espera desconta o tempo que a chamada anterior levou: 700 ms quando a resposta demora 500); **repetir o ciclo dá 0 requisições e 0 escritas** — nos contratos pelo número de eventos e, no Postgres, comparando `xmin` e o conteúdo de todas as linhas de `holiday_provider_fetches`, `holiday_provider_entries` e `holiday_provider_monthly_usage`.
+- **CA7** — 401 e 403 encerram o ciclo sem nova requisição e sem tocar no par; 429 encerra e o par só volta depois do `Retry-After` (uma hora quando a resposta não traz o cabeçalho; as tentativas do par não sobem); o contador do mês sobe **antes** de cada chamada (a ordem `claim`, `request` é afirmada) e **nunca passa do orçamento**. O primeiro pedido do mês cria a linha (upsert), provado no Postgres: `claimBudget(2)` devolve `true, true, false, false` e a linha fecha em 2.
+- **Orçamento esgotado** — o par em curso e os que sobraram viram `quota_exhausted` com `next_attempt_at` na meia-noite do dia 1º de São Paulo (`2026-11-01T03:00:00Z`); não é falha.
+- **Teto** — 100 requisições por ciclo (contando páginas e o estadual de reforço): 60 cidades × 2 anos + 2 nacionais = 122 pares → 100, 22 e 0 nos três ciclos.
+- **Recuo** — 5xx, rede e resposta fora do formato gravam `failed` com 1 h, 6 h, 24 h e, dali em diante, 7 dias (o 4º valor repete como teto); 404 grava `not_covered` por 90 dias; ambos seguem para o par seguinte (uma cidade que falha não derruba o ciclo).
+- **Cache** — as chaves são as do ADR: o estadual da resposta de uma cidade vai para `scope=state` + UF (uma data por ano, mesmo vindo de várias cidades), o nacional só da busca própria, o `FACULTATIVO` fica no cache. `removed_at` marca a data que o fornecedor deixou de listar **só no escopo e no código do próprio par**, só com resposta que listou alguma data dele; a data que volta ganha `removed_at = null`; lista vazia e resposta só com o estadual não marcam nada.
+- **Estadual** — pedido uma vez por UF e ano só quando a resposta da cidade não o trouxe; quando trouxe, o par do estado fecha como `done` junto (e a fila do estado nem é consultada).
+- **Demanda** — ordem por `sum(document_count)` decrescente; a demanda de empresa com `is_enabled = false` não é buscada.
+
+### Decisões de implementação dentro do ADR
+
+- **429 e a rotina:** o par grava `failed` com `last_error_code = provider_rate_limited` e o ciclo termina. O desfecho do ciclo (que palavra do catálogo) é decidido na rotina (T3.4/T3.5), não aqui.
+- **Ordem da fila** — a paridade nacional primeiro (uma por ano do horizonte, só se há demanda), depois os pares de estado que já existem (para retentar o que falhou) e depois as cidades. O estado nunca é criado por demanda: nasce quando a resposta da cidade não o traz.
+- **Paginação** — `limit=100` sempre; a página seguinte só quando a anterior veio cheia **e trouxe data nova** (uma API que ignora `page` devolve a mesma página: a 2ª não traz nada novo e a busca para), no máximo 10 páginas; parar no meio por teto ou parada deixa o par intacto (nada parcial é gravado).
+- **Parada do operador** é lida antes de cada requisição; 401/403 não grava nada no par, mas a requisição já foi contada no orçamento (o contador sobe antes da chamada, como o ADR manda).
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 nas duas rodadas)
+
+| Mutação                                               | Resultado                                                                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| orçamento por `UPDATE` cru (a mutação que o ADR pede) | 7 fail                                                                                                                          |
+| orçamento esgotado ignorado                           | 3 fail                                                                                                                          |
+| sem o limitador entre requisições                     | 2 fail                                                                                                                          |
+| espaçamento de 1,0 s                                  | 2 fail                                                                                                                          |
+| teto de 101 por ciclo                                 | 1 fail                                                                                                                          |
+| 401 não encerra o ciclo                               | 1 fail                                                                                                                          |
+| 429 ignora o `Retry-After`                            | 1 fail                                                                                                                          |
+| `not_covered` por 30 dias                             | 2 fail                                                                                                                          |
+| recuo sempre de 1 h                                   | 3 fail                                                                                                                          |
+| par vencido ignora `next_attempt_at`                  | 2 fail                                                                                                                          |
+| demanda crescente                                     | 1 fail                                                                                                                          |
+| demanda de empresa desligada entra                    | 1 fail                                                                                                                          |
+| remoção sem o filtro do código do par                 | 1 fail                                                                                                                          |
+| data que volta continua removida                      | 1 fail                                                                                                                          |
+| estadual pedido mesmo com a cidade trazendo           | **sobreviveu** na 1ª rodada (a fila do estado já devolvia vazio); o teste passou a afirmar que a fila nem é consultada → 1 fail |
+| remoção marca com resposta só de estadual             | **sobreviveu** na 1ª rodada; passou a existir o caso → 1 fail                                                                   |
+| par do estado não coberto pela resposta da cidade     | 1 fail                                                                                                                          |
+| paginação sem a guarda de página repetida             | 1 fail                                                                                                                          |
+| quota esgotada não gravada                            | 2 fail                                                                                                                          |
+| cota até o fuso errado                                | 3 fail                                                                                                                          |
+| horizonte de um ano só                                | 9 fail                                                                                                                          |
+| falha inesperada derruba o ciclo                      | 1 fail                                                                                                                          |
+| falha gravada sem subir as tentativas                 | 3 fail                                                                                                                          |
+
+### O que não foi feito
+
+Aplicação (T3.4), variáveis de ambiente, rotina e registro no `main.ts` (T3.5): a busca **ainda não tem quem a chame** em produção. Nada publicado.
