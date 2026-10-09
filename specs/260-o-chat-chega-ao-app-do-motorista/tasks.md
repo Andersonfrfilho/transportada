@@ -71,8 +71,10 @@
       `schema.parse` + `encodeURIComponent`, changeset avisando que `styles.css` é requisito.
 - [x] **T1.8c** `sonnet` — **Operacional:** `npm pack` dos dois pacotes, `file:` nos três apps em worktree
       descartável, `make check` e smoke do painel e do portal.
-- [ ] **T1.8d** 🧠 `opus` — **Re-passe de revisão** dos achados ALTO/bloqueantes corrigidos; só então PR → `main` →
-      `publish.yml` (**parar e pedir aprovação** antes do merge em `main`: publica pacote público no npm).
+- [x] **T1.8d** 🧠 `opus` — **Re-passe de revisão** dos achados ALTO/bloqueantes corrigidos; só então PR → `main` →
+      `publish.yml` (**parar e pedir aprovação** antes do merge em `main`: publica pacote público no npm). **Re-passe: APROVADO COM RESSALVAS** — corrigidas em T1.8e; falta o aceite do usuário para o merge.
+- [x] **T1.8e** `sonnet` — (ressalvas do re-passe) contagem de "novas" sem histórico, `sent` até o eco, `aria-live`
+      sempre na árvore, allowlist de URL de anexo, docs do host e changeset. Commit `a26f10a`.
 - [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** antes de qualquer versão sair. Antes do merge: `npm
 pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
       portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.

@@ -146,3 +146,27 @@ visual de `MessageText`/`StatusTicks` no navegador. O baseline de teste do drive
 contracts ANTES da UI**; (2) o pacote não tem campo `files`, então um `pnpm pack` local levou lixo de `.omc/` (ignorado
 pelo git, não pelo npm; a publicação sai do checkout limpo do CI) — removido de `src/participant/`; (3) o tarball inclui
 `src/` e os testes (política já vigente da 0.4.2: 217 arquivos).
+
+## T1.8d/T1.8e — re-passe `opus`: **APROVADO COM RESSALVAS** → ressalvas corrigidas
+
+Os 9 bloqueantes do primeiro passe foram conferidos como resolvidos no código (arquivo:linha). Ressalvas corrigidas em
+`a26f10a`: **M1** "novas mensagens" falso ao carregar histórico (sonda dava 2, agora 0) · **M2** mensagem enviada some ao
+sair/voltar (a entrada fica em `sent` até o eco) · **M3** `aria-live` fora da árvore (sr-only no lugar de `display:none`) ·
+**B1** limites do host no README · **B2** allowlist `https:`/`http:`/`blob:` nos anexos · **B5** chave dos anexos · **B6**
+`role="button"`/`tabIndex` padrão do `MessageText` no changeset.
+
+Estado final do SDK (branch `feat/participant-conversations`, 14 commits sobre `b9f1ef6`): UI **716 pass / 0 fail** ·
+contracts **60 pass / 0 fail** · `tsc` e build limpos · `changeset status`: contracts 0.4.0 **minor**, conversations-ui
+0.5.0 **minor**, conversation-module 0.4.1 **patch** (por dependência), nenhum major.
+
+**Fica para depois (tasks posteriores):** M4 (erro de revalidação fora do `__scroll`), B3 (`datetime` com offset), B4
+(`ResizeObserver` para imagem tardia), botão "ir para o fim", colisão de chaves de seção, `Date.parse` na ordenação,
+buraco após 30+ mensagens offline, happy-dom + Testing Library para hooks.
+
+**Risco da publicação:** `changeset publish` não é topológico nem atômico; a UI 0.5.0 fixa `conversation-contracts@0.4.0`.
+Se o contracts falhar e a UI subir, a UI fica com dependência inexistente até reexecutar o `workflow_dispatch`
+(idempotente; o passo "Verificar que os pacotes publicados estão acessíveis" deixa o job vermelho). Depois do run,
+conferir `npm view` das três versões **antes** de subir os apps (T1b.x).
+
+**Ainda não executado antes do merge:** `make smoke` (Playwright) e verificação visual de `MessageText`/`StatusTicks`
+no painel e no portal.
