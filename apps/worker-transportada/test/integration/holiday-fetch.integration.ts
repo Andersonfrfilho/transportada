@@ -312,11 +312,14 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
   })
 
   test('a data que o fornecedor deixa de listar ganha `removed_at`; se volta, o marcador sai; lista vazia não marca nada', async () => {
-    const city = randomCityCode()
-    await seedDemand([[city, 10]])
+    const [city, otherCity] = [randomCityCode(), randomCityCode()] as [string, string]
+    await seedDemand([
+      [city, 10],
+      [otherCity, 5],
+    ])
     const day = (month: string) => `2036-${month}`
     const withDates = (dates: readonly string[]) => (request: HolidayProviderRequest) =>
-      request.scope === 'city' && request.year === 2036
+      request.scope === 'city' && request.year === 2036 && request.ibgeCode === city
         ? pageOf(dates.map((date) => entryOf({ date: day(date), ibgeCode: city, scope: 'city' })))
         : standardResponse(request)
     const readRemoved = async () => {
@@ -347,6 +350,12 @@ describeDatabase('a busca no fornecedor (integration, spec 252 T3.3)', () => {
       ['2036-06-10', true],
       ['2036-09-07', false],
     ])
+    // O marcador é do escopo e do código do próprio par: a outra cidade não é tocada.
+    const others = await db.execute<{ removed: number }>(sql`
+      select count(*)::int as removed from holiday_provider_entries
+      where scope = 'city' and ibge_code = ${otherCity} and removed_at is not null
+        and holiday_on between '2036-01-01' and '2036-12-31'`)
+    expect(Number([...others][0]?.removed)).toBe(0)
 
     await makeDue()
     await build({ now, respond: withDates([]) }).run()
