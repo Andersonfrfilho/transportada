@@ -80,4 +80,5 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   rejectionReason: 'Alíquota fora do intervalo permitido',
   // O exemplo leva **número**: é a mesma regra do rótulo da parada, que imprimia rua sem ele.
   stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
+  subjectLabel: 'NF 4512/1',
 }
