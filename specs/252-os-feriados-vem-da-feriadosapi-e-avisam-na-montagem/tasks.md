@@ -108,7 +108,7 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       (`8571ad190` contrato vermelho, `ca44fe24a` código): o token fica fora de toda mensagem **por construção** (o erro só
       carrega o próprio código), 19 testes, 10 mutações vermelhas; **lacunas** da forma de resposta real em
       `evidence.md` § T3.1.
-- [ ] **T3.2** Descoberta por cursor (`nfe_documents_company_updated_issued_id_idx`, 2.000 por lote, 20 lotes por ciclo),
+- [x] **T3.2** Descoberta por cursor (`nfe_documents_company_updated_issued_id_idx`, 2.000 por lote, 20 lotes por ciclo),
       destino físico pela mesma junção do roteirizador (uma consulta dos dois papéis por lote e a escolha com
       `resolvePhysicalDestination` em TypeScript; sem desvio manual), upsert em `holiday_import_cities`; empresa com
       `is_enabled = false` pulada. `EXPLAIN` do lote registrado (`nfe_addresses` sem índice por participante; índice,
@@ -117,7 +117,10 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       de UF válido (`BRAZILIAN_STATE_IBGE_CODE_LIST`), descartando `null`, `''`, `9999999` e `3909502`: a CHECK
       `holiday_import_cities_city_check` recusaria o lote inteiro por um só código lixo. O descarte vira contador (sem PII:
       só a contagem e o motivo) e o **cursor avança**, para o lote não travar a empresa. Contrato com um lote misto
-      (válidos + os quatro lixos): só os válidos entram, o contador diz quantos saíram, o cursor andou.
+      (válidos + os quatro lixos): só os válidos entram, o contador diz quantos saíram, o cursor andou. **Feita em
+      2026-10-09** (`35d04a1d2` contratos e integração vermelhos, `601237d60` código): 6 integrações contra Postgres
+      nativo, 13 mutações vermelhas, cursor em texto com microssegundos; o `EXPLAIN` confirma o índice do cursor e um
+      `Seq Scan` em `nfe_addresses` por lote (sem índice novo; decisão do usuário, `evidence.md` § T3.2).
 - [ ] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
       teto de 100 por ciclo, orçamento mensal incrementado antes da chamada por **upsert** (o primeiro pedido do mês
       cria a linha; mutação: `UPDATE` cru para no dia 1º), backoff 1 h/6 h/24 h até 7 dias, 401/403, 429 com

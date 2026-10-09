@@ -800,3 +800,52 @@ Registradas em vez de adivinhadas; nenhuma muda o ADR, e todas se confirmam (ou 
 ### O que não foi feito
 
 Rotina, descoberta, busca, aplicação, variáveis de ambiente e registro no `main.ts` (T3.2 a T3.5). Nada publicado.
+
+## T3.2 — descoberta das cidades de destino (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`). Postgres 18.4 **nativo** descartável na porta 65442 (cluster no scratchpad, `LC_ALL=C`, socket Unix desligado), migrado pela API (`db:migrate`, journal até `20261009040622_holiday_provider_import`); o Docker 65432 segue com I/O error. Parado ao fim da sessão.
+
+- **Vermelho antes (`35d04a1d2`):** contratos e integração importam módulos que não existiam (`Cannot find module .../src/database/holiday-import.schema.js`); 0 pass, 1 fail, 1 error.
+- **Verde (`601237d60`, mais o reforço do teste de parada):** `domain/holiday-city-discovery.policy.ts`, `application/discover-holiday-cities.use-case.ts` + porta, `infrastructure/{holiday-discovery.query.ts,drizzle-holiday-discovery.store.ts}` e a cópia do schema `src/database/holiday-import.schema.ts` (três tabelas, só colunas).
+- **Contratos:** `test/holiday-provider-pull/{discovery,parity,schema-parity}.contract.ts` — 18 testes novos; entre eles o **lote venenoso** (um lote com `3509502`, `null`, `''`, `9999999`, `3909502`, `3509502`, `3550308`: só os válidos entram, o contador diz 4 descartados, o cursor andou até a última nota) e o lote só de lixo (nada gravado, cursor avança). Paridade de cópia por valor: o vocabulário do cache (`holiday-provider.constant.ts`), a lista das 27 UFs, o padrão `^[1-5][0-9]{6}$` e as 16 colunas das três tabelas de importação, lidas do texto da API.
+- **Integração (`test/integration/holiday-discovery.integration.ts`, contra o Postgres, 6 pass, 0 skip):** a entrega vence o destinatário e o CEP inutilizável cai para o destinatário; o lote venenoso real não derruba o `holiday_import_cities_city_check`; empresa com `is_enabled = false`, empresa `disabled` e a de outra empresa; cursor por vários lotes (`batchSize` 1 e 3) com **duas notas separadas por microssegundos** (o `Date` do JavaScript as juntaria) sem pular nem recontar; segundo ciclo sem nada novo não recontou.
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2229 pass, 0 fail** (103 arquivos; antes 2210).
+
+### Decisões de implementação dentro do ADR
+
+- O cursor viaja como **texto do Postgres** (`::text`, `::timestamptz`), nunca `Date`: com milissegundos, a última nota de um lote voltava no lote seguinte e era recontada a cada ciclo (a mutação N6 prova).
+- Lote e cursor na **mesma transação** (`saveBatch`): falhar entre os dois recontaria o lote. `document_count` soma por upsert (`+ excluded.document_count`) e é aproximado, como o ADR diz.
+- Uma nota conta **uma vez**, na cidade do destino físico dela (`resolvePhysicalDestination`, cópia do worker); nota sem nenhum endereço de entrega/destinatário é contada à parte (`documentsWithoutDestination`) e o cursor passa por ela.
+- O código descartado vira só um **contador** (`discardedCityCodes`); nenhum valor, nome ou endereço vai para log. A falha de uma empresa loga o `companyId` (identificador opaco), o `correlationId` e o **nome** do erro, nunca a mensagem.
+
+### EXPLAIN do lote (Postgres 18.4, 2.100 notas da empresa de teste, `EXPLAIN (ANALYZE, BUFFERS)`)
+
+| Consulta                                                                                      | Plano                                                                                                                                | Tempo   |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| lote de 2.000 notas, sem cursor                                                               | `Index Only Scan Backward using nfe_documents_company_updated_issued_id_idx`, `Heap Fetches: 0`, 33 buffers                          | 0,66 ms |
+| lote com cursor `(updated_at, issued_at, id) > (...)`                                         | mesmo índice, `Index Cond: ROW(...) > ROW(...)`, 1.501 linhas, 24 buffers                                                            | 0,42 ms |
+| junção dos endereços do lote (`nfe_participants` ⋈ `nfe_addresses`, `document_id = ANY(...)`) | `nfe_participants_company_document_role_unique` por índice; **`Seq Scan on nfe_addresses`** filtrado por `company_id` (2.100 linhas) | 1,5 ms  |
+
+**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário.
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim da 1ª rodada)
+
+| Mutação                                        | Resultado                                                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sem conferir a UF do prefixo (`3909502` entra) | 4 fail                                                                                                                                                  |
+| sem a forma de sete dígitos (`350950` entra)   | 1 fail                                                                                                                                                  |
+| sem filtro nenhum (só descarta nulo e vazio)   | 6 fail (inclui a CHECK do banco recusando o lote)                                                                                                       |
+| cursor não avança dentro do ciclo              | 3 fail                                                                                                                                                  |
+| cursor não é gravado (`setWhere false`)        | 1 fail                                                                                                                                                  |
+| instantes truncados em milissegundos           | 1 fail (o caso dos microssegundos)                                                                                                                      |
+| destinatário sempre vence a entrega            | 2 fail                                                                                                                                                  |
+| importação desligada não é pulada              | 1 fail                                                                                                                                                  |
+| empresa suspensa não é pulada                  | 1 fail                                                                                                                                                  |
+| parada pedida não é lida entre lotes           | 1 fail                                                                                                                                                  |
+| parada pedida não é lida entre empresas        | **sobreviveu** na 1ª rodada (a checagem por lote já impedia a leitura); o teste passou a afirmar `tally.companies`, e a mutação ficou vermelha (1 fail) |
+| falha de uma empresa derruba o ciclo           | 1 fail                                                                                                                                                  |
+| teto de 20 lotes alterado                      | 1 fail                                                                                                                                                  |
+
+### O que não foi feito
+
+Busca, aplicação, rotina, variáveis de ambiente e registro no `main.ts` (T3.3 a T3.5). Nenhum índice novo. Nada publicado.
