@@ -643,6 +643,15 @@ function readyIdentity(): IdentityReadinessPort {
 }
 
 describe('no-store path contract', () => {
+  /** Spec 262: a chave da FeriadosAPI (dica e data), o orçamento e o liga/desliga nunca ficam em cache compartilhado. */
+  test('marks the holiday provider settings and the company enablement as no-store', () => {
+    expect(isNoStorePath('/holiday-imports/provider-settings')).toBeTrue()
+    expect(isNoStorePath('/holiday-imports/provider-settings/token')).toBeTrue()
+    expect(isNoStorePath('/company-settings/holiday-import')).toBeTrue()
+    expect(isNoStorePath('/holiday-imports/provider-settings/other')).toBeFalse()
+    expect(isNoStorePath('/company-settings/holiday-imports')).toBeFalse()
+  })
+
   /** A linha do tempo carrega a coordenada do evento (spec 196): proxy e navegador não a guardam. */
   test('marks the trip timeline as no-store and nothing around it', () => {
     expect(isNoStorePath('/trips/6f1c2d3e-0000-4000-8000-000000000001/timeline')).toBeTrue()

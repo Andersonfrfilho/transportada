@@ -75,7 +75,7 @@ async function readConstraintNames(database: SQL): Promise<readonly string[]> {
 function insertRow(
   database: SQL,
   fields: {
-    readonly budget?: number
+    readonly budget?: number | null
     readonly envelope?: string | null
     readonly hint?: string | null
     readonly provider?: string
@@ -91,7 +91,7 @@ function insertRow(
       ${fields.envelope ?? null}::text::jsonb,
       ${fields.hint ?? null},
       ${fields.tokenUpdatedAt ?? null}::timestamptz,
-      ${fields.budget ?? 4500},
+      ${fields.budget === undefined ? 4500 : fields.budget},
       ${fields.version ?? 1},
       ${crypto.randomUUID()}
     )
@@ -139,6 +139,13 @@ async function assertBudgetVersionAndProvider(database: SQL): Promise<void> {
   await insertRow(database, { budget: BUDGET_MAX })
   await clearRows(database)
   await insertRow(database, { budget: BUDGET_MIN })
+  await clearRows(database)
+  // M1: NULL é "padrão da instalação" e é aceito; o intervalo vale para todo valor que não seja NULL.
+  await insertRow(database, { budget: null })
+  const [row] = await database<Array<{ readonly monthly_request_budget: number | null }>>`
+    select monthly_request_budget from holiday_provider_settings
+  `
+  expect(row?.monthly_request_budget).toBeNull()
   await clearRows(database)
 
   await expectQueryToFail(

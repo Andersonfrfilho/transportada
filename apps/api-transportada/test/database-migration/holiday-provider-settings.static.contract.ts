@@ -26,6 +26,7 @@ import { listMigrationDirectories, migrationsDirectory } from './support.js'
 
 /** A maior das migrations da spec 260 (fora de staging): a 262 tem de ser mais nova que ela (E15). */
 const NEWEST_SPEC_260_MIGRATION = '20261009205256_quick_reply_driver_audience'
+const LAST_STAGING_MIGRATION = '20261009160300_nfe_addresses_participant_index'
 
 async function readMigration(file: string): Promise<{ directory: string; text: string }> {
   const directory = (await listMigrationDirectories()).find((name) =>
@@ -50,12 +51,12 @@ describe('the holiday provider settings migration enters additive', () => {
     expect(new TextEncoder().encode(TABLE_NAME).length).toBe(25)
   })
 
-  test('the directory is newer than the newest migration of spec 260 and last in the chain', async () => {
+  test('the directory is newer than the last migration of staging and than the newest one of spec 260', async () => {
     const { directory } = await readMigration('migration.sql')
-    const directories = await listMigrationDirectories()
 
+    // A ordem global da cadeia é cobrada por `static-migration.contract.ts` e pelo `schema-snapshot`.
+    expect(directory > LAST_STAGING_MIGRATION).toBe(true)
     expect(directory > NEWEST_SPEC_260_MIGRATION).toBe(true)
-    expect(directories.at(-1)).toBe(directory)
   })
 
   test('the migration creates one table with the ten columns and the five named constraints, nothing else', async () => {
@@ -84,9 +85,15 @@ describe('the holiday provider settings migration enters additive', () => {
     const instructions = withoutComments(text)
 
     expect(instructions).toContain(`"provider" in ('feriadosapi')`)
+    // M1: NULL é o padrão da instalação; a CHECK diz isso por extenso, e fora do NULL o intervalo é fechado.
     expect(instructions).toMatch(
-      new RegExp(`"monthly_request_budget" between ${BUDGET_MIN} and ${BUDGET_MAX}\\)`, 'u'),
+      new RegExp(
+        `"monthly_request_budget" is null or "monthly_request_budget" between ${BUDGET_MIN} and ${BUDGET_MAX}\\)`,
+        'u',
+      ),
     )
+    expect(instructions).toMatch(/"monthly_request_budget" integer,/u)
+    expect(instructions).not.toMatch(/"monthly_request_budget" integer NOT NULL/iu)
     expect(instructions).toContain('"version" > 0')
     const tokenCheck = instructions.slice(
       instructions.indexOf(`CONSTRAINT "${CONSTRAINT_NAMES.tokenCheck}"`),

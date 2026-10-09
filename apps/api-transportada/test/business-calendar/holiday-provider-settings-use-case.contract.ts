@@ -27,7 +27,7 @@ const TOKEN = 'FAKE-feriadosapi-key-do-not-leak-0042'
 
 const EXISTING: HolidayProviderSettingsRecord = {
   id: EXISTING_ID,
-  monthlyRequestBudget: 4500,
+  monthlyRequestBudget: null,
   tokenConfigured: false,
   tokenHint: null,
   tokenUpdatedAt: null,

@@ -111,7 +111,8 @@ describe('a configuração da instalação — leitura (spec 262 CA2)', () => {
 
       expect(JSON.parse(text)).toMatchObject({
         data: {
-          budgetOrigin: 'installation',
+          budgetOrigin: 'default',
+          monthlyRequestBudget: 4500,
           tokenConfigured: true,
           tokenHint: HINT,
           version: '1',
@@ -468,4 +469,121 @@ describe('o limitador de verdade (spec 262 CA3)', () => {
       { realLimiter: true },
     )
   })
+})
+
+describe('o orçamento nulo é o padrão (spec 262 M1)', () => {
+  testWithPostgres(
+    'o primeiro PUT com a chave não grava orçamento: fica NULL e a origem é o padrão',
+    async () => {
+      await withHarness(async ({ database, http, tenant }) => {
+        const admin = http(tenant, CONFIGURE_PERMISSIONS)
+
+        const created = await put(admin, { token: TOKEN })
+
+        expect(JSON.parse(created.text)).toMatchObject({
+          data: { budgetOrigin: 'default', monthlyRequestBudget: 4500, tokenConfigured: true },
+        })
+        const [row] = await readRows(database)
+        expect(row?.monthlyRequestBudget).toBeNull()
+        const [audit] = await readAudits(database, tenant.companyId)
+        expect(audit?.afterSnapshot).toEqual({
+          monthlyRequestBudget: null,
+          tokenConfigured: true,
+          version: '1',
+        })
+        expect(audit?.metadata).toEqual({ changedFields: ['token'], ipAddress: CLIENT_IP })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'definir o orçamento é da instalação; null volta ao padrão; repetir o null é no-op',
+    async () => {
+      await withHarness(async ({ database, http, tenant }) => {
+        const admin = http(tenant, CONFIGURE_PERMISSIONS)
+        await put(admin, { token: TOKEN })
+
+        const defined = await put(admin, { expectedVersion: '1', monthlyRequestBudget: 2500 })
+        const reset = await put(admin, { expectedVersion: '2', monthlyRequestBudget: null })
+        const [afterReset] = await readRows(database)
+        const again = await put(admin, { expectedVersion: '3', monthlyRequestBudget: null })
+        const [afterAgain] = await readRows(database)
+
+        expect(JSON.parse(defined.text)).toMatchObject({
+          data: { budgetOrigin: 'installation', monthlyRequestBudget: 2500 },
+        })
+        expect(JSON.parse(reset.text)).toMatchObject({
+          data: { budgetOrigin: 'default', monthlyRequestBudget: 4500, version: '3' },
+        })
+        expect(afterReset).toMatchObject({ monthlyRequestBudget: null, version: 3n })
+        expect(again.status).toBe(200)
+        expect(afterAgain).toEqual(afterReset)
+        const audits = await readAudits(database, tenant.companyId)
+        expect(audits.map((audit) => audit.metadata)).toEqual([
+          { changedFields: ['token'], ipAddress: CLIENT_IP },
+          { changedFields: ['monthlyRequestBudget'], ipAddress: CLIENT_IP },
+          { changedFields: ['monthlyRequestBudget'], ipAddress: CLIENT_IP },
+        ])
+        expect(audits[2]?.beforeSnapshot).toMatchObject({ monthlyRequestBudget: 2500 })
+        expect(audits[2]?.afterSnapshot).toMatchObject({ monthlyRequestBudget: null })
+      })
+    },
+  )
+})
+
+describe('a corrida de atualização e a chave da instalação (spec 262 revisão)', () => {
+  testWithPostgres('dois PUT com a mesma versão: um 200, um 409, uma auditoria só', async () => {
+    await withHarness(async ({ database, http, tenant }) => {
+      const admin = http(tenant, CONFIGURE_PERMISSIONS)
+      await put(admin, { token: TOKEN })
+
+      const results = await Promise.all([
+        put(admin, { expectedVersion: '1', monthlyRequestBudget: 100 }),
+        put(admin, { expectedVersion: '1', monthlyRequestBudget: 200 }),
+      ])
+
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409])
+      const [row] = await readRows(database)
+      expect(row?.version).toBe(2n)
+      expect(await readAudits(database, tenant.companyId)).toHaveLength(2)
+    })
+  })
+
+  /**
+   * Decisão prendida (ADR-0102 D6 e Riscos): a chave é da INSTALAÇÃO, então o administrador de QUALQUER empresa com
+   * a permissão dedicada a sobrescreve; a trilha cai na empresa DELE e a linha guarda quem foi. A empresa dona da
+   * criação não é avisada por rota nenhuma — é o risco aceito pelo ADR-0021 (um dono por instalação).
+   */
+  testWithPostgres(
+    'o administrador da empresa B sobrescreve a chave e a auditoria cai em B',
+    async () => {
+      await withHarness(async ({ database, http, otherTenant, tenant }) => {
+        await put(http(tenant, CONFIGURE_PERMISSIONS), { token: TOKEN })
+
+        const overwritten = await put(http(otherTenant, CONFIGURE_PERMISSIONS), {
+          expectedVersion: '1',
+          token: OTHER_TOKEN,
+        })
+
+        expect(overwritten.status).toBe(200)
+        const [row] = await readRows(database)
+        expect(row).toMatchObject({
+          tokenHint: 'Zm4P',
+          updatedByUserId: otherTenant.userId,
+          version: 2n,
+        })
+        expect(
+          await secrets.decrypt({ envelope: row?.tokenEnvelope, settingsId: row?.id ?? '' }),
+        ).toBe(OTHER_TOKEN)
+        expect(await readAudits(database, tenant.companyId)).toHaveLength(1)
+        const [auditInB] = await readAudits(database, otherTenant.companyId)
+        expect(auditInB).toMatchObject({
+          action: 'holiday-provider-settings.saved',
+          actorUserId: otherTenant.userId,
+          permission: 'holiday-import.configure',
+        })
+        expect(auditInB?.metadata).toEqual({ changedFields: ['token'], ipAddress: CLIENT_IP })
+      })
+    },
+  )
 })

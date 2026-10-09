@@ -129,6 +129,16 @@ describe('GET /holiday-imports/provider-settings (spec 262 RF3)', () => {
     }
   })
 
+  test('a row without a budget is the default: the effective value, with the default origin (M1)', async () => {
+    const context = fixture({ record: { ...RECORD, monthlyRequestBudget: null } })
+
+    const response = await context.handle(getRequest(PROVIDER_SETTINGS_PATH))
+
+    expect(await response.json()).toMatchObject({
+      data: { budgetOrigin: 'default', monthlyRequestBudget: 4500, tokenConfigured: true },
+    })
+  })
+
   test('without a row answers the default budget, no key and a null version', async () => {
     const context = fixture({ record: null })
 
@@ -178,6 +188,26 @@ describe('PUT /holiday-imports/provider-settings (spec 262 RF4)', () => {
       token: SENTINEL_TOKEN,
       userId: USER_ID,
     })
+  })
+
+  test('null in the budget goes back to the default; undefined keeps it; null alone cannot create', async () => {
+    const context = fixture()
+
+    const reset = await putBody(context, { expectedVersion: '4', monthlyRequestBudget: null })
+    const createNothing = await putBody(context, { monthlyRequestBudget: null })
+    const createWithToken = await putBody(context, {
+      monthlyRequestBudget: null,
+      token: 'a'.repeat(16),
+    })
+
+    expect(reset.response.status).toBe(200)
+    expect(context.calls.saved[0]).toMatchObject({
+      expectedVersion: 4n,
+      monthlyRequestBudget: null,
+    })
+    expect(createNothing.response.status).toBe(400)
+    expect(createWithToken.response.status).toBe(200)
+    expect(context.calls.saved).toHaveLength(2)
   })
 
   test('accepts the budget alone and the token alone, leaving the other undefined', async () => {
