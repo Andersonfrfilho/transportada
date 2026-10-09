@@ -49,3 +49,23 @@
 3. **T0.3 (ampliada)** 🧠 — decidir: `ParticipantConversationsApi` como subconjunto (em vez de tornar `sendTemplate/getContext/getDocuments` opcionais), `sse` opcional, convenção de "mensagem minha" (`direction` vs `sender`).
 4. **T1.4 (ampliada)** — `ParticipantThread` **não** reaproveita `ConversationPane`; compõe `MessageBubble` + `MessageComposer` + `useConversationMessages`.
 5. **T1.5 (ampliada)** — 5ª entrada no `tsup`, novo `exports["./participant"]`, asserção em `buildOutput.test.ts` de que o bundle não traz `xyflow`.
+
+## T0.2 — bundle do export `/participant`
+
+Medido em 2026-10-09 com `bun build` (browser, minify, `react`/`react-dom` externos) sobre uma entrada
+descartável que reexporta só as folhas que o participante usa: `MessageBubble`, `MessageComposer`,
+`StatusTicks` e `useConversationMessages` de `conversations-ui/src`.
+
+| Medida                 | Resultado                                             |
+| ---------------------- | ----------------------------------------------------- |
+| Módulos empacotados    | 72                                                    |
+| Tamanho minificado     | 164 KB                                                |
+| Tamanho gzip           | 46 KB                                                 |
+| Ocorrências `xyflow`   | 0 (o `@xyflow/react` só é importado em `src/flows/*`) |
+| Referência: `index.js` | 310 KB (inclui o workspace de operador, documentos…)  |
+
+Conclusão: importando de arquivos-folha, o `/participant` fica ~47% menor que o `index.js` e sem o
+`@xyflow`. Falta somar `ParticipantInbox`/`ParticipantThread` (T1.4) — o teto de aceite da Fase 1 é **250 KB
+minificado** e `buildOutput.test.ts` ganha a asserção "sem xyflow". Atenção: `MessageBubble` usa
+`useConversations()` (provider de operador); o `/participant` precisa de um provider mais leve ou de
+`ConversationsProvider` com `sse` opcional (decisão da T0.3).

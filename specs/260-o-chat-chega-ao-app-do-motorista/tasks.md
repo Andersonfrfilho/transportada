@@ -13,7 +13,7 @@
       participante: `ConversationsApi`, `ConversationsProvider`, `MessageBubble`, composer, `StatusTicks`,
       canal `app` em `getChannelCapabilities`. Saída: tabela "tem / falta" em `evidence.md`. **Falta algo →
       vira task da Fase 1, nunca contorno no produto.**
-- [ ] **T0.2** `sonnet` — Medir o bundle: o export `/participant` não pode puxar `@xyflow/react` nem o
+- [x] **T0.2** `sonnet` — Medir o bundle: o export `/participant` não pode puxar `@xyflow/react` nem o
       workspace de operador. Aceite: `tsup` + análise de tamanho no `evidence.md`.
 - [ ] **T0.3** 🧠 `opus` — Desenho da API pública da visão do participante (`ParticipantConversations`
       props, `ParticipantConversationSummary`, métodos novos de `ConversationsApi`, `subjectGroups`). **É
