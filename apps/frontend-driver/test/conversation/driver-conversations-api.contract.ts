@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 
+import { createConversationOutbox } from '../../src/modules/conversation/shared/conversationOutbox.service'
 import { createDriverConversationsApi } from '../../src/modules/conversation/shared/driverConversationsApi.service'
 import { createDriverConversationHttp } from '../../src/modules/conversation/shared/driverConversationsHttp.service'
 import { isAwaitingParticipant } from '../../src/modules/conversation/shared/driverConversationsMapper.service'
+import { createMemoryOutboxStore } from '../fixtures/memory-conversation-outbox-store.fixture'
 
 const OCCURRENCE_ID = '0b9a4b8e-0000-4000-8000-000000000001'
 const SUBJECT = { subjectId: OCCURRENCE_ID, subjectType: 'occurrence' } as const
@@ -45,7 +47,13 @@ function createHarness(respond: Responder) {
   const api = createDriverConversationsApi({
     fallbackSubjectLabel: () => 'Ocorrência',
     http,
+    isOnline: () => true,
     now: () => clock,
+    outbox: createConversationOutbox({
+      getOwnerKey: () => 'owner-1',
+      runExclusive: (run) => run(),
+      store: createMemoryOutboxStore(),
+    }),
   })
   return {
     advance: (milliseconds: number) => {

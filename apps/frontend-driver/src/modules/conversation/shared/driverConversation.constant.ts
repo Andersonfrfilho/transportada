@@ -15,6 +15,7 @@ export const UNREAD_CONVERSATIONS_QUERY_KEY = ['conversations', 'unread'] as con
 export const UNREAD_CONVERSATIONS_REFETCH_INTERVAL_MS = 60 * 1000
 
 export const DRIVER_CONVERSATION_ERROR = {
+  OUTBOX_OWNER_MISSING: 'DRIVER_CONVERSATION_OUTBOX_OWNER_MISSING',
   REQUEST_FAILED: 'DRIVER_CONVERSATION_REQUEST_FAILED',
   RESPONSE_INVALID: 'DRIVER_CONVERSATION_RESPONSE_INVALID',
   SUBJECT_UNSUPPORTED: 'DRIVER_CONVERSATION_SUBJECT_UNSUPPORTED',
@@ -29,3 +30,12 @@ export const PARTICIPANT_MESSAGE_STATUSES = [
   'failed',
   'bounced',
 ] as const
+
+export const CONVERSATION_OUTBOX_DATABASE_NAME = 'transportada.conversation-outbox'
+
+export const CONVERSATION_OUTBOX_STORE_NAME = 'messages'
+
+export const CONVERSATION_OUTBOX_LOCK_NAME = 'transportada.conversation-outbox.flush'
+
+/** Status HTTP em que repetir com a mesma chave é o certo: sessão a renovar, limite de taxa, tempo. */
+export const RETRYABLE_CLIENT_STATUSES: readonly number[] = [401, 408, 425, 429]

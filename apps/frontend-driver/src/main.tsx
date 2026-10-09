@@ -8,7 +8,9 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 
+import { useConversationOutboxFlush } from '@/modules/conversation/hooks/useConversationOutboxFlush.hook'
 import { DriverConversationsPage } from '@/modules/conversation/pages/DriverConversations.page'
+import { setDriverConversationOwner } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { DriverServiceWorkerUpdateNotice } from '@/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component'
 import { DriverSessionExpiredNotice } from '@/modules/driver-trip/components/DriverSessionExpiredNotice.component'
@@ -201,6 +203,7 @@ type DriverShellProps = Readonly<{ session: DriverSession }>
 function DriverShell({ session }: DriverShellProps): ReactNode {
   const [section, setSection] = useState(() => resolveDriverRouteSection(window.location.pathname))
   const sessionExpiry = useSessionExpiry(session.canSync)
+  useConversationOutboxFlush(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 
@@ -276,6 +279,7 @@ async function startAuthenticated(root: Root): Promise<void> {
   /** O cache da consulta pode ser do snapshot de outra sessão, montado antes deste login. */
   queryClient.clear()
   const freshSnapshot = await adoptAuthorizedSnapshot({ payload: authorizedPayload, subHash })
+  setDriverConversationOwner(subHash)
   renderScreen(
     root,
     <DriverShell

@@ -5,18 +5,19 @@ import {
   type ParticipantMessage,
   type ParticipantSubjectRef,
 } from '@adatechnology/conversation-contracts'
-import type {
-  ParticipantConversationsApi,
-  ParticipantSendInput,
-  ParticipantSendResult,
-} from '@adatechnology/conversations-ui/participant'
+import type { ParticipantConversationsApi } from '@adatechnology/conversations-ui/participant'
 
+import type { ConversationOutbox } from './conversationOutbox.service'
 import {
   ATTACHMENT_URL_MAX_AGE_MS,
   CURRENT_TRIP_PATH,
   DRIVER_CONVERSATION_ERROR,
-  DRIVER_CONVERSATION_SUBJECT_TYPE,
 } from './driverConversation.constant'
+import {
+  createDriverConversationSender,
+  type DriverConversationSender,
+} from './driverConversationSender.service'
+import { messagesPath } from './driverConversationSubject.service'
 import {
   createClientMessageIdEcho,
   type ClientMessageIdEchoStorage,
@@ -38,8 +39,19 @@ export type DriverConversationsApiDependencies = Readonly<{
   echoStorage?: ClientMessageIdEchoStorage | undefined
   fallbackSubjectLabel: () => string
   http: DriverConversationHttp
+  isOnline?: () => boolean
   now?: () => Date
+  outbox: ConversationOutbox
 }>
+
+/** O adapter do pacote mais o que o app liga por fora: a fila offline e seus gatilhos. */
+export type DriverConversationsApi = ParticipantConversationsApi &
+  Pick<DriverConversationSender, 'flushOutbox' | 'retryPending'> &
+  Readonly<{ outbox: ConversationOutbox }>
+
+function readBrowserOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine !== false
+}
 
 type AttachmentUrlEntry = Readonly<{
   fetchedAt: number
@@ -47,35 +59,11 @@ type AttachmentUrlEntry = Readonly<{
   url: string
 }>
 
-function occurrenceIdOf(subject: ParticipantSubjectRef): string {
-  if (subject.subjectType !== DRIVER_CONVERSATION_SUBJECT_TYPE) {
-    throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.SUBJECT_UNSUPPORTED)
-  }
-  return subject.subjectId
-}
-
-const messagesPath = (subject: ParticipantSubjectRef): string =>
-  `${CURRENT_TRIP_PATH}/occurrences/${encodeURIComponent(occurrenceIdOf(subject))}/messages`
-
-function readMessageId(payload: unknown): string {
-  const data =
-    typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'messageId' in data &&
-    typeof data.messageId === 'string'
-  ) {
-    return data.messageId
-  }
-  throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.RESPONSE_INVALID)
-}
-
 /** Um adapter só por app: a identidade estável do `api` evita recarregar a lista a cada render. */
 export function createDriverConversationsApi(
   dependencies: DriverConversationsApiDependencies,
-): ParticipantConversationsApi {
-  const { http } = dependencies
+): DriverConversationsApi {
+  const { http, outbox } = dependencies
   const now = dependencies.now ?? (() => new Date())
   const echo = createClientMessageIdEcho(dependencies.echoStorage)
   const uploader = createDriverConversationUploader(http)
@@ -109,31 +97,18 @@ export function createDriverConversationsApi(
     return echo.decorate(messages)
   }
 
-  async function sendMessage(input: ParticipantSendInput): Promise<ParticipantSendResult> {
-    const attachments = await uploader.upload({
-      files: input.files ?? [],
-      occurrenceId: occurrenceIdOf(input.subject),
-    })
-    const attachmentIds = attachments.map((attachment) => attachment.id)
-    const payload = await http.postJson(messagesPath(input.subject), {
-      body: { body: input.text ?? '', ...(attachmentIds.length === 0 ? {} : { attachmentIds }) },
-      headers: { 'idempotency-key': input.clientMessageId },
-    })
-    const serverMessageId = readMessageId(payload)
-    echo.remember({ clientMessageId: input.clientMessageId, serverMessageId })
-    const message = participantMessageSchema.parse({
-      attachments,
-      clientMessageId: input.clientMessageId,
-      createdAt: now().toISOString(),
-      direction: 'inbound',
-      id: serverMessageId,
-      text: input.text,
-    })
-    return { message, outcome: 'sent' }
-  }
+  const sender = createDriverConversationSender({
+    echo,
+    http,
+    isOnline: dependencies.isOnline ?? readBrowserOnline,
+    now,
+    outbox,
+    uploader,
+  })
 
   return {
     fetchMessages: (subject) => fetchMessages(subject),
+    flushOutbox: sender.flushOutbox,
     async listConversations() {
       const payload = await http.getJson(`${CURRENT_TRIP_PATH}/occurrence-conversations`)
       const candidates = readDataArray(payload).map((raw) => {
@@ -168,6 +143,15 @@ export function createDriverConversationsApi(
       }
       return refreshed.url
     },
-    sendMessage,
+    outbox,
+    retryPending: sender.retryPending,
+    sendMessage: sender.sendMessage,
+    subscribe(listener) {
+      return outbox.subscribe((event) => {
+        if (event.type !== 'message-settled') return
+        listener({ subject: event.subject, type: 'conversation-changed' })
+        listener({ type: 'inbox-changed' })
+      })
+    },
   }
 }

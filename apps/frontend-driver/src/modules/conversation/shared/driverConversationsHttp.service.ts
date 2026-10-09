@@ -4,10 +4,13 @@ import { DRIVER_CONVERSATION_ERROR } from './driverConversation.constant'
 
 export class DriverConversationRequestError extends Error {
   public readonly code: string
+  /** Ausente quando a resposta nem chegou (rede, token): é o que separa "tente depois" de recusa. */
+  public readonly status: number | undefined
 
-  public constructor(code: string) {
+  public constructor(code: string, status?: number) {
     super(code)
     this.code = code
+    this.status = status
   }
 }
 
@@ -78,7 +81,9 @@ async function requestJson(
     throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.REQUEST_FAILED)
   }
   const payload = await readPayload(response)
-  if (!response.ok) throw new DriverConversationRequestError(readErrorCode(payload))
+  if (!response.ok) {
+    throw new DriverConversationRequestError(readErrorCode(payload), response.status)
+  }
   return payload
 }
 
@@ -98,8 +103,12 @@ async function putFile(
   } catch {
     throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.UPLOAD_FAILED)
   }
-  if (!response.ok)
-    throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.UPLOAD_FAILED)
+  if (!response.ok) {
+    throw new DriverConversationRequestError(
+      DRIVER_CONVERSATION_ERROR.UPLOAD_FAILED,
+      response.status,
+    )
+  }
 }
 
 export function createDriverConversationHttp(

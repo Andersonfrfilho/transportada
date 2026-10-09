@@ -21,6 +21,7 @@ import {
   parseDriverConversationSubject,
 } from '@/modules/shared/driverRoute.service'
 
+import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
@@ -35,6 +36,8 @@ const ParticipantConversations = lazy(async () => {
 export function DriverConversationsPage() {
   const { i18n, t } = useTranslation('conversation')
   const queryClient = useQueryClient()
+  const api = getDriverConversationsApi()
+  const { onRetryPending, pendingMessages } = useConversationOutbox(api)
   const selected = parseDriverConversationSubject(useConversationPathname())
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
   const subjectGroups = buildDriverSubjectGroups({ occurrence: t('groups.occurrence') })
@@ -71,14 +74,16 @@ export function DriverConversationsPage() {
           }
         >
           <ParticipantConversations
-            api={getDriverConversationsApi()}
+            api={api}
             className={styles.conversationTheme ?? ''}
             labels={labels}
             locale={i18n.language}
             renderSubjectCard={renderSubjectCard}
             selected={selected}
             subjectGroups={subjectGroups}
+            pendingMessages={pendingMessages}
             onBack={handleBack}
+            onRetryPending={onRetryPending}
             onSelect={handleSelect}
           />
         </Suspense>
