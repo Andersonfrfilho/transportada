@@ -70,6 +70,27 @@ describe('a configuração da importação de feriados no worker (spec 252 T3.5,
     }
   })
 
+  test('o orçamento tem teto de 1.000.000: acima disso é engano de configuração', () => {
+    expect(
+      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '1000000', FERIADOS_API_TOKEN: TOKEN })
+        .holidayProviderPull?.monthlyRequestBudget,
+    ).toBe(1_000_000)
+    for (const budget of ['1000001', '99999999999']) {
+      expect(() =>
+        parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: budget, FERIADOS_API_TOKEN: TOKEN }),
+      ).toThrow(WorkerConfigurationError)
+    }
+  })
+
+  test('o token só aceita ASCII visível: espaço no meio, acento ou quebra de linha derrubam o boot', () => {
+    for (const token of ['abc def', 'tokén-com-acento', 'abc\ndef', 'abc\tdef', 'tok\u0000en']) {
+      expect(() => parse({ FERIADOS_API_TOKEN: token })).toThrow(WorkerConfigurationError)
+    }
+    expect(
+      parse({ FERIADOS_API_TOKEN: ' Bearer-safe_Token.0123~+/= ' }).holidayProviderPull?.token,
+    ).toBe('Bearer-safe_Token.0123~+/=')
+  })
+
   test('o orçamento sozinho, sem token, não liga a rotina', () => {
     expect(
       parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '300' }).holidayProviderPull,

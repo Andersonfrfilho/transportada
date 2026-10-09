@@ -222,19 +222,36 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(calls.at(-1)).toBe('claim')
   })
 
-  test('orçamento esgotado marca o par em curso e os que sobraram como `quota_exhausted` até o dia 1º', async () => {
+  test('orçamento esgotado só encerra o ciclo: nenhum par muda, para que aumentar o orçamento solte tudo', async () => {
     const { run, store } = setup({ budget: 4 })
 
-    await run()
+    const tally = await run()
 
-    const exhausted = [...store.records.values()].filter(
-      (record) => record.status === 'quota_exhausted',
-    )
-    for (const record of exhausted) {
-      expect(record.nextAttemptAt.toISOString()).toBe('2026-11-01T03:00:00.000Z')
-    }
-    // Os 4 pares feitos (2 nacionais e a 1ª cidade nos dois anos) ficam de fora; os 4 que sobraram entram.
-    expect(exhausted.map((record) => pairKey(record.pair)).toSorted()).toEqual([
+    expect(tally.budgetExhausted).toBeTrue()
+    expect(
+      [...store.records.values()].some((record) => record.status === 'quota_exhausted'),
+    ).toBeFalse()
+    // Os pares que sobraram (Santos e São José) não ganham linha nenhuma.
+    expect(
+      [...store.records.keys()].filter(
+        (key) => key.startsWith(`city:${SANTOS}`) || key.startsWith(`city:${SAO_JOSE}`),
+      ),
+    ).toEqual([])
+  })
+
+  test('com o orçamento maior no ciclo seguinte, os pares que sobraram são buscados sem esperar o dia 1º', async () => {
+    const small = setup({ budget: 4 })
+    await small.run()
+    const bigger = setup({ budget: 5000, store: small.store })
+
+    const second = await bigger.run()
+
+    expect(second.requests).toBe(4)
+    expect(
+      bigger.client.requests.map(
+        (request) => `${request.scope}:${request.ibgeCode}:${request.year}`,
+      ),
+    ).toEqual([
       `city:${SANTOS}:2026`,
       `city:${SANTOS}:2027`,
       `city:${SAO_JOSE}:2026`,
@@ -242,7 +259,7 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     ])
   })
 
-  test('401 e 403 encerram o ciclo sem nova requisição e sem tocar no par', async () => {
+  test('401 encerra o ciclo sem nova requisição e sem tocar no par', async () => {
     const { client, run, store } = setup({
       respond: () => failWith(HOLIDAY_PROVIDER_ERROR_CODE.UNAUTHORIZED),
     })
@@ -253,6 +270,46 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(tally.requests).toBe(1)
     expect(client.requests).toHaveLength(1)
     expect(store.records.size).toBe(0)
+  })
+
+  test('403 e 402 numa cidade restringem o par por 30 dias e o ciclo SEGUE, com contador próprio', async () => {
+    const { client, run, store } = setup({
+      respond: (request) =>
+        request.scope === 'city' && request.ibgeCode === CAMPINAS
+          ? failWith(HOLIDAY_PROVIDER_ERROR_CODE.PLAN_RESTRICTED)
+          : defaultResponse(request),
+    })
+
+    const tally = await run()
+
+    const record = store.records.get(pairKey({ ibgeCode: CAMPINAS, scope: 'city', year: 2026 }))
+    expect(record?.status).toBe('failed')
+    expect(record?.errorCode).toBe('provider_plan_restricted')
+    expect(record?.attempts).toBe(0)
+    expect(record?.nextAttemptAt.getTime()).toBe(NOW.getTime() + 30 * DAY_MS)
+    expect(tally.planRestricted).toBe(2)
+    expect(tally.unauthorized).toBeFalse()
+    expect(client.requests.some((request) => request.ibgeCode === SANTOS)).toBeTrue()
+    expect(tally.pairsFetched).toBeGreaterThan(0)
+  })
+
+  test('403 e 402 no nacional ou no estado encerram o ciclo como não autorizado, sem tocar no par', async () => {
+    for (const scope of ['national', 'state'] as const) {
+      const { client, run, store } = setup({
+        respond: (request) =>
+          request.scope === scope
+            ? failWith(HOLIDAY_PROVIDER_ERROR_CODE.PLAN_RESTRICTED)
+            : defaultResponse(request, false),
+      })
+
+      const tally = await run()
+
+      expect(`${scope}: ${tally.unauthorized}`).toBe(`${scope}: true`)
+      expect(tally.planRestricted).toBe(0)
+      expect(client.requests.at(-1)?.scope).toBe(scope)
+      const key = pairKey({ ibgeCode: scope === 'national' ? 'BR' : '35', scope, year: 2026 })
+      expect(store.records.get(key)).toBeUndefined()
+    }
   })
 
   test('429 encerra o ciclo e o par só volta depois do Retry-After', async () => {
@@ -292,6 +349,101 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(record?.nextAttemptAt.getTime()).toBe(NOW.getTime() + 90 * DAY_MS)
     expect(tally.pairsNotCovered).toBe(2)
     expect(client.requests.some((request) => request.ibgeCode === SANTOS)).toBeTrue()
+  })
+
+  test('404 no nacional ou no estado é contrato quebrado: `malformed_response` com recuo curto e o ciclo para', async () => {
+    for (const scope of ['national', 'state'] as const) {
+      const { client, run, store } = setup({
+        respond: (request) =>
+          request.scope === scope
+            ? failWith(HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND)
+            : defaultResponse(request, false),
+      })
+
+      const tally = await run()
+
+      const key = pairKey({ ibgeCode: scope === 'national' ? 'BR' : '35', scope, year: 2026 })
+      const record = store.records.get(key)
+      expect(`${scope}: ${record?.status}/${record?.errorCode}`).toBe(
+        `${scope}: failed/malformed_response`,
+      )
+      expect(record?.nextAttemptAt.getTime()).toBe(NOW.getTime() + HOUR_MS)
+      expect(tally.malformedResponses).toBe(1)
+      expect(client.requests.at(-1)?.scope).toBe(scope)
+      expect(tally.pairsNotCovered).toBe(0)
+    }
+  })
+
+  test('um ciclo em que TODO pedido deu 404 é sinal de contrato quebrado, não de cidades sem cobertura', async () => {
+    const allNotFound = setup({ respond: () => failWith(HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND) })
+    const someNotFound = setup({
+      respond: (request) =>
+        request.scope === 'city' && request.ibgeCode === CAMPINAS
+          ? failWith(HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND)
+          : defaultResponse(request),
+    })
+    // Só as cidades pendentes: a paridade nacional já foi buscada.
+    const doneNationalStore = buildInMemoryFetchStore({
+      demand: [{ ibgeCode: CAMPINAS, total: 1 }],
+    })
+    for (const year of [2026, 2027]) {
+      doneNationalStore.records.set(pairKey({ ibgeCode: 'BR', scope: 'national', year }), {
+        attempts: 0,
+        errorCode: null,
+        fetchedAt: NOW,
+        nextAttemptAt: new Date(NOW.getTime() + DAY_MS * 100),
+        pair: { attempts: 0, ibgeCode: 'BR', scope: 'national', year },
+        status: 'done',
+      })
+    }
+    const onlyCities = setup({
+      respond: () => failWith(HOLIDAY_PROVIDER_ERROR_CODE.NOT_FOUND),
+      store: doneNationalStore,
+    })
+
+    const all = await allNotFound.run()
+    const some = await someNotFound.run()
+    const cities = await onlyCities.run()
+
+    expect(all.allNotFound).toBeTrue()
+    expect(some.allNotFound).toBeFalse()
+    expect(cities.pairsNotCovered).toBe(2)
+    expect(cities.allNotFound).toBeTrue()
+  })
+
+  test('3 `provider_unreachable` SEGUIDOS abrem o disjuntor: o ciclo para e os pares que sobraram ficam intactos', async () => {
+    const { client, run, store } = setup({
+      respond: () => failWith(HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE),
+    })
+
+    const tally = await run()
+
+    expect(tally.circuitOpened).toBeTrue()
+    expect(tally.requests).toBe(3)
+    expect(client.requests).toHaveLength(3)
+    expect(tally.unreachable).toBe(3)
+    expect(store.records.size).toBe(3)
+  })
+
+  test('uma resposta boa no meio zera a contagem: 2 falhas, 1 boa, 2 falhas não abrem o disjuntor', async () => {
+    let calls = 0
+    const { run, store } = setup({
+      respond: (request) => {
+        calls += 1
+        // 1 e 2: os nacionais falham; 3: a 1ª cidade vem boa; 4 e 5: falham de novo.
+        if (calls <= 2 || calls === 4 || calls === 5) {
+          return failWith(HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE)
+        }
+        return defaultResponse(request)
+      },
+    })
+
+    const tally = await run()
+
+    expect(tally.circuitOpened).toBeFalse()
+    expect(tally.unreachable).toBe(4)
+    expect(tally.requests).toBeGreaterThan(5)
+    expect(store.records.size).toBeGreaterThan(5)
   })
 
   test('5xx e rede caída viram `failed` com recuo de 1 h, e a busca segue com as outras cidades', async () => {
@@ -361,6 +513,13 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(tally.unexpectedFailures).toBe(1)
     expect(client.requests.length).toBeGreaterThan(2)
     expect(JSON.stringify(logged)).not.toContain('11222333000181')
+
+    // A resposta era boa e a gravação falhou: o par fica `failed` com recuo, para não repetir a requisição todo dia.
+    const record = store.records.get(pairKey({ ibgeCode: CAMPINAS, scope: 'city', year: 2026 }))
+    expect(record?.status).toBe('failed')
+    expect(record?.errorCode).toBe('persistence_failed')
+    expect(record?.attempts).toBe(1)
+    expect(record?.nextAttemptAt.getTime()).toBe(NOW.getTime() + HOUR_MS)
   })
 
   test('página cheia pede a seguinte; para quando vem menos de 100 ou nada novo', async () => {
@@ -429,6 +588,55 @@ describe('a busca no fornecedor (spec 252 T3.3, CA3)', () => {
     expect(
       withState.store.records.get(pairKey({ ibgeCode: '35', scope: 'state', year: 2026 }))?.status,
     ).toBe('done')
+  })
+
+  test('as datas de outro ano que o cliente descartou entram na contagem do ciclo', async () => {
+    const { run } = setup({
+      demand: [{ ibgeCode: CAMPINAS, total: 1 }],
+      respond: (request) => ({ ...defaultResponse(request), discardedCount: 2 }),
+    })
+
+    const tally = await run()
+
+    expect(tally.entriesDiscarded).toBe(2 * tally.requests)
+  })
+
+  test('falha ao consultar a fila do estado é logada com o par do ESTADO, não o da cidade', async () => {
+    const { logged, run, store } = setup({
+      demand: [{ ibgeCode: CAMPINAS, total: 1 }],
+      respond: (request) => defaultResponse(request, false),
+    })
+    store.ensureStatePair = async () => {
+      throw new Error('boom 11222333000181')
+    }
+
+    const tally = await run()
+
+    expect(tally.unexpectedFailures).toBeGreaterThan(0)
+    const failures = logged.filter((entry) => entry[0] === 'holiday_fetch_pair_failed')
+    expect(failures.length).toBeGreaterThan(0)
+    for (const failure of failures) {
+      const metadata = failure[1] as Record<string, unknown>
+      expect([metadata.scope, metadata.ibgeCode]).toEqual(['state', '35'])
+    }
+    expect(JSON.stringify(logged)).not.toContain('11222333000181')
+  })
+
+  test('falha de transporte é logada só com o código e o nome do erro, sem texto livre', async () => {
+    const { logged, run } = setup({
+      demand: [{ ibgeCode: CAMPINAS, total: 1 }],
+      respond: () => {
+        throw new HolidayProviderError({
+          code: HOLIDAY_PROVIDER_ERROR_CODE.UNREACHABLE,
+          reason: 'TimeoutError',
+        })
+      },
+    })
+
+    await run()
+
+    const entry = logged.find((candidate) => candidate[0] === 'holiday_fetch_pair_provider_failure')
+    expect(entry?.[1]).toMatchObject({ code: 'provider_unreachable', reason: 'TimeoutError' })
   })
 
   test('a parada pedida é lida entre as requisições e deixa o par em curso intacto', async () => {
