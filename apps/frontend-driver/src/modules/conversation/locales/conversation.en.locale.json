@@ -74,11 +74,6 @@
     "unread_other": "{{count}} unread",
     "view": "View conversation"
   },
-  "subjectCard": {
-    "document": "Invoice",
-    "occurrence": "Occurrence",
-    "trip": "Trip"
-  },
   "subjectFallback": "Occurrence",
   "title": "Conversations"
 }

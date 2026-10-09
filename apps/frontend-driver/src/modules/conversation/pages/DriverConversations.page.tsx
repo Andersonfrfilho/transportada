@@ -5,15 +5,13 @@
  * cache da lista e os rascunhos vivem dentro dela. O import é dinâmico para não pesar o boot do PWA.
  */
 import type {
-  ParticipantConversationSummary,
   ParticipantConversationsLabels,
   ParticipantSubjectRef,
 } from '@adatechnology/conversations-ui/participant'
 import { useQueryClient } from '@tanstack/react-query'
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Icon } from '@/components/ui/icon'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
   navigateToDriverConversation,
@@ -58,18 +56,6 @@ export function DriverConversationsPage() {
     void queryClient.invalidateQueries({ queryKey: UNREAD_CONVERSATIONS_QUERY_KEY })
   }
 
-  function renderSubjectCard(conversation: ParticipantConversationSummary): ReactNode {
-    return (
-      <div className={styles.subjectCard}>
-        <Icon name="message" />
-        <span className={styles.subjectCardTitle}>{conversation.subjectLabel}</span>
-        <span className={styles.subjectCardType}>
-          {t(`subjectCard.${conversation.subjectType}`, { defaultValue: conversation.subjectType })}
-        </span>
-      </div>
-    )
-  }
-
   return (
     <div className={styles.conversationShell}>
       <main className={styles.conversationMain}>
@@ -82,10 +68,10 @@ export function DriverConversationsPage() {
         >
           <ParticipantConversations
             api={api}
+            avatars="initials"
             className={styles.conversationTheme ?? ''}
             labels={labels}
             locale={i18n.language}
-            renderSubjectCard={renderSubjectCard}
             renderSubjectIcon={renderDriverSubjectIcon}
             selected={selected}
             subjectGroups={subjectGroups}

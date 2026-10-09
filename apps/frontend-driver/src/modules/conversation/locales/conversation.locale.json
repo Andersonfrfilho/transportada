@@ -74,11 +74,6 @@
     "unread_other": "{{count}} não lidas",
     "view": "Ver conversa"
   },
-  "subjectCard": {
-    "document": "Nota fiscal",
-    "occurrence": "Ocorrência",
-    "trip": "Viagem"
-  },
   "subjectFallback": "Ocorrência",
   "title": "Conversas"
 }

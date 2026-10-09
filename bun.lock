@@ -78,7 +78,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.6.1",
+        "@adatechnology/conversations-ui": "0.7.0",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
@@ -104,7 +104,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.6.1",
+        "@adatechnology/conversations-ui": "0.7.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
@@ -166,7 +166,7 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/conversations-ui": "0.6.1",
+        "@adatechnology/conversations-ui": "0.7.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -268,7 +268,7 @@
 
     "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.6.1", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.5.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-ihnqCsQJ3zBk+uc3D8a//UikTE1YN782yajriZj60U/il3b42rbVGxrNinCXxCMFQuDE7H3jZxuTS/3K0ndAEQ=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.7.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.5.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-VXogiBbQsYlMsebr9RKocpKSpXRonR9hAlKhs7WtkU8/XLlT/ODHXRy8VOIE3XL3SB8pmTvzOYU23qvrQIAJ4g=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
