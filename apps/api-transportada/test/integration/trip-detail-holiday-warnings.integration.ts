@@ -8,7 +8,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { municipalHolidayRules, tripStops } from '../../src/database/database.schema.js'
+import {
+  municipalHolidayRules,
+  municipalHolidays,
+  tripStops,
+} from '../../src/database/database.schema.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import {
   hasTestDatabase,
@@ -49,6 +53,36 @@ function countingDatabase(db: TestDatabase['db']) {
     },
   })
   return { database, queryCount: () => count }
+}
+
+/** O calendário fora do ar: toda leitura de feriado municipal falha, e as outras consultas do detalhe seguem. */
+function withBrokenHolidayCalendar(db: TestDatabase['db']): TestDatabase['db'] {
+  const failure = new Error('HOLIDAY_CALENDAR_DOWN')
+  const rejecting: unknown = new Proxy(Promise.reject(failure), {
+    get(target, property) {
+      if (property === 'then') return target.then.bind(target)
+      if (property === 'catch') return target.catch.bind(target)
+      if (property === 'finally') return target.finally.bind(target)
+      return () => rejecting
+    },
+  })
+  ;(rejecting as Promise<never>).catch(() => undefined)
+  return new Proxy(db, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver) as unknown
+      if (property !== 'select' || typeof value !== 'function') return value
+      return (...args: unknown[]) => {
+        const builder = value.apply(target, args) as { from: (table: unknown) => unknown }
+        return new Proxy(builder, {
+          get(innerTarget, innerProperty) {
+            if (innerProperty !== 'from') return Reflect.get(innerTarget, innerProperty) as unknown
+            return (table: unknown) =>
+              table === municipalHolidays ? rejecting : innerTarget.from(table)
+          },
+        })
+      }
+    },
+  })
 }
 
 async function measure(
@@ -325,6 +359,51 @@ describe('o aviso não multiplica consultas (spec 252 T4.2, CA12)', () => {
         })
 
         expect(await extraQueries(database, seeded.tripId)).toBe(DEADLINE_EXTRA_QUERIES)
+      })
+    },
+    60_000,
+  )
+})
+
+describe('a falha do aviso não derruba o detalhe (spec 252 T6.1b)', () => {
+  testWithPostgres(
+    'calendário que falha: o detalhe responde sem `holidayWarnings` e o log leva só ids',
+    async () => {
+      await withCargoDatabase(async (database) => {
+        const seeded = await seedTripWithStops(database, {
+          companyId: COMPANY_ID,
+          stops: [{ cityCode: CAMPINAS, cityName: 'Campinas', estimatedArrivalAt: WEDNESDAY_21 }],
+        })
+        const logged: { readonly message: string; readonly metadata?: unknown }[] = []
+        const repository = new DrizzleTripRepository(
+          withBrokenHolidayCalendar(database.db),
+          undefined,
+          {
+            clock: { now: () => WEDNESDAY_NOON },
+            logger: {
+              error: () => undefined,
+              info: () => undefined,
+              warn: (message, metadata) => void logged.push({ message, metadata }),
+            },
+          },
+        )
+
+        const detail = await repository.findById({ companyId: COMPANY_ID, tripId: seeded.tripId })
+
+        expect(detail?.stops).toHaveLength(1)
+        expect(detail?.stops.some((stop) => 'holidayWarnings' in stop)).toBe(false)
+        expect(logged).toEqual([
+          {
+            message: 'trip_holiday_warning_unavailable',
+            metadata: {
+              affectedStopCount: 1,
+              code: 'read_failed',
+              companyId: COMPANY_ID,
+              tripId: seeded.tripId,
+            },
+          },
+        ])
+        expect(JSON.stringify(logged)).not.toContain('HOLIDAY_CALENDAR_DOWN')
       })
     },
     60_000,
