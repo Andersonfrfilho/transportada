@@ -230,3 +230,21 @@ Limite conhecido do ticker: mensagem que chega entre a abertura da conversa e o 
 Passe `opus` do release: 1º (63dca09) **aprovado com ressalvas** → corrigidas em `203ecdf`; 2º (63dca09..05c7414)
 **aprovado com ressalvas** (2 bloqueantes: contraste e `ul/li` dentro de `button`) → corrigidas em `e12be29`. Dúvida
 decidida: o ícone do assunto fica **só na linha** (D9). Versões esperadas: contracts 0.5.0, UI 0.6.0, module 0.4.2 (patch).
+
+## Fase 2 — andamento (API, [ADR-0101](../../docs/adr/0101-a-conversa-tem-assunto-e-protocolo.md))
+
+| Task  | Commit      | Gate (conferido por mim)                                                                                                                                                                               |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T2.1  | `29551f80e` | ADR-0101 (arquiteto `opus`), conferida contra o código; ADR 0099 pertence à spec 251 em outra branch                                                                                                   |
+| T2.0  | `793769ed9` | driver: 1609 pass / 0 fail · typecheck limpo · o sino aceita `trip.subject-conversation-message` (13 vermelhos → 18 verdes)                                                                            |
+| T2.3a | `a6d458171` | migration `20261009170338_conversation_subject` · `db:generate` = no_changes · `db:check` ok · typecheck limpo · rollback com trava · teste de ouro das respostas antigas (byte a byte)                |
+| T2.3b | `c78e236de` | migration `20261009171836_conversation_protocol` · protocolo por trigger · colisão forçada por `setseed`, esgotamento 23505, imutabilidade (55000), meia-noite UTC→SP · `make migration-test` 191 pass |
+| —     | —           | suíte de contrato da API (`bun --env-file=../../.env.test run test`): **11160 pass / 25 skip / 0 fail**, 208 arquivos                                                                                  |
+
+Desvios aceitos: (1) o `CHECK` do `client_message_id` usa `char_length between 16 and 256` + `~ '^[A-Za-z0-9._:-]+$'` — o regex
+`{16,256}` do desenho estoura no Postgres (limite de repetição 255) só no primeiro INSERT; (2) o trigger sorteia **6** vezes (o
+inicial + 5 repetições); (3) o trigger de UPDATE é `BEFORE UPDATE OF "protocol"`, então o upsert do `retarget` nunca o dispara;
+(4) o backfill cria um índice temporário e o remove (até 50 sorteios por linha, para o deploy não cair por colisão rara).
+
+**Pendente fora do código:** medir `count(*)` de `occurrence_conversations` em produção antes do backfill; integração completa
+(`test:integration`, ~17 min) ainda não rodou — só os arquivos de conversa e de migration.

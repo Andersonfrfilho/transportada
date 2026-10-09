@@ -147,21 +147,21 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       (assunto em `occurrence_conversations` por colunas aditivas + CHECK de forma; protocolo gerado pelo banco por
       trigger; `channels`/`iconName`/`awaitingDriver`/`subjectLabel` derivados na leitura; `client_message_id` nas
       mensagens; rotas novas, antigas intactas). Saída do arquiteto `opus`; conferida contra o código.
-- [ ] **T2.0** `haiku` — `frontend-driver`: `notificationDestination.service` aceita também `trip.subject-conversation-message`
+- [x] **T2.0** `haiku` — `frontend-driver`: `notificationDestination.service` aceita também `trip.subject-conversation-message`
       (+ teste). **Publicar o app ANTES da API** (ADR-0081 §9: app tolerante → API → telas).
 - [ ] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
       código para empresa errada, inexistente e viagem alheia); encerrada → `409 CONVERSATION_CLOSED` (nota liberada, viagem
       cancelada/concluída, `closed`); `open` idempotente (201 e depois 200); **rota antiga intacta** (resposta exata da lista e
       das mensagens antes e depois); mutação de A5 (os casos de uso novos não importam nada de `trip_occurrence_cases`, taxa
       ou acerto); alfabeto do TS = alfabeto do CHECK; teste de que toda rota nova está na tabela de rotas com política e limite.
-- [ ] **T2.3a** `sonnet` — **Migration `conversation_subject`** (aditiva): `subject_type` (padrão `occurrence`, CHECK por `inList`),
+- [x] **T2.3a** `sonnet` — **Migration `conversation_subject`** (aditiva): `subject_type` (padrão `occurrence`, CHECK por `inList`),
       `trip_id`/`trip_document_id` (FK compostas com `company_id`), `occurrence_kind`/`occurrence_id` nuláveis, CHECK de forma,
       únicos parciais de nota e viagem, índices de leitura, `client_message_id` (CHECK + único parcial) e `conversation_id`
       nos envios de arquivo; schema Drizzle; estreitamento de tipo (`string | null`) com o `tsc` como checklist; filtro
       `subject_type = 'occurrence'` em `listMyConversations` e em `applyDriverStatus(occurrenceId = null)`; `insertMessage`
       grava a `idempotencyKey`; `rollback.sql` (recusa se houver conversa de nota/viagem ou envio por `conversation_id`);
       `make migration-test`.
-- [ ] **T2.3b** `sonnet` — **Migration `conversation_protocol`**: coluna `protocol` (padrão `''` como sentinela), funções PL/pgSQL, backfill por
+- [x] **T2.3b** `sonnet` — **Migration `conversation_protocol`**: coluna `protocol` (padrão `''` como sentinela), funções PL/pgSQL, backfill por
       `created_at`, CHECK de formato, `UNIQUE (company_id, protocol)`, triggers `BEFORE INSERT` (sorteio com até 5
       tentativas) e `BEFORE UPDATE` (imutável) **criados por último**; teste de colisão forçada com `setseed`, de
       esgotamento (23505) e de imutabilidade; medir `count(*)` de `occurrence_conversations` em produção antes (relatar);
