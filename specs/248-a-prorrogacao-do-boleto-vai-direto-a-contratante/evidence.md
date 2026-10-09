@@ -148,3 +148,32 @@ Gates:
   `db:migrate` da api → pass, 0 fail.
 - api: `typecheck` ok, `lint` ok, `bun run test` → 10967 pass, 0 fail (3 contratos estáticos novos da migration).
 - cron: `typecheck` ok, `lint` ok, `test` → 101 pass. frontend: `typecheck` ok, `lint` 0 erros, contrato do catálogo ok.
+
+## T3.1 — Schema e migration do retorno à contratante
+
+Migration `20261009022945_occurrence_contractor_reply` (aditiva; `migration.sql`, `rollback.sql`, `snapshot.json`).
+Constantes e vocabulários em `src/shared/occurrence-contractor-reply.constant.ts`; tabelas em
+`src/database/occurrence-contractor-reply.schema.ts`; colunas e CHECKs do tipo e da exceção em `trip.schema.ts`.
+
+- Tipo: 13 colunas com default constante (sem `UPDATE` por nome de tipo), 13 CHECKs de domínio/limite e 4 cruzadas.
+  Exceção da contratante: 3 colunas nulas sem default, cada uma com a própria CHECK. `nfe_documents.recipient_email`
+  **não** foi recriada (já existe); `tasks.md` e `plan.md` corrigidos.
+- Três tabelas novas, todas com FK composta `(company_id, ...)` e `ON DELETE RESTRICT`; eventos append-only por trigger.
+- Nomes de constraint de até 63 caracteres: dois passavam disso e foram encurtados
+  (`..._driver_reply_window_action_check`, `..._contractor_reply_alert_wait_check`, `..._deliveries_company_fk`).
+
+Decisões:
+
+- (a) A resposta aponta a ocorrência por FK composta `RESTRICT` para `trip_document_occurrences`: eventos são
+  append-only, cascata colidiria com o trigger.
+- (b) `deliveries.mail_message_id` é `uuid` sem FK; a decisão fica para a T4.7.
+- (c) A validação da configuração efetiva (tipo + exceção) é dos use cases da Fase 4, não do banco.
+- (d) `deliveries.address` é dado pessoal: retenção/expurgo entra na T7.3.
+- Desvio: `config ? 'version'` virou `jsonb_exists("config", 'version')` (o `?` colide com o parser de parâmetros).
+- Tenant-safety: não existe repositório ainda; a prova é o contrato estático sobre o schema e o SQL
+  (`test/database-migration/occurrence-contractor-reply.static.contract.ts`). As checagens de texto de repositório
+  de `tenant-safety.contract.ts` passam à Fase 4.
+
+Gates: `bun run typecheck` ok; `bun run db:generate` → `no_changes`; `bun run db:check` ok;
+`bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts` → 128 pass, 0 fail;
+`make migration-test` (Docker disponível) → 169 pass, 0 fail (apply, rollback e reapply da migration).

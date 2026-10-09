@@ -33,6 +33,7 @@ import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
+import { assertOccurrenceContractorReplyRollback } from './occurrence-contractor-reply.assertion.js'
 import { assertNfeRecipientEmailRollback } from './nfe-recipient-email.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
 import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
@@ -75,6 +76,7 @@ import {
   WHATSAPP_FLOW_GRAPH_TABLES,
   WHATSAPP_COMMAND_TABLES,
   TRIP_FINANCIAL_TABLES,
+  OCCURRENCE_CONTRACTOR_REPLY_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -115,6 +117,7 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
             ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
@@ -200,6 +203,13 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceContractorReplyRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         await assertNfeRecipientEmailRollback({
@@ -436,6 +446,7 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
             ...HOLIDAY_PROVIDER_SETTINGS_TABLES,

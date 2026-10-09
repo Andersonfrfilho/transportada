@@ -42,8 +42,9 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 > 🤖 Modelo: `sonnet` (T3.1 é 🧠 — `opus`, validar com `architect` antes)
 
-- [ ] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção,
-      `nfe_documents.recipient_email`, `occurrence_contractor_replies`,
+- [x] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção
+      (`nfe_documents.recipient_email` já existe — migration `20261008163250`, não se recria),
+      `occurrence_contractor_replies`,
       `occurrence_contractor_reply_deliveries`, `occurrence_contractor_reply_events`, FKs compostas,
       índice parcial, `tenant-safety.contract.ts`; `rollback.sql`; `make migration-test`.
 - [ ] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,

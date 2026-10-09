@@ -8,6 +8,7 @@ import './database-migration/occurrence-type-quantity-minimums.static.contract.j
 import './database-migration/occurrence-type-moments.static.contract.js'
 import './database-migration/occurrence-declared-amount.static.contract.js'
 import './database-migration/nfe-recipient-email.static.contract.js'
+import './database-migration/occurrence-contractor-reply.static.contract.js'
 import './database-migration/occurrence-type-icon.static.contract.js'
 import './database-migration/cargo-preview-retention.static.contract.js'
 import './database-migration/nfe-recipient-email-backfill-job.static.contract.js'
