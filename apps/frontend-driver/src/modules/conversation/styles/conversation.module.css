@@ -39,12 +39,6 @@
   min-height: 0;
 }
 
-/* Remendo até o app subir para conversations-ui 0.6.1: a coluna flex encolhia estas faixas e cortava os chips. */
-.conversationMain :global(.cv-p-filters),
-.conversationMain :global(.cv-p-quick) {
-  flex: 0 0 auto;
-}
-
 .loadingNotice {
   color: var(--color-slate);
   margin: 0;
