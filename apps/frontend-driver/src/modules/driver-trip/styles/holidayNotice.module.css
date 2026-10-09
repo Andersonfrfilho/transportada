@@ -1,0 +1,30 @@
+/*
+ * Spec 252 (T5.4): o aviso de feriado da parada. Neutro de propósito (tinta do tema sobre um véu do cinza do
+ * token) — informa, não alarma, e não pede toque. Sem animação. `min-width: 0` e quebra de palavra: o nome
+ * de um feriado municipal pode ser longo e não pode empurrar a página além dos 375px.
+ */
+.holidayNotice {
+  background: color-mix(in srgb, var(--color-slate) 16%, transparent);
+  border-left: var(--space-1) solid var(--color-slate);
+  color: var(--color-fog);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.holidayNoticeList {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.holidayNoticeLine {
+  align-items: start;
+  color: var(--color-fog);
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

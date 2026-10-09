@@ -25,6 +25,33 @@
     "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
     "title": "You are following this trip as a helper"
   },
+  "holidayWarning": {
+    "future": "{{date}} is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
+    "futureWithoutCity": "{{date}} is a holiday ({{reasons}}). Confirm with the customer before going.",
+    "label": "Holiday notice",
+    "national": {
+      "all_souls_day": "All Souls' Day",
+      "black_consciousness": "Black Consciousness Day",
+      "carnival": "Carnival",
+      "christmas": "Christmas",
+      "corpus_christi": "Corpus Christi",
+      "good_friday": "Good Friday",
+      "independence_day": "Independence Day",
+      "labour_day": "Labour Day",
+      "our_lady_of_aparecida": "Our Lady of Aparecida",
+      "republic_proclamation": "Republic Proclamation Day",
+      "tiradentes": "Tiradentes Day",
+      "universal_fraternization": "New Year's Day"
+    },
+    "scope": {
+      "municipal": "Municipal holiday",
+      "national": "National holiday",
+      "other": "Holiday",
+      "state": "State holiday"
+    },
+    "today": "Today is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
+    "todayWithoutCity": "Today is a holiday ({{reasons}}). Confirm with the customer before going."
+  },
   "dispatch": {
     "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",
