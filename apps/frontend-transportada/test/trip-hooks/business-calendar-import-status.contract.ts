@@ -31,6 +31,11 @@ function status(): string {
   return sectionOf(HEADING).textContent ?? ''
 }
 
+/** Conta, em vez de comparar o nó com null: o Bun cai ao imprimir um elemento do DOM numa asserção que falha. */
+function countPlanWarnings(): number {
+  return sectionOf(HEADING).querySelectorAll('[data-warning="plan-restricted"]').length
+}
+
 describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
   beforeEach(startScenario)
   afterEach(endScenario)
@@ -170,7 +175,7 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
     await mountPanel()
 
     await waitForText('Em dia')
-    expect(sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')).toBeNull()
+    expect(countPlanWarnings()).toBe(0)
   })
 
   it('empresa desligada não mostra aviso de plano: nada é buscado', async () => {
@@ -189,7 +194,7 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
     await mountPanel()
 
     await waitForText('Desligada para esta empresa')
-    expect(sectionOf(HEADING).querySelector('[data-warning="plan-restricted"]')).toBeNull()
+    expect(countPlanWarnings()).toBe(0)
   })
 
   it('falha real junto do aviso de plano: "Com falhas" e o aviso aparecem juntos', async () => {
