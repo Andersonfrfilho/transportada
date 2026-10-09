@@ -12,14 +12,37 @@ import { fulfillJson } from './spec-237-prints-smoke.helper'
 
 type Json = Record<string, unknown>
 
-export type ImportScenario = 'disabled' | 'error' | 'failing' | 'healthy' | 'quota' | 'waiting'
+export type ImportScenario =
+  | 'disabled'
+  | 'error'
+  | 'failing'
+  | 'healthy'
+  | 'malformed'
+  | 'planRestricted'
+  | 'unauthorized'
+  | 'unreachable'
+  | 'waiting'
 
 const CAMPINAS = '3509502'
 const CURITIBA = '4106902'
 const IMPORTED_CAMPINAS_ID = 'imported-campinas-1120'
 const IMPORTED_CURITIBA_ID = 'imported-curitiba-1208'
 const IMPORTED_STATE_ID = 'state-pr'
-const FRESH_PAIRS = { done: 8, failed: 0, notCovered: 0, pending: 2, quotaExhausted: 0, total: 10 }
+const FRESH_PAIRS = {
+  done: 8,
+  failed: 0,
+  notCovered: 0,
+  pending: 2,
+  planRestricted: 0,
+  quotaExhausted: 0,
+  total: 10,
+}
+const LAST_RUN_AT = '2026-10-09T13:00:00.000Z'
+const NOTHING_FETCHED = {
+  lastFetchedAt: null,
+  monthlyRequests: 0,
+  pairs: { ...FRESH_PAIRS, done: 0, pending: 10 },
+}
 
 function importedHoliday(
   input: Readonly<{ city: string; date: string; id: string; name: string }>,
@@ -40,6 +63,7 @@ function statusOf(input: Readonly<{ scenario: ImportScenario; removed: readonly 
     failures: [] as Json[],
     isEnabled: true,
     lastFetchedAt: '2026-10-09T09:30:00.000Z',
+    lastRun: { finishedAt: LAST_RUN_AT, outcome: 'succeeded' },
     month: '2026-10-01',
     monthlyRequests: 42,
     pairs: FRESH_PAIRS,
@@ -58,18 +82,31 @@ function statusOf(input: Readonly<{ scenario: ImportScenario; removed: readonly 
         ],
         pairs: { ...FRESH_PAIRS, done: 5, failed: 3, pending: 2 },
       }
-    case 'quota':
+    case 'planRestricted':
       return {
         ...base,
-        pairs: { done: 4, failed: 0, notCovered: 1, pending: 0, quotaExhausted: 5, total: 10 },
+        failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
+        pairs: { ...FRESH_PAIRS, done: 6, failed: 2, planRestricted: 2 },
+      }
+    case 'unauthorized':
+      return {
+        ...base,
+        ...NOTHING_FETCHED,
+        lastRun: { finishedAt: LAST_RUN_AT, outcome: 'provider_unauthorized' },
+      }
+    case 'unreachable':
+      return {
+        ...base,
+        ...NOTHING_FETCHED,
+        lastRun: { finishedAt: LAST_RUN_AT, outcome: 'provider_unreachable' },
+      }
+    case 'malformed':
+      return {
+        ...base,
+        lastRun: { finishedAt: LAST_RUN_AT, outcome: 'malformed_response' },
       }
     case 'waiting':
-      return {
-        ...base,
-        lastFetchedAt: null,
-        monthlyRequests: 0,
-        pairs: { done: 0, failed: 0, notCovered: 0, pending: 10, quotaExhausted: 0, total: 10 },
-      }
+      return { ...base, ...NOTHING_FETCHED, lastRun: null }
     default:
       return base
   }

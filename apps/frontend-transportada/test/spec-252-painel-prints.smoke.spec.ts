@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 252 T5.2/T5.3 (`web.md` §15): os prints da revisão de design — a aba Calendário (origem de cada feriado, estado da
- * importação em seis situações, removidos pelo fornecedor, desligados, desligar e restaurar), a montagem com o aviso por
+ * importação em nove situações, removidos pelo fornecedor, desligados, desligar e restaurar), a montagem com o aviso por
  * parada (e a queda da rota) e o detalhe da viagem com o selo —, em 375, 768 e 1280 px, nos dois temas. Fora do smoke da
  * CI: roda com `PLAYWRIGHT_TEST_MATCH=spec-252-painel-prints.smoke.spec.ts` e grava os PNGs em `SPEC_252_PRINTS_DIRECTORY`.
  * Dado sintético, API inteira dublada: nada aqui lê um banco.
@@ -122,8 +122,26 @@ const CALENDAR_SCREENS: readonly Screen[] = [
   }),
   calendarScreen({
     height: 2200,
-    name: 'importacao-sem-cota',
-    scenario: 'quota',
+    name: 'importacao-token-recusado',
+    scenario: 'unauthorized',
+    target: IMPORT_STATUS,
+  }),
+  calendarScreen({
+    height: 2200,
+    name: 'importacao-fornecedor-indisponivel',
+    scenario: 'unreachable',
+    target: IMPORT_STATUS,
+  }),
+  calendarScreen({
+    height: 2200,
+    name: 'importacao-resposta-inesperada',
+    scenario: 'malformed',
+    target: IMPORT_STATUS,
+  }),
+  calendarScreen({
+    height: 2200,
+    name: 'importacao-fora-do-plano',
+    scenario: 'planRestricted',
     target: IMPORT_STATUS,
   }),
   calendarScreen({
