@@ -490,6 +490,21 @@ e **feriados estaduais**. Namespace i18n `businessCalendar` (arquivo próprio, p
   antes; valor inválido = recusado) para o painel sobreviver à API que o manda, que sobe antes dele. Nenhuma tela o lê ainda; contrato em
   `test/business-calendar/origin-tolerance.contract.ts`.
 
+## Os feriados vêm da FeriadosAPI e avisam na montagem (spec 252 T5.2/T5.3)
+
+Aba **Calendário**: três blocos novos ao fim — "Importação de feriados" (manchete do estado da rotina, legenda das origens), "Removidos pelo fornecedor"
+(`removedByProvider` é `{ items, truncated }`) e "Feriados desligados" (`GET /holiday-imports/suppressions` paginada de 20). Linha **importada** oferece
+"Desligar" (`POST /holiday-imports/suppressions { holidayId, scope }`), não "Excluir"; **restaurar volta na próxima execução diária** e o texto diz isso.
+`409 HOLIDAY_IMPORT_PAST_DATE` / `HOLIDAY_IMPORT_DATE_LOCKED` / `HOLIDAY_NOT_IMPORTED` têm texto próprio. A coluna Origem lê `origin?: 'typed' | 'imported'`
+**opcional** da linha (a API ainda não o manda: sem ele a célula fica vazia, nunca "cadastrada" por chute). Cliente próprio
+(`holidayImportClient.service.ts`), guardas de chaves exatas, namespace `businessCalendar.import.*`. Contratos: `test/business-calendar/holiday-import.contract.ts`
+e `test/trip-hooks/business-calendar-import-*.contract.ts`.
+
+**Montagem e detalhe:** quando o solver termina, `useSolverCityOrder` faz **uma** chamada a `POST /business-calendar/day-checks` (pares cidade × dia únicos, ≤ 200,
+cidade = 1º segmento da `addressKey`, dia civil de São Paulo da ETA) e o aviso aparece por parada (`AssemblyStopHolidayNotice`); rota caída ou resposta ruim volta
+ao aviso nacional de hoje. No detalhe, `stops[].holidayWarnings` vira o selo `TripStopHolidayBadge`. Só informa: nada entra em `disabled`. Prints:
+`test/spec-252-painel-prints.smoke.spec.ts` (`SPEC_252_PRINTS_DIRECTORY`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 252 T5.2/T5.3".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de

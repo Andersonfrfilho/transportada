@@ -42,7 +42,10 @@ function stopsWith(warnings: readonly HolidayWarning[] | undefined) {
     id: 'stop-b',
     sequence: 2,
   })
-  return [warnings === undefined ? withWarning : { ...withWarning, holidayWarnings: warnings }, plain]
+  return [
+    warnings === undefined ? withWarning : { ...withWarning, holidayWarnings: warnings },
+    plain,
+  ]
 }
 
 function renderStops(warnings: readonly HolidayWarning[] | undefined) {
@@ -107,9 +110,9 @@ describe('aviso de feriado na montagem e no detalhe (spec 252 T5.3)', () => {
       expect(badges()).toHaveLength(1)
       const [badge] = badges()
       expect(badge?.closest('li[id^="trip-timeline-stop-"]')?.textContent).toContain('Parada 1')
-      expect(
-        badge?.querySelector('[data-part="holiday-warning-label"]')?.textContent,
-      ).toBe('Feriado em 13/10/2026')
+      expect(badge?.querySelector('[data-part="holiday-warning-label"]')?.textContent).toBe(
+        'Feriado em 13/10/2026',
+      )
       expect(badge?.querySelector('[data-part="holiday-warning-text"]')?.textContent).toContain(
         'Entrega prevista em 13/10/2026: feriado municipal — Aniversário da cidade (importado)',
       )
@@ -154,9 +157,9 @@ describe('aviso de feriado na montagem e no detalhe (spec 252 T5.3)', () => {
       await i18n.changeLanguage('en')
       await renderStops([warning])
 
-      expect(
-        badges()[0]?.querySelector('[data-part="holiday-warning-label"]')?.textContent,
-      ).toBe('Holiday on 10/13/2026')
+      expect(badges()[0]?.querySelector('[data-part="holiday-warning-label"]')?.textContent).toBe(
+        'Holiday on 10/13/2026',
+      )
     })
   })
 })
