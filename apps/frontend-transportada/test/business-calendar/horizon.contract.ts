@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  canDisableHolidayOn,
   hasShortMaterializationHorizon,
   readCalendarToday,
   readCalendarYear,
@@ -28,6 +29,16 @@ describe('dia de hoje', () => {
     expect(readCalendarToday(new Date('2026-10-10T01:30:00.000Z'))).toBe('2026-10-09')
     expect(readCalendarToday(new Date('2026-10-10T03:00:00.000Z'))).toBe('2026-10-10')
     expect(readCalendarToday(new Date('2027-01-01T01:00:00.000Z'))).toBe('2026-12-31')
+  })
+})
+
+describe('"Desligar" só de hoje em diante', () => {
+  test('hoje e o futuro valem; ontem já é 409 (D7)', () => {
+    const today = '2026-10-09'
+
+    expect(canDisableHolidayOn({ holidayOn: '2026-10-09', today })).toBe(true)
+    expect(canDisableHolidayOn({ holidayOn: '2026-10-10', today })).toBe(true)
+    expect(canDisableHolidayOn({ holidayOn: '2026-10-08', today })).toBe(false)
   })
 })
 

@@ -17,6 +17,23 @@ export function readCalendarYear(now: Date): number {
   return Number(year)
 }
 
+/** O dia civil de hoje em São Paulo (`AAAA-MM-DD`): a API só desliga data de hoje em diante (D7). */
+export function readCalendarToday(now: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: BUSINESS_CALENDAR_TIME_ZONE,
+    year: 'numeric',
+  }).format(now)
+}
+
+/** A API desliga a data de hoje em diante: hoje ainda vale, ontem já é 409 (D7). */
+export function canDisableHolidayOn(
+  input: Readonly<{ holidayOn: string; today: string }>,
+): boolean {
+  return input.holidayOn >= input.today
+}
+
 /** Sem rotina agendada (ADR-0096 §6): é a tela quem avisa quando alguma regra fica abaixo do ano corrente + 2. */
 export function hasShortMaterializationHorizon(input: RulesInput): boolean {
   const limit = input.currentYear + MATERIALIZATION_WARNING_MARGIN_YEARS
