@@ -96,6 +96,28 @@ export class StateHolidayRecurrenceMismatchError extends ApiError {
   }
 }
 
+/** Desligar só vale de hoje em diante (D7): apagar a data passada mudaria o selo de prazo da nota já entregue. */
+export class ImportedHolidayInThePastError extends ApiError {
+  public constructor() {
+    super({
+      code: CODE.HOLIDAY_IMPORT_PAST_DATE,
+      message: 'An imported holiday can only be disabled from today onwards',
+      status: 409,
+    })
+  }
+}
+
+/** A digitada e a gerada por regra não têm o que desligar: o caminho delas é o `DELETE` do feriado. */
+export class HolidayNotImportedError extends ApiError {
+  public constructor() {
+    super({
+      code: CODE.HOLIDAY_NOT_IMPORTED,
+      message: 'This holiday was not imported: delete it instead',
+      status: 409,
+    })
+  }
+}
+
 /** A mensagem é fixa, então pode ir para o log sem carregar dado da empresa. */
 export class BusinessCalendarPersistenceError extends DiagnosableError {
   public override readonly name = 'BusinessCalendarPersistenceError'

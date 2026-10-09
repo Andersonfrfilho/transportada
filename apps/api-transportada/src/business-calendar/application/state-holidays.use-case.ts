@@ -3,6 +3,7 @@
  */
 import { StateHolidayNotFoundError } from '../domain/business-calendar-rule.error.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
+import { resolveToday } from './civil-date.service.js'
 import type {
   CreateStateHolidayResult,
   StateHolidayChanges,
@@ -27,14 +28,17 @@ export type StateHolidaysUseCases = {
 }
 
 export function createStateHolidaysUseCases(dependencies: {
+  readonly now: () => Date
   readonly repository: StateHolidayPort
 }): StateHolidaysUseCases {
-  const { repository } = dependencies
+  const { now, repository } = dependencies
 
   return {
     create: { execute: (input) => repository.create(input) },
     list: { execute: (input) => repository.list(input) },
-    remove: { execute: (input) => repository.remove(input) },
+    remove: {
+      execute: (input) => repository.remove({ ...input, today: resolveToday({ now: now() }) }),
+    },
     update: {
       execute: async (input) => {
         const updated = await repository.update(input)

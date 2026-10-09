@@ -4,6 +4,7 @@
  * Spec 238 T1.1: a borda onde um instante vira data civil, no molde de `formatFiscalDay`. O fuso é
  * parâmetro (hoje o de São Paulo, ADR-0096); a política de dias úteis nunca o vê.
  */
+import { BUSINESS_CALENDAR_TIME_ZONE } from '../domain/business-calendar.constant.js'
 import type { CivilDate } from '../domain/business-calendar.types.js'
 
 type ToCivilDateParams = {
@@ -32,4 +33,9 @@ function getFormatter(timeZone: string): Intl.DateTimeFormat {
 
 export function toCivilDate({ instant, timeZone }: ToCivilDateParams): CivilDate {
   return getFormatter(timeZone).format(instant)
+}
+
+/** O dia de "hoje" do produto: o civil de São Paulo, nunca o de UTC (ADR-0096 Q3). */
+export function resolveToday({ now }: { readonly now: Date }): CivilDate {
+  return toCivilDate({ instant: now, timeZone: BUSINESS_CALENDAR_TIME_ZONE })
 }
