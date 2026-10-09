@@ -28,9 +28,11 @@ export const NEW_TABLE_CONSTRAINTS = {
   holiday_provider_entries: [
     'holiday_provider_entries_pkey',
     'holiday_provider_entries_scope_code_day_unique',
+    'holiday_provider_entries_id_code_day_unique',
     'holiday_provider_entries_scope_check',
     'holiday_provider_entries_scope_code_check',
     'holiday_provider_entries_provider_type_check',
+    'holiday_provider_entries_scope_type_check',
     'holiday_provider_entries_name_check',
   ],
   holiday_provider_monthly_usage: [
@@ -68,6 +70,7 @@ export const NEW_TABLE_INDEXES = {
   holiday_provider_entries: [
     'holiday_provider_entries_pkey',
     'holiday_provider_entries_scope_code_day_unique',
+    'holiday_provider_entries_id_code_day_unique',
   ],
   holiday_provider_monthly_usage: ['holiday_provider_monthly_usage_pkey'],
   holiday_import_cities: ['holiday_import_cities_pkey', 'holiday_import_cities_city_idx'],

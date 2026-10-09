@@ -24,12 +24,12 @@ const PREVIOUS_JOB_LIST_SUFFIX = '_nfe_recipient_email_backfill_job'
 
 const PUBLISHED_TABLE_STATEMENTS = [
   `ALTER TABLE "state_holidays" ADD COLUMN "provider_entry_id" uuid`,
-  `ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id") REFERENCES "holiday_provider_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE`,
+  `ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id","state_ibge_code","holiday_on") REFERENCES "holiday_provider_entries"("id","ibge_code","holiday_on") ON DELETE RESTRICT ON UPDATE RESTRICT`,
   `ALTER TABLE "state_holidays" ADD CONSTRAINT "state_holidays_provider_once_check" CHECK ("provider_entry_id" is null or "recurrence" = 'once') NOT VALID`,
   `ALTER TABLE "state_holidays" VALIDATE CONSTRAINT "state_holidays_provider_once_check"`,
   `CREATE INDEX "state_holidays_provider_entry_idx" ON "state_holidays" ("company_id","provider_entry_id") WHERE "provider_entry_id" is not null`,
   `ALTER TABLE "municipal_holidays" ADD COLUMN "provider_entry_id" uuid`,
-  `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id") REFERENCES "holiday_provider_entries"("id") ON DELETE RESTRICT ON UPDATE CASCADE`,
+  `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_provider_entry_fk" FOREIGN KEY ("provider_entry_id","city_ibge_code","holiday_on") REFERENCES "holiday_provider_entries"("id","ibge_code","holiday_on") ON DELETE RESTRICT ON UPDATE RESTRICT`,
   `ALTER TABLE "municipal_holidays" ADD CONSTRAINT "municipal_holidays_rule_or_provider_check" CHECK (not ("source_rule_id" is not null and "provider_entry_id" is not null)) NOT VALID`,
   `ALTER TABLE "municipal_holidays" VALIDATE CONSTRAINT "municipal_holidays_rule_or_provider_check"`,
   `CREATE INDEX "municipal_holidays_provider_entry_idx" ON "municipal_holidays" ("company_id","provider_entry_id") WHERE "provider_entry_id" is not null`,
@@ -231,5 +231,59 @@ describe('a migration da importação de feriados entra aditiva (spec 252 T2.1)'
       }
     }
     for (const table of NEW_TABLES) expect(sqlText).toContain(`DROP TABLE "${table}"`)
+  })
+
+  test('a entrada só aceita o tipo que combina com o escopo (cidade, estado, nacional), e a identidade composta existe', async () => {
+    const sqlText = stripComments(await readFileText(MIGRATION_SUFFIX, 'migration.sql'))
+
+    expect(sqlText).toContain(
+      `CONSTRAINT "holiday_provider_entries_scope_type_check" CHECK (("scope" = 'city' and "provider_type" in ('MUNICIPAL', 'FACULTATIVO')) or ("scope" = 'state' and "provider_type" in ('ESTADUAL', 'FACULTATIVO')) or ("scope" = 'national' and "provider_type" in ('NACIONAL', 'FACULTATIVO')))`,
+    )
+    expect(sqlText).toContain(
+      `CONSTRAINT "holiday_provider_entries_id_code_day_unique" UNIQUE("id","ibge_code","holiday_on")`,
+    )
+  })
+
+  test('o rollback trava as tabelas que lê antes da recusa e recusa também a empresa que desligou a importação', async () => {
+    const sqlText = stripComments(await readFileText(MIGRATION_SUFFIX, 'rollback.sql'))
+    const lock = sqlText.indexOf('LOCK TABLE')
+    const refusal = sqlText.indexOf('Rollback recusado')
+
+    expect(lock).toBeGreaterThan(-1)
+    expect(lock).toBeLessThan(refusal)
+    for (const table of [
+      'municipal_holidays',
+      'state_holidays',
+      'holiday_import_suppressions',
+      'company_holiday_import_settings',
+      'job_executions',
+      'job_schedules',
+    ]) {
+      expect(sqlText.slice(lock, sqlText.indexOf(';', lock))).toContain(`"${table}"`)
+    }
+    expect(sqlText.slice(lock, sqlText.indexOf(';', lock))).toContain('SHARE ROW EXCLUSIVE MODE')
+    expect(sqlText.slice(0, sqlText.indexOf('DELETE FROM'))).toContain('"is_enabled" = false')
+  })
+
+  test('os cabeçalhos dizem o que o rollback perde e o que o lote tranca, sem prometer lock curto', async () => {
+    const migration = await readFileText(MIGRATION_SUFFIX, 'migration.sql')
+    const rollback = await readFileText(MIGRATION_SUFFIX, 'rollback.sql')
+
+    expect(rollback).toContain('cache')
+    expect(rollback).toContain('cota')
+    expect(migration).toContain('três varreduras')
+    expect(migration).toContain('`job_executions` e `job_schedules`')
+    expect(migration).not.toContain('só durante o comando')
+  })
+
+  test('o rollback da 238 recusa enquanto esta migration existir (a coluna e a tabela dela dependem da 238)', async () => {
+    const calendarRollback = stripComments(await readFileText('_business_calendar', 'rollback.sql'))
+    const directory = await findDirectory(MIGRATION_SUFFIX)
+
+    expect(calendarRollback).toContain("to_regclass('public.holiday_provider_entries')")
+    expect(calendarRollback).toContain(directory)
+    expect(calendarRollback.indexOf('RAISE EXCEPTION')).toBeLessThan(
+      calendarRollback.indexOf('ALTER TABLE'),
+    )
   })
 })
