@@ -255,6 +255,9 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       (a) a revisão final `code-reviewer` `opus` + auditoria do §15; (b) a revisão de design e usabilidade com o usuário,
       tela real contra os prints aprovados, no painel e no app do motorista; (c) decidir os achados abertos listados em
       `evidence.md` § "T6.1 — fechamento" (manchete "Sem cota" inalcançável, ordem painel/API em produção).
+      **Decidido em 2026-10-09 (usuário: "fecha as decisões abertas"), branch `work/252-status`, sem push:** a manchete de cota saiu e o cartão de status dá a
+      verdade pelo último ciclo da rotina (`lastRun`) e pelas buscas fora do plano (`pairs.planRestricted`); painel com os campos opcionais ANTES da API.
+      `evidence.md` § "Cartão de status honesto". Falta só a aprovação dos prints pelo usuário para publicar.
 
 ## Publicação
 

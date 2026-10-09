@@ -496,7 +496,11 @@ Aba **Calendário**: três blocos novos ao fim — "Importação de feriados" (m
 (`removedByProvider` é `{ items, truncated }`) e "Feriados desligados" (`GET /holiday-imports/suppressions` paginada de 20). Linha **importada** oferece
 "Desligar" (`POST /holiday-imports/suppressions { holidayId, scope }`), não "Excluir"; **restaurar volta na próxima execução diária** e o texto diz isso.
 `409 HOLIDAY_IMPORT_PAST_DATE` / `HOLIDAY_IMPORT_DATE_LOCKED` / `HOLIDAY_NOT_IMPORTED` têm texto próprio. A coluna Origem lê `origin?: 'typed' | 'imported'`
-**opcional** da linha (a API ainda não o manda: sem ele a célula fica vazia, nunca "cadastrada" por chute). Cliente próprio
+**opcional** da linha (a API o manda desde 2026-10-09; sem ele a célula fica vazia, nunca "cadastrada" por chute). O **cartão de status é honesto**
+(spec 252): a manchete sai do último ciclo da rotina (`lastRun.outcome`: `provider_unauthorized` → "token inválido ou plano sem cobertura",
+`provider_unreachable` → "indisponível, tentando de novo", `malformed_response` → "resposta inesperada") e `pairs.planRestricted > 0` vira um
+aviso à parte que não bloqueia o "Em dia"; os dois campos são **opcionais** nas guardas (o painel é publicado antes da API) e a manchete de
+cota não existe mais. Cliente próprio
 (`holidayImportClient.service.ts`), guardas de chaves exatas, namespace `businessCalendar.import.*`. Contratos: `test/business-calendar/holiday-import.contract.ts`
 e `test/trip-hooks/business-calendar-import-*.contract.ts`.
 

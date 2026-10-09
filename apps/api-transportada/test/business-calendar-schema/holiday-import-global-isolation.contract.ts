@@ -124,4 +124,3 @@ describe('spec 252 (cartão de status honesto) — a última execução da rotin
     }
   })
 })
-
