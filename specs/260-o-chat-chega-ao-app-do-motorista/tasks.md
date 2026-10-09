@@ -136,24 +136,54 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [ ] **T1b.6** `sonnet` — **Gate e primeira publicação em staging**: `make check`; o interruptor
       `VITE_DRIVER_APP_URL` segue como está. Evidência em `evidence.md`.
 
-## Fase 2 — Assunto na conversa (API)
+## Fase 2 — Assunto, protocolo, canais e ícone na API ([ADR-0101](../../docs/adr/0101-a-conversa-tem-assunto-e-protocolo.md))
 
-> 🤖 Modelo: `sonnet` (T2.1 é 🧠 — validar com `opus`/`architect` antes de implementar)
+> 🤖 Modelo: `sonnet` (T2.0 e T2.7 → `haiku`; T2.1 foi 🧠 e está **feita**). **Regra do dono: tudo aditivo — as rotas e o
+> comportamento atuais da conversa de ocorrência (app, portal da contratante, WhatsApp, e-mail 143) ficam idênticos.**
+> A API **não tem OpenAPI** (`apps/api-transportada/CLAUDE.md:71`): em vez dele, contrato sobre a tabela de rotas e
+> documentação em `docs/ai-context/api-transportada.md`.
 
-- [ ] **T2.1** 🧠 `opus` — Desenho final do modelo de dados (D2): colunas/checks/índice único, decisão de
-      manter `occurrence_conversations` vs tabela de assunto, política de `retarget` e de nota liberada.
-      Saída: ADR curto (`docs/adr/0101-…`) — confirmar o número em `origin/staging` antes. **Decisão que as
-      demais herdam.**
-- [ ] **T2.2** `sonnet` — Contratos negativos antes: BOLA (nota/viagem alheia → 404), encerrada → 409,
-      `open` idempotente, a conversa não decide (mutação).
-- [ ] **T2.3** `sonnet` — Migration aditiva **+ `channels` (canais distintos das mensagens) e `iconName` (do tipo, spec 255) na lista** **+ coluna `protocol` (`AAMMDD-XXXX`, único por empresa, imutável) com backfill e gerador com retry de colisão (D8; teste de colisão forçada)**; + backfill + `rollback.sql` + `make migration-test`.
-- [ ] **T2.4** `sonnet` — Rotas `/me/trips/current/conversations/**` e `findMySubject`; **a API passa a ecoar `clientMessageId` nas mensagens e devolver `awaitingDriver`/`subjectLabel` na lista** (remove os dois remendos do adapter); rotas antigas
-      intactas; OpenAPI gerado; teste de que toda rota aparece no documento.
-- [ ] **T2.5** `sonnet` — Aviso do sino com assunto (D7); `awaitingDriver` e `subjectLabel` no servidor.
-- [ ] **T2.6** `sonnet` — Integração: `bun --env-file=../../.env.test run test:integration` nos arquivos
-      tocados (contrato verde **não** basta). Banco indisponível = parar e relatar, nunca publicar.
-- [ ] **T2.7** `haiku` — O adapter do app passa a ler `subjectType/subjectLabel/awaitingDriver` da lista nova e remove os fallbacks da T1b.2 (tolerante → API → telas,
-      ADR-0081 §9); remover o fallback só depois da API em produção.
+- [x] **T2.1** 🧠 `opus` — Modelo de dados e contrato: [ADR-0101](../../docs/adr/0101-a-conversa-tem-assunto-e-protocolo.md)
+      (assunto em `occurrence_conversations` por colunas aditivas + CHECK de forma; protocolo gerado pelo banco por
+      trigger; `channels`/`iconName`/`awaitingDriver`/`subjectLabel` derivados na leitura; `client_message_id` nas
+      mensagens; rotas novas, antigas intactas). Saída do arquiteto `opus`; conferida contra o código.
+- [ ] **T2.0** `haiku` — `frontend-driver`: `notificationDestination.service` aceita também `trip.subject-conversation-message`
+      (+ teste). **Publicar o app ANTES da API** (ADR-0081 §9: app tolerante → API → telas).
+- [ ] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
+      código para empresa errada, inexistente e viagem alheia); encerrada → `409 CONVERSATION_CLOSED` (nota liberada, viagem
+      cancelada/concluída, `closed`); `open` idempotente (201 e depois 200); **rota antiga intacta** (resposta exata da lista e
+      das mensagens antes e depois); mutação de A5 (os casos de uso novos não importam nada de `trip_occurrence_cases`, taxa
+      ou acerto); alfabeto do TS = alfabeto do CHECK; teste de que toda rota nova está na tabela de rotas com política e limite.
+- [ ] **T2.3a** `sonnet` — **Migration `conversation_subject`** (aditiva): `subject_type` (padrão `occurrence`, CHECK por `inList`),
+      `trip_id`/`trip_document_id` (FK compostas com `company_id`), `occurrence_kind`/`occurrence_id` nuláveis, CHECK de forma,
+      únicos parciais de nota e viagem, índices de leitura, `client_message_id` (CHECK + único parcial) e `conversation_id`
+      nos envios de arquivo; schema Drizzle; estreitamento de tipo (`string | null`) com o `tsc` como checklist; filtro
+      `subject_type = 'occurrence'` em `listMyConversations` e em `applyDriverStatus(occurrenceId = null)`; `insertMessage`
+      grava a `idempotencyKey`; `rollback.sql` (recusa se houver conversa de nota/viagem ou envio por `conversation_id`);
+      `make migration-test`.
+- [ ] **T2.3b** `sonnet` — **Migration `conversation_protocol`**: coluna `protocol` (padrão `''` como sentinela), funções PL/pgSQL, backfill por
+      `created_at`, CHECK de formato, `UNIQUE (company_id, protocol)`, triggers `BEFORE INSERT` (sorteio com até 5
+      tentativas) e `BEFORE UPDATE` (imutável) **criados por último**; teste de colisão forçada com `setseed`, de
+      esgotamento (23505) e de imutabilidade; medir `count(*)` de `occurrence_conversations` em produção antes (relatar);
+      `rollback.sql` (perda declarada dos protocolos); `make migration-test` aplica e reverte as duas migrations.
+- [ ] **T2.4** `sonnet` — **Rotas do motorista** `/me/trips/current/conversations` (lista paginada por cursor), `.../open`,
+      `.../:subjectType/:subjectId/messages|messages/read|uploads`; `findMySubject` (BOLA + `retarget`); consulta em lote
+      (`driver-conversation-subject.query.ts`) com `subjectLabel`, `protocol`, `channels`, `iconName`, `awaitingDriver`,
+      `status` efetivo, `lastMessagePreview`; eco de `clientMessageId` relendo a mensagem na repetição; política pura de
+      rótulo (`conversation-subject-label.policy.ts`); erros `CONVERSATION_NOT_FOUND` e `CONVERSATION_CLOSED`; limites
+      compartilhados com as rotas antigas; **rotas antigas intactas**.
+- [ ] **T2.4b** `sonnet` — **Rotas do escritório** `/trips/:tripId/conversations/**` (`open`, mensagens, envio de arquivo, `close`), leitura por
+      `POST /occurrence-conversations/:id/read`, escrita em nota/viagem com `trip.manage`, `retarget` no envio.
+- [ ] **T2.5** `sonnet` — **Aviso do sino**: `trip.conversation-message` ganha campos extras no `payload` (`subjectType`,
+      `subjectId`, `subjectLabel`, `protocol`) sem mudar template nem `dedupeKey`; **chave nova**
+      `trip.subject-conversation-message` (nota e viagem) no catálogo e no preview; `noticeLabel` sem nome de pessoa.
+- [ ] **T2.5b** `sonnet` — (**depende de decisão do dono**) texto do D7 para o aviso da ocorrência, por `UPDATE` só onde o texto ainda é o
+      do seed original. Fora do caminho crítico.
+- [ ] **T2.6** `sonnet` — **Integração**: `bun --env-file=../../.env.test run test:integration` nos arquivos tocados (migration, lista,
+      `open`, `retarget`, colisão, envio de arquivo por `conversation_id`, limpeza de teste frente às FKs restrict).
+      Contrato verde **não** basta; banco indisponível = parar e relatar, nunca publicar.
+- [ ] **T2.7** `haiku` — O adapter do app passa às rotas novas e remove os remendos de `awaitingParticipant` e do eco
+      (T1b.2) — **só depois da API em produção**.
 
 ## Fase 3 — O escritório abre e vê
 

@@ -76,7 +76,7 @@ POST /v1/me/trips/current/conversations/:subjectType/:subjectId/messages/read
 POST /v1/me/trips/current/conversations/:subjectType/:subjectId/uploads
 POST /v1/me/trips/current/conversations/open                                (assunto document|trip, só motorista na tripulação)
 Erros: 404 CONVERSATION_NOT_FOUND (assunto alheio) · 409 CONVERSATION_CLOSED · 403 DRIVER_NOT_REGISTERED · 429.
-Envelope { data } / { error:{code,message} } como o resto da API; OpenAPI gerado das rotas (Scalar).
+Envelope { data } / { error:{code,message} } como o resto da API; a API não tem OpenAPI (`apps/api-transportada/CLAUDE.md:71`): contrato da tabela de rotas + `docs/ai-context/api-transportada.md`.
 ```
 
 `awaitingDriver` = última mensagem da conversa é `outbound` (operação) e posterior à última do motorista.
