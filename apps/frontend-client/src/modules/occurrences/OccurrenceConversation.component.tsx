@@ -31,7 +31,6 @@ import {
 } from './shared/conversationAttachment.service'
 
 const timeFormatter = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' })
-const COPIED_LABEL = 'Copiado!'
 
 function formatTime(iso: string): string {
   const moment = new Date(iso)
@@ -245,10 +244,7 @@ export function OccurrenceConversation({
                     <article className={`conversation__bubble conversation__bubble--${view.tone}`}>
                       <p className="conversation__author">{view.author}</p>
                       {message.body === '' ? null : (
-                        <MessageText
-                          message={toPayload(message, index)}
-                          copiedLabel={COPIED_LABEL}
-                        />
+                        <MessageText message={toPayload(message, index)} />
                       )}
                       <MessageAttachments attachments={message.attachments} />
                       <p className="conversation__meta">

@@ -77,8 +77,8 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.4.0",
-        "@adatechnology/conversations-ui": "0.5.0",
+        "@adatechnology/conversation-contracts": "0.5.0",
+        "@adatechnology/conversations-ui": "0.6.0",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
@@ -103,8 +103,8 @@
       "name": "@transportada/frontend-driver",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.4.0",
-        "@adatechnology/conversations-ui": "0.5.0",
+        "@adatechnology/conversation-contracts": "0.5.0",
+        "@adatechnology/conversations-ui": "0.6.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
@@ -166,7 +166,7 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/conversations-ui": "0.5.0",
+        "@adatechnology/conversations-ui": "0.6.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -266,9 +266,9 @@
 
     "@adatechnology/cargo-placement": ["@adatechnology/cargo-placement@0.1.0", "", {}, "sha512-3h71tfuLaznch0Mjy/xFU/Qt6BzMM9vy08KdN6nMe0Dqj7+8rEnsQ0h4QqPX35lmRKEMilCAy7JxmOj8xteWCw=="],
 
-    "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.4.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-EdGT9kt9XPh+BAVNvXKpOeZu1thdcl+F6deHmQWOvYkEiuMJsLSVt6Ibu7+2koT4xCYcmAZGMp+yUVLfhgVMYw=="],
+    "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.5.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.4.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-zomuAXFOl/T5zgy/A5sMpgKq12Lmk1YbO/ICI2Gya1QUzzVTVxzu7035GhWq0Vyf1sOzEMMWJEJ2S1oB+k0LQg=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.6.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.5.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-2rSOFLYbASeqV8FtEzKMcuekCI5tY/oQAElizqWBZc30L9xnKUK0ONtTQ/kiqt5LhiIknhFqiAJSXG0P8tIVjw=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 

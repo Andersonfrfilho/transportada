@@ -23,7 +23,7 @@
     "predev": "bun run assets:background-removal && bun run assets:canhoto-ocr:dev"
   },
   "dependencies": {
-    "@adatechnology/conversations-ui": "0.5.0",
+    "@adatechnology/conversations-ui": "0.6.0",
     "@adatechnology/document-intake": "0.1.0",
     "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
     "@adatechnology/image-cutout": "0.1.0-rc.2",
