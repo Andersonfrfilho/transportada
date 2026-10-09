@@ -442,6 +442,12 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
+import { createListMySubjectConversationsUseCase } from './occurrence-conversation/application/list-my-subject-conversations.use-case.js'
+import { createListMySubjectMessagesUseCase } from './occurrence-conversation/application/list-my-subject-messages.use-case.js'
+import { createMarkMySubjectReadUseCase } from './occurrence-conversation/application/mark-my-subject-read.use-case.js'
+import { createOpenMySubjectConversationUseCase } from './occurrence-conversation/application/open-my-subject-conversation.use-case.js'
+import { createDrizzleDriverSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation-subject.repository.js'
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
 import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
@@ -3382,6 +3388,26 @@ function createApplicationRoutes({
         repository: createDrizzleConversationUploadRepository(database),
         storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 260 T2.4 (ADR-0101): a conversa por assunto (nota, viagem, ocorrência) no `/me`, lado de leitura. */
+    ...createMeSubjectConversationRoutes({
+      list: createListMySubjectConversationsUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      markRead: createMarkMySubjectReadUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      messages: createListMySubjectMessagesUseCase({
+        clock: () => new Date(),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      open: createOpenMySubjectConversationUseCase({
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),

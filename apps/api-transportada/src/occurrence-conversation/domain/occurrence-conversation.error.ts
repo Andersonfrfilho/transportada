@@ -236,3 +236,29 @@ export class OccurrenceConversationForwardInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 260 (ADR-0101 §3): conversa de nota ou de viagem que o motorista não alcança — assunto
+ * inexistente, de outra empresa, de viagem alheia ou conversa de outro motorista. Uma resposta só: a
+ * diferença entre os casos confirmaria a existência.
+ */
+export class ConversationNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_NOT_FOUND',
+      message: 'Conversation not found',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 260 (ADR-0101 §4): nota liberada, viagem terminal ou conversa encerrada pelo escritório. */
+export class ConversationClosedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_CLOSED',
+      message: 'The conversation is closed',
+      status: 409,
+    })
+  }
+}

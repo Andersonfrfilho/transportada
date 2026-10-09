@@ -29,6 +29,7 @@ import { createTripRoutes } from '../../src/trips/presentation/trip.routes'
 import { createMeTripRoutes } from '../../src/trips/presentation/me-trip.routes'
 import { createDeliveryChargeRoutes } from '../../src/delivery-clients/presentation/delivery-charge.routes'
 import { createMeOccurrenceConversationRoutes } from '../../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createMeSubjectConversationRoutes } from '../../src/occurrence-conversation/presentation/me-subject-conversation.routes'
 
 /** Dependência falsa: a rota só é montada para ler a política dela. */
 export function buildRoleContractRoutes(
@@ -70,5 +71,6 @@ export function buildRoleContractRoutes(
     ...createMeTripRoutes(dependencies),
     ...createDeliveryChargeRoutes(dependencies),
     ...createMeOccurrenceConversationRoutes(dependencies),
+    ...createMeSubjectConversationRoutes(dependencies),
   ]
 }

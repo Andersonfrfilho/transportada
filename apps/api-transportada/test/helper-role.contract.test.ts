@@ -80,11 +80,14 @@ describe('helper role contract', () => {
   test('reaches only read routes of the driver app', () => {
     expect(reachableRoutes(['helper'])).toEqual([
       'GET /me/trips/current',
+      'GET /me/trips/current/conversations',
+      'GET /me/trips/current/conversations/:subjectType/:subjectId/messages',
       'GET /me/trips/current/documents/:documentId/proof',
       'GET /me/trips/current/manifests/:manifestId',
       'GET /me/trips/current/manifests/:manifestId/damdfe',
       'GET /me/trips/current/occurrence-conversations',
       'GET /me/trips/current/occurrences/:id/messages',
+      'POST /me/trips/current/conversations/:subjectType/:subjectId/messages/read',
       'POST /me/trips/current/occurrences/:id/messages/read',
     ])
   })
