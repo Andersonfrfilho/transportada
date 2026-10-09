@@ -86,6 +86,10 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `matchesProtocolQuery`: sem traço, sem caixa, parcial); ausente = nada desenhado. Changesets minor
       (contracts 0.5.0, UI 0.6.0). **Novo ciclo de publicação:** passe de revisão `opus` (diff pequeno) e
       aprovação do usuário antes do merge.
+- [ ] **T1.9b** `sonnet` — **Canais e ícone do assunto no SDK (D9, RF15), no MESMO branch/release da T1.9:** `channels?` e
+      `iconName?` em `ParticipantConversationSummary` + schema; selos de canal (lucide, ícone + texto sr-only,
+      `labels.channelApp/Whatsapp/Email/Portal/Webchat`) na linha e no cabeçalho; prop `renderSubjectIcon?` na tela
+      composta (ausente = ícone do grupo); testes SSR; README; mesmo changeset. Passe `opus` do delta.
 - [ ] **T1.10** `sonnet` — Subir os 3 apps para a versão nova do `conversations-ui` (alinhar) e ligar o protocolo.
 
 ## Fase 1b — Plugar nos apps (alinhar versões)
@@ -118,6 +122,9 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [ ] **T1b.10** `sonnet` — **Protocolo no app e na demo (D8):** adapter mapeia `protocol` da API; API de demonstração
       devolve protocolos `AAMMDD-XXXX`; conferir no navegador (cabeçalho, lista, copiar, busca). Até a API
       (T2.4) servir o campo, o adapter **não inventa** protocolo: sem campo, nada aparece.
+- [ ] **T1b.11** `sonnet` — **Canais e ícone no app (D9):** adapter mapeia `channels` e `iconName`; `renderSubjectIcon` usa o
+      `<Icon name>` do app (catálogo da 255); labels pt-BR dos canais; API de demonstração devolve `channels`
+      (`app`, `whatsapp`) e `iconName` por conversa; conferir no navegador.
 - [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
       escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
       implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
@@ -139,7 +146,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       demais herdam.**
 - [ ] **T2.2** `sonnet` — Contratos negativos antes: BOLA (nota/viagem alheia → 404), encerrada → 409,
       `open` idempotente, a conversa não decide (mutação).
-- [ ] **T2.3** `sonnet` — Migration aditiva **+ coluna `protocol` (`AAMMDD-XXXX`, único por empresa, imutável) com backfill e gerador com retry de colisão (D8; teste de colisão forçada)**; + backfill + `rollback.sql` + `make migration-test`.
+- [ ] **T2.3** `sonnet` — Migration aditiva **+ `channels` (canais distintos das mensagens) e `iconName` (do tipo, spec 255) na lista** **+ coluna `protocol` (`AAMMDD-XXXX`, único por empresa, imutável) com backfill e gerador com retry de colisão (D8; teste de colisão forçada)**; + backfill + `rollback.sql` + `make migration-test`.
 - [ ] **T2.4** `sonnet` — Rotas `/me/trips/current/conversations/**` e `findMySubject`; **a API passa a ecoar `clientMessageId` nas mensagens e devolver `awaitingDriver`/`subjectLabel` na lista** (remove os dois remendos do adapter); rotas antigas
       intactas; OpenAPI gerado; teste de que toda rota aparece no documento.
 - [ ] **T2.5** `sonnet` — Aviso do sino com assunto (D7); `awaitingDriver` e `subjectLabel` no servidor.

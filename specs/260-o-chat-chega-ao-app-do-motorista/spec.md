@@ -139,6 +139,21 @@ fica atrás do login, 183 RF11).
   só exibe e copia — **não gera** protocolo e não conhece o formato (é do produto). Capacidade por ausência: sem o
   campo nada é desenhado.
 
+### D9 — Cada item da lista mostra os canais da conversa e o ícone do assunto (pedido do dono, 2026-10-09)
+
+> _"Nos itens do chat teremos os canais que estão interagindo na conversa e também os ícones das ocorrências."_
+
+- **Canais:** a linha da lista (e o cabeçalho da conversa) mostram um selo por canal que **já trocou mensagem** na
+  conversa — `app`, `whatsapp`, `email`, `portal`, `webchat` (vocabulário do `conversation-contracts`). Ícone **e
+  texto** (cor nunca sozinha; o texto vai em `cv-p-sr-only`). Vem do servidor (`channels`: canais distintos das
+  mensagens da conversa), nunca deduzido no cliente. Sem o campo, nada é desenhado.
+- **Ícone do assunto:** na ocorrência é o `iconName` do **tipo** (spec 255, catálogo fechado: `alert`, `camera`,
+  `clipboard-list`, `clock`, `document`, `invoice`, `message`, `money`, `package`, `truck`; nulo = sem ícone). O
+  SDK não conhece o catálogo: recebe `iconName?: string` opaco no resumo e delega o desenho ao produto por
+  `renderSubjectIcon?(conversation)`; ausente, cai no ícone do grupo (`subjectGroups`). Nota e viagem usam o ícone
+  do grupo.
+- **Fora desta decisão:** selo de canal **por mensagem** na bolha (183 D2) — evolução posterior.
+
 ## Histórias priorizadas
 
 ### P1 — Ler e responder o escritório sobre uma ocorrência
@@ -194,6 +209,8 @@ motorista e fica em "Encerradas" (ainda legível).
   produto); o do app em `.locale.json`. Nenhuma string de domínio no código do pacote.
 - **RF14** Toda conversa tem protocolo `AAMMDD-XXXX` gerado pelo servidor (D8), único por empresa, exibido no
   cabeçalho e na lista do app, copiável por toque, e buscável na lista; o escritório o vê no painel.
+- **RF15** Cada item da lista e o cabeçalho da conversa mostram os selos dos canais que participaram (D9) e, na
+  ocorrência, o ícone do tipo (`iconName`); o servidor devolve `channels` e `iconName`.
 - **RF13** (plugar em outro app) A visão do participante recebe **só** um `ConversationsApi`, `labels`,
   `subjectGroups` e o tema. Provado por um segundo consumidor real: o portal da contratante
   (`apps/frontend-client`) abre a conversa dele com o mesmo componente, sem mudar o pacote.

@@ -72,6 +72,7 @@ até 128 — casa com `requestSchemas.ts:21-22`); `ParticipantConversationSummar
 `lastMessageAt: string | null`, `lastMessagePreview?`, `lastMessageDirection?`, `unreadCount`,
 `awaitingParticipant`, `status: 'open' | 'closed'`, `attributes?` — onde viaja o `tripId`);
 `protocol?: string` (D8 — referência legível gerada pelo produto, ex. `261009-K7M2`; o pacote só exibe e copia, nunca gera);
+`channels?: ConversationChannel[]` (D9 — canais que já trocaram mensagem na conversa; vocabulário do contracts) e `iconName?: string` (D9 — nome opaco, `[a-z0-9-]` até 32; o produto desenha por `renderSubjectIcon`);
 `ParticipantConversationPage { data, nextCursor? }`; `ParticipantMessage` (`id`, `clientMessageId?`,
 `direction`, `authorName?`, `text?`, `attachments`, `createdAt`, `status?`, `readAt?`);
 `ParticipantAttachment`. Tudo com **schema zod** — a resposta da API é entrada não confiável.
