@@ -11,7 +11,6 @@ import {
 } from '../domain/holiday-provider-pull.constant.js'
 import { resolveHorizonYears } from '../domain/holiday-provider-schedule.policy.js'
 
-import { markQuotaExhausted } from './fetch-holiday-failure.service.js'
 import { settlePair } from './fetch-holiday-pair.service.js'
 import type {
   Cycle,
@@ -29,11 +28,16 @@ export type {
 
 function createEmptyTally(): FetchTally {
   return {
+    allNotFound: false,
     budgetExhausted: false,
     ceilingReached: false,
+    circuitOpened: false,
+    entriesDiscarded: 0,
     malformedResponses: 0,
+    notFoundResponses: 0,
     pairsFetched: 0,
     pairsNotCovered: 0,
+    planRestricted: 0,
     rateLimited: false,
     requests: 0,
     unauthorized: false,
@@ -57,10 +61,10 @@ export function createFetchHolidayProviderUseCase(
       const now = dependencies.now()
       const cycle: Cycle = {
         ceiling,
+        consecutiveUnreachable: 0,
         correlationId,
         dependencies,
         halt: undefined,
-        haltedPair: undefined,
         isStopRequested,
         limiter,
         now,
@@ -72,15 +76,16 @@ export function createFetchHolidayProviderUseCase(
         years: resolveHorizonYears(now),
       })
 
-      for (const [index, pair] of pairs.entries()) {
+      for (const pair of pairs) {
         if (cycle.halt !== undefined) break
         await settlePair({ cycle, pair })
-        if (cycle.halt === 'budget')
-          await markQuotaExhausted({ cycle, remaining: pairs.slice(index + 1) })
       }
 
+      // Orçamento do mês atingido só encerra o ciclo: nenhum par muda, para que aumentar o orçamento solte tudo.
       cycle.tally.budgetExhausted = cycle.halt === 'budget'
       cycle.tally.ceilingReached = cycle.tally.requests >= ceiling
+      cycle.tally.allNotFound =
+        cycle.tally.requests > 0 && cycle.tally.notFoundResponses === cycle.tally.requests
       return cycle.tally
     },
   }

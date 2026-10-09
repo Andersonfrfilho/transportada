@@ -338,12 +338,15 @@ describe('o cliente HTTP da FeriadosAPI (spec 252 T3.1)', () => {
 
   test('recusa o corpo declarado maior que 512 KB sem lê-lo', async () => {
     let wasRead = false
-    const body = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        wasRead = true
-        controller.error(new Error('the body must not be read'))
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          wasRead = true
+          controller.error(new Error('the body must not be read'))
+        },
       },
-    })
+      { highWaterMark: 0 },
+    )
     const { client } = buildClient(
       () => new Response(body, { headers: { 'content-length': '600000' }, status: 200 }),
     )
@@ -357,13 +360,16 @@ describe('o cliente HTTP da FeriadosAPI (spec 252 T3.1)', () => {
   test('lê o corpo por stream com teto: passou de 512 KB sem declarar, para de ler e recusa', async () => {
     const chunk = new Uint8Array(100_000).fill(32)
     let pulled = 0
-    const body = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        pulled += 1
-        controller.enqueue(chunk)
-        if (pulled > 50) controller.close()
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulled += 1
+          controller.enqueue(chunk)
+          if (pulled > 50) controller.close()
+        },
       },
-    })
+      { highWaterMark: 0 },
+    )
     const { client } = buildClient(() => new Response(body, { status: 200 }))
 
     const error = await captureError(client.fetchPage(CITY_REQUEST))

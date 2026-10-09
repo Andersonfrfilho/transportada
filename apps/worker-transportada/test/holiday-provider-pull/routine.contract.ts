@@ -35,6 +35,7 @@ const EMPTY_FETCH: FetchTally = {
   circuitOpened: false,
   entriesDiscarded: 0,
   malformedResponses: 0,
+  notFoundResponses: 0,
   pairsFetched: 0,
   pairsNotCovered: 0,
   planRestricted: 0,

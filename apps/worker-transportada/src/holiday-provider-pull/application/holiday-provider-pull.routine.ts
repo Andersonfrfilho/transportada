@@ -17,28 +17,18 @@ import type {
   JobRoutineResult,
 } from '../../job-run/application/job-routine.port.js'
 import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
-import type { JobOutcome } from '../../shared/job-catalog.constant.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 
-import type { ApplyHolidayProviderUseCase, ApplyTally } from './apply-holiday-provider.use-case.js'
-import type {
-  DiscoverHolidayCitiesUseCase,
-  DiscoveryTally,
-} from './discover-holiday-cities.use-case.js'
-import type { FetchHolidayProviderUseCase, FetchTally } from './fetch-holiday-provider.use-case.js'
+import type { ApplyHolidayProviderUseCase } from './apply-holiday-provider.use-case.js'
+import type { DiscoverHolidayCitiesUseCase } from './discover-holiday-cities.use-case.js'
+import type { FetchHolidayProviderUseCase } from './fetch-holiday-provider.use-case.js'
+import { buildCounters, resolveOutcome, type CycleState } from './holiday-provider-pull-summary.js'
 
 export type HolidayProviderPullRoutineDependencies = {
   readonly apply: ApplyHolidayProviderUseCase
   readonly discover: DiscoverHolidayCitiesUseCase
   readonly fetch: FetchHolidayProviderUseCase
   readonly logger: WorkerLogger
-}
-
-type CycleState = {
-  apply: ApplyTally | undefined
-  discovery: DiscoveryTally | undefined
-  fetch: FetchTally | undefined
-  stageFailures: number
 }
 
 export function createHolidayProviderPullRoutine(
@@ -134,61 +124,4 @@ async function runCycle(input: {
   })
 
   return { counters, outcome }
-}
-
-const flag = (value: boolean | undefined) => (value === true ? 1 : 0)
-
-/** Zerado fica fora, menos o que o cartão do painel mostra sempre: o cartão conta o que aconteceu. */
-function buildCounters(state: CycleState): Readonly<Record<string, number>> {
-  const { apply, discovery, fetch } = state
-  const counters: Record<string, number> = {
-    discovery_batches: discovery?.batches ?? 0,
-    discovery_discarded_city_codes: discovery?.discardedCityCodes ?? 0,
-    discovery_documents: discovery?.documentsRead ?? 0,
-    discovery_failed_companies: discovery?.failedCompanies ?? 0,
-    discovery_without_destination: discovery?.documentsWithoutDestination ?? 0,
-    apply_failed_companies: apply?.failedCompanies ?? 0,
-    apply_unexpected_failures: apply?.unexpectedFailures ?? 0,
-    budget_exhausted: flag(fetch?.budgetExhausted),
-    ceiling_reached: flag(fetch?.ceilingReached),
-    fetch_unexpected_failures: fetch?.unexpectedFailures ?? 0,
-    malformed_response: fetch?.malformedResponses ?? 0,
-    municipal_inserted: apply?.municipalInserted ?? 0,
-    national_mismatch: apply?.nationalMismatch ?? 0,
-    pairs_fetched: fetch?.pairsFetched ?? 0,
-    pairs_not_covered: fetch?.pairsNotCovered ?? 0,
-    provider_unauthorized: flag(fetch?.unauthorized),
-    provider_unreachable: fetch?.unreachable ?? 0,
-    rate_limited: flag(fetch?.rateLimited),
-    requests: fetch?.requests ?? 0,
-    stage_failures: state.stageFailures,
-    state_inserted: apply?.stateInserted ?? 0,
-  }
-  const alwaysShown = new Set(['municipal_inserted', 'requests', 'state_inserted'])
-
-  return Object.fromEntries(
-    Object.entries(counters).filter(([name, value]) => value > 0 || alwaysShown.has(name)),
-  )
-}
-
-function countOwnFailures(state: CycleState): number {
-  return (
-    state.stageFailures +
-    (state.discovery?.failedCompanies ?? 0) +
-    (state.fetch?.unexpectedFailures ?? 0) +
-    (state.apply?.failedCompanies ?? 0) +
-    (state.apply?.unexpectedFailures ?? 0)
-  )
-}
-
-/** Falha nossa vence a do fornecedor; entre as do fornecedor, a que o usuário resolve vem primeiro. */
-function resolveOutcome(state: CycleState): JobOutcome {
-  if (countOwnFailures(state) > 0) return 'unexpected_error'
-
-  const { fetch } = state
-  if (fetch?.unauthorized === true) return 'provider_unauthorized'
-  if ((fetch?.malformedResponses ?? 0) > 0) return 'malformed_response'
-  if ((fetch?.unreachable ?? 0) > 0 || fetch?.rateLimited === true) return 'provider_unreachable'
-
-  return 'succeeded'
 }

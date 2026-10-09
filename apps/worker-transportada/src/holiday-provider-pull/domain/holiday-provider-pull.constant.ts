@@ -42,3 +42,19 @@ export const HOLIDAY_PROVIDER_DEFAULT_RETRY_AFTER_SECONDS = 3600
 /** O produto fixa o fuso em São Paulo (ADR-0096 Q3); sem horário de verão desde 2019. */
 export const HOLIDAY_PROVIDER_TIME_ZONE = 'America/Sao_Paulo'
 export const HOLIDAY_PROVIDER_UTC_OFFSET = '-03:00'
+
+/** A resposta de uma página de 100 datas cabe com folga em 512 KB; acima disso o corpo não é lido. */
+export const FERIADOS_API_MAX_BODY_BYTES = 524_288
+
+/** O `Retry-After` do fornecedor fica entre um minuto e um dia, qualquer que seja o valor mandado. */
+export const FERIADOS_API_MIN_RETRY_AFTER_SECONDS = 60
+export const FERIADOS_API_MAX_RETRY_AFTER_SECONDS = 86_400
+
+/** 402/403 numa cidade: o plano não a cobre, e o par só é tentado de novo depois de 30 dias. */
+export const HOLIDAY_PROVIDER_PLAN_RESTRICTED_RETRY_DAYS = 30
+
+/** Disjuntor: três `provider_unreachable` seguidos encerram o ciclo, e o resto fica para o próximo. */
+export const HOLIDAY_PROVIDER_MAX_CONSECUTIVE_UNREACHABLE = 3
+
+/** Teto do orçamento mensal configurável: acima disso é engano de configuração. */
+export const FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET = 1_000_000
