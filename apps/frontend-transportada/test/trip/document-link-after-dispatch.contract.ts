@@ -35,7 +35,6 @@ const LINK: DocumentLinkAfterDispatch = {
   linked: [{ nfeDocumentId: 'nfe-1', stopId: 'stop-1', tripDocumentId: 'link-1' }],
   mdfeDocumentDivergence: true,
   skipped: [{ nfeDocumentId: 'nfe-2', reason: 'already_linked' }],
-  tripStatus: 'in_transit',
 }
 
 function collectKeys(value: unknown, prefix = ''): string[] {
@@ -82,6 +81,19 @@ describe('linkDocumentsAfterDispatch vem de allowed-actions (spec 257)', () => {
 describe('resposta de POST /trips/:id/documents/after-dispatch', () => {
   it('aceita o resumo exato', () => {
     expect(parseDocumentLinkAfterDispatch(LINK)).toEqual(LINK)
+  })
+
+  it('aceita o payload real da API quando tudo foi pulado (sem tripStatus, sem evento)', () => {
+    const allSkipped: DocumentLinkAfterDispatch = {
+      createdStopIds: [],
+      documentsWithoutCte: 0,
+      eventId: null,
+      linked: [],
+      mdfeDocumentDivergence: false,
+      skipped: [{ nfeDocumentId: 'nfe-1', reason: 'already_linked' }],
+    }
+
+    expect(parseDocumentLinkAfterDispatch(allSkipped)).toEqual(allSkipped)
   })
 
   it('recusa chave desconhecida, campo faltando, tipo trocado e motivo de pulo desconhecido', () => {

@@ -20,7 +20,6 @@ export type DocumentLinkAfterDispatch = Readonly<{
   linked: readonly DocumentLinkLinked[]
   mdfeDocumentDivergence: boolean
   skipped: readonly DocumentLinkSkipped[]
-  tripStatus: string
 }>
 
 export type LinkDocumentsAfterDispatchResult = Readonly<{

@@ -21,7 +21,6 @@ const DOCUMENT_LINK_KEYS = [
   'linked',
   'mdfeDocumentDivergence',
   'skipped',
-  'tripStatus',
 ] as const
 const LINKED_KEYS = ['nfeDocumentId', 'stopId', 'tripDocumentId'] as const
 const SKIPPED_KEYS = ['nfeDocumentId', 'reason'] as const
@@ -52,8 +51,7 @@ export function parseDocumentLinkAfterDispatch(value: unknown): DocumentLinkAfte
     !isNullableString(value.eventId) ||
     !isEveryItem(value.linked, isLinked) ||
     !isBoolean(value.mdfeDocumentDivergence) ||
-    !isEveryItem(value.skipped, isSkipped) ||
-    !isString(value.tripStatus)
+    !isEveryItem(value.skipped, isSkipped)
   ) {
     throw new Error(TRIP_ERROR.RESPONSE_INVALID)
   }
@@ -64,6 +62,5 @@ export function parseDocumentLinkAfterDispatch(value: unknown): DocumentLinkAfte
     linked: value.linked,
     mdfeDocumentDivergence: value.mdfeDocumentDivergence,
     skipped: value.skipped,
-    tripStatus: value.tripStatus,
   }
 }
