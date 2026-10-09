@@ -97,5 +97,6 @@ export function toHolidayView(holiday: MunicipalHoliday): MunicipalHoliday {
     id: holiday.id,
     kind: holiday.kind,
     name: holiday.name,
+    origin: holiday.origin,
   }
 }

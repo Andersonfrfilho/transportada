@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { ManagedHolidayOrigin } from '../domain/business-calendar.types.js'
 import type { BusinessCalendarActor } from './business-calendar-actor.types.js'
 
 type StateHolidayBase = {
@@ -15,6 +16,7 @@ export type StateHolidayInput = StateHolidayBase & (OnceFields | YearlyFields)
 
 export type StateHolidayRecord = StateHolidayInput & {
   readonly id: string
+  readonly origin: ManagedHolidayOrigin
   readonly updatedAt: Date
 }
 
