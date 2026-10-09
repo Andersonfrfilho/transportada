@@ -93,12 +93,23 @@
   --headline-ink: var(--color-ready-ink);
 }
 
-.headline[data-headline='quota'] {
+.headline[data-headline='unreachable'] {
   --headline-ink: var(--color-copper-ink);
 }
 
-.headline[data-headline='failing'] {
+.headline[data-headline='failing'],
+.headline[data-headline='unauthorized'],
+.headline[data-headline='malformed'] {
   --headline-ink: var(--color-alert-ink);
+}
+
+/* O aviso de plano não bloqueia o resto: borda de cobre à esquerda, como os removidos, e o texto diz o que é. */
+.warning {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
 }
 
 .progress {

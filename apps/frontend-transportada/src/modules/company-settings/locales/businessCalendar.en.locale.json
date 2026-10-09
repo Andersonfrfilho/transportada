@@ -278,20 +278,28 @@
       "headline": {
         "healthy": "Up to date",
         "waiting": "Waiting for the first run",
-        "quota": "Provider quota used up",
+        "unauthorized": "Provider refused access: invalid token or plan without coverage",
+        "unreachable": "Provider unavailable, trying again",
+        "malformed": "Unexpected provider response",
         "failing": "With failures",
         "disabled": "Turned off for this company"
       },
       "explain": {
         "healthy": "The daily routine fetched the holidays of the tracked cities.",
-        "waiting": "The daily routine has not fetched anything yet. If it is paused, resume it in Operations.",
-        "quota": "The provider monthly quota is used up. Fetching resumes on the 1st of the month.",
+        "waiting": "The daily routine has not fetched anything yet. In Operations, check whether it is paused or has no token.",
+        "unauthorized": "The provider refused the routine's last cycle. Check the configured key and the plan contracted with the provider; in Operations, see whether the routine is paused or has no token.",
+        "unreachable": "The provider did not answer in the last cycle. The routine retries on its own in the next cycle; nothing needs to be done now.",
+        "malformed": "The provider answered in a format the routine does not understand and nothing was stored. The contract may have changed: tell support.",
         "failing": "Some fetches failed. The routine retries on its own, with growing intervals.",
         "disabled": "This company does not take part in the import: nothing is fetched or stored."
       },
       "progress": "{{done}} of {{total}} fetches done",
       "lastFetched": "Last fetch: {{date}}",
       "neverFetched": "No fetch yet.",
+      "lastRun": "Last routine cycle: {{date}}",
+      "planRestricted_one": "{{count}} fetch (city and year) outside the contracted plan",
+      "planRestricted_other": "{{count}} fetches (city and year) outside the contracted plan",
+      "planRestrictedHint": "The provider plan does not cover these cities. The others are still fetched; only a plan change fixes it.",
       "cities": "Tracked cities: {{count}}",
       "monthlyRequests": "Requests this month (whole installation): {{count}}",
       "pairs": {
