@@ -33,6 +33,7 @@ const RIBEIRAO_PRETO = '3543402'
 const SAO_PAULO_STATE = '35'
 const YEARS = { fromYear: 2026, toYear: 2027 } as const
 const MONTH = '2026-10-01'
+const TODAY = '2026-10-09'
 const CAMPINAS_FETCHED_AT = new Date('2026-10-01T10:00:00.000Z')
 const FOREIGN_FETCHED_AT = new Date('2026-10-08T10:00:00.000Z')
 
@@ -125,11 +126,13 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         const statusA = await repository.readStatus({
           companyId: tenantA.companyId,
           month: MONTH,
+          today: TODAY,
           years: YEARS,
         })
         const statusB = await repository.readStatus({
           companyId: tenantB.companyId,
           month: MONTH,
+          today: TODAY,
           years: YEARS,
         })
 
@@ -163,6 +166,7 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         const status = await repository.readStatus({
           companyId: empty.companyId,
           month: MONTH,
+          today: TODAY,
           years: YEARS,
         })
 
@@ -185,6 +189,7 @@ describe('o status da importação agrega o cache só para as cidades da empresa
       const status = await repository.readStatus({
         companyId: tenant.companyId,
         month: MONTH,
+        today: TODAY,
         years: YEARS,
       })
 
@@ -201,7 +206,12 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         .values({ companyId: disabled.companyId, isEnabled: false })
       const repository = new DrizzleHolidayImportStatusRepository(database.db)
       const read = (tenant: Tenant) =>
-        repository.readStatus({ companyId: tenant.companyId, month: MONTH, years: YEARS })
+        repository.readStatus({
+          companyId: tenant.companyId,
+          month: MONTH,
+          today: TODAY,
+          years: YEARS,
+        })
 
       expect((await read(disabled)).isEnabled).toBe(false)
       expect((await read(unset)).isEnabled).toBe(true)
@@ -243,6 +253,7 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         const status = await repository.readStatus({
           companyId: tenantA.companyId,
           month: MONTH,
+          today: TODAY,
           years: YEARS,
         })
 
@@ -265,6 +276,90 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         ])
       })
     },
+  )
+})
+
+describe('os removidos pelo fornecedor são só os de hoje em diante (spec 252 T6.1b)', () => {
+  testWithPostgres(
+    'data passada não ocupa a lista: o botão "Desligar" dela sempre daria 409 (D7)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const removedAt = new Date('2026-10-05T00:00:00.000Z')
+        await seedImportedMunicipalHoliday(database, tenant, {
+          holidayOn: '2026-10-08',
+          ibgeCode: CAMPINAS,
+          name: 'Removido ontem',
+          removedAt,
+        })
+        await seedImportedStateHoliday(database, tenant, {
+          holidayOn: '2026-01-01',
+          ibgeCode: SAO_PAULO_STATE,
+          name: 'Removido há meses',
+          removedAt,
+        })
+        const today = await seedImportedMunicipalHoliday(database, tenant, {
+          holidayOn: TODAY,
+          ibgeCode: CAMPINAS,
+          name: 'Removido para hoje',
+          removedAt,
+        })
+        const later = await seedImportedStateHoliday(database, tenant, {
+          holidayOn: '2026-12-08',
+          ibgeCode: SAO_PAULO_STATE,
+          name: 'Removido para dezembro',
+          removedAt,
+        })
+        const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+        const status = await repository.readStatus({
+          companyId: tenant.companyId,
+          month: MONTH,
+          today: TODAY,
+          years: YEARS,
+        })
+
+        expect(status.removedByProvider.items.map((item) => item.holidayId)).toEqual([
+          today.id,
+          later.id,
+        ])
+        expect(status.removedByProvider.truncated).toBe(false)
+      })
+    },
+  )
+
+  testWithPostgres(
+    '201 passadas não cortam as futuras: o teto conta só o que aparece',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const removedAt = new Date('2026-10-05T00:00:00.000Z')
+        for (let day = 0; day < 201; day += 1) {
+          await seedImportedMunicipalHoliday(database, tenant, {
+            holidayOn: new Date(Date.UTC(2026, 0, 1 + day)).toISOString().slice(0, 10),
+            ibgeCode: CAMPINAS,
+            removedAt,
+          })
+        }
+        const future = await seedImportedStateHoliday(database, tenant, {
+          holidayOn: '2026-12-08',
+          ibgeCode: SAO_PAULO_STATE,
+          removedAt,
+        })
+        const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+        const status = await repository.readStatus({
+          companyId: tenant.companyId,
+          month: MONTH,
+          today: TODAY,
+          years: YEARS,
+        })
+
+        expect(status.removedByProvider.items.map((item) => item.holidayId)).toEqual([future.id])
+        expect(status.removedByProvider.truncated).toBe(false)
+      })
+    },
+    120_000,
   )
 })
 
@@ -294,6 +389,7 @@ describe('o teto da lista de removidos é um só, depois de juntar cidade e esta
         const status = await repository.readStatus({
           companyId: tenant.companyId,
           month: MONTH,
+          today: TODAY,
           years: YEARS,
         })
 

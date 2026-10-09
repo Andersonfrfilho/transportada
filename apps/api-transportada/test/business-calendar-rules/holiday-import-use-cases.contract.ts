@@ -86,6 +86,7 @@ describe('os casos de uso da gestão da importação de feriados (spec 252 T4.1)
         input: {
           companyId: ACTOR.companyId,
           month: '2026-10-01',
+          today: '2026-10-09',
           years: { fromYear: 2026, toYear: 2027 },
         },
         name: 'readStatus',
@@ -98,7 +99,7 @@ describe('os casos de uso da gestão da importação de feriados (spec 252 T4.1)
 
     await useCases.status.execute({ companyId: ACTOR.companyId })
 
-    expect(calls[0]?.input).toMatchObject({ month: '2026-09-01' })
+    expect(calls[0]?.input).toMatchObject({ month: '2026-09-01', today: '2026-09-30' })
   })
 
   test('01h UTC do dia 1º de janeiro ainda é o ano anterior em São Paulo', async () => {
@@ -143,15 +144,18 @@ describe('os casos de uso da gestão da importação de feriados (spec 252 T4.1)
     ])
   })
 
-  test('restaurar e listar passam direto, só com o que a empresa e o ator definem', async () => {
-    const { calls, useCases } = useCasesAt('2026-10-09T15:00:00.000Z')
+  test('restaurar passa direto; listar as supressões leva o dia de hoje de São Paulo', async () => {
+    const { calls, useCases } = useCasesAt('2026-10-10T01:30:00.000Z')
 
     await useCases.restore.execute({ ...ACTOR, id: SUPPRESSION_ID })
     await useCases.suppressions.execute({ companyId: ACTOR.companyId, page: 2, perPage: 10 })
 
     expect(calls).toEqual([
       { input: { ...ACTOR, id: SUPPRESSION_ID }, name: 'restore' },
-      { input: { companyId: ACTOR.companyId, page: 2, perPage: 10 }, name: 'list' },
+      {
+        input: { companyId: ACTOR.companyId, page: 2, perPage: 10, today: '2026-10-09' },
+        name: 'list',
+      },
     ])
   })
 })
