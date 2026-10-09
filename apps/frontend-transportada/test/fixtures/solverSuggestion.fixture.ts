@@ -52,7 +52,9 @@ export function buildSolverClient(suggestion: RouteSuggestion): RouteSuggestionC
   } as unknown as RouteSuggestionClient
 }
 
-export function buildAssemblyPoint(input: Readonly<{ id: string; stopKey: string }>): AssemblyMapPoint {
+export function buildAssemblyPoint(
+  input: Readonly<{ id: string; stopKey: string }>,
+): AssemblyMapPoint {
   return {
     cityCode: input.stopKey.split('|')[0] ?? '',
     isApproximate: false,

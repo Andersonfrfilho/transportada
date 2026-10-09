@@ -148,7 +148,9 @@ describe('guardas da importação de feriados (chaves exatas)', () => {
 
 describe('cliente da importação de feriados', () => {
   test('GET /holiday-imports/status lê o status e devolve-o intacto', async () => {
-    const status = buildImportStatus({ failures: [{ errorCode: 'provider_unreachable', pairs: 2 }] })
+    const status = buildImportStatus({
+      failures: [{ errorCode: 'provider_unreachable', pairs: 2 }],
+    })
     const { calls, client } = setup(() => json(envelope(status)))
 
     expect(await client.getStatus()).toEqual(status)
@@ -157,7 +159,9 @@ describe('cliente da importação de feriados', () => {
   })
 
   test('status com formato inesperado é recusado como resposta inválida', async () => {
-    const { client } = setup(() => json(envelope({ ...buildImportStatus(), removedByProvider: [] })))
+    const { client } = setup(() =>
+      json(envelope({ ...buildImportStatus(), removedByProvider: [] })),
+    )
 
     const failure = await failureOf(() => client.getStatus())
 
@@ -191,7 +195,10 @@ describe('cliente da importação de feriados', () => {
     expect(suppression).toEqual(created)
     expect(calls[0]?.method).toBe('POST')
     expect(calls[0]?.url).toBe('http://api.test/holiday-imports/suppressions')
-    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({ holidayId: REMOVED_HOLIDAY_ID, scope: 'city' })
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual({
+      holidayId: REMOVED_HOLIDAY_ID,
+      scope: 'city',
+    })
   })
 
   test('DELETE /holiday-imports/suppressions/:id restaura (204 sem corpo)', async () => {
@@ -348,7 +355,11 @@ describe('leitura do status que a tela imprime', () => {
     )
 
     expect(view.failures).toEqual([
-      { code: 'provider_unreachable', messageKey: 'import.failures.provider_unreachable', pairs: 2 },
+      {
+        code: 'provider_unreachable',
+        messageKey: 'import.failures.provider_unreachable',
+        pairs: 2,
+      },
       { code: 'algo_novo', messageKey: 'import.failures.unknown', pairs: 1 },
     ])
   })

@@ -72,7 +72,9 @@ describe('removidos pelo fornecedor (spec 252 T5.2)', () => {
     await mountPanel()
 
     await waitFor(() =>
-      expect(sectionOf(REMOVED).textContent).toContain('Nenhuma data foi removida pelo fornecedor.'),
+      expect(sectionOf(REMOVED).textContent).toContain(
+        'Nenhuma data foi removida pelo fornecedor.',
+      ),
     )
     expect(sectionOf(REMOVED).querySelectorAll('li').length).toBe(0)
   })
@@ -159,7 +161,9 @@ describe('feriados desligados (spec 252 T5.2)', () => {
     await mountPanel()
 
     await waitForText('Nenhum feriado desligado.')
-    expect(sectionOf(SUPPRESSIONS).textContent).toContain('próxima execução diária da rotina, não na hora')
+    expect(sectionOf(SUPPRESSIONS).textContent).toContain(
+      'próxima execução diária da rotina, não na hora',
+    )
   })
 
   it('lista lugar (nome da cidade), data, escopo e quando foi desligado', async () => {
@@ -168,7 +172,9 @@ describe('feriados desligados (spec 252 T5.2)', () => {
     await mountPanel()
 
     await waitFor(() => expect(rowsOf(sectionOf(SUPPRESSIONS)).length).toBe(1))
-    await waitFor(() => expect(rowsOf(sectionOf(SUPPRESSIONS))[0]?.textContent).toContain('Campinas'))
+    await waitFor(() =>
+      expect(rowsOf(sectionOf(SUPPRESSIONS))[0]?.textContent).toContain('Campinas'),
+    )
     const row = rowsOf(sectionOf(SUPPRESSIONS))[0]?.textContent ?? ''
     expect(row).toContain('20/11/2026')
     expect(row).toContain('Cidade')
@@ -192,9 +198,7 @@ describe('feriados desligados (spec 252 T5.2)', () => {
     await mountPanel()
     await waitFor(() => expect(rowsOf(sectionOf(SUPPRESSIONS)).length).toBe(1))
 
-    await click(
-      buttonIn(sectionOf(SUPPRESSIONS), 'Restaurar o feriado de 3509502 em 20/11/2026'),
-    )
+    await click(buttonIn(sectionOf(SUPPRESSIONS), 'Restaurar o feriado de 3509502 em 20/11/2026'))
 
     await waitFor(() =>
       expect(businessCalendarDouble.calls).toContain(
@@ -216,9 +220,7 @@ describe('feriados desligados (spec 252 T5.2)', () => {
       new BusinessCalendarRequestError({ code: 'DATABASE_UNAVAILABLE', status: 503 }),
     )
 
-    await click(
-      buttonIn(sectionOf(SUPPRESSIONS), 'Restaurar o feriado de 3509502 em 20/11/2026'),
-    )
+    await click(buttonIn(sectionOf(SUPPRESSIONS), 'Restaurar o feriado de 3509502 em 20/11/2026'))
 
     await waitFor(() =>
       expect(sectionOf(SUPPRESSIONS).querySelector('[role="alert"]')?.textContent).toContain(
@@ -242,7 +244,9 @@ describe('feriados desligados (spec 252 T5.2)', () => {
     await click(buttonIn(sectionOf(SUPPRESSIONS), 'Próxima página'))
 
     await waitFor(() => expect(rowsOf(sectionOf(SUPPRESSIONS)).length).toBe(5))
-    expect(callsOf('GET /holiday-imports/suppressions?page=2&perPage=20', businessCalendarDouble.calls)).toHaveLength(1)
+    expect(
+      callsOf('GET /holiday-imports/suppressions?page=2&perPage=20', businessCalendarDouble.calls),
+    ).toHaveLength(1)
     expect(sectionOf(SUPPRESSIONS).textContent).toContain('Página 2 de 2')
   })
 

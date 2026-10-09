@@ -1507,3 +1507,25 @@ e feed não mostram (`typeName` ali é referência de chave exata).
 **Guards.** `iconName` entrou **opcional** no tipo do escritório, em `isFieldOccurrenceType` (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`) e em
 `SETTINGS_RESOLUTION_OPTIONAL_KEYS`; `typeIconName` opcional em `TripOccurrence` (`trip.constant.ts`). O guard é de chave exata: a chave nova só
 entra antes da API a mandar, senão `TRIP_RESPONSE_INVALID`. Ampliar o catálogo: API (migration) + esta cópia + `icon.tsx` + app do motorista.
+
+## Spec 252 T5.2/T5.3 — a importação de feriados e o aviso por parada
+
+**Aba Calendário** (`modules/company-settings`): `HolidayImportStatus` (manchete por prioridade em `resolveImportStatusView`: desligada > falhas > sem cota > aguardando a
+primeira execução > em dia; `<progress>` rotulado pelo texto visível; contadores zerados não aparecem; código de falha desconhecido cai em `import.failures.unknown`),
+`HolidayImportRemoved` e `HolidayImportSuppressions`, cada um com a própria consulta (`useHolidayImportStatusQuery` compartilha a chave: uma só ida à rede) e mutações que
+invalidam só o que mudou (`useHolidayImport.mutation.ts`; excluir/editar/adotar também invalidam status e supressões). `HolidayRow.provenance` (`rule`/`typed`/`imported`/
+`unknown`) vem de `origin?` da linha; `HolidayTableRow` troca "Excluir" por "Desligar" na importada e `HolidayDeleteDialog` ganha a variante `imported` e a ressalva de que
+apagar a digitada de hoje em diante também a suprime.
+
+⚠️ **A API ainda não manda `origin` nas listas** (pendência no `evidence.md`): o guarda aceita a chave **opcional** (`hasKeys`), nunca amplia o conjunto de chaves aceitas além de
+`origin`. ⚠️ "Rotina pausada" não existe no status da importação: a manchete é "Aguardando a primeira execução". `/holiday-imports/cities` não tem tela.
+
+**Montagem** (`modules/trip`): `holidayWarningPlan.service.ts` (`planDayChecks`, `matchDayCheckWarnings`, `toSaoPauloCivilDate`, teto `DAY_CHECKS_MAX_ITEMS = 200`),
+`solverHolidayWarnings.service.ts` (a pergunta e `isFinishCovered`: o término só deixa de avisar o feriado nacional quando a última parada foi conferida),
+`dayChecksClient.service.ts` (POST único; qualquer falha vira "sem aviso" e o término mantém o nacional de hoje), `holidayWarningText.service.ts` (frase única; o nome do feriado
+nacional é a chave estável da API traduzida em `holidayWarning.national.*`). `AssemblyStopHolidayNotice` mora na parada da lista de `TripAssemblyMap`; `TripStopHolidayBadge`
+no cabeçalho da parada de `TripStopList`. Contratos: `test/trip/holiday-warning.contract.ts`, `test/trip-hooks/assembly-holiday-warnings.contract.ts`,
+`test/trip-hooks/holiday-warning-notice.contract.ts`. Smoke de prints: modo `holiday-warning` de `trip-smoke.helper.ts`.
+
+⚠️ O smoke do painel com a CSP: `vite preview` precisa das mesmas `VITE_*` do build (a CSP nasce delas); com `VITE_API_URL` ausente o `connect-src` não inclui a API e tudo falha
+calado. O `mockSettingsShell` da 238 segue servindo as telas de Configurações.

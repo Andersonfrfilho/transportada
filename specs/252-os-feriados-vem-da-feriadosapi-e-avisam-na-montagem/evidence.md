@@ -1232,3 +1232,57 @@ claro e 14,04:1 escuro**, fonte 16 px, nenhum foco dentro do aviso, sem rolagem 
 
 **O que NÃO foi feito:** push/publicação; revisão de design com o usuário (T6.1); smoke Playwright; documentação viva do app
 (`docs/ai-context/frontend-driver.md`, CLAUDE.md da app), fica para a T6.1.
+## T5.2 e T5.3 — a aba Calendário e o aviso por parada no painel (2026-10-09)
+
+Executor `sonnet`, worktree isolado, branch `work/252-t5` a partir de `origin/staging` (`40477e4f1`), sem push. **Tela: publicação pendente da aprovação do usuário sobre os prints.** Commits: `95751934b` e `202ca1499` (testes da T5.2, vermelhos), `6b3fbc198` (código da T5.2), `317e6ae35` (testes da T5.3, vermelhos), `a2191e8a9` (código da T5.3), `5f67a4c00` (mutante sobrevivente morto), `a4ec3b326` (rótulos curtos de origem e o smoke de prints) e o de documentação.
+
+### Vermelho antes do código
+
+T5.2: contrato puro com módulo ausente (`holidayImportClient.service`); DOM `test:hooks` com 514 falhas em cascata na suíte inteira (os três arquivos novos estouram o prazo de 5 s do `waitFor` e o `act` pendente derruba os seguintes — o vermelho é do arquivo novo, o resto é efeito). T5.3: contrato puro com módulo ausente (`dayChecksClient.service`).
+
+### O que a T5.2 passou a fazer
+
+| Pedido                                           | Onde                                                                                                                                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origem de cada feriado                           | coluna "Origem" (`HolidayOriginBadge`) nas duas tabelas; `provenance` da linha (`rule`/`typed`/`imported`/`unknown`); legenda das quatro origens em "Importação de feriados"                 |
+| Desligar importados                              | linha importada oferece "Desligar" (não "Excluir"), diálogo próprio, `POST /holiday-imports/suppressions { holidayId, scope }`                                                               |
+| Restaurar                                        | "Feriados desligados" (lista paginada de 20, `page`/`perPage`), `DELETE …/suppressions/:id`; o aviso diz "volta na próxima execução diária", e a dica do bloco também                        |
+| Removidos pelo fornecedor                        | `removedByProvider` lido como `{ items, truncated }`; com `truncated` a tela avisa que há mais; "Desligar" com confirmação no próprio item (editar a linha a adota — dito no texto do bloco) |
+| Estado da importação                             | manchete (em dia / aguardando 1ª execução / sem cota / com falhas / desligada), barra, contagens, falhas por motivo; erro de leitura com "Tentar de novo"                                    |
+| `409 HOLIDAY_IMPORT_PAST_DATE` e `…_DATE_LOCKED` | texto próprio em `errors.*` (e `HOLIDAY_NOT_IMPORTED`); a data travada também tem dica no formulário de edição da importada                                                                  |
+| Apagar um feriado digitado também o suprime      | a confirmação de excluir (data fixa municipal e estadual de data fixa) diz que a data deixa de ser importada e como restaurar                                                                |
+
+### O que a T5.3 passou a fazer
+
+`useSolverCityOrder` faz **uma** chamada a `POST /business-calendar/day-checks` quando o solver termina (pares cidade × dia únicos; cidade = 1º segmento da `addressKey`, dia = civil de São Paulo da ETA; teto de 200 pares — acima disso não pergunta). O aviso volta por parada (`AssemblyStopHolidayNotice`, `<p>` neutro com cidade, escopo, nome e origem, "Confira se o cliente recebe."). O término deixa de repetir o feriado nacional **só quando a última parada foi conferida**; rota caída, resposta fora do formato ou pares demais mantêm o aviso nacional de hoje, e a ordem do solver é aplicada de qualquer jeito. No detalhe, `TripStopHolidayBadge` (selo "Feriado em dd/mm/aaaa" no molde do selo do prazo, frase inteira na dica e para leitor de tela). Nada disso entra em condição de `disabled` ("Criar viagem" não conhece o aviso — contrato).
+
+### Gates (cwd `apps/frontend-transportada`, 2026-10-09)
+
+| Gate                                                            | Resultado                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `bun run typecheck`                                             | exit 0                                                                             |
+| `bun run lint`                                                  | 0 erros (16 avisos, todos de arquivos que não toquei)                              |
+| `bun run test` (script, nunca `bun test` cru)                   | **7794 pass / 0 fail** (era 7581) + `test:hooks` **1231 pass / 0 fail** (era 1104) |
+| estabilidade dos DOM da T5.2 (111 testes)                       | 10 execuções 0 falha; 3 sob CPU ocupada (6 `yes`) 0 falha                          |
+| estabilidade dos DOM da T5.3 (17 testes)                        | 10 execuções 0 falha; 3 sob CPU ocupada 0 falha                                    |
+| `bun run format:check` na raiz                                  | exit 0 (depois de `prettier --write` em 4 arquivos de teste)                       |
+| prints: 18 telas × 3 larguras × 2 temas = **108**, todos verdes | sem rolagem lateral, sem corte, contraste ≥ mínimo, alvo de toque a 375 px         |
+
+### Mutações (cada uma restaurada; diff vazio ao fim)
+
+T5.2 — 16 mortas: guarda do status aceita última busca de qualquer tipo / guarda aceita `origin` qualquer / origem ausente vira `typed` / importada com "Excluir" / estadual desligado com escopo `city` / municipal com `state` / empresa desligada não vence / cota vence falha / página não vai na query / ressalva da exclusão em toda exclusão / sem ressalva na digitada / restaurar sem aviso / `truncated` nunca avisa / `HOLIDAY_IMPORT_DATE_LOCKED` fora da lista de códigos / desligar não relê as listas / lugar sempre pelo código.
+T5.3 — 17 mortas: dia em UTC / cidade pelo último segmento / um par por parada / 200 já é grande / acima de 200 segue / casar só pela cidade / término mantém o nacional com a rota respondida / término nunca volta ao nacional / falha da rota derruba o roteiro / avisos da rodada anterior sobrevivem (**sobreviveu na 1ª tentativa; o teste foi reforçado com a resposta presa e morreu**) / selo do detalhe some / aviso da montagem some da lista / frase perde a origem / nacional sem nome do locale / frase manda bloquear / cliente sem token / cliente sem validar o aviso.
+Mutação **equivalente documentada:** `enabled` da consulta de status sempre verdadeiro não muda a saída (o painel só monta os blocos com `settings.manage`).
+
+### Decisões de UX
+
+- **A API não manda a origem por linha** (`GET /municipal-holidays` e `/state-holidays` têm chaves exatas e a T4.1 não as ampliou). O painel aceita `origin?: 'typed' | 'imported'` **opcional** em cada linha; sem o campo, a célula fica em branco ("Origem não informada" para leitor de tela) e a linha mantém "Excluir" (o `DELETE` da API já desliga a importada). **Pendência de API (T4.x):** acrescentar `origin` (`provider_entry_id` nulo = `typed`) às duas listas e às respostas do `POST`/`PATCH`; painel tolerante antes, API depois.
+- "Rotina pausada" não existe no status (o pausar é de `job_schedules`): a tela mostra **"Aguardando a primeira execução"** (`lastFetchedAt` nulo) e manda retomar a rotina em Operações; "desligada" é `isEnabled = false`.
+- Rótulos curtos "Cadastrado" / "Importado" (a legenda diz FeriadosAPI); o longo quebrava a tabela. Regra "todo ano" é "Cadastrado" (a coluna Quando já diz "Todo ano").
+- "Removidos pelo fornecedor": só "Desligar" (confirmação inline); "manter" é editar o nome ou o tipo na tabela (a adoção da T4.1) — dito no texto, sem botão novo.
+- A lista `/holiday-imports/cities` não ganhou tela (não pedida).
+- Blocos novos ao **fim** da aba (Sábado, municipais, estaduais, importação, removidos, desligados); texto de aviso do roteiro da 238 intacto.
+
+### O que NÃO foi feito
+
+API, worker e app do motorista (T5.4, outro agente); push e publicação (**tela só sobe com os prints aprovados**); `L6` da T4 (medida do teto de 200 removidos e da latência do status com milhares de cidades — sem dados reais; a tela lista os 200 sem paginar); colunas estreitas da tabela a 1280 px (pré-existente: "Campinas" quebra no meio da palavra na coluna "Lugar"; a tabela da 238 já era assim); revisão de design comparando com os prints aprovados (T6.1).

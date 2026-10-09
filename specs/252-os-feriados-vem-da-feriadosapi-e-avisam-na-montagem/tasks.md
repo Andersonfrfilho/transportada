@@ -210,16 +210,19 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       `DriverTripStop`, para o snapshot guardado no aparelho (`tripSnapshot.service.ts`) carregá-lo (snapshot antigo
       sem o campo lê como lista vazia). Sem tela ainda.
       Nenhum código importado do painel (ADR-0075). Sai antes da API.
-- [ ] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
+- [x] **T5.2** Aba Calendário: origem (nacional, estadual, cadastrado, importado), desligar/restaurar, removidos pelo
       fornecedor, status da importação; locale pt-BR/en. **Prints** 375/768/1280, claro e escuro, aprovados pelo
       usuário antes de publicar. **Critérios da API (T4.1):** "restaurar" volta **na próxima execução diária**, não na
       hora (a tela não promete o contrário); `409 HOLIDAY_IMPORT_PAST_DATE` ao desligar data anterior a hoje e
       `409 HOLIDAY_IMPORT_DATE_LOCKED` ao mudar a **data** de uma estadual importada ("desligue e cadastre") têm
       mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
       `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
-- [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
+      **Feita em 2026-10-09 (código e prints; publicação pendente da aprovação dos prints pelo usuário):** `evidence.md` § T5.2 e T5.3.
+      ⚠️ A origem **por linha** depende de `origin` nas listas da API (pendência: sem o campo hoje; o painel já o tolera).
+- [x] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
+      **Feita em 2026-10-09 (código e prints; publicação pendente da aprovação dos prints):** `evidence.md` § T5.2 e T5.3.
 - [x] **T5.4** Aviso no app do motorista, por parada da viagem dele, num componente próprio (molde dos
       `Driver*Notice.component.tsx`; o `DriverStopCard.component.tsx` já tem 75 KB): texto curto e de campo ("Hoje é
       feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir."; em data futura, "Dia 13/10 é
