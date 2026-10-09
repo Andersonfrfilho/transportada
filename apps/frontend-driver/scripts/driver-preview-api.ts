@@ -14,6 +14,9 @@
  * `motorista-api-demo` do `.claude/launch.json`).
  */
 
+import { createConversationRoutes } from './driver-preview-conversations'
+import { createConversationRepository } from './driver-preview-conversations-repository'
+
 /**
  * Portas e origens por variável de ambiente, com o default de sempre (`.claude/launch.json`).
  * Sobrescrever só é preciso quando duas sessões precisam da mesma demonstração ao mesmo tempo sem
@@ -493,12 +496,20 @@ async function recordLocation(request: Request, path: string): Promise<void> {
   recordedLocations.push({ location: body.location, path })
 }
 
+const routeConversation = createConversationRoutes({
+  corsHeaders: CORS_HEADERS,
+  port: PORT,
+  repository: createConversationRepository(),
+})
+
 Bun.serve({
   async fetch(request) {
     const url = new URL(request.url)
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS, status: 204 })
     }
+    const conversationResponse = await routeConversation(request, url)
+    if (conversationResponse !== undefined) return conversationResponse
     if (url.pathname === '/__debug/locations') {
       if (request.method === 'DELETE') recordedLocations.length = 0
       return json({ data: recordedLocations })
