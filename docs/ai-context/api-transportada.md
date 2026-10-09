@@ -3522,3 +3522,21 @@ montando os metadados **campo a campo** (nunca `...event`), com `companyId`, `me
 Não há repositório. Limite: `{ maxRequests: 6, windowSeconds: 60, scope: 'me-client-diagnostics', store: 'postgres' }` por usuário (`429` +
 `Retry-After` do roteador). Constantes em `trips/domain/trip-client-diagnostics.constant.ts`; contrato em `test/me-client-diagnostics.contract.ts`.
 Publicar a API antes do coletor do `frontend-driver`.
+
+## Spec 259 — A lista de viagens diz ocupação e lucro
+
+`GET /trips` devolve por item `occupancy` (volume e peso) e, em `amounts`, `costTotal`, `marginTotal`, `marginPercentage` e `hasGaps`.
+Tudo **em lote por página**, nunca por linha: o custo é `readValuationContexts` (16 consultas fixas, dados da empresa uma vez,
+preço do combustível resolvido em memória) alimentando `buildValuationFromContext` — a única conta de margem —, e a ocupação é
+`readTripListOccupancies` (10 consultas), que chama a mesma função pura `resolveTripOccupancyFromFacts` do detalhe.
+
+- **`occupancy` ausente ≠ `null`.** `null` é "sem veículo"; chave ausente é "não calculada" (o bloco falhou). Os campos de dinheiro
+  somem por viagem quando o custo dela falhou. Falha vira `logger.warn` só de ids e código (`trip-list-enrichment.constant.ts`);
+  a receita continua propagando erro, como sempre.
+- **Sem `trip.financials` o custo nem é calculado** (`includeFinancials` em `list`) e o JSON não tem os quatro campos; `occupancy`
+  segue, porque não é dinheiro.
+- **Paridade só para rota congelada.** Rascunho sem rota congelada sai com combustível e pedágio como lacuna (`hasGaps`), porque o
+  detalhe calcula a rota na hora pelo OSRM e a lista não pode fazê-lo por linha.
+- `readContext` por viagem continua intacto (17 consultas): testes dependem dos internos dele. Mudou a conta de um lado, mude o
+  lote junto — o contrato `test/integration/trip-list-occupancy-financials.integration.ts` compara lista × detalhe.
+- Publicar o painel (parser tolerante) **antes** da API. Spec e medições: `specs/259-*/evidence.md`.
