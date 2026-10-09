@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm'
 import {
   companyOccurrenceTypes,
   fleetDrivers,
+  occurrenceConversationReads,
   occurrenceConversations,
   tripDocuments,
   tripDrivers,
@@ -345,6 +346,66 @@ describe('a conversa por assunto do motorista contra Postgres (spec 260 T2.4)', 
           { code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED' },
         )
         expect(await database.db.select({ id: fleetDrivers.id }).from(fleetDrivers)).toHaveLength(2)
+      })
+    },
+    90_000,
+  )
+
+  testWithPostgres(
+    'status das mensagens do motorista: entregue, lida só pelo escritório e por ordem de criação',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { company } = seeded
+        const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+        const actor = {
+          companyId: company.companyId,
+          driverId: company.firstDriverId,
+          driverUserId,
+        }
+        const harness = createSubjectHarness(database.db)
+        const tripId = await firstTripOf(database.db, company)
+        await harness.open.open({ ...actor, subjectId: tripId, subjectType: 'trip' })
+        const [conversation] = await database.db
+          .select({ id: occurrenceConversations.id })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.subjectType, 'trip'))
+        if (conversation === undefined) throw new Error('EXPECTED_CONVERSATION')
+        const base = {
+          conversationId: conversation.id,
+          driverUserId,
+          operatorUserId: company.userId,
+        }
+        const at = (minutes: number) => new Date(Date.UTC(2026, 9, 9, 12, minutes))
+        const first = await insertSubjectMessage(database.db, {
+          ...base,
+          body: 'um',
+          createdAt: at(1),
+          direction: 'inbound',
+        })
+        const second = await insertSubjectMessage(database.db, {
+          ...base,
+          body: 'dois',
+          createdAt: at(2),
+          direction: 'inbound',
+        })
+        const statusesOf = async () =>
+          (await harness.messages.list({ ...actor, subjectId: tripId, subjectType: 'trip' })).map(
+            (message) => message.status,
+          )
+        expect(await statusesOf()).toEqual(['delivered', 'delivered'])
+
+        const markRead = (userId: string, lastReadMessageId: string) =>
+          database.db.insert(occurrenceConversationReads).values({
+            companyId: company.companyId,
+            conversationId: conversation.id,
+            lastReadMessageId,
+            userId,
+          })
+        await markRead(driverUserId, second)
+        expect(await statusesOf()).toEqual(['delivered', 'delivered'])
+        await markRead(company.userId, first)
+        expect(await statusesOf()).toEqual(['read', 'delivered'])
       })
     },
     90_000,

@@ -7,6 +7,7 @@
  * usam a operação nova. A repetição relê a mensagem pelo id: o `idempotency_records` guarda só os ids.
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
+import { deriveOwnMessageStatus } from '../domain/driver-own-message-status.policy.js'
 import { resolveEffectiveConversationStatus } from '../domain/conversation-effective-status.policy.js'
 import {
   isOpenableSubjectType,
@@ -148,6 +149,7 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
       ...message,
       attachments: attachments.get(message.id) ?? [],
       createdAt: message.createdAt.toISOString(),
+      status: deriveOwnMessageStatus(message, null),
     }
   }
 

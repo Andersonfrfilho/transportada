@@ -140,3 +140,13 @@ em `test/occurrence-conversation/driver-conversation-notifier.contract.ts`). `do
 ocorrência vem de `findOrCreateDriverConversation`, que passou a devolvê-lo (lido na mesma transação do envio). Falha da fila continua só
 registrada. O catálogo e o preview ganharam a chave e o marcador `subjectLabel`; o seed a cria sozinho (só cria o que não existe). O guard de
 catálogo é relativo (conta chaves × entradas), então não precisou de ajuste; o texto da ocorrência segue o do seed (T2.5b, decisão do dono).
+
+## Estados de entrega das mensagens do motorista (T5.4)
+
+Só nas rotas novas de mensagens (`GET` e `POST …/messages`); as rotas antigas da 183 e as respostas do portal, WhatsApp e e-mail não mudam.
+Na `Message` `inbound` (do próprio motorista, gravada com `status` nulo) o campo `status` passa a ser **derivado**: `'delivered'` (dois ticks
+cinza — a empresa a registrou) ou `'read'` (dois ticks azuis — algum usuário do **escritório**, diferente do motorista da conversa, tem em
+`occurrence_conversation_reads` uma `last_read_message_id` cuja mensagem tem `created_at >=` o da mensagem; compara-se por data, nunca por
+uuid). A mensagem `outbound` segue com o status que já tem. Sem coluna nem migration: uma consulta em lote por página
+(`readOfficeReadHorizon`, o `max(created_at)` das mensagens lidas por usuários que não são o motorista). O `POST` devolve `'delivered'`.
+Política pura: `domain/driver-own-message-status.policy.ts`.

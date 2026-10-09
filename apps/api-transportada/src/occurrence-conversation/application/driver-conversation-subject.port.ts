@@ -115,6 +115,15 @@ export type DriverSubjectTransactionPort = {
       readonly limit: number
     },
   ): Promise<{ readonly hasMore: boolean; readonly rows: readonly SubjectConversationRow[] }>
+  /**
+   * Spec 260 (T5.4): até onde um usuário do ESCRITÓRIO (diferente do motorista da conversa) já leu — o
+   * `created_at` da mensagem mais nova marcada como lida por algum deles; `null` se ninguém leu. Uma consulta.
+   */
+  readOfficeReadHorizon(input: {
+    readonly companyId: string
+    readonly conversationId: string
+    readonly driverUserId: string
+  }): Promise<Date | null>
   /** Em ordem crescente; `before` é o id da mensagem mais antiga que o app já tem. */
   listSubjectMessages(input: {
     readonly before: null | string

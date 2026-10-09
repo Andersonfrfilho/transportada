@@ -12,6 +12,7 @@ import {
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import { signConversationAttachments } from './conversation-attachment.service.js'
 import type { DriverSubjectUnitOfWorkPort } from './driver-conversation-subject.port.js'
+import { deriveOwnMessageStatus } from '../domain/driver-own-message-status.policy.js'
 import { findReachableSubjectOrFail } from './driver-subject-access.service.js'
 import type { MySubjectInput } from './driver-subject-access.service.js'
 import type { DriverSubjectMessage } from './driver-subject-conversation.types.js'
@@ -50,10 +51,16 @@ export function createListMySubjectMessagesUseCase(dependencies: {
             messageIds: messages.map((message) => message.id),
           }),
         )
+        const officeReadHorizon = await transaction.readOfficeReadHorizon({
+          companyId: input.companyId,
+          conversationId: subject.conversation.id,
+          driverUserId: subject.conversation.driverUserId,
+        })
         return messages.map((message) => ({
           ...message,
           attachments: attachments.get(message.id) ?? [],
           createdAt: message.createdAt.toISOString(),
+          status: deriveOwnMessageStatus(message, officeReadHorizon),
         }))
       }),
   }

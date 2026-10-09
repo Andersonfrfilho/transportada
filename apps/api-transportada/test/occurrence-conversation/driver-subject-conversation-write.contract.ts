@@ -160,6 +160,7 @@ function createWorld(state: {
     listAttachments: listNoAttachments,
     listMySubjects: async () => ({ hasMore: false, rows: [] }),
     listSubjectMessages: async () => [],
+    readOfficeReadHorizon: async () => null,
   }
 
   const oldPort: DriverConversationTransactionPort = {
@@ -243,7 +244,7 @@ describe('a resposta do motorista por assunto (spec 260 T2.4)', () => {
       createdAt: '2026-10-09T15:00:00.000Z',
       direction: 'inbound',
       id: 'message-1',
-      status: null,
+      status: 'delivered',
     })
     const inserted = world.calls.find((call) => call.name === 'insertMessage')?.input
     expect(inserted).toMatchObject({ direction: 'inbound', idempotencyKey: KEY })
@@ -510,6 +511,7 @@ describe('o pedido de upload por assunto (spec 260 T2.4)', () => {
             listAttachments: listNoAttachments,
             listMySubjects: async () => ({ hasMore: false, rows: [] }),
             listSubjectMessages: async () => [],
+            readOfficeReadHorizon: async () => null,
           }),
       },
     })

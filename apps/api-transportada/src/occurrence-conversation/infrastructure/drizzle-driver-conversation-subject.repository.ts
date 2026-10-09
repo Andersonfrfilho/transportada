@@ -6,12 +6,13 @@
  * sorteio colidir (23505 no único do protocolo), dentro de um savepoint.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, max, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
   identityUserProfiles,
   occurrenceConversationMessages,
+  occurrenceConversationReads,
   occurrenceConversations,
 } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
@@ -155,6 +156,31 @@ async function applySubjectStatus(
     where m.company_id = ${input.companyId} and m.id = v.id`)
 }
 
+async function readOfficeReadHorizon(
+  transaction: Transaction,
+  input: Parameters<DriverSubjectTransactionPort['readOfficeReadHorizon']>[0],
+): Promise<Date | null> {
+  const reads = occurrenceConversationReads
+  const [row] = await transaction
+    .select({ horizon: max(occurrenceConversationMessages.createdAt) })
+    .from(reads)
+    .innerJoin(
+      occurrenceConversationMessages,
+      and(
+        eq(occurrenceConversationMessages.companyId, reads.companyId),
+        eq(occurrenceConversationMessages.id, reads.lastReadMessageId),
+      ),
+    )
+    .where(
+      and(
+        eq(reads.companyId, input.companyId),
+        eq(reads.conversationId, input.conversationId),
+        ne(reads.userId, input.driverUserId),
+      ),
+    )
+  return row?.horizon ?? null
+}
+
 export function createDriverSubjectTransactionPort(
   transaction: Transaction,
 ): DriverSubjectTransactionPort {
@@ -164,6 +190,7 @@ export function createDriverSubjectTransactionPort(
     findOrCreateSubjectConversation: (input) => findOrCreateSubjectConversation(transaction, input),
     listAttachments: (input) => readConversationAttachments(transaction, input),
     listMySubjects: (input) => listSubjectConversationRows(transaction, input),
+    readOfficeReadHorizon: (input) => readOfficeReadHorizon(transaction, input),
     async listSubjectMessages(input) {
       const messages = occurrenceConversationMessages
       const olderThanBefore =

@@ -73,6 +73,7 @@ type Calls = { name: string; input: unknown }[]
 function createFake(state: {
   readonly hasMore?: boolean
   readonly messages?: readonly SubjectMessageRecord[]
+  readonly officeReadHorizon?: Date | null
   readonly rows?: readonly SubjectConversationRow[]
   readonly subject?: MyConversationSubject | null
 }) {
@@ -95,6 +96,10 @@ function createFake(state: {
     listSubjectMessages: async (input) => {
       calls.push({ input, name: 'listSubjectMessages' })
       return state.messages ?? []
+    },
+    readOfficeReadHorizon: async (input) => {
+      calls.push({ input, name: 'readOfficeReadHorizon' })
+      return state.officeReadHorizon ?? null
     },
   }
   return {
@@ -352,6 +357,7 @@ describe('as mensagens e a leitura por assunto (spec 260 T2.4)', () => {
       'findMySubject',
       'applySubjectStatus',
       'listSubjectMessages',
+      'readOfficeReadHorizon',
     ])
     expect(fake.calls[2]?.input).toEqual({
       before: 'm9',
@@ -359,6 +365,57 @@ describe('as mensagens e a leitura por assunto (spec 260 T2.4)', () => {
       conversationId: CONVERSATION_ID,
       limit: 50,
     })
+  })
+
+  test('mensagem do motorista: lida só se o escritório leu até ela; uma consulta de leitura por página', async () => {
+    const own = (id: string, createdAt: string): SubjectMessageRecord => ({
+      authorName: null,
+      bodyText: id,
+      channel: 'app',
+      clientMessageId: null,
+      createdAt: new Date(createdAt),
+      direction: 'inbound',
+      id,
+      status: null,
+    })
+    const fake = createFake({
+      messages: [
+        own('m1', '2026-10-09T14:00:00.000Z'),
+        own('m2', '2026-10-09T14:05:00.000Z'),
+        { ...own('m3', '2026-10-09T14:06:00.000Z'), direction: 'outbound', status: 'queued' },
+        own('m4', '2026-10-09T14:10:00.000Z'),
+      ],
+      officeReadHorizon: new Date('2026-10-09T14:05:00.000Z'),
+      subject: existing,
+    })
+    const result = await messages(fake)
+    expect(result.map((message) => message.status)).toEqual(['read', 'read', 'queued', 'delivered'])
+    const horizonCalls = fake.calls.filter((call) => call.name === 'readOfficeReadHorizon')
+    expect(horizonCalls).toHaveLength(1)
+    expect(horizonCalls[0]?.input).toEqual({
+      companyId: COMPANY_ID,
+      conversationId: CONVERSATION_ID,
+      driverUserId: existing.conversation?.driverUserId,
+    })
+  })
+
+  test('sem leitura do escritório, a mensagem do motorista é entregue (dois ticks cinza)', async () => {
+    const fake = createFake({
+      messages: [
+        {
+          authorName: null,
+          bodyText: 'Cheguei',
+          channel: 'app',
+          clientMessageId: 'c1',
+          createdAt: new Date('2026-10-09T14:00:00.000Z'),
+          direction: 'inbound',
+          id: 'm1',
+          status: null,
+        },
+      ],
+      subject: existing,
+    })
+    expect((await messages(fake)).map((message) => message.status)).toEqual(['delivered'])
   })
 
   test('o limite pedido acima do teto cai em 100', async () => {
