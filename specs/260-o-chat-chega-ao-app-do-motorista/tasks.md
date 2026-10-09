@@ -43,17 +43,17 @@
 - [x] **T1.3** `sonnet` — `useParticipantInbox` e `useParticipantThread`: paginação `before`; fusão servidor ∪
       `pendingMessages` ∪ memória por `clientMessageId` (pura, testada); `markRead` só com foco e
       `visibilityState === 'visible'`; revalidação em `focus`/`online` sem `subscribe`.
-- [ ] **T1.4** `sonnet` — `ParticipantInbox`, `ParticipantThread`, **`ParticipantMessageBubble` e
+- [x] **T1.4** `sonnet` — `ParticipantInbox`, `ParticipantThread`, **`ParticipantMessageBubble` e
       `ParticipantComposer` novos em `.cv-p-*`** (nada de `MessageBubble`, `MessageComposer`, `ConversationPane`;
       reaproveitar só funções puras, `MessageText`, `StatusTicks`). Testes: `isMine = direction === 'inbound'`,
       `aria-live`, alvo ≥ 44 px, slot ausente = nada desenhado. **Sem microfone na v1.**
-- [ ] **T1.5** `sonnet` — `src/participant/index.ts`, `exports["./participant"]`, entrada no `tsup` no `build` **e
+- [x] **T1.5** `sonnet` — `src/participant/index.ts`, `exports["./participant"]`, entrada no `tsup` no `build` **e
       no `build:watch`**; `buildOutput.test.ts` afirma sem `xyflow`, sem `ConversationsWorkspace`, ≤ 250 KB;
       teste de que renderiza **sem** `ConversationsProvider`; README: "monte uma vez acima das duas rotas".
-- [ ] **T1.6** `sonnet` — Rascunho por assunto (chave `subjectType:subjectId`); chips preenchem e não enviam;
+- [x] **T1.6** `sonnet` — Rascunho por assunto (chave `subjectType:subjectId`); chips preenchem e não enviam;
       teto de anexo de `channelCapabilityFor(channel).attachments` + `resolveMaxAttachmentSizeBytes`; recusa
       antes do envio **sem esvaziar o rascunho**; reenvio repete o mesmo `clientMessageId`.
-- [ ] **T1.7** `haiku` — Changeset **minor, sem pre mode** (contracts 0.4.0, UI 0.5.0); README com exemplo de
+- [x] **T1.7** `haiku` — Changeset **minor, sem pre mode** (contracts 0.4.0, UI 0.5.0); README com exemplo de
       adapter REST e aviso de `ConversationChannel` ampliado para quem tem `switch` exaustivo.
 - [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** antes de qualquer versão sair. Antes do merge: `npm
 pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do

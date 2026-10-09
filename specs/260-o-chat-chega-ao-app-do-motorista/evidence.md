@@ -81,6 +81,12 @@ minificado** e `buildOutput.test.ts` ganha a asserção "sem xyflow". Atenção:
 | T1.1 | `50447f7` | contracts: 60 pass / 0 fail · `tsc` limpo · build ok (22 testes novos, vermelho antes) |
 | T1.2 | `f7d0d44` | UI: 556 pass / 0 fail (8 novos, vermelho antes: módulo inexistente) |
 | T1.3 | `c5509d6` | UI: 588 pass / 0 fail · `tsc` limpo · sem import do barril/provider/workspace (grep) |
+| T1.4 | `473e0d7` | UI: 630 pass / 0 fail · `tsc` limpo · grep: sem Tailwind, sem palavra do TMS, sem barril/provider em `participant/` |
+| T1.5 | `3f6a4dc` | UI: 639 pass / 0 fail · build ok · `dist/participant` 46 KB bruto / **101 KB minificado** (teto 250) · 0 ocorrências de `xyflow`/`ConversationsWorkspace` |
+| T1.6 | `8c8ae65` | UI: 658 pass / 0 fail · build ok · testes revelaram 3 bugs reais (rascunho limpo antes de confirmar; bolha duplicada no mesmo `clientMessageId`; chip que substituía o texto) |
+| T1.7 | `f80913e` | `changeset status`: contracts e conversations-ui em **minor** (sem pre mode); README do `/participant` entrou na T1.5 |
+
+**Risco aberto para o passe da T1.8:** em falha de envio o rascunho permanece **e** a bolha `failed` também; reenviar pela bolha e enviar de novo pelo botão gera duas mensagens com `clientMessageId` diferentes. Decidir se a falha move o conteúdo para a bolha (e limpa o campo) em vez de duplicá-lo.
 
 Ambiente: o baseline só fica verde depois de `pnpm run build` em `conversation-contracts`,
 `meta-whatsapp-contracts` e `conversations-ui` (dists gitignored); sem isso há falha de resolução anterior a
