@@ -78,6 +78,10 @@ minificado** e `buildOutput.test.ts` ganha a asserção "sem xyflow". Atenção:
 | T1.0b | `9b2b728` | `tsc` limpo · 547 pass / 0 fail (8 vermelhos antes)            |
 | T1.0c | `518859d` | `tsc` limpo · 548 pass / 0 fail                                |
 
+| T1.1 | `50447f7` | contracts: 60 pass / 0 fail · `tsc` limpo · build ok (22 testes novos, vermelho antes) |
+| T1.2 | `f7d0d44` | UI: 556 pass / 0 fail (8 novos, vermelho antes: módulo inexistente) |
+| T1.3 | `c5509d6` | UI: 588 pass / 0 fail · `tsc` limpo · sem import do barril/provider/workspace (grep) |
+
 Ambiente: o baseline só fica verde depois de `pnpm run build` em `conversation-contracts`,
 `meta-whatsapp-contracts` e `conversations-ui` (dists gitignored); sem isso há falha de resolução anterior a
 qualquer mudança. Atribuição do commit da T1.0a saiu como "Haiku 5.5" (modelo real do executor).

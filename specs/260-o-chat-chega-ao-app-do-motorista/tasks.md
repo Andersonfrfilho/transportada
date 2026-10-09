@@ -33,14 +33,14 @@
       (relógio), `bounced` vira `failed`, cores Tailwind viram `.cv-status-ticks--*`; `MessageText` →
       `.cv-message-text`. Teste de renderização sem Tailwind (classe presente, utilitária ausente).
 - [x] **T1.0c** `haiku` — (achado da T1.0b) o span "Copiado!" do `MessageText` ainda era Tailwind: virou `.cv-message-text__copied`.
-- [ ] **T1.1** `haiku` — `conversation-contracts/src/participant.ts`: `ParticipantSubjectRef`,
+- [x] **T1.1** `haiku` — `conversation-contracts/src/participant.ts`: `ParticipantSubjectRef`,
       `ParticipantConversationSummary`, `ParticipantConversationPage`, `ParticipantMessage`,
       `ParticipantAttachment` + schemas zod + `SUBJECT_TYPE_PATTERN`. Testes: padrão, `lastMessageAt: null`,
       `status` fora do vocabulário (recusa). Changeset minor (0.4.0).
-- [ ] **T1.2** `sonnet` — Teste **antes** de `participantGrouping`: precedência encerrada › espera › grupo ›
+- [x] **T1.2** `sonnet` — Teste **antes** de `participantGrouping`: precedência encerrada › espera › grupo ›
       "Outros"; ordem do array; data decrescente com `null` por último; desempate por `subjectLabel`;
       contagem de não lidas por filtro; nenhuma conversa em duas seções. Vermelho primeiro; depois implementar.
-- [ ] **T1.3** `sonnet` — `useParticipantInbox` e `useParticipantThread`: paginação `before`; fusão servidor ∪
+- [x] **T1.3** `sonnet` — `useParticipantInbox` e `useParticipantThread`: paginação `before`; fusão servidor ∪
       `pendingMessages` ∪ memória por `clientMessageId` (pura, testada); `markRead` só com foco e
       `visibilityState === 'visible'`; revalidação em `focus`/`online` sem `subscribe`.
 - [ ] **T1.4** `sonnet` — `ParticipantInbox`, `ParticipantThread`, **`ParticipantMessageBubble` e
@@ -56,7 +56,7 @@
 - [ ] **T1.7** `haiku` — Changeset **minor, sem pre mode** (contracts 0.4.0, UI 0.5.0); README com exemplo de
       adapter REST e aviso de `ConversationChannel` ampliado para quem tem `switch` exaustivo.
 - [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** antes de qualquer versão sair. Antes do merge: `npm
-  pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
+pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
       portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.
 
 ## Fase 1b — Plugar nos apps (alinhar versões)
