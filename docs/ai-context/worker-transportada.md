@@ -622,3 +622,16 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   calendário do código (`national-holiday.policy.ts`, cópia só das datas, igual à da API de 2000 a 2100) é só contada
   (`national_mismatch`). Idempotente: repetir o ciclo não escreve nada. Os `INSERT … SELECT` não usam schema Drizzle; o
   roteirizador continua lendo `municipal_holidays` por data fixa, e a linha importada tem a mesma forma da digitada.
+- **A rotina e a configuração (T3.5)** — `application/holiday-provider-pull.routine.ts` encadeia descoberta → busca → aplicação,
+  lendo a parada pedida antes de cada etapa; etapa que estoura é contada e as seguintes ainda rodam. Desfecho: falha nossa
+  (`unexpected_error`) vence a do fornecedor, e entre as do fornecedor `provider_unauthorized`, `malformed_response`,
+  `provider_unreachable` (inclui o 429); orçamento do mês e teto do ciclo são contadores, não falha. O registro é
+  `infrastructure/holiday-provider-pull.registry.ts`, chamado pelo `main.ts`: **sem `FERIADOS_API_TOKEN` devolve vazio** (boot
+  verde, nada sai do produto, `job_run_routine_missing`). `FERIADOS_API_TOKEN` (opcional, vazio = ausente) e
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro >= 1; vazio vale **4500**, plano Developer menos 10% — a Q3 segue aberta;
+  valor torto derruba o boot, com ou sem token) são lidos só em `config/environment.schema.ts`; `.env.example` os traz sem
+  valor e `.railway/railway.ts` só no serviço do worker, com `preserve()`. **Para ligar** (passos do usuário, depois de
+  confirmar termos e plano, Q3/Q4): configurar o token no worker de staging e despausar a rotina no painel de rotinas.
+  O contrato `token-privacy.contract.ts` roda a rotina inteira com o cliente HTTP de verdade e um fornecedor que ecoa o
+  token de seis jeitos (rede, 500, 401, 429, corpo que não é JSON, nome de feriado) e procura o segredo no log, nos
+  contadores e no que a rotina grava.

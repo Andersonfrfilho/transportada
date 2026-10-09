@@ -963,3 +963,63 @@ Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (por
 ### O que não foi feito
 
 Rotina que une as três etapas, variáveis de ambiente, registro condicional no `main.ts` e `.env.example`/`.railway/railway.ts` (T3.5): a aplicação **ainda não tem quem a chame**. Nenhuma rota de gestão (T4.1). Nada publicado.
+
+## T3.5 — o registro condicional, a configuração e o token fora de todo log (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`).
+
+- **Vermelho antes (`9b64e1726`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../holiday-provider-pull.routine.js`).
+- **Verde (`264b7f31a`):** `application/holiday-provider-pull.routine.ts`, `infrastructure/holiday-provider-pull.registry.ts`, `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` em `config/environment.schema.ts` (tipo `HolidayProviderPullEnvironment` em `shared/worker.types.ts`), a chamada em `main.ts`, `.env.example` (as duas sem valor) e `.railway/railway.ts` (as duas com `preserve()`, só no worker).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2287 pass, 0 fail** (103 arquivos; antes 2262); `bun run build` exit 0 (o entrypoint `main.ts` empacota com a rotina nova); `bun run format:check` na raiz verde.
+
+### O que cada critério provou
+
+- **CA8** — sem token: `parseWorkerEnvironment` não devolve `holidayProviderPull` (a chave nem existe), vazio e só espaços são ausência, o boot segue verde e `buildHolidayProviderPullRegistry` devolve vazio; uma janela dessa rotina num registro sem ela fecha em `unexpected_error` com `job_run_routine_missing` no log (contrato com o `createJobCycle` de verdade). Com token a rotina é registrada com o nome do catálogo. A linha de `job_schedules` nasce pausada pela migration da T2.2 (D13), então a janela diária nem abre sem o usuário despausar.
+- **Configuração** — orçamento inteiro `>= 1`, aparado; `0`, `-5`, `1.5`, `abc`, `1e3x` e `12 345` derrubam o boot com ou sem token; sozinho, sem token, o orçamento não liga nada; o erro de configuração não carrega o valor do token. **Padrão do orçamento: 4500** (plano Developer, 5.000 por mês, menos 10%, a proposta da Q3 — a Q3 segue aberta e o usuário confirma).
+- **CA9** — `token-privacy.contract.ts` roda a rotina **inteira** (descoberta, busca e aplicação, com o cliente HTTP de verdade e o `fetch` injetado) contra um fornecedor que ecoa o token na mensagem da rede, no corpo de um 500, de um 401, de um 429, num corpo que não é JSON e num nome de feriado, e contra um banco cuja mensagem de erro carrega o token: o log, os contadores, o desfecho e o que a rotina grava são serializados e nenhum contém o token. Nenhuma outra app lê a variável (varredura de `apps/*/src`), e no worker só o schema de ambiente a conhece.
+- **A rotina** — etapas em ordem, parada pedida lida antes de cada etapa, etapa que estoura não impede as seguintes (só tocam o banco) e fecha em `unexpected_error`; falha nossa vence a do fornecedor; entre as do fornecedor `provider_unauthorized` > `malformed_response` > `provider_unreachable` (o 429 entra aqui, e a espera do `Retry-After` já está gravada no par); orçamento do mês e teto do ciclo são contadores (`budget_exhausted`, `ceiling_reached`), não falha. Todo desfecho devolvido pertence ao vocabulário do catálogo para o job (`isJobOutcome`).
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0)
+
+| Mutação                                  | Resultado |
+| ---------------------------------------- | --------- |
+| orçamento aceita zero                    | 1 fail    |
+| padrão do orçamento de 5000              | 1 fail    |
+| a ausência do token não desliga a rotina | 3 fail    |
+| registro sem token registra mesmo assim  | 2 fail    |
+| falha nossa não vence a do fornecedor    | 3 fail    |
+| resposta fora do formato antes do 401    | 1 fail    |
+| etapa que estoura derruba o ciclo        | 2 fail    |
+| parada pedida não lida entre as etapas   | 1 fail    |
+| log da etapa carrega a mensagem do erro  | 2 fail    |
+| log do par carrega a mensagem do erro    | 1 fail    |
+| token fora do `railway.ts`               | 1 fail    |
+| a rotina não entra no `main.ts`          | 1 fail    |
+| 429 vira sucesso                         | 2 fail    |
+
+### Decisões de implementação dentro do ADR
+
+- **Padrão do orçamento (4500)** é por delegação, na linha da proposta da Q3; o usuário confirma ao configurar o token.
+- **429 → `provider_unreachable`:** o ADR não nomeia a palavra do catálogo para o 429; é a que mais se aproxima ("o fornecedor não nos deu o que pedimos") e é visível no painel, ao contrário de `succeeded`. Trocar é uma linha em `resolveOutcome`.
+- **Orçamento torto derruba o boot mesmo sem token:** um número declarado e errado é engano de configuração, como o grupo pela metade das agências.
+
+## Fechamento da Fase 3 (T3.1 a T3.5, 2026-10-09)
+
+Branch `work/252-t3` a partir de `origin/staging`, **sem push**. Commits (do mais antigo ao mais novo): contratos vermelhos `8571ad190`, `35d04a1d2`, `d7b7fd062`, `938a4357e`, `9b64e1726`; código `ca44fe24a`, `601237d60`, `e98589cb4`, `9b1450794`, `264b7f31a`; reforços de teste `deada2a7c`, `524643828`, `3380298b3`, `a52a193ad`; documentação `d6e7c4d10`, `b10a34250`, `9d5147c58`, `9e13f0066` e o desta seção.
+
+| Gate final                                                                                     | Resultado                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bunx tsc --noEmit` / `bunx eslint src test --max-warnings=0` (cwd `apps/worker-transportada`) | exit 0 / exit 0                                                                                                                                              |
+| `bun run test` do worker                                                                       | **2287 pass, 0 fail** em 103 arquivos (linha de base antes da Fase 3: 2191 em 102; +96 testes de contrato, +1 arquivo de entrada)                            |
+| `bun run build` do worker                                                                      | exit 0                                                                                                                                                       |
+| Integração contra Postgres 18.4 nativo (porta 65442), um arquivo por vez, 0 skip               | `holiday-discovery` 6 pass · `holiday-fetch` 7 pass · `holiday-apply` 11 pass · `job-run-execution` 11 pass · `route-optimization-municipal-holiday` 15 pass |
+| `bun run format:check` na raiz                                                                 | verde                                                                                                                                                        |
+| Mutações                                                                                       | T3.1 10 · T3.2 13 · T3.3 23 · T3.4 18 · T3.5 13 = **77 mutações, todas vermelhas** (4 sobreviveram na 1ª rodada, viraram teste e ficaram vermelhas)          |
+
+### Lacunas conhecidas e o que o usuário ainda decide
+
+1. **Forma de resposta real da FeriadosAPI** (T3.1, lista de 7 itens): envelope (lista pelada ou `{ data: [...] }`), paginação (`page` 1-based, decidida por `receivedCount === 100`), caminho do estado pela sigla, parâmetro `facultativos` não enviado, `codigo_ibge`/`uf` da resposta não lidos, como a API sinaliza plano/cota (402/403/429) e tipo desconhecido recusando a resposta inteira. **Nenhuma resposta real foi vista** — o 1º ciclo real, passo do usuário, confirma ou corrige.
+2. **`nfe_addresses` sem índice por `(company_id, participant_id)`:** o `EXPLAIN` confirma `Seq Scan` por lote da descoberta (1,5 ms com 2.100 notas). Índice, se a medição em staging pedir, vai em migration própria `CONCURRENTLY` (decisão do usuário, não desta task).
+3. **Padrão do orçamento 4500 e o 429 como `provider_unreachable`:** decisões por delegação acima.
+4. **A rotina não foi executada de ponta a ponta contra o fornecedor nem contra o `main.ts` vivo** (sem token e sem RabbitMQ): cada etapa foi provada contra o Postgres e o cliente contra um `fetch` injetado; a composição do `main.ts` é coberta por contrato de texto e por `bun run build`.
+5. **Passos do usuário para ligar** (Q3/Q4, `[NEEDS CLARIFICATION]`): confirmar termos e plano, configurar `FERIADOS_API_TOKEN` (e, se quiser, o orçamento) no worker de staging e despausar `holiday.provider.pull` no painel.
