@@ -129,6 +129,8 @@ export const API_MUNICIPAL_HOLIDAY_RULES_MATERIALIZATIONS_PATH =
 export const API_STATE_HOLIDAYS_PATH = '/state-holidays'
 export const API_COMPANY_SETTINGS_BUSINESS_CALENDAR_PATH = '/company-settings/business-calendar'
 /** Spec 252 T4.1: a gestão da importação de feriados da FeriadosAPI (status, cidades, supressões). */
+/** Spec 252 T4.2: a consulta da montagem — quais dos dias pedidos fecham por feriado, por cidade. */
+export const API_BUSINESS_CALENDAR_DAY_CHECKS_PATH = '/business-calendar/day-checks'
 export const API_HOLIDAY_IMPORTS_PATH = '/holiday-imports'
 export const API_HOLIDAY_IMPORT_STATUS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/status`
 export const API_HOLIDAY_IMPORT_CITIES_PATH = `${API_HOLIDAY_IMPORTS_PATH}/cities`

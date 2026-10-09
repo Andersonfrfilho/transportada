@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { MdfeBodyType } from '../../database/fleet.schema.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
@@ -198,6 +199,12 @@ export type TripStopDetail = {
    */
   readonly cityCode: string
   readonly state: string
+  /**
+   * Spec 252 T4.2 (ADR-0100 §6): a entrega prevista (ETA, dia civil de São Paulo) cai em feriado da cidade
+   * da parada. Aditivo: ausente quando não há aviso, quando a parada já foi concluída, quando não tem ETA
+   * e quando o relógio do detalhe não foi injetado.
+   */
+  readonly holidayWarnings?: readonly HolidayWarning[]
   readonly arrivedAt: string | null
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null

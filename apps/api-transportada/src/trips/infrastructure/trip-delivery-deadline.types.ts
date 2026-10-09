@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { BusinessCalendar } from '../../business-calendar/domain/business-calendar.types.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DeliveryOutcomeKind } from '../domain/delivery-deadline-outcome.policy.js'
 
@@ -27,6 +28,11 @@ export type DeliveryDeadlineStopAddresses = ReadonlyMap<
 >
 
 export type ReadTripDeliveryDeadlinesParams = {
+  /**
+   * Recebe os calendários que a leitura montou (cidade → calendário), para quem vem depois na mesma leitura
+   * aproveitar sem consultar de novo. Só é escrito; a leitura do prazo não depende dele.
+   */
+  readonly calendarSink?: Map<string, BusinessCalendar>
   readonly companyId: string
   readonly context: DeliveryDeadlineReadContext
   readonly notes: readonly DeliveryDeadlineNote[]
