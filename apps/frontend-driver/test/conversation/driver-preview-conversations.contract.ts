@@ -2,7 +2,11 @@ import { describe, expect, it } from 'bun:test'
 
 import { createConversationRoutes } from '../../scripts/driver-preview-conversations'
 import { createConversationRepository } from '../../scripts/driver-preview-conversations-repository'
-import { PREVIEW_OCCURRENCE_IDS } from '../../scripts/driver-preview-conversations-seed'
+import {
+  PREVIEW_DOCUMENT_ID,
+  PREVIEW_OCCURRENCE_IDS,
+  PREVIEW_TRIP_ID,
+} from '../../scripts/driver-preview-conversations-seed'
 
 const DAMAGE = PREVIEW_OCCURRENCE_IDS.damage
 const MESSAGES_PATH = `/v1/me/trips/current/occurrences/${DAMAGE}/messages`
@@ -32,13 +36,13 @@ function createRoutes() {
 }
 
 describe('API de demonstração do motorista: conversas', () => {
-  it('lista as quatro conversas, com não lidas só na de avaria', async () => {
+  it('rota antiga: lista só as ocorrências, com não lidas só na de avaria', async () => {
     const { call } = createRoutes()
     const response = await call('GET', '/v1/me/trips/current/occurrence-conversations')
     const { data } = (await response?.json()) as {
       data: { occurrenceId: string; unreadCount: number }[]
     }
-    expect(data).toHaveLength(4)
+    expect(data).toHaveLength(6)
     expect(data.find((item) => item.occurrenceId === DAMAGE)?.unreadCount).toBe(2)
     expect(data.filter((item) => item.unreadCount > 0)).toHaveLength(1)
   })
@@ -82,7 +86,7 @@ describe('API de demonstração do motorista: conversas', () => {
   it('reset volta ao estado inicial e office-reply injeta mensagem não lida', async () => {
     const { call, repository } = createRoutes()
     await call('POST', '/__debug/conversations/office-reply', {
-      body: { occurrenceId: DAMAGE, text: 'Oi' },
+      body: { subjectId: DAMAGE, text: 'Oi' },
     })
     expect(repository.list().find((item) => item.occurrenceId === DAMAGE)?.unreadCount).toBe(3)
     await call('POST', '/__debug/conversations/reset')
@@ -98,5 +102,68 @@ describe('API de demonstração do motorista: conversas', () => {
     const path = new URL(data.uploadUrl).pathname
     expect(response?.status).toBe(201)
     expect((await call('PUT', path))?.status).toBe(200)
+  })
+
+  it('rota nova: lista todos os assuntos com protocolo, canais e ícone', async () => {
+    const { call } = createRoutes()
+    const response = await call('GET', '/v1/me/trips/current/conversations')
+    const { data, pagination } = (await response?.json()) as {
+      data: {
+        awaitingDriver: boolean
+        channels: string[]
+        iconName?: string
+        protocol: string
+        subjectId: string
+        subjectLabel: string
+        subjectType: string
+      }[]
+      pagination: { nextCursor: string | null }
+    }
+    expect(pagination).toEqual({ nextCursor: null })
+    expect(data.map((item) => item.subjectType).sort()).toEqual([
+      'document',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'trip',
+    ])
+    expect(data.find((item) => item.subjectId === PREVIEW_DOCUMENT_ID)?.subjectLabel).toBe(
+      'NF 4521 · Casa Verde',
+    )
+    expect(data.find((item) => item.subjectId === PREVIEW_TRIP_ID)?.subjectLabel).toBe(
+      'Viagem de 09/10',
+    )
+    for (const item of data) expect(item.protocol).toMatch(/^\d{6}-[2-9A-HJKMNP-Z]{4}$/)
+    expect(data.filter((item) => item.channels.length === 2)).toHaveLength(1)
+    expect(
+      data.filter((item) => item.iconName === undefined).map((item) => item.subjectType),
+    ).toContain('trip')
+    expect(new Set(data.flatMap((item) => (item.iconName ? [item.iconName] : []))).size).toBe(5)
+  })
+
+  it('rota nova: envia por assunto, devolve a mensagem com o eco e valida o tipo', async () => {
+    const { call } = createRoutes()
+    const path = `/v1/me/trips/current/conversations/document/${PREVIEW_DOCUMENT_ID}/messages`
+    const sent = await call('POST', path, {
+      body: { body: 'Confirmado' },
+      headers: { 'idempotency-key': 'key-9' },
+    })
+    const { data } = (await sent?.json()) as { data: { clientMessageId: string; id: string } }
+    expect(sent?.status).toBe(201)
+    expect(data.clientMessageId).toBe('key-9')
+    const listed = await call('GET', path)
+    const { data: messages } = (await listed?.json()) as { data: { id: string }[] }
+    expect(messages.at(-1)?.id).toBe(data.id)
+    const wrongType = await call(
+      'GET',
+      `/v1/me/trips/current/conversations/trip/${PREVIEW_DOCUMENT_ID}/messages`,
+    )
+    expect(wrongType?.status).toBe(404)
+    expect(((await wrongType?.json()) as { error: { code: string } }).error.code).toBe(
+      'CONVERSATION_NOT_FOUND',
+    )
   })
 })

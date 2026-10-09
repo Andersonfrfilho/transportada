@@ -46,7 +46,7 @@ function createHarness(initialMode: ServerMode = 'ok') {
     postsByKey.set(key, (postsByKey.get(key) ?? 0) + 1)
     bodiesByKey.set(key, [...(bodiesByKey.get(key) ?? []), JSON.parse(await request.text())])
     if (!savedByKey.has(key)) savedByKey.set(key, `server-${savedByKey.size + 1}`)
-    return json({ data: { messageId: savedByKey.get(key) } }, 201)
+    return json({ data: { id: savedByKey.get(key) } }, 201)
   }
 
   const outbox = createConversationOutbox({

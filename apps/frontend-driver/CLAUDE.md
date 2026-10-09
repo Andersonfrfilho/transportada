@@ -404,3 +404,24 @@ Detalhe e medições: `docs/ai-context/frontend-driver.md` § "Spec 254".
 - A nota do motorista não muda com feriado (CA16, contrato na API). Nada é importado do painel (ADR-0075).
 
 Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
+
+## Conversas (spec 260)
+
+- **A tela não é copiada para o app.** `DriverConversations.page.tsx` só monta o `ParticipantConversations` de
+  `@adatechnology/conversations-ui/participant` (import dinâmico) e liga rota, adapter, tema, rótulos e ícones. Layout, busca,
+  protocolo, canais e bolhas vêm do pacote; cópia da tela é regressão (ADR-0075 §7). Fixe `conversations-ui` e
+  `conversation-contracts` em versão exata, e atualize as três apps juntas.
+- **Rotas por assunto, com queda.** O adapter (`driverConversationsApi.service.ts`) fala com
+  `/me/trips/current/conversations[/:subjectType/:subjectId/{messages,messages/read,uploads}]` e a resposta já traz
+  `awaitingDriver` e o eco do `clientMessageId` — não há mais remendo no app. `driverConversationRoutes.service.ts` cai nas rotas de
+  ocorrência (`occurrence-conversations`, `occurrences/:id/**`) quando a nova responde 501 ou 404 **que não seja**
+  `CONVERSATION_NOT_FOUND` (API ainda não implantada, ADR-0081 §9), e fica nelas até recarregar. Na queda, nota e viagem são
+  recusadas (`SUBJECT_UNSUPPORTED`) e `awaitingParticipant` vira "tem não lida". Teste: `driver-conversations-fallback.contract.ts`.
+- **Fila offline.** A `Idempotency-Key` é o `clientMessageId` em toda tentativa e em qualquer das duas rotas; a fila guarda
+  `subjectType`/`subjectId` e reenvia pela rota do assunto. Assunto desconhecido é recusado antes de ir à fila.
+- **Protocolo, canais e ícone.** O mapper repassa `protocol`, `channels` (só os que o pacote conhece) e `iconName` **se a API
+  mandou** — sem campo, nada aparece, nunca se inventa. `renderDriverSubjectIcon` mapeia o catálogo da spec 255 para o `<Icon>` do
+  app e devolve `null` fora dele (o pacote usa o ícone do grupo). Rótulos novos do SDK entram em `conversation.locale.json` **e**
+  `.en`; ao subir o pacote, confira as chaves de `participantLabels`.
+- **Demonstração.** `scripts/driver-preview-conversations*.ts` serve as duas famílias de rota; reinicie a API de demonstração
+  (porta 53901) depois de mudar o script.

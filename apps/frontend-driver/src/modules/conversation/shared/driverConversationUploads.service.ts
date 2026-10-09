@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ParticipantAttachment } from '@adatechnology/conversation-contracts'
+import type {
+  ParticipantAttachment,
+  ParticipantSubjectRef,
+} from '@adatechnology/conversation-contracts'
 
-import { CURRENT_TRIP_PATH, DRIVER_CONVERSATION_ERROR } from './driverConversation.constant'
+import { DRIVER_CONVERSATION_ERROR } from './driverConversation.constant'
+import type { DriverConversationRoutes } from './driverConversationRoutes.service'
 import {
   DriverConversationRequestError,
   type DriverConversationHttp,
@@ -10,7 +14,7 @@ import { attachmentKindOf } from './driverConversationsMapper.service'
 
 export type DriverConversationUploader = Readonly<{
   upload: (
-    input: Readonly<{ files: readonly File[]; occurrenceId: string }>,
+    input: Readonly<{ files: readonly File[]; subject: ParticipantSubjectRef }>,
   ) => Promise<readonly ParticipantAttachment[]>
 }>
 
@@ -35,18 +39,23 @@ function readUpload(payload: unknown): Readonly<{ uploadId: string; uploadUrl: s
  * rascunho reaproveita o mesmo id: reenviar com a mesma `Idempotency-Key` e ids novos daria 409.
  */
 export function createDriverConversationUploader(
-  http: DriverConversationHttp,
+  dependencies: Readonly<{ http: DriverConversationHttp; routes: DriverConversationRoutes }>,
 ): DriverConversationUploader {
+  const { http, routes } = dependencies
   const uploadedFiles = new WeakMap<File, ParticipantAttachment>()
 
-  async function uploadOne(file: File, occurrenceId: string): Promise<ParticipantAttachment> {
+  async function uploadOne(
+    file: File,
+    subject: ParticipantSubjectRef,
+  ): Promise<ParticipantAttachment> {
     const known = uploadedFiles.get(file)
     if (known !== undefined) return known
     const upload = readUpload(
-      await http.postJson(
-        `${CURRENT_TRIP_PATH}/occurrences/${encodeURIComponent(occurrenceId)}/uploads`,
-        { body: { contentType: file.type, fileName: file.name, sizeBytes: file.size } },
-      ),
+      await routes.requestUpload(subject, {
+        contentType: file.type,
+        fileName: file.name,
+        sizeBytes: file.size,
+      }),
     )
     await http.putFile({ file, url: upload.uploadUrl })
     const attachment: ParticipantAttachment = {
@@ -61,7 +70,6 @@ export function createDriverConversationUploader(
   }
 
   return {
-    upload: ({ files, occurrenceId }) =>
-      Promise.all(files.map((file) => uploadOne(file, occurrenceId))),
+    upload: ({ files, subject }) => Promise.all(files.map((file) => uploadOne(file, subject))),
   }
 }

@@ -1,16 +1,29 @@
 {
   "groups": {
-    "occurrence": "Occurrences"
+    "document": "Invoices",
+    "occurrence": "Occurrences",
+    "trip": "Trip"
   },
   "labels": {
     "attach": "Attach",
     "attachmentTooLarge": "File is over 25 MB.",
+    "attachmentTypeNotAccepted": "File type not accepted.",
+    "attachmentsList": "Selected attachments",
     "back": "Back",
+    "channelApp": "App",
+    "channelEmail": "Email",
+    "channelPortal": "Portal",
+    "channelWebchat": "Web chat",
+    "channelWhatsapp": "WhatsApp",
+    "channelsGroup": "Channels in this conversation",
     "closedNotice": "This conversation was closed.",
+    "copyProtocol": "Copy protocol",
     "discard": "Discard",
+    "downloadAttachment": "Download",
     "edit": "Edit",
     "emptyInbox": "No conversations yet",
     "filterAll": "All",
+    "filtersGroup": "Filter by subject",
     "inboxTitle": "Conversations",
     "loadError": "Could not load. Try again.",
     "loadMore": "Load more",
@@ -20,8 +33,18 @@
     "messageInputLabel": "Message",
     "messageInputPlaceholder": "Write to the office",
     "newMessages": "New messages",
+    "noResults": "No conversations found",
+    "noResultsInFilter": "No results in this filter — try All",
+    "noResultsLoadedOnly": "Nothing in the loaded conversations — load more",
     "notFound": "Conversation not found.",
+    "openSubject": "Open subject",
+    "protocolCopied": "Protocol copied",
+    "protocolPrefix": "Protocol",
+    "quickRepliesGroup": "Quick replies",
+    "removeAttachment": "Remove attachment",
     "retry": "Resend",
+    "searchLabel": "Search conversations",
+    "searchPlaceholder": "Search by title or protocol",
     "sectionAwaiting": "Waiting for your reply",
     "sectionClosed": "Closed",
     "sectionOther": "Other",
@@ -37,7 +60,9 @@
   },
   "loading": "Loading conversations…",
   "subjectCard": {
-    "occurrence": "Occurrence"
+    "document": "Invoice",
+    "occurrence": "Occurrence",
+    "trip": "Trip"
   },
   "subjectFallback": "Occurrence",
   "title": "Conversations"

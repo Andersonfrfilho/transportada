@@ -26,6 +26,7 @@ import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
+import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
 import styles from '../styles/conversation.module.css'
 
 const ParticipantConversations = lazy(async () => {
@@ -40,7 +41,11 @@ export function DriverConversationsPage() {
   const { onRetryPending, pendingMessages } = useConversationOutbox(api)
   const selected = parseDriverConversationSubject(useConversationPathname())
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
-  const subjectGroups = buildDriverSubjectGroups({ occurrence: t('groups.occurrence') })
+  const subjectGroups = buildDriverSubjectGroups({
+    document: t('groups.document'),
+    occurrence: t('groups.occurrence'),
+    trip: t('groups.trip'),
+  })
 
   function handleSelect(subject: ParticipantSubjectRef): void {
     navigateToDriverConversation(subject)
@@ -79,6 +84,7 @@ export function DriverConversationsPage() {
             labels={labels}
             locale={i18n.language}
             renderSubjectCard={renderSubjectCard}
+            renderSubjectIcon={renderDriverSubjectIcon}
             selected={selected}
             subjectGroups={subjectGroups}
             pendingMessages={pendingMessages}

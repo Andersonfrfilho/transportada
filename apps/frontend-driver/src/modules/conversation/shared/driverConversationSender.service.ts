@@ -10,24 +10,20 @@ import type {
 
 import type { DrainOrigin } from '@/modules/driver-trip/shared/retryBackoff.service'
 
-import type { ClientMessageIdEcho } from './clientMessageIdEcho.service'
 import type { ConversationOutbox } from './conversationOutbox.service'
 import type { OutboxMessage } from './conversationOutbox.types'
 import { classifyDeliveryFailure } from './conversationOutboxFailure.service'
 import { DRIVER_CONVERSATION_ERROR } from './driverConversation.constant'
-import {
-  DriverConversationRequestError,
-  type DriverConversationHttp,
-} from './driverConversationsHttp.service'
-import { messagesPath, occurrenceIdOf } from './driverConversationSubject.service'
+import type { DriverConversationRoutes } from './driverConversationRoutes.service'
+import { DriverConversationRequestError } from './driverConversationsHttp.service'
+import { assertSupportedSubject } from './driverConversationSubject.service'
 import type { DriverConversationUploader } from './driverConversationUploads.service'
 
 export type DriverConversationSenderDependencies = Readonly<{
-  echo: ClientMessageIdEcho
-  http: DriverConversationHttp
   isOnline: () => boolean
   now: () => Date
   outbox: ConversationOutbox
+  routes: DriverConversationRoutes
   uploader: DriverConversationUploader
 }>
 
@@ -44,16 +40,13 @@ type PostMessageInput = Readonly<{
   text: string
 }>
 
+/** A rota nova devolve a mensagem (`id`); a antiga, `{ conversationId, messageId }`. */
 function readMessageId(payload: unknown): string {
   const data =
     typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'messageId' in data &&
-    typeof data.messageId === 'string'
-  ) {
-    return data.messageId
+  if (typeof data === 'object' && data !== null) {
+    if ('id' in data && typeof data.id === 'string') return data.id
+    if ('messageId' in data && typeof data.messageId === 'string') return data.messageId
   }
   throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.RESPONSE_INVALID)
 }
@@ -65,18 +58,16 @@ function toFile(file: OutboxMessage['files'][number]): File {
 export function createDriverConversationSender(
   dependencies: DriverConversationSenderDependencies,
 ): DriverConversationSender {
-  const { echo, http, outbox, uploader } = dependencies
+  const { outbox, routes, uploader } = dependencies
 
   /** A `Idempotency-Key` é o `clientMessageId` em toda tentativa: o servidor devolve a resposta salva. */
   async function postMessage(input: PostMessageInput): Promise<string> {
     const attachmentIds = input.attachments.map((attachment) => attachment.id)
-    const payload = await http.postJson(messagesPath(input.subject), {
+    const payload = await routes.postMessage(input.subject, {
       body: { body: input.text, ...(attachmentIds.length === 0 ? {} : { attachmentIds }) },
       headers: { 'idempotency-key': input.clientMessageId },
     })
-    const serverMessageId = readMessageId(payload)
-    echo.remember({ clientMessageId: input.clientMessageId, serverMessageId })
-    return serverMessageId
+    return readMessageId(payload)
   }
 
   async function deliverQueued(message: OutboxMessage): Promise<void> {
@@ -84,7 +75,7 @@ export function createDriverConversationSender(
       message.attachments ??
       (await uploader.upload({
         files: message.files.map(toFile),
-        occurrenceId: occurrenceIdOf(message.subject),
+        subject: message.subject,
       }))
     if (message.attachments === undefined && attachments.length > 0) {
       await outbox.rememberAttachments({ attachments, clientMessageId: message.clientMessageId })
@@ -129,11 +120,11 @@ export function createDriverConversationSender(
       await outbox.flush({ deliver: deliverQueued, origin: 'immediate' })
     },
     async sendMessage(input) {
-      const occurrenceId = occurrenceIdOf(input.subject)
+      assertSupportedSubject(input.subject)
       if (!dependencies.isOnline()) return enqueue(input)
       let uploaded: readonly ParticipantAttachment[] | undefined
       try {
-        uploaded = await uploader.upload({ files: input.files ?? [], occurrenceId })
+        uploaded = await uploader.upload({ files: input.files ?? [], subject: input.subject })
         return await sendUploaded(input, uploaded)
       } catch (error) {
         if (classifyDeliveryFailure(error) === 'permanent') throw error

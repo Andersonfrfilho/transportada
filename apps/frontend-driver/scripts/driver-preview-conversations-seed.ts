@@ -1,30 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /** Dados sintéticos das conversas da demonstração do motorista (spec 260). Sem PII real. */
-
-export type PreviewAttachment = {
-  readonly contentType: string
-  readonly fileName: string
-  readonly id: string
-  readonly sizeBytes: number
-}
-
-export type PreviewMessage = {
-  readonly attachments: readonly PreviewAttachment[]
-  readonly authorName: string
-  readonly bodyText: string
-  readonly createdAt: string
-  readonly direction: 'inbound' | 'outbound'
-  readonly id: string
-  /** Só mensagem do escritório fica não lida; a do motorista nasce lida. */
-  isUnread: boolean
-  readonly status: 'sent'
-}
-
-export type PreviewConversation = {
-  readonly messages: PreviewMessage[]
-  readonly occurrenceId: string
-  readonly occurrenceLabel: string
-}
+import type {
+  PreviewChannel,
+  PreviewConversation,
+  PreviewMessage,
+  PreviewSubjectType,
+} from './driver-preview-conversations.types'
 
 type SeedLine = Readonly<{
   direction: PreviewMessage['direction']
@@ -33,9 +14,13 @@ type SeedLine = Readonly<{
 }>
 
 type SeedConversation = Readonly<{
+  channels?: readonly PreviewChannel[]
+  iconName?: string
   id: string
   label: string
   lines: readonly SeedLine[]
+  protocolSuffix: string
+  subjectType?: PreviewSubjectType
 }>
 
 export const OFFICE_AUTHOR = 'Escritório TransportAdA'
@@ -46,8 +31,13 @@ export const PREVIEW_OCCURRENCE_IDS = {
   absent: '00000000-0000-4000-8000-000000000262',
   damage: '00000000-0000-4000-8000-000000000261',
   history: '00000000-0000-4000-8000-000000000264',
+  receipt: '00000000-0000-4000-8000-000000000267',
   refusal: '00000000-0000-4000-8000-000000000263',
+  return: '00000000-0000-4000-8000-000000000268',
 } as const
+
+export const PREVIEW_DOCUMENT_ID = '00000000-0000-4000-8000-000000000265'
+export const PREVIEW_TRIP_ID = '00000000-0000-4000-8000-000000000266'
 
 function buildHistoryLines(): readonly SeedLine[] {
   return Array.from({ length: 35 }, (_, index): SeedLine => {
@@ -63,8 +53,10 @@ function buildHistoryLines(): readonly SeedLine[] {
 
 const SEED_CONVERSATIONS: readonly SeedConversation[] = [
   {
+    iconName: 'alert',
     id: PREVIEW_OCCURRENCE_IDS.damage,
     label: 'Avaria · Mercado Sol (parada 3)',
+    protocolSuffix: 'K7M2',
     lines: [
       {
         direction: 'outbound',
@@ -79,16 +71,21 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
     ],
   },
   {
+    iconName: 'clock',
     id: PREVIEW_OCCURRENCE_IDS.absent,
     label: 'Cliente ausente · Loja 12 (parada 1)',
+    protocolSuffix: 'R4T9',
     lines: [
       { direction: 'inbound', text: 'Cheguei e a loja está fechada, ninguém atende o telefone.' },
       { direction: 'outbound', text: 'Entendido. Vamos reagendar a entrega com o cliente.' },
     ],
   },
   {
+    channels: ['app', 'whatsapp'],
+    iconName: 'package',
     id: PREVIEW_OCCURRENCE_IDS.refusal,
     label: 'Recusa · Padaria Central (parada 2)',
+    protocolSuffix: 'W3Q8',
     lines: [
       { direction: 'outbound', text: 'O cliente alega divergência no pedido. Pode detalhar?' },
       {
@@ -101,8 +98,51 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
     id: PREVIEW_OCCURRENCE_IDS.history,
     label: 'Reentrega · Depósito Norte (parada 4)',
     lines: buildHistoryLines(),
+    protocolSuffix: 'H6N5',
+  },
+  {
+    iconName: 'camera',
+    id: PREVIEW_OCCURRENCE_IDS.receipt,
+    label: 'Canhoto ilegível · Atacado Leste (parada 5)',
+    lines: [{ direction: 'outbound', text: 'A foto do canhoto saiu desfocada. Pode tirar outra?' }],
+    protocolSuffix: 'Z2X7',
+  },
+  {
+    iconName: 'money',
+    id: PREVIEW_OCCURRENCE_IDS.return,
+    label: 'Devolução parcial · Farmácia Vida (parada 6)',
+    lines: [{ direction: 'inbound', text: 'Devolvi duas caixas, o cliente pagou o restante.' }],
+    protocolSuffix: 'C9D4',
+  },
+  {
+    id: PREVIEW_DOCUMENT_ID,
+    label: 'NF 4521 · Casa Verde',
+    lines: [
+      {
+        direction: 'outbound',
+        isUnread: true,
+        text: 'A nota 4521 sai da Casa Verde antes das 14h. Confirme o horário.',
+      },
+    ],
+    protocolSuffix: 'F8G3',
+    subjectType: 'document',
+  },
+  {
+    id: PREVIEW_TRIP_ID,
+    label: 'Viagem de 09/10',
+    lines: [
+      { direction: 'outbound', text: 'Bom dia! A rota de hoje foi ajustada, confira as paradas.' },
+    ],
+    protocolSuffix: 'P5V6',
+    subjectType: 'trip',
   },
 ]
+
+function toProtocol(now: number, suffix: string): string {
+  const date = new Date(now)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getFullYear() % 100)}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${suffix}`
+}
 
 function toMessage(
   input: Readonly<{ at: number; conversationId: string; index: number; line: SeedLine }>,
@@ -123,6 +163,8 @@ function toMessage(
 /** As mensagens recuam do mais recente: a última chegou há 5 min, cada anterior 3 min antes. */
 export function buildSeedConversations(now: number): PreviewConversation[] {
   return SEED_CONVERSATIONS.map((seed) => ({
+    channels: seed.channels ?? ['app'],
+    ...(seed.iconName === undefined ? {} : { iconName: seed.iconName }),
     messages: seed.lines.map((line, index) =>
       toMessage({
         at: now - (seed.lines.length - index) * 3 * MINUTE_MS - 2 * MINUTE_MS,
@@ -133,5 +175,7 @@ export function buildSeedConversations(now: number): PreviewConversation[] {
     ),
     occurrenceId: seed.id,
     occurrenceLabel: seed.label,
+    protocol: toProtocol(now, seed.protocolSuffix),
+    subjectType: seed.subjectType ?? 'occurrence',
   }))
 }

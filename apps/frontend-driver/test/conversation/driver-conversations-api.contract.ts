@@ -3,12 +3,12 @@ import { describe, expect, it } from 'bun:test'
 import { createConversationOutbox } from '../../src/modules/conversation/shared/conversationOutbox.service'
 import { createDriverConversationsApi } from '../../src/modules/conversation/shared/driverConversationsApi.service'
 import { createDriverConversationHttp } from '../../src/modules/conversation/shared/driverConversationsHttp.service'
-import { isAwaitingParticipant } from '../../src/modules/conversation/shared/driverConversationsMapper.service'
 import { createMemoryOutboxStore } from '../fixtures/memory-conversation-outbox-store.fixture'
 
 const OCCURRENCE_ID = '0b9a4b8e-0000-4000-8000-000000000001'
 const SUBJECT = { subjectId: OCCURRENCE_ID, subjectType: 'occurrence' } as const
-const MESSAGES_URL = `https://api.test/v1/me/trips/current/occurrences/${OCCURRENCE_ID}/messages`
+const SUBJECT_URL = `https://api.test/v1/me/trips/current/conversations/occurrence/${OCCURRENCE_ID}`
+const MESSAGES_URL = `${SUBJECT_URL}/messages`
 
 type Recorded = { body: string; headers: Headers; method: string; url: string }
 type Responder = (recorded: Recorded) => Response
@@ -76,63 +76,88 @@ const apiMessage = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('driverConversationsApi (spec 260 T1b.2)', () => {
-  it('lista as conversas como assunto "occurrence", com o token buscado a cada chamada', async () => {
+  it('lista pela rota por assunto, com o token buscado a cada chamada', async () => {
     const harness = createHarness(() =>
       json({
         data: [
           {
+            awaitingDriver: true,
+            channels: ['app', 'whatsapp'],
+            iconName: 'alert',
             lastMessageAt: '2026-10-09T10:00:00.000Z',
-            occurrenceId: OCCURRENCE_ID,
-            occurrenceLabel: 'NF 4521 · avaria',
+            lastMessagePreview: 'Pode seguir',
+            protocol: '261009-K7M2',
+            status: 'open',
+            subjectId: OCCURRENCE_ID,
+            subjectLabel: 'NF 4521 · avaria',
+            subjectType: 'occurrence',
+            tripId: null,
             unreadCount: 2,
           },
         ],
+        pagination: { nextCursor: 'cursor-2' },
       }),
     )
 
     const page = await harness.api.listConversations()
-    await harness.api.listConversations()
+    await harness.api.listConversations({ cursor: 'cursor-2' })
 
-    expect(page.data).toEqual([
-      {
-        awaitingParticipant: true,
-        lastMessageAt: '2026-10-09T10:00:00.000Z',
-        status: 'open',
-        subjectId: OCCURRENCE_ID,
-        subjectLabel: 'NF 4521 · avaria',
-        subjectType: 'occurrence',
-        unreadCount: 2,
-      },
+    expect(page).toEqual({
+      data: [
+        {
+          awaitingParticipant: true,
+          channels: ['app', 'whatsapp'],
+          iconName: 'alert',
+          lastMessageAt: '2026-10-09T10:00:00.000Z',
+          lastMessagePreview: 'Pode seguir',
+          protocol: '261009-K7M2',
+          status: 'open',
+          subjectId: OCCURRENCE_ID,
+          subjectLabel: 'NF 4521 · avaria',
+          subjectType: 'occurrence',
+          unreadCount: 2,
+        },
+      ],
+      nextCursor: 'cursor-2',
+    })
+    expect(harness.requests.map((request) => request.url)).toEqual([
+      'https://api.test/v1/me/trips/current/conversations',
+      'https://api.test/v1/me/trips/current/conversations?cursor=cursor-2',
     ])
-    expect(harness.requests[0]?.url).toBe(
-      'https://api.test/v1/me/trips/current/occurrence-conversations',
-    )
     expect(harness.requests.map((request) => request.headers.get('authorization'))).toEqual([
       'Bearer token-1',
       'Bearer token-2',
     ])
   })
 
-  it('rótulo vazio cai no texto do locale', async () => {
+  it('sem protocolo, canais e ícone na resposta, nada disso aparece; rótulo vazio cai no locale', async () => {
     const harness = createHarness(() =>
       json({
         data: [
           {
-            lastMessageAt: '2026-10-09T10:00:00.000Z',
-            occurrenceId: 'x',
-            occurrenceLabel: '  ',
+            awaitingDriver: false,
+            lastMessageAt: null,
+            status: 'closed',
+            subjectId: 'x',
+            subjectLabel: '  ',
+            subjectType: 'document',
             unreadCount: 0,
           },
         ],
+        pagination: { nextCursor: null },
       }),
     )
     const page = await harness.api.listConversations()
-    expect(page.data[0]?.subjectLabel).toBe('Ocorrência')
-    expect(page.data[0]?.awaitingParticipant).toBe(false)
+    const [summary] = page.data
+    expect(summary?.subjectLabel).toBe('Ocorrência')
+    expect(summary?.protocol).toBeUndefined()
+    expect(summary?.channels).toBeUndefined()
+    expect(summary?.iconName).toBeUndefined()
+    expect(page.nextCursor).toBeUndefined()
   })
 
   it('resposta fora do contrato é recusada, não repassada à tela', async () => {
-    const harness = createHarness(() => json({ data: [{ occurrenceId: 'x' }] }))
+    const harness = createHarness(() => json({ data: [{ subjectId: 'x' }] }))
     expect(await captureRejection(harness.api.listConversations())).toBeInstanceOf(Error)
   })
 
@@ -176,9 +201,7 @@ describe('driverConversationsApi (spec 260 T1b.2)', () => {
   })
 
   it('envia com a clientMessageId como Idempotency-Key e a devolve na mensagem', async () => {
-    const harness = createHarness(() =>
-      json({ data: { conversationId: 'c', messageId: 'server-1' } }, 201),
-    )
+    const harness = createHarness(() => json({ data: { id: 'server-1' } }, 201))
 
     const result = await harness.api.sendMessage({
       clientMessageId: 'client-1',
@@ -201,19 +224,16 @@ describe('driverConversationsApi (spec 260 T1b.2)', () => {
     expect(JSON.parse(sent?.body ?? '{}')).toEqual({ body: 'Cheguei' })
   })
 
-  it('a mensagem buscada depois leva a clientMessageId, para a bolha local não duplicar', async () => {
-    const harness = createHarness((recorded) =>
-      recorded.method === 'POST'
-        ? json({ data: { conversationId: 'c', messageId: 'server-1' } }, 201)
-        : json({
-            data: [
-              apiMessage({ direction: 'inbound', id: 'server-1' }),
-              apiMessage({ id: 'server-2' }),
-            ],
-          }),
+  it('a mensagem lida leva a clientMessageId que a API ecoa, para a bolha local não duplicar', async () => {
+    const harness = createHarness(() =>
+      json({
+        data: [
+          apiMessage({ clientMessageId: 'client-1', direction: 'inbound', id: 'server-1' }),
+          apiMessage({ clientMessageId: null, id: 'server-2' }),
+        ],
+      }),
     )
 
-    await harness.api.sendMessage({ clientMessageId: 'client-1', subject: SUBJECT, text: 'Oi' })
     const messages = await harness.api.fetchMessages(SUBJECT)
 
     expect(messages.map((message) => message.clientMessageId)).toEqual(['client-1', undefined])
@@ -225,7 +245,7 @@ describe('driverConversationsApi (spec 260 T1b.2)', () => {
         return json({ data: { uploadId: 'upload-1', uploadUrl: 'https://storage.test/put' } }, 201)
       }
       if (recorded.method === 'PUT') return new Response(null, { status: 200 })
-      return json({ data: { conversationId: 'c', messageId: 'server-1' } }, 201)
+      return json({ data: { id: 'server-1' } }, 201)
     })
     const file = new File(['abc'], 'canhoto.png', { type: 'image/png' })
 
@@ -234,7 +254,7 @@ describe('driverConversationsApi (spec 260 T1b.2)', () => {
 
     const calls = harness.requests.map((request) => `${request.method} ${request.url}`)
     expect(calls).toEqual([
-      `POST https://api.test/v1/me/trips/current/occurrences/${OCCURRENCE_ID}/uploads`,
+      `POST ${SUBJECT_URL}/uploads`,
       'PUT https://storage.test/put',
       `POST ${MESSAGES_URL}`,
       `POST ${MESSAGES_URL}`,
@@ -280,52 +300,6 @@ describe('driverConversationsApi (spec 260 T1b.2)', () => {
     expect(await harness.api.resolveAttachmentUrl(attachment)).toBe('https://s3/a?v=2')
     const unknown = harness.api.resolveAttachmentUrl({ ...attachment, id: 'desconhecido' })
     expect(await captureRejection(unknown)).toBeInstanceOf(Error)
-  })
-
-  it('espera a resposta do motorista quando a última mensagem aberta é da operação', async () => {
-    const harness = createHarness((recorded) =>
-      recorded.url.endsWith('/messages')
-        ? json({
-            data: [
-              apiMessage({ direction: 'inbound', id: 'm1' }),
-              apiMessage({ createdAt: '2026-10-09T11:00:00.000Z', id: 'm2' }),
-            ],
-          })
-        : json({
-            data: [
-              {
-                lastMessageAt: '2026-10-09T11:00:00.000Z',
-                occurrenceId: OCCURRENCE_ID,
-                occurrenceLabel: 'NF 1',
-                unreadCount: 0,
-              },
-            ],
-          }),
-    )
-
-    await harness.api.fetchMessages(SUBJECT)
-    const page = await harness.api.listConversations()
-
-    expect(page.data[0]?.awaitingParticipant).toBe(true)
-  })
-
-  it('isAwaitingParticipant: só a última da operação, depois da última do motorista', () => {
-    const base = { attachments: [], id: 'x' }
-    const outbound = {
-      ...base,
-      createdAt: '2026-10-09T11:00:00.000Z',
-      direction: 'outbound' as const,
-    }
-    const inbound = {
-      ...base,
-      createdAt: '2026-10-09T12:00:00.000Z',
-      direction: 'inbound' as const,
-    }
-    expect(isAwaitingParticipant([])).toBe(false)
-    expect(isAwaitingParticipant([inbound, outbound])).toBe(false)
-    expect(
-      isAwaitingParticipant([outbound, { ...inbound, createdAt: '2026-10-09T10:00:00.000Z' }]),
-    ).toBe(true)
   })
 
   it('código de erro da API chega pelo code, não pelo texto', async () => {

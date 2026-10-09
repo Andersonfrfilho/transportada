@@ -1,11 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type {
-  ParticipantAttachment,
-  ParticipantMessage,
-} from '@adatechnology/conversation-contracts'
+import type { ParticipantAttachment } from '@adatechnology/conversation-contracts'
 
 import {
   DRIVER_CONVERSATION_SUBJECT_TYPE,
+  PARTICIPANT_CHANNELS,
   PARTICIPANT_MESSAGE_STATUSES,
 } from './driverConversation.constant'
 
@@ -48,6 +46,8 @@ export function toParticipantMessageCandidate(raw: unknown): unknown {
       ? (message.attachments as readonly unknown[]).map(toAttachmentCandidate)
       : [],
     authorName: message.authorName ?? undefined,
+    clientMessageId:
+      typeof message.clientMessageId === 'string' ? message.clientMessageId : undefined,
     createdAt: message.createdAt,
     direction: message.direction,
     id: message.id,
@@ -68,29 +68,59 @@ export function readAttachmentUrls(raw: unknown): ReadonlyMap<string, string> {
   return urls
 }
 
-/** A última mensagem é da operação e posterior à última do motorista. */
-export function isAwaitingParticipant(messages: readonly ParticipantMessage[]): boolean {
-  const sorted = [...messages].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
-  const last = sorted.at(-1)
-  return last !== undefined && last.direction === 'outbound'
-}
-
 export type ConversationSummaryInput = Readonly<{
   fallbackSubjectLabel: string
-  isAwaitingParticipant: boolean
   raw: unknown
 }>
 
+function readText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+/** Só os canais que o pacote conhece: um valor novo da API não pode derrubar a lista inteira. */
+function readChannels(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const known = (value as readonly unknown[]).filter((channel): channel is string =>
+    PARTICIPANT_CHANNELS.some((candidate) => candidate === channel),
+  )
+  return known.length === 0 ? undefined : [...new Set(known)]
+}
+
+/** Resumo da rota por assunto; protocolo, canais e ícone só aparecem se a API os mandou. */
 export function toConversationSummaryCandidate(input: ConversationSummaryInput): unknown {
   const summary = asRecord(input.raw)
-  const label = typeof summary.occurrenceLabel === 'string' ? summary.occurrenceLabel.trim() : ''
   return {
-    awaitingParticipant: input.isAwaitingParticipant,
+    awaitingParticipant: summary.awaitingDriver,
+    channels: readChannels(summary.channels),
+    iconName: readText(summary.iconName),
+    lastMessageAt: summary.lastMessageAt ?? null,
+    lastMessageDirection: summary.lastMessageDirection,
+    lastMessagePreview: readText(summary.lastMessagePreview),
+    protocol: readText(summary.protocol),
+    status: summary.status,
+    subjectId: summary.subjectId,
+    subjectLabel: readText(summary.subjectLabel) ?? input.fallbackSubjectLabel,
+    subjectType: summary.subjectType,
+    unreadCount: summary.unreadCount,
+  }
+}
+
+/** Resumo da rota antiga (só ocorrência): sem a direção da última mensagem, "espera resposta" é ter não lida. */
+export function toLegacyConversationSummaryCandidate(input: ConversationSummaryInput): unknown {
+  const summary = asRecord(input.raw)
+  return {
+    awaitingParticipant: Number(summary.unreadCount) > 0,
     lastMessageAt: summary.lastMessageAt ?? null,
     status: 'open',
     subjectId: summary.occurrenceId,
-    subjectLabel: label === '' ? input.fallbackSubjectLabel : label,
+    subjectLabel: readText(summary.occurrenceLabel) ?? input.fallbackSubjectLabel,
     subjectType: DRIVER_CONVERSATION_SUBJECT_TYPE,
     unreadCount: summary.unreadCount,
   }
+}
+
+/** `pagination.nextCursor` da rota nova vira o `nextCursor` do pacote; `null` é fim da lista. */
+export function readNextCursor(payload: unknown): string | undefined {
+  const { nextCursor } = asRecord(asRecord(payload).pagination)
+  return typeof nextCursor === 'string' ? nextCursor : undefined
 }

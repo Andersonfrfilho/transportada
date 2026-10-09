@@ -1,16 +1,29 @@
 {
   "groups": {
-    "occurrence": "Ocorrências"
+    "document": "Notas fiscais",
+    "occurrence": "Ocorrências",
+    "trip": "Viagem"
   },
   "labels": {
     "attach": "Anexar",
     "attachmentTooLarge": "Arquivo acima de 25 MB.",
+    "attachmentTypeNotAccepted": "Tipo de arquivo não aceito.",
+    "attachmentsList": "Anexos selecionados",
     "back": "Voltar",
+    "channelApp": "App",
+    "channelEmail": "E-mail",
+    "channelPortal": "Portal",
+    "channelWebchat": "Chat da web",
+    "channelWhatsapp": "WhatsApp",
+    "channelsGroup": "Canais desta conversa",
     "closedNotice": "Esta conversa foi encerrada.",
+    "copyProtocol": "Copiar protocolo",
     "discard": "Descartar",
+    "downloadAttachment": "Baixar",
     "edit": "Editar",
     "emptyInbox": "Nenhuma conversa ainda",
     "filterAll": "Todas",
+    "filtersGroup": "Filtrar por assunto",
     "inboxTitle": "Conversas",
     "loadError": "Não foi possível carregar. Tente de novo.",
     "loadMore": "Carregar mais",
@@ -20,8 +33,18 @@
     "messageInputLabel": "Mensagem",
     "messageInputPlaceholder": "Escreva para o escritório",
     "newMessages": "Novas mensagens",
+    "noResults": "Nenhuma conversa encontrada",
+    "noResultsInFilter": "Nada neste filtro — tente Todas",
+    "noResultsLoadedOnly": "Nada nas conversas já carregadas — carregue mais",
     "notFound": "Conversa não encontrada.",
+    "openSubject": "Abrir assunto",
+    "protocolCopied": "Protocolo copiado",
+    "protocolPrefix": "Protocolo",
+    "quickRepliesGroup": "Respostas rápidas",
+    "removeAttachment": "Remover anexo",
     "retry": "Reenviar",
+    "searchLabel": "Buscar conversas",
+    "searchPlaceholder": "Buscar por título ou protocolo",
     "sectionAwaiting": "Espera sua resposta",
     "sectionClosed": "Encerradas",
     "sectionOther": "Outros",
@@ -37,7 +60,9 @@
   },
   "loading": "Carregando conversas…",
   "subjectCard": {
-    "occurrence": "Ocorrência"
+    "document": "Nota fiscal",
+    "occurrence": "Ocorrência",
+    "trip": "Viagem"
   },
   "subjectFallback": "Ocorrência",
   "title": "Conversas"

@@ -241,9 +241,12 @@ describe('driverConversationsApi.subscribe com o ticker (spec 260)', () => {
               JSON.stringify({
                 data: [
                   {
+                    awaitingDriver: false,
                     lastMessageAt,
-                    occurrenceId: 'occurrence-1',
                     status: 'open',
+                    subjectId: 'occurrence-1',
+                    subjectLabel: 'Avaria',
+                    subjectType: 'occurrence',
                     unreadCount: 0,
                   },
                 ],

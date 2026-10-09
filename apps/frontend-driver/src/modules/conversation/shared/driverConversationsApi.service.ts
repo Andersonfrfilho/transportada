@@ -16,34 +16,29 @@ import type { ConversationOutbox } from './conversationOutbox.service'
 import {
   ATTACHMENT_URL_MAX_AGE_MS,
   CONVERSATION_REFRESH_INTERVAL_MS,
-  CURRENT_TRIP_PATH,
   DRIVER_CONVERSATION_ERROR,
 } from './driverConversation.constant'
 import {
   createDriverConversationSender,
   type DriverConversationSender,
 } from './driverConversationSender.service'
-import { messagesPath } from './driverConversationSubject.service'
-import {
-  createClientMessageIdEcho,
-  type ClientMessageIdEchoStorage,
-} from './clientMessageIdEcho.service'
+import { createDriverConversationRoutes } from './driverConversationRoutes.service'
 import {
   DriverConversationRequestError,
   type DriverConversationHttp,
 } from './driverConversationsHttp.service'
 import {
-  isAwaitingParticipant,
   readAttachmentUrls,
   readDataArray,
+  readNextCursor,
   toConversationSummaryCandidate,
+  toLegacyConversationSummaryCandidate,
   toParticipantMessageCandidate,
 } from './driverConversationsMapper.service'
 import type { ConversationSnapshot } from './conversationSnapshot.service'
 import { createDriverConversationUploader } from './driverConversationUploads.service'
 
 export type DriverConversationsApiDependencies = Readonly<{
-  echoStorage?: ClientMessageIdEchoStorage | undefined
   fallbackSubjectLabel: () => string
   http: DriverConversationHttp
   isOnline?: () => boolean
@@ -78,19 +73,14 @@ export function createDriverConversationsApi(
 ): DriverConversationsApi {
   const { http, outbox } = dependencies
   const now = dependencies.now ?? (() => new Date())
-  const echo = createClientMessageIdEcho(dependencies.echoStorage)
-  const uploader = createDriverConversationUploader(http)
+  const routes = createDriverConversationRoutes(http)
+  const uploader = createDriverConversationUploader({ http, routes })
   const attachmentUrls = new Map<string, AttachmentUrlEntry>()
-  /** A lista da API não traz a direção da última mensagem; vale a que a conversa aberta mostrou. */
-  const awaitingByConversation = new Map<
-    string,
-    Readonly<{ lastMessageAt: string; isAwaiting: boolean }>
-  >()
 
   async function fetchMessages(
     subject: ParticipantSubjectRef,
   ): Promise<readonly ParticipantMessage[]> {
-    const payload = await http.getJson(messagesPath(subject))
+    const payload = await routes.messages(subject)
     const rawMessages = readDataArray(payload)
     const messages = participantMessageSchema
       .array()
@@ -100,34 +90,20 @@ export function createDriverConversationsApi(
       for (const [id, url] of readAttachmentUrls(raw))
         attachmentUrls.set(id, { fetchedAt, subject, url })
     }
-    const last = messages.at(-1)
-    if (last !== undefined) {
-      awaitingByConversation.set(subject.subjectId, {
-        isAwaiting: isAwaitingParticipant(messages),
-        lastMessageAt: last.createdAt,
-      })
-    }
-    return echo.decorate(messages)
+    return messages
   }
 
-  async function listConversations() {
-    const payload = await http.getJson(`${CURRENT_TRIP_PATH}/occurrence-conversations`)
-    const candidates = readDataArray(payload).map((raw) => {
-      const { occurrenceId, lastMessageAt, unreadCount } = (raw ?? {}) as Record<string, unknown>
-      const remembered = awaitingByConversation.get(String(occurrenceId))
-      // temporário até a API trazer awaitingDriver (spec 260 T2.5)
-      const isAwaiting =
-        Number(unreadCount) > 0 ||
-        (remembered !== undefined &&
-          remembered.lastMessageAt === lastMessageAt &&
-          remembered.isAwaiting)
-      return toConversationSummaryCandidate({
-        fallbackSubjectLabel: dependencies.fallbackSubjectLabel(),
-        isAwaitingParticipant: isAwaiting,
-        raw,
-      })
+  async function listConversations(params?: Readonly<{ cursor?: string }>) {
+    const { isLegacy, payload } = await routes.list(params?.cursor)
+    const toCandidate = isLegacy
+      ? toLegacyConversationSummaryCandidate
+      : toConversationSummaryCandidate
+    const fallbackSubjectLabel = dependencies.fallbackSubjectLabel()
+    const nextCursor = isLegacy ? undefined : readNextCursor(payload)
+    return participantConversationPageSchema.parse({
+      data: readDataArray(payload).map((raw) => toCandidate({ fallbackSubjectLabel, raw })),
+      ...(nextCursor === undefined ? {} : { nextCursor }),
     })
-    return participantConversationPageSchema.parse({ data: candidates })
   }
 
   async function fetchSnapshot(): Promise<ConversationSnapshot> {
@@ -150,11 +126,10 @@ export function createDriverConversationsApi(
   })
 
   const sender = createDriverConversationSender({
-    echo,
-    http,
     isOnline: dependencies.isOnline ?? readBrowserOnline,
     now,
     outbox,
+    routes,
     uploader,
   })
 
@@ -162,9 +137,7 @@ export function createDriverConversationsApi(
     fetchMessages: (subject) => fetchMessages(subject),
     flushOutbox: sender.flushOutbox,
     listConversations,
-    async markRead(subject) {
-      await http.postJson(`${messagesPath(subject)}/read`)
-    },
+    markRead: (subject) => routes.markRead(subject),
     async resolveAttachmentUrl(attachment) {
       const known = attachmentUrls.get(attachment.id)
       if (known !== undefined && now().getTime() - known.fetchedAt < ATTACHMENT_URL_MAX_AGE_MS) {

@@ -6,9 +6,9 @@ import { Icon } from '@/components/ui/icon'
 
 import { DRIVER_CONVERSATION_SUBJECT_TYPE } from './driverConversation.constant'
 
-/** A ordem do array é a ordem das seções; assunto novo (nota, viagem) entra aqui. */
+/** A ordem do array é a ordem das seções; o ícone do grupo vale para a conversa sem `iconName` próprio. */
 export function buildDriverSubjectGroups(
-  labels: Readonly<{ occurrence: string }>,
+  labels: Readonly<{ document: string; occurrence: string; trip: string }>,
 ): readonly ParticipantSubjectGroup[] {
   return [
     {
@@ -16,5 +16,11 @@ export function buildDriverSubjectGroups(
       label: labels.occurrence,
       subjectType: DRIVER_CONVERSATION_SUBJECT_TYPE,
     },
+    {
+      icon: createElement(Icon, { name: 'invoice' }),
+      label: labels.document,
+      subjectType: 'document',
+    },
+    { icon: createElement(Icon, { name: 'truck' }), label: labels.trip, subjectType: 'trip' },
   ]
 }

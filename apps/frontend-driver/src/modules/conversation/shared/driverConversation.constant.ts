@@ -1,14 +1,37 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const DRIVER_CONVERSATION_SUBJECT_TYPE = 'occurrence'
 
+export const DRIVER_CONVERSATION_SUBJECT_TYPES = ['occurrence', 'document', 'trip'] as const
+
 export const CURRENT_TRIP_PATH = '/me/trips/current'
+
+export const CONVERSATIONS_PATH = `${CURRENT_TRIP_PATH}/conversations`
+
+export const LEGACY_OCCURRENCE_CONVERSATIONS_PATH = `${CURRENT_TRIP_PATH}/occurrence-conversations`
+
+/** Código do 404 de "assunto inexistente" das rotas novas; outro 404 (ou 501) é rota ainda não implantada. */
+export const CONVERSATION_NOT_FOUND_CODE = 'CONVERSATION_NOT_FOUND'
+
+export const ROUTE_NOT_IMPLEMENTED_STATUS = 501
+
+export const PARTICIPANT_CHANNELS = ['app', 'whatsapp', 'email', 'portal', 'webchat'] as const
+
+/** Catálogo de ícones do assunto (spec 255); nome fora dele cai no ícone do grupo. */
+export const CONVERSATION_SUBJECT_ICON_NAMES = [
+  'alert',
+  'camera',
+  'clipboard-list',
+  'clock',
+  'document',
+  'invoice',
+  'message',
+  'money',
+  'package',
+  'truck',
+] as const
 
 /** A URL assinada do anexo vale 5 min no servidor; renovar um pouco antes de vencer. */
 export const ATTACHMENT_URL_MAX_AGE_MS = 4 * 60 * 1000
-
-export const CLIENT_MESSAGE_ECHO_STORAGE_KEY = 'transportada.driver.conversation-echo.v1'
-
-export const CLIENT_MESSAGE_ECHO_MAX_ENTRIES = 200
 
 export const UNREAD_CONVERSATIONS_QUERY_KEY = ['conversations', 'unread'] as const
 
