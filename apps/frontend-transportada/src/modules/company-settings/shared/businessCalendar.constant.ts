@@ -20,6 +20,9 @@ export const HOLIDAY_RECURRENCES = [HOLIDAY_RECURRENCE.YEARLY, HOLIDAY_RECURRENC
 
 export const SETTINGS_ORIGINS = ['company', 'default'] as const
 
+/** De onde veio a data que a API conhece: digitada pelo operador ou importada da FeriadosAPI (spec 252). */
+export const HOLIDAY_ORIGINS = ['typed', 'imported'] as const
+
 export const HOLIDAY_NAME_MAX_LENGTH = 120
 
 /** A API gera 10 anos na escrita da regra; abaixo do ano corrente + 2 a tela avisa (ADR-0096 §6). */
