@@ -208,6 +208,19 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `docs/ai-context/frontend-driver.md` e `docs/ai-context/api-transportada.md` (CLAUDE.md §14 do
       code-standart) e o CLAUDE.md da app com o núcleo normativo.
 
+## Fase 5 — Mensagens prontas do motorista (D11)
+
+> 🤖 Modelo: `sonnet`. Regra do dono: tudo aditivo; o cadastro e o uso atuais das respostas rápidas do escritório ficam idênticos.
+
+- [ ] **T5.1** `sonnet` — **API:** migration aditiva (`CHECK` de `company_quick_replies.audience` aceita `driver_reply`, com `rollback.sql` que recusa se
+      houver linha dele); `COMPANY_QUICK_REPLY_AUDIENCES` ganha o valor sem mexer em `OccurrenceConversationParticipant`; as rotas
+      `/company-settings/quick-replies` aceitam o público novo (zod); rota `GET /me/trips/current/quick-replies` (`trip.read`, `no-store`,
+      só ativas, ordem do cadastro); contrato (as rotas e respostas antigas idênticas — golden), tabela de rotas, integração com banco, `make migration-test`.
+- [ ] **T5.2** `sonnet` — **Painel:** seção "Respostas do motorista" nas configurações (mesmo cadastro: criar, editar, ativar/desativar, ordenar) +
+      chips das respostas do público `driver` no compositor da conversa do escritório por assunto (T3.1/T3.2); sem mudar a conversa de ocorrência.
+- [ ] **T5.3** `sonnet` — **App do motorista:** adapter + query com cache da última lista (offline), `quickReplies` passado ao pacote, rota na API de
+      demonstração, locales, testes e smoke (chips visíveis, tocar preenche e NÃO envia, offline usa a lista guardada).
+
 **Fora das tasks (aprovação humana):** produção (PR staging→main) e remover a tela antiga do painel
 (Fase 10 da 189).
 

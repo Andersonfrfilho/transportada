@@ -168,6 +168,23 @@ fica atrás do login, 183 RF11).
 - **Compositor:** clipe de anexo, campo que cresce até ~4 linhas, enviar com ícone; `Enter` quebra linha (teclado virtual).
 - **Fora:** RTL no rabinho (limitação conhecida), foto de usuário (não existe no cadastro), selo de canal por mensagem.
 
+### D11 — As mensagens prontas do motorista são configuradas pela empresa (decisão do dono, 2026-10-09)
+
+> _"Onde estão os balões de mensagens prontas?"_ → escolha: **configuráveis pela empresa**.
+
+Os chips acima do campo de texto do app (tocar **preenche**, nunca envia — 183 D4) hoje não existem no app do motorista: o SDK os
+desenha (`quickReplies`), mas o app não passa nenhum e a API só tem respostas rápidas **do escritório** (`company_quick_replies`, público
+`contractor`|`driver` = a quem o escritório escreve, cadastro em `/company-settings/quick-replies`, `settings.manage`).
+
+- **Novo público `driver_reply`** (respostas do **motorista** ao escritório): o `CHECK` de `audience` ganha o valor (migration aditiva,
+  rollback recusa se houver linha `driver_reply`); as consultas do escritório filtram por público e **não mudam**.
+- **Rota do motorista** `GET /me/trips/current/quick-replies` (`trip.read`, `no-store`): respostas ativas do público `driver_reply`, na
+  ordem do cadastro, `{ data: [{ id, text }] }`. Sem cadastro, lista vazia ⇒ nenhum chip (capacidade por ausência).
+- **App:** busca com a sessão, guarda a **última lista** para uso offline (stale-while-revalidate) e a entrega ao pacote em `quickReplies`.
+- **Painel:** (a) configurações ganham a seção "Respostas do motorista" no cadastro que já existe; (b) a conversa do escritório por
+  assunto passa a oferecer as respostas do público `driver` (as que já existem) no compositor, hoje ausentes ali.
+- **SDK:** nada novo — o `QuickReply` e os chips já existem.
+
 ## Histórias priorizadas
 
 ### P1 — Ler e responder o escritório sobre uma ocorrência
