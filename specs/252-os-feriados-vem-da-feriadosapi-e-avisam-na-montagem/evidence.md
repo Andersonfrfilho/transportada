@@ -1186,3 +1186,49 @@ compartilhada por valor mudou (`stop-address-key.ts` intacto).
 ### O que NÃO foi feito
 
 Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.
+
+## T5.4 — aviso de feriado no app do motorista (2026-10-09, branch `work/252-t5-4` sobre `origin/staging`)
+
+**Pronta no código; publicação pendente: tela só sobe com os prints aprovados pelo usuário.** Prints fora do repositório até a aprovação, em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-252-motorista/`.
+
+**O que entrou (só `apps/frontend-driver`, nada importado do painel):** `DriverHolidayNotice.component.tsx` (componente próprio),
+`holidayWarning.service.ts` / `holidayWarning.constant.ts` (dia civil de São Paulo, relógio corrigido pelo desvio de `clockOffset.service.ts`,
+linhas visíveis), `holidayNotice.module.css`, bloco `holidayWarning` nos dois locales (pt-BR/en, as 12 chaves nacionais estáveis traduzidas) e
+uma linha no `DriverStopCard`: o aviso fica **fora do cabeçalho-botão e do corpo recolhido** (aparece com o cartão fechado) e nenhuma ação do
+cartão lê `holidayWarnings`. `scripts/driver-preview-api.ts` ganhou o cenário `DRIVER_PREVIEW_HOLIDAYS=on` (sem a variável, a resposta é a de sempre).
+
+**Decisões de UX:** texto da spec (RF14) — "Hoje é feriado em Campinas (…). Confirme com o cliente antes de ir." / "Dia 13/10 é feriado em …";
+sem `cityName`, sem cidade. Nacional = chave estável traduzida (chave desconhecida cai em "Feriado nacional", nunca na chave crua);
+estadual/municipal = nome como veio (em branco cai no rótulo do escopo). Aviso com data passada no relógio corrigido **não aparece** (venceu);
+data malformada não vira texto. Neutro (véu do cinza do token, tinta do tema), sem toque, sem foco, sem animação, com quebra de palavra.
+
+**Vermelho antes:** `bun test test/driver-trip.contract.test.ts` → `Cannot find module …DriverHolidayNotice.component` (0 pass, 1 fail).
+
+**Gates (cwd `apps/frontend-driver`):** `bun run typecheck` exit 0; `bun run lint` exit 0; `bun run test` **1528 pass, 0 fail** (+45 sobre o
+staging, 1483: 43 do aviso e 2 do relógio corrigido, em `holiday-warning.contract.ts` e `holiday-warning-notice.contract.tsx`, registrados em
+`driver-trip.contract.test.ts`); `bun run build` exit 0 (`dist.contract` 6 pass; `dist/` apagado); `bun run format:check` na raiz exit 0.
+Smoke Playwright **não rodado**: exige login real no Keycloak local com a senha do `.env` e o build na 53112.
+
+**Mutações** (cada uma restaurada com `git checkout -- <arquivo>` e `git diff --quiet` exit 0):
+
+| #   | Mutação                                               | Resultado                                  |
+| --- | ----------------------------------------------------- | ------------------------------------------ |
+| M1  | tirar o corte de data passada                         | 2 fail                                     |
+| M2  | `isToday: true`                                       | 2 fail                                     |
+| M3  | fuso `UTC` no lugar de `America/Sao_Paulo`            | 2 fail                                     |
+| M4  | `applyClockOffset` ignora o desvio                    | 1 fail                                     |
+| M4b | `readCorrectedNowMs` ignora o armazenamento do desvio | 1 fail                                     |
+| M5  | chave nacional desconhecida mostra o nome cru         | 1 fail                                     |
+| M6  | aviso movido para dentro do corpo recolhido           | 1 fail                                     |
+| M7  | `cityName` sem `trim`                                 | 1 fail                                     |
+| M8  | tirar `tiradentes` da lista nacional                  | 1 fail (paridade com a API)                |
+| M9  | "Cheguei"/"Iniciar rota" condicionado ao aviso        | 2 fail (um é o contrato antigo do Cheguei) |
+
+**Prints** (app real em dev, Keycloak local, API de demonstração com dados fictícios, `getComputedStyle` conferido): 375/768/1280 claro e
+escuro com as três paradas (nacional hoje, estadual daqui a 4 dias, municipal sem cidade); sem aviso (375); boot sem rede com snapshot guardado
+**com** aviso e **sem** o campo (375; sonda do Keycloak e API abortadas, a tela abre do IndexedDB). Contraste do texto sobre o véu: **9,55:1
+claro e 14,04:1 escuro**, fonte 16 px, nenhum foco dentro do aviso, sem rolagem horizontal, "Iniciar rota" habilitado nos estados com aviso.
+
+**O que NÃO foi feito:** push/publicação; revisão de design com o usuário (T6.1); smoke Playwright; documentação viva do app
+(`docs/ai-context/frontend-driver.md`, CLAUDE.md da app), fica para a T6.1.

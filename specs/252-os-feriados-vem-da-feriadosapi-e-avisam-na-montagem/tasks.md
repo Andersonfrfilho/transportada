@@ -220,7 +220,7 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
 - [ ] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
-- [ ] **T5.4** Aviso no app do motorista, por parada da viagem dele, num componente próprio (molde dos
+- [x] **T5.4** Aviso no app do motorista, por parada da viagem dele, num componente próprio (molde dos
       `Driver*Notice.component.tsx`; o `DriverStopCard.component.tsx` já tem 75 KB): texto curto e de campo ("Hoje é
       feriado em Campinas (aniversário da cidade). Confirme com o cliente antes de ir."; em data futura, "Dia 13/10 é
       feriado em …"; "hoje" só quando a data do aviso é o dia civil de São Paulo no relógio do aparelho corrigido por
@@ -228,7 +228,8 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo ≥ 44 px se
       houver toque; locale pt-BR/en no padrão do app. **Offline:** o aviso vem do snapshot guardado; sem rede mostra
       o último conhecido e não inventa. **Prints** 375/768/1280, claro e escuro, aprovados pelo usuário antes de
-      publicar. (CA15, CA17)
+      publicar. (CA15, CA17) **Feita no código em 2026-10-09** (branch `work/252-t5-4`); **publicação pendente da
+      aprovação dos prints pelo usuário**. `evidence.md` § T5.4.
 
 ## Fase 6 — Fechamento
 
