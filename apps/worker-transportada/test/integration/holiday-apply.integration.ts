@@ -10,6 +10,9 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { createFetchHolidayProviderUseCase } from '../../src/holiday-provider-pull/application/fetch-holiday-provider.use-case.js'
+import { createDrizzleHolidayFetchStore } from '../../src/holiday-provider-pull/infrastructure/drizzle-holiday-fetch.store.js'
+import { buildFakeClock, buildScriptedClient } from '../fixtures/holiday-fetch.fixture.js'
 import { createApplyHolidayProviderUseCase } from '../../src/holiday-provider-pull/application/apply-holiday-provider.use-case.js'
 import { buildBusinessCalendarLockId } from '../../src/holiday-provider-pull/infrastructure/business-calendar-lock.support.js'
 import { createDrizzleHolidayApplyStore } from '../../src/holiday-provider-pull/infrastructure/drizzle-holiday-apply.store.js'
@@ -45,6 +48,9 @@ describeDatabase('a aplicação dos feriados importados (integration, spec 252 T
       sql`delete from holiday_provider_entries where holiday_on between '2050-01-01' and '2060-12-31'`,
     )
     await db.execute(sql`delete from holiday_provider_fetches where year between 2050 and 2060`)
+    await db.execute(
+      sql`delete from holiday_provider_monthly_usage where month between '2050-01-01' and '2060-12-31'`,
+    )
     await db.execute(sql`delete from holiday_import_cities`)
   })
 
@@ -394,6 +400,79 @@ describeDatabase('a aplicação dos feriados importados (integration, spec 252 T
     const dates = await store.readNationalDates({ years: [2050, 2051] })
 
     expect([...dates]).toEqual([[2050, ['2050-01-01', '2050-12-25']]])
+  })
+
+  test('restaurar a supressão reaplica do cache no ciclo seguinte, sem nova requisição ao fornecedor', async () => {
+    const companyId = await newCompany([SAO_PAULO_CITY])
+    const fake = buildFakeClock()
+    const client = buildScriptedClient({
+      clock: fake.clock,
+      respond: (request) => ({
+        entries:
+          request.scope === 'city'
+            ? [
+                {
+                  date: `${request.year}-07-14`,
+                  externalId: null,
+                  ibgeCode: request.ibgeCode,
+                  isBanking: false,
+                  name: 'Aniversário',
+                  providerType: 'MUNICIPAL',
+                  scope: 'city',
+                },
+                {
+                  date: `${request.year}-07-09`,
+                  externalId: null,
+                  ibgeCode: '35',
+                  isBanking: false,
+                  name: 'Estadual',
+                  providerType: 'ESTADUAL',
+                  scope: 'state',
+                },
+              ]
+            : [],
+        receivedCount: 2,
+      }),
+    })
+    const fetchStore = createDrizzleHolidayFetchStore(db)
+    const cycle = async () => {
+      const fetched = await createFetchHolidayProviderUseCase({
+        budget: 1000,
+        client,
+        clock: fake.clock,
+        logger: SILENT_LOGGER,
+        now: () => NOW,
+        store: fetchStore,
+      }).execute({ isStopRequested: () => false })
+      await apply()
+      return fetched.requests
+    }
+
+    expect(await cycle()).toBeGreaterThan(0)
+    expect((await municipalRows(companyId)).map((row) => row.holiday_on)).toEqual([
+      '2050-07-14',
+      '2051-07-14',
+    ])
+    const requestsAfterFirstCycle = client.requests.length
+
+    // O que a API faz ao desligar: apaga a linha e grava a supressão. O ciclo seguinte não a traz de volta.
+    await db.execute(
+      sql`delete from municipal_holidays where company_id = ${companyId} and holiday_on = '2050-07-14'`,
+    )
+    await db.execute(sql`
+      insert into holiday_import_suppressions (company_id, scope, ibge_code, holiday_on, suppressed_by_user_id)
+      values (${companyId}, 'city', ${SAO_PAULO_CITY}, '2050-07-14', ${userId})`)
+    expect(await cycle()).toBe(0)
+    expect((await municipalRows(companyId)).map((row) => row.holiday_on)).toEqual(['2051-07-14'])
+
+    // Restaurar só apaga a supressão (a API não lê o cache): quem reaplica é a rotina, do cache.
+    await db.execute(sql`delete from holiday_import_suppressions where company_id = ${companyId}`)
+    expect(await cycle()).toBe(0)
+    expect((await municipalRows(companyId)).map((row) => row.holiday_on)).toEqual([
+      '2050-07-14',
+      '2051-07-14',
+    ])
+    expect(client.requests).toHaveLength(requestsAfterFirstCycle)
   })
 
   test('a aplicação espera a trava do calendário da empresa, a mesma que a API toma ao escrever', async () => {

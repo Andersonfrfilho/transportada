@@ -1012,7 +1012,7 @@ Branch `work/252-t3` a partir de `origin/staging`, **sem push**. Commits (do mai
 | `bunx tsc --noEmit` / `bunx eslint src test --max-warnings=0` (cwd `apps/worker-transportada`) | exit 0 / exit 0                                                                                                                                              |
 | `bun run test` do worker                                                                       | **2287 pass, 0 fail** em 103 arquivos (linha de base antes da Fase 3: 2191 em 102; +96 testes de contrato, +1 arquivo de entrada)                            |
 | `bun run build` do worker                                                                      | exit 0                                                                                                                                                       |
-| Integração contra Postgres 18.4 nativo (porta 65442), um arquivo por vez, 0 skip               | `holiday-discovery` 6 pass · `holiday-fetch` 7 pass · `holiday-apply` 11 pass · `job-run-execution` 11 pass · `route-optimization-municipal-holiday` 15 pass |
+| Integração contra Postgres 18.4 nativo (porta 65442), um arquivo por vez, 0 skip               | `holiday-discovery` 6 pass · `holiday-fetch` 7 pass · `holiday-apply` 12 pass · `job-run-execution` 11 pass · `route-optimization-municipal-holiday` 15 pass |
 | `bun run format:check` na raiz                                                                 | verde                                                                                                                                                        |
 | Mutações                                                                                       | T3.1 10 · T3.2 13 · T3.3 23 · T3.4 18 · T3.5 13 = **77 mutações, todas vermelhas** (4 sobreviveram na 1ª rodada, viraram teste e ficaram vermelhas)          |
 
@@ -1023,3 +1023,18 @@ Branch `work/252-t3` a partir de `origin/staging`, **sem push**. Commits (do mai
 3. **Padrão do orçamento 4500 e o 429 como `provider_unreachable`:** decisões por delegação acima.
 4. **A rotina não foi executada de ponta a ponta contra o fornecedor nem contra o `main.ts` vivo** (sem token e sem RabbitMQ): cada etapa foi provada contra o Postgres e o cliente contra um `fetch` injetado; a composição do `main.ts` é coberta por contrato de texto e por `bun run build`.
 5. **Passos do usuário para ligar** (Q3/Q4, `[NEEDS CLARIFICATION]`): confirmar termos e plano, configurar `FERIADOS_API_TOKEN` (e, se quiser, o orçamento) no worker de staging e despausar `holiday.provider.pull` no painel.
+
+### Acréscimos da Fase 3 (2026-10-09, depois do fechamento)
+
+- **Restaurar a supressão (aviso da T4.1):** a rota de restaurar da API só apaga a supressão e **não lê o cache global**
+  (contrato de isolamento); quem reaplica é a rotina. A aplicação já relê o cache `holiday_provider_entries` inteiro, para
+  as cidades e UFs da empresa, **a cada ciclo** (não só dos pares recém-buscados), pulando supressão, com a digitada
+  vencendo, só datas >= hoje e `removed_at is null`. Novo teste de integração em `holiday-apply.integration.ts`: o ciclo
+  completo (busca + aplicação) com o repositório real e um fornecedor que conta requisições — a rotina importa, o "desligar"
+  da API (apaga a linha e grava a supressão) não volta no ciclo seguinte, apagar a supressão faz a linha voltar no ciclo
+  seguinte, e as três rodadas depois da 1ª **não fazem nenhuma requisição** ao fornecedor. Integração da aplicação: **12 pass**.
+- **Tamanho (padrão do repositório):** a busca foi dividida em `fetch-holiday-provider.use-case.ts`,
+  `fetch-holiday-pair.service.ts`, `fetch-holiday-failure.service.ts` e `holiday-fetch-cycle.types.ts`, e as lojas Drizzle
+  ganharam funções menores; todo arquivo do módulo tem <= 200 linhas e nenhuma função passa de 40 (conferido com
+  `max-lines-per-function`). Sem mudar comportamento: `bun run test` **2287 pass, 0 fail**, as integrações de novo verdes e
+  as **77 mutações reexecutadas com os mesmos testes (todas vermelhas, árvore restaurada ao fim de cada rodada)**.
