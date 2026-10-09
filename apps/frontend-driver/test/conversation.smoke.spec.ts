@@ -191,7 +191,7 @@ test('envio: o campo limpa na hora, a bolha vira "Enviada" e o servidor guarda u
   await expect(input).toHaveValue('')
   const bubble = page.locator('.cv-p-bubble--mine').filter({ hasText: text })
   await expect(bubble).toBeVisible()
-  await expect(bubble).toContainText('Enviada')
+  await expect(bubble).toContainText(/Enviada|Entregue/u)
   expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(1)
 })
 
@@ -224,7 +224,50 @@ test('fila offline: "Na fila" com o servidor vazio, depois exatamente uma entreg
   await expect(bubble).toContainText('Na fila')
   expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(0)
 
-  await expect(bubble).toContainText('Enviada', {
+  await expect(bubble).toContainText(/Enviada|Entregue/u, {
+    timeout: QUEUE_DRAIN_TIMEOUT_MS,
+  })
+  expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(1)
+})
+
+test('ticks: ✓✓ cinza ao ser registrada, ✓✓ azul quando o escritório lê', async ({ page }) => {
+  test.slow()
+  const text = 'Cheguei na doca 4'
+  await openConversationsTab(page)
+  await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
+
+  await page.locator('textarea.cv-p-composer__input').fill(text)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  const bubble = page.locator('.cv-p-bubble--mine').filter({ hasText: text })
+  await expect(bubble.locator('.cv-status-ticks--delivered')).toBeVisible({
+    timeout: ARRIVAL_TIMEOUT_MS,
+  })
+  await expect(bubble.locator('.cv-status-ticks--read')).toHaveCount(0)
+
+  await postDebug('office-read', { subjectId: PREVIEW_OCCURRENCE_IDS.damage })
+  await expect(bubble.locator('.cv-status-ticks--read')).toBeVisible({
+    timeout: ARRIVAL_TIMEOUT_MS,
+  })
+  await expect(bubble.locator('.cv-status-ticks--delivered')).toHaveCount(0)
+})
+
+test('falha: recusa do servidor mostra "reenviar" e o toque entrega uma só', async ({ page }) => {
+  test.slow()
+  const text = 'Mensagem que o servidor recusa de vez'
+  await openConversationsTab(page)
+  await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
+  await postDebug('fail-next', { count: 1, status: 422 })
+
+  await page.locator('textarea.cv-p-composer__input').fill(text)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  const bubble = page.locator('.cv-p-bubble--mine').filter({ hasText: text })
+  const retry = bubble.locator('.cv-p-bubble__retry')
+  await expect(retry).toBeVisible({ timeout: ARRIVAL_TIMEOUT_MS })
+  await expect(retry).toContainText('reenviar')
+  expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(0)
+
+  await retry.click()
+  await expect(bubble.locator('.cv-status-ticks--delivered')).toBeVisible({
     timeout: QUEUE_DRAIN_TIMEOUT_MS,
   })
   expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(1)

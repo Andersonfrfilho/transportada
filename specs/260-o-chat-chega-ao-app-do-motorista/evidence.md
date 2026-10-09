@@ -323,3 +323,34 @@ confirmou 0 diferenças de markup em 58 casos contra a 0.4.2 publicada e golden 
 botão largo "Copiar protocolo"; título repetido no cartão do assunto; a faixa de filtros cortada (21 px) — corrigida na 0.6.1 (PR #130).
 **Armadilha de ambiente:** o Vite pré-otimiza o pacote do SDK com cache imutável; trocar o conteúdo sem mudar a versão deixa o navegador
 com a cópia velha (página em branco). No worktree de preview o pacote ficou fora do `optimizeDeps`.
+
+## T5.4 — Estados de entrega (ticks) da mensagem do motorista (2026-10-09)
+
+**O que mudou.** Antes toda mensagem do motorista (`inbound`, status nulo no banco) chegava ao app como `sent` (um tick) e nunca virava lida.
+Agora, nas rotas novas `/me/trips/current/conversations/**`: `delivered` (✓✓ cinza) ou `read` (✓✓ azul, quando um usuário do escritório —
+diferente do motorista da conversa — tem em `occurrence_conversation_reads` uma leitura com `created_at` >= o da mensagem). Uma consulta em lote
+por página (`readOfficeReadHorizon`), sem coluna nem migration; rotas antigas intactas. Política pura `driver-own-message-status.policy.ts`.
+O app já aceitava `delivered`/`read` (`PARTICIPANT_MESSAGE_STATUSES`) e os rótulos pt-BR/en já existiam; o outbox mapeia `queued` (relógio) e
+`failed` (reenviar) direto. Demo API: mensagem do motorista nasce `delivered`; `POST /__debug/conversations/office-read {subjectId}` a leva a `read`.
+
+**Gates (números reais).**
+
+| Gate                                                                                       | Resultado                                      |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| API `bun run typecheck`                                                                    | limpo                                          |
+| API `eslint` em `src/occurrence-conversation` + testes tocados                             | limpo                                          |
+| API `bun --env-file=../../.env.test test --timeout 120000` (contrato)                      | 11310 pass, 25 skip, 0 fail                    |
+| API integração `driver-subject-conversation.integration.ts` (Postgres, caso novo de ticks) | 4 pass, 0 fail                                 |
+| App `bun run typecheck` / `bun run lint`                                                   | limpos                                         |
+| App `bun run test`                                                                         | 1681 pass, 0 fail                              |
+| Smoke `conversation.smoke.spec.ts` (build + preview, porta 53112, bypass)                  | 10 passed (1,8 min), 2 novos: "ticks", "falha" |
+
+**Mutações (a correção arrancada faz o teste falhar).**
+
+- Política `<=` trocada por `>=`: contrato da API 3 fail. Use case sem `status: deriveOwnMessageStatus(...)`: 2 fail.
+- SQL sem o filtro `ne(reads.userId, motorista)` (leitura do próprio motorista contaria): integração 1 fail (esperava `delivered`).
+- App: `'read'` fora de `PARTICIPANT_MESSAGE_STATUSES`: 1 fail; outbox view fixando `state: 'queued'`: 3 fail; demo API nascendo `sent`: 1 fail.
+- Smoke: `office-read` da demo gravando `delivered` em vez de `read`: "ticks" falha por timeout de 20 s esperando `.cv-status-ticks--read`.
+
+**Observações.** Os dois testes de smoke antigos que esperavam o texto "Enviada" agora aceitam "Enviada" ou "Entregue" (o servidor passou a
+confirmar a mensagem). A falha de teste de "reenviar" usa `fail-next` com status 422 (recusa permanente → estado `failed` do outbox).

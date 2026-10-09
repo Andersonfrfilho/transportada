@@ -50,7 +50,7 @@ export function createConversationHandlers(options: ConversationHandlersOptions)
       createdAt: message.createdAt,
       direction: message.direction,
       id: message.id,
-      status: message.status,
+      status: shape === 'subject' ? message.status : 'sent',
       ...(shape === 'subject'
         ? { channel: 'app', clientMessageId: message.clientMessageId ?? null }
         : {}),

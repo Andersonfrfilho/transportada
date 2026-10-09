@@ -48,6 +48,8 @@ export type ConversationRepository = Readonly<{
   /** Rota por assunto: todos os assuntos, no formato do `api-contract.md`. */
   listSummaries: () => readonly Record<string, unknown>[]
   markRead: (subjectId: string) => boolean
+  /** O escritório leu: as mensagens do motorista desta conversa viram `read`. */
+  markOfficeRead: (subjectId: string) => boolean
   open: (
     input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>,
   ) => OpenConversationResult | undefined
@@ -69,7 +71,7 @@ function toSummary(conversation: PreviewConversation): Record<string, unknown> {
     lastMessageAt: last?.createdAt ?? null,
     ...(last === undefined
       ? {}
-      : { lastMessageDirection: last.direction, lastMessagePreview: last.bodyText }),
+      : { lastMessageDirection: last.direction, lastMessagePreview: last.bodyText.slice(0, 140) }),
     protocol: conversation.protocol,
     status: 'open',
     subjectId: conversation.occurrenceId,
@@ -101,7 +103,7 @@ export function createConversationRepository(now: () => number = Date.now): Conv
       ...message,
       createdAt: new Date(now()).toISOString(),
       id,
-      status: 'sent',
+      status: message.direction === 'inbound' ? 'delivered' : 'sent',
     })
     return id
   }
@@ -132,6 +134,14 @@ export function createConversationRepository(now: () => number = Date.now): Conv
   return {
     failNext(input) {
       pendingFailure = { count: input.count, status: input.status ?? DEFAULT_FAIL_STATUS }
+    },
+    markOfficeRead(subjectId) {
+      const conversation = find(subjectId)
+      if (conversation === undefined) return false
+      for (const message of conversation.messages) {
+        if (message.direction === 'inbound') message.status = 'read'
+      }
+      return true
     },
     injectOfficeMessage(input) {
       const conversation = find(input.subjectId)

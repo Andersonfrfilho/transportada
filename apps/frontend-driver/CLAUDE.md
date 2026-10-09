@@ -433,3 +433,9 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   IndexedDB nunca bloqueia login nem logout (devolve `failed`, sem conteúdo). Teste: `conversation-outbox-discard.contract.ts`.
 - **Demonstração.** `scripts/driver-preview-conversations*.ts` serve as duas famílias de rota; reinicie a API de demonstração
   (porta 53901) depois de mudar o script.
+  A mensagem do motorista nasce `delivered` (✓✓ cinza) e `POST /__debug/conversations/office-read` `{subjectId}` a leva a `read`
+  (✓✓ azul); `office-reply` e `fail-next` (`status: 422` = recusa permanente → botão de reenviar) seguem como antes.
+- **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
+  o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
+  em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…
+  já existem nos dois locales. Teste: `test/conversation/driver-message-status.contract.ts`, smoke "ticks" e "falha".

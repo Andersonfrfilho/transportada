@@ -83,6 +83,29 @@ describe('API de demonstração do motorista: conversas', () => {
     )
   })
 
+  it('mensagem do motorista nasce delivered e office-read a leva a read; a do escritório fica sent', async () => {
+    const { call, repository } = createRoutes()
+    await call('POST', MESSAGES_PATH, {
+      body: { body: 'oi' },
+      headers: { 'idempotency-key': 'k-3' },
+    })
+    const inbound = () =>
+      repository.messages(DAMAGE)?.filter((message) => message.direction === 'inbound')
+    const outbound = () =>
+      repository.messages(DAMAGE)?.filter((message) => message.direction === 'outbound')
+    expect(inbound()?.every((message) => message.status === 'delivered')).toBe(true)
+    const response = await call('POST', '/__debug/conversations/office-read', {
+      body: { subjectId: DAMAGE },
+    })
+    expect(response?.status).toBe(200)
+    expect(inbound()?.every((message) => message.status === 'read')).toBe(true)
+    expect(outbound()?.every((message) => message.status === 'sent')).toBe(true)
+    const unknown = await call('POST', '/__debug/conversations/office-read', {
+      body: { subjectId: 'nope' },
+    })
+    expect(unknown?.status).toBe(404)
+  })
+
   it('reset volta ao estado inicial e office-reply injeta mensagem não lida', async () => {
     const { call, repository } = createRoutes()
     await call('POST', '/__debug/conversations/office-reply', {

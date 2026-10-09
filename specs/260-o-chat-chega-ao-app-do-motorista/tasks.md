@@ -221,6 +221,10 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [ ] **T5.3** `sonnet` — **App do motorista:** adapter + query com cache da última lista (offline), `quickReplies` passado ao pacote, rota na API de
       demonstração, locales, testes e smoke (chips visíveis, tocar preenche e NÃO envia, offline usa a lista guardada).
 
+- [x] **T5.4** `sonnet` — **Estados de entrega (ticks) da mensagem do motorista:** API deriva `delivered`/`read` nas rotas novas
+      (`api-contract.md` § "Estados de entrega"), app repassa e mostra relógio/✓/✓✓ cinza/✓✓ azul/reenviar, demo API com `office-read`;
+      contrato, integração com banco e smoke "ticks" + "falha" provados por mutação (`evidence.md` § T5.4).
+
 **Fora das tasks (aprovação humana):** produção (PR staging→main) e remover a tela antiga do painel
 (Fase 10 da 189).
 

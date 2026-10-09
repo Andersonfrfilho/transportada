@@ -21,7 +21,8 @@ export type PreviewMessage = {
   readonly id: string
   /** Só mensagem do escritório fica não lida; a do motorista nasce lida. */
   isUnread: boolean
-  readonly status: 'sent'
+  /** A do motorista nasce `delivered` (✓✓ cinza) e vira `read` (azul) quando o escritório lê; a do escritório fica `sent`. */
+  status: 'delivered' | 'read' | 'sent'
 }
 
 export type PreviewConversation = {

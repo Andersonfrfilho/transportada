@@ -157,7 +157,7 @@ function toMessage(
     direction: line.direction,
     id: `seed-${input.conversationId.slice(-3)}-${input.index}`,
     isUnread: line.isUnread === true,
-    status: 'sent',
+    status: line.direction === 'inbound' ? 'delivered' : 'sent',
   }
 }
 

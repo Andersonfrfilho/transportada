@@ -8,7 +8,8 @@
  * Abrir: `POST /me/trips/current/conversations/open` {subjectType: document|trip, subjectId}.
  *
  * Debug: `POST /__debug/conversations/reset`, `.../office-reply` {subjectId, text},
- * `.../fail-next` {count, status = 503}.
+ * `.../fail-next` {count, status = 503}, `.../office-read` {subjectId} (o escritório leu: as mensagens do
+ * motorista passam de `delivered` ✓✓ cinza a `read` ✓✓ azul).
  */
 import {
   createConversationHandlers,
@@ -120,6 +121,12 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
       return messageId === undefined
         ? handlers.notFound('CONVERSATION_NOT_FOUND')
         : handlers.json({ data: { messageId } }, 201)
+    }
+    if (pathname === '/__debug/conversations/office-read') {
+      const subjectId = body.subjectId ?? body.occurrenceId
+      return typeof subjectId === 'string' && repository.markOfficeRead(subjectId)
+        ? handlers.json({ data: { read: true } })
+        : handlers.notFound('CONVERSATION_NOT_FOUND')
     }
     return undefined
   }
