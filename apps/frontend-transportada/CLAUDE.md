@@ -499,8 +499,9 @@ aparece (a rotina não grava mais `quota_exhausted`; docs/ai-context § "Spec 25
 e `test/trip-hooks/business-calendar-import-*.contract.ts`.
 
 **Montagem e detalhe:** quando o solver termina, `useSolverCityOrder` faz **uma** chamada a `POST /business-calendar/day-checks` (pares cidade × dia únicos, ≤ 200,
-cidade = 1º segmento da `addressKey`, dia civil de São Paulo da ETA) e o aviso aparece por parada (`AssemblyStopHolidayNotice`); rota caída ou resposta ruim volta
-ao aviso nacional de hoje. No detalhe, `stops[].holidayWarnings` vira o selo `TripStopHolidayBadge`. Só informa: nada entra em `disabled`. Prints:
+cidade = 1º segmento da `addressKey`, dia civil de São Paulo da ETA) e o aviso aparece por parada (`AssemblyStopHolidayNotice`); rota caída, resposta ruim ou 5 s sem
+resposta (`AbortSignal.timeout`) volta ao aviso nacional de hoje. No detalhe, `stops[].holidayWarnings` vira o selo `TripStopHolidayBadge` (focável, `tabIndex={0}`: a dica abre no foco).
+"Removidos pelo fornecedor" só oferece "Desligar" para data de hoje em diante (a API devolve 409 antes disso). Só informa: nada entra em `disabled`. Prints:
 `test/spec-252-painel-prints.smoke.spec.ts` (`SPEC_252_PRINTS_DIRECTORY`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 252 T5.2/T5.3".
 
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
