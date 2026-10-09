@@ -174,16 +174,22 @@ estadual, municipal) e os mapeadores descartam o resto; o aviso (§6) ganha `ori
 
 1. Digitada vence; gerada por regra vence a importada (D3).
 2. **Desligar** um feriado importado apaga a linha, grava `holiday_import_suppressions` e `audit_logs` (ator) e ele
-   **não volta** no ciclo seguinte. **Restaurar** apaga a supressão e o feriado volta no ciclo seguinte (ou na hora,
-   se o cache já o tem). Desligar vale só para datas de hoje em diante (D7). O `DELETE` que a 238 já tem
+   **não volta** no ciclo seguinte. **Restaurar** apaga a supressão e o feriado volta na **próxima execução diária** da
+   rotina (a API não relê o cache global: o contrato de isolamento da tabela global proíbe). Desligar vale só para datas de hoje em diante (D7). O `DELETE` que a 238 já tem
    (`/municipal-holidays/:id`, `/state-holidays/:id`), numa linha importada, **é** o desligar: sem a supressão a
    linha voltaria no ciclo seguinte. Como no `DELETE` da digitada, a data da regra do mesmo dia é gerada de novo
    (ADR-0096 §6.6).
 3. **Editar nome ou tipo** de uma importada é **adoção**: `provider_entry_id = null`, a linha vira digitada (mesmo
    raciocínio do ADR-0096 §6.4). Vale para o `PATCH` e para o `POST` da mesma data (hoje os dois tratam a importada
    como digitada e não zerariam `provider_entry_id`; o "mesmo cadastro de novo não grava" da 238 não se aplica a uma
-   importada). `typedHolidaysKept` (ADR-0096 §6.4) passa a contar só `provider_entry_id IS NULL`.
-4. Quando o fornecedor **remove** uma data, `removed_at` é marcado no cache e a linha da empresa **fica**, sinalizada
+   importada). `typedHolidaysKept` (ADR-0096 §6.4) passa a contar só `provider_entry_id IS NULL`. O `PATCH` que **muda
+   a data** de uma importada (só o estadual a aceita) não adota: é `409 HOLIDAY_IMPORT_DATE_LOCKED` — desligue e
+   cadastre a data nova, como o municipal já é por desenho (a data e a cidade são a identidade da linha).
+4. Todo `DELETE` de linha **digitada ou adotada** com data de hoje em diante (dia civil de São Paulo) também grava a
+   supressão `(escopo, código, data)` na mesma transação, com o `suppressionId` na auditoria: senão a importação
+   traria a data de volta, como "importada", no ciclo seguinte ao "apaguei". Data anterior a hoje não grava (D7); o
+   "todo ano" estadual (sem data fixa) e o código de cidade que não cabe no padrão do cache também não.
+5. Quando o fornecedor **remove** uma data, `removed_at` é marcado no cache e a linha da empresa **fica**, sinalizada
    para o operador decidir. Nada é apagado em silêncio.
 
 ### 5. A rotina `holiday.provider.pull`
