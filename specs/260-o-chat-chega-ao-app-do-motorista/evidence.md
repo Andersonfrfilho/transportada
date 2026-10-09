@@ -194,3 +194,26 @@ conversas não traz direção, então `awaitingParticipant` é aproximado no ada
 
 **Não provado ainda:** nada foi visto em navegador; o store IndexedDB real não tem teste (sem `fake-indexeddb`); `navigator.locks`
 e os gatilhos reais (`online`, `pageshow`, visibilidade) não foram exercitados — vão para a T1b.5 (smoke) e a conferência no navegador.
+
+## Verificação no navegador — preview do app do motorista (2026-10-09, árvore `spec-260`, viewport 375×812, tema escuro)
+
+Servidores subidos **a partir do worktree** (`motorista-api-demo` na 53901 e `motorista-local` na 53200; o `preview_start`
+pelo launch.json partia da árvore principal `/transportada`, que não tem o chat — conferido por `lsof` e descartado).
+API de demonstração ganhou as rotas de conversa (`782f4ecf7`): 4 conversas de ocorrência, uma delas com 35 mensagens,
+idempotência por chave, `fail-next`, `office-reply`, `reset`.
+
+| Verificação                                              | Resultado                                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `/conversas` renderiza (sem erro de console)             | "Espera sua resposta (1)", conversa de avaria com "2 não lidas", demais por assunto         |
+| Abrir a conversa: cartão do assunto, mensagens, composer | ok                                                                                          |
+| **Composer visível** (`textarea.bottom <= nav.top`)      | **falhou** (771 > 766) → corrigido em `2244f20a5` → **690–735 com a barra em 751**          |
+| Enviar texto                                             | campo limpa na hora; bolha "Eu … Enviada"; 1 mensagem no servidor                           |
+| **Receber** resposta do escritório com a conversa aberta | **falhou** (nunca chegava) → corrigido em `1b7bc9b08` → **chega em ~10,5 s** sem recarregar |
+| Falha 503: "Na fila · envia quando a rede voltar"        | ok: servidor 0 msgs, campo limpo; ~28 s depois **1 mensagem**, bolha "Enviada"              |
+
+**Não provado:** selo da aba (a demo devolve `unreadCount: 0` depois de ler); reenvio por toque em bolha `failed` (4xx
+permanente); anexo/foto; tela com leitor de acessibilidade; cenário com sessão expirada; navegador real do celular
+(a aba do Browser reporta `visibilityState = hidden`, então o ticker foi exercitado forçando `visible`). Latência da fila
+de ~28 s vem do relógio de 30 s do flush (o 503 não dispara `online`).
+
+Limite conhecido do ticker: mensagem que chega entre a abertura da conversa e o primeiro snapshot só aparece na próxima mudança ou revalidação.

@@ -98,6 +98,14 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       `Idempotency-Key`; offline, `sendMessage` devolve `{ outcome: 'queued' }`; hook lê a fila e alimenta
       `pendingMessages`; esvaziar a fila emite `conversation-changed`; liga `onRetryPending`. Teste: mesma chave
       duas vezes = uma bolha.
+- [x] **T1b.8** `sonnet` — (achado no navegador) com a conversa aberta o app NUNCA mostrava a resposta do escritório:
+      `subscribe` só emitia eventos do outbox e o pacote desliga a revalidação de janela quando `subscribe` existe.
+      Ticker de revalidação (15 s, só visível, ciclo imediato em `online`/`focus`/`visibilitychange`, backoff,
+      um timer para todos os assinantes) + `diffConversationSnapshots`. Commit `1b7bc9b08`. Gancho
+      `requestConversationRefresh()` pronto para o sino (hoje o app não usa SSE de notificação).
+- [x] **T1b.9** `sonnet` — (achado no navegador) o campo de resposta ficava abaixo da janela (y=771 em 766) e a barra
+      inferior fixa cobria o fim; o toque no campo caía na aba "Conversas". A conversa agora ocupa a altura visível
+      acima da barra (`--driver-bottom-bar-height`). Commit `2244f20a5`.
 - [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
       escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
       implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
@@ -120,7 +128,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [ ] **T2.2** `sonnet` — Contratos negativos antes: BOLA (nota/viagem alheia → 404), encerrada → 409,
       `open` idempotente, a conversa não decide (mutação).
 - [ ] **T2.3** `sonnet` — Migration aditiva + backfill + `rollback.sql` + `make migration-test`.
-- [ ] **T2.4** `sonnet` — Rotas `/me/trips/current/conversations/**` e `findMySubject`; rotas antigas
+- [ ] **T2.4** `sonnet` — Rotas `/me/trips/current/conversations/**` e `findMySubject`; **a API passa a ecoar `clientMessageId` nas mensagens e devolver `awaitingDriver`/`subjectLabel` na lista** (remove os dois remendos do adapter); rotas antigas
       intactas; OpenAPI gerado; teste de que toda rota aparece no documento.
 - [ ] **T2.5** `sonnet` — Aviso do sino com assunto (D7); `awaitingDriver` e `subjectLabel` no servidor.
 - [ ] **T2.6** `sonnet` — Integração: `bun --env-file=../../.env.test run test:integration` nos arquivos
