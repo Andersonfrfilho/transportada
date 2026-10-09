@@ -130,8 +130,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 - [ ] **T3.4** Interruptor da empresa (RF6): `GET|PUT /company-settings/holiday-import` (`settings.manage`), upsert só de
       `is_enabled`, auditoria só quando muda. Integração: o cursor de uma linha existente não muda; empresa B não altera a A;
       `companyId` no corpo → `400`; `GET` sem linha = `true`/`default`. Auditoria com o alvo `company_holiday_import_settings`,
-      **`entity_id` = `companyId`** (a PK é `company_id` e `audit_logs.entity_id` é `uuid not null`) e `permission =
-    'settings.manage'` (o padrão do helper). Mutação: `DO UPDATE SET` com o cursor; sem filtro de
+      **`entity_id` = `companyId`** (a PK é `company_id` e `audit_logs.entity_id` é `uuid not null`) e `permission = 'settings.manage'` (o padrão do helper). Mutação: `DO UPDATE SET` com o cursor; sem filtro de
       empresa; auditoria sempre. (CA6)
 
 ## Fase 4 — Worker
