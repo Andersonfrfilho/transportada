@@ -586,3 +586,14 @@ nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termo
   `HolidayProviderError` tem como mensagem só o próprio código (`malformed_response`, `provider_not_found`,
   `provider_rate_limited`, `provider_unauthorized`, `provider_unreachable`); URL, cabeçalho, corpo e mensagem da
   rede nunca entram (nem a mensagem do Zod, que ecoa o valor recusado).
+- **Descoberta (T3.2)** — `application/discover-holiday-cities.use-case.ts`. Por empresa ativa e com a importação ligada
+  (`company_holiday_import_settings.is_enabled`, sem linha vale ligada), anda `nfe_documents` pelo cursor do índice
+  `nfe_documents_company_updated_issued_id_idx` (2.000 notas por lote, 20 lotes por empresa e ciclo), lê os endereços
+  `delivery`/`recipient` do lote numa consulta e escolhe o destino com `resolvePhysicalDestination` — a mesma função
+  do roteirizador, sem desvio manual. **O código de cidade é filtrado em TypeScript antes do upsert** (`^[1-5][0-9]{6}$`
+  e UF do prefixo entre as 27): `null`, vazio, `9999999` e `3909502` viram só um contador (`discardedCityCodes`), porque
+  a CHECK `holiday_import_cities_city_check` recusaria o lote inteiro por um código lixo. Lote e cursor gravam na
+  mesma transação; **o cursor viaja como texto do Postgres** (`::text`/`::timestamptz`) para não perder os
+  microssegundos. A junção dos endereços faz `Seq Scan` em `nfe_addresses` (sem índice por participante): custo
+  limitado pelo teto de lotes; índice, se a medição em staging pedir, vai em migration própria (`CONCURRENTLY`).
+  Cópias por valor com paridade: `src/database/holiday-import.schema.ts` e `holiday-provider.constant.ts`.
