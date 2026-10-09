@@ -9,7 +9,7 @@
 
 > 🤖 Modelo: `sonnet` (T0.3 é 🧠)
 
-- [ ] **T0.1** `sonnet` — Conferir no `adatechnology-packages` o que a versão publicada oferece para o
+- [x] **T0.1** `sonnet` — Conferir no `adatechnology-packages` o que a versão publicada oferece para o
       participante: `ConversationsApi`, `ConversationsProvider`, `MessageBubble`, composer, `StatusTicks`,
       canal `app` em `getChannelCapabilities`. Saída: tabela "tem / falta" em `evidence.md`. **Falta algo →
       vira task da Fase 1, nunca contorno no produto.**
@@ -22,7 +22,14 @@
 ## Fase 1 — A visão do participante no SDK (repo `adatechnology-packages`)
 
 > 🤖 Modelo: `sonnet` (T1.1 e T1.7 → `haiku`; T1.8 é 🧠)
+> ⚠️ O `adatechnology-packages` está com árvore suja de outras sessões (`pnpm-lock.yaml`, pacotes
+> novos não rastreados): trabalhar em **worktree próprio** dali, nunca na árvore principal.
 
+- [ ] **T1.0a** `haiku` — (achado da T0.1) `ConversationChannel` da UI (`conversationChannel.ts:15-22`) não
+      tem `app` nem `portal`, e `channelCapabilityFor('app')` cai na regra do WhatsApp. Acrescentar os dois
+      canais, derivando a capacidade de `getChannelCapabilities` do `conversation-contracts`. Teste antes.
+- [ ] **T1.0b** `sonnet` — (achado da T0.1) `MessagePayload.status` (`types.ts:75`) e `StatusTicks` não têm
+      `queued`. Acrescentar o estado e o selo "na fila", sem quebrar os consumidores atuais (união ampliada).
 - [ ] **T1.1** `haiku` — Tipos do contrato em `conversation-contracts` (`ParticipantConversationSummary`,
       vocabulário de `subjectType` opaco) + export + teste de vocabulário. Aceite: `bun test` + `check`.
 - [ ] **T1.2** `sonnet` — Teste **antes**: `participantGrouping` (agrupa por `subjectType`, ordem de
