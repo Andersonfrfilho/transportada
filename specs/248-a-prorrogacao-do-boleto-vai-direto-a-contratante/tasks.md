@@ -62,7 +62,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       0/1/N anexos, tipo pelos bytes, já entregue, cancelado, tratado; `decideAlert` (prazo,
       intervalo, teto, paradas).
 - [x] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
-- [ ] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
+- [x] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
       alertar depois do teto; ler o modo do tipo em vez da cópia do retorno.
 - [ ] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
       copiada; varredor `occurrence.automatic-mail.sweep`. Integração CA01 (registro pelo app **e**

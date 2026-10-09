@@ -242,3 +242,22 @@ de `src/shared/occurrence-contractor-reply.constant.ts` no worker). Contrato da 
 `occurrence-conversation` da API. Gates: `bun run typecheck` e `bun run lint` exit 0 nas duas apps; contrato da API
 (`bun --env-file=../../.env.test test --timeout 120000`) 11087 pass, 0 fail; worker (`bun run test`) 2232 pass, 0 fail;
 prettier limpo.
+
+## T4.3 — Mutações da T4.1, cada uma com a execução vermelha
+
+Cada mutação foi aplicada em `apps/api-transportada/src/occurrence-conversation/domain/contractor-reply.policy.ts`, rodou
+`bun --env-file=../../.env.test test --timeout 120000 ./test/occurrence-conversation.contract.test.ts` (exit 1) e foi
+desfeita com `git checkout`; o `git diff` ficou vazio depois de cada uma. A cópia do worker é idêntica (parity), logo a mesma
+mutação reprova lá também pela tabela espelhada.
+
+1. **Aceitar pelo nome do arquivo** (o filtro aceita `fileName` terminado em `.pdf` além do tipo) — 318 pass, 1 fail:
+   `the type is decided by the bytes the attachment carries, never by the file name`.
+2. **Entregar com dois PDFs** (`accepted.length > 2` no lugar de `> 1`) — 316 pass, 3 fail: `2 pdfs`,
+   `N attachments with 2 pdfs among them`, `pdf and image when the type accepts both`.
+3. **Alerta depois do teto** (`alertCount > alertMaxCount` no lugar de `>=`) — 318 pass, 1 fail:
+   `the last allowed alert fires and the next one never does (cap)`.
+4. **Ler o modo e o tipo de anexo do tipo, e não da cópia do retorno** — 317 pass, 2 fail: `mode off` e
+   `the copy of the reply decides, not the type as it is today`.
+
+Execução verde depois de desfazer tudo: 319 pass, 0 fail (entrada `occurrence-conversation`), e os gates da T4.2 seguem
+valendo (a política não mudou).
