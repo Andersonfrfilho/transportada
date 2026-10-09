@@ -192,3 +192,119 @@ Quando a API receber o item, o contrato fica vermelho sozinho e a T3.1 é obriga
 
 `bun run typecheck` exit 0; `bun run lint` exit 0 (0 erros, 16 avisos antigos, nenhum em arquivo tocado); `bun run test` exit 0 —
 7853 pass / 0 fail (suíte principal) + 1247 pass / 0 fail (`test:hooks`, parte do script `test`).
+
+## Fases 2 e 3 — Dado e API
+
+Branch `work/262-f23` a partir de `origin/staging` `a34f2ca34` (`git fetch origin` exit 0; `git switch -c` exit 0; `bun install
+--frozen-lockfile` exit 0; staging não andou até o fim: `git log HEAD..origin/staging` vazio). Sem push. Postgres **nativo**
+descartável 18.4 na porta 65452 (banco `transportada_test` e a administração em `postgres`), `.env.test` de teste por link para o
+scratchpad com valores obviamente falsos; nada de produção foi lido nem tocado. Docker não foi usado: o `make migration-test` é
+`DRIZZLE_TEST_DATABASE_URL=… bun run db:test`, que rodei direto contra o banco nativo.
+
+SHAs (ordem de execução): T2.1 `1d18952b0` · T2.2 `299f2a478` + `b4fbbdbda` (contrato estático endurecido pela mutação) · T3.1 contratos
+`4c76a8175`, código `95826896a` · T3.2 contrato `bbc808d63`, código `05c96aff9` · T3.3 contratos `24bb78ec2`, código `831fa93d9` · T3.4 contratos
+`f32975895`, código `5f458ce58` · pesos de shard `2f8c055fb`.
+
+### T2.1 — contratos do modelo (vermelho antes)
+
+`test/database-migration/holiday-provider-settings.{constant,static.contract,assertion}.ts` + a lista de tabelas em `support.ts`
+(`HOLIDAY_PROVIDER_SETTINGS_TABLES`, **não** a `HOLIDAY_PROVIDER_TABLES` da 252: acrescentá-la derrubava dois contratos estáticos da 252, que
+exigem as seis tabelas dela no `rollback.sql` dela). Estático: 6 nomes explícitos com o tamanho em bytes que o ADR contou (38, 30, 40, 41, 37, 39) e ≤ 63; diretório mais novo que `20261009205256_quick_reply_driver_audience` (E15) e **último** da cadeia; uma só `CREATE TABLE`; sem
+`ALTER/DROP/UPDATE/DELETE/INSERT/ENUM/REFERENCES`; CHECK da chave com `is not null` à parte para a dica e para a data; `rollback.sql` = `BEGIN`,
+`DROP TABLE`, journal com `ROW_COUNT`, `COMMIT`, sem `CASCADE` e sem recusa. Banco: dez colunas na ordem, seis constraints, aceita a linha sem chave
+e a com os três campos; recusa dica sem envelope, envelope sem dica, dica de 3 e 5 caracteres, com espaço, não ASCII, envelope `[]` e `"…"`
+(string), data sem dica, orçamento 0, −5 e 1.000.001, `version` 0, `provider` desconhecido e o segundo `feriadosapi` (`23505`); aceita o
+orçamento 1 e 1.000.000; o rollback roda **com** uma chave gravada (D11) e a migration volta a subir. Vermelho pelo motivo certo:
+`_holiday_provider_settings migration is required` (4 testes estáticos) e a lista de tabelas do `database-migration.integration` (146 pass / 5 fail).
+
+### T2.2 — migration, schema e paridade
+
+- `drizzle/20261009223052_holiday_provider_settings/{migration.sql,rollback.sql,snapshot.json}` (gerada com `db:generate`, timestamp > `20261009205256`;
+  comentário de cabeçalho e `rollback.sql` à mão). Schema Drizzle da API (`src/database/holiday-provider-settings.schema.ts`, exportado em
+  `database.schema.ts`), cópia só com as colunas no worker e paridade coluna a coluna em `test/holiday-provider-pull/schema-parity.contract.ts`
+  (o regex de tipo ganhou `bigint|jsonb`; 10 colunas). Constantes do orçamento na API em `src/shared/holiday-provider.constant.ts` com **os mesmos
+  nomes do worker** (`FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET` = 4500, `FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET` = 1.000.000, mais o mínimo e a
+  lista de fornecedores), porque o contrato de paridade compara a declaração pelo nome; paridade em `test/holiday-provider-pull/parity.contract.ts`.
+- ⚠️ O Postgres 18 grava as `NOT NULL` em `pg_constraint` (`contype = 'n'`); a asserção filtra `c`, `p`, `u` para valer em qualquer versão (a CI não é a 18).
+- ⚠️ O Bun serializa um `string` passado a `::jsonb` como **string JSON** (a CHECK recusou o envelope válido); o auxiliar de teste usa `::text::jsonb`.
+- Gates: `db:test` (`DRIZZLE_TEST_DATABASE_URL`) 189 pass / 0 fail; `db:generate` = `no_changes`; `db:check` ok; `schema-snapshot` verde (cadeia linear);
+  API `typecheck` e `lint` exit 0; contratos da API 11215 pass / 1 skip / 0 fail (o skip é o mesmo desde o começo, não é de arquivo meu); worker `typecheck`, `lint`,
+  `test` 2315 pass / 0 fail.
+- Mutações (restauradas por `git checkout`, `git diff --quiet` = 0): (A) tirar `"token_hint" is not null` da CHECK → estático e banco vermelhos;
+  (B) teto `1000000` → `10000000` → **só o banco** pegava (o `toContain` aceitava o prefixo): contrato estático endurecido com regex fechada em `)`
+  (`b4fbbdbda`) e a mutação passou a derrubar também o estático. 🧠 A **revisão `opus` separada da T2.2 fica para o chamador pedir**.
+
+### T3.1 — permissão e desfecho
+
+- Vermelho: `authorization.contract` (lista inteira + teste novo), matriz de papéis, catálogo da API e do cron (3 + 2 + 2 falhas).
+- `holiday-import.configure` no **fim** de `TRANSPORTADA_PERMISSIONS` e da lista do `company-admin`, só ele, concedível por grupo
+  (`isGrantablePermission`), não é de serviço; separador e ajudante fora. `credential_unreadable` no fim de `failureOutcomes` de
+  `holiday.provider.pull` na **API** e no **cron**, cada um com a lista do próprio contrato. A Fase 1 está em `origin/staging`
+  (`git merge-base --is-ancestor 9de8356d0 origin/staging` exit 0). **Pendências do painel apagadas no mesmo commit**:
+  `PENDING_API_PERMISSIONS` (arquivo `pending-api-permissions.fixture.ts` removido e seus usos em `frontend-contract.test.ts` e
+  `permission-matrix.contract.ts`, inclusive o teste da lista) e `PENDING_API_FAILURE_OUTCOMES` (`shared/job-catalog.contract.ts`, voltou
+  `toEqual(CATALOG)` sem `withoutPendingOutcomes`). O painel já tinha o nome, então não houve mudança de código no painel.
+- Gates: API contratos verdes; cron `typecheck`/`lint`/`test` 101 pass / 0 fail; painel `typecheck`, `lint` (0 erros, 16 avisos antigos), `bun run test`
+  7851 pass / 0 fail (eram 7853: saíram os 2 testes das listas) e `test:hooks` 1247 pass / 0 fail; `test/frontend-contract.test.ts` 15 pass / 0 fail.
+- Mutações (todas restauradas): permissão também em `operator` → matriz e catálogo vermelhos; permissão no **meio** da lista da API → `frontend-contract`
+  (igualdade **ordenada** do painel) vermelho; tirar `credential_unreadable` do cron → cron vermelho; tirar da API → contrato da API e `shared/job-catalog.contract` do painel vermelhos.
+
+### T3.2 — selo da chave
+
+`business-calendar/application/holiday-provider-token-secret.service.ts` + `domain/holiday-provider-settings.{constant,error}.ts`. AAD
+`transportada:holiday-provider-token:v1:${settingsId}`; plaintext `{"token":"…"}` com `.strict()` e `^[\x21-\x7E]{16,512}$` na abertura **e** ao selar;
+`decrypt` recebe o envelope como `unknown` e o parse Zod fica **dentro** do `try` (E6: envelope malformado vira o mesmo erro seguro, sem tocar o cofre);
+bytes em claro e AAD zerados no `finally`; falha do cofre vira `HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE` (500, mensagem fixa, sem `cause`, sem chave nem id).
+Contrato (10 testes): AAD canônico e plaintext exato, round-trip com cofre real, não abre com outro id nem com AAD de outra versão, com sufixo `:feriadosapi`, sem id
+ou de outro módulo, nem com ciphertext adulterado; campo a mais, chave fora da regra (curta, longa, espaço, acento, controle), JSON inválido, número no lugar da string e
+array; limites de 16 e 512; envelope malformado (5 formas) antes do cofre; chave inválida ao selar sem tocar o cofre e sem eco (`HOLIDAY_PROVIDER_TOKEN_INVALID`, 400);
+envelope com campo a mais devolvido pelo cofre; mensagem do cofre com a chave e o id não vaza.
+⚠️ **O AAD não leva o `provider`** (nem o pedido o previa: `…v1:${settingsId}`), então "não abre com outro `provider`" foi coberto como "não abre com AAD de outra forma"
+(versão, sufixo, vazio, outro módulo); o id da linha é o único amarrador.
+Mutações: AAD sem o id, `.strict()` removido do plaintext, `plaintext?.fill(0)` removido → 3 vermelhos (restauradas).
+
+### T3.3 — rotas da instalação
+
+- Código: `HolidayProviderSettingsPort`/`use-case` (gera o `settingsId` com `crypto.randomUUID()` **antes** de selar; atualização usa o id da linha; atualizar linha inexistente
+  é `409` sem selar nem gravar; a porta nunca recebe o texto da chave), `DrizzleHolidayProviderSettingsRepository` (único importador da tabela global; `INSERT … ON CONFLICT
+(provider) DO NOTHING` sem linha → descarta e `409`; atualização por `SELECT … FOR UPDATE` + `UPDATE … WHERE id AND version`; salvar igual não grava nem audita; `DELETE` zera os
+  três campos, sobe a versão e audita, idempotente), rotas `GET` (`settings.manage`), `PUT` e `DELETE …/token` (`holiday-import.configure`, balde `postgres` `holiday-provider-settings`
+  10/h, as duas escritas no mesmo balde, GET sem teto), corpo `.strict()` com mensagens fixas, lista branca na resposta. Auditoria: `appendBusinessCalendarAudit` ganhou `permission`
+  opcional (padrão `settings.manage`), os alvos `holiday_provider_settings` e `company_holiday_import_settings` e as ações `holiday-provider-settings.saved`,
+  `holiday-provider-settings.token-removed` e `holiday-import.enablement-changed`; snapshots só `{ monthlyRequestBudget, tokenConfigured, version }` e `metadata.changedFields`
+  (ordem alfabética) + `ipAddress`. Composição em `main.ts` com o `envelopeProvider` que a API já monta.
+- Contratos: `holiday-provider-settings-routes` (13 casos pelo **roteador de verdade**: chaves exatas, `no-store`, 16 corpos recusados com `400` sem a chave no corpo nem no log, `403`, `409`,
+  `429` no 11º, balde compartilhado, tabela de políticas), `holiday-provider-settings-use-case`, `rate-limited-routes` (entrada nova + lista de arquivos com teto), `separator-role`
+  (as rotas entram na enumeração), isolamento da tabela global (só o repositório a importa; presentation do calendário sem envelope nem `updatedByUserId`) e `SUPPORT_ONLY` do
+  `tenant-safety`. Integração `holiday-provider-settings.integration.ts` (15 testes, 0 skip): envelope abre com o AAD da linha e não com outro id; **sentinela** (`FAKE-…-Q7zK`) e a dica
+  procuradas em respostas, logs e **todas** as colunas de `audit_logs` (a dica só aparece nas respostas, que a devolvem de propósito); permissão/entidade/alvo/IP da auditoria; `409` de versão
+  velha e de criação sem versão; criar de novo descarta o envelope; **duas criações simultâneas** (um `200`, um `409`, uma linha); salvar igual; orçamento sozinho / chave sozinha; rollback
+  junto com a auditoria; `DELETE` e idempotência; `403` com só `settings.manage`; a empresa B lê a configuração sem ver quem a gravou; o 11º pedido é `429` com o **limitador real do Postgres**
+  (inclusive com corpo inválido, porque ele conta antes do `parse`).
+- Registro: `package.json` `test:integration` e `shard-weights.json` (21 s e 8 s medidos); fixture `holiday-provider-settings-http.fixture.ts` (roteador real, logger capturado) e
+  `createTestRouter` ganhou `rateLimitWindows` opcional.
+- Mutações (restauradas): lista branca com `...record` → vermelho; `.strict()` do corpo removido → vermelho; limitador do `PUT` removido → vermelho (tabela de rotas e `rate-limited-routes`);
+  `PUT` com `settings.manage` no lugar da permissão dedicada → vermelho (`403` e tabela); `HolidayProviderTokenFormatError` com a chave na mensagem → vermelho; **dica na auditoria** → vermelho;
+  sem a checagem de versão **e** sem `AND version` no `UPDATE` → vermelho. ⚠️ Cada uma das duas guardas de versão **sozinha** é equivalente (a outra segura: `FOR UPDATE` + `WHERE version`
+  são redundantes de propósito), então a mutação só vermelha quando as duas saem.
+
+### T3.4 — interruptor da empresa
+
+`GET|PUT /company-settings/holiday-import` (`settings.manage`), `DrizzleHolidayImportEnablementRepository` (lock advisory por empresa; `INSERT (company_id, is_enabled) … ON CONFLICT
+(company_id) DO UPDATE SET is_enabled` — **só** a flag), corpo `.strict()` `{ isEnabled: boolean }`. Auditoria só quando o valor **efetivo** muda, com `before`/`after` `{ isEnabled }`
+(`before` = `true` quando não havia linha), `entity_id` = `companyId`, alvo `company_holiday_import_settings` e `permission` `settings.manage`. Decisão local: `PUT { isEnabled: true }` **sem linha**
+não grava nem audita (o valor efetivo já é `true`) e responde `origin: 'default'`. Integração `holiday-import-enablement.integration.ts` (6 testes, 0 skip): cursor de uma linha existente intacto
+ao desligar e religar; auditoria só nas mudanças; empresa B não altera a A; `companyId` no corpo `400`; só `holiday-import.configure` `403`; falha depois da auditoria desfaz a escrita.
+Mutações (restauradas): `DO UPDATE SET` zerando o cursor; `find` sem o filtro da empresa; auditar sempre → 3 vermelhos.
+
+### Gates finais das Fases 2 e 3 (cwd em cada app)
+
+API `typecheck` e `lint` exit 0; contratos (`bun --env-file=../../.env.test run test`) **11258 pass / 1 skip / 0 fail**; `db:test` **189 pass / 0 fail**; integrações **uma por vez, 0 skip, 0 fail**: as duas novas
+(15 e 6) e as de calendário, importação e aviso que a permissão e a auditoria podiam tocar — `business-calendar-{audit-on-change,state-and-settings,rules,rule-conflicts,rule-edit,rule-typed-dates,
+rule-validation,tenant-safety,tenant-writes,load-rules,load-limits}`, `municipal-holiday-{interplay,generated}`, `holiday-import-{municipal,state,suppressions,status}`, `holiday-{origin,warning-reader}`,
+`trip-detail-holiday-warnings`, `driver-{current-trip-holiday-warnings,holiday-independence,stop-holiday-context}`, `auth-me`, `rate-limiter`, `anonymous-rate-limit`, `contractor-mail-settings-repository`,
+`local-identity-seed`, `location-retention-settings`, `migration-completeness` (32 arquivos); `integration-shard`/`test-registry` verdes. `db:generate` = `no_changes`, `db:check` ok. Worker `typecheck`/`lint`/`test` 2315 pass / 0 fail.
+Cron `typecheck`/`lint`/`test` 101 pass / 0 fail. Painel `typecheck`/`lint`/`test` 7851 pass + `test:hooks` 1247 pass / 0 fail. `bun run format:check` na raiz exit 0 e `git status` vazio.
+
+**Não feito (de propósito):** worker (Fase 4), telas (Fase 5), documentação viva (Fase 6), push, aplicar a migration em qualquer banco fora do Postgres descartável, Gate A, `make migration-test` via Docker
+(equivalente rodado com `db:test`), e a revisão `opus` da T2.2.

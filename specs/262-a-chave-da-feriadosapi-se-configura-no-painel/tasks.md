@@ -76,24 +76,24 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 
 > 🤖 Modelo: `sonnet` (T2.2 é 🧠 — revisão `opus` em passada separada)
 
-- [ ] **T2.1** Contratos do modelo **antes**: estático (nomes explícitos, cada um ≤ 63 bytes, nenhum padrão do drizzle, CHECKs
+- [x] **T2.1** Contratos do modelo **antes**: estático (nomes explícitos, cada um ≤ 63 bytes, nenhum padrão do drizzle, CHECKs
       do ADR-0102 §3, `rollback.sql` = `DROP TABLE` + journal com `ROW_COUNT`) e asserção de banco (CHECK recusa dica sem envelope,
       envelope sem dica, dica de 3 e 5 caracteres, dica com espaço, orçamento 0 e 1.000.001, segundo `provider`, `provider`
-      desconhecido; aceita a linha sem chave e a linha com os três campos). Vermelho pelo motivo certo (tabela ausente).
-- [ ] **T2.2** 🧠 Migration `<timestamp>_holiday_provider_settings` (timestamp **maior que `20261009205256`**: a última de
+      desconhecido; aceita a linha sem chave e a linha com os três campos). Vermelho pelo motivo certo (tabela ausente). Feita em 2026-10-09: evidência em `evidence.md` § Fases 2 e 3.
+- [x] **T2.2** 🧠 Migration `<timestamp>_holiday_provider_settings` (timestamp **maior que `20261009205256`**: a última de
       `origin/staging` é `20261009160300`, mas `work/spec-260` carrega `20261009170338`, `20261009171836` e `20261009205256`, ainda
       fora de staging; **gerar na hora** com `bun run db:generate` e regenerar o `snapshot.json` se a 260 entrar antes) com
       `migration.sql`, `rollback.sql`, `snapshot.json`; schema Drizzle na API
       (`database/holiday-provider-settings.schema.ts`, exportado em `database.schema.ts`) e cópia só com colunas no worker
       (`src/database/holiday-provider-settings.schema.ts`) com a paridade em `test/holiday-provider-pull/schema-parity.contract.ts`.
       Aceite: `make migration-test`; `bun run db:generate` = `no_changes`; `bun run db:test` com o banco nativo; contratos da API e do
-      worker verdes. Revisão `opus` separada. **Só staging.** (CA1)
+      worker verdes. Revisão `opus` separada. **Só staging.** (CA1) Feita em 2026-10-09 (`20261009223052_holiday_provider_settings`): evidência em `evidence.md` § Fases 2 e 3. **A revisão `opus` separada continua pendente.**
 
 ## Fase 3 — API
 
 > 🤖 Modelo: `sonnet` (T3.1 em `haiku`). **T3.1 só depois da Fase 1 em staging.**
 
-- [ ] **T3.1** Permissão `holiday-import.configure` **no fim** de `TRANSPORTADA_PERMISSIONS` (`authorization.policy.ts` 116, depois
+- [x] **T3.1** Permissão `holiday-import.configure` **no fim** de `TRANSPORTADA_PERMISSIONS` (`authorization.policy.ts` 116, depois
       de `occurrences.decide`: o contrato do painel compara as listas com igualdade **ordenada**) e **no fim** da lista do papel
       `company-admin` (`identity/domain/authorization.policy.ts`), com `test/authorization.contract.test.ts`,
       `test/user-administration-application/role-permissions.contract.ts` e `test/separator-role.contract.test.ts`; e
@@ -104,14 +104,14 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       arquivo `test/identity/pending-api-permissions.fixture.ts` e seus usos em `frontend-contract.test.ts` e
       `permission-matrix.contract.ts`) e `PENDING_API_FAILURE_OUTCOMES` (`test/shared/job-catalog.contract.ts`), restaurando a
       igualdade estrita (`toEqual(CATALOG)` sem `withoutPendingOutcomes`) — a asserção "ausente da API" fica vermelha **sozinha**
-      quando a API concede a permissão e o desfecho (T1.1/T1.2), e o **mesmo commit da T3.1** apaga as listas. (CA10, CA11)
-- [ ] **T3.2** Selo da chave: `business-calendar/application/holiday-provider-token-secret.service.ts` (RF2, AAD
+      quando a API concede a permissão e o desfecho (T1.1/T1.2), e o **mesmo commit da T3.1** apaga as listas. (CA10, CA11) Feita em 2026-10-09: evidência em `evidence.md` § Fases 2 e 3.
+- [x] **T3.2** Selo da chave: `business-calendar/application/holiday-provider-token-secret.service.ts` (RF2, AAD
       `transportada:holiday-provider-token:v1:${settingsId}`, plaintext zerado, envelope `.strict()`, erro tipado sem mensagem do
       provedor). Plaintext fixado: UTF-8 de JSON `{"token":"…"}` validado com `.strict()` e a mesma regex
       (`^[\x21-\x7E]{16,512}$`) na abertura e na API (o worker repete na T4.1). Contrato: abre com o AAD da linha, **não** abre com
       outro id, nem com outro `provider`; envelope malformado → erro tipado; plaintext com campo a mais ou token fora da regex →
-      erro tipado. Mutação: AAD sem o id; `finally` sem zerar; `.strict()` removido.
-- [ ] **T3.3** Rotas da instalação (RF3–RF5): `GET`/`PUT /holiday-imports/provider-settings` e `DELETE …/token`, caso de uso,
+      erro tipado. Mutação: AAD sem o id; `finally` sem zerar; `.strict()` removido. Feita em 2026-10-09: evidência em `evidence.md` § Fases 2 e 3.
+- [x] **T3.3** Rotas da instalação (RF3–RF5): `GET`/`PUT /holiday-imports/provider-settings` e `DELETE …/token`, caso de uso,
       repositório (único importador da tabela global: estender `holiday-import-global-isolation.contract.ts` e o `SUPPORT_ONLY`
       de `test/business-calendar-schema/tenant-safety.contract.ts`), auditoria na mesma transação, `no-store`, limitador
       `postgres` (`holiday-provider-settings`, 10/h) listado em `test/rate-limited-routes.contract.test.ts`, constantes de
@@ -126,12 +126,12 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       sentinela ausente de resposta, log e **todas** as colunas de `audit_logs`; salvar igual não audita; `DELETE` idempotente.
       Aceite: os dois comandos de teste da API (contrato + `./test/integration/holiday-provider-settings.integration.ts`), 0 skip;
       mutações: lista branca vaza o envelope; auditoria leva a dica; `.strict()` removido; limitador removido; `UPDATE` sem
-      `version`. (CA2–CA5)
-- [ ] **T3.4** Interruptor da empresa (RF6): `GET|PUT /company-settings/holiday-import` (`settings.manage`), upsert só de
+      `version`. (CA2–CA5) Feita em 2026-10-09: evidência em `evidence.md` § Fases 2 e 3.
+- [x] **T3.4** Interruptor da empresa (RF6): `GET|PUT /company-settings/holiday-import` (`settings.manage`), upsert só de
       `is_enabled`, auditoria só quando muda. Integração: o cursor de uma linha existente não muda; empresa B não altera a A;
       `companyId` no corpo → `400`; `GET` sem linha = `true`/`default`. Auditoria com o alvo `company_holiday_import_settings`,
       **`entity_id` = `companyId`** (a PK é `company_id` e `audit_logs.entity_id` é `uuid not null`) e `permission = 'settings.manage'` (o padrão do helper). Mutação: `DO UPDATE SET` com o cursor; sem filtro de
-      empresa; auditoria sempre. (CA6)
+      empresa; auditoria sempre. (CA6) Feita em 2026-10-09: evidência em `evidence.md` § Fases 2 e 3.
 
 ## Fase 4 — Worker
 
