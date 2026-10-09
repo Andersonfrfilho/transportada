@@ -43,7 +43,8 @@ function countingDatabase(db: TestDatabase['db']) {
   let count = 0
   const database = new Proxy(db, {
     get(target, property, receiver) {
-      if (property === 'select' || property === 'selectDistinctOn') count += 1
+      if (property === 'select' || property === 'selectDistinctOn' || property === 'execute')
+        count += 1
       return Reflect.get(target, property, receiver) as unknown
     },
   })

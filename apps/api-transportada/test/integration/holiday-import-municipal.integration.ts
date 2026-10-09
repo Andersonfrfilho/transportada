@@ -298,30 +298,100 @@ describe('DELETE num feriado importado é desligar (spec 252 T4.1, CA5)', () => 
     },
   )
 
-  testWithPostgres('apagar a digitada segue como antes: sem supressão', async () => {
-    await withBusinessCalendarDatabase(async (database) => {
-      const tenant = await seedTenant(database)
-      const holidays = new DrizzleMunicipalHolidayRepository(database.db)
-      const { holiday } = await holidays.save({
-        ...actorOf(tenant, 'typed'),
-        cityIbgeCode: CAMPINAS,
-        holidayOn: FUTURE_DAY,
-        name: 'Digitada',
-      })
+  testWithPostgres(
+    'apagar a digitada de hoje em diante grava a supressão da data, com o id na auditoria (M2)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const holidays = new DrizzleMunicipalHolidayRepository(database.db)
+        const { holiday } = await holidays.save({
+          ...actorOf(tenant, 'typed'),
+          cityIbgeCode: CAMPINAS,
+          holidayOn: FUTURE_DAY,
+          name: 'Digitada',
+        })
 
-      await holidays.remove({
-        ...actorOf(tenant, 'delete-typed'),
-        currentYear: 2026,
-        id: holiday.id,
-        today: TODAY,
-      })
+        await holidays.remove({
+          ...actorOf(tenant, 'delete-typed'),
+          currentYear: 2026,
+          id: holiday.id,
+          today: TODAY,
+        })
 
-      expect(await readSuppressions(database, tenant.companyId)).toEqual([])
-      expect((await readAudits(database, tenant.companyId)).at(-1)).toMatchObject({
-        action: 'municipal-holiday.deleted',
+        const suppressions = await readSuppressions(database, tenant.companyId)
+        expect(suppressions).toEqual([
+          expect.objectContaining({ holidayOn: FUTURE_DAY, ibgeCode: CAMPINAS, scope: 'city' }),
+        ])
+        const audit = (await readAudits(database, tenant.companyId)).at(-1)
+        expect(audit).toMatchObject({ action: 'municipal-holiday.deleted' })
+        expect(audit?.metadata).toMatchObject({ suppressionId: suppressions[0]?.id })
       })
-    })
-  })
+    },
+  )
+
+  testWithPostgres(
+    'a adotada também: depois de adotar, apagar não deixa a importação trazer de volta',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const holidays = new DrizzleMunicipalHolidayRepository(database.db)
+        const imported = await seedImportedMunicipalHoliday(database, tenant, {
+          holidayOn: FUTURE_DAY,
+          ibgeCode: CAMPINAS,
+        })
+        await holidays.update({
+          ...actorOf(tenant, 'adopt'),
+          changes: { name: 'Adotada' },
+          id: imported.id,
+        })
+
+        await holidays.remove({
+          ...actorOf(tenant, 'delete'),
+          currentYear: 2026,
+          id: imported.id,
+          today: TODAY,
+        })
+
+        expect(await readSuppressions(database, tenant.companyId)).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'data passada e código de cidade fora do padrão do cache não gravam supressão (e não quebram o DELETE)',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const holidays = new DrizzleMunicipalHolidayRepository(database.db)
+        const past = await holidays.save({
+          ...actorOf(tenant, 'past'),
+          cityIbgeCode: CAMPINAS,
+          holidayOn: PAST_DAY,
+          name: 'Passada',
+        })
+        const legacy = await holidays.save({
+          ...actorOf(tenant, 'legacy'),
+          cityIbgeCode: '0000000',
+          holidayOn: FUTURE_DAY,
+          name: 'Código antigo',
+        })
+
+        for (const { holiday } of [past, legacy]) {
+          await holidays.remove({
+            ...actorOf(tenant, `delete-${holiday.id}`),
+            currentYear: 2026,
+            id: holiday.id,
+            today: TODAY,
+          })
+        }
+
+        expect(await readSuppressions(database, tenant.companyId)).toEqual([])
+        expect((await readAudits(database, tenant.companyId)).at(-1)?.metadata).toMatchObject({
+          suppressionId: null,
+        })
+      })
+    },
+  )
 
   testWithPostgres(
     'a empresa B não desliga o feriado importado da A: sem 409 que confirme que existe',

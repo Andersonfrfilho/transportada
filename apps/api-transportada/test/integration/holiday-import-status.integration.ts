@@ -246,7 +246,8 @@ describe('o status da importação agrega o cache só para as cidades da empresa
           years: YEARS,
         })
 
-        expect(status.removedByProvider).toEqual([
+        expect(status.removedByProvider.truncated).toBe(false)
+        expect(status.removedByProvider.items).toEqual([
           {
             holidayId: removedCity.id,
             holidayOn: '2026-11-20',
@@ -264,6 +265,44 @@ describe('o status da importação agrega o cache só para as cidades da empresa
         ])
       })
     },
+  )
+})
+
+describe('o teto da lista de removidos é um só, depois de juntar cidade e estado (spec 252 T4.1, L2)', () => {
+  testWithPostgres(
+    '201 removidos (150 de cidade + 51 de estado) saem 200 e `truncated: true`',
+    async () => {
+      await withBusinessCalendarDatabase(async (database) => {
+        const tenant = await seedTenant(database)
+        const removedAt = new Date('2026-10-05T00:00:00.000Z')
+        for (let day = 0; day < 150; day += 1) {
+          await seedImportedMunicipalHoliday(database, tenant, {
+            holidayOn: new Date(Date.UTC(2027, 0, 1 + day)).toISOString().slice(0, 10),
+            ibgeCode: CAMPINAS,
+            removedAt,
+          })
+        }
+        for (let day = 0; day < 51; day += 1) {
+          await seedImportedStateHoliday(database, tenant, {
+            holidayOn: new Date(Date.UTC(2028, 0, 1 + day)).toISOString().slice(0, 10),
+            ibgeCode: SAO_PAULO_STATE,
+            removedAt,
+          })
+        }
+        const repository = new DrizzleHolidayImportStatusRepository(database.db)
+
+        const status = await repository.readStatus({
+          companyId: tenant.companyId,
+          month: MONTH,
+          years: YEARS,
+        })
+
+        expect(status.removedByProvider.items).toHaveLength(200)
+        expect(status.removedByProvider.truncated).toBe(true)
+        expect(status.removedByProvider.items.at(-1)?.holidayOn).toBe('2028-02-19')
+      })
+    },
+    120_000,
   )
 })
 

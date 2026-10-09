@@ -65,6 +65,18 @@ describe('spec 252 — o cache global do fornecedor de feriados não sai cru', (
     expect(status).toContain('companyId')
   })
 
+  test('as consultas isentas só leem colunas nomeadas do cache: nenhum `.select()` sem projeção (L5)', async () => {
+    for (const query of AGGREGATED_STATUS_QUERIES) {
+      const source = await readSource(query)
+
+      expect({ query, wholeRowSelects: source.match(/\.select\(\s*\)/gu) ?? [] }).toEqual({
+        query,
+        wholeRowSelects: [],
+      })
+      expect(source).toMatch(/\.select\(\{/u)
+    }
+  })
+
   test('nenhum arquivo de presentation chega ao cache: as visões são lista branca', async () => {
     const offenders: string[] = []
     for (const file of await listSourceFiles()) {
