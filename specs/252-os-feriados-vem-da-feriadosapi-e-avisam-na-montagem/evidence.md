@@ -827,7 +827,7 @@ Mesmo worktree e branch (`work/252-t3`). Postgres 18.4 **nativo** descartável n
 | lote com cursor `(updated_at, issued_at, id) > (...)`                                         | mesmo índice, `Index Cond: ROW(...) > ROW(...)`, 1.501 linhas, 24 buffers                                                            | 0,42 ms |
 | junção dos endereços do lote (`nfe_participants` ⋈ `nfe_addresses`, `document_id = ANY(...)`) | `nfe_participants_company_document_role_unique` por índice; **`Seq Scan on nfe_addresses`** filtrado por `company_id` (2.100 linhas) | 1,5 ms  |
 
-**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário. **Fechado depois:** índice criado em migration própria (só staging), com planos antes/depois em § "Índice de nfe_addresses"; o lote cheio de 2.000 continua varrendo.
+**O índice do cursor serve o lote** (a comparação de linha entra no `Index Cond`, sem ordenar). **`nfe_addresses` não tem índice por `(company_id, participant_id)`** — como o ADR previu —, então cada lote varre os endereços da empresa. Na escala medida (2.100 notas) é 1,5 ms; a conta cresce com o tamanho de `nfe_addresses` da empresa × até 20 lotes por empresa por ciclo. **Não criei índice** (o ADR manda migration própria com `CONCURRENTLY`, e migration não é desta task): decisão para o usuário medir com `EXPLAIN` em staging; enquanto isso o custo é limitado pelo teto de 20 lotes por empresa por ciclo diário.
 
 ### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 no fim da 1ª rodada)
 
@@ -1187,296 +1187,48 @@ compartilhada por valor mudou (`stop-address-key.ts` intacto).
 
 Worker (T3); painel (T5.2/T5.3); tela do app do motorista (T5.4, depois do print aprovado); `make migration-test` (sem migration); medida do `EXPLAIN` em escala; push; nenhuma conexão com produção.
 
-## T6.1 — fechamento (2026-10-09)
+## T5.4 — aviso de feriado no app do motorista (2026-10-09, branch `work/252-t5-4` sobre `origin/staging`)
 
-Executor `sonnet`, worktree isolado, branch `work/252-t6` a partir de `origin/staging` (`c5aa114a5`), **só documentação, sem push**. Nenhum arquivo de `apps/**/src` ou
-`test` foi tocado; não revisa nem muda código (a revisão final `opus` roda em separado, e os acréscimos dela a esta seção estão incorporados abaixo). **As seções antigas deste
-arquivo citam SHAs de antes dos rebases e de branches locais; os que valem são os do quadro abaixo**, achados com `git log origin/staging --grep` e conferidos com
-`merge-base --is-ancestor` contra `origin/staging` e `origin/main`.
+**Pronta no código; publicação pendente: tela só sobe com os prints aprovados pelo usuário.** Prints fora do repositório até a aprovação, em
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-252-motorista/`.
 
-### Quadro único (SHAs em `origin/staging`, na ordem teste vermelho → código → reforços → documentação)
+**O que entrou (só `apps/frontend-driver`, nada importado do painel):** `DriverHolidayNotice.component.tsx` (componente próprio),
+`holidayWarning.service.ts` / `holidayWarning.constant.ts` (dia civil de São Paulo, relógio corrigido pelo desvio de `clockOffset.service.ts`,
+linhas visíveis), `holidayNotice.module.css`, bloco `holidayWarning` nos dois locales (pt-BR/en, as 12 chaves nacionais estáveis traduzidas) e
+uma linha no `DriverStopCard`: o aviso fica **fora do cabeçalho-botão e do corpo recolhido** (aparece com o cartão fechado) e nenhuma ação do
+cartão lê `holidayWarnings`. `scripts/driver-preview-api.ts` ganhou o cenário `DRIVER_PREVIEW_HOLIDAYS=on` (sem a variável, a resposta é a de sempre).
 
-"Deploy" é o primeiro run **verde** do workflow `Deploy` (branch `staging`) que contém o commit de código, em UTC, com o número do run; "produção" é `origin/main`
-(`a00ff8e63`, PR #154, 2026-10-09 03:13Z, Deploy verde `37878296967`).
+**Decisões de UX:** texto da spec (RF14) — "Hoje é feriado em Campinas (…). Confirme com o cliente antes de ir." / "Dia 13/10 é feriado em …";
+sem `cityName`, sem cidade. Nacional = chave estável traduzida (chave desconhecida cai em "Feriado nacional", nunca na chave crua);
+estadual/municipal = nome como veio (em branco cai no rótulo do escopo). Aviso com data passada no relógio corrigido **não aparece** (venceu);
+data malformada não vira texto. Neutro (véu do cinza do token, tinta do tema), sem toque, sem foco, sem animação, com quebra de palavra.
 
-| Fase / task                                                | SHAs publicados em staging                                                                                                                                                                                                              | Deploy verde (UTC)                   | Produção |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------- |
-| Fundação: spec, plano, ADR-0100                            | `2d069a110` ADR, `bc81d064c` spec/plano/tarefas, `3f5f44e1c` SECURITY, `eaa2a7eb7` motorista (D12)                                                                                                                                      | só documentação                      | sim      |
-| T0.1 validação do ADR-0100 · T0.2 plano reconferido        | `e1b8a812a` · `eddd02018`, `c579e5107`                                                                                                                                                                                                  | só documentação                      | sim      |
-| T1.1 + T1.2 roteirizador por cidade (spec 238 "F1")        | `913aad994` (vermelho) · `4454228ac` (correção) · `1754e36e7` (evidência)                                                                                                                                                               | 2026-10-07 21:33Z, run `37690290352` | **sim**  |
-| T5.1 painel tolerante · T5.1b app do motorista tolerante   | `f37457a8d` (painel) · `928c7bb8c` (app; a mensagem diz "painel" por engano) · docs `bc4ad321b`, `a3a19e6e9`                                                                                                                            | 2026-10-07 22:07Z, run `37694127666` | **sim**  |
-| T2.1 contratos do modelo                                   | `76d9245c2`                                                                                                                                                                                                                             | 2026-10-09 04:53Z, run `37885956473` | não      |
-| T2.2 migration `20261009040622_holiday_provider_import`    | `54539fce7` · refeita sobre a staging nova `ef512a6d6` · 2ª rodada `648a346b8` (contratos) → `e24f3326b` (SQL) · docs `770ecd6fd`, `6548ead27`                                                                                          | idem (mesmo run)                     | não      |
-| T2.3 `holiday.provider.pull` nas quatro cópias do catálogo | `2f6add63f` painel · `b49b22102` API · `f02ccbef6` worker · `fc777a9d5` cron · docs `a42401e02`                                                                                                                                         | idem (mesmo run)                     | não      |
-| T4.1 gestão da importação (API)                            | `929cca352` → `c01dc388b` · docs `a8c4909fc` · 2ª rodada `588fd37de` → `0fa7e54bf` · docs `e770d57ce`                                                                                                                                   | 2026-10-09 06:42Z, run `37894932370` | não      |
-| T4.2 aviso de feriado: `day-checks` e detalhe da viagem    | `d921cd91a` → `fb367ef51` · docs `2dab86cb4`                                                                                                                                                                                            | idem (mesmo run)                     | não      |
-| T3.1 cliente HTTP da FeriadosAPI                           | `babc65e65` → `a85d55df8` · docs `b9961ca74`                                                                                                                                                                                            | 2026-10-09 07:03Z, run `37896868298` | não      |
-| T3.2 descoberta das cidades                                | `d747faf99` → `fa1a70809` · `c4ee4ca17` · docs `207261873`                                                                                                                                                                              | idem (mesmo run)                     | não      |
-| T3.3 busca no fornecedor                                   | `29ac494a7` → `b9a6c1b2a` · `3673bd1e5`, `e9c53cad9` · docs `74f6ac3d6`                                                                                                                                                                 | idem (mesmo run)                     | não      |
-| T3.4 aplicação no calendário                               | `0c14e9222` → `8a03ada89` · `86039a275` · docs `4d388ac5a`                                                                                                                                                                              | idem (mesmo run)                     | não      |
-| T3.5 registro condicional, ambiente e token fora do log    | `4e35fdd58` → `a8dd44342` · refatoração de tamanho `6bd0c39eb` · `ad48aea57` · docs `82f32956a`                                                                                                                                         | idem (mesmo run)                     | não      |
-| 2ª rodada da Fase 3 (revisão `opus`)                       | `470977bf9` → `4bcf3f0b6` · `e59567ebc` · paridade da chave de parada `077d036c6` · docs `891587b71`, `5e566edf2`                                                                                                                       | idem (mesmo run)                     | não      |
-| T4.3 aviso no `GET /me/trips/current`                      | `36e36afb0` (linha de base) · `51284bc85` (vermelhos) → `414afee58` · `9618d940c` · docs `e37ba3ef6` · fechamento `daae4d6a8` → `24c5661d4` · docs `40477e4f1`                                                                          | 2026-10-09 07:42Z, run `37900555259` | não      |
-| T5.4 aviso no app do motorista                             | `d6e6d2036` (código) · `98eb33641` (relógio corrigido) · docs `435b03926`                                                                                                                                                               | 2026-10-09 11:32Z, run `37924408807` | não      |
-| T5.2 aba Calendário · T5.3 avisos da montagem e selo       | T5.2 `eb409b3d6`, `68740c22e` (vermelhos) → `9d8e285d9` · `9038ec45c` (rótulos curtos e smoke de prints) · T5.3 `39fa8c293` → `e7a85b274` · `61a13b98e` · `c73387ba8` (largura cheia) · docs `5fa8a4b12` · prints aprovados `dff0b432d` | 2026-10-09 12:19Z, run `37929232812` | não      |
-| `origin` nas listas de feriado (API, **depois** do painel) | `86f537b72` (vermelhos) → `c315477a3` · `885fbda31` (prettier) · docs `c5aa114a5`                                                                                                                                                       | 2026-10-09 12:37Z, run `37931278933` | não      |
-| T6.1 documentação viva                                     | esta branch (`work/252-t6`), **sem push**                                                                                                                                                                                               | —                                    | não      |
+**Vermelho antes:** `bun test test/driver-trip.contract.test.ts` → `Cannot find module …DriverHolidayNotice.component` (0 pass, 1 fail).
 
-Observações do quadro: (1) o Deploy do `dff0b432d` (11:37Z) **falhou** (o `dc2a7cd63`, "prettier no evidence.md depois do rebase", o corrigiu; o run verde das 12:19Z é o dele); (2) a ordem
-de publicação do `origin` foi cumprida em staging: painel (12:19Z) antes da API (12:37Z); (3) a T5.4 (11:32Z) subiu antes das telas do painel (12:19Z), o que o plano permite (as três
-telas só dependem da API dos avisos); (4) a migration só existe em staging (Q2).
+**Gates (cwd `apps/frontend-driver`):** `bun run typecheck` exit 0; `bun run lint` exit 0; `bun run test` **1528 pass, 0 fail** (+45 sobre o
+staging, 1483: 43 do aviso e 2 do relógio corrigido, em `holiday-warning.contract.ts` e `holiday-warning-notice.contract.tsx`, registrados em
+`driver-trip.contract.test.ts`); `bun run build` exit 0 (`dist.contract` 6 pass; `dist/` apagado); `bun run format:check` na raiz exit 0.
+Smoke Playwright **não rodado**: exige login real no Keycloak local com a senha do `.env` e o build na 53112.
 
-### O que está em staging × o que falta para produção
+**Mutações** (cada uma restaurada com `git checkout -- <arquivo>` e `git diff --quiet` exit 0):
 
-- **Em staging (tudo da 252):** migration, catálogo de jobs nas quatro apps (rotina pausada de fábrica), worker (rotina inerte sem token), API (gestão, avisos, `origin`), painel (aba
-  Calendário, avisos da montagem, selo do detalhe) e app do motorista (aviso por parada). Nada disso fala com o fornecedor: sem `FERIADOS_API_TOKEN` a rotina nem é registrada. O estado
-  vivo da linha de `job_schedules` em staging (pausada, `paused_origin = 'system'`) é o desenho da migration (D13); **não foi consultado nesta task**.
-- **Em produção (`main`):** só o roteirizador por cidade (T1.1/T1.2) e os clientes tolerantes (T5.1/T5.1b), pelo PR #154. **Falta tudo o mais**: migration (aprovação própria, Q2), API, worker,
-  cron, painel e app do motorista.
+| #   | Mutação                                               | Resultado                                  |
+| --- | ----------------------------------------------------- | ------------------------------------------ |
+| M1  | tirar o corte de data passada                         | 2 fail                                     |
+| M2  | `isToday: true`                                       | 2 fail                                     |
+| M3  | fuso `UTC` no lugar de `America/Sao_Paulo`            | 2 fail                                     |
+| M4  | `applyClockOffset` ignora o desvio                    | 1 fail                                     |
+| M4b | `readCorrectedNowMs` ignora o armazenamento do desvio | 1 fail                                     |
+| M5  | chave nacional desconhecida mostra o nome cru         | 1 fail                                     |
+| M6  | aviso movido para dentro do corpo recolhido           | 1 fail                                     |
+| M7  | `cityName` sem `trim`                                 | 1 fail                                     |
+| M8  | tirar `tiradentes` da lista nacional                  | 1 fail (paridade com a API)                |
+| M9  | "Cheguei"/"Iniciar rota" condicionado ao aviso        | 2 fail (um é o contrato antigo do Cheguei) |
 
-### Promoção a produção: três PRs, nesta ordem
+**Prints** (app real em dev, Keycloak local, API de demonstração com dados fictícios, `getComputedStyle` conferido): 375/768/1280 claro e
+escuro com as três paradas (nacional hoje, estadual daqui a 4 dias, municipal sem cidade); sem aviso (375); boot sem rede com snapshot guardado
+**com** aviso e **sem** o campo (375; sonda do Keycloak e API abortadas, a tela abre do IndexedDB). Contraste do texto sobre o véu: **9,55:1
+claro e 14,04:1 escuro**, fonte 16 px, nenhum foco dentro do aviso, sem rolagem horizontal, "Iniciar rota" habilitado nos estados com aviso.
 
-O `deploy.yml` sobe a API **antes** do frontend (`deploy-frontend` tem `needs: deploy-api`). Um PR único `staging → main` poria no ar a API com `origin` antes do painel, e a aba Calendário de
-produção (guardas de chaves exatas) recusaria as listas até o painel entrar. Por isso:
-
-1. **PR1, só o painel tolerante:** guardas com `origin` opcional e o catálogo de jobs do painel com `holiday.provider.pull` (T5.1/T5.1b já estão em `main`; falta o catálogo `2f6add63f` e a
-   tolerância a `origin` que veio com a T5.2). Sem API nova, sem migration.
-2. **PR2, API com a migration, worker e cron:** a rotina nasce **pausada** e o worker fica **inerte sem token**. Esta é a que precisa de **aprovação própria do usuário** (migration, Q2).
-3. **PR3, as telas T5.2, T5.3 e T5.4 e a API do `origin`**, na ordem painel → API.
-
-Em **cada** PR: conferir a lista de commits contra `main` (o `staging` carrega trabalho de outras sessões e tem back-merge de `main`: montar a branch por `cherry-pick` sobre `origin/main`, como
-na memória "promover prod por branch própria", medindo por conteúdo e não por SHA); `make migration-test` e `db:generate` = `no_changes` no PR2; aprovação humana explícita antes de abrir
-e antes de mergear. **Antes da migration:** medir `select count(*) from municipal_holidays` e `from state_holidays` **no banco certo de produção (`Postgres-Hqfu`; o serviço "Postgres" é outro
-e dá número falso)**; se forem grandes, o `VALIDATE` da CHECK e qualquer índice saem do lote, fora do lock (plano § Riscos, "Lock em `municipal_holidays`/`state_holidays`").
-
-### Condição de promoção: `nfe_addresses` sem índice
-
-`nfe_addresses` não tem índice por `(company_id, participant_id)`. Três leitores fazem `Seq Scan` nela: `GET /me/trips/current` (a junção **nova** do aviso do motorista, T4.3; o caminho crítico do
-app), o detalhe da viagem (`listStopAddresses`) e a descoberta do worker (T3.2: 1,5 ms por lote com 2.100 notas, medido só em teste). **Condição para o PR2/PR3:** `EXPLAIN (ANALYZE)` dos três em
-base de tamanho real, ou uma migration própria com `CREATE INDEX CONCURRENTLY` (fora de transação, em arquivo à parte do lote da 252). Sem a medida, a leitura do motorista é a que mais arrisca.
-
-**Atualização (2026-10-09, decisão do usuário "fecha as decisões abertas"): resolvida em staging, aberta em produção.** A migration própria existe
-(`20261009160300_nfe_addresses_participant_index`, autorizada **só para staging**) e a medida está em § "Índice de nfe_addresses" abaixo. **Condição para o PR2/PR3 em produção:** aprovação própria
-do usuário **e** o índice criado `CONCURRENTLY` à mão no banco de produção ANTES do PR da migration (passos em § "Índice de nfe_addresses" → "Produção"); a migration é então um no-op.
-
-### Passos do USUÁRIO para ligar (nenhum é da IA)
-
-1. **Conta e chave na FeriadosAPI**, uma chave **por instalação** (o orçamento mora no banco de cada uma, ADR-0021; chave compartilhada divide os 60/min e a cota sem que um banco veja o outro).
-2. **Q3, plano:** escolher o plano (o Developer custa R$ 39/mês com 5.000 consultas; o gratuito cobre nacionais, estaduais e capitais, e o interior "consome cota" sem a documentação dizer quanto).
-3. **Q4, termos de uso:** confirmar com o fornecedor que **guardar** os feriados é permitido (a página de termos deu 404 em 2026-10-07). Sem isso, não configurar o token.
-4. **`FERIADOS_API_TOKEN`** no serviço do **worker** de staging (Railway; só ASCII visível; nunca com prefixo `VITE_`, nunca em terminal, log ou commit).
-5. **`FERIADOS_API_MONTHLY_REQUEST_BUDGET`:** deixar no valor do plano (o padrão é 4500 = 5.000 menos 10%); **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo, e o ciclo
-   seguinte já parte do mês gasto).
-6. **Despausar `holiday.provider.pull` no painel de Operações** (a linha nasce pausada de fábrica, `paused_origin = 'system'`; o painel mostra o nome cru da rotina, lacuna conhecida da T2.3).
-7. Acompanhar o 1º ciclo (roteiro abaixo) e só então pensar em produção.
-
-### Roteiro do 1º ciclo real (o que o `evidence.md` § "2ª rodada da Fase 3" e o `tasks.md` já trazem, mais a leitura da revisão final)
-
-Depois de despausar, conferir em staging **só por leitura**:
-
-- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`,
-  `provider_plan_restricted` e `persistence_failed` pedem leitura do log (só tem código, nome do erro e par).
-- **O desfecho da execução no painel de rotinas é a fonte para o 401:** `provider_unauthorized` por token recusado **não** aparece em `holiday_provider_fetches` (nenhum par muda). E atenção ao
-  rótulo: **plano restrito em TODAS as cidades buscadas fecha o ciclo como `provider_unauthorized`** ("token recusado" engana: é o plano; conferir o contador `plan_restricted`).
-- Contadores da execução a ler no painel: `requests`, `plan_restricted`, `entries_discarded` (data de outro ano), `discovery_discarded_city_codes` (código de cidade lixo), `national_mismatch`,
-  `municipal_inserted` e `state_inserted`.
-- `holiday_provider_monthly_usage.requests` do mês contra o contador `requests` da execução.
-- Por empresa: `select count(*) from municipal_holidays where company_id = … and provider_entry_id is not null` (e o mesmo em `state_holidays`) contra `municipal_inserted`/`state_inserted`.
-- **Duração do ciclo e lease:** o limitador custa 1,2 s por requisição, então 100 requisições ≈ 2 min de relógio; o lease da execução é de 30 s, renovado a cada 10 s
-  (`run-job-cycle.ts`). Conferir a duração no painel e que nenhuma execução ficou aberta (`job_executions.finished_at is null`).
-- `national_mismatch` maior que zero **é esperado** (o fornecedor lista a Páscoa; o código conta Carnaval e Corpus Christi).
-- As lacunas da forma de resposta (§ T3.1: envelope, paginação, caminho do estado pela sigla, `facultativos`, como o plano e a cota são sinalizados) se confirmam ou se corrigem aqui.
-- Volume esperado (ADR-0100 §5, amostra local): carga inicial ≈ 138 requisições em **2 dias** (teto de 100 por ciclo e ciclo diário), depois ≈ 23 por mês.
-- Na aba Calendário: o bloco "Importação de feriados" deixa de dizer "Aguardando a primeira execução", as linhas importadas aparecem com a origem "Importado" e "Desligar" tira uma data de verdade
-  (com a auditoria `holiday-import.disabled`).
-
-### Runbook de emergência (só por ordem do usuário; a IA não executa nada disto sozinha)
-
-Quando a importação trouxer dado errado ou o fornecedor mudar de comportamento, do mais leve ao mais pesado:
-
-1. **Parar a rotina:** pausar `holiday.provider.pull` no painel de Operações. Nada novo é buscado nem aplicado; o que já foi importado continua valendo.
-2. **Desligar uma empresa** (não há rota; é escrita no banco): `insert into company_holiday_import_settings (company_id, is_enabled) values ('<id>', false) on conflict (company_id) do update set
-is_enabled = false` (sem linha vale "ligada", por isso o `upsert`). A descoberta e a busca deixam de considerar a empresa.
-3. **Suprimir em lote** o que a importação não pode trazer de volta: `insert into holiday_import_suppressions (company_id, scope, ibge_code, holiday_on, suppressed_by_user_id) values (…)`, com `scope`
-   `city` (código de 7 dígitos) ou `state` (2 dígitos), `holiday_on` **>= hoje** em São Paulo e o id do usuário que mandou (NOT NULL); o único é `(company_id, scope, ibge_code, holiday_on)`, então
-   repetir é 23505. A aplicação pula a supressão; o "Restaurar" do painel apaga a linha.
-4. **Remover as linhas importadas de uma empresa** (só se o usuário mandar; apaga a data da empresa): `delete from municipal_holidays where company_id = '<id>' and provider_entry_id is not null` e
-   o mesmo em `state_holidays`. Sem a etapa 2 ou 3, a rotina reinsere no ciclo seguinte. A linha digitada, a adotada (`provider_entry_id` nulo) e a gerada por regra não são tocadas.
-5. **O `rollback.sql` da migration recusa** enquanto houver feriado importado, supressão, empresa com a importação desligada ou execução aberta: o rollback da migration vem **depois** de
-   esvaziar essas três coisas, nunca no lugar delas.
-
-Datas passadas não mudam em nenhum dos passos (D7): apagar uma linha de data passada alteraria o selo de prazo de nota já entregue, e a supressão de data passada é recusada pela API.
-
-### Achados da T6.1 (para o usuário decidir; nada foi corrigido em código)
-
-1. **A manchete "Sem cota" do painel não aparece mais.** Ela nasce de `pairs.quotaExhausted > 0` (`holidayImportStatus.service.ts` 23), e a 2ª rodada da Fase 3 fez a cota esgotada **só encerrar o
-   ciclo**, sem marcar par `quota_exhausted`. O status só traz `monthlyRequests`, não o orçamento. Decisão: expor o orçamento no status para a tela derivar o "sem cota", ou tirar a manchete.
-   Registrado em `docs/ai-context/frontend-transportada.md`.
-2. **Ordem painel/API em produção:** resolvida no plano de três PRs acima.
-3. **`nfe_addresses` sem índice:** condição de promoção acima.
-4. **Textos de erro desatualizados, corrigidos aqui:** ADR-0100 §5, a linha de orçamento do `spec.md` e o bullet da T3.3 em `docs/ai-context/worker-transportada.md` ainda descreviam o desenho
-   da T0.1/T3.3.
-5. **Documentação que faltava, acrescentada aqui:** app do motorista (T5.1b e T5.4: `docs/ai-context/frontend-driver.md` e `apps/frontend-driver/CLAUDE.md`), `docs/spec/domain-model.md` e a nota do cron.
-   O `tasks.md` ainda dizia "publicação pendente da aprovação dos prints" na T5.4, que está publicada.
-6. **Lacunas herdadas e ainda abertas:** o painel de Operações mostra o nome cru `holiday.provider.pull` (T2.3, sem mecanismo de rótulo); a medida do teto de 200 removidos e da latência do status com
-   milhares de cidades (`L6` da T4, T5.2); o smoke Playwright do app do motorista (T5.4) não foi rodado.
-
-### O que falta para marcar a T6.1 `[x]`
-
-Esta task entregou a **documentação viva**. Ficam fora e continuam abertas: (a) a **revisão final `code-reviewer` `opus`** em passada separada (já rodou em paralelo; seus acréscimos de documentação
-estão acima), com a auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização), e os achados dela que virarem código; (b) a **revisão de design e usabilidade com o
-usuário** (web.md §15), tela real contra os prints aprovados, no painel (T5.2, T5.3) e no app do motorista (T5.4); (c) a decisão sobre os achados acima.
-
-## T6.1b — correções da revisão final (2026-10-09, branch `work/252-t6b` sobre `origin/staging`)
-
-Sete correções pequenas da revisão `opus` final, em `apps/api-transportada` e `apps/frontend-transportada`. Cada uma com teste vermelho antes (commit
-separado), mutação e commit isolado. Nada de worker, nada de migration, o cartão de status (manchetes/cota) intocado.
-
-| #   | Correção                                                                                                                                                                                                                       | Vermelho / código                                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| 2   | `holiday-import-status.query.ts` (202 linhas) perde a consulta dos removidos para `holiday-import-removed.query.ts`: 133 + 98 linhas; o contrato de isolamento do cache global ganha o arquivo novo e um teto de 200 linhas    | `b6c7a392a` / `598093779`                                   |
-| 1   | API: removidos e supressões só de `holiday_on >= hoje` (dia civil de São Paulo, relógio injetado), ordem ascendente, total e paginação da supressão contam só o que aparece. Painel: o removido de data passada sem "Desligar" | `a03f53ceb` / `c6a94b52a`; painel `51655793c` / `d74d178e7` |
-| 3   | `readHolidayWarnings` descarta o item fora de `[ano-1, ano+2]` antes de carregar a cobertura (`referenceYear` do chamador; o repositório recebe o relógio)                                                                     | `921b2b277` / `65fb7ffdb`                                   |
-| 4   | `readTripStopHolidayWarnings`: a falha da leitura vira "sem aviso" (`try/catch`), com log `trip_holiday_warning_unavailable` `{ code: 'read_failed', companyId, tripId, affectedStopCount }`, coalescido como os outros        | `eeead24b2` / `eac1453d0`                                   |
-| 5   | Painel: `persistence_failed` no vocabulário de falhas, texto pt-BR e en                                                                                                                                                        | `8e4845bda` / `cbd695fee`                                   |
-| 6   | Painel: `AbortSignal.timeout(5_000)` no `fetch` de `day-checks`                                                                                                                                                                | `720256adc` / `d9654bfd9`                                   |
-| 7   | Painel: o selo `TripStopHolidayBadge` com `tabIndex={0}`; a dica abre no foco                                                                                                                                                  | `11393a89d` / `a8d99c70e`                                   |
-
-**Item 1 — decisões.** `readStatus` e `list` das supressões ganham `today` (obrigatório nas duas portas); o caso de uso o deriva de `resolveToday({ now: now() })`, o mesmo
-de `disable`. `>=`, não `>`: o dia de hoje ainda se desliga (D7). Os removidos continuam em ordem ascendente por data, agora todos futuros, e o teto de 200 conta só o que
-aparece (teste com 201 passados + 1 futuro: `truncated: false`, 1 item). No painel, `canDisableHolidayOn` compara `AAAA-MM-DD` com `readCalendarToday` (fuso de São
-Paulo, não do navegador); o item passado segue listado e dito (a decisão de "manter" é editar na tabela), só o botão some. As datas do contrato do painel passaram a `2099-11-20`
-(futuro) e `2020-11-20` (passado): a tela compara com o relógio real e a lista não pode envelhecer em 20/11/2026.
-
-**Item 3 — decisão.** O exemplo do pedido (ETA em 2031 com uma normal em 2026) tem span 5 e a cobertura aceita span ≤ 5, então SOZINHO ele não era recusado; o que derrubava as
-cidades era um ano mais longe (2040). O teste cobre os dois: 2031 (descartado da janela, não vira aviso) e 2040 (antes: `COVERAGE_TOO_WIDE` para a cidade inteira). Fora da janela
-não há aviso nem recusa, e se todos os itens estão fora nada é carregado (+0). A janela mora em duas constantes do leitor (`1` antes, `2` depois). Os chamadores:
-o detalhe da viagem passa o ano do relógio dele; o repositório de aviso (usado pela montagem e pelo app do motorista) recebe `now` no construtor (`main.ts` passa o relógio do
-calendário; o padrão é `new Date()`).
-
-**Item 4 — limite conhecido.** O `catch` cobre o detalhe lido FORA de transação (`GET /trips/:id`). Dentro da transação de uma escrita (`close` etc.), um erro SQL aborta a
-transação e as consultas seguintes do detalhe falham do mesmo jeito que antes; o `catch` não piora esse caminho, mas também não o conserta.
-
-**Gates (cwd nas apps; Postgres NATIVO descartável na porta 65445, `DRIZZLE_TEST_DATABASE_URL`).**
-
-- API: `tsc` exit 0; `eslint … --max-warnings=0` exit 0; `bun --env-file=../../.env.test run test` **11170 pass / 1 skip / 0 fail** (208 arquivos, 11171 testes);
-  integrações, cada uma sozinha (`./test/integration/x.integration.ts`), **17 arquivos, 0 fail, 0 skip**: `holiday-import-status` 10, `holiday-import-suppressions` 11,
-  `holiday-import-municipal` 14, `holiday-import-state` 12, `holiday-origin` 5, `holiday-warning-reader` 4, `trip-detail-holiday-warnings` 10, `driver-current-trip-holiday-warnings` 10,
-  `driver-holiday-independence` 1, `driver-stop-holiday-context` 3, `driver-current-trip-query-count` 1, `trip-detail-query-count` 4, `trip-detail-delivery-deadline` 4,
-  `trip-detail-delivery-deadline-count` 3, `business-calendar-rules` 3, `business-calendar-tenant-safety` 2, `municipal-holiday-interplay` 6; `db:generate` `{"status":"no_changes"}`.
-- Painel: `tsc` exit 0; `eslint .` exit 0; `bun run test` **7799 + 1233 pass / 0 fail** (duas invocações do script); `test:hooks` **13 execuções, 13 verdes, 1233 pass / 0 fail em cada**
-  (10 normais + 3 sob carga de CPU, um `yes` por núcleo).
-- Raiz: `bun run format:check` exit 0 ("All matched files use Prettier code style!").
-
-**Mutações** (cada uma restaurada; arquivo de volta ao conteúdo do commit):
-
-| #         | Mutação                                             | Resultado                                          |
-| --------- | --------------------------------------------------- | -------------------------------------------------- |
-| M1        | removidos municipais sem o `gte(hoje)`              | 2 fail (integração do status)                      |
-| M2        | removidos estaduais sem o `gte(hoje)`               | 1 fail                                             |
-| M3        | supressões sem o `gte(hoje)`                        | 1 fail (integração das supressões)                 |
-| M4        | caso de uso das supressões com `today` fixo em 1970 | 1 fail (contrato dos casos de uso)                 |
-| M5        | leitor sem o filtro de janela                       | 4 fail (contrato do leitor)                        |
-| M6        | janela para trás de 0 ano                           | 1 fail                                             |
-| M7        | janela para frente de 3 anos                        | 1 fail                                             |
-| M8        | repositório do aviso com ano fixo 2000              | 4 fail (integração do leitor)                      |
-| M9        | detalhe da viagem relança a falha do aviso          | 3 fail (contrato) / 1 fail (integração do detalhe) |
-| M10       | falha engolida, mas sem log                         | 2 fail                                             |
-| M11       | log de falha sem coalescer                          | 1 fail                                             |
-| M13       | botão "Desligar" sempre aparece                     | 1 fail (DOM da lista de removidos)                 |
-| M14       | `>` no lugar de `>=` (hoje deixa de valer)          | 1 fail                                             |
-| M15       | "hoje" pelo fuso UTC                                | 1 fail                                             |
-| M16       | `persistence_failed` fora do vocabulário            | 1 fail                                             |
-| M17 / M18 | texto da falha ausente em en / em pt                | 2 fail cada                                        |
-| M19       | `fetch` de `day-checks` sem `signal`                | 1 fail                                             |
-| M20       | limite de 50 s em vez de 5 s                        | 1 fail                                             |
-| M21       | selo sem `tabIndex`                                 | 1 fail (DOM)                                       |
-| M22       | `tabIndex={-1}`                                     | 1 fail                                             |
-| M23       | dica sem a frase (`label` vazio)                    | 1 fail                                             |
-
-**O que NÃO foi feito.** Push; o cartão de status (manchetes/cota); worker; migration; `make check`, `make migration-test`, `make smoke` completos; o botão "Desligar" das
-linhas IMPORTADAS da tabela (`HolidayTableRow`) segue sem o corte por data passada (a API devolve 409 e o texto dele já é dito; fora do que foi pedido); o `try/catch` do item 4
-dentro de transação de escrita (acima).
-
-## Índice de nfe_addresses (2026-10-09)
-
-Decisão do usuário "fecha as decisões abertas": a junção `nfe_participants` ⋈ `nfe_addresses` por `(company_id, participant_id)` fazia `Seq Scan` (T3.2) e é lida pela descoberta do worker, por
-`listStopAddresses` (detalhe da viagem) e pela junção do aviso do motorista (`drizzle-driver-stop-holiday-context.repository.ts`, em `GET /me/trips/current`). A FK composta
-`nfe_addresses_company_participant_fk` **não cria índice** no lado filho. Migration aditiva **própria**, autorizada **só para staging**.
-
-Branch `work/252-nfe-addresses-index` (a partir de `origin/staging` = `5bfc520a8`), sem push. Pasta `drizzle/20261009160300_nfe_addresses_participant_index/`: `migration.sql`, `rollback.sql`, `snapshot.json`
-(encadeado no de `holiday_provider_import`, timestamp posterior ao último de `origin/staging` na hora). Schema Drizzle: `index('nfe_addresses_company_participant_idx').on(companyId, participantId)` em `nfe.schema.ts`.
-
-### Escolha: (a) `CREATE INDEX` comum, e por quê
-
-O migrador (`runDatabaseMigrations` → `migrate()` do `drizzle-orm/bun-sql`) aplica **todas as pendentes numa transação só**. Provado, não suposto: com `CONCURRENTLY` na migration, o migrador falha com
-`CREATE INDEX CONCURRENTLY cannot run inside a transaction block` (mutação M4 abaixo, 23 testes de banco vermelhos). Nenhuma migration do repositório usa `CONCURRENTLY` (as que o citam, em comentário,
-dizem o mesmo). Não inventei mecanismo fora de transação. Logo (a), com a análise de lock no cabeçalho do `migration.sql`:
-
-- `SHARE` em `nfe_addresses` até o COMMIT do lote: leitura segue; INSERT/UPDATE/DELETE esperam (a importação de NF-e, `upload` e `distribution`). Nenhuma escrita do motorista toca esta tabela.
-- `SET LOCAL lock_timeout = '3s'` em volta (aborta em vez de enfileirar tráfego), devolvido ao padrão no fim da pasta.
-- **`IF NOT EXISTS`** para o caminho de produção abaixo, mais um **guarda**: se o índice existir **INVÁLIDO** (resto de um `CONCURRENTLY` interrompido), a migration aborta com mensagem, porque
-  `IF NOT EXISTS` casa pelo nome e aceitaria o índice quebrado calado.
-- Medido: `count(*)` = **201.000** linhas (heap 28 MB), `CREATE INDEX` em transação **203 ms**, índice **9.784 kB**; `CONCURRENTLY` (sem escrita concorrente) 214 ms.
-
-### Produção (NÃO feito; exige aprovação própria do usuário)
-
-1. Medir `select count(*) from nfe_addresses` no banco certo (`Postgres-Hqfu`; o serviço "Postgres" é outro e dá número falso). A construção é linear: ~1 ms por mil linhas nesta máquina; a de produção
-   é mais lenta (disco de rede, escrita concorrente).
-2. **Antes do PR que traz a migration**, criar o índice à mão, em autocommit, fora do migrador (não bloqueia escrita):
-   `CREATE INDEX CONCURRENTLY IF NOT EXISTS nfe_addresses_company_participant_idx ON nfe_addresses (company_id, participant_id);` — mesmo nome, mesmas colunas, sem `WHERE` (o contrato de banco confere a definição).
-3. Conferir: `select indisvalid from pg_index where indexrelid = 'nfe_addresses_company_participant_idx'::regclass;` deve dar `t`. Se `f`: `DROP INDEX CONCURRENTLY nfe_addresses_company_participant_idx;` e refazer o 2.
-4. A migration então vira no-op (só grava o journal). Reverter: `rollback.sql` (`DROP INDEX IF EXISTS`; nenhum dado se perde).
-
-### Volume sintético e planos (Postgres 18.4 nativo, `EXPLAIN (ANALYZE, BUFFERS)`, segunda execução = cache quente)
-
-Banco descartável migrado pelo próprio migrador até `holiday_provider_import`; 3 empresas, **67.000 notas, 201.000 `nfe_participants` e 201.000 `nfe_addresses`** (150 mil / 45 mil / 6 mil por empresa),
-4.000 paradas e 8.000 `trip_documents` na empresa grande. Divergência do pedido ("20 mil participantes"): `nfe_participants` é **por nota** (`unique (company_id, document_id, role)`), então
-3 participantes por nota e 1 endereço por participante é a razão do schema; manter 10 endereços por participante não existe no modelo. `vacuum analyze` antes de cada medida.
-
-| Consulta                                                         | Antes                                                                                                 | Depois                                                                                                         |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Q3 `GET /me/trips/current` (junção do aviso, 40 paradas)         | `Seq Scan on nfe_addresses` (150.000 linhas, 51.000 removidas), 4.179 buffers, **25,3 ms** (1ª: 32,5) | `Nested Loop` + `Index Scan using nfe_addresses_company_participant_idx`, 1.173 buffers, **1,75 ms** (1ª: 6,8) |
-| Q2 `listStopAddresses` (detalhe da viagem, 80 notas, 160 linhas) | `Parallel Seq Scan on nfe_addresses`, 4.554 buffers, **15,6 ms** (1ª: 41,5)                           | `Nested Loop` + `Index Scan` pelo índice novo, 942 buffers, **0,41 ms** (1ª: 1,3)                              |
-| Q1 descoberta do worker, lote de **2.000 notas** (4.000 linhas)  | `Parallel Seq Scan on nfe_addresses`, 6.735 buffers, **36,7 ms** (1ª: 157,8)                          | **inalterada: ainda `Parallel Seq Scan`**, 6.735 buffers, 19,7 ms (1ª: 46,5; diferença é ruído de cache)       |
-| Q1 com lote de 200 notas (400 linhas)                            | —                                                                                                     | `Nested Loop` + `Index Scan` pelo índice novo, 0,95 ms                                                         |
-
-**Q1 não mudou no lote cheio, e é honesto dizer.** Com 2.000 notas o planejador estima 4.000 buscas por índice (custo 15.862) contra uma junção por hash sobre a varredura (custo 10.943) e escolhe a
-varredura. Forçando o índice (`enable_seqscan/hashjoin/mergejoin = off`) o lote cheio roda em 9,8 ms quentes (255 ms na primeira, com 1.854 leituras) — o índice não piora nada e entra sozinho abaixo de
-algumas centenas de notas, mas **o lote de 2.000 do worker continua varrendo a empresa**. O teto de 20 lotes por empresa por ciclo diário limita o custo (≈ 0,4–0,7 s por empresa por dia nesta escala).
-Reduzir o lote para a faixa do índice, ou ajustar `random_page_cost` (padrão 4,0, pensado para disco giratório), são decisões separadas e **não foram tomadas**. O ganho é nas duas leituras que
-rodam com tráfego: o aviso do motorista (**25,3 → 1,75 ms**, 3,6x menos buffers) e o detalhe da viagem (**15,6 → 0,41 ms**). Resto no plano de Q3 fora desta task: `Seq Scan on trip_documents` (8.000 linhas,
-138 buffers) — não investigado, tabela pequena na amostra.
-
-### Gates (Postgres nativo 65447, descartável)
-
-| Gate                                                                                                                                                                                                                                                                                                                                                                                                                                              | Resultado                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `bun run typecheck` / `bun run lint` (cwd na app)                                                                                                                                                                                                                                                                                                                                                                                                 | exit 0 / exit 0 (`--max-warnings=0`)                               |
-| `bun --env-file=../../.env.test run test` (contratos da API)                                                                                                                                                                                                                                                                                                                                                                                      | **11.150 pass, 25 skip, 0 fail**                                   |
-| `bun run db:test` (`DRIZZLE_TEST_DATABASE_URL` no nativo)                                                                                                                                                                                                                                                                                                                                                                                         | **183 pass, 0 fail, 0 skip** — a asserção de banco do índice rodou |
-| `bun run db:generate`                                                                                                                                                                                                                                                                                                                                                                                                                             | `no_changes`; `db:check` "Everything's fine"                       |
-| Integrações da API, uma por vez, sem pular: `driver-stop-holiday-context` 3 · `driver-current-trip-holiday-warnings` 10 · `driver-holiday-independence` 1 · `holiday-warning-reader` 4 · `trip-detail-holiday-warnings` 10 · `trip-detail-query-count` 4 · `trip-occurrence-feed-document` 6 · `me-trip` 21 · `me-trip-departure` 12 · `holiday-import-municipal` 14 · `business-calendar-state-and-settings` 6 · `municipal-holiday-interplay` 6 | todas exit 0, 0 fail                                               |
-| Integração do worker `holiday-discovery` (`DATABASE_URL` num banco migrado)                                                                                                                                                                                                                                                                                                                                                                       | 6 pass, 0 fail                                                     |
-
-Contratos novos (vermelhos antes, commit `6720448de`): `nfe-addresses-participant-index.static.contract.ts` (nome ≤ 63 bytes, um só `CREATE INDEX IF NOT EXISTS` sem `CONCURRENTLY`, guarda de índice inválido,
-`lock_timeout` em volta, rollback só `DROP INDEX IF EXISTS` + journal com `ROW_COUNT`, schema TS declara o mesmo índice) e `nfe-addresses-participant-index.assertion.ts` (definição em `pg_indexes`, plano com as
-**duas** colunas no `Index Cond`, migration repetida sem erro, índice inválido recusado, rollback tira só ele e a migration reaplica; ligada em `database-migration.integration.ts`).
-
-### Mutações (cada uma em cópia do arquivo, restaurada por `cmp`; rodam o contrato estático e o `db:test`)
-
-| Mutação                                                   | Resultado                                                                                  |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| M1 índice só com `("company_id")`                         | estático 1 fail; `db:test` 2 fail                                                          |
-| M2 nome com 84 bytes (acima dos 63 do Postgres)           | estático 1 fail; `db:test` 2 fail                                                          |
-| M3 sem `IF NOT EXISTS`                                    | estático 1 fail; `db:test` 2 fail                                                          |
-| M4 `CREATE INDEX CONCURRENTLY`                            | estático 1 fail; `db:test` **23 fail** (o migrador recusa dentro da transação)             |
-| M5 guarda de índice inválido neutralizado                 | estático 1 fail; `db:test` 2 fail                                                          |
-| M6 `DROP INDEX` sem `IF EXISTS` no rollback               | estático 1 fail; `db:test` 2 fail                                                          |
-| M7 índice removido do schema TS                           | 2 fail (estático + `schema-snapshot`, snapshot vs. schema); igual no `db:test`             |
-| M8 guarda `ROW_COUNT` do journal neutralizada no rollback | estático 1 fail; `db:test` 1 fail — **só o estático pega** (o banco nunca erra a contagem) |
-
-### O que NÃO foi feito
-
-Push; produção (nenhum passo acima foi executado nela); índice `CONCURRENTLY` à mão em staging (a migration comum bastou: tabela pequena e o migrador roda no deploy); mudança do tamanho do lote da descoberta
-ou de `random_page_cost`; investigação do `Seq Scan on trip_documents` do Q3; `make migration-test` pelo alvo do Makefile (rodei o corpo, `bun run db:test`, no Postgres nativo); `make check` completo.
+**O que NÃO foi feito:** push/publicação; revisão de design com o usuário (T6.1); smoke Playwright; documentação viva do app
+(`docs/ai-context/frontend-driver.md`, CLAUDE.md da app), fica para a T6.1.
