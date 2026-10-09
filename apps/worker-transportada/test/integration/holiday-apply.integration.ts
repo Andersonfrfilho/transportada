@@ -254,7 +254,7 @@ describeDatabase('a aplicação dos feriados importados (integration, spec 252 T
   test('facultativo e nacional ficam só no cache, e a cidade de outra empresa não vaza (CA10)', async () => {
     const companyId = await newCompany([SAO_PAULO_CITY])
     await newEntry({
-      date: '2050-02-20',
+      date: '2050-12-20',
       ibgeCode: SAO_PAULO_CITY,
       scope: 'city',
       type: 'FACULTATIVO',
