@@ -2,7 +2,10 @@
 
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
 > rotina** (configurar `FERIADOS_API_TOKEN` e despausar a rotina, que nasce pausada de fábrica — D13), que é passo do
-> usuário. Migration **só staging** (Q2). **Fase 0 e Fase 1 fechadas** (2026-10-07); **T2.1, T2.2 e T2.3 feitas** (2026-10-09; a revisão `opus` da T2.2 segue pendente, em passada separada). **T3.1 a T3.5 feitas** (2026-10-09, branch `work/252-t3`, sem push; a rotina nasce inerte sem token).
+> usuário. Migration **só staging** (Q2). **Fases 0 a 5 feitas e publicadas em staging** (2026-10-07 e 2026-10-09; SHAs e deploys
+> no quadro de `evidence.md` § "T6.1 — fechamento"); a rotina nasce inerte sem token e pausada. **Produção ainda não leva a 252**
+> (só o roteirizador por cidade e os clientes tolerantes, PR #154). **T6.1: a documentação viva está feita** (2026-10-09, branch
+> `work/252-t6`); **faltam a revisão final `opus` e a revisão de design com o usuário.**
 
 Uma task por vez, na ordem. Cada task fecha com: **contrato vermelho antes** (pelo motivo certo), `bun run typecheck`,
 lint com a app como cwd, teste pelo **script `test` do `package.json`** (nunca `bun test` cru; na API contrato e
@@ -218,9 +221,11 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       mensagem própria; `removedByProvider` é `{ items, truncated }` (com `truncated`, a tela avisa que há mais) e
       `GET /holiday-imports/suppressions` é paginada como `/cities` (`page`/`perPage ≤ 100`).
       **Feita em 2026-10-09 (código e prints; prints aprovados pelo usuário em 2026-10-09 e publicados):** `evidence.md` § T5.2 e T5.3.
-      **Origem e ordem de publicação:** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e `/state-holidays`
-      trazem `origin: 'typed' | 'imported'` (branch `work/252-origin`; `evidence.md` § "origin nas listas"). O painel publicado
-      tem guardas de chaves exatas e recusaria a chave: **painel (com `origin` opcional) primeiro, API depois**.
+      **Origem e ordem de publicação (cumprida):** as listas e as respostas de `POST`/`PATCH` de `/municipal-holidays` e
+      `/state-holidays` trazem `origin: 'typed' | 'imported'` (`evidence.md` § "origin nas listas"). O painel publicado tinha
+      guardas de chaves exatas e recusaria a chave, então o **painel (com `origin` opcional) entrou em staging antes da API**:
+      painel `9d8e285d9` (Deploy verde 2026-10-09 12:19Z), API `c315477a3` (12:37Z). **Em produção a ordem volta a valer** (o
+      `deploy-frontend` tem `needs: deploy-api`: um PR único sobe a API antes do painel).
 - [x] **T5.3** Avisos por parada na montagem (uma chamada a `day-checks` quando o solver termina, no lugar do aviso
       só nacional) e selo nas paradas do detalhe; texto neutro, nunca desabilita "Criar viagem". **Prints**
       375/768/1280, claro e escuro, aprovados pelo usuário. (CA14)
@@ -233,8 +238,8 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       bloqueia** iniciar trajeto, chegar, entregar ou registrar ocorrência; contraste nos dois temas; alvo ≥ 44 px se
       houver toque; locale pt-BR/en no padrão do app. **Offline:** o aviso vem do snapshot guardado; sem rede mostra
       o último conhecido e não inventa. **Prints** 375/768/1280, claro e escuro, aprovados pelo usuário antes de
-      publicar. (CA15, CA17) **Feita no código em 2026-10-09** (branch `work/252-t5-4`); **publicação pendente da
-      aprovação dos prints pelo usuário**. `evidence.md` § T5.4.
+      publicar. (CA15, CA17) **Feita em 2026-10-09 e publicada em staging** (`d6e6d2036` código, `98eb33641` relógio, `435b03926`
+      evidência; Deploy verde 2026-10-09 11:32Z); prints aprovados pelo usuário em 2026-10-09 (`dff0b432d`). `evidence.md` § T5.4.
 
 ## Fase 6 — Fechamento
 
@@ -242,18 +247,27 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
 
 - [ ] **T6.1** Revisão de design e usabilidade (web.md §15) comparando a tela real com os prints aprovados,
       no painel e no app do motorista (T5.4); documentação viva (`plan.md` § Documentação viva), `feriadosapi.com` como
-      destino de saída numa atualização da entrada da 252 em `docs/SECURITY.md` (61–83; não há lista de destinos à
-      parte); revisão final com `code-reviewer` `opus` em passada separada; auditoria do §15 do
+      destino de saída numa atualização da entrada da 252 em `docs/SECURITY.md` (61–148 depois da atualização; não há
+      lista de destinos à parte); revisão final com `code-reviewer` `opus` em passada separada; auditoria do §15 do
       `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização).
+      **Feito em 2026-10-09 (executor `sonnet`, só documentação, branch `work/252-t6`, sem push):** `docs/SECURITY.md`
+      (destino de saída, estado publicado, códigos de falha do par, pontos aceitos e riscos abertos), `plan.md` § "Conferência da
+      T6.1", docs que faltavam (`domain-model.md`, `frontend-driver.md` e o `CLAUDE.md` do app do motorista, `cron-transportada.md`),
+      ADR-0100 §4/§5/§6, e o quadro único da spec em `evidence.md` § "T6.1 — fechamento". **Falta para marcar `[x]`:**
+      (a) a revisão final `code-reviewer` `opus` + auditoria do §15; (b) a revisão de design e usabilidade com o usuário,
+      tela real contra os prints aprovados, no painel e no app do motorista; (c) decidir os achados abertos listados em
+      `evidence.md` § "T6.1 — fechamento" (manchete "Sem cota" inalcançável, ordem painel/API em produção).
 
 ## Publicação
 
-T1.2 sai sozinha (**feito**, `4454228ac`) → T2.2 com T2.3 (painel antes) → **painel tolerante (T5.1) e app do
-motorista tolerante (T5.1b)** → API (Fase 4) → worker (Fase 3), **inerte sem token** e com a rotina pausada de fábrica →
-o usuário confirma termos e plano (Q3, Q4), configura o token em staging e despausa a rotina → acompanhar o 1º ciclo e
-registrar em `evidence.md` →
-telas depois dos prints aprovados → produção por PR `staging → main` com aprovação humana (a migration com aprovação
-própria).
+**Estado real (2026-10-09):** T1.2 saiu sozinha (`4454228ac`, staging em 2026-10-07 e em produção pelo PR #154) → painel
+tolerante (T5.1) e app do motorista tolerante (T5.1b) (staging em 2026-10-07; produção pelo PR #154) → migration com o catálogo
+(T2.2 e T2.3, staging em 2026-10-09 04:53Z) → API da gestão e dos avisos (T4.1, T4.2) e worker inerte (Fase 3) → API do
+motorista (T4.3) → app do motorista (T5.4) → painel (T5.2, T5.3) → API com `origin` (**depois** do painel). Tudo em staging, com
+Deploy verde (quadro em `evidence.md` § "T6.1 — fechamento"). **Faltam, nesta ordem:** o usuário confirma termos e plano (Q3, Q4),
+configura o token em staging e despausa a rotina → acompanhar o 1º ciclo e registrar em `evidence.md` → revisão final
+`opus` e revisão de design → produção por PR `staging → main` com aprovação humana (a migration com aprovação própria, e o painel
+antes da API por causa do `origin`).
 
 ### Roteiro do 1º ciclo real (passo do usuário, depois de Q3 e Q4)
 
@@ -270,28 +284,22 @@ staging, só por leitura:
 
 ## Prompt de execução
 
+Fases 0 a 5 estão feitas e em staging, e a documentação da T6.1 também (branch `work/252-t6`, ainda sem push). O que resta é a
+revisão final, a revisão de design com o usuário e, depois dos passos do usuário (Q3, Q4, token, despausar), a promoção. **A spec
+tem `[NEEDS CLARIFICATION]` aberto (Q3, Q4): isso não bloqueia a revisão, bloqueia ligar a rotina.**
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/252-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem/
-(leia spec.md, plan.md, tasks.md, evidence.md § T0.1/T0.2 e docs/adr/0100-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem.md
-antes de começar). Fase 0 e Fase 1 já fechadas (ADR-0100 aceita; roteirizador por cidade em staging, 4454228ac):
-comece na T2.1. Uma task por vez, na ordem do tasks.md, em worktree/branch próprios a partir de origin/staging (git
-fetch antes; confira que 252 e o ADR 0100 seguem sendo desta spec e qual é a última migration em staging).
-Modelos: Fase 2 → T2.1 executor model=sonnet,
-T2.2 🧠 executor model=sonnet com revisão code-reviewer model=opus em passada separada, T2.3 executor model=haiku ·
-Fase 3 → T3.1–T3.4 executor model=sonnet, T3.5 executor model=haiku · Fase 4 (T4.1–T4.3) → executor model=sonnet ·
-Fase 5 → T5.1 e T5.1b executor model=haiku, T5.2, T5.3 e T5.4 executor model=sonnet · T6.1 → executor model=sonnet e
-revisão final code-reviewer model=opus.
-Ordem de publicação: migration com catálogo (painel antes; nomes explícitos do ADR-0100 §3; rotina pausada de
-fábrica) → painel tolerante (T5.1) e app do motorista tolerante (T5.1b) → API (Fase 4) → worker inerte sem token →
-telas (T5.2, T5.3, T5.4) só com prints aprovados.
-App do motorista é app separada (ADR-0075): nada importado do painel; a nota do motorista não muda com feriado.
+/oh-my-claudecode:autopilot Feche a T6.1 da spec specs/252-os-feriados-vem-da-feriadosapi-e-avisam-na-montagem/ (leia spec.md,
+plan.md, tasks.md e evidence.md § "T6.1 — fechamento" antes de começar; a documentação viva já está feita). Em worktree/branch
+próprios a partir de origin/staging (fetch antes; confira que a branch work/252-t6 foi publicada).
+Modelos: revisão final → code-reviewer model=opus, em passada separada, sobre o código das Fases 2 a 5 (migration, rotina, rotas,
+avisos, telas), com a auditoria do §15 do code-standart.md (N+1, Promise.all, logs sem PII, sanitização); achados viram tasks
+em fase barata (executor model=sonnet) e fecham com contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do
+package.json, mutação, format:check na raiz e commit isolado com caminhos explícitos (--no-verify, nunca git add -A).
+Decida ou pergunte os achados abertos de evidence.md § "T6.1 — fechamento" (manchete "Sem cota" inalcançável; ordem painel/API
+em produção; índice de nfe_addresses).
+A revisão de design e usabilidade (web.md §15, tela real contra os prints aprovados, painel e app do motorista) é com o usuário.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com: contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do package.json (API:
-contrato e integração são dois comandos, com --env-file=../../.env.test), integração contra Postgres que responda,
-mutação, format:check na raiz, commit isolado com caminhos explícitos (--no-verify, nunca git add -A), evidência em
-evidence.md. Migration: make migration-test e db:generate = no_changes.
-A rotina só grava em municipal_holidays depois de a T1.2 estar publicada em staging.
-Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), migration destrutiva, configurar
-ou pedir FERIADOS_API_TOKEN ou despausar a rotina (Q3 e Q4 são [NEEDS CLARIFICATION]; token e despausa são passos do
-usuário), mudar o contrato do solver, e qualquer tela publicada sem print aprovado.
+Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), configurar ou pedir FERIADOS_API_TOKEN,
+despausar a rotina holiday.provider.pull, mudar o contrato do solver e qualquer tela publicada sem print aprovado.
 ```

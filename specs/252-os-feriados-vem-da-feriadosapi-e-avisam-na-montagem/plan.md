@@ -62,8 +62,9 @@
 - **Cache global de terceiro:** `geocoded_addresses` (`database/geocoding.schema.ts` 25–30), sem `company_id`.
 - **Descoberta:** cursor sobre `nfe_documents_company_updated_issued_id_idx` (`database/nfe.schema.ts` 304–309; todas as
   colunas `DESC`); `nfe_addresses` **sem índice** por `(company_id, participant_id)` (416–429).
-- **Destinos de saída:** `docs/SECURITY.md` 1768–1806 (a entrada do CEP e a atualização da 186, com o Google e os
-  termos dele aceitos como risco); a entrada da 252 em 61–83. Não há uma lista de destinos à parte.
+- **Destinos de saída:** `docs/SECURITY.md`, entrada "2026-08-21 — a rota de CEP chama provedor externo…" e a atualização
+  da 186 (o Google e os termos dele aceitos como risco); a entrada da 252 é a "2026-10-07 — spec 252 …" (linhas 61–148
+  depois da T6.1, que a atualizou com `feriadosapi.com`). Não há uma lista de destinos à parte.
 - **App do motorista** (`apps/frontend-driver`, ADR-0075): lê `GET /me/trips/current`
   (`api-transportada/src/trips/presentation/me-trip.routes.ts`, `application/find-current-driver-trip.use-case.ts`,
   `infrastructure/drizzle-current-driver-trip.repository.ts`), recortada pelo vínculo do motorista. A guarda da
@@ -217,3 +218,21 @@ texto curto de campo, "hoje" só quando a data do aviso é o dia civil de São P
 `docs/spec/domain-model.md`, `docs/ai-context/api-transportada.md`, `docs/ai-context/worker-transportada.md`,
 `docs/ai-context/frontend-transportada.md`, `docs/ai-context/frontend-driver.md`, `CLAUDE.md` das apps tocadas, `docs/SECURITY.md` (destino de saída
 `feriadosapi.com`), `.env.example`, `.railway/railway.ts`.
+
+### Conferência da T6.1 (2026-10-09, contra `origin/staging`)
+
+| Item                                       | Estado                                                                                                                                                                                                                           |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/spec/domain-model.md`                | **Faltava** (0 menções): agregados do cache global e da importação por empresa e as constraints mínimas, acrescentados na T6.1                                                                                                   |
+| `docs/ai-context/api-transportada.md`      | Em dia (T4.1, `origin`, T4.2, T4.3); a regra de ordem do `origin` foi atualizada para "cumprida em staging, volta em produção"                                                                                                   |
+| `docs/ai-context/worker-transportada.md`   | Em dia (T3.1 a T3.5 e 2ª rodada, roteiro do 1º ciclo); T3.3 tinha `quota_exhausted` e 401/403 do texto antigo, corrigidos para o que a 2ª rodada fez; `provider_plan_restricted` entrou na lista de códigos                      |
+| `docs/ai-context/frontend-transportada.md` | Em dia (T5.2/T5.3); "a API ainda não manda `origin`" virou "manda desde 2026-10-09"; acrescentada a lacuna da manchete "Sem cota" (a rotina não grava mais `quota_exhausted`)                                                    |
+| `docs/ai-context/frontend-driver.md`       | **Faltava** (0 menções): § "Spec 252" com T5.1b e T5.4, acrescentada                                                                                                                                                             |
+| `docs/ai-context/cron-transportada.md`     | Nota nova: o catálogo espelhado reconhece `holiday.provider.pull`, quem a executa é o worker (molde do `rate-limit.window.purge`)                                                                                                |
+| `CLAUDE.md` da API / do worker / do painel | Em dia; na API e no painel, "a API ainda não manda `origin`" e a regra de ordem foram atualizadas                                                                                                                                |
+| `apps/frontend-driver/CLAUDE.md`           | **Faltava** (0 menções): seção "O feriado na cidade da parada", acrescentada                                                                                                                                                     |
+| `docs/SECURITY.md`                         | Entrada da 252 reescrita: destino de saída, o que sai, o que está publicado, códigos de falha do par, pontos aceitos e riscos abertos                                                                                            |
+| `.env.example`                             | Em dia: `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` sem valor, com o aviso de `VITE_` e o padrão 4500                                                                                                           |
+| `.railway/railway.ts`                      | Em dia: as duas variáveis só no serviço do worker, `preserve()`. `docs/spec/railway.md` não cita a 252 e não precisa                                                                                                             |
+| ADR-0100 §4 / §5 / §6                      | §4.6 e a ordem do §6 marcadas "cumpridas em staging"; o texto de erros do §5 era o da T0.1 e foi corrigido pela 2ª rodada da Fase 3 (402/403 por par, cota só encerra o ciclo, 404 de contrato, disjuntor, `persistence_failed`) |
+| `spec.md` (RF de erros)                    | Uma linha corrigida: orçamento esgotado não marca mais os pares `quota_exhausted`                                                                                                                                                |
