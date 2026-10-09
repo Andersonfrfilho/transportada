@@ -908,3 +908,58 @@ Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (por
 ### O que não foi feito
 
 Aplicação (T3.4), variáveis de ambiente, rotina e registro no `main.ts` (T3.5): a busca **ainda não tem quem a chame** em produção. Nada publicado.
+
+## T3.4 — aplicação dos feriados importados (2026-10-09)
+
+Mesmo worktree e branch (`work/252-t3`), mesmo Postgres nativo descartável (porta 65442).
+
+**Fase 1 conferida no início (ADR-0100 §1):** `4454228ac` (correção do roteirizador por cidade) e `913aad994` (teste vermelho) são ancestrais de `origin/staging` e do `HEAD` desta branch (`git merge-base --is-ancestor`, exit 0 nos três); `test/route-optimization-municipal-holiday.integration.test.ts` rodou contra o banco já com a migration da 252: **15 pass, 0 fail**. Além disso a aplicação ganhou um contrato que não deixa a regra mudar calado: o feriado da cidade B não fecha o cliente da cidade A, e o mesmo CNPJ com paradas nas duas cidades fecha só a de B (`resolveStopWindows`).
+
+- **Vermelho antes (`938a4357e`):** `0 pass, 1 fail, 1 error` (`Cannot find module .../apply-holiday-provider.use-case.js`).
+- **Verde (`9b1450794`):** `application/{apply-holiday-provider.use-case,holiday-apply.port}.ts`, `domain/{national-holiday,national-holiday-parity}.policy.ts`, `infrastructure/{drizzle-holiday-apply.store,holiday-apply.query,business-calendar-lock.support}.ts`. Nenhum schema novo: o `INSERT … SELECT` por conjunto é SQL cru (as tabelas `municipal_holidays` e `state_holidays` já têm a cópia mínima do roteirizador, que não foi tocada).
+- **Gates (cwd `apps/worker-transportada`):** `bunx tsc --noEmit` exit 0; `bunx eslint src test --max-warnings=0` exit 0; `bun run test` **2262 pass, 0 fail** (103 arquivos; antes 2253). Integração `test/integration/holiday-apply.integration.ts`: **11 pass, 0 skip**, relançada duas vezes no mesmo banco (anos 2050 a 2060).
+
+### O que cada critério provou
+
+- **CA4** — a data digitada mantém o nome e a importada do mesmo dia não é gravada; a **gerada por regra** (`source_rule_id` preenchido) também vence; `ON CONFLICT (company_id, city_ibge_code, holiday_on) DO NOTHING`. Repetir o ciclo dá 0 linhas inseridas e 0 escritas (`xmin` das linhas da empresa idêntico).
+- **CA5 (lado da rotina)** — a supressão do operador impede a volta; apagar a supressão faz o feriado voltar no ciclo seguinte; a supressão é da empresa (a outra empresa com a mesma cidade recebe a data). O estadual tem a mesma supressão, com `scope = state`.
+- **CA6** — a entrada que o fornecedor removeu (`removed_at`) não entra; a linha da empresa já importada **fica**.
+- **CA10** — `FACULTATIVO` e `NACIONAL` não são aplicados. A divergência nacional é **contada** (`national_mismatch`, diferença simétrica entre o `NACIONAL` do cache e o calendário do código) e nunca gravada; só entram anos com a busca nacional `done`.
+- **CA11 / D7** — só datas de hoje em diante, em dia civil de São Paulo do relógio injetado: ontem não entra, hoje entra (`>=`). A contagem de hoje foi provada com um instante que é dia seguinte em UTC e o mesmo dia em São Paulo.
+- **D6** — o estadual vira `state_holidays` `once` marcado (`provider_entry_id`) só para as UFs das cidades da empresa; um `once` digitado na mesma data vence (`ON CONFLICT … WHERE recurrence = 'once' DO NOTHING`, o predicado do único parcial) e um `yearly` digitado no mesmo dia e mês também (`NOT EXISTS`).
+- **Empresa com a importação desligada** não recebe nada; a outra recebe.
+- **Trava de calendário por empresa (a mesma da 238):** a aplicação toma `pg_advisory_xact_lock` com o identificador que a API deriva (`SHA-256(["business-calendar", companyId])`, 8 primeiros bytes, big-endian com sinal) antes de escrever. Cópia por valor com contrato linha a linha; e uma integração prende a aplicação atrás de uma transação que segura a trava (`blocked`) e a vê terminar depois que ela solta. Sem a trava, um "desligar" do operador que comita entre a leitura da supressão e o `INSERT` da rotina deixaria a data voltar.
+- **Paridade do calendário nacional** — `domain/national-holiday.policy.ts` é cópia por valor só das **datas** (9 fixos, Carnaval em dois dias, Sexta-feira Santa e Corpus Christi; Páscoa de Meeus), comparada com `listNationalHolidays` da API **ano a ano de 2000 a 2100** por import dinâmico no teste.
+
+### Mutações (cada uma em cópia do arquivo, restaurada; `git diff --quiet` = exit 0 na 1ª rodada)
+
+| Mutação                                        | Resultado                                                                                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| municipal sobrescreve a digitada (`DO UPDATE`) | 1 fail                                                                                                                                              |
+| municipal ignora a supressão                   | 1 fail                                                                                                                                              |
+| municipal aceita datas passadas                | 1 fail                                                                                                                                              |
+| municipal só depois de hoje (`>`)              | 1 fail                                                                                                                                              |
+| facultativo vira municipal                     | **sobreviveu** na 1ª rodada (a data do facultativo do teste era anterior a hoje e caía na regra de D7 antes); data corrigida para o futuro → 1 fail |
+| municipal ignora a remoção do fornecedor       | 1 fail                                                                                                                                              |
+| estadual ignora o anual digitado               | 1 fail                                                                                                                                              |
+| estadual de todas as UFs                       | 1 fail                                                                                                                                              |
+| estadual ignora a supressão                    | 1 fail                                                                                                                                              |
+| estadual sobrescreve o `once` digitado         | 1 fail                                                                                                                                              |
+| sem a trava de calendário                      | 1 fail                                                                                                                                              |
+| trava derivada de outro texto                  | 1 fail (paridade com a API)                                                                                                                         |
+| paridade ignora a data a mais do fornecedor    | 1 fail                                                                                                                                              |
+| "hoje" pelo dia UTC                            | 1 fail                                                                                                                                              |
+| falha de uma empresa derruba a aplicação       | 1 fail                                                                                                                                              |
+| paridade lê ano sem busca concluída            | 1 fail                                                                                                                                              |
+| empresa com a importação desligada entra       | 1 fail                                                                                                                                              |
+| nome do estadual trocado                       | 1 fail                                                                                                                                              |
+
+### Decisões de implementação dentro do ADR
+
+- A aplicação roda **por empresa, em transação própria**, e não num único `INSERT` global: é isso que permite a trava de calendário por empresa. Dentro da empresa o SQL é por conjunto (um `INSERT … SELECT` para o municipal, outro para o estadual).
+- A lista de empresas da aplicação é a das que têm demanda (`holiday_import_cities`), ativas e com a importação ligada; `applyCompany` em si não relê `is_enabled`.
+- O municipal importado entra com `kind = 'holiday'` (o padrão da coluna); o rótulo `city_anniversary` é só das regras da 238.
+
+### O que não foi feito
+
+Rotina que une as três etapas, variáveis de ambiente, registro condicional no `main.ts` e `.env.example`/`.railway/railway.ts` (T3.5): a aplicação **ainda não tem quem a chame**. Nenhuma rota de gestão (T4.1). Nada publicado.
