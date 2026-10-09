@@ -28,6 +28,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { tripCostEntries } from '../../src/database/trip-financial.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../src/database/trip.schema.js'
+import { readTripListFinancials } from '../../src/trips/application/read-trip-list-financials.use-case.js'
 import { createTripUseCase } from '../../src/trips/application/trip.use-case.js'
 import { readTripRevenueTotals } from '../../src/trips/application/read-trip-revenue-totals.use-case.js'
 import {
@@ -101,9 +102,37 @@ type SeededTrips = {
   readonly incapableTripId: string
 }
 
-describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2)', () => {
+describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2/T2.2/T2.3)', () => {
   testWithPostgres(
-    'ocupação, peso, custo e margem da lista são os do detalhe, viagem a viagem',
+    'custo e margem da lista são os do detalhe, viagem a viagem',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const seeded = await seedTrips(database, world)
+        const tripIds = [seeded.capableTripId, seeded.incapableTripId, seeded.crewlessTripId]
+
+        const items = await listAsOfficeWithFinancials(database, world)
+
+        expect(items.map((item) => item.id).sort()).toEqual([...tripIds].sort())
+        for (const tripId of tripIds) {
+          const item = fieldsOf(items.find((candidate) => candidate.id === tripId))
+          const valuation = await valuate(database, world.companyId, tripId)
+
+          expect(fieldsOf(item.amounts)).toMatchObject({
+            costTotal: valuation.totalCost,
+            hasGaps: valuation.hasGaps,
+            marginPercentage: valuation.marginPercentage,
+            marginTotal: valuation.totalMargin,
+            revenueTotal: valuation.totalRevenue,
+          })
+        }
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'ocupação e peso da lista são os do detalhe, viagem a viagem',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedWorld(database)
@@ -113,11 +142,9 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2)', () => {
         const items = await listAsOfficeWithFinancials(database, world)
         const repository = new DrizzleTripRepository(database.db)
 
-        expect(items.map((item) => item.id).sort()).toEqual([...tripIds].sort())
         for (const tripId of tripIds) {
           const item = fieldsOf(items.find((candidate) => candidate.id === tripId))
           const detail = await repository.findById({ companyId: world.companyId, tripId })
-          const valuation = await valuate(database, world.companyId, tripId)
 
           expect(item.occupancy).toEqual(
             detail?.vehicleId === null
@@ -142,12 +169,6 @@ describe('a linha da lista diz o mesmo que o detalhe (spec 259, T1.2)', () => {
                         },
                 },
           )
-          expect(fieldsOf(item.amounts)).toMatchObject({
-            costTotal: valuation.totalCost,
-            hasGaps: valuation.hasGaps,
-            marginPercentage: valuation.marginPercentage,
-            marginTotal: valuation.totalMargin,
-          })
         }
       })
     },
@@ -317,17 +338,28 @@ async function listAsOfficeWithFinancials(database: TestDatabase, world: World) 
           },
         }),
     },
+    financials: {
+      read: (input) =>
+        readTripListFinancials({
+          ...input,
+          repository: {
+            findApplicableRule: () => Promise.resolve(TEN_PERCENT_RULE),
+            readValuationContexts: (query) =>
+              new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readValuationContexts(
+                query,
+              ),
+          },
+        }),
+    },
     locations: { purgeByTrip: () => Promise.resolve() },
     repository: new DrizzleTripRepository(database.db),
   })
-  // Variável, não literal: o campo `includeFinancials` entra no tipo na T2.2.
-  const input = {
+  const page = await useCase.list({
     context: { companyId: world.companyId, userId: world.userId },
     cursor: null,
     includeFinancials: true,
     limit: 20,
-  }
-  const page = await useCase.list(input)
+  })
 
   return page.items
 }

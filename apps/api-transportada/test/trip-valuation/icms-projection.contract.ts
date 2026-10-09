@@ -219,7 +219,7 @@ describe('ICMS projected by the emission profile (spec 125)', () => {
     })
   })
 
-  test('the three surfaces load the profiles and resolve each note', () => {
+  test('the four surfaces load the profiles and resolve each note', () => {
     const query = readFileSync(
       new URL('../../src/trips/infrastructure/trip-valuation.query.ts', import.meta.url),
       'utf8',
@@ -229,7 +229,8 @@ describe('ICMS projected by the emission profile (spec 125)', () => {
       'utf8',
     )
 
-    expect(query.match(/emissionProfiles:/g)?.length).toBe(2)
+    /** Viagem, prévia e — spec 259 — a viagem em lote da listagem. */
+    expect(query.match(/emissionProfiles:/g)?.length).toBe(3)
     expect(query).toContain('recipientTaxId: recipientParticipant.taxId')
     expect(useCase).toContain('resolveDocumentIcms(')
   })

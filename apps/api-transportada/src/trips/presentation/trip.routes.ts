@@ -819,13 +819,18 @@ export function createTripRoutes(
   return [
     defineRoute<Omit<ListTripsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
-        const page = await dependencies.listTrips.execute({ context: context.scope, ...input })
+        const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
+        const page = await dependencies.listTrips.execute({
+          context: context.scope,
+          ...input,
+          includeFinancials: canReadFinancials,
+        })
         /**
          * Spec 156 L6: sem `trip.financials`, `amounts` sai do objeto **inteiro** — a listagem é a
          * primeira leitura de viagem que qualquer papel com `fleet.read` enxerga, e um `amounts`
          * parcial (só `revenueSource`, por exemplo) ainda revela que a viagem tem receita calculada.
+         * Spec 259: e sem `trip.financials` o custo nem chega a ser calculado (`includeFinancials`).
          */
-        const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
         const data = page.items.map((trip) =>
           redactMoneyFields({
             canReadFinancials,
@@ -2266,7 +2271,7 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
  * `revenueSource` visível a quem não devia nem saber que a viagem tem receita calculada.
  */
 type SerializedTrip = Readonly<{
-  amounts: null | Omit<TripAmounts, 'documentsTotal' | 'revenueTotal'> | TripAmounts
+  amounts: null | Omit<TripAmounts, (typeof TRIP_AMOUNTS_MONEY_FIELDS)[number]> | TripAmounts
   companyId: Trip['companyId']
   createdAt: Trip['createdAt']
   driverNames: Trip['driverNames']
