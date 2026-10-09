@@ -114,6 +114,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * `contractor`; nenhum papel interno recebe esta permissão.
    */
   'occurrences.decide',
+  /**
+   * Spec 262 / ADR-0102 D6: a chave da FeriadosAPI e o orçamento mensal são da INSTALAÇÃO, não de uma empresa.
+   * `settings.manage` concedido por grupo (para cadastrar feriado, por exemplo) não leva a chave de carona
+   * (mesmo raciocínio do `cargo.measure`). Só o `company-admin`, que controla os grupos; ler segue `settings.manage`.
+   */
+  'holiday-import.configure',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -155,6 +161,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'trip.financials',
     'cargo.measure',
     'occurrences.resolve',
+    'holiday-import.configure',
   ]),
   finance: Object.freeze([
     'cte.read',

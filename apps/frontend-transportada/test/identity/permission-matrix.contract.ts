@@ -7,7 +7,6 @@ import {
   OTHER_PERMISSION_GROUP,
   PERMISSION_GROUPS,
 } from '../../src/modules/identity/shared/permissionGroups.constant'
-import { PENDING_API_PERMISSIONS } from './pending-api-permissions.fixture'
 
 const LOCALE_PATH = new URL(
   '../../src/modules/identity/locales/identity.locale.json',
@@ -139,32 +138,11 @@ describe('paridade com o catálogo da API', () => {
 
     for (const group of PERMISSION_GROUPS) {
       for (const permission of group.permissions) {
-        if (PENDING_API_PERMISSIONS.includes(permission)) continue
         expect({ permission, served: apiPermissions.has(permission) }).toEqual({
           permission,
           served: true,
         })
       }
-    }
-  })
-
-  test('a lista de pendentes só tem permissão agrupada, nomeada e ainda não concedida pela API', async () => {
-    const apiPermissions = new Set<string>(await readApiPermissions())
-    const grouped = new Set<string>(PERMISSION_GROUPS.flatMap((group) => [...group.permissions]))
-    const locale = JSON.parse(await readFile(LOCALE_PATH, 'utf8')) as {
-      users: { permission: Record<string, { label: string }> }
-    }
-
-    for (const permission of PENDING_API_PERMISSIONS) {
-      expect({ grouped: grouped.has(permission), permission }).toEqual({
-        grouped: true,
-        permission,
-      })
-      expect(locale.users.permission[permission]?.label ?? '').not.toBe('')
-      expect({ permission, served: apiPermissions.has(permission) }).toEqual({
-        permission,
-        served: false,
-      })
     }
   })
 })

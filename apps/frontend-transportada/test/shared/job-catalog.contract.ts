@@ -31,19 +31,6 @@ type ApiCatalogEntry = {
   readonly minimumIntervalSeconds: number
 }
 
-/** Desfechos que o painel já conhece e a API ainda não tem; a T3.1 (spec 262) apaga esta lista. */
-const PENDING_API_FAILURE_OUTCOMES: Readonly<Record<string, readonly string[]>> = {
-  'holiday.provider.pull': ['credential_unreadable'],
-}
-
-function withoutPendingOutcomes(entry: ApiCatalogEntry): ApiCatalogEntry {
-  const pending = PENDING_API_FAILURE_OUTCOMES[entry.job] ?? []
-  return {
-    ...entry,
-    failureOutcomes: entry.failureOutcomes.filter((outcome) => !pending.includes(outcome)),
-  }
-}
-
 function readApiNumber(name: string): number {
   const match = new RegExp(`export const ${name} = ([0-9_]+)`).exec(API_CATALOG_SOURCE)
   if (match?.[1] === undefined) throw new Error(`${name} not found in the API catalog`)
@@ -78,29 +65,8 @@ const CATALOG = readApiCatalog()
 
 describe('frontend job catalog', () => {
   test('matches the API catalog: same routines, same order, same floors, same vocabularies', () => {
-    expect<readonly ApiCatalogEntry[]>(JOB_CATALOG.map(withoutPendingOutcomes)).toEqual(CATALOG)
+    expect<readonly ApiCatalogEntry[]>(JOB_CATALOG).toEqual(CATALOG)
     expect<readonly string[]>(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
-  })
-
-  test('every pending outcome is known to the panel and still absent from the API', () => {
-    for (const [job, pendingOutcomes] of Object.entries(PENDING_API_FAILURE_OUTCOMES)) {
-      const panelOutcomes: readonly string[] =
-        JOB_CATALOG.find((entry) => entry.job === job)?.failureOutcomes ?? []
-      const apiOutcomes = CATALOG.find((entry) => entry.job === job)?.failureOutcomes ?? []
-      for (const outcome of pendingOutcomes) {
-        expect({
-          inApi: apiOutcomes.includes(outcome),
-          inPanel: panelOutcomes.includes(outcome),
-          job,
-          outcome,
-        }).toEqual({
-          inApi: false,
-          inPanel: true,
-          job,
-          outcome,
-        })
-      }
-    }
   })
 
   test('agrees with the API on the tick and on the ceiling that keeps interval from becoming a pause', () => {
