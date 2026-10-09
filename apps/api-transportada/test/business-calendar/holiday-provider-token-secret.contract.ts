@@ -125,7 +125,7 @@ describe('holiday provider token secret envelope contract (spec 262 T3.2)', () =
 
   test('rejects a decrypted token outside the visible-ASCII 16..512 rule, and a plaintext that is not JSON', async () => {
     const outsideTheRule = [
-      'short-token-15ch',
+      'short-token-1ch',
       'x'.repeat(513),
       'has a space inside 123456',
       'acentuação-na-chave-12345',
@@ -134,7 +134,7 @@ describe('holiday provider token secret envelope contract (spec 262 T3.2)', () =
     const plaintexts = [
       ...outsideTheRule.map((token) => JSON.stringify({ token })),
       'not json at all',
-      JSON.stringify({ token: 12345678901234567 }),
+      JSON.stringify({ token: 1_234_567_890_123_456 }),
       JSON.stringify([TOKEN]),
     ]
 
