@@ -5,7 +5,7 @@
  * da parada; no detalhe da viagem é um selo na parada, com o texto inteiro para o leitor de tela. Só informa: nenhum
  * botão some e a lista de paradas não muda. Dados sintéticos.
  */
-import { createElement } from 'react'
+import { act, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
 import { i18n } from '../../src/modules/shared/i18n/i18n.service'
@@ -15,7 +15,7 @@ import type { HolidayWarning } from '../../src/modules/trip/shared/trip.types'
 
 import { buildDeadlineDocument, buildDeadlineStop } from '../fixtures/tripDeliveryDeadline.fixture'
 
-import { renderWithQueryClient } from './renderHook.helper'
+import { renderWithQueryClient, waitFor } from './renderHook.helper'
 import { buildRowActions, buildSelection } from './tripDeadlineRows.helper'
 import { stubVisibleLayout } from './visibleLayout.helper'
 
@@ -62,6 +62,27 @@ function renderStops(warnings: readonly HolidayWarning[] | undefined) {
 
 function badges(): readonly HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>(BADGE)]
+}
+
+/** O foco de teclado chega como `focusin`; é ele que o `Tooltip` escuta. */
+function focusByKeyboard(badge: HTMLElement): void {
+  act(() => {
+    badge.focus()
+    badge.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+  })
+}
+
+/** ⚠️ Fechar é parte do teste: desmontar com o portal da dica aberto estoura `removeChild` no DOM de teste. */
+function blurByKeyboard(badge: HTMLElement): void {
+  act(() => {
+    badge.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+  })
+}
+
+function readTooltipText(badge: HTMLElement): string {
+  const describedBy = badge.parentElement?.getAttribute('aria-describedby') ?? null
+  if (describedBy === null) return ''
+  return document.getElementById(describedBy)?.textContent ?? ''
 }
 
 describe('aviso de feriado na montagem e no detalhe (spec 252 T5.3)', () => {
@@ -117,6 +138,23 @@ describe('aviso de feriado na montagem e no detalhe (spec 252 T5.3)', () => {
         'Entrega prevista em 13/10/2026: feriado municipal — Aniversário da cidade (importado)',
       )
       expect(badge?.dataset['tone']).toBe('warning')
+    })
+
+    it('recebe foco de teclado e a dica abre com a frase completa, não só para quem tem mouse (spec 252 T6.1b)', async () => {
+      await renderStops([warning])
+      const [badge] = badges()
+      if (badge === undefined) throw new Error('selo ausente')
+
+      expect(badge.getAttribute('tabindex')).toBe('0')
+      focusByKeyboard(badge)
+      await waitFor(() =>
+        expect(readTooltipText(badge)).toContain(
+          'feriado municipal — Aniversário da cidade (importado)',
+        ),
+      )
+      blurByKeyboard(badge)
+
+      expect(readTooltipText(badge)).toBe('')
     })
 
     it('API anterior (campo ausente) e lista vazia não mostram selo nenhum', async () => {
