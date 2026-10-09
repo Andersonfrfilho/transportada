@@ -15,54 +15,73 @@
       vira task da Fase 1, nunca contorno no produto.**
 - [x] **T0.2** `sonnet` — Medir o bundle: o export `/participant` não pode puxar `@xyflow/react` nem o
       workspace de operador. Aceite: `tsup` + análise de tamanho no `evidence.md`.
-- [ ] **T0.3** 🧠 `opus` — Desenho da API pública da visão do participante (`ParticipantConversations`
+- [x] **T0.3** 🧠 `opus` — Desenho da API pública da visão do participante (`ParticipantConversations`
       props, `ParticipantConversationSummary`, métodos novos de `ConversationsApi`, `subjectGroups`). **É
-      contrato que três apps herdam** — validar com `architect` antes de T1.x.
+      contrato que três apps herdam** — validar com `architect` antes de T1.x. **Feita:** contrato em [`contract.md`](contract.md).
 
 ## Fase 1 — A visão do participante no SDK (repo `adatechnology-packages`)
 
-> 🤖 Modelo: `sonnet` (T1.1 e T1.7 → `haiku`; T1.8 é 🧠)
-> ⚠️ O `adatechnology-packages` está com árvore suja de outras sessões (`pnpm-lock.yaml`, pacotes
-> novos não rastreados): trabalhar em **worktree próprio** dali, nunca na árvore principal.
+> 🤖 Modelo: `sonnet` (T1.0a, T1.1 e T1.7 → `haiku`; T1.8 é 🧠). **Implementa contra [`contract.md`](contract.md).**
+> ⚠️ O `adatechnology-packages` está com árvore suja de outras sessões (`pnpm-lock.yaml`, pacotes novos não
+> rastreados): trabalhar em **worktree próprio** dali, nunca na árvore principal.
 
-- [ ] **T1.0a** `haiku` — (achado da T0.1) `ConversationChannel` da UI (`conversationChannel.ts:15-22`) não
-      tem `app` nem `portal`, e `channelCapabilityFor('app')` cai na regra do WhatsApp. Acrescentar os dois
-      canais, derivando a capacidade de `getChannelCapabilities` do `conversation-contracts`. Teste antes.
-- [ ] **T1.0b** `sonnet` — (achado da T0.1) `MessagePayload.status` (`types.ts:75`) e `StatusTicks` não têm
-      `queued`. Acrescentar o estado e o selo "na fila", sem quebrar os consumidores atuais (união ampliada).
-- [ ] **T1.1** `haiku` — Tipos do contrato em `conversation-contracts` (`ParticipantConversationSummary`,
-      vocabulário de `subjectType` opaco) + export + teste de vocabulário. Aceite: `bun test` + `check`.
-- [ ] **T1.2** `sonnet` — Teste **antes**: `participantGrouping` (agrupa por `subjectType`, ordem de
-      `subjectGroups`, "Espera sua resposta", encerradas, desempate por data). Vermelho primeiro.
-- [ ] **T1.3** `sonnet` — Implementar `participantGrouping` + `useParticipantInbox` até verde.
-- [ ] **T1.4** `sonnet` — `ParticipantInbox` e `ParticipantThread` (mobile-first, `.cv-*`, sem Tailwind,
-      `aria-live`, alvo ≥ 44 px, slots por ausência de prop) com testes de renderização.
-- [ ] **T1.5** `sonnet` — `ParticipantConversations` (tela composta) + export `/participant` + `labels`
-      default + build `bun run build` (não `bunx tsup`).
-- [ ] **T1.6** `sonnet` — Rascunho por conversa em memória + chips de resposta rápida + anexo (limites do
-      canal `app` vindos de `getChannelCapabilities`, não de constante nova).
-- [ ] **T1.7** `haiku` — Changeset (pre-mode, tag `rc`) + README do export com exemplo de plugar em um app.
-- [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** (rule §5 do pacote) antes de qualquer versão
-      sair; publicar via PR → `main` → CI → `publish.yml`; conferir no npm pelo tarball.
+- [ ] **T1.0a** `haiku` — `ConversationChannel` da UI deriva do contracts (`Core | 'messenger' | 'instagram'`) +
+      entradas de exibição de `app`/`portal` em `CHANNEL_CAPABILITIES` + teste: `channelCapabilityFor('app')` dá
+      25 MB, grava áudio, sem janela; `portal` dá `records: false`; canal novo no contracts sem entrada na UI
+      reprova no `tsc`.
+- [ ] **T1.0b** `sonnet` — `MessagePayload.status?: MessageDeliveryStatus`; `StatusTicks` ganha `queued`
+      (relógio), `bounced` vira `failed`, cores Tailwind viram `.cv-status-ticks--*`; `MessageText` →
+      `.cv-message-text`. Teste de renderização sem Tailwind (classe presente, utilitária ausente).
+- [ ] **T1.1** `haiku` — `conversation-contracts/src/participant.ts`: `ParticipantSubjectRef`,
+      `ParticipantConversationSummary`, `ParticipantConversationPage`, `ParticipantMessage`,
+      `ParticipantAttachment` + schemas zod + `SUBJECT_TYPE_PATTERN`. Testes: padrão, `lastMessageAt: null`,
+      `status` fora do vocabulário (recusa). Changeset minor (0.4.0).
+- [ ] **T1.2** `sonnet` — Teste **antes** de `participantGrouping`: precedência encerrada › espera › grupo ›
+      "Outros"; ordem do array; data decrescente com `null` por último; desempate por `subjectLabel`;
+      contagem de não lidas por filtro; nenhuma conversa em duas seções. Vermelho primeiro; depois implementar.
+- [ ] **T1.3** `sonnet` — `useParticipantInbox` e `useParticipantThread`: paginação `before`; fusão servidor ∪
+      `pendingMessages` ∪ memória por `clientMessageId` (pura, testada); `markRead` só com foco e
+      `visibilityState === 'visible'`; revalidação em `focus`/`online` sem `subscribe`.
+- [ ] **T1.4** `sonnet` — `ParticipantInbox`, `ParticipantThread`, **`ParticipantMessageBubble` e
+      `ParticipantComposer` novos em `.cv-p-*`** (nada de `MessageBubble`, `MessageComposer`, `ConversationPane`;
+      reaproveitar só funções puras, `MessageText`, `StatusTicks`). Testes: `isMine = direction === 'inbound'`,
+      `aria-live`, alvo ≥ 44 px, slot ausente = nada desenhado. **Sem microfone na v1.**
+- [ ] **T1.5** `sonnet` — `src/participant/index.ts`, `exports["./participant"]`, entrada no `tsup` no `build` **e
+      no `build:watch`**; `buildOutput.test.ts` afirma sem `xyflow`, sem `ConversationsWorkspace`, ≤ 250 KB;
+      teste de que renderiza **sem** `ConversationsProvider`; README: "monte uma vez acima das duas rotas".
+- [ ] **T1.6** `sonnet` — Rascunho por assunto (chave `subjectType:subjectId`); chips preenchem e não enviam;
+      teto de anexo de `channelCapabilityFor(channel).attachments` + `resolveMaxAttachmentSizeBytes`; recusa
+      antes do envio **sem esvaziar o rascunho**; reenvio repete o mesmo `clientMessageId`.
+- [ ] **T1.7** `haiku` — Changeset **minor, sem pre mode** (contracts 0.4.0, UI 0.5.0); README com exemplo de
+      adapter REST e aviso de `ConversationChannel` ampliado para quem tem `switch` exaustivo.
+- [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** antes de qualquer versão sair. Antes do merge: `npm
+    pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make check` e smoke do painel e do
+      portal. Só então PR → `main` → `publish.yml`; conferir no npm pelo tarball.
 
 ## Fase 1b — Plugar nos apps (alinhar versões)
 
 > 🤖 Modelo: `sonnet` (T1b.1 → `haiku`)
 
-- [ ] **T1b.1** `haiku` — Subir `conversations-ui` para a versão publicada nos **três** consumidores
-      (`frontend-driver` entra, `frontend-transportada` e `frontend-client` saem de 0.3.1);
-      `bun install --frozen-lockfile`; limpar `node_modules` aninhado se o export novo não aparecer.
-      Aceite: `make check` verde e smoke do painel e do portal sem regressão.
-- [ ] **T1b.2** `sonnet` — Fiação no `frontend-driver`: `DriverConversations.page` (≤ ~150 linhas),
-      `driverConversationsApi.service` (sobre as rotas `/me` da 183, **ocorrência apenas** nesta fase),
-      `driverSubjectGroups.constant`, locales `pt-BR`/`en`, rota `/conversas`, aba com selo, sino → conversa.
-- [ ] **T1b.3** `sonnet` — Offline (D5): `conversationOutbox.service` liga a fila existente; estados
-      `na fila/enviada/entregue/lida/falhou`; teste: mesma chave duas vezes = uma bolha.
-- [ ] **T1b.4** `sonnet` — **Prova de que "plugar em outro app está pronto" (RF13):** o portal da
-      contratante (`frontend-client`) renderiza `ParticipantConversations` com um `ConversationsApi`
-      próprio, sem alterar o pacote. Se precisar alterar o pacote, a Fase 1 não terminou.
-- [ ] **T1b.5** `sonnet` — Smoke Playwright do `frontend-driver`: abrir pelo sino, responder, responder
-      offline (porta sintética 53112; ver CLAUDE.md raiz).
+- [ ] **T1b.1** `haiku` — Dois commits: (a) `frontend-transportada` e `frontend-client` saem de 0.3.1 para 0.5.0,
+      com `make check` e smoke **antes** de qualquer tela nova; (b) `frontend-driver` declara `conversations-ui@0.5.0`
+      e `conversation-contracts@0.4.0`, e `frontend-client` ganha `conversation-contracts@0.4.0`. Limpar
+      `node_modules` aninhado se o export novo não aparecer.
+- [ ] **T1b.2** `sonnet` — Fiação no `frontend-driver`: `driverConversationsApi.service` sobre as rotas `/me` da
+      183 (`subjectType: 'occurrence'`, `subjectId` = id da ocorrência), validando a resposta com os schemas do
+      contracts; **fallback tolerante e temporário** de `subjectLabel` e `awaitingParticipant` (última mensagem
+      `outbound` posterior à última `inbound`) até a API trazer os campos; `DriverConversations.page` (≤ ~150
+      linhas) monta `<ParticipantConversations>` **uma vez** para `/conversas` e
+      `/conversas/:subjectType/:subjectId`; `driverSubjectGroups.constant`; locales `pt-BR`/`en`; aba com selo;
+      o sino só navega.
+- [ ] **T1b.3** `sonnet` — Offline (D5): `conversationOutbox.service` usa o `clientMessageId` como
+      `Idempotency-Key`; offline, `sendMessage` devolve `{ outcome: 'queued' }`; hook lê a fila e alimenta
+      `pendingMessages`; esvaziar a fila emite `conversation-changed`; liga `onRetryPending`. Teste: mesma chave
+      duas vezes = uma bolha.
+- [ ] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
+      `<ParticipantConversations channel="portal">` (o microfone some sozinho) com um `ParticipantConversationsApi`
+      próprio e um `subjectGroups`. Precisar mudar o pacote reprova a task.
+- [ ] **T1b.5** `sonnet` — Smoke Playwright do `frontend-driver`: abrir pelo sino, responder, responder offline
+      (porta sintética 53112; ver CLAUDE.md raiz).
 - [ ] **T1b.6** `sonnet` — **Gate e primeira publicação em staging**: `make check`; o interruptor
       `VITE_DRIVER_APP_URL` segue como está. Evidência em `evidence.md`.
 
@@ -82,7 +101,7 @@
 - [ ] **T2.5** `sonnet` — Aviso do sino com assunto (D7); `awaitingDriver` e `subjectLabel` no servidor.
 - [ ] **T2.6** `sonnet` — Integração: `bun --env-file=../../.env.test run test:integration` nos arquivos
       tocados (contrato verde **não** basta). Banco indisponível = parar e relatar, nunca publicar.
-- [ ] **T2.7** `haiku` — O `ConversationsApi` do app passa a ler `subjectType/subjectLabel` da lista nova (tolerante → API → telas,
+- [ ] **T2.7** `haiku` — O adapter do app passa a ler `subjectType/subjectLabel/awaitingDriver` da lista nova e remove os fallbacks da T1b.2 (tolerante → API → telas,
       ADR-0081 §9); remover o fallback só depois da API em produção.
 
 ## Fase 3 — O escritório abre e vê

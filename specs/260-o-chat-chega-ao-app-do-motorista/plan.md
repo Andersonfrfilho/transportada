@@ -11,10 +11,12 @@
 - `occurrence_conversations` hoje: `occurrence_kind` (`stop`/`document`) + `occurrence_id` NOT NULL,
   participante `contractor`/`driver`. Conversa de nota e de viagem **não têm ocorrência**.
 
+> **Contrato da API pública: [`contract.md`](contract.md)** (T0.3). Onde este plano divergir dele, vale o contrato.
+
 ## Arquitetura e arquivos afetados
 
 **Fase 1 — a visão do participante no SDK** — repo `~/Documents/personal/adatechnology-packages`
-(PR próprio, changeset, tag `rc`; **nenhuma tela de conversa nasce em `frontend-driver`**, skill `adatechnology-ui` §3):
+(PR próprio, changeset minor sem pre mode; **nenhuma tela de conversa nasce em `frontend-driver`**, skill `adatechnology-ui` §3):
 
 - `packages/frontend/conversations-ui/src/participant/` (export novo `@adatechnology/conversations-ui/participant`,
   para o `frontend-driver` não puxar o workspace de operador no bundle do PWA):
@@ -23,7 +25,7 @@
   selo), `ParticipantThread.tsx` (cartão do assunto via slot `renderSubjectCard`, bolhas, `StatusTicks`,
   `aria-live`), `useParticipantInbox.ts`, `participantGrouping.ts` (**puro**: agrupa por `subjectType`,
   ordena, `awaitingParticipant`), `participant.constant.ts`, `participantLabels.ts` + testes.
-  Reusa `MessageBubble`, `MessageComposer`, `AudioRecorderButton`, `StatusTicks`, respostas rápidas.
+  Bolha e composer **próprios em `.cv-p-*`** (as folhas do operador são Tailwind e de perspectiva de operador — ver `contract.md`); reaproveita só funções puras, `MessageText` e `StatusTicks` (migrados para `.cv-*`).
   Estilo por `.cv-*` + `className`, **sem Tailwind**; alvo de toque ≥ 44 px; layout de uma coluna.
 - Capacidade por ausência de prop: sem `onRecordAudio` não há microfone; sem `renderSubjectCard` o
   cartão não desenha; sem `onOpenSubject` não há botão "falar com o escritório".
