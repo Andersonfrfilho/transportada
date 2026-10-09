@@ -456,6 +456,33 @@
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
   },
+  "linkDocumentsDialog": {
+    "blocker": {
+      "noDocuments": "Choose at least one note.",
+      "reasonRequired": "Enter the reason to finish.",
+      "reasonTooLong": "The reason is over 500 characters.",
+      "tooManyDocuments": "Choose at most 300 notes at a time."
+    },
+    "error": {
+      "generic": "Could not add the notes right now. Try again.",
+      "notAllowed": "This trip does not accept notes now: only a dispatched or in-progress trip takes notes after leaving."
+    },
+    "outcome": {
+      "linked": "{{count}} note added. The trip carries on from where it was.",
+      "linked_other": "{{count}} notes added. The trip carries on from where it was.",
+      "mdfeDivergence": "The authorized MDF-e does not list these notes. Check the manifest before going on.",
+      "none": "No note was added: all were already on another trip in progress.",
+      "skipped": "{{count}} note was skipped: it is already on another trip in progress.",
+      "skipped_other": "{{count}} notes were skipped: they are already on another trip in progress.",
+      "withoutCte": "{{count}} note still without an authorized CT-e. The cargo goes on, but the issuance needs handling.",
+      "withoutCte_other": "{{count}} notes still without an authorized CT-e. The cargo goes on, but the issuance needs handling."
+    },
+    "reason": "Reason (kept in the trip history)",
+    "routeUntouched": "The route, toll and arrival forecast do not change. Notes enter loaded, on the stops that are still open.",
+    "submit": "Add notes",
+    "subtitle": "Loose notes join this trip that has already left — for example, when another vehicle takes over the cargo.",
+    "title": "Add notes to the trip"
+  },
   "crewTransferDialog": {
     "blocker": {
       "crewUnchanged": "The chosen crew is the same as the current one. Change at least one person.",
@@ -893,7 +920,8 @@
       },
       "unknownDocument": "Invoice",
       "unknownOccurrenceType": "unspecified",
-      "unknownStatus": "unspecified"
+      "unknownStatus": "unspecified",
+      "documentsAdded": "Notes added"
     },
     "loadMore": "Load more",
     "loading": "Loading the timeline",
@@ -986,6 +1014,14 @@
       "addressCorrectedAt": "Corrected at {{moment}}",
       "legendAddress": "Plain pin: new point of the stop address. Numbered pin: stop {{sequence}}.",
       "legendAddressEventOnly": "Plain pin: new point of the stop address."
+    },
+    "documentsAdded": {
+      "count_one": "{{count}} note added",
+      "count_other": "{{count}} notes added",
+      "mdfeDivergence": "This trip's authorized MDF-e does not include these notes: reissue the manifest before moving on.",
+      "reason": "Reason: {{reason}}",
+      "withoutCte_one": "{{count}} note without an authorized CT-e.",
+      "withoutCte_other": "{{count}} notes without an authorized CT-e."
     }
   },
   "feedback": {
@@ -1064,7 +1100,8 @@
     "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved."
   },
   "filters": {
-    "active": "{{count}} active filter(s)",
+    "active_one": "{{count}} active filter",
+    "active_other": "{{count}} active filters",
     "all": "All",
     "allMasculine": "All",
     "clear": "Clear filters",
@@ -1922,6 +1959,7 @@
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
     "defineCrew": "Change driver/vehicle",
+    "linkDocuments": "Add notes",
     "transferCrew": "Transfer crew",
     "dispatch": "Dispatch",
     "dispatchConfirmTitle": "Dispatch the trip",

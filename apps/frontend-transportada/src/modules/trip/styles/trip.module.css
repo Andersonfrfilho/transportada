@@ -109,6 +109,21 @@
   }
 }
 
+/* O diálogo de acrescentar notas empilha a busca (tabela larga) e o motivo: na `.fieldGrid` de 2–3
+   colunas a busca nascia espremida na primeira. */
+.linkDocumentsBody {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.linkDocumentsBody label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
 .fieldGrid label {
   display: grid;
   gap: var(--space-1);

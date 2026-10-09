@@ -407,7 +407,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         }
       }
     }
-    expect(cells).toBe(160)
+    expect(cells).toBe(180)
   })
 
   /**
@@ -517,6 +517,39 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
           checkTripTransition({ action: TRIP_ACTION.transferCrew, hasRoute, tripStatus }),
         ).toEqual({ outcome: 'unchanged' })
       }
+    }
+  })
+
+  /** Spec 257 D1: a janela de acrescentar notas é a da rua — `dispatched`, `in_transit`, `on_delivery_route`. */
+  test('linkDocumentsAfterDispatch is released only on the road and never changes the status', () => {
+    for (const tripStatus of ['dispatched', 'in_transit', 'on_delivery_route'] as const) {
+      for (const hasRoute of [true, false]) {
+        expect(
+          checkTripTransition({
+            action: TRIP_ACTION.linkDocumentsAfterDispatch,
+            hasRoute,
+            tripStatus,
+          }),
+        ).toEqual({ outcome: 'unchanged' })
+      }
+    }
+  })
+
+  test('linkDocumentsAfterDispatch names why each status outside the road refuses it', () => {
+    const expected = [
+      ['cancelled', TRIP_TRANSITION_BLOCK.tripCancelled],
+      ['completed', TRIP_TRANSITION_BLOCK.tripCompleted],
+      ['draft', TRIP_TRANSITION_BLOCK.tripNotDispatched],
+      ['loading', TRIP_TRANSITION_BLOCK.tripNotDispatched],
+    ] as const
+    for (const [tripStatus, reason] of expected) {
+      expect(
+        checkTripTransition({
+          action: TRIP_ACTION.linkDocumentsAfterDispatch,
+          hasRoute: true,
+          tripStatus,
+        }),
+      ).toEqual({ outcome: 'blocked', reason })
     }
   })
 

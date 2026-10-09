@@ -52,7 +52,7 @@ describe('GET /trips/:id/allowed-actions (spec 156 D10)', () => {
     expect(data.documents[DOCUMENT_ID]).toContain('fieldReturn')
     expect(data.documents[DOCUMENT_ID]).not.toContain('deliver')
     expect(data.stops[STOP_ID]).toEqual(['arrive', 'occurrence'])
-    expect(data.trip).toEqual(['cancel', 'transferCrew'])
+    expect(data.trip).toEqual(['cancel', 'transferCrew', 'linkDocumentsAfterDispatch'])
   })
 
   test('A1: o separador lê a rota e não recebe ação de campo', async () => {
@@ -86,7 +86,7 @@ describe('GET /trips/:id/allowed-actions (spec 156 D10)', () => {
     expect(response.status).toBe(200)
     const data = await responseData<AllowedActions>(response)
     expect(data.documents[DOCUMENT_ID]).toEqual(['fieldDelivery', 'fieldReturn', 'fieldOccurrence'])
-    expect(data.trip).toEqual(['transferCrew'])
+    expect(data.trip).toEqual(['transferCrew', 'linkDocumentsAfterDispatch'])
   })
 
   test('sem fleet.read nem trip.report-on-behalf responde 403', async () => {

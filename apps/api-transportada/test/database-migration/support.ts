@@ -166,6 +166,8 @@ export const TRIP_TABLES = [
   'company_location_retention_settings',
   /** Spec 249 D6: o histórico das transferências de tripulação de uma viagem que já saiu. */
   'trip_crew_events',
+  /** Spec 257 D9: o histórico das notas acrescentadas a uma viagem que já saiu. */
+  'trip_document_link_events',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

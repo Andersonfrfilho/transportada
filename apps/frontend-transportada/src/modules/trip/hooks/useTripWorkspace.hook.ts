@@ -17,13 +17,21 @@ import {
   type OccurrenceRedeliveryPolicy,
   type OccurrenceType,
 } from '../shared/occurrence.constant'
-import type { CanhotoReviewOutcome, OccurrenceQuantityUnit } from '../shared/trip.constant'
+import {
+  AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
+  type CanhotoReviewOutcome,
+  type OccurrenceQuantityUnit,
+} from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
 import type { CrewTransferResult, TransferTripCrewInput } from '../shared/tripCrewTransfer.types'
+import type {
+  LinkDocumentsAfterDispatchInput,
+  LinkDocumentsAfterDispatchResult,
+} from '../shared/tripDocumentLink.types'
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import {
   buildOccurrencePhotoSendState,
@@ -136,6 +144,9 @@ export type TripController = Readonly<{
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   /** Spec 249: `trip.report-on-behalf`, a mesma permissão da baixa em nome do motorista. */
   transferTripCrew: (input: TransferTripCrewInput) => Promise<CrewTransferResult>
+  linkDocumentsAfterDispatch: (
+    input: LinkDocumentsAfterDispatchInput,
+  ) => Promise<LinkDocumentsAfterDispatchResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
@@ -274,6 +285,8 @@ export function createTripController(
     closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
     transferTripCrew: (body) =>
       canReportOnBehalf ? input.client.transferTripCrew(body) : forbidden(),
+    linkDocumentsAfterDispatch: (body) =>
+      canReportOnBehalf ? input.client.linkDocumentsAfterDispatch(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
@@ -996,6 +1009,16 @@ export function useTripWorkspace(
         queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
       ]).then(() => undefined),
   })
+  /** Spec 257: notas acrescentadas à viagem na rua — a viagem, as ações e a lista de notas livres relidas. */
+  const linkDocumentsAfterDispatchMutation = useMutation({
+    mutationFn: controller.linkDocumentsAfterDispatch,
+    onSuccess: () =>
+      Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+        queryClient.invalidateQueries({ queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY }),
+      ]).then(() => undefined),
+  })
   const transitionDocumentMutation = useMutation({
     mutationFn: controller.transitionTripDocument,
     onSuccess: (result) => {
@@ -1118,6 +1141,7 @@ export function useTripWorkspace(
     planRouteMutation,
     releaseDocumentMutation,
     reorderStopsMutation,
+    linkDocumentsAfterDispatchMutation,
     transferCrewMutation,
     transitionDocumentMutation,
     status: resolveQueryStatus({

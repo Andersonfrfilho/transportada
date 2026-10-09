@@ -70,6 +70,10 @@ import {
 } from '../domain/trip-state.policy.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
+import type {
+  LinkTripDocumentsAfterDispatchParams,
+  LinkTripDocumentsAfterDispatchResult,
+} from '../application/trip-document-link-after-dispatch.types.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
@@ -129,6 +133,7 @@ import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
 import { applyTripCrewTransfer } from './trip-crew-transfer.persistence.js'
+import { applyTripDocumentLinkAfterDispatch } from './trip-document-link-after-dispatch.persistence.js'
 import type {
   TransferTripCrewParams,
   TransferTripCrewResult,
@@ -467,6 +472,17 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       })
       return trip === null ? null : { transfer, trip }
     })
+  }
+
+  /** Spec 257: a escrita inteira mora em `applyTripDocumentLinkAfterDispatch`; aqui só se abre a transação. */
+  public async linkDocumentsAfterDispatch(
+    input: LinkTripDocumentsAfterDispatchParams,
+  ): Promise<LinkTripDocumentsAfterDispatchResult | null> {
+    return runGuarded(() =>
+      this.database.transaction((transaction) =>
+        applyTripDocumentLinkAfterDispatch(transaction, input),
+      ),
+    )
   }
 
   public async create(input: CreateTripRecord): Promise<TripDetail> {

@@ -18,6 +18,10 @@ import type {
 } from '../domain/trip.policy.js'
 import type { TripDocumentFreightSource } from '../domain/trip-document-freight.policy.js'
 import type { TransferTripCrewParams, TransferTripCrewResult } from './trip-crew-transfer.types.js'
+import type {
+  LinkTripDocumentsAfterDispatchParams,
+  LinkTripDocumentsAfterDispatchResult,
+} from './trip-document-link-after-dispatch.types.js'
 
 /**
  * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
@@ -467,6 +471,10 @@ export type TripRepositoryPort = {
    * rota, status nem ETA.
    */
   transferCrew(input: TransferTripCrewParams): Promise<TransferTripCrewResult | null>
+  /** Spec 257: notas soltas para a viagem que já saiu; `null` é viagem inexistente nesta empresa. */
+  linkDocumentsAfterDispatch(
+    input: LinkTripDocumentsAfterDispatchParams,
+  ): Promise<LinkTripDocumentsAfterDispatchResult | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
     readonly companyId: string

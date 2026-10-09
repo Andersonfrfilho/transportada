@@ -102,6 +102,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       async transferCrew() {
         throw new Error('not used by this contract')
       },
+      async linkDocumentsAfterDispatch() {
+        throw new Error('not used by this contract')
+      },
       async create(input) {
         return openTrip({
           drivers: input.crew.map((member) => ({ ...member, driverEmail: '', driverPhone: '' })),
@@ -186,6 +189,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
         throw new Error('not used')
       },
       async transferCrew() {
+        throw new Error('not used')
+      },
+      async linkDocumentsAfterDispatch() {
         throw new Error('not used')
       },
       async create(input) {

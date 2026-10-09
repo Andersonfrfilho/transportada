@@ -3,6 +3,7 @@
  */
 import './trip-http/create.contract.js'
 import './trip-http/documents.contract.js'
+import './trip-http/documents-after-dispatch.contract.js'
 import './trip-http/close.contract.js'
 import './trip-http/crew.contract.js'
 import './trip-http/crew-transfer.contract.js'

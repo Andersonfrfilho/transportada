@@ -237,7 +237,7 @@ export async function readRaceOutcome(
   }
 }
 
-async function seedNfeDocument(
+export async function seedNfeDocument(
   database: DrizzleProvider,
   input: { readonly companyId: string; readonly userId: string },
 ): Promise<string> {

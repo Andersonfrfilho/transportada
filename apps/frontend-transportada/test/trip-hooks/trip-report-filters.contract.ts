@@ -94,4 +94,20 @@ describe('trip report filters', () => {
     expect(hook.result().activeCount).toBe(0)
     hook.unmount()
   })
+  test('marks the open side of a number and date range like the notes tab does', async () => {
+    const hook = await renderHook(useTripReportFilters)
+    act(() => {
+      hook.result().setField('numberFrom', '100')
+      hook.result().setField('dateTo', '2026-03-01')
+    })
+    const pills = describeTripReportFilterPills({
+      describeContractor: (id) => id,
+      formatDay: (day) => day,
+      noContractorLabel: 'No registration',
+      state: hook.result().state,
+    })
+    expect(pills.find((pill) => pill.field === 'number')?.value).toBe('100–…')
+    expect(pills.find((pill) => pill.field === 'date')?.value).toBe('… – 2026-03-01')
+    hook.unmount()
+  })
 })

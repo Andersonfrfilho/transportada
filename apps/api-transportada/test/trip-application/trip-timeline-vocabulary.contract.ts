@@ -17,11 +17,12 @@ import type { TripTimelineItem } from '../../src/trips/application/trip-timeline
 
 describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
   test('os dois kinds da 228 entram depois de trip.created, na ordem da D6, e a 249 fecha a lista', () => {
-    expect(TRIP_TIMELINE_KINDS.slice(-4)).toEqual([
+    expect(TRIP_TIMELINE_KINDS.slice(-5)).toEqual([
       'trip.created',
       'document.canhoto_photo',
       'stop.address_corrected',
       'crew_transfer',
+      'documents_added',
     ])
   })
 
@@ -29,6 +30,8 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
     expect(TRIP_TIMELINE_KIND_PRIORITY).toEqual({
       /** Spec 249: a transferência não é causa nem efeito de nenhum outro evento — fica acima de todos no empate. */
       crew_transfer: 8,
+      /** Spec 257: o acréscimo de notas, como a transferência, empata acima de todos. */
+      documents_added: 8,
       'document.canhoto_photo': 3,
       'document.delivered': 4,
       'document.occurrence': 2,
@@ -55,6 +58,42 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
     for (const priority of Object.values(TRIP_TIMELINE_KIND_PRIORITY)) {
       expect(Number.isInteger(priority)).toBe(true)
     }
+  })
+
+  test('documentsAdded é opcional no item e carrega só as quatro chaves do contrato (spec 257)', () => {
+    const added: TripTimelineItem = {
+      actorName: 'Maria',
+      channel: 'backoffice',
+      closeReason: null,
+      document: null,
+      documentsAdded: {
+        documentCount: 2,
+        documentsWithoutCte: 1,
+        mdfeDocumentDivergence: false,
+        reason: 'Van quebrou',
+      },
+      fromStatus: null,
+      id: 'added-1',
+      isSystemActor: false,
+      kind: 'documents_added',
+      lateRegistration: false,
+      location: null,
+      locationState: null,
+      occurrence: null,
+      occurredAt: '2026-10-08T12:00:00.000Z',
+      onBehalfOfDriverName: null,
+      recordedAt: null,
+      returnReason: null,
+      stop: null,
+      toStatus: null,
+    }
+
+    expect(Object.keys(added.documentsAdded ?? {}).sort()).toEqual([
+      'documentCount',
+      'documentsWithoutCte',
+      'mdfeDocumentDivergence',
+      'reason',
+    ])
   })
 
   test('crewTransfer é opcional no item e carrega só as cinco chaves do contrato (spec 249)', () => {

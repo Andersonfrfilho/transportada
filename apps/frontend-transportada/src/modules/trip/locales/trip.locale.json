@@ -456,6 +456,33 @@
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
   },
+  "linkDocumentsDialog": {
+    "blocker": {
+      "noDocuments": "Escolha ao menos uma nota.",
+      "reasonRequired": "Informe o motivo para concluir.",
+      "reasonTooLong": "O motivo passa de 500 caracteres.",
+      "tooManyDocuments": "Escolha no máximo 300 notas por vez."
+    },
+    "error": {
+      "generic": "Não foi possível acrescentar as notas agora. Tente de novo.",
+      "notAllowed": "Esta viagem não aceita notas agora: só a viagem despachada ou em andamento recebe notas depois de sair."
+    },
+    "outcome": {
+      "linked": "{{count}} nota acrescentada. A viagem segue de onde estava.",
+      "linked_other": "{{count}} notas acrescentadas. A viagem segue de onde estava.",
+      "mdfeDivergence": "O MDF-e autorizado não lista estas notas. Confira o manifesto antes de seguir.",
+      "none": "Nenhuma nota entrou: todas já estavam em outra viagem em andamento.",
+      "skipped": "{{count}} nota foi pulada: já está em outra viagem em andamento.",
+      "skipped_other": "{{count}} notas foram puladas: já estão em outra viagem em andamento.",
+      "withoutCte": "{{count}} nota ainda sem CT-e autorizado. A carga segue, mas a emissão precisa ser tratada.",
+      "withoutCte_other": "{{count}} notas ainda sem CT-e autorizado. A carga segue, mas a emissão precisa ser tratada."
+    },
+    "reason": "Motivo (fica no histórico da viagem)",
+    "routeUntouched": "O roteiro, o pedágio e a previsão de chegada não mudam. As notas entram carregadas, nas paradas que ainda estão abertas.",
+    "submit": "Acrescentar notas",
+    "subtitle": "Notas soltas entram nesta viagem que já saiu — por exemplo, quando outro veículo assume a carga.",
+    "title": "Acrescentar notas à viagem"
+  },
   "crewTransferDialog": {
     "blocker": {
       "crewUnchanged": "A tripulação escolhida é igual à atual. Troque ao menos uma pessoa.",
@@ -893,7 +920,8 @@
       },
       "unknownDocument": "Nota",
       "unknownOccurrenceType": "não informado",
-      "unknownStatus": "não informada"
+      "unknownStatus": "não informada",
+      "documentsAdded": "Notas acrescentadas"
     },
     "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
@@ -986,6 +1014,14 @@
       "addressCorrectedAt": "Corrigido em {{moment}}",
       "legendAddress": "Pino liso: novo ponto do endereço da parada. Pino numerado: parada {{sequence}}.",
       "legendAddressEventOnly": "Pino liso: novo ponto do endereço da parada."
+    },
+    "documentsAdded": {
+      "count_one": "{{count}} nota acrescentada",
+      "count_other": "{{count}} notas acrescentadas",
+      "mdfeDivergence": "O MDF-e autorizado desta viagem não inclui estas notas: reemita o manifesto antes de seguir.",
+      "reason": "Motivo: {{reason}}",
+      "withoutCte_one": "{{count}} nota sem CT-e autorizado.",
+      "withoutCte_other": "{{count}} notas sem CT-e autorizado."
     }
   },
   "feedback": {
@@ -1064,7 +1100,8 @@
     "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
   },
   "filters": {
-    "active": "{{count}} filtro(s) ativo(s)",
+    "active_one": "{{count}} filtro ativo",
+    "active_other": "{{count}} filtros ativos",
     "all": "Todas",
     "allMasculine": "Todos",
     "clear": "Limpar filtros",
@@ -1922,6 +1959,7 @@
     "batchSeparate_other": "Separar {{count}} notas",
     "cancel": "Cancelar viagem",
     "defineCrew": "Trocar motorista/veículo",
+    "linkDocuments": "Acrescentar notas",
     "transferCrew": "Transferir tripulação",
     "dispatch": "Despachar",
     "dispatchConfirmTitle": "Despachar a viagem",

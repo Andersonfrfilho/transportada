@@ -50,6 +50,8 @@ export const TRIP_TIMELINE_KINDS = [
    * conhece em vez de reprovar a página — spec 206 D12).
    */
   'crew_transfer',
+  /** Spec 257 D9: notas acrescentadas a uma viagem que já saiu — mesma regra: a API publica antes do painel. */
+  'documents_added',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -87,6 +89,8 @@ export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, numb
   'stop.address_corrected': 2,
   /** Spec 249: não é causa nem efeito de outro evento; no empate de instante fica acima de todos. */
   crew_transfer: 8,
+  /** Spec 257: como a transferência, não é causa nem efeito de outro evento. */
+  documents_added: 8,
 }
 
 export type TripTimelineStopReference = {
@@ -159,6 +163,14 @@ export type TripTimelineCrewTransfer = {
   readonly reason: string
 }
 
+/** Spec 257 RF: o que o acréscimo mostra — quantas notas, por quê e os dois avisos fiscais. Sem dinheiro. */
+export type TripTimelineDocumentsAdded = {
+  readonly documentCount: number
+  readonly documentsWithoutCte: number
+  readonly mdfeDocumentDivergence: boolean
+  readonly reason: string
+}
+
 export type TripTimelineItem = {
   /** Spec 228 D8: a chave só existe em `stop.address_corrected` — em outro kind nem `null` aparece. */
   readonly addressChange?: TripTimelineAddressChange
@@ -173,6 +185,8 @@ export type TripTimelineItem = {
   readonly closeReason: string | null
   /** Spec 249: a chave só existe em `crew_transfer` — em outro kind nem `null` aparece. */
   readonly crewTransfer?: TripTimelineCrewTransfer
+  /** Spec 257: a chave só existe em `documents_added` — em outro kind nem `null` aparece. */
+  readonly documentsAdded?: TripTimelineDocumentsAdded
   readonly document: TripTimelineDocumentReference | null
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null

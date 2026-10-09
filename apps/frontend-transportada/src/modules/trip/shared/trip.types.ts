@@ -360,6 +360,8 @@ export const TRIP_TIMELINE_KINDS = [
   'stop.address_corrected',
   /** Spec 249 D6: a troca de motorista/ajudante com a viagem na rua. Prioridade 8 na API. */
   'crew_transfer',
+  /** Spec 257 D9: notas acrescentadas a uma viagem que já saiu. Prioridade 8 na API. */
+  'documents_added',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -430,6 +432,14 @@ export type TripTimelineCrewTransfer = Readonly<{
   reason: string
 }>
 
+/** Spec 257 D9: sem lista de notas — só a contagem, a sinalização fiscal e o motivo. */
+export type TripTimelineDocumentsAdded = Readonly<{
+  documentCount: number
+  documentsWithoutCte: number
+  mdfeDocumentDivergence: boolean
+  reason: string
+}>
+
 export type TripTimelineItem = Readonly<{
   /** Spec 228 D8: só em `stop.address_corrected`. Ausente em qualquer outro kind. */
   addressChange?: TripTimelineAddressChange
@@ -441,6 +451,8 @@ export type TripTimelineItem = Readonly<{
   /** Spec 249 D6: só em `crew_transfer`, e nele é obrigatória. */
   crewTransfer?: TripTimelineCrewTransfer
   document: null | TripTimelineDocumentReference
+  /** Spec 257 D9: só em `documents_added`, e nele é obrigatório. */
+  documentsAdded?: TripTimelineDocumentsAdded
   /** Só em `*.status_changed`. */
   fromStatus: null | string
   id: string

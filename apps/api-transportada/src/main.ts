@@ -3931,6 +3931,9 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       updateTripCrew: { execute: (input) => trips.updateCrew(input) },
       transferTripCrew: { execute: (input) => trips.transferCrew(input) },
+      linkTripDocumentsAfterDispatch: {
+        execute: (input) => trips.linkDocumentsAfterDispatch(input),
+      },
       setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {

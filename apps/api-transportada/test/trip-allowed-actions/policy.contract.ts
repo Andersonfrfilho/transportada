@@ -200,14 +200,14 @@ describe('allowedActions — por parada e por viagem', () => {
       capabilities: FINANCE,
       trip: snapshot({ status: 'dispatched' }),
     })
-    expect(dispatched.trip).toEqual(['startRoute', 'transferCrew'])
+    expect(dispatched.trip).toEqual(['startRoute', 'transferCrew', 'linkDocumentsAfterDispatch'])
     expect(dispatched.trip).not.toContain('confirmLoad')
 
     const inTransit = resolveTripAllowedActions({
       capabilities: FINANCE,
       trip: snapshot({ status: 'in_transit' }),
     })
-    expect(inTransit.trip).toEqual(['startRoute', 'transferCrew'])
+    expect(inTransit.trip).toEqual(['startRoute', 'transferCrew', 'linkDocumentsAfterDispatch'])
   })
 
   it('o barracão: roteiro, despacho e cancelamento pela máquina', () => {
