@@ -115,7 +115,7 @@ rotina não é registrada e nada sai do produto.
   de constraint e índice explícitos e ≤ 63 bytes**): cache global `holiday_provider_fetches` (nacional com
   `ibge_code = 'BR'`), `holiday_provider_entries`, `holiday_provider_monthly_usage`; por empresa
   `holiday_import_cities`, `company_holiday_import_settings`, `holiday_import_suppressions`; `provider_entry_id uuid
-null` em `municipal_holidays` e `state_holidays` (FK simples para o cache, `RESTRICT`), CHECK de exclusão mútua com
+null` em `municipal_holidays` e `state_holidays` (FK composta `(id, ibge, data)` para o cache, `RESTRICT`), CHECK de exclusão mútua com
   `source_rule_id`, CHECK de importada só `once` no estadual, índices parciais; o nome da rotina nas duas CHECK de `job`
   e uma linha **pausada de fábrica** em `job_schedules` (D13).
 - **RF3 — Catálogo de jobs:** `holiday.provider.pull` nas quatro cópias (API, worker, cron, painel), **painel primeiro**.

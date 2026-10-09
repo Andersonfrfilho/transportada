@@ -85,10 +85,13 @@ da app. Migration pede também `make migration-test` e `db:generate` = `no_chang
       **Entregue em `54539fce7`** (`20261009040622_holiday_provider_import`, rebaseada em staging `4f04022ba`), **fechada pela T2.3 (`b49b22102`):** o snapshot traz
       `holiday.provider.pull` nas duas CHECK de `job` e o nome ainda não está no catálogo TS, então
       `schema-snapshot.contract` fica vermelho e `db:generate` não dá `no_changes` (com o nome provisório no catálogo:
-      138 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. Pendente: revisão `opus`.
-      `evidence.md` § T2.2.
-- [x] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com rótulo e
-      locale pt-BR/en, `minimumIntervalSeconds: 3_600` e o vocabulário de falha; paridade verde nas quatro apps
+      138 pass e `no_changes`). Rollback recusa feriado importado, supressão e execução aberta. **2ª rodada
+      (revisão `opus`, 2026-10-09):** NOT NULL e identidade D2 do cache, FK composta entrada×linha e escopo×tipo na entrada,
+      rollback recusa também a empresa com a importação desligada e trava as tabelas, rollback da 238 recusa enquanto a
+      importação existir, testes de índice/default/`RESTRICT`. `evidence.md` § T2.2 (2ª rodada).
+- [x] **T2.3** `holiday.provider.pull` nas quatro cópias do catálogo de jobs — **painel primeiro** — com
+      `minimumIntervalSeconds: 3_600` e o vocabulário de falha (**sem** rótulo nem locale: o painel não tem mecanismo de rótulo
+      por rotina e mostra o nome cru em `OperationsDashboard.page.tsx` — lacuna conhecida, sem criar mecanismo); paridade verde nas quatro apps
       (`test/job-catalog/catalog.contract.ts` na API, no worker e no cron; `test/shared/job-catalog.contract.ts` no
       painel). **Fecha também o contrato `schema-snapshot` da T2.2** (a CHECK de `job` do schema vem do catálogo da API) e o
       `db:generate` = `no_changes`: rodar `bun run test` da API e `bun run db:generate` (esperado `no_changes`) ao fim. **Feita em 2026-10-09** (`2f6add63f`, `b49b22102`, `f02ccbef6`, `fc777a9d5`): `db:generate` = `no_changes`, `schema-snapshot` verde, paridade verde nas quatro. **Rótulo e locale do painel não feitos**: o molde não tem mecanismo de rótulo por rotina, então é decisão pendente (`evidence.md` § T2.3).
@@ -106,7 +109,12 @@ data)` → vence a não facultativa; fixture no formato da documentação (cidad
       destino físico pela mesma junção do roteirizador (uma consulta dos dois papéis por lote e a escolha com
       `resolvePhysicalDestination` em TypeScript; sem desvio manual), upsert em `holiday_import_cities`; empresa com
       `is_enabled = false` pulada. `EXPLAIN` do lote registrado (`nfe_addresses` sem índice por participante; índice,
-      se preciso, em migration própria). Integração contra Postgres.
+      se preciso, em migration própria). Integração contra Postgres. **Lote venenoso (M2):** o código de cidade que
+      sai de `resolvePhysicalDestination` é filtrado **em TypeScript, antes do upsert**, com `^[1-5][0-9]{6}$` mais prefixo
+      de UF válido (`BRAZILIAN_STATE_IBGE_CODE_LIST`), descartando `null`, `''`, `9999999` e `3909502`: a CHECK
+      `holiday_import_cities_city_check` recusaria o lote inteiro por um só código lixo. O descarte vira contador (sem PII:
+      só a contagem e o motivo) e o **cursor avança**, para o lote não travar a empresa. Contrato com um lote misto
+      (válidos + os quatro lixos): só os válidos entram, o contador diz quantos saíram, o cursor andou.
 - [ ] **T3.3** Busca: ordem por `sum(document_count)`, horizonte (D8), limitador 1,2 s com relógio e `sleep` injetados,
       teto de 100 por ciclo, orçamento mensal incrementado antes da chamada por **upsert** (o primeiro pedido do mês
       cria a linha; mutação: `UPDATE` cru para no dia 1º), backoff 1 h/6 h/24 h até 7 dias, 401/403, 429 com
@@ -131,7 +139,10 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       `typedHolidaysKept` conta só `provider_entry_id IS NULL`, o mesmo nas rotas de `state_holidays`; status da
       importação (o cache global só agregado para as cidades da empresa). Arquivos: `drizzle-municipal-holiday.repository.ts`
       65–182, `municipal-holiday.support.ts` 54–61, `municipal-holiday-typed.queries.ts` 37–48 e os de
-      `state_holidays`. Integração contra Postgres. (CA5)
+      `state_holidays`. Integração contra Postgres. (CA5) **Isolamento da tabela global:** contrato de isolamento
+      (molde `test/trip-domain/delivery-deadline-isolation.contract.ts`) — nenhum arquivo de `presentation` ou de
+      repositório importa as três tabelas globais (`holiday_provider_fetches`, `_entries`, `_monthly_usage`), exceto a
+      consulta agregada do status, que filtra pelas cidades da própria empresa.
 - [ ] **T4.2** `holidayWarnings` nas paradas do `GET /trips/:id` e `POST /business-calendar/day-checks` (`fleet.read`,
       até 200 itens, 400 a campo desconhecido e a > 200); `origin` (`code`/`typed`/`rule`/`imported`) nas regras e em
       `HolidayReason` (mapeadores leem `provider_entry_id`; o filtro de `readTypedHolidays` não muda); `cityName` de
