@@ -75,6 +75,8 @@ describe('authorization contract', () => {
       'whatsapp.settle',
       // Spec 222 / ADR-0092 §2: a leitura automática do canhoto, do serviço e de uma rota só
       'trip.canhoto-auto-review',
+      // Spec 248 T4.4b: o aviso automático da ocorrência, do serviço e de uma rota só
+      'occurrence.automatic-mail',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -201,7 +203,12 @@ describe('authorization contract', () => {
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       helper: ['trip.read'],
       contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
-      automation: ['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review'],
+      automation: [
+        'mdfe.auto-issue',
+        'whatsapp.settle',
+        'trip.canhoto-auto-review',
+        'occurrence.automatic-mail',
+      ],
     })
   })
 
@@ -447,6 +454,7 @@ describe('authorization contract', () => {
         permission !== 'mdfe.auto-issue' &&
         permission !== 'whatsapp.settle' &&
         permission !== 'trip.canhoto-auto-review' &&
+        permission !== 'occurrence.automatic-mail' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
@@ -752,6 +760,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'mdfe.auto-issue',
       'whatsapp.settle',
       'trip.canhoto-auto-review',
+      'occurrence.automatic-mail',
     ])
   })
 
@@ -805,6 +814,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'mdfe.auto-issue',
       'whatsapp.settle',
       'trip.canhoto-auto-review',
+      'occurrence.automatic-mail',
     ])
   })
 

@@ -106,6 +106,7 @@ describe('concessão de permissão de serviço', () => {
         'whatsapp.settle',
         'mdfe.auto-issue',
         'trip.canhoto-auto-review',
+        'occurrence.automatic-mail',
       ],
       roles: [],
     })
@@ -115,6 +116,7 @@ describe('concessão de permissão de serviço', () => {
       'permissions.1',
       'permissions.2',
       'permissions.3',
+      'permissions.4',
     ])
   })
 
