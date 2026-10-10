@@ -459,3 +459,25 @@ passou a montar a consulta; resolvido dublando a consulta no teste.)
   `VITE_SMOKE_AUTH_BYPASS` e uma API fake das rotas do escritório: 3 bolhas `.cv-p-bubble--mine` (escritório) e a do motorista com avatar "MS"; ticks `cv-status-ticks--read/delivered/sent`
   ("Lida pelo motorista"); tocar o chip preenche, Enviar posta uma vez (sem bolha duplicada); com mensagem do motorista não lida e aba visível, `POST …/messages/read` chamado 1 vez.
   Prints 375 e desktop vistos. **Não verificado:** o painel real (TripDetail) e anexos/áudio no fio; a gravação de áudio do compositor antigo deixou de existir (o SDK só anexa arquivo).
+
+## Publicação em staging
+
+Branch `work/spec-260-publish`, criada de `origin/staging` (`git fetch` em 2026-10-09); os 66 commits de `work/spec-260` entraram por
+cherry-pick na ordem, mais 1 commit de renumeração (67 à frente de staging). Distância antes: 66 à frente / 51 atrás.
+
+- **Conflitos do cherry-pick** (só aditivos, resolvidos preservando os dois lados): lista `test:integration` do `package.json` da API,
+  `static-migration.contract.ts` e `database-migration.integration.ts` (as asserções da 262 e as nossas) e `docs/ai-context/api-transportada.md`.
+- **Número da spec:** `specs/260-o-chat-chega-ao-app-do-motorista` colidia com `260-a-nota-que-volta-ao-barracao-fica-disponivel` (já em staging).
+  Maior número em todas as `origin/*` é 262; esta spec passa a **263** (`git mv`), com as referências nossas renumeradas (código, testes,
+  docs, ADR-0101, `api-contract.md`). Referências à outra 260 não existiam nos arquivos que tocamos.
+- **ADR:** `0101-a-conversa-tem-assunto-e-protocolo` livre em staging e nas demais `origin/*`; mantida.
+- **Migrations:** as três ficavam ANTES de `20261009223052_holiday_provider_settings` (262). Renomeadas para
+  `20261010101500_conversation_subject`, `20261010102500_conversation_protocol`, `20261010103500_quick_reply_driver_audience`.
+  `migration.sql`/`rollback.sql` iguais (só o comentário "Spec 260" virou 263 e o `name` apagado no `rollback.sql` acompanha o novo diretório).
+  `snapshot.json`: o primeiro passa a ter `prevIds` = id do snapshot da 262, e os três ganham as 17 entidades de `holiday_provider_settings`.
+  `bun run db:generate` = `no_changes`; `bun run db:check` = ok. O contrato da 262 (`holiday-provider-settings.static.contract.ts`) cobrava
+  "mais nova que a da 260"; agora cobra "mais velha que a primeira da 263".
+- **Gates:** `bun install --frozen-lockfile` ok · `make check` exit 0 (API 11390 pass/0 fail; demais apps 0 fail) · `make migration-test`
+  199 pass/0 fail · integração da conversa (8 arquivos) 32 pass/0 fail, nada pulado · smoke da conversa do `frontend-driver` 13 passed
+  (a primeira execução teve 1 falha em `route.fulfill` do helper de rede, no teste de respostas prontas; isolado passou 2/2 e a rodada
+  completa repetida deu 13/13).
