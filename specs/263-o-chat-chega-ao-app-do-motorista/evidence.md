@@ -463,7 +463,7 @@ passou a montar a consulta; resolvido dublando a consulta no teste.)
 ## Publicação em staging
 
 Branch `work/spec-260-publish`, criada de `origin/staging` (`git fetch` em 2026-10-09); os 66 commits de `work/spec-260` entraram por
-cherry-pick na ordem, mais 1 commit de renumeração (67 à frente de staging). Distância antes: 66 à frente / 51 atrás.
+cherry-pick na ordem, mais 2 commits (renumeração e esta evidência; 68 à frente de staging, 0 atrás). Distância antes: 66 à frente / 51 atrás.
 
 - **Conflitos do cherry-pick** (só aditivos, resolvidos preservando os dois lados): lista `test:integration` do `package.json` da API,
   `static-migration.contract.ts` e `database-migration.integration.ts` (as asserções da 262 e as nossas) e `docs/ai-context/api-transportada.md`.
