@@ -348,16 +348,23 @@
       "headline": {
         "healthy": "Em dia",
         "waiting": "Aguardando a primeira execução",
-        "unauthorized": "Fornecedor recusou o acesso: token inválido ou plano sem cobertura",
+        "unauthorized": "Fornecedor recusou o acesso: chave inválida ou plano sem cobertura",
         "unreachable": "Fornecedor indisponível, tentando de novo",
         "malformed": "Resposta inesperada do fornecedor",
         "failing": "Com falhas",
-        "disabled": "Desligada para esta empresa"
+        "disabled": "Desligada para esta empresa",
+        "noToken": "Sem chave da FeriadosAPI",
+        "tokenUnreadable": "A chave guardada não abre",
+        "budgetReached": "Orçamento do mês atingido"
       },
       "explain": {
         "healthy": "A rotina diária buscou os feriados das cidades acompanhadas.",
-        "waiting": "A rotina diária ainda não buscou nada. Em Operações, confira se ela está pausada ou sem token.",
-        "unauthorized": "O fornecedor recusou o último ciclo da rotina. Confira a chave configurada e o plano contratado no fornecedor; em Operações, veja se a rotina está pausada ou sem token.",
+        "waiting": "A rotina diária ainda não buscou nada. Em Operações, confira se ela está pausada.",
+        "waitingWithToken": "A chave está configurada, mas a rotina diária ainda não buscou nada. Em Operações, despause a rotina holiday.provider.pull para a primeira busca.",
+        "unauthorized": "O fornecedor recusou o último ciclo da rotina. Confira a chave em \"Chave da FeriadosAPI\" e o plano contratado no fornecedor.",
+        "noToken": "A importação não busca nada enquanto não houver chave. Cole a chave no bloco \"Chave da FeriadosAPI\", acima; depois de salva, a rotina ainda precisa ser despausada em Operações.",
+        "tokenUnreadable": "A chave está guardada, mas o último ciclo não conseguiu abri-la (por exemplo, depois de a chave de cifragem da instalação mudar). Cole a chave de novo no bloco \"Chave da FeriadosAPI\": ela é selada outra vez.",
+        "budgetReached": "A importação já usou todas as consultas do mês e fica parada até o mês seguinte. Para continuar antes, aumente o orçamento no bloco \"Chave da FeriadosAPI\".",
         "unreachable": "O fornecedor não respondeu no último ciclo. A rotina tenta de novo sozinha no próximo ciclo; nada precisa ser feito agora.",
         "malformed": "O fornecedor respondeu num formato que a rotina não entende e nada foi gravado. O contrato pode ter mudado: avise o suporte.",
         "failing": "Algumas buscas falharam. A rotina tenta de novo sozinha, com intervalo crescente.",

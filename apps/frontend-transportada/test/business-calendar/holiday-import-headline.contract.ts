@@ -207,9 +207,11 @@ describe('texto da espera e dos textos que citavam "sem token" (spec 262 T5.3)',
   })
 
   test('as três manchetes novas existem e dizem o que fazer, em pt-BR', () => {
-    expect(Object.values(HOLIDAY_IMPORT_HEADLINE)).toEqual(
-      expect.arrayContaining(['noToken', 'tokenUnreadable', 'budgetReached']),
-    )
+    const headlines: readonly string[] = Object.values(HOLIDAY_IMPORT_HEADLINE)
+
+    for (const added of ['noToken', 'tokenUnreadable', 'budgetReached']) {
+      expect(headlines).toContain(added)
+    }
     const { explain, headline } = portuguese.import.status as unknown as {
       explain: Record<string, string>
       headline: Record<string, string>

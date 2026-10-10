@@ -28,17 +28,24 @@ export const HOLIDAY_FETCH_FAILURE_CODES = [
 export const HOLIDAY_PLAN_RESTRICTED_CODE = 'provider_plan_restricted'
 
 export const HOLIDAY_IMPORT_HEADLINE = {
+  BUDGET_REACHED: 'budgetReached',
   DISABLED: 'disabled',
   FAILING: 'failing',
   HEALTHY: 'healthy',
   MALFORMED: 'malformed',
+  NO_TOKEN: 'noToken',
+  TOKEN_UNREADABLE: 'tokenUnreadable',
   UNAUTHORIZED: 'unauthorized',
   UNREACHABLE: 'unreachable',
   WAITING: 'waiting',
 } as const
 
-/** O desfecho de falha do último ciclo da rotina (vocabulário do catálogo) e a manchete que ele ganha. */
+/**
+ * O desfecho de falha do último ciclo da rotina (vocabulário do catálogo) e a manchete que ele ganha.
+ * `credential_unreadable`: a chave guardada não abriu (spec 262).
+ */
 export const HOLIDAY_RUN_FAILURE_HEADLINE = {
+  credential_unreadable: HOLIDAY_IMPORT_HEADLINE.TOKEN_UNREADABLE,
   malformed_response: HOLIDAY_IMPORT_HEADLINE.MALFORMED,
   provider_unauthorized: HOLIDAY_IMPORT_HEADLINE.UNAUTHORIZED,
   provider_unreachable: HOLIDAY_IMPORT_HEADLINE.UNREACHABLE,
