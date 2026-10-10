@@ -447,6 +447,58 @@ metade do `registration.contract` trocou 4 por 4). ⚠️ Uma execução de `bun
 **Não feito (de propósito):** push, **Gate A** (passo do usuário, só nomes, staging **e produção**), `railway config apply` (apaga as variáveis), colar a chave na tela, despausar a rotina,
 documentação viva (T6.1), telas (Fase 5), revisão `opus` separada da Fase 4.
 
+### Fase 4 — 2ª rodada (revisão `opus`: aprovada com ressalvas)
+
+Mesma branch `work/262-f4`, sem push. `git fetch origin` exit 0, `git log HEAD..origin/staging` **vazio** e `git rebase origin/staging` = "up to date" (staging não
+andou); `bun install --frozen-lockfile` exit 0. Postgres nativo descartável 18.4 na porta 65453 (religado para a rodada). Nenhum `railway` rodado, nenhum valor impresso.
+
+SHAs: testes `15cb24d00` → código `84a929343` → docs `3cd228a0b` (este commit de evidência vem depois e só toca `evidence.md`). **SHA testado nos gates abaixo: `3cd228a0b`.**
+
+1. **MEDIUM — `railway.ts` (T4.4).** A remoção das duas variáveis do `.railway/railway.ts` na T4.3 era um risco: omitir é apagar, e um `railway config apply` de um checkout sem elas destruiria a
+   variável do worker de **produção**, que a 252 ainda lê, antes de a chave estar no banco. Decisão do coordenador: a T4.3 tira as variáveis só do schema, dos tipos e do `.env.example`;
+   o `railway.ts` **mantém** `FERIADOS_API_MONTHLY_REQUEST_BUDGET` e `FERIADOS_API_TOKEN` (`preserve()`, só no worker) com um comentário de uma linha ("legado ignorado pelo worker … saem na T4.4").
+   Vermelho antes (`15cb24d00`): `registration.contract.ts` passa a afirmar que o `railway.ts` ainda mantém as duas, uma vez cada, dentro do bloco do worker e comentadas como legado; o
+   `deploy.contract` da API não precisou mudar (não afirma nada sobre elas: 202 pass antes e depois). **T4.4 criada** em `tasks.md` (Quadro e Fase 4), `plan.md`, `spec.md` (D4, D11, RF10),
+   ADR-0102 (D4, D10, D11) e `docs/spec/railway.md` (o `destroy` das duas no `plan` é **esperado** na T4.4, ao contrário do roteiro de migração, que trata `destroy` como arquivo incompleto; a nota
+   diz que só vale depois da chave no banco de staging e de produção, do worker em `main` e de um ciclo conferido, e que o `apply` é passo do usuário). **Rollback (D11):** com a T4.4 pendente, reverter o
+   worker volta a ler a variável preservada. A asserção de **ausência** no `railway.ts` nasce na T4.4. Mutação: sem as entradas no `railway.ts` o teste novo fica vermelho (foi o estado vermelho de `15cb24d00`).
+2. **MEDIUM — "colar a chave antes das telas".** Gate A (`tasks.md`), ADR-0102 D4/D10 e `spec.md` D4 escrevem as duas situações: (a) variável **inexistente** (esperado) → nada a colar, o worker vai antes das telas
+   e a busca começa parada (`token_missing`, `succeeded`) até a chave ser gravada pela tela; (b) variável **existente com valor** → a chave vai para o banco antes do deploy do worker, pelas telas (T5.1/T5.2) ou pelo
+   `PUT` com um comando que não ecoa nada (`read -s`, corpo por stdin com `--data @-`). O plano e a seção "Publicação" repetem a ordem.
+3. **MEDIUM — documentação viva antecipada da T6.1.** `docs/ai-context/worker-transportada.md` (rotina registrada sempre, chave e orçamento do banco, variável ignorada, roteiro do 1º ciclo e o limite da chave
+   de 16 a 512), `docs/SECURITY.md` (as frases que diziam que o worker lê o token da variável e que a API nunca o lê, o custo, o risco "Q4" e a pendência), `docs/ai-context/cron-transportada.md`, os passos do usuário
+   e o roteiro do 1º ciclo de `specs/252-*/tasks.md`, `spec.md` e `evidence.md` ("gravar a chave pela tela; a variável é ignorada") e `apps/worker-transportada/CLAUDE.md`. Texto honesto, nos três lugares do worker
+   (ai-context, SECURITY.md, CLAUDE.md): **chave removida ou trocada no meio do ciclo continua em uso até ele acabar** (≤ 100 requisições, ~2 min) e **"Remover chave" não para a aplicação do cache global** às empresas
+   (quem quer parar tudo pausa a rotina ou desliga a importação da empresa); também que erro de banco na leitura (tabela ausente) fecha `unexpected_error`, nunca `token_missing`.
+4. **Lows.**
+   (a) `token-secret-parity.contract.ts` compara agora `HOLIDAY_PROVIDER_TOKEN_MAX_LENGTH` e `HOLIDAY_PROVIDER_TOKEN_PATTERN` **por nome**, além de MIN e do AAD. Mutação (restaurada): `MAX_LENGTH = 513` no worker → 3 vermelhos
+   (a paridade nomeada, a do alfabeto e o teste de 513 caracteres, que passou a abrir).
+   (b) `parity.contract.ts` ganhou "o `provider` que o worker lê é exatamente a lista de fornecedores da API" (lê `HOLIDAY_PROVIDER_SETTINGS_PROVIDERS` da API e compara com `FERIADOS_API_SETTINGS_PROVIDER`). Mutação (restaurada):
+   `'feriados'` no worker → vermelho.
+   (c) Integração nova "tabela de configuração ausente": o teste renomeia `holiday_provider_settings` por instantes (`try`/`finally` restaura, e a limpeza cura um estado deixado por queda) e o ciclo fecha
+   `unexpected_error`, `stage_failures = 1`, **sem** `token_missing`, 0 requisições, e a descoberta ainda roda (`discovery_documents >= 1`). Mutação (restaurada): `.catch(() => token_missing)` na leitura do acesso → 3 vermelhos
+   (este teste, "erro do banco na leitura propaga" e o de privacidade).
+   (d) `buildFetchWithAccess(input, now)` extraída do registro: o registro tem 23 linhas e a nova função 30 (≤ 40), com `HolidayProviderPullRegistryInput` exportado; `typecheck`, `lint` e as 10 integrações seguem verdes.
+   (e) A limpeza da integração nova **não** dá para isolar por faixa ou id (a aplicação lê o cache global e aplica a TODAS as empresas com demanda); a restrição está registrada no cabeçalho do arquivo: não rodar em paralelo com
+   outra integração no mesmo banco (o `make worker-integration` provisiona um banco só para o worker e a lista roda um arquivo por vez).
+   (f) "Publicação da Fase 1" marcada como feita em `tasks.md`: SHA `a5868f369` em `origin/staging`, Deploy verde `37994557029` (depois de reexecução). Os arquivos de teste grandes **não** foram divididos.
+
+### Gates da 2ª rodada (SHA `3cd228a0b`, cwd `apps/worker-transportada`)
+
+| Gate                                                                                      | Resultado                                                        |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun run typecheck` / `bun run lint` / `bun run build`                                    | exit 0 / exit 0 (`--max-warnings=0`) / exit 0                    |
+| `bun run test` (script do `package.json`)                                                 | **2333 pass / 0 fail** (eram 2332: +1 da paridade do `provider`) |
+| Integração `holiday-provider-pull-access` (nova, sozinha, 0 skip)                         | **10 pass / 0 fail** (eram 9: +1 da tabela ausente)              |
+| Integração `holiday-provider-settings-reader` (sozinha, 0 skip)                           | **9 pass / 0 fail**                                              |
+| Integrações `holiday-fetch` / `holiday-apply` / `holiday-discovery` (uma por vez, 0 skip) | **8 pass** / **12 pass** / **6 pass**, 0 fail                    |
+| Integração `job-run-execution` (sozinha, 0 skip)                                          | **11 pass / 0 fail**                                             |
+| API `env-example.contract` / `deploy.contract`                                            | 5 pass / 202 pass                                                |
+| `bun run format:check` na raiz                                                            | exit 0 e `git status` vazio (depois do commit de evidência)      |
+
+**Ainda não feito (de propósito):** push, **Gate A**, T4.4 e `railway config apply`, gravar a chave, despausar a rotina, telas (Fase 5), T6.1 (a parte viva do worker foi antecipada; `docs/ai-context/api-transportada.md`,
+`frontend-transportada.md`, `domain-model.md` e a entrada própria do `SECURITY.md` continuam na T6.1).
+
 ## Fase 5 — Painel (T5.1, T5.2, T5.3)
 
 Branch `work/262-f5` a partir de `origin/staging` `cb9dad009` (`git fetch origin` exit 0; `git switch -c` exit 0; `bun install --frozen-lockfile` exit 0). **Sem push.** As Fases 1–3 estão em `origin/staging`; a Fase 4
