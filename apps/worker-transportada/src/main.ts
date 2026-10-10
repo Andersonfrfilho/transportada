@@ -1466,13 +1466,13 @@ export async function startWorkerRuntime(
                 }),
               }),
           /**
-           * Spec 252 (ADR-0100): registrada só com o token da FeriadosAPI. Sem ele nada sai do produto e
-           * a janela pousaria em `job_run_routine_missing` — a linha de `job_schedules` nasce pausada
-           * de fábrica, então ela nem abre até o usuário configurar o token e despausar.
+           * Spec 262 (ADR-0102): registrada sempre. A chave da FeriadosAPI e o orçamento moram no banco
+           * (tela da instalação) e são lidos a cada ciclo; sem chave nada sai do produto e a janela fecha
+           * `succeeded` com `token_missing`. A linha de `job_schedules` nasce pausada de fábrica.
            */
           ...buildHolidayProviderPullRegistry({
-            config,
             database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
             logger,
           }),
           /**

@@ -26,7 +26,7 @@ export type {
   FetchTally,
 } from './holiday-fetch-cycle.types.js'
 
-function createEmptyTally(): FetchTally {
+export function createEmptyFetchTally(): FetchTally {
   return {
     allNotFound: false,
     budgetExhausted: false,
@@ -40,6 +40,8 @@ function createEmptyTally(): FetchTally {
     planRestricted: 0,
     rateLimited: false,
     requests: 0,
+    tokenMissing: false,
+    tokenUnreadable: false,
     unauthorized: false,
     unexpectedFailures: 0,
     unreachable: 0,
@@ -68,7 +70,7 @@ export function createFetchHolidayProviderUseCase(
         isStopRequested,
         limiter,
         now,
-        tally: createEmptyTally(),
+        tally: createEmptyFetchTally(),
       }
       const pairs = await dependencies.store.listDuePairs({
         limit: ceiling,

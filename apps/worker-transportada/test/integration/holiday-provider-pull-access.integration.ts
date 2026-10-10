@@ -6,7 +6,7 @@
  * rodam, que a busca usa a chave e o orçamento DO BANCO (o `Authorization` do fornecedor falso confere), que
  * trocar a chave entre dois ciclos vale no segundo e que envelope ilegível fecha `credential_unreadable`.
  */
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
@@ -40,14 +40,23 @@ describeDatabase('a rotina com a chave e o orçamento do banco (integration, spe
   const db = provider.db
   const month = resolveBudgetMonth(new Date())
 
-  beforeEach(async () => {
+  /**
+   * A aplicação lê o cache GLOBAL: o que outros testes deixaram nele seria aplicado às empresas deste e travaria
+   * a limpeza deles por FK. Por isso a limpeza é do que a rotina deriva do cache, antes e depois de cada teste.
+   */
+  async function cleanProviderState() {
     await db.execute(sql`delete from holiday_provider_settings`)
     await db.execute(sql`delete from holiday_import_cities`)
     await db.execute(sql`delete from holiday_provider_fetches`)
     await db.execute(sql`delete from holiday_provider_monthly_usage`)
-    await db.execute(sql`delete from holiday_provider_entries where holiday_on = ${ENTRY_DATE}`)
-    await db.execute(sql`delete from municipal_holidays where holiday_on = ${ENTRY_DATE}`)
-  })
+    await db.execute(sql`delete from municipal_holidays where provider_entry_id is not null`)
+    await db.execute(sql`delete from state_holidays where provider_entry_id is not null`)
+    await db.execute(sql`delete from holiday_provider_entries`)
+  }
+
+  beforeEach(cleanProviderState)
+
+  afterEach(cleanProviderState)
 
   afterAll(async () => {
     await provider.close()

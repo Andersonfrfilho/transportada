@@ -1,19 +1,23 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * O registro **condicional** da rotina (ADR-0100 D10, como `GOOGLE_MAPS_API_KEY`/ADR-0062): sem o token
- * a rotina não existe, nada sai do produto e a janela dela pousa em `job_run_routine_missing` — que é a
- * verdade, e que a pausa de fábrica da linha de `job_schedules` (D13) nem deixa abrir. O `fetch` da
+ * O registro da rotina (spec 262, ADR-0102 D3): **sempre registrada**, como `trip.location.purge` (spec 239). A
+ * chave da FeriadosAPI e o orçamento do mês moram no banco e são lidos a cada ciclo; sem chave a busca não roda
+ * (contador `token_missing`, nenhuma requisição) e a janela fecha pelo resto, em vez de pousar em
+ * `job_run_routine_missing`. A linha de `job_schedules` continua pausada de fábrica (ADR-0100 D13). O `fetch` da
  * rede, o relógio e o `sleep` do limitador entram aqui e só aqui.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import type { SecretEnvelopeProvider } from '@adatechnology/secret-envelope'
 
 import type { JobRoutineRegistry } from '../../job-run/application/job-routine.port.js'
-import type { WorkerEnvironment, WorkerLogger } from '../../shared/worker.types.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import { createApplyHolidayProviderUseCase } from '../application/apply-holiday-provider.use-case.js'
 import { createDiscoverHolidayCitiesUseCase } from '../application/discover-holiday-cities.use-case.js'
 import { createFetchHolidayProviderUseCase } from '../application/fetch-holiday-provider.use-case.js'
+import { createFetchHolidayProviderWithAccessUseCase } from '../application/fetch-holiday-provider-with-access.use-case.js'
 import { createHolidayProviderPullRoutine } from '../application/holiday-provider-pull.routine.js'
+import { createHolidayProviderTokenSecretService } from '../application/holiday-provider-token-secret.service.js'
 import type { RequestClock } from '../application/request-limiter.js'
 import {
   FERIADOS_API_BASE_URL,
@@ -24,25 +28,36 @@ import {
 import { createDrizzleHolidayApplyStore } from './drizzle-holiday-apply.store.js'
 import { createDrizzleHolidayDiscoveryStore } from './drizzle-holiday-discovery.store.js'
 import { createDrizzleHolidayFetchStore } from './drizzle-holiday-fetch.store.js'
-import { createFeriadosApiClient } from './feriados-api.client.js'
+import { createDrizzleHolidayProviderSettingsReader } from './drizzle-holiday-provider-settings.reader.js'
+import { createFeriadosApiClient, type FeriadosApiFetch } from './feriados-api.client.js'
 
 const SYSTEM_CLOCK: RequestClock = {
   nowMilliseconds: () => Date.now(),
   sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }
 
+const NETWORK_FETCH: FeriadosApiFetch = (url, init) => fetch(url, init)
+
 export type HolidayProviderPullDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
 export function buildHolidayProviderPullRegistry(input: {
-  readonly config: Pick<WorkerEnvironment, 'holidayProviderPull'>
+  readonly clock?: RequestClock
   readonly database: HolidayProviderPullDatabase
+  readonly envelopeProvider: SecretEnvelopeProvider
+  readonly fetch?: FeriadosApiFetch
   readonly logger: WorkerLogger
 }): JobRoutineRegistry {
-  const settings = input.config.holidayProviderPull
-  if (settings === undefined) return {}
-
   const { database, logger } = input
+  const clock = input.clock ?? SYSTEM_CLOCK
+  const networkFetch = input.fetch ?? NETWORK_FETCH
   const now = () => new Date()
+  const fetchStore = createDrizzleHolidayFetchStore(database)
+  const access = createDrizzleHolidayProviderSettingsReader({
+    database,
+    tokenSecret: createHolidayProviderTokenSecretService({
+      envelopeProvider: input.envelopeProvider,
+    }),
+  })
 
   return {
     [HOLIDAY_PROVIDER_PULL_JOB]: createHolidayProviderPullRoutine({
@@ -56,18 +71,22 @@ export function buildHolidayProviderPullRegistry(input: {
         now,
         store: createDrizzleHolidayDiscoveryStore(database),
       }),
-      fetch: createFetchHolidayProviderUseCase({
-        budget: settings.monthlyRequestBudget,
-        client: createFeriadosApiClient({
-          baseUrl: FERIADOS_API_BASE_URL,
-          fetch: (url, init) => fetch(url, init),
-          timeoutInMilliseconds: FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
-          token: settings.token,
-        }),
-        clock: SYSTEM_CLOCK,
-        logger,
-        now,
-        store: createDrizzleHolidayFetchStore(database),
+      fetch: createFetchHolidayProviderWithAccessUseCase({
+        access,
+        createFetch: ({ budget, token }) =>
+          createFetchHolidayProviderUseCase({
+            budget,
+            client: createFeriadosApiClient({
+              baseUrl: FERIADOS_API_BASE_URL,
+              fetch: networkFetch,
+              timeoutInMilliseconds: FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
+              token,
+            }),
+            clock,
+            logger,
+            now,
+            store: fetchStore,
+          }),
       }),
       logger,
     }),
