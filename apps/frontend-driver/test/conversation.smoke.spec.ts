@@ -297,10 +297,17 @@ test('falha: recusa do servidor mostra "reenviar" e o toque entrega uma só', as
   await page.locator('textarea.cv-p-composer__input').fill(text)
   await page.getByRole('button', { name: 'Enviar' }).click()
   const bubble = page.locator('.cv-p-bubble--mine').filter({ hasText: text })
-  const retry = bubble.locator('.cv-p-bubble__retry')
+  const retry = bubble.getByRole('button', { name: /reenviar/ })
   await expect(retry).toBeVisible({ timeout: ARRIVAL_TIMEOUT_MS })
-  await expect(retry).toContainText('reenviar')
   expect(await readDriverTexts(PREVIEW_OCCURRENCE_IDS.damage, text)).toBe(0)
+
+  const options = bubble.getByRole('button', { name: 'Opções da mensagem' })
+  await options.click()
+  await expect(page.getByRole('menuitem', { name: /editar/i })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /descartar/i })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(options).toBeFocused()
 
   await retry.click()
   await expect(bubble.locator('.cv-status-ticks--delivered')).toBeVisible({
