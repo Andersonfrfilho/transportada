@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 262 T4.2 (CA8): a rotina é registrada sempre (a chave e o orçamento vêm do banco a cada ciclo) e a
- * janela dela deixou de pousar em `job_run_routine_missing`. Spec 252 T3.5 (D10, até a T4.3 da 262): o token
- * mora só no worker, em `.env.example` e em `.railway/railway.ts` sem valor; nenhuma outra app o conhece.
+ * janela dela deixou de pousar em `job_run_routine_missing`. T4.3 (D4): as variáveis `FERIADOS_API_TOKEN` e
+ * `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saíram do schema, dos tipos, do `.env.example` e do `railway.ts`.
  */
 import { readFile } from 'node:fs/promises'
 
@@ -63,50 +63,38 @@ describe('o registro da rotina é incondicional (spec 262 T4.2, CA8)', () => {
   })
 })
 
-describe('onde o token mora (spec 252 T3.5, D10)', () => {
-  test('`.env.example` declara as duas variáveis sem valor', async () => {
+describe('onde o token deixou de morar (spec 262 T4.3, D4, CA9)', () => {
+  test('`.env.example` não declara mais a chave nem o orçamento', async () => {
     const example = await readFile(new URL('.env.example', REPOSITORY_ROOT), 'utf8')
 
-    expect(example).toMatch(/^FERIADOS_API_TOKEN=$/mu)
-    expect(example).toMatch(/^FERIADOS_API_MONTHLY_REQUEST_BUDGET=$/mu)
+    expect(example).not.toContain('FERIADOS_API_TOKEN')
+    expect(example).not.toContain('FERIADOS_API_MONTHLY_REQUEST_BUDGET')
   })
 
-  test('`.railway/railway.ts` as declara com `preserve()` só no worker', async () => {
+  test('`.railway/railway.ts` não declara mais a chave nem o orçamento (omitir é apagar, no `apply` do usuário)', async () => {
     const railway = await readFile(new URL('.railway/railway.ts', REPOSITORY_ROOT), 'utf8')
-    const start = railway.indexOf("const worker = service('worker'")
-    const end = railway.indexOf("const panel = service('transportada-frontend'")
-    const workerBlock = railway.slice(start, end)
 
-    expect(start).toBeGreaterThan(-1)
-    expect(end).toBeGreaterThan(start)
-    for (const key of ['FERIADOS_API_TOKEN', 'FERIADOS_API_MONTHLY_REQUEST_BUDGET']) {
-      expect(workerBlock).toContain(`${key}: preserve(),`)
-      expect(railway.split(`${key}:`)).toHaveLength(2)
-    }
+    expect(railway).not.toContain('FERIADOS_API_TOKEN')
+    expect(railway).not.toContain('FERIADOS_API_MONTHLY_REQUEST_BUDGET')
   })
 
-  test('nenhuma outra app lê o token', async () => {
+  test('nenhuma app, nem o worker, lê o nome da variável', async () => {
     const offenders: string[] = []
     for await (const path of new Glob('apps/*/src/**/*.{ts,tsx}').scan({
       cwd: REPOSITORY_ROOT.pathname,
     })) {
-      if (path.startsWith('apps/worker-transportada/')) continue
       const text = await readFile(new URL(path, REPOSITORY_ROOT), 'utf8')
       if (text.includes('FERIADOS_API_TOKEN')) offenders.push(path)
+      if (text.includes('FERIADOS_API_MONTHLY_REQUEST_BUDGET')) offenders.push(path)
     }
 
     expect(offenders).toEqual([])
   })
 
-  test('no worker, só o schema de ambiente conhece o nome da variável', async () => {
-    const readers: string[] = []
-    for await (const path of new Glob('src/**/*.ts').scan({
-      cwd: WORKER_ROOT.pathname,
-    })) {
-      const text = await readFile(new URL(path, WORKER_ROOT), 'utf8')
-      if (text.includes('FERIADOS_API_TOKEN')) readers.push(path)
-    }
+  test('os tipos do worker não têm mais a configuração da importação de feriados', async () => {
+    const types = await readFile(new URL('src/shared/worker.types.ts', WORKER_ROOT), 'utf8')
 
-    expect(readers).toEqual(['src/config/environment.schema.ts'])
+    expect(types).not.toContain('HolidayProviderPullEnvironment')
+    expect(types).not.toContain('holidayProviderPull')
   })
 })
