@@ -68,6 +68,7 @@
       "me": "Office",
       "messageInputLabel": "Message to the driver",
       "messageInputPlaceholder": "Write to the driver",
+      "messageOptions": "Message options",
       "newMessages": "New messages from the driver",
       "notFound": "Conversation not found.",
       "protocolCopied": "Protocol copied",
