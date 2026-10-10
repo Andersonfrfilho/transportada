@@ -83,7 +83,7 @@ describe('o worker abre a chave selada pela API (spec 262 T4.1)', () => {
       JSON.stringify({ token: 'a'.repeat(513) }),
       JSON.stringify({ token: `${FIXTURE_HOLIDAY_TOKEN} x` }),
       JSON.stringify({ token: `${FIXTURE_HOLIDAY_TOKEN}é` }),
-      JSON.stringify({ token: 12_345_678_901_234_567 }),
+      JSON.stringify({ token: 1_234_567_890_123_456 }),
       JSON.stringify({}),
       '{"token":',
       'not json',

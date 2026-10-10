@@ -298,8 +298,14 @@ export const JOB_CATALOG = [
     /**
      * Importação de feriados da FeriadosAPI. Nasce pausada de fábrica: sem token, cada janela seria
      * uma chamada recusada. Falha de fornecedor é código estável, nunca texto solto.
+     * `credential_unreadable` (spec 262): há chave guardada e ela não abre (chaveiro, AAD, envelope).
      */
-    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    failureOutcomes: [
+      'provider_unreachable',
+      'provider_unauthorized',
+      'malformed_response',
+      'credential_unreadable',
+    ],
     job: 'holiday.provider.pull',
     /** Uma hora: a cota mensal é o teto real, e o piso de uma hora é cortesia com o fornecedor. */
     minimumIntervalSeconds: 3_600,
