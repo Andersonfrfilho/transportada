@@ -16,6 +16,7 @@ import { createApplyHolidayProviderUseCase } from '../application/apply-holiday-
 import { createDiscoverHolidayCitiesUseCase } from '../application/discover-holiday-cities.use-case.js'
 import { createFetchHolidayProviderUseCase } from '../application/fetch-holiday-provider.use-case.js'
 import { createFetchHolidayProviderWithAccessUseCase } from '../application/fetch-holiday-provider-with-access.use-case.js'
+import type { FetchHolidayProviderUseCase } from '../application/holiday-fetch-cycle.types.js'
 import { createHolidayProviderPullRoutine } from '../application/holiday-provider-pull.routine.js'
 import { createHolidayProviderTokenSecretService } from '../application/holiday-provider-token-secret.service.js'
 import type { RequestClock } from '../application/request-limiter.js'
@@ -40,24 +41,51 @@ const NETWORK_FETCH: FeriadosApiFetch = (url, init) => fetch(url, init)
 
 export type HolidayProviderPullDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
-export function buildHolidayProviderPullRegistry(input: {
+export type HolidayProviderPullRegistryInput = {
   readonly clock?: RequestClock
   readonly database: HolidayProviderPullDatabase
   readonly envelopeProvider: SecretEnvelopeProvider
   readonly fetch?: FeriadosApiFetch
   readonly logger: WorkerLogger
-}): JobRoutineRegistry {
+}
+
+/** A busca nasce por ciclo, com a chave e o orçamento que o leitor devolveu; o cliente HTTP também. */
+function buildFetchWithAccess(
+  input: HolidayProviderPullRegistryInput,
+  now: () => Date,
+): FetchHolidayProviderUseCase {
   const { database, logger } = input
-  const clock = input.clock ?? SYSTEM_CLOCK
-  const networkFetch = input.fetch ?? NETWORK_FETCH
-  const now = () => new Date()
   const fetchStore = createDrizzleHolidayFetchStore(database)
-  const access = createDrizzleHolidayProviderSettingsReader({
-    database,
-    tokenSecret: createHolidayProviderTokenSecretService({
-      envelopeProvider: input.envelopeProvider,
+
+  return createFetchHolidayProviderWithAccessUseCase({
+    access: createDrizzleHolidayProviderSettingsReader({
+      database,
+      tokenSecret: createHolidayProviderTokenSecretService({
+        envelopeProvider: input.envelopeProvider,
+      }),
     }),
+    createFetch: ({ budget, token }) =>
+      createFetchHolidayProviderUseCase({
+        budget,
+        client: createFeriadosApiClient({
+          baseUrl: FERIADOS_API_BASE_URL,
+          fetch: input.fetch ?? NETWORK_FETCH,
+          timeoutInMilliseconds: FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
+          token,
+        }),
+        clock: input.clock ?? SYSTEM_CLOCK,
+        logger,
+        now,
+        store: fetchStore,
+      }),
   })
+}
+
+export function buildHolidayProviderPullRegistry(
+  input: HolidayProviderPullRegistryInput,
+): JobRoutineRegistry {
+  const { database, logger } = input
+  const now = () => new Date()
 
   return {
     [HOLIDAY_PROVIDER_PULL_JOB]: createHolidayProviderPullRoutine({
@@ -71,23 +99,7 @@ export function buildHolidayProviderPullRegistry(input: {
         now,
         store: createDrizzleHolidayDiscoveryStore(database),
       }),
-      fetch: createFetchHolidayProviderWithAccessUseCase({
-        access,
-        createFetch: ({ budget, token }) =>
-          createFetchHolidayProviderUseCase({
-            budget,
-            client: createFeriadosApiClient({
-              baseUrl: FERIADOS_API_BASE_URL,
-              fetch: networkFetch,
-              timeoutInMilliseconds: FERIADOS_API_REQUEST_TIMEOUT_MILLISECONDS,
-              token,
-            }),
-            clock,
-            logger,
-            now,
-            store: fetchStore,
-          }),
-      }),
+      fetch: buildFetchWithAccess(input, now),
       logger,
     }),
   }
