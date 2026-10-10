@@ -15,6 +15,7 @@ import {
 } from '../shared/holidayProviderSettingsForm.service'
 import type { HolidayProviderSettings } from '../shared/holidayProviderSettings.types'
 import businessCalendarStyles from '../styles/businessCalendar.module.css'
+import styles from '../styles/holidayProviderSettings.module.css'
 
 import { HolidayProviderFeedback } from './HolidayProviderFeedback.component'
 import { HolidayProviderInput } from './HolidayProviderInput.component'
@@ -79,7 +80,7 @@ export function HolidayProviderForm({ actions, settings }: HolidayProviderFormPr
       onSubmit={(event) => void handleSubmit(event)}
       ref={formReference}
     >
-      <div className={businessCalendarStyles.fieldGrid}>
+      <div className={styles.fields}>
         <HolidayProviderInput
           control={{
             autoComplete: 'off',

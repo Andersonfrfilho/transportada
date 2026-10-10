@@ -51,6 +51,20 @@
   background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
 }
 
+/* Só dois campos: a grade de quatro colunas do calendário os deixaria estreitos demais em 1280 px. */
+.fields {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 48rem;
+  }
+}
+
 .fieldHint {
   margin: 0;
   color: var(--color-slate-ink);

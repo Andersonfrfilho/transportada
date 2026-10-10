@@ -307,7 +307,7 @@
       "unchanged": "Nada para salvar: digite uma chave nova ou mude o orçamento."
     },
     "errors": {
-      "token": "A chave tem de ter de 16 a 512 caracteres visíveis, sem espaços nem acentos.",
+      "token": "A chave deve ter de 16 a 512 caracteres visíveis, sem espaços nem acentos.",
       "monthlyRequestBudget": "Informe um número inteiro de 1 a 1.000.000, sem pontos nem vírgulas."
     },
     "remove": {
