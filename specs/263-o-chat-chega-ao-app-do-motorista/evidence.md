@@ -481,3 +481,11 @@ cherry-pick na ordem, mais 2 commits (renumeração e esta evidência; 68 à fre
   199 pass/0 fail · integração da conversa (8 arquivos) 32 pass/0 fail, nada pulado · smoke da conversa do `frontend-driver` 13 passed
   (a primeira execução teve 1 falha em `route.fulfill` do helper de rede, no teste de respostas prontas; isolado passou 2/2 e a rodada
   completa repetida deu 13/13).
+
+## Correção do deploy de staging: smoke do painel (T5.2)
+
+- **Defeito:** o primeiro deploy do lote (`55b94620f`) falhou em `gate / integration-smoke (panel)`: 11 falhas e 51 passes, todas em `expect(api.failures()).toEqual([])` com `http://localhost:53001/trips/<id>/conversations net::ERR_FAILED` (`responsive.smoke.spec.ts`: MDF-e e desenho da carga; `trip-timeline.smoke.spec.ts`).
+- **Causa:** a T3/T5.2 fez o detalhe da viagem listar as conversas por assunto (`GET /trips/:tripId/conversations`), e o stub de `test/trip-smoke.helper.ts` não conhecia a rota; o pedido escapava para a API, que não sobe no smoke. O smoke do painel nunca foi rodado antes do push: só os testes de contrato e de hooks do painel.
+- **Correção:** mock `GET /trips/:id/conversations` → `{ data: [] }` (com `OPTIONS`) no helper da viagem.
+- **Prova:** os 11 testes que falharam na CI passam localmente (11 passed, 26 s); o resto da suíte tinha passado na CI (51).
+- **Lição:** o smoke do painel entra no gate local de toda task que muda uma tela do painel. Local, a porta 53000 costuma ser de outra sessão e o Playwright a reaproveita sem o bypass de autenticação: use `PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bun run smoke -- <arquivos>`.
