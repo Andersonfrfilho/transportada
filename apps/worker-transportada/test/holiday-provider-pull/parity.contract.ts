@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, test } from 'bun:test'
 
 import { CITY_IBGE_CODE_PATTERN } from '../../src/holiday-provider-pull/domain/holiday-provider.constant.js'
+import { FERIADOS_API_SETTINGS_PROVIDER } from '../../src/holiday-provider-pull/domain/holiday-provider-pull.constant.js'
 
 const WORKER_CONSTANTS = new URL(
   '../../src/holiday-provider-pull/domain/holiday-provider.constant.ts',
@@ -87,6 +88,17 @@ describe('o vocabulário do cache do fornecedor é o da API (spec 252 T3.2)', ()
     const api = await readFile(API_CALENDAR_CONSTANTS, 'utf8')
 
     expect(api).toContain(`export const CITY_IBGE_CODE_SOURCE = '${CITY_IBGE_CODE_PATTERN.source}'`)
+  })
+})
+
+describe('o fornecedor da configuração da instalação é o único que a API aceita (spec 262)', () => {
+  test('o `provider` que o worker lê é exatamente a lista de fornecedores da API (a CHECK aceita só ele)', async () => {
+    const api = await readFile(API_CONSTANTS, 'utf8')
+    const declared = /HOLIDAY_PROVIDER_SETTINGS_PROVIDERS = \[([^\]]*)\] as const/u.exec(api)
+
+    expect(declared).not.toBeNull()
+    const providers = [...(declared?.[1] ?? '').matchAll(/'([^']+)'/gu)].map((match) => match[1])
+    expect(providers).toEqual([FERIADOS_API_SETTINGS_PROVIDER])
   })
 })
 

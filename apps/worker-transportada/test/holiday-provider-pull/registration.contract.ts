@@ -3,7 +3,8 @@
  *
  * Spec 262 T4.2 (CA8): a rotina é registrada sempre (a chave e o orçamento vêm do banco a cada ciclo) e a
  * janela dela deixou de pousar em `job_run_routine_missing`. T4.3 (D4): as variáveis `FERIADOS_API_TOKEN` e
- * `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saíram do schema, dos tipos, do `.env.example` e do `railway.ts`.
+ * `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saíram do schema, dos tipos e do `.env.example`; o `railway.ts` as mantém
+ * (`preserve()`, legado ignorado) até a T4.4, que só roda depois de a chave estar no banco de staging e de produção.
  */
 import { readFile } from 'node:fs/promises'
 
@@ -71,11 +72,25 @@ describe('onde o token deixou de morar (spec 262 T4.3, D4, CA9)', () => {
     expect(example).not.toContain('FERIADOS_API_MONTHLY_REQUEST_BUDGET')
   })
 
-  test('`.railway/railway.ts` não declara mais a chave nem o orçamento (omitir é apagar, no `apply` do usuário)', async () => {
+  /**
+   * Omitir é apagar: o `railway config apply` de um checkout que já não declara a variável a destruiria no worker
+   * ANTES de a chave estar no banco. As duas entradas ficam como legado ignorado até a T4.4; a asserção de
+   * ausência de `railway.ts` nasce na T4.4, e este teste é trocado por ela.
+   */
+  test('`.railway/railway.ts` ainda mantém as duas entradas, só no worker e comentadas como legado, até a T4.4', async () => {
     const railway = await readFile(new URL('.railway/railway.ts', REPOSITORY_ROOT), 'utf8')
+    const start = railway.indexOf("const worker = service('worker'")
+    const end = railway.indexOf("const panel = service('transportada-frontend'")
+    const workerBlock = railway.slice(start, end)
 
-    expect(railway).not.toContain('FERIADOS_API_TOKEN')
-    expect(railway).not.toContain('FERIADOS_API_MONTHLY_REQUEST_BUDGET')
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    for (const key of ['FERIADOS_API_TOKEN', 'FERIADOS_API_MONTHLY_REQUEST_BUDGET']) {
+      expect(workerBlock).toContain(`${key}: preserve(),`)
+      expect(railway.split(`${key}:`)).toHaveLength(2)
+    }
+    expect(workerBlock).toContain('legado ignorado pelo worker')
+    expect(workerBlock).toContain('T4.4')
   })
 
   test('nenhuma app, nem o worker, lê o nome da variável', async () => {

@@ -4,7 +4,14 @@
  * Spec 262 T4.2 (CA7, CA8) contra Postgres: o REGISTRO de verdade, o banco de verdade e um fornecedor falso.
  * Prova que a rotina está registrada sem nenhuma variável, que sem linha nada sai e a descoberta e a aplicação
  * rodam, que a busca usa a chave e o orçamento DO BANCO (o `Authorization` do fornecedor falso confere), que
- * trocar a chave entre dois ciclos vale no segundo e que envelope ilegível fecha `credential_unreadable`.
+ * trocar a chave entre dois ciclos vale no segundo, que envelope ilegível fecha `credential_unreadable` e que a
+ * tabela ausente fecha `unexpected_error` (nunca `token_missing`).
+ *
+ * ⚠️ NÃO roda em paralelo com outra integração no MESMO banco: a aplicação lê o cache global de feriados, então a
+ * limpeza daqui apaga o cache, a demanda, os pares, o uso do mês e a configuração inteiros (não há faixa nem id que
+ * a isole), e o teste da tabela ausente a renomeia por instantes. O `make worker-integration` provisiona um banco só
+ * para o worker (`scripts/provision-integration-database.ts`) e a lista `test:integration` roda um arquivo por vez:
+ * não aponte a integração da API para o mesmo banco ao mesmo tempo.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -45,6 +52,12 @@ describeDatabase('a rotina com a chave e o orçamento do banco (integration, spe
    * a limpeza deles por FK. Por isso a limpeza é do que a rotina deriva do cache, antes e depois de cada teste.
    */
   async function cleanProviderState() {
+    await db.execute(sql`
+      do $$ begin
+        if to_regclass('holiday_provider_settings_gone') is not null then
+          alter table holiday_provider_settings_gone rename to holiday_provider_settings;
+        end if;
+      end $$`)
     await db.execute(sql`delete from holiday_provider_settings`)
     await db.execute(sql`delete from holiday_import_cities`)
     await db.execute(sql`delete from holiday_provider_fetches`)
@@ -254,5 +267,27 @@ describeDatabase('a rotina com a chave e o orçamento do banco (integration, spe
 
     expect(requests).toEqual([])
     expect(finished[0]?.outcome).toBe('credential_unreadable')
+  })
+
+  test('tabela de configuração ausente (rollback fora de ordem): `unexpected_error`, nunca `token_missing`', async () => {
+    await seedDemand()
+    await db.execute(
+      sql`alter table holiday_provider_settings rename to holiday_provider_settings_gone`,
+    )
+
+    let cycle: Awaited<ReturnType<typeof runCycle>>
+    try {
+      cycle = await runCycle()
+    } finally {
+      await db.execute(
+        sql`alter table holiday_provider_settings_gone rename to holiday_provider_settings`,
+      )
+    }
+
+    expect(cycle.requests).toEqual([])
+    expect(cycle.finished[0]?.outcome).toBe('unexpected_error')
+    expect(cycle.finished[0]?.counters).toMatchObject({ requests: 0, stage_failures: 1 })
+    expect(cycle.finished[0]?.counters).not.toHaveProperty('token_missing')
+    expect(cycle.finished[0]?.counters.discovery_documents).toBeGreaterThanOrEqual(1)
   })
 })

@@ -43,6 +43,8 @@ function extractStatement(input: { readonly name: string; readonly source: strin
 
 const SHARED_CONSTANTS = [
   'HOLIDAY_PROVIDER_TOKEN_MIN_LENGTH',
+  'HOLIDAY_PROVIDER_TOKEN_MAX_LENGTH',
+  'HOLIDAY_PROVIDER_TOKEN_PATTERN',
   'HOLIDAY_PROVIDER_TOKEN_AAD_PREFIX',
 ] as const
 
