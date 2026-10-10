@@ -1413,7 +1413,7 @@ export function TripDetail({
         ) : null}
       </section>
 
-      {/* Spec 260 T3.1/T3.2: a conversa com o motorista — a da viagem e a de cada nota. */}
+      {/* Spec 263 T3.1/T3.2: a conversa com o motorista — a da viagem e a de cada nota. */}
       <TripConversationsPanel
         canManage={canManage}
         canRead={canReadFleetDetails}

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101 §7), contra Postgres real — lado de escrita do motorista:
+ * Spec 263 T2.4 (ADR-0101 §7), contra Postgres real — lado de escrita do motorista:
  * - nota e viagem: do `open` ao envio ao GET das mensagens, com o `clientMessageId` ecoado; a repetição da
  *   chave devolve a mesma mensagem; duas requisições simultâneas gravam uma só; mensagens não vazam;
  * - ocorrência: a rota nova e a antiga dividem a idempotência — nada duplica, nos dois sentidos;
@@ -70,7 +70,7 @@ async function scenario(database: TestDatabase) {
 const countRows = async (database: TestDatabase, table: typeof occurrenceConversationMessages) =>
   (await database.db.select({ id: table.id }).from(table)).length
 
-describe('a escrita da conversa por assunto do motorista contra Postgres (spec 260 T2.4)', () => {
+describe('a escrita da conversa por assunto do motorista contra Postgres (spec 263 T2.4)', () => {
   testWithPostgres(
     'nota e viagem: open, resposta com eco, repetição devolve a mesma, GET sem vazar entre assuntos',
     async () => {

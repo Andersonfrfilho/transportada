@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: os casos de uso de escrita do motorista por assunto, com portas falsas — a resposta
+ * Spec 263 T2.4: os casos de uso de escrita do motorista por assunto, com portas falsas — a resposta
  * (idempotência 201/200 com o mesmo objeto, chave reutilizada, encerrada, BOLA, retarget, ocorrência pela
  * operação antiga) e o pedido de upload por `conversation_id`.
  */
@@ -231,7 +231,7 @@ const replyDocument = (
     ...extra,
   })
 
-describe('a resposta do motorista por assunto (spec 260 T2.4)', () => {
+describe('a resposta do motorista por assunto (spec 263 T2.4)', () => {
   test('nota: grava inbound pelo app com o eco da chave; a repetição devolve o mesmo objeto sem gravar', async () => {
     const world = createWorld({})
     const first = await replyDocument(world)
@@ -424,7 +424,7 @@ describe('a resposta do motorista por assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('a ocorrência pela rota nova usa a idempotência da antiga (spec 260 T2.4, ADR-0101 §7)', () => {
+describe('a ocorrência pela rota nova usa a idempotência da antiga (spec 263 T2.4, ADR-0101 §7)', () => {
   const replyOccurrence = (world: ReturnType<typeof createWorld>, bodyText = 'Foto enviada') =>
     world.reply.reply({
       ...IDENTITY,
@@ -491,7 +491,7 @@ describe('a ocorrência pela rota nova usa a idempotência da antiga (spec 260 T
   })
 })
 
-describe('o pedido de upload por assunto (spec 260 T2.4)', () => {
+describe('o pedido de upload por assunto (spec 263 T2.4)', () => {
   function createUploadFixture(current: MyConversationSubject | null) {
     const inserted: unknown[] = []
     const useCase = createRequestMySubjectUploadUseCase({

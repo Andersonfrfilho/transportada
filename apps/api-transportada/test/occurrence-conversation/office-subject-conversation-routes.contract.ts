@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: as rotas do escritório por assunto — a TABELA (política e limite de cada rota nova; as
+ * Spec 263 T2.4b: as rotas do escritório por assunto — a TABELA (política e limite de cada rota nova; as
  * antigas do escritório inalteradas), os verbos e códigos de cada rota, a `Idempotency-Key` do envio, os
  * erros de domínio e o recorte por permissão (`fleet.read` lê, `trip.manage` escreve).
  */
@@ -143,7 +143,7 @@ const subjectPath = (subjectType: string, rest: string, subjectId = SUBJECT_ID) 
   `${BASE}/${subjectType}/${subjectId}/${rest}`
 const unused = new Proxy({}, { get: () => () => undefined })
 
-describe('a tabela das rotas do escritório por assunto (spec 260 T2.4b)', () => {
+describe('a tabela das rotas do escritório por assunto (spec 263 T2.4b)', () => {
   test('cada rota nova com a política e o limite do contrato', () => {
     const rows = [
       ...createOfficeSubjectConversationRoutes(unused as never),
@@ -248,7 +248,7 @@ describe('a tabela das rotas do escritório por assunto (spec 260 T2.4b)', () =>
   })
 })
 
-describe('ler pelo escritório (spec 260 T2.4b)', () => {
+describe('ler pelo escritório (spec 263 T2.4b)', () => {
   test('a lista da viagem: 200 { data }, no-store, com a empresa e o usuário do contexto', async () => {
     const fixture = createFixture()
     const response = await fixture.handle(request('GET', BASE))
@@ -353,7 +353,7 @@ describe('ler pelo escritório (spec 260 T2.4b)', () => {
   })
 })
 
-describe('abrir, encerrar, enviar e anexar (spec 260 T2.4b)', () => {
+describe('abrir, encerrar, enviar e anexar (spec 263 T2.4b)', () => {
   test('abrir: 201 na criação e 200 na repetição, com o resumo; corpo estrito', async () => {
     const created = await createFixture({ created: true }).handle(
       request('POST', `${BASE}/open`, { subjectId: SUBJECT_ID, subjectType: 'document' }),

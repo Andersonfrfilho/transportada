@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (RF8): as mensagens da conversa de um assunto, em ordem crescente, por página para trás
+ * Spec 263 T2.4 (RF8): as mensagens da conversa de um assunto, em ordem crescente, por página para trás
  * (`before`). Assunto da tripulação sem conversa devolve lista vazia; o que não é alcançável é 404. Baixar
  * é entregar (RF14), como na rota antiga.
  */

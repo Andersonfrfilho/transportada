@@ -10,7 +10,7 @@ export type SignOutDecision =
   | Readonly<{ chatMessageCount: number; step: 'confirm'; totalCount: number }>
 
 /**
- * LGPD (spec 260 T1b.7): o texto e a foto de uma mensagem não enviada não podem ficar no aparelho
+ * LGPD (spec 263 T1b.7): o texto e a foto de uma mensagem não enviada não podem ficar no aparelho
  * depois do "Sair". Falha do IndexedDB nunca lança — "Sair" e login seguem; o chamador só vê `failed`.
  */
 async function discardWhere(input: {

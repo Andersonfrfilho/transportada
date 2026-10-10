@@ -6,7 +6,7 @@ import type { SubjectConversationRef } from '../shared/subjectConversation.types
 
 export const SUBJECT_CONVERSATIONS_QUERY_KEY = 'subject-conversations'
 
-/** Spec 260 T3.2: a conversa se relê a cada 15 s enquanto a aba está visível (o app do motorista faz o mesmo). */
+/** Spec 263 T3.2: a conversa se relê a cada 15 s enquanto a aba está visível (o app do motorista faz o mesmo). */
 export const SUBJECT_CONVERSATION_REFETCH_MS = 15_000
 
 /**

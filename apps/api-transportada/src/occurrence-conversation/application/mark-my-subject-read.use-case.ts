@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (RF14): abrir a conversa de um assunto é ler as mensagens da operação daquele assunto —
+ * Spec 263 T2.4 (RF14): abrir a conversa de um assunto é ler as mensagens da operação daquele assunto —
  * só dele, nunca das outras conversas do motorista. Conversa encerrada também se lê.
  */
 import type { DriverSubjectUnitOfWorkPort } from './driver-conversation-subject.port.js'

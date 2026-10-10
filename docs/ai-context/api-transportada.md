@@ -3557,12 +3557,12 @@ preço do combustível resolvido em memória) alimentando `buildValuationFromCon
 - `GET`/`PUT`/`DELETE …/provider-settings[/token]` e `GET|PUT /company-settings/holiday-import`: permissões, limitador (por empresa+usuário) e
   auditoria em `CLAUDE.md` da API e `docs/SECURITY.md`. O texto completo de fechamento vem na T6.1.
 
-## Ticks das mensagens do motorista (spec 260 T5.4, 09/10/2026)
+## Ticks das mensagens do motorista (spec 263 T5.4, 09/10/2026)
 
 As mensagens do motorista (`inbound`, status nulo no banco) chegavam ao app como um tick só e nunca viravam lidas. Nas rotas novas
 `/me/trips/current/conversations/**` o `status` agora é derivado na leitura: `delivered` (dois ticks cinza) ou `read` (azul, quando um usuário do
 escritório — não o motorista da conversa — tem em `occurrence_conversation_reads` uma leitura que alcança a mensagem, por `created_at`).
-Uma consulta por página (`readOfficeReadHorizon`), sem migration. Detalhe em `specs/260-*/api-contract.md` § "Estados de entrega".
+Uma consulta por página (`readOfficeReadHorizon`), sem migration. Detalhe em `specs/263-*/api-contract.md` § "Estados de entrega".
 
 T5.5: o resumo da lista (`GET /me/trips/current/conversations`) e o do `/open` trazem `officeReadAt` (ISO, ausente se ninguém do escritório leu até uma
 mensagem do motorista), em lote por página (`readOfficeReadAtByConversation`, lista constante em 5 consultas). O app compara no refresh de 15 s para

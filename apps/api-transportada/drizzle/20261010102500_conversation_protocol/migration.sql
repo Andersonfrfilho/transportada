@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 --
--- Spec 260 D8 (ADR-0101 decisão 5): toda conversa tem um protocolo legível `AAMMDD-XXXX`, gerado pelo
+-- Spec 263 D8 (ADR-0101 decisão 5): toda conversa tem um protocolo legível `AAMMDD-XXXX`, gerado pelo
 -- BANCO — o portal da contratante, o e-mail, o WhatsApp e o motorista inserem sem mudar uma linha de código.
 -- Aditiva. Ordem: coluna → funções → backfill → CHECK → único → triggers por último.
 -- 1. `protocol` nasce `''` (sentinela): o CHECK de formato recusa `''` e o trigger sempre o substitui; o

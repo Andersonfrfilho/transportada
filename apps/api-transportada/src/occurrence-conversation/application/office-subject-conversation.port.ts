@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101): as portas da conversa de nota e de viagem vista pelo escritório. Tudo parte
+ * Spec 263 T2.4b (ADR-0101): as portas da conversa de nota e de viagem vista pelo escritório. Tudo parte
  * da viagem do caminho: o assunto precisa ser dela, na empresa do contexto, ou é o mesmo 404 da
  * inexistente. Só dados do assunto e da conversa — a conversa não decide nada da tratativa, da taxa nem do acerto.
  */

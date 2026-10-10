@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T3.1/T3.2 (ADR-0101 D2): a conversa de nota e de viagem como o escritório a lê
+ * Spec 263 T3.1/T3.2 (ADR-0101 D2): a conversa de nota e de viagem como o escritório a lê
  * (`GET /trips/:tripId/conversations`, api-contract "Rotas do escritório"). O assunto é o par
  * `subjectType`/`subjectId`; `occurrence` não abre nem fecha por estas rotas e não entra aqui.
  */

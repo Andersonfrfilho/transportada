@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (D4): o motorista abre a conversa de uma nota ou da viagem dele — nunca a de ocorrência,
+ * Spec 263 T2.4 (D4): o motorista abre a conversa de uma nota ou da viagem dele — nunca a de ocorrência,
  * que nasce do registro. Idempotente: a segunda abertura devolve a mesma conversa. Em conversa
  * encerrada não abre; se ele é o principal agora, a conversa passa a ele.
  */

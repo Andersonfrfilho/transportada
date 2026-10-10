@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3b (ADR-0101 decisão 5), contra Postgres real e o repositório de verdade: os caminhos de
+ * Spec 263 T2.3b (ADR-0101 decisão 5), contra Postgres real e o repositório de verdade: os caminhos de
  * inserção que já existiam (aqui o do motorista, com `onConflictDoNothing` e `onConflictDoUpdate`, e o
  * INSERT do Drizzle que não cita a coluna) continuam funcionando sem mudar uma linha, e o protocolo que o
  * banco deu à conversa sobrevive ao retarget do motorista principal.
@@ -23,7 +23,7 @@ import {
 
 const FORMAT = new RegExp(CONVERSATION_PROTOCOL_PATTERN, 'u')
 
-describe('o protocolo da conversa contra Postgres (spec 260 T2.3b)', () => {
+describe('o protocolo da conversa contra Postgres (spec 263 T2.3b)', () => {
   testWithPostgres(
     'o upsert do motorista e o retarget não mudam o protocolo, e o INSERT sem a coluna recebe um',
     async () => {

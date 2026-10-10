@@ -11,7 +11,7 @@ import type { OpenAction } from '@/modules/conversation/shared/openSubjectConver
 import { i18n } from '@/modules/shared/i18n/i18n.service'
 
 /**
- * Spec 260 T3.3: o botão "Falar com o escritório" — estados, rótulos e a garantia de que, sem o
+ * Spec 263 T3.3: o botão "Falar com o escritório" — estados, rótulos e a garantia de que, sem o
  * contexto ligado, o cartão da parada não ganha nem um byte. Renderização estática (não há DOM no
  * bun test); o clique é coberto por `runOpenSubject` em `open-subject-action.contract.ts`.
  */

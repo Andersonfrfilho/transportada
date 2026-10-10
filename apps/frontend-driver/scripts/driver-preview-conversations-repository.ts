@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Rotas de conversa de ocorrência da API de demonstração do motorista (spec 260). **Só para
+ * Rotas de conversa de ocorrência da API de demonstração do motorista (spec 263). **Só para
  * preview**: repositório em memória, espelhando `me-occurrence-conversation.routes.ts` da API real.
  * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.
  */

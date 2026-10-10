@@ -405,7 +405,7 @@ Detalhe e medições: `docs/ai-context/frontend-driver.md` § "Spec 254".
 
 Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
 
-## Conversas (spec 260)
+## Conversas (spec 263)
 
 - **A tela não é copiada para o app.** `DriverConversations.page.tsx` só monta o `ParticipantConversations` de
   `@adatechnology/conversations-ui/participant` (import dinâmico) e liga rota, adapter, tema, rótulos e ícones. Layout, busca,

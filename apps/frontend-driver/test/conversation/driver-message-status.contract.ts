@@ -34,7 +34,7 @@ function outboxMessage(state: OutboxMessage['state']): OutboxMessage {
   }
 }
 
-describe('estados de entrega da mensagem do motorista (spec 260 T5.4)', () => {
+describe('estados de entrega da mensagem do motorista (spec 263 T5.4)', () => {
   it('delivered e read do servidor chegam ao pacote (dois ticks cinza e azul)', () => {
     expect(statusOf(serverMessage('delivered'))).toBe('delivered')
     expect(statusOf(serverMessage('read'))).toBe('read')

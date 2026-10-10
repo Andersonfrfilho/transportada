@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: o que as suítes de integração da conversa por assunto repetem — os casos de uso
+ * Spec 263 T2.4: o que as suítes de integração da conversa por assunto repetem — os casos de uso
  * montados sobre o Postgres, a mensagem gravada à mão com o autor que o CHECK pede, e o contador de
  * consultas (sem N+1).
  */

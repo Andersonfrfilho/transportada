@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: a tabela das rotas da conversa por assunto no `/me` — toda rota nova presente com a
+ * Spec 263 T2.4: a tabela das rotas da conversa por assunto no `/me` — toda rota nova presente com a
  * política e o limite do contrato, as rotas antigas da 183 inalteradas, e o comportamento de cada uma
  * (validação, resposta `no-store`, recusas).
  */
@@ -127,7 +127,7 @@ const tableOf = (
     rateLimit: route.rateLimit,
   }))
 
-describe('a tabela de rotas da conversa por assunto (spec 260 T2.4)', () => {
+describe('a tabela de rotas da conversa por assunto (spec 263 T2.4)', () => {
   test('toda rota nova está presente, com a política e o limite do contrato', () => {
     const routes = createMeSubjectConversationRoutes(unused as never)
     expect(tableOf(routes)).toEqual([
@@ -186,7 +186,7 @@ describe('a tabela de rotas da conversa por assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('a lista e abrir (spec 260 T2.4)', () => {
+describe('a lista e abrir (spec 263 T2.4)', () => {
   test('lista pelo trip.read, com a ficha e o usuário do contexto, cursor e envelope de paginação', async () => {
     const fixture = createFixture({ permissions: new Set(['trip.read'] as const) })
     const cursor = `2026-10-09T14:00:00.000Z::${SUBJECT_ID}`
@@ -258,7 +258,7 @@ describe('a lista e abrir (spec 260 T2.4)', () => {
   })
 })
 
-describe('as mensagens e a leitura (spec 260 T2.4)', () => {
+describe('as mensagens e a leitura (spec 263 T2.4)', () => {
   const messagesPath = (subjectType: string, subjectId = SUBJECT_ID) =>
     `${BASE}/${subjectType}/${subjectId}/messages`
 

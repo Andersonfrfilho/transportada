@@ -365,9 +365,9 @@ describe('Drizzle migrations', () => {
       '20261009040622_holiday_provider_import',
       '20261009160300_nfe_addresses_participant_index',
       '20261009223052_holiday_provider_settings',
-      '20261009170338_conversation_subject',
-      '20261009171836_conversation_protocol',
-      '20261009205256_quick_reply_driver_audience',
+      '20261010101500_conversation_subject',
+      '20261010102500_conversation_protocol',
+      '20261010103500_quick_reply_driver_audience',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

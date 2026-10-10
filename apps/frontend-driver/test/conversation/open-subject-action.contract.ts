@@ -12,7 +12,7 @@ import { DriverConversationRequestError } from '../../src/modules/conversation/s
 import { buildDriverConversationPath } from '../../src/modules/shared/driverRoute.service'
 
 /**
- * Spec 260 T3.3: o que o botão "Falar com o escritório" mostra e faz — funções puras, sem DOM.
+ * Spec 263 T3.3: o que o botão "Falar com o escritório" mostra e faz — funções puras, sem DOM.
  */
 const DOCUMENT_SUBJECT = { subjectId: 'doc-1', subjectType: 'document' } as const
 const TRIP_SUBJECT = { subjectId: 'trip-1', subjectType: 'trip' } as const

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101 §3–4): o passo comum dos casos de uso do escritório — achar o assunto na
+ * Spec 263 T2.4b (ADR-0101 §3–4): o passo comum dos casos de uso do escritório — achar o assunto na
  * viagem do caminho, conferir que a conversa está aberta e achar o motorista que a recebe. Fora da
  * viagem ou da empresa, é o mesmo 404.
  */

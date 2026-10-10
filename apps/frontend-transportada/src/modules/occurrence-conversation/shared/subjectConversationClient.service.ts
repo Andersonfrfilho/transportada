@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T3.1/T3.2: o cliente das rotas do escritório para a conversa de nota e de viagem
+ * Spec 263 T3.1/T3.2: o cliente das rotas do escritório para a conversa de nota e de viagem
  * (api-contract, "Rotas do escritório"). Usa o mesmo transporte e o mesmo erro da conversa de
  * ocorrência — o erro chega pelo `code` —, mas o corpo do envio e o do pedido de upload são
  * `.strict()` na API: nada de `channel` nem de participante aqui. A leitura é tolerante: resumo ou

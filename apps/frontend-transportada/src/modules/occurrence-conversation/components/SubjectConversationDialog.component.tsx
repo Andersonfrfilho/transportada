@@ -16,7 +16,7 @@ type SubjectConversationDialogProps = Readonly<{
   tripStatus: string
 }>
 
-/** Spec 260 T3.2: a conversa do assunto em diálogo — tela cheia no celular, caixa do tablet para cima. */
+/** Spec 263 T3.2: a conversa do assunto em diálogo — tela cheia no celular, caixa do tablet para cima. */
 export function SubjectConversationDialog({
   canManage,
   companyId,

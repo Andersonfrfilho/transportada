@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3a (ADR-0101): a forma do assunto da conversa e o eco do `client_message_id` vivem no
+ * Spec 263 T2.3a (ADR-0101): a forma do assunto da conversa e o eco do `client_message_id` vivem no
  * banco. O rollback recusa enquanto houver conversa de nota ou de viagem, e sem elas devolve o
  * `NOT NULL` da ocorrência sem tocar a conversa de ocorrência que já existia; a migration reaplica.
  */

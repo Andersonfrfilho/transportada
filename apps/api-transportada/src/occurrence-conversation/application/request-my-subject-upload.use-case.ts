@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (api-contract): o motorista pede a URL de subida do anexo da resposta dele, em qualquer dos
+ * Spec 263 T2.4 (api-contract): o motorista pede a URL de subida do anexo da resposta dele, em qualquer dos
  * três assuntos. Ocorrência segue o alvo antigo (`occurrence_kind` + `occurrence_id`); nota e viagem apontam a
  * conversa já aberta (`open` antes) pelo `conversation_id`, e conversa encerrada não recebe arquivo.
  */

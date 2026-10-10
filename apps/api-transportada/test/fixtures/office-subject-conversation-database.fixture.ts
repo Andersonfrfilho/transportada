@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: o que a suíte de integração do escritório por assunto repete — os casos de uso do
+ * Spec 263 T2.4b: o que a suíte de integração do escritório por assunto repete — os casos de uso do
  * escritório sobre o Postgres, ao lado dos do motorista (mesmo banco, mesmo dublê de storage), o aviso
  * capturado em memória e o perfil com nome de quem escreve.
  */

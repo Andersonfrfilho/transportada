@@ -108,7 +108,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
-    // Spec 260 T2.4b: a conversa de nota e de viagem. Ler é `fleet.read`; escrever é `trip.manage` — quem
+    // Spec 263 T2.4b: a conversa de nota e de viagem. Ler é `fleet.read`; escrever é `trip.manage` — quem
     // despacha fala com o motorista, e o separador monta e despacha. A ocorrência continua `occurrences.resolve`.
     ...createOfficeSubjectConversationRoutes(dependencies),
     ...createOfficeSubjectConversationWriteRoutes(dependencies),
@@ -360,7 +360,7 @@ describe('separator role contract', () => {
        * separador já enxerga cada uma delas espalhada; aqui é a mesma informação, só unida.
        */
       'GET /trips/:id/timeline',
-      // Spec 260 T2.4b: as conversas de nota e de viagem da viagem, lidas sob `fleet.read`.
+      // Spec 263 T2.4b: as conversas de nota e de viagem da viagem, lidas sob `fleet.read`.
       'GET /trips/:tripId/conversations',
       'GET /trips/:tripId/conversations/:subjectType/:subjectId/messages',
       /**
@@ -475,7 +475,7 @@ describe('separator role contract', () => {
       /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
       'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/schedule',
-      // Spec 260 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
+      // Spec 263 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages/read',

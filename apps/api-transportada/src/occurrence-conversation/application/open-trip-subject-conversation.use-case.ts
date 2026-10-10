@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (D4, RF12): o escritório abre a conversa de uma nota ou da viagem com o motorista principal
+ * Spec 263 T2.4b (D4, RF12): o escritório abre a conversa de uma nota ou da viagem com o motorista principal
  * de agora. Idempotente: a segunda abertura devolve a mesma conversa. Abrir também **reabre** a que o
  * escritório encerrou, desde que o assunto continue válido — nota liberada ou viagem terminal é 409.
  */

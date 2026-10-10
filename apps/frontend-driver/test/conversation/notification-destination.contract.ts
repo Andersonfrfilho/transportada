@@ -11,7 +11,7 @@ const CONVERSATION_KEYS = [
   SUBJECT_CONVERSATION_MESSAGE_TEMPLATE_KEY,
 ] as const
 
-describe('resolveNotificationDestination (spec 260 T1b.2, D6; T2.0 ADR-0101 §9/§10)', () => {
+describe('resolveNotificationDestination (spec 263 T1b.2, D6; T2.0 ADR-0101 §9/§10)', () => {
   for (const templateKey of CONVERSATION_KEYS) {
     describe(`chave ${templateKey}`, () => {
       it('aviso com assunto válido no payload abre aquela conversa', () => {

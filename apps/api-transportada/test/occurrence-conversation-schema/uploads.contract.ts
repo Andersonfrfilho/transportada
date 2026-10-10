@@ -75,7 +75,7 @@ describe('o pedido de upload do anexo da conversa (spec 183 T702a)', () => {
       expect(checks.occurrence_conversation_uploads_status_check).toContain(`'${status}'`)
     }
     expect(checks.occurrence_conversation_uploads_size_check).toContain('> 0')
-    /** Spec 260: ocorrência e conversa são exclusivas — o envio aponta uma das duas. */
+    /** Spec 263: ocorrência e conversa são exclusivas — o envio aponta uma das duas. */
     expect(checks.occurrence_conversation_uploads_subject_check).toContain('conversation_id')
     expect(checks.occurrence_conversation_uploads_attached_check).toContain('attached_at')
     expect(checks.occurrence_conversation_uploads_file_name_check).toContain('200')

@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 
 import styles from '../styles/subjectConversation.module.css'
 
-/** Spec 260 D8: o protocolo para citar a conversa por telefone; tocar copia, com aviso acessível. */
+/** Spec 263 D8: o protocolo para citar a conversa por telefone; tocar copia, com aviso acessível. */
 export function SubjectConversationProtocol({ protocol }: Readonly<{ protocol: string }>) {
   const { t } = useTranslation('subjectConversation')
   return (

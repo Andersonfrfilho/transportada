@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3b (ADR-0101 decisão 5), contra Postgres real: o protocolo `AAMMDD-XXXX` é do banco.
+ * Spec 263 T2.3b (ADR-0101 decisão 5), contra Postgres real: o protocolo `AAMMDD-XXXX` é do banco.
  * O INSERT antigo (sem citar a coluna) recebe um protocolo com a data de `created_at` em
  * America/Sao_Paulo; a colisão é sorteada de novo até a sexta tentativa; o valor é único por empresa e
  * imutável; o backfill dá formato e unicidade às linhas que já existiam; o rollback e a reaplicação fecham.

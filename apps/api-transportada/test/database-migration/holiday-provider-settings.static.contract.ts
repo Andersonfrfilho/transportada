@@ -24,8 +24,8 @@ import {
 } from './holiday-provider-settings.constant.js'
 import { listMigrationDirectories, migrationsDirectory } from './support.js'
 
-/** A maior das migrations da spec 260 (fora de staging): a 262 tem de ser mais nova que ela (E15). */
-const NEWEST_SPEC_260_MIGRATION = '20261009205256_quick_reply_driver_audience'
+/** As da spec 263 entram DEPOIS da 262 na cadeia: o migrador aplica por timestamp e a que já rodou não é pulada. */
+const FIRST_SPEC_263_MIGRATION = '20261010101500_conversation_subject'
 const LAST_STAGING_MIGRATION = '20261009160300_nfe_addresses_participant_index'
 
 async function readMigration(file: string): Promise<{ directory: string; text: string }> {
@@ -51,12 +51,12 @@ describe('the holiday provider settings migration enters additive', () => {
     expect(new TextEncoder().encode(TABLE_NAME).length).toBe(25)
   })
 
-  test('the directory is newer than the last migration of staging and than the newest one of spec 260', async () => {
+  test('the directory is newer than the last migration of staging and older than the first one of spec 263', async () => {
     const { directory } = await readMigration('migration.sql')
 
     // A ordem global da cadeia é cobrada por `static-migration.contract.ts` e pelo `schema-snapshot`.
     expect(directory > LAST_STAGING_MIGRATION).toBe(true)
-    expect(directory > NEWEST_SPEC_260_MIGRATION).toBe(true)
+    expect(directory < FIRST_SPEC_263_MIGRATION).toBe(true)
   })
 
   test('the migration creates one table with the ten columns and the five named constraints, nothing else', async () => {

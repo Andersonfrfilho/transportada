@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T5.2-B (D10): o adaptador que liga o `ConversationThread` do SDK (visão `operator`) às rotas do
+ * Spec 263 T5.2-B (D10): o adaptador que liga o `ConversationThread` do SDK (visão `operator`) às rotas do
  * escritório por assunto que já existem. Só traduz: os tipos de mensagem são os do `-contracts`, a chave
  * de idempotência é a do painel (`subject-message:<clientMessageId>`) e os anexos sobem como antes.
  */

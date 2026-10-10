@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (ADR-0101): `occurrence_kind` e `occurrence_id` aceitam nulo desde a conversa de nota e de
+ * Spec 263 (ADR-0101): `occurrence_kind` e `occurrence_id` aceitam nulo desde a conversa de nota e de
  * viagem. As consultas da contratante e da ocorrência já filtram por ocorrência; aqui o tipo estreita.
  */
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'

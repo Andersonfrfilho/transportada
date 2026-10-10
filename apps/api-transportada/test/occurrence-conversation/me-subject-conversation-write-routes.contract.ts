@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: as rotas de escrita da conversa por assunto no `/me` — a tabela (política e limites
+ * Spec 263 T2.4: as rotas de escrita da conversa por assunto no `/me` — a tabela (política e limites
  * idênticos aos das rotas antigas, o mesmo balde), a `Idempotency-Key` obrigatória, o `201` da primeira vez
  * e o `200` da repetição com o objeto completo, a validação e o mapa de erros.
  */
@@ -137,7 +137,7 @@ const send = (fixture: ReturnType<typeof createFixture>, body: unknown, key: nul
   )
 const unused = new Proxy({}, { get: () => () => undefined })
 
-describe('a tabela das rotas de escrita por assunto (spec 260 T2.4)', () => {
+describe('a tabela das rotas de escrita por assunto (spec 263 T2.4)', () => {
   test('duas rotas com trip.report e os MESMOS limites das rotas antigas (o balde é compartilhado)', () => {
     const routes = createMeSubjectConversationWriteRoutes(unused as never)
     const table: readonly { method: string; pathname: string; policy?: unknown }[] = routes
@@ -165,7 +165,7 @@ describe('a tabela das rotas de escrita por assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('responder por assunto (spec 260 T2.4)', () => {
+describe('responder por assunto (spec 263 T2.4)', () => {
   test('201 na primeira vez e 200 na repetição, os dois com { data: Message } e no-store', async () => {
     const first = await send(createFixture({}), { body: 'Cheguei' })
     expect(first.status).toBe(201)
@@ -278,7 +278,7 @@ describe('responder por assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('pedir a subida do anexo por assunto (spec 260 T2.4)', () => {
+describe('pedir a subida do anexo por assunto (spec 263 T2.4)', () => {
   const body = { contentType: 'image/jpeg', fileName: 'foto.jpg', sizeBytes: 1000 }
 
   test('201 com { data } da forma de hoje, para os três assuntos', async () => {

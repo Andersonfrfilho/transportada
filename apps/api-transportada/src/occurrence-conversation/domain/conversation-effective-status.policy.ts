@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (ADR-0101 §4): a conversa de nota ou de viagem está encerrada se o escritório a encerrou, se
+ * Spec 263 (ADR-0101 §4): a conversa de nota ou de viagem está encerrada se o escritório a encerrou, se
  * a nota saiu da viagem (liberada) ou se a viagem acabou. Derivado na leitura, sem gancho nos fluxos de
  * nota e de viagem. A conversa de ocorrência não encerra, como sempre.
  */

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (T5.4): o status que o app do motorista mostra nas mensagens DELE (`inbound`, gravadas com
+ * Spec 263 (T5.4): o status que o app do motorista mostra nas mensagens DELE (`inbound`, gravadas com
  * status nulo). Estar no servidor é `delivered` (dois ticks cinza); `read` (azul) é derivado de a leitura
  * de um usuário do escritório alcançar a mensagem — por ordem de criação, nunca pelo uuid.
  */

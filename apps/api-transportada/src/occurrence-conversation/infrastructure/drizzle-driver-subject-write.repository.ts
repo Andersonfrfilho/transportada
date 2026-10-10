@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101): a transação de escrita da conversa por assunto. Junta, na mesma transação, a
+ * Spec 263 T2.4 (ADR-0101): a transação de escrita da conversa por assunto. Junta, na mesma transação, a
  * porta de leitura do assunto e a porta da resposta do motorista de ocorrência (idempotência com trava
  * consultiva, anexo, inserção) — as mesmas implementações, sem cópia. Tudo pela empresa do contexto.
  */

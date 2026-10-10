@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101 §7, api-contract): o motorista responde na conversa de uma ocorrência, de uma nota
+ * Spec 263 T2.4 (ADR-0101 §7, api-contract): o motorista responde na conversa de uma ocorrência, de uma nota
  * ou da viagem. Ocorrência usa a operação de idempotência e a impressão digital da rota antiga — a mensagem
  * que entrou na fila offline por uma rota e é reenviada pela outra volta como já enviada. Nota e viagem
  * usam a operação nova. A repetição relê a mensagem pelo id: o `idempotency_records` guarda só os ids.

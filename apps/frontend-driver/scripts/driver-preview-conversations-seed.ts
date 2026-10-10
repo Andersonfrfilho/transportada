@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-/** Dados sintéticos das conversas da demonstração do motorista (spec 260). Sem PII real. */
+/** Dados sintéticos das conversas da demonstração do motorista (spec 263). Sem PII real. */
 import type {
   PreviewChannel,
   PreviewConversation,

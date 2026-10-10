@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T3.1/T3.2 (ADR-0101, api-contract "Rotas do escritório"): o escritório abre e responde a
+ * Spec 263 T3.1/T3.2 (ADR-0101, api-contract "Rotas do escritório"): o escritório abre e responde a
  * conversa de nota e de viagem no detalhe da viagem. Prende as formas das seis rotas, o mapeamento da
  * mensagem para o balão da 183, os estados (encerrada, sem motorista, não lidas), o portão de permissão
  * e — o ouro — que a conversa de ocorrência não foi tocada.
@@ -64,7 +64,7 @@ const OUTBOUND = {
   status: 'delivered',
 }
 
-describe('cliente da conversa por assunto no escritório (spec 260 T3.1)', () => {
+describe('cliente da conversa por assunto no escritório (spec 263 T3.1)', () => {
   test('lista a viagem: forma exata exigida, campo novo tolerado, mensagem de ocorrência fora', async () => {
     const requests: Request[] = []
     const client = createClient(
@@ -265,7 +265,7 @@ const summary = (
   ...overrides,
 })
 
-describe('o que o escritório pode fazer na conversa (spec 260 T3.1, RF12)', () => {
+describe('o que o escritório pode fazer na conversa (spec 263 T3.1, RF12)', () => {
   test('sem trip.manage: nunca abre, envia nem encerra; só vê a que já existe', () => {
     expect(
       resolveSubjectConversationAccess({
@@ -370,7 +370,7 @@ async function source(path: string): Promise<string> {
   return readFile(new URL(`../../src/modules/${path}`, import.meta.url), 'utf8')
 }
 
-describe('a thread e as telas novas (spec 260 T3.2)', () => {
+describe('a thread e as telas novas (spec 263 T3.2)', () => {
   test('o diálogo é o ConversationThread do SDK na visão do escritório, sem fio nem compositor próprios', async () => {
     const panel = await source(
       'occurrence-conversation/components/SubjectConversationPanel.component.tsx',

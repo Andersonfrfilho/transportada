@@ -1,4 +1,4 @@
-# Tasks — 260 O chat chega ao app do motorista
+# Tasks — 263 O chat chega ao app do motorista
 
 > Cada task responde: **Mecânica?** (tudo descrito) · **Aceite por comando?** (tsc/teste/`make check`).
 > Duas respostas "sim" → `haiku`. Gate de toda task: `tsc --noEmit` + testes da app + commit isolado.
@@ -234,7 +234,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/260-o-chat-chega-ao-app-do-motorista/ (leia spec.md,
+/oh-my-claudecode:autopilot Execute a spec specs/263-o-chat-chega-ao-app-do-motorista/ (leia spec.md,
 plan.md e tasks.md antes de começar; leia também specs/183-*, 189-* e 248-*). Crie o próprio worktree
 (make worktree NAME=spec-260); a Fase 1 roda no repo ~/Documents/personal/adatechnology-packages, em
 branch própria e PR próprio, e NÃO publica versão sem o passe opus. Uma task por vez, na ordem do tasks.md.

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (api-contract): o escritório pede a URL de subida do anexo de uma mensagem ao motorista
+ * Spec 263 T2.4b (api-contract): o escritório pede a URL de subida do anexo de uma mensagem ao motorista
  * na conversa de nota ou de viagem — apontada pelo `conversation_id`, que precisa existir (abrir antes).
  * Conversa encerrada não recebe arquivo. O pedido é do operador que o fez: só ele o liga a uma mensagem.
  */

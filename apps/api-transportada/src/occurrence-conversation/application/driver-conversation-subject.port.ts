@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101): as portas da conversa por assunto no `/me` do motorista — lista, abrir,
+ * Spec 263 T2.4 (ADR-0101): as portas da conversa por assunto no `/me` do motorista — lista, abrir,
  * mensagens e leitura. O motorista é a ficha da frota (tripulação) mais o usuário do vínculo; a
  * visibilidade de nota e de viagem é a do ADR §3 (destinatário ou principal). Só leitura de dados do
  * assunto: a conversa não decide nada da tratativa, da taxa nem do acerto.
@@ -116,7 +116,7 @@ export type DriverSubjectTransactionPort = {
     },
   ): Promise<{ readonly hasMore: boolean; readonly rows: readonly SubjectConversationRow[] }>
   /**
-   * Spec 260 (T5.4): até onde um usuário do ESCRITÓRIO (diferente do motorista da conversa) já leu — o
+   * Spec 263 (T5.4): até onde um usuário do ESCRITÓRIO (diferente do motorista da conversa) já leu — o
    * `created_at` da mensagem mais nova marcada como lida por algum deles; `null` se ninguém leu. Uma consulta.
    */
   readOfficeReadHorizon(input: {
@@ -125,7 +125,7 @@ export type DriverSubjectTransactionPort = {
     readonly driverUserId: string
   }): Promise<Date | null>
   /**
-   * Spec 260 (T5.5): em lote, o `read_at` mais recente de um usuário do ESCRITÓRIO cuja leitura alcança
+   * Spec 263 (T5.5): em lote, o `read_at` mais recente de um usuário do ESCRITÓRIO cuja leitura alcança
    * alguma mensagem do motorista, por conversa; sem leitura dessas, a conversa não entra no mapa. Uma consulta.
    */
   readOfficeReadAtByConversation(input: {

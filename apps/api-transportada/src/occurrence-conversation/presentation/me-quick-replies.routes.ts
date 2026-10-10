@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11): as respostas prontas do motorista, configuradas pela empresa (público `driver_reply`).
+ * Spec 263 T5.1 (D11): as respostas prontas do motorista, configuradas pela empresa (público `driver_reply`).
  * O app lê as ativas na ordem do cadastro, só `{ id, text }`, e as mostra como chips que preenchem o campo —
  * nunca enviam. Sem ficha de motorista, a recusa das rotas `/me`. Sem cadastro, lista vazia (nenhum chip).
  */

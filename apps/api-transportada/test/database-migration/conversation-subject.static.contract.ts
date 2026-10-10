@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3a (ADR-0101): a migration do assunto da conversa é só aditiva — sem UPDATE, DELETE nem
+ * Spec 263 T2.3a (ADR-0101): a migration do assunto da conversa é só aditiva — sem UPDATE, DELETE nem
  * DROP —, o único e o CHECK antigos ficam intactos, e o rollback recusa antes de qualquer DROP e tira a
  * linha do journal com guarda de `ROW_COUNT`.
  */
@@ -38,7 +38,7 @@ function positionOf(sqlText: string, fragment: string): number {
   return position
 }
 
-describe('o assunto da conversa entra aditivo (spec 260 T2.3a)', () => {
+describe('o assunto da conversa entra aditivo (spec 263 T2.3a)', () => {
   test('sem UPDATE, DELETE nem DROP; o padrão do assunto é ocorrência e o vocabulário vem da constante', async () => {
     const { text } = await readMigration('migration.sql')
     const instructions = withoutComments(text)

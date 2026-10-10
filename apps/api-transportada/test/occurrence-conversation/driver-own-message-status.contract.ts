@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (T5.4): a derivação do status das mensagens do motorista — a leitura do escritório alcança a
+ * Spec 263 (T5.4): a derivação do status das mensagens do motorista — a leitura do escritório alcança a
  * mensagem por ordem de criação, e a mensagem do escritório segue com o status que já tem.
  */
 import { describe, expect, test } from 'bun:test'

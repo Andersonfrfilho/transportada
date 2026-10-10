@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 D9: os canais que já trocaram mensagem na conversa, em ordem estável. O que o app não
+ * Spec 263 D9: os canais que já trocaram mensagem na conversa, em ordem estável. O que o app não
  * conhece (canal novo no banco) fica fora em vez de quebrar a lista.
  */
 import {

@@ -1,7 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverBottomBar.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * ⚠️ Diferença da origem (spec 260): a aba "Conversas" com selo de não lidas — o painel não tem
+ * ⚠️ Diferença da origem (spec 263): a aba "Conversas" com selo de não lidas — o painel não tem
  * esta barra com três seções.
  */
 import { useTranslation } from 'react-i18next'

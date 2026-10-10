@@ -75,7 +75,7 @@ const apiMessage = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
-describe('driverConversationsApi (spec 260 T1b.2)', () => {
+describe('driverConversationsApi (spec 263 T1b.2)', () => {
   it('lista pela rota por assunto, com o token buscado a cada chamada', async () => {
     const harness = createHarness(() =>
       json({

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101 §4): o escritório encerra a conversa de uma nota ou da viagem. Idempotente:
+ * Spec 263 T2.4b (ADR-0101 §4): o escritório encerra a conversa de uma nota ou da viagem. Idempotente:
  * encerrar a encerrada devolve o mesmo resumo. Sem conversa não há o que encerrar (404); a ocorrência
  * nunca encerra — o tipo do assunto nem chega aqui.
  */

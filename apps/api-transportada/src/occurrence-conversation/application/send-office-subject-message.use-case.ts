@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (D4, RF12, ADR-0101 §3): o escritório escreve ao motorista na conversa de uma nota ou da
+ * Spec 263 T2.4b (D4, RF12, ADR-0101 §3): o escritório escreve ao motorista na conversa de uma nota ou da
  * viagem. A mensagem sai pelo app, e a conversa passa ao motorista principal de agora (`retarget`). Conversa
  * encerrada é 409. A repetição da `Idempotency-Key` devolve a mensagem gravada, sem avisar de novo; o aviso
  * vem depois da transação e nunca desfaz a mensagem. O texto livre não decide nada (183 D4).

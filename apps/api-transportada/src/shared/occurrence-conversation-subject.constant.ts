@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (ADR-0101): o assunto da conversa com o motorista. `occurrence` é o único que existia; nota
+ * Spec 263 (ADR-0101): o assunto da conversa com o motorista. `occurrence` é o único que existia; nota
  * (o vínculo `trip_documents.id`) e viagem entram sem mudar a conversa de ocorrência.
  */
 export const OCCURRENCE_CONVERSATION_SUBJECT = {

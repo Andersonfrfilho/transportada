@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11), regra do dono "nada pode impactar outros fluxos": as respostas rápidas do
+ * Spec 263 T5.1 (D11), regra do dono "nada pode impactar outros fluxos": as respostas rápidas do
  * ESCRITÓRIO (públicos `contractor` e `driver`) respondem exatamente como antes de o público
  * `driver_reply` existir. Os literais abaixo foram capturados ANTES da mudança.
  */
@@ -65,7 +65,7 @@ function jsonRequest(method: string, path: string, body: unknown): Request {
   })
 }
 
-describe('as respostas rápidas do escritório não mudam (spec 260 T5.1 golden)', () => {
+describe('as respostas rápidas do escritório não mudam (spec 263 T5.1 golden)', () => {
   test('o público dos participantes da conversa continua exatamente contractor e driver', () => {
     expect([...OCCURRENCE_CONVERSATION_PARTICIPANTS]).toEqual(['contractor', 'driver'])
   })

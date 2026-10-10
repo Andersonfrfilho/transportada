@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: o que a suíte de integração de escrita por assunto repete — a resposta e o pedido de
+ * Spec 263 T2.4: o que a suíte de integração de escrita por assunto repete — a resposta e o pedido de
  * upload novos montados sobre o Postgres com o dublê de storage em memória, as rotas antigas ao lado
  * (para provar que as duas dividem a idempotência) e o PUT simulado pela URL assinada.
  */

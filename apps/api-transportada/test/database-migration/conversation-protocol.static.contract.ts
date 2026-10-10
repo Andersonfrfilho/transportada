@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3b (ADR-0101 decisão 5): o protocolo da conversa nasce no banco. Prende a ordem da
+ * Spec 263 T2.3b (ADR-0101 decisão 5): o protocolo da conversa nasce no banco. Prende a ordem da
  * migration (triggers por último), o alfabeto do TypeScript ao do SQL, a ausência de gerador no código e
  * o rollback que não recusa e declara a perda.
  */
@@ -38,7 +38,7 @@ function positionOf(sqlText: string, fragment: string): number {
   return position
 }
 
-describe('o protocolo da conversa é do banco (spec 260 T2.3b)', () => {
+describe('o protocolo da conversa é do banco (spec 263 T2.3b)', () => {
   test('o alfabeto do TypeScript é o do trigger e o do CHECK, e o sorteio cobre exatamente os símbolos', async () => {
     const { text } = await readMigration('migration.sql')
     const instructions = withoutComments(text)

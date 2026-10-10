@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11), contra Postgres real: o `CHECK` de `company_quick_replies.audience` aceita
+ * Spec 263 T5.1 (D11), contra Postgres real: o `CHECK` de `company_quick_replies.audience` aceita
  * `driver_reply` e continua recusando o resto; o rollback recusa enquanto houver linha `driver_reply`,
  * restaura o `CHECK` antigo sem ela e fecha o journal; a migration reaplica.
  */

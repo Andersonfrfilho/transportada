@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (api-contract): o rótulo do assunto, montado no servidor. `buildSubjectLabel` é o da lista e
+ * Spec 263 (api-contract): o rótulo do assunto, montado no servidor. `buildSubjectLabel` é o da lista e
  * pode levar o nome curto do destinatário (o motorista já o vê na viagem); `buildNoticeLabel` é o do
  * sino e nunca leva nome de pessoa — o aviso atravessa caixa de e-mail e log de terceiro.
  */

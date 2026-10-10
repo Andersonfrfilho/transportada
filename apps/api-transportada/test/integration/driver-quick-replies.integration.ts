@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11), contra Postgres real: a rota do motorista lê só as respostas ATIVAS do público
+ * Spec 263 T5.1 (D11), contra Postgres real: a rota do motorista lê só as respostas ATIVAS do público
  * `driver_reply`, na ordem do cadastro, da empresa do contexto; o compositor do escritório (públicos
  * `contractor` e `driver`) não traz as do motorista; o banco recusa público fora da lista.
  */
@@ -16,7 +16,7 @@ import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-dat
 
 const DRIVER_ID = '00000000-0000-4000-8000-000000000202'
 
-describe('as respostas prontas do motorista contra Postgres (spec 260 T5.1)', () => {
+describe('as respostas prontas do motorista contra Postgres (spec 263 T5.1)', () => {
   testWithPostgres(
     'a rota lê só as ativas do público driver_reply, na ordem, da empresa certa',
     async () => {

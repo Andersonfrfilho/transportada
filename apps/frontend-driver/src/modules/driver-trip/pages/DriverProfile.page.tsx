@@ -84,7 +84,7 @@ export function DriverProfilePage({
   function signOut(): Promise<void> {
     return signOutDriver({
       discardSnapshots: async () => {
-        /** LGPD (spec 260 T1b.7): texto e foto de mensagem não enviada saem antes do logout. */
+        /** LGPD (spec 263 T1b.7): texto e foto de mensagem não enviada saem antes do logout. */
         await discardCurrentConversationOutbox()
         await discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() })
         /** A miniatura do canhoto é foto de entrega de terceiro: sai no mesmo toque. */

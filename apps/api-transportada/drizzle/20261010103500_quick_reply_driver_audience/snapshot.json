@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "717ca271-a331-42b8-bb31-1f4f274da08f",
+  "id": "e092ba2a-0b89-4291-a489-613805b11755",
   "prevIds": [
-    "8c0e7bb4-35ce-478e-9271-e8c6aab2e952"
+    "bf7bd964-f749-426c-8d33-762b261c5335"
   ],
   "ddl": [
     {
@@ -38298,6 +38298,19 @@
       "table": "occurrence_conversations"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "protocol",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -61110,6 +61123,18 @@
       "table": "occurrence_conversations"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "protocol"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversations_company_protocol_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
       "nameExplicit": false,
       "columns": [
         "public_token"
@@ -68702,7 +68727,7 @@
       "table": "trip_document_reviews"
     },
     {
-      "value": "\"audience\" in ('contractor', 'driver')",
+      "value": "\"audience\" in ('contractor', 'driver', 'driver_reply')",
       "name": "company_quick_replies_audience_check",
       "entityType": "checks",
       "schema": "public",
@@ -68898,6 +68923,13 @@
       "table": "occurrence_conversations"
     },
     {
+      "value": "\"protocol\" ~ '^[0-9]{6}-[2-9A-HJKMNP-Z]{4}$'",
+      "name": "occurrence_conversations_protocol_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
       "value": "\"participant\" in ('contractor', 'driver')",
       "name": "occurrence_conversations_participant_check",
       "entityType": "checks",
@@ -68931,6 +68963,191 @@
       "entityType": "checks",
       "schema": "public",
       "table": "occurrence_conversations"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "holiday_provider_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'feriadosapi'",
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_envelope",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hint",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "monthly_request_budget",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "holiday_provider_settings_pkey",
+      "schema": "public",
+      "table": "holiday_provider_settings",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "provider"
+      ],
+      "nullsNotDistinct": false,
+      "name": "holiday_provider_settings_provider_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "\"provider\" in ('feriadosapi')",
+      "name": "holiday_provider_settings_provider_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "\"monthly_request_budget\" is null or \"monthly_request_budget\" between 1 and 1000000",
+      "name": "holiday_provider_settings_budget_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "\"version\" > 0",
+      "name": "holiday_provider_settings_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "(\"token_envelope\" is null and \"token_hint\" is null and \"token_updated_at\" is null) or (\"token_envelope\" is not null and jsonb_typeof(\"token_envelope\") = 'object' and \"token_hint\" is not null and \"token_hint\" ~ '^[!-~]{4}$' and \"token_updated_at\" is not null)",
+      "name": "holiday_provider_settings_token_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
     }
   ],
   "renames": []

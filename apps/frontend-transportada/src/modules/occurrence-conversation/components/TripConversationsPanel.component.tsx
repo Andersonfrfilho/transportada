@@ -20,7 +20,7 @@ type TripConversationsPanelProps = Readonly<{
 }>
 
 /**
- * Spec 260 T3.1/T3.2 (RF12): o painel "Conversas" da viagem — o botão da conversa da viagem e a lista das
+ * Spec 263 T3.1/T3.2 (RF12): o painel "Conversas" da viagem — o botão da conversa da viagem e a lista das
  * conversas de nota e de viagem, com protocolo, assunto, motorista, canais, estado e não lidas. É este
  * painel que mantém a lista relida (15 s e foco); os botões das notas leem a mesma chave.
  */

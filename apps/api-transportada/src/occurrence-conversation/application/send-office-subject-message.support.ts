@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: o que o envio do escritório entrega depois da transação — o destinatário, o protocolo e
+ * Spec 263 T2.4b: o que o envio do escritório entrega depois da transação — o destinatário, o protocolo e
  * o rótulo do aviso — e o aviso em si, que nunca desfaz a mensagem.
  */
 import type { OfficeSubjectInput } from './office-subject-access.service.js'

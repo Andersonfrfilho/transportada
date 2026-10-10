@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (api-contract, "Consulta da lista"): as conversas de nota e de viagem de uma viagem numa
+ * Spec 263 T2.4b (api-contract, "Consulta da lista"): as conversas de nota e de viagem de uma viagem numa
  * consulta só — última mensagem, canais e não lidas por `LATERAL` — e as buscas em lote do assunto
  * (`driver-subject-facts.query.ts`) por cima. Nenhuma consulta por conversa. Não lidas é do ponto de vista
  * do usuário do escritório: mensagens do motorista depois da última que ele marcou como lida.

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101): a transação do escritório na conversa de nota e de viagem. Junta as leituras
+ * Spec 263 T2.4b (ADR-0101): a transação do escritório na conversa de nota e de viagem. Junta as leituras
  * novas (`office-subject-*.query.ts`) às operações que a conversa de ocorrência já usa — idempotência com
  * trava consultiva, anexo, inserção — e ao find-or-create do assunto: as mesmas implementações, sem cópia.
  * Tudo pela empresa do contexto.

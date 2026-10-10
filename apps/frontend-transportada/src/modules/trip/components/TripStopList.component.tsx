@@ -143,7 +143,7 @@ export type TripStopDocumentActions = Readonly<{
   renderOccurrences: (documentId: string) => ReactNode
   /** Spec 233 T5.3: "Eventos desta entrega", a última seção da nota aberta. */
   renderEvents: (documentId: string) => ReactNode
-  /** Spec 260 T3.1: "Falar com o motorista" desta nota — a ação autocontida da conversa; ausente, a linha não a oferece. */
+  /** Spec 263 T3.1: "Falar com o motorista" desta nota — a ação autocontida da conversa; ausente, a linha não a oferece. */
   renderConversation?: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void

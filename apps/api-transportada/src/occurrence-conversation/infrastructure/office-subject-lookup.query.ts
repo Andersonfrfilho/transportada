@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101 §3–4): achar o assunto pela ótica do escritório — a nota ou a viagem do caminho,
+ * Spec 263 T2.4b (ADR-0101 §3–4): achar o assunto pela ótica do escritório — a nota ou a viagem do caminho,
  * na empresa do contexto — e a conversa dele, se já existe; o motorista principal de agora; e gravar o
  * encerramento. Assunto de outra viagem ou empresa devolve `null`, igual ao inexistente.
  */

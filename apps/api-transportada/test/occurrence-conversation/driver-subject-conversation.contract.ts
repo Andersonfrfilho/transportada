@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: os casos de uso do motorista por assunto, com portas falsas — lista (rótulo, canais,
+ * Spec 263 T2.4: os casos de uso do motorista por assunto, com portas falsas — lista (rótulo, canais,
  * estado efetivo, cursor), abrir (idempotente, só nota e viagem, encerrada recusa), mensagens e leitura.
  * Mais a prova de que a conversa não decide: o código novo não toca tratativa, taxa nem acerto.
  */
@@ -124,7 +124,7 @@ async function failure(work: () => Promise<unknown>): Promise<unknown> {
   return undefined
 }
 
-describe('a lista de conversas por assunto (spec 260 T2.4)', () => {
+describe('a lista de conversas por assunto (spec 263 T2.4)', () => {
   test('monta o resumo do contrato: protocolo, rótulo, canais em ordem, não lidas e espera', async () => {
     const fake = createFake({})
     const result = await createListMySubjectConversationsUseCase({
@@ -230,7 +230,7 @@ describe('a lista de conversas por assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('abrir a conversa por assunto (spec 260 D4)', () => {
+describe('abrir a conversa por assunto (spec 263 D4)', () => {
   const open = (
     fake: ReturnType<typeof createFake>,
     subjectType: 'document' | 'trip' = 'document',
@@ -326,7 +326,7 @@ describe('abrir a conversa por assunto (spec 260 D4)', () => {
   })
 })
 
-describe('as mensagens e a leitura por assunto (spec 260 T2.4)', () => {
+describe('as mensagens e a leitura por assunto (spec 263 T2.4)', () => {
   const messages = (
     fake: ReturnType<typeof createFake>,
     extra: { before?: string; limit?: number } = {},
@@ -554,7 +554,7 @@ const SUBJECT_SOURCE_FILES = [
   'presentation/office-subject-conversation.routes.ts',
 ] as const
 
-describe('a conversa por assunto nunca decide (spec 260 D4)', () => {
+describe('a conversa por assunto nunca decide (spec 263 D4)', () => {
   const root = new URL('../../src/occurrence-conversation/', import.meta.url)
 
   test('nenhum arquivo novo toca tratativa, taxa nem acerto', async () => {

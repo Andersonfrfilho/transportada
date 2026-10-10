@@ -1,15 +1,15 @@
 # ADR 0101 — A conversa tem assunto e protocolo
 
-- **Status:** aceita para staging (2026-10-09, T2.1 da spec 260); produção exige aprovação humana própria
+- **Status:** aceita para staging (2026-10-09, T2.1 da spec 263); produção exige aprovação humana própria
 - **Data:** 2026-10-09
-- **Nasce da spec 260** (T2.1)
+- **Nasce da spec 263** (T2.1)
 - **Citações:** ADR-0072, ADR-0073, ADR-0081 §9, ADR-0097, specs 183, 189, 255, 257
 
 ## Contexto
 
 A conversa com o motorista (spec 183) só existe amarrada a uma ocorrência: `occurrence_conversations`
 exige `occurrence_kind` + `occurrence_id`, e mensagens, leituras e anexos apontam para ela por FK composta.
-A spec 260 pede conversa sobre **uma nota** da viagem e sobre **a viagem**, um **protocolo** legível
+A spec 263 pede conversa sobre **uma nota** da viagem e sobre **a viagem**, um **protocolo** legível
 (`AAMMDD-XXXX`) em toda conversa e, na lista do app, os canais que participaram e o ícone do tipo da
 ocorrência. O dono fixou que nada disso pode mudar as rotas, as respostas nem o comportamento atuais da
 conversa de ocorrência — app, portal da contratante, WhatsApp e e-mail da 143.
@@ -66,7 +66,7 @@ protocol)`. Trigger `BEFORE INSERT` monta a data de `created_at` em `America/Sao
 
 - **Tabela de conversa nova com pilha paralela** — isolaria o fluxo antigo, mas duplicaria mensagens,
   status, leituras, anexos e envio de arquivo, com duas verdades de "conversa".
-- **Migrar para o `conversation-module`** — fora do escopo (ADR-0072, spec 260 D1).
+- **Migrar para o `conversation-module`** — fora do escopo (ADR-0072, spec 263 D1).
 - **`nfe_document_id` como assunto** — perde nota vinculada por frete e não diz se a nota saiu da viagem.
 - **Gerar o protocolo no TypeScript** — exigiria mudar os caminhos de inserção da contratante, e não cobriria
   inserção fora deles.

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (RF8, RF14, RF15): a lista de conversas do motorista, uma por assunto, com protocolo,
+ * Spec 263 T2.4 (RF8, RF14, RF15): a lista de conversas do motorista, uma por assunto, com protocolo,
  * canais, ícone e "espera resposta". Página por cursor; baixar é entregar, só para as conversas da página.
  */
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'

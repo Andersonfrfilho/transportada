@@ -1,7 +1,7 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
 --
--- Desfaz o protocolo da conversa (spec 260 D8, ADR-0101). Sem CASCADE. Não recusa: recusar tornaria o
+-- Desfaz o protocolo da conversa (Spec 263 D8, ADR-0101). Sem CASCADE. Não recusa: recusar tornaria o
 -- rollback impossível.
 -- ⚠️ PERDA DECLARADA: todo protocolo `AAMMDD-XXXX` é apagado — os que já foram citados ao motorista, ao
 -- escritório ou à contratante deixam de existir e não são recuperáveis. Reaplicar a migration gera outros.
@@ -27,7 +27,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261009171836_conversation_protocol';
+    WHERE "name" = '20261010102500_conversation_protocol';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

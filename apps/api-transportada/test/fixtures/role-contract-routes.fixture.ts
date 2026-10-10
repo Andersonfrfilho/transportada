@@ -60,7 +60,7 @@ export function buildRoleContractRoutes(
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
-    // Spec 260 T2.4b: a conversa de nota e de viagem pelo escritório — `fleet.read` lê, `trip.manage` escreve;
+    // Spec 263 T2.4b: a conversa de nota e de viagem pelo escritório — `fleet.read` lê, `trip.manage` escreve;
     // o ajudante (só `trip.read`) não alcança nenhuma.
     ...createOfficeSubjectConversationRoutes(dependencies),
     ...createOfficeSubjectConversationWriteRoutes(dependencies),
@@ -81,7 +81,7 @@ export function buildRoleContractRoutes(
     ...createMeOccurrenceConversationRoutes(dependencies),
     ...createMeSubjectConversationRoutes(dependencies),
     ...createMeSubjectConversationWriteRoutes(dependencies),
-    // Spec 260 T5.1: as respostas prontas do motorista — `trip.read`, como a leitura da conversa.
+    // Spec 263 T5.1: as respostas prontas do motorista — `trip.read`, como a leitura da conversa.
     ...createMeQuickReplyRoutes(dependencies),
   ]
 }

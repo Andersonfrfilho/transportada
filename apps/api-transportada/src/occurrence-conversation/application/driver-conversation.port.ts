@@ -139,7 +139,7 @@ export type DriverConversationNotifierPort = {
     readonly dedupeKey: string
     /** O rótulo do assunto (a nota, o tipo ou a viagem), nunca nome de pessoa. */
     readonly occurrenceLabel: string
-    /** Spec 260 T2.5: os três juntos dizem qual assunto o aviso abre; sem eles, é o aviso de ocorrência de sempre. */
+    /** Spec 263 T2.5: os três juntos dizem qual assunto o aviso abre; sem eles, é o aviso de ocorrência de sempre. */
     readonly protocol?: string
     readonly recipientUserId: string
     readonly subjectId?: string

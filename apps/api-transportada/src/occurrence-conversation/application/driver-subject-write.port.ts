@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101): a porta de escrita da conversa por assunto no `/me`. É a de leitura mais as
+ * Spec 263 T2.4 (ADR-0101): a porta de escrita da conversa por assunto no `/me`. É a de leitura mais as
  * operações que a resposta do motorista já usa na conversa de ocorrência — idempotência, anexo e inserção —,
  * para a mesma transação servir os três assuntos, e a releitura da mensagem gravada pelo id.
  */

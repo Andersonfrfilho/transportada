@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101 §3): achar um assunto pela ótica do motorista — existe na empresa, a ficha dele
+ * Spec 263 T2.4 (ADR-0101 §3): achar um assunto pela ótica do motorista — existe na empresa, a ficha dele
  * está na tripulação da viagem, ele é (ou não) o principal agora — e a conversa do assunto, se já existe.
  * `occurrence` segue a regra de hoje: o leitor do feed e a conversa do próprio usuário.
  */

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11): a migration do público `driver_reply` é aditiva (só alarga o CHECK de `audience`,
+ * Spec 263 T5.1 (D11): a migration do público `driver_reply` é aditiva (só alarga o CHECK de `audience`,
  * sem apagar nem reescrever linha) e o rollback recusa com linha `driver_reply`, restaura o CHECK antigo e
  * fecha o journal contado.
  */
@@ -32,7 +32,7 @@ function positionOf(sqlText: string, fragment: string): number {
   return position
 }
 
-describe('o público driver_reply das respostas rápidas (spec 260 T5.1)', () => {
+describe('o público driver_reply das respostas rápidas (spec 263 T5.1)', () => {
   test('a migration é aditiva: só troca o CHECK de audience, e ele aceita os três públicos', async () => {
     const instructions = withoutComments((await readMigration('migration.sql')).text)
 

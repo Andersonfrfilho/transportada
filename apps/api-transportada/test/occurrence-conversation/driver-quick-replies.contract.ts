@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T5.1 (D11): as respostas prontas do motorista são da empresa. O público `driver_reply` entra no
+ * Spec 263 T5.1 (D11): as respostas prontas do motorista são da empresa. O público `driver_reply` entra no
  * cadastro; o app lê as ativas pela rota `/me/trips/current/quick-replies` (`trip.read`, `no-store`),
  * `{ id, text }` na ordem do cadastro, no máximo 50. Sem ficha de motorista, a recusa das rotas `/me`.
  */
@@ -52,7 +52,7 @@ function createFixture(params: {
   return { calls, get }
 }
 
-describe('o público driver_reply (spec 260 T5.1)', () => {
+describe('o público driver_reply (spec 263 T5.1)', () => {
   test('é o terceiro público do cadastro, sem tocar os participantes da conversa', () => {
     expect([...COMPANY_QUICK_REPLY_AUDIENCES]).toEqual(['contractor', 'driver', 'driver_reply'])
     expect([...OCCURRENCE_CONVERSATION_PARTICIPANTS]).toEqual(['contractor', 'driver'])
@@ -124,7 +124,7 @@ describe('o público driver_reply (spec 260 T5.1)', () => {
   })
 })
 
-describe('GET /me/trips/current/quick-replies (spec 260 T5.1)', () => {
+describe('GET /me/trips/current/quick-replies (spec 263 T5.1)', () => {
   test('é trip.read na empresa, e só essa rota', () => {
     const routes = createMeQuickReplyRoutes({
       quickReplies: {} as never,

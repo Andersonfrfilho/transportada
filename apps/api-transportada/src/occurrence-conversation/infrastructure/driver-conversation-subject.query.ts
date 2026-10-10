@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (api-contract, "Consulta da lista"): a lista do motorista numa consulta só — filtro de
+ * Spec 263 T2.4 (api-contract, "Consulta da lista"): a lista do motorista numa consulta só — filtro de
  * visibilidade (ADR-0101 §3), última mensagem e agregados por `LATERAL` — e as buscas em lote do assunto
  * (`driver-subject-facts.query.ts`) por cima. Nenhuma consulta por conversa.
  */

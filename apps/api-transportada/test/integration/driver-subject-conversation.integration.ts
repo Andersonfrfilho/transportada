@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101), contra Postgres real — lado de leitura do motorista:
+ * Spec 263 T2.4 (ADR-0101), contra Postgres real — lado de leitura do motorista:
  * - BOLA: nota ou viagem de outra empresa, de outra viagem ou de tripulação alheia é o mesmo 404;
  * - `open` idempotente (201 e depois 200), protocolo `AAMMDD-XXXX` do trigger;
  * - a lista traz protocolo, canais, ícone do tipo, "espera resposta" e o estado efetivo (nota liberada,
@@ -40,7 +40,7 @@ import {
 const PROTOCOL = /^[0-9]{6}-[2-9A-HJKMNP-Z]{4}$/u
 const NOT_FOUND = { code: 'CONVERSATION_NOT_FOUND', status: 404 }
 
-describe('a conversa por assunto do motorista contra Postgres (spec 260 T2.4)', () => {
+describe('a conversa por assunto do motorista contra Postgres (spec 263 T2.4)', () => {
   testWithPostgres(
     'BOLA: o mesmo 404 para nota alheia, de outra empresa, de outra viagem e de tripulação alheia',
     async () => {

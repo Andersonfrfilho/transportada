@@ -1,4 +1,4 @@
-# Evidência — 260 O chat chega ao app do motorista
+# Evidência — 263 O chat chega ao app do motorista
 
 > Conferência somente-leitura de `~/Documents/personal/adatechnology-packages` em 2026-10-09
 > (HEAD `0c0d532`; árvore com arquivos não rastreados alheios, nenhum tocado). Caminhos abaixo são
@@ -237,8 +237,8 @@ decidida: o ícone do assunto fica **só na linha** (D9). Versões esperadas: co
 | ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | T2.1  | `29551f80e` | ADR-0101 (arquiteto `opus`), conferida contra o código; ADR 0099 pertence à spec 251 em outra branch                                                                                                   |
 | T2.0  | `793769ed9` | driver: 1609 pass / 0 fail · typecheck limpo · o sino aceita `trip.subject-conversation-message` (13 vermelhos → 18 verdes)                                                                            |
-| T2.3a | `a6d458171` | migration `20261009170338_conversation_subject` · `db:generate` = no_changes · `db:check` ok · typecheck limpo · rollback com trava · teste de ouro das respostas antigas (byte a byte)                |
-| T2.3b | `c78e236de` | migration `20261009171836_conversation_protocol` · protocolo por trigger · colisão forçada por `setseed`, esgotamento 23505, imutabilidade (55000), meia-noite UTC→SP · `make migration-test` 191 pass |
+| T2.3a | `a6d458171` | migration `20261010101500_conversation_subject` · `db:generate` = no_changes · `db:check` ok · typecheck limpo · rollback com trava · teste de ouro das respostas antigas (byte a byte)                |
+| T2.3b | `c78e236de` | migration `20261010102500_conversation_protocol` · protocolo por trigger · colisão forçada por `setseed`, esgotamento 23505, imutabilidade (55000), meia-noite UTC→SP · `make migration-test` 191 pass |
 | —     | —           | suíte de contrato da API (`bun --env-file=../../.env.test run test`): **11160 pass / 25 skip / 0 fail**, 208 arquivos                                                                                  |
 
 Desvios aceitos: (1) o `CHECK` do `client_message_id` usa `char_length between 16 and 256` + `~ '^[A-Za-z0-9._:-]+$'` — o regex

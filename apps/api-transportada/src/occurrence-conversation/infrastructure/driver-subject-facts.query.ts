@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: o que a lista precisa saber do assunto de cada conversa da página — rótulo, ícone do
+ * Spec 263 T2.4: o que a lista precisa saber do assunto de cada conversa da página — rótulo, ícone do
  * tipo, nota liberada, estado da viagem — em **no máximo quatro buscas em lote** (`inArray`), uma por
  * origem, nunca uma por conversa. Tudo pela empresa, em cada junção.
  */

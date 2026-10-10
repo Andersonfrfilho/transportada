@@ -44,7 +44,7 @@ const message = (clientMessageId: string, subject: ParticipantSubjectRef = SUBJE
   text: `texto ${clientMessageId}`,
 })
 
-describe('conversationOutbox (spec 260 T1b.3)', () => {
+describe('conversationOutbox (spec 263 T1b.3)', () => {
   it('lista só as pendentes do dono da sessão', async () => {
     const harness = createHarness('owner-1')
     await harness.outbox.enqueue(message('mine'))

@@ -1,7 +1,7 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
 --
--- Desfaz o assunto da conversa (spec 260, ADR-0101). Sem CASCADE.
+-- Desfaz o assunto da conversa (Spec 263, ADR-0101). Sem CASCADE.
 -- ⚠️ Recusa rodar enquanto existir conversa de nota ou de viagem, ou envio de arquivo apontando uma
 -- conversa: apagá-los perderia mensagens, e os `SET NOT NULL` de volta falhariam nas linhas sem ocorrência.
 -- Confira antes: select subject_type, count(*) from occurrence_conversations group by 1;
@@ -68,7 +68,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261009170338_conversation_subject';
+    WHERE "name" = '20261010101500_conversation_subject';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

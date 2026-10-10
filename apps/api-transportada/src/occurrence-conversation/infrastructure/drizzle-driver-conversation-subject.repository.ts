@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101): a conversa por assunto do motorista no Postgres. Tudo pela empresa do
+ * Spec 263 T2.4 (ADR-0101): a conversa por assunto do motorista no Postgres. Tudo pela empresa do
  * contexto; o protocolo vem do trigger do banco — o TypeScript não gera, só repete o INSERT uma vez se o
  * sorteio colidir (23505 no único do protocolo), dentro de um savepoint.
  */

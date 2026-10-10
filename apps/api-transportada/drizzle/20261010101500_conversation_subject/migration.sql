@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 --
--- Spec 260 (ADR-0101): a conversa com o motorista ganha assunto (ocorrência, nota, viagem). Aditiva:
+-- Spec 263 (ADR-0101): a conversa com o motorista ganha assunto (ocorrência, nota, viagem). Aditiva:
 -- 1. colunas novas nulas, com `subject_type` padrão `occurrence` — toda linha de hoje já é ocorrência;
 -- 2. `occurrence_kind`/`occurrence_id` passam a aceitar nulo nas duas tabelas, e o CHECK de forma
 --    (`occurrence_conversations_subject_shape_check`) mantém exatamente o que já era exigido da ocorrência;

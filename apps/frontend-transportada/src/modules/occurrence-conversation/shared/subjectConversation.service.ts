@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T3.1/T3.2 (RF12, ADR-0101 D4): o que o escritório pode fazer na conversa de nota e de
+ * Spec 263 T3.1/T3.2 (RF12, ADR-0101 D4): o que o escritório pode fazer na conversa de nota e de
  * viagem, em serviço puro. Escrever é `trip.manage` e some quando a viagem acaba (concluída ou
  * cancelada); a conversa encerrada continua legível. A palavra final é da API (`409
  * CONVERSATION_CLOSED`) — aqui só se evita oferecer o que ela vai recusar.

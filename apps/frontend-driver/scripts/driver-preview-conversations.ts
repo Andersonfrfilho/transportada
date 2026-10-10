@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Rotas de conversa da API de demonstração do motorista (spec 260). **Só para preview**: espelha
+ * Rotas de conversa da API de demonstração do motorista (spec 263). **Só para preview**: espelha
  * `me-occurrence-conversation.routes.ts` (rota antiga, por ocorrência) e as rotas por assunto do
  * `api-contract.md` (`/me/trips/current/conversations/**`) sobre um repositório em memória.
  * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.

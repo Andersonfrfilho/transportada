@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Smoke do chat do motorista (spec 260 T1b.5), 375x812, tema escuro. Cada afirmação de geometria lê
+ * Smoke do chat do motorista (spec 263 T1b.5), 375x812, tema escuro. Cada afirmação de geometria lê
  * `getBoundingClientRect`: são o que protege dos defeitos vistos no navegador — composer abaixo da
  * janela e sob a barra fixa, faixa de filtros de 21 px com chips de 44 px. A API é a de
  * demonstração (`scripts/driver-preview-api.ts`), subida numa porta própria pelo próprio arquivo.

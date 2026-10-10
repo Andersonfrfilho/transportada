@@ -100,7 +100,7 @@ function SubjectThreadView({
 }
 
 /**
- * Spec 260 T5.2-B (D10): a conversa de um assunto (nota ou viagem) do ponto de vista do escritório, no mesmo
+ * Spec 263 T5.2-B (D10): a conversa de um assunto (nota ou viagem) do ponto de vista do escritório, no mesmo
  * desenho do app do motorista — o `ConversationThread` do SDK com `perspective="operator"`. O resumo
  * (protocolo, canais, estado) se relê a cada 15 s; o fio e a leitura (✓✓ azul do motorista) são do SDK.
  */

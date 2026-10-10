@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Assuntos que o motorista de demonstração pode abrir (spec 260 T3.3): as notas e as viagens que
+ * Assuntos que o motorista de demonstração pode abrir (spec 263 T3.3): as notas e as viagens que
  * `driver-preview-api.ts` serve em `/me/trips/current`, com os mesmos ids. Sem PII real.
  */
 import type { PreviewSubjectType } from './driver-preview-conversations.types'

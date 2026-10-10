@@ -133,7 +133,7 @@ describe('as respostas rápidas por texto de fonte (spec 183 T701)', () => {
   })
 })
 
-describe('as respostas prontas do motorista (spec 260 T5.2-A, D11)', () => {
+describe('as respostas prontas do motorista (spec 263 T5.2-A, D11)', () => {
   test('o cliente aceita o público driver_reply e o cadastro o envia à API', async () => {
     const requests: Request[] = []
     const client = createClient(

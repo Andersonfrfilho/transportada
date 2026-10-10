@@ -20,7 +20,7 @@ function summary(iconName?: string): ParticipantConversationSummary {
   }
 }
 
-describe('renderDriverSubjectIcon (spec 260 T1b.10)', () => {
+describe('renderDriverSubjectIcon (spec 263 T1b.10)', () => {
   it('todo nome do catálogo da spec 255 vira o <Icon> do app', () => {
     for (const name of CONVERSATION_SUBJECT_ICON_NAMES) {
       const node = renderDriverSubjectIcon(summary(name))

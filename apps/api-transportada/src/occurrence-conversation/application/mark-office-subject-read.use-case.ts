@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (RF15): o escritório abre a conversa de um assunto — marca lidas, por usuário, as
+ * Spec 263 T2.4b (RF15): o escritório abre a conversa de um assunto — marca lidas, por usuário, as
  * mensagens do motorista. Registro do usuário: nada volta ao motorista. Conversa encerrada também se lê.
  */
 import type { OfficeSubjectInput } from './office-subject-access.service.js'

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: os números e vocabulários da conversa por assunto no `/me` do motorista.
+ * Spec 263 T2.4: os números e vocabulários da conversa por assunto no `/me` do motorista.
  */
 import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
 

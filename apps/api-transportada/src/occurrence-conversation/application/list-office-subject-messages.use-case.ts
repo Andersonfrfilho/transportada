@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: as mensagens da conversa de um assunto, em ordem crescente, por página para trás
+ * Spec 263 T2.4b: as mensagens da conversa de um assunto, em ordem crescente, por página para trás
  * (`before`). Assunto da viagem sem conversa devolve lista vazia; o que não é da viagem é 404. Ler não
  * mexe no status de entrega — ele é do aparelho do motorista.
  */

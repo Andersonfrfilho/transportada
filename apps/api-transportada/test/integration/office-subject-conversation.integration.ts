@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (ADR-0101), contra Postgres real — a conversa de nota e de viagem vista pelo escritório:
+ * Spec 263 T2.4b (ADR-0101), contra Postgres real — a conversa de nota e de viagem vista pelo escritório:
  * - o fluxo escritório → motorista → escritório: abrir, enviar, o motorista ver na lista nova com protocolo,
  *   responder, o escritório ler (não lidas por usuário, nome de quem escreveu nos dois sentidos);
  * - idempotência do envio (repetição e requisições simultâneas), protocolo gerado, aviso uma vez;
@@ -92,7 +92,7 @@ const countMessages = async (database: TestDatabase) =>
       .from(occurrenceConversationMessages)
   ).length
 
-describe('a conversa por assunto vista pelo escritório contra Postgres (spec 260 T2.4b)', () => {
+describe('a conversa por assunto vista pelo escritório contra Postgres (spec 263 T2.4b)', () => {
   testWithPostgres(
     'escritório abre e envia, o motorista vê com protocolo e responde, o escritório lê',
     async () => {

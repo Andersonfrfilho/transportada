@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (api-contract): a conversa por assunto no `/me` do motorista — lista, abrir, mensagens e
+ * Spec 263 T2.4 (api-contract): a conversa por assunto no `/me` do motorista — lista, abrir, mensagens e
  * leitura. Ler é `trip.read`; abrir é `trip.report`. O motorista é a ficha do vínculo do contexto (sem ficha,
  * a recusa `DRIVER_NOT_REGISTERED` das rotas `/me`). Toda resposta é `no-store`. As rotas de ocorrência
  * da 183 ficam em `me-occurrence-conversation.routes.ts`, intactas.

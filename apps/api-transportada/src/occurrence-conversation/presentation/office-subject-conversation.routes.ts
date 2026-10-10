@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (api-contract, "Rotas do escritório"): o lado de leitura da conversa de nota e de viagem
+ * Spec 263 T2.4b (api-contract, "Rotas do escritório"): o lado de leitura da conversa de nota e de viagem
  * vista pelo escritório — a lista da viagem, as mensagens do assunto e a marcação de lida. Ler é
  * `fleet.read`, a mesma política (`READ_POLICY`) da conversa de ocorrência do escritório; escrever está em
  * `office-subject-conversation-write.routes.ts`. O assunto é da viagem do caminho: fora dela, 404. As

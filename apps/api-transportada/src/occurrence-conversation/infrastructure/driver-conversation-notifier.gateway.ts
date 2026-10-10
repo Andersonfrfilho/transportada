@@ -6,7 +6,7 @@
  * entrega. `dedupeKey` = id da mensagem, então o mesmo envio não vira dois avisos. Falha é registrada
  * pelo nome do erro e não sobe — a mensagem já está na conversa.
  *
- * Spec 260 T2.5: roteia pelo assunto. Ocorrência (ou chamada sem assunto) é a chave de sempre, com o
+ * Spec 263 T2.5: roteia pelo assunto. Ocorrência (ou chamada sem assunto) é a chave de sempre, com o
  * mesmo template, marcador e `dedupeKey` — só ganha campos extras no `payload`. Nota e viagem vão pela
  * chave `trip.subject-conversation-message`. Nenhum dos dois leva o corpo da mensagem.
  */

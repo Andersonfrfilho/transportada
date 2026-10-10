@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 (ADR-0101 §3): o passo comum dos casos de uso do motorista por assunto — achar o assunto na
+ * Spec 263 (ADR-0101 §3): o passo comum dos casos de uso do motorista por assunto — achar o assunto na
  * tripulação dele e, para ler, conferir que a conversa é alcançável. Fora disso, o mesmo 404.
  */
 import type { OccurrenceConversationSubjectType } from '../../shared/occurrence-conversation-subject.constant.js'

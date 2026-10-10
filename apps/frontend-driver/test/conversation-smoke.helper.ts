@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Encanamento do smoke do chat do motorista (spec 260 T1b.5): sobe a API de demonstração própria
+ * Encanamento do smoke do chat do motorista (spec 263 T1b.5): sobe a API de demonstração própria
  * (`scripts/driver-preview-api.ts`) numa porta sintética e desvia para ela as chamadas `/me/**` do
  * build. Nunca reaproveita a 53901/53200 — são as que o usuário está olhando.
  */

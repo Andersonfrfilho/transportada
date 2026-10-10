@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (ADR-0101), contra Postgres real — volume e isolamento:
+ * Spec 263 T2.4 (ADR-0101), contra Postgres real — volume e isolamento:
  * - paginação da lista por cursor e das mensagens por `before`/`limit`;
  * - ler marca só o assunto pedido, e o `unreadCount` acompanha;
  * - o número de consultas da lista não cresce com o número de conversas (sem N+1);
@@ -77,7 +77,7 @@ async function conversationIdOf(database: TestDatabase, documentId: string): Pro
   return row.id
 }
 
-describe('a conversa por assunto em volume (spec 260 T2.4)', () => {
+describe('a conversa por assunto em volume (spec 263 T2.4)', () => {
   testWithPostgres(
     'paginação por cursor, mensagens por before/limit, leitura só do assunto e não lidas',
     async () => {

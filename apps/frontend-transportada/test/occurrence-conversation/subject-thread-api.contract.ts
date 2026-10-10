@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Spec 260 T5.2-B (D10): o adaptador do `ConversationThread` sobre as rotas do escritório por assunto.
+ * Spec 263 T5.2-B (D10): o adaptador do `ConversationThread` sobre as rotas do escritório por assunto.
  * Prende o mapa de mensagens (empresa = outbound), o envio com a chave do painel, a leitura pela rota
  * existente e os rótulos/tema do fio.
  */
@@ -75,7 +75,7 @@ function createFakeClient(overrides: Partial<SubjectConversationClient> = {}) {
   return { calls, client }
 }
 
-describe('o adaptador do fio do escritório (spec 260 T5.2-B)', () => {
+describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
   test('mensagens: empresa é outbound, motorista é inbound, com nome, status e anexo no formato do SDK', async () => {
     const { client } = createFakeClient()
     const api = createSubjectThreadApi({ client, subject: SUBJECT })

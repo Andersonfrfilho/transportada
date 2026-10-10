@@ -81,7 +81,7 @@ export const occurrenceConversations = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    /** Spec 260: o assunto da conversa; toda linha anterior é `occurrence`. */
+    /** Spec 263: o assunto da conversa; toda linha anterior é `occurrence`. */
     subjectType: varchar('subject_type', { length: 16 })
       .$type<OccurrenceConversationSubjectType>()
       .notNull()
@@ -93,13 +93,13 @@ export const occurrenceConversations = pgTable(
      * diz qual. Quem abre a conversa confere a ocorrência dentro da empresa antes.
      */
     occurrenceId: uuid('occurrence_id'),
-    /** Spec 260: a viagem da conversa de nota ou de viagem. */
+    /** Spec 263: a viagem da conversa de nota ou de viagem. */
     tripId: uuid('trip_id'),
-    /** Spec 260: o vínculo nota-viagem (`trip_documents.id`) da conversa de nota. */
+    /** Spec 263: o vínculo nota-viagem (`trip_documents.id`) da conversa de nota. */
     tripDocumentId: uuid('trip_document_id'),
     participant: text().$type<OccurrenceConversationParticipant>().notNull(),
     /**
-     * Spec 260 D8: `AAMMDD-XXXX`, gerado pelo trigger `BEFORE INSERT` e imutável (`BEFORE UPDATE`). O padrão
+     * Spec 263 D8: `AAMMDD-XXXX`, gerado pelo trigger `BEFORE INSERT` e imutável (`BEFORE UPDATE`). O padrão
      * `''` é só a sentinela que deixa o INSERT existente intocado: o CHECK o recusa e o trigger sempre o troca.
      */
     protocol: text().notNull().default(''),
@@ -255,7 +255,7 @@ export const occurrenceConversationMessages = pgTable(
     mailMessageId: uuid('mail_message_id'),
     /** RF8: o id opaco da Meta, sem FK para o schema `meta_whatsapp`; é por ele que o status chega. */
     providerMessageId: text('provider_message_id'),
-    /** Spec 260: o eco da `Idempotency-Key` do app (a fila offline não duplica na troca de rota). */
+    /** Spec 263: o eco da `Idempotency-Key` do app (a fila offline não duplica na troca de rota). */
     clientMessageId: text('client_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -555,7 +555,7 @@ export const COMPANY_QUICK_REPLY_AUDIENCES = [
 ] as const
 export type CompanyQuickReplyAudience = (typeof COMPANY_QUICK_REPLY_AUDIENCES)[number]
 
-/** Spec 260 D11: as respostas prontas do MOTORISTA ao escritório (as demais são do escritório a eles). */
+/** Spec 263 D11: as respostas prontas do MOTORISTA ao escritório (as demais são do escritório a eles). */
 export const DRIVER_REPLY_AUDIENCE = 'driver_reply' satisfies CompanyQuickReplyAudience
 
 /** O teto do texto de uma resposta rápida (RF12): é um começo de mensagem, não um modelo. */
@@ -623,7 +623,7 @@ export const occurrenceConversationUploads = pgTable(
     /** Nulos no envio de arquivo da conversa de nota ou de viagem, que aponta `conversation_id`. */
     occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>(),
     occurrenceId: uuid('occurrence_id'),
-    /** Spec 260: a conversa de nota ou de viagem; exclusivo com `occurrence_kind` + `occurrence_id`. */
+    /** Spec 263: a conversa de nota ou de viagem; exclusivo com `occurrence_kind` + `occurrence_id`. */
     conversationId: uuid('conversation_id'),
     participant: text().$type<OccurrenceConversationParticipant>().notNull(),
     channel: text().$type<OccurrenceConversationChannel>().notNull(),

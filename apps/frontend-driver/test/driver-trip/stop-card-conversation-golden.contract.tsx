@@ -14,7 +14,7 @@ import { DriverStopCard } from '@/modules/driver-trip/components/DriverStopCard.
 import { buildDriverTripDocument, buildDriverTripStop } from '../fixtures/driverTrip.fixture'
 
 /**
- * Spec 260 (T3.3): "nada pode impactar outros fluxos". O cartão da parada, sem o contexto da
+ * Spec 263 (T3.3): "nada pode impactar outros fluxos". O cartão da parada, sem o contexto da
  * conversa ligado, renderiza byte a byte o que renderizava antes do botão existir — o golden foi
  * gravado ANTES de qualquer mudança no cartão.
  */

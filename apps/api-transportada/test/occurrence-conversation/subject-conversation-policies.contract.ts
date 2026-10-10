@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: as políticas puras da conversa por assunto — rótulo (lista e sino), estado efetivo,
+ * Spec 263 T2.4: as políticas puras da conversa por assunto — rótulo (lista e sino), estado efetivo,
  * ordem dos canais e quem alcança a conversa.
  */
 import { describe, expect, test } from 'bun:test'
@@ -21,7 +21,7 @@ const DOCUMENT: SubjectLabelFacts = {
   subjectType: 'document',
 }
 
-describe('o rótulo do assunto (spec 260 T2.4)', () => {
+describe('o rótulo do assunto (spec 263 T2.4)', () => {
   test('nota: a lista leva o destinatário, o sino leva só o número', () => {
     expect(buildSubjectLabel(DOCUMENT)).toBe('NF 4521 · Casa Verde')
     expect(buildNoticeLabel(DOCUMENT)).toBe('NF 4521')
@@ -73,7 +73,7 @@ describe('o rótulo do assunto (spec 260 T2.4)', () => {
   })
 })
 
-describe('o estado efetivo da conversa (spec 260, ADR-0101 §4)', () => {
+describe('o estado efetivo da conversa (spec 263, ADR-0101 §4)', () => {
   const open = {
     documentReleasedAt: null,
     storedStatus: 'open',
@@ -112,7 +112,7 @@ describe('o estado efetivo da conversa (spec 260, ADR-0101 §4)', () => {
   })
 })
 
-describe('os canais da conversa (spec 260 D9)', () => {
+describe('os canais da conversa (spec 263 D9)', () => {
   test('ordem estável app, whatsapp, email, portal; repetido e desconhecido saem', () => {
     expect(orderConversationChannels(['portal', 'whatsapp', 'app', 'whatsapp', 'email'])).toEqual([
       'app',
@@ -125,7 +125,7 @@ describe('os canais da conversa (spec 260 D9)', () => {
   })
 })
 
-describe('quem alcança a conversa (spec 260, ADR-0101 §3)', () => {
+describe('quem alcança a conversa (spec 263, ADR-0101 §3)', () => {
   const base = {
     conversationDriverUserId: 'outro',
     driverUserId: 'eu',

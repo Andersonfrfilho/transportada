@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: as mensagens da conversa de nota e de viagem vistas pelo escritório. O autor é o nome de
+ * Spec 263 T2.4b: as mensagens da conversa de nota e de viagem vistas pelo escritório. O autor é o nome de
  * quem escreveu, nos dois sentidos — operação (`author_user_id`) ou motorista (`driver_user_id`).
  */
 import { and, desc, eq, sql } from 'drizzle-orm'

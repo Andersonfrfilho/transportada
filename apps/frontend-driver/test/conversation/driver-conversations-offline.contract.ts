@@ -90,7 +90,7 @@ const send = (id: string, extra: { files?: File[]; text?: string } = {}) => ({
   ...extra,
 })
 
-describe('driverConversationsApi offline (spec 260 T1b.3)', () => {
+describe('driverConversationsApi offline (spec 263 T1b.3)', () => {
   it('sem rede devolve queued, grava a mensagem e não chama a API', async () => {
     const harness = createHarness()
     harness.setOnline(false)

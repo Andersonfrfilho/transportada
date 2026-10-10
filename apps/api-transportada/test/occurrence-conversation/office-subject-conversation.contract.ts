@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: os casos de uso do escritório na conversa de nota e de viagem, com portas falsas — a
+ * Spec 263 T2.4b: os casos de uso do escritório na conversa de nota e de viagem, com portas falsas — a
  * lista, abrir (e reabrir), enviar (retarget, idempotência, encerrada, sem motorista), o pedido de upload,
  * encerrar, marcar como lida e as mensagens. O 404 é um só para tudo que não é da viagem do caminho.
  */
@@ -194,7 +194,7 @@ const sendInput = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
-describe('a lista do escritório (spec 260 T2.4b)', () => {
+describe('a lista do escritório (spec 263 T2.4b)', () => {
   test('mapeia o resumo com o nome curto do motorista, não lidas, canais, protocolo e estado efetivo', async () => {
     const world = createWorld({
       rows: [
@@ -243,7 +243,7 @@ describe('a lista do escritório (spec 260 T2.4b)', () => {
   })
 })
 
-describe('abrir e reabrir (spec 260 T2.4b)', () => {
+describe('abrir e reabrir (spec 263 T2.4b)', () => {
   const open = (world: ReturnType<typeof createWorld>, input: OfficeSubjectInput = NOTE) =>
     createOpenTripSubjectConversationUseCase(world).open({ ...input, userId: OPERATOR_ID })
 
@@ -323,7 +323,7 @@ describe('abrir e reabrir (spec 260 T2.4b)', () => {
   })
 })
 
-describe('enviar ao motorista (spec 260 T2.4b)', () => {
+describe('enviar ao motorista (spec 263 T2.4b)', () => {
   test('grava a mensagem do app ao principal de agora (retarget), com o autor e a chave, e avisa uma vez', async () => {
     const world = createWorld()
     const result = await world.send.send(sendInput())
@@ -470,7 +470,7 @@ describe('enviar ao motorista (spec 260 T2.4b)', () => {
   })
 })
 
-describe('pedir a subida do anexo (spec 260 T2.4b)', () => {
+describe('pedir a subida do anexo (spec 263 T2.4b)', () => {
   function createUploadFixture(subject: OfficeSubject | null) {
     const inserted: unknown[] = []
     const world = createWorld({ subject })
@@ -525,7 +525,7 @@ describe('pedir a subida do anexo (spec 260 T2.4b)', () => {
   })
 })
 
-describe('encerrar (spec 260 T2.4b)', () => {
+describe('encerrar (spec 263 T2.4b)', () => {
   const close = (world: ReturnType<typeof createWorld>) =>
     createCloseTripSubjectConversationUseCase(world).close({ ...NOTE, userId: OPERATOR_ID })
 
@@ -561,7 +561,7 @@ describe('encerrar (spec 260 T2.4b)', () => {
   })
 })
 
-describe('marcar como lida e listar mensagens (spec 260 T2.4b)', () => {
+describe('marcar como lida e listar mensagens (spec 263 T2.4b)', () => {
   test('marca lida a conversa do usuário do escritório; sem conversa é no-op; fora da viagem é 404', async () => {
     const world = createWorld()
     await createMarkOfficeSubjectReadUseCase(world).markRead({ ...NOTE, userId: OPERATOR_ID })

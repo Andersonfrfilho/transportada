@@ -365,7 +365,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
   })
 
   /**
-   * Spec 260 T2.4b: o escritório fala com o motorista na nota e na viagem. Envio e subida de arquivo
+   * Spec 263 T2.4b: o escritório fala com o motorista na nota e na viagem. Envio e subida de arquivo
    * dividem o balde das rotas antigas do escritório (alternar de rota não dobra a cota); abrir e encerrar
    * gravam linha e têm o balde deles.
    */

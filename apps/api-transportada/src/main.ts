@@ -3407,7 +3407,7 @@ function createApplicationRoutes({
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
-    /** Spec 260 T2.4 (ADR-0101): a conversa por assunto (nota, viagem, ocorrência) no `/me`, lado de leitura. */
+    /** Spec 263 T2.4 (ADR-0101): a conversa por assunto (nota, viagem, ocorrência) no `/me`, lado de leitura. */
     ...createMeSubjectConversationRoutes({
       list: createListMySubjectConversationsUseCase({
         clock: () => new Date(),
@@ -3427,7 +3427,7 @@ function createApplicationRoutes({
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
-    /** Spec 260 T2.4: o lado de escrita — resposta com eco do `clientMessageId` e envio de arquivo. */
+    /** Spec 263 T2.4: o lado de escrita — resposta com eco do `clientMessageId` e envio de arquivo. */
     ...createMeSubjectConversationWriteRoutes({
       reply: createReplyMySubjectConversationUseCase({
         clock: () => new Date(),
@@ -3446,7 +3446,7 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     /**
-     * Spec 260 T2.4b (ADR-0101): a conversa de nota e de viagem vista pelo escritório, por viagem. Ler é
+     * Spec 263 T2.4b (ADR-0101): a conversa de nota e de viagem vista pelo escritório, por viagem. Ler é
      * `fleet.read`; abrir, enviar, anexar e encerrar são `trip.manage`.
      */
     ...createOfficeSubjectConversationRoutes({
@@ -3690,7 +3690,7 @@ function createApplicationRoutes({
         unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
       }),
     }),
-    /** Spec 260 T5.1 (D11): as respostas prontas do motorista (público `driver_reply`), lidas pelo app. */
+    /** Spec 263 T5.1 (D11): as respostas prontas do motorista (público `driver_reply`), lidas pelo app. */
     ...createMeQuickReplyRoutes({
       quickReplies: createQuickRepliesUseCase({
         unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),

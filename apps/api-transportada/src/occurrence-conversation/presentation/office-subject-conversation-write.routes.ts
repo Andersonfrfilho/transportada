@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b (api-contract, "Rotas do escritório"): o lado de escrita da conversa de nota e de viagem
+ * Spec 263 T2.4b (api-contract, "Rotas do escritório"): o lado de escrita da conversa de nota e de viagem
  * vista pelo escritório — abrir (que também reabre), enviar ao motorista, pedir a subida de um anexo e
  * encerrar. Escrever é `trip.manage` (quem despacha fala com o motorista); a ocorrência segue com
  * `occurrences.resolve`, em outras rotas. Envio e subida usam os mesmos objetos de limite das rotas

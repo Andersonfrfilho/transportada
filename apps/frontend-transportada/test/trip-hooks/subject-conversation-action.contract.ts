@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T3.1/T3.2 (RF12, ADR-0101 D4): "Falar com o motorista" na nota e na viagem, pelo DOM
+ * Spec 263 T3.1/T3.2 (RF12, ADR-0101 D4): "Falar com o motorista" na nota e na viagem, pelo DOM
  * renderizado. Sem `trip.manage` e sem conversa a ação não existe; com ela abre (idempotente) e mostra
  * a conversa; encerrada fica legível sem compositor; sem motorista a API recusa e a tela explica.
  * O cliente HTTP é trocado uma vez (`mock.module` não se desfaz); dados sintéticos.
@@ -145,7 +145,7 @@ beforeEach(() => {
   fakes.summaries = []
 })
 
-describe('o botão da conversa com o motorista (spec 260 T3.1)', () => {
+describe('o botão da conversa com o motorista (spec 263 T3.1)', () => {
   it('sem trip.manage e sem conversa: nenhum botão', async () => {
     await renderAction({ canManage: false })
     await settle()
@@ -366,7 +366,7 @@ describe('o botão da conversa com o motorista (spec 260 T3.1)', () => {
   })
 })
 
-describe('o painel Conversas da viagem (spec 260 T3.2)', () => {
+describe('o painel Conversas da viagem (spec 263 T3.2)', () => {
   it('lista protocolo, assunto, motorista, canais, estado e a soma das não lidas', async () => {
     fakes.summaries = [
       summary({ channels: ['app', 'whatsapp'], unreadCount: 2 }),

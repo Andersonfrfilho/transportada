@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3a (ADR-0101), contra Postgres real:
+ * Spec 263 T2.3a (ADR-0101), contra Postgres real:
  * - a conversa de ocorrência segue igual: a lista e as mensagens do motorista saem com a forma de
  *   sempre, e o eco da `Idempotency-Key` fica gravado em `client_message_id`;
  * - a conversa de nota e de viagem respeita o CHECK de forma e os únicos parciais, e as consultas que
@@ -48,7 +48,7 @@ async function rejectedBy(operation: () => Promise<unknown>): Promise<string> {
   throw new Error('EXPECTED_REJECTION')
 }
 
-describe('o assunto da conversa contra Postgres (spec 260 T2.3a)', () => {
+describe('o assunto da conversa contra Postgres (spec 263 T2.3a)', () => {
   testWithPostgres(
     'a conversa de ocorrência não muda e grava o eco; nota e viagem não aparecem na lista nem no entregue',
     async () => {

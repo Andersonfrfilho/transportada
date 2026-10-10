@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4: as peças puras da resposta do motorista por assunto — os campos da impressão digital
+ * Spec 263 T2.4: as peças puras da resposta do motorista por assunto — os campos da impressão digital
  * (os da rota antiga na ocorrência) e o alvo do anexo (antigo na ocorrência, `conversation_id` no resto).
  */
 import {

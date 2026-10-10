@@ -27,7 +27,7 @@ function snapshotOf(
   }))
 }
 
-describe('diffConversationSnapshots (spec 260)', () => {
+describe('diffConversationSnapshots (spec 263)', () => {
   it('assunto novo conta como mudança', () => {
     const result = diffConversationSnapshots(
       snapshotOf(['a', 't1', 0]),
@@ -142,7 +142,7 @@ async function startWithBaseline(harness: Harness): Promise<() => void> {
   return unsubscribe
 }
 
-describe('createConversationRefreshTicker (spec 260)', () => {
+describe('createConversationRefreshTicker (spec 263)', () => {
   it('o primeiro ciclo só grava o snapshot e não emite', async () => {
     const harness = createHarness()
     await startWithBaseline(harness)
@@ -254,7 +254,7 @@ describe('createConversationRefreshTicker (spec 260)', () => {
   })
 })
 
-describe('driverConversationsApi.subscribe com o ticker (spec 260)', () => {
+describe('driverConversationsApi.subscribe com o ticker (spec 263)', () => {
   it('recebe conversation-changed quando a lista do servidor muda', async () => {
     let lastMessageAt = '2026-10-09T10:00:00.000Z'
     let timerCallback: (() => void) | undefined
@@ -312,7 +312,7 @@ describe('driverConversationsApi.subscribe com o ticker (spec 260)', () => {
   })
 })
 
-describe('driverConversationsApi: officeReadAt só no snapshot (spec 260 T5.5)', () => {
+describe('driverConversationsApi: officeReadAt só no snapshot (spec 263 T5.5)', () => {
   it('a leitura do escritório dispara conversation-changed e não vaza para o resumo do pacote', async () => {
     const server: { officeReadAt?: string } = {}
     let timerCallback: (() => void) | undefined

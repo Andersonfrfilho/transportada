@@ -32,7 +32,7 @@ type SubjectConversationActionProps = Readonly<{
 }>
 
 /**
- * Spec 260 T3.1 (RF12): "Falar com o motorista" na nota e na viagem — a ação autocontida que o detalhe da
+ * Spec 263 T3.1 (RF12): "Falar com o motorista" na nota e na viagem — a ação autocontida que o detalhe da
  * viagem encaixa (padrão `NfseEmissionAction`). Decide sozinha estado, permissão e abertura do diálogo;
  * abrir é idempotente e reabre a conversa que o escritório encerrou. Mostra o protocolo e as não lidas.
  */

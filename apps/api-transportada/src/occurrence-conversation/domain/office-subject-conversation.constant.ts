@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: os números e a operação de idempotência da conversa por assunto vista pelo escritório.
+ * Spec 263 T2.4b: os números e a operação de idempotência da conversa por assunto vista pelo escritório.
  */
 
 /** Uma viagem tem uma conversa por nota mais a da viagem; o teto só protege a consulta, não pagina. */

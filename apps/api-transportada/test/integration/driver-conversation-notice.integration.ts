@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.5 (ADR-0101 §9), contra Postgres real: o aviso do sino do motorista, emitido pelo gateway
+ * Spec 263 T2.5 (ADR-0101 §9), contra Postgres real: o aviso do sino do motorista, emitido pelo gateway
  * de verdade (a fila fica em memória). Nota e viagem nascem na chave nova, com `subjectType`, `subjectId`,
  * `subjectLabel` e `protocol` — sem o corpo e sem nome de pessoa; a ocorrência segue na chave de sempre,
  * só com os campos extras; a mesma `Idempotency-Key` não gera segundo aviso.
@@ -82,7 +82,7 @@ function expectNoLeak(emissions: readonly Emission[]): void {
   expect(serialized).not.toContain(DRIVER_NAME)
 }
 
-describe('o aviso do sino por assunto contra Postgres (spec 260 T2.5)', () => {
+describe('o aviso do sino por assunto contra Postgres (spec 263 T2.5)', () => {
   testWithPostgres(
     'nota e viagem: um aviso por mensagem, na chave nova, com o assunto e o protocolo da conversa',
     async () => {

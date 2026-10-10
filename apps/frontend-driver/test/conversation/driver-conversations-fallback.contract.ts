@@ -77,7 +77,7 @@ const legacyList = () =>
     ],
   })
 
-describe('rotas por assunto com queda para as de ocorrência (spec 260 T1b.11)', () => {
+describe('rotas por assunto com queda para as de ocorrência (spec 263 T1b.11)', () => {
   it.each([404, 501])('lista: status %i da rota nova cai na antiga e fica nela', async (status) => {
     const harness = createHarness((recorded) =>
       recorded.url === `${BASE}/occurrence-conversations` ? legacyList() : routeMissing(status),
@@ -152,7 +152,7 @@ describe('rotas por assunto com queda para as de ocorrência (spec 260 T1b.11)',
   })
 })
 
-describe('fila offline com a rota por assunto (spec 260 T1b.11)', () => {
+describe('fila offline com a rota por assunto (spec 263 T1b.11)', () => {
   it('a mensagem da nota espera a rede e sai pela rota do assunto, com a mesma chave', async () => {
     const harness = createHarness(() => json({ data: { id: 'server-1' } }, 201), false)
 
@@ -184,7 +184,7 @@ describe('fila offline com a rota por assunto (spec 260 T1b.11)', () => {
   })
 })
 
-describe('mapeamento do resumo (spec 260 T1b.10)', () => {
+describe('mapeamento do resumo (spec 263 T1b.10)', () => {
   it('canal desconhecido é descartado e o protocolo, o ícone e o preview passam', async () => {
     const harness = createHarness(() =>
       json({

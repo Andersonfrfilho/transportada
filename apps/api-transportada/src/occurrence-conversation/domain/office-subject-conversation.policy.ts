@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4b: o nome do motorista na lista do escritório é curto, como o rótulo do assunto.
+ * Spec 263 T2.4b: o nome do motorista na lista do escritório é curto, como o rótulo do assunto.
  */
 import { DRIVER_SUBJECT_RECIPIENT_NAME_MAX_LENGTH } from './driver-subject-conversation.constant.js'
 

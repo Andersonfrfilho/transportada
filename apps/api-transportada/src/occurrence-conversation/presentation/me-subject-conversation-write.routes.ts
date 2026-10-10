@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.4 (api-contract): o lado de escrita da conversa por assunto no `/me` do motorista — responder e
+ * Spec 263 T2.4 (api-contract): o lado de escrita da conversa por assunto no `/me` do motorista — responder e
  * pedir a subida de um anexo. Os limites são os mesmos objetos das rotas antigas: o balde é compartilhado, e
  * alternar de rota não dobra a cota. O corpo da resposta é o mesmo `replySchema`; o `201` é a primeira vez e o
  * `200`, a repetição da chave.

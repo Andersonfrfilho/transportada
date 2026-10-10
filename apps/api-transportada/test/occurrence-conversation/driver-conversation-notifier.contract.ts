@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.5 (ADR-0101 §9): o aviso do sino do motorista. O da ocorrência é o de sempre, byte a byte
+ * Spec 263 T2.5 (ADR-0101 §9): o aviso do sino do motorista. O da ocorrência é o de sempre, byte a byte
  * (constantes capturadas antes da mudança); só ganha campos extras no `payload`. Nota e viagem usam
  * uma chave nova, sem o corpo e sem nome de pessoa.
  */
@@ -50,7 +50,7 @@ function createCapture(options: { readonly fails?: boolean } = {}) {
   return { notifier, sent, warnings }
 }
 
-describe('o aviso do sino da ocorrência continua o de sempre (spec 260 T2.5)', () => {
+describe('o aviso do sino da ocorrência continua o de sempre (spec 263 T2.5)', () => {
   test('chamada antiga, sem assunto: a emissão é idêntica à de antes, sem campo extra', async () => {
     const { notifier, sent } = createCapture()
 
@@ -128,7 +128,7 @@ describe('o aviso do sino da ocorrência continua o de sempre (spec 260 T2.5)', 
   })
 })
 
-describe('o aviso do sino por assunto, para nota e viagem (spec 260 T2.5)', () => {
+describe('o aviso do sino por assunto, para nota e viagem (spec 263 T2.5)', () => {
   const subjectCases: { subjectLabel: string; subjectType: 'document' | 'trip' }[] = [
     { subjectLabel: 'NF 4512/1', subjectType: 'document' },
     { subjectLabel: 'Viagem 09/10 · São Carlos', subjectType: 'trip' },

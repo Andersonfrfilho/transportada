@@ -42,7 +42,7 @@ export const NOTIFICATION_TEMPLATE_KEY = {
    */
   TRIP_CONVERSATION_MESSAGE: 'trip.conversation-message',
   /**
-   * Spec 260 T2.5 (ADR-0101 §9): o mesmo aviso para a conversa de **nota** e de **viagem**. Chave nova de
+   * Spec 263 T2.5 (ADR-0101 §9): o mesmo aviso para a conversa de **nota** e de **viagem**. Chave nova de
    * propósito: o seed só cria template que não existe, e o da ocorrência não pode mudar de texto aqui.
    * Sem o corpo e sem nome de pessoa; o app abre o assunto pelo `subjectType`/`subjectId` do `payload`.
    */
@@ -102,7 +102,7 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
     },
   },
-  /** Spec 260 T2.5: a mensagem da operação sobre uma nota ou uma viagem; o rótulo diz qual. */
+  /** Spec 263 T2.5: a mensagem da operação sobre uma nota ou uma viagem; o rótulo diz qual. */
   {
     category: NOTIFICATION_CATEGORY.TRIP,
     channels: [NOTIFICATION_CHANNEL.INBOX],

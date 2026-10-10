@@ -11,7 +11,7 @@ import {
 import { createMemoryOutboxStore } from '../fixtures/memory-conversation-outbox-store.fixture'
 
 /**
- * Spec 260 T3.3: o motorista abre a conversa de nota e de viagem — `POST .../conversations/open`,
+ * Spec 263 T3.3: o motorista abre a conversa de nota e de viagem — `POST .../conversations/open`,
  * sem queda para a rota antiga (ela só existe na API nova).
  */
 const DOCUMENT_ID = '0b9a4b8e-0000-4000-8000-000000000201'

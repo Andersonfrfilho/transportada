@@ -7,7 +7,7 @@ import {
   type SubjectConversationClient,
 } from './subjectConversationClient.service'
 
-/** Spec 260: o cliente da conversa por assunto ligado ao ambiente e ao token; os testes trocam este módulo. */
+/** Spec 263: o cliente da conversa por assunto ligado ao ambiente e ao token; os testes trocam este módulo. */
 export function getSubjectConversationClient(): SubjectConversationClient {
   return createSubjectConversationClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.3a (ADR-0101): o assunto da conversa no schema TypeScript — o vocabulário vem da
+ * Spec 263 T2.3a (ADR-0101): o assunto da conversa no schema TypeScript — o vocabulário vem da
  * constante, `occurrence_*` aceita nulo só porque o CHECK de forma segura o resto, e as FKs de nota e
  * viagem levam a empresa.
  */
@@ -25,7 +25,7 @@ import {
   uniqueColumnsByName,
 } from '../fiscal-schema/support.js'
 
-describe('o assunto da conversa no schema (spec 260 T2.3a)', () => {
+describe('o assunto da conversa no schema (spec 263 T2.3a)', () => {
   test('o tipo de assunto tem padrão ocorrência e o CHECK lista o vocabulário inteiro', () => {
     expect(requiredColumnNames(occurrenceConversations)).toContain('subject_type')
     expect(requiredColumnNames(occurrenceConversations)).not.toContain('occurrence_kind')

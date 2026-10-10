@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 260 T2.2/T2.3a (ADR-0101, regra do dono): o assunto novo da conversa não muda a resposta das
+ * Spec 263 T2.2/T2.3a (ADR-0101, regra do dono): o assunto novo da conversa não muda a resposta das
  * rotas do motorista. Os textos abaixo foram capturados do código de origin/staging, antes da
  * migration, passando pela rota e pelo caso de uso reais; qualquer byte diferente reprova.
  */
@@ -153,7 +153,7 @@ function createHandler() {
   return (request: Request) => handleRequest(request, { timeout() {} })
 }
 
-describe('a conversa de ocorrência do motorista não muda de forma (spec 260 T2.3a)', () => {
+describe('a conversa de ocorrência do motorista não muda de forma (spec 263 T2.3a)', () => {
   test('GET /me/trips/current/occurrences/:id/messages devolve os mesmos bytes de antes', async () => {
     const response = await createHandler()(
       jsonRequest({

@@ -24,7 +24,7 @@ export type OccurrenceConversationUploadTarget = ConversationUploadTargetBase & 
   readonly occurrenceKind: OccurrenceConversationKind
 }
 
-/** Spec 260: a conversa de nota ou de viagem, apontada pelo `conversation_id`. */
+/** Spec 263: a conversa de nota ou de viagem, apontada pelo `conversation_id`. */
 export type SubjectConversationUploadTarget = ConversationUploadTargetBase & {
   readonly conversationId: string
 }
