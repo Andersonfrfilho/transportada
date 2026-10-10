@@ -87,7 +87,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       (`database/holiday-provider-settings.schema.ts`, exportado em `database.schema.ts`) e cópia só com colunas no worker
       (`src/database/holiday-provider-settings.schema.ts`) com a paridade em `test/holiday-provider-pull/schema-parity.contract.ts`.
       Aceite: `make migration-test`; `bun run db:generate` = `no_changes`; `bun run db:test` com o banco nativo; contratos da API e do
-      worker verdes. Revisão `opus` separada. **Só staging.** (CA1) Feita em 2026-10-09 (`20261009223052_holiday_provider_settings`): evidência em `evidence.md` § Fases 2 e 3. **A revisão `opus` separada continua pendente.**
+      worker verdes. Revisão `opus` separada. **Só staging.** (CA1) Feita em 2026-10-09 (`20261009223052_holiday_provider_settings`): evidência em `evidence.md` § Fases 2 e 3. A revisão `opus` separada aprovou ir a staging com ressalvas (M1–M4 e lows), aplicadas na 2ª rodada (`evidence.md`).
 
 ## Fase 3 — API
 

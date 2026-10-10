@@ -308,3 +308,48 @@ Cron `typecheck`/`lint`/`test` 101 pass / 0 fail. Painel `typecheck`/`lint`/`tes
 
 **Não feito (de propósito):** worker (Fase 4), telas (Fase 5), documentação viva (Fase 6), push, aplicar a migration em qualquer banco fora do Postgres descartável, Gate A, `make migration-test` via Docker
 (equivalente rodado com `db:test`), e a revisão `opus` da T2.2.
+
+## Fases 2 e 3 — 2ª rodada (revisão `opus`: ressalvas M1–M4 e lows)
+
+Mesma branch `work/262-f23`, sem push, Postgres nativo descartável (18.4, porta 65452) recriado para a rodada; `git fetch origin` exit 0 e
+`git rebase origin/staging` = "up to date" (staging não andou). A migration **não estava publicada**, então a mesma pasta
+`20261009223052_holiday_provider_settings` foi editada (sem migration nova) e o `snapshot.json` foi regenerado com `db:generate`.
+
+SHAs: contratos vermelhos `1ef18a32a` · código `ce0e73551` · docs `a72d99aac` (**SHA testado nos gates abaixo**; o commit de evidência que vem depois só toca
+`evidence.md` e `tasks.md`).
+
+- **M1 — orçamento NULL = padrão (decisão do coordenador).** `monthly_request_budget integer NULL`; CHECK `holiday_provider_settings_budget_check`
+  (mesmo nome, 38 bytes) = `"monthly_request_budget" is null or … between 1 and 1000000`. `GET` devolve o valor **efetivo** (4500 quando NULL) com
+  `budgetOrigin: 'default'`, e `'installation'` só quando há valor gravado. O primeiro `PUT {token}` **não grava** orçamento (fica NULL). **`null` é aceito
+  no corpo `.strict()`** (`number | null`): `PUT {expectedVersion, monthlyRequestBudget: null}` volta ao padrão (audita `changedFields: ['monthlyRequestBudget']`,
+  `before` 2500 e `after` null; repetir o `null` é no-op sem auditoria); **criar a linha só com `null` (sem `expectedVersion` e sem chave) é `400`**, porque não grava
+  nada. Cópia do schema do worker anulável (paridade coluna a coluna verde). O worker resolve `coalesce(monthly_request_budget, 4500)` na Fase 4: registrado na T4.2 do
+  `tasks.md`; spec D1/RF3/RF4, plan Fase 2 e ADR-0102 (D1 e §3) atualizados. Mutação (restaurada): gravar o padrão no primeiro `PUT` (`?? 4500`) → 2 integrações vermelhas
+  (a leitura com origem `default` e "o primeiro PUT não grava orçamento").
+- **M2.** O contrato estático não cobra mais "último da cadeia": cobra timestamp maior que `20261009160300` (última de staging) e que `20261009205256` (260); a ordem global
+  fica com `static-migration.contract.ts` e o `schema-snapshot`.
+- **M3.** `docs/SECURITY.md` (emenda da entrada da 252): a API recebe e sela a chave em staging; lista honesta de onde o texto em claro passa pela memória (corpo cru, string
+  decodificada, objeto do `JSON.parse`, string aparada pelo Zod, `JSON.stringify` do plaintext, `Uint8Array` do `TextEncoder`, cópias do WebCrypto — `fill(0)` zera só um
+  pedaço), dica de 4 caracteres visível a `settings.manage` de qualquer empresa, teto **por empresa + usuário e não global**, e o risco aceito da sobrescrita por outra empresa.
+  Entradas mínimas em `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md` (o texto completo continua na T6.1).
+- **Lows.** (a) `HOLIDAY_PROVIDER_TOKEN_RULE_MESSAGE` e `HOLIDAY_PROVIDER_TOKEN_PATTERN` montados de `MIN`/`MAX` (a mensagem duplicada saiu do schema e do erro; as constantes
+  `MIN_LENGTH`/`MAX_LENGTH` deixaram de ser mortas); (b) copyright na linha 1 do `migration.sql`; (c) `isNoStorePath` com os três caminhos novos + teste em `http.contract.test.ts`;
+  (d) comentário de `api.constant.ts` corrigido (balde por empresa + usuário, não global); (e) teste de corrida de atualização: dois `PUT {expectedVersion:'1'}` ao mesmo
+  tempo → `[200, 409]`, versão 2 e **duas** auditorias no total (a de criação e a única da atualização); (f) teste que prende "o administrador da empresa B sobrescreve a chave e a auditoria
+  cai em B"; (g) comentário em `holiday-provider-token-secret.service.ts` dizendo que o `decrypt` da API é a fonte de paridade da T4.1.
+
+### Gates (M4) — SHA `a72d99aac`, cwd em cada app
+
+| Gate                                                     | Resultado                                                                          |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| API `bun run typecheck`                                  | exit 0                                                                             |
+| API `bun run lint`                                       | exit 0                                                                             |
+| API contratos `bun --env-file=../../.env.test run test`  | **11261 pass / 1 skip / 0 fail** (o skip é o mesmo de antes, não é de arquivo meu) |
+| API `bun --env-file=../../.env.test run db:test`         | **189 pass / 0 fail**                                                              |
+| Integração `holiday-provider-settings` (sozinha, 0 skip) | **19 pass / 0 fail**                                                               |
+| Integração `holiday-import-enablement` (sozinha, 0 skip) | **6 pass / 0 fail**                                                                |
+| `bun run db:generate` / `db:check`                       | `no_changes` / "Everything's fine"                                                 |
+| Worker `typecheck` / `lint` / `test`                     | exit 0 / exit 0 / 2315 pass, 0 fail                                                |
+| `bun run format:check` na raiz                           | exit 0 (`prettier --check .`) e `git status` vazio depois do commit de evidência   |
+
+**Ficou de fora (conforme pedido):** `DELETE` com If-Match, scrubber do Sentry, log de `ApiError` 5xx e divisão dos arquivos de teste grandes (viram tasks/fora de escopo).
