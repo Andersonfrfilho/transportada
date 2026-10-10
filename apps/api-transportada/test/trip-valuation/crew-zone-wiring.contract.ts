@@ -55,12 +55,13 @@ describe('crew wiring is one join, not a policy call per driver (spec 143 T4)', 
   /**
    * Spec 143 D2: dois valores gerais na mesma empresa é estado impossível — a consulta só pode ler
    * a configuração da empresa **uma vez por contexto**, nunca uma vez por motorista. Duas leituras
-   * no arquivo inteiro (uma por `readContext`, uma por `readPreviewContext`) prova isso; nenhuma
-   * delas pode estar dentro do corpo de `readCrew`/`readPreviewCrew`.
+   * no arquivo inteiro (uma por `readContext`, uma por `readPreviewContext`, uma por página em
+   * `readValuationContexts` — spec 259) prova isso; nenhuma delas pode estar dentro do corpo de
+   * `readCrew`/`readPreviewCrew`.
    */
   test('the company amount is read once per context, never per crew member', () => {
     const callSites = source.match(/this\.readCompanyDailyAllowanceAmount\(/g) ?? []
-    expect(callSites.length).toBe(2)
+    expect(callSites.length).toBe(3)
 
     for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {
       expect(methodBody(method)).not.toInclude('readCompanyDailyAllowanceAmount')

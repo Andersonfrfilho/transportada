@@ -261,6 +261,13 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
   juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
 
+## A lista de viagens diz ocupação e lucro (spec 259)
+
+`GET /trips` traz `occupancy` e `amounts.costTotal/marginTotal/marginPercentage/hasGaps`, calculados **em lote por página** pela
+mesma conta do detalhe (`buildValuationFromContext`, `resolveTripOccupancyFromFacts`) — nunca uma segunda implementação. Sem
+`trip.financials` o custo nem é lido. `occupancy` ausente = não calculada; `null` = sem veículo. Rascunho sem rota congelada sai
+`hasGaps`. Detalhe: docs/ai-context § "Spec 259".
+
 ## Viagem (trips) — máquina de estados
 
 `trips.status`: `draft → route_planned → separating → loading → dispatched → in_transit →

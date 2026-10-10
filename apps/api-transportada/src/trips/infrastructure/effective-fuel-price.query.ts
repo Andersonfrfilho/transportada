@@ -33,6 +33,32 @@ export async function readEffectiveFuelPrice(
   return resolveEffectiveFuelPrice({ ...facts, product: input.product }).effectivePricePerUnit
 }
 
+/**
+ * Spec 259: o mesmo preço de `readEffectiveFuelPrice` para vários produtos, com os fatos da empresa
+ * (`loadFacts`, quatro consultas) lidos **uma vez** e o preço resolvido em memória por produto distinto.
+ * Produto nulo não gera consulta nem entrada: a ficha sem combustível reconhecido não tem preço a buscar.
+ */
+export async function readEffectiveFuelPrices(
+  database: CompanySettingsDatabase,
+  input: { readonly companyId: string; readonly products: readonly (FuelProduct | null)[] },
+): Promise<ReadonlyMap<FuelProduct, null | string>> {
+  const distinct = [
+    ...new Set(input.products.filter((product): product is FuelProduct => product !== null)),
+  ]
+  if (distinct.length === 0) return new Map()
+
+  const facts = await new DrizzleFuelPriceRepository(database).loadFacts({
+    companyId: input.companyId,
+  })
+
+  return new Map(
+    distinct.map((product) => [
+      product,
+      resolveEffectiveFuelPrice({ ...facts, product }).effectivePricePerUnit,
+    ]),
+  )
+}
+
 /** O cadastro guarda o combustível como texto livre do catálogo; fora dele não há preço a buscar. */
 export function toFuelProduct(value: null | string): FuelProduct | null {
   return FUEL_PRODUCTS.includes(value as FuelProduct) ? (value as FuelProduct) : null

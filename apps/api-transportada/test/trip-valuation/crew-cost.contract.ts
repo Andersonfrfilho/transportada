@@ -66,10 +66,7 @@ async function valuationCrewParcels(crewInputs: CrewCostInputs) {
   const valuation = await buildValuationFromContext({
     companyId: COMPANY_ID,
     context: toContext(crewInputs),
-    repository: {
-      findApplicableRule: () => Promise.resolve(null),
-      readContext: () => Promise.resolve(null),
-    },
+    repository: { findApplicableRule: () => Promise.resolve(null) },
   })
 
   return valuation.costParcels.filter(
