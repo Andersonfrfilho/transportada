@@ -99,6 +99,15 @@ A ordem importa, e sair dela derruba serviço em silêncio:
 > nesses nove. Medido aplicando duas vezes seguidas. Qualquer outra linha na prévia é mudança de
 > verdade.
 >
+> ⚠️ **Exceção ao passo 3 (spec 262, T4.4): um `destroy` de `FERIADOS_API_TOKEN` e de
+> `FERIADOS_API_MONTHLY_REQUEST_BUDGET` no `worker` é ESPERADO.** A chave da FeriadosAPI e o orçamento
+> passaram a morar no banco e o worker ignora as variáveis; o `railway.ts` as mantém (`preserve()`)
+> como legado até a T4.4, que as remove. Esse `destroy` só é aceitável **depois** de a chave estar no
+> banco de staging **e** de produção, de o worker da 262 estar em `main` e de um ciclo conferido sem
+> `token_missing` indevido — e o `apply` é passo do usuário, nunca de um checkout de staging antes
+> disso (um checkout sem as entradas apagaria a variável do worker de produção, que ainda a lê). Fora
+> essas duas linhas, `destroy` continua significando arquivo incompleto.
+>
 > ⚠️ **Em staging, até o próximo `make map-refresh`, o `plan` também mostra `OSRM_PBF_URL` e
 > `MAP_PBF_URL` mudando** em `osrm` e `map-tiles`: o arquivo fixa `sudeste-260914`, e os dois ainda
 > rodam do `-latest` baixado em 14/09. Essas duas linhas são mudança de verdade — aplicar

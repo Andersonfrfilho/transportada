@@ -64,14 +64,14 @@ e fazer os feriados importados **avisarem na montagem** quando uma entrega cair 
   cada uma dividido.
 - **Q4 — `[NEEDS CLARIFICATION]` Termos de uso.** A página de termos respondeu 404 e a documentação não diz se os
   dados podem ser guardados. Risco registrado no ADR-0100 e em `docs/SECURITY.md` (2026-10-07). **Passo do usuário:**
-  confirmar com o fornecedor que guardar os feriados é permitido **antes** de configurar o token.
+  confirmar com o fornecedor que guardar os feriados é permitido **antes** de gravar a chave.
 
 ### Passos do usuário (nunca da IA)
 
-Criar a conta na FeriadosAPI, gerar a chave, escolher o plano (Q3), confirmar os termos (Q4), configurar
-`FERIADOS_API_TOKEN` (e, se diferente do padrão, `FERIADOS_API_MONTHLY_REQUEST_BUDGET`) no serviço do **worker** em
-staging e **despausar** a rotina `holiday.provider.pull` no painel (ela nasce pausada de fábrica, D13). Sem token, a
-rotina não é registrada e nada sai do produto.
+Criar a conta na FeriadosAPI, gerar a chave, escolher o plano (Q3), confirmar os termos (Q4), **gravar a chave** (e, se diferente do
+padrão, o orçamento mensal) **pela tela da instalação** em staging e **despausar** a rotina `holiday.provider.pull` no painel (ela
+nasce pausada de fábrica, D13). Sem chave gravada, a rotina é registrada mas não faz requisição nenhuma (`token_missing`, spec 262);
+as variáveis `FERIADOS_API_TOKEN`/`FERIADOS_API_MONTHLY_REQUEST_BUDGET` (252) são ignoradas pelo worker.
 
 ## Decisões por delegação (revogáveis; detalhadas no ADR-0100 §2)
 

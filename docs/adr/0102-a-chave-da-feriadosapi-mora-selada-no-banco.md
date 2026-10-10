@@ -79,7 +79,16 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
   Gate A nunca pode conter um valor.** Listar as variáveis do worker pelo `railway variables` comum, mesmo "filtrando o nome",
   imprime a linha com o valor e queima o segredo (`security.md` §4): usa-se um comando que imprima só nomes (por exemplo
   `railway variables --service worker --environment <env> --json | jq -r 'keys[] | select(startswith("FERIADOS_API"))'`, com a
-  flag `--json` a conferir na versão instalada antes) ou a aba Variables do Railway, que mascara o valor.
+  flag `--json` a conferir na versão instalada antes) ou a aba Variables do Railway, que mascara o valor. **Duas situações, por
+  ambiente:** (a) a variável **não existe** (esperado: nunca foi configurada) → nada a colar; o worker pode ir **antes das telas** e a
+  busca começa parada (`token_missing`, `succeeded`) até o usuário gravar a chave pela tela; (b) a variável **existe com valor** → a
+  chave tem de estar no banco **antes** do deploy do worker: pelas telas (T5.1/T5.2) ou pelo `PUT` com um comando que não ecoa nada
+  (chave lida por `read -s`, corpo por stdin com `--data @-`, sem argumento nem histórico). **As entradas do `.railway/railway.ts` saem
+  numa task à parte, a T4.4:** "omitir é apagar", então um `railway config apply` de um checkout sem as entradas destruiria a variável
+  do worker de produção (que a 252 ainda lê) antes de a chave estar no banco. Até a T4.4 o `railway.ts` mantém as duas com `preserve()`,
+  comentadas como legado ignorado pelo worker; a T4.4 só roda depois de a chave estar no banco de staging **e** de produção, de o worker
+  da 262 estar em `main` e de um ciclo conferido sem `token_missing` indevido, e o `apply` é passo do usuário (o `plan` mostrará o
+  `destroy` das duas, que ali é esperado — `docs/spec/railway.md`).
 - **D5 — O worker já tem o chaveiro.** `parseWorkerCryptographicConfiguration` é obrigatório no boot (`main.ts` 527;
   `config/cryptographic-configuration.schema.ts` 34–35) e `.railway/railway.ts` 166–167 já dá `ENCRYPTION_*` ao worker (ele abre
   as credenciais da NFS-e, do certificado e do Resend). **Nenhum passo de infraestrutura novo.** O AAD
@@ -104,9 +113,13 @@ própria, `BACKUP_ENCRYPTION_KEY`). A exceção é **de lugar**, não de proteç
   quebra o painel (`holidayImportGuards.validation.ts` 62 aceita qualquer string em `outcome`; `isJobOutcome` só é chamado em
   `nfeWorkspaceClient.service.ts` 551, para a distribuição de NF-e); o catálogo também vai primeiro por convenção da 252 e pela
   direção do contrato de paridade, que lê o fonte da API (a Fase 1 usa listas de pendentes autofechantes). O app do motorista não
-  valida `permissions`.
+  valida `permissions`. **Depois do worker e das telas vem a T4.4** (tirar as duas variáveis do `.railway/railway.ts`), só com a chave
+  já no banco de staging e de produção (D4). O worker **não** depende das telas: se a variável não existir ele pode ir antes delas (a
+  busca começa parada, `token_missing`); se existir, a chave vai para o banco antes do deploy do worker (D4, situação b).
 - **D11 — Rollback:** `rollback.sql` apaga a tabela (nenhum dado de negócio: a chave se reemite no fornecedor) e só roda **depois**
-  de reverter o worker.
+  de reverter o worker. **Com a T4.4 separada, reverter o worker volta a ler a variável preservada** (`FERIADOS_API_TOKEN`, se ainda
+  existir no Railway): enquanto as entradas estiverem no `railway.ts` a reversão é segura; depois da T4.4 a variável só volta se alguém
+  a recriar, e a chave se reemite no fornecedor.
 
 ### 3. Modelo de dados (migration aditiva, com `rollback.sql`, só staging)
 

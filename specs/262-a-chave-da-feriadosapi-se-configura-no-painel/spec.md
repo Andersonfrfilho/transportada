@@ -79,14 +79,19 @@ Pedido do usuário (2026-10-09): **a chave, o orçamento mensal e o liga/desliga
   pausada e a Q4 está aberta, então é muito provável que nenhum ambiente tenha a variável preenchida; (d) o schema do worker
   não é `.strict()` e ignora a variável que sobrar. **Gate A** (passo do usuário, antes da **publicação da Fase 4 inteira**: a
   T4.2 já deixa de ler a variável, `holiday-provider-pull.registry.ts` 41–42 e 60–65): conferir **só o nome** da variável em
-  staging **e produção** (o worker de produção já tem a 252 e lê a variável); se `FERIADOS_API_TOKEN` existir, o usuário cola a
-  mesma chave na tela **antes** do deploy do worker. **A saída do Gate A nunca pode conter um valor.** ⚠️ Listar as variáveis do
+  staging **e produção** (o worker de produção já tem a 252 e lê a variável). **Duas situações:** (a) a variável **não existe**
+  (esperado) → nada a colar, o worker pode ir **antes das telas** e a busca começa parada (`token_missing`, `succeeded`) até o usuário
+  gravar a chave pela tela; (b) **existe com valor** → a chave vai para o banco **antes** do deploy do worker, pelas telas (T5.1/T5.2) ou
+  pelo `PUT` com um comando que não ecoa nada (chave lida por `read -s`, corpo por stdin com `--data @-`). **A saída do Gate A nunca
+  pode conter um valor.** ⚠️ Listar as variáveis do
   worker pelo `railway variables` comum, mesmo "filtrando o nome", **imprime a linha com o valor** da chave e a queima
   (`security.md` §4): **esse formato não é instrução desta spec**. Use um que liste só nomes, por exemplo
   `railway variables --service worker --environment <env> --json | jq -r 'keys[] | select(startswith("FERIADOS_API"))'`
   (a flag `--json` **não foi confirmada** na versão instalada: o usuário confere `railway variables --help` antes, e na dúvida
   usa a aba Variables do Railway, que mascara o valor). A remoção das duas entradas de `.railway/railway.ts` (que apaga a
-  variável no `apply`: "omitir é apagar", `docs/spec/railway.md` 93) vem **depois** do Gate A.
+  variável no `apply`: "omitir é apagar", `docs/spec/railway.md` 93) é a **T4.4**, separada: o `railway.ts` as **mantém**
+  (`preserve()`, comentadas como legado ignorado) até lá, e a T4.4 só roda depois de a chave estar no banco de staging **e** de
+  produção, de o worker da 262 estar em `main` e de um ciclo conferido sem `token_missing` indevido; o `apply` é passo do usuário.
 - **D5 — O worker já tem o chaveiro** (corrige o esperado: não há passo de infraestrutura). `parseWorkerCryptographicConfiguration`
   é obrigatório no boot (`main.ts` 527) e `.railway/railway.ts` 166–167 já dá `ENCRYPTION_ACTIVE_KEY_ID`/`ENCRYPTION_KEYRING_JSON`
   ao worker — é com ele que o worker abre a credencial da NFS-e, do certificado e do Resend (`createSecretEnvelopeProvider(
@@ -128,6 +133,7 @@ cryptography.envelopeKeyRing)`, `main.ts` 588, 998, 1039, …). API e worker usa
   Gate A feito antes do PR do worker.
 - **D11 — Rollback:** `rollback.sql` apaga a tabela sem recusar (nenhum dado de negócio; a chave se reemite no fornecedor) e
   roda **depois** de reverter o worker (o worker da 262 sem a tabela fecha a busca em `unexpected_error`, sem derrubar nada).
+  Com a T4.4 separada, reverter o worker volta a ler a variável preservada (se ainda existir no Railway).
 
 ## Requisitos funcionais
 
@@ -205,7 +211,8 @@ monthlyRequestBudget, version }` e `metadata.changedFields` (`token` e/ou `month
   **A T4.1 vem antes da T4.2, obrigatoriamente:** `isJobOutcome` (`run-job-cycle.ts` 176) transforma desfecho fora do catálogo do
   worker em `unexpected_error`.
 - **RF10 — Saída das variáveis** (D4): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saem do schema do worker,
-  de `HolidayProviderPullEnvironment`/`WorkerEnvironment`, do `.env.example` e — **depois do Gate A** — de `.railway/railway.ts`.
+  de `HolidayProviderPullEnvironment`/`WorkerEnvironment` e do `.env.example` (T4.3); de `.railway/railway.ts` só na **T4.4**
+  (depois de a chave estar no banco de staging e de produção; até lá o `railway.ts` as mantém como legado ignorado).
   `FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET` (4500) e `FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET` (1.000.000) ficam como
   constantes, com cópia por valor na API e contrato de paridade. **Onde (E11):** na API as constantes do orçamento ficam em
   `apps/api-transportada/src/shared/holiday-provider.constant.ts` (já importado por `database/holiday-provider.schema.ts` 31 e

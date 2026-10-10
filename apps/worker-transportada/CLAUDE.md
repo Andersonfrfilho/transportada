@@ -153,8 +153,11 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   na tela da instalação) **e são lidos a cada ciclo** — não existe variável de ambiente (`FERIADOS_API_TOKEN` e
   `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saíram; se sobrarem no Railway, são ignoradas). Sem chave a busca não roda
   (contador `token_missing`, 0 requisições, `succeeded`; a descoberta e a aplicação seguem), chave que não abre fecha
-  `credential_unreadable`, e o orçamento é `coalesce(monthly_request_budget, 4500)`. O selo é cópia por valor da API
-  (só `decrypt`, paridade do AAD e do plaintext). **Nenhuma mensagem de erro, contador ou log carrega a chave** (o erro
+  `credential_unreadable`, erro de banco na leitura (tabela ausente) fecha `unexpected_error` — nunca `token_missing` —, e o
+  orçamento é `coalesce(monthly_request_budget, 4500)`. A chave lida vale até o fim do ciclo (≤ 100 requisições, ~2 min): chave
+  removida no meio dele continua em uso, e "Remover chave" **não para a aplicação** do cache global — quem quer parar tudo pausa a
+  rotina ou desliga a importação da empresa. O `.railway/railway.ts` mantém as duas variáveis como legado até a T4.4. O selo é
+  cópia por valor da API (só `decrypt`, paridade do AAD e do plaintext). **Nenhuma mensagem de erro, contador ou log carrega a chave** (o erro
   do cliente é só o código). **A resposta do fornecedor é hostil:** corpo com teto de 512 KB lido por stream, `Retry-After` entre 60 s e
   24 h, controle removido do nome, 404 no nacional/estado = contrato quebrado, 3 falhas de rede seguidas abrem o disjuntor,
   402/403 numa cidade restringe só o par por 30 dias, e orçamento esgotado só encerra o ciclo (nenhum par muda). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com

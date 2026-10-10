@@ -151,7 +151,12 @@ ON CONFLICT DO NOTHING` não inserir nada, descarta o envelope e responde `409`)
   de `unexpected_error`.
 - `holiday-provider-pull.registry.ts`: sem o `return {}` (linha 42); recebe o `envelopeProvider` do `main.ts` (o mesmo
   `createSecretEnvelopeProvider(cryptography.envelopeKeyRing)`). Precedente do registro: `trip.location.purge`.
-- Saída das variáveis (RF10).
+- Saída das variáveis (RF10), **em duas tasks**: a T4.3 tira `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` do schema, dos
+  tipos e do `.env.example`; o `.railway/railway.ts` **mantém** as duas (`preserve()`, comentário de uma linha: legado ignorado pelo
+  worker, saem na T4.4). A **T4.4** as remove do `railway.ts` só depois de a chave estar no banco de staging **e** de produção, de o PR
+  do worker estar em `main` e de um ciclo conferido sem `token_missing` indevido; o `railway config apply` é passo do usuário, nunca de
+  um checkout de staging antes disso (omitir é apagar), e o `destroy` que o `plan` mostrar então é esperado (`docs/spec/railway.md`).
+  Rollback (D11): com a T4.4 pendente, reverter o worker volta a ler a variável preservada.
 - Catálogo: `credential_unreadable` na cópia do worker (T4.1).
 - **Ordem interna e publicação (E2/E5):** a T4.1 (catálogo do worker) vem **antes** da T4.2, porque `isJobOutcome`
   (`run-job-cycle.ts` 176) transforma desfecho fora do catálogo do worker em `unexpected_error`. A T4.2 já deixa de ler
@@ -200,8 +205,12 @@ que vai sair, salvar a chave da FeriadosAPI de novo pela tela antes (o mesmo val
 2. Fase 2 + Fase 3 (migration, API com permissão, rotas e catálogo da API) e o catálogo do cron.
 3. **Gate A** (passo do usuário, só o nome da variável, a saída nunca com valor, staging e produção) → só então a Fase 4 é
    publicada (T4.1–T4.3 commitadas localmente e publicadas num push só, porque a T4.2 já deixa de ler a variável).
-4. Fase 4 (worker).
+4. Fase 4 (worker). Se a variável não existir no ambiente, o worker pode ir **antes das telas** (a busca começa parada,
+   `token_missing`); se existir com valor, a chave vai para o banco (telas T5.1/T5.2, ou `PUT` com comando que não ecoa nada) **antes**
+   do deploy do worker.
 5. Fase 5 (telas), depois dos prints aprovados.
+   5b. **T4.4** (tirar as duas variáveis do `.railway/railway.ts`): só com a chave no banco de staging e de produção, o worker em `main`
+   e um ciclo conferido.
 6. O usuário cola a chave na tela de staging (Q3/Q4 da 252 continuam valendo), despausa em Operações e acompanha o 1º ciclo
    (roteiro da 252, `evidence.md` § "Roteiro do 1º ciclo real").
 7. Produção: a 252 **já está em `main`** (#155 `a158bd687`, #156 `4d01307c4`, #159 `63b55be61`, 2026-10-09), então o worker de

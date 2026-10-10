@@ -572,9 +572,12 @@ e é o status pull acima que a autoriza ou rejeita.
 
 ## A importação de feriados da FeriadosAPI (spec 252 Fase 3, ADR-0100) — rotina `holiday.provider.pull`
 
-Módulo `src/holiday-provider-pull/` (domínio, aplicação e infraestrutura como `fuel-price-pull/`). **Inerte sem
-`FERIADOS_API_TOKEN`:** sem o token a rotina não é registrada, nada sai do produto, e a linha de `job_schedules`
-nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termos, `[NEEDS CLARIFICATION]`).
+Módulo `src/holiday-provider-pull/` (domínio, aplicação e infraestrutura como `fuel-price-pull/`). **Inerte sem chave**
+(spec 262, ADR-0102): a rotina é **registrada sempre**; a chave e o orçamento moram no banco (`holiday_provider_settings`, selados
+pela API, configurados na tela da instalação) e são lidos **a cada ciclo**. Sem chave nada sai do produto (contador `token_missing`,
+`succeeded`), e a linha de `job_schedules` nasce pausada de fábrica (D13). Ligar é passo do usuário (Q3 plano e Q4 termos,
+`[NEEDS CLARIFICATION]`): gravar a chave pela tela e despausar em Operações. `FERIADOS_API_TOKEN` e
+`FERIADOS_API_MONTHLY_REQUEST_BUDGET` **não existem mais** no schema (se sobrarem no Railway, são ignoradas).
 
 - **Cliente (T3.1)** — `infrastructure/feriados-api.client.ts`. `GET /api/v1/feriados/{cidade/<ibge>|estado/<sigla>|nacionais}?ano=Y&limit=100[&page=N]`
   com `Authorization: Bearer`. A UF vai pela **sigla** (`BRAZILIAN_STATE_ABBREVIATION_BY_IBGE_CODE`). A guarda Zod
@@ -627,12 +630,19 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   lendo a parada pedida antes de cada etapa; etapa que estoura é contada e as seguintes ainda rodam. Desfecho: falha nossa
   (`unexpected_error`) vence a do fornecedor, e entre as do fornecedor `provider_unauthorized`, `malformed_response`,
   `provider_unreachable` (inclui o 429); orçamento do mês e teto do ciclo são contadores, não falha. O registro é
-  `infrastructure/holiday-provider-pull.registry.ts`, chamado pelo `main.ts`: **sem `FERIADOS_API_TOKEN` devolve vazio** (boot
-  verde, nada sai do produto, `job_run_routine_missing`). `FERIADOS_API_TOKEN` (opcional, vazio = ausente) e
-  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro >= 1; vazio vale **4500**, plano Developer menos 10% — a Q3 segue aberta;
-  valor torto derruba o boot, com ou sem token) são lidos só em `config/environment.schema.ts`; `.env.example` os traz sem
-  valor e `.railway/railway.ts` só no serviço do worker, com `preserve()`. **Para ligar** (passos do usuário, depois de
-  confirmar termos e plano, Q3/Q4): configurar o token no worker de staging e despausar a rotina no painel de rotinas.
+  `infrastructure/holiday-provider-pull.registry.ts`, chamado pelo `main.ts` com o chaveiro (`envelopeProvider`): **a rotina é
+  registrada sempre** (spec 262; precedente `trip.location.purge`) e a etapa de busca, no começo de cada ciclo, lê a linha única de
+  `holiday_provider_settings` e abre a chave (`application/holiday-provider-token-secret.service.ts`, cópia por valor da API, só
+  `decrypt`, paridade do AAD e do plaintext). **Sem chave**: nada é montado, 0 requisições, contador `token_missing = 1`, a descoberta e a
+  aplicação rodam e o desfecho é `succeeded`. **Chave que não abre** (chaveiro, AAD, envelope): `token_unreadable = 1` e desfecho
+  `credential_unreadable`. **Erro de banco na leitura** (tabela ausente, rollback fora de ordem) falha a etapa e fecha
+  `unexpected_error`, nunca `token_missing`. O orçamento é `coalesce(monthly_request_budget, 4500)` (coluna NULL = padrão, plano
+  Developer menos 10%, a Q3 segue aberta). A chave e o orçamento lidos valem até o fim do ciclo: **chave removida ou trocada no meio de
+  um ciclo continua em uso até ele acabar** (≤ 100 requisições, ~2 min), e "Remover chave" **não para a aplicação** do cache global às
+  empresas — quem quer parar tudo pausa a rotina em Operações ou desliga a importação da empresa. As variáveis `FERIADOS_API_TOKEN` e
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` saíram do schema, dos tipos e do `.env.example`; o `.railway/railway.ts` as mantém como legado
+  ignorado até a T4.4 da 262. **Para ligar** (passos do usuário, depois de confirmar termos e plano, Q3/Q4): gravar a chave pela tela da
+  instalação (aba Calendário) e despausar a rotina no painel de rotinas.
   O contrato `token-privacy.contract.ts` roda a rotina inteira com o cliente HTTP de verdade e um fornecedor que ecoa o
   token de seis jeitos (rede, 500, 401, 429, corpo que não é JSON, nome de feriado) e procura o segredo no log, nos
   contadores e no que a rotina grava.
@@ -649,9 +659,10 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   orçamento solta tudo no ciclo seguinte; o contador do mês sobe imediatamente antes da chamada (depois do limitador), e só a
   queda do processo nesse intervalo gasta uma requisição que não saiu. **Falha de gravação depois de resposta boa** (dado que o
   banco recusa) grava o par `failed` (`persistence_failed`) com recuo, em comando à parte, para a requisição não se repetir
-  todo dia. `FERIADOS_API_TOKEN` só aceita ASCII visível (`^[\x21-\x7E]+$`) e o orçamento vai de 1 a 1.000.000; os dois derrubam o boot.
+  todo dia. A chave só aceita ASCII visível de 16 a 512 caracteres (`^[\x21-\x7E]{16,512}$`, validada pela API ao gravar e de novo na abertura) e o
+  orçamento vai de 1 a 1.000.000 (CHECK do banco); valor fora disso nunca chega ao worker (a variável antiga deixou de ser lida).
 
-- **Roteiro do 1º ciclo real** (passo do usuário, depois de Q3/Q4): configurar o token e **deixar o orçamento no valor do plano**
+- **Roteiro do 1º ciclo real** (passo do usuário, depois de Q3/Q4): gravar a chave pela tela (a variável é ignorada) e **deixar o orçamento no valor do plano**
   (**não testar com orçamento baixo**: o orçamento esgotado encerra o ciclo e o ciclo seguinte só segue com a conta do mês já
   gasta). Despausar a rotina e acompanhar: `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2`
   (esperado: `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` ou

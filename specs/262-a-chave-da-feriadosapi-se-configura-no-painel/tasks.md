@@ -17,25 +17,26 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 
 ## Quadro
 
-| Task | Modelo                       | Mecânica? | Aceite por comando? | Migration | Prints  | Depende de                    |
-| ---- | ---------------------------- | --------- | ------------------- | --------- | ------- | ----------------------------- |
-| T0.1 | 🧠 `opus`                    | não       | não                 | —         | —       | —                             |
-| T0.2 | `haiku`                      | sim       | sim (grep)          | —         | —       | T0.1                          |
-| T1.1 | `haiku`                      | sim       | sim                 | —         | —       | T0.2                          |
-| T1.2 | `haiku`                      | sim       | sim                 | —         | —       | T0.2                          |
-| T2.1 | `sonnet`                     | não       | sim                 | —         | —       | T0.2                          |
-| T2.2 | 🧠 `sonnet` (revisão `opus`) | não       | sim                 | **sim**   | —       | T2.1                          |
-| T3.1 | `haiku`                      | sim       | sim                 | —         | —       | T1.2 **em staging**           |
-| T3.2 | `sonnet`                     | não       | sim                 | —         | —       | T2.2                          |
-| T3.3 | `sonnet`                     | não       | sim                 | —         | —       | T3.1, T3.2                    |
-| T3.4 | `sonnet`                     | não       | sim                 | —         | —       | T2.2                          |
-| T4.1 | `sonnet`                     | não       | sim                 | —         | —       | T2.2, T3.2                    |
-| T4.2 | `sonnet`                     | não       | sim                 | —         | —       | T4.1, T1.1, Gate A (publicar) |
-| T4.3 | `haiku`                      | sim       | sim                 | —         | —       | T4.2 + **Gate A**             |
-| T5.1 | `sonnet`                     | não       | sim                 | —         | —       | T3.3, T3.4                    |
-| T5.2 | `sonnet`                     | não       | sim + print         | —         | **sim** | T5.1                          |
-| T5.3 | `sonnet`                     | não       | sim + print         | —         | **sim** | T5.2, T4.2                    |
-| T6.1 | `sonnet` (revisão `opus`)    | não       | parcial             | —         | **sim** | todas                         |
+| Task | Modelo                       | Mecânica? | Aceite por comando? | Migration | Prints  | Depende de                                                                |
+| ---- | ---------------------------- | --------- | ------------------- | --------- | ------- | ------------------------------------------------------------------------- |
+| T0.1 | 🧠 `opus`                    | não       | não                 | —         | —       | —                                                                         |
+| T0.2 | `haiku`                      | sim       | sim (grep)          | —         | —       | T0.1                                                                      |
+| T1.1 | `haiku`                      | sim       | sim                 | —         | —       | T0.2                                                                      |
+| T1.2 | `haiku`                      | sim       | sim                 | —         | —       | T0.2                                                                      |
+| T2.1 | `sonnet`                     | não       | sim                 | —         | —       | T0.2                                                                      |
+| T2.2 | 🧠 `sonnet` (revisão `opus`) | não       | sim                 | **sim**   | —       | T2.1                                                                      |
+| T3.1 | `haiku`                      | sim       | sim                 | —         | —       | T1.2 **em staging**                                                       |
+| T3.2 | `sonnet`                     | não       | sim                 | —         | —       | T2.2                                                                      |
+| T3.3 | `sonnet`                     | não       | sim                 | —         | —       | T3.1, T3.2                                                                |
+| T3.4 | `sonnet`                     | não       | sim                 | —         | —       | T2.2                                                                      |
+| T4.1 | `sonnet`                     | não       | sim                 | —         | —       | T2.2, T3.2                                                                |
+| T4.2 | `sonnet`                     | não       | sim                 | —         | —       | T4.1, T1.1, Gate A (publicar)                                             |
+| T4.3 | `haiku`                      | sim       | sim                 | —         | —       | T4.2 + **Gate A**                                                         |
+| T4.4 | `haiku`                      | sim       | sim (grep)          | —         | —       | T4.3 em `main`, chave no banco de staging **e produção**, ciclo conferido |
+| T5.1 | `sonnet`                     | não       | sim                 | —         | —       | T3.3, T3.4                                                                |
+| T5.2 | `sonnet`                     | não       | sim + print         | —         | **sim** | T5.1                                                                      |
+| T5.3 | `sonnet`                     | não       | sim + print         | —         | **sim** | T5.2, T4.2                                                                |
+| T6.1 | `sonnet` (revisão `opus`)    | não       | parcial             | —         | **sim** | todas                                                                     |
 
 ## Fase 0 — Decisão e conferência
 
@@ -69,8 +70,9 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       armadilha, em dois contratos que leem a API (`test/frontend-contract.test.ts` "keeps the allowlist in sync…" e
       `permission-matrix.contract.ts` "não inventa…"): a lista `PENDING_API_PERMISSIONS`
       (`test/identity/pending-api-permissions.fixture.ts`) os isenta, com a mesma regra autofechante (ausente da API, presente no painel).
-- [ ] **Publicação da Fase 1** em staging (`git fetch && git rebase origin/staging && … && git push origin HEAD:staging`),
-      Deploy verde registrado em `evidence.md` **antes** da T3.1.
+- [x] **Publicação da Fase 1** em staging (`git fetch && git rebase origin/staging && … && git push origin HEAD:staging`),
+      Deploy verde registrado em `evidence.md` **antes** da T3.1. **Feita em 2026-10-09:** SHA `a5868f369` em `origin/staging`, Deploy verde
+      `37994557029` (depois de reexecução).
 
 ## Fase 2 — Dado
 
@@ -135,8 +137,9 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 
 ## Fase 4 — Worker
 
-> 🤖 Modelo: `sonnet` (T4.3 em `haiku`). ⚠️ **T4.1–T4.3 ficam commitadas localmente e são publicadas num push só, depois do
-> Gate A** (a T4.2 já deixa de ler a variável: o registro não usa mais `config.holidayProviderPull`).
+> 🤖 Modelo: `sonnet` (T4.3 e T4.4 em `haiku`). ⚠️ **T4.1–T4.3 ficam commitadas localmente e são publicadas num push só, depois do
+> Gate A** (a T4.2 já deixa de ler a variável: o registro não usa mais `config.holidayProviderPull`). **A T4.4 (tirar as duas entradas
+> do `.railway/railway.ts`) NÃO entra nesse push:** ela é posterior e depende de a chave já estar no banco de staging e de produção.
 
 - [x] **T4.1** (feita em 2026-10-10, commitada local: `758332484` → `d8700b54f`; evidência em `evidence.md` § Fase 4) Leitor e selo no worker: `application/holiday-provider-token-secret.service.ts` (cópia por valor, só `decrypt`),
       paridade do AAD **e do formato do plaintext** com a API (molde `test/contractor-mail/credential-secret-parity.contract.ts`),
@@ -165,14 +168,29 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       nome", imprime a linha com o valor da chave e a queima (`security.md` §4): **não use**. Use um comando que imprima só nomes:
       `railway variables --service worker --environment <env> --json | jq -r 'keys[] | select(startswith("FERIADOS_API"))'`
       (**confira antes** que `--json` existe na versão instalada, com `railway variables --help`; na dúvida use a aba
-      **Variables** do Railway, que mascara o valor). Se `FERIADOS_API_TOKEN` existir com valor, o usuário cola a mesma chave na
-      tela (ou pelo `PUT` da T3.3) **antes** do deploy do worker. Registrar em `evidence.md` "existe / não existe" por ambiente,
-      **sem valor** (nem parcial, nem os 4 últimos caracteres).
-- [x] **T4.3** (feita em 2026-10-10, commitada local: `8db5d904a` → `139dbb8b5`; o `railway config apply` que apaga a variável segue sendo passo do usuário, depois do Gate A; evidência em `evidence.md` § Fase 4) Saída das variáveis (RF10, D4): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` fora de
-      `config/environment.schema.ts`, `HolidayProviderPullEnvironment`/`WorkerEnvironment`, `.env.example` e `.railway/railway.ts`;
-      contratos `environment.contract.ts`/`registration.contract.ts` ajustados sem afrouxar o `toEqual`. Aceite: `rtk proxy grep -rn
-"FERIADOS_API_TOKEN\|FERIADOS_API_MONTHLY_REQUEST_BUDGET" apps .env.example .railway` = só documentação histórica; testes do
-      worker verdes. ⚠️ O `railway config apply` que apaga a variável é passo do usuário. (CA9)
+      **Variables** do Railway, que mascara o valor). **Duas situações, por ambiente:** **(a) a variável NÃO existe** (esperado:
+      nunca foi configurada) → **não há nada a colar**; o worker pode ir **antes das telas** e a busca começa parada
+      (`token_missing`, desfecho `succeeded`, 0 requisições) até o usuário gravar a chave pela tela (Fase 5). **(b) a variável EXISTE
+      com valor** → a chave tem de estar no banco **antes** do deploy do worker: publicar a T5.1/T5.2 (as telas) e gravá-la por
+      elas, **ou** gravar pelo `PUT /holiday-imports/provider-settings` com um comando que **não ecoa nada** (chave lida por
+      `read -s`, corpo montado e enviado por stdin com `--data @-`, o valor nunca em argumento, em histórico nem na saída).
+      Registrar em `evidence.md` "existe / não existe" por ambiente, **sem valor** (nem parcial, nem os 4 últimos caracteres).
+- [x] **T4.3** (feita em 2026-10-10, commitada local: `8db5d904a` → `139dbb8b5`, ajustada na 2ª rodada `84a929343`: o `railway.ts` mantém as entradas até a T4.4; evidência em `evidence.md` § Fase 4) Saída das variáveis (RF10, D4): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` fora de
+      `config/environment.schema.ts`, `HolidayProviderPullEnvironment`/`WorkerEnvironment` e `.env.example` — **o `.railway/railway.ts`
+      MANTÉM as duas entradas (`preserve()`)**, com um comentário de uma linha de que são legado ignorado pelo worker e saem na T4.4
+      (omitir é apagar: um `apply` de um checkout sem elas destruiria a variável do worker de produção antes de a chave estar no banco);
+      contratos `environment.contract.ts`/`registration.contract.ts` ajustados sem afrouxar o `toEqual` (o de `registration` afirma
+      que o `railway.ts` ainda mantém as entradas até a T4.4). Aceite: `rtk proxy grep -rn
+"FERIADOS_API_TOKEN\|FERIADOS_API_MONTHLY_REQUEST_BUDGET" apps .env.example .railway` = só documentação histórica, os contratos que
+      afirmam a ausência e as duas linhas legadas do `railway.ts`; testes do worker verdes. (CA9)
+- [ ] **T4.4** (🤖 `haiku`) Remover as duas entradas do `.railway/railway.ts` (`FERIADOS_API_TOKEN` e
+      `FERIADOS_API_MONTHLY_REQUEST_BUDGET`), **só DEPOIS** de: (1) a chave estar no banco de **staging E de produção**; (2) o PR do worker
+      (T4.1–T4.3) estar em `main`; (3) um ciclo conferido sem `token_missing` indevido. O `railway config apply` é **passo do usuário**,
+      nunca de um checkout de staging antes disso (o `plan` mostrará `destroy` das duas variáveis: **é ESPERADO** aqui, e
+      `docs/spec/railway.md` já diz isso; fora elas, `destroy` continua sendo arquivo incompleto). Contrato antes: a asserção de
+      ausência das duas no `railway.ts` (troca a de `registration.contract.ts` que as mantém). Aceite: `rtk proxy grep -rIn` de ambas em
+      `.railway` = vazio; `bun run test` do worker e `deploy.contract` da API verdes. **Rollback (D11):** com a T4.4 ainda não feita,
+      reverter o worker volta a ler a variável preservada; depois da T4.4 a variável só volta se alguém a recriar.
 
 ## Fase 5 — Painel
 
@@ -219,10 +237,13 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 ## Publicação
 
 Fase 1 sozinha → Fase 2 + Fase 3 (migration, API, catálogo da API e do cron) → **Gate A** (só nomes, staging e produção) → Fase 4
-(worker, T4.1–T4.3 num push só) → Fase 5 (telas, com prints aprovados). Produção: a 252 **já está em `main`** (#155, #156, #159) e
-o worker de produção lê a variável, então o **Gate A em produção é obrigatório**; PRs separados: painel tolerante → migration +
-API + cron (**aprovação própria**, migration) → **Gate A em produção** → worker → telas; em cada PR conferir a lista de commits
-contra `main` e montar por `cherry-pick` sobre `origin/main`.
+(worker, T4.1–T4.3 num push só) → Fase 5 (telas, com prints aprovados) → **T4.4** (tirar as duas entradas do `railway.ts`, só com a
+chave já no banco de staging **e** de produção, o worker em `main` e um ciclo conferido). Com a variável **inexistente** o worker pode ir
+antes das telas (a busca começa parada, `token_missing`); com a variável **existente** a chave vai para o banco (telas T5.1/T5.2 ou `PUT`
+sem eco) antes do deploy do worker. Produção: a 252 **já está em `main`** (#155, #156, #159) e o worker de produção lê a variável, então o
+**Gate A em produção é obrigatório**; PRs separados: painel tolerante → migration + API + cron (**aprovação própria**, migration) →
+**Gate A em produção** → worker → telas → T4.4; em cada PR conferir a lista de commits contra `main` e montar por `cherry-pick` sobre
+`origin/main`.
 
 ## Prompt de execução
 

@@ -74,7 +74,7 @@ de SP × 2 anos = 1.290 consultas cabem no 1º mês do plano Developer.
 - **Q3** plano e cota — `[NEEDS CLARIFICATION]`.
 - **Q4** termos de uso — `[NEEDS CLARIFICATION]`; risco no ADR-0100 e em `docs/SECURITY.md`.
 
-Nenhum dos dois bloqueia código; os dois bloqueiam configurar `FERIADOS_API_TOKEN` (passo do usuário).
+Nenhum dos dois bloqueia código; os dois bloqueiam gravar a chave da FeriadosAPI (na 252, configurar `FERIADOS_API_TOKEN`; com a 262, pela tela) — passo do usuário.
 
 ## Acréscimo do usuário — o aviso no app do motorista (2026-10-07)
 
@@ -1023,7 +1023,7 @@ Branch `work/252-t3` a partir de `origin/staging`, **sem push**. Commits (do mai
 2. **`nfe_addresses` sem índice por `(company_id, participant_id)`:** o `EXPLAIN` confirma `Seq Scan` por lote da descoberta (1,5 ms com 2.100 notas). Índice, se a medição em staging pedir, vai em migration própria `CONCURRENTLY` (decisão do usuário, não desta task).
 3. **Padrão do orçamento 4500 e o 429 como `provider_unreachable`:** decisões por delegação acima.
 4. **A rotina não foi executada de ponta a ponta contra o fornecedor nem contra o `main.ts` vivo** (sem token e sem RabbitMQ): cada etapa foi provada contra o Postgres e o cliente contra um `fetch` injetado; a composição do `main.ts` é coberta por contrato de texto e por `bun run build`.
-5. **Passos do usuário para ligar** (Q3/Q4, `[NEEDS CLARIFICATION]`): confirmar termos e plano, configurar `FERIADOS_API_TOKEN` (e, se quiser, o orçamento) no worker de staging e despausar `holiday.provider.pull` no painel.
+5. **Passos do usuário para ligar** (Q3/Q4, `[NEEDS CLARIFICATION]`): confirmar termos e plano, gravar a chave (e, se quiser, o orçamento) pela tela da instalação (spec 262; na 252 era `FERIADOS_API_TOKEN` no worker, hoje ignorada) e despausar `holiday.provider.pull` no painel.
 
 ### Acréscimos da Fase 3 (2026-10-09, depois do fechamento)
 
@@ -1376,7 +1376,7 @@ telas só dependem da API dos avisos); (4) a migration só existe em staging (Q2
 ### O que está em staging × o que falta para produção
 
 - **Em staging (tudo da 252):** migration, catálogo de jobs nas quatro apps (rotina pausada de fábrica), worker (rotina inerte sem token), API (gestão, avisos, `origin`), painel (aba
-  Calendário, avisos da montagem, selo do detalhe) e app do motorista (aviso por parada). Nada disso fala com o fornecedor: sem `FERIADOS_API_TOKEN` a rotina nem é registrada. O estado
+  Calendário, avisos da montagem, selo do detalhe) e app do motorista (aviso por parada). Nada disso fala com o fornecedor: sem chave a rotina não faz requisição (na 252, sem `FERIADOS_API_TOKEN` ela nem era registrada; com a 262 é registrada sempre e fecha `token_missing`). O estado
   vivo da linha de `job_schedules` em staging (pausada, `paused_origin = 'system'`) é o desenho da migration (D13); **não foi consultado nesta task**.
 - **Em produção (`main`):** só o roteirizador por cidade (T1.1/T1.2) e os clientes tolerantes (T5.1/T5.1b), pelo PR #154. **Falta tudo o mais**: migration (aprovação própria, Q2), API, worker,
   cron, painel e app do motorista.
@@ -1411,8 +1411,8 @@ do usuário **e** o índice criado `CONCURRENTLY` à mão no banco de produção
 1. **Conta e chave na FeriadosAPI**, uma chave **por instalação** (o orçamento mora no banco de cada uma, ADR-0021; chave compartilhada divide os 60/min e a cota sem que um banco veja o outro).
 2. **Q3, plano:** escolher o plano (o Developer custa R$ 39/mês com 5.000 consultas; o gratuito cobre nacionais, estaduais e capitais, e o interior "consome cota" sem a documentação dizer quanto).
 3. **Q4, termos de uso:** confirmar com o fornecedor que **guardar** os feriados é permitido (a página de termos deu 404 em 2026-10-07). Sem isso, não configurar o token.
-4. **`FERIADOS_API_TOKEN`** no serviço do **worker** de staging (Railway; só ASCII visível; nunca com prefixo `VITE_`, nunca em terminal, log ou commit).
-5. **`FERIADOS_API_MONTHLY_REQUEST_BUDGET`:** deixar no valor do plano (o padrão é 4500 = 5.000 menos 10%); **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo, e o ciclo
+4. **A chave da FeriadosAPI:** gravar pela **tela da instalação** (aba Calendário, spec 262; só ASCII visível de 16 a 512 caracteres, nunca em terminal, log ou commit). ⚠️ Era `FERIADOS_API_TOKEN` no worker na 252; **o worker da 262 ignora a variável**.
+5. **Orçamento mensal** (na tela; era `FERIADOS_API_MONTHLY_REQUEST_BUDGET`): deixar no valor do plano (o padrão é 4500 = 5.000 menos 10%); **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo, e o ciclo
    seguinte já parte do mês gasto).
 6. **Despausar `holiday.provider.pull` no painel de Operações** (a linha nasce pausada de fábrica, `paused_origin = 'system'`; o painel mostra o nome cru da rotina, lacuna conhecida da T2.3).
 7. Acompanhar o 1º ciclo (roteiro abaixo) e só então pensar em produção.

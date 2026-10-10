@@ -61,14 +61,15 @@ o valor do acerto.
 ### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
 
 **Onde:** `worker-transportada`, rotina `holiday.provider.pull` (spec 252, ADR-0100). **Implementada em 2026-10-09
-(T3.1 a T3.5, mais a 2ª rodada da revisão) e inerte:** sem `FERIADOS_API_TOKEN` ela não é registrada, e a linha dela em
-`job_schedules` nasce pausada (D13).
+(T3.1 a T3.5, mais a 2ª rodada da revisão) e inerte:** pausada de fábrica (D13) e, sem chave, sem requisição nenhuma. ⚠️ Spec 262: a
+chave deixou de ser a variável `FERIADOS_API_TOKEN` e mora selada no banco (ver a Emenda abaixo); a rotina passou a ser registrada
+sempre. O texto desta entrada descreve a 252; onde diz "token da variável", vale a Emenda.
 
 **Destino de saída: `feriadosapi.com`** (host fixo no código, `FERIADOS_API_BASE_URL`; não é configurável). O **worker é a
-única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam nem leem o token (contrato; ⚠️ a 262 muda
-a parte do "leem": a API passa a **receber e selar** a chave, ver a Emenda abaixo). O token
-`FERIADOS_API_TOKEN` existe **só no serviço do worker** (`.railway/railway.ts`, `preserve()`; `.env.example` sem valor) e
-passa só pelo schema de ambiente validado. Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
+única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam (contrato). ⚠️ A 262 muda a parte do "leem": a
+API passa a **receber e selar** a chave (o cron e o painel seguem sem ler a chave; o painel só vê `tokenConfigured` e a dica de 4
+caracteres). Na 252 o token existia **só no serviço do worker** como `FERIADOS_API_TOKEN`; com a 262 o worker o lê **do banco, a cada
+ciclo**, e a variável deixou de existir no schema (o `.railway/railway.ts` a mantém como legado ignorado até a T4.4). Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
 
 **O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
 global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
@@ -77,7 +78,7 @@ risco que os termos do Google Maps Platform (spec 186, ADR-0044 §3), aceito lá
 não foi aceito**.
 
 **O que sai:** só o **código IBGE** da cidade (ou a sigla da UF) e o **ano**, com `Authorization: Bearer
-<FERIADOS_API_TOKEN>`. **Nenhum dado pessoal é enviado:** nunca `companyId`, nome de cliente, CNPJ, endereço ou nota.
+<chave>` (a chave aberta do banco, em memória, só durante o ciclo). **Nenhum dado pessoal é enviado:** nunca `companyId`, nome de cliente, CNPJ, endereço ou nota.
 Feriado não é dado pessoal. A cidade vem das notas da própria empresa, mas só o código dela cruza a fronteira.
 
 **O que está publicado (staging, deploys verdes de 2026-10-09; produção só leva o roteirizador por cidade e os clientes
@@ -91,13 +92,14 @@ T5.4). Detalhe e SHAs: `specs/252-*/evidence.md` § "T6.1 — fechamento".
 
 **O que segura (provado nas tasks T3.1 a T3.5 e na 2ª rodada):**
 
-- **Token:** só no worker, opcional (sem ele a rotina não é registrada e nada sai); só ASCII visível (`^[\x21-\x7E]+$`),
-  senão o boot cai sem ecoar o valor. **Não aparece em nenhuma mensagem de erro por construção** (o erro do cliente
+- **Token:** na 252, só no worker e opcional; **com a 262, selado no banco e lido pelo worker a cada ciclo** (sem chave a rotina
+  não faz requisição; só ASCII visível de 16 a 512 caracteres, validado pela API ao gravar e de novo na abertura). **Não aparece em nenhuma mensagem de erro por construção** (o erro do cliente
   carrega só o código; `reason` é só o nome do erro de transporte) e um contrato roda a rotina inteira com um fornecedor
   que ecoa o token de seis jeitos e o procura no log e nos contadores (CA9). `redirect: 'error'`: o cabeçalho nunca segue
   para outro host.
 - **Custo:** orçamento mensal da instalação incrementado por upsert imediatamente antes de cada chamada
-  (`FERIADOS_API_MONTHLY_REQUEST_BUDGET`, inteiro de 1 a 1.000.000, padrão 4500), teto de 100 requisições por ciclo,
+  (coluna `monthly_request_budget` da linha da instalação, inteiro de 1 a 1.000.000, NULL = padrão 4500; era
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` na 252), teto de 100 requisições por ciclo,
   espaçamento de 1,2 s e disjuntor de 3 falhas de rede seguidas. Orçamento esgotado só encerra o ciclo.
 - **Resposta hostil:** corpo com teto de 512 KB lido por stream, página de até 100 itens, nome sem caractere de controle ou
   de formato, `Retry-After` limitado entre 60 s e 24 h, guarda Zod (`malformed_response`, nada gravado), data de outro ano
@@ -133,7 +135,7 @@ do erro e par.
 **Riscos abertos (passos do usuário, nada disso foi decidido pela IA):**
 
 - **Q4, termos de uso** (`[NEEDS CLARIFICATION]`): confirmar com o fornecedor que guardar os feriados é permitido **antes**
-  de configurar `FERIADOS_API_TOKEN`. Enquanto isso o produto não envia nada.
+  de gravar a chave da FeriadosAPI pela tela (na 252 era configurar `FERIADOS_API_TOKEN`). Enquanto isso o produto não envia nada.
 - **Q3, plano e cota** (`[NEEDS CLARIFICATION]`): a documentação não diz quanto uma cidade do interior consome; o padrão
   4500 pressupõe o plano Developer (5.000 por mês, menos 10% de folga). Orçamento não se testa baixo no 1º ciclo.
 - **Índice de `nfe_addresses`:** a descoberta faz `Seq Scan` por lote (1,5 ms com 2.100 notas no teste) e a leitura do
@@ -142,10 +144,10 @@ do erro e par.
 - **Forma de resposta real do fornecedor:** nenhuma resposta real foi vista; a guarda Zod foi escrita pela documentação
   (`evidence.md` § T3.1). O 1º ciclo real confirma ou corrige.
 
-**Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
+**Pendência (passo do usuário):** Q3 e Q4 acima, e só então gravar a chave pela tela da instalação e despausar a rotina.
 `feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
 
-**Emenda (spec 262, ADR-0102 — aceita em 2026-10-09; a API que recebe e sela a chave está implementada em staging, Fases 2 e 3, e o worker ainda não):**
+**Emenda (spec 262, ADR-0102 — aceita em 2026-10-09; a API que recebe e sela a chave está em staging, Fases 2 e 3; o worker que a lê do banco e a saída da variável estão implementados na Fase 4 e só vão a staging depois do Gate A):**
 a chave deixa a variável de
 ambiente e passa a morar **selada no banco** (`holiday_provider_settings.token_envelope`, envelope A256GCM com o chaveiro de
 aplicação e AAD por linha), configurada no painel por quem tem a permissão nova `holiday-import.configure` (só `company-admin`);
@@ -158,8 +160,12 @@ Risco novo, aceito pelo ADR-0021: qualquer `company-admin` de qualquer empresa d
 no corpo da requisição; o selo zera o `Uint8Array`, o corpo não) — a frase "API … nunca leem o token" acima deixa de valer: a API
 passa a **receber e selar** a chave, e o worker segue sendo a única app que a **usa** contra o fornecedor. **Produção:** a 252
 já está em `main` e o worker de produção lê `FERIADOS_API_TOKEN`; o Gate A (conferir **só o nome** da variável, a saída nunca com
-valor) é obrigatório antes de publicar o worker da 262. Até a 262 ser publicada, vale o texto acima; a T6.1 da 262 troca esta
-nota pela entrada própria e reescreve as linhas sobre quem lê o token.
+valor) é obrigatório antes de publicar o worker da 262. **Quando o worker da 262 for publicado a variável é ignorada** (nem derruba o
+boot, nem vira configuração) e o `.railway/railway.ts` a mantém como legado até a T4.4, que só roda depois de a chave estar no
+banco de staging e de produção. **Limites honestos do worker:** a chave e o orçamento são lidos no começo do ciclo, então chave removida
+ou trocada no meio dele **continua em uso até o fim do ciclo** (≤ 100 requisições, ~2 min); e "Remover chave" **não para a aplicação**
+do cache global às empresas (a aplicação só toca o banco) — quem quer parar tudo pausa a rotina em Operações ou desliga a importação da
+empresa. A T6.1 da 262 troca esta nota pela entrada própria.
 
 **Estado real da API em staging (spec 262, Fases 2 e 3) e o que ela NÃO garante:**
 
