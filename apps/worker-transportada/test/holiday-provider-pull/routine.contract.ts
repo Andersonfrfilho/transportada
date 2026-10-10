@@ -41,6 +41,8 @@ const EMPTY_FETCH: FetchTally = {
   planRestricted: 0,
   rateLimited: false,
   requests: 0,
+  tokenMissing: false,
+  tokenUnreadable: false,
   unauthorized: false,
   unexpectedFailures: 0,
   unreachable: 0,
@@ -199,6 +201,52 @@ describe('a rotina `holiday.provider.pull` (spec 252 T3.5)', () => {
 
     expect(result.outcome).toBe('provider_unreachable')
     expect(result.counters).toMatchObject({ circuit_opened: 1, entries_discarded: 7 })
+  })
+
+  test('sem chave configurada não é falha: `token_missing` é contador e o ciclo fecha em `succeeded` (spec 262)', async () => {
+    const { routine } = build({ fetch: { tokenMissing: true } })
+
+    const result = await routine.run(buildContext())
+
+    expect(result.outcome).toBe('succeeded')
+    expect(result.counters).toMatchObject({ requests: 0, token_missing: 1 })
+    expect(result.counters).not.toHaveProperty('token_unreadable')
+  })
+
+  test('chave guardada que não abre fecha em `credential_unreadable`, que o catálogo conhece (spec 262)', async () => {
+    const { routine } = build({ fetch: { tokenUnreadable: true } })
+
+    const result = await routine.run(buildContext())
+
+    expect(result.outcome).toBe('credential_unreadable')
+    expect(result.counters).toMatchObject({ requests: 0, token_unreadable: 1 })
+    expect(result.counters).not.toHaveProperty('token_missing')
+    expect(isJobOutcome({ job: HOLIDAY_PROVIDER_PULL_JOB, outcome: result.outcome })).toBeTrue()
+  })
+
+  test('a chave ilegível fica logo abaixo de `unexpected_error`: falha nossa a vence (spec 262)', async () => {
+    const cases: Overrides[] = [
+      { apply: { failedCompanies: 1 }, fetch: { tokenUnreadable: true } },
+      { discovery: { failedCompanies: 1 }, fetch: { tokenUnreadable: true } },
+      { fetch: new Error('connection reset') },
+    ]
+
+    for (const overrides of cases) {
+      const { routine } = build(overrides)
+
+      const result = await routine.run(buildContext())
+
+      expect(result.outcome).toBe('unexpected_error')
+    }
+  })
+
+  test('um ciclo comum não carrega os contadores de chave (spec 262)', async () => {
+    const { routine } = build({ fetch: { requests: 2 } })
+
+    const result = await routine.run(buildContext())
+
+    expect(result.counters).not.toHaveProperty('token_missing')
+    expect(result.counters).not.toHaveProperty('token_unreadable')
   })
 
   test('falha nossa vence a do fornecedor e fecha em `unexpected_error`', async () => {

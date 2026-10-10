@@ -18,11 +18,13 @@ import {
   INSTALLATION_PROVIDER,
   sealLikeTheApiWould,
 } from '../fixtures/holiday-provider-token-seal.fixture.js'
+import {
+  insertProviderSettings,
+  replaceProviderEnvelope,
+} from '../fixtures/holiday-provider-settings-row.fixture.js'
 
 const databaseUrl = process.env.DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
-
-const ACTOR_ID = '00000000-0000-4000-8000-0000000000a1'
 
 describeDatabase(
   'o leitor da chave e do orçamento da instalação (integration, spec 262 T4.1)',
@@ -44,23 +46,8 @@ describeDatabase(
       await provider.close()
     })
 
-    async function insertSettings(input: {
-      readonly budget?: number | null
-      readonly envelope?: unknown
-      readonly settingsId: string
-    }) {
-      const hasToken = input.envelope !== undefined
-      await db.execute(sql`
-      insert into holiday_provider_settings
-        (id, token_envelope, token_hint, token_updated_at, monthly_request_budget, updated_by_user_id)
-      values (
-        ${input.settingsId},
-        ${hasToken ? JSON.stringify(input.envelope) : null}::text::jsonb,
-        ${hasToken ? 'Q7zK' : null},
-        ${hasToken ? new Date().toISOString() : null}::timestamptz,
-        ${input.budget ?? null},
-        ${ACTOR_ID})`)
-    }
+    const insertSettings = (input: Parameters<typeof insertProviderSettings>[1]) =>
+      insertProviderSettings(db, input)
 
     test('sem linha: sem chave e o orçamento é o padrão', async () => {
       expect(await reader.readAccess()).toEqual({
@@ -105,8 +92,7 @@ describeDatabase(
         settingsId,
         token: 'FAKE-renewed-key-Q7zK-9876543210',
       })
-      await db.execute(sql`
-      update holiday_provider_settings set token_envelope = ${JSON.stringify(renewed)}::text::jsonb`)
+      await replaceProviderEnvelope(db, renewed)
 
       expect(first).toMatchObject({ kind: 'ready', token: FIXTURE_HOLIDAY_TOKEN })
       expect(await reader.readAccess()).toMatchObject({

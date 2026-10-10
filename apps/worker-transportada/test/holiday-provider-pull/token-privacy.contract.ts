@@ -1,7 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * CA9: o token não aparece em nenhuma linha de log, inclusive em erro. A rotina inteira roda com o
+ * CA9 (estendido pela spec 262 CA9): o token — agora lido do **banco** a cada ciclo — não aparece em nenhuma
+ * linha de log, contador ou desfecho, inclusive em erro. A rotina inteira roda com o leitor da configuração e o
  * **cliente HTTP de verdade** (o `fetch` é o dublê) e o fornecedor ecoa o token de todo jeito que
  * consegue: na mensagem da rede, no corpo de um 500, no corpo de um 401, em resposta fora do formato e em
  * nome de feriado. Contador, desfecho e log são serializados e procurados.
@@ -10,7 +11,9 @@ import { describe, expect, test } from 'bun:test'
 
 import { createApplyHolidayProviderUseCase } from '../../src/holiday-provider-pull/application/apply-holiday-provider.use-case.js'
 import { createDiscoverHolidayCitiesUseCase } from '../../src/holiday-provider-pull/application/discover-holiday-cities.use-case.js'
+import { createFetchHolidayProviderWithAccessUseCase } from '../../src/holiday-provider-pull/application/fetch-holiday-provider-with-access.use-case.js'
 import { createFetchHolidayProviderUseCase } from '../../src/holiday-provider-pull/application/fetch-holiday-provider.use-case.js'
+import type { HolidayProviderAccess } from '../../src/holiday-provider-pull/application/holiday-provider-access.port.js'
 import { createHolidayProviderPullRoutine } from '../../src/holiday-provider-pull/application/holiday-provider-pull.routine.js'
 import { createFeriadosApiClient } from '../../src/holiday-provider-pull/infrastructure/feriados-api.client.js'
 import { buildFakeClock, buildInMemoryFetchStore } from '../fixtures/holiday-fetch.fixture.js'
@@ -35,7 +38,10 @@ const ECHOES: ReadonlyArray<readonly [string, () => Promise<Response>]> = [
 
 async function runWithEcho(
   echo: () => Promise<Response>,
-  options: { readonly storeFailsWith?: Error } = {},
+  options: {
+    readonly access?: HolidayProviderAccess | Error
+    readonly storeFailsWith?: Error
+  } = {},
 ) {
   const logged: unknown[][] = []
   const record = (...args: unknown[]) => {
@@ -50,12 +56,7 @@ async function runWithEcho(
       throw failure
     }
   }
-  const client = createFeriadosApiClient({
-    baseUrl: 'https://feriadosapi.test',
-    fetch: async () => echo(),
-    timeoutInMilliseconds: 1000,
-    token: TOKEN,
-  })
+  const access = options.access ?? { budget: 100, kind: 'ready', token: TOKEN }
   const routine = createHolidayProviderPullRoutine({
     apply: createApplyHolidayProviderUseCase({
       logger,
@@ -76,13 +77,27 @@ async function runWithEcho(
         saveBatch: async () => undefined,
       },
     }),
-    fetch: createFetchHolidayProviderUseCase({
-      budget: 100,
-      client,
-      clock,
-      logger,
-      now: () => new Date('2026-10-09T12:00:00.000Z'),
-      store,
+    fetch: createFetchHolidayProviderWithAccessUseCase({
+      access: {
+        readAccess: async () => {
+          if (access instanceof Error) throw access
+          return access
+        },
+      },
+      createFetch: (granted) =>
+        createFetchHolidayProviderUseCase({
+          budget: granted.budget,
+          client: createFeriadosApiClient({
+            baseUrl: 'https://feriadosapi.test',
+            fetch: async () => echo(),
+            timeoutInMilliseconds: 1000,
+            token: granted.token,
+          }),
+          clock,
+          logger,
+          now: () => new Date('2026-10-09T12:00:00.000Z'),
+          store,
+        }),
     }),
     logger,
   })
@@ -117,5 +132,36 @@ describe('o token da FeriadosAPI nunca aparece (spec 252 T3.5, CA9)', () => {
 
     expect(everything).not.toContain(TOKEN)
     expect(result.outcome).toBe('unexpected_error')
+  })
+
+  test('a chave lida do banco também não vaza quando o leitor falha com a chave na mensagem do erro', async () => {
+    const { everything, result } = await runWithEcho(async () => jsonResponse([]), {
+      access: new Error(`password authentication failed near ${TOKEN}`),
+    })
+
+    expect(everything).not.toContain(TOKEN)
+    expect(result.outcome).toBe('unexpected_error')
+  })
+
+  test('sem chave e com a chave ilegível nada sai e a chave não aparece em lugar nenhum', async () => {
+    const answers: ReadonlyArray<readonly [HolidayProviderAccess, string]> = [
+      [{ budget: 4500, kind: 'token_missing' }, 'succeeded'],
+      [{ kind: 'token_unreadable' }, 'credential_unreadable'],
+    ]
+    let requests = 0
+
+    for (const [access, outcome] of answers) {
+      const { everything, result } = await runWithEcho(
+        async () => {
+          requests += 1
+          return jsonResponse([])
+        },
+        { access },
+      )
+
+      expect(everything).not.toContain(TOKEN)
+      expect(result.outcome).toBe(outcome as never)
+    }
+    expect(requests).toBe(0)
   })
 })

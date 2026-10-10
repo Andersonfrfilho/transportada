@@ -1,85 +1,65 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 252 T3.5 (CA8): sem token a rotina não é registrada e a janela dela pousa em
- * `job_run_routine_missing`; o token mora só no worker, em `.env.example` e em `.railway/railway.ts`
- * sem valor; nenhuma outra app o conhece.
+ * Spec 262 T4.2 (CA8): a rotina é registrada sempre (a chave e o orçamento vêm do banco a cada ciclo) e a
+ * janela dela deixou de pousar em `job_run_routine_missing`. Spec 252 T3.5 (D10, até a T4.3 da 262): o token
+ * mora só no worker, em `.env.example` e em `.railway/railway.ts` sem valor; nenhuma outra app o conhece.
  */
 import { readFile } from 'node:fs/promises'
 
 import { Glob } from 'bun'
 import { describe, expect, test } from 'bun:test'
 
-import { createJobCycle } from '../../src/job-run/application/run-job-cycle.js'
-import type { JobExecutionPort } from '../../src/job-run/application/job-execution.port.js'
 import { buildHolidayProviderPullRegistry } from '../../src/holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
+import { INSTALLATION_PROVIDER } from '../fixtures/holiday-provider-token-seal.fixture.js'
 
 const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
-const NOW = new Date('2026-10-09T12:00:00.000Z')
+const WORKER_ROOT = new URL('../../', import.meta.url)
 
-function buildLogger(logged: Array<{ readonly level: string; readonly message: string }>) {
-  const at = (level: string) => (message: string) => {
-    logged.push({ level, message })
-  }
-  return { debug: at('debug'), error: at('error'), info: at('info'), warn: at('warn') } as never
+function buildLogger() {
+  const nothing = () => undefined
+  return { debug: nothing, error: nothing, info: nothing, warn: nothing } as never
 }
 
-describe('o registro condicional da rotina (spec 252 T3.5, CA8)', () => {
-  test('sem token nada é registrado', () => {
+describe('o registro da rotina é incondicional (spec 262 T4.2, CA8)', () => {
+  test('a rotina está no registro com o nome do catálogo, sem depender de nenhuma variável', () => {
     const registry = buildHolidayProviderPullRegistry({
-      config: {},
       database: {} as never,
-      logger: buildLogger([]),
-    })
-
-    expect(Object.keys(registry)).toEqual([])
-  })
-
-  test('com token a rotina é registrada, com o nome do catálogo', () => {
-    const registry = buildHolidayProviderPullRegistry({
-      config: { holidayProviderPull: { monthlyRequestBudget: 300, token: 'fixture-token' } },
-      database: {} as never,
-      logger: buildLogger([]),
+      envelopeProvider: INSTALLATION_PROVIDER,
+      logger: buildLogger(),
     })
 
     expect(Object.keys(registry)).toEqual(['holiday.provider.pull'])
     expect(typeof registry['holiday.provider.pull']?.run).toBe('function')
   })
 
-  test('sem a rotina registrada a janela fecha em `unexpected_error` com `job_run_routine_missing`', async () => {
-    const logged: Array<{ readonly level: string; readonly message: string }> = []
-    const finished: Array<{ readonly outcome: string }> = []
-    const executions: JobExecutionPort = {
-      claim: async () => ({ job: 'holiday.provider.pull', origin: 'schedule' }),
-      finish: async (params) => {
-        finished.push({ outcome: params.outcome })
-      },
-      renew: async () => ({ cancelRequestedAt: undefined }),
-    }
-    const cycle = createJobCycle({
-      executions,
-      logger: buildLogger(logged),
-      now: () => NOW,
-      routines: buildHolidayProviderPullRegistry({
-        config: {},
-        database: {} as never,
-        logger: buildLogger([]),
-      }),
-    })
+  test('o `main.ts` monta o registro com o chaveiro e sem a configuração de ambiente', async () => {
+    const main = await readFile(new URL('src/main.ts', WORKER_ROOT), 'utf8')
+    const start = main.indexOf('...buildHolidayProviderPullRegistry({')
+    const call = main.slice(start, main.indexOf('}),', start))
 
-    await cycle.run({
-      envelope: { correlationId: 'registration', payload: { executionId: 'execution-1' } } as never,
-    })
-
-    expect(finished).toEqual([{ outcome: 'unexpected_error' }])
-    expect(logged).toContainEqual({ level: 'error', message: 'job_run_routine_missing' })
+    expect(start).toBeGreaterThan(-1)
+    expect(call).toContain(
+      'envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing)',
+    )
+    expect(call).not.toContain('config')
+    expect(main).not.toMatch(/process\.env\.FERIADOS/u)
   })
 
-  test('o `main.ts` monta o registro pela configuração validada, sem ler o ambiente cru', async () => {
-    const main = await readFile(new URL('src/main.ts', new URL('../../', import.meta.url)), 'utf8')
+  test('o registro e a rotina não leem o ambiente: a chave e o orçamento vêm do banco a cada ciclo', async () => {
+    const sources = await Promise.all(
+      [
+        'src/holiday-provider-pull/infrastructure/holiday-provider-pull.registry.ts',
+        'src/holiday-provider-pull/application/holiday-provider-pull.routine.ts',
+        'src/holiday-provider-pull/application/fetch-holiday-provider-with-access.use-case.ts',
+      ].map((path) => readFile(new URL(path, WORKER_ROOT), 'utf8')),
+    )
 
-    expect(main).toContain('...buildHolidayProviderPullRegistry({')
-    expect(main).not.toMatch(/process\.env\.FERIADOS/u)
+    for (const source of sources) {
+      expect(source).not.toContain('process.env')
+      expect(source).not.toContain('FERIADOS_API_TOKEN')
+      expect(source).not.toContain('holidayProviderPull')
+    }
   })
 })
 
@@ -121,9 +101,9 @@ describe('onde o token mora (spec 252 T3.5, D10)', () => {
   test('no worker, só o schema de ambiente conhece o nome da variável', async () => {
     const readers: string[] = []
     for await (const path of new Glob('src/**/*.ts').scan({
-      cwd: new URL('../../', import.meta.url).pathname,
+      cwd: WORKER_ROOT.pathname,
     })) {
-      const text = await readFile(new URL(path, new URL('../../', import.meta.url)), 'utf8')
+      const text = await readFile(new URL(path, WORKER_ROOT), 'utf8')
       if (text.includes('FERIADOS_API_TOKEN')) readers.push(path)
     }
 
