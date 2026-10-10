@@ -178,10 +178,10 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Cliente, guardas (chaves exatas), query e mutation de `/holiday-imports/provider-settings` e
+- [x] **T5.1** Cliente, guardas (chaves exatas), query e mutation de `/holiday-imports/provider-settings` e
       `/company-settings/holiday-import`, no padrão `useHolidayImport.*`; mensagens por código (`400` campo a campo, `409`, `429`,
       `403`). Contratos de guarda antes. Aceite: os três comandos do painel; mutação: guarda aceita chave a mais.
-- [ ] **T5.2** Bloco "Chave da FeriadosAPI" e liga/desliga (RF11) na aba Calendário, **antes** de `HolidayImportStatus` (linha 45 de
+- [x] **T5.2** Bloco "Chave da FeriadosAPI" e liga/desliga (RF11) na aba Calendário, **antes** de `HolidayImportStatus` (linha 45 de
       `BusinessCalendarPanel.component.tsx`): o liga/desliga é o `Checkbox` do design system com rótulo explícito (como
       `SaturdayBlock.component.tsx` 5; **não** existe `button role="switch"` no painel), o carregando é `@/components/ui/skeleton`;
       o painel só recebe `canManage` (`CompanySettings.page.tsx` 256), então ganha **prop nova** para `holiday-import.configure`
@@ -190,12 +190,14 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       estados, acessibilidade, pt/en, dois temas. Contratos de DOM antes (campo vazio ao abrir com chave e depois de salvar; o
       corpo do `PUT` sem `token` quando o campo está vazio; sem a permissão não há botão). **Prints** 375/768/1280, claro e
       escuro, aprovados pelo usuário antes de publicar. (CA12)
-- [ ] **T5.3** Manchetes do cartão (RF12, D8): "sem chave", "chave ilegível", "orçamento do mês atingido", com a prioridade de
+- [x] **T5.3** Manchetes do cartão (RF12, D8): "sem chave", "chave ilegível", "orçamento do mês atingido", com a prioridade de
       D8 e o texto de "aguardando" que só manda despausar quando há chave; locale `businessCalendar` pt/en (inclui o texto de
       `credential_unreadable`). O `status` **não** expõe o orçamento (`holiday-import.schema.ts` da API só tem
       `monthlyRequests`): o painel compara `monthlyRequests` com o `monthlyRequestBudget` do `GET` do RF3, com `>=` (casa com o
       worker, `holiday-fetch.query.ts` 70). **Reescrever os textos que mandam olhar "sem token" em Operações**
       (`businessCalendar.locale.json` 281, 289 e 290, e o `.en`). Contratos por prioridade antes; mutações por manchete. **Prints** aprovados. (CA12)
+      **Feitas em 2026-10-10 em `work/262-f5`** (evidência em `evidence.md` § Fase 5). ⚠️ **Publicação pendente:** os 96 prints
+      aguardam aprovação do usuário e o worker (Fase 4) ainda não foi publicado; **nenhuma tela vai a staging nem a produção antes dos dois.**
 
 ## Fase 6 — Fechamento
 

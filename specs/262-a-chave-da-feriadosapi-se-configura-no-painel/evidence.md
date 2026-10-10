@@ -353,3 +353,77 @@ SHAs: contratos vermelhos `1ef18a32a` · código `ce0e73551` · docs `a72d99aac`
 | `bun run format:check` na raiz                           | exit 0 (`prettier --check .`) e `git status` vazio depois do commit de evidência   |
 
 **Ficou de fora (conforme pedido):** `DELETE` com If-Match, scrubber do Sentry, log de `ApiError` 5xx e divisão dos arquivos de teste grandes (viram tasks/fora de escopo).
+
+## Fase 5 — Painel (T5.1, T5.2, T5.3)
+
+Branch `work/262-f5` a partir de `origin/staging` `cb9dad009` (`git fetch origin` exit 0; `git switch -c` exit 0; `bun install --frozen-lockfile` exit 0). **Sem push.** As Fases 1–3 estão em `origin/staging`; a Fase 4
+(worker) **não** está publicada, então as telas **não vão a lugar nenhum** antes do worker e de prints aprovados.
+
+SHAs: T5.1 contrato `6a5505fb7`, código `24dcb227b` · T5.2 contratos `259768a66`, código `eaa645549` · T5.3 contratos `b34494c4f`, código `a6aa4f539` · prints, campos em duas colunas e texto da recusa de formato `66f4d88b7`.
+
+### T5.1 — cliente, guardas, consultas e mutações
+
+`holidayProviderSettings.{constant,types}.ts`, `holidayProviderSettingsGuards.validation.ts` (**chaves exatas**: `budgetOrigin`, `monthlyRequestBudget`, `tokenConfigured`, `tokenHint`, `tokenUpdatedAt`, `updatedAt`, `version`; o
+interruptor tem `isEnabled` e `origin`), `holidayProviderSettingsClient.service.ts` (`GET`/`PUT` com `expectedVersion`/`DELETE …/token` e `GET`/`PUT /company-settings/holiday-import`), `useHolidayProviderSettings.query.ts` e
+`.mutation.ts`. O corpo do `PUT` só leva o que foi pedido: `token` ausente não vai, `monthlyRequestBudget: null` chega ao corpo, `expectedVersion` some na criação.
+
+- Recusas: `BusinessCalendarRequestError` ganhou `retryAfterSeconds` (lido do cabeçalho `Retry-After`) e a recusa ganhou `retryAfterMinutes` (`errors.TOO_MANY_REQUESTS_AFTER`, mínimo 1 min, nunca "0 min"); três códigos novos
+  (`HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT` 409, `HOLIDAY_PROVIDER_TOKEN_INVALID` 400, `HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE` 500) com texto nos dois idiomas; rótulos de campo `token` e `monthlyRequestBudget`.
+- No 409 a mutação relê a configuração (a tela mostra o que o outro administrador gravou). ⚠️ O contrato `mutation-pending-state` proíbe `onSuccess: async` (me derrubou na primeira rodada): a releitura é `void`/promessa sem `await`.
+- Vermelho antes: módulo `holidayProviderSettingsClient.service` inexistente (`Cannot find module`). Contrato novo `holiday-provider-settings.contract.ts`: 26 testes (guardas, cliente, recusas).
+- Mutação (restaurada): guarda aceitando a chave `token` a mais → 2 vermelhos (chaves exatas e "resposta com a chave é descartada").
+
+### T5.2 — bloco "Chave da FeriadosAPI" e liga/desliga
+
+Componentes: `HolidayProviderSettings` (seção; entra **antes** de `HolidayImportStatus` em `BusinessCalendarPanel`), `HolidayProviderSummary`, `HolidayProviderForm` (remonta por `key = version`), `HolidayProviderInput`,
+`HolidayProviderRemoval`, `HolidayProviderFeedback`, `HolidayImportToggle`; hooks `useHolidayProviderActions` (vive **acima** do formulário, para o "salvo", a recusa e a confirmação atravessarem a remontagem) e
+`useHolidayImportToggle`; serviço puro `holidayProviderSettingsForm.service.ts`; CSS `holidayProviderSettings.module.css`. O painel ganhou a prop `canConfigureHolidayImport` (`holiday-import.configure` lida de `/auth/me` em
+`CompanySettings.page.tsx`).
+
+- Campo da chave `type="password"`, `autoComplete="off"`, `spellCheck={false}`, rótulo "Nova chave" quando já há uma; **nunca preenchido de volta** (vazio ao abrir, depois de salvar e depois de recusa do servidor; a recusa LOCAL de
+  formato mantém o texto, porque ele nem saiu do navegador). Dica `…1234` + data; orçamento com marca "padrão" quando `budgetOrigin = 'default'` e placeholder "padrão: 4500"; uso do mês (`monthlyRequests` do status) e aviso quando `>=` o orçamento.
+- Orçamento vazio com valor definido envia `null` ("Usar o padrão" limpa o campo); vazio com o padrão valendo não envia nada (`null` sozinho sem linha é 400 na API); o mesmo número já gravado não é reenviado.
+- "Remover chave" pede confirmação (o texto diz que o orçamento e os feriados importados ficam). "Salvar" sem mudança não chama a API e diz "Nada para salvar" (`role="status"`) — **decisão de UX:** o botão não é desabilitado, por acessibilidade.
+- Só leitura sem a permissão nova (estado visível, sem campo, sem Salvar/Remover); o interruptor é o `Checkbox` do design system com rótulo "Importar feriados da FeriadosAPI" e **só pede `settings.manage`** (RF6), igual à rota da API; texto "Desligar não apaga …".
+- Foco: erro local ou recusa do servidor com campo nomeado devolve o foco ao campo (`data-field`), e o atalho da recusa também; `aria-describedby` na dica e no erro; `role="status"`/`role="alert"`.
+- Contratos: DOM `business-calendar-provider-settings` (36) e `business-calendar-import-toggle` (10), puro `holiday-provider-form` (25), `business-calendar-permission` ajustado (a ordem das seções e o caso sem a permissão nova). A API do calendário dublada ganhou
+  `holidayProviderSettingsDouble.helper.ts` com as MESMAS transições da T3.3/T3.4 (versão obrigatória/ausente → 409, dica = 4 últimos, `null` volta ao padrão, `DELETE` zera só a chave); **o dublê nunca guarda a chave inteira**.
+- Vermelho antes: `sectionOf('Chave da FeriadosAPI')` não achava a seção (todos os testes do bloco e do interruptor falharam em 5 s) e o módulo do serviço de formulário não existia.
+- Mutações (todas restauradas): (a) chave não limpa depois do pedido → 3 vermelhos; (b) sem `expectedVersion` no corpo → 26 nos DOM + 4 no puro; (c) orçamento vazio sem `null` → 21 + 1; (d) permissão errada (`canConfigure={canManage}`) → 2;
+  (e) `type="text"` no campo da chave → 8; (f) caixa do interruptor sem o valor pedido enquanto grava → 1 (teste adicionado por esta mutação: "enquanto grava, a caixa mostra o valor pedido e fica travada").
+
+### T5.3 — manchetes do cartão de status
+
+`resolveImportStatusView({ settings, status })` (objeto, não dois posicionais) com a prioridade D8: desligada → **sem chave** → **chave ilegível** (`lastRun.outcome = credential_unreadable`) → os três desfechos de fornecedor →
+**orçamento do mês atingido** (`monthlyRequests >= monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par → aguardando → em dia. Manchetes `noToken`, `tokenUnreadable`, `budgetReached`. `settings` é **opcional**:
+se o `GET provider-settings` falhar, o cartão é o de antes. O cartão e o bloco leem a mesma chave de consulta (uma ida só à rede) e o cartão espera a configuração antes de desenhar (não pisca "em dia" para virar "sem chave").
+"Aguardando" só manda despausar em Operações quando há chave (`explainKey = …waitingWithToken`). **Textos "sem token" reescritos** (pt e en): `headline.unauthorized` ("chave inválida"), `explain.waiting`, `explain.unauthorized`;
+um contrato varre os dois idiomas e prova que nenhum texto do cartão diz "sem token"/"no token".
+
+- Vermelho antes: a assinatura antiga recebendo objeto (todas as leituras do status falharam) e os módulos/textos novos ausentes.
+- Contratos: `holiday-import-headline` (puro, 19: cada degrau da prioridade, `>=`, orçamento da configuração e não número fixo, sem configuração), DOM `business-calendar-import-headlines` (10), e os de status/locale existentes atualizados.
+- Mutações (restauradas): `>=` → `>` (1 vermelho); orçamento fixo 4500 (3); "sem chave" depois do desfecho do fornecedor (1); `credential_unreadable` mapeado para `unauthorized` (3).
+
+### Gates (cwd `apps/frontend-transportada`, SHA `66f4d88b7`)
+
+| Gate                           | Resultado                                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run typecheck`            | exit 0                                                                                                                                        |
+| `bun run lint`                 | exit 0 (0 erros, 16 avisos antigos, nenhum em arquivo meu)                                                                                    |
+| `bun run test` (script)        | **7957 pass / 0 fail** (suíte principal) + **1319 pass / 0 fail** (`test:hooks`)                                                              |
+| `bun run format:check` na raiz | exit 0 e `git status` vazio                                                                                                                   |
+| Estabilidade do `test:hooks`   | **10/10 verdes sem carga** (40–43 s) e **3/3 verdes com todos os núcleos ocupados** (65–70 s), medido na T5.2 (1309) e de novo na T5.3 (1319) |
+
+### Prints (nada no repositório)
+
+`scratchpad/prints-262-painel/` — **96 PNG** (16 telas × 375/768/1280 × claro/escuro): `chave-sem-chave`, `chave-configurada-padrao`, `chave-orcamento-proprio-uso`, `chave-salvando`, `chave-erro-formato`, `chave-erro-400-servidor`,
+`chave-conflito-409`, `chave-limite-429`, `chave-remover-confirmacao`, `chave-sem-permissao`, `chave-interruptor-desligado`, `status-sem-chave`, `status-chave-ilegivel`, `status-orcamento-atingido`,
+`status-aguardando-com-chave`, `status-chave-recusada`. Smoke `test/spec-262-painel-prints.smoke.spec.ts` (+ `spec-262-prints-smoke.helper.ts`): build real (`vite build` direto, sem o `prebuild` que baixa modelos) +
+`vite preview` do binário da app numa porta própria, API inteira dublada, **chave sentinela falsa**; cada print confere rolagem lateral, corte, contraste ≥ 4,5:1, alvo de toque ≥ 44 px a 375 px e que a sentinela **não está em
+lugar nenhum do corpo**: **96/96 passaram**. Servidores encerrados pelo PID e `dist` apagada.
+
+⚠️ **Achado fora do painel (não corrigido aqui):** o 429 só mostra "tente de novo em N min" se o navegador conseguir ler o `Retry-After`, e a API de hoje expõe só `Date` (`CORS_EXPOSE_HEADERS`,
+`apps/api-transportada/src/shared/api.constant.ts` 273). Em produção o painel cai no texto sem minutos (o mesmo defeito latente existe no 429 do e-mail de teste da 143). O print do 429 usa o cabeçalho exposto
+(o estado depois do ajuste da API: `'Date, Retry-After'`).
+
+**Não feito (de propósito):** push, publicação, documentação viva (T6.1), prints aprovados pelo usuário (**pendentes**), o worker (Fase 4) e o Gate A.
