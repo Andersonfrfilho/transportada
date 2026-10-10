@@ -80,6 +80,10 @@ function expectSecretNowhere(): void {
   expect(inputValues().some((value) => value.includes(FAKE_PROVIDER_TOKEN))).toBe(false)
 }
 
+function useEmpty(): void {
+  providerSettingsDouble.settings = buildEmptyProviderSettings()
+}
+
 function useConfigured(overrides: Parameters<typeof buildProviderSettings>[0] = {}): void {
   providerSettingsDouble.settings = buildProviderSettings(overrides)
 }
@@ -105,6 +109,7 @@ describe('bloco da chave da FeriadosAPI: estado (spec 262 T5.2)', () => {
   })
 
   it('sem chave: diz que não há e rotula o campo como a chave, não como "nova"', async () => {
+    useEmpty()
     await mountPanel()
 
     await waitForText('Nenhuma chave configurada')
@@ -167,7 +172,7 @@ describe('bloco da chave da FeriadosAPI: estado (spec 262 T5.2)', () => {
     expect(count('input[type="password"]')).toBe(0)
     await click(buttonIn(block(), 'Tentar de novo'))
 
-    await waitForText('Nenhuma chave configurada')
+    await waitForText('Chave configurada')
     expect(callsOf(GET_SETTINGS, businessCalendarDouble.calls)).toHaveLength(2)
   })
 
@@ -223,6 +228,7 @@ describe('bloco da chave da FeriadosAPI: a chave nunca volta ao campo (CA12)', (
   })
 
   it('a primeira gravação (sem linha) não manda versão', async () => {
+    useEmpty()
     await mountPanel()
     await waitForText('Nenhuma chave configurada')
 
@@ -344,6 +350,7 @@ describe('bloco da chave da FeriadosAPI: orçamento e validação (RF11)', () =>
   )
 
   it('chave curta ou com espaço no meio é recusada na tela, sem chamada, e o que foi digitado fica para corrigir', async () => {
+    useEmpty()
     await mountPanel()
     await waitForText('Nenhuma chave configurada')
 
@@ -358,6 +365,7 @@ describe('bloco da chave da FeriadosAPI: orçamento e validação (RF11)', () =>
   })
 
   it('o erro do campo é descrito por `aria-describedby`, e corrigir o valor o apaga', async () => {
+    useEmpty()
     await mountPanel()
     await waitForText('Nenhuma chave configurada')
 

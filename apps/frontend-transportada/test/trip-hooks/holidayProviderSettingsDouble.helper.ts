@@ -14,10 +14,7 @@ import type {
   HolidayProviderSettings,
 } from '@/modules/company-settings/shared/holidayProviderSettings.types'
 
-import {
-  buildEmptyProviderSettings,
-  buildEnablement,
-} from '../fixtures/holidayProviderSettings.fixture'
+import { buildEnablement, buildProviderSettings } from '../fixtures/holidayProviderSettings.fixture'
 
 export type RecordRequest = <TResult>(
   request: Readonly<{ body?: unknown; key: string; run: () => TResult }>,
@@ -30,11 +27,12 @@ const SAVED_AT = '2026-10-10T12:00:00.000Z'
 export const providerSettingsDouble: {
   enablement: HolidayImportEnablement
   settings: HolidayProviderSettings
-} = { enablement: buildEnablement(), settings: buildEmptyProviderSettings() }
+} = { enablement: buildEnablement(), settings: buildProviderSettings() }
 
+/** A instalação já com a chave configurada: é o estado normal em que os outros contratos do calendário olham o cartão. */
 export function resetProviderSettingsDouble(): void {
   providerSettingsDouble.enablement = buildEnablement()
-  providerSettingsDouble.settings = buildEmptyProviderSettings()
+  providerSettingsDouble.settings = buildProviderSettings()
 }
 
 function refuse(code: string, status: number): never {
