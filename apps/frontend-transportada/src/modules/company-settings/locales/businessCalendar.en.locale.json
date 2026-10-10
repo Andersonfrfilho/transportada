@@ -126,7 +126,9 @@
     "month": "Month",
     "day": "Day",
     "holidayOn": "Date",
-    "name": "Name"
+    "name": "Name",
+    "token": "FeriadosAPI key",
+    "monthlyRequestBudget": "Requests per month"
   },
   "fieldErrors": {
     "required": "Fill in this field.",
@@ -237,6 +239,7 @@
     "FORBIDDEN": "Your profile does not have permission for this action.",
     "UNAUTHENTICATED": "Your session expired. Sign in again.",
     "TOO_MANY_REQUESTS": "Too many requests in a short time. Wait a moment and try again.",
+    "TOO_MANY_REQUESTS_AFTER": "Too many attempts in a row. Try again in {{minutes}} min.",
     "DATABASE_UNAVAILABLE": "The database is unavailable right now. Try again in a moment.",
     "BUSINESS_CALENDAR_NETWORK_ERROR": "Could not reach the server. Check the connection and try again.",
     "BUSINESS_CALENDAR_REQUEST_FAILED": "The server did not respond as expected.",
@@ -260,7 +263,10 @@
     "BUSINESS_CALENDAR_TOO_MANY_RULES": "Too many rules to build the calendar.",
     "HOLIDAY_IMPORT_PAST_DATE": "Only a date from today onwards can be turned off: past dates stay as they are.",
     "HOLIDAY_IMPORT_DATE_LOCKED": "The date of an imported holiday cannot be changed. Turn this one off and register the new date.",
-    "HOLIDAY_NOT_IMPORTED": "This holiday is not imported: use Delete. The list was refreshed."
+    "HOLIDAY_NOT_IMPORTED": "This holiday is not imported: use Delete. The list was refreshed.",
+    "HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT": "Someone else changed this setting while you were editing. The values were reloaded: check them and save again. Nothing you typed was saved.",
+    "HOLIDAY_PROVIDER_TOKEN_INVALID": "The key does not follow the accepted format: 16 to 512 characters, with no spaces, accents or control characters.",
+    "HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE": "The key could not be stored right now. Nothing was saved: try again in a moment."
   },
   "import": {
     "title": "Holiday import",

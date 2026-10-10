@@ -126,7 +126,9 @@
     "month": "Mês",
     "day": "Dia",
     "holidayOn": "Data",
-    "name": "Nome"
+    "name": "Nome",
+    "token": "Chave da FeriadosAPI",
+    "monthlyRequestBudget": "Consultas por mês"
   },
   "fieldErrors": {
     "required": "Preencha este campo.",
@@ -237,6 +239,7 @@
     "FORBIDDEN": "Seu perfil não tem permissão para esta ação.",
     "UNAUTHENTICATED": "Sua sessão expirou. Entre de novo.",
     "TOO_MANY_REQUESTS": "Muitos pedidos em pouco tempo. Aguarde um instante e tente de novo.",
+    "TOO_MANY_REQUESTS_AFTER": "Muitas tentativas seguidas. Tente de novo em {{minutes}} min.",
     "DATABASE_UNAVAILABLE": "O banco de dados está indisponível agora. Tente de novo em instantes.",
     "BUSINESS_CALENDAR_NETWORK_ERROR": "Não foi possível falar com o servidor. Confira a conexão e tente de novo.",
     "BUSINESS_CALENDAR_REQUEST_FAILED": "O servidor não respondeu como esperado.",
@@ -260,7 +263,10 @@
     "BUSINESS_CALENDAR_TOO_MANY_RULES": "Há regras demais para montar o calendário.",
     "HOLIDAY_IMPORT_PAST_DATE": "Só dá para desligar uma data de hoje em diante: as que já passaram ficam como estão.",
     "HOLIDAY_IMPORT_DATE_LOCKED": "A data de um feriado importado não se muda. Desligue este e cadastre a nova data.",
-    "HOLIDAY_NOT_IMPORTED": "Este feriado não é importado: use Excluir. A lista foi atualizada."
+    "HOLIDAY_NOT_IMPORTED": "Este feriado não é importado: use Excluir. A lista foi atualizada.",
+    "HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT": "Outra pessoa alterou esta configuração enquanto você editava. Os valores foram recarregados: confira e salve de novo. Nada do que você digitou foi gravado.",
+    "HOLIDAY_PROVIDER_TOKEN_INVALID": "A chave não segue o formato aceito: de 16 a 512 caracteres, sem espaços, acentos ou caracteres de controle.",
+    "HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE": "Não foi possível guardar a chave agora. Nada foi gravado: tente de novo em instantes."
   },
   "import": {
     "title": "Importação de feriados",

@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readRetryAfterSecondsHeader } from '@/modules/shared/retryAfter.service'
+
 import { BUSINESS_CALENDAR_ERROR } from './businessCalendar.constant'
 
 export type BusinessCalendarErrorDetail = Readonly<{ field: string; message: string }>
@@ -6,6 +8,8 @@ export type BusinessCalendarErrorDetail = Readonly<{ field: string; message: str
 type RequestErrorInput = Readonly<{
   code: string
   details?: readonly BusinessCalendarErrorDetail[]
+  /** Os segundos do `Retry-After` do 429; ausente quando o servidor não os mandou. */
+  retryAfterSeconds?: number
   /** `0` quando nem chegou resposta (rede). */
   status: number
 }>
@@ -18,13 +22,15 @@ type RequestErrorInput = Readonly<{
 export class BusinessCalendarRequestError extends Error {
   public readonly code: string
   public readonly details: readonly BusinessCalendarErrorDetail[]
+  public readonly retryAfterSeconds: number | undefined
   public readonly status: number
 
-  public constructor({ code, details = [], status }: RequestErrorInput) {
+  public constructor({ code, details = [], retryAfterSeconds, status }: RequestErrorInput) {
     super(code)
     this.name = 'BusinessCalendarRequestError'
     this.code = code
     this.details = details
+    this.retryAfterSeconds = retryAfterSeconds
     this.status = status
   }
 }
@@ -99,9 +105,11 @@ export async function requestBusinessCalendar(
     payload = null
   }
   if (!response.ok) {
+    const retryAfterSeconds = readRetryAfterSecondsHeader(response.headers)
     throw new BusinessCalendarRequestError({
       code: readCode(payload),
       details: readDetails(payload),
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
       status: response.status,
     })
   }

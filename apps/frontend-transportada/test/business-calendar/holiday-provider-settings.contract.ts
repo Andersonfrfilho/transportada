@@ -108,9 +108,9 @@ describe('guardas da configuração da FeriadosAPI (chaves exatas)', () => {
 
   test('o interruptor da empresa tem `isEnabled` e `origin`, e nada mais', () => {
     expect(isHolidayImportEnablement(buildEnablement())).toBe(true)
-    expect(isHolidayImportEnablement(buildEnablement({ isEnabled: false, origin: 'company' }))).toBe(
-      true,
-    )
+    expect(
+      isHolidayImportEnablement(buildEnablement({ isEnabled: false, origin: 'company' })),
+    ).toBe(true)
     expect(isHolidayImportEnablement({ ...buildEnablement(), companyId: 'c-1' })).toBe(false)
     expect(isHolidayImportEnablement({ ...buildEnablement(), origin: 'installation' })).toBe(false)
     expect(isHolidayImportEnablement({ ...buildEnablement(), isEnabled: 'true' })).toBe(false)
@@ -120,7 +120,10 @@ describe('guardas da configuração da FeriadosAPI (chaves exatas)', () => {
 
 describe('cliente da configuração da FeriadosAPI', () => {
   test('GET /holiday-imports/provider-settings lê a configuração e a devolve intacta', async () => {
-    const settings = buildProviderSettings({ budgetOrigin: 'installation', monthlyRequestBudget: 900 })
+    const settings = buildProviderSettings({
+      budgetOrigin: 'installation',
+      monthlyRequestBudget: 900,
+    })
     const { calls, client } = setup(() => json(envelope(settings)))
 
     expect(await client.getSettings()).toEqual(settings)
@@ -283,7 +286,9 @@ describe('recusas da configuração da FeriadosAPI', () => {
     const failure = await failureOf(() => client.saveSettings({ token: FAKE_PROVIDER_TOKEN }))
     const refusal = describeBusinessCalendarRefusal(failure)
 
-    expect(BUSINESS_CALENDAR_REFUSAL_CODES).toContain(code)
+    const knownCodes: readonly string[] = BUSINESS_CALENDAR_REFUSAL_CODES
+
+    expect(knownCodes).toContain(code)
     expect(refusal.messageKey).toBe(`errors.${code}`)
     expect(Object.keys(portuguese.errors)).toContain(code)
     expect(Object.keys(english.errors)).toContain(code)
