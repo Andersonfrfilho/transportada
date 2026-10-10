@@ -337,7 +337,7 @@ type TripNavigationModule = {
   readonly NFE_WORKSPACE_ROUTE: string
 }
 
-type TripColumnKey = 'createdAt' | 'status' | 'updatedAt' | 'vehicleId'
+type TripColumnKey = 'createdAt' | 'status' | 'vehicleId'
 type TripSortState = null | Readonly<{ column: TripColumnKey; direction: 'asc' | 'desc' }>
 type TripPageState = Readonly<{ cursor: null | string; history: readonly (null | string)[] }>
 type TripFilters = Readonly<{

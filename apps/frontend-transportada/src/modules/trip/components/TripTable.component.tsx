@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -19,9 +19,15 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
+import {
+  shouldOpenTripFromRowClick,
+  INTERACTIVE_ELEMENT_SELECTOR,
+} from '../shared/tripRowClick.service'
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
+import { TripOccupancyBars } from './TripOccupancyBars.component'
+import { TripResultCell } from './TripResultCell.component'
 import { TripReportExportButton } from './TripReportExportButton.component'
 import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
 import type { TripColumnKey } from '../shared/tripTable.service'
@@ -80,6 +86,17 @@ export function TripTable({
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
+  function handleRowClick(event: MouseEvent<HTMLTableRowElement>, tripId: string) {
+    const target = event.target instanceof Element ? event.target : undefined
+    const shouldOpen = shouldOpenTripFromRowClick({
+      targetIsInteractive: target?.closest(INTERACTIVE_ELEMENT_SELECTOR) != null,
+      hasTextSelection: (window.getSelection()?.toString() ?? '') !== '',
+      button: event.button,
+      hasModifierKey: event.metaKey || event.ctrlKey || event.shiftKey || event.altKey,
+    })
+    if (shouldOpen) table.openTrip(tripId)
+  }
+
   function renderCell(trip: Trip, column: TripColumnKey) {
     if (column === 'status') {
       return <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
@@ -87,8 +104,9 @@ export function TripTable({
     if (column === 'vehicleId') return renderVehicle(trip)
     if (column === 'cargoValue') return renderCargoValue(trip)
     if (column === 'revenue') return renderRevenue(trip)
+    if (column === 'occupancy') return renderOccupancy(trip)
+    if (column === 'result') return renderResult(trip)
     if (column === 'createdAt') return formatMoment(trip.createdAt)
-    if (column === 'updatedAt') return formatMoment(trip.updatedAt)
 
     return trip[column]
   }
@@ -132,6 +150,23 @@ export function TripTable({
         )}
       </span>
     )
+  }
+
+  /** Spec 259: viagem cancelada não tem ocupação nem resultado úteis — a linha diz "—". */
+  function renderOccupancy(trip: Trip) {
+    if (trip.status === 'cancelled')
+      return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+
+    return (
+      <TripOccupancyBars hasVehicle={trip.vehicleId !== null} occupancy={trip.occupancySummary} />
+    )
+  }
+
+  function renderResult(trip: Trip) {
+    if (trip.status === 'cancelled')
+      return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+
+    return <TripResultCell amounts={trip.amounts} />
   }
 
   /**
@@ -314,17 +349,21 @@ export function TripTable({
               <th scope="col">{t('columns.id')}</th>
               {table.columns.map((column) => (
                 <th key={column} scope="col">
-                  <button
-                    className={styles.sortButton}
-                    onClick={() => table.toggleSort(column)}
-                    type="button"
-                  >
-                    {t(`columns.${column}`)}
-                    <span className={styles.sortIndicator} aria-hidden="true">
-                      {sortIndicator(column)}
-                    </span>
-                    <span className={styles.srOnly}>{sortLabel(column)}</span>
-                  </button>
+                  {column === 'occupancy' ? (
+                    t(`columns.${column}`)
+                  ) : (
+                    <button
+                      className={styles.sortButton}
+                      onClick={() => table.toggleSort(column)}
+                      type="button"
+                    >
+                      {t(`columns.${column}`)}
+                      <span className={styles.sortIndicator} aria-hidden="true">
+                        {sortIndicator(column)}
+                      </span>
+                      <span className={styles.srOnly}>{sortLabel(column)}</span>
+                    </button>
+                  )}
                 </th>
               ))}
               <th scope="col">{t('actions.title')}</th>
@@ -332,7 +371,11 @@ export function TripTable({
           </thead>
           <tbody>
             {table.visibleItems.map((trip) => (
-              <tr key={trip.id}>
+              <tr
+                key={trip.id}
+                className={styles.clickableRow}
+                onClick={(event) => handleRowClick(event, trip.id)}
+              >
                 {canCancel || canClose ? (
                   <td>
                     {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}

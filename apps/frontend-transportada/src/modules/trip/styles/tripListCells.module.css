@@ -1,0 +1,73 @@
+.occupancy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 11rem;
+  white-space: normal;
+}
+
+.measure {
+  display: flex;
+  flex-direction: column;
+}
+
+/* As listras animadas dizem "carregando"; numa lista de 20 linhas a ocupação é um número parado. */
+.measure [role='progressbar'] > div::after {
+  animation: none;
+  opacity: 0;
+}
+
+.measureMissing {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.measureLabel {
+  text-transform: uppercase;
+}
+
+.unknown {
+  color: var(--color-slate);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+}
+
+.resultLine {
+  color: var(--color-fog);
+}
+
+.resultPart {
+  display: block;
+  white-space: nowrap;
+}
+
+.profit {
+  color: var(--color-ready-ink);
+}
+
+.loss {
+  color: var(--color-alert-ink);
+  font-weight: 700;
+}
+
+.marks {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.mark {
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-slate) 18%, transparent);
+  color: var(--color-fog);
+  font-size: var(--font-size-xs, 0.75rem);
+  padding-inline: var(--space-2);
+}

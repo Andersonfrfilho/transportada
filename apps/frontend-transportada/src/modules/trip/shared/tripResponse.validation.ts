@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
+import { readTripListOccupancy } from './tripListOccupancy.validation'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
   OCCURRENCE_ITEMS_MODES,
@@ -295,6 +296,7 @@ function isTripFields(value: Record<string, unknown>): boolean {
   )
 }
 
+/** O `occupancy` do item é lido por `readTripListOccupancy`, que tolera lixo; aqui só a chave é aceita. */
 function isTrip(value: unknown): value is Trip {
   if (!hasKeys(value, { allowed: [...TRIP_KEYS, ...TRIP_OPTIONAL_KEYS], required: TRIP_KEYS })) {
     return false
@@ -333,7 +335,12 @@ function isAbsentOrTripAmounts(value: unknown): boolean {
   return (
     isOptionalNullableString(value.documentsTotal) &&
     isOneOf(value.revenueSource, TRIP_REVENUE_SOURCES) &&
-    isOptionalString(value.revenueTotal)
+    isOptionalString(value.revenueTotal) &&
+    /** Spec 259: gasto, lucro e margem — ausentes em API anterior e sem `trip.financials`. */
+    isOptionalNullableString(value.costTotal) &&
+    (value.hasGaps === undefined || typeof value.hasGaps === 'boolean') &&
+    isOptionalNullableString(value.marginPercentage) &&
+    isOptionalNullableString(value.marginTotal)
   )
 }
 
@@ -744,7 +751,10 @@ function toDocumentReadiness(value: unknown): TripDocumentReadiness {
 export function createTripResponseAdapters() {
   function tripFromApi(input: unknown): Trip {
     if (!isTrip(input)) throw invalid()
-    return input
+    /** Spec 259: o `occupancy` do item vira `occupancySummary` — o detalhe usa o mesmo nome com outra forma. */
+    const { occupancy: rawOccupancy, ...trip } = input as Trip & { occupancy?: unknown }
+    const occupancySummary = readTripListOccupancy(rawOccupancy)
+    return occupancySummary === undefined ? trip : { ...trip, occupancySummary }
   }
 
   return {

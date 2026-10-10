@@ -12,10 +12,12 @@ import type { Trip, TripFilters } from './trip.types'
 export const TRIP_COLUMN_KEYS = [
   'vehicleId',
   'status',
+  /** Spec 259: quanto do veículo está cheio, por peso e por volume — não ordena (sem valor único). */
+  'occupancy',
   'cargoValue',
   'revenue',
+  'result',
   'createdAt',
-  'updatedAt',
 ] as const
 export type TripColumnKey = (typeof TRIP_COLUMN_KEYS)[number]
 
@@ -47,11 +49,12 @@ export function nextTripSortState(current: TripSortState, column: TripColumnKey)
  * coluna diria que a viagem menor é a maior. A comparação é numérica, e o desconhecido vai para o
  * fim nos dois sentidos — ausência não é o menor valor, é a falta dele.
  */
-const MONEY_COLUMNS = new Set<TripColumnKey>(['cargoValue', 'revenue'])
+const MONEY_COLUMNS = new Set<TripColumnKey>(['cargoValue', 'revenue', 'result'])
 
 /**
  * Spec 156 L6: sem `trip.financials` a API tira `amounts` da linha, e a coluna sai junto — "sem
- * valor" ali afirmaria que a carga não tem preço, quando o que falta é a permissão.
+ * valor" ali afirmaria que a carga não tem preço, quando o que falta é a permissão. Spec 259: o
+ * resultado (gasto e lucro) segue a mesma regra; a ocupação não é dinheiro e fica.
  */
 export function visibleTripColumns(input: {
   readonly canReadFinancials: boolean
@@ -81,6 +84,7 @@ export function compareMoneyAmounts(left: null | number, right: null | number): 
 }
 
 function moneyValue(row: Trip, column: TripColumnKey): null | number {
+  if (column === 'result') return parseMoneyAmount(row.amounts?.marginTotal)
   const amount =
     column === 'cargoValue'
       ? (row.amounts?.documentsTotal ?? null)
@@ -95,7 +99,7 @@ function compareMoney(column: TripColumnKey, left: Trip, right: Trip): number {
 function columnValue(row: Trip, column: TripColumnKey): string {
   /** Spec 217: viagem `awaiting_crew` ainda sem veículo — a ausência ordena como o fim do alfabeto. */
   if (column === 'vehicleId') return row.vehicleId ?? ''
-  if (column === 'status' || column === 'createdAt' || column === 'updatedAt') return row[column]
+  if (column === 'status' || column === 'createdAt') return row[column]
 
   return ''
 }

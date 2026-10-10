@@ -382,9 +382,10 @@
     "cargoValue": "Valor da carga",
     "createdAt": "Criada em",
     "id": "Identificador",
+    "occupancy": "Ocupação",
+    "result": "Resultado",
     "revenue": "Ganho",
     "status": "Situação",
-    "updatedAt": "Atualizada em",
     "vehicleId": "Veículo"
   },
   "contact": {
@@ -1193,6 +1194,37 @@
   },
   "intro": "Organize viagens sem CT-e: vincule veículo, motoristas e as notas fiscais transportadas.",
   "kicker": "Operação não fiscal",
+  "listCells": {
+    "occupancy": {
+      "group": "Ocupação do veículo",
+      "mark": {
+        "estimated": "estimado",
+        "partial": "parcial"
+      },
+      "missingReason": {
+        "bodyTypeMissing": "sem carroceria cadastrada",
+        "referenceMissing": "sem referência da carroceria",
+        "trailerMissing": "sem carreta atrelada"
+      },
+      "noVehicle": "Sem veículo",
+      "overCapacity": "acima do teto",
+      "volume": "Volume",
+      "volumeMissing": "sem capacidade em m³",
+      "weight": "Peso",
+      "weightMissing": "sem teto de carga"
+    },
+    "result": {
+      "cost": "Gasto {{amount}}",
+      "loss": "Prejuízo {{amount}}",
+      "margin": "{{percent}}% de margem",
+      "mark": {
+        "forecast": "previsto",
+        "noRule": "sem regra",
+        "partial": "parcial"
+      },
+      "profit": "Lucro {{amount}}"
+    }
+  },
   "loading": "Carregando viagens",
   "locationRetention": {
     "clear": "Voltar ao padrão",

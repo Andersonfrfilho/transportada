@@ -225,6 +225,15 @@
   background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
+.dataTable tbody tr.clickableRow:hover,
+.dataTable tbody tr.clickableRow:focus-within {
+  background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

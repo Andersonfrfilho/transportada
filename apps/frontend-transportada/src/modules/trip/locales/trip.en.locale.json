@@ -382,9 +382,10 @@
     "cargoValue": "Cargo value",
     "createdAt": "Created at",
     "id": "Identifier",
+    "occupancy": "Occupancy",
+    "result": "Result",
     "revenue": "Revenue",
     "status": "Status",
-    "updatedAt": "Updated at",
     "vehicleId": "Vehicle"
   },
   "contact": {
@@ -1193,6 +1194,37 @@
   },
   "intro": "Organize trips without a CT-e: link a vehicle, drivers, and the fiscal notes carried.",
   "kicker": "Non-fiscal operation",
+  "listCells": {
+    "occupancy": {
+      "group": "Vehicle occupancy",
+      "mark": {
+        "estimated": "estimated",
+        "partial": "partial"
+      },
+      "missingReason": {
+        "bodyTypeMissing": "no body type on file",
+        "referenceMissing": "no body type reference",
+        "trailerMissing": "no trailer attached"
+      },
+      "noVehicle": "No vehicle",
+      "overCapacity": "over the limit",
+      "volume": "Volume",
+      "volumeMissing": "no capacity in m³",
+      "weight": "Weight",
+      "weightMissing": "no payload ceiling"
+    },
+    "result": {
+      "cost": "Cost {{amount}}",
+      "loss": "Loss {{amount}}",
+      "margin": "{{percent}}% margin",
+      "mark": {
+        "forecast": "forecast",
+        "noRule": "no rule",
+        "partial": "partial"
+      },
+      "profit": "Profit {{amount}}"
+    }
+  },
   "loading": "Loading trips",
   "locationRetention": {
     "clear": "Back to default",
