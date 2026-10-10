@@ -354,6 +354,99 @@ SHAs: contratos vermelhos `1ef18a32a` · código `ce0e73551` · docs `a72d99aac`
 
 **Ficou de fora (conforme pedido):** `DELETE` com If-Match, scrubber do Sentry, log de `ApiError` 5xx e divisão dos arquivos de teste grandes (viram tasks/fora de escopo).
 
+## Fase 4 — Worker (T4.1, T4.2, T4.3)
+
+Branch `work/262-f4` a partir de `origin/staging` `cb9dad009` (`git fetch origin` exit 0; `git switch -c` exit 0; `bun install --frozen-lockfile` exit 0;
+ao fim, `git fetch` de novo e `git log HEAD..origin/staging` **vazio**: staging não andou). **Sem push, sem Gate A, sem `railway config apply`.** As seis
+commits ficam locais: a T4.2 já deixa de ler a variável, então a Fase 4 só se publica **depois do Gate A**, num push só. Postgres **nativo** descartável 18.4 na porta
+65453 (banco `transportada_w4`, migrado pela API com `db:migrate`); nada de produção foi lido nem tocado; chaves de teste obviamente falsas
+(`FAKE-feriados-key-Q7zK-…`); nenhum valor de `FERIADOS_API_TOKEN` foi pedido, impresso ou usado, e `railway` não foi executado.
+
+SHAs (contrato vermelho, depois código): T4.1 `758332484` → `d8700b54f` · T4.2 `819b5c75b` → `a2e38c64e` · T4.3 `8db5d904a` → `139dbb8b5`.
+
+### T4.1 — selo, leitor e catálogo do worker
+
+- `application/holiday-provider-token-secret.service.ts`: cópia por valor da API, **só `decrypt`**; AAD `transportada:holiday-provider-token:v1:${settingsId}`; plaintext
+  UTF-8 `{"token":"…"}` com `.strict()` e a regex `^[\x21-\x7E]{16,512}$`; o **parse Zod do envelope entra no `try`** (ao contrário do molde da credencial de e-mail);
+  qualquer falha vira `HolidayProviderTokenUnreadableError` (mensagem fixa, sem chave, id nem motivo). Constantes em `domain/holiday-provider-token.constant.ts`
+  (idênticas às da API, declaração por declaração) e erro em `domain/holiday-provider-token.error.ts`.
+- `infrastructure/drizzle-holiday-provider-settings.reader.ts` + porta `application/holiday-provider-access.port.ts`: uma consulta por ciclo;
+  `ready { token, budget }` / `token_missing { budget }` / `token_unreadable`; orçamento = `row.monthlyRequestBudget ?? 4500` (M1: NULL = padrão); erro de banco **propaga**.
+- `credential_unreadable` no fim de `failureOutcomes` de `holiday.provider.pull` em `src/shared/job-catalog.constant.ts` e na lista do próprio contrato do worker
+  (`test/job-catalog/catalog.contract.ts`).
+- Contratos antes (vermelhos por módulo ausente e por catálogo sem a palavra): `token-secret-parity.contract.ts` (AAD **e** formato do plaintext, molde de
+  `credential-secret-parity.contract.ts`: constantes da API × worker, fragmentos do serviço, parse dentro do `try`, só `decrypt`), `token-secret.contract.ts` (6 testes: abre o
+  que a API sela, não abre com outro id nem com chaveiro de outra instalação, 9 envelopes malformados, 9 plaintexts fora do formato, limites 16 e 512, erro sem a chave) e
+  a integração `holiday-provider-settings-reader.integration.ts` (9 casos: sem linha, linha sem chave com orçamento, selada com orçamento NULL e definido, troca entre duas
+  leituras, `keyId` fora do chaveiro, envelope selado para outro id, envelope malformado, erro de banco propaga). Fixture `holiday-provider-token-seal.fixture.ts` sela como a API
+  (sem importar o código dela).
+- Mutações (restauradas, `git diff --quiet` = 0): AAD sem o id → 6 vermelhos (contrato, paridade e integração); `envelopeSchema.parse` fora do `try` → 3 vermelhos (comportamento
+  e paridade); orçamento do banco ignorado → 2 vermelhos; `token_unreadable` devolvendo `token_missing` → 3 vermelhos.
+
+### T4.2 — registrada sempre, lê a configuração por ciclo
+
+- `fetch-holiday-provider-with-access.use-case.ts` (nova): lê o acesso no começo do ciclo; `token_missing`/`token_unreadable` devolvem um `FetchTally` zerado com `tokenMissing`/
+  `tokenUnreadable` e **nada é montado**; `ready` monta a busca com `{ token, budget }` daquele ciclo (o cliente HTTP nasce por ciclo). `FetchTally` ganhou os dois campos;
+  `buildCounters` ganhou `token_missing` e `token_unreadable` (zerados ficam fora); `resolveOutcome` devolve `credential_unreadable` **logo depois** de `unexpected_error`.
+  `holiday-provider-pull.registry.ts` perdeu o `return {}` e o `config`: recebe `envelopeProvider` (o `main.ts` passa `createSecretEnvelopeProvider(cryptography.envelopeKeyRing)`),
+  e aceita `fetch` e `clock` opcionais (a rede e o `sleep` entram só ali; os testes injetam os falsos). Precedente seguido: `trip.location.purge`.
+- Contratos antes: `access.contract.ts` (com chave monta com o par do leitor; trocar entre dois ciclos vale no segundo; sem chave e chave ilegível não montam nada; erro de banco
+  propaga; rotina inteira: ordem `discover, fetch, apply` e contadores), `routine.contract.ts` (`token_missing` = contador + `succeeded`; `credential_unreadable` conhecido pelo
+  catálogo; falha nossa a vence), `registration.contract.ts` (registrada sempre; `main.ts` sem `config` e com o chaveiro; registro, rotina e busca não leem `process.env`),
+  `token-privacy.contract.ts` (a chave agora vem do **leitor**, por seis ecos do fornecedor, falha do banco com a chave na mensagem, leitor que falha com a chave na mensagem, e
+  sem chave/ilegível) e a integração `holiday-provider-pull-access.integration.ts` (9 casos pelo **registro de verdade** + `createJobCycle` + Postgres + fornecedor falso).
+- A integração prova (CA7/CA8): sem linha → 0 requisições, `token_missing = 1`, `succeeded`, `job_run_routine_missing` ausente do log, e a **descoberta e a aplicação rodaram** (a nota
+  semeada virou demanda e o feriado do cache entrou em `municipal_holidays`); linha com orçamento e sem chave idem; com chave → o `Authorization` do fornecedor falso é
+  `Bearer <chave do banco>`; orçamento definido 300 com 299 usados → 1 requisição, com 4499 usados → 0 (abaixo do padrão); **orçamento NULL = 4500**: com 4499 usados sai 1, com
+  4500 nenhuma; troca da chave entre dois ciclos → o segundo usa a nova (nenhum log/contador a contém); `keyId` fora do chaveiro e envelope de outro id → 0 requisições, `token_unreadable = 1`,
+  `credential_unreadable`, sem envelope nem chave no resultado.
+- ⚠️ A aplicação lê o cache **global**: sobra das integrações vizinhas (entradas de 2030–2040) foi aplicada às empresas deste teste e travou a limpeza do `holiday-fetch` por FK
+  (`state_holidays_provider_entry_fk`). A integração nova limpa o que a rotina deriva do cache (`municipal_holidays`/`state_holidays` com `provider_entry_id`, entradas, demanda,
+  pares, uso do mês, configuração) **antes e depois de cada teste**.
+- Mutações (restauradas, `git diff --quiet` = 0): ler a variável (`process.env.FERIADOS_API_TOKEN ?? ""` no registro) → 4 vermelhos (Authorization, troca de chave, "não leem o ambiente",
+  "só o schema conhece o nome"); orçamento fixo em 4500 no registro → 4 vermelhos; `token_unreadable` fechando `succeeded` → 5 vermelhos (rotina, catálogo, privacidade, 2 integrações);
+  chave vazando em log (`error.message` no lugar de `error.name` no `runStage`) → 3 vermelhos (etapa que estoura, falha do banco com o segredo, leitor com a chave na mensagem);
+  AAD sem o id no fluxo inteiro → 5 vermelhos na integração. Contadores e desfecho são `Record<string, number>` e palavra de catálogo, então a chave não cabe neles por tipo;
+  log é o único canal textual e está coberto.
+
+### T4.3 — saída das variáveis
+
+- `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` fora de `config/environment.schema.ts` (as duas chaves, `toHolidayProviderPull`, `optionalToken`,
+  `optionalPositiveInteger` e o import das constantes), de `shared/worker.types.ts` (`HolidayProviderPullEnvironment` e `holidayProviderPull`), de `.env.example` e de
+  `.railway/railway.ts` (**omitir é apagar: o `railway config apply` é passo do usuário, depois do Gate A, e eu não o rodei**). O schema segue sem `.strict()`: a variável que
+  sobrar no Railway é ignorada. `FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET` (4500) e `FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET` ficam como constantes (paridade com a API intacta).
+  O parágrafo da rotina em `apps/worker-transportada/CLAUDE.md` (que dizia "só registrada com `FERIADOS_API_TOKEN`") foi corrigido no mínimo para não afirmar o contrário do código;
+  o restante da documentação viva continua na T6.1.
+- Contratos antes (7 vermelhos): `environment.contract.ts` reescrito (o ambiente não carrega `holidayProviderPull` com ou sem as variáveis; a variável que sobrar, mesmo torta, é
+  ignorada sem derrubar o boot e sem aparecer no ambiente; o valor não aparece) e a segunda metade de `registration.contract.ts` invertida (`.env.example` e `railway.ts` sem os nomes,
+  nenhuma app — **nem o worker** — lê o nome, os tipos sem a configuração). Os `toEqual` não foram afrouxados: o que testava o ramo antigo foi substituído por asserções do ramo novo.
+- Aceite por `rtk proxy grep -rIn "FERIADOS_API_TOKEN\|FERIADOS_API_MONTHLY_REQUEST_BUDGET" apps .env.example .railway`: sobram **só** os contratos que afirmam a ausência
+  (`registration.contract.ts`, `environment.contract.ts`) e a nota do `CLAUDE.md` do worker; nenhum `src/`, `.env.example` nem `.railway/`.
+- Mutação (restaurada): `FERIADOS_API_TOKEN=` de volta no `.env.example` → 1 vermelho.
+- Contratos que leem o `.env.example` e o `railway.ts` em outras apps: API `test/env-example.contract.test.ts` 5 pass e `test/deploy.contract.test.ts` 202 pass.
+
+### Gates da Fase 4 (SHA `139dbb8b5`, cwd `apps/worker-transportada`)
+
+| Gate                                                                                      | Resultado                                                    |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `bun run typecheck` / `bun run lint`                                                      | exit 0 / exit 0 (`--max-warnings=0`)                         |
+| `bun run test` (script do `package.json`)                                                 | **2332 pass / 0 fail** (eram 2315 na Fase 3; detalhe abaixo) |
+| `bun run build`                                                                           | exit 0                                                       |
+| Integração `holiday-provider-settings-reader` (sozinha, 0 skip)                           | **9 pass / 0 fail**                                          |
+| Integração `holiday-provider-pull-access` (sozinha, 0 skip)                               | **9 pass / 0 fail**                                          |
+| Integrações `holiday-fetch` / `holiday-apply` / `holiday-discovery` (uma por vez, 0 skip) | **8 pass** / **12 pass** / **6 pass**, 0 fail                |
+| Integração `job-run-execution` (sozinha, 0 skip)                                          | **11 pass / 0 fail**                                         |
+| API `env-example.contract` / `deploy.contract`                                            | 5 pass / 202 pass                                            |
+| `bun run format:check` na raiz                                                            | exit 0 e `git status` vazio                                  |
+
+Cron, API (catálogo) e painel **não foram tocados** nesta fase, então seus gates não rodam. O lote de contratos do worker passou de 2315 para 2332, medido por task: T4.1 **2326** (+11: 6 do `token-secret` e 5 da paridade); T4.2 **2338** (+12: 7 do `access.contract`,
++4 da rotina, +2 da privacidade, −1 do `registration.contract`, que trocou 4 testes por 3); T4.3 **2332** (−6: a `environment.contract` antiga tinha 9 testes e a nova tem 3; a segunda
+metade do `registration.contract` trocou 4 por 4). ⚠️ Uma execução de `bun run test` morreu com `SIGTRAP`
+("Bun has crashed", bug do runtime, sem teste vermelho) e passou ao repetir.
+
+**Não feito (de propósito):** push, **Gate A** (passo do usuário, só nomes, staging **e produção**), `railway config apply` (apaga as variáveis), colar a chave na tela, despausar a rotina,
+documentação viva (T6.1), telas (Fase 5), revisão `opus` separada da Fase 4.
+
 ## Fase 5 — Painel (T5.1, T5.2, T5.3)
 
 Branch `work/262-f5` a partir de `origin/staging` `cb9dad009` (`git fetch origin` exit 0; `git switch -c` exit 0; `bun install --frozen-lockfile` exit 0). **Sem push.** As Fases 1–3 estão em `origin/staging`; a Fase 4

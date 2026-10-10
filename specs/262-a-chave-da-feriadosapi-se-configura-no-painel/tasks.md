@@ -138,7 +138,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
 > 🤖 Modelo: `sonnet` (T4.3 em `haiku`). ⚠️ **T4.1–T4.3 ficam commitadas localmente e são publicadas num push só, depois do
 > Gate A** (a T4.2 já deixa de ler a variável: o registro não usa mais `config.holidayProviderPull`).
 
-- [ ] **T4.1** Leitor e selo no worker: `application/holiday-provider-token-secret.service.ts` (cópia por valor, só `decrypt`),
+- [x] **T4.1** (feita em 2026-10-10, commitada local: `758332484` → `d8700b54f`; evidência em `evidence.md` § Fase 4) Leitor e selo no worker: `application/holiday-provider-token-secret.service.ts` (cópia por valor, só `decrypt`),
       paridade do AAD **e do formato do plaintext** com a API (molde `test/contractor-mail/credential-secret-parity.contract.ts`),
       `infrastructure/drizzle-holiday-provider-settings.reader.ts` (`ready` / `token_missing` / `token_unreadable`), e
       `credential_unreadable` na cópia do catálogo do **worker** (`src/shared/job-catalog.constant.ts` e a lista do próprio
@@ -148,7 +148,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       desfecho fora do catálogo do worker em `unexpected_error`. Integração contra Postgres: sem linha; linha sem chave; chave
       selada pela cópia da API; envelope com `keyId` fora do chaveiro → `token_unreadable`; envelope malformado →
       `token_unreadable`.
-- [ ] **T4.2** A rotina é registrada sempre e lê a configuração por ciclo (RF8; precedente do registro: `trip.location.purge`,
+- [x] **T4.2** (feita em 2026-10-10, commitada local: `819b5c75b` → `a2e38c64e`; evidência em `evidence.md` § Fase 4) A rotina é registrada sempre e lê a configuração por ciclo (RF8; precedente do registro: `trip.location.purge`,
       `main.ts` 1302 — **não** `geocoding.refine`, que só é registrada com a chave): `holiday-provider-pull.registry.ts` sem o
       `return {}` (linha 42) e com o `envelopeProvider` do `main.ts`; a busca recebe chave e orçamento do ciclo; `token_missing`,
       `token_unreadable` e `credential_unreadable` no resumo. Contratos **antes**: sem linha → 0 requisições, `token_missing = 1`,
@@ -159,7 +159,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       segundo; `token-privacy.contract.ts` com a chave vinda do banco (sentinela em log, contadores, desfecho). Aceite:
       `bun run test` e `bun run build` do worker; integrações `holiday-fetch`, `holiday-apply`, `job-run-execution` 0 skip;
       mutações: ler da variável; ignorar o orçamento do banco; `token_unreadable` virar `succeeded`. (CA7, CA8)
-- [ ] **Gate A (passo do USUÁRIO, antes da PUBLICAÇÃO da Fase 4 inteira — T4.1–T4.3 num push só — e do deploy do worker):** em
+- [ ] **Gate A — passo do usuário, ainda não feito** (T4.1–T4.3 estão commitadas só localmente em `work/262-f4`; nada foi publicado) **(passo do USUÁRIO, antes da PUBLICAÇÃO da Fase 4 inteira — T4.1–T4.3 num push só — e do deploy do worker):** em
       staging **e produção** (o worker de produção já roda a 252 e lê a variável: aqui o gate é obrigatório), conferir **só o
       nome** da variável. **A saída nunca pode conter um valor.** ⚠️ O `railway variables` comum no worker, mesmo "filtrando o
       nome", imprime a linha com o valor da chave e a queima (`security.md` §4): **não use**. Use um comando que imprima só nomes:
@@ -168,7 +168,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       **Variables** do Railway, que mascara o valor). Se `FERIADOS_API_TOKEN` existir com valor, o usuário cola a mesma chave na
       tela (ou pelo `PUT` da T3.3) **antes** do deploy do worker. Registrar em `evidence.md` "existe / não existe" por ambiente,
       **sem valor** (nem parcial, nem os 4 últimos caracteres).
-- [ ] **T4.3** Saída das variáveis (RF10, D4): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` fora de
+- [x] **T4.3** (feita em 2026-10-10, commitada local: `8db5d904a` → `139dbb8b5`; o `railway config apply` que apaga a variável segue sendo passo do usuário, depois do Gate A; evidência em `evidence.md` § Fase 4) Saída das variáveis (RF10, D4): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` fora de
       `config/environment.schema.ts`, `HolidayProviderPullEnvironment`/`WorkerEnvironment`, `.env.example` e `.railway/railway.ts`;
       contratos `environment.contract.ts`/`registration.contract.ts` ajustados sem afrouxar o `toEqual`. Aceite: `rtk proxy grep -rn
 "FERIADOS_API_TOKEN\|FERIADOS_API_MONTHLY_REQUEST_BUDGET" apps .env.example .railway` = só documentação histórica; testes do
