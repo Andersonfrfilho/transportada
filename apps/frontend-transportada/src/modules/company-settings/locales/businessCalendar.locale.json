@@ -268,6 +268,70 @@
     "HOLIDAY_PROVIDER_TOKEN_INVALID": "A chave não segue o formato aceito: de 16 a 512 caracteres, sem espaços, acentos ou caracteres de controle.",
     "HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE": "Não foi possível guardar a chave agora. Nada foi gravado: tente de novo em instantes."
   },
+  "providerSettings": {
+    "title": "Chave da FeriadosAPI",
+    "hint": "A chave de acesso à FeriadosAPI e o orçamento de consultas por mês valem para toda a instalação: todas as empresas usam a mesma. Ela é guardada cifrada e nunca é mostrada de volta.",
+    "loading": "Carregando a chave da FeriadosAPI",
+    "token": {
+      "configured": "Chave configurada (…{{hint}}) em {{date}}",
+      "configuredNoDate": "Chave configurada (…{{hint}})",
+      "missing": "Nenhuma chave configurada. Sem ela a importação não busca nada."
+    },
+    "budget": {
+      "value_one": "{{value}} consulta por mês",
+      "value_other": "{{value}} consultas por mês",
+      "defaultTag": "padrão"
+    },
+    "usage": {
+      "line": "{{used}} de {{budget}} consultas usadas neste mês (toda a instalação)",
+      "reached": "O orçamento do mês foi atingido: a busca fica parada até o mês seguinte ou até o orçamento aumentar."
+    },
+    "form": {
+      "token": {
+        "label": "Chave da FeriadosAPI",
+        "hint": "Cole a chave como a FeriadosAPI a mostra. Ela nunca é mostrada de volta.",
+        "replace": {
+          "label": "Nova chave",
+          "hint": "Deixe vazio para manter a chave atual; cole outra para trocá-la. Ela nunca é mostrada de volta."
+        }
+      },
+      "budget": {
+        "label": "Consultas por mês",
+        "hint": "De 1 a 1.000.000. Deixe vazio para usar o padrão.",
+        "placeholder": "padrão: {{value}}",
+        "useDefault": "Usar o padrão"
+      },
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "saved": "Configuração salva.",
+      "unchanged": "Nada para salvar: digite uma chave nova ou mude o orçamento."
+    },
+    "errors": {
+      "token": "A chave tem de ter de 16 a 512 caracteres visíveis, sem espaços nem acentos.",
+      "monthlyRequestBudget": "Informe um número inteiro de 1 a 1.000.000, sem pontos nem vírgulas."
+    },
+    "remove": {
+      "action": "Remover chave",
+      "prompt": "Remover a chave da FeriadosAPI? A importação deixa de buscar até que uma nova chave seja salva. O orçamento é mantido e os feriados já importados continuam.",
+      "confirm": "Sim, remover a chave",
+      "cancel": "Cancelar",
+      "removing": "Removendo…",
+      "removed": "Chave removida."
+    },
+    "readOnly": "Só o administrador da empresa pode trocar ou remover a chave e mudar o orçamento. Aqui você vê o estado.",
+    "routine": "Salvar a chave não liga a busca: a rotina holiday.provider.pull nasce pausada e é despausada em Operações.",
+    "toggle": {
+      "label": "Importar feriados da FeriadosAPI",
+      "hint": "Desligar não apaga os feriados já importados: as datas ficam no calendário. Para tirar uma, use Desligar na lista.",
+      "origin": {
+        "default": "Padrão: a importação vem ligada.",
+        "company": "Definido por esta empresa."
+      },
+      "loading": "Carregando o liga/desliga da importação",
+      "saving": "Salvando…",
+      "saved": "Salvo."
+    }
+  },
   "import": {
     "title": "Importação de feriados",
     "hint": "A FeriadosAPI traz, uma vez por dia, os feriados municipais e estaduais das cidades das suas notas. O que você cadastra vence o importado da mesma data. Os municipais importados contam no prazo de entrega e fecham os clientes da cidade no roteiro; os estaduais só contam no prazo.",

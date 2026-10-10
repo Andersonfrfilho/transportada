@@ -1,0 +1,71 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * Spec 262 T5.2: o bloco "Chave da FeriadosAPI" da aba Calendário. Mesmos tokens e mesmo molde dos blocos vizinhos
+ * (`businessCalendar.module.css`, `holidayImport.module.css`): tema escuro, cobre, cantos retos, rótulo em fonte
+ * utilitária, mobile-first. Os campos, o aviso de erro e as ações reaproveitam as classes do calendário.
+ */
+.summary {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  color: var(--color-fog);
+  font-size: 0.95rem;
+  list-style: none;
+}
+
+.summary li {
+  overflow-wrap: anywhere;
+}
+
+/* A marca "padrão": o texto diz o que é, a cor só acompanha (nunca só a cor). */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-dense);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-slate-ink);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.summary [data-state='missing'] {
+  color: var(--color-copper-ink);
+}
+
+.notice {
+  margin: 0;
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-copper);
+  color: var(--color-fog);
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--color-copper) 8%, var(--color-asphalt) 92%);
+}
+
+.notice[data-notice='budget-reached'] {
+  border-left-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
+.fieldHint {
+  margin: 0;
+  color: var(--color-slate-ink);
+  font-size: 0.85rem;
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-left: 3px solid var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 8%, var(--color-asphalt) 92%);
+}
+
+.confirm p {
+  margin: 0;
+  font-size: 0.9rem;
+}

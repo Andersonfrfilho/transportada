@@ -55,6 +55,11 @@ function fieldBy(label: string): HTMLInputElement {
   return control
 }
 
+/** A linha do orçamento no resumo: é onde a marca "padrão" aparece, e só quando ninguém definiu o valor. */
+function budgetFact(): string {
+  return block().querySelector('[data-fact="budget"]')?.textContent ?? ''
+}
+
 function tokenField(): HTMLInputElement {
   const control = block().querySelector<HTMLInputElement>('input[type="password"]')
   if (control === null) throw new Error('TOKEN_FIELD_NOT_FOUND')
@@ -94,8 +99,8 @@ describe('bloco da chave da FeriadosAPI: estado (spec 262 T5.2)', () => {
     await waitForText('Chave configurada (…1234)')
     expect(callsOf(GET_SETTINGS, businessCalendarDouble.calls)).toHaveLength(1)
     expect(blockText()).toContain('09/10/2026')
-    expect(blockText()).toContain('4.500 consultas por mês')
-    expect(blockText()).toContain('padrão')
+    expect(budgetFact()).toContain('4.500 consultas por mês')
+    expect(budgetFact()).toContain('padrão')
     expect(blockText()).toContain('42 de 4.500 consultas usadas neste mês')
   })
 
@@ -113,7 +118,7 @@ describe('bloco da chave da FeriadosAPI: estado (spec 262 T5.2)', () => {
     await mountPanel()
 
     await waitForText('2.500 consultas por mês')
-    expect(blockText()).not.toContain('(padrão)')
+    expect(budgetFact()).not.toContain('padrão')
     expect(fieldBy('Consultas por mês').value).toBe('2500')
   })
 
@@ -296,14 +301,28 @@ describe('bloco da chave da FeriadosAPI: orçamento e validação (RF11)', () =>
     expect(hasButtonIn(block(), 'Usar o padrão')).toBe(false)
   })
 
-  it('orçamento padrão e campo vazio não é mudança: "Salvar" fica desabilitado e não chama a API', async () => {
+  it('orçamento padrão e campo vazio não é mudança: "Salvar" não chama a API e diz que não há o que salvar', async () => {
     useConfigured()
     await mountPanel()
     await waitForText('Chave configurada')
 
-    expect(buttonIn(block(), 'Salvar').disabled).toBe(true)
+    expect(blockText()).not.toContain('Nada para salvar')
     await save()
+
+    expect(blockText()).toContain('Nada para salvar')
+    expect(count('[role="status"]')).toBeGreaterThan(0)
     expect(callsOf(PUT_SETTINGS, businessCalendarDouble.calls)).toHaveLength(0)
+  })
+
+  it('o aviso de "nada para salvar" some assim que se digita', async () => {
+    useConfigured()
+    await mountPanel()
+    await waitForText('Chave configurada')
+    await save()
+
+    await typeInto(fieldBy('Consultas por mês'), '3000')
+
+    expect(blockText()).not.toContain('Nada para salvar')
   })
 
   it.each(['0', '1000001', '12,5', '1.000', 'abc'])(

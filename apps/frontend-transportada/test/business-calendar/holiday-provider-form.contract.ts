@@ -9,7 +9,6 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   buildHolidayProviderSubmission,
-  isHolidayProviderDraftDirty,
   toInitialHolidayProviderDraft,
 } from '@/modules/company-settings/shared/holidayProviderSettingsForm.service'
 
@@ -38,22 +37,13 @@ describe('rascunho do formulário da chave da FeriadosAPI (spec 262 T5.2)', () =
     })
   })
 
-  test('nada digitado não é mudança, e digitar a chave ou mexer no orçamento é', () => {
-    const settings = buildProviderSettings(OWN_BUDGET)
-
-    expect(isHolidayProviderDraftDirty({ draft: { budget: '2500', token: '' }, settings })).toBe(
-      false,
-    )
-    expect(isHolidayProviderDraftDirty({ draft: { budget: ' 2500 ', token: ' ' }, settings })).toBe(
-      false,
-    )
-    expect(isHolidayProviderDraftDirty({ draft: { budget: '2500', token: 'x' }, settings })).toBe(
-      true,
-    )
-    expect(isHolidayProviderDraftDirty({ draft: { budget: '', token: '' }, settings })).toBe(true)
-    expect(isHolidayProviderDraftDirty({ draft: { budget: '3000', token: '' }, settings })).toBe(
-      true,
-    )
+  test('só espaços no lugar da chave e o orçamento como está gravado não são mudança', () => {
+    expect(
+      buildHolidayProviderSubmission({
+        draft: { budget: ' 2500 ', token: '   ' },
+        settings: buildProviderSettings(OWN_BUDGET),
+      }),
+    ).toEqual({ status: 'unchanged' })
   })
 })
 
