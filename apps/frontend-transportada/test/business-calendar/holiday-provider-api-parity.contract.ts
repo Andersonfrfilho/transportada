@@ -114,17 +114,16 @@ describe('chaves exatas das respostas: o painel iguala o fonte da API (spec 262 
   })
 
   test('as origens do orçamento e do liga/desliga são as que a API escreve', () => {
-    const budgetLines = SETTINGS_SCHEMA.split('\n').filter((line) => line.includes('budgetOrigin:'))
-    const budgetOrigins = budgetLines.flatMap((line) =>
-      [...line.matchAll(/'([a-z]+)'/g)].map((match) => match[1] ?? ''),
-    )
+    const budgetBlock =
+      /HOLIDAY_PROVIDER_BUDGET_ORIGIN = \{([^}]*)\}/.exec(TOKEN_CONSTANTS)?.[1] ?? ''
+    const budgetOrigins = [...budgetBlock.matchAll(/'([a-z]+)'/g)].map((match) => match[1] ?? '')
     const enablementOrigins = [
       ...(/const ENABLEMENT_ORIGIN = \{([^}]*)\}/.exec(ENABLEMENT_ROUTES)?.[1] ?? '').matchAll(
         /'([a-z]+)'/g,
       ),
     ].map((match) => match[1] ?? '')
 
-    expect(sorted([...new Set(budgetOrigins)])).toEqual(sorted(HOLIDAY_PROVIDER_BUDGET_ORIGINS))
+    expect(sorted(budgetOrigins)).toEqual(sorted(HOLIDAY_PROVIDER_BUDGET_ORIGINS))
     expect(sorted(enablementOrigins)).toEqual(sorted(HOLIDAY_ENABLEMENT_ORIGINS))
   })
 })

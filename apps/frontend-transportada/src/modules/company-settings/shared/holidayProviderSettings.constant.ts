@@ -19,7 +19,14 @@ export const HOLIDAY_PROVIDER_BUDGET_MIN = 1
 export const HOLIDAY_PROVIDER_BUDGET_MAX = 1_000_000
 
 /** `default`: ninguém definiu o orçamento e vale o padrão da instalação; `installation`: o administrador o definiu. */
-export const HOLIDAY_PROVIDER_BUDGET_ORIGINS = ['default', 'installation'] as const
+export const HOLIDAY_PROVIDER_BUDGET_ORIGIN = {
+  DEFAULT: 'default',
+  INSTALLATION: 'installation',
+} as const
+export const HOLIDAY_PROVIDER_BUDGET_ORIGINS = [
+  HOLIDAY_PROVIDER_BUDGET_ORIGIN.DEFAULT,
+  HOLIDAY_PROVIDER_BUDGET_ORIGIN.INSTALLATION,
+] as const
 
 /** `default`: a empresa nunca tocou no interruptor (a importação vem ligada); `company`: a empresa decidiu. */
 export const HOLIDAY_ENABLEMENT_ORIGINS = ['company', 'default'] as const

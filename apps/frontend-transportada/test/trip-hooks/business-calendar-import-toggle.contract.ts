@@ -77,7 +77,7 @@ describe('liga/desliga da importação da empresa (spec 262 T5.2)', () => {
     await waitFor(() => expect(callsOf(GET_STATUS, businessCalendarDouble.calls)).toHaveLength(2))
   })
 
-  it('enquanto grava, a caixa mostra o valor pedido e fica travada', async () => {
+  it('enquanto grava, a caixa mostra o valor pedido e não aceita outro clique (sem sair do foco)', async () => {
     businessCalendarDouble.failNext.set(PUT_ENABLEMENT, 'hold')
     await mountPanel()
     await waitFor(() => expect(toggle().checked).toBe(true))
@@ -85,8 +85,10 @@ describe('liga/desliga da importação da empresa (spec 262 T5.2)', () => {
     await click(toggle())
 
     expect(toggle().checked).toBe(false)
-    expect(toggle().disabled).toBe(true)
+    expect(toggle().disabled).toBe(false)
     expect(block().textContent).toContain('Salvando')
+    await click(toggle())
+    expect(callsOf(PUT_ENABLEMENT, businessCalendarDouble.calls)).toHaveLength(1)
   })
 
   it('religar manda `isEnabled: true`', async () => {

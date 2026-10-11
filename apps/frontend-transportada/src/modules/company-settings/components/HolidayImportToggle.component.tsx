@@ -45,19 +45,19 @@ export function HolidayImportToggle({ companyId, enabled }: HolidayImportToggleP
           <div className={styles.touchTarget}>
             <Checkbox
               checked={toggle.isChecked}
-              disabled={toggle.isSaving}
               label={t('providerSettings.toggle.label')}
               onChange={(checked) => void toggle.handleToggle(checked)}
             />
           </div>
           <p className={styles.hint}>{t('providerSettings.toggle.hint')}</p>
           <p className={styles.hint}>{t(`providerSettings.toggle.origin.${query.data.origin}`)}</p>
-          {toggle.isSaving ? (
-            <p className={styles.hint}>{t('providerSettings.toggle.saving')}</p>
-          ) : null}
-          {toggle.isSaved && !toggle.isSaving ? (
+          {toggle.isSaving || toggle.isSaved ? (
             <p className={styles.status} role="status">
-              {t('providerSettings.toggle.saved')}
+              {t(
+                toggle.isSaving
+                  ? 'providerSettings.toggle.saving'
+                  : 'providerSettings.toggle.saved',
+              )}
             </p>
           ) : null}
           {toggle.refusal === undefined ? null : <HolidayRefusal refusal={toggle.refusal} />}

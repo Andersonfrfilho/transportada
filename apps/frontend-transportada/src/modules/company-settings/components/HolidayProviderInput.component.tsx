@@ -6,7 +6,7 @@ import styles from '../styles/businessCalendar.module.css'
 import providerStyles from '../styles/holidayProviderSettings.module.css'
 
 type HolidayProviderInputControl = Readonly<{
-  autoComplete: 'off'
+  autoComplete: 'new-password' | 'off'
   inputMode?: 'numeric' | 'text'
   onChange: (value: string) => void
   placeholder?: string

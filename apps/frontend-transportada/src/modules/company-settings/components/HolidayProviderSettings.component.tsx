@@ -13,6 +13,7 @@ import businessCalendarStyles from '../styles/businessCalendar.module.css'
 
 import { HolidayImportToggle } from './HolidayImportToggle.component'
 import { HolidayProviderForm } from './HolidayProviderForm.component'
+import { HolidayProviderRemovalDialog } from './HolidayProviderRemovalDialog.component'
 import { HolidayProviderSummary } from './HolidayProviderSummary.component'
 import { HolidayRefusal } from './HolidayRefusal.component'
 
@@ -79,6 +80,7 @@ export function HolidayProviderSettings({
           )}
         </>
       )}
+      <HolidayProviderRemovalDialog actions={actions} />
       <HolidayImportToggle companyId={companyId} enabled={enabled} />
     </section>
   )

@@ -10,6 +10,7 @@ import { focusBusinessCalendarField } from '../shared/focusBusinessCalendarField
 import { HOLIDAY_PROVIDER_FIELD } from '../shared/holidayProviderSettings.constant'
 import {
   buildHolidayProviderSubmission,
+  isInstallationBudget,
   toInitialHolidayProviderDraft,
   type HolidayProviderField,
 } from '../shared/holidayProviderSettingsForm.service'
@@ -83,7 +84,7 @@ export function HolidayProviderForm({ actions, settings }: HolidayProviderFormPr
       <div className={styles.fields}>
         <HolidayProviderInput
           control={{
-            autoComplete: 'off',
+            autoComplete: 'new-password',
             onChange: (value) => edit(HOLIDAY_PROVIDER_FIELD.TOKEN, value),
             spellCheck: false,
             type: 'password',
@@ -116,7 +117,7 @@ export function HolidayProviderForm({ actions, settings }: HolidayProviderFormPr
           <Icon name="save" />
           {actions.isSaving ? t('providerSettings.form.saving') : t('providerSettings.form.save')}
         </Button>
-        {settings.budgetOrigin === 'installation' ? (
+        {isInstallationBudget(settings) ? (
           <Button
             onClick={() => edit(HOLIDAY_PROVIDER_FIELD.BUDGET, '')}
             type="button"

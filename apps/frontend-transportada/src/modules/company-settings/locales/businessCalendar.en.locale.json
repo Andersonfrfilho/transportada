@@ -312,7 +312,8 @@
     },
     "remove": {
       "action": "Remove key",
-      "prompt": "Remove the FeriadosAPI key? The import stops fetching until a new key is saved. The budget is kept and the holidays already imported stay.",
+      "title": "Remove the FeriadosAPI key?",
+      "body": "The import stops fetching until a new key is saved. The budget is kept and the holidays already imported stay.",
       "confirm": "Yes, remove the key",
       "cancel": "Cancel",
       "removing": "Removing…",

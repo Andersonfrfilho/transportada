@@ -2,6 +2,7 @@
 import {
   HOLIDAY_PROVIDER_BUDGET_MAX,
   HOLIDAY_PROVIDER_BUDGET_MIN,
+  HOLIDAY_PROVIDER_BUDGET_ORIGIN,
   HOLIDAY_PROVIDER_FIELD,
   HOLIDAY_PROVIDER_TOKEN_PATTERN,
 } from './holidayProviderSettings.constant'
@@ -25,12 +26,16 @@ type DraftInput = Readonly<{ draft: HolidayProviderDraft; settings: HolidayProvi
 
 const BUDGET_PATTERN = /^[0-9]{1,7}$/u
 
+export function isInstallationBudget(settings: HolidayProviderSettings): boolean {
+  return settings.budgetOrigin === HOLIDAY_PROVIDER_BUDGET_ORIGIN.INSTALLATION
+}
+
 /** O orçamento só abre preenchido quando o administrador o definiu; o padrão aparece como dica, nunca como valor. */
 export function toInitialHolidayProviderDraft(
   settings: HolidayProviderSettings,
 ): HolidayProviderDraft {
   return {
-    budget: settings.budgetOrigin === 'installation' ? String(settings.monthlyRequestBudget) : '',
+    budget: isInstallationBudget(settings) ? String(settings.monthlyRequestBudget) : '',
     token: '',
   }
 }
@@ -58,7 +63,7 @@ function listBlockedFields(draft: HolidayProviderDraft): readonly HolidayProvide
  */
 function resolveBudgetChange({ draft, settings }: DraftInput): number | null | undefined {
   const budget = draft.budget.trim()
-  const isExplicit = settings.budgetOrigin === 'installation'
+  const isExplicit = isInstallationBudget(settings)
   if (budget === '') return isExplicit ? null : undefined
   const value = Number(budget)
   return isExplicit && value === settings.monthlyRequestBudget ? undefined : value

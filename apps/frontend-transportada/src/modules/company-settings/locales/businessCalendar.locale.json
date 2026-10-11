@@ -312,7 +312,8 @@
     },
     "remove": {
       "action": "Remover chave",
-      "prompt": "Remover a chave da FeriadosAPI? A importação deixa de buscar até que uma nova chave seja salva. O orçamento é mantido e os feriados já importados continuam.",
+      "title": "Remover a chave da FeriadosAPI?",
+      "body": "A importação deixa de buscar até que uma nova chave seja salva. O orçamento é mantido e os feriados já importados continuam.",
       "confirm": "Sim, remover a chave",
       "cancel": "Cancelar",
       "removing": "Removendo…",

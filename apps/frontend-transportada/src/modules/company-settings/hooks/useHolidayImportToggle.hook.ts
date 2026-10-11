@@ -21,7 +21,9 @@ export function useHolidayImportToggle(input: ToggleInput) {
   const stored = query.data?.isEnabled
   const isChecked = mutation.isPending ? mutation.variables : stored
 
+  /** A caixa não fica desabilitada ao gravar (perderia o foco): um segundo clique durante o pedido é ignorado. */
   async function handleToggle(checked: boolean): Promise<void> {
+    if (mutation.isPending) return
     setRefusal(undefined)
     try {
       await mutation.mutateAsync(checked)

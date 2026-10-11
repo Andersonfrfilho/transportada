@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { formatCount, formatInstantDate } from '../shared/holidayImportFormat.service'
+import { HOLIDAY_PROVIDER_BUDGET_ORIGIN } from '../shared/holidayProviderSettings.constant'
 import type { HolidayProviderSettings } from '../shared/holidayProviderSettings.types'
 import styles from '../styles/holidayProviderSettings.module.css'
 
@@ -46,7 +47,7 @@ export function HolidayProviderSummary({ monthlyRequests, settings }: HolidayPro
             count: budget,
             value: formatCount({ language, value: budget }),
           })}
-          {settings.budgetOrigin === 'default' ? (
+          {settings.budgetOrigin === HOLIDAY_PROVIDER_BUDGET_ORIGIN.DEFAULT ? (
             <>
               {' '}
               <span className={styles.tag}>{t('providerSettings.budget.defaultTag')}</span>

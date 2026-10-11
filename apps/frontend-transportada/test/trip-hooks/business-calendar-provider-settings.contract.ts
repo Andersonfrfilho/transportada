@@ -21,6 +21,7 @@ import {
   buttonIn,
   callsOf,
   click,
+  dialog,
   endScenario,
   hasButtonIn,
   mountPanel,
@@ -58,6 +59,17 @@ function fieldBy(label: string): HTMLInputElement {
 /** A linha do orçamento no resumo: é onde a marca "padrão" aparece, e só quando ninguém definiu o valor. */
 function budgetFact(): string {
   return block().querySelector('[data-fact="budget"]')?.textContent ?? ''
+}
+
+/** A confirmação de remover é um diálogo modal fora do bloco (portal no `body`). */
+function dialogScope(): HTMLElement {
+  const opened = dialog()
+  if (opened === null) throw new Error('DIALOG_NOT_FOUND')
+  return opened
+}
+
+function dialogText(): string {
+  return dialog()?.textContent ?? ''
 }
 
 function tokenField(): HTMLInputElement {
@@ -194,7 +206,7 @@ describe('bloco da chave da FeriadosAPI: a chave nunca volta ao campo (CA12)', (
     await waitForText('Chave configurada')
     const field = fieldBy('Nova chave')
     expect(field.type).toBe('password')
-    expect(field.getAttribute('autocomplete')).toBe('off')
+    expect(field.getAttribute('autocomplete')).toBe('new-password')
     expect(field.getAttribute('spellcheck')).toBe('false')
     expect(field.value).toBe('')
   })
@@ -393,11 +405,11 @@ describe('bloco da chave da FeriadosAPI: remover a chave (RF11)', () => {
     await waitForText('Chave configurada')
 
     await click(buttonIn(block(), 'Remover chave'))
-    expect(blockText()).toContain('Remover a chave da FeriadosAPI?')
+    expect(dialogText()).toContain('Remover a chave da FeriadosAPI?')
     expect(callsOf(DELETE_TOKEN, businessCalendarDouble.calls)).toHaveLength(0)
 
-    await click(buttonIn(block(), 'Cancelar'))
-    expect(blockText()).not.toContain('Remover a chave da FeriadosAPI?')
+    await click(buttonIn(dialogScope(), 'Cancelar'))
+    expect(dialogText()).not.toContain('Remover a chave da FeriadosAPI?')
     expect(callsOf(DELETE_TOKEN, businessCalendarDouble.calls)).toHaveLength(0)
     expect(blockText()).toContain('Chave configurada (…1234)')
   })
@@ -408,7 +420,7 @@ describe('bloco da chave da FeriadosAPI: remover a chave (RF11)', () => {
     await waitForText('Chave configurada')
 
     await click(buttonIn(block(), 'Remover chave'))
-    await click(buttonIn(block(), 'Sim, remover a chave'))
+    await click(buttonIn(dialogScope(), 'Sim, remover a chave'))
 
     await waitForText('Nenhuma chave configurada')
     expect(callsOf(DELETE_TOKEN, businessCalendarDouble.calls)).toHaveLength(1)
@@ -427,7 +439,7 @@ describe('bloco da chave da FeriadosAPI: remover a chave (RF11)', () => {
     await waitForText('Chave configurada')
 
     await click(buttonIn(block(), 'Remover chave'))
-    await click(buttonIn(block(), 'Sim, remover a chave'))
+    await click(buttonIn(dialogScope(), 'Sim, remover a chave'))
 
     await waitFor(() => expect(blockText()).toContain('Seu perfil não tem permissão'))
     expect(blockText()).toContain('Chave configurada (…1234)')
