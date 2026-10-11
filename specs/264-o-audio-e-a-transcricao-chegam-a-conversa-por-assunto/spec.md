@@ -95,13 +95,14 @@ amostra conferida à mão. `base` entra só como piso de comparação. O resulta
 
 Vocabulário fechado, exposto por anexo de áudio:
 
-| Estado     | Quando                                                           | O que a tela mostra                                                                                    |
-| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `pending`  | áudio aceito, ainda não transcrito (inclui retentativa agendada) | player + "Transcrevendo…" discreto (anunciado uma vez, `aria-live="polite"`)                           |
-| `ready`    | texto gerado (pode ser vazio: silêncio é resultado, não falha)   | player + texto + "Transcrição gerada por máquina" (texto vazio: só "Nada foi dito no áudio" e o aviso) |
-| `failed`   | erro definitivo ou retentativas esgotadas                        | **só o player** (183 RF18: o player aparece sem o texto); nenhum alarme ao leitor                      |
-| `disabled` | a empresa desligou a transcrição                                 | **só o player**                                                                                        |
-| _ausente_  | áudio anterior à rotina, rotina não instalada, ou API antiga     | **só o player**                                                                                        |
+| Estado                         | Quando                                                           | O que a tela mostra                                                                                              |
+| ------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `pending`                      | áudio aceito, ainda não transcrito (inclui retentativa agendada) | player + "Transcrevendo…" discreto (anunciado uma vez, `aria-live="polite"`)                                     |
+| `ready`                        | texto gerado (pode ser vazio: silêncio é resultado, não falha)   | player + texto + "Transcrição gerada por máquina" (texto vazio: só "Nada foi dito no áudio" e o aviso)           |
+| `failed`                       | erro definitivo ou retentativas esgotadas                        | **só o player** (183 RF18: o player aparece sem o texto); nenhum alarme ao leitor                                |
+| `failed` com código `too_long` | áudio de 10 minutos ou mais (RF15)                               | player + aviso discreto "Transcrição só para áudios de menos de 10 minutos" (RF15); sem tentativa de transcrever |
+| `disabled`                     | a empresa desligou a transcrição                                 | **só o player**                                                                                                  |
+| _ausente_                      | áudio anterior à rotina, rotina não instalada, ou API antiga     | **só o player**                                                                                                  |
 
 O vocabulário do participante é **novo e próprio** (`conversation-contracts`); o `TranscriptionStatus` do operador
 (`pending|done|failed|unsupported`) **não muda** — mudar seria quebrar o operador (D1).
@@ -262,13 +263,19 @@ language?, engine?, generatedAt? }` com `status` ∈ D4. Ausente ⇒ nada desenh
 - **RF14** Erros conforme D8: retriável ⇒ `pending` com `next_attempt_at` em backoff, até 3 tentativas; definitivo ou
   esgotado ⇒ `failed` com código (`unsupported_format`, `too_long`, `empty_audio`, `object_missing`,
   `sha256_mismatch`, `engine_timeout`, `engine_failed`, `attempts_exhausted`). Nenhuma falha toca a mensagem.
-- **RF15** Áudio acima do teto de duração de transcrição (`AUDIO_TRANSCRIPTION_MAX_DURATION_MS`, padrão 10 min,
-  ajustado pela T0.2) vira `failed`/`too_long` sem rodar o motor.
+- **RF15** **Só áudios de menos de 10 minutos são transcritos** (decisão do dono, 2026-10-11). Áudio de 10 minutos ou
+  mais (`AUDIO_TRANSCRIPTION_MAX_DURATION_MS`, 600 000 ms; a comparação é `duração >= teto`) vira `failed`/`too_long`
+  sem rodar o motor, e o produto **avisa**: o bloco de transcrição do áudio mostra "Transcrição só para áudios de
+  menos de 10 minutos" (texto com o número vindo do teto, não fixo no JSX), em vez de calar. O aviso também consta
+  na tela de configurações da transcrição (RF17) e no `labels` do SDK (`transcriptionTooLong`, default em inglês).
+  O teto é só desta rotina: o áudio continua enviado, guardado e tocando normalmente. A T0.2 pode **baixar** o
+  teto se a medida exigir, nunca subi-lo sem aval do dono.
 - **RF16** Sem `AUDIO_TRANSCRIPTION_MODEL_PATH` (ou sem binário) a rotina **não é registrada** (boot verde,
   `job_run_routine_missing`, molde da 252) — nada fica `pending` para sempre: a API mostra só o player.
 - **RF17** Configuração por empresa: tela de configurações do painel ganha "Transcrever áudios das conversas"
-  (liga/desliga, `settings.manage`, padrão ligado), com a frase do que acontece ao desligar (D9). A mudança grava
-  trilha de auditoria (ator, empresa, valor, horário).
+  (liga/desliga, `settings.manage`, padrão ligado), com a frase do que acontece ao desligar (D9) e a frase do limite
+  ("Só áudios de menos de 10 minutos são transcritos", RF15). A mudança grava trilha de auditoria (ator, empresa,
+  valor, horário).
 - **RF18** Retenção (D10): áudio apagado ⇒ texto anulado pela rotina e nunca exposto.
 - **RF19** Todo texto novo em `pt-BR` e `en`: no SDK por `labels` (default em inglês, como a 263), nos apps em
   `.locale.json`.
@@ -329,8 +336,8 @@ language?, engine?, generatedAt? }` com `status` ∈ D4. Ausente ⇒ nada desenh
 
 ## Dúvidas
 
-Nenhuma `[NEEDS CLARIFICATION]`: as decisões do dono (D1, D2, D4, D6 parcial, "desligável") estão registradas, e o que
-não depende dele foi decidido por delegação e é revisável na revisão da spec — padrão **ligado** (D9), desligar
-**esconde** em vez de apagar (D9), sem backfill (D9), portal sem transcrição (D12), teto de 10 min (RF15). O que só a
-medida responde (modelo, cadência, RAM) é a T0.2, que **para e pergunta** se a medida mostrar que o worker não comporta
-o modelo aceitável (ver plano § d, "saída de emergência").
+Nenhuma `[NEEDS CLARIFICATION]`. As decisões do dono (D1, D2, D4, D6 parcial, "desligável") estão registradas, e as
+que o planejador tomou por delegação foram **confirmadas pelo dono em 2026-10-11**: padrão **ligado** (D9), desligar
+**esconde** em vez de apagar (D9), sem backfill (D9), portal sem transcrição (D12) e teto de transcrição de
+**menos de 10 minutos**, com aviso na tela (RF15). O que só a medida responde (modelo, cadência, RAM) é a T0.2, que
+**para e pergunta** se a medida mostrar que o worker não comporta o modelo aceitável (ver plano § d, "saída de emergência").

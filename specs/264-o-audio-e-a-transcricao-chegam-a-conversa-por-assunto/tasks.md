@@ -57,7 +57,8 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
       resolvida uma vez) substituindo o `<audio controls>` em `ParticipantAttachmentItem`. Aceite: `thread-audio-player`
       verde; nenhum outro ouro muda.
 - [ ] **T1.6** `sonnet` — `ParticipantAudioTranscription` (D4, aviso de máquina, recolher em 6 linhas, `aria-live`
-      só em `pending → ready`) + rótulos opcionais com defaults em inglês + CSS `.cv-p-audio*`/`.cv-p-transcription*`
+      só em `pending → ready`; estado `too_long`: aviso "só para áudios de menos de 10 minutos", RF15) + rótulos
+      opcionais com defaults em inglês (inclui `transcriptionTooLong`) + CSS `.cv-p-audio*`/`.cv-p-transcription*`
       com contraste ≥ 4,5:1 nos temas (helper `participantContrast`). Teste: nenhuma classe utilitária Tailwind.
 - [ ] **T1.7** `haiku` — Changesets minor (contracts e UI) em inglês com "Default markup and style change" (o `<audio>`
       nativo vira `.cv-p-audio`), README da visão do participante com o exemplo da prop; medida de bundle do
@@ -138,7 +139,7 @@ blob: <storage>` (hoje ausente); adapter mapeia `durationMs`/`transcription` só
 - [ ] **T5.1** `sonnet` — Contratos antes + implementação: `SubjectConversationPanel` passa a prop de gravação; adapter
       `subjectThreadApi.service.ts` mapeia os campos; a tela antiga da ocorrência **intocada** (contrato/ouro).
 - [ ] **T5.2** `sonnet` — Configurações: "Transcrever áudios das conversas" (`settings.manage`, frase do que acontece
-      ao desligar, D9), query/mutação, locales `pt-BR`/`en`, contrato.
+      ao desligar, D9, e a do limite de 10 minutos, RF15), query/mutação, locales `pt-BR`/`en`, contrato.
 - [ ] **T5.3** `sonnet` — Smoke Playwright do painel (gate local): gravar e enviar na conversa por assunto, ver a
       transcrição, desligar e ver só o player. Atualizar `apps/frontend-transportada/CLAUDE.md` e
       `docs/ai-context/frontend-transportada.md`.

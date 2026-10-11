@@ -87,7 +87,7 @@ Peças novas, todas `.cv-p-*`, sem Tailwind, sem dependência nova:
 - `ParticipantAudioPlayer.tsx`: `<audio preload="metadata">` controlado, tocar/pausar, `role="slider"` com
   `aria-valuetext`, posição/duração, velocidade 1×/1,5×/2× (`defaultPlaybackRate` + `playbackRate`), um áudio por
   vez por conversa (contexto da thread), URL resolvida **uma vez** por anexo.
-- `ParticipantAudioTranscription.tsx`: estados D4, aviso "gerada por máquina" sempre junto do texto, recolhe em 6
+- `ParticipantAudioTranscription.tsx`: estados D4 (e o aviso de `too_long`, RF15), aviso "gerada por máquina" sempre junto do texto, recolhe em 6
   linhas, anúncio `aria-live="polite"` só na troca `pending → ready`.
 - **Capacidade por ausência:** prop nova em `ConversationThread` e `ParticipantConversations` (molde:
   `audioRecording?: { maxDurationMs?: number; maxSizeBytes?: number }`; nome final na T0.1). Ausente ⇒ compositor
