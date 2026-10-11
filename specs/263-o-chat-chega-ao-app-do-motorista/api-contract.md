@@ -159,3 +159,11 @@ recente de um usuário do **escritório** (diferente do `driver_user_id` da conv
 app refazer a conversa **aberta**: ler não muda `lastMessageAt` nem `unreadCount`, então sem ele o ✓✓ azul só apareceria ao recarregar. Uma consulta
 em lote para a página inteira (`readOfficeReadAtByConversation`; a lista segue em 5 consultas com 1, 10 ou 30 conversas), sem migration. Aditivo: as
 rotas antigas da 183 e o schema do pacote de contratos não o conhecem; o app só o usa no snapshot do refresh de 15 s.
+
+## Áudio: duração e transcrição no anexo (emenda da spec 264)
+
+Aditivo, só nas rotas de mensagens por assunto (motorista e escritório, `GET` e `POST …/messages`): o anexo de áudio
+(`contentType` `audio/*`) pode trazer `durationMs` e `transcription` (`pending` · `ready` · `failed` · `disabled`). A forma,
+o mapper e a configuração `GET/PUT /company-settings/audio-transcription` estão em
+[`specs/264-*/contract.md`](../264-o-audio-e-a-transcricao-chegam-a-conversa-por-assunto/contract.md) §5. As rotas antigas
+`/me/.../occurrences/**`, a tela antiga da ocorrência e o portal `/client/**` não mudam.
