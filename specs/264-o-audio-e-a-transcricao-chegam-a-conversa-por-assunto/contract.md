@@ -3,7 +3,7 @@
 > Desenho do `architect` (opus), conferido em 2026-10-11 contra `adatechnology-packages@origin/main a7c5c85`
 > (`conversation-contracts@0.5.0`, `conversations-ui@0.9.0`) e contra `apps/*` da branch `work/spec-264`.
 > **Revisão 2** (mesmo dia): passe de correção depois da reprovação do revisor adversarial — achados H1–H4, M1–M8 e
-> LOWs, mapeados no §9. **É o contrato que as Fases 1–5 herdam.** Mudar aqui exige novo passe de arquitetura.
+> LOWs, mapeados no §9. **Revisão 3**: alinhamento entre documentos e três furos de desenho, mapeados no §10. **É o contrato que as Fases 1–5 herdam.** Mudar aqui exige novo passe de arquitetura.
 > Identificadores em inglês; defaults de rótulo do SDK em inglês (a tradução é do host).
 
 ## 0. O que a leitura do código mudou no plano
@@ -85,10 +85,19 @@ Regras que os testes da T1.1 prendem:
 `participantTranscriptionSchema.safeParse(raw.transcription)`; se falhar, o campo **some** daquele anexo e o resto da
 página segue (molde `readChannels`, `apps/frontend-driver/src/modules/conversation/shared/driverConversationsMapper.service.ts:81-87`:
 "um valor novo da API não pode derrubar a lista inteira"). O mesmo para `durationMs` (inteiro positivo ≤ teto, senão
-some). Vale para `driverConversationsMapper.service.ts` (motorista) e `subjectThreadApi.service.ts` (painel, que não
-usa zod direto: importa o schema de `@adatechnology/conversation-contracts`, que já é dependência direta,
-`apps/frontend-transportada/package.json:26`). Contrato de cada adapter com a tabela: válido passa; `status`
-desconhecido, `text` acima do teto, `generatedAt` sem fuso, `durationMs` negativo ⇒ campo ausente, página intacta.
+some).
+
+- **Motorista:** `driverConversationsMapper.service.ts`, no mapeamento de cada anexo.
+- **Painel:** a leitura da conversa por assunto passa por `toMessage`
+  (`apps/frontend-transportada/src/modules/occurrence-conversation/shared/subjectConversationClient.service.ts:94-108`),
+  que chama a guarda **compartilhada** `toConversationAttachments`
+  (`conversationAttachment.service.ts:159-181`, lista branca de cinco campos, usada também pela tela antiga). **Essa
+  guarda não muda** (a tela antiga continua byte a byte). O `toMessage` da conversa por assunto lê `transcription` e
+  `durationMs` **crus** de cada item de `value.attachments`, pelo `id`, e os valida com o schema do contracts (dependência
+  direta, `apps/frontend-transportada/package.json:26`), juntando-os ao anexo já guardado; o tipo do anexo da conversa
+  por assunto ganha os dois campos opcionais, o da tela antiga não.
+- Contrato de cada adapter com a tabela: válido passa; `status` desconhecido, `text` acima do teto, `generatedAt` sem
+  fuso, `durationMs` negativo ⇒ campo ausente, página intacta.
 
 **Ordem de publicação:** a da ADR-0081 §9, sem regra extra por motivo novo — com _strip_ e validação por anexo, app
 velho com API nova ignora o que não conhece. **`conversation-contracts` e `conversations-ui` sobem juntos nas três
@@ -135,21 +144,23 @@ export const DEFAULT_MAX_RECORDING_BYTES = 16 * 1024 * 1024
 | `idle`                                          | início; enviar; descartar                         | `requesting` (toque no microfone — permissão **só** no toque, RF4)                                                                                          |
 | `requesting`                                    | toque                                             | `recording` · `denied` (`NotAllowedError`/`SecurityError`) · `unsupported` (`NotFoundError`/`NotReadableError`/`OverconstrainedError`) · `idle` (cancelado) |
 | `recording`                                     | `getUserMedia` resolveu e `MediaRecorder.start()` | `review` (Parar; teto de duração; **interrupção**) · `empty` · `tooLarge` · `idle` (unmount)                                                                |
-| `review`                                        | `stop` com blob válido                            | `idle` (Enviar → `onSendAudio`; Descartar; unmount). Troca de aba/`pagehide` **pausa a reprodução e mantém** a gravação                                     |
+| `review`                                        | `stop` com blob válido                            | `idle` (Enviar → `onSendAudio`; Descartar; unmount). Interrupção **pausa a reprodução e mantém** a gravação                                                 |
 | `denied` · `unsupported` · `empty` · `tooLarge` | falha correspondente                              | `requesting` no próximo toque (a frase fica até lá)                                                                                                         |
 
-- **Interrupção em `recording`** = `visibilitychange` oculto, `pagehide`, `track.onended` ou `track.onmute` (chamada
-  telefônica no iOS corta a trilha): **para e vai a `review`** com o que foi gravado (nunca envia sozinho). Decisão do
-  dono (2026-10-11): em `review`, trocar de aba/`pagehide` **pausa** o player e **mantém** a gravação. Isso emenda o RF5.
+- **Interrupção** = `visibilitychange` oculto, `pagehide`, `track.onended`, ou `track.onmute` que **persiste por mais
+  de 3 s** (o Android emite `mute` transitório; `unmute` dentro de 3 s cancela). Em `recording`: **para e vai a
+  `review`** com o que foi gravado (nunca envia sozinho). Em `review`: **pausa** o player e **mantém** a gravação
+  (decisão do dono, 2026-10-11). Isso emenda o RF5.
 - **Unmount** (sair da conversa, trocar de assunto — `ConversationThread` remonta por `key`,
   `ConversationThread.tsx:116`): **descarta** em qualquer estado.
 - **Token de cancelamento do `getUserMedia`:** cada pedido leva um token; se o `getUserMedia` resolver depois de
   unmount, `pagehide`, oculto ou troca de assunto (token vencido), as trilhas recebidas levam `stop()` **na hora** e o
   estado volta a `idle` — o microfone nunca fica aceso sem gravação visível.
 - Em toda saída de `recording`/`review`: `track.stop()` em todas as trilhas e `URL.revokeObjectURL`.
-- **Trava de envio:** `isSendingRef` (ref, não estado) no Enviar áudio: o segundo toque **síncrono** é ignorado; a trava
+- **Envio (T1.4):** "Enviar áudio" chama `onSendAudio(file)` → `send({ files: [file] })` (§2); o **rascunho de texto e
+  `draft.files` ficam intocados**. **Trava** `isSendingRef` (ref, não estado): o segundo toque **síncrono** é ignorado;
   solta quando volta a `idle`. Teste: dois `click()` seguidos no mesmo tick ⇒ **um** `onSendAudio` e **uma** chamada a
-  `api.sendMessage`.
+  `api.sendMessage` (`useParticipantSend.ts:62` gera `randomUUID` por chamada; a idempotência do servidor não pega).
 
 ### 2.2 Desenho do compositor (`.cv-p-*`, sem Tailwind, ícones do `lucide-react` que o pacote já usa)
 
@@ -211,7 +222,7 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
     />
     <span class="cv-p-audio__time">0:12 / 1:05</span>
     <button type="button" class="cv-p-audio__rate" aria-label="{playbackRate}">1×</button>
-    <audio class="cv-p-audio__media" preload="none"></audio>
+    <audio class="cv-p-audio__media" preload="none" src="{url resolvida no mount}"></audio>
   </div>
   <span class="cv-p-attachment__name">{filename}</span>
   <!-- bloco de transcrição (§3.3), só com attachment.transcription válida -->
@@ -221,17 +232,22 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
 ### 3.2 Player `.cv-p-audio*`
 
 - Tocar/pausar: nome muda com o estado. **Um áudio por vez por conversa** (contexto interno da timeline).
-- Barra: **`<input type="range">` nativo estilizado** (teclado, toque e leitor de tela de graça; ←/→ do navegador).
-- **`preload="none"` sempre**: nenhum GET por bolha, nenhum dado do motorista gasto sem toque. O `src` só é atribuído
-  no primeiro toque (URL resolvida ali). Tempo: `durationMs` do servidor quando vier (mostrado sem rede); senão
-  `--:--` até o primeiro toque, e depois `loadedmetadata`. Antes da T4 o app não tem `media-src`: com `preload="none"`
-  a bolha não dispara erro de CSP só por aparecer.
+- Barra: **`<input type="range">` nativo estilizado** (teclado, toque e leitor de tela de graça).
+- **URL e `src`:** a URL é resolvida **no mount, por `attachment.id`** (efeito com dependência no id; revalidação não a
+  troca, RF8), e o `src` é atribuído assim que resolve, com **`preload="none"` sempre** — o navegador não baixa nada
+  até tocar, então nenhum GET de mídia por bolha e nenhum dado do motorista gasto sem toque. O toque chama
+  **`audio.play()` de forma síncrona** no handler do clique (o Safari do iPhone exige o gesto; nada de `await` antes do
+  `play()`). URL ainda não resolvida no toque: o botão fica `aria-busy` e toca quando chegar (sem gesto perdido: o
+  `play()` é feito no mesmo handler se a URL já existe, senão o toque é repetido pelo usuário — o caso é raro, a
+  resolução é local ao host).
+- **Erro de mídia** (`error` do `<audio>`, URL assinada vencida depois de 5 min): re-resolve **uma** vez, troca o
+  `src` e retoma da posição.
+- Tempo: `durationMs` do servidor quando vier (mostrado sem rede); senão `--:--` até o primeiro toque, e depois
+  `loadedmetadata`. Antes da T4 o app não tem `media-src`: com `preload="none"` a bolha não dispara erro de CSP só por
+  aparecer.
 - **Duração infinita/`NaN`** (WebM do Chromium sem cabeçalho): `aria-valuetext` só com a posição ("0:12"), `max`
-  provisório = maior posição já vista (cresce enquanto toca), tempo visível só com a posição. Quando o `durationMs`
-  do servidor chegar, ele vale.
+  provisório = maior posição já vista (cresce enquanto toca); quando o `durationMs` do servidor chegar, ele vale.
 - Velocidade: 1× → 1,5× → 2× → 1×, aplicando `defaultPlaybackRate` **e** `playbackRate`.
-- **URL estável (RF8):** resolvida no primeiro toque e guardada **por `attachment.id`** (revalidação não a troca);
-  erro de mídia/URL vencida ⇒ re-resolve **uma** vez e retoma da posição.
 - Piso de largura que mantém o tocar visível a 375 px; só tokens existentes (`--cv-p-i-accent`,
   `--cv-p-i-text-muted`, `--cv-p-i-border`, `--cv-p-i-touch`, `--cv-p-i-radius`); `ConversationsTheme` não muda.
 
@@ -248,17 +264,19 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
 - **Recolher em 6 linhas** (`-webkit-line-clamp: 6`); botão só depois de medir (`scrollHeight > clientHeight`); no
   SSR não há botão. Texto inteiro no DOM.
 - Aviso de máquina **junto** do texto (`aria-describedby` do texto para o aviso).
-- **Anúncio por região viva persistente da thread**, no molde de `ParticipantCopyAnnouncer.tsx` (o nó existe desde o
-  mount, vazio): na troca **observada neste mount** de `pending → ready` de um anexo, a região recebe
-  `transcriptionReady` ("Transcription ready"). Nada de `aria-live` no bloco da bolha (nó que nasce já com conteúdo não
-  é anunciado, e a revalidação recria nós). Histórico que já chega `ready` não anuncia.
+- **Anúncio pela região viva que a thread já tem**, sem nó `aria-live` novo (um nó novo mudaria os 9 ouros): o bloco
+  chama `useAnnounceCopy()` e a única região da conversa, `ParticipantThreadLive` (`ParticipantCopyAnnouncer.tsx`,
+  `div.cv-p-thread__live[role=status][aria-live=polite]`), fala `transcriptionReady` ("Transcription ready") na troca
+  **observada neste mount** de `pending → ready` de um anexo (memória por `attachment.id` num `ref`). Histórico que já
+  chega `ready` não anuncia. O texto inteiro não é anunciado.
 - Contraste ≥ 4,5:1 do texto e do aviso sobre as duas bolhas e nos dois temas (`participantContrast`).
 
 ### 3.4 Mudanças de padrão declaradas no changeset (`conversations-ui`, "Default markup and style change")
 
 1. O `<audio controls>` nativo vira o player `.cv-p-audio` (tocar/pausar, posição, velocidade).
-2. `preload` passa de `none` com controles nativos a `none` com `src` só no primeiro toque; a duração aparece depois do
-   primeiro toque quando o servidor não manda `durationMs`.
+2. `preload="none"` continua, agora sem controles nativos: a URL é resolvida no mount e o `src` atribuído com
+   `preload="none"`; nada é baixado antes do toque, e a duração só aparece depois do primeiro toque quando o servidor
+   não manda `durationMs`.
 3. O nome do arquivo passa a vir **depois** do player.
 4. A classe `cv-p-attachment__audio` deixa de ser renderizada (a regra CSS, `styles.css:1327`, fica até a próxima major).
 5. Tocar um áudio pausa o outro da mesma conversa.
@@ -331,13 +349,11 @@ Só nos quatro casos de uso por assunto: `list-my-subject-messages.use-case.ts:4
 `transcription?` (forma do §1). Enriquecimento **separado, depois** de `signConversationAttachments` — nunca dentro dele
 nem de `readConversationAttachments` (§6).
 
-- **Consultas (constantes por página, sem N+1):** página sem anexo de áudio ⇒ nenhuma. Com áudio ⇒ (1)
-  `enabled` da empresa (`select enabled from company_audio_transcription_settings where company_id = $1`; sem linha =
-  `true`) — consulta **própria**, para que empresa desligada **sem nenhuma linha de transcrição** ainda dê `disabled`;
-  (2) só se `enabled`, as linhas por `attachmentIds` (`inArray`). Provado na integração por contagem.
-- **Mapper puro `toParticipantTranscription(row | undefined, enabled)`** — a mesma tabela, espelhada num contrato da
-  API **que faz o parse da saída com `participantTranscriptionSchema`** (a API tem o contracts como referência de
-  forma; se não tiver a dependência, o contrato espelha os casos com asserção de forma):
+- **Consultas (constantes por página, sem N+1):** página sem anexo de áudio ⇒ nenhuma. Com áudio ⇒ (1) `enabled` da
+  empresa (`select enabled from company_audio_transcription_settings where company_id = $1`; sem linha = `true`) —
+  consulta **própria**, para que empresa desligada **sem nenhuma linha de transcrição** ainda dê `disabled`; (2) só se
+  `enabled`, as linhas por `attachmentIds` (`inArray`). Provado na integração por contagem.
+- **Mapper puro `toParticipantTranscription(row | undefined, enabled)`:**
 
 | Situação                             | Saída                                                                                                                       |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
@@ -351,9 +367,18 @@ nem de `readConversationAttachments` (§6).
 | `purged`                             | ausente                                                                                                                     |
 
 Nulos **nunca** viram `null` no JSON: chave omitida. `durationMs` = `attachments.duration_ms ??
-  transcriptions.audio_duration_ms`, só se inteiro positivo. Objeto `deleted` nem chega aqui
+transcriptions.audio_duration_ms`, só se inteiro positivo. Objeto `deleted` nem chega aqui
 (`drizzle-conversation-attachment.repository.ts:157`).
 
+- **A API não depende de `conversation-contracts` em produção.** Decisão: **tabela espelhada** em
+  `occurrence-conversation/domain/participant-transcription.constant.ts` (estados, motivo `too_long`, teto de 40 000
+  UTF-16, regex do idioma, `generatedAt` sempre por `toISOString()`) + **contrato de paridade** que importa
+  `participantTranscriptionSchema` e faz `parse` de cada saída do mapper e de cada linha da tabela de casos. Para isso o
+  pacote entra só como **`devDependency` em versão exata** da API, importado **apenas** por `test/**` (um contrato de
+  texto de fonte proíbe import em `src/**`). Justificativa do code-standart §13: pacote nosso, publicado, ativo,
+  tipagem nativa, zod, compatível com Bun, sem I/O; é a fonte da verdade da forma, então ler dele é o único jeito de a
+  paridade não envelhecer. Alternativa descartada: dependência de produção (acopla o deploy da API à versão do pacote
+  só para validar a própria saída).
 - Áudio recém-enviado (sem linha até o próximo ciclo) sai **ausente**, não `pending`: a API não sabe se a rotina está
   instalada (RF16).
 
@@ -362,63 +387,108 @@ Nulos **nunca** viram `null` no JSON: chave omitida. `durationMs` = `attachments
 O refresh de 15 s do app só revalida a conversa cujo resumo mudou em `lastMessageAt`, `unreadCount` ou `officeReadAt`
 (`apps/frontend-driver/src/modules/conversation/shared/conversationSnapshot.service.ts:22-42`); `pending → ready` não
 mexe em nenhum. **Decisão:** o resumo de `GET /me/trips/current/conversations` (e de `POST …/open`) ganha
-`transcriptionUpdatedAt?` (ISO) = `max(updated_at)` das transcrições dos anexos da conversa, **uma** consulta agrupada
-por página (`inArray` das conversas da página, junção mensagens → anexos → transcrições), aditivo como o `officeReadAt`
-da T5.5 (só da API e do app; o schema do contracts não o conhece). O `diffConversationSnapshots` passa a comparar
-também esse campo (T4.2). Ausente quando não há transcrição. O painel já relê a conversa aberta a cada 15 s
-(`SUBJECT_CONVERSATION_REFETCH_MS`) e não precisa dele.
+`transcriptionUpdatedAt?` (ISO) = `max(updated_at)` das transcrições da conversa, aditivo como o `officeReadAt` da
+T5.5 (só da API e do app; o schema do contracts não o conhece). O `diffConversationSnapshots` passa a comparar também
+esse campo (T4.2). Ausente quando não há transcrição.
+
+- **`conversation_id` desnormalizado** na tabela de transcrições (copiado da mensagem do anexo ao criar a linha; FK
+  composta com `company_id`), com índice `(company_id, conversation_id, updated_at)`: a consulta, que roda a cada 15 s
+  por motorista, é **uma** agregação `group by conversation_id` com `inArray` das conversas da página, sem junção com
+  mensagens e anexos.
+- **Toda escrita que muda o que a API expõe** (`status`, `text`, `audio_duration_ms`, `max_duration_ms`, expurgo) faz
+  **`updated_at = now()`**; sem isso o `max(updated_at)` não muda. A reivindicação (lease/tentativas) não precisa.
+- **Limitações aceitas:** (a) desligar/religar a empresa não mexe nas linhas, então o app só vê `disabled` (ou a volta
+  do texto) na próxima mudança real da conversa ou ao reabri-la; (b) como o `officeReadAt`, só a **primeira página** do
+  resumo entra no snapshot. O painel relê a conversa aberta a cada 15 s (`SUBJECT_CONVERSATION_REFETCH_MS`) e não
+  precisa do campo.
 
 ### 5.4 Fila offline do app com áudio (D13)
 
 Hoje o outbox de conversa (`conversationOutbox*.service.ts`) não tem teto. O contrato fixa
-`CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxTotalBytes: 48 MiB }` (três áudios do teto), conferido **antes** de
-gravar (molde `driver-trip/shared/offlineQueue.service.ts:78-83`, `EVENT_QUEUE_LIMIT`). Acima do teto, ou
-`QuotaExceededError` do IndexedDB capturado na escrita: a mensagem **não** entra na fila, a bolha local fica `failed`
-("falhou — tocar para reenviar", o arquivo segue em memória) e o app mostra "Fila cheia: conecte-se para enviar o que
-já está esperando." (`conversation.locale.json`, chave `outboxFull`). Nunca um erro cru.
+`CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxFileBytes: 48 MiB }`, conferido **antes** de gravar (molde
+`driver-trip/shared/offlineQueue.service.ts:78-83`, `EVENT_QUEUE_LIMIT`):
+
+- **`maxFileBytes` vale só para mensagem com arquivo** (soma dos arquivos já na fila + os novos). **Texto entra sempre**
+  até `maxCount`: o motorista sem sinal deixa um "cheguei" mesmo com a cota de áudio cheia.
+- Acima do teto, ou `QuotaExceededError` do IndexedDB capturado na escrita: a mensagem **não** entra na fila, a bolha
+  local fica `failed` ("falhou — tocar para reenviar") e o app mostra "Fila cheia: conecte-se para enviar o que já está
+  esperando." (`conversation.locale.json`, chave `outboxFull`). Nunca um erro cru.
+- **A mensagem recusada fica só em memória**: tocar para reenviar funciona enquanto a página está aberta; **recarregar
+  a perde**. Limitação declarada aqui e no `CLAUDE.md` do app (T4.4).
 
 ### 5.5 Tabelas (insumo da T2.1; o plano § c vale, com estes ajustes)
 
-- `occurrence_conversation_audio_transcriptions`, além do plano: **`lease_token uuid`** (nulo fora de posse);
-  **`max_duration_ms integer`** (teto aplicado, só em `too_long`: `check ((coalesce(failure_code, '') = 'too_long') =
-(max_duration_ms is not null))`); `check (text is null or char_length(text) <= 20000)` — **20 000 code points**
-  (`char_length` do Postgres conta caracteres), e o worker corta por code point (`Array.from(text).slice(0, 20000)`, em
-  fronteira de palavra); no JSON isso cabe nos 40 000 UTF-16 do contrato (teste com emoji/astral). `failure_code` (CHECK
-  de lista fechada) = RF14 **+ `company_disabled`**.
+- `occurrence_conversation_audio_transcriptions`, além do plano: **`conversation_id uuid not null`** (§5.3) com índice
+  `(company_id, conversation_id, updated_at)`; **`lease_token uuid`** (nulo fora de posse); **`max_duration_ms
+integer`** (teto aplicado, só em `too_long`: `check ((coalesce(failure_code, '') = 'too_long') = (max_duration_ms is
+not null))`); `check (text is null or char_length(text) <= 20000)` — **20 000 code points** (`char_length` conta
+  caracteres), e o worker corta por code point (`Array.from(text).slice(0, 20000)`, em fronteira de palavra); no JSON
+  isso cabe nos 40 000 UTF-16 do contrato (teste com emoji/astral). `failure_code` (CHECK de lista fechada) = RF14
+  **+ `company_disabled`**.
 - `company_audio_transcription_settings`: `company_id` PK/FK, `enabled boolean not null default true`,
   `enabled_since timestamptz not null default now()`, **`routine_started_at timestamptz`** (nulo até a rotina ver a
   empresa), `updated_by_user_id uuid` (nulo = criada pela rotina), `updated_at`.
+- **Índice parcial novo em `occurrence_conversation_attachments`**: `(created_at) where content_type like 'audio/%'`
+  — a descoberta varre os anexos de áudio recentes a cada ciclo.
 
 ### 5.6 Rotina `conversation.audio.transcribe` (insumo da T3.3/T3.4)
 
 1. **Marco (D9):** no início do ciclo, `insert … select id, true, now(), now() from companies on conflict do nothing`
    (empresas sem linha) e `update … set routine_started_at = now() where routine_started_at is null` (linha criada por
-   `PUT` antes de a rotina existir). Isso materializa "gravado na primeira execução".
-2. **Descoberta:** cria `pending` com `insert … on conflict (company_id, attachment_id) do nothing` para anexo
+   `PUT` antes de a rotina existir).
+2. **Varredura de esgotados:** `update … set status = 'failed', failure_code = 'attempts_exhausted', lease_token =
+null, updated_at = now() where status = 'pending' and attempts >= 3 and (lease_expires_at is null or
+lease_expires_at < now())` — o áudio que derruba o processo a cada tentativa não gira para sempre.
+3. **Descoberta:** cria `pending` com `insert … on conflict (company_id, attachment_id) do nothing` para anexo
    `audio/*` sem linha, de empresa `enabled`, com `attachment.created_at >= greatest(enabled_since,
-routine_started_at)` **e** `attachment.created_at >= now() - interval '72 hours'` (**janela máxima de
-   recuperação**: rotina que volta depois de dias parada não satura a CPU com o atraso; o mais velho fica só com player).
-3. **Reivindicação:** `update … set lease_token = gen_random_uuid(), lease_expires_at = now() + (timeout + 60 s),
-attempts = attempts + 1 where id in (select id … where status = 'pending' and next_attempt_at <= now() and
-(lease_expires_at is null or lease_expires_at < now()) order by next_attempt_at limit $batch for update skip locked)
-returning …`. **`attempts` sobe na reivindicação** (processo morto também conta).
-4. **Por linha** (toda escrita `where id = $id and lease_token = $token`; 0 linhas = perdeu a posse, descarta o
+routine_started_at)` **e** `attachment.created_at >= now() - AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (**janela de
+   recuperação**, env do worker, padrão **72 h**; regra de produto nova, ver D9 e §8).
+4. **Reivindicação por linha:** dentro do lote, **uma linha de cada vez** (reivindica, processa, reivindica a
+   seguinte), cada uma com o próprio lease: `update … set lease_token = gen_random_uuid(), lease_expires_at = now() +
+(timeout + 60 s), attempts = attempts + 1 where id = (select id … where status = 'pending' and attempts < 3 and
+next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now()) order by next_attempt_at limit
+1 for update skip locked) returning …`. **`attempts` sobe na reivindicação** (processo morto também conta).
+5. **Por linha** (toda escrita `where id = $id and lease_token = $token`; 0 linhas = perdeu a posse, descarta o
    resultado): empresa desligada ⇒ `failed`/`company_disabled` sem motor; objeto `deleted` ⇒ `purged`; baixa pela linha,
-   confere `sha256`; **mede com `ffprobe`** (vem no `apk add ffmpeg`); sem duração no cabeçalho (WebM do Chromium) ⇒
-   decodifica com `ffmpeg -t <teto + 1 s> -f null -` e mede o que decodificou; `duração >= teto` ⇒ `failed`/`too_long`
-   com `max_duration_ms`, **sem chamar o transcritor**; grava `audio_duration_ms` em todo caso medido; só então o motor
-   com `languageHint: 'pt'`; `ready` grava `text` (cortado), `language` = a dica, `engine`, `model`, `processing_ms`,
-   `generated_at = now()`.
-5. **Erro:** retriável ⇒ `pending`, `next_attempt_at` = 1 / 5 / 30 min conforme `attempts`; com `attempts >= 3` ⇒
+   confere `sha256`; **mede com `ffprobe`** (vem no `apk add ffmpeg`), **com timeout próprio** (padrão 15 s) sobre
+   arquivo que pode ser hostil; sem duração no cabeçalho (WebM do Chromium) ⇒ decodifica com `ffmpeg -t <teto + 1 s>
+-f null -`, **também com timeout** (padrão 60 s), e mede o que decodificou; estouro de timeout na medida é
+   retriável (`engine_timeout`, conta tentativa); `duração >= teto` ⇒ `failed`/`too_long` com `max_duration_ms`, **sem
+   chamar o transcritor**; grava `audio_duration_ms` em todo caso medido; só então o motor com `languageHint: 'pt'`;
+   `ready` grava `text` **sem U+0000** (o `text` do Postgres recusa NUL) e cortado (§5.5), `language` = a dica,
+   `engine`, `model`, `processing_ms`, `generated_at = now()`.
+6. **Erro:** retriável ⇒ `pending`, `next_attempt_at` = 1 / 5 / 30 min conforme `attempts`; com `attempts >= 3` ⇒
    `failed`/`attempts_exhausted`. Definitivo ⇒ `failed` com o código. Alerta conta `failed` **exceto**
    `company_disabled`.
-6. **Expurgo:** `ready` com objeto `deleted` ⇒ `text = null`, `purged`.
+7. **Expurgo:** `ready` com objeto `deleted` ⇒ `text = null`, `purged`.
+8. Toda mudança de `status`/`text`/duração/teto: `updated_at = now()` (§5.3).
 
 ### 5.7 Emenda de `company_disabled`
 
 D4 proíbe gravar `disabled` (é derivado). A pendente encerrada porque a empresa desligou vira **`failed` com código
-`company_disabled`** — gravado como falha, mostrado como `disabled` enquanto desligada e como `failed` comum (só o
+`company_disabled`** — gravada como falha, mostrada como `disabled` enquanto desligada e como `failed` comum (só o
 player) depois de religar, o que é exatamente "sem backfill". Emendados RF14 e os Casos extremos da spec.
+
+### 5.8 A transcrição não segura as outras rotinas — **executor dedicado em processo**
+
+O consumidor de job-run é serial: espera o ciclo da rotina terminar antes do `ack`
+(`apps/worker-transportada/src/runtime/job-run-consumer.service.ts:57`), com `WORKER_PREFETCH` padrão 1
+(`environment.schema.ts:153`). Uma transcrição de minutos dentro do ciclo seguraria canhoto, planta e prévia pelo tempo
+dela. **Decisão:** o ciclo da rotina `conversation.audio.transcribe` faz só os passos 1–3 (rápidos, SQL) e **entrega**
+ao `AudioTranscriptionRunner`, um executor em processo com **trava de uma execução** (_single-flight_): se ele já está
+rodando, o ciclo só registra `already_running`; se não, ele começa sem ser aguardado e o ciclo dá `ack` na hora (o
+resultado do job-run registra quantas linhas havia para reivindicar). O executor processa os passos 4–8 linha a linha
+até esvaziar o lote ou atingir `AUDIO_TRANSCRIPTION_BATCH_SIZE`. O estado durável é a tabela (lease), então um worker
+que morre no meio é recuperado pelo lease no ciclo seguinte; `SIGTERM` interrompe o processo filho e solta o lease
+(volta a `pending` sem gastar tentativa extra além da já contada).
+
+- **Por que não as outras saídas:** fila/consumidor RabbitMQ dedicado exige topologia nova e outro trilho de retry para
+  o que a tabela já resolve; orçamento de tempo por ciclo não ajuda (uma transcrição de 5 min não se divide); prefetch
+  maior com trava por rotina muda o comportamento de **todas** as rotinas do worker.
+- **Teste (T3.3):** transcritor falso que só termina quando o teste solta; com ele preso, um job-run de
+  `trip.canhoto.read` publicado depois é processado e confirmado **antes** de a transcrição terminar; um segundo ciclo
+  da transcrição com o executor ocupado não começa outra execução. A T0.2 mede o impacto real no canhoto (CPU) e pode
+  ajustar `BATCH_SIZE`/threads.
 
 ## 6. D12 — a tela antiga da ocorrência **não** usa o mesmo serializador
 
@@ -446,14 +516,20 @@ player) depois de religar, o que é exatamente "sem backfill". Emendados RF14 e 
 | `review` pausa ao trocar de aba; `recording` interrompido vai a `review`                   | Decisão do dono: o recado gravado não se perde por uma chamada ou troca de app              | Descartar (rev. 1)                                                                                           |
 | Microfone no lugar do enviar, `type=button`                                                | Padrão conhecido; dentro do form um `submit` enviaria vazio                                 | Botão fixo a mais na linha de 375 px                                                                         |
 | `<input type="range">` no player                                                           | Acessibilidade nativa                                                                       | `div role=slider` com teclado próprio                                                                        |
-| `preload="none"` sempre, `src` no primeiro toque                                           | Zero GET por bolha; sem erro de CSP antes da T4                                             | `preload="metadata"`: gasta dados do motorista                                                               |
-| Região viva persistente por thread                                                         | Nó criado com conteúdo não é anunciado; revalidação recria nós                              | `aria-live` no bloco da bolha                                                                                |
 | `transcriptionUpdatedAt` no resumo do motorista                                            | Reaproveita o diff de snapshot que já existe (T5.5); uma consulta por página                | Reler a thread aberta enquanto houver `pending`: só cobre a thread aberta e é mais um laço de polling        |
 | `enabled_since` + `routine_started_at` por empresa, janela de 72 h                         | Cobre religar, `PUT` antes da rotina e rotina que volta depois de dias                      | Constante da migration                                                                                       |
 | Duas consultas constantes (configuração, depois linhas)                                    | Empresa desligada sem linha de transcrição dá `disabled`                                    | Junção a partir das linhas (perde o `enabled` quando não há linha)                                           |
 | `lease_token` + `attempts` na reivindicação                                                | Só quem tem a posse grava; processo morto conta tentativa                                   | Só `lease_expires_at`                                                                                        |
 | Teto do outbox 100 itens / 48 MiB, recusa antes de gravar                                  | Áudio enche o IndexedDB do iPhone; nunca `QuotaExceededError` cru                           | Fila sem teto                                                                                                |
 | contracts e UI sobem juntos                                                                | Duas cópias do contracts descartam os campos em silêncio                                    | Subir só o UI                                                                                                |
+| Leitura do painel no `toMessage` da conversa por assunto, guarda compartilhada intocada    | A tela antiga continua byte a byte                                                          | Ampliar `toConversationAttachments` (mudaria a tela antiga)                                                  |
+| Tabela espelhada na API + paridade contra o contracts como `devDependency` só de teste     | A paridade lê a fonte da verdade e não envelhece; produção não acopla à versão do pacote    | Dependência de produção; tabela espelhada sem paridade                                                       |
+| `conversation_id` desnormalizado + `updated_at` em toda mudança exposta                    | `transcriptionUpdatedAt` a cada 15 s por motorista sem junção                               | Juntar mensagens → anexos → transcrições a cada refresh                                                      |
+| Executor em processo com trava de uma execução                                             | Canhoto, planta e prévia não esperam uma transcrição de minutos                             | Fila RabbitMQ dedicada; orçamento por ciclo; prefetch maior                                                  |
+| Varredura de `attempts >= 3` + reivindicação filtrando `attempts < 3`, lease por linha     | Áudio que mata o processo não gira para sempre; o lease cobre só a linha em curso           | Lease único para o lote                                                                                      |
+| Teto de bytes do outbox só para mensagem com arquivo                                       | O "cheguei" de texto sempre entra                                                           | Teto de bytes para tudo                                                                                      |
+| Região viva existente (`useAnnounceCopy`)                                                  | Nó `aria-live` novo mudaria os 9 ouros                                                      | Região própria do bloco de transcrição (rev. 2)                                                              |
+| URL no mount + `preload="none"` + `play()` síncrono                                        | Zero download sem toque; Safari exige o gesto                                               | Resolver a URL no toque (o `await` perde o gesto no iOS)                                                     |
 
 ## 8. O que a T0.1 não fecha
 
@@ -462,7 +538,10 @@ para a task dona:
 
 1. **Cadência real do agendador** e o atraso até o "Transcrevendo…" (≤ 1 ciclo) — T0.2.
 2. **Teto de duração:** se a T0.2 baixar, só em **minutos inteiros** (a frase usa `floor(ms / 60000)`).
-3. **Janela de 72 h** e **teto do outbox (100 / 48 MiB)**: valores iniciais, conferidos na T6.3 e na T7.1 (iPhone).
+3. **Janela de recuperação de 72 h** (`AUDIO_TRANSCRIPTION_RECOVERY_WINDOW`): é **regra de produto nova** — estreita o
+   D6 ("todo áudio") para "todo áudio de até 72 h quando a rotina o encontra". Registrada no D9; **confirmar com o dono
+   antes da publicação em produção** (não bloqueia a Fase 1). O **teto do outbox (100 itens / 48 MiB de arquivo)** é
+   valor inicial, conferido na T6.3 e na T7.1 (iPhone).
 4. **Formato e duração no Safari do iPhone**; `track.onmute` numa chamada real — T7.1.
 5. **Bolha pendente sem player local** — revisão de design (T7.1).
 6. **Modelo, RAM, tempo** — T0.2 (ADR-0103).
@@ -487,3 +566,22 @@ para a task dona:
 | LOW SPA na detecção, vista pura                                                                                                     | §2 (detecção), §2.3                                                                                                       |
 | LOW contracts e UI juntos                                                                                                           | §1 (ordem), tasks T4.1                                                                                                    |
 | LOW `media-src` antes da T4                                                                                                         | §3.2 (`preload="none"`)                                                                                                   |
+
+## 10. Revisão 3 — item → onde ficou resolvido
+
+| Item                                                                                                                                                   | Onde                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| A. `tasks.md` alinhado ao contrato (T1.1, T1.3–T1.7 citam a seção)                                                                                     | tasks T1.1 (§1), T1.3 (§2.1), T1.4 (§2, §2.1), T1.5 (§3.2), T1.6 (§3.3, §4), T1.7 (§3.4) |
+| A. `plan.md` § a/§ b corrigidos (sem `.strict()`/`refine`, sem `draft.files`, interrupções, `preload="none"`, `input range`, `playAudio`/`pauseAudio`) | plan § a, § b                                                                            |
+| A. spec: `.strict()` só em requisição; D9 com o marco decidido                                                                                         | spec RNF Segurança, D9                                                                   |
+| B. Região viva existente, sem nó novo                                                                                                                  | §3.3 (`useAnnounceCopy` → `ParticipantThreadLive`)                                       |
+| B. URL no mount, `preload="none"`, `play()` síncrono, re-resolver em erro                                                                              | §3.1, §3.2, §3.4 item 2                                                                  |
+| B. Painel lê no `toMessage`, guarda compartilhada intocada                                                                                             | §1 (Validação nos adapters)                                                              |
+| B. API sem dependência de produção do contracts                                                                                                        | §5.2 (tabela espelhada + paridade como `devDependency` de teste)                         |
+| B. `updated_at` em toda mudança exposta; limitações; `conversation_id` desnormalizado                                                                  | §5.3, §5.5, §5.6 passo 8                                                                 |
+| C1. `attempts < 3` + varredura; lease por linha; sem U+0000; timeout no `ffprobe`/`ffmpeg`                                                             | §5.6 passos 2, 4, 5                                                                      |
+| C2. Consumidor serial                                                                                                                                  | §5.8 (executor em processo, trava de uma execução, teste com o canhoto)                  |
+| C3. Outbox: bytes só para arquivo; recusada só em memória                                                                                              | §5.4                                                                                     |
+| Índice parcial de áudio em `attachments`                                                                                                               | §5.5, tasks T2.1                                                                         |
+| Janela de 72 h configurável, regra nova, confirmar com o dono                                                                                          | §5.6 passo 3, §8 item 3, spec D9                                                         |
+| `onmute` só conta se persistir > 3 s                                                                                                                   | §2.1                                                                                     |
