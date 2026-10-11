@@ -175,17 +175,20 @@ rotina não é registrada), `AUDIO_TRANSCRIPTION_THREADS` (padrão: vCPU − 1, 
 **Rotina** `conversation.audio.transcribe` (cadência alvo 1 min; se o agendador só der 5 min, a T0.2 registra e a spec
 aceita) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
 `on conflict do nothing` para anexos `audio/*` sem linha, depois de `greatest(enabled_since, routine_started_at)` e
-dentro da janela de 72 h, de empresa ligada; (2) reivindica até `BATCH_SIZE` com `FOR UPDATE SKIP LOCKED`, novo
-`lease_token`, lease de `timeout + 60 s` e `attempts + 1`; (3) por linha (escrita só `where lease_token = $x`):
+dentro da janela de 72 h, de empresa ligada; (2) reivindica **uma linha por vez**, até `BATCH_SIZE` por execução, com
+`FOR UPDATE SKIP LOCKED`, novo `lease_token`, lease que cobre todas as etapas (motor + `ffprobe` + decodificação +
+download + margem) e `attempts + 1`; (3) por linha (escrita só `where lease_token = $x`):
 empresa desligada ⇒ `failed`/`company_disabled`; objeto `deleted` ⇒ `purged`; baixa pela linha, confere `sha256`,
 **mede com `ffprobe`** (com timeout; sem cabeçalho de duração: decodifica com `ffmpeg -t teto+1s`, também com timeout),
 `too_long` **sem chamar o transcritor**; texto sem U+0000; a reivindicação filtra `attempts < 3`, uma varredura no início
 do ciclo fecha `attempts >= 3` como `attempts_exhausted`, e o lease é **por linha**; o trabalho pesado roda num
 **executor em processo com trava de uma execução**, fora do ciclo serial do job-run (`contract.md` §5.8); janela de
 recuperação `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (72 h, regra nova a confirmar com o dono antes de produção); o motor devolve só `{ text, engine, language }`, e `language` é a dica `pt`, não detecção; (4) expurgo: `ready` com objeto
-`deleted` ⇒ `text = null`, `purged`. Um áudio por vez (CPU); o processo filho mantém o event loop livre para o health
-e as outras rotinas. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo real; alerta
-quando `failed` > 0 na hora ou `pending` mais velho que 15 min.
+`deleted` ⇒ `text = null`, `purged`. Um áudio por vez, fora do ciclo serial do job-run (executor do `contract.md`
+§5.8: catálogo nas três cópias, desfechos `completed`/`already_running`/`runner_lock_expired`, contadores da execução
+anterior no ciclo seguinte, soltura graciosa no `SIGTERM` que devolve a tentativa); o impacto em CPU nas outras rotinas
+é medida da T0.2, não premissa. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo
+real; alerta quando `failed` (**exceto `company_disabled`**) > 0 na hora ou `pending` mais velho que 15 min.
 
 **Spike T0.2 (🧠, decide e escreve a ADR-0103 aceita):** no runner do Railway (serviço de staging temporário com o
 mesmo plano do worker), medir para `base` (piso), `small`, `small-q5_1`, `large-v3-turbo`, `large-v3-turbo-q5_0`:
