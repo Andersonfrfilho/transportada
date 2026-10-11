@@ -15,7 +15,7 @@ import type {
  * Chaves exatas com `toHolidayProviderSettingsView` da API (`holiday-provider-settings.schema.ts`): a chave, o envelope
  * e quem alterou não fazem parte do contrato, então uma chave a mais — a prova de que algo secreto vazou — é recusada.
  */
-const SETTINGS_KEYS = [
+export const PROVIDER_SETTINGS_KEYS = [
   'budgetOrigin',
   'monthlyRequestBudget',
   'tokenConfigured',
@@ -24,7 +24,7 @@ const SETTINGS_KEYS = [
   'updatedAt',
   'version',
 ] as const
-const ENABLEMENT_KEYS = ['isEnabled', 'origin'] as const
+export const ENABLEMENT_KEYS = ['isEnabled', 'origin'] as const
 
 function isOneOf(value: unknown, options: readonly string[]): boolean {
   return options.some((option) => option === value)
@@ -32,7 +32,7 @@ function isOneOf(value: unknown, options: readonly string[]): boolean {
 
 export function isHolidayProviderSettings(value: unknown): value is HolidayProviderSettings {
   return (
-    hasExactKeys(value, SETTINGS_KEYS) &&
+    hasExactKeys(value, PROVIDER_SETTINGS_KEYS) &&
     isOneOf(value.budgetOrigin, HOLIDAY_PROVIDER_BUDGET_ORIGINS) &&
     isNumber(value.monthlyRequestBudget) &&
     typeof value.tokenConfigured === 'boolean' &&
