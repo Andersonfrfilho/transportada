@@ -52,8 +52,8 @@
       (`thread-audio-player`, `thread-audio-transcription-{pending,ready,empty}`, `composer-audio-{idle,recording,
 review,denied}`).
 - [ ] **T1.3** `sonnet` — `contract.md` §0.1, §2.1, §2.3: extrair `src/audioRecorderFormat.ts` (reexportado pelo
-      `AudioRecorderButton`, ouro do operador intacto); `useParticipantAudioRecorder` (estados `idle/requesting/
-    recording/review/denied/unsupported/empty/tooLarge`, teto de duração) + `ParticipantAudioRecorderView` pura.
+      `AudioRecorderButton`, ouro do operador intacto); `useParticipantAudioRecorder` (estados `idle`, `requesting`, `recording`, `review`,
+      `denied`, `unsupported`, `empty`, `tooLarge`; teto de duração) + `ParticipantAudioRecorderView` pura.
       Interrupção = `visibilitychange` oculto, `pagehide`, `track.onended` ou `track.onmute` **que persiste > 3 s**:
       em `recording` ⇒ para e vai a `review`; em `review` ⇒ **pausa e mantém**; unmount ⇒ descarta. **Token de
       cancelamento** no `getUserMedia` (resolveu depois de sair ⇒ `stop()` imediato das trilhas). `track.stop()` e
