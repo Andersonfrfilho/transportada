@@ -38,3 +38,17 @@ ajudante que falta precisam de troca com a viagem na rua, sem refazer a viagem e
 - Ações offline pendentes do motorista que saiu são recusadas (403/404); o escritório dá baixa em
   nome de quem está na tripulação.
 - Sem push nem sino de atribuição (spec 217 D9).
+
+## Emenda de 2026-10-08 — a viagem concluída também troca de tripulação
+
+O usuário acrescentou `completed` à janela (commit `2e1ac3f74`) para **corrigir quem de fato dirigiu**
+numa viagem já terminada. A decisão 1 passa a ser: `transferCrew` em `dispatched`, `in_transit`,
+`on_delivery_route` e `completed`; `cancelled` e tudo antes do despacho seguem recusados.
+
+- **O resultado congelado não muda.** A transferência não grava em `trip_financial_results` nem em
+  `trip_financial_parcels` (verificado no código). O custo do evento é a conta ao vivo (decisão 3),
+  então a diferença de uma viagem concluída pode divergir do resultado já congelado dela.
+- **O resumo por motorista migra.** `financial-summary.query.ts` une o resultado congelado ao
+  `trip_drivers` atual: numa viagem concluída, o total por motorista aponta para a tripulação nova.
+  É o mesmo risco já registrado, agora com efeito sobre período fechado.
+- A função `isCrewTransferable` continua sendo a única fonte da janela.
