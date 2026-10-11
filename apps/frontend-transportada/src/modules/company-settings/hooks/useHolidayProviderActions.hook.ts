@@ -34,7 +34,7 @@ export function useHolidayProviderActions(input: ActionsInput) {
   async function save(body: SaveHolidayProviderSettingsInput): Promise<string | undefined> {
     dismissFeedback()
     try {
-      await saveMutation.mutateAsync(body)
+      await saveMutation.saveSettings(body)
       return undefined
     } catch (error) {
       const described = describeBusinessCalendarRefusal(error)
