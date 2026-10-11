@@ -231,9 +231,12 @@ aparece, nada é transcrito, e os textos já gerados somem da tela.
 - **RF4** Microfone **negado** ⇒ frase "Sem permissão para usar o microfone." e o botão volta ao estado inicial; o
   anexo de arquivo e o texto continuam valendo. Navegador **sem** `MediaRecorder`/`getUserMedia` ⇒ o microfone **não
   aparece**. Permissão nunca é pedida antes do toque.
-- **RF5** Sair da conversa, trocar de aba do app, bloquear a tela ou receber chamada durante a gravação **para e
-  descarta** a gravação (nada é enviado sozinho) e libera o microfone (`track.stop()`); a gravação conta como captura
-  aberta no `captureRegistry` do app (não recarregar a página no meio).
+- **RF5** Trocar de aba do app, bloquear a tela (`pagehide`/oculto) ou receber chamada (trilha encerrada/muda) durante
+  a gravação **para** a gravação e a leva à revisão com o que foi gravado (nada é enviado sozinho); na revisão, essas
+  mesmas interrupções **pausam** a reprodução e **mantêm** a gravação (decisão do dono, 2026-10-11). Sair da conversa
+  (unmount) **descarta**. Em toda saída, o microfone é liberado (`track.stop()`), inclusive quando a permissão resolve
+  depois de sair (token de cancelamento, `contract.md` §2.1). A gravação conta como captura aberta no `captureRegistry`
+  do app (não recarregar a página no meio).
 - **RF6** Offline: o áudio enviado sem rede entra no outbox de conversa (D13) com a mesma `clientMessageId`; a bolha
   mostra "na fila"; reenvio não duplica; "Sair" descarta o áudio pendente com o resto.
 
@@ -262,7 +265,10 @@ language?, engine?, generatedAt? }` com `status` ∈ D4. Ausente ⇒ nada desenh
   motor, modelo e tempo de processamento, e fecha `ready`. Um áudio por vez por instância (CPU).
 - **RF14** Erros conforme D8: retriável ⇒ `pending` com `next_attempt_at` em backoff, até 3 tentativas; definitivo ou
   esgotado ⇒ `failed` com código (`unsupported_format`, `too_long`, `empty_audio`, `object_missing`,
-  `sha256_mismatch`, `engine_timeout`, `engine_failed`, `attempts_exhausted`). Nenhuma falha toca a mensagem.
+  `sha256_mismatch`, `engine_timeout`, `engine_failed`, `attempts_exhausted`, e `company_disabled` — emenda da T0.1:
+  pendente encerrada porque a empresa desligou; D4 proíbe gravar `disabled`, então ela é gravada como falha e fica fora
+  do alerta, `contract.md` §5.7). Nenhuma falha toca a mensagem. A duração é medida com `ffprobe` **antes** do motor
+  (o motor não mede), e `too_long` nunca chama o transcritor.
 - **RF15** **Só áudios de menos de 10 minutos são transcritos** (decisão do dono, 2026-10-11). Áudio de 10 minutos ou
   mais (`AUDIO_TRANSCRIPTION_MAX_DURATION_MS`, 600 000 ms; a comparação é `duração >= teto`) vira `failed`/`too_long`
   sem rodar o motor, e o produto **avisa**: o bloco de transcrição do áudio mostra "Transcrição só para áudios de
@@ -308,7 +314,12 @@ language?, engine?, generatedAt? }` com `status` ∈ D4. Ausente ⇒ nada desenh
 - **Áudio do WhatsApp em AMR ou formato fora da lista**: `failed`/`unsupported_format`, player como hoje.
 - **Worker reinicia no meio**: lease vence e outra execução retoma; nunca duas transcrições do mesmo áudio gravadas
   (único por anexo; grava só quem tem a posse).
-- **Empresa desliga com transcrições `pending`**: a rotina as encerra como `disabled` sem rodar o motor.
+- **Empresa desliga com transcrições `pending`**: a rotina as encerra como `failed`/`company_disabled` sem rodar o
+  motor (a tela mostra `disabled` enquanto desligada; depois de religar, só o player — sem backfill).
+- **Dois toques síncronos em "Enviar áudio"**: trava por ref no gravador; o `send` gera `clientMessageId` novo por
+  chamada, então a idempotência do servidor sozinha não bastaria.
+- **Fila offline cheia ou `QuotaExceededError`**: o áudio não entra na fila, a bolha fica "falhou — tocar para
+  reenviar" e o app diz que a fila está cheia (`contract.md` §5.4).
 - **Motorista trocado no meio da viagem** (ADR-0097): quem perde a conversa perde a transcrição junto (mesma BOLA).
 - **Áudio apagado pelo expurgo**: texto anulado; tela mostra o que mostra hoje para anexo apagado.
 - **Telefone com áudio tocando recebe nova mensagem**: o áudio não para nem recomeça (URL estável, RF8).

@@ -41,7 +41,11 @@
 - [ ] **T1.1** `haiku` — `conversation-contracts/src/participant.ts`: schema da transcrição e campos opcionais do
       anexo, exatamente como a T0.1; testes (quatro estados, `text` fora de `ready` recusado, mensagem sem os campos
       válida, `.strict()`). Changeset minor.
-- [ ] **T1.2** `sonnet` — Ouro **antes**: congelar o markup atual (os 9 `*.golden.html` + ouro do operador, se não
+- [ ] **T1.2** `sonnet` — Ouro **antes**, contra `origin/main a7c5c85` e antes de qualquer código: congelar o cenário
+      novo `thread-empty-draft` (compositor **vazio**, sem a prop; hoje todos os ouros usam rascunho `'abc'`) e prender
+      que ele fica byte a byte igual sem a prop, com a prop no SSR e com a prop + `MediaRecorder` falso + `channel =
+      'portal'`; teste de DOM com `MediaRecorder` presente e **sem** prop provando que o microfone não aparece
+      (`contract.md` §2.4). Congelar também os 9 `*.golden.html` + ouro do operador (se não
       houver, criar para `MessageBubble`/`MessageComposer` com áudio) e escrever os cenários novos vermelhos
       (`thread-audio-player`, `thread-audio-transcription-{pending,ready,empty}`, `composer-audio-{idle,recording,
 review,denied}`).
@@ -82,8 +86,9 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
       escritório com o campo; **ouro** das rotas antigas `/me/.../occurrences/**` e `/client/**` sem diferença;
       "transcrição fora de log" e "nunca decide" (texto de fonte, provados por mutação).
 - [ ] **T2.3** `sonnet` — Implementar a leitura em lote (`findTranscriptionsByAttachmentIds` + configuração da
-      empresa) na montagem das páginas de mensagens das rotas por assunto; `durationMs` quando houver. Integração com
-      banco provando uma consulta por página (sem N+1).
+      empresa) na montagem das páginas de mensagens das rotas por assunto; `durationMs` quando houver; e
+      `transcriptionUpdatedAt` no resumo da lista do motorista (`contract.md` §5.2–5.3). Integração com banco provando
+      consultas constantes por página (sem N+1) e `disabled` para empresa desligada sem nenhuma linha de transcrição.
 - [ ] **T2.4** `sonnet` — `GET/PUT /v1/company-settings/audio-transcription` (`settings.manage`, `.strict()`,
       auditoria, padrão ligado sem linha); tabela de rotas, contrato e integração.
 - [ ] **T2.5** `haiku` — Documentar rotas e campos em `api-contract.md` desta pasta e em
@@ -100,8 +105,12 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
       variáveis no schema de ambiente do worker (plano § d); sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é
       registrada. Contrato: classificação de erro retriável/definitivo → código (RF14), sem mensagem do erro.
 - [ ] **T3.3** `sonnet` — Contratos **antes** da rotina com transcritor falso: criação de `pending` só depois do marco
-      e de empresa ligada; reivindicação `SKIP LOCKED` + lease (duas execuções concorrentes, uma grava); backoff
-      1/5/30 min e `attempts_exhausted`; definitivo; `too_long` sem chamar o motor; `sha256_mismatch`;
+      (`greatest(enabled_since, routine_started_at)`, janela de 72 h; `PUT` antes da rotina não faz backfill) e de
+      empresa ligada, com `on conflict do nothing`; reivindicação `SKIP LOCKED` com `lease_token` e `attempts` subindo
+      **na reivindicação** (duas execuções concorrentes, só a dona da posse grava); backoff 1/5/30 min e
+      `attempts_exhausted`; definitivo; `too_long` **sem chamar o transcritor** com anexo **sem `duration_ms`**
+      (medido por `ffprobe`; WebM sem duração no cabeçalho medido por decodificação com teto); `company_disabled`
+      fora do alerta; `sha256_mismatch`;
       `object_missing`; empresa desligada fecha sem motor; expurgo `ready`→`purged` com objeto `deleted`; nenhum
       log com texto (mutação).
 - [ ] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`),
@@ -120,11 +129,17 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
 > 🤖 Modelo: `sonnet` (T4.1 → `haiku`)
 
 - [ ] **T4.1** `haiku` — Subir `conversations-ui`/`conversation-contracts` para a versão publicada na T1.8 **nas três
-      apps juntas** (versão exata), sem ligar nada; `make check` das três + smoke do portal sem mudança.
+      apps juntas** (versão exata; `conversation-contracts` **e** `conversations-ui` na mesma subida — só o UI deixaria
+      duas cópias do contracts descartando campos em silêncio), sem ligar a gravação; **já leva as chaves do player e
+      da transcrição** (`contract.md` §4) para os `.locale.json` das três apps em pt-BR e en (o player novo aparece para
+      todo host nessa subida); `make check` das três + smoke do portal sem mudança.
 - [ ] **T4.2** `sonnet` — Contratos antes (importados no agregador `test/conversation.contract.test.ts` /
       `test/shared.contract.test.ts`): `Permissions-Policy` com `microphone=(self)` exato; CSP com `media-src 'self'
-blob: <storage>` (hoje ausente); adapter mapeia `durationMs`/`transcription` só se vierem; outbox aceita o áudio (teto de bytes, dono,
-      "Sair" descarta); gravação aberta registrada no `captureRegistry`.
+blob: <storage>` (hoje ausente); adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
+      **por anexo** e `durationMs` por guarda (inválido ⇒ campo some, a página nunca cai; molde `readChannels`);
+      `diffConversationSnapshots` compara `transcriptionUpdatedAt` (`contract.md` §5.3); outbox aceita o áudio com o
+      teto `CONVERSATION_OUTBOX_LIMIT` (100 itens / 48 MiB) conferido antes de gravar e `QuotaExceededError` tratado
+      como recusa (§5.4), dono, "Sair" descarta; gravação aberta registrada no `captureRegistry`.
 - [ ] **T4.3** `sonnet` — Implementar a T4.2 + prop de gravação em `DriverConversations.page.tsx` + locales `pt-BR`/`en`
       (conferir as chaves de `participantLabels` da versão nova) + demo API com áudio nos quatro estados e
       `__debug` para avançar `pending → ready`.

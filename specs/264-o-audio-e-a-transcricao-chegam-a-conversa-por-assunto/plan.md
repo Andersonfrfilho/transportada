@@ -120,7 +120,9 @@ create table occurrence_conversation_audio_transcriptions (
   audio_duration_ms integer check (audio_duration_ms is null or audio_duration_ms > 0),
   engine varchar(64), model varchar(64),
   processing_ms integer,
-  attempts smallint not null default 0,
+  attempts smallint not null default 0,     -- sobe NA REIVINDICAÇÃO
+  lease_token uuid,                         -- só quem tem a posse grava (where lease_token = $x)
+  max_duration_ms integer,                  -- teto aplicado, só em too_long (contract.md §5.5)
   next_attempt_at timestamptz not null default now(),
   lease_expires_at timestamptz,
   failure_code varchar(32),                 -- CHECK lista fechada (RF14)
@@ -133,13 +135,15 @@ create table occurrence_conversation_audio_transcriptions (
 create index … on (next_attempt_at) where status = 'pending';
 create table company_audio_transcription_settings (
   company_id uuid primary key references companies(id), enabled boolean not null default true,
+  enabled_since timestamptz not null default now(), routine_started_at timestamptz,
   updated_by_user_id uuid, updated_at timestamptz not null default now()
 );
 ```
 
 `disabled` **não** é gravado: é derivado na leitura da configuração (D9). `rollback.sql` derruba as duas tabelas (perda
-declarada das transcrições: dado derivado, regenerável). O marco de "sem backfill" (D9) é decidido na T0.1: coluna
-`enabled_since` na configuração ou constante gravada na migration. `make migration-test`.
+declarada das transcrições: dado derivado, regenerável). Marco de "sem backfill" (D9), decidido na T0.1:
+`enabled_since` + `routine_started_at` por empresa e janela de 72 h (`contract.md` §5.5–5.6). `failure_code` inclui
+`company_disabled` (§5.7). `make migration-test`.
 
 **Porta e adaptador** (o motor roda no worker; a API só lê e configura):
 
@@ -173,11 +177,13 @@ rotina não é registrada), `AUDIO_TRANSCRIPTION_THREADS` (padrão: vCPU − 1, 
 `AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão derivado da medida). Entram em `.railway/railway.ts` como `preserve()`.
 
 **Rotina** `conversation.audio.transcribe` (cadência alvo 1 min; se o agendador só der 5 min, a T0.2 registra e a spec
-aceita): (1) cria linhas `pending` para anexos `content_type like 'audio/%'` sem linha, depois do marco, de empresa
-ligada; (2) reivindica até `BATCH_SIZE` `pending` vencidas com `FOR UPDATE SKIP LOCKED` e lease de
-`timeout + 60 s`; (3) por linha: empresa desligada ⇒ fecha sem motor; objeto `deleted` ⇒ `purged`; baixa pela linha,
-confere `sha256`, mede duração (o ffmpeg do pacote já decodifica; `too_long` antes do motor pela duração do anexo
-quando houver, senão pelo `durationSeconds` devolvido), chama a porta, grava; (4) expurgo: `ready` com objeto
+aceita) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
+`on conflict do nothing` para anexos `audio/*` sem linha, depois de `greatest(enabled_since, routine_started_at)` e
+dentro da janela de 72 h, de empresa ligada; (2) reivindica até `BATCH_SIZE` com `FOR UPDATE SKIP LOCKED`, novo
+`lease_token`, lease de `timeout + 60 s` e `attempts + 1`; (3) por linha (escrita só `where lease_token = $x`):
+empresa desligada ⇒ `failed`/`company_disabled`; objeto `deleted` ⇒ `purged`; baixa pela linha, confere `sha256`,
+**mede com `ffprobe`** (sem cabeçalho de duração: decodifica com `ffmpeg -t teto+1s`), `too_long` **sem chamar o
+transcritor**; o motor devolve só `{ text, engine, language }`, e `language` é a dica `pt`, não detecção; (4) expurgo: `ready` com objeto
 `deleted` ⇒ `text = null`, `purged`. Um áudio por vez (CPU); o processo filho mantém o event loop livre para o health
 e as outras rotinas. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo real; alerta
 quando `failed` > 0 na hora ou `pending` mais velho que 15 min.
@@ -220,7 +226,9 @@ microfone e sem transcrição (o serializador não manda o campo) — smoke do p
 1. **Pacotes:** `conversation-contracts` + `conversations-ui` publicados (passe `opus` antes).
 2. **Apps tolerantes:** as três apps sobem para a versão nova **sem** ligar a gravação nem mapear campos (só o player
    novo); staging.
-3. **Banco + API:** migration aditiva e campos novos nas rotas por assunto (a API sem worker devolve só `disabled` ou
+3. **Banco + API:** migration aditiva, campos novos nas rotas por assunto e `transcriptionUpdatedAt` no resumo do
+   motorista (`contract.md` §5.3). Os apps validam a transcrição por anexo e ignoram o que não conhecem (sem regra
+   extra de ordem por campo novo) (a API sem worker devolve só `disabled` ou
    ausente — nunca `pending` eterno, porque sem rotina não há linha).
 4. **Worker:** imagem com whisper e rotina; staging; medida T6.3.
 5. **Telas:** gravação ligada no app e no painel, configuração no painel.
