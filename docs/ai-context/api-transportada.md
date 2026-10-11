@@ -3176,7 +3176,8 @@ senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_
   financeiro; o separador não alcança). Corpo estrito `{driverIds, helperIds, reason}` — **sem
   `vehicleId`**. 201 com `data.trip` e `data.transfer` (`id`, `costBefore`, `costAfter`,
   `costDifference`, `costHasGaps`, `mdfeDriverDivergence`; decimais string de 2 casas).
-- **Janela:** `isCrewTransferable` = `dispatched`, `in_transit`, `on_delivery_route`. Ação própria
+- **Janela:** `isCrewTransferable` = `dispatched`, `in_transit`, `on_delivery_route` e, desde
+  2026-10-08 (commit `2e1ac3f74`), `completed` (corrigir quem dirigiu; ADR-0097, emenda). Ação própria
   `transferCrew` (publicada na lista `trip[]` de `allowed-actions`); a janela da 217 (`defineCrew`)
   não mudou. `separating` e `loading` seguem sem troca.
 - **O que não muda:** `status`, `vehicle_id`, rota congelada, pedágio, ETA, paradas e notas. Em
@@ -3192,8 +3193,10 @@ senderAllowlist }`. **Nunca o hash.** A hora vem da última geração em `audit_
 - **MDF-e:** `mdfe_driver_divergence` é verdadeiro quando há MDF-e `authorized` **e** o conjunto de
   motoristas (`role='driver'`) mudou. O MDF-e segue com o condutor anterior; incluir o condutor é
   spec futura. Troca só de ajudante nunca diverge (ADR-0065).
-- **Erros:** `409 STATE_TRANSITION_NOT_ALLOWED` (`TRIP_CANCELLED`, `TRIP_COMPLETED`,
-  `TRIP_NOT_DISPATCHED`), `409 TRIP_CREW_UNCHANGED`, e os erros de ficha inelegível da criação.
+- **Erros:** `409 STATE_TRANSITION_NOT_ALLOWED` (`TRIP_CANCELLED`, `TRIP_NOT_DISPATCHED`; `completed`
+  deixou de recusar), `409 TRIP_CREW_UNCHANGED`, e os erros de ficha inelegível da criação.
+- **Viagem concluída (D11):** a transferência nunca grava em `trip_financial_results`/`_parcels`; o
+  resultado congelado fica, o custo do evento é a conta ao vivo e o resumo por motorista migra.
 - **Risco conhecido (D10):** `financial-summary.query.ts` une o resultado congelado ao `trip_drivers`
   **atual**; depois de uma transferência o total por motorista da viagem migra para o novo.
 

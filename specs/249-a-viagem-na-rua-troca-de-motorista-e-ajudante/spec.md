@@ -11,7 +11,8 @@ a viagem para outra pessoa **sem refazer a viagem e sem mexer em valor**.
 Pedido do usuário (2026-10-07): _"após a viagem começar ter a opção de transferir ela para outro
 motorista ou ajudante, sem alterar valor"_ — e urgente para produção.
 
-Resultado: com a viagem em `dispatched`, `in_transit` ou `on_delivery_route`, quem tem
+Resultado: com a viagem em `dispatched`, `in_transit` ou `on_delivery_route` — e, desde 2026-10-08,
+também `completed` (D1, D11) —, quem tem
 `trip.report-on-behalf` abre **Transferir tripulação** na viagem, escolhe o(s) motorista(s) e
 ajudante(s) novos, escreve o motivo e confirma. A viagem continua exatamente onde estava; o
 histórico guarda quem saiu, quem entrou, quem fez, por quê, e o custo antes e depois.
@@ -66,6 +67,22 @@ histórico guarda quem saiu, quem entrou, quem fez, por quê, e o custo antes e 
 - **D10 — Resumo financeiro por motorista** (`financial-summary.query.ts`): une o resultado
   congelado ao `trip_drivers` **atual**. Depois de uma transferência, o total por motorista da
   viagem migra para o novo. **Registrado como risco conhecido**, fora deste pedido.
+
+- **D11 — Viagem concluída (emenda de 2026-10-08, commit `2e1ac3f74`)**: a janela inclui `completed`
+  para corrigir quem de fato dirigiu. Consequências, verificadas no código:
+  - **o resultado financeiro congelado não é reescrito**: a transferência nunca grava em
+    `trip_financial_results` nem em `trip_financial_parcels`; o que muda é o custo calculado ao vivo
+    e o resumo por motorista (D10), que passa a apontar a tripulação nova;
+  - `cost_before`/`cost_after`/`cost_difference` do evento continuam sendo a conta ao vivo, então a
+    diferença de uma viagem concluída pode não coincidir com o resultado já congelado dela;
+  - `TRIP_COMPLETED` deixou de ser motivo de recusa; `cancelled` continua recusada
+    (`TRIP_CANCELLED`) e qualquer status antes do despacho vira `TRIP_NOT_DISPATCHED`;
+  - a regra mora numa função só, `isCrewTransferable`; o comentário dela no código ainda descreve a
+    janela antiga (só a rua) e fica para a próxima mudança de código.
+- **D12 — O diálogo por papel (mesmo commit)**: o painel mostra **Motoristas** e **Ajudantes** em
+  listas separadas (`CrewTransferMemberList`), com o resumo "Sai / Entra" e a mensagem "Nenhuma
+  troca ainda" enquanto nada mudou; o selo de status da viagem fica na altura dos botões do
+  cabeçalho.
 
 ## Requisitos
 
