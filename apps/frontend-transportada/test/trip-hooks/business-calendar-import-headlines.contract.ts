@@ -158,4 +158,36 @@ describe('manchetes do cartão que dependem da chave (spec 262 T5.3)', () => {
     await waitForText('Em dia')
     expect(card()).not.toContain('Sem chave da FeriadosAPI')
   })
+
+  it('chave salva depois do último ciclo: o cartão não acusa a chave velha e espera o próximo ciclo', async () => {
+    providerSettingsDouble.settings = buildProviderSettings({
+      tokenUpdatedAt: '2026-10-09T14:00:00.000Z',
+    })
+    businessCalendarDouble.importStatus = buildImportStatus({
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'credential_unreadable' },
+    })
+    await mountPanel()
+
+    await waitForText('Chave nova salva, aguardando o próximo ciclo')
+    expect(headlineAttribute()).toBe('newKeyPending')
+    expect(card()).not.toContain('A chave guardada não abre')
+    expect(card()).toContain('Último ciclo da rotina: 09/10/2026')
+  })
+
+  it('a chave ilegível é trocada pela tela: o cartão passa a esperar o próximo ciclo, sem recarregar', async () => {
+    businessCalendarDouble.importStatus = buildImportStatus({
+      lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'credential_unreadable' },
+    })
+    await mountPanel()
+    await waitForText('A chave guardada não abre')
+
+    const field =
+      sectionOf('Chave da FeriadosAPI').querySelector<HTMLInputElement>('input[type="password"]')
+    if (field === null) throw new Error('TOKEN_FIELD_NOT_FOUND')
+    await typeInto(field, 'FAKE-feriados-sentinel-Q7zK-0000')
+    await click(buttonIn(sectionOf('Chave da FeriadosAPI'), 'Salvar'))
+
+    await waitForText('Chave nova salva, aguardando o próximo ciclo')
+    expect(headlineAttribute()).toBe('newKeyPending')
+  })
 })

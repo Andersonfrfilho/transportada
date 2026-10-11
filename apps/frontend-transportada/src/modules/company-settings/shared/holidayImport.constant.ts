@@ -33,6 +33,7 @@ export const HOLIDAY_IMPORT_HEADLINE = {
   FAILING: 'failing',
   HEALTHY: 'healthy',
   MALFORMED: 'malformed',
+  NEW_KEY_PENDING: 'newKeyPending',
   NO_TOKEN: 'noToken',
   TOKEN_UNREADABLE: 'tokenUnreadable',
   UNAUTHORIZED: 'unauthorized',

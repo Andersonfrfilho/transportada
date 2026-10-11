@@ -40,7 +40,7 @@ export function buildProviderSettings(
     monthlyRequestBudget: 4500,
     tokenConfigured: true,
     tokenHint: FAKE_PROVIDER_TOKEN_HINT,
-    tokenUpdatedAt: '2026-10-09T15:00:00.000Z',
+    tokenUpdatedAt: '2026-10-09T12:00:00.000Z',
     updatedAt: '2026-10-09T15:00:00.000Z',
     version: SETTINGS_VERSION,
     ...overrides,

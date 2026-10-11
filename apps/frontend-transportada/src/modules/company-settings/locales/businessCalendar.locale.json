@@ -355,6 +355,7 @@
         "disabled": "Desligada para esta empresa",
         "noToken": "Sem chave da FeriadosAPI",
         "tokenUnreadable": "A chave guardada não abre",
+        "newKeyPending": "Chave nova salva, aguardando o próximo ciclo",
         "budgetReached": "Orçamento do mês atingido"
       },
       "explain": {
@@ -364,6 +365,7 @@
         "unauthorized": "O fornecedor recusou o último ciclo da rotina. Confira a chave em \"Chave da FeriadosAPI\" e o plano contratado no fornecedor.",
         "noToken": "A importação não busca nada enquanto não houver chave. Cole a chave no bloco \"Chave da FeriadosAPI\", acima; depois de salva, a rotina ainda precisa ser despausada em Operações.",
         "tokenUnreadable": "A chave está guardada, mas o último ciclo não conseguiu abri-la (por exemplo, depois de a chave de cifragem da instalação mudar). Cole a chave de novo no bloco \"Chave da FeriadosAPI\": ela é selada outra vez.",
+        "newKeyPending": "O último ciclo da rotina é anterior à chave nova, então o resultado dele não vale mais. O estado se atualiza depois do próximo ciclo; se a rotina holiday.provider.pull estiver pausada, ela precisa ser despausada em Operações.",
         "budgetReached": "A importação já usou todas as consultas do mês e fica parada até o mês seguinte. Para continuar antes, aumente o orçamento no bloco \"Chave da FeriadosAPI\".",
         "unreachable": "O fornecedor não respondeu no último ciclo. A rotina tenta de novo sozinha no próximo ciclo; nada precisa ser feito agora.",
         "malformed": "O fornecedor respondeu num formato que a rotina não entende e nada foi gravado. O contrato pode ter mudado: avise o suporte.",

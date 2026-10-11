@@ -355,6 +355,7 @@
         "disabled": "Turned off for this company",
         "noToken": "No FeriadosAPI key",
         "tokenUnreadable": "The stored key does not open",
+        "newKeyPending": "New key saved, waiting for the next cycle",
         "budgetReached": "Monthly budget reached"
       },
       "explain": {
@@ -364,6 +365,7 @@
         "unauthorized": "The provider refused the routine's last cycle. Check the key in \"FeriadosAPI key\" and the plan contracted with the provider.",
         "noToken": "The import fetches nothing while there is no key. Paste the key in the \"FeriadosAPI key\" block above; once saved, the routine still has to be unpaused in Operations.",
         "tokenUnreadable": "The key is stored, but the last cycle could not open it (for example, after the installation's encryption key changed). Paste the key again in the \"FeriadosAPI key\" block: it is sealed again.",
+        "newKeyPending": "The routine's last cycle predates the new key, so its result no longer applies. The status updates after the next cycle; if the holiday.provider.pull routine is paused, it needs to be unpaused in Operations.",
         "budgetReached": "The import has used all of this month's requests and stays stopped until next month. To continue sooner, raise the budget in the \"FeriadosAPI key\" block.",
         "unreachable": "The provider did not answer in the last cycle. The routine retries on its own in the next cycle; nothing needs to be done now.",
         "malformed": "The provider answered in a format the routine does not understand and nothing was stored. The contract may have changed: tell support.",
