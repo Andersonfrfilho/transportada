@@ -1,7 +1,8 @@
 # ADR 0103 — A transcrição de áudio roda com modelo próprio (whisper.cpp no worker)
 
 - **Status:** proposta (2026-10-10, spec 264). Vira **aceita** na T0.2 da spec 264, com o modelo e as medidas
-  preenchidos abaixo; produção exige aprovação humana própria.
+  preenchidos abaixo; produção exige aprovação humana própria. 2026-10-11: medida local feita (candidato `small-q5_1`);
+  a medida no Railway, que decide, está pendente de permissão para criar o serviço temporário.
 - **Data:** 2026-10-10
 - **Nasce da spec 264**; fecha a dúvida da spec 183 (RF18, T706)
 - **Citações:** ADR-0072, ADR-0073, ADR-0081 §9, ADR-0101, specs 183, 252, 263
@@ -24,9 +25,26 @@ retriável/definitivo nos erros.
 2. **O modelo é escolhido por medida no runner do Railway** (spike T0.2 da spec 264), pelo critério fechado do plano
    da 264 § d: o menor modelo sem loop de repetição, com erro de palavras aceitável numa amostra pt-BR conferida à
    mão, fator de tempo real ≤ 1 em 2 min de áudio e RAM de pico + base do worker ≤ 70 % do teto do serviço.
-   - Modelo escolhido: **[preencher na T0.2]** · sha256: **[preencher]** · whisper.cpp tag: **[preencher]**
-   - Medidas: imagem +**[MB]**, deploy +**[s]**, RAM de pico **[MB]**, fator de tempo real **[x]** (2 min),
-     erro de palavras **[%]** em **[n]** áudios.
+   - **Medida local feita, medida no Railway pendente (2026-10-11).** A criação do serviço temporário foi negada pela
+     permissão da sessão; sem o runner, o critério (iii) não fecha e esta ADR **continua proposta**. Números e
+     ressalvas em `specs/264-*/evidence.md` § "T0.2 — medidas".
+   - **Candidato da medida local: `small-q5_1`** · sha256
+     `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb` (190 085 487 bytes, `ggerganov/whisper.cpp`
+     no Hugging Face) · whisper.cpp **`v1.9.4`** (commit `927cfce34f31707e17f2bff35c349632fb9e2c3a`, conferido no
+     build; `-DGGML_NATIVE=OFF`, `-DBUILD_SHARED_LIBS=OFF`).
+   - Medidas locais (Alpine + Bun 1.3.14, 8 CPUs/8 GB, `--threads 7`, Apple M3 Pro sob carga 12–18): imagem
+     **+291 MB** (ffmpeg e libs 107 MB + `whisper-cli` 2,8 MB + modelo 181 MB), RAM de pico **0,50 GB** (com a base do
+     worker: 1,15 GB de 8 GB = 14 %), fator de tempo real **0,27–0,36** em 2 min, erro de palavras **2,5–7,6 %** em
+     **12** áudios TTS pt-BR (limpo, ruído de cabine ~8 dB SNR, fala rápida; 10 s a 5 min), nenhum loop. Deploy: não
+     medido.
+   - `base` reprovou (ii): 17–23 % com ruído e até 210 palavras engolidas. Os dois `large-v3-turbo` passaram (i), (ii) e
+     (iv), mas engolem frases inteiras e ficaram com fator **0,79–1,50** em 2 min **já no M3** — tendem a reprovar (iii)
+     no EPYC do Railway.
+   - Teto de duração: **mantido em 10 min**. Cadência: **5 min** (`JOB_TICK_INTERVAL_SECONDS = 300` e o `cron` do Railway
+     em `*/5`; não há agendador mais fino). Worker: 8 vCPU / 8 GB (o mesmo plano em staging e produção), sem mudança.
+   - Para virar **aceita**: rodar o spike preparado no serviço `spike-whisper-264` (staging), confirmar fator ≤ 1 em
+     2 min no runner com o candidato, registrar imagem, build, deploy, RAM pelo Railway, impacto no canhoto e custo, e
+     derrubar o serviço.
 3. **Groq/OpenAI e qualquer serviço hospedado ficam fora**, inclusive como reserva em cadeia. Ligar um deles exige ADR
    nova (privacidade e custo).
 4. **Um áudio por vez por instância**, em processo filho; teto de duração transcrita (padrão 10 min); sem a variável
@@ -60,4 +78,8 @@ retriável/definitivo nos erros.
 - **Serviço interno dedicado desde já** — isola a CPU, mas é um serviço a mais para operar antes de existir medida que o
   justifique; fica como saída de emergência (Decisão 5).
 - **`base` (~148 MB) por economia** — o README do pacote registra loop de repetição e troca de palavras em pt-BR com
-  áudio de celular; entra no spike só como piso de comparação.
+  áudio de celular; entra no spike só como piso de comparação. Medido (T0.2, local): sem loop, mas 17–23 % de erro com
+  ruído e janelas de 30 s trocadas por "música de fundo".
+- **`large-v3-turbo` (recomendação do README do pacote)** — medido (T0.2, local): mesma faixa de erro do `small` no
+  proxy TTS, 1,8 GB de RAM, frases inteiras engolidas e fator de tempo real no limite já numa CPU mais rápida que a do
+  runner. Volta à mesa só se o `small-q5_1` falhar na T6.3 com áudio real e o runner provar folga.
