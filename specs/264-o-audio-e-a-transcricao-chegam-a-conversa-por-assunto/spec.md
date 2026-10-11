@@ -95,14 +95,14 @@ amostra conferida à mão. `base` entra só como piso de comparação. O resulta
 
 Vocabulário fechado, exposto por anexo de áudio:
 
-| Estado                         | Quando                                                           | O que a tela mostra                                                                                              |
-| ------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `pending`                      | áudio aceito, ainda não transcrito (inclui retentativa agendada) | player + "Transcrevendo…" discreto (anunciado uma vez, `aria-live="polite"`)                                     |
-| `ready`                        | texto gerado (pode ser vazio: silêncio é resultado, não falha)   | player + texto + "Transcrição gerada por máquina" (texto vazio: só "Nada foi dito no áudio" e o aviso)           |
-| `failed`                       | erro definitivo ou retentativas esgotadas                        | **só o player** (183 RF18: o player aparece sem o texto); nenhum alarme ao leitor                                |
-| `failed` com código `too_long` | áudio de 10 minutos ou mais (RF15)                               | player + aviso discreto "Transcrição só para áudios de menos de 10 minutos" (RF15); sem tentativa de transcrever |
-| `disabled`                     | a empresa desligou a transcrição                                 | **só o player**                                                                                                  |
-| _ausente_                      | áudio anterior à rotina, rotina não instalada, ou API antiga     | **só o player**                                                                                                  |
+| Estado                         | Quando                                                           | O que a tela mostra                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `pending`                      | áudio aceito, ainda não transcrito (inclui retentativa agendada) | player + "Transcrevendo…" discreto (a passagem a `ready` é anunciada pela região viva da thread, `contract.md` §3.3) |
+| `ready`                        | texto gerado (pode ser vazio: silêncio é resultado, não falha)   | player + texto + "Transcrição gerada por máquina" (texto vazio: só "Nada foi dito no áudio" e o aviso)               |
+| `failed`                       | erro definitivo ou retentativas esgotadas                        | **só o player** (183 RF18: o player aparece sem o texto); nenhum alarme ao leitor                                    |
+| `failed` com código `too_long` | áudio de 10 minutos ou mais (RF15)                               | player + aviso discreto "Transcrição só para áudios de menos de 10 minutos" (RF15); sem tentativa de transcrever     |
+| `disabled`                     | a empresa desligou a transcrição                                 | **só o player**                                                                                                      |
+| _ausente_                      | áudio anterior à rotina, rotina não instalada, ou API antiga     | **só o player**                                                                                                      |
 
 O vocabulário do participante é **novo e próprio** (`conversation-contracts`); o `TranscriptionStatus` do operador
 (`pending|done|failed|unsupported`) **não muda** — mudar seria quebrar o operador (D1).
@@ -138,8 +138,14 @@ do erro, que pode citar caminho de arquivo).
 
 ### D9 — Sem backfill; desligar esconde, não apaga
 
-- A rotina só transcreve áudio criado **depois** de a rotina ser ligada na instalação (marco gravado na migration ou na
-  primeira execução — T0.1 decide) e enquanto a empresa está ligada.
+- A rotina só transcreve áudio criado **depois** de a rotina ser ligada na instalação e enquanto a empresa está
+  ligada. **Marco decidido na T0.1** (`contract.md` §5.5–5.6): por empresa, `greatest(enabled_since,
+routine_started_at)` — `routine_started_at` gravado na **primeira execução** da rotina que vê a empresa, e
+  `enabled_since` regravado a cada religar.
+- **Janela de recuperação** (regra de produto nova, estreita o D6): áudio com mais de
+  `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (padrão 72 h, configurável por env do worker) quando a rotina o encontra não é
+  transcrito — a rotina que volta depois de dias parada não satura a CPU. **Confirmar com o dono antes da publicação em
+  produção** (não bloqueia a Fase 1).
 - **Padrão: ligada** (o dono falou em a empresa poder _desligar_). Sem linha de configuração = ligada.
 - Desligar para de transcrever na hora e a API passa a devolver `disabled` para **todos** os áudios da empresa
   (inclusive os já transcritos, que ficam ocultos e guardados). Religar mostra de novo; o que chegou enquanto
@@ -243,8 +249,8 @@ aparece, nada é transcrito, e os textos já gerados somem da tela.
 **Player (SDK)**
 
 - **RF7** Anexo `kind: 'audio'` na visão do participante mostra player próprio: tocar/pausar (nome acessível que muda
-  com o estado), posição/duração em texto, barra de progresso operável por teclado (`role="slider"` com
-  `aria-valuetext`), velocidade 1× / 1,5× / 2× (`defaultPlaybackRate` + `playbackRate`). Toca **um** áudio por vez na
+  com o estado), posição/duração em texto, barra de progresso operável por teclado (`<input type="range">` nativo com
+  `aria-valuetext`; `preload="none"`, nada baixado antes do toque — `contract.md` §3.2), velocidade 1× / 1,5× / 2× (`defaultPlaybackRate` + `playbackRate`). Toca **um** áudio por vez na
   conversa.
 - **RF8** A URL do anexo não troca enquanto o player existe (lição da 183 T705: troca de `src` recomeça o áudio). O
   player tem piso de largura que não esconde o botão de tocar a 375 px.
@@ -301,7 +307,8 @@ language?, engine?, generatedAt? }` com `status` ∈ D4. Ausente ⇒ nada desenh
 - **Custo:** zero por uso; o custo de infra (RAM/CPU extra, tamanho da imagem, tempo de deploy) é medido e registrado
   na ADR-0103.
 - **Segurança:** `companyId` sempre do contexto/linha; BOLA da 263 herdada; transcrição fora de log (contrato de texto
-  de fonte); `.strict()` nos schemas novos; nenhum segredo novo.
+  de fonte); `.strict()` nos schemas novos **de requisição** (as respostas da visão do participante são _strip_ e
+  validadas por anexo nos apps, `contract.md` §1); nenhum segredo novo.
 - **Bundle:** o export `/participant` não puxa o operador nem dependência nova de áudio (mesma medida da 263 T0.2).
 
 ## Casos extremos e falhas

@@ -38,9 +38,11 @@
 
 > 🤖 Modelo: `sonnet` (T1.1 e T1.7 → `haiku`; T1.8 é 🧠 `opus`). Implementa contra o `contract.md` da T0.1.
 
-- [ ] **T1.1** `haiku` — `conversation-contracts/src/participant.ts`: schema da transcrição e campos opcionais do
-      anexo, exatamente como a T0.1; testes (quatro estados, `text` fora de `ready` recusado, mensagem sem os campos
-      válida, `.strict()`). Changeset minor.
+- [ ] **T1.1** `haiku` — `conversation-contracts/src/participant.ts` exatamente como o `contract.md` §1:
+      `participantTranscriptionSchema` (`discriminatedUnion`, **sem `.strict()` e sem `refine`**) e `durationMs?`/
+      `transcription?` no anexo; testes: os quatro estados, `text` fora de `ready` é **descartado e não aparece** no
+      resultado, `status` desconhecido recusado, `text` no teto de 40 000 UTF-16, mensagem sem os campos válida.
+      Changeset minor.
 - [ ] **T1.2** `sonnet` — Ouro **antes**, contra `origin/main a7c5c85` e antes de qualquer código: congelar o cenário
       novo `thread-empty-draft` (compositor **vazio**, sem a prop; hoje todos os ouros usam rascunho `'abc'`) e prender
       que ele fica byte a byte igual sem a prop, com a prop no SSR e com a prop + `MediaRecorder` falso + `channel =
@@ -49,24 +51,31 @@
       houver, criar para `MessageBubble`/`MessageComposer` com áudio) e escrever os cenários novos vermelhos
       (`thread-audio-player`, `thread-audio-transcription-{pending,ready,empty}`, `composer-audio-{idle,recording,
 review,denied}`).
-- [ ] **T1.3** `sonnet` — `useParticipantAudioRecorder` (máquina de estados pura: `idle/requesting/recording/review/
-denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no unmount com `track.stop()`,
-      `onCaptureChange?`) + `ParticipantAudioRecorder.tsx` em `.cv-p-*`; reaproveita `resolveRecordingFormat`,
-      `RECORDING_FORMATS`, `DEFAULT_MAX_RECORDING_MILLISECONDS`. Testes com `MediaRecorder`/`getUserMedia` falsos.
-- [ ] **T1.4** `sonnet` — Ligação no compositor **só pela prop** (nunca pelo `channel`): o `File` gravado entra em
-      `draft.files` e sai por `sendMessage({ files })`; recusa por tamanho/vazio antes de enviar sem apagar o texto;
-      alvo ≥ 44 px. Aceite: ouro sem a prop **byte a byte igual**; cenários `composer-audio-*` verdes.
-- [ ] **T1.5** `sonnet` — `ParticipantAudioPlayer` (tocar/pausar, `role="slider"` com `aria-valuetext`,
-      posição/duração com `durationMs` ou `loadedmetadata`, 1×/1,5×/2× com `defaultPlaybackRate`, um por vez, URL
-      resolvida uma vez) substituindo o `<audio controls>` em `ParticipantAttachmentItem`. Aceite: `thread-audio-player`
-      verde; nenhum outro ouro muda.
-- [ ] **T1.6** `sonnet` — `ParticipantAudioTranscription` (D4, aviso de máquina, recolher em 6 linhas, `aria-live`
-      só em `pending → ready`; estado `too_long`: aviso "só para áudios de menos de 10 minutos", RF15) + rótulos
-      opcionais com defaults em inglês (inclui `transcriptionTooLong`) + CSS `.cv-p-audio*`/`.cv-p-transcription*`
-      com contraste ≥ 4,5:1 nos temas (helper `participantContrast`). Teste: nenhuma classe utilitária Tailwind.
-- [ ] **T1.7** `haiku` — Changesets minor (contracts e UI) em inglês com "Default markup and style change" (o `<audio>`
-      nativo vira `.cv-p-audio`), README da visão do participante com o exemplo da prop; medida de bundle do
-      `/participant` antes/depois em `evidence.md`.
+- [ ] **T1.3** `sonnet` — `contract.md` §0.1, §2.1, §2.3: extrair `src/audioRecorderFormat.ts` (reexportado pelo
+      `AudioRecorderButton`, ouro do operador intacto); `useParticipantAudioRecorder` (estados `idle/requesting/
+    recording/review/denied/unsupported/empty/tooLarge`, teto de duração) + `ParticipantAudioRecorderView` pura.
+      Interrupção = `visibilitychange` oculto, `pagehide`, `track.onended` ou `track.onmute` **que persiste > 3 s**:
+      em `recording` ⇒ para e vai a `review`; em `review` ⇒ **pausa e mantém**; unmount ⇒ descarta. **Token de
+      cancelamento** no `getUserMedia` (resolveu depois de sair ⇒ `stop()` imediato das trilhas). `track.stop()` e
+      `revokeObjectURL` em toda saída; `onCaptureChange?`. Testes com `MediaRecorder`/`getUserMedia` falsos.
+- [ ] **T1.4** `sonnet` — `contract.md` §2, §2.1, §2.2: microfone **só pela prop** (o canal só desliga), no lugar do
+      enviar com campo vazio, `type="button"`, desabilitado com o compositor, alvo ≥ 44 px. "Enviar áudio" ⇒
+      `onSendAudio(file)` → `send({ files: [file] })`, **rascunho de texto e `draft.files` intocados**; recusa por
+      tamanho/vazio antes de enviar; **trava por ref**, com teste de dois cliques síncronos ⇒ **uma** mensagem. Aceite:
+      `thread-empty-draft` e os 9 ouros byte a byte iguais; cenários `composer-audio-*` verdes.
+- [ ] **T1.5** `sonnet` — `contract.md` §3.1–§3.2: `ParticipantAudioPlayer` substituindo o `<audio controls>` em
+      `ParticipantAttachmentItem`: **`<input type="range">`** estilizado, `preload="none"`, URL resolvida **no mount por
+      `attachment.id`** e `src` atribuído já no mount, **`play()` síncrono** no toque, re-resolve uma vez em erro de
+      mídia, duração por `durationMs` ou `loadedmetadata` (infinita tolerada), 1×/1,5×/2× com `defaultPlaybackRate`,
+      um por vez. Aceite: `thread-audio-player` verde; nenhum outro ouro muda.
+- [ ] **T1.6** `sonnet` — `contract.md` §3.3–§4: `ParticipantAudioTranscription` (D4, aviso de máquina, recolher em 6
+      linhas, estado `too_long` com `{minutes}` do `maxDurationMs`); anúncio `pending → ready` pela **região viva que
+      já existe** (`useAnnounceCopy()` → `ParticipantThreadLive`), **sem nó `aria-live` novo** (mudaria os 9 ouros);
+      rótulos opcionais do §4 com defaults em inglês + CSS `.cv-p-audio*`/`.cv-p-transcription*` com contraste ≥ 4,5:1
+      nos temas (`participantContrast`). Teste: nenhuma classe utilitária Tailwind.
+- [ ] **T1.7** `haiku` — Changesets minor (contracts e UI) em inglês; o da UI com "Default markup and style change"
+      listando os **seis itens do `contract.md` §3.4**; README da visão do participante com o exemplo da prop; medida de
+      bundle do `/participant` antes/depois em `evidence.md`.
 - [ ] **T1.8** 🧠 `opus` — **Passe de revisão obrigatório** (code-reviewer `opus`): impacto zero nos outros fluxos
       (diff de ouro do operador e dos cenários sem prop vazio), acessibilidade, vazamento de stream do microfone,
       changeset. Achado ALTO/bloqueante → task de correção + re-passe. Só então PR → `main` → publicação pela CI;
@@ -77,18 +86,26 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
 > 🤖 Modelo: `sonnet` (T2.1 → `haiku`)
 
 - [ ] **T2.1** `haiku` — Schema Drizzle + migration aditiva `…_conversation_audio_transcription` (as duas tabelas do
-      plano § c, CHECKs por `inList`, sem ENUM) + `rollback.sql`; `db:generate` sem diferença depois. Aceite:
+      plano § c com os ajustes do `contract.md` §5.5: `conversation_id`, `lease_token`, `max_duration_ms`,
+      `enabled_since`, `routine_started_at`, CHECK de 20 000 caracteres, `company_disabled`; e o **índice parcial**
+      `(created_at) where content_type like 'audio/%'` em `occurrence_conversation_attachments`; CHECKs por `inList`,
+      sem ENUM) + `rollback.sql`; `db:generate` sem diferença depois. Aceite:
       `make migration-test` verde e contrato de tenant-safety das tabelas novas. ⚠️ O `make migration-test` não
       descobre migration sozinho: criar `*.static.contract.ts` + assertion e registrá-los em
       `test/database-migration.contract.test.ts` e `test/database-migration/database-migration.integration.ts`.
 - [ ] **T2.2** `sonnet` — Contratos **antes** (vermelhos): mapper `toParticipantTranscription` por tabela (ausente,
       `pending`, `ready`, `failed`, `purged`→ausente, empresa desligada→`disabled`); rotas por assunto do motorista e do
       escritório com o campo; **ouro** das rotas antigas `/me/.../occurrences/**` e `/client/**` sem diferença;
-      "transcrição fora de log" e "nunca decide" (texto de fonte, provados por mutação).
+      "transcrição fora de log" e "nunca decide" (texto de fonte, provados por mutação). Tabela espelhada em
+      `participant-transcription.constant.ts` + **contrato de paridade** que faz `parse` de cada saída do mapper com
+      `participantTranscriptionSchema` (`@adatechnology/conversation-contracts` como `devDependency` exata, importado
+      só por `test/**`, com contrato de texto de fonte proibindo import em `src/**`; `contract.md` §5.2).
 - [ ] **T2.3** `sonnet` — Implementar a leitura em lote (`findTranscriptionsByAttachmentIds` + configuração da
       empresa) na montagem das páginas de mensagens das rotas por assunto; `durationMs` quando houver; e
-      `transcriptionUpdatedAt` no resumo da lista do motorista (`contract.md` §5.2–5.3). Integração com banco provando
-      consultas constantes por página (sem N+1) e `disabled` para empresa desligada sem nenhuma linha de transcrição.
+      `transcriptionUpdatedAt` no resumo da lista do motorista (`contract.md` §5.2–5.3: agregação por
+      `conversation_id` desnormalizado, sem junção). Integração com banco provando consultas constantes por página
+      (sem N+1), `disabled` para empresa desligada sem nenhuma linha de transcrição e `transcriptionUpdatedAt` mudando
+      quando a linha passa de `pending` a `ready`.
 - [ ] **T2.4** `sonnet` — `GET/PUT /v1/company-settings/audio-transcription` (`settings.manage`, `.strict()`,
       auditoria, padrão ligado sem linha); tabela de rotas, contrato e integração.
 - [ ] **T2.5** `haiku` — Documentar rotas e campos em `api-contract.md` desta pasta e em
@@ -112,7 +129,12 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
       (medido por `ffprobe`; WebM sem duração no cabeçalho medido por decodificação com teto); `company_disabled`
       fora do alerta; `sha256_mismatch`;
       `object_missing`; empresa desligada fecha sem motor; expurgo `ready`→`purged` com objeto `deleted`; nenhum
-      log com texto (mutação).
+      log com texto (mutação). Também (`contract.md` §5.6, §5.8): reivindicação filtra `attempts < 3` e a varredura do
+      início do ciclo fecha `attempts >= 3` com lease vencido como `attempts_exhausted` (transcritor falso que "mata o
+      processo" não gira para sempre); lease **por linha**; texto com U+0000 gravado sem ele; timeout do
+      `ffprobe`/`ffmpeg` sobre arquivo que trava ⇒ retriável; toda mudança exposta faz `updated_at = now()`;
+      **executor em processo**: com o transcritor falso preso, um job-run de `trip.canhoto.read` publicado depois é
+      confirmado antes de a transcrição terminar, e um segundo ciclo não abre outra execução.
 - [ ] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`),
       registrar em `main.ts` e no catálogo de rotinas (`src/shared/job-catalog.constant.ts`, ao lado de
       `trip.canhoto.read`; agendamento conforme a cadência medida na T0.2), métricas por estado/código e alerta (plano § d). Aceite: contratos da T3.3 verdes +
@@ -138,8 +160,9 @@ denied/unsupported/empty`, teto de duração, parada no `visibilitychange` e no 
 blob: <storage>` (hoje ausente); adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
       **por anexo** e `durationMs` por guarda (inválido ⇒ campo some, a página nunca cai; molde `readChannels`);
       `diffConversationSnapshots` compara `transcriptionUpdatedAt` (`contract.md` §5.3); outbox aceita o áudio com o
-      teto `CONVERSATION_OUTBOX_LIMIT` (100 itens / 48 MiB) conferido antes de gravar e `QuotaExceededError` tratado
-      como recusa (§5.4), dono, "Sair" descarta; gravação aberta registrada no `captureRegistry`.
+      teto `CONVERSATION_OUTBOX_LIMIT` (100 itens; 48 MiB **só para mensagem com arquivo** — texto sempre entra até o
+      teto de itens) conferido antes de gravar e `QuotaExceededError` tratado como recusa; a recusada fica só em
+      memória e se perde ao recarregar (§5.4), dono, "Sair" descarta; gravação aberta registrada no `captureRegistry`.
 - [ ] **T4.3** `sonnet` — Implementar a T4.2 + prop de gravação em `DriverConversations.page.tsx` + locales `pt-BR`/`en`
       (conferir as chaves de `participantLabels` da versão nova) + demo API com áudio nos quatro estados e
       `__debug` para avançar `pending → ready`.
