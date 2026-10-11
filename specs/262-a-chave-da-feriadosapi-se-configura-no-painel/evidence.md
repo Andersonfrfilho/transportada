@@ -661,3 +661,166 @@ nativo por `DRIZZLE_TEST_DATABASE_URL`, e o `--env-file` ausente é ignorado pel
 posterior à chave). Smoke `spec-262-painel-prints.smoke.spec.ts` estendido (cenário com `tokenSavedAt`, alvo do diálogo, contraste e
 alvo de toque do diálogo): **102/102 passaram**. Build real (`vite build` direto), `vite preview` do binário da app na porta 53462,
 servidor encerrado pelo PID, `dist` apagada. Prints **pendentes de aprovação do usuário**; nada publicado.
+
+## T6.1 — fechamento
+
+Branch `work/262-t6` (2026-10-11), criada de `work/262-f4` e reposta sobre `origin/staging` `cabedd0a5` (`git fetch origin` exit 0; `git switch -c` exit 0; `git rebase origin/staging` com dois
+conflitos de TEXTO só neste `evidence.md`, resolvidos mantendo os dois lados — Fase 4, 2ª rodada da Fase 4 e Fase 5 — sem `--skip`; `bun install --frozen-lockfile` exit 0). **Sem push.** Só documentação:
+nenhum arquivo de `apps/**/src` nem de teste foi tocado, e nenhuma revisão de código foi feita aqui (a revisão final `opus` roda em separado). Os SHAs da Fase 4 abaixo são os de `work/262-f4`
+(**anteriores ao rebase**); `work/262-t6` carrega os mesmos commits com SHAs novos (correspondência logo depois do quadro).
+
+### Quadro único da 262
+
+Cada SHA abaixo foi conferido contra `origin/staging` (`git log origin/staging` e a lista de ancestrais); "Deploy" é o run do workflow `Deploy` do **commit-cabeça** daquela publicação
+(`gh run list --branch staging`). Nada de produção foi publicado: `git grep` de `holiday-import.configure` e de `credential_unreadable` em `origin/main` não acha nada.
+
+| Fase / task                                                                      | SHAs (contrato vermelho → código → evidência)                                                                                | Onde está                                  | Deploy (run, data)                                                                                                                                        |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0.1 desenho e ADR-0102 (E1–E16)                                                 | `c80ce6ffb` spec e ADR · `74da984f5` emenda ADR-0100 e SECURITY · `41f35d837` emendas · `b0084739b` ADR aceita · `a34f2ca34` | `origin/staging`                           | `37996153724` (verde, 2026-10-09). O run de `74da984f5` foi vermelho (`37991364581`, só documentação, causa não investigada aqui) e os seguintes passaram |
+| T0.2 citado → real                                                               | `41f35d837` (tabela em § T0.2)                                                                                               | `origin/staging`                           | idem                                                                                                                                                      |
+| T1.1 catálogo do painel                                                          | `47a78bfe7` (+ `f739d228b` evidência)                                                                                        | `origin/staging`                           | `37994557029` (verde, 2026-10-09, depois de reexecução)                                                                                                   |
+| T1.2 permissão no painel                                                         | `9de8356d0` (vermelho) → `e31365e1d` · pendências autofechantes `6d196ae28` · evidência `a5868f369`                          | `origin/staging`                           | `37994557029` (cabeça `a5868f369`)                                                                                                                        |
+| T2.1 contratos do modelo                                                         | `1d18952b0`                                                                                                                  | `origin/staging`                           | `38007640528` (cabeça da publicação das Fases 2 e 3)                                                                                                      |
+| T2.2 migration `20261009223052_holiday_provider_settings`                        | `299f2a478` · `b4fbbdbda` (estático endurecido)                                                                              | `origin/staging` (**só staging**)          | `38007640528`                                                                                                                                             |
+| T3.1 permissão e desfecho (API e cron)                                           | `4c76a8175` → `95826896a`                                                                                                    | `origin/staging`                           | `38007640528`                                                                                                                                             |
+| T3.2 selo da chave                                                               | `bbc808d63` → `05c96aff9`                                                                                                    | `origin/staging`                           | `38007640528`                                                                                                                                             |
+| T3.3 rotas da instalação                                                         | `24bb78ec2` → `831fa93d9` · pesos de shard `2f8c055fb` · refatoração da auditoria `82cd4263d`                                | `origin/staging`                           | `38007640528`                                                                                                                                             |
+| T3.4 interruptor da empresa                                                      | `f32975895` → `5f458ce58`                                                                                                    | `origin/staging`                           | `38007640528`                                                                                                                                             |
+| 2ª rodada das Fases 2 e 3 (M1–M4 e lows)                                         | `1ef18a32a` → `ce0e73551` → `a72d99aac` · evidência `0ce05b04a`, `602f16e55`                                                 | `origin/staging`                           | `38007640528` (verde, 2026-10-10T00:07Z; cabeça `602f16e55`)                                                                                              |
+| T4.1 selo, leitor e catálogo do worker                                           | `758332484` → `d8700b54f`                                                                                                    | **só local**, `work/262-f4`                | — (nada publicado)                                                                                                                                        |
+| T4.2 rotina registrada sempre, lê o banco por ciclo                              | `819b5c75b` → `a2e38c64e`                                                                                                    | **só local**, `work/262-f4`                | —                                                                                                                                                         |
+| T4.3 saída das variáveis (schema, tipos, `.env.example`)                         | `8db5d904a` → `139dbb8b5`                                                                                                    | **só local**, `work/262-f4`                | —                                                                                                                                                         |
+| 2ª rodada da Fase 4 (`railway.ts` mantém as entradas, paridades, tabela ausente) | `15cb24d00` → `84a929343` → docs `3cd228a0b` → evidência `d35463824`                                                         | **só local**, `work/262-f4`                | —                                                                                                                                                         |
+| T4.4 tirar as duas variáveis do `railway.ts`                                     | —                                                                                                                            | **não feita** (depende do usuário, abaixo) | —                                                                                                                                                         |
+| T5.1 cliente, guardas, consultas, mutações                                       | `6a5505fb7` → `24dcb227b`                                                                                                    | `origin/staging`                           | `38170135676` (verde, 2026-10-11T19:56Z; cabeça `408aedf77`)                                                                                              |
+| T5.2 bloco da chave e interruptor                                                | `259768a66` → `eaa645549`                                                                                                    | `origin/staging`                           | `38170135676`                                                                                                                                             |
+| T5.3 manchetes do cartão                                                         | `b34494c4f` → `a6aa4f539`                                                                                                    | `origin/staging`                           | `38170135676`                                                                                                                                             |
+| Smoke de prints, campos em duas colunas, texto da recusa                         | `66f4d88b7` · evidência `408aedf77`                                                                                          | `origin/staging`                           | `38170135676`                                                                                                                                             |
+| T6.1 documentação viva (esta task)                                               | `1323e64cf` contexto vivo · `7c8f7c966` SECURITY.md · (o commit de evidência e `tasks.md`, que fecha esta série)             | **só local**, `work/262-t6`                | —                                                                                                                                                         |
+
+**Correspondência da Fase 4 depois do rebase** (mesmo conteúdo, SHAs de `work/262-t6`, base `origin/staging` `cabedd0a5`): T4.1 `fc2d41fcb` → `17da32694` · T4.2 `f9228b24f` → `7fb5d0747` ·
+T4.3 `c9380b4fc` → `71db8d6af` · evidência da Fase 4 `9e260dca5` · 2ª rodada `4350b8f12` → `8aa0fb1ac` → docs `71d52be0a` → evidência `2cd476075`. **Publicar a Fase 4 é sobre `work/262-t6` (ou refazendo
+o rebase), não sobre `work/262-f4`, que está atrás de `origin/staging`.**
+
+**O que falta para produção** (nada da 262 está em `main`): tudo. Painel tolerante, migration + API + cron, worker e telas, cada um em PR próprio (seção "Promoção a produção" abaixo), mais o Gate A em
+produção e a T4.4.
+
+**O que está só em staging:** Fases 1, 2, 3 e 5. **Em staging a chave já pode ser gravada pela tela e nada a lê**, porque o worker (Fase 4) não foi publicado: o ciclo de staging ainda é o da 252 (lê a
+variável `FERIADOS_API_TOKEN`, se existir). ⚠️ As telas foram a staging **antes** do worker, ao contrário do que a nota da Fase 5 e da T5.3 previam ("nenhuma tela vai a staging antes do worker"); a decisão foi
+do usuário (prints aprovados em 2026-10-11, informado ao executor desta task). O efeito é benigno (rotina pausada de fábrica, nada sai), mas a tela de staging hoje promete um comportamento que só existe
+depois da Fase 4.
+
+### Divergências achadas entre os documentos e o código/estado real
+
+1. `tasks.md` (T5.3 e § Publicação) e `evidence.md` § Fase 5 ("Não feito: publicação") diziam que as telas **não** estavam em staging; elas estão (Deploy `38170135676`). Corrigido no `tasks.md`; a seção da
+   Fase 5 fica como foi escrita (era verdade no dia) e **este quadro a supera**.
+2. `docs/ai-context/api-transportada.md` tinha só um esboço de duas linhas da 262 ("o texto completo vem na T6.1"); `docs/ai-context/frontend-transportada.md` e `docs/spec/domain-model.md` não citavam a 262; a seção
+   da 252 em `frontend-transportada.md` ainda dizia "a API nem conhece o orçamento" (deixou de valer: o painel lê `monthlyRequestBudget`). Os quatro foram escritos ou anotados nesta task.
+3. `docs/SECURITY.md` carregava a "Emenda (spec 262)" dentro da entrada da 252, com a nota "a T6.1 troca esta nota pela entrada própria". Trocada: a emenda virou um ponteiro de poucas linhas e a entrada
+   "2026-10-11 — spec 262" é própria.
+4. `apps/api-transportada/CLAUDE.md` não dizia que a API **não vai a `main` antes do painel da Fase 1**, nem os códigos de recusa e a auditoria; `apps/frontend-transportada/CLAUDE.md` não tinha a seção da 262. Corrigidos.
+5. **Já conferidos e corretos** (não duplicados): `docs/ai-context/worker-transportada.md` e `apps/worker-transportada/CLAUDE.md` (rotina registrada sempre, banco a cada ciclo, `token_missing` e `credential_unreadable`,
+   `unexpected_error` para tabela ausente, limites honestos do ciclo); `docs/ai-context/cron-transportada.md` (o cron reconhece o catálogo e nunca chama o fornecedor nem lê a chave); `docs/spec/railway.md`
+   (o `destroy` das duas variáveis é **esperado só na T4.4**, com as condições); `.env.example` (sem `FERIADOS_API_*`); `.railway/railway.ts` (mantém as duas com `preserve()` e o comentário de legado, linhas 168–170).
+6. Achado de código **não corrigido** (fora do escopo desta task, já registrado em `SECURITY.md` e no `api-transportada.md`): `CORS_EXPOSE_HEADERS` é só `Date`
+   (`apps/api-transportada/src/shared/api.constant.ts` 273), então o `429` da tela não mostra "N min" em produção; a correção é `'Date, Retry-After'`.
+7. As citações de linha de ADR-0102, `spec.md` e `plan.md` são de `origin/staging` de 2026-10-09 e andaram com os commits seguintes; não foram reconferidas arquivo a arquivo nesta task (a T0.2 fez isso uma vez).
+   Quem for citar uma linha confere antes.
+
+### Passos do USUÁRIO (nenhum é da IA), nesta ordem
+
+1. **Q3 (plano e cota) e Q4 (termos de uso) da 252** — continuam `[NEEDS CLARIFICATION]` e bloqueiam **ligar** a rotina: escolher o plano (o padrão de 4500 pressupõe o Developer, 5.000 por mês menos 10%) e confirmar com o
+   fornecedor que guardar os feriados é permitido (a página de termos deu 404 em 2026-10-07). Sem isso, não gravar a chave.
+2. **Gate A, por ambiente (staging e produção), SÓ NOMES.** Conferir se existe no worker uma variável chamada `FERIADOS_API_*`. **A saída nunca pode conter um valor** (nem parcial, nem os 4 últimos caracteres). ⚠️ Não use o
+   `railway variables` comum: imprime a linha com o valor e queima a chave (`security.md` §4). Use `railway variables --service worker --environment <env> --json | jq -r 'keys[] | select(startswith("FERIADOS_API"))'`
+   (a flag `--json` **não foi confirmada** na versão instalada: confira `railway variables --help` antes; na dúvida, a aba **Variables** do Railway, que mascara o valor). Registrar em `evidence.md` "existe / não existe" por
+   ambiente. **(a) Não existe** (esperado): nada a colar; o worker pode ir antes de a chave estar gravada, e a busca começa parada (`token_missing`, `succeeded`, 0 requisições). **(b) Existe com valor:** a chave vai para o banco
+   **antes** do deploy do worker, pela tela (já em staging) ou por `PUT` com comando que não ecoa nada (receita no runbook abaixo).
+3. **Gravar a chave e o orçamento pela tela de staging** (aba Calendário → "Chave da FeriadosAPI"; só ASCII visível de 16 a 512 caracteres; nunca em terminal, log, commit ou chat). Deixar o orçamento no padrão ("padrão: 4500")
+   ou no valor do plano; **não testar com orçamento baixo** (orçamento esgotado só encerra o ciclo e o ciclo seguinte já parte do mês gasto). Isto só faz efeito depois do worker da Fase 4 em staging.
+4. **Aprovar a publicação da Fase 4** (staging) depois do Gate A: o push é sobre `work/262-t6` (ou o rebase refeito), num push só para T4.1–T4.3.
+5. **Despausar `holiday.provider.pull` em Operações** (a linha nasce pausada de fábrica; a tela da chave **não** despausa) e acompanhar o 1º ciclo pelo roteiro abaixo.
+6. **`railway config apply` só na T4.4** e só com as condições dela (abaixo). Nunca a partir de um checkout de staging antes de o worker da 262 estar em `main`.
+7. **Aprovar os PRs de produção e a migration em produção** (aprovação própria; seção "Promoção a produção").
+8. **Revisão de design e usabilidade** da tela real em staging (pendente; checklist abaixo) e a **revisão final `opus`** de código (roda em separado).
+
+### Roteiro do 1º ciclo real (passo do usuário, depois dos passos 1 a 5; adaptado do da 252)
+
+A chave vem **do banco**. Conferir em staging, **só por leitura** (nenhuma consulta imprime a chave, a dica nem o envelope):
+
+- **Antes de despausar,** na aba Calendário: o bloco mostra "Chave configurada (…dica) em <data>", o orçamento (com "padrão" se não foi definido) e o cartão de status **não** diz "sem chave" nem "chave ilegível".
+  Se disser "sem chave", a chave não foi gravada; se disser "chave ilegível", o último ciclo fechou `credential_unreadable` (chaveiro mudou, envelope de outra instalação ou corrompido): salvar a chave de novo pela tela.
+- No painel de Operações, o desfecho do ciclo: `succeeded` com contador `token_missing = 0`. **`token_missing = 1` com chave configurada é defeito** (o worker leu outro banco, ou a tabela está vazia) e
+  `credential_unreadable` com `token_unreadable = 1` é a chave que não abre: nos dois casos nenhuma requisição saiu (`requests = 0`), e é o runbook de emergência, não insistência.
+- `select last_error_code, status, count(*) from holiday_provider_fetches group by 1, 2` — esperado `done` e, no máximo, `not_covered`; `malformed_response`, `provider_unreachable`, `provider_plan_restricted` e
+  `persistence_failed` pedem leitura do log (só tem código, nome do erro e par).
+- **O desfecho da execução é a fonte para o 401:** `provider_unauthorized` por chave recusada **não** aparece em `holiday_provider_fetches`. Atenção: **plano restrito em TODAS as cidades buscadas fecha o ciclo como
+  `provider_unauthorized`** ("chave recusada" engana: conferir o contador `plan_restricted`). O cartão agora diz "chave inválida".
+- Contadores a ler: `requests`, `plan_restricted`, `entries_discarded`, `discovery_discarded_city_codes`, `national_mismatch`, `municipal_inserted`, `state_inserted`. `national_mismatch` maior que zero **é esperado**.
+- `holiday_provider_monthly_usage.requests` do mês contra o `requests` da execução; e na tela "N de M consultas usadas" contra o orçamento. O orçamento efetivo é `coalesce(monthly_request_budget, 4500)`:
+  `select provider, monthly_request_budget, version from holiday_provider_settings` mostra `NULL` quando vale o padrão (a consulta não toca o envelope nem a dica).
+- Por empresa: `select count(*) from municipal_holidays where company_id = … and provider_entry_id is not null` (e em `state_holidays`) contra `municipal_inserted` e `state_inserted`.
+- Duração: 1,2 s por requisição, 100 requisições ≈ 2 min; lease de 30 s renovado a cada 10 s; nenhuma `job_executions.finished_at is null` sobrando.
+- **Trocar a chave pela tela com o ciclo rodando:** o ciclo em curso termina com a chave que leu; o seguinte usa a nova. Conferir isso uma vez (outra chave do próprio usuário, nunca colada em terminal).
+- Volume esperado (ADR-0100 §5): carga inicial ≈ 138 requisições em **2 dias** (teto de 100 por ciclo, ciclo diário), depois ≈ 23 por mês. As lacunas da forma de resposta real do fornecedor (`evidence.md` da 252 § T3.1)
+  se confirmam ou se corrigem aqui. Registrar o resultado em `evidence.md`.
+
+### Runbook de emergência (só por ordem do usuário; a IA não executa nada disto sozinha)
+
+Do mais leve ao mais pesado. **Nenhum passo imprime, copia ou ecoa a chave.**
+
+1. **Remover a chave pela tela** (Calendário → "Chave da FeriadosAPI" → "Remover chave", com confirmação). O ciclo seguinte fecha `succeeded` com `token_missing = 1` e 0 requisições; o orçamento e os feriados
+   importados ficam. ⚠️ O ciclo **em curso** termina com a chave que já leu (≤ 100 requisições, ~2 min) e **a aplicação do cache global às empresas continua** (só toca o banco).
+2. **Parar a rotina:** pausar `holiday.provider.pull` em Operações; para parar **na hora**, cancelar a execução em andamento em Operações. Nada novo é buscado nem aplicado; o que já foi importado continua valendo.
+3. **Desligar a importação de uma empresa:** pelo interruptor da tela (Calendário, "Importar feriados da FeriadosAPI"; `settings.manage`), que audita. Antes da 262 isto era SQL à mão. As três etapas pulam a empresa; os
+   importados ficam; religar retoma do cursor. Suprimir em lote e apagar linhas importadas seguem como no runbook da 252 (`specs/252-*/evidence.md` § "Runbook de emergência", itens 3 e 4), só por ordem do usuário.
+4. **Se a tela cair** (painel indisponível, defeito de front): `DELETE /holiday-imports/provider-settings/token` pela API, sem ecoar valor. Receita: o token de acesso do `company-admin` entra por `read -s` em uma variável do shell
+   (nunca em argumento, histórico ou arquivo), e o comando imprime **só o código HTTP**, por exemplo `curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ACCESS_TOKEN" "$API_URL/holiday-imports/provider-settings/token"`
+   (esperado `204`; sem `-v`, sem `set -x`). Para gravar de novo por `PUT`, o corpo `{"token":"…","expectedVersion":"N"}` entra por **stdin** (`--data @-`), lido por `read -s`, nunca em argumento. O limitador é de 10
+   escritas por hora por empresa + usuário.
+5. **Chave que apareceu em terminal, log ou commit é chave queimada:** remover pela tela (passo 1) e reemitir no fornecedor (`security.md` §4).
+6. **Rollback da 262 (migration) — ordem:** (a) reverter o worker da 262 (com a T4.4 pendente, o worker anterior volta a ler a variável preservada, se ainda existir no Railway), (b) só então rodar o `rollback.sql` de
+   `20261009223052_holiday_provider_settings` (apaga a tabela, sem recusa; nenhum dado de negócio, a chave se reemite no fornecedor). O worker da 262 sem a tabela fecha `unexpected_error`, sem derrubar nada. ⚠️ O
+   `rollback.sql` **da 252** recusa empresa com a importação desligada, e o interruptor da tela torna essa condição alcançável: religar as empresas antes de reverter a 252.
+
+### Promoção a produção — PRs separados, nesta ordem
+
+Hoje `origin/main` não tem nada da 262; o worker de produção roda a 252 e **lê** `FERIADOS_API_TOKEN`. O `deploy.yml` sobe a API **antes** do frontend (`deploy-frontend` tem `needs: deploy-api`). Cada PR é montado por `cherry-pick`
+sobre `origin/main`, conferindo a lista de commits **por conteúdo** (o `staging` carrega trabalho de outras sessões e tem back-merge de `main`), com aprovação humana antes de abrir e de mergear.
+
+| PR  | Conteúdo                                                                                                                         | Condição para abrir e mergear                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | **Painel tolerante (Fase 1):** `47a78bfe7`, `9de8356d0`, `e31365e1d`, `6d196ae28` (catálogo e permissão na guarda de `/auth/me`) | Sem API nova, sem migration. **Tem de estar em produção, com Deploy verde, ANTES do PR b.**                                                                                                                                                                                                                                                                                                                                                              |
+| b   | **Migration + API + catálogo do cron:** Fases 2 e 3 (T2.1 a T3.4 e a 2ª rodada: `1d18952b0` a `602f16e55`, ver o quadro)         | **A API NÃO vai a `main` antes do painel da Fase 1 em produção** (HIGH da revisão): a permissão `holiday-import.configure` faz `isAuthMeResponse` recusar `/auth/me` (`IDENTITY_AUTH_ME_INVALID`) e todo `company-admin` perde o painel. **Aprovação própria do usuário** (migration); `make migration-test` e `db:generate` = `no_changes`; conferir a cadeia de migrations (`schema-snapshot`): a 263 foi reencadeada **depois** da 262 (`0faaf6047`). |
+| c   | **Worker (T4.1–T4.3)**                                                                                                           | **Gate A em produção feito e registrado** (situação a ou b); a tabela (PR b) já existe, senão o ciclo fecha `unexpected_error`; se a variável existir com valor, a chave já está no banco; o worker de produção passa a ignorar a variável.                                                                                                                                                                                                              |
+| d   | **Telas (Fase 5):** `6a5505fb7` a `66f4d88b7`                                                                                    | PR a e PR b em produção; de preferência depois do PR c (senão a tela grava uma chave que nada lê); prints aprovados (feito em staging).                                                                                                                                                                                                                                                                                                                  |
+| e   | **T4.4:** tirar as duas entradas de `.railway/railway.ts`                                                                        | Chave no banco de staging **e** de produção, worker da 262 em `main`, ciclo conferido sem `token_missing` indevido; o `railway config apply` é passo do usuário e o `destroy` das duas no `plan` é esperado (`docs/spec/railway.md`).                                                                                                                                                                                                                    |
+
+Antes do PR b não há lock novo a medir (a migration só cria uma tabela, sem linha semeada); o banco de produção é o `Postgres-Hqfu` (o serviço "Postgres" é outro e dá número falso).
+
+### Revisão de design e usabilidade (web.md §15) — PENDENTE, do usuário
+
+**Não foi feita nesta task e não está registrada como feita.** O que existe: os 96 PNG do smoke (16 telas × 375/768/1280 × claro/escuro), que o usuário aprovou em 2026-10-11 (informado ao executor desta task; a aprovação não
+está em arquivo do repositório). Os prints ficam **fora do repositório**, na pasta `prints-262-painel` do scratchpad da sessão do coordenador:
+`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-angry-hamilton-090c30/d319d930-ff12-44eb-8d1a-237a7c632506/scratchpad/prints-262-painel/` (arquivos
+`chave-*.png` e `status-*.png`; o scratchpad some com a sessão: se for preciso reter, copiar para fora de `/tmp`).
+
+Checklist curto para comparar a **tela real em staging** com os prints, em 375, 768 e 1280, claro e escuro:
+
+1. **Sem chave:** "Nenhuma chave configurada", orçamento com marca "padrão", campo "Chave" vazio, aviso de que salvar não liga a busca.
+2. **Configurada:** "Chave configurada (…dica) em <data>"; o campo agora se chama "Nova chave" e está **vazio**; "N de M consultas usadas".
+3. **Orçamento próprio e uso do mês** (aviso quando o uso atinge o orçamento).
+4. **Erro de formato local** (curta, com espaço, acento) — o texto fica no campo, com o foco nele.
+5. **Erro 400 do servidor** — campo nomeado, texto limpo, **sem a chave**, foco no campo.
+6. **409 de versão** — "outra pessoa alterou; recarregue" e a tela já mostra o que o outro gravou.
+7. **429** — "tente de novo em N min" **só se** o `Retry-After` chegar (hoje não chega em produção; conferir em staging o texto sem minutos e decidir sobre `CORS_EXPOSE_HEADERS`).
+8. **Remover chave** — diálogo de confirmação dizendo que o orçamento e os feriados importados ficam.
+9. **Só leitura** (usuário sem `holiday-import.configure`) — estado visível, sem campo, sem Salvar nem Remover, com o texto de quem pode alterar.
+10. **Interruptor** da empresa ligado e desligado — `Checkbox` com rótulo, texto "Desligar não apaga os feriados já importados", estado "gravando" travado.
+11. **Manchetes do cartão:** sem chave, chave ilegível, orçamento do mês atingido, aguardando com chave (só manda despausar em Operações quando há chave) e chave recusada.
+12. Alvo de toque ≥ 44 px a 375 px, sem rolagem lateral, contraste nos dois temas, foco visível e `aria-describedby` na dica e no erro; **nada de chave em lugar nenhum do corpo** (inspecionar o DOM depois de salvar).
+
+### O que NÃO foi feito nesta task
+
+Push; Gate A; `railway config apply`; gravar ou pedir a chave; despausar a rotina; T4.4; a revisão final `opus` de código; a revisão de design com o usuário; qualquer mudança em `apps/**/src` ou em teste;
+`DELETE` com `If-Match`, scrubber do Sentry, log de `ApiError` 5xx e o `'Date, Retry-After'` do CORS (todos registrados em `docs/SECURITY.md`).

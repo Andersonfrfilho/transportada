@@ -6,6 +6,9 @@
 > `company-admin`). **Gate A** (passo do usuário, **só nomes, a saída nunca contém um valor**) antes da **publicação da Fase 4
 > inteira** (a T4.2 já deixa de ler a variável), em staging **e produção**. **A 252 já está em `main`** (#155, #156, #159).
 > ADR-0102 **aceita em 2026-10-09**; as emendas E1–E16 da T0.1 estão aplicadas aqui e em `evidence.md` § T0.1.
+>
+> **Estado em 2026-10-11 (quadro com SHAs e runs em `evidence.md` § "T6.1 — fechamento"):** Fases 1, 2, 3 e 5 em `origin/staging` com Deploy verde; **Fase 4 só local**
+> (`work/262-f4`; `work/262-t6` depois do rebase); T4.4, Gate A, T6.1b (revisão final `opus`) e T6.1c (revisão de design) **pendentes**; produção sem nada.
 
 Uma task por vez, na ordem. Cada task fecha com: **contrato vermelho antes** (pelo motivo certo), `bun run typecheck`, lint
 com a app como cwd, teste pelo **script `test` do `package.json`** (nunca `bun test` cru; na API, contrato e integração são dois
@@ -162,7 +165,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       segundo; `token-privacy.contract.ts` com a chave vinda do banco (sentinela em log, contadores, desfecho). Aceite:
       `bun run test` e `bun run build` do worker; integrações `holiday-fetch`, `holiday-apply`, `job-run-execution` 0 skip;
       mutações: ler da variável; ignorar o orçamento do banco; `token_unreadable` virar `succeeded`. (CA7, CA8)
-- [ ] **Gate A — passo do usuário, ainda não feito** (T4.1–T4.3 estão commitadas só localmente em `work/262-f4`; nada foi publicado) **(passo do USUÁRIO, antes da PUBLICAÇÃO da Fase 4 inteira — T4.1–T4.3 num push só — e do deploy do worker):** em
+- [ ] **Gate A — passo do usuário, ainda não feito em 2026-10-11** (T4.1–T4.3 estão commitadas só localmente em `work/262-f4` e, com SHAs novos depois do rebase sobre `origin/staging`, em `work/262-t6`; nada foi publicado) **(passo do USUÁRIO, antes da PUBLICAÇÃO da Fase 4 inteira — T4.1–T4.3 num push só — e do deploy do worker):** em
       staging **e produção** (o worker de produção já roda a 252 e lê a variável: aqui o gate é obrigatório), conferir **só o
       nome** da variável. **A saída nunca pode conter um valor.** ⚠️ O `railway variables` comum no worker, mesmo "filtrando o
       nome", imprime a linha com o valor da chave e a queima (`security.md` §4): **não use**. Use um comando que imprima só nomes:
@@ -183,7 +186,7 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       que o `railway.ts` ainda mantém as entradas até a T4.4). Aceite: `rtk proxy grep -rn
 "FERIADOS_API_TOKEN\|FERIADOS_API_MONTHLY_REQUEST_BUDGET" apps .env.example .railway` = só documentação histórica, os contratos que
       afirmam a ausência e as duas linhas legadas do `railway.ts`; testes do worker verdes. (CA9)
-- [ ] **T4.4** (🤖 `haiku`) Remover as duas entradas do `.railway/railway.ts` (`FERIADOS_API_TOKEN` e
+- [ ] **T4.4** (🤖 `haiku`; **pendente do usuário e das condições abaixo, 2026-10-11: nada feito**) Remover as duas entradas do `.railway/railway.ts` (`FERIADOS_API_TOKEN` e
       `FERIADOS_API_MONTHLY_REQUEST_BUDGET`), **só DEPOIS** de: (1) a chave estar no banco de **staging E de produção**; (2) o PR do worker
       (T4.1–T4.3) estar em `main`; (3) um ciclo conferido sem `token_missing` indevido. O `railway config apply` é **passo do usuário**,
       nunca de um checkout de staging antes disso (o `plan` mostrará `destroy` das duas variáveis: **é ESPERADO** aqui, e
@@ -214,8 +217,9 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       `monthlyRequests`): o painel compara `monthlyRequests` com o `monthlyRequestBudget` do `GET` do RF3, com `>=` (casa com o
       worker, `holiday-fetch.query.ts` 70). **Reescrever os textos que mandam olhar "sem token" em Operações**
       (`businessCalendar.locale.json` 281, 289 e 290, e o `.en`). Contratos por prioridade antes; mutações por manchete. **Prints** aprovados. (CA12)
-      **Feitas em 2026-10-10 em `work/262-f5`** (evidência em `evidence.md` § Fase 5). ⚠️ **Publicação pendente:** os 96 prints
-      aguardam aprovação do usuário e o worker (Fase 4) ainda não foi publicado; **nenhuma tela vai a staging nem a produção antes dos dois.**
+      **Feitas em 2026-10-10 em `work/262-f5`** (evidência em `evidence.md` § Fase 5). **Publicadas em staging em 2026-10-11** (cabeça `408aedf77`, Deploy
+      verde `38170135676`; prints aprovados pelo usuário em 2026-10-11) **antes** do worker da Fase 4: a tela de staging grava a chave e nada a lê até a Fase 4 ser publicada.
+      **Produção: nada** (PR d da promoção, `evidence.md` § "T6.1 — fechamento").
 
 ## Fase 6 — Fechamento
 
@@ -234,36 +238,42 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       constantes e log do cofre); evidência em `evidence.md` § T6.1b. ⚠️ Prints do estado novo e do diálogo de remover **pendentes
       de aprovação**; nada publicado.
 
+- [x] **T6.1** (**só a parte de documentação**, feita em 2026-10-11 em `work/262-t6`, sem push) Documentação viva: `docs/ai-context/{api,frontend}-transportada.md`,
+      `docs/spec/domain-model.md`, `apps/{api,frontend}-transportada/CLAUDE.md`, entrada própria da 262 em `docs/SECURITY.md` (a emenda dentro da entrada da 252 virou ponteiro) e o quadro único,
+      os passos do usuário, o roteiro do 1º ciclo, o runbook e a promoção a produção em `evidence.md` § "T6.1 — fechamento". Já estavam corretos e foram só conferidos: worker
+      (`ai-context` e `CLAUDE.md`), `docs/ai-context/cron-transportada.md`, `docs/spec/railway.md` e `.env.example`. Divergências achadas e corrigidas: `evidence.md` § "T6.1 — fechamento".
+- [ ] **T6.1b** Revisão final `code-reviewer` `opus`, em passada separada, com a auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização) sobre as Fases 2 a 5.
+      **Pendente** (roda em separado desta task). Achados viram tasks em fase barata.
+- [ ] **T6.1c** Revisão de design e usabilidade com o usuário (web.md §15): tela real em staging contra os prints aprovados em 2026-10-11 (pasta `prints-262-painel` do scratchpad; checklist em `evidence.md`
+      § "T6.1 — fechamento"). **Pendente do usuário; não foi feita.**
+
 ## Publicação
 
-Fase 1 sozinha → Fase 2 + Fase 3 (migration, API, catálogo da API e do cron) → **Gate A** (só nomes, staging e produção) → Fase 4
-(worker, T4.1–T4.3 num push só) → Fase 5 (telas, com prints aprovados) → **T4.4** (tirar as duas entradas do `railway.ts`, só com a
-chave já no banco de staging **e** de produção, o worker em `main` e um ciclo conferido). Com a variável **inexistente** o worker pode ir
-antes das telas (a busca começa parada, `token_missing`); com a variável **existente** a chave vai para o banco (telas T5.1/T5.2 ou `PUT`
-sem eco) antes do deploy do worker. Produção: a 252 **já está em `main`** (#155, #156, #159) e o worker de produção lê a variável, então o
-**Gate A em produção é obrigatório**; PRs separados: painel tolerante → migration + API + cron (**aprovação própria**, migration) →
-**Gate A em produção** → worker → telas → T4.4; em cada PR conferir a lista de commits contra `main` e montar por `cherry-pick` sobre
-`origin/main`.
+Estado em 2026-10-11: **Fases 1, 2, 3 e 5 estão em `origin/staging` com Deploy verde** (Fase 1 `37994557029`; Fases 2 e 3 `38007640528`; Fase 5 `38170135676`); a **Fase 4 (worker) só existe local**
+(`work/262-f4`, e `work/262-t6` depois do rebase) e **produção não tem nada**. Ordem original: Fase 1 sozinha → Fase 2 + Fase 3 (migration, API, catálogo da API e do cron) → **Gate A** (só nomes, staging e
+produção) → Fase 4 (worker, T4.1–T4.3 num push só) → Fase 5 (telas, com prints aprovados) → **T4.4** (tirar as duas entradas do `railway.ts`, só com a chave já no banco de staging **e** de produção, o worker em
+`main` e um ciclo conferido). A Fase 5 foi a staging antes do Gate A e do worker (decisão do usuário). Com a variável **inexistente** o worker pode ir antes de a chave estar gravada (a busca começa parada,
+`token_missing`); com a variável **existente** a chave vai para o banco (telas T5.1/T5.2 ou `PUT` sem eco) antes do deploy do worker. Produção: a 252 **já está em `main`** (#155, #156, #159) e o worker de produção
+lê a variável, então o **Gate A em produção é obrigatório**; PRs separados — a) painel tolerante → b) migration + API + cron (**aprovação própria**, migration; **a API não vai a `main` antes do painel da Fase 1 em
+produção**) → **Gate A em produção** → c) worker → d) telas → e) T4.4; em cada PR conferir a lista de commits contra `main` e montar por `cherry-pick` sobre `origin/main`. Detalhe e condições:
+`evidence.md` § "T6.1 — fechamento".
 
 ## Prompt de execução
 
+Estado em 2026-10-11: Fases 0 a 3 e 5 feitas e em staging; Fase 4 feita e **só local**; T6.1 (documentação) feita em `work/262-t6`, sem push. **Faltam, nesta ordem:** Gate A (usuário) → publicar a Fase 4 (sobre
+`work/262-t6`) → chave gravada pela tela e 1º ciclo conferido (usuário) → T4.4 → T6.1b (revisão final `opus`) e T6.1c (revisão de design, usuário) → PRs de produção a–e. **A spec tem `[NEEDS CLARIFICATION]` aberto
+na 252 (Q3, Q4): isso não bloqueia a revisão, bloqueia ligar a rotina.**
+
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/262-a-chave-da-feriadosapi-se-configura-no-painel/ (leia spec.md, plan.md,
-tasks.md e docs/adr/0102-a-chave-da-feriadosapi-mora-selada-no-banco.md antes de começar; leia também ADR-0100 e
-specs/252-*/tasks.md § "Roteiro do 1º ciclo real"). Worktree próprio a partir de origin/staging (fetch antes). Uma task por vez,
-na ordem do tasks.md.
-Modelos: T0.1 🧠 → architect model=opus · T0.2, Fase 1, T3.1, T4.3 → executor model=haiku · Fase 2 → executor model=sonnet,
-T2.2 🧠 com revisão separada por architect model=opus · Fases 3, 4 e 5 → executor model=sonnet · T6.1 → executor model=sonnet
-e revisão final → code-reviewer model=opus em passada separada.
+/oh-my-claudecode:autopilot Feche a 262 a partir de specs/262-a-chave-da-feriadosapi-se-configura-no-painel/ (leia spec.md, plan.md, tasks.md, evidence.md § "T6.1 — fechamento" e
+docs/adr/0102-a-chave-da-feriadosapi-mora-selada-no-banco.md antes de começar). Worktree próprio a partir de origin/staging (fetch antes; confira que as Fases 1, 2, 3 e 5 estão em staging e que a
+branch work/262-t6 existe). Uma task por vez, na ordem do tasks.md.
+Modelos: T6.1b revisão final → code-reviewer model=opus, em passada separada, sobre as Fases 2 a 5 (migration, selo, rotas, auditoria, worker, telas), com a auditoria do §15 do code-standart.md
+(N+1, Promise.all, logs sem PII, sanitização); achados viram tasks em fase barata (executor model=sonnet) e fecham com contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do
+package.json, mutação, format:check na raiz (com prettier --write nos .md tocados e add antes do commit) e commit isolado com caminhos explícitos (--no-verify; sem add amplo, stash, reset nem amend).
+T4.4 → executor model=haiku, SÓ depois das condições dela. A revisão de design (T6.1c) é com o usuário.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Cada task fecha com contrato vermelho antes, typecheck, lint com cwd na app, teste pelo script do package.json (na API, contrato
-E integração, 0 skip, Postgres que responda), mutação, format:check na raiz e commit isolado com caminhos explícitos
-(--no-verify, nunca git add -A/stash/reset/amend), evidência em evidence.md.
-ORDEM OBRIGATÓRIA: a Fase 1 (painel tolerante: catálogo com credential_unreadable e a permissão holiday-import.configure na
-guarda de /auth/me) vai a staging e tem Deploy verde ANTES da T3.1 — a API com a permissão antes do painel derruba o painel de
-todo company-admin.
-Pare e pergunte antes de: o Gate A (conferir FERIADOS_API_TOKEN no Railway é passo do usuário, em staging E produção — só
-NOMES, a saída nunca contém valor; o Gate A vem antes de publicar a Fase 4 inteira),
-railway config apply, deploy/PR de produção, migration em produção, configurar ou pedir a chave da FeriadosAPI, despausar a
-rotina holiday.provider.pull, qualquer tela publicada sem print aprovado, e qualquer [NEEDS CLARIFICATION] que surgir.
+ORDEM OBRIGATÓRIA: a API da 262 NÃO vai a main antes do painel da Fase 1 em produção (a permissão nova derruba o /auth/me de todo company-admin).
+Pare e pergunte antes de: o Gate A (conferir FERIADOS_API_* no Railway é passo do usuário, em staging E produção — só NOMES, a saída nunca contém valor), publicar a Fase 4, railway config apply, qualquer PR ou
+deploy de produção, migration em produção, configurar ou pedir a chave da FeriadosAPI, despausar a rotina holiday.provider.pull e qualquer [NEEDS CLARIFICATION] que surgir.
 ```
