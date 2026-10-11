@@ -1571,3 +1571,49 @@ calado. O `mockSettingsShell` da 238 segue servindo as telas de Configurações.
 - Contratos: `test/trip/crew-transfer.contract.ts`, `test/trip-hooks/crew-transfer-dialog.contract.ts`,
   `test/trip/timeline-crew-transfer.contract.ts`, `test/trip-hooks/timeline-crew-transfer.contract.ts`,
   `test/trip-hooks/crew-transfer-timeline-invalidation.contract.ts`.
+
+## Spec 262 (Fase 5) — a chave da FeriadosAPI se configura na aba Calendário
+
+**Estado:** em `origin/staging` (Deploy verde `38170135676`, 2026-10-11); **produção não tem a tela** e ela só vai depois do worker da Fase 4 e do
+painel tolerante da Fase 1 em `main` (ordem em `specs/262-*/evidence.md` § "T6.1 — fechamento"). Substitui, no cartão de status, o que a seção da 252 acima diz
+sobre "a API nem conhece o orçamento": agora ela conhece (`monthlyRequestBudget` do `GET provider-settings`).
+
+- **Cliente e guardas** (`modules/company-settings/shared/holidayProviderSettings*.ts`): `holidayProviderSettingsClient.service.ts` fala com
+  `GET|PUT /holiday-imports/provider-settings`, `DELETE …/token` e `GET|PUT /company-settings/holiday-import`. As guardas
+  (`holidayProviderSettingsGuards.validation.ts`) são de **chaves exatas**: `budgetOrigin`, `monthlyRequestBudget`, `tokenConfigured`, `tokenHint`,
+  `tokenUpdatedAt`, `updatedAt`, `version`; o interruptor tem só `isEnabled` e `origin`. Chave a mais (por exemplo `token`) é recusada e a resposta é
+  descartada. O corpo do `PUT` só leva o que foi pedido: `token` vazio não vai, `monthlyRequestBudget: null` chega ao corpo ("Usar o padrão"), o mesmo
+  número já gravado não é reenviado e `expectedVersion` some na criação.
+- **Bloco** `HolidayProviderSettings` (entra **antes** de `HolidayImportStatus` em `BusinessCalendarPanel`): `HolidayProviderSummary`, `HolidayProviderForm`
+  (remonta por `key = version`), `HolidayProviderInput`, `HolidayProviderRemoval`, `HolidayProviderFeedback`, `HolidayImportToggle`; hooks
+  `useHolidayProviderActions` (vive **acima** do formulário para o "salvo", a recusa e a confirmação atravessarem a remontagem) e
+  `useHolidayImportToggle`; serviço puro `holidayProviderSettingsForm.service.ts`; CSS `holidayProviderSettings.module.css`.
+- **Campo da chave:** `type="password"`, `autoComplete="off"`, `spellCheck={false}`, rótulo "Nova chave" quando já há uma, e **nunca preenchido de volta**
+  (vazio ao abrir, depois de salvar e depois de recusa do servidor). A recusa **local** de formato mantém o texto, porque ele nem saiu do navegador.
+  Dica `…1234` + data; orçamento com marca "padrão" quando `budgetOrigin = 'default'`; uso do mês (`monthlyRequests` do status) e aviso quando `>=` o orçamento.
+- **Permissões:** o painel recebe a prop `canConfigureHolidayImport` (`holiday-import.configure` lida de `/auth/me` em `CompanySettings.page.tsx`). Sem ela o
+  bloco é só leitura (estado visível, sem campo, sem Salvar/Remover). O interruptor da empresa é o `Checkbox` do design system e só pede `settings.manage`
+  (igual à rota). Escrever a chave exige as **duas** (a aba só existe com `settings.manage`).
+- **409** relê a configuração (a tela mostra o que o outro administrador gravou); ⚠️ o contrato `mutation-pending-state` proíbe `onSuccess: async`, então a
+  releitura é promessa **sem `await`**. **429** mostra "tente de novo em N min" (`retryAfterMinutes`, mínimo 1) **só se** o navegador ler o `Retry-After`,
+  e hoje a API expõe só `Date` em `CORS_EXPOSE_HEADERS`: em produção o painel cai no texto sem minutos (mesmo defeito latente no 429 do e-mail de teste da 143).
+  Códigos novos com texto pt/en: `HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT`, `HOLIDAY_PROVIDER_TOKEN_INVALID`, `HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE`.
+- "Remover chave" pede confirmação (o texto diz que o orçamento e os feriados importados ficam). "Salvar" sem mudança não chama a API e diz "Nada para
+  salvar" (`role="status"`); o botão **não** é desabilitado, por acessibilidade. Texto fixo: salvar a chave não liga a busca, a rotina nasce pausada e é
+  despausada em Operações.
+- **Manchetes do cartão (D8)** em `resolveImportStatusView({ settings, status })` (objeto, não dois posicionais), por prioridade: desligada → **sem chave** →
+  **chave ilegível** (`lastRun.outcome = credential_unreadable`) → os três desfechos de fornecedor → **orçamento do mês atingido** (`monthlyRequests >=
+monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par → aguardando → em dia. `settings` é opcional: se o `GET provider-settings`
+  falhar, o cartão é o de antes. Cartão e bloco leem a **mesma chave de consulta** (uma ida só à rede) e o cartão espera a configuração antes de desenhar
+  (não pisca "em dia" para virar "sem chave"). "Aguardando" só manda despausar em Operações quando há chave. Os textos "sem token" foram reescritos
+  (`headline.unauthorized` = "chave inválida"); um contrato varre pt e en e proíbe "sem token"/"no token".
+- **Dublê de teste** `holidayProviderSettingsDouble.helper.ts`: as mesmas transições da API (versão obrigatória/ausente → 409, dica = 4 últimos, `null` volta ao
+  padrão, `DELETE` zera só a chave). **Nunca guarda a chave inteira.**
+- **Prints:** smoke `test/spec-262-painel-prints.smoke.spec.ts` (+ `spec-262-prints-smoke.helper.ts`): build real (`vite build` direto, sem o `prebuild`
+  que baixa modelos) + `vite preview` do binário da app numa porta própria, API inteira dublada, **chave sentinela falsa** que não pode estar em lugar nenhum
+  do corpo. 16 telas × 375/768/1280 × claro/escuro = 96 PNG, fora do repositório.
+- ⚠️ **Teste de DOM: nunca imprimir nó do happy-dom numa asserção** (`expect(node).toBeNull()`, `toBe` entre elementos): o Bun cai com SIGTRAP, sem
+  relatório, ao formatar o elemento quando a asserção falha. Compare `node === null`, `textContent` ou um atributo. (Mesma lição da 252, acima: vale para os
+  contratos de DOM da 262.)
+- Contratos: `holiday-provider-settings` (26), DOM `business-calendar-provider-settings` (36) e `business-calendar-import-toggle` (10), puro
+  `holiday-provider-form` (25), `holiday-import-headline` (19), DOM `business-calendar-import-headlines` (10) e `business-calendar-permission` ajustado.

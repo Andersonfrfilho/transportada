@@ -507,6 +507,18 @@ resposta (`AbortSignal.timeout`) volta ao aviso nacional de hoje. No detalhe, `s
 "Removidos pelo fornecedor" só oferece "Desligar" para data de hoje em diante (a API devolve 409 antes disso). Só informa: nada entra em `disabled`. Prints:
 `test/spec-252-painel-prints.smoke.spec.ts` (`SPEC_252_PRINTS_DIRECTORY`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 252 T5.2/T5.3".
 
+## A chave da FeriadosAPI se configura na aba Calendário (spec 262, ADR-0102)
+
+Bloco `HolidayProviderSettings` **antes** de `HolidayImportStatus`: chave, orçamento mensal e o interruptor da importação da empresa. Regras que não se
+negociam: o campo da chave é `type="password"`, `autoComplete="off"` e **nunca é preenchido de volta** (nem depois de salvar, nem depois de recusa do servidor);
+as guardas (`holidayProviderSettingsGuards.validation.ts`) são de **chaves exatas** e descartam resposta com `token` a mais; o corpo do `PUT` só leva o que foi
+pedido (`expectedVersion` obrigatório fora da criação, `monthlyRequestBudget: null` volta ao padrão). Escrever exige `holiday-import.configure` **e**
+`settings.manage` (prop `canConfigureHolidayImport`; sem ela o bloco é só leitura); o interruptor pede só `settings.manage`. O cartão de status ganhou as manchetes
+"sem chave", "chave ilegível" e "orçamento do mês atingido" por prioridade em `resolveImportStatusView({ settings, status })`, com `>=` como o worker, e lê a
+**mesma** chave de consulta do bloco. O 409 relê a configuração (promessa sem `await`: o contrato `mutation-pending-state` proíbe `onSuccess: async`). ⚠️ O
+`Retry-After` do 429 só chega se a API o expuser no CORS (hoje só `Date`): em produção a tela cai no texto sem minutos. Teste de DOM nunca imprime nó do happy-dom
+(SIGTRAP). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 262 (Fase 5)".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de

@@ -3555,10 +3555,64 @@ preço do combustível resolvido em memória) alimentando `buildValuationFromCon
 
 ## Spec 262 (Fases 2 e 3) — a chave da FeriadosAPI e o liga/desliga da importação (ADR-0102)
 
-- `holiday_provider_settings` (migration `20261009223052_…`, só staging): uma linha por fornecedor da instalação; `token_envelope`
-  A256GCM com AAD pelo `id` da linha, `token_hint` (4 últimos), `version`, `monthly_request_budget` **anulável (NULL = padrão 4500)**.
-- `GET`/`PUT`/`DELETE …/provider-settings[/token]` e `GET|PUT /company-settings/holiday-import`: permissões, limitador (por empresa+usuário) e
-  auditoria em `CLAUDE.md` da API e `docs/SECURITY.md`. O texto completo de fechamento vem na T6.1.
+**Estado:** Fases 2 e 3 em `origin/staging` (Deploy verde `38007640528`, 2026-10-10); **produção não tem nada disto** (a migration pede
+aprovação própria e a API **não** vai a `main` antes do painel da Fase 1 em produção: a permissão nova derruba o `/auth/me` do painel
+de todo `company-admin` que ainda não a conhece). Spec e decisões: `specs/262-*`, ADR-0102.
+
+**Tabela da INSTALAÇÃO** `holiday_provider_settings` (migration `20261009223052_holiday_provider_settings`, `rollback.sql` sem recusa; sem
+`company_id`: a conta do fornecedor, a cota e o contador do mês são da instalação, ADR-0021). Uma linha por fornecedor (`provider` único,
+CHECK só `'feriadosapi'`); `token_envelope jsonb` A256GCM (o `keyId` mora **dentro** do envelope, não há coluna `key_id`), `token_hint` (os 4
+últimos caracteres, em claro), `token_updated_at` (os três da chave ficam nulos juntos ou preenchidos juntos, CHECK `_token_check`),
+`monthly_request_budget integer` **anulável: NULL = o padrão 4500** (só o que o administrador DEFINIU fica gravado; o primeiro `PUT` com a
+chave não grava orçamento), `version bigint` (concorrência otimista), `updated_by_user_id` (sem FK, rastro, nunca exposto), `created_at`,
+`updated_at`. Seis nomes explícitos, o maior com 41 bytes. Só `drizzle-holiday-provider-settings.repository.ts` importa a tabela (contrato
+`holiday-import-global-isolation`; entra no `SUPPORT_ONLY` do `tenant-safety`). O worker tem cópia só das colunas (paridade coluna a coluna).
+
+**Rotas** (`business-calendar/presentation/holiday-provider-settings.routes.ts`, `holiday-import-enablement.routes.ts`):
+
+| Rota                                              | Permissão                  | Notas                                                                                             |
+| ------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /holiday-imports/provider-settings`          | `settings.manage`          | `no-store`; lista branca; sem linha = `tokenConfigured:false`, `budgetOrigin:'default'`, 4500     |
+| `PUT /holiday-imports/provider-settings`          | `holiday-import.configure` | corpo `.strict()` `{ token?, monthlyRequestBudget? (número ou null), expectedVersion? }`; 10/h    |
+| `DELETE /holiday-imports/provider-settings/token` | `holiday-import.configure` | zera envelope, dica e data juntos, sobe a versão; sem chave = 204 sem auditoria; o orçamento fica |
+| `GET\|PUT /company-settings/holiday-import`       | `settings.manage`          | `{ isEnabled, origin: 'default'\|'company' }`; upsert grava **só** `is_enabled`                   |
+
+- **Resposta do `GET`/`PUT`:** `tokenConfigured`, `tokenHint`, `tokenUpdatedAt`, `monthlyRequestBudget` (valor **efetivo**: 4500 quando a coluna é
+  NULL), `budgetOrigin` (`default` | `installation`), `version` (string) e `updatedAt`. Nunca o envelope, a chave nem quem alterou. Os três caminhos
+  estão em `isNoStorePath` (`http/request-path.service.ts`).
+- **`holiday-import.configure`** é permissão dedicada, **só no papel `company-admin`**, concedível por grupo (o raciocínio do `cargo.measure`: um
+  grupo com `settings.manage` para editar feriado não leva a chave da instalação de carona). Não é permissão de serviço; o separador e o ajudante não
+  alcançam as rotas de escrita (`test/separator-role.contract.test.ts`). Ler continua `settings.manage`.
+- **Limitador:** `HOLIDAY_PROVIDER_SETTINGS_RATE_LIMIT` (`scope: 'holiday-provider-settings'`, 10 por 3600 s, `store: 'postgres'`); `PUT` e `DELETE`
+  gastam o **mesmo balde**. ⚠️ É por **empresa + usuário** (`companyId:userId`), **não** global da instalação; o `GET` não tem teto. O limite conta
+  antes do `parse`, então corpo inválido também gasta. Está em `test/rate-limited-routes.contract.test.ts`.
+- **Recusas** (código estável, mensagem fixa, nunca o valor): `400 HOLIDAY_PROVIDER_TOKEN_INVALID` (campo `token` e a regra: 16 a 512 caracteres ASCII
+  visíveis), `400` de corpo (`.strict()`, orçamento fora de 1–1.000.000, "nada a criar" quando a linha não existe e só vem `monthlyRequestBudget:null`),
+  `403` (inclui `settings.manage` sem `holiday-import.configure`), `409 HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT` (versão velha, linha criada por
+  outro na corrida, ou atualização de linha inexistente), `429` com `Retry-After`, `500 HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE` (cofre indisponível; sem motivo).
+- **Selo** (`application/holiday-provider-token-secret.service.ts`): AAD `transportada:holiday-provider-token:v1:${settingsId}`; plaintext UTF-8 de
+  `{"token":"…"}` com `.strict()` e a regex `^[\x21-\x7E]{16,512}$` ao selar e ao abrir; o parse do envelope fica **dentro** do `try`; os bytes em claro e o
+  AAD são zerados no `finally`. O `settingsId` é gerado pelo caso de uso (`crypto.randomUUID()`) **antes** de selar e inserido explicitamente; se o
+  `INSERT … ON CONFLICT (provider) DO NOTHING` não insere nada, o envelope é descartado e a resposta é `409`. A atualização é `SELECT … FOR UPDATE` +
+  `UPDATE … WHERE id AND version`. Salvar a mesma configuração (mesmo orçamento, sem chave) não grava nem audita. O AAD **não** leva o `provider`: o id
+  da linha é o único amarrador. Cópia por valor no worker (só `decrypt`), com contrato de paridade do AAD e do formato do plaintext.
+- **Auditoria** (na mesma transação, `appendBusinessCalendarAudit` com o parâmetro opcional `permission`, padrão `settings.manage`):
+  `holiday-provider-settings.saved` e `holiday-provider-settings.token-removed` (alvo `holiday_provider_settings`, permissão `holiday-import.configure`,
+  `before`/`after` só `{ monthlyRequestBudget, tokenConfigured, version }`, `metadata.changedFields` e `ipAddress`) e `holiday-import.enablement-changed`
+  (alvo `company_holiday_import_settings`, `entity_id` = `companyId`, `{ isEnabled }`, só quando o valor efetivo muda; `PUT { isEnabled:true }` sem linha
+  não grava nem audita). **Nunca** a chave, a dica ou o envelope. ⚠️ `audit_logs` exige `company_id` e ator: a trilha de uma escrita da instalação cai na
+  **empresa do ator** (a empresa B não vê o que a A fez, só `tokenUpdatedAt`).
+- **Constantes do orçamento** em `src/shared/holiday-provider.constant.ts` (`FERIADOS_API_{DEFAULT,MIN,MAX}_MONTHLY_REQUEST_BUDGET`, 4500 / 1 / 1.000.000,
+  **mesmos nomes** do worker porque a paridade compara por nome).
+- **Fora do que a API faz:** não testa a chave no fornecedor (o worker é o único que fala com `feriadosapi.com`; chave errada aparece no ciclo seguinte
+  como `provider_unauthorized`), não despausa a rotina e não tem `DELETE` com `If-Match`.
+- ⚠️ **A chave em claro passa pela memória da API durante o `PUT`** (lista honesta em `docs/SECURITY.md`, entrada da 262). Nenhuma resposta, log, auditoria
+  ou erro a leva (sentinela procurada em tudo por contrato e integração).
+- ⚠️ `CORS_EXPOSE_HEADERS` (`shared/api.constant.ts`) é só `Date`: o navegador **não lê** `Retry-After` de nenhum `429`, então a tela cai no texto sem
+  "N min" em produção. Correção pendente (não feita): `'Date, Retry-After'`.
+- Contratos e integração: `test/business-calendar/holiday-provider-settings-{routes,use-case}.contract.ts`, `holiday-import-enablement-routes.contract.ts`,
+  `test/database-migration/holiday-provider-settings.*`, `test/integration/holiday-provider-settings.integration.ts` (15) e
+  `holiday-import-enablement.integration.ts` (6); a integração roda pelo segundo comando da API (`run test:integration`, com `--env-file`).
 
 ## Ticks das mensagens do motorista (spec 263 T5.4, 09/10/2026)
 

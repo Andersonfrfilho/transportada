@@ -136,7 +136,12 @@ selada A256GCM com AAD `…holiday-provider-token:v1:${settingsId}`, dica de 4 c
 efetivo e `budgetOrigin`). Rotas `GET` (`settings.manage`) e `PUT`/`DELETE …/token` (`holiday-import.configure`, só `company-admin`, balde `postgres`
 `holiday-provider-settings` de 10/h por empresa+usuário, **não** global) em `/holiday-imports/provider-settings`, e `GET|PUT /company-settings/holiday-import`
 (`settings.manage`; upsert só de `is_enabled`). Só `drizzle-holiday-provider-settings.repository.ts` importa a tabela (contrato
-`holiday-import-global-isolation`); `settingsId` é gerado antes de selar; nada de chave em resposta, log ou auditoria. Detalhe: `specs/262-*/evidence.md`.
+`holiday-import-global-isolation`); `settingsId` é gerado antes de selar; nada de chave em resposta, log ou auditoria. A escrita é permissão dedicada
+`holiday-import.configure` (só `company-admin`, **no fim** de `TRANSPORTADA_PERMISSIONS`: o painel compara a lista em ordem); recusas `400 HOLIDAY_PROVIDER_TOKEN_INVALID`,
+`409 HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT`, `500 HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE`; auditoria `holiday-provider-settings.{saved,token-removed}` e
+`holiday-import.enablement-changed` (a trilha cai na empresa do ator, sem chave, dica nem envelope). ⚠️ A API **não vai a `main` antes do painel da Fase 1**
+(a permissão nova derruba o `/auth/me` do painel antigo) e `CORS_EXPOSE_HEADERS` é só `Date`, então o `Retry-After` do 429 não chega ao navegador. Detalhe:
+docs/ai-context § "Spec 262 (Fases 2 e 3)", `docs/SECURITY.md` e `specs/262-*/evidence.md`.
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
