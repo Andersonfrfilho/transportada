@@ -102,7 +102,10 @@ some).
 **Ordem de publicação:** a da ADR-0081 §9, sem regra extra por motivo novo — com _strip_ e validação por anexo, app
 velho com API nova ignora o que não conhece. **`conversation-contracts` e `conversations-ui` sobem juntos nas três
 apps (T4.1)**: se só o UI subir, o app fica com duas cópias do contracts e a versão velha descarta os campos em
-silêncio.
+silêncio. **A API entra na mesma regra** (`devDependency` de teste, §5.2): toda subida do contracts sobe também a da
+API, senão a paridade testa o schema velho. O contracts traz `zod ^3` (`conversation-contracts/package.json`), e a API e
+o worker usam `zod 4.4.3`: a segunda cópia fica só em `test/**` da API e é inofensiva (o schema é usado só pelo
+próprio pacote).
 
 ## 2. Capacidade de gravação — `conversations-ui/participant` (minor 0.9.0 → 0.10.0)
 
@@ -237,9 +240,10 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
   troca, RF8), e o `src` é atribuído assim que resolve, com **`preload="none"` sempre** — o navegador não baixa nada
   até tocar, então nenhum GET de mídia por bolha e nenhum dado do motorista gasto sem toque. O toque chama
   **`audio.play()` de forma síncrona** no handler do clique (o Safari do iPhone exige o gesto; nada de `await` antes do
-  `play()`). URL ainda não resolvida no toque: o botão fica `aria-busy` e toca quando chegar (sem gesto perdido: o
-  `play()` é feito no mesmo handler se a URL já existe, senão o toque é repetido pelo usuário — o caso é raro, a
-  resolução é local ao host).
+  `play()`). URL ainda não resolvida no toque (caso raro, a resolução é local ao host): o botão fica `aria-busy` e **o
+  toque é repetido pelo usuário** — um `play()` disparado depois, de forma assíncrona, perde o gesto no iOS e é recusado.
+  O mesmo vale depois de re-resolver uma URL vencida: a retomada pede novo toque se o navegador recusar o `play()`
+  (conferido no iPhone na T7.1).
 - **Erro de mídia** (`error` do `<audio>`, URL assinada vencida depois de 5 min): re-resolve **uma** vez, troca o
   `src` e retoma da posição.
 - Tempo: `durationMs` do servidor quando vier (mostrado sem rede); senão `--:--` até o primeiro toque, e depois
@@ -445,9 +449,13 @@ routine_started_at)` **e** `attachment.created_at >= now() - AUDIO_TRANSCRIPTION
    recuperação**, env do worker, padrão **72 h**; regra de produto nova, ver D9 e §8).
 4. **Reivindicação por linha:** dentro do lote, **uma linha de cada vez** (reivindica, processa, reivindica a
    seguinte), cada uma com o próprio lease: `update … set lease_token = gen_random_uuid(), lease_expires_at = now() +
-(timeout + 60 s), attempts = attempts + 1 where id = (select id … where status = 'pending' and attempts < 3 and
+LEASE, attempts = attempts + 1 where id = (select id … where status = 'pending' and attempts < 3 and
 next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now()) order by next_attempt_at limit
 1 for update skip locked) returning …`. **`attempts` sobe na reivindicação** (processo morto também conta).
+   **`LEASE` cobre todas as etapas da linha**: `AUDIO_TRANSCRIPTION_TIMEOUT_MS` + 15 s (`ffprobe`) + 60 s
+   (decodificação) + 60 s (download) + 60 s de margem. Sem isso, na 3ª tentativa o lease venceria durante uma medida
+   longa, a varredura do passo 2 marcaria `attempts_exhausted` e o resultado bom seria descartado (a escrita final
+   exige o `lease_token`).
 5. **Por linha** (toda escrita `where id = $id and lease_token = $token`; 0 linhas = perdeu a posse, descarta o
    resultado): empresa desligada ⇒ `failed`/`company_disabled` sem motor; objeto `deleted` ⇒ `purged`; baixa pela linha,
    confere `sha256`; **mede com `ffprobe`** (vem no `apk add ffmpeg`), **com timeout próprio** (padrão 15 s) sobre
@@ -475,20 +483,55 @@ O consumidor de job-run é serial: espera o ciclo da rotina terminar antes do `a
 (`apps/worker-transportada/src/runtime/job-run-consumer.service.ts:57`), com `WORKER_PREFETCH` padrão 1
 (`environment.schema.ts:153`). Uma transcrição de minutos dentro do ciclo seguraria canhoto, planta e prévia pelo tempo
 dela. **Decisão:** o ciclo da rotina `conversation.audio.transcribe` faz só os passos 1–3 (rápidos, SQL) e **entrega**
-ao `AudioTranscriptionRunner`, um executor em processo com **trava de uma execução** (_single-flight_): se ele já está
-rodando, o ciclo só registra `already_running`; se não, ele começa sem ser aguardado e o ciclo dá `ack` na hora (o
-resultado do job-run registra quantas linhas havia para reivindicar). O executor processa os passos 4–8 linha a linha
-até esvaziar o lote ou atingir `AUDIO_TRANSCRIPTION_BATCH_SIZE`. O estado durável é a tabela (lease), então um worker
-que morre no meio é recuperado pelo lease no ciclo seguinte; `SIGTERM` interrompe o processo filho e solta o lease
-(volta a `pending` sem gastar tentativa extra além da já contada).
+ao `AudioTranscriptionRunner`, um executor em processo com **trava de uma execução** (_single-flight_). O executor
+processa os passos 4–8 **uma linha por vez** até esvaziar o lote ou atingir `AUDIO_TRANSCRIPTION_BATCH_SIZE`. O motor
+roda em processo filho; o executor não promete CPU livre para as outras rotinas — só tira a transcrição do ciclo
+serial. O impacto em CPU é medida da T0.2.
+
+**Catálogo (as três cópias + o painel).** O job entra, com contrato de paridade entre elas, em
+`apps/api-transportada/src/shared/job-catalog.constant.ts` (sem ele a tela de job-run não o conhece),
+`apps/cron-transportada/src/shared/job-catalog.constant.ts` (sem ele **nunca é agendado**) e
+`apps/worker-transportada/src/shared/job-catalog.constant.ts`, e o rótulo em
+`apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts` (ao lado de `trip.canhoto.read`, `:248`).
+**Desfechos na lista fechada** do job (`isJobOutcome`, `apps/worker-transportada/src/job-run/application/run-job-cycle.ts:176`;
+fora dela vira `job_run_outcome_unknown` → `unexpected_error` a cada ciclo ocupado): `completed` (entregou, ou não havia
+nada), `already_running` (executor ocupado; não é falha) e `runner_lock_expired` (trava velha, abaixo). Cada desfecho
+tem rótulo pt-BR/en no painel.
+
+**Erros e contadores.**
+
+- O executor captura e registra **todo** erro (log estruturado só com ids, estado e código); nunca deixa rejeição
+  solta. Erro fora de uma linha (banco caiu no meio) encerra a execução com `runnerError = 1`.
+- Ele guarda em memória o resumo da execução que terminou (`processed`, `ready`, `failed`, `runnerError`); **o ciclo
+  seguinte** grava esse resumo nos contadores do job-run dele e o zera. O job-run da entrega registra `claimable`
+  (quantas linhas havia para reivindicar).
+- **Idade máxima da trava** = `AUDIO_TRANSCRIPTION_BATCH_SIZE × LEASE` (§5.6). O ciclo que encontra a trava mais velha
+  que isso registra `audio_transcription_runner_lock_expired` em nível de erro, solta a trava e devolve
+  `runner_lock_expired` (a próxima execução começa no ciclo seguinte). Duas execuções simultâneas não corrompem nada:
+  toda escrita exige o `lease_token` da linha.
+
+**Parada pedida pelo operador** (`heartbeat.isStopRequested()`, `run-job-cycle.ts:192`): vale **só para o ciclo**
+(passos 1–3), como em toda rotina. **Não** é ligada ao executor: quando ela chega, o job-run da entrega já fechou, e a
+transcrição em curso tem prazo próprio (timeout do motor) e não vale matar no meio. Quem quer parar de transcrever
+desliga a empresa (§5.1) ou tira `AUDIO_TRANSCRIPTION_MODEL_PATH` (a rotina deixa de ser registrada).
+
+**Desligamento do worker.** O executor entra nos `closeables` do `WorkerShutdown`
+(`apps/worker-transportada/src/runtime/worker-shutdown.service.ts:40-46`), que fecham **antes** do provedor e do banco.
+`close()`: para de reivindicar, aborta o processo filho (`AbortSignal`) e solta a linha em curso com `update … set
+status = 'pending', lease_token = null, lease_expires_at = null, attempts = attempts - 1 where id = $id and lease_token
+= $token` — **a soltura graciosa devolve a tentativa**, senão três deploys seguidos esgotariam um áudio. Morte sem
+`SIGTERM` (OOM, `kill -9`) não devolve: a tentativa conta, como deve.
 
 - **Por que não as outras saídas:** fila/consumidor RabbitMQ dedicado exige topologia nova e outro trilho de retry para
   o que a tabela já resolve; orçamento de tempo por ciclo não ajuda (uma transcrição de 5 min não se divide); prefetch
   maior com trava por rotina muda o comportamento de **todas** as rotinas do worker.
-- **Teste (T3.3):** transcritor falso que só termina quando o teste solta; com ele preso, um job-run de
-  `trip.canhoto.read` publicado depois é processado e confirmado **antes** de a transcrição terminar; um segundo ciclo
-  da transcrição com o executor ocupado não começa outra execução. A T0.2 mede o impacto real no canhoto (CPU) e pode
-  ajustar `BATCH_SIZE`/threads.
+- **Testes (T3.3):** transcritor falso que só termina quando o teste solta: com ele preso, um job-run de
+  `trip.canhoto.read` publicado depois é confirmado **antes** de a transcrição terminar; um segundo ciclo devolve
+  `already_running` (desfecho conhecido, não `unexpected_error`); o ciclo seguinte ao fim grava os contadores da
+  execução anterior; trava velha ⇒ `runner_lock_expired` + log de erro; erro lançado pelo transcritor falso não vira
+  rejeição solta; `close()` com uma linha em posse ⇒ `pending` com `attempts` devolvido; lease cobre uma medida longa
+  na 3ª tentativa sem a varredura descartar o resultado; contrato de paridade das três cópias do catálogo e do rótulo
+  do painel.
 
 ## 6. D12 — a tela antiga da ocorrência **não** usa o mesmo serializador
 
@@ -585,3 +628,17 @@ para a task dona:
 | Índice parcial de áudio em `attachments`                                                                                                               | §5.5, tasks T2.1                                                                         |
 | Janela de 72 h configurável, regra nova, confirmar com o dono                                                                                          | §5.6 passo 3, §8 item 3, spec D9                                                         |
 | `onmute` só conta se persistir > 3 s                                                                                                                   | §2.1                                                                                     |
+
+## 11. Revisão 4 (ressalvas da aprovação) — item → onde ficou resolvido
+
+| Item                                                                                                  | Onde                                                                  |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Job nas três cópias do catálogo + rótulo do painel, com paridade                                      | §5.8 (Catálogo), tasks T3.4                                           |
+| `already_running` e `runner_lock_expired` na lista fechada de desfechos                               | §5.8, tasks T3.3/T3.4                                                 |
+| Executor registra todo erro; contadores da execução anterior no ciclo seguinte; idade máxima da trava | §5.8 (Erros e contadores)                                             |
+| Parada do operador                                                                                    | §5.8: só o ciclo; não interrompe a transcrição em curso (justificado) |
+| `closeables` do `WorkerShutdown`; soltura graciosa devolve a tentativa                                | §5.8 (Desligamento do worker)                                         |
+| Lease cobre as medidas                                                                                | §5.6 passo 4 (`LEASE`)                                                |
+| plan § d alinhado (uma linha por vez, sem premissa de CPU livre, alerta exceto `company_disabled`)    | plan § d                                                              |
+| `play()` após URL não resolvida/vencida pede novo toque; conferir no iPhone                           | §3.2, tasks T7.1                                                      |
+| A API entra na regra "contracts sobe junto"; zod ^3 × 4.4.3                                           | §1 (Ordem de publicação), tasks T4.1                                  |

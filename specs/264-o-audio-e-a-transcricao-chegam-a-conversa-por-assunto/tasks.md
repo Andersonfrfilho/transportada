@@ -15,7 +15,8 @@
 
 > 🤖 Modelo: `opus` (T0.1 e T0.2 são 🧠; T0.3 → `haiku`)
 
-- [ ] **T0.1** 🧠 `opus` — **Desenho do contrato** (validar com `architect` antes de qualquer T1.x/T3.x): nomes finais
+- [x] **T0.1** 🧠 `opus` — **Desenho do contrato** (2026-10-11: contrato aprovado após 3 passes de revisão,
+      `contract.md`) (validar com `architect` antes de qualquer T1.x/T3.x): nomes finais
       de `ParticipantAttachment.durationMs?`/`transcription?` e do vocabulário D4; prop de capacidade da gravação em
       `ConversationThread`/`ParticipantConversations` (molde `audioRecording?`) e o desenho do compositor (microfone no
       lugar do enviar com campo vazio?); chaves de `labels`; forma de `GET/PUT /company-settings/audio-transcription`;
@@ -129,16 +130,19 @@ review,denied}`).
       (medido por `ffprobe`; WebM sem duração no cabeçalho medido por decodificação com teto); `company_disabled`
       fora do alerta; `sha256_mismatch`;
       `object_missing`; empresa desligada fecha sem motor; expurgo `ready`→`purged` com objeto `deleted`; nenhum
-      log com texto (mutação). Também (`contract.md` §5.6, §5.8): reivindicação filtra `attempts < 3` e a varredura do
+      log com texto (mutação). Também os testes listados no `contract.md` §5.8 (inteiros) e (§5.6, §5.8): reivindicação filtra `attempts < 3` e a varredura do
       início do ciclo fecha `attempts >= 3` com lease vencido como `attempts_exhausted` (transcritor falso que "mata o
       processo" não gira para sempre); lease **por linha**; texto com U+0000 gravado sem ele; timeout do
       `ffprobe`/`ffmpeg` sobre arquivo que trava ⇒ retriável; toda mudança exposta faz `updated_at = now()`;
       **executor em processo**: com o transcritor falso preso, um job-run de `trip.canhoto.read` publicado depois é
       confirmado antes de a transcrição terminar, e um segundo ciclo não abre outra execução.
-- [ ] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`),
-      registrar em `main.ts` e no catálogo de rotinas (`src/shared/job-catalog.constant.ts`, ao lado de
-      `trip.canhoto.read`; agendamento conforme a cadência medida na T0.2), métricas por estado/código e alerta (plano § d). Aceite: contratos da T3.3 verdes +
-      `make worker-integration`.
+- [ ] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`) e o
+      `AudioTranscriptionRunner` do `contract.md` §5.8; registrar em `main.ts` (o executor entra nos `closeables` do
+      `WorkerShutdown`) e **nas três cópias do catálogo de rotinas** (`job-catalog.constant.ts` da API, do cron e do
+      worker, ao lado de `trip.canhoto.read`, com contrato de paridade; sem a do cron nunca é agendado) + rótulo no
+      painel (`frontend-transportada/src/modules/shared/jobCatalog.constant.ts`), com os desfechos `completed`,
+      `already_running` e `runner_lock_expired` na lista fechada (`isJobOutcome`); agendamento conforme a cadência
+      medida na T0.2; métricas por estado/código e alerta (exceto `company_disabled`). Aceite: contratos da T3.3 verdes + `make worker-integration`.
 - [ ] **T3.5** `sonnet` — `apps/worker-transportada/Dockerfile`: estágio de build do `whisper-cli` (tag da ADR-0103),
       modelo com `sha256` conferido, `ffmpeg` no runtime, sem ferramentas de build no estágio final; variáveis
       `preserve()` em `.railway/railway.ts` (conferir contra os `railway.json`, CLAUDE.md raiz). Aceite: `docker build`
@@ -154,7 +158,9 @@ review,denied}`).
       apps juntas** (versão exata; `conversation-contracts` **e** `conversations-ui` na mesma subida — só o UI deixaria
       duas cópias do contracts descartando campos em silêncio), sem ligar a gravação; **já leva as chaves do player e
       da transcrição** (`contract.md` §4) para os `.locale.json` das três apps em pt-BR e en (o player novo aparece para
-      todo host nessa subida); `make check` das três + smoke do portal sem mudança.
+      todo host nessa subida); a `devDependency` de teste da API sobe junto (senão a paridade testa o schema velho;
+      `contract.md` §1); `make check` das três + smoke do portal sem mudança. Vale para toda subida futura do
+      contracts.
 - [ ] **T4.2** `sonnet` — Contratos antes (importados no agregador `test/conversation.contract.test.ts` /
       `test/shared.contract.test.ts`): `Permissions-Policy` com `microphone=(self)` exato; CSP com `media-src 'self'
 blob: <storage>` (hoje ausente); adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
@@ -201,7 +207,8 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
 - [ ] **T7.1** `sonnet` — Prints do app a 375 px (tema escuro: gravando, revisar, bolha com player, transcrição
       `pending`/`ready`) e do painel a 1440 px, lado a lado com os prints da 183 T705 e da 263 (web.md §15); alvo
       ≥ 44 px medido, leitor de tela (player, slider, aviso de máquina, anúncio do `pending → ready`), contraste
-      ≥ 4,5:1 nos dois temas, uso com uma mão; conferir em iPhone real (Safari grava `audio/mp4`, permissão no toque).
+      ≥ 4,5:1 nos dois temas, uso com uma mão; conferir em iPhone real (Safari grava `audio/mp4`, permissão no toque,
+      `play()` depois de re-resolver URL vencida — `contract.md` §3.2).
       Divergências viram ajuste, não nota.
 
 **Fora das tasks (aprovação humana):** produção (PRs por etapa staging → main), remover a tela antiga da ocorrência e os
