@@ -40,4 +40,18 @@ describe('integration shard partition', () => {
     const shards = partitionByWeight({ files: regular, weights: {}, shardCount: 4 })
     expect([...shards.flat(), ...IDENTITY_FILES].sort()).toEqual([...files].sort())
   })
+
+  test('at most 15% of the integration files run on the default weight', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      scripts: Record<string, string>
+    }
+    const weights = JSON.parse(
+      readFileSync('test/integration/shard-weights.json', 'utf8'),
+    ) as Record<string, number>
+    const files = listIntegrationFiles(packageJson.scripts['test:integration'] ?? '').filter(
+      (file) => !IDENTITY_FILES.includes(file),
+    )
+    const unweighted = files.filter((file) => weights[file] === undefined)
+    expect(unweighted.length).toBeLessThanOrEqual(Math.floor(files.length * 0.15))
+  })
 })
