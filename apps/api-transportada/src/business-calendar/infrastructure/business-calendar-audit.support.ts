@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
+import type { TransportadaPermission } from '../../identity/domain/authorization.policy.js'
 import type { BusinessCalendarActor } from '../application/business-calendar-actor.types.js'
 import {
   BUSINESS_CALENDAR_AUDIT_PERMISSION,
@@ -17,7 +18,7 @@ type AppendAuditParams = {
   readonly entityId: string
   readonly metadata?: Readonly<Record<string, unknown>>
   /** Padrão `settings.manage`; a chave da FeriadosAPI passa a permissão dedicada que a rota exigiu. */
-  readonly permission?: string
+  readonly permission?: TransportadaPermission
   readonly target: BusinessCalendarAuditTarget
   readonly transaction: BusinessCalendarTransaction
 }

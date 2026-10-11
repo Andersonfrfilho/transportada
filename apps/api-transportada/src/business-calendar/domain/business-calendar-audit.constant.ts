@@ -4,10 +4,13 @@
  * Spec 238 T1.3: o vocabulário da trilha de auditoria das escritas do calendário. Toda escrita grava
  * `audit_logs` na mesma transação, com ator, alvo, IP e instante (`docs/SECURITY.md`).
  */
-export const BUSINESS_CALENDAR_AUDIT_PERMISSION = 'settings.manage'
+import type { TransportadaPermission } from '../../identity/domain/authorization.policy.js'
+
+export const BUSINESS_CALENDAR_AUDIT_PERMISSION = 'settings.manage' satisfies TransportadaPermission
 
 /** Spec 262: a chave da FeriadosAPI é da instalação, e a trilha registra a permissão dedicada que a rota exigiu. */
-export const HOLIDAY_IMPORT_CONFIGURE_PERMISSION = 'holiday-import.configure'
+export const HOLIDAY_IMPORT_CONFIGURE_PERMISSION =
+  'holiday-import.configure' satisfies TransportadaPermission
 
 export const BUSINESS_CALENDAR_AUDIT_TARGET = {
   COMPANY_HOLIDAY_IMPORT_SETTINGS: 'company_holiday_import_settings',

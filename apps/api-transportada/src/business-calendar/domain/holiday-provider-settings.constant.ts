@@ -19,6 +19,12 @@ export const HOLIDAY_PROVIDER_TOKEN_RULE_MESSAGE = `Must be ${HOLIDAY_PROVIDER_T
 /** Os 4 últimos caracteres da chave, em claro, só para a tela dizer "…1234". */
 export const HOLIDAY_PROVIDER_TOKEN_HINT_LENGTH = 4
 
+/** De onde vem o orçamento da resposta: `default` é o padrão da instalação (coluna NULL), `installation` o que o administrador definiu. */
+export const HOLIDAY_PROVIDER_BUDGET_ORIGIN = {
+  DEFAULT: 'default',
+  INSTALLATION: 'installation',
+} as const
+
 export const HOLIDAY_PROVIDER_TOKEN_AAD_PREFIX = 'transportada:holiday-provider-token:v1:'
 
 export const HOLIDAY_PROVIDER_SETTINGS_ERROR_CODE = {

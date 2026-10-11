@@ -3058,7 +3058,7 @@ function createApplicationRoutes({
     ...createHolidayProviderSettingsRoutes({
       ...createHolidayProviderSettingsUseCases({
         port: new DrizzleHolidayProviderSettingsRepository(database),
-        secrets: createHolidayProviderTokenSecretService({ envelopeProvider }),
+        secrets: createHolidayProviderTokenSecretService({ envelopeProvider, logger }),
       }),
       resolveClientIp,
     }),

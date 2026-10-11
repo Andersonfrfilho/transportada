@@ -11,6 +11,7 @@ import {
 } from '../../shared/holiday-provider.constant.js'
 import type { HolidayProviderSettingsRecord } from '../application/holiday-provider-settings.port.js'
 import {
+  HOLIDAY_PROVIDER_BUDGET_ORIGIN,
   HOLIDAY_PROVIDER_TOKEN_PATTERN,
   HOLIDAY_PROVIDER_TOKEN_RULE_MESSAGE,
 } from '../domain/holiday-provider-settings.constant.js'
@@ -87,7 +88,7 @@ export function toHolidayProviderSettingsView(
 ): Record<string, unknown> {
   if (record === null) {
     return {
-      budgetOrigin: 'default',
+      budgetOrigin: HOLIDAY_PROVIDER_BUDGET_ORIGIN.DEFAULT,
       monthlyRequestBudget: FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
       tokenConfigured: false,
       tokenHint: null,
@@ -100,7 +101,9 @@ export function toHolidayProviderSettingsView(
   // NULL é "o padrão": a visão devolve o valor efetivo e diz de onde ele veio.
   const isDefaultBudget = record.monthlyRequestBudget === null
   return {
-    budgetOrigin: isDefaultBudget ? 'default' : 'installation',
+    budgetOrigin: isDefaultBudget
+      ? HOLIDAY_PROVIDER_BUDGET_ORIGIN.DEFAULT
+      : HOLIDAY_PROVIDER_BUDGET_ORIGIN.INSTALLATION,
     monthlyRequestBudget:
       record.monthlyRequestBudget ?? FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET,
     tokenConfigured: record.tokenConfigured,
