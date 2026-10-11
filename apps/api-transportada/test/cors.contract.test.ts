@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { parseEnvironment } from '../src/config/environment.schema'
 import { HealthService } from '../src/health/health.service'
 import { appliedMigrations } from './fixtures/health.fixture'
+import { applyCorsHeaders } from '../src/http/cors.service'
 import { createRequestHandler } from '../src/http/request-handler.service'
 import type { AuthenticationPort } from '../src/identity/application/identity.port'
 import { TenantContextService } from '../src/identity/application/tenant-context.service'
@@ -369,9 +370,10 @@ describe('API CORS contract', () => {
     }
   })
 
-  // `Date` não é cabeçalho de resposta liberado entre origens: sem isto o app do motorista não lê o
-  // relógio do servidor e a nota volta a medir a chegada (spec 234).
-  test('exposes the Date header only to the allowed origin, on actual responses', async () => {
+  // `Date` e `Retry-After` não são cabeçalhos de resposta liberados entre origens: sem `Date` o app
+  // do motorista não lê o relógio do servidor (spec 234); sem `Retry-After` o painel não mostra
+  // quando tentar de novo depois de um 429 (specs 143 e 262).
+  test('exposes Date and Retry-After only to the allowed origin, on actual responses', async () => {
     const fixture = createFixture()
     const allowed = await fixture.handle(actualRequest('/health/live'), fixture.server)
     const disallowed = await fixture.handle(
@@ -383,9 +385,24 @@ describe('API CORS contract', () => {
       fixture.server,
     )
 
-    expect(allowed.headers.get('access-control-expose-headers')).toBe('Date')
+    expect(allowed.headers.get('access-control-expose-headers')).toBe('Date, Retry-After')
     expect(disallowed.headers.has('access-control-expose-headers')).toBe(false)
     expect(noOrigin.headers.has('access-control-expose-headers')).toBe(false)
+  })
+
+  test('lets the browser read Retry-After of a 429 sent to the allowed origin', () => {
+    const response = new Response(null, { status: 429, headers: { 'retry-after': '120' } })
+    applyCorsHeaders({
+      frontendOrigins: [FRONTEND_ORIGIN],
+      request: actualRequest('/holiday-imports/provider-settings'),
+      response,
+    })
+
+    const exposed = (response.headers.get('access-control-expose-headers') ?? '')
+      .split(',')
+      .map((header) => header.trim().toLowerCase())
+    expect(exposed).toContain('retry-after')
+    expect(response.headers.get('retry-after')).toBe('120')
   })
 
   test('does not add the expose header to a preflight answer', async () => {
