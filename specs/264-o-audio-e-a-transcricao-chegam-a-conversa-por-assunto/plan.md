@@ -163,7 +163,8 @@ tratativa/taxa/acerto/aviso/e-mail/WhatsApp importa ou cita a tabela nova (molde
 ## (d) Infra do worker — whisper.cpp + ffmpeg + modelo
 
 **Imagem:** estágio de build Alpine compila `whisper-cli` de uma **tag fixada** do `ggml-org/whisper.cpp` (cmake
-Release, sem GPU), baixa o modelo escolhido e confere o `sha256` (falha o build se divergir); o estágio final ganha
+Release, sem GPU, `-DGGML_NATIVE=OFF` — o builder do Railway não é a máquina que roda, e `NATIVE` compilaria para a CPU
+do builder; T0.2 usou `v1.9.4` com o commit conferido no build), baixa o modelo escolhido e confere o `sha256` (falha o build se divergir); o estágio final ganha
 `apk add ffmpeg`, o binário e o modelo em `/models`, dono `transportada`. Alternativa medida no spike: modelo em
 **volume** do Railway baixado no primeiro boot (imagem menor, deploy mais rápido; risco: boot sem modelo).
 
@@ -173,7 +174,7 @@ rotina não é registrada), `AUDIO_TRANSCRIPTION_THREADS` (padrão: vCPU − 1, 
 `AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão derivado da medida). Entram em `.railway/railway.ts` como `preserve()`.
 
 **Rotina** `conversation.audio.transcribe` (cadência alvo 1 min; se o agendador só der 5 min, a T0.2 registra e a spec
-aceita) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
+aceita; **registrado na T0.2: 5 min** — `JOB_TICK_INTERVAL_SECONDS = 300` e `cron` do Railway em `*/5`) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
 `on conflict do nothing` para anexos `audio/*` sem linha, depois de `greatest(enabled_since, routine_started_at)` e
 dentro da janela de 72 h, de empresa ligada; (2) reivindica **uma linha por vez**, até `BATCH_SIZE` por execução, com
 `FOR UPDATE SKIP LOCKED`, novo `lease_token`, lease que cobre todas as etapas (motor + `ffprobe` + decodificação +
