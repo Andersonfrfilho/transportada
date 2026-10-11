@@ -65,7 +65,8 @@ undefined` → `return {}` na linha 42), chamado em `main.ts` 1473; a busca rece
   `HolidayImportStatus` em 45), `company-settings/shared/holidayImportStatus.service.ts` 44–53 (`resolveHeadline`),
   `holidayImport.constant.ts` (`HOLIDAY_RUN_FAILURE_HEADLINE` 41), `holidayImportGuards.validation.ts` (chaves **exatas** do
   status; `lastRun` 33, 62), molde de campo de segredo `nfse-invoice/components/NfseCredentialPanel.component.tsx` 196–200
-  (`autoComplete="off"`, `type="password"`).
+  (`autoComplete="new-password"`, `type="password"`; emenda da revisão final: o Chrome ignora `off` em campo de senha, e o
+  `CertificateUploadForm.component.tsx` 125 já usa `new-password`).
 - **Railway:** `.railway/railway.ts` 168–171 (as duas variáveis da 252 no worker, `preserve()`); "omitir é apagar"
   (`docs/spec/railway.md` 93); rotação do chaveiro = chave nova sem remover a antiga (`docs/spec/railway.md` 287–290).
 - **Última migration em staging:** `20261009160300_nfe_addresses_participant_index`. ⚠️ `work/spec-260` (a do chat, fora de

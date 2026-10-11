@@ -214,7 +214,8 @@ monthlyRequestBudget, version }` e `metadata.changedFields` (`token` e/ou `month
 - **RF11 — Painel, bloco "Chave da FeriadosAPI"** (aba Calendário, acima do cartão de status):
   - estado: "Chave configurada (…1234) em 09/10/2026" ou "Nenhuma chave configurada"; orçamento "N consultas por mês" com
     "padrão" quando `budgetOrigin = 'default'`; uso do mês "N de M consultas usadas" (o `monthlyRequests` do status);
-  - formulário (só com `holiday-import.configure`): campo de chave `type="password"`, `autoComplete="off"`,
+  - formulário (só com `holiday-import.configure`): campo de chave `type="password"`, `autoComplete="new-password"`
+    (emenda da revisão final: o Chrome ignora `off` em campo de senha e ofereceria preencher com a senha do usuário),
     `spellCheck={false}`, **nunca preenchido de volta** (vazio sempre; o rótulo diz "Nova chave" quando já há uma), orçamento
     numérico, "Salvar", "Remover chave" com confirmação; sem a permissão o bloco é só leitura, com o texto de quem pode alterar;
   - liga/desliga da importação da empresa (com `settings.manage`): `Checkbox` do design system (`@/components/ui/checkbox`) com

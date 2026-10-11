@@ -36,6 +36,8 @@ export type ProviderScenario = Readonly<{
   monthlyRequests: number
   permissions: readonly string[]
   putFailure?: PutFailure
+  /** Quando a chave foi salva; mais novo que o último ciclo, a manchete espera o próximo ciclo (T6.1b). */
+  tokenSavedAt?: string
 }>
 
 export const CONFIGURE_PERMISSIONS = ['settings.manage', 'holiday-import.configure'] as const
@@ -47,7 +49,7 @@ function settingsOf(scenario: ProviderScenario, version: number): Json {
     monthlyRequestBudget: scenario.budget ?? DEFAULT_BUDGET,
     tokenConfigured: scenario.hasToken,
     tokenHint: scenario.hasToken ? FAKE_KEY.slice(-4) : null,
-    tokenUpdatedAt: scenario.hasToken ? SAVED_AT : null,
+    tokenUpdatedAt: scenario.hasToken ? (scenario.tokenSavedAt ?? SAVED_AT) : null,
     updatedAt: scenario.hasToken ? SAVED_AT : null,
     version: scenario.hasToken ? String(version) : null,
   }

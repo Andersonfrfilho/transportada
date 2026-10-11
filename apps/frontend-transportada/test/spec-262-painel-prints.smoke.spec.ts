@@ -4,7 +4,7 @@
  * Spec 262 T5.2/T5.3 (`web.md` §15): os prints da revisão de design do bloco "Chave da FeriadosAPI" (sem chave, configurada,
  * orçamento próprio com o uso do mês, salvando, erro de formato, 400, 409 e 429 do servidor, remover com confirmação, só
  * leitura, importação desligada) e das manchetes novas do cartão de status (sem chave, chave ilegível, orçamento atingido,
- * aguardando com chave), em 375, 768 e 1280 px, nos dois temas. Fora do smoke da CI: roda com
+ * aguardando com chave, chave nova aguardando o próximo ciclo) e do diálogo de remover a chave, em 375, 768 e 1280 px, nos dois temas. Fora do smoke da CI: roda com
  * `PLAYWRIGHT_TEST_MATCH=spec-262-painel-prints.smoke.spec.ts` e grava os PNGs em `SPEC_262_PRINTS_DIRECTORY` (nunca no
  * repositório). Dado sintético, chave SENTINELA e API inteira dublada: nada aqui lê um banco.
  */
@@ -37,6 +37,7 @@ const WIDTHS = [375, 768, 1280] as const
 const THEMES = ['dark', 'light'] as const
 const PROVIDER = 'section[aria-labelledby="holiday-provider-title"]'
 const IMPORT_STATUS = 'section[aria-labelledby="holiday-import-title"]'
+const DIALOG = '[role="dialog"]'
 
 const WITH_KEY: ProviderScenario = {
   hasToken: true,
@@ -165,9 +166,12 @@ const SCREENS: readonly Screen[] = [
     name: 'chave-remover-confirmacao',
     open: async (page) => {
       await page.locator(PROVIDER).getByRole('button', { name: 'Remover chave' }).click()
-      await expect(page.locator(PROVIDER).getByRole('group')).toBeVisible()
+      await expect(
+        page.getByRole('dialog', { name: 'Remover a chave da FeriadosAPI?' }),
+      ).toBeVisible()
     },
     scenario: WITH_KEY,
+    target: DIALOG,
   }),
   screen({
     name: 'chave-sem-permissao',
@@ -186,6 +190,15 @@ const SCREENS: readonly Screen[] = [
   screen({
     name: 'status-orcamento-atingido',
     scenario: { ...WITH_KEY, budget: 1800, monthlyRequests: 1800 },
+    target: IMPORT_STATUS,
+  }),
+  screen({
+    name: 'status-chave-nova-aguardando',
+    scenario: {
+      ...WITH_KEY,
+      lastRunOutcome: 'credential_unreadable',
+      tokenSavedAt: '2026-10-10T14:00:00.000Z',
+    },
     target: IMPORT_STATUS,
   }),
   screen({
@@ -209,10 +222,15 @@ const CONTRAST_TARGETS = [
   { name: 'recusa', selector: `${PROVIDER} [role="alert"] p` },
   { name: 'manchete da importação', selector: '[data-headline]' },
   { name: 'texto do estado', selector: '[role="group"] p' },
+  { name: 'texto do diálogo', selector: `${DIALOG} p` },
   { name: 'lista de fatos', selector: '[role="group"] li' },
 ] as const
 
-const TOUCH_SELECTORS = ['main button', `${PROVIDER} input:not([type="checkbox"])`] as const
+const TOUCH_SELECTORS = [
+  'main button',
+  `${DIALOG} button`,
+  `${PROVIDER} input:not([type="checkbox"])`,
+] as const
 
 function target(page: Page, current: Screen): Locator {
   return page.locator(current.target).first()

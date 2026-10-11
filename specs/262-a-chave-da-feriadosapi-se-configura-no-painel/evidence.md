@@ -427,3 +427,92 @@ lugar nenhum do corpo**: **96/96 passaram**. Servidores encerrados pelo PID e `d
 (o estado depois do ajuste da API: `'Date, Retry-After'`).
 
 **Não feito (de propósito):** push, publicação, documentação viva (T6.1), prints aprovados pelo usuário (**pendentes**), o worker (Fase 4) e o Gate A.
+
+## T6.1b — correções da revisão final (opus)
+
+Branch `work/262-t6b` (a partir de `origin/staging`), sem push. Nove itens, um commit por item (o 6, o 7 e a parte do painel do 8
+vão juntos; a parte da API do 8 vai com o 9). Fase 4 (worker, `work/262-f4`) não tocada.
+
+| #   | Item                                                                                       | SHA         |
+| --- | ------------------------------------------------------------------------------------------ | ----------- |
+| 1   | `CORS_EXPOSE_HEADERS = 'Date, Retry-After'` + contrato do 429                              | `4c751af9a` |
+| 2   | chave em claro fora do estado do React Query (ref zerado no `finally`)                     | `1155a4767` |
+| 3   | paridade painel ↔ API lida do fonte da API (chaves exatas, origens, regra da chave, teto) | `770462bbc` |
+| 4   | versão exata e igual de `@adatechnology/secret-envelope` na API e no worker                | `d208b0958` |
+| 5   | manchete "chave nova salva, aguardando o próximo ciclo"                                    | `7ddaae2b4` |
+| 6–8 | acessibilidade, `new-password`, constantes `installation`/`default` do painel              | `7f6e5b7e0` |
+| 8–9 | API: permissões tipadas, origem do orçamento, log do cofre (só `errorName`)                | `bb0f6c9be` |
+
+- **1.** Vermelho: `Expected "Date, Retry-After" / Received "Date"` (2 testes). Mutação: voltar a `'Date'` → 2 vermelhos. O mesmo
+  defeito valia para o 429 da 143. Achado paralelo (não corrigido): o smoke do CT-e do painel dubla `Content-Disposition` como
+  exposto; a API real só expõe `Date, Retry-After`.
+- **2.** `useSaveHolidayProviderSettingsMutation` não recebe mais a chave como variável: `saveSettings(body)` separa `token`,
+  guarda num `ref` e a `mutationFn` o lê e zera no `finally`; `mutation.state.variables` fica sem `token`. Vermelho: 3 de 4
+  (variáveis com a sentinela, também na mutação que falhou). Contrato `business-calendar-provider-token-cache` (DOM do hook,
+  procura a sentinela em todo o estado serializável dos dois caches). Mutação: tirar o zeramento do `finally` → 1 vermelho (a
+  gravação só do orçamento reaproveitaria a chave anterior; por isso a atribuição ao `ref` só ocorre quando há chave).
+- **3.** `PROVIDER_SETTINGS_KEYS`/`ENABLEMENT_KEYS` exportadas pelas guardas do painel; contrato `holiday-provider-api-parity` lê
+  o fonte da API (as duas respostas de `toHolidayProviderSettingsView`, as duas de `enablementResponse`, as origens, a regex da
+  chave reconstruída do `new RegExp`, comprimentos e o teto/piso do orçamento). Contrato de paridade nasce verde (nada
+  divergia); a prova é por mutação, 10 mutantes mortos e restaurados: chave a mais em cada resposta, flag `u` removida, teto
+  2.000.000, chave máxima 511, `tokenUpdatedAt` fora das guardas, mínimo 15, origem `custom` na API e no painel.
+- **4.** `test/business-calendar/secret-envelope-version-parity.contract.ts` na API lê o `package.json` do worker. Mutantes mortos:
+  worker em `0.1.1`, API com `^`, worker com `~`.
+- **5.** `isKeyNewerThanLastRun` (`tokenUpdatedAt > lastRun.finishedAt`, estrito): só substitui a manchete que vem do desfecho do
+  ciclo (`credential_unreadable`, `provider_unauthorized`, `provider_unreachable`, `malformed_response`); "desligada" e "sem
+  chave" continuam vencendo; ciclo bem-sucedido, sem ciclo, data ausente ou ilegível seguem como antes. Locale pt/en (mesmas chaves).
+  Vermelho: 6 testes (4 desfechos, prioridade sobre orçamento/falha por par, locale). Mutações: `>=`, `<`, sempre o desfecho do
+  ciclo, sempre a manchete nova, data da chave ausente → 0, locale sem a explicação: 6/6 mortas. ⚠️ O fixture
+  `buildProviderSettings` tinha `tokenUpdatedAt` 15:00 e os ciclos dos contratos 13:00: a primeira rodada do `test:hooks` caiu em
+  cascata (609 vermelhos por timeouts de 5 s) porque o cartão passou a dizer "chave nova"; o fixture foi para 12:00 (a chave
+  anterior ao ciclo), sem mexer nos contratos antigos. Dois testes DOM novos (cartão e troca da chave pela tela).
+- **6.** Confirmação de remover virou **diálogo modal** (`HolidayProviderRemovalDialog`, molde `HolidayDeleteDialog`, `useModalDialog`):
+  `aria-modal`, `aria-labelledby` na pergunta, `aria-describedby` no corpo, foco dentro, Esc fecha, o foco volta ao botão. Mora em
+  `HolidayProviderSettings` (acima do formulário que remonta). Depois de salvar/remover, o aviso de status
+  (`role="status"`, `tabIndex=-1`) recebe o foco ao aparecer (`focusOnMount`, ref estável). O liga/desliga não é mais
+  `disabled` ao gravar (perderia o foco); um segundo clique durante o pedido é ignorado no hook; "Salvando…"/"Salvo" são um
+  único `<p role="status">`. Locale: `remove.prompt` virou `remove.title` + `remove.body`; `.confirm` do CSS removido.
+  Vermelho: 5 de 7. Mutações (9, todas mortas): sem `aria-labelledby`, sem `aria-modal`, Esc inerte, aviso "salvo" sem foco,
+  aviso "removida" sem foco, caixa `disabled`, sem a guarda do segundo clique, sem `role="status"`, `autoComplete` `off`.
+- **7.** `autoComplete="new-password"` no campo da chave (`HolidayProviderInput` aceita `'new-password' | 'off'`); `spec.md` (RF11) e
+  `plan.md` emendados. Contrato existente invertido (`'off'` → `'new-password'`); mutação morta.
+- **8.** `HOLIDAY_PROVIDER_BUDGET_ORIGIN` (`default`/`installation`) na API (`domain/holiday-provider-settings.constant.ts`) e no painel;
+  `isInstallationBudget` no painel. `BUSINESS_CALENDAR_AUDIT_PERMISSION` e `HOLIDAY_IMPORT_CONFIGURE_PERMISSION` agora
+  `satisfies TransportadaPermission` (uma letra errada deixa de compilar) e `permission?: TransportadaPermission` no
+  `business-calendar-audit.support.ts`; contrato `audit-permission` (membros do catálogo; a política da rota = a da trilha). O
+  `'default'` do liga/desliga (`ENABLEMENT_ORIGIN`) já era constante local e ficou.
+- **9.** `createHolidayProviderTokenSecretService({ envelopeProvider, logger? })`: os dois `catch` logam `holiday_provider_token.vault_failed`
+  com `{ errorName, operation }` (`typeof` quando não é `Error`); nunca a mensagem, a chave, o envelope nem o id da linha; recusa de
+  formato não loga. `main.ts` passa o `logger`. Contrato `holiday-provider-token-secret-log` (5 testes, sentinela procurada no log
+  serializado). Mutações (8, todas mortas): sem log nas duas operações, mensagem no lugar do nome, valor lançado, id da linha, log na
+  recusa de formato, constantes de permissão desviadas.
+
+### Gates (SHA final da árvore de código `bb0f6c9be`)
+
+| Gate                                                         | Resultado                                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| API `bun run typecheck`                                      | exit 0                                                                          |
+| API `bun run lint` (cwd na app)                              | exit 0 (`--max-warnings=0`)                                                     |
+| API `bun --env-file=../../.env.test run test`                | **11401 pass / 0 fail / 34 skip** (os 34 skips já existiam; contrato sem banco) |
+| API integração `holiday-provider-settings` (Postgres nativo) | 19 pass / 0 fail / 0 skip                                                       |
+| API integração `holiday-import-enablement` (Postgres nativo) | 6 pass / 0 fail / 0 skip                                                        |
+| API `bun run db:generate`                                    | `{"status":"no_changes"}`                                                       |
+| Painel `bun run typecheck` / `bun run lint`                  | exit 0 / exit 0 (0 erros, 16 avisos antigos)                                    |
+| Painel `bun run test` (script)                               | **7985 pass / 0 fail** + hooks **1332 pass / 0 fail**                           |
+| Painel `test:hooks` sem carga extra                          | **10/10 verdes** (1332 pass / 0 fail, 40–53 s)                                  |
+| Painel `test:hooks` com todos os núcleos ocupados            | **3/3 verdes** (1332 pass / 0 fail, 60–64 s)                                    |
+| Postgres nativo (porta 65454)                                | parado e apagado ao fim                                                         |
+
+⚠️ Três execuções do `test:hooks` terminaram com `rc=143` (SIGTERM, 11–61 s, sem nenhuma linha de resultado): foram mortas de fora
+(outra sessão), não reprovaram teste; cada uma foi repetida até somar 10 verdes sem carga e 3 com carga.
+
+⚠️ O worktree do agente não tinha `.env`/`.env.test` (memória "Worktree do Claude sem .env"): a API rodou com a URL do Postgres
+nativo por `DRIZZLE_TEST_DATABASE_URL`, e o `--env-file` ausente é ignorado pelo Bun.
+
+### Prints (fora do repositório)
+
+`scratchpad/prints-262-t6b/` — **18 PNG** (3 telas × 375/768/1280 × claro/escuro): `status-chave-nova-aguardando` (o estado novo),
+`chave-remover-confirmacao` (agora o diálogo modal) e `status-chave-ilegivel` (o estado antigo continua aparecendo quando o ciclo é
+posterior à chave). Smoke `spec-262-painel-prints.smoke.spec.ts` estendido (cenário com `tokenSavedAt`, alvo do diálogo, contraste e
+alvo de toque do diálogo): **102/102 passaram**. Build real (`vite build` direto), `vite preview` do binário da app na porta 53462,
+servidor encerrado pelo PID, `dist` apagada. Prints **pendentes de aprovação do usuário**; nada publicado.

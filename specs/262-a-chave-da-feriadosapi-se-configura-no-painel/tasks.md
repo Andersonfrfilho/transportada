@@ -211,6 +211,10 @@ explícita do `package.json` da app. Migration pede também `make migration-test
       com o estado real; revisão final `code-reviewer` `opus` em passada separada com a
       auditoria do §15 do `code-standart.md` (N+1, `Promise.all`, logs sem PII, sanitização); revisão de design e usabilidade com o
       usuário (tela real contra os prints aprovados).
+      **T6.1b (revisão final `opus`) feita em 2026-10-11 em `work/262-t6b`:** nove correções (CORS `Retry-After`, chave fora do
+      cache do React Query, paridades painel↔API e do `secret-envelope`, manchete da chave nova, acessibilidade, `new-password`,
+      constantes e log do cofre); evidência em `evidence.md` § T6.1b. ⚠️ Prints do estado novo e do diálogo de remover **pendentes
+      de aprovação**; nada publicado.
 
 ## Publicação
 
