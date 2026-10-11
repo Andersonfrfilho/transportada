@@ -166,4 +166,5 @@ Aditivo, só nas rotas de mensagens por assunto (motorista e escritório, `GET` 
 (`contentType` `audio/*`) pode trazer `durationMs` e `transcription` (`pending` · `ready` · `failed` · `disabled`). A forma,
 o mapper e a configuração `GET/PUT /company-settings/audio-transcription` estão em
 [`specs/264-*/contract.md`](../264-o-audio-e-a-transcricao-chegam-a-conversa-por-assunto/contract.md) §5. As rotas antigas
-`/me/.../occurrences/**`, a tela antiga da ocorrência e o portal `/client/**` não mudam.
+`/me/.../occurrences/**`, a tela antiga da ocorrência e o portal `/client/**` não mudam. O resumo de `GET /me/trips/current/conversations` (e de `POST …/open`) ganha o opcional
+`transcriptionUpdatedAt` (ISO), para o refresh de 15 s do app perceber `pending → ready` (264 `contract.md` §5.3).
