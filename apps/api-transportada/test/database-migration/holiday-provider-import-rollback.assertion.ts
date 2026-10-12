@@ -16,9 +16,10 @@ import {
   refusalMessage,
   type RefusalCounts,
 } from './holiday-provider-import-rollback-causes.assertion.js'
+import { rollbackAudioTranscribeJobIfApplied } from './conversation-audio-transcribe-job-rollback.assertion.js'
 import { JOB, MIGRATION_SUFFIX } from './holiday-provider-import.constant.js'
 import { readImportState, type ImportState } from './holiday-provider-import-state.assertion.js'
-import { migrationsDirectory, readMigrationNames } from './support.js'
+import { listMigrationDirectories, migrationsDirectory, readMigrationNames } from './support.js'
 
 const CAMPINAS = '3509502'
 const BUSINESS_CALENDAR_SUFFIX = '_business_calendar'
@@ -38,6 +39,7 @@ async function readRollbackScript(directory: string): Promise<string> {
 
 /** O script abre `BEGIN`: a recusa deixa a transação abortada e o `ROLLBACK` tem de ir pela mesma conexão. */
 async function runRollback(database: SQL, rollback: string): Promise<Error | undefined> {
+  await rollbackAudioTranscribeJobIfApplied(database, await listMigrationDirectories())
   const reserved = await database.reserve()
   try {
     await reserved.unsafe(rollback)
@@ -61,6 +63,7 @@ export async function rollbackHolidayProviderImportIfApplied(
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
 
+  await rollbackAudioTranscribeJobIfApplied(database, directories)
   const failure = await runRollback(database, await readRollbackScript(directory))
   if (failure !== undefined) throw failure
 }

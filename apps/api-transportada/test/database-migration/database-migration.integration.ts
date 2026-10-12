@@ -30,6 +30,7 @@ import { assertConversationProtocol } from './conversation-protocol.assertion.js
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
 import { assertConversationAudioTranscription } from './conversation-audio-transcription.assertion.js'
+import { assertConversationAudioTranscribeJob } from './conversation-audio-transcribe-job.assertion.js'
 import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-index.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
@@ -416,6 +417,7 @@ describe('Drizzle migration integration', () => {
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
         })
+        await assertConversationAudioTranscribeJob(database)
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
