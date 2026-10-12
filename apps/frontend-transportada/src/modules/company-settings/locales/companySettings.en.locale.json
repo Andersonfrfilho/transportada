@@ -562,6 +562,49 @@
           "has": "Has exception"
         }
       }
+    },
+    "contractorReply": {
+      "title": "Contractor reply",
+      "legend": "The request goes to the contractor; when they answer with the updated boleto, the system can pass the reply to the driver without going through the operator.",
+      "save": "Save reply settings",
+      "undo": "Undo",
+      "fields": {
+        "mode": "When the reply arrives",
+        "attachmentKind": "Attachment that counts as the reply",
+        "driverReplyTemplate": "Text sent to the driver",
+        "waitHours": "Wait time (hours, empty = no deadline)",
+        "alertMode": "If the contractor is late",
+        "alertIntervalMinutes": "Repeat the alert every (minutes)",
+        "alertMaxCount": "Maximum alerts per occurrence",
+        "forwardToNoteRecipient": "Send the boleto to the invoice customer email"
+      },
+      "mode": {
+        "off": "Only show the reply",
+        "forward_after_approval": "Pass to the driver after operator approval",
+        "forward_automatic": "Pass to the driver automatically"
+      },
+      "attachmentKind": {
+        "pdf": "PDF only",
+        "pdf_or_image": "PDF or image"
+      },
+      "alertMode": {
+        "off": "Do not alert",
+        "alert_operator": "Alert the operation"
+      },
+      "forwardToNoteRecipient": {
+        "off": "Do not send",
+        "manual": "Operator sends",
+        "automatic": "Send automatically"
+      },
+      "problems": {
+        "needsContractorMail": "Turn on the contractor email for this type to use the reply.",
+        "templateRequired": "Write the text the driver receives.",
+        "waitHoursOutOfRange": "Enter 1 to 168 hours.",
+        "alertNeedsWaitHours": "To alert on delay, enter the wait time.",
+        "intervalOutOfRange": "Enter 15 to 1440 minutes.",
+        "maxCountOutOfRange": "Enter 1 to 96 alerts.",
+        "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on."
+      }
     }
   },
   "settingsResolution": {
