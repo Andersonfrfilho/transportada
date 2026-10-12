@@ -125,10 +125,10 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [x] **T1b.11** `sonnet` — **Canais e ícone no app (D9):** adapter mapeia `channels` e `iconName`; `renderSubjectIcon` usa o
       `<Icon name>` do app (catálogo da 255); labels pt-BR dos canais; API de demonstração devolve `channels`
       (`app`, `whatsapp`) e `iconName` por conversa; conferir no navegador.
-- [ ] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
+- [x] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
       escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
       implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
-- [ ] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
+- [x] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
       `<ParticipantConversations channel="portal">` (o microfone some sozinho) com um `ParticipantConversationsApi`
       próprio e um `subjectGroups`. Precisar mudar o pacote reprova a task.
 - [ ] **T1b.5** `sonnet` — Smoke Playwright do `frontend-driver`: abrir pelo sino, responder, responder offline
@@ -149,7 +149,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       mensagens; rotas novas, antigas intactas). Saída do arquiteto `opus`; conferida contra o código.
 - [x] **T2.0** `haiku` — `frontend-driver`: `notificationDestination.service` aceita também `trip.subject-conversation-message`
       (+ teste). **Publicar o app ANTES da API** (ADR-0081 §9: app tolerante → API → telas).
-- [ ] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
+- [x] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
       código para empresa errada, inexistente e viagem alheia); encerrada → `409 CONVERSATION_CLOSED` (nota liberada, viagem
       cancelada/concluída, `closed`); `open` idempotente (201 e depois 200); **rota antiga intacta** (resposta exata da lista e
       das mensagens antes e depois); mutação de A5 (os casos de uso novos não importam nada de `trip_occurrence_cases`, taxa
@@ -212,7 +212,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 
 > 🤖 Modelo: `sonnet`. Regra do dono: tudo aditivo; o cadastro e o uso atuais das respostas rápidas do escritório ficam idênticos.
 
-- [ ] **T5.1** `sonnet` — **API:** migration aditiva (`CHECK` de `company_quick_replies.audience` aceita `driver_reply`, com `rollback.sql` que recusa se
+- [x] **T5.1** `sonnet` — **API:** migration aditiva (`CHECK` de `company_quick_replies.audience` aceita `driver_reply`, com `rollback.sql` que recusa se
       houver linha dele); `COMPANY_QUICK_REPLY_AUDIENCES` ganha o valor sem mexer em `OccurrenceConversationParticipant`; as rotas
       `/company-settings/quick-replies` aceitam o público novo (zod); rota `GET /me/trips/current/quick-replies` (`trip.read`, `no-store`,
       só ativas, ordem do cadastro); contrato (as rotas e respostas antigas idênticas — golden), tabela de rotas, integração com banco, `make migration-test`.
@@ -250,4 +250,24 @@ Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-loc
 prettier nos .md; conferir numeração de spec/ADR/migration contra origin/staging.
 Pare e pergunte antes de: deploy em produção, migration destrutiva, remover a tela antiga do painel,
 qualquer [NEEDS CLARIFICATION].
+```
+
+## Prompt de execução — fechamento das tasks abertas (2026-10-12)
+
+Árvore única: `../transportada-wt/spec-263` (branch `work/spec-263`, a partir de `origin/staging`). Nada é feito fora dela.
+
+```text
+/oh-my-claudecode:autopilot Feche as tasks abertas da spec specs/263-o-chat-chega-ao-app-do-motorista/ (leia spec.md, plan.md, tasks.md e evidence.md antes de tocar em código). Trabalhe só em ../transportada-wt/spec-263, branch work/spec-263. Uma task por vez, nesta ordem:
+1. T1b.7 (sonnet): descarte do outbox no logout. Existe driverConversationOutboxCleanup.service.ts; confira o que falta contra o achado da T1b.3 (aviso e descarte no "Sair", LGPD) antes de escrever código.
+2. T2.2 (sonnet): contratos vermelhos primeiro (BOLA 404 CONVERSATION_NOT_FOUND, 409 CONVERSATION_CLOSED, open idempotente 201/200, rota antiga intacta, mutação de A5, alfabeto TS = CHECK, toda rota na tabela de rotas). Parte do que a T2.4 já cobre existe em apps/api-transportada/test/occurrence-conversation; só acrescente o que falta.
+3. T5.1 (sonnet): confira o que e7f092c41 já entregou (público driver_reply, rota /me/trips/current/quick-replies, migration 20261010103500) e feche o restante: golden das rotas antigas, tabela de rotas, integração com banco e make migration-test.
+4. T1b.4 (sonnet): o adaptador do portal já existe (apps/frontend-client/src/modules/occurrences/shared/portalParticipantApi.service.ts). Falta trocar o cartão pela visão do participante com channel="portal". O styles.css do pacote não entra no portal inteiro: escopar num contêiner e mapear para os tokens do portal; sem mudar o pacote.
+5. T1b.5 (sonnet): smoke Playwright do frontend-driver (abrir pelo sino, responder, responder offline; porta sintética 53112; use PLAYWRIGHT_REUSE_EXISTING_API_SERVER como no evidence.md).
+6. T1b.6 (sonnet): make check, make migration-test, integração dos arquivos tocados e publicação em staging com evidência.
+7. T4.1 a T4.3 (sonnet): prints a 375 px lado a lado com preview.html, passe de usabilidade e medida em staging; atualizar docs/ai-context e os CLAUDE.md das apps.
+Modelos: tudo em executor model=sonnet; revisão final em code-reviewer model=sonnet. Escalada: gate falhou 2x sobe um nível e registra em evidence.md.
+Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md; nunca "pular é passar" (integração sem banco é parar e relatar).
+Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-lockfile, gates, prettier nos .md.
+NÃO faça: T2.5b (depende de decisão do dono sobre o texto do D7) e T2.7 (só depois da API em produção).
+Pare e pergunte antes de: deploy em produção, migration destrutiva, remover a tela antiga do painel, qualquer [NEEDS CLARIFICATION]. Ao terminar, rode /oh-my-claudecode:cancel.
 ```

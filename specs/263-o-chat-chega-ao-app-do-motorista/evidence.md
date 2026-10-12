@@ -489,3 +489,57 @@ cherry-pick na ordem, mais 2 commits (renumeração e esta evidência; 68 à fre
 - **Correção:** mock `GET /trips/:id/conversations` → `{ data: [] }` (com `OPTIONS`) no helper da viagem.
 - **Prova:** os 11 testes que falharam na CI passam localmente (11 passed, 26 s); o resto da suíte tinha passado na CI (51).
 - **Lição:** o smoke do painel entra no gate local de toda task que muda uma tela do painel. Local, a porta 53000 costuma ser de outra sessão e o Playwright a reaproveita sem o bypass de autenticação: use `PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bun run smoke -- <arquivos>`.
+
+## T1b.7 — descarte do outbox no logout (conferida em 2026-10-12)
+
+Já estava entregue em `7b92fbc06` e só faltava marcar: `discardCurrentConversationOutbox` roda dentro do `signOutDriver`
+(`DriverProfile.page.tsx`), `discardOrphanedConversationOutboxFor` roda no boot/login (`main.tsx`) e `requestSignOut` conta as
+mensagens do chat no aviso de confirmação. Falha do IndexedDB nunca lança. Gate: `test/conversation.contract.test.ts` 156 pass /
+0 fail (inclui `conversation-outbox-discard.contract.ts`) e `tsc --noEmit` limpo no `frontend-driver`.
+
+## T2.2 e T5.1 — conferência dos contratos contra o que a T2.3–T2.6 e a T5.1 já entregaram (2026-10-12)
+
+**T2.2 (marcada):** todo item da task já tem contrato, escrito junto das rotas: BOLA e `CONVERSATION_NOT_FOUND` (motorista, escritório e `/me`),
+`CONVERSATION_CLOSED` (idem), `open` idempotente `created: true/false` (`me-subject-conversation-routes`, `office-subject-conversation-routes`),
+rota antiga intacta (`driver-conversation-golden`, `quick-replies-golden`), A5 (`DECISION_WRITERS` em `driver-subject-conversation.contract.ts`),
+alfabeto TS = CHECK (`database-migration/conversation-subject.static.contract.ts`, que monta o vocabulário de `OCCURRENCE_CONVERSATION_SUBJECT_TYPES`)
+e política/limite por rota (`subject-conversation-policies.contract.ts`). Não foi preciso escrever contrato novo.
+Gate local: `occurrence-conversation.contract.test.ts` + `occurrence-conversation-schema.contract.test.ts` → **455 pass / 2 fail**. As 2 falhas
+são do Windows, não do código: `readFile` recebe `/C:/...` (ENOENT) e a comparação de caminho vem com `\` em vez de `/`
+(`conversation-never-decides.contract.ts:72` e `:222`). Em Linux/CI não ocorrem.
+
+**T5.1 (continua aberta):** o contrato e a rota estão entregues (`e7f092c41`, migration `20261010103500_quick_reply_driver_audience` com
+`rollback.sql`); falta só o que exige banco — integração com Postgres e `make migration-test`. **Bloqueada:** nesta máquina não há `.env`/`.env.test`
+no worktree (o link foi negado) e o Postgres do TransportAdA não está no ar (só `ativada-dev-postgres`). Pela regra da spec, banco indisponível
+é parar e relatar.
+
+## T1b.5 e T1b.4 — estado em 2026-10-12
+
+**T1b.5 (continua aberta, parcial):** `apps/frontend-driver/test/conversation.smoke.spec.ts` já cobre lista, busca, composer, envio, chegada,
+fila offline (uma entrega só), ticks, falha com "reenviar" e respostas prontas (13 passed na publicação de staging). Falta o caso **"abrir pelo sino"**
+(o aviso `trip.subject-conversation-message` levando à conversa). Não rodei o smoke nesta rodada: ele sobe a API falsa e o Vite e precisa do `.env`.
+
+**T1b.4 (continua aberta, parcial):** o adaptador do portal está em `a2b8c5e84`. A troca do cartão pela visão do participante ficou parada em uma
+decisão: o `styles.css` do pacote traz regras globais (`:where(*)`, `:root`) e o portal não tem ferramenta de escopo de CSS (sem PostCSS aninhado);
+escopar exige ou um passo de build novo ou copiar as regras `cv-p-*` para o CSS do portal, como o painel faz em `subjectConversation.module.css`.
+
+## T5.1 — gates com banco (2026-10-12)
+
+Postgres do compose (`docker compose up -d postgres`, porta 55432) e testes rodados **no Ubuntu/WSL**: no Windows os contratos que leem
+o disco por URL quebram (`/C:/...`), sem relação com o código.
+
+- **`make migration-test` (equivalente: `bun run db:test`):** 197 pass / 2 fail na rodada com timeout padrão; com `--timeout 120000` o arquivo de
+  migration dá **161 pass / 1 fail**. A falha é `applies, constrains, rolls back, and reapplies the fiscal migration`, que bate no teto fixo de
+  30 s do próprio teste porque o clone está em `/mnt/c` (lento); as migrations da 263 (`conversation_subject`, `conversation_protocol`,
+  `quick_reply_driver_audience`) passam, inclusive o rollback com trava. Falha de ambiente, a repetir em Linux nativo ou na CI.
+- **Integração da conversa e das respostas prontas** (`driver-quick-replies`, `quick-replies`, `driver-subject-conversation`,
+  `driver-subject-conversation-write`, `office-subject-conversation`), com `.env.test`: **25 pass / 0 fail / 0 skip**.
+
+## T1b.4 — o portal usa a visão do participante (2026-10-12)
+
+Decisão sobre o CSS (recomendação aceita pelo pedido de fechar as pendências): copiar só as regras `.cv-p*` do CSS do pacote, sem build novo.
+`scripts/extract-participant-css.mjs` gera `src/styles/participantConversation.css` (163 blocos, nenhum `:root`/`:where(*)`); o contrato lê o
+arquivo e falha com qualquer seletor fora do namespace. O cartão da ocorrência (`OccurrenceParticipantConversation`) abre
+`ParticipantConversations channel="portal"` sob demanda, **sem mudar o pacote**. Gate no `frontend-client`: `eslint` limpo, `tsc --noEmit`
+limpo, `vite build` ok, contratos 38 pass / 1 fail (o de áudio, que lê `src/` por URL e quebra no Windows). **Não visto no navegador**: o
+portal exige API real e Keycloak; a conferência visual entra na T4.1.
