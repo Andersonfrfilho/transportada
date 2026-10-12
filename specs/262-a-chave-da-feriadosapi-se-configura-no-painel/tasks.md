@@ -7,6 +7,9 @@
 > inteira** (a T4.2 já deixa de ler a variável), em staging **e produção**. **A 252 já está em `main`** (#155, #156, #159).
 > ADR-0102 **aceita em 2026-10-09**; as emendas E1–E16 da T0.1 estão aplicadas aqui e em `evidence.md` § T0.1.
 >
+> **Passagem de bastão (2026-10-12): leia `handoff.md` desta pasta** — o que falta é produção (PRs A–D, Gate A, T4.4) e passos do
+> usuário; **a Fase 4 já está em `origin/staging` (`acb68a0f9`, Deploy verde)**, o que supera o parágrafo de estado logo abaixo.
+>
 > **Estado em 2026-10-11 (quadro com SHAs e runs em `evidence.md` § "T6.1 — fechamento"):** Fases 1, 2, 3 e 5 em `origin/staging` com Deploy verde; **Fase 4 só local**
 > (`work/262-f4`; `work/262-t6` depois do rebase); T4.4, Gate A, T6.1b (revisão final `opus`) e T6.1c (revisão de design) **pendentes**; produção sem nada.
 

@@ -1,5 +1,8 @@
 # Tarefas — 252
 
+> **Passagem de bastão (2026-10-12):** a 252 está em produção (#155, #156, #159) com a rotina pausada e sem chave; o que falta
+> (Q3/Q4, despausar, 1º ciclo, a chave pela tela da spec 262) está em `specs/262-a-chave-da-feriadosapi-se-configura-no-painel/handoff.md`.
+
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
 > rotina** (gravar a chave da FeriadosAPI pela tela da instalação e despausar a rotina, que nasce pausada de fábrica — D13), que é
 > passo do usuário. ⚠️ **Superado pela spec 262:** a chave deixou de ser a variável `FERIADOS_API_TOKEN` (o worker a lê do banco a cada
