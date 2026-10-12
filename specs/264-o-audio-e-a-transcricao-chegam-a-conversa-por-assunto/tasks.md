@@ -180,7 +180,7 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** `sonnet` — Contratos antes + implementação: `SubjectConversationPanel` passa a prop de gravação; adapter
+- [x] **T5.1** `sonnet` — Contratos antes + implementação: `SubjectConversationPanel` passa a prop de gravação; adapter
       `subjectThreadApi.service.ts` mapeia os campos; a tela antiga da ocorrência **intocada** (contrato/ouro).
 - [ ] **T5.2** `sonnet` — Configurações: "Transcrever áudios das conversas" (`settings.manage`, frase do que acontece
       ao desligar, D9, e a do limite de 10 minutos, RF15), query/mutação, locales `pt-BR`/`en`, contrato.
