@@ -22,3 +22,6 @@ export type AudioTranscriptionFailureCode = (typeof AUDIO_TRANSCRIPTION_FAILURE_
 
 /** Code points, não unidades UTF-16: o CHECK usa `char_length` (contract.md §5.5). */
 export const AUDIO_TRANSCRIPTION_TEXT_MAX_CHARACTERS = 20_000
+
+/** Teto de duração do áudio transcrito (contract.md §5.1): só leitura na API, o mesmo valor do worker. */
+export const AUDIO_TRANSCRIPTION_DEFAULT_MAX_DURATION_MS = 600_000

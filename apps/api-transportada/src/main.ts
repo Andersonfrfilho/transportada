@@ -106,6 +106,12 @@ import {
   createSaveLocationRetentionSettingsUseCase,
 } from './companies/application/location-retention-settings.use-case.js'
 import { DrizzleDriverAllowanceSettingsRepository } from './companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
+import {
+  createGetAudioTranscriptionSettingsUseCase,
+  createSaveAudioTranscriptionSettingsUseCase,
+} from './companies/application/audio-transcription-settings.use-case.js'
+import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
+import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
@@ -1612,6 +1618,7 @@ export function bootstrap(): Bun.Server<undefined> {
         idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
         keycloak: config.keycloak,
         logger,
+        audioTranscriptionMaxDurationMs: config.audioTranscriptionMaxDurationMs,
         nfseProviderApiVersion: config.nfseProviderApiVersion,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
@@ -1959,6 +1966,8 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
+  /** Spec 264: teto de duração do áudio transcrito, informado em `GET /company-settings/audio-transcription`. */
+  readonly audioTranscriptionMaxDurationMs: ApiEnvironment['audioTranscriptionMaxDurationMs']
   /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
   readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
@@ -2021,6 +2030,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   logger,
+  audioTranscriptionMaxDurationMs,
   nfseProviderApiVersion,
   postalCodeProviders,
   resolveClientIp,
@@ -2136,6 +2146,10 @@ function createApplicationRoutes({
   const locationRetentionDependencies = {
     now: () => new Date(),
     settings: new DrizzleLocationRetentionSettingsRepository(database),
+  }
+  const audioTranscriptionDependencies = {
+    maxDurationMs: audioTranscriptionMaxDurationMs,
+    settings: new DrizzleAudioTranscriptionSettingsRepository(database),
   }
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
@@ -3001,6 +3015,11 @@ function createApplicationRoutes({
       }),
       get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
       set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
+    }),
+    ...createAudioTranscriptionSettingsRoutes({
+      get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+      resolveClientIp,
+      save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
     }),
     ...createLocationRetentionSettingsRoutes({
       clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),

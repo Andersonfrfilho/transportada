@@ -422,3 +422,30 @@ Divergências e interpretações (contract.md §5.5):
   3. `contract.md` §5.2 lista `reply`/`send` como casos de uso de **mensagem**; o `open` só ganhou o `transcriptionUpdatedAt` do resumo (§5.3), não anexos.
   4. As duas suítes novas entraram na lista explícita `test:integration` do `package.json` (a lista é explícita).
   5. Os fakes de porta das três suítes de contrato ganharam `...NO_TRANSCRIPTIONS` (`test/fixtures/no-transcription.fixture.ts`), porque a porta nova é obrigatória.
+
+## T2.4 — `GET/PUT /v1/company-settings/audio-transcription` (2026-10-12)
+
+- **Código (`apps/api-transportada/src/companies/`):** `application/audio-transcription-settings.{port,use-case}.ts`,
+  `infrastructure/drizzle-audio-transcription-settings.repository.ts`, `presentation/audio-transcription-settings.{routes,schema}.ts`,
+  `domain/audio-transcription.constant.ts`; rota em `API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH` e em `main.ts`; lock por empresa
+  `acquireAudioTranscriptionLock`; `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` no schema de env (padrão 600000, `.env.example`, `ApiEnvironment`).
+- **Comportamento:** `settings.manage` escopo company; corpo `{enabled}` `.strict()` (400 com todos os erros, `INVALID_REQUEST`);
+  transação com lock consultivo + `select … for update` + `insert … on conflict do update`, `now()` do banco em `updated_at`/`enabled_since`;
+  auditoria (`company-audio-transcription.changed`, antes/depois `{enabled}`, `metadata.ipAddress`, `correlationId`) **só se o valor muda**;
+  religar regrava `enabled_since`; `routine_started_at` nunca é tocado; desligar não toca nas linhas de transcrição.
+- **Contrato:** `test/companies/audio-transcription-settings.contract.ts` (24 casos: corpo estrito, ator/IP/correlação, BOLA, lista branca,
+  tabela de rotas, 403 por papel, texto de fonte do repositório, env). **Integração (Postgres real, 6 casos, 0 pulado):** `GET` sem linha ligado
+  e sem gravar; primeiro `PUT` cria a linha + 1 auditoria; mesmo valor não audita nem muda `updated_at`; religar regrava `enabled_since` e mantém
+  `routine_started_at`; 3 `PUT` concorrentes → 1 linha e 1 auditoria; outra empresa não lê nem escreve.
+- **Mutação (todas reprovam, arquivos restaurados e conferidos com `cmp`):** auditar sem mudança → 3 fail; religar sem regravar `enabled_since` → 1;
+  `companyId` do corpo → 1; `.strict()` removido → 3; sem lock consultivo → 2 (incl. a concorrência); sem `FOR UPDATE` → 1 (só o teste de fonte).
+- **Limite documentado:** o teste de concorrência **não distingue** o `FOR UPDATE` — o lock consultivo já serializa as escritas (é o que cobre a
+  linha inexistente). O `FOR UPDATE` fica como defesa em profundidade, preso pelo texto de fonte.
+- **Gates (apps/api-transportada):** `bun run typecheck` limpo · `bun run lint` limpo · `bun --env-file=../../.env.test test --timeout 120000` →
+  **11522 pass, 25 skip, 0 fail** (11547 testes; antes 11502+25) · integração dos 11 arquivos (45 vizinhos + a nova + `server`/`auth-me`) → 49 pass,
+  0 fail, 0 pulado · `bun run db:check` "Everything's fine". Nenhuma migration nova.
+- **Divergências do contrato:**
+  1. `contract.md` §5.1 diz que o `PUT` "faz upsert"; sem linha e `enabled: true` o valor já é o atual, então **nada é gravado** (nem linha, nem auditoria):
+     é a leitura literal de "PUT igual ao atual: nada muda, nada audita" e mantém `updatedAt: null` "enquanto nenhuma pessoa mudou". A linha nasce no primeiro `PUT enabled:false`.
+  2. O contrato nomeia `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` "no schema de env da API"; entrou com `min 1000`/`max 3600000` e vazio = padrão. A linha em `.railway/railway.ts` (mesmo valor do worker) fica para a T3.2, que cria a variável do worker.
+  3. Os testes foram escritos junto da implementação, não antes (como nas T2.2/T2.3): a prova de que pegam o defeito é a mutação acima.

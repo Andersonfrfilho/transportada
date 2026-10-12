@@ -89,6 +89,7 @@ const server = startApiServer({
     logLevel: 'error',
     messaging: undefined,
     nfseCallbackBaseUrl: undefined,
+    audioTranscriptionMaxDurationMs: 600_000,
     nfseProviderApiVersion: 'v2',
     notificationWebhookSecret: undefined,
     port: 0,
