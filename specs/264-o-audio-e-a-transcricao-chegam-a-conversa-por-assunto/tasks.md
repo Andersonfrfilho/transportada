@@ -95,7 +95,7 @@ review,denied}`).
       descobre migration sozinho: criar `*.static.contract.ts` + assertion e registrá-los em
       `test/database-migration.contract.test.ts` e `test/database-migration/database-migration.integration.ts`.
 - [ ] **T2.2** `sonnet` — Contratos **antes** (vermelhos): mapper `toParticipantTranscription` por tabela (ausente,
-      `pending`, `ready`, `failed`, `purged`→ausente, empresa desligada→`disabled`); rotas por assunto do motorista e do
+      `pending`, `ready`, `failed`, `ready` sem texto (expurgado)→ausente, `failed` de outro código→ausente, empresa desligada→`disabled`); rotas por assunto do motorista e do
       escritório com o campo; **ouro** das rotas antigas `/me/.../occurrences/**` e `/client/**` sem diferença;
       "transcrição fora de log" e "nunca decide" (texto de fonte, provados por mutação). Tabela espelhada em
       `participant-transcription.constant.ts` + **contrato de paridade** que faz `parse` de cada saída do mapper com
@@ -129,7 +129,7 @@ review,denied}`).
       `attempts_exhausted`; definitivo; `too_long` **sem chamar o transcritor** com anexo **sem `duration_ms`**
       (medido por `ffprobe`; WebM sem duração no cabeçalho medido por decodificação com teto); `company_disabled`
       fora do alerta; `sha256_mismatch`;
-      `object_missing`; empresa desligada fecha sem motor; expurgo `ready`→`purged` com objeto `deleted`; nenhum
+      `object_missing`; empresa desligada fecha sem motor; expurgo (`text = null`, `ready` mantido) com objeto `deleted`; nenhum
       log com texto (mutação). Também os testes listados no `contract.md` §5.8 (inteiros) e (§5.6, §5.8): reivindicação filtra `attempts < 3` e a varredura do
       início do ciclo fecha `attempts >= 3` com lease vencido como `attempts_exhausted` (transcritor falso que "mata o
       processo" não gira para sempre); lease **por linha**; texto com U+0000 gravado sem ele; timeout do

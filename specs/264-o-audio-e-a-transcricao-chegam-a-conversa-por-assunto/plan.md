@@ -109,8 +109,8 @@ create table occurrence_conversation_audio_transcriptions (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null,
   attachment_id uuid not null,              -- FK composta (company_id, attachment_id) → occurrence_conversation_attachments
-  status varchar(16) not null,              -- CHECK in ('pending','ready','failed','purged')  (sem ENUM)
-  text text,                                -- só em 'ready'; anulado em 'purged'
+  status varchar(16) not null,              -- CHECK in ('pending','ready','failed')  (sem ENUM; expurgo = 'ready' com text nulo)
+  text text,                                -- só em 'ready'; anulado no expurgo (generated_at preservado)
   language varchar(8),
   audio_duration_ms integer check (audio_duration_ms is null or audio_duration_ms > 0),
   engine varchar(64), model varchar(64),
@@ -150,8 +150,8 @@ declarada das transcrições: dado derivado, regenerável). Marco de "sem backfi
 
 **Leitura (sem N+1):** `findTranscriptionsByAttachmentIds(companyId, attachmentIds)` em lote na mesma montagem da
 página de mensagens das rotas por assunto (motorista e escritório) + uma leitura da configuração da empresa; mapper
-puro `toParticipantTranscription(row, enabled)` (testado por tabela: ausente, `pending`, `ready`, `failed`, `purged` →
-ausente, desligada → `disabled`). Rotas antigas e `/client/**`: **ouro da resposta** prova que não mudam.
+puro `toParticipantTranscription(row, enabled)` (testado por tabela: ausente, `pending`, `ready`, `failed`, `ready` sem texto (expurgado) →
+ausente, `failed` de outro código → ausente, desligada → `disabled`). Rotas antigas e `/client/**`: **ouro da resposta** prova que não mudam.
 
 **Configuração:** `GET/PUT /v1/company-settings/audio-transcription` (`settings.manage`, `{ data: { enabled } }`,
 `.strict()`, auditoria). Documentar em `docs/ai-context/api-transportada.md` e `api-contract.md` desta spec.
@@ -182,13 +182,13 @@ aceita; **registrado na T0.2: 5 min** — `JOB_TICK_INTERVAL_SECONDS = 300` e `c
 dentro da janela de 72 h, de empresa ligada; (2) reivindica **uma linha por vez**, até `BATCH_SIZE` por execução, com
 `FOR UPDATE SKIP LOCKED`, novo `lease_token`, lease que cobre todas as etapas (motor + `ffprobe` + decodificação +
 download + margem) e `attempts + 1`; (3) por linha (escrita só `where lease_token = $x`):
-empresa desligada ⇒ `failed`/`company_disabled`; objeto `deleted` ⇒ `purged`; baixa pela linha, confere `sha256`,
+empresa desligada ⇒ `failed`/`company_disabled`; objeto `deleted` ⇒ expurgo (`ready` sem texto); baixa pela linha, confere `sha256`,
 **mede com `ffprobe`** (com timeout; sem cabeçalho de duração: decodifica com `ffmpeg -t teto+1s`, também com timeout),
 `too_long` **sem chamar o transcritor**; texto sem U+0000; a reivindicação filtra `attempts < 3`, uma varredura no início
 do ciclo fecha `attempts >= 3` como `attempts_exhausted`, e o lease é **por linha**; o trabalho pesado roda num
 **executor em processo com trava de uma execução**, fora do ciclo serial do job-run (`contract.md` §5.8); janela de
 recuperação `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (72 h, regra nova a confirmar com o dono antes de produção); o motor devolve só `{ text, engine, language }`, e `language` é a dica `pt`, não detecção; (4) expurgo: `ready` com objeto
-`deleted` ⇒ `text = null`, `purged`. Um áudio por vez, fora do ciclo serial do job-run (executor do `contract.md`
+`deleted` ⇒ `text = null` (`ready` sem texto, `generated_at` preservado). Um áudio por vez, fora do ciclo serial do job-run (executor do `contract.md`
 §5.8: catálogo nas três cópias, desfechos `completed`/`already_running`/`runner_lock_expired`, contadores da execução
 anterior no ciclo seguinte, soltura graciosa no `SIGTERM` que devolve a tentativa); o impacto em CPU nas outras rotinas
 é medida da T0.2, não premissa. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo

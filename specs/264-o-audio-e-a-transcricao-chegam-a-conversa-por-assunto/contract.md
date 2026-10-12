@@ -369,8 +369,8 @@ nem de `readConversationAttachments` (§6).
 | `pending`                            | `{ status: 'pending' }`                                                                                                     |
 | `ready`                              | `{ status: 'ready', text, generatedAt: toISOString() }` + `language` só se casar `/^[a-z]{2,3}$/` + `engine` só se não nulo |
 | `failed` + `too_long`                | `{ status: 'failed', reason: 'too_long', maxDurationMs }`                                                                   |
-| `failed` com qualquer outro código   | `{ status: 'failed' }`                                                                                                      |
-| `purged`                             | ausente                                                                                                                     |
+| `failed` com qualquer outro código   | ausente                                                                                                                     |
+| `ready` sem texto (expurgado)        | ausente                                                                                                                     |
 
 Nulos **nunca** viram `null` no JSON: chave omitida. `durationMs` = `attachments.duration_ms ??
 transcriptions.audio_duration_ms`, só se inteiro positivo. Objeto `deleted` nem chega aqui
@@ -459,7 +459,7 @@ next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now
    longa, a varredura do passo 2 marcaria `attempts_exhausted` e o resultado bom seria descartado (a escrita final
    exige o `lease_token`).
 5. **Por linha** (toda escrita `where id = $id and lease_token = $token`; 0 linhas = perdeu a posse, descarta o
-   resultado): empresa desligada ⇒ `failed`/`company_disabled` sem motor; objeto `deleted` ⇒ `purged`; baixa pela linha,
+   resultado): empresa desligada ⇒ `failed`/`company_disabled` sem motor; objeto `deleted` ⇒ expurgo (`ready` sem texto); baixa pela linha,
    confere `sha256`; **mede com `ffprobe`** (vem no `apk add ffmpeg`), **com timeout próprio** (padrão 15 s) sobre
    arquivo que pode ser hostil; sem duração no cabeçalho (WebM do Chromium) ⇒ decodifica com `ffmpeg -t <teto + 1 s>
 -f null -`, **também com timeout** (padrão 60 s), e mede o que decodificou; estouro de timeout na medida é
@@ -470,7 +470,7 @@ next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now
 6. **Erro:** retriável ⇒ `pending`, `next_attempt_at` = 1 / 5 / 30 min conforme `attempts`; com `attempts >= 3` ⇒
    `failed`/`attempts_exhausted`. Definitivo ⇒ `failed` com o código. Alerta conta `failed` **exceto**
    `company_disabled`.
-7. **Expurgo:** `ready` com objeto `deleted` ⇒ `text = null`, `purged`.
+7. **Expurgo:** `ready` com objeto `deleted` ⇒ `text = null` (`status` segue `ready`, `generated_at` preservado; o mapper trata como ausente).
 8. Toda mudança de `status`/`text`/duração/teto: `updated_at = now()` (§5.3).
 
 ### 5.7 Emenda de `company_disabled`
