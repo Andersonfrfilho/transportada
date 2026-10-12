@@ -22,7 +22,10 @@ import { createListMySubjectMessagesUseCase } from '../../src/occurrence-convers
 import { createMarkMySubjectReadUseCase } from '../../src/occurrence-conversation/application/mark-my-subject-read.use-case.js'
 import { createOpenMySubjectConversationUseCase } from '../../src/occurrence-conversation/application/open-my-subject-conversation.use-case.js'
 import { UNUSED_ATTACHMENT_STORAGE } from '../fixtures/conversation-attachment.fixture.js'
-import { NO_AUDIO_TRANSCRIPTIONS } from '../fixtures/participant-transcription.fixture.js'
+import {
+  createFakeTranscriptionReader,
+  NO_AUDIO_TRANSCRIPTIONS,
+} from '../fixtures/participant-transcription.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000260001'
 const DRIVER_ID = '00000000-0000-4000-8000-000000260002'
@@ -179,6 +182,32 @@ describe('a lista de conversas por assunto (spec 263 T2.4)', () => {
     })
   })
 
+  test('transcriptionUpdatedAt (spec 264): presente só na conversa com transcrição; uma agregação em lote para a página', async () => {
+    const OTHER_CONVERSATION_ID = '00000000-0000-4000-8000-000000260008'
+    const reader = createFakeTranscriptionReader({
+      updatedAt: new Map([[CONVERSATION_ID, new Date('2026-10-12T10:30:00.000Z')]]),
+    })
+    const fake = createFake({
+      audioTranscriptions: reader.reader,
+      rows: [row(), row({ conversationId: OTHER_CONVERSATION_ID })],
+    })
+    const { data } = await createListMySubjectConversationsUseCase({
+      clock: () => NOW,
+      unitOfWork: fake.unitOfWork,
+    }).list({ ...IDENTITY, cursor: null })
+    expect(data[0]).toMatchObject({ transcriptionUpdatedAt: '2026-10-12T10:30:00.000Z' })
+    expect(data[1]).not.toHaveProperty('transcriptionUpdatedAt')
+    expect(reader.calls).toEqual([
+      {
+        input: {
+          companyId: COMPANY_ID,
+          conversationIds: [CONVERSATION_ID, OTHER_CONVERSATION_ID],
+        },
+        name: 'readTranscriptionUpdatedAtByConversation',
+      },
+    ])
+  })
+
   test('baixar é entregar, só para as conversas da página', async () => {
     const fake = createFake({})
     await createListMySubjectConversationsUseCase({
@@ -273,6 +302,16 @@ describe('abrir a conversa por assunto (spec 263 D4)', () => {
     expect(read.summary.officeReadAt).toBe('2026-10-09T14:45:00.000Z')
     const unread = await open(createFake({ subject: subject() }))
     expect(unread.summary).not.toHaveProperty('officeReadAt')
+  })
+
+  test('o resumo do open também traz o transcriptionUpdatedAt (spec 264)', async () => {
+    const reader = createFakeTranscriptionReader({
+      updatedAt: new Map([[CONVERSATION_ID, new Date('2026-10-12T10:45:00.000Z')]]),
+    })
+    const read = await open(createFake({ audioTranscriptions: reader.reader, subject: subject() }))
+    expect(read.summary.transcriptionUpdatedAt).toBe('2026-10-12T10:45:00.000Z')
+    const none = await open(createFake({ subject: subject() }))
+    expect(none.summary).not.toHaveProperty('transcriptionUpdatedAt')
   })
 
   test('ocorrência não se abre pelo motorista: 400 antes de tocar o banco', async () => {

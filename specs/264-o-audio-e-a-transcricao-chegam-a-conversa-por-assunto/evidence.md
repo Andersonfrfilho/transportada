@@ -386,3 +386,30 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   `audio-transcription-provider` da API para o worker) e foi revertido. `bun install --frozen-lockfile` → "no changes".
   ⚠️ As apps frontend seguem em `0.5.0` (a subida conjunta é da T4.1).
 - `bun test ./test/occurrence-conversation.contract.test.ts` → 472 pass / 0 fail.
+
+## T2.3 — leitura em lote da transcrição e `transcriptionUpdatedAt` (2026-10-12)
+
+- **Vermelho primeiro (resumo).** Os dois testes de contrato novos em `driver-subject-conversation.contract.ts`
+  (`transcriptionUpdatedAt` na lista e no `open`) rodaram antes da implementação: `472 pass / 2 fail` em
+  `./test/occurrence-conversation.contract.test.ts`. A leitura em lote dos anexos já estava na T2.2 (contratos de unidade
+  verdes lá); aqui entram a agregação e a prova contra Postgres.
+- `toSubjectConversationSummary(row, officeReadAt?, transcriptionUpdatedAt?)` acrescenta `transcriptionUpdatedAt` (ISO) ao
+  resumo de `GET /me/trips/current/conversations` e de `POST …/open`, lido por
+  `transaction.audioTranscriptions.readTranscriptionUpdatedAtByConversation` (um `select conversation_id, max(updated_at) …
+  group by conversation_id` com `inArray` das conversas da página, só `company_id` + `conversation_id`, sem junção;
+  índice `occurrence_conversation_audio_transcriptions_conv_updated_idx`).
+- Integração `test/integration/audio-transcription-subject-read.integration.ts` (Postgres 18 descartável, `./test/integration/…`):
+  - consultas constantes medidas por `countQueries`: a página sem áudio é a base `B`; com 1 áudio **e** com 6 áudios é `B + 2`
+    (configuração + linhas); com a empresa desligada é `B + 1` (só a configuração);
+  - empresa com `enabled = false` e **nenhuma** linha de transcrição lê `{ status: 'disabled' }` no áudio; a imagem do mesmo
+    mensagem não ganha `transcription` nem `durationMs`;
+  - `transcriptionUpdatedAt` ausente sem linha, igual ao `updated_at` com a linha `pending` (10 min) e passa a 20 min quando
+    a mesma linha vira `ready`; a contagem de consultas da lista não depende de haver linhas;
+  - `durationMs` do anexo (1000…1005) sai; `durationMs: 4200` vem de `audio_duration_ms` da transcrição quando o anexo não tem.
+- `driver-subject-conversation-scale.integration.ts`: a lista passa de 5 para **6** consultas (1, 10 e 30 conversas — constante) e
+  o teto da lista mista de 7 para 8.
+- Resultado: `bun --env-file=../../.env.test test --timeout 300000 ./test/integration/audio-transcription-subject-read.integration.ts`
+  → 3 pass / 0 fail.
+- Desvio documentado: o `durationMs` vindo de `attachments.duration_ms` só é lido na consulta das linhas (a mesma que traz a
+  transcrição, `left join` pelos anexos pedidos); com a empresa desligada essa consulta não roda (contagem pedida pela spec) e
+  o áudio sai só com `transcription: { status: 'disabled' }`.

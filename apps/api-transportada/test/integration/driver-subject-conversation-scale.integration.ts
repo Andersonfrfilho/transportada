@@ -205,8 +205,8 @@ describe('a conversa por assunto em volume (spec 263 T2.4)', () => {
           expect(page.data).toHaveLength(size)
           measured[size] = meter.queries()
         }
-        /** 1 da lista + 1 busca em lote da nota + 1 leitura e 1 escrita do "entregue ao baixar" + 1 em lote do officeReadAt. */
-        expect(measured).toEqual({ 1: 5, 10: 5, 30: 5 })
+        /** 1 da lista + 1 busca em lote da nota + 1 leitura e 1 escrita do "entregue ao baixar" + 1 em lote do officeReadAt + 1 agregação do transcriptionUpdatedAt. */
+        expect(measured).toEqual({ 1: 6, 10: 6, 30: 6 })
       })
     },
     240_000,
@@ -236,7 +236,7 @@ describe('a conversa por assunto em volume (spec 263 T2.4)', () => {
         const page = await createSubjectHarness(meter.counted).list.list({ ...actor, cursor: null })
         expect(page.data).toHaveLength(documentIds.length + 2)
         /** 1 principal + 3 buscas (nota, viagem, ocorrência de nota) + a leitura das mensagens a entregar. */
-        expect(meter.queries()).toBeLessThanOrEqual(1 + 4 + 2)
+        expect(meter.queries()).toBeLessThanOrEqual(1 + 4 + 3)
       })
     },
     120_000,

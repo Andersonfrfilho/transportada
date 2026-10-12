@@ -70,9 +70,18 @@ export function createOpenMySubjectConversationUseCase(dependencies: {
           companyId: input.companyId,
           conversationIds: [row.conversationId],
         })
+        const transcriptionUpdatedAt =
+          await transaction.audioTranscriptions.readTranscriptionUpdatedAtByConversation({
+            companyId: input.companyId,
+            conversationIds: [row.conversationId],
+          })
         return {
           created: conversation.created,
-          summary: toSubjectConversationSummary(row, officeReadAt.get(row.conversationId)),
+          summary: toSubjectConversationSummary(
+            row,
+            officeReadAt.get(row.conversationId),
+            transcriptionUpdatedAt.get(row.conversationId),
+          ),
         }
       }),
   }

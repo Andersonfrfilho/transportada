@@ -31,6 +31,8 @@ export type DriverSubjectConversationSummary = {
   readonly subjectLabel: string
   readonly subjectType: OccurrenceConversationSubjectType
   readonly tripId: null | string
+  /** Spec 264: quando a transcrição de algum áudio da conversa mudou; o app compara para reler a conversa. */
+  readonly transcriptionUpdatedAt?: string
   readonly unreadCount: number
 }
 
@@ -42,6 +44,7 @@ export type DriverSubjectMessage = Omit<SubjectMessageRecord, 'createdAt'> & {
 export function toSubjectConversationSummary(
   row: SubjectConversationRow,
   officeReadAt?: Date,
+  transcriptionUpdatedAt?: Date,
 ): DriverSubjectConversationSummary {
   const status = resolveEffectiveConversationStatus(row)
   return {
@@ -62,6 +65,9 @@ export function toSubjectConversationSummary(
     subjectLabel: buildSubjectLabel(row.labelFacts),
     subjectType: row.subjectType,
     tripId: row.tripId,
+    ...(transcriptionUpdatedAt === undefined
+      ? {}
+      : { transcriptionUpdatedAt: transcriptionUpdatedAt.toISOString() }),
     unreadCount: row.unreadCount,
   }
 }

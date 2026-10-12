@@ -101,7 +101,7 @@ review,denied}`).
       `participant-transcription.constant.ts` + **contrato de paridade** que faz `parse` de cada saída do mapper com
       `participantTranscriptionSchema` (`@adatechnology/conversation-contracts` como `devDependency` exata, importado
       só por `test/**`, com contrato de texto de fonte proibindo import em `src/**`; `contract.md` §5.2).
-- [ ] **T2.3** `sonnet` — Implementar a leitura em lote (`findTranscriptionsByAttachmentIds` + configuração da
+- [x] **T2.3** `sonnet` — Implementar a leitura em lote (`findTranscriptionsByAttachmentIds` + configuração da
       empresa) na montagem das páginas de mensagens das rotas por assunto; `durationMs` quando houver; e
       `transcriptionUpdatedAt` no resumo da lista do motorista (`contract.md` §5.2–5.3: agregação por
       `conversation_id` desnormalizado, sem junção). Integração com banco provando consultas constantes por página

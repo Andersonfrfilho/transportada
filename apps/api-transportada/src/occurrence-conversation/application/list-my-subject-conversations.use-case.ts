@@ -38,10 +38,19 @@ export function createListMySubjectConversationsUseCase(dependencies: {
           companyId: input.companyId,
           conversationIds: page.rows.map((row) => row.conversationId),
         })
+        const transcriptionUpdatedAt =
+          await transaction.audioTranscriptions.readTranscriptionUpdatedAtByConversation({
+            companyId: input.companyId,
+            conversationIds: page.rows.map((row) => row.conversationId),
+          })
         const last = page.rows.at(-1)
         return {
           data: page.rows.map((row) =>
-            toSubjectConversationSummary(row, officeReadAt.get(row.conversationId)),
+            toSubjectConversationSummary(
+              row,
+              officeReadAt.get(row.conversationId),
+              transcriptionUpdatedAt.get(row.conversationId),
+            ),
           ),
           nextCursor:
             page.hasMore && last !== undefined
