@@ -299,6 +299,18 @@ export const JOB_CATALOG = [
     /** Uma hora: a cota mensal é o teto real, e o piso de uma hora é cortesia com o fornecedor. */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * Spec 264: a transcrição do áudio da conversa por assunto. O ciclo só cria as linhas e entrega a
+     * um executor em processo, e por isso o vocabulário é o do que o ciclo pode devolver: `completed`
+     * (entregou, ou não havia nada), `already_running` (executor ocupado, não é falha) e
+     * `runner_lock_expired` (trava velha solta). Falha de áudio mora na linha, nunca no job-run.
+     */
+    failureOutcomes: ['completed', 'already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    /** A batida: a cadência medida na T0.2 é de 5 min, e o lote cabe no ciclo. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

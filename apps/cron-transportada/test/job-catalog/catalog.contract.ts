@@ -154,6 +154,11 @@ const CATALOG = [
     job: 'holiday.provider.pull',
     minimumIntervalSeconds: 3600,
   },
+  {
+    failureOutcomes: ['completed', 'already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('cron job catalog', () => {

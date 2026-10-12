@@ -162,6 +162,11 @@ const CATALOG = [
     job: 'holiday.provider.pull',
     minimumIntervalSeconds: 3600,
   },
+  {
+    failureOutcomes: ['completed', 'already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -186,6 +191,7 @@ const SEED_MIGRATIONS = [
   '20261007133324_cargo_preview_retention',
   '20261008164340_nfe_recipient_email_backfill_job',
   '20261009040622_holiday_provider_import',
+  '20261012162341_conversation_audio_transcription_job',
 ] as const
 
 describe('job catalog', () => {
