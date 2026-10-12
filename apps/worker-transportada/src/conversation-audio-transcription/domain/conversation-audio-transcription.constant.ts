@@ -52,8 +52,9 @@ export const RUNNER_OUTCOME = {
 } as const
 
 export function computeAudioLeaseMs(engineTimeoutMs: number): number {
+  // O motor usa o prazo duas vezes por áudio: `ffmpeg` converte para WAV e `whisper-cli` transcreve.
   return (
-    engineTimeoutMs +
+    2 * engineTimeoutMs +
     AUDIO_PROBE_TIMEOUT_MS +
     AUDIO_DECODE_TIMEOUT_MS +
     AUDIO_DOWNLOAD_TIMEOUT_MS +

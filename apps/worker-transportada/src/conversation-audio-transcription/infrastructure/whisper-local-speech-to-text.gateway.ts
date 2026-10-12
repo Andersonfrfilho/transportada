@@ -30,11 +30,16 @@ export function createWhisperLocalSpeechToTextGateway(dependencies: {
         throw new SpeechToTextError({ failureCode: 'engine_failed', isRetriable: true })
       }
       try {
-        const result = await dependencies.transcriber.transcribe({
-          buffer: Buffer.from(bytes),
-          languageHint,
-          mimeType,
-        })
+        // O pacote não aceita AbortSignal: sem a corrida o SIGTERM esperaria o motor inteiro. O
+        // resultado tardio do órfão é inofensivo — a escrita exige o `lease_token`, que já foi devolvido.
+        const result = await raceWithAbort(
+          dependencies.transcriber.transcribe({
+            buffer: Buffer.from(bytes),
+            languageHint,
+            mimeType,
+          }),
+          signal,
+        )
         return {
           engine: result.engine,
           language: languageHint,
@@ -48,17 +53,30 @@ export function createWhisperLocalSpeechToTextGateway(dependencies: {
   }
 }
 
+function raceWithAbort<TValue>(work: Promise<TValue>, signal: AbortSignal): Promise<TValue> {
+  work.catch(() => undefined)
+  return new Promise<TValue>((resolve, reject) => {
+    const onAbort = (): void =>
+      reject(new SpeechToTextError({ failureCode: 'engine_failed', isRetriable: true }))
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
 function classifyEngineError(error: unknown): SpeechToTextError {
   if (error instanceof SpeechToTextError) return error
   const named = readNamedError(error)
   if (named.name === UNSUPPORTED_ERROR_NAME) {
     return new SpeechToTextError({ failureCode: 'unsupported_format', isRetriable: false })
   }
+  // Morto por prazo ou sinal vale retentar mesmo quando o pacote o marcou definitivo (a conversão do
+  // ffmpeg usa `isRetriable = false` para tudo).
+  if (named.timedOut) {
+    return new SpeechToTextError({ failureCode: 'engine_timeout', isRetriable: true })
+  }
   if (named.isRetriable === undefined) {
     return new SpeechToTextError({ failureCode: 'engine_failed', isRetriable: true })
-  }
-  if (named.isRetriable && named.timedOut) {
-    return new SpeechToTextError({ failureCode: 'engine_timeout', isRetriable: true })
   }
   return new SpeechToTextError({ failureCode: 'engine_failed', isRetriable: named.isRetriable })
 }

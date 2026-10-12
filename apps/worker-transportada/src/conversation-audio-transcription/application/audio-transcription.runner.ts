@@ -35,8 +35,8 @@ export type AudioTranscriptionRunnerDependencies = {
 }
 
 type ActiveRun = {
-  readonly generation: number
-  readonly promise: Promise<void>
+  readonly controller: AbortController
+  promise: Promise<void>
   readonly startedAt: Date
 }
 
@@ -51,24 +51,22 @@ function emptySummary(): RunnerSummary {
 export function createAudioTranscriptionRunner(
   dependencies: AudioTranscriptionRunnerDependencies,
 ): AudioTranscriptionRunnerPort {
-  const controller = new AbortController()
+  const shutdown = new AbortController()
   const maxLockAgeMs = dependencies.batchSize * dependencies.leaseMs
+  const running = new Set<Promise<void>>()
   let active: ActiveRun | undefined
   let closed = false
-  let generation = 0
   let summary = emptySummary()
 
-  async function execute(runGeneration: number): Promise<void> {
+  async function execute(run: ActiveRun): Promise<void> {
     const local = emptySummary()
+    const { signal } = run.controller
     try {
       await dependencies.queue.purgeDeletedObjects()
-      for (let position = 0; position < dependencies.batchSize && !closed; position += 1) {
+      for (let position = 0; position < dependencies.batchSize && !signal.aborted; position += 1) {
         const claimed = await dependencies.queue.claimNext({ leaseMs: dependencies.leaseMs })
         if (claimed === undefined) break
-        const outcome = await dependencies.processor.process({
-          claimed,
-          signal: controller.signal,
-        })
+        const outcome = await dependencies.processor.process({ claimed, signal })
         local.processed += 1
         if (outcome === 'ready') local.ready += 1
         if (outcome === 'failed') local.failed += 1
@@ -81,7 +79,8 @@ export function createAudioTranscriptionRunner(
         metadata: { reason: error instanceof Error ? error.name : 'UnknownError' },
       })
     } finally {
-      if (active?.generation === runGeneration) {
+      // Laço abandonado pela trava velha não entrega resumo: o ciclo já seguiu para outra execução.
+      if (active === run) {
         summary = {
           failed: summary.failed + local.failed,
           processed: summary.processed + local.processed,
@@ -94,15 +93,27 @@ export function createAudioTranscriptionRunner(
   }
 
   function begin(): void {
-    generation += 1
-    active = { generation, promise: execute(generation), startedAt: dependencies.now() }
+    const controller = new AbortController()
+    const abortWithShutdown = (): void => controller.abort()
+    shutdown.signal.addEventListener('abort', abortWithShutdown, { once: true })
+    const run: ActiveRun = {
+      controller,
+      promise: Promise.resolve(),
+      startedAt: dependencies.now(),
+    }
+    run.promise = execute(run).finally(() => {
+      running.delete(run.promise)
+      shutdown.signal.removeEventListener('abort', abortWithShutdown)
+    })
+    running.add(run.promise)
+    active = run
   }
 
   return {
     async close() {
       closed = true
-      controller.abort()
-      await active?.promise
+      shutdown.abort()
+      await Promise.all([...running])
     },
 
     start() {
@@ -120,6 +131,8 @@ export function createAudioTranscriptionRunner(
         message: 'audio_transcription_runner_lock_expired',
         metadata: { ageMs, maxLockAgeMs },
       })
+      // Aborta o laço velho: ele devolve a linha em posse e para de reivindicar, em vez de ficar órfão.
+      active.controller.abort()
       active = undefined
       return 'runner_lock_expired'
     },
@@ -138,7 +151,7 @@ export function createAudioTranscriptionRunner(
     },
 
     async whenIdle() {
-      await active?.promise
+      await Promise.all([...running])
     },
   }
 }

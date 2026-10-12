@@ -106,6 +106,12 @@ describeDatabase('fila de transcrição de áudio (integration)', () => {
   }
 
   beforeAll(async () => {
+    // A fila é global: sobra de uma execução anterior neste banco roubaria a reivindicação dos testes.
+    await db.execute(sql`
+      update occurrence_conversation_audio_transcriptions
+      set status = 'failed', failure_code = 'engine_failed', lease_token = null, lease_expires_at = null
+      where status = 'pending'
+    `)
     await queue.materializeMarker()
   })
 

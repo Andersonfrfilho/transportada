@@ -11,10 +11,9 @@ export function createStorageAudioObjectReader(dependencies: {
 }): AudioObjectReaderPort {
   return {
     async read(location) {
-      const head = await dependencies.storage.headObject(location)
-      if (head === undefined) return undefined
-
-      const download = (async (): Promise<Uint8Array> => {
+      const download = (async (): Promise<Uint8Array | undefined> => {
+        const head = await dependencies.storage.headObject(location)
+        if (head === undefined) return undefined
         const stream = await dependencies.storage.getObjectStream(location)
         return new Uint8Array(await new Response(stream).arrayBuffer())
       })()
