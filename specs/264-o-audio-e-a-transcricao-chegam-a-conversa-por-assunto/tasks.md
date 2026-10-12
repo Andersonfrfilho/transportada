@@ -118,7 +118,7 @@ review,denied}`).
 
 - [x] **T3.1** `haiku` — Cópia por valor do schema Drizzle das duas tabelas no worker + contrato de paridade (molde dos
       quatorze arquivos de `src/database/`).
-- [ ] **T3.2** `sonnet` — `speech-to-text.port.ts` + `whisper-local-speech-to-text.gateway.ts` sobre
+- [x] **T3.2** `sonnet` — `speech-to-text.port.ts` + `whisper-local-speech-to-text.gateway.ts` sobre
       `createWhisperLocalTranscriber` (dependência `@adatechnology/audio-transcription-provider` em versão exata);
       variáveis no schema de ambiente do worker (plano § d); sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é
       registrada. Contrato: classificação de erro retriável/definitivo → código (RF14), sem mensagem do erro.

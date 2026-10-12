@@ -495,3 +495,50 @@ Ordem: os arquivos da cópia foram escritos antes do contrato, e não o contrato
 prova de que o contrato reprova veio pela mutação acima.
 
 Sem alteração de API, tabela, coluna ou migration. Divergências: nenhuma entre cópia e API no momento do teste.
+
+## T3.2
+
+Porta, gateway do motor local, ambiente e sonda de duração no worker. Sem rotina, sem `main.ts` (T3.4), sem binário
+real do whisper, sem rede.
+
+Pacote: `@adatechnology/audio-transcription-provider` **0.1.0** (versão exata; npm `latest`, licença MIT, repositório de
+bibliotecas do dono; `bun.lock` atualizado, `README`/fonte do `origin/main` conferidos contra o `dist` instalado). API
+real usada: `createWhisperLocalTranscriber` de `.../whisper-local` com `{ modelPath, binaryPath, threads, timeoutMs,
+languageHint }` (`ffmpegPath` fica no padrão), `AudioTranscriber.transcribe({ buffer, mimeType, languageHint })` →
+`{ text, engine, language? }`, e as classes `TranscriptionError`, `TranscriptionRateLimitError`,
+`TranscriptionUnsupportedError`, mais `isRetriableTranscriptionFailure`.
+
+Arquivos (`apps/worker-transportada/src/conversation-audio-transcription/`): `speech-to-text.port.ts`,
+`speech-to-text.error.ts` (`SpeechToTextError { kind, code }`, mensagem = só o código, sem `cause`),
+`speech-to-text-error.classifier.ts` (tabela), `whisper-local-speech-to-text.gateway.ts`, `audio-duration-probe.port.ts`,
+`ffprobe-audio-duration-probe.gateway.ts`, `run-command-with-timeout.ts` (`Bun.spawn` + `kill` no prazo, injetável),
+`audio-transcription-configured.policy.ts` (`isAudioTranscriptionConfigured`), `audio-transcription-engine.constant.ts`.
+Ambiente: `src/config/audio-transcription-environment.schema.ts` (encaixado no schema; `environment.audioTranscription`
+só existe com `AUDIO_TRANSCRIPTION_MODEL_PATH`), tipo em `src/shared/worker.types.ts`, linhas no `.env.example`.
+
+Classificação (`{ kind, code }`, nunca a mensagem): rate limit → retriável `engine_failed`; `TranscriptionUnsupportedError`
+→ definitivo `unsupported_format`; erro cuja `cause.killed === true` (prazo do `execFile`, inclusive a conversão que o
+pacote marca como não retriável) → retriável `engine_timeout`; `TranscriptionError` retriável → `engine_failed`; não
+retriável (binário ausente) → definitivo `engine_failed`; erro desconhecido → retriável `engine_failed` (limite: 3
+tentativas, como o pacote e a D8); áudio vazio → definitivo `empty_audio` antes de chamar o motor. Sonda: `ffprobe`
+15 s; sem duração no cabeçalho, `ffmpeg -t <teto+1 s> -f null` 60 s lendo `out_time_us`; prazo → retriável
+`engine_timeout`; `ffprobe`/`ffmpeg` recusa o arquivo → definitivo `unsupported_format`; saída sem tempo ou binário
+ausente → definitivo `engine_failed`.
+
+Contrato: `test/audio-transcription-engine.contract.test.ts` (na lista do `package.json`) → 42 testes: tabela de erros e
+ausência da mensagem, ambiente (padrões, vazio = padrão, limites, modelo ausente), gateway com transcritor falso
+(config repassada, dica, vazio, aborto), sonda com executor falso e o executor real contra `sleep`/`echo`.
+
+Mutação (aplicada e revertida): copiar `error.message` para a falha → 4 falhas; rate limit retriável → definitivo → 1
+falha; ignorar o timeout da sonda → 2 falhas; erro desconhecido retriável → definitivo → 3 falhas. Base: 42 pass.
+
+Gates (worker, primeiro plano): `typecheck` exit 0; `lint` exit 0; `test` → 2379 pass, 0 fail, 104 arquivos (antes 2337);
+`build` exit 0; `prettier --write` nos arquivos tocados.
+
+Divergências: (1) plano § d dá `AUDIO_TRANSCRIPTION_THREADS` = vCPU − 1 (mínimo 1), não 7 fixo — segui o plano
+(`availableParallelism() - 1`). (2) `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` é inteiro em **horas** (1 a 720, padrão 72), como
+`FLEET_VEHICLE_CATALOG_CACHE_HOURS`; o contrato não fixa a unidade. (3) §5.8 pede abortar o filho por `AbortSignal`, mas o
+pacote 0.1.0 não aceita sinal: o aborto só solta quem espera e o filho termina no `timeoutMs` do motor — a soltura graciosa
+da T3.4 devolve a tentativa mesmo assim. (4) §5.6 não diz o que fazer com saída ilegível da medida: decidi definitivo
+(`engine_failed`), porque repetir não conserta arquivo corrompido. (5) O pacote não distingue "áudio vazio" nem "prazo" por
+classe: o vazio é barrado no gateway e o prazo é lido de `cause.killed`.

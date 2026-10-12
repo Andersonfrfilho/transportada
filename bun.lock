@@ -224,6 +224,7 @@
       "name": "@transportada/worker",
       "version": "0.2.0",
       "dependencies": {
+        "@adatechnology/audio-transcription-provider": "0.1.0",
         "@adatechnology/cargo-placement": "0.1.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
@@ -264,6 +265,8 @@
     },
   },
   "packages": {
+    "@adatechnology/audio-transcription-provider": ["@adatechnology/audio-transcription-provider@0.1.0", "", {}, "sha512-QheTBjW+mazCZlx3RUtfWc/y6HhaMiLE7u3mowkX9vR4fRjfNFMpwrKRE9pzyJTV92ersVx+8CizP3kvqia1sw=="],
+
     "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
 
     "@adatechnology/cargo-placement": ["@adatechnology/cargo-placement@0.1.0", "", {}, "sha512-3h71tfuLaznch0Mjy/xFU/Qt6BzMM9vy08KdN6nMe0Dqj7+8rEnsQ0h4QqPX35lmRKEMilCAy7JxmOj8xteWCw=="],
