@@ -6,6 +6,8 @@ export type ConversationSnapshotEntry = Readonly<{
   /** Quando o escritório leu até uma mensagem do motorista: ler não muda a lista, mas muda o tick. */
   officeReadAt: string | null
   subject: ParticipantSubjectRef
+  /** Spec 264 §5.3: `pending → ready` não mexe em mais nada do resumo; ausente na API antiga. */
+  transcriptionUpdatedAt: string | null
   unreadCount: number
 }>
 
@@ -20,7 +22,7 @@ export function conversationSubjectKey(subject: ParticipantSubjectRef): string {
   return `${subject.subjectType}:${subject.subjectId}`
 }
 
-/** Assunto novo, `lastMessageAt`, `unreadCount` ou `officeReadAt` diferente: qualquer um deles pede revalidar. */
+/** Assunto novo, `lastMessageAt`, `unreadCount`, `officeReadAt` ou `transcriptionUpdatedAt` diferente: qualquer um deles pede revalidar. */
 export function diffConversationSnapshots(
   previous: ConversationSnapshot,
   current: ConversationSnapshot,
@@ -35,7 +37,8 @@ export function diffConversationSnapshots(
         before === undefined ||
         before.lastMessageAt !== entry.lastMessageAt ||
         before.unreadCount !== entry.unreadCount ||
-        before.officeReadAt !== entry.officeReadAt
+        before.officeReadAt !== entry.officeReadAt ||
+        before.transcriptionUpdatedAt !== entry.transcriptionUpdatedAt
       )
     })
     .map((entry) => entry.subject)

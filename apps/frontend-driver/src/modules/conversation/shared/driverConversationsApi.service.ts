@@ -37,6 +37,7 @@ import {
   readDataArray,
   readNextCursor,
   readOfficeReadAtBySubject,
+  readTranscriptionUpdatedAtBySubject,
   toConversationSummaryCandidate,
   toLegacyConversationSummaryCandidate,
   toParticipantMessageCandidate,
@@ -131,21 +132,18 @@ export function createDriverConversationsApi(
   async function fetchSnapshot(): Promise<ConversationSnapshot> {
     const { page, payload } = await loadConversationPage()
     const officeReadAtBySubject = readOfficeReadAtBySubject(payload)
-    return page.data.map((conversation) => ({
-      lastMessageAt: conversation.lastMessageAt,
-      officeReadAt:
-        officeReadAtBySubject.get(
-          conversationSubjectKey({
-            subjectId: conversation.subjectId,
-            subjectType: conversation.subjectType,
-          }),
-        ) ?? null,
-      subject: {
-        subjectId: conversation.subjectId,
-        subjectType: conversation.subjectType,
-      },
-      unreadCount: conversation.unreadCount,
-    }))
+    const transcriptionUpdatedAtBySubject = readTranscriptionUpdatedAtBySubject(payload)
+    return page.data.map((conversation) => {
+      const subject = { subjectId: conversation.subjectId, subjectType: conversation.subjectType }
+      const key = conversationSubjectKey(subject)
+      return {
+        lastMessageAt: conversation.lastMessageAt,
+        officeReadAt: officeReadAtBySubject.get(key) ?? null,
+        subject,
+        transcriptionUpdatedAt: transcriptionUpdatedAtBySubject.get(key) ?? null,
+        unreadCount: conversation.unreadCount,
+      }
+    })
   }
 
   const refreshTicker = createConversationRefreshTicker({
