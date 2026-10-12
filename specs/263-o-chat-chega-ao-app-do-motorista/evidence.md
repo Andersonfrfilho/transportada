@@ -534,3 +534,12 @@ o disco por URL quebram (`/C:/...`), sem relação com o código.
   `quick_reply_driver_audience`) passam, inclusive o rollback com trava. Falha de ambiente, a repetir em Linux nativo ou na CI.
 - **Integração da conversa e das respostas prontas** (`driver-quick-replies`, `quick-replies`, `driver-subject-conversation`,
   `driver-subject-conversation-write`, `office-subject-conversation`), com `.env.test`: **25 pass / 0 fail / 0 skip**.
+
+## T1b.4 — o portal usa a visão do participante (2026-10-12)
+
+Decisão sobre o CSS (recomendação aceita pelo pedido de fechar as pendências): copiar só as regras `.cv-p*` do CSS do pacote, sem build novo.
+`scripts/extract-participant-css.mjs` gera `src/styles/participantConversation.css` (163 blocos, nenhum `:root`/`:where(*)`); o contrato lê o
+arquivo e falha com qualquer seletor fora do namespace. O cartão da ocorrência (`OccurrenceParticipantConversation`) abre
+`ParticipantConversations channel="portal"` sob demanda, **sem mudar o pacote**. Gate no `frontend-client`: `eslint` limpo, `tsc --noEmit`
+limpo, `vite build` ok, contratos 38 pass / 1 fail (o de áudio, que lê `src/` por URL e quebra no Windows). **Não visto no navegador**: o
+portal exige API real e Keycloak; a conferência visual entra na T4.1.

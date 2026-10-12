@@ -128,7 +128,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 - [x] **T1b.7** `sonnet` — (achado da T1b.3) o outbox de mensagens fica no aparelho depois de "Sair" com pendência; o
       escopo por `subHash` impede o próximo motorista de ver/enviar, mas o dado (texto e fotos) permanece. Decidir e
       implementar o descarte/aviso no logout (requisito LGPD/segurança §1 e §5).
-- [ ] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
+- [x] **T1b.4** `sonnet` — **Prova de "plugar em outro app" (RF13):** o portal da contratante usa
       `<ParticipantConversations channel="portal">` (o microfone some sozinho) com um `ParticipantConversationsApi`
       próprio e um `subjectGroups`. Precisar mudar o pacote reprova a task.
 - [ ] **T1b.5** `sonnet` — Smoke Playwright do `frontend-driver`: abrir pelo sino, responder, responder offline

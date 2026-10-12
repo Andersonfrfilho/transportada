@@ -3,6 +3,9 @@
  * Spec 263 T1b.4 (RF13): o portal da contratante é o segundo consumidor da visão do participante —
  * só entrega um `ParticipantConversationsApi`, `subjectGroups` e o canal `portal`.
  */
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
@@ -129,5 +132,40 @@ describe('o portal como consumidor da visão do participante (spec 263 T1b.4)', 
     if (attachment !== undefined) {
       expect(await api.resolveAttachmentUrl(attachment)).toBe('https://x/a.png')
     }
+  })
+})
+
+describe('o CSS da visão do participante no portal (spec 263 T1b.4, ADR-0073 §1)', () => {
+  test('só traz regras .cv-p-*: nenhuma regra global que repinte a app', async () => {
+    const css = await readFile(
+      join(process.cwd(), 'src/styles/participantConversation.css'),
+      'utf8',
+    )
+    const preludes = [...css.matchAll(/(?:^|\})\s*([^{}@/][^{}]*)\{/gu)]
+      .map((match) => (match[1] ?? '').trim())
+      .filter((prelude) => !prelude.startsWith('@') && prelude !== 'from' && prelude !== 'to')
+    expect(preludes.length).toBeGreaterThan(100)
+    const offenders = preludes.filter((prelude) =>
+      prelude.split(',').some((selector) => !/[.]cv-p(?![A-Za-z0-9_])|[.]cv-p-/u.test(selector)),
+    )
+    expect(offenders).toEqual([])
+    expect(css).not.toMatch(/:where\(\*\)|(^|\n):root/u)
+  })
+
+  test('a tela do cartão usa a visão do participante com o canal portal', async () => {
+    const page = await readFile(
+      join(process.cwd(), 'src/modules/occurrences/OccurrenceList.page.tsx'),
+      'utf8',
+    )
+    const card = await readFile(
+      join(
+        process.cwd(),
+        'src/modules/occurrences/OccurrenceParticipantConversation.component.tsx',
+      ),
+      'utf8',
+    )
+    expect(page).toContain('<OccurrenceParticipantConversation')
+    expect(card).toContain('channel="portal"')
+    expect(card).toContain("conversations-ui/participant'")
   })
 })
