@@ -57,53 +57,48 @@ id, sizeBytes, url }` (`conversation-attachment.port.ts:134`) — é aí que `du
 
 ## (a) Contratos — `conversation-contracts` (aditivo, minor)
 
-```ts
-// participant.ts — campos novos OPCIONAIS; nenhum campo existente muda
-export const PARTICIPANT_TRANSCRIPTION_STATUS = ['pending', 'ready', 'failed', 'disabled'] as const
-participantAttachmentTranscriptionSchema = z.object({
-  status: z.enum(PARTICIPANT_TRANSCRIPTION_STATUS),
-  text: z.string().max(20_000).optional(), // só em `ready`
-  language: z.string().min(2).max(8).optional(), // ISO 639-1, dica
-  engine: z.string().max(64).optional(), // ex.: 'whisper-local'
-  generatedAt: z.string().datetime().optional(),
-}).strict()
-participantAttachmentSchema += { durationMs?: number (int > 0), transcription?: ... }
-```
-
-Regras: `text` só com `ready` (refine); vocabulário próprio do participante, o `TranscriptionStatus` do operador
-**não muda**. Testes: estados, `text` fora de `ready` recusado, ausência aceita, mensagem antiga (sem os campos) segue
-válida. O desenho final dos nomes é da **T0.1 🧠** (contrato que SDK, API e dois apps herdam).
+Forma exata em [`contract.md` §1](./contract.md): `participantTranscriptionSchema` é uma `discriminatedUnion` por
+`status` (`pending` · `ready` com `text`, `language?`, `engine?`, `generatedAt` · `failed` com `reason?: 'too_long'` e
+`maxDurationMs?` · `disabled`), **sem `.strict()` e sem `refine`** — as respostas da visão do participante são _strip_
+(`participant.ts:8`): `text` fora de `ready` é **descartado** e não aparece no parse. `participantAttachmentSchema`
+ganha `durationMs?` e `transcription?`. Os apps validam a transcrição **por anexo** (`safeParse`), e uma inválida some
+sem derrubar a página. O `TranscriptionStatus` do operador **não muda**. Testes: os quatro estados, `text` fora de
+`ready` descartado, `status` desconhecido recusado pelo schema (e absorvido pelo adapter), mensagem sem os campos
+válida.
 
 ## (b) SDK — `conversations-ui/participant` (minor; worktree e PR próprios no repo de pacotes)
 
-Peças novas, todas `.cv-p-*`, sem Tailwind, sem dependência nova:
+Peças novas, todas `.cv-p-*`, sem Tailwind, sem dependência nova (os ícones vêm do `lucide-react` que o pacote já
+usa). Desenho completo em [`contract.md` §2–§4](./contract.md):
 
-- `ParticipantAudioRecorder.tsx` + `useParticipantAudioRecorder.ts` (máquina de estados pura e testável:
-  `idle → requesting → recording → review → idle`, `denied`, `unsupported`, `empty`); reaproveita
-  `resolveRecordingFormat`/`RECORDING_FORMATS`/`DEFAULT_MAX_RECORDING_MILLISECONDS` (puros). Entrega `File` ao mesmo
-  caminho dos anexos (`draft.files` → `sendMessage({ files })`), então a fila, a idempotência e o upload são os do host.
-  Para no `visibilitychange` oculto e no unmount, sempre com `track.stop()`. Ganchos opcionais para o host:
-  `onCaptureChange?(open)` (o app liga no `captureRegistry`).
-- `ParticipantAudioPlayer.tsx`: `<audio preload="metadata">` controlado, tocar/pausar, `role="slider"` com
-  `aria-valuetext`, posição/duração, velocidade 1×/1,5×/2× (`defaultPlaybackRate` + `playbackRate`), um áudio por
-  vez por conversa (contexto da thread), URL resolvida **uma vez** por anexo.
-- `ParticipantAudioTranscription.tsx`: estados D4 (e o aviso de `too_long`, RF15), aviso "gerada por máquina" sempre junto do texto, recolhe em 6
-  linhas, anúncio `aria-live="polite"` só na troca `pending → ready`.
-- **Capacidade por ausência:** prop nova em `ConversationThread` e `ParticipantConversations` (molde:
-  `audioRecording?: { maxDurationMs?: number; maxSizeBytes?: number }`; nome final na T0.1). Ausente ⇒ compositor
-  idêntico. O player e o bloco de transcrição **não** dependem de prop: o player troca o `<audio>` nativo (única
-  mudança de markup padrão, declarada no changeset), e o bloco só aparece com `attachment.transcription`.
-- Rótulos novos opcionais em `ParticipantConversationsLabels` (mesmo padrão de `messageOptions?`, para não quebrar host
-  que monta o objeto inteiro), defaults em inglês: `recordAudio`, `stopRecording`, `recordingElapsed`, `reviewAudio`,
-  `sendAudio`, `discardAudio`, `microphoneDenied`, `audioEmpty`, `audioTooLarge`, `play`, `pause`, `playbackRate`,
-  `audioPosition`, `transcribing`, `machineTranscription`, `emptyTranscription`, `showFullTranscription`.
-- **Ouro:** os 9 cenários atuais **regravados uma única vez** pela troca do `<audio>` nativo **só** se algum tiver
-  anexo de áudio (hoje nenhum tem — confirmar na T1.1; se nenhum mudar, o diff de ouro tem de ser **vazio**); cenários
-  novos: `thread-audio-player`, `thread-audio-transcription-{pending,ready,empty}`, `composer-audio-{idle,recording,
-review,denied}`. Ouro do operador (`MessageBubble`, `ConversationPane`) intocado: diff vazio é aceite.
-- Bundle: `/participant` medido antes/depois (mesma medida da 263 T0.2), sem `lucide`/Tailwind novos.
-- Changeset minor nos dois pacotes, em inglês como os da visão do participante, com a seção "Default markup and style
-  change" (o `<audio>` nativo vira `.cv-p-audio`). **Passe `opus` obrigatório** antes do merge em `main` (que publica).
+- `useParticipantAudioRecorder.ts` + `ParticipantAudioRecorderView` (vista pura) — estados `idle`, `requesting`,
+  `recording`, `review`, `denied`, `unsupported`, `empty`, `tooLarge`; reaproveita `resolveRecordingFormat`/
+  `RECORDING_FORMATS`/`DEFAULT_MAX_RECORDING_MILLISECONDS`, extraídos para `src/audioRecorderFormat.ts` (§0.1).
+  Interrupção (`visibilitychange` oculto, `pagehide`, `track.onended`, `onmute` > 3 s) em `recording` ⇒ `review`; em
+  `review` ⇒ pausa e mantém; unmount ⇒ descarta; token de cancelamento no `getUserMedia`; sempre `track.stop()`.
+  "Enviar áudio" ⇒ `onSendAudio(file)` → `send({ files: [file] })`, **mensagem própria**, rascunho e `draft.files`
+  **intocados**, trava por ref contra toque duplo. `onCaptureChange?(isCapturing)` para o `captureRegistry` do app.
+- `ParticipantAudioPlayer.tsx`: `<audio preload="none">` com URL resolvida **no mount por `attachment.id`** e `src`
+  atribuído já no mount; `play()` síncrono no toque; re-resolve uma vez em erro de mídia; **`<input type="range">`**
+  estilizado; posição/duração (`durationMs` ou `loadedmetadata`; duração infinita tolerada); 1×/1,5×/2×
+  (`defaultPlaybackRate` + `playbackRate`); um áudio por vez por conversa.
+- `ParticipantAudioTranscription.tsx`: estados D4 e o aviso de `too_long` (RF15), aviso "gerada por máquina" junto do
+  texto, recolhe em 6 linhas; o anúncio de `pending → ready` sai pela **região viva que a thread já tem**
+  (`useAnnounceCopy()` → `ParticipantThreadLive`), sem nó `aria-live` novo.
+- **Capacidade por ausência:** `audioRecording?: { maxDurationMs?, maxSizeBytes?, onCaptureChange? }` em
+  `ConversationThread` e `ParticipantConversations` (os dois tetos só **baixam** o padrão). O canal só desliga, nunca
+  liga. Ausente ⇒ compositor idêntico. O player e o bloco de transcrição **não** dependem de prop.
+- Rótulos novos **opcionais** em `ParticipantConversationsLabels`, defaults em inglês — lista e nomes exatos em
+  `contract.md` §4 (`recordAudio`, `stopRecording`, …, `playAudio`, `pauseAudio`, `audioPosition`,
+  `audioPositionValue`, `playbackRate`, `transcribing`, `transcriptionReady`, `machineTranscription`,
+  `emptyTranscription`, `transcriptionTooLong`, `showFullTranscription`, `collapseTranscription`).
+- **Ouro:** nenhum dos 9 cenários atuais tem áudio (conferido no `a7c5c85`): o diff deles tem de ser **vazio**. Antes
+  de qualquer código, congelar `thread-empty-draft` (compositor vazio) e prendê-lo nos três modos do `contract.md` §2.4.
+  Cenários novos: `thread-audio-player`, `thread-audio-transcription-{pending,ready,empty}`,
+  `composer-audio-{idle,recording,review,denied}`. Ouro do operador intocado: diff vazio é aceite.
+- Bundle: `/participant` medido antes/depois (mesma medida da 263 T0.2), sem dependência nova.
+- Changeset minor nos dois pacotes, em inglês, com a seção "Default markup and style change" listando os **seis itens
+  do `contract.md` §3.4**. **Passe `opus` obrigatório** antes do merge em `main` (que publica).
 
 ## (c) API — `apps/api-transportada`
 
@@ -114,13 +109,16 @@ create table occurrence_conversation_audio_transcriptions (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null,
   attachment_id uuid not null,              -- FK composta (company_id, attachment_id) → occurrence_conversation_attachments
-  status varchar(16) not null,              -- CHECK in ('pending','ready','failed','purged')  (sem ENUM)
-  text text,                                -- só em 'ready'; anulado em 'purged'
+  status varchar(16) not null,              -- CHECK in ('pending','ready','failed')  (sem ENUM; expurgo = 'ready' com text nulo)
+  text text,                                -- só em 'ready'; anulado no expurgo (generated_at preservado)
   language varchar(8),
   audio_duration_ms integer check (audio_duration_ms is null or audio_duration_ms > 0),
   engine varchar(64), model varchar(64),
   processing_ms integer,
-  attempts smallint not null default 0,
+  attempts smallint not null default 0,     -- sobe NA REIVINDICAÇÃO
+  lease_token uuid,                         -- só quem tem a posse grava (where lease_token = $x)
+  max_duration_ms integer,                  -- teto aplicado, só em too_long (contract.md §5.5)
+  conversation_id uuid not null,            -- desnormalizado para transcriptionUpdatedAt (contract.md §5.3)
   next_attempt_at timestamptz not null default now(),
   lease_expires_at timestamptz,
   failure_code varchar(32),                 -- CHECK lista fechada (RF14)
@@ -133,13 +131,15 @@ create table occurrence_conversation_audio_transcriptions (
 create index … on (next_attempt_at) where status = 'pending';
 create table company_audio_transcription_settings (
   company_id uuid primary key references companies(id), enabled boolean not null default true,
+  enabled_since timestamptz not null default now(), routine_started_at timestamptz,
   updated_by_user_id uuid, updated_at timestamptz not null default now()
 );
 ```
 
 `disabled` **não** é gravado: é derivado na leitura da configuração (D9). `rollback.sql` derruba as duas tabelas (perda
-declarada das transcrições: dado derivado, regenerável). O marco de "sem backfill" (D9) é decidido na T0.1: coluna
-`enabled_since` na configuração ou constante gravada na migration. `make migration-test`.
+declarada das transcrições: dado derivado, regenerável). Marco de "sem backfill" (D9), decidido na T0.1:
+`enabled_since` + `routine_started_at` por empresa e janela de 72 h (`contract.md` §5.5–5.6). `failure_code` inclui
+`company_disabled` (§5.7). `make migration-test`.
 
 **Porta e adaptador** (o motor roda no worker; a API só lê e configura):
 
@@ -150,8 +150,8 @@ declarada das transcrições: dado derivado, regenerável). O marco de "sem back
 
 **Leitura (sem N+1):** `findTranscriptionsByAttachmentIds(companyId, attachmentIds)` em lote na mesma montagem da
 página de mensagens das rotas por assunto (motorista e escritório) + uma leitura da configuração da empresa; mapper
-puro `toParticipantTranscription(row, enabled)` (testado por tabela: ausente, `pending`, `ready`, `failed`, `purged` →
-ausente, desligada → `disabled`). Rotas antigas e `/client/**`: **ouro da resposta** prova que não mudam.
+puro `toParticipantTranscription(row, enabled)` (testado por tabela: ausente, `pending`, `ready`, `failed`, `ready` sem texto (expurgado) →
+ausente, `failed` de outro código → ausente, desligada → `disabled`). Rotas antigas e `/client/**`: **ouro da resposta** prova que não mudam.
 
 **Configuração:** `GET/PUT /v1/company-settings/audio-transcription` (`settings.manage`, `{ data: { enabled } }`,
 `.strict()`, auditoria). Documentar em `docs/ai-context/api-transportada.md` e `api-contract.md` desta spec.
@@ -163,24 +163,36 @@ tratativa/taxa/acerto/aviso/e-mail/WhatsApp importa ou cita a tabela nova (molde
 ## (d) Infra do worker — whisper.cpp + ffmpeg + modelo
 
 **Imagem:** estágio de build Alpine compila `whisper-cli` de uma **tag fixada** do `ggml-org/whisper.cpp` (cmake
-Release, sem GPU), baixa o modelo escolhido e confere o `sha256` (falha o build se divergir); o estágio final ganha
-`apk add ffmpeg`, o binário e o modelo em `/models`, dono `transportada`. Alternativa medida no spike: modelo em
-**volume** do Railway baixado no primeiro boot (imagem menor, deploy mais rápido; risco: boot sem modelo).
+Release, sem GPU, `-DGGML_NATIVE=OFF` — o builder do Railway não é a máquina que roda, e `NATIVE` compilaria para a CPU
+do builder; a T0.2 mediu com `v1.9.4`, commit conferido no build, e `-DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON
+-DGGML_F16C=ON` — o runner é Intel Xeon 6975P-C), baixa o modelo escolhido (**`small-q5_1`**, ADR-0103) e confere o `sha256` (falha o build se divergir); o estágio final ganha
+`apk add ffmpeg`, o binário e o modelo em `/models`, dono `transportada`. Alternativa de modelo em
+**volume** do Railway baixado no primeiro boot: **descartada na T0.2** — a imagem cresce só ~293 MB e o deploy medido
+foi de ~40 s, então não compensa o risco de boot sem modelo.
 
 **Configuração (schema de env do worker, nunca `process.env` solto):** `AUDIO_TRANSCRIPTION_MODEL_PATH` (sem ela a
 rotina não é registrada), `AUDIO_TRANSCRIPTION_THREADS` (padrão: vCPU − 1, mínimo 1),
 `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` (padrão 600000), `AUDIO_TRANSCRIPTION_BATCH_SIZE` (padrão 2),
-`AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão derivado da medida). Entram em `.railway/railway.ts` como `preserve()`.
+`AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão **300000**: a T0.2 mediu fator 0,17 no runner, ≈ 102 s para 10 min de
+áudio, com folga de ~3×). Entram em `.railway/railway.ts` como `preserve()`.
 
 **Rotina** `conversation.audio.transcribe` (cadência alvo 1 min; se o agendador só der 5 min, a T0.2 registra e a spec
-aceita): (1) cria linhas `pending` para anexos `content_type like 'audio/%'` sem linha, depois do marco, de empresa
-ligada; (2) reivindica até `BATCH_SIZE` `pending` vencidas com `FOR UPDATE SKIP LOCKED` e lease de
-`timeout + 60 s`; (3) por linha: empresa desligada ⇒ fecha sem motor; objeto `deleted` ⇒ `purged`; baixa pela linha,
-confere `sha256`, mede duração (o ffmpeg do pacote já decodifica; `too_long` antes do motor pela duração do anexo
-quando houver, senão pelo `durationSeconds` devolvido), chama a porta, grava; (4) expurgo: `ready` com objeto
-`deleted` ⇒ `text = null`, `purged`. Um áudio por vez (CPU); o processo filho mantém o event loop livre para o health
-e as outras rotinas. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo real; alerta
-quando `failed` > 0 na hora ou `pending` mais velho que 15 min.
+aceita; **registrado na T0.2: 5 min** — `JOB_TICK_INTERVAL_SECONDS = 300` e `cron` do Railway em `*/5`) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
+`on conflict do nothing` para anexos `audio/*` sem linha, depois de `greatest(enabled_since, routine_started_at)` e
+dentro da janela de 72 h, de empresa ligada; (2) reivindica **uma linha por vez**, até `BATCH_SIZE` por execução, com
+`FOR UPDATE SKIP LOCKED`, novo `lease_token`, lease que cobre todas as etapas (motor + `ffprobe` + decodificação +
+download + margem) e `attempts + 1`; (3) por linha (escrita só `where lease_token = $x`):
+empresa desligada ⇒ `failed`/`company_disabled`; objeto `deleted` ⇒ expurgo (`ready` sem texto); baixa pela linha, confere `sha256`,
+**mede com `ffprobe`** (com timeout; sem cabeçalho de duração: decodifica com `ffmpeg -t teto+1s`, também com timeout),
+`too_long` **sem chamar o transcritor**; texto sem U+0000; a reivindicação filtra `attempts < 3`, uma varredura no início
+do ciclo fecha `attempts >= 3` como `attempts_exhausted`, e o lease é **por linha**; o trabalho pesado roda num
+**executor em processo com trava de uma execução**, fora do ciclo serial do job-run (`contract.md` §5.8); janela de
+recuperação `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (72 h, regra nova a confirmar com o dono antes de produção); o motor devolve só `{ text, engine, language }`, e `language` é a dica `pt`, não detecção; (4) expurgo: `ready` com objeto
+`deleted` ⇒ `text = null` (`ready` sem texto, `generated_at` preservado). Um áudio por vez, fora do ciclo serial do job-run (executor do `contract.md`
+§5.8: catálogo nas três cópias, desfechos `succeeded` (sucesso, como toda rotina)/`already_running`/`runner_lock_expired`, contadores da execução
+anterior no ciclo seguinte, soltura graciosa no `SIGTERM` que devolve a tentativa); o impacto em CPU nas outras rotinas
+é medida da T0.2, não premissa. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo
+real; alerta quando `failed` (**exceto `company_disabled`**) > 0 na hora ou `pending` mais velho que 15 min.
 
 **Spike T0.2 (🧠, decide e escreve a ADR-0103 aceita):** no runner do Railway (serviço de staging temporário com o
 mesmo plano do worker), medir para `base` (piso), `small`, `small-q5_1`, `large-v3-turbo`, `large-v3-turbo-q5_0`:
@@ -220,7 +232,9 @@ microfone e sem transcrição (o serializador não manda o campo) — smoke do p
 1. **Pacotes:** `conversation-contracts` + `conversations-ui` publicados (passe `opus` antes).
 2. **Apps tolerantes:** as três apps sobem para a versão nova **sem** ligar a gravação nem mapear campos (só o player
    novo); staging.
-3. **Banco + API:** migration aditiva e campos novos nas rotas por assunto (a API sem worker devolve só `disabled` ou
+3. **Banco + API:** migration aditiva, campos novos nas rotas por assunto e `transcriptionUpdatedAt` no resumo do
+   motorista (`contract.md` §5.3). Os apps validam a transcrição por anexo e ignoram o que não conhecem (sem regra
+   extra de ordem por campo novo) (a API sem worker devolve só `disabled` ou
    ausente — nunca `pending` eterno, porque sem rotina não há linha).
 4. **Worker:** imagem com whisper e rotina; staging; medida T6.3.
 5. **Telas:** gravação ligada no app e no painel, configuração no painel.

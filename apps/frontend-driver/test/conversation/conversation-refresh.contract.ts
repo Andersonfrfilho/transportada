@@ -17,14 +17,17 @@ import {
 import { CONVERSATION_REFRESH_INTERVAL_MS } from '../../src/modules/conversation/shared/driverConversation.constant'
 
 function snapshotOf(
-  ...entries: readonly [string, string | null, number, (string | null)?][]
+  ...entries: readonly [string, string | null, number, (string | null)?, (string | null)?][]
 ): ConversationSnapshot {
-  return entries.map(([subjectId, lastMessageAt, unreadCount, officeReadAt]) => ({
-    lastMessageAt,
-    officeReadAt: officeReadAt ?? null,
-    subject: { subjectId, subjectType: 'occurrence' },
-    unreadCount,
-  }))
+  return entries.map(
+    ([subjectId, lastMessageAt, unreadCount, officeReadAt, transcriptionUpdatedAt]) => ({
+      lastMessageAt,
+      officeReadAt: officeReadAt ?? null,
+      subject: { subjectId, subjectType: 'occurrence' },
+      transcriptionUpdatedAt: transcriptionUpdatedAt ?? null,
+      unreadCount,
+    }),
+  )
 }
 
 describe('diffConversationSnapshots (spec 263)', () => {
@@ -60,6 +63,30 @@ describe('diffConversationSnapshots (spec 263)', () => {
       changedSubjects: [],
       inboxChanged: false,
     })
+  })
+
+  it('transcriptionUpdatedAt novo ou diferente conta como mudança, com o resto igual (pending virou ready)', () => {
+    const without = snapshotOf(['a', 't1', 0, null, null])
+    const pending = snapshotOf(['a', 't1', 0, null, 'u1'])
+    const ready = snapshotOf(['a', 't1', 0, null, 'u2'])
+    expect(diffConversationSnapshots(without, pending).changedSubjects).toEqual([
+      { subjectId: 'a', subjectType: 'occurrence' },
+    ])
+    expect(diffConversationSnapshots(pending, ready)).toEqual({
+      changedSubjects: [{ subjectId: 'a', subjectType: 'occurrence' }],
+      inboxChanged: true,
+    })
+  })
+
+  it('transcriptionUpdatedAt igual, ou ausente dos dois lados (API antiga), não dispara nada', () => {
+    const same = snapshotOf(['a', 't1', 0, null, 'u1'])
+    expect(diffConversationSnapshots(same, same)).toEqual({
+      changedSubjects: [],
+      inboxChanged: false,
+    })
+    expect(
+      diffConversationSnapshots(snapshotOf(['a', 't1', 0]), snapshotOf(['a', 't1', 0])),
+    ).toEqual({ changedSubjects: [], inboxChanged: false })
   })
 
   it('nada mudou: sem assuntos e sem inbox', () => {
@@ -375,6 +402,104 @@ describe('driverConversationsApi: officeReadAt só no snapshot (spec 263 T5.5)',
     ])
     const page = await api.listConversations()
     expect(page.data[0]).not.toHaveProperty('officeReadAt')
+    unsubscribe?.()
+  })
+})
+
+describe('driverConversationsApi: transcriptionUpdatedAt só no snapshot (spec 264 T4.2)', () => {
+  function createTranscriptionHarness() {
+    const server: { transcriptionUpdatedAt?: string } = {}
+    let timerCallback: (() => void) | undefined
+    const events: ParticipantConversationEvent[] = []
+    const api = createDriverConversationsApi({
+      fallbackSubjectLabel: () => 'Viagem',
+      http: createDriverConversationHttp({
+        baseUrl: 'https://api.test/v1',
+        fetch: () =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                data: [
+                  {
+                    awaitingDriver: false,
+                    lastMessageAt: '2026-10-09T10:00:00.000Z',
+                    status: 'open',
+                    subjectId: 'trip-1',
+                    subjectLabel: 'Viagem',
+                    subjectType: 'trip',
+                    ...(server.transcriptionUpdatedAt === undefined
+                      ? {}
+                      : { transcriptionUpdatedAt: server.transcriptionUpdatedAt }),
+                    unreadCount: 0,
+                  },
+                ],
+                pagination: { nextCursor: null },
+              }),
+              { status: 200 },
+            ),
+          ),
+        getAccessToken: () => Promise.resolve('token'),
+      }),
+      outbox: createConversationOutbox({
+        getOwnerKey: () => 'owner-1',
+        random: () => 0.5,
+        runExclusive: (run) => run(),
+        store: createMemoryOutboxStore(),
+      }),
+      refreshEnvironment: {
+        bindTriggers: () => () => undefined,
+        isOnline: () => true,
+        isVisible: () => true,
+        startTimer: (callback) => {
+          timerCallback = callback
+          return () => undefined
+        },
+      },
+    })
+    return { api, events, server, tick: () => timerCallback?.() }
+  }
+
+  it('a transcrição que chega dispara conversation-changed e não vaza para o resumo do pacote', async () => {
+    const { api, events, server, tick } = createTranscriptionHarness()
+    const unsubscribe = api.subscribe?.((event) => events.push(event))
+    await settle()
+    server.transcriptionUpdatedAt = '2026-10-12T14:03:22.114Z'
+
+    tick()
+    await settle()
+
+    expect(events).toEqual([
+      { subject: { subjectId: 'trip-1', subjectType: 'trip' }, type: 'conversation-changed' },
+      { type: 'inbox-changed' },
+    ])
+    expect((await api.listConversations()).data[0]).not.toHaveProperty('transcriptionUpdatedAt')
+    unsubscribe?.()
+  })
+
+  it('API antiga sem o campo: ciclos seguidos não geram evento algum', async () => {
+    const { api, events, tick } = createTranscriptionHarness()
+    const unsubscribe = api.subscribe?.((event) => events.push(event))
+    await settle()
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      tick()
+      await settle()
+    }
+
+    expect(events).toEqual([])
+    unsubscribe?.()
+  })
+
+  it('valor que não é texto é ignorado como ausente', async () => {
+    const { api, events, server, tick } = createTranscriptionHarness()
+    const unsubscribe = api.subscribe?.((event) => events.push(event))
+    await settle()
+    Object.assign(server, { transcriptionUpdatedAt: 12 })
+
+    tick()
+    await settle()
+
+    expect(events).toEqual([])
     unsubscribe?.()
   })
 })

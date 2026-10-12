@@ -410,3 +410,25 @@ input[type='file']::file-selector-button {
   white-space: nowrap;
   width: 1px;
 }
+
+/* Spec 263 T1b.4: a visão do participante recebe os tokens do portal (o CSS dela é só `.cv-p-*`, sem regra global). */
+.conversation__participant {
+  --cv-p-surface: var(--color-asphalt);
+  --cv-p-surface-raised: var(--color-graphite);
+  --cv-p-text: var(--color-fog);
+  --cv-p-text-muted: var(--color-slate);
+  --cv-p-border: color-mix(in srgb, var(--color-slate) 40%, transparent);
+  --cv-p-accent: var(--color-copper);
+  --cv-p-accent-contrast: var(--color-asphalt);
+  --cv-p-highlight: color-mix(in srgb, var(--color-copper) 12%, var(--color-asphalt));
+  --cv-p-danger: var(--color-alert);
+  --cv-p-radius: 0.75rem;
+  --cv-p-tick: var(--color-slate);
+  --cv-p-tick-read: color-mix(in srgb, #1e9bd7 65%, var(--color-fog));
+
+  display: flex;
+  height: min(70vh, 36rem);
+  margin-top: var(--space-3);
+  overflow: hidden;
+  font-family: var(--font-body);
+}

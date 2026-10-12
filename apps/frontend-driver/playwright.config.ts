@@ -34,12 +34,22 @@ export default defineConfig({
   testMatch: process.env.PLAYWRIGHT_TEST_MATCH ?? [
     'driver-app.smoke.spec.ts',
     'conversation.smoke.spec.ts',
+    'conversation-audio.smoke.spec.ts',
     'driver-service-worker.smoke.spec.ts',
   ],
   workers: 1,
   use: {
     baseURL: `http://localhost:${DRIVER_PORT}`,
     browserName: 'chromium',
+    /**
+     * ⚠️ Microfone falso do Chromium. **No macOS isto não basta**: o `getUserMedia({ audio })` fica pendente
+     * (o vídeo falso abre, a enumeração lista os dispositivos falsos) — medido na spec 264 T4.4. O smoke de
+     * áudio injeta o microfone (`conversation-audio-smoke.helper.ts`); `PLAYWRIGHT_MICROPHONE=native` usa este.
+     */
+    launchOptions: {
+      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    },
+    permissions: ['microphone'],
     screenshot: 'off',
     trace: 'off',
     video: 'off',

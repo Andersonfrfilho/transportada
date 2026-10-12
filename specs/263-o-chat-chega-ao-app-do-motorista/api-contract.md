@@ -157,5 +157,22 @@ O resumo de `GET /me/trips/current/conversations` e o de `POST …/conversations
 recente de um usuário do **escritório** (diferente do `driver_user_id` da conversa) cuja leitura alcança alguma mensagem `inbound` do motorista
 (`created_at` da mensagem lida >= o de alguma `inbound`). Ausente quando ninguém do escritório leu até uma mensagem do motorista. É a pista para o
 app refazer a conversa **aberta**: ler não muda `lastMessageAt` nem `unreadCount`, então sem ele o ✓✓ azul só apareceria ao recarregar. Uma consulta
-em lote para a página inteira (`readOfficeReadAtByConversation`; a lista segue em 5 consultas com 1, 10 ou 30 conversas), sem migration. Aditivo: as
+em lote para a página inteira (`readOfficeReadAtByConversation`; a lista seguia em 5 consultas com 1, 10 ou 30 conversas, e são 6 desde o `transcriptionUpdatedAt` da 264), sem migration. Aditivo: as
 rotas antigas da 183 e o schema do pacote de contratos não o conhecem; o app só o usa no snapshot do refresh de 15 s.
+
+## Áudio: duração e transcrição no anexo (emenda da spec 264)
+
+Aditivo, só nas rotas de mensagens por assunto (motorista e escritório, `GET` e `POST …/messages`): o anexo de áudio
+(`contentType` `audio/*`) pode trazer `durationMs` e `transcription` (`pending` · `ready` · `failed` · `disabled`). A forma,
+o mapper e a configuração `GET/PUT /company-settings/audio-transcription` estão em
+[`specs/264-*/contract.md`](../264-o-audio-e-a-transcricao-chegam-a-conversa-por-assunto/contract.md) §5. As rotas antigas
+`/me/.../occurrences/**`, a tela antiga da ocorrência e o portal `/client/**` não mudam. O resumo de `GET /me/trips/current/conversations` (e de `POST …/open`) ganha o opcional
+`transcriptionUpdatedAt` (ISO), para o refresh de 15 s do app perceber `pending → ready` (264 `contract.md` §5.3).
+
+Como a API monta (T2.3 da 264): depois de assinar os anexos de uma página, uma etapa à parte (`enrichAudioAttachments`) acrescenta os campos
+**só** ao anexo `audio/*`; `signConversationAttachments`, `readConversationAttachments` e as rotas antigas não os conhecem. Página sem áudio não faz
+consulta nova; com áudio são duas, constantes por página: a configuração da empresa (consulta própria, sem linha ⇒ ligada; desligada ⇒ `disabled`
+mesmo sem nenhuma linha de transcrição, e a segunda consulta não roda) e as linhas por `attachmentIds` da página já autorizada, pela empresa do
+contexto. `durationMs` = `attachments.duration_ms` ou, na falta, o `audio_duration_ms` da transcrição. `transcriptionUpdatedAt` = `max(updated_at)`
+das transcrições da conversa, em lote por página (`group by conversation_id`, sem junção); a lista do motorista passa de 5 para **6** consultas, ainda
+constante com 1, 10 e 30 conversas. Toda escrita que muda o que a API expõe grava `updated_at = now()` do banco.

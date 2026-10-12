@@ -19,6 +19,7 @@ import {
 import type { DriverSubjectWriteTransactionPort } from '../../src/occurrence-conversation/application/driver-subject-write.port.js'
 import { createReplyMySubjectConversationUseCase } from '../../src/occurrence-conversation/application/reply-my-subject-conversation.use-case.js'
 import { createRequestMySubjectUploadUseCase } from '../../src/occurrence-conversation/application/request-my-subject-upload.use-case.js'
+import { NO_TRANSCRIPTIONS } from '../fixtures/no-transcription.fixture.js'
 import { REPLY_SUBJECT_APP_MESSAGE_OPERATION } from '../../src/occurrence-conversation/domain/driver-subject-conversation.constant.js'
 import {
   listNoAttachments,
@@ -133,6 +134,7 @@ function createWorld(state: {
 
   const writePort: DriverSubjectWriteTransactionPort = {
     ...shared,
+    ...NO_TRANSCRIPTIONS,
     applySubjectStatus: async () => undefined,
     attachments,
     findMySubject: async (input) => {
@@ -506,6 +508,7 @@ describe('o pedido de upload por assunto (spec 263 T2.4)', () => {
       unitOfWork: {
         execute: (work) =>
           work({
+            ...NO_TRANSCRIPTIONS,
             applySubjectStatus: async () => undefined,
             findMySubject: async () => current,
             findOrCreateSubjectConversation: async () => ({ created: false, id: CONVERSATION_ID }),

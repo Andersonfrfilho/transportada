@@ -1617,3 +1617,18 @@ monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par �
   contratos de DOM da 262.)
 - Contratos: `holiday-provider-settings` (26), DOM `business-calendar-provider-settings` (36) e `business-calendar-import-toggle` (10), puro
   `holiday-provider-form` (25), `holiday-import-headline` (19), DOM `business-calendar-import-headlines` (10) e `business-calendar-permission` ajustado.
+
+## Áudio e transcrição no painel (spec 264, T5.1–T5.3, 12/10/2026)
+
+- **Leitura (T5.1).** `subjectConversationAttachment.service.ts` lê `transcription` e `durationMs` crus por `id` e valida cada um
+  (`participantTranscriptionSchema.safeParse`; duração inteira, > 0, ≤ teto): inválido faz o campo sumir. `subjectThreadApi.service.ts` mapeia ao
+  `ParticipantAttachment`. O envio do áudio usa o mesmo upload em duas etapas e a mesma `Idempotency-Key` (`subject-message:<clientMessageId>`) do anexo.
+- **Configuração (T5.2).** Aba própria em Configurações, painel `AudioTranscriptionSettingsPanel` (módulo `occurrence-conversation`); cliente com `fetch`
+  próprio para distinguir 400/401/403; mutação otimista que volta ao valor anterior no erro (o `onSettled` não pode devolver o `invalidateQueries`: segurava a
+  mutação em `pending` e o erro nunca aparecia).
+- **Smoke (T5.3).** `test/audio-transcription.smoke.spec.ts` (10 testes: player e quatro estados, "desligada" só com player, gravar/ouvir/enviar sem duplicar,
+  descartar não envia, ligar/desligar/religar, PUT 500 e 403, acessibilidade, sem `settings.manage`, e a ida e volta configuração→conversa).
+  - O `<audio>` do dublê **precisa** vir da origem da página: a CSP do preview bloqueia o resto e o player fica "Áudio indisponível" — foi o que o print
+    mostrou na primeira tentativa, com o teste verde. Hoje o teste afirma zero `.cv-p-audio__error` e o botão "Tocar áudio" habilitado.
+  - A página de Configurações lê `/company-settings/logo` ao abrir; sem dublê, `failures()` acusa `ERR_FAILED`.
+  - O que o `getUserMedia` injetado NÃO prova: captura real do microfone, codec do `MediaRecorder` real, permissão do navegador, nem reprodução com saída de áudio.

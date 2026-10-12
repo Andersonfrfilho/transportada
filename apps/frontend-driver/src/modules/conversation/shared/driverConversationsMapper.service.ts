@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ParticipantAttachment } from '@adatechnology/conversation-contracts'
+import {
+  PARTICIPANT_AUDIO_DURATION_MAX_MS,
+  participantTranscriptionSchema,
+  type ParticipantAttachment,
+} from '@adatechnology/conversation-contracts'
 
 import { conversationSubjectKey } from './conversationSnapshot.service'
 import {
@@ -26,15 +30,35 @@ export function attachmentKindOf(mimeType: string): ParticipantAttachment['kind'
   return 'document'
 }
 
+/** Inteiro positivo até o teto do contrato; qualquer outra coisa some, nunca derruba a página. */
+function readDurationMs(value: unknown): number | undefined {
+  const isValid =
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= PARTICIPANT_AUDIO_DURATION_MAX_MS
+  return isValid ? value : undefined
+}
+
+/** Valida por anexo: um estado novo da API tira só a transcrição dele, não a mensagem nem a lista. */
+function readTranscription(value: unknown): unknown {
+  const parsed = participantTranscriptionSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
 function toAttachmentCandidate(raw: unknown): unknown {
   const attachment = asRecord(raw)
   const mimeType = typeof attachment.contentType === 'string' ? attachment.contentType : ''
+  const durationMs = readDurationMs(attachment.durationMs)
+  const transcription = readTranscription(attachment.transcription)
   return {
+    ...(durationMs === undefined ? {} : { durationMs }),
     filename: attachment.fileName,
     id: attachment.id,
     kind: attachmentKindOf(mimeType),
     mimeType,
     sizeBytes: attachment.sizeBytes,
+    ...(transcription === undefined ? {} : { transcription }),
   }
 }
 
@@ -106,20 +130,31 @@ export function toConversationSummaryCandidate(input: ConversationSummaryInput):
   }
 }
 
-/** `officeReadAt` por assunto, direto do payload: o schema do pacote não o conhece, só o snapshot do refresh. */
-export function readOfficeReadAtBySubject(payload: unknown): ReadonlyMap<string, string> {
-  const readAtBySubject = new Map<string, string>()
+/** Campo de data do resumo por assunto, direto do payload: o schema do pacote não o conhece, só o snapshot do refresh. */
+function readDateBySubject(payload: unknown, field: string): ReadonlyMap<string, string> {
+  const dateBySubject = new Map<string, string>()
   for (const raw of readDataArray(payload)) {
-    const { officeReadAt, subjectId, subjectType } = asRecord(raw)
+    const summary = asRecord(raw)
+    const { subjectId, subjectType } = summary
+    const value = summary[field]
     if (
-      typeof officeReadAt === 'string' &&
+      typeof value === 'string' &&
       typeof subjectId === 'string' &&
       typeof subjectType === 'string'
     ) {
-      readAtBySubject.set(conversationSubjectKey({ subjectId, subjectType }), officeReadAt)
+      dateBySubject.set(conversationSubjectKey({ subjectId, subjectType }), value)
     }
   }
-  return readAtBySubject
+  return dateBySubject
+}
+
+export function readOfficeReadAtBySubject(payload: unknown): ReadonlyMap<string, string> {
+  return readDateBySubject(payload, 'officeReadAt')
+}
+
+/** Spec 264 §5.3: quando a transcrição da conversa mudou; é o que faz o refresh de 15 s perceber `pending → ready`. */
+export function readTranscriptionUpdatedAtBySubject(payload: unknown): ReadonlyMap<string, string> {
+  return readDateBySubject(payload, 'transcriptionUpdatedAt')
 }
 
 /** Resumo da rota antiga (só ocorrência): sem a direção da última mensagem, "espera resposta" é ter não lida. */

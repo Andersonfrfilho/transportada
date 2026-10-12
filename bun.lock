@@ -43,6 +43,7 @@
         "zod": "4.4.3",
       },
       "devDependencies": {
+        "@adatechnology/conversation-contracts": "0.6.0",
         "@eslint/js": "9.39.5",
         "@types/bun": "1.3.14",
         "@types/pdfkit": "0.17.6",
@@ -77,8 +78,8 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
@@ -103,8 +104,8 @@
       "name": "@transportada/frontend-driver",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
@@ -166,8 +167,8 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -223,6 +224,7 @@
       "name": "@transportada/worker",
       "version": "0.2.0",
       "dependencies": {
+        "@adatechnology/audio-transcription-provider": "0.1.0",
         "@adatechnology/cargo-placement": "0.1.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
@@ -263,13 +265,15 @@
     },
   },
   "packages": {
+    "@adatechnology/audio-transcription-provider": ["@adatechnology/audio-transcription-provider@0.1.0", "", {}, "sha512-QheTBjW+mazCZlx3RUtfWc/y6HhaMiLE7u3mowkX9vR4fRjfNFMpwrKRE9pzyJTV92ersVx+8CizP3kvqia1sw=="],
+
     "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
 
     "@adatechnology/cargo-placement": ["@adatechnology/cargo-placement@0.1.0", "", {}, "sha512-3h71tfuLaznch0Mjy/xFU/Qt6BzMM9vy08KdN6nMe0Dqj7+8rEnsQ0h4QqPX35lmRKEMilCAy7JxmOj8xteWCw=="],
 
-    "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
+    "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.6.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-meGNEfiQAeBkXJQ+YNZlJOPK4sLnWHhbiiuQ16yPH8OsZ2/Fa1KQ7CWwdG3SGOOazjNpCBkqd/VcUAlBTwLkPw=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.9.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.5.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-OsSI9yfuVtnhhx8teln29S4YA0QKuaUapqIwZfwkQOMKSjyuS8pO9DR9d8dm8kB5dT/gNaF1T114LC8AAzqq5w=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.10.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.6.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-nD7H73hTDtZXSNVHb8aoFYyPsnm/dHjZfUK+GtB3Y0LfMxlmVLa3OlhY6kTSQNQ8tu8TWPSwscgO4QgWsNPO+Q=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 

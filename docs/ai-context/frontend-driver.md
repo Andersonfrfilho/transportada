@@ -280,3 +280,21 @@ nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNoti
   parada saiu da viagem. O escritório só dá baixa em nome de quem **está** na tripulação.
 - Sem push nem sino de atribuição (spec 217 D9). Contrato:
   `test/driver-trip/trip-reassignment.contract.ts`.
+
+## Áudio e transcrição na conversa (spec 264, T4.2–T4.4)
+
+- **Fluxo.** O gravador é do pacote (`audioRecording={driverAudioRecordingOptions}`: 2 min, 8 MiB). Gravar → relógio ("0:03 de 2:00") →
+  Parar → "Ouça antes de enviar" (player da revisão) → Enviar áudio → upload em duas etapas como a foto → bolha com player e a
+  transcrição (`Transcrevendo…`, texto + "Transcrição gerada por máquina", "Nada foi dito no áudio", "só para áudios de menos de 10 minutos").
+  Aba oculta ou Parar duas vezes levam à revisão com o áudio (defeito H1 do SDK, provado no smoke).
+- **Cabeçalhos.** `Permissions-Policy: camera=(self), geolocation=(self), microphone=(self)` e CSP com `media-src 'self' blob: <storage>`,
+  do `server.ts` de produção (o preview do Vite não serve cabeçalho de segurança; a CSP chega ao preview pelo build).
+- **Fila offline com teto.** 100 itens e 48 MiB de arquivo (aparelho inteiro); texto entra até o teto de itens; recusa = `OUTBOX_FULL`,
+  alerta "Fila cheia" e bolha `failed` só em memória. Bolha de áudio na fila: nome do arquivo + "Na fila", sem player (contrato §3).
+  Reconexão entrega uma vez: a trava `isFlushing` + `runExclusive` evita repetir upload/POST, e a `Idempotency-Key` protege o servidor.
+- **Demo e debug.** API `scripts/driver-preview-api.ts`: `POST /__debug/conversations/audio-samples` e `.../transcription-ready`
+  (`{subjectId}`); o áudio enviado nasce `pending`; a URL do anexo serve um WAV mudo de 2 s.
+- **Como rodar.** `bun run smoke` na app (sobe 53112 e a demo 53912 sozinho; nunca use 53901/53200). Só o áudio:
+  `PLAYWRIGHT_TEST_MATCH=conversation-audio.smoke.spec.ts` com as mesmas variáveis do script (inclui `VITE_OBJECT_STORAGE_URL`).
+- **Ambiente.** Chromium headless no macOS: `getUserMedia` de áudio pendente e relógio do `<audio>` travado; o smoke injeta o microfone
+  (helper) e afirma "tocando" por estado, não por `currentTime`. Detalhe em `apps/frontend-driver/CLAUDE.md`.

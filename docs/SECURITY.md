@@ -5,6 +5,50 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-10-11 — spec 264 T0.3 — a transcrição de áudio vira dado pessoal novo: finalidade, retenção amarrada ao áudio e modelo próprio
+
+**Onde:** ainda não existe; é o desenho da spec 264 (D2, D10, D12, RF18) e da ADR-0103. Vai para a rotina de transcrição do `apps/worker-transportada`, para a tabela de texto com `company_id` (migration própria) e para as rotas `/me/trips/current/conversations/**` e `/trips/:tripId/conversations/**` de `apps/api-transportada`.
+
+**O que é:** a transcrição é um texto derivado da voz de quem gravou (motorista, operador, ou contratante quando o áudio chega por e-mail ou portal). Passa a ser dado pessoal com regras próprias, separadas das do áudio.
+
+- **Finalidade:** leitura assistida da conversa por assunto (ajuda de leitura, marcada como de máquina, embaixo do player). Nunca decide, nunca alimenta tratativa, cobrança ou acerto (D4; `conversation-never-decides.contract.ts`).
+- **Base:** execução do contrato de transporte, como a spec 264 registra em D10. A spec não cita legítimo interesse nem consentimento, então nenhuma outra base é registrada aqui. Se o controlador quiser outra, a decisão precisa vir antes do primeiro áudio transcrito em produção.
+- **Retenção amarrada ao áudio:** a transcrição nunca vive mais que o áudio. Objeto do áudio em `deleted` em `stored_objects` ⇒ a rotina anula `text` e marca o expurgo; a API nunca mostra texto de áudio apagado.
+- **Onde aparece:** só nas rotas da conversa por assunto do motorista e do escritório (D12), e na conversa antiga da ocorrência apenas se o mesmo serializador servir as duas. **Nunca** em sino, e-mail à contratante, mensagem de WhatsApp, prévia da lista de conversas, busca, log, Sentry, métrica, evento de outbox, aviso, `clientDiagnostics` ou erro.
+- **Log:** só ids, estado, código de erro, duração e motor. Nenhum trecho do texto transcrito entra em log ou mensagem de erro.
+- **Processamento:** modelo próprio no worker, sem custo por uso e sem mandar a voz de terceiros a serviço externo (D2, ADR-0103). Groq e OpenAI ficam fora. O WAV temporário vive em diretório próprio e é apagado no `finally`; o disco do contêiner é efêmero.
+- **Desligar:** a empresa pode desligar a transcrição (padrão ligada). Desligada, a API devolve `disabled` para todos os áudios da empresa; os textos já gerados ficam ocultos e guardados. Religar mostra de novo, sem transcrever retroativamente o que chegou enquanto estava desligada.
+
+**Risco:** o texto da voz de motorista, operador ou contratante fica legível para quem lê a conversa. Se vazar, expõe o conteúdo falado, e não só o áudio.
+
+**Mitigação:** isolamento por `company_id` com a mesma checagem por objeto da conversa (BOLA das 183 e 263); retenção amarrada ao áudio; nada em log nem em canal de notificação; modelo próprio; desligável pela empresa.
+
+**Origem:** spec 264, T0.3 (D2, D10, D12, RF18). Registrado em 2026-10-11.
+
+### 2026-10-11 — spec 264 T0.3 — o app do motorista passa a pedir microfone e a tocar áudio por `blob:` (`microphone=(self)`, `media-src`)
+
+**Onde:** `apps/frontend-driver`, cabeçalho `Permissions-Policy` e diretiva `media-src` da CSP, a ser alterados na implementação da spec 264 (D11). O desenho é o mesmo do painel (`apps/frontend-transportada`, `server.ts` e `shared/contentSecurityPolicy.service.ts`, 183 T705).
+
+**O que é:** hoje o app do motorista envia `Permissions-Policy: microphone=()` e a CSP não declara `media-src`, então cai em `default-src 'self'` e nem o áudio do bucket toca. A mudança:
+
+- `Permissions-Policy: microphone=(self)`: o motorista grava áudio na conversa da viagem (183 D8, RF17).
+- `media-src 'self' blob: <origem do storage de anexos>`: `blob:` serve para ouvir a gravação antes de enviar; a origem do storage entra só como origem exata, sem curinga.
+- O portal da contratante segue `microphone=()`.
+
+A autorização é a mesma que o dono deu ao painel em 25/09/2026 (183 T705), quando o painel ainda servia o motorista. A app própria (ADR-0075) nasceu sem ela, e a spec 264 D11 a registra para a app.
+
+**Risco:** com o microfone permitido à origem, qualquer código executado nessa origem passa a poder abrir o microfone. E `blob:` em `media-src` aceita mídia criada no próprio navegador.
+
+**Mitigação:**
+
+- `(self)` exato, sem `*`, e sem iframe de terceiro herdando o microfone. O contrato de cabeçalhos exige essa forma exata, como no painel.
+- `media-src` não afrouxa `script-src` nem `default-src`; a diretiva só recebe `'self'`, `blob:` e a origem do storage.
+- O microfone só abre no clique em "Gravar áudio", a trilha para ao terminar ou ao sair da tela, e a gravação para sozinha em 5 min.
+- O áudio existe só como blob até o operador escolher "Usar áudio". Ele sobe por URL assinada, é conferido pelos bytes (OGG, MP4 ou WEBM) e vai ao bucket privado com a retenção dos anexos.
+- Que o blob não sobreviva ao fechamento da tela precisa ser provado na implementação, não assumido.
+
+**Origem:** spec 264, T0.3 (D11). Registrado em 2026-10-11.
+
 **Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
 (`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
 authorization.policy.ts` (`occurrences.decide` no papel `contractor`, `occurrences.resolve` em

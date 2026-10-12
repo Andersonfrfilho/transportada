@@ -23,6 +23,7 @@ import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
+import { driverAudioRecordingOptions } from '../shared/driverAudioRecording.service'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
 import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
@@ -37,7 +38,7 @@ export function DriverConversationsPage() {
   const { i18n, t } = useTranslation('conversation')
   const queryClient = useQueryClient()
   const api = getDriverConversationsApi()
-  const { onRetryPending, pendingMessages } = useConversationOutbox(api)
+  const { isOutboxFull, onRetryPending, pendingMessages } = useConversationOutbox(api)
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
@@ -58,6 +59,11 @@ export function DriverConversationsPage() {
 
   return (
     <div className={styles.conversationShell}>
+      {isOutboxFull ? (
+        <p role="alert" className={styles.outboxNotice}>
+          {t('outboxFull')}
+        </p>
+      ) : null}
       <main className={styles.conversationMain}>
         <Suspense
           fallback={
@@ -68,6 +74,7 @@ export function DriverConversationsPage() {
         >
           <ParticipantConversations
             api={api}
+            audioRecording={driverAudioRecordingOptions}
             avatars="initials"
             className={styles.conversationTheme ?? ''}
             labels={labels}

@@ -334,6 +334,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...WHATSAPP_FLOW_GRAPH_TABLES,
     ...WHATSAPP_COMMAND_TABLES,
     ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
+    ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
@@ -430,3 +431,9 @@ export async function withDisposableDatabase(
 export const FIRST_DIRECTORY_REQUIRING_SNAPSHOT = '20260910120000_vehicle_reference_every_type'
 
 export const SNAPSHOT_FILE = 'snapshot.json'
+
+/** Spec 264 T2.1: a transcrição do áudio e a configuração por empresa, numa migration própria. */
+export const CONVERSATION_AUDIO_TRANSCRIPTION_TABLES = [
+  'company_audio_transcription_settings',
+  'occurrence_conversation_audio_transcriptions',
+] as const

@@ -11,7 +11,8 @@
     "entryKinds": "Entry kinds",
     "quickReplies": "Quick replies",
     "settingsResolution": "Check configuration",
-    "businessCalendar": "Calendar"
+    "businessCalendar": "Calendar",
+    "audioTranscription": "Audio transcription"
   },
   "entryKinds": {
     "title": "Entry kinds",

@@ -29,6 +29,8 @@ import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
 import { assertConversationProtocol } from './conversation-protocol.assertion.js'
 import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
 import { assertConversationSubject } from './conversation-subject.assertion.js'
+import { assertConversationAudioTranscription } from './conversation-audio-transcription.assertion.js'
+import { assertConversationAudioTranscribeJob } from './conversation-audio-transcribe-job.assertion.js'
 import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-index.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
@@ -76,6 +78,7 @@ import {
   WHATSAPP_PHONE_TABLES,
   WHATSAPP_FLOW_GRAPH_TABLES,
   WHATSAPP_COMMAND_TABLES,
+  CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
   TRIP_FINANCIAL_TABLES,
   OCCURRENCE_CONTRACTOR_REPLY_TABLES,
   TRIP_TABLES,
@@ -129,6 +132,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_PHONE_TABLES,
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
+            ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -425,6 +429,15 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
         })
+        await assertConversationAudioTranscription({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+        await assertConversationAudioTranscribeJob(database)
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -467,6 +480,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_PHONE_TABLES,
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
+            ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

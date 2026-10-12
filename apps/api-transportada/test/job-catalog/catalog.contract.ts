@@ -140,6 +140,12 @@ const CATALOG = [
     minimumIntervalSeconds: 300,
   },
   {
+    /** Spec 264: o ciclo descobre e entrega a transcrição ao executor em processo (contract.md §5.8). */
+    failureOutcomes: ['already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    minimumIntervalSeconds: 300,
+  },
+  {
     /** Spec 237 T4.8: a retenção dos dados da planilha só toca o próprio banco e o bucket. */
     failureOutcomes: [],
     job: 'cargo-preview.retention.apply',
@@ -193,6 +199,7 @@ const SEED_MIGRATIONS = [
   '20261008164340_nfe_recipient_email_backfill_job',
   '20261009040622_holiday_provider_import',
   '20261012180100_occurrence_automatic_mail_sweep_job',
+  '20261012154238_conversation_audio_transcribe_job',
 ] as const
 
 describe('job catalog', () => {

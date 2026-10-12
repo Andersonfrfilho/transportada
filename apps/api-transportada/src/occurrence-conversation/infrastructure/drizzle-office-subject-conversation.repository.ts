@@ -32,6 +32,7 @@ function createOfficeTransactionPort(transaction: Transaction): OfficeSubjectTra
   return {
     attachments: occurrence.attachments,
     findIdempotency: occurrence.findIdempotency,
+    findTranscriptionsByAttachmentIds: subject.findTranscriptionsByAttachmentIds,
     findOfficeMessage: (input) => findOfficeMessage(transaction, input),
     findOfficeSubject: (input) => findOfficeSubject(transaction, input),
     findOrCreateSubjectConversation: subject.findOrCreateSubjectConversation,
@@ -43,6 +44,8 @@ function createOfficeTransactionPort(transaction: Transaction): OfficeSubjectTra
     async markConversationRead(input) {
       await markOccurrenceConversationRead(transaction, input)
     },
+    readAudioTranscriptionEnabled: subject.readAudioTranscriptionEnabled,
+    readTranscriptionUpdatedAtByConversation: subject.readTranscriptionUpdatedAtByConversation,
     saveIdempotency: occurrence.saveIdempotency,
     setStoredStatus: (input) => setConversationStoredStatus(transaction, input),
   }

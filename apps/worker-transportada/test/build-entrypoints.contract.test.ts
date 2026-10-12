@@ -83,6 +83,74 @@ describe('worker build entrypoints contract', () => {
   })
 })
 
+const WHISPER_TAG = 'v1.9.4'
+const WHISPER_COMMIT = '927cfce34f31707e17f2bff35c349632fb9e2c3a'
+const MODEL_FILE = 'ggml-small-q5_1.bin'
+const MODEL_SHA256 = 'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb'
+const BUILD_TOOLS = /\b(cmake|g\+\+|gcc|make|git|build-base|curl)\b/u
+
+type DockerStage = { readonly name: string; readonly body: string }
+
+async function readDockerStages(): Promise<readonly DockerStage[]> {
+  const dockerfile = await Bun.file(new URL('../Dockerfile', import.meta.url)).text()
+  const withoutComments = dockerfile
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n')
+  return withoutComments
+    .split(/^FROM /mu)
+    .slice(1)
+    .map((chunk) => ({
+      name: /\sAS\s+(\S+)/u.exec(chunk.split('\n')[0] ?? '')?.[1] ?? '',
+      body: chunk,
+    }))
+}
+
+describe('worker image audio transcription contract', () => {
+  test('builds whisper-cli in its own stage from the pinned tag and commit', async () => {
+    const stage = (await readDockerStages()).find((candidate) => candidate.name === 'whisper-build')
+
+    expect(stage).toBeDefined()
+    expect(stage?.body).toContain(`WHISPER_TAG=${WHISPER_TAG}`)
+    expect(stage?.body).toContain(`WHISPER_COMMIT=${WHISPER_COMMIT}`)
+    expect(stage?.body).toContain('rev-parse HEAD')
+    expect(stage?.body).toContain('-DGGML_NATIVE=OFF')
+    expect(stage?.body).toContain('--target whisper-cli')
+  })
+
+  test('downloads the model in its own stage and fails the build when the sha256 diverges', async () => {
+    const stage = (await readDockerStages()).find((candidate) => candidate.name === 'models')
+
+    expect(stage).toBeDefined()
+    expect(stage?.body).toContain('https://huggingface.co/ggerganov/whisper.cpp/resolve/')
+    expect(stage?.body).toContain(`${MODEL_SHA256}  ${MODEL_FILE}`)
+    expect(stage?.body).toContain('sha256sum -c')
+  })
+
+  test('the runtime stage carries binary, model and ffmpeg but no build tool', async () => {
+    const stages = await readDockerStages()
+    const runtime = stages.at(-1)
+
+    expect(runtime?.name).toBe('runtime')
+    expect(runtime?.body).toContain('COPY --from=whisper-build /usr/local/bin/whisper-cli')
+    expect(runtime?.body).toContain('COPY --from=models')
+    expect(runtime?.body).toContain(`/models/${MODEL_FILE}`)
+    expect(runtime?.body).toMatch(/apk add[^\n]*\bffmpeg\b/u)
+    expect(runtime?.body).toMatch(/apk add[^\n]*\blibstdc\+\+(?=\s)/u)
+    expect(runtime?.body).not.toMatch(BUILD_TOOLS)
+  })
+
+  test('the runtime stage tells the worker where the model lives and stays non-root', async () => {
+    const runtime = (await readDockerStages()).at(-1)
+
+    expect(runtime?.body).toContain(`AUDIO_TRANSCRIPTION_MODEL_PATH=/models/${MODEL_FILE}`)
+    expect(runtime?.body).toMatch(/^USER transportada$/mu)
+    expect(runtime?.body.indexOf('USER transportada')).toBeGreaterThan(
+      runtime?.body.indexOf('/models/') ?? Number.MAX_SAFE_INTEGER,
+    )
+  })
+})
+
 async function listSourceFiles(directory: URL): Promise<readonly URL[]> {
   const entries = await readdir(directory, { withFileTypes: true })
   const nested = await Promise.all(

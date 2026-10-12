@@ -5,6 +5,12 @@
  * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.
  */
 import {
+  advanceConversationTranscriptions,
+  AUDIO_CONTENT_TYPE_PREFIX,
+  buildAudioSampleAttachments,
+  findAttachmentContentType,
+} from './driver-preview-conversations-audio'
+import {
   buildSeedConversations,
   DRIVER_AUTHOR,
   OFFICE_AUTHOR,
@@ -40,6 +46,10 @@ export type SendMessageResult = Readonly<{
 type OpenConversationResult = Readonly<{ isNew: boolean; summary: Record<string, unknown> }>
 
 export type ConversationRepository = Readonly<{
+  /** `pending → ready` nas transcrições da conversa; devolve quantas mudaram (`undefined` = conversa desconhecida). */
+  advanceTranscriptions: (subjectId: string) => number | undefined
+  /** Content-Type do anexo (enviado ou da demonstração), para a URL assinada servir o arquivo certo. */
+  attachmentContentType: (attachmentId: string) => string | undefined
   failNext: (input: Readonly<{ count: number; status?: number }>) => void
   has: (input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>) => boolean
   injectOfficeMessage: (input: Readonly<{ subjectId: string; text: string }>) => string | undefined
@@ -54,6 +64,8 @@ export type ConversationRepository = Readonly<{
     input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>,
   ) => OpenConversationResult | undefined
   messages: (subjectId: string) => readonly PreviewMessage[] | undefined
+  /** Põe quatro áudios na conversa, um por estado da transcrição. */
+  seedAudioSamples: (subjectId: string) => boolean
   registerUpload: (
     input: Readonly<{ contentType: string; fileName: string; sizeBytes: number }>,
   ) => string
@@ -73,6 +85,9 @@ function toSummary(conversation: PreviewConversation): Record<string, unknown> {
       ? {}
       : { lastMessageDirection: last.direction, lastMessagePreview: last.bodyText.slice(0, 140) }),
     ...(conversation.officeReadAt === undefined ? {} : { officeReadAt: conversation.officeReadAt }),
+    ...(conversation.transcriptionUpdatedAt === undefined
+      ? {}
+      : { transcriptionUpdatedAt: conversation.transcriptionUpdatedAt }),
     protocol: conversation.protocol,
     status: 'open',
     subjectId: conversation.occurrenceId,
@@ -118,7 +133,13 @@ export function createConversationRepository(now: () => number = Date.now): Conv
       pendingFailure.count -= 1
       return pendingFailure.status
     }
-    const attachments = input.attachmentIds.flatMap((id) => uploads.get(id) ?? [])
+    const attachments = input.attachmentIds.flatMap((id) => {
+      const upload = uploads.get(id)
+      if (upload === undefined) return []
+      if (!upload.contentType.startsWith(AUDIO_CONTENT_TYPE_PREFIX)) return [upload]
+      conversation.transcriptionUpdatedAt = new Date(now()).toISOString()
+      return [{ ...upload, transcription: { status: 'pending' } as const }]
+    })
     const messageId = append(conversation, {
       attachments,
       authorName: DRIVER_AUTHOR,
@@ -132,7 +153,37 @@ export function createConversationRepository(now: () => number = Date.now): Conv
     return result
   }
 
+  function advanceTranscriptions(subjectId: string): number | undefined {
+    const conversation = find(subjectId)
+    return conversation === undefined
+      ? undefined
+      : advanceConversationTranscriptions(conversation, new Date(now()).toISOString())
+  }
+
+  function seedAudioSamples(subjectId: string): boolean {
+    const conversation = find(subjectId)
+    if (conversation === undefined) return false
+    const generatedAt = new Date(now()).toISOString()
+    for (const attachment of buildAudioSampleAttachments(generatedAt)) {
+      append(conversation, {
+        attachments: [attachment],
+        authorName: DRIVER_AUTHOR,
+        bodyText: '',
+        direction: 'inbound',
+        isUnread: false,
+      })
+    }
+    conversation.transcriptionUpdatedAt = generatedAt
+    return true
+  }
+
+  const attachmentContentType = (attachmentId: string): string | undefined =>
+    uploads.get(attachmentId)?.contentType ?? findAttachmentContentType(conversations, attachmentId)
+
   return {
+    advanceTranscriptions,
+    attachmentContentType,
+    seedAudioSamples,
     failNext(input) {
       pendingFailure = { count: input.count, status: input.status ?? DEFAULT_FAIL_STATUS }
     },

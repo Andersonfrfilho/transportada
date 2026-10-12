@@ -6,7 +6,6 @@
  * `.strict()` na API: nada de `channel` nem de participante aqui. A leitura é tolerante: resumo ou
  * mensagem que o guard não reconhece sai da lista, e a tela continua de pé.
  */
-import { toConversationAttachments } from './conversationAttachment.service'
 import {
   OCCURRENCE_CONVERSATION_ERROR,
   OccurrenceConversationRequestError,
@@ -21,18 +20,19 @@ import {
   OCCURRENCE_CONVERSATION_CHANNELS,
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type OccurrenceConversationChannel,
-  type OccurrenceConversationMessage,
 } from './occurrenceConversation.types'
 import {
   SUBJECT_CONVERSATION_SUBJECT_TYPES,
+  type SubjectConversationMessage,
   type SubjectConversationRef,
   type SubjectConversationSummary,
 } from './subjectConversation.types'
+import { toSubjectConversationAttachments } from './subjectConversationAttachment.service'
 
 export type SubjectConversationClient = Readonly<{
   closeConversation: (input: SubjectConversationRef) => Promise<SubjectConversationSummary>
   listConversations: (input: { tripId: string }) => Promise<readonly SubjectConversationSummary[]>
-  listMessages: (input: SubjectConversationRef) => Promise<readonly OccurrenceConversationMessage[]>
+  listMessages: (input: SubjectConversationRef) => Promise<readonly SubjectConversationMessage[]>
   markRead: (input: SubjectConversationRef) => Promise<void>
   openConversation: (input: SubjectConversationRef) => Promise<SubjectConversationSummary>
   putUpload: (input: { file: File; url: string }) => Promise<void>
@@ -49,7 +49,7 @@ export type SubjectConversationClient = Readonly<{
       body: string
       idempotencyKey: string
     },
-  ) => Promise<null | OccurrenceConversationMessage>
+  ) => Promise<null | SubjectConversationMessage>
 }>
 
 function includes<TValue extends string>(list: readonly TValue[], value: unknown): value is TValue {
@@ -91,7 +91,7 @@ function toSummary(value: unknown): null | SubjectConversationSummary {
  * A mensagem do `/trips/…/messages` traz só o nome de quem escreveu. Vira o autor que o balão da 183
  * já sabe desenhar: `outbound` é a operação (nós), `inbound` é o motorista.
  */
-function toMessage(value: unknown): null | OccurrenceConversationMessage {
+function toMessage(value: unknown): null | SubjectConversationMessage {
   if (
     !isRecord(value) ||
     !isString(value.id) ||
@@ -105,7 +105,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
   }
   const name = isString(value.authorName) ? value.authorName : null
   return {
-    attachments: toConversationAttachments(value.attachments),
+    attachments: toSubjectConversationAttachments(value.attachments),
     author:
       value.direction === 'outbound'
         ? { kind: 'operation', name, userId: '' }

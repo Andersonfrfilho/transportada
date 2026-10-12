@@ -294,6 +294,24 @@ portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
   `--touch-target`.
 - Áudio e microfone: § "CSP, ambiente e tema de login" acima.
 
+## Áudio e transcrição na conversa por assunto (spec 264)
+
+- **A conversa por assunto da viagem** (`SubjectConversationPanel`, o `ConversationThread` do SDK com `perspective="operator"`) grava e envia áudio
+  (`audioRecording`, teto de 16 MiB) e mostra a transcrição que a API entrega por anexo. Leitura tolerante por anexo
+  (`subjectConversationAttachment.service.ts`): `transcription`/`durationMs` inválidos fazem o CAMPO sumir, nunca a mensagem. A tela antiga da
+  ocorrência segue **sem** o campo (a guarda `toConversationAttachments` não mudou).
+- **Configurações → aba "Transcrição de áudios"** (`?tab=audioTranscription`, só com `settings.manage`): liga/desliga a transcrição da empresa
+  (`GET/PUT /company-settings/audio-transcription`, PUT `{ enabled }`). A frase do que acontece ao desligar e a do limite (`floor(maxDurationMs / 60000)`)
+  ficam sempre à vista, ligadas ao controle por `aria-describedby`; falha do PUT volta ao valor anterior e mostra `role="alert"`. Desligada, a API devolve
+  `{ status: 'disabled' }` e a conversa mostra só o player.
+- **Smoke (T5.3): `test/audio-transcription.smoke.spec.ts`** (registrado em `testMatch` do `playwright.config.ts`; helper
+  `audio-transcription-smoke.helper.ts`). Todo teste afirma `failures()` vazio: rota da API sem dublê (a de `/company-settings/logo`, a de
+  `/occurrence-quick-replies`) vira `ERR_FAILED` e derrubou o deploy de staging antes. O `getUserMedia` do Chromium fica pendente neste macOS: o helper
+  injeta `getUserMedia` + `MediaRecorder` (WAV mudo); `PLAYWRIGHT_MICROPHONE=native` usa o real. ⚠️ O preview só libera `media-src 'self' blob:`: o áudio do
+  dublê sai da **origem da própria página** (`PLAYWRIGHT_FRONTEND_PORT`), senão o player mostra "Áudio indisponível" e o teste passa sem tocar nada.
+  ⚠️ Local, a 53000 costuma ser de outra sessão: `PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bun run smoke`.
+- O `Checkbox` do design system mede 24 px de altura no desktop (fora do alvo de 44 px dos botões de gravar/parar/enviar); não é desta spec mudá-lo.
+
 ## Testes de hook com DOM
 
 Os contratos rodam **sem DOM**. Hook que só se prova montado (corrida entre efeito, mutation e

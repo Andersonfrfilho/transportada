@@ -15,8 +15,17 @@ const ME_PATH = /^(?:\/v1)?\/me\//u
 const DEMO_BOOT_TIMEOUT_MS = 20_000
 const DEMO_POLL_INTERVAL_MS = 200
 
+export type DemoAttachment = Readonly<{
+  contentType: string
+  durationMs?: number
+  id: string
+  transcription?: Readonly<{ status: string }>
+}>
+
 export type DemoMessage = Readonly<{
+  attachments: readonly DemoAttachment[]
   bodyText: string
+  clientMessageId: string | null
   direction: 'inbound' | 'outbound'
   id: string
 }>
@@ -72,16 +81,29 @@ export async function readDriverTexts(occurrenceId: string, text: string): Promi
     .length
 }
 
+const DISCARDED_BY_NAVIGATION =
+  /disposed|Target (page, context or browser )?has been closed|closed/i
+
+function isDiscardedByNavigation(error: unknown): boolean {
+  return error instanceof Error && DISCARDED_BY_NAVIGATION.test(error.message)
+}
+
 /** Desvia `/me/**` do build (que aponta para `VITE_API_URL`) para a demonstração própria. */
 export async function routeApiToDemo(page: Page): Promise<void> {
   await page.route(
     (url) => ME_PATH.test(url.pathname) && url.origin !== DEMO_ORIGIN,
     async (route: Route) => {
       const source = new URL(route.request().url())
-      const response = await route.fetch({
-        url: `${DEMO_ORIGIN}${source.pathname}${source.search}`,
-      })
-      await route.fulfill({ response })
+      try {
+        const response = await route.fetch({
+          url: `${DEMO_ORIGIN}${source.pathname}${source.search}`,
+        })
+        await route.fulfill({ response })
+      } catch (error) {
+        // A página navegou ou fechou antes do fulfill: a resposta já foi descartada. Qualquer outra falha estoura.
+        if (isDiscardedByNavigation(error)) return
+        throw error
+      }
     },
   )
 }

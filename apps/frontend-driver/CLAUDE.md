@@ -435,6 +435,30 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   (porta 53901) depois de mudar o script.
   A mensagem do motorista nasce `delivered` (✓✓ cinza) e `POST /__debug/conversations/office-read` `{subjectId}` a leva a `read`
   (✓✓ azul); `office-reply` e `fail-next` (`status: 422` = recusa permanente → botão de reenviar) seguem como antes.
+- **Áudio e transcrição (spec 264 T4.2/T4.3).** A gravação é do pacote: `DriverConversations.page.tsx` só passa
+  `audioRecording={driverAudioRecordingOptions}` (`driverAudioRecording.service.ts`: 2 min e 8 MiB, tetos que só baixam o padrão do SDK
+  de 5 min e 16 MiB). `onCaptureChange` abre/fecha o kind `audio-recording` do `captureRegistry`, então o SW e o "Entrar de novo" esperam a
+  gravação fechar. `Permissions-Policy` é `microphone=(self)` (`server.ts`) e a CSP ganha `media-src 'self' blob: <storage>`
+  (`contentSecurityPolicy.service.ts`, produção e dev). O adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
+  **por anexo** e `durationMs` por guarda: inválido ⇒ o campo some, a página nunca cai. `transcriptionUpdatedAt` vem do resumo, fora do
+  schema do pacote, e o `diffConversationSnapshots` o compara — é o que faz o refresh de 15 s ver `pending → ready`.
+- **Fila offline com teto (spec 264 §5.4).** `CONVERSATION_OUTBOX_LIMIT`: 100 itens e 48 MiB de arquivo, conferidos **antes** de gravar
+  (`conversationOutboxLimit.service.ts`); os bytes valem só para mensagem com arquivo, o texto entra sempre até o teto de itens. A cota
+  vale pelo aparelho inteiro (outras contas contam). Acima do teto, ou `QuotaExceededError`, o `enqueue` lança `OUTBOX_FULL`: a bolha
+  fica `failed` no pacote, a página mostra `outboxFull` ("Fila cheia…") até uma mensagem sair, e **a mensagem recusada fica só em memória —
+  recarregar a página a perde** (reenviar pelo toque funciona enquanto a página estiver aberta). Dono da fila e "Sair" valem como nas outras.
+- **Demo de áudio.** `POST /__debug/conversations/audio-samples` `{subjectId}` põe quatro áudios na conversa (`pending`, `ready` com texto,
+  `ready` vazio, `failed` `too_long`, todos com `durationMs`); `.../transcription-ready` `{subjectId}` leva os `pending` a `ready` e move
+  `transcriptionUpdatedAt` no resumo. O áudio que o motorista grava e envia (upload → PUT → `attachmentIds`) nasce `pending`; a URL do
+  anexo de áudio serve um WAV mudo de 2 s. Teste: `driver-preview-conversations-audio.contract.ts`.
+- **Smoke do áudio (spec 264 T4.4).** `test/conversation-audio.smoke.spec.ts` (10 testes, entra no script `smoke`; build com
+  `VITE_OBJECT_STORAGE_URL` = origem da demo, senão a CSP não deixa o `<audio>` tocar). ⚠️ **No macOS o `getUserMedia({ audio })` do
+  Chromium do Playwright fica pendente** mesmo com mic falso e permissão (vídeo e enumeração funcionam; e um `AudioContext` não renderiza,
+  nem o `currentTime` do `<audio>` anda além de ~0,06 s: sem dispositivo de áudio). Por isso `conversation-audio-smoke.helper.ts` injeta
+  `getUserMedia` e um `MediaRecorder` que entregam um WAV mudo; todo o resto é código real. `PLAYWRIGHT_MICROPHONE=native` usa o do navegador.
+  Rede: `setNetwork` (`setOffline` + rota que aborta `/me/**`, porque o `route.fetch` do desvio roda no Node). Bolha na fila é a de anexo
+  pendente (nome do arquivo + relógio), sem player. "Tocando" se afirma por botão "Pausar" + `<audio>` carregado e não pausado, nunca por
+  `currentTime`. Os cabeçalhos se testam no `server.ts` de produção (o preview do Vite não os serve). `PLAYWRIGHT_SAVE_PRINTS=true` regrava os prints.
 - **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
   o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
   em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…

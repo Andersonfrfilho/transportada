@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { useDecideOccurrence, useOccurrences } from '@/modules/deliveries/queries/portal.query'
 import { DecisionForm } from './DecisionForm.component'
-import { OccurrenceConversation } from './OccurrenceConversation.component'
+import { OccurrenceParticipantConversation } from './OccurrenceParticipantConversation.component'
 import {
   decisionLabel,
   isDecidable,
@@ -131,7 +131,7 @@ function OccurrenceCard({ client, occurrence, onRefreshPhotos }: OccurrenceCardP
         </p>
       )}
       {occurrence.conversationRef !== null && (
-        <OccurrenceConversation
+        <OccurrenceParticipantConversation
           client={client}
           conversationRef={occurrence.conversationRef}
           unreadCount={occurrence.conversationUnreadCount}

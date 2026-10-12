@@ -14,6 +14,14 @@
  * Respostas prontas (T5.3): `GET /me/trips/current/quick-replies` → `{data: [{id, text}]}` (4 textos de
  * partida; o `reset` as restaura). `POST /__debug/conversations/quick-replies` {texts: string[]} troca
  * a lista (`[]` = empresa sem respostas) e {status: 409|500} faz a rota responder esse erro até o `reset`.
+ *
+ * Áudio e transcrição (spec 264 T4.3): `POST /__debug/conversations/audio-samples` {subjectId} põe quatro áudios
+ * do motorista na conversa, um por estado (`pending`, `ready` com texto, `ready` vazio, `failed` `too_long`),
+ * cada um com `durationMs`; o resumo passa a trazer `transcriptionUpdatedAt`. `.../transcription-ready`
+ * {subjectId} leva os `pending` a `ready` (inclusive o áudio que o motorista gravou e enviou, que nasce
+ * `pending`) e move `transcriptionUpdatedAt` — o refresh de 15 s do app o percebe sem recarregar. O envio
+ * aceita o áudio como a foto: `POST .../uploads` → `PUT` na URL assinada → `attachmentIds` na mensagem; a
+ * URL do anexo de áudio serve um WAV mudo de 2 s, que o player toca.
  */
 import {
   createConversationHandlers,
@@ -22,6 +30,7 @@ import {
   type ConversationHandlersOptions,
   type ConversationRouteShape,
 } from './driver-preview-conversations-handlers'
+import { AUDIO_CONTENT_TYPE_PREFIX, SILENT_WAV } from './driver-preview-conversations-audio'
 import type { ConversationRepository } from './driver-preview-conversations-repository'
 import type { PreviewSubjectType } from './driver-preview-conversations.types'
 
@@ -156,6 +165,20 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
         ? handlers.notFound('CONVERSATION_NOT_FOUND')
         : handlers.json({ data: { messageId } }, 201)
     }
+    if (pathname === '/__debug/conversations/audio-samples') {
+      return typeof body.subjectId === 'string' && repository.seedAudioSamples(body.subjectId)
+        ? handlers.json({ data: { seeded: 4 } }, 201)
+        : handlers.notFound('CONVERSATION_NOT_FOUND')
+    }
+    if (pathname === '/__debug/conversations/transcription-ready') {
+      const count =
+        typeof body.subjectId === 'string'
+          ? repository.advanceTranscriptions(body.subjectId)
+          : undefined
+      return count === undefined
+        ? handlers.notFound('CONVERSATION_NOT_FOUND')
+        : handlers.json({ data: { count } })
+    }
     if (pathname === '/__debug/conversations/office-read') {
       const subjectId = body.subjectId ?? body.occurrenceId
       return typeof subjectId === 'string' && repository.markOfficeRead(subjectId)
@@ -166,8 +189,16 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
   }
 
   function handleStorage(request: Request, pathname: string): Response | undefined {
-    if (STORAGE_ROUTE.exec(pathname) === null) return undefined
+    const route = STORAGE_ROUTE.exec(pathname)
+    if (route === null) return undefined
     if (request.method === 'PUT') return handlers.empty(200)
+    const contentType = repository.attachmentContentType(decodeURIComponent(route[1] ?? ''))
+    if (contentType?.startsWith(AUDIO_CONTENT_TYPE_PREFIX) === true) {
+      return new Response(SILENT_WAV, {
+        headers: { ...options.corsHeaders, 'content-type': 'audio/wav' },
+        status: 200,
+      })
+    }
     return new Response(ONE_PIXEL_PNG, {
       headers: { ...options.corsHeaders, 'content-type': 'image/png' },
       status: 200,

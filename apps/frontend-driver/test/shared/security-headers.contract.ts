@@ -35,13 +35,15 @@ async function readSecurityHeaders(): Promise<ReadonlyMap<string, string>> {
 describe('os cabeçalhos da app do motorista (ADR-0075 §4)', () => {
   /**
    * O motorista fotografa o canhoto e a entrega carrega onde aconteceu: câmera e posição abertas
-   * para a própria origem, o valor do painel e não o do portal. O microfone fica fechado.
+   * para a própria origem, o valor do painel e não o do portal. Spec 264 (D11): o microfone abre
+   * também só para a própria origem — o motorista grava áudio na conversa; `microphone=()` faria o
+   * `getUserMedia` falhar com `NotAllowedError` antes de qualquer pergunta ao motorista.
    */
-  test('abre câmera e posição para a própria origem e fecha o microfone', async () => {
+  test('abre câmera, posição e microfone só para a própria origem', async () => {
     const headers = await readSecurityHeaders()
 
     expect(headers.get('Permissions-Policy')).toBe(
-      'camera=(self), geolocation=(self), microphone=()',
+      'camera=(self), geolocation=(self), microphone=(self)',
     )
   })
 

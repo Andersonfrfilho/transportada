@@ -3,6 +3,10 @@
  */
 import { z } from 'zod'
 
+import {
+  audioTranscriptionEnvironmentShape,
+  toAudioTranscriptionEnvironment,
+} from './audio-transcription-environment.schema.js'
 import type {
   CteTechnicalResponsibleEnvironment,
   MdfeAutoIssueEnvironment,
@@ -40,6 +44,7 @@ const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 
 const workerEnvironmentSchema = z
   .object({
+    ...audioTranscriptionEnvironmentShape,
     ANEEL_BASE_URL: optionalUrl(),
     API_BASE_URL: optionalUrl(),
     // Origem do painel: é dela que sai o desenho da Ada no rodapé do e-mail. Ausente, o rodapé
@@ -218,6 +223,7 @@ export function parseWorkerEnvironment(
       ? {}
       : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
+    ...toAudioTranscriptionEnvironment(result.data),
     cargoLayoutTimeBudgetMs: result.data.CARGO_LAYOUT_TIME_BUDGET_MS,
     ...(result.data.GOOGLE_MAPS_API_KEY === undefined
       ? {}

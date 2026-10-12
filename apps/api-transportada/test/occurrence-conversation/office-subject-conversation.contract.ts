@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { NO_TRANSCRIPTIONS } from '../fixtures/no-transcription.fixture.js'
 import { createCloseTripSubjectConversationUseCase } from '../../src/occurrence-conversation/application/close-trip-subject-conversation.use-case.js'
 import type { OfficeSubjectInput } from '../../src/occurrence-conversation/application/office-subject-access.service.js'
 import { createListOfficeSubjectMessagesUseCase } from '../../src/occurrence-conversation/application/list-office-subject-messages.use-case.js'
@@ -112,6 +113,7 @@ function createWorld(
   const record = (name: string, input: unknown) => void calls.push({ input, name })
 
   const port: OfficeSubjectTransactionPort = {
+    ...NO_TRANSCRIPTIONS,
     attachments: NO_ATTACHMENTS,
     findIdempotency: async (input) =>
       idempotency.get(`${input.operation}:${input.idempotencyKey}`) ?? null,
