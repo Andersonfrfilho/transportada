@@ -730,3 +730,17 @@ conferido); build no builder do Railway.
 **Divergências do plano § d:** as variáveis não são `preserve()` mas valores literais (não são segredo, e `preserve()` de
 variável que ainda não existe não a cria); `MODEL_PATH` vive só na imagem; `BINARY_PATH` não é declarada (PATH);
 `libgomp` entra além de `libstdc++`; a API não declara `AUDIO_TRANSCRIPTION_*` (o padrão de `MAX_DURATION_MS` basta).
+
+## T3.6 — documentação da rotina (2026-10-12)
+
+Só documentação: `docs/ai-context/worker-transportada.md` ganhou a seção "A rotina `conversation.audio.transcribe` (spec 264)"
+(ciclo, executor, lease e trava, classificação de erro, leitor do storage, variáveis, registro condicional, imagem,
+privacidade, divergências N2–N4, operação) e a contagem de `src/database/` foi corrigida: **38** `*.schema.ts` (mais o
+`sql-timestamptz-parameter.support.ts`), não "quatorze". `apps/worker-transportada/CLAUDE.md` ganhou o núcleo da rotina
+nas invariantes, com a mesma contagem corrigida. Cada afirmação foi conferida no código (`conversation-audio-transcription/**`,
+`config/audio-transcription-environment.schema.ts`, `main.ts`, `Dockerfile`, `.railway/railway.ts`) e na migração
+`20261012154238`. Divergência encontrada entre a evidência T3.4 e o código: o N2 dizia que a infraestrutura para na janela
+de 72 h, mas o código não fecha `pending` por idade (a janela só filtra a descoberta); a seção descreve o código e
+registra a divergência.
+
+Gates: `bunx prettier --check` nos dois `.md` → ok; `bun run format:check` na raiz → exit 0.

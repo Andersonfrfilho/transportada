@@ -50,9 +50,16 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 - **OCR nunca volta ao formulário do candidato** — grava em `extracted_fields`, revisado pelo
   operador. Leitura que não reconhece nada grava `null` e fecha (resultado, não falha); só falha de
   parse e de banco recicla mensagem.
-- **Schema Drizzle das tabelas consumidas é duplicado por cópia** no worker (quatorze arquivos em
-  `src/database/`) e no cron (mais oito). Mudou tabela na API? confira as cópias — migrations só
+- **Schema Drizzle das tabelas consumidas é duplicado por cópia** no worker (38 arquivos `*.schema.ts`
+  em `src/database/`) e no cron (oito). Mudou tabela na API? confira as cópias — migrations só
   rodam na API.
+- **A transcrição de áudio é a rotina `conversation.audio.transcribe` (spec 264, ADR-0103).** O ciclo só faz SQL e
+  entrega ao executor em processo, que roda **uma execução por vez** e nunca bloqueia o consumidor de job-run.
+  A rotina **nunca loga texto**: só ids, estado, código e tentativa. Sucesso fecha `succeeded`; os únicos desfechos
+  próprios são `already_running` e `runner_lock_expired`. O lease é `2 × AUDIO_TRANSCRIPTION_TIMEOUT_MS` + 195 s,
+  porque o `whisper-local` usa o timeout duas vezes; a trava é lote × lease. Falha de infraestrutura devolve a
+  tentativa e repete em 30 min; desligamento devolve a linha em posse. A rotina nasce pausada e não é registrada sem
+  modelo ou ferramenta. Detalhe: `docs/ai-context/worker-transportada.md` § "A rotina `conversation.audio.transcribe`".
 - **A planta do baú é calculada aqui** (ADR-0063, spec 145) — consumidor `CargoLayoutConsumer`
   reclama pedidos por hash, executa `@adatechnology/cargo-placement` em `new Worker()` com orçamento
   `CARGO_LAYOUT_TIME_BUDGET_MS` (padrão 120s, escada 120/240/480 em retry), prefetch 1, schema estrito

@@ -147,7 +147,7 @@ review,denied}`).
       modelo com `sha256` conferido, `ffmpeg` no runtime, sem ferramentas de build no estágio final; variáveis
       `preserve()` em `.railway/railway.ts` (conferir contra os `railway.json`, CLAUDE.md raiz). Aceite: `docker build`
       local + `whisper-cli --help` + transcrição de um áudio de teste no contêiner; contrato de build dos entrypoints.
-- [ ] **T3.6** `haiku` — Documentar a rotina em `docs/ai-context/worker-transportada.md` e o núcleo em
+- [x] **T3.6** `haiku` — Documentar a rotina em `docs/ai-context/worker-transportada.md` e o núcleo em
       `apps/worker-transportada/CLAUDE.md`.
 
 ## Fase 4 — App do motorista

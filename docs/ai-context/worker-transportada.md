@@ -115,11 +115,11 @@ reescreve, senão o operador perde o rótulo sob o qual aprovou o anexo.
 Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. Objeto apagado entre o
 `201` e a leitura fecha sem escrever. Só falha de parse e de banco recicla.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — quatorze arquivos em
-`src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
-`nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
-`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`, `aggregate-attachment`), e
-outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker: `src/database/` tem 38 arquivos
+`*.schema.ts` (contagem de 2026-10-12) mais `sql-timestamptz-parameter.support.ts`, e o cron tem oito. Os nomes
+(`processing`, `cte-issuance-execution`, `nfe`, `identity`, `occurrence-conversation-audio-transcription` e outros)
+são exemplos, não a lista completa; use `ls src/database/` para ver quais existem. Mudou tabela na API? confira as
+cópias — migrations só rodam na API.
 
 ## O barracão sem configuração é o endereço da empresa (spec 097 D7, 2026-09-15)
 
@@ -669,3 +669,193 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   `persistence_failed` pedem leitura do log, que só tem código, nome do erro e par); `holiday_provider_monthly_usage.requests` do
   mês contra o contador `requests` da execução; `national_mismatch` **maior que zero é esperado** (o fornecedor lista a Páscoa e
   o código conta Carnaval e Corpus Christi). O painel de rotinas mostra os contadores e o desfecho da execução.
+
+## A rotina `conversation.audio.transcribe` (spec 264)
+
+Transcreve os áudios das conversas da ocorrência (anexos `audio/*`) com o `whisper-local` (whisper.cpp) rodando
+dentro da imagem do worker — ADR-0103, sem serviço de terceiro. O texto vai para
+`occurrence_conversation_audio_transcriptions` (uma linha por anexo, `pending`/`ready`/`failed`) e a API o lê por
+lote nas rotas por assunto. Cadência de 300 s (`cron` `*/5`). **Nasce pausada** (migração `20261012154238`): o
+operador despausa em Operações depois do deploy da imagem.
+
+### O ciclo é SQL; a transcrição roda fora dele
+
+`src/conversation-audio-transcription/conversation-audio-transcribe.routine.ts`, nesta ordem:
+
+1. **Marco** (`materializeMilestone`): cria a linha de `company_audio_transcription_settings` para empresa sem linha
+   (`enabled = true`, `enabled_since = now()`) e preenche `routine_started_at` onde está nulo. Anexo anterior ao
+   marco não é transcrito (sem backfill).
+2. **Varredura de esgotados** (`closeExhausted`): `pending` com `attempts >= 3` e lease vencido vira
+   `failed`/`attempts_exhausted`. Áudio que derruba o processo a cada tentativa não gira para sempre.
+3. **Descoberta** (`discoverPending`): cria `pending` para anexo `audio/%` de empresa ligada, com
+   `created_at >= greatest(enabled_since, routine_started_at)` e `created_at >= now() - AUDIO_TRANSCRIPTION_RECOVERY_WINDOW`
+   (horas, padrão 72). `on conflict (company_id, attachment_id) do nothing`.
+4. **Expurgo** (`purgeDeletedText`): linha `ready` com texto cujo objeto está `deleted` vira `text = null`; o status
+   segue `ready`.
+5. **Contagem** (`countClaimable`): pendentes com `attempts < 3`, `next_attempt_at <= now()` e lease livre.
+6. **Desfecho.** Lê o resumo da execução anterior do executor (`takeSummary`, depois do SQL) e decide: ocioso
+   (nada a reivindicar e executor parado) ou parada pedida pelo operador ⇒ `succeeded`, sem iniciar o executor;
+   executor ocupado ⇒ `already_running`; trava mais velha que o limite ⇒ `runner_lock_expired`; senão inicia o
+   executor e fecha `succeeded`.
+
+Os contadores do job-run são o resumo da execução anterior (`processed`, `ready`, `failed`, `retried`,
+`infrastructure`, `disabled`, `purged`, `runnerError`, e `failed<Código>`, por exemplo `failedTooLong`) mais
+`claimable`, `created`, `exhausted` e `purgedText` deste ciclo.
+
+### O executor em processo
+
+`AudioTranscriptionRunnerService` (`audio-transcription.runner.ts`) processa **uma execução por vez**. Dentro dela,
+reivindica **uma linha por vez** (`FOR UPDATE SKIP LOCKED`, `lease_token` novo, `attempts + 1`), processa e segue
+até o lote esvaziar ou `AUDIO_TRANSCRIPTION_BATCH_SIZE` linhas terem sido processadas. O ciclo que disparou a
+execução já fechou antes de a transcrição terminar: o consumidor serial de job-run não fica preso atrás dela, e canhoto,
+planta e prévia seguem no mesmo worker.
+
+- Execução ativa com idade até `BATCH × LEASE` ⇒ `already_running` (não é falha). Mais velha ⇒ log de erro
+  `audio_transcription_runner_lock_expired`, a execução antiga é abortada e a trava é solta; o desfecho é
+  `runner_lock_expired` e a próxima execução começa no ciclo seguinte.
+- O resumo fica em memória. Morte do processo perde o resumo daquela execução, não as linhas (o lease cuida delas).
+- Erro fora de uma linha (banco caiu no meio) encerra a execução com `runnerError = 1` e log
+  `audio_transcription_runner_failed`. Toda escrita exige o `lease_token` da linha: se outra execução ficou com a
+  posse, a escrita não casa, nada é gravado e o log é `audio_transcription_line_ownership_lost`.
+
+### Lease e trava
+
+- **Lease** (`computeLeaseMilliseconds`) = `2 × AUDIO_TRANSCRIPTION_TIMEOUT_MS` + 15 s (`ffprobe`) + 60 s
+  (decodificação de reserva) + 60 s (download) + 60 s de margem. Com o padrão de 300 000 ms: 795 000 ms (13 min 15 s).
+- **Por que 2×:** o pacote `whisper-local` 0.1.0 usa o `timeoutMs` **duas** vezes (conversão com `ffmpeg` e depois
+  `whisper-cli`). Com 1× a 3ª tentativa de um áudio lento venceria o lease no meio, a varredura marcaria
+  `attempts_exhausted` e o resultado bom seria descartado. Um contrato lê o `dist` instalado e exige os dois usos.
+- **Trava** (`computeRunnerLockMaxAgeMilliseconds`) = `BATCH × LEASE`: com o padrão, 2 × 795 000 ms (26 min 30 s).
+
+### Classificação de erro
+
+Erro vira `{ code, kind }` em `speech-to-text-error.classifier.ts`; a mensagem do erro nunca sai dali.
+
+| Caso                                                                                                 | Código                           | Efeito                                                         |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| Chave ausente no `head`                                                                              | `object_missing`                 | `failed`, definitivo                                           |
+| SHA-256 do objeto diferente do registrado                                                            | `sha256_mismatch`                | `failed`, definitivo                                           |
+| Áudio vazio                                                                                          | `empty_audio`                    | `failed`, definitivo                                           |
+| Duração `>= AUDIO_TRANSCRIPTION_MAX_DURATION_MS`                                                     | `too_long`                       | `failed`, com `max_duration_ms`; o transcritor não é chamado   |
+| `ffmpeg`/`ffprobe` com código de saída diferente de zero, arquivo acima de 100 MiB                   | `unsupported_format`             | `failed`, definitivo                                           |
+| Duração não medida nem na decodificação de reserva                                                   | `engine_failed`                  | `failed`, definitivo                                           |
+| Prazo do motor, da medida ou do download estourado                                                   | `engine_timeout`                 | retriável: conta tentativa                                     |
+| Erro desconhecido do pacote, limite de taxa, aborto por desligamento, falha de transporte do storage | `engine_failed`                  | retriável: conta tentativa                                     |
+| Binário ausente ou processo que não sobe (`ENOENT`, `spawn_failed`)                                  | `engine_failed` (infraestrutura) | `pending` em 30 min e **devolve** a tentativa (`attempts - 1`) |
+| Empresa desligada                                                                                    | `company_disabled`               | `failed`, mas não é alerta (estado `disabled`)                 |
+
+- **Retriável:** `pending` com atraso de 1 min após a 1ª tentativa e de 5 min após a 2ª. A 3ª falha retriável fecha
+  `failed`/`attempts_exhausted`.
+- **Infraestrutura:** o atraso fixo é de 30 min e a tentativa volta, então ambiente quebrado não queima a linha. No
+  código não há teto de tentativas nem de idade para essa situação (ver as divergências abaixo).
+- **Erro do storage é nunca `object_missing`.** O leitor (abaixo) separa ausência de falha de transporte.
+- **Desligamento** (`close()`): a linha em posse volta a `pending` com `attempts - 1`, `lease_token` nulo. Morte sem
+  `SIGTERM` (OOM, `kill -9`) não devolve: a tentativa conta.
+- Log por linha (`audio_transcription_line_finished` ou `_failed`): só ids, `attempts`, `state` e `code`.
+
+### Duração, corte e escrita do texto
+
+- **Medida** (`ffprobe-audio-duration-probe.gateway.ts`): `ffprobe -show_entries format=duration` com
+  `-protocol_whitelist file,pipe`, prazo de 15 s. Sem duração no cabeçalho (WebM do Chromium), decodifica
+  `ffmpeg -t <teto + 1 s> -f null -` com prazo de 60 s e mede o que decodificou. Estouro na medida é `engine_timeout`
+  retriável. A duração medida vai para `audio_duration_ms` em todo caso medido, inclusive quando o motor falha depois.
+- **Teto:** `>=` o teto (padrão 10 min) é `too_long`. O transcritor só é chamado abaixo dele.
+- **Texto:** remove U+0000 (o `text` do Postgres recusa), corta em 20 000 code points (`Array.from`) em fronteira de
+  palavra quando há uma, e tira espaço do fim.
+- **Escrita final** (`markReady`): `where id = … and lease_token = …` **e** `not exists` settings desligada. Se a
+  empresa desligou durante a transcrição, o texto **não** é gravado e a linha fecha `failed`/`company_disabled`.
+- `model` é o nome do arquivo sem `ggml-` e extensão (`small-q5_1`); `language` é a dica (`pt`); `engine` vem do pacote.
+
+### Leitor do storage
+
+`storage-audio-object-reader.gateway.ts` (o leitor compartilhado das outras rotinas não mudou):
+
+- Existência vem do `head`, porque o pacote de storage colapsa todo erro do `get` em "indisponível". `head` sem
+  objeto ⇒ `object_missing`. Erro de transporte ⇒ `engine_failed` retriável.
+- `head`, `get` e cada `read()` correm contra **o mesmo** sinal de aborto (prazo de 60 s ou desligamento). Prazo
+  estourado é `engine_timeout`; desligamento é `engine_failed`. Ao sair, o leitor é cancelado e o fluxo parado solto.
+- Teto de 100 MiB: declarado no `head` e contado no fluxo; estouro é `unsupported_format` definitivo.
+
+### Variáveis `AUDIO_TRANSCRIPTION_*`
+
+Schema em `src/config/audio-transcription-environment.schema.ts`. Valor vazio é o mesmo que ausente (padrão).
+
+| Variável                              | Padrão                        | Limites                | Observação                                                                     |
+| ------------------------------------- | ----------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
+| `AUDIO_TRANSCRIPTION_MODEL_PATH`      | sem padrão                    | arquivo existente      | ausente ⇒ rotina não registrada. A imagem define `/models/ggml-small-q5_1.bin` |
+| `AUDIO_TRANSCRIPTION_BINARY_PATH`     | `whisper-cli`                 | texto não vazio        | resolvido no `PATH`; não é declarada na imagem                                 |
+| `AUDIO_TRANSCRIPTION_LANGUAGE`        | `pt`                          | duas letras minúsculas | dica para o motor                                                              |
+| `AUDIO_TRANSCRIPTION_BATCH_SIZE`      | `2`                           | 1 a 50                 | linhas por execução                                                            |
+| `AUDIO_TRANSCRIPTION_TIMEOUT_MS`      | `300000`                      | 1 000 a 3 600 000      | prazo de cada chamada do motor; entra no lease                                 |
+| `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` | `600000`                      | 1 000 a 3 600 000      | teto de duração transcrita                                                     |
+| `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` | `72` (horas)                  | 1 a 720                | janela da descoberta; não fecha linha antiga                                   |
+| `AUDIO_TRANSCRIPTION_THREADS`         | `min(7, max(1, núcleos − 1))` | 1 a 64                 | o `.railway/railway.ts` fixa `7`                                               |
+
+No `.railway/railway.ts`, o serviço `worker` declara como valor literal: `BATCH_SIZE=2`, `LANGUAGE=pt`,
+`MAX_DURATION_MS=600000`, `RECOVERY_WINDOW=72`, `THREADS=7` e `TIMEOUT_MS=300000` (não são segredo). `MODEL_PATH` mora
+no `ENV` do Dockerfile.
+
+### Registro condicional
+
+`main.ts` registra a rotina só se `AUDIO_TRANSCRIPTION_MODEL_PATH` estiver definido (`isAudioTranscriptionConfigured`).
+Sem ele, a janela pousa em `job_run_routine_missing`, como toda rotina sem registro. Com o modelo configurado,
+`checkAudioTranscriptionTooling` confere `whisper-cli` (no `PATH` ou no caminho dado), `ffprobe`, `ffmpeg` e o arquivo
+do modelo. Algo faltando ⇒ rotina **não** registrada, log de erro `audio_transcription_tooling_missing` com só os
+nomes (`whisper_binary`, `ffprobe`, `ffmpeg`, `model`) e **o boot segue verde**: derrubar o worker tiraria as outras
+rotinas por causa de uma opcional.
+
+### Imagem
+
+`apps/worker-transportada/Dockerfile`:
+
+- `whisper-build` (`oven/bun:1.3.14-alpine`): whisper.cpp tag `v1.9.4`, commit `927cfce34f31707e17f2bff35c349632fb9e2c3a`
+  (conferido com `rev-parse HEAD`), `-DGGML_NATIVE=OFF` e AVX/AVX2/FMA/F16C ligados, `BUILD_SHARED_LIBS=OFF`.
+- `models` (`alpine:3.22`): `ggml-small-q5_1.bin` do repositório oficial no Hugging Face, conferido com
+  `sha256sum -c` (`ae85e4a9…11bb`, 190 085 487 bytes).
+- Runtime: `apk add ffmpeg libstdc++ libgomp` (o `ffmpeg` traz o `ffprobe`; as duas libs são o que o binário pede),
+  `/usr/local/bin/whisper-cli` e o modelo. Sem ferramentas de build no estágio final.
+- Peso: **+232,9 MB** medidos localmente (389 051 058 B contra 156 163 249 B da imagem anterior). O spike no runner
+  do Railway mediu +293 MB (ADR-0103).
+- Drenagem: `deploy.drainingSeconds: 600` no `.railway/railway.ts` (ver N4).
+
+### Privacidade
+
+- **Texto nunca vai para log.** Logs da rotina levam ids, `attempts`, `state`, `code` e contadores. A mensagem de erro
+  do motor e o nome do arquivo não saem do classificador.
+- O texto é dado pessoal de motorista, operador e contratante, guardado na linha. Empresa desligada não recebe texto
+  novo, e objeto apagado tem o texto expurgado no ciclo seguinte.
+
+### Divergências conhecidas e follow-ups
+
+- **Aborto do motor.** O pacote `whisper-local` 0.1.0 não aceita `AbortSignal`. A linha em curso solta na hora, mas o
+  `whisper-cli` segue até o prazo do motor (até 2 × `TIMEOUT_MS`) e o processo só sai quando o filho termina. A
+  drenagem de 600 s cobre o pior caso. Follow-up: pedir ao pacote que aceite `AbortSignal` (evidência T3.4, M1).
+- **N2 — infraestrutura sem teto.** A falha de ambiente reagenda em 30 min sem gastar tentativa e **sem fechar a
+  linha por idade**: o código não tem teto de tempo para `pending`. A evidência T3.4 descrevia um limite pela janela de
+  72 h, mas a janela só filtra a descoberta de anexos novos. Quem vê `infrastructure` subir corrige o ambiente; a
+  linha segue tentando até lá.
+- **N3 — bucket inexistente.** O provedor de storage colapsa `NoSuchBucket` em "indisponível", e o `head` o trata como
+  objeto ausente. Banco restaurado de outro ambiente queimaria as linhas como `object_missing` definitivo. Corrigir
+  exige `headBucket` ou um código novo no provedor.
+- **N4 — drenagem.** O `drainingSeconds: 600` vem do prazo do motor, e o campo não foi conferido contra o schema do
+  Railway (a T3.5 não rodou `railway config plan`).
+- **Qualidade.** A medida de modelo foi feita com áudio TTS (proxy otimista). A conferência com voz real de cabine é
+  a T6.3 (ADR-0103, consequência 2).
+
+### Operar
+
+- **Ativar:** Operações → `conversation.audio.transcribe` → despausar, depois do deploy da imagem com o modelo.
+- **Ver execuções:** o painel de rotinas mostra o desfecho e os contadores (lista acima). Estado das linhas:
+  `select status, failure_code, count(*) from occurrence_conversation_audio_transcriptions group by 1, 2`.
+- **Quando `failed` subir:** `failure_code` diz o motivo. `engine_timeout` e `engine_failed` apontam para o motor ou
+  o storage; `unsupported_format` para formato de áudio; `too_long` é o teto funcionando; `object_missing` e
+  `sha256_mismatch` para storage ou banco. `company_disabled` não é alerta. `infrastructure` acima de zero é ferramenta
+  ausente ou quebrada no contêiner (log `error` da execução).
+- **Desligar uma empresa:** `PUT /company-settings/audio-transcription` com `{ enabled: false }` (`settings.manage`; ver
+  `docs/ai-context/api-transportada.md`). A descoberta deixa de criar linhas para ela; as pendentes fecham
+  `company_disabled` quando forem reivindicadas, sem gastar transcrição.
+- **Parar tudo:** pausar a rotina em Operações grava `enabled = false` em `job_schedules`, e o cron deixa de disparar
+  (só dispara linha habilitada); a linha em curso termina. Tirar `AUDIO_TRANSCRIPTION_MODEL_PATH` faz a rotina deixar
+  de ser registrada no próximo boot.
+- **Reverter:** `rollback.sql` da migração `20261012154238` apaga a agenda e as execuções do job. Só com o worker
+  revertido também, senão a batida publica um job que a CHECK recusa. As transcrições ficam intactas.
