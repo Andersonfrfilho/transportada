@@ -33,6 +33,8 @@ export type ConversationOutboxStore = Readonly<{
 
 export type OutboxEvent =
   | Readonly<{ type: 'pending-changed' }>
+  /** A fila cheia (itens, bytes de arquivo ou cota do navegador) recusou a mensagem; ela não foi gravada. */
+  | Readonly<{ type: 'enqueue-refused' }>
   /** A mensagem saiu (entregue) ou foi descartada: a conversa e a lista podem ter mudado. */
   | Readonly<{ subject: ParticipantSubjectRef; type: 'message-settled' }>
 

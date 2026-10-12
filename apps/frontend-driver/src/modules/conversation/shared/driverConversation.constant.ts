@@ -51,6 +51,7 @@ export const UNREAD_CONVERSATIONS_REFETCH_INTERVAL_MS = 60 * 1000
 
 export const DRIVER_CONVERSATION_ERROR = {
   CONVERSATIONS_UNAVAILABLE: 'DRIVER_CONVERSATION_UNAVAILABLE',
+  OUTBOX_FULL: 'DRIVER_CONVERSATION_OUTBOX_FULL',
   OUTBOX_OWNER_MISSING: 'DRIVER_CONVERSATION_OUTBOX_OWNER_MISSING',
   REQUEST_FAILED: 'DRIVER_CONVERSATION_REQUEST_FAILED',
   RESPONSE_INVALID: 'DRIVER_CONVERSATION_RESPONSE_INVALID',
@@ -81,3 +82,11 @@ export const CONVERSATION_REFRESH_INTERVAL_MS = 15 * 1000
 
 /** Teto de ciclos pulados depois de falhas seguidas, para não martelar a API instável. */
 export const CONVERSATION_REFRESH_MAX_SKIPPED_CYCLES = 7
+
+/**
+ * Teto da fila offline, conferido antes de gravar: o áudio enche o IndexedDB do iPhone. Os bytes
+ * valem só para mensagem com arquivo — o "cheguei" de texto entra sempre, até o teto de itens.
+ */
+export const CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxFileBytes: 48 * 1024 * 1024 } as const
+
+export const QUOTA_EXCEEDED_ERROR_NAME = 'QuotaExceededError'

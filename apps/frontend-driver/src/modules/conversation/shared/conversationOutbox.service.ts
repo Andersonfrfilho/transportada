@@ -3,6 +3,7 @@ import type { ParticipantPendingMessage } from '@adatechnology/conversations-ui/
 
 import { isRetryDue } from '@/modules/driver-trip/shared/retryBackoff.service'
 
+import { hasOutboxRoom, isQuotaExceeded } from './conversationOutboxLimit.service'
 import { groupBySubject, toPendingMessage } from './conversationOutboxView.service'
 import { classifyDeliveryFailure } from './conversationOutboxFailure.service'
 import type {
@@ -86,6 +87,12 @@ export function createConversationOutbox(
     emit({ subject: message.subject, type: 'message-settled' })
   }
 
+  /** A recusada não é gravada: o pacote a mantém em memória como `failed` e o reenvio manual a repete. */
+  function refuseEnqueue(): never {
+    emit({ type: 'enqueue-refused' })
+    throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.OUTBOX_FULL)
+  }
+
   async function attempt(message: OutboxMessage, params: FlushOutboxParams): Promise<boolean> {
     try {
       await params.deliver(message)
@@ -127,7 +134,10 @@ export function createConversationOutbox(
       if (ownerKey === undefined) {
         throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.OUTBOX_OWNER_MISSING)
       }
-      await store.put({
+      if (!hasOutboxRoom({ incomingFiles: input.files, stored: await store.readAll() })) {
+        refuseEnqueue()
+      }
+      const message: OutboxMessage = {
         attachments: input.attachments,
         attempts: 0,
         clientMessageId: input.clientMessageId,
@@ -142,7 +152,13 @@ export function createConversationOutbox(
         state: 'queued',
         subject: input.subject,
         text: input.text,
-      })
+      }
+      try {
+        await store.put(message)
+      } catch (error) {
+        if (isQuotaExceeded(error)) refuseEnqueue()
+        throw error
+      }
       emit({ type: 'pending-changed' })
     },
     async flush(params) {
