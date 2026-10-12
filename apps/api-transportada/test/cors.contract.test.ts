@@ -370,10 +370,11 @@ describe('API CORS contract', () => {
     }
   })
 
-  // `Date` e `Retry-After` não são cabeçalhos de resposta liberados entre origens: sem `Date` o app
-  // do motorista não lê o relógio do servidor (spec 234); sem `Retry-After` o painel não mostra
-  // quando tentar de novo depois de um 429 (specs 143 e 262).
-  test('exposes Date and Retry-After only to the allowed origin, on actual responses', async () => {
+  // Nenhum dos três é legível entre origens por padrão: sem `Date` o app do motorista não lê o
+  // relógio do servidor (spec 234); sem `Retry-After` o painel não mostra quando tentar de novo
+  // depois de um 429 (specs 143 e 262); sem `Content-Disposition` todo download perde o nome do
+  // arquivo que o servidor decidiu (CT-e XML/ZIP, relatórios, PDFs).
+  test('exposes Date, Retry-After and Content-Disposition only to the allowed origin, on actual responses', async () => {
     const fixture = createFixture()
     const allowed = await fixture.handle(actualRequest('/health/live'), fixture.server)
     const disallowed = await fixture.handle(
@@ -385,7 +386,9 @@ describe('API CORS contract', () => {
       fixture.server,
     )
 
-    expect(allowed.headers.get('access-control-expose-headers')).toBe('Date, Retry-After')
+    expect(allowed.headers.get('access-control-expose-headers')).toBe(
+      'Date, Retry-After, Content-Disposition',
+    )
     expect(disallowed.headers.has('access-control-expose-headers')).toBe(false)
     expect(noOrigin.headers.has('access-control-expose-headers')).toBe(false)
   })
@@ -403,6 +406,23 @@ describe('API CORS contract', () => {
       .map((header) => header.trim().toLowerCase())
     expect(exposed).toContain('retry-after')
     expect(response.headers.get('retry-after')).toBe('120')
+  })
+
+  test('lets the browser read the file name of a download sent to the allowed origin', () => {
+    const response = new Response('zip', {
+      headers: { 'content-disposition': 'attachment; filename="cte-xml.zip"' },
+    })
+    applyCorsHeaders({
+      frontendOrigins: [FRONTEND_ORIGIN],
+      request: actualRequest('/cte-batches/items/export', 'POST'),
+      response,
+    })
+
+    const exposed = (response.headers.get('access-control-expose-headers') ?? '')
+      .split(',')
+      .map((header) => header.trim().toLowerCase())
+    expect(exposed).toContain('content-disposition')
+    expect(response.headers.get('content-disposition')).toBe('attachment; filename="cte-xml.zip"')
   })
 
   test('does not add the expose header to a preflight answer', async () => {

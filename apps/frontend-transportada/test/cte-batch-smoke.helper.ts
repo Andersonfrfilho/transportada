@@ -1,10 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
 }
+const API_CORS_EXPOSE_HEADERS = readApiCorsExposeHeaders()
 const SMOKE_AUTH_ME_STORAGE_KEY = 'transportada.smoke-auth-me'
 
 const BATCH_ID = '00000000-0000-4000-8000-000000000501'
@@ -284,14 +287,14 @@ async function registerCteItemMocks(
       return
     }
     input.state.exportBodies.push(route.request().postData() ?? '')
-    // Sem expor o content-disposition o cliente cai no nome de fallback: o header é cross-origin.
+    // Expõe só o que a API real expõe: o `content-disposition` é cross-origin e, sem a API listá-lo, o nome cai no fallback.
     await route.fulfill({
       body: SYNTHETIC_CTE_ARCHIVE_BYTES,
       contentType: 'application/zip',
       headers: {
         ...CORS_HEADERS,
         'access-control-allow-origin': '*',
-        'access-control-expose-headers': 'Content-Disposition',
+        'access-control-expose-headers': API_CORS_EXPOSE_HEADERS,
         'content-disposition': `attachment; filename="${CTE_EXPORT_FILE_NAME}"`,
       },
       status: 200,
@@ -352,4 +355,16 @@ export async function mockCteBatchWorkspaceApi(
     listRequests: () => state.listRequests,
     submissions: () => state.submissions,
   }
+}
+
+function readApiCorsExposeHeaders(): string {
+  const source = readFileSync(
+    new URL('../../api-transportada/src/shared/api.constant.ts', import.meta.url),
+    'utf8',
+  )
+  const exposeHeaders = /export const CORS_EXPOSE_HEADERS = '([^']+)'/.exec(source)?.[1]
+  if (exposeHeaders === undefined) {
+    throw new Error('CORS_EXPOSE_HEADERS não encontrado em api.constant.ts da API')
+  }
+  return exposeHeaders
 }

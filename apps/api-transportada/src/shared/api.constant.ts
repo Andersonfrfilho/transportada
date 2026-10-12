@@ -269,8 +269,8 @@ export const HTTP_GET_METHOD = 'GET'
 export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
-/** `Date` (relógio do motorista) e `Retry-After` (o 429 do painel) não são legíveis entre origens. */
-export const CORS_EXPOSE_HEADERS = 'Date, Retry-After'
+/** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
+export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
 /**

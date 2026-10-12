@@ -43,10 +43,12 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →
 `route.execute` → `parse` (Zod) → `handle` → use-case → repositório.
 
-O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date` (`CORS_EXPOSE_HEADERS` em
-`src/shared/api.constant.ts`) só à origem permitida: sem ele o navegador não deixa o app do motorista ler o
-`Date` da resposta, e o desvio do relógio (spec 234) nunca é medido — sem erro nenhum. Contrato em
-`test/cors.contract.test.ts`.
+O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date, Retry-After, Content-Disposition`
+(`CORS_EXPOSE_HEADERS` em `src/shared/api.constant.ts`) só à origem permitida: sem `Date` o app do motorista não lê o
+relógio da resposta e o desvio (spec 234) nunca é medido; sem `Content-Disposition` todo download (CT-e XML/ZIP,
+relatórios, PDFs) perde o nome que o servidor decidiu, porque painel e API são origens diferentes — sem erro nenhum, só
+o nome de fallback. Rota nova que devolve cabeçalho que o cliente lê entre origens entra nessa lista. Contrato da lista
+exata em `test/cors.contract.test.ts`; o smoke do CT-e do painel lê o valor deste arquivo em vez de fingi-lo.
 
 **Expurgo de posição por empresa** (spec 239): tabela `company_location_retention_settings`, rotas
 `GET`/`PUT /company-settings/location-retention` (`settings.manage`), carência 24 h, `retention_days 30–90`. Detalhe:
