@@ -744,3 +744,59 @@ de 72 h, mas o código não fecha `pending` por idade (a janela só filtra a des
 registra a divergência.
 
 Gates: `bunx prettier --check` nos dois `.md` → ok; `bun run format:check` na raiz → exit 0.
+
+## T4.1 — subida do SDK e das labels do player/transcrição (2026-10-12)
+
+**Versões (exatas, na mesma subida, nas três apps):** `@adatechnology/conversations-ui` 0.9.0 → **0.10.0** e
+`@adatechnology/conversation-contracts` 0.5.0 → **0.6.0** em `apps/frontend-driver/package.json`,
+`apps/frontend-transportada/package.json` e `apps/frontend-client/package.json`. A `devDependency` de teste da API
+(`apps/api-transportada/package.json`) já estava em `0.6.0`. O `conversations-ui@0.10.0` publicado declara
+`conversation-contracts: 0.6.0` exato, então o `bun install` deixou **uma** cópia do contracts no lock (`0.6.0`,
+hoisted); as entradas `0.5.0` por app/por pacote saíram do `bun.lock` (diff: só troca de versões e remoção das entradas
+aninhadas de 0.5.0). Os diretórios `node_modules/.bun/@adatechnology+conversation-contracts@0.4.0|0.5.0` ainda existem
+no store local, mas nenhum app os resolve (`bun pm ls --all` mostra só 0.6.0 e `conversations-ui@0.10.0`).
+
+**Locales (chaves do player e da transcrição, pt-BR e en, texto do default do SDK em en):**
+
+- `apps/frontend-driver/src/modules/conversation/locales/conversation{,.en}.locale.json` (namespace `labels`, passado
+  inteiro ao SDK por `t('labels', { returnObjects: true })`);
+- `apps/frontend-transportada/src/modules/occurrence-conversation/locales/subjectConversation{,.en}.locale.json`
+  (`thread.labels`, passado pela lista `SUBJECT_THREAD_LABEL_KEYS`).
+
+As 14 chaves: `audioPlayer`, `playAudio`, `pauseAudio`, `audioPosition`, `audioPositionValue`, `playbackRate`,
+`audioUnavailable`, `transcribing`, `transcriptionReady`, `machineTranscription`, `emptyTranscription`,
+`transcriptionTooLong`, `showFullTranscription`, `collapseTranscription`. Os arquivos continuam com as chaves em ordem
+alfabética (verificado antes da escrita); o diff é só adição (56 linhas). Placeholders `{position}`, `{duration}`,
+`{rate}` e `{minutes}` mantidos com chaves simples (o i18next interpola `{{x}}`, então não há colisão).
+
+**Mapa do painel:** `apps/frontend-transportada/src/modules/occurrence-conversation/shared/subjectThreadLabels.service.ts`
+ganhou as 14 chaves em `SUBJECT_THREAD_LABEL_KEYS` (41 → 55 entradas, em ordem). Sem elas o `translate` não seria chamado
+e o SDK cairia no inglês.
+
+**Gravador:** nenhuma chave `recordAudio`/`recordingInProgress`/`stopRecording`/`recordingElapsed`/`reviewAudio`/
+`sendAudio`/`discardAudio`/`microphoneDenied`/`recordingUnsupported`/`audioEmpty`/`audioTooLarge` entrou nesta task
+(contrato §4: entram na T4.3 e na T5.1). Nenhum app passa a prop `audioRecording`; o microfone continua desligado.
+
+**Frontend-client:** não usa `conversations-ui/participant` (só `DateDivider`, `MessageText`, `formatFileSize`,
+`resolveMaxAttachmentSizeBytes` do pacote raiz), então não recebeu chaves novas. Ele não tem script `smoke`
+(`package.json`: lint, test, typecheck); o gate dele é typecheck + lint + test.
+
+**Testes ajustados:** nenhum. Grep em `apps/*/src` e `apps/*/test` por `cv-p-attachment__audio`, `<audio`,
+`locator('audio')` e afins não achou nada que dependa do `<audio controls>` nativo; o único arquivo de teste com
+"audio" no nome do conjunto (`apps/frontend-transportada/test/occurrence-conversation/audio.contract.ts`) cobre a tela
+antiga e passou sem mudança. Os 13 testes do smoke da conversa do motorista e os 11 do painel passaram sem ajuste.
+
+**Gates (saída real):**
+
+- `apps/frontend-driver`: `tsc --noEmit` ok; `eslint .` sem problemas; `bun run test` → 1691 pass, 0 fail.
+- `apps/frontend-transportada`: `tsc --noEmit` ok; `eslint .` → 0 errors, 16 warnings (todos fora dos arquivos tocados,
+  `react-hooks/exhaustive-deps` e `videoRef`); `bun run test` → 7985 pass, 0 fail (39 arquivos); `bun run test:hooks` →
+  1332 pass, 0 fail.
+- `apps/frontend-client`: `tsc --noEmit` ok; `eslint .` ok; `bun run test` → 89 pass, 0 fail.
+- Smoke do motorista (`conversation.smoke.spec.ts`, sozinho, `PLAYWRIGHT_DRIVER_PORT=53112`): **13 passed** (2.7 min).
+- Smoke do painel (`test/trip-timeline.smoke.spec.ts test/responsive.smoke.spec.ts -g "MDF-e|desenho da carga|linha do tempo"`):
+  **11 passed**. O smoke regravou `specs/158-linha-do-tempo-da-viagem/prints/t10-timeline-*.png`; restaurados com
+  `git checkout --` (não entram no commit).
+- `bun install` na raiz: "2 packages installed", lock salvo, sem erro.
+- `make check` na raiz → exit 0.
+- `bun run format:check` na raiz → "All matched files use Prettier code style!" (exit 0).

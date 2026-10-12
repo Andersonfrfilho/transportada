@@ -78,8 +78,8 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
@@ -104,8 +104,8 @@
       "name": "@transportada/frontend-driver",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@adatechnology/notification-client": "0.1.0-rc.3",
         "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
@@ -167,8 +167,8 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/conversation-contracts": "0.5.0",
-        "@adatechnology/conversations-ui": "0.9.0",
+        "@adatechnology/conversation-contracts": "0.6.0",
+        "@adatechnology/conversations-ui": "0.10.0",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -273,7 +273,7 @@
 
     "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.6.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-meGNEfiQAeBkXJQ+YNZlJOPK4sLnWHhbiiuQ16yPH8OsZ2/Fa1KQ7CWwdG3SGOOazjNpCBkqd/VcUAlBTwLkPw=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.9.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.5.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-OsSI9yfuVtnhhx8teln29S4YA0QKuaUapqIwZfwkQOMKSjyuS8pO9DR9d8dm8kB5dT/gNaF1T114LC8AAzqq5w=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.10.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.6.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-nD7H73hTDtZXSNVHb8aoFYyPsnm/dHjZfUK+GtB3Y0LfMxlmVLa3OlhY6kTSQNQ8tu8TWPSwscgO4QgWsNPO+Q=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
@@ -1977,8 +1977,6 @@
 
     "@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
-    "@adatechnology/conversations-ui/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
-
     "@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
@@ -2027,12 +2025,6 @@
 
     "@eslint/eslintrc/globals": ["globals@14.0.0", "", {}, "sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ=="],
 
-    "@transportada/frontend/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
-
-    "@transportada/frontend-client/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
-
-    "@transportada/frontend-driver/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-bZR6x3D90ZJPXjU/ZXnHkdagYKK3q1U+jpvrfUFTKlnlcqjeDElzlRv9RDcOHZ9y1RpI07nAxRsQdcbn47EDTA=="],
-
     "@transportada/worker/@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.3", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-iyo6uti0ktW4u50jxt1iu9ePLLIztLFrb/7AZnyCcoOTm1jZp6ZMWgDo+VGq08/0lh2p4iH/pWGbTGRkA2TI1w=="],
 
     "@transportada/worker/@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
@@ -2079,8 +2071,6 @@
 
     "yargs/find-up": ["find-up@4.1.0", "", { "dependencies": { "locate-path": "^5.0.0", "path-exists": "^4.0.0" } }, "sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw=="],
 
-    "@adatechnology/conversations-ui/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
     "@adatechnology/fiscal-provider/fast-xml-parser/strnum": ["strnum@1.1.2", "", {}, "sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA=="],
 
     "@adatechnology/notification-client/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
@@ -2088,12 +2078,6 @@
     "@adatechnology/notification-ui/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@apideck/better-ajv-errors/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
-
-    "@transportada/frontend-client/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@transportada/frontend-driver/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@transportada/frontend/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@typescript-eslint/typescript-estree/minimatch/brace-expansion": ["brace-expansion@5.0.7", "", { "dependencies": { "balanced-match": "4.0.4" } }, "sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA=="],
 

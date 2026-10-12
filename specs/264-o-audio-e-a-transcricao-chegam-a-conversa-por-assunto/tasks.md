@@ -154,7 +154,7 @@ review,denied}`).
 
 > 🤖 Modelo: `sonnet` (T4.1 → `haiku`)
 
-- [ ] **T4.1** `haiku` — Subir `conversations-ui`/`conversation-contracts` para a versão publicada na T1.8 **nas três
+- [x] **T4.1** `haiku` — Subir `conversations-ui`/`conversation-contracts` para a versão publicada na T1.8 **nas três
       apps juntas** (versão exata; `conversation-contracts` **e** `conversations-ui` na mesma subida — só o UI deixaria
       duas cópias do contracts descartando campos em silêncio), sem ligar a gravação; **já leva as chaves do player e
       da transcrição** (`contract.md` §4) para os `.locale.json` das três apps em pt-BR e en (o player novo aparece para
