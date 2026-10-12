@@ -164,14 +164,17 @@ tratativa/taxa/acerto/aviso/e-mail/WhatsApp importa ou cita a tabela nova (molde
 
 **Imagem:** estágio de build Alpine compila `whisper-cli` de uma **tag fixada** do `ggml-org/whisper.cpp` (cmake
 Release, sem GPU, `-DGGML_NATIVE=OFF` — o builder do Railway não é a máquina que roda, e `NATIVE` compilaria para a CPU
-do builder; T0.2 usou `v1.9.4` com o commit conferido no build), baixa o modelo escolhido e confere o `sha256` (falha o build se divergir); o estágio final ganha
-`apk add ffmpeg`, o binário e o modelo em `/models`, dono `transportada`. Alternativa medida no spike: modelo em
-**volume** do Railway baixado no primeiro boot (imagem menor, deploy mais rápido; risco: boot sem modelo).
+do builder; a T0.2 mediu com `v1.9.4`, commit conferido no build, e `-DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON
+-DGGML_F16C=ON` — o runner é Intel Xeon 6975P-C), baixa o modelo escolhido (**`small-q5_1`**, ADR-0103) e confere o `sha256` (falha o build se divergir); o estágio final ganha
+`apk add ffmpeg`, o binário e o modelo em `/models`, dono `transportada`. Alternativa de modelo em
+**volume** do Railway baixado no primeiro boot: **descartada na T0.2** — a imagem cresce só ~293 MB e o deploy medido
+foi de ~40 s, então não compensa o risco de boot sem modelo.
 
 **Configuração (schema de env do worker, nunca `process.env` solto):** `AUDIO_TRANSCRIPTION_MODEL_PATH` (sem ela a
 rotina não é registrada), `AUDIO_TRANSCRIPTION_THREADS` (padrão: vCPU − 1, mínimo 1),
 `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` (padrão 600000), `AUDIO_TRANSCRIPTION_BATCH_SIZE` (padrão 2),
-`AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão derivado da medida). Entram em `.railway/railway.ts` como `preserve()`.
+`AUDIO_TRANSCRIPTION_TIMEOUT_MS` (padrão **300000**: a T0.2 mediu fator 0,17 no runner, ≈ 102 s para 10 min de
+áudio, com folga de ~3×). Entram em `.railway/railway.ts` como `preserve()`.
 
 **Rotina** `conversation.audio.transcribe` (cadência alvo 1 min; se o agendador só der 5 min, a T0.2 registra e a spec
 aceita; **registrado na T0.2: 5 min** — `JOB_TICK_INTERVAL_SECONDS = 300` e `cron` do Railway em `*/5`) — **forma exata em `contract.md` §5.6**: (0) materializa o marco (`routine_started_at`); (1) cria `pending` com
