@@ -866,7 +866,8 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorReplyAlertIntervalMinutes: companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
+      contractorReplyAlertIntervalMinutes:
+        companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
@@ -1033,7 +1034,8 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
-      contractorReplyAlertIntervalMinutes: companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
+      contractorReplyAlertIntervalMinutes:
+        companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
       contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
       contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
@@ -1243,14 +1245,30 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
-    ...(input.contractorReplyAlertIntervalMinutes === undefined ? {} : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
-    ...(input.contractorReplyAlertMaxCount === undefined ? {} : { contractorReplyAlertMaxCount: input.contractorReplyAlertMaxCount }),
-    ...(input.contractorReplyAlertMode === undefined ? {} : { contractorReplyAlertMode: input.contractorReplyAlertMode }),
-    ...(input.contractorReplyAttachmentKind === undefined ? {} : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
-    ...(input.contractorReplyMode === undefined ? {} : { contractorReplyMode: input.contractorReplyMode }),
-    ...(input.contractorReplyWaitHours === undefined ? {} : { contractorReplyWaitHours: input.contractorReplyWaitHours }),
-    ...(input.driverReplyTemplate === undefined ? {} : { driverReplyTemplate: input.driverReplyTemplate }),
-    ...(input.forwardToNoteRecipient === undefined ? {} : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
+    ...(input.contractorReplyAlertIntervalMinutes === undefined
+      ? {}
+      : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
+    ...(input.contractorReplyAlertMaxCount === undefined
+      ? {}
+      : { contractorReplyAlertMaxCount: input.contractorReplyAlertMaxCount }),
+    ...(input.contractorReplyAlertMode === undefined
+      ? {}
+      : { contractorReplyAlertMode: input.contractorReplyAlertMode }),
+    ...(input.contractorReplyAttachmentKind === undefined
+      ? {}
+      : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
+    ...(input.contractorReplyMode === undefined
+      ? {}
+      : { contractorReplyMode: input.contractorReplyMode }),
+    ...(input.contractorReplyWaitHours === undefined
+      ? {}
+      : { contractorReplyWaitHours: input.contractorReplyWaitHours }),
+    ...(input.driverReplyTemplate === undefined
+      ? {}
+      : { driverReplyTemplate: input.driverReplyTemplate }),
+    ...(input.forwardToNoteRecipient === undefined
+      ? {}
+      : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined

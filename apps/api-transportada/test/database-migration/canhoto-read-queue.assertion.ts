@@ -11,7 +11,6 @@ import { migrationsDirectory } from './support.js'
 
 const CANHOTO_READ_MIGRATION_SUFFIX = '_trip_canhoto_read_job'
 const LATER_JOB_MIGRATION_SUFFIXES = [
-  '_occurrence_automatic_mail_sweep_job',
   '_nfe_recipient_email_backfill_job',
   '_cargo_preview_retention',
 ] as const

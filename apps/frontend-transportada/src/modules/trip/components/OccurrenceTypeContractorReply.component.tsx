@@ -129,10 +129,7 @@ export function OccurrenceTypeContractorReply({
   }
 
   return (
-    <section
-      aria-label={t('occurrenceTypeCatalog.contractorReply.title')}
-      className={styles.mail}
-    >
+    <section aria-label={t('occurrenceTypeCatalog.contractorReply.title')} className={styles.mail}>
       <p className={itemStyles.blockTitle}>{t('occurrenceTypeCatalog.contractorReply.title')}</p>
       <p className={styles.hint}>{t('occurrenceTypeCatalog.contractorReply.legend')}</p>
       <div className={styles.fields}>
