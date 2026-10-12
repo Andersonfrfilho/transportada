@@ -489,3 +489,10 @@ cherry-pick na ordem, mais 2 commits (renumeração e esta evidência; 68 à fre
 - **Correção:** mock `GET /trips/:id/conversations` → `{ data: [] }` (com `OPTIONS`) no helper da viagem.
 - **Prova:** os 11 testes que falharam na CI passam localmente (11 passed, 26 s); o resto da suíte tinha passado na CI (51).
 - **Lição:** o smoke do painel entra no gate local de toda task que muda uma tela do painel. Local, a porta 53000 costuma ser de outra sessão e o Playwright a reaproveita sem o bypass de autenticação: use `PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bun run smoke -- <arquivos>`.
+
+## T1b.7 — descarte do outbox no logout (conferida em 2026-10-12)
+
+Já estava entregue em `7b92fbc06` e só faltava marcar: `discardCurrentConversationOutbox` roda dentro do `signOutDriver`
+(`DriverProfile.page.tsx`), `discardOrphanedConversationOutboxFor` roda no boot/login (`main.tsx`) e `requestSignOut` conta as
+mensagens do chat no aviso de confirmação. Falha do IndexedDB nunca lança. Gate: `test/conversation.contract.test.ts` 156 pass /
+0 fail (inclui `conversation-outbox-discard.contract.ts`) e `tsc --noEmit` limpo no `frontend-driver`.
