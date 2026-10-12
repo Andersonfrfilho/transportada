@@ -4,7 +4,13 @@
  * (`GET /trips/:tripId/conversations`, api-contract "Rotas do escritório"). O assunto é o par
  * `subjectType`/`subjectId`; `occurrence` não abre nem fecha por estas rotas e não entra aqui.
  */
-import type { OccurrenceConversationChannel } from './occurrenceConversation.types'
+import type { ParticipantTranscription } from '@adatechnology/conversation-contracts'
+
+import type {
+  OccurrenceConversationAttachment,
+  OccurrenceConversationChannel,
+  OccurrenceConversationMessage,
+} from './occurrenceConversation.types'
 
 export const SUBJECT_CONVERSATION_SUBJECT_TYPES = ['document', 'trip'] as const
 export type SubjectConversationType = (typeof SUBJECT_CONVERSATION_SUBJECT_TYPES)[number]
@@ -31,3 +37,13 @@ export type SubjectConversationSummary = Readonly<{
   /** Do ponto de vista do escritório: o que o motorista mandou depois da última leitura do usuário. */
   unreadCount: number
 }>
+
+/** Spec 264: o anexo da conversa por assunto leva a duração e a transcrição; o da tela antiga não. */
+export type SubjectConversationAttachment = OccurrenceConversationAttachment &
+  Readonly<{
+    durationMs?: number
+    transcription?: ParticipantTranscription
+  }>
+
+export type SubjectConversationMessage = Omit<OccurrenceConversationMessage, 'attachments'> &
+  Readonly<{ attachments: readonly SubjectConversationAttachment[] }>

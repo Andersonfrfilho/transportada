@@ -20,33 +20,33 @@ import {
   recoverFromSendFailure,
   uploadConversationAttachments,
 } from './conversationAttachment.service'
-import type {
-  OccurrenceConversationAttachment,
-  OccurrenceConversationMessage,
-} from './occurrenceConversation.types'
 import { createSubjectMessageIdempotencyKey } from './subjectConversation.service'
 import type { SubjectConversationClient } from './subjectConversationClient.service'
-import type { SubjectConversationRef } from './subjectConversation.types'
+import type {
+  SubjectConversationAttachment,
+  SubjectConversationMessage,
+  SubjectConversationRef,
+} from './subjectConversation.types'
 
 export type SubjectThreadApiDependencies = Readonly<{
   client: SubjectConversationClient
   subject: SubjectConversationRef
 }>
 
-function toParticipantAttachment(
-  attachment: OccurrenceConversationAttachment,
-): ParticipantAttachment {
+function toParticipantAttachment(attachment: SubjectConversationAttachment): ParticipantAttachment {
   return {
+    ...(attachment.durationMs === undefined ? {} : { durationMs: attachment.durationMs }),
     filename: attachment.fileName,
     id: attachment.id,
     kind: conversationAttachmentKind(attachment.contentType),
     mimeType: attachment.contentType,
     sizeBytes: attachment.sizeBytes,
+    ...(attachment.transcription === undefined ? {} : { transcription: attachment.transcription }),
   }
 }
 
 /** A mensagem do painel no formato do SDK; `outbound` é a empresa e `inbound` é o motorista nos dois. */
-export function toParticipantMessage(message: OccurrenceConversationMessage): ParticipantMessage {
+export function toParticipantMessage(message: SubjectConversationMessage): ParticipantMessage {
   const { author } = message
   return {
     attachments: message.attachments.map(toParticipantAttachment),
