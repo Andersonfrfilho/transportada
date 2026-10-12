@@ -161,6 +161,8 @@ const CATALOG = [
     ],
     job: 'holiday.provider.pull',
     minimumIntervalSeconds: 3600,
+  },
+  {
     /** Spec 248 T4.4b: o aviso que a viagem não mandou; o worker pede, a API envia. Nasce pausada. */
     failureOutcomes: ['api_unreachable', 'api_unauthorized'],
     job: 'occurrence.automatic-mail.sweep',
