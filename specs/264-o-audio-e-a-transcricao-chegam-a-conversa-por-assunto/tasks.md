@@ -24,14 +24,14 @@
       ocorrência é o mesmo das rotas por assunto (D12). Conferir no `origin/main` do repo de pacotes se algum dos 9
       `*.golden.html` tem anexo de áudio. Saída: `contract.md` nesta pasta + emenda do `api-contract.md` da 263 se
       precisar.
-- [ ] **T0.2** 🧠 `opus` — **Spike de infra e modelo** (plano § d): serviço de staging temporário no workspace AdA
+- [x] **T0.2** 🧠 `opus` — **Spike de infra e modelo** (plano § d): serviço de staging temporário no workspace AdA
       Technology, mesmo plano do worker; imagem com `ffmpeg` + `whisper-cli` (tag fixada) + modelos `base` (piso),
       `small`, `small-q5_1`, `large-v3-turbo`, `large-v3-turbo-q5_0`; medir imagem, build, deploy, RAM de pico,
       fator de tempo real (10 s/1 min/2 min/5 min, áudio de teste gravado com consentimento, nunca de cliente),
       loop de repetição, erro de palavras numa amostra conferida à mão, impacto no `trip.canhoto.read`, menor cadência
       do agendador. Escolher pelo critério fechado e preencher a ADR-0103 (status **aceita**). **Para e pergunta** se
       nenhum modelo cumprir o critério no worker (saída de emergência). Derrubar o serviço temporário ao fim.
-- [ ] **T0.3** `haiku` — Registrar em `docs/SECURITY.md` (D10, D11): transcrição como dado pessoal (finalidade, base,
+- [x] **T0.3** `haiku` — Registrar em `docs/SECURITY.md` (D10, D11): transcrição como dado pessoal (finalidade, base,
       retenção amarrada ao áudio, fora de log) e `microphone=(self)` no app do motorista. Aceite: `bunx prettier
 --check` no arquivo.
 
