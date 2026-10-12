@@ -800,3 +800,64 @@ antiga e passou sem mudança. Os 13 testes do smoke da conversa do motorista e o
 - `bun install` na raiz: "2 packages installed", lock salvo, sem erro.
 - `make check` na raiz → exit 0.
 - `bun run format:check` na raiz → "All matched files use Prettier code style!" (exit 0).
+
+## T4.2 — contratos do app do motorista (2026-10-12)
+
+**Contratos antes, vistos falhando.** Cabeçalhos e CSP: 3 vermelhos (`media-src` indefinido ×2 e `microphone=()` no lugar de
+`microphone=(self)`); adapter, snapshot, outbox e captura: o agregador nem importava (`Cannot find module
+…/driverAudioRecording.service`) até a implementação existir. Todos entram pelos agregadores `test/shared.contract.test.ts` e
+`test/conversation.contract.test.ts` (o `package.json` lista os agregadores, não arquivos soltos).
+
+**Arquivos de contrato novos:** `driver-conversations-audio-mapper.contract.ts` (transcrição/duração por anexo),
+`conversation-outbox-audio.contract.ts` (tetos, cota, recusa em memória, mesma chave na troca de rota),
+`driver-audio-recording.contract.ts` (opções, `captureRegistry`, rótulos pt-BR/en), e as edições de `security-headers`,
+`content-security-policy` e `conversation-refresh`.
+
+**O que foi decidido e onde diverge do contrato:**
+
+- `Permissions-Policy: camera=(self), geolocation=(self), microphone=(self)` (`server.ts`); CSP ganha só
+  `media-src 'self' blob: <origem do storage>` (`contentSecurityPolicy.service.ts`), a mesma função para produção e dev; sem storage
+  declarado a diretiva fecha em `'self' blob:`. Teste prende as outras 13 diretivas literalmente.
+- Adapter: `durationMs` por guarda (inteiro, `> 0`, `<= PARTICIPANT_AUDIO_DURATION_MAX_MS`) e `transcription` com
+  `participantTranscriptionSchema.safeParse` **por anexo**, antes do `participantMessageSchema.array().parse`. Cobertos: string,
+  array, status desconhecido, `text` objeto/número/acima de 40 000, `language: null`, `generatedAt` com offset ou sem fuso,
+  `durationMs` string/negativa/zero/fracionária/acima do teto/null/NaN. Um anexo inválido não leva o vizinho.
+- Snapshot: `transcriptionUpdatedAt: string | null` (lido do payload, **fora** do schema do pacote, como o `officeReadAt` da 263 T5.5).
+  Ausente nos dois lados (API antiga) não dispara; teste de 3 ciclos seguidos sem evento.
+- Outbox (contract §5.4): `CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxFileBytes: 48 MiB }` conferido **antes** de gravar
+  (`conversationOutboxLimit.service.ts`). **Divergência de leitura:** a cota é contada sobre `store.readAll()` (o aparelho todo, inclusive
+  outra conta), não só sobre o dono, porque o IndexedDB é um só; o contrato diz "soma dos arquivos já na fila" sem fixar o recorte.
+  `QuotaExceededError` (por `error.name`) vira `OUTBOX_FULL` tipado; outro erro do armazenamento segue como veio. A recusa emite
+  `enqueue-refused` (novo evento) e **não** `pending-changed`. A página mostra `outboxFull` (`role="alert"`) até uma mensagem sair
+  (`message-settled`). A recusada fica só em memória (o pacote a mantém `failed`; reenviar funciona até recarregar); teste: fila de 100,
+  áudio recusado, uma sai, o mesmo `clientMessageId` entra. Troca de rota (404 → rotas de ocorrência) + 503 + retomada: chave `audio-1`
+  nas duas tentativas, 1 upload, 1 mensagem salva.
+- Captura: kind novo `audio-recording` em `CAPTURE_KINDS`; `onCaptureChange` abre/fecha de forma idempotente (aviso repetido não empilha).
+
+**Prova por mutação (cada uma aplicada, rodada e revertida; 13 mutações, todas MORTAS):** CSP sem `media-src` (2 testes);
+`microphone=()` de volta (1); `safeParse` removido (11); guarda de `durationMs` removida (7); snapshot sem `transcriptionUpdatedAt` (2);
+sem teto de bytes (4); sem teto de itens (2); texto recusado por bytes (1, depois de reforçar o teste: a primeira versão **sobrevivia**
+porque a fila ficava exatamente em 48 MiB; agora o armazenamento nasce com 49 MiB); `QuotaExceededError` cru (1); captura não
+registrada (3); página sem `audioRecording` (1); locale sem chave (1).
+
+## T4.3 — implementação, prop de gravação, locales e demo API (2026-10-12)
+
+- `DriverConversations.page.tsx` passa `audioRecording={driverAudioRecordingOptions}` (`driverAudioRecording.service.ts`): 2 min e
+  8 MiB (o SDK corta em 5 min e 16 MiB, "só baixa"); `onCaptureChange` ligado ao `captureRegistry`. Objeto de módulo = identidade estável.
+- 11 chaves do gravador em `conversation.locale.json` e `.en` (nomes exatos de `DEFAULT_PARTICIPANT_AUDIO_LABELS` 0.10.0) + `outboxFull`.
+  Contrato: toda chave de `DEFAULT_PARTICIPANT_AUDIO_LABELS` existe, não vazia, nos dois idiomas; placeholders preservados.
+- Demo API: `POST /__debug/conversations/audio-samples` `{subjectId}` (quatro áudios, `durationMs`, `ready` com `generatedAt` ISO Z, `too_long`
+  com `maxDurationMs: 600000`), `.../transcription-ready` `{subjectId}` (`pending → ready`, move `transcriptionUpdatedAt` do resumo), áudio
+  enviado nasce `pending`, URL do anexo de áudio serve WAV mudo de 2 s. O envio usa o mesmo upload em duas etapas da foto. 7 testes de contrato;
+  3 mutações mortas (sem bump, sem `pending` no upload, storage servindo PNG para áudio). Documentado no cabeçalho de
+  `scripts/driver-preview-conversations.ts` e em `apps/frontend-driver/CLAUDE.md` § Conversas.
+
+**Verificação no navegador (Playwright em Chromium, 375x812, API de demonstração própria, `VITE_OBJECT_STORAGE_URL` = origem da demo):**
+microfone presente com o campo vazio (nome "Gravar áudio") e ausente com texto digitado; 4 players; blocos "Transcrevendo…", texto com aviso de
+máquina, "Nada foi dito no áudio" e "Transcrição só para áudios de menos de 10 minutos"; tocar o áudio avançou `currentTime` sem erro de CSP
+(`media-src` funcionando). **Não coube:** o `getUserMedia` ficou pendente neste ambiente mesmo fora do app (headless, dispositivo falso), então
+o ciclo gravar → ouvir → enviar e o "Transcrevendo…" → texto sem recarregar ficam para o smoke da T4.4 (que precisa de Chromium com mic falso).
+Nota para a T4.4: o smoke precisa de `VITE_OBJECT_STORAGE_URL=http://localhost:53912` no build para a CSP deixar o `<audio>` tocar a demo.
+
+**Gates (saída real, em `apps/frontend-driver`):** `bun run typecheck` ok; `bun run lint` sem problemas; `bun run test` → **1752 pass, 0 fail**
+(era 1691); smoke `conversation.smoke.spec.ts` sozinho → **13 passed** (2.6 min), nenhum seletor antigo mudou; `make check` na raiz → exit 0.
