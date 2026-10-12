@@ -310,3 +310,29 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
 6. **`--threads` diferente de 7:** não variado.
 7. **Mac nativo com `/usr/bin/time -l`:** substituído pelo GNU `time` dentro do contêiner Alpine (a base do worker); o
    `whisper-cli` do Homebrew usa Metal e mediria a GPU do laptop.
+
+## T2.1 — tabelas da transcrição e migration aditiva (2026-10-12)
+
+- Schema: `apps/api-transportada/src/database/conversation-audio-transcription.schema.ts`
+  (`occurrenceConversationAudioTranscriptions`, `companyAudioTranscriptionSettings`) e índice parcial
+  `occurrence_conversation_attachments_audio_created_idx (created_at) where content_type like 'audio/%'` em
+  `occurrence-conversation.schema.ts`. Vocabulário em `src/shared/conversation-audio-transcription.constant.ts`.
+- `failure_code` (CHECK fechado): `unsupported_format`, `too_long`, `empty_audio`, `object_missing`, `sha256_mismatch`,
+  `engine_timeout`, `engine_failed`, `attempts_exhausted`, `company_disabled`. `status`: `pending|ready|failed|purged`.
+- Migration `drizzle/20261012155134_conversation_audio_transcription/` (`migration.sql`, `rollback.sql`, `snapshot.json`).
+  Rollback derruba o índice e as duas tabelas, tira a linha do journal com guarda de `ROW_COUNT`.
+- Registrada em `test/database-migration.contract.test.ts` (estático), `database-migration.integration.ts` (assertion contra
+  Postgres) e na lista de pastas de `static-migration.contract.ts`; contrato de schema/tenant-safety em
+  `test/occurrence-conversation-schema/audio-transcription.contract.ts` (toda FK composta com `company_id`).
+- `bun run db:generate --name zz_probe` → `{"status":"no_changes"}`; `bun run db:check` → "Everything's fine".
+- `bun test ./test/database-migration.contract.test.ts ./test/occurrence-conversation-schema.contract.test.ts
+  ./test/migration-chain.contract.test.ts` (`--timeout 180000`): 199 pass / 1 fail. O 1 fail é
+  `schema-snapshot` "latest snapshot matches the TypeScript schema", causado pelo `conversation.audio.transcribe` que **outra
+  tarefa** acrescentou ao `job-catalog.constant.ts` (CHECK de `job_executions`/`job_schedules`) e ainda não tem migration;
+  o `db:generate` da T2.1, feito antes, deu `no_changes`.
+- Migration contra Postgres real (contêiner `postgres:18-alpine` descartável, `DRIZZLE_TEST_DATABASE_URL`):
+  `bun test ./test/database-migration.contract.test.ts` → "Drizzle migration integration" **passa** (1792 expects), incluindo
+  a assertion nova (CHECKs, FKs compostas, unicidade, rollback, reaplicação). Na máquina de Windows+WSL ele leva ~100 s, acima
+  do teto fixo de 30 s do teste: rodado com o teto subido só localmente (revertido), por lentidão de ambiente.
+- `bunx prettier --check` nos arquivos novos: limpo. `bun run typecheck`: os arquivos da T2.1 sem erro; restam 2 erros em
+  `test/job-catalog/catalog.contract.ts` da outra tarefa (catálogo de jobs).
