@@ -512,3 +512,13 @@ são do Windows, não do código: `readFile` recebe `/C:/...` (ENOENT) e a compa
 `rollback.sql`); falta só o que exige banco — integração com Postgres e `make migration-test`. **Bloqueada:** nesta máquina não há `.env`/`.env.test`
 no worktree (o link foi negado) e o Postgres do TransportAdA não está no ar (só `ativada-dev-postgres`). Pela regra da spec, banco indisponível
 é parar e relatar.
+
+## T1b.5 e T1b.4 — estado em 2026-10-12
+
+**T1b.5 (continua aberta, parcial):** `apps/frontend-driver/test/conversation.smoke.spec.ts` já cobre lista, busca, composer, envio, chegada,
+fila offline (uma entrega só), ticks, falha com "reenviar" e respostas prontas (13 passed na publicação de staging). Falta o caso **"abrir pelo sino"**
+(o aviso `trip.subject-conversation-message` levando à conversa). Não rodei o smoke nesta rodada: ele sobe a API falsa e o Vite e precisa do `.env`.
+
+**T1b.4 (continua aberta, parcial):** o adaptador do portal está em `a2b8c5e84`. A troca do cartão pela visão do participante ficou parada em uma
+decisão: o `styles.css` do pacote traz regras globais (`:where(*)`, `:root`) e o portal não tem ferramenta de escopo de CSS (sem PostCSS aninhado);
+escopar exige ou um passo de build novo ou copiar as regras `cv-p-*` para o CSS do portal, como o painel faz em `subjectConversation.module.css`.
