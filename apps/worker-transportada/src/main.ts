@@ -255,6 +255,12 @@ import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/app
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
+import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
+import { CONVERSATION_AUDIO_TRANSCRIBE_JOB } from './conversation-audio-transcription/audio-transcription-runtime.constant.js'
+import {
+  buildAudioTranscriptionRuntime,
+  type AudioTranscriptionRuntime,
+} from './conversation-audio-transcription/build-audio-transcription-runtime.js'
 import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
 import { CARGO_PREVIEW_RETENTION_JOB } from './cargo-preview-retention/domain/cargo-preview-retention.constant.js'
 import { createDrizzleApplyCargoPreviewRetentionBatch } from './cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
@@ -685,6 +691,7 @@ export async function startWorkerRuntime(
   let syntheticConsumer: RuntimeConsumer | undefined
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
+  let audioTranscriptionRuntime: AudioTranscriptionRuntime | undefined
   let notificationConsumer: RuntimeConsumer | undefined
   let routeOptimizationConsumer: RuntimeConsumer | undefined
   let routeOptimizationProvider: RabbitMqProvider | undefined
@@ -1206,6 +1213,15 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
+    // Spec 264 RF16: sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é registrada (`job_run_routine_missing`).
+    audioTranscriptionRuntime = isAudioTranscriptionConfigured(config)
+      ? buildAudioTranscriptionRuntime({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          environment: config.audioTranscription,
+          logger,
+          objectReader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
+        })
+      : undefined
     jobRunConsumer = await jobRunStarter({
       config,
       // Registro parcial de propósito: rotina não registrada pousa em `job_run_routine_missing` e
@@ -1497,6 +1513,9 @@ export async function startWorkerRuntime(
                   reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
                 }),
               }),
+          ...(audioTranscriptionRuntime === undefined
+            ? {}
+            : { [CONVERSATION_AUDIO_TRANSCRIBE_JOB]: audioTranscriptionRuntime.routine }),
           // Sem aviso de rejeição: a porta é opcional e ainda não tem adaptador, porque o catálogo
           // de templates não tem chave de NFS-e rejeitada. A reconciliação fiscal não espera por ela.
           [NFSE_STATUS_PULL_JOB]: createNfseStatusPullRoutine({
@@ -1859,6 +1878,8 @@ export async function startWorkerRuntime(
     passwordResetDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
+        // Antes do banco e do storage: a soltura graciosa devolve a tentativa da linha em voo.
+        ...(audioTranscriptionRuntime === undefined ? [] : [audioTranscriptionRuntime.runner]),
         /**
          * A conexão do roteirizador fecha com as demais. Deixá-la aberta mantém o processo vivo
          * depois do SIGTERM — o dreno nunca termina, e o orquestrador acaba matando à força.
@@ -1962,6 +1983,7 @@ export async function startWorkerRuntime(
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
     await jobRunConsumer?.cancel().catch(() => undefined)
+    await audioTranscriptionRuntime?.runner.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
