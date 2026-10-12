@@ -32,13 +32,13 @@ export function createConversationAudioTranscribeRoutine(
 
   return {
     async run(context) {
-      // O resultado da execução anterior vai para este job-run e é zerado: lê-se antes de entregar.
-      const previous = runner.takeSummary()
       await queue.materializeMilestone()
       const exhausted = await queue.closeExhausted()
       const created = await queue.discoverPending({ recoveryWindowHours })
       const purged = await queue.purgeDeletedText()
       const claimable = await queue.countClaimable()
+      // Lido DEPOIS do SQL: se ele lançar, o resumo continua no executor para o ciclo seguinte.
+      const previous = runner.takeSummary()
 
       const outcome = resolveHandoff({
         isIdle: claimable === 0 && !runner.isRunning(),
@@ -67,12 +67,14 @@ export function createConversationAudioTranscribeRoutine(
   }
 }
 
-function resolveHandoff(params: {
+type HandoffParams = {
   readonly isIdle: boolean
   readonly isStopRequested: boolean
   readonly runner: AudioTranscriptionRunner
-}): CycleOutcome {
-  if (params.isIdle || params.isStopRequested) return AUDIO_TRANSCRIBE_JOB_OUTCOME.COMPLETED
+}
+
+function resolveHandoff(params: HandoffParams): CycleOutcome {
+  if (params.isIdle || params.isStopRequested) return AUDIO_TRANSCRIBE_JOB_OUTCOME.SUCCEEDED
   const started = params.runner.start()
   if (started === AUDIO_TRANSCRIPTION_RUNNER_START.ALREADY_RUNNING) {
     return AUDIO_TRANSCRIBE_JOB_OUTCOME.ALREADY_RUNNING
@@ -80,5 +82,5 @@ function resolveHandoff(params: {
   if (started === AUDIO_TRANSCRIPTION_RUNNER_START.LOCK_EXPIRED) {
     return AUDIO_TRANSCRIBE_JOB_OUTCOME.RUNNER_LOCK_EXPIRED
   }
-  return AUDIO_TRANSCRIBE_JOB_OUTCOME.COMPLETED
+  return AUDIO_TRANSCRIBE_JOB_OUTCOME.SUCCEEDED
 }

@@ -7,10 +7,14 @@ import {
   type AudioTranscriptionLineDependencies,
 } from './audio-transcription-line.processor.js'
 import type { ClaimedAudioTranscription } from './audio-transcription-queue.port.js'
-import { AUDIO_TRANSCRIPTION_LOG_MESSAGE } from './audio-transcription-runtime.constant.js'
+import {
+  AUDIO_TRANSCRIPTION_LOG_MESSAGE,
+  UNKNOWN_ERROR_NAME,
+} from './audio-transcription-runtime.constant.js'
 import {
   addLineToSummary,
   createRunSummary,
+  mergeRunSummaries,
   type AudioTranscriptionRunSummary,
 } from './audio-transcription-summary.js'
 
@@ -46,20 +50,83 @@ type Execution = {
   readonly controller: AbortController
   readonly startedAt: Date
   inFlight: ClaimedAudioTranscription | undefined
+  claiming: Promise<ClaimedAudioTranscription | undefined> | undefined
+  releasing: Promise<void> | undefined
 }
 
-export function createAudioTranscriptionRunner(
-  dependencies: AudioTranscriptionRunnerDependencies,
-): AudioTranscriptionRunner {
-  const { batchSize, leaseMilliseconds, line, lockMaxAgeMilliseconds } = dependencies
-  let current: Execution | undefined
-  let lastSummary: AudioTranscriptionRunSummary | undefined
-  let isClosing = false
+export class AudioTranscriptionRunnerService implements AudioTranscriptionRunner {
+  readonly #dependencies: AudioTranscriptionRunnerDependencies
+  #current: Execution | undefined
+  #lastSummary: AudioTranscriptionRunSummary | undefined
+  #isClosing = false
 
-  async function releaseInFlight(execution: Execution): Promise<void> {
+  constructor(dependencies: AudioTranscriptionRunnerDependencies) {
+    this.#dependencies = dependencies
+  }
+
+  isRunning(): boolean {
+    return this.#current !== undefined
+  }
+
+  takeSummary(): AudioTranscriptionRunSummary | undefined {
+    const summary = this.#lastSummary
+    this.#lastSummary = undefined
+    return summary
+  }
+
+  start(): AudioTranscriptionRunnerStart {
+    if (this.#isClosing) return AUDIO_TRANSCRIPTION_RUNNER_START.ALREADY_RUNNING
+    const current = this.#current
+    if (current !== undefined) return this.#startWhileRunning(current)
+
+    const execution: Execution = {
+      claiming: undefined,
+      releasing: undefined,
+      controller: new AbortController(),
+      inFlight: undefined,
+      startedAt: this.#dependencies.line.now(),
+    }
+    this.#current = execution
+    void this.#execute(execution)
+    return AUDIO_TRANSCRIPTION_RUNNER_START.STARTED
+  }
+
+  async close(): Promise<void> {
+    this.#isClosing = true
+    const execution = this.#current
+    if (execution === undefined) return
+    execution.controller.abort()
+    // A reivindicação em voo termina ANTES de soltar: senão a linha alugada depois do close ficaria presa.
+    await execution.claiming?.catch(() => undefined)
+    await this.#releaseInFlight(execution)
+    // A soltura que o laço começou ao ver o aborto também precisa terminar antes de o banco fechar.
+    await execution.releasing
+  }
+
+  #startWhileRunning(current: Execution): AudioTranscriptionRunnerStart {
+    const { line, lockMaxAgeMilliseconds } = this.#dependencies
+    const ageMs = line.now().getTime() - current.startedAt.getTime()
+    if (ageMs <= lockMaxAgeMilliseconds) return AUDIO_TRANSCRIPTION_RUNNER_START.ALREADY_RUNNING
+    safeLogError({
+      logger: line.logger,
+      message: AUDIO_TRANSCRIPTION_LOG_MESSAGE.RUNNER_LOCK_EXPIRED,
+      metadata: { lockAgeMs: ageMs },
+    })
+    current.controller.abort()
+    this.#current = undefined
+    return AUDIO_TRANSCRIPTION_RUNNER_START.LOCK_EXPIRED
+  }
+
+  #releaseInFlight(execution: Execution): Promise<void> {
     const claimed = execution.inFlight
-    if (claimed === undefined) return
+    if (claimed === undefined) return Promise.resolve()
     execution.inFlight = undefined
+    execution.releasing = this.#release(claimed)
+    return execution.releasing
+  }
+
+  async #release(claimed: ClaimedAudioTranscription): Promise<void> {
+    const { line } = this.#dependencies
     try {
       await line.queue.release({ id: claimed.id, leaseToken: claimed.leaseToken })
     } catch (error: unknown) {
@@ -67,22 +134,25 @@ export function createAudioTranscriptionRunner(
         logger: line.logger,
         message: AUDIO_TRANSCRIPTION_LOG_MESSAGE.RUNNER_RELEASE_FAILED,
         metadata: {
-          reason: error instanceof Error ? error.name : 'UnknownError',
+          reason: error instanceof Error ? error.name : UNKNOWN_ERROR_NAME,
           transcriptionId: claimed.id,
         },
       })
     }
   }
 
-  async function processNext(
+  async #processNext(
     execution: Execution,
     summary: AudioTranscriptionRunSummary,
   ): Promise<boolean> {
-    const claimed = await line.queue.claimNext({ leaseMilliseconds })
+    const { leaseMilliseconds, line } = this.#dependencies
+    execution.claiming = line.queue.claimNext({ leaseMilliseconds })
+    const claimed = await execution.claiming
+    execution.claiming = undefined
     if (claimed === undefined) return false
     execution.inFlight = claimed
     if (execution.controller.signal.aborted) {
-      await releaseInFlight(execution)
+      await this.#releaseInFlight(execution)
       return false
     }
     const result = await processAudioTranscriptionLine({
@@ -95,68 +165,31 @@ export function createAudioTranscriptionRunner(
     return true
   }
 
-  async function execute(execution: Execution): Promise<void> {
+  async #execute(execution: Execution): Promise<void> {
+    const { batchSize, line } = this.#dependencies
     const summary = createRunSummary()
     try {
       while (!execution.controller.signal.aborted && summary.processed < batchSize) {
-        if (!(await processNext(execution, summary))) break
+        if (!(await this.#processNext(execution, summary))) break
       }
     } catch (error: unknown) {
       summary.runnerError = 1
       safeLogError({
         logger: line.logger,
         message: AUDIO_TRANSCRIPTION_LOG_MESSAGE.RUNNER_FAILED,
-        metadata: { reason: error instanceof Error ? error.name : 'UnknownError' },
+        metadata: { reason: error instanceof Error ? error.name : UNKNOWN_ERROR_NAME },
       })
     } finally {
-      if (current === execution) {
-        current = undefined
-        lastSummary = summary
-      }
+      if (this.#current === execution) this.#current = undefined
+      // Execução de trava vencida também entrega o que fez: soma, nunca apaga o resumo da nova.
+      this.#lastSummary =
+        this.#lastSummary === undefined ? summary : mergeRunSummaries(this.#lastSummary, summary)
     }
   }
+}
 
-  function expireLock(execution: Execution): void {
-    safeLogError({
-      logger: line.logger,
-      message: AUDIO_TRANSCRIPTION_LOG_MESSAGE.RUNNER_LOCK_EXPIRED,
-      metadata: { lockAgeMs: line.now().getTime() - execution.startedAt.getTime() },
-    })
-    execution.controller.abort()
-    current = undefined
-  }
-
-  function start(): AudioTranscriptionRunnerStart {
-    if (isClosing) return AUDIO_TRANSCRIPTION_RUNNER_START.ALREADY_RUNNING
-    if (current !== undefined) {
-      const ageMs = line.now().getTime() - current.startedAt.getTime()
-      if (ageMs <= lockMaxAgeMilliseconds) return AUDIO_TRANSCRIPTION_RUNNER_START.ALREADY_RUNNING
-      expireLock(current)
-      return AUDIO_TRANSCRIPTION_RUNNER_START.LOCK_EXPIRED
-    }
-    const execution: Execution = {
-      controller: new AbortController(),
-      inFlight: undefined,
-      startedAt: line.now(),
-    }
-    current = execution
-    void execute(execution)
-    return AUDIO_TRANSCRIPTION_RUNNER_START.STARTED
-  }
-
-  function takeSummary(): AudioTranscriptionRunSummary | undefined {
-    const summary = lastSummary
-    lastSummary = undefined
-    return summary
-  }
-
-  async function close(): Promise<void> {
-    isClosing = true
-    const execution = current
-    if (execution === undefined) return
-    execution.controller.abort()
-    await releaseInFlight(execution)
-  }
-
-  return { close, isRunning: () => current !== undefined, start, takeSummary }
+export function createAudioTranscriptionRunner(
+  dependencies: AudioTranscriptionRunnerDependencies,
+): AudioTranscriptionRunner {
+  return new AudioTranscriptionRunnerService(dependencies)
 }

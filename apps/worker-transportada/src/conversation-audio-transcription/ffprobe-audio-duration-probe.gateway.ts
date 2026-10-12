@@ -11,6 +11,7 @@ import {
   DURATION_DECODE_MARGIN_MILLISECONDS,
   DURATION_DECODE_TIMEOUT_MILLISECONDS,
   FFPROBE_TIMEOUT_MILLISECONDS,
+  SAFE_PROTOCOL_WHITELIST_ARGUMENTS,
   SPEECH_TO_TEXT_FAILURE_KIND,
 } from './audio-transcription-engine.constant.js'
 import type { AudioDurationProbe, AudioDurationProbeParams } from './audio-duration-probe.port.js'
@@ -19,7 +20,7 @@ import {
   type CommandOutcome,
   type RunCommand,
 } from './run-command-with-timeout.js'
-import { SpeechToTextError } from './speech-to-text.error.js'
+import { SpeechToTextError, type SpeechToTextFailure } from './speech-to-text.error.js'
 
 export type FfprobeAudioDurationProbeOptions = {
   readonly ffprobePath?: string
@@ -29,23 +30,48 @@ export type FfprobeAudioDurationProbeOptions = {
   readonly runCommand?: RunCommand
 }
 
+type ProbeContext = {
+  readonly ffprobePath: string
+  readonly ffmpegPath: string
+  readonly probeTimeout: number
+  readonly decodeTimeout: number
+  readonly runCommand: RunCommand
+}
+
+type MeasureStepParams = {
+  readonly filePath: string
+  readonly signal: AbortSignal | undefined
+}
+
+type DecodeStepParams = MeasureStepParams & { readonly maxDurationMilliseconds: number }
+
 const MICROSECONDS_PER_MILLISECOND = 1_000
 const SECONDS_TO_MILLISECONDS = 1_000
 const DECODED_TIME_PATTERN = /^out_time_us=(\d+)$/gmu
 
-const TIMEOUT_ERROR = new SpeechToTextError({
+const TIMEOUT_FAILURE: SpeechToTextFailure = {
   code: 'engine_timeout',
   kind: SPEECH_TO_TEXT_FAILURE_KIND.RETRIABLE,
-})
+}
+/** Processo que não sobe é do ambiente (binário ausente), não do áudio: não gasta tentativa. */
+const SPAWN_FAILURE: SpeechToTextFailure = {
+  code: 'engine_failed',
+  kind: SPEECH_TO_TEXT_FAILURE_KIND.INFRASTRUCTURE,
+}
+const ABORT_FAILURE: SpeechToTextFailure = {
+  code: 'engine_failed',
+  kind: SPEECH_TO_TEXT_FAILURE_KIND.RETRIABLE,
+}
 
 function failWith(code: 'engine_failed' | 'unsupported_format'): SpeechToTextError {
   return new SpeechToTextError({ code, kind: SPEECH_TO_TEXT_FAILURE_KIND.DEFINITIVE })
 }
 
-/** Prazo estourado é retriável; binário ausente e arquivo que o `ffprobe` recusa não melhoram tentando de novo. */
+/** Prazo estourado é retriável; arquivo que o `ffprobe` recusa não melhora tentando de novo. */
 function readStdout(outcome: CommandOutcome): string {
-  if (outcome.outcome === 'timed_out') throw TIMEOUT_ERROR
-  if (outcome.outcome === 'spawn_failed') throw failWith('engine_failed')
+  if (outcome.outcome === 'timed_out') throw new SpeechToTextError(TIMEOUT_FAILURE)
+  if (outcome.outcome === 'aborted') throw new SpeechToTextError(ABORT_FAILURE)
+  if (outcome.outcome === 'spawn_failed') throw new SpeechToTextError(SPAWN_FAILURE)
   if (outcome.exitCode !== 0) throw failWith('unsupported_format')
   return outcome.stdout
 }
@@ -57,78 +83,91 @@ function parseHeaderDuration(stdout: string): number | undefined {
 }
 
 function parseDecodedDuration(stdout: string): number | undefined {
-  const matches = [...stdout.matchAll(DECODED_TIME_PATTERN)]
-  const lastMatch = matches.at(-1)
+  const lastMatch = [...stdout.matchAll(DECODED_TIME_PATTERN)].at(-1)
   if (lastMatch?.[1] === undefined) return undefined
   return Math.round(Number(lastMatch[1]) / MICROSECONDS_PER_MILLISECOND)
+}
+
+async function readHeaderDuration(
+  context: ProbeContext,
+  step: MeasureStepParams,
+): Promise<number | undefined> {
+  const outcome = await context.runCommand({
+    args: [
+      '-v',
+      'error',
+      ...SAFE_PROTOCOL_WHITELIST_ARGUMENTS,
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      step.filePath,
+    ],
+    command: context.ffprobePath,
+    ...(step.signal === undefined ? {} : { signal: step.signal }),
+    timeoutMilliseconds: context.probeTimeout,
+  })
+  return parseHeaderDuration(readStdout(outcome))
+}
+
+async function decodeDuration(context: ProbeContext, step: DecodeStepParams): Promise<number> {
+  const cap =
+    (step.maxDurationMilliseconds + DURATION_DECODE_MARGIN_MILLISECONDS) / SECONDS_TO_MILLISECONDS
+  const outcome = await context.runCommand({
+    args: [
+      '-nostdin',
+      '-v',
+      'error',
+      ...SAFE_PROTOCOL_WHITELIST_ARGUMENTS,
+      '-progress',
+      'pipe:1',
+      '-i',
+      step.filePath,
+      '-t',
+      String(cap),
+      '-f',
+      'null',
+      '-',
+    ],
+    command: context.ffmpegPath,
+    ...(step.signal === undefined ? {} : { signal: step.signal }),
+    timeoutMilliseconds: context.decodeTimeout,
+  })
+  const durationMilliseconds = parseDecodedDuration(readStdout(outcome))
+  if (durationMilliseconds === undefined) throw failWith('engine_failed')
+  return durationMilliseconds
+}
+
+async function measureAudio(
+  context: ProbeContext,
+  params: AudioDurationProbeParams,
+): Promise<number> {
+  const workDirectory = await mkdtemp(join(tmpdir(), 'audio-duration-'))
+  try {
+    const step = { filePath: join(workDirectory, 'source.bin'), signal: params.signal }
+    await writeFile(step.filePath, params.audio)
+    const headerDuration = await readHeaderDuration(context, step)
+    return (
+      headerDuration ??
+      (await decodeDuration(context, {
+        ...step,
+        maxDurationMilliseconds: params.maxDurationMilliseconds,
+      }))
+    )
+  } finally {
+    await rm(workDirectory, { force: true, recursive: true })
+  }
 }
 
 export function createFfprobeAudioDurationProbe(
   options: FfprobeAudioDurationProbeOptions = {},
 ): AudioDurationProbe {
-  const ffprobePath = options.ffprobePath ?? DEFAULT_FFPROBE_BINARY
-  const ffmpegPath = options.ffmpegPath ?? DEFAULT_FFMPEG_BINARY
-  const probeTimeout = options.probeTimeoutMilliseconds ?? FFPROBE_TIMEOUT_MILLISECONDS
-  const decodeTimeout = options.decodeTimeoutMilliseconds ?? DURATION_DECODE_TIMEOUT_MILLISECONDS
-  const runCommand = options.runCommand ?? runCommandWithTimeout
-
-  async function readHeaderDuration(filePath: string): Promise<number | undefined> {
-    const outcome = await runCommand({
-      args: [
-        '-v',
-        'error',
-        '-show_entries',
-        'format=duration',
-        '-of',
-        'default=noprint_wrappers=1:nokey=1',
-        filePath,
-      ],
-      command: ffprobePath,
-      timeoutMilliseconds: probeTimeout,
-    })
-    return parseHeaderDuration(readStdout(outcome))
+  const context: ProbeContext = {
+    decodeTimeout: options.decodeTimeoutMilliseconds ?? DURATION_DECODE_TIMEOUT_MILLISECONDS,
+    ffmpegPath: options.ffmpegPath ?? DEFAULT_FFMPEG_BINARY,
+    ffprobePath: options.ffprobePath ?? DEFAULT_FFPROBE_BINARY,
+    probeTimeout: options.probeTimeoutMilliseconds ?? FFPROBE_TIMEOUT_MILLISECONDS,
+    runCommand: options.runCommand ?? runCommandWithTimeout,
   }
-
-  async function decodeDuration(
-    filePath: string,
-    maxDurationMilliseconds: number,
-  ): Promise<number> {
-    const cap =
-      (maxDurationMilliseconds + DURATION_DECODE_MARGIN_MILLISECONDS) / SECONDS_TO_MILLISECONDS
-    const outcome = await runCommand({
-      args: [
-        '-nostdin',
-        '-v',
-        'error',
-        '-progress',
-        'pipe:1',
-        '-i',
-        filePath,
-        '-t',
-        String(cap),
-        '-f',
-        'null',
-        '-',
-      ],
-      command: ffmpegPath,
-      timeoutMilliseconds: decodeTimeout,
-    })
-    const durationMilliseconds = parseDecodedDuration(readStdout(outcome))
-    if (durationMilliseconds === undefined) throw failWith('engine_failed')
-    return durationMilliseconds
-  }
-
-  async function measure(params: AudioDurationProbeParams): Promise<number> {
-    const workDirectory = await mkdtemp(join(tmpdir(), 'audio-duration-'))
-    try {
-      const filePath = join(workDirectory, 'source.bin')
-      await writeFile(filePath, params.audio)
-      const headerDuration = await readHeaderDuration(filePath)
-      return headerDuration ?? (await decodeDuration(filePath, params.maxDurationMilliseconds))
-    } finally {
-      await rm(workDirectory, { force: true, recursive: true })
-    }
-  }
-
-  return { measure }
+  return { measure: (params) => measureAudio(context, params) }
 }

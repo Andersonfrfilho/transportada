@@ -12,6 +12,7 @@ export type ClaimedAudioTranscription = {
   readonly leaseToken: string
   readonly bucket: string
   readonly objectKey: string
+  /** `missing` é o objeto sem linha em `stored_objects`: tratado como `object_missing`. */
   readonly objectStatus: string
   readonly sha256: string
   readonly mimeType: string
@@ -41,6 +42,9 @@ export type MarkAudioTranscriptionFailedParams = AudioTranscriptionLineKey & {
 
 export type ScheduleAudioTranscriptionRetryParams = AudioTranscriptionLineKey & {
   readonly delayMilliseconds: number
+  readonly audioDurationMs: number | null
+  /** Falha de ambiente não é culpa do áudio: a tentativa volta. */
+  readonly shouldGiveBackAttempt: boolean
 }
 
 export type ClaimNextAudioTranscriptionParams = {
@@ -51,6 +55,10 @@ export type AudioTranscriptionLineQueuePort = {
   claimNext(
     params: ClaimNextAudioTranscriptionParams,
   ): Promise<ClaimedAudioTranscription | undefined>
+  /**
+   * Grava o texto só se a empresa continua ligada (privacidade: desligar durante a transcrição não deixa
+   * texto). `false` = perdeu a posse ou a empresa desligou; quem chamou distingue com `markFailed`.
+   */
   markReady(params: MarkAudioTranscriptionReadyParams): Promise<boolean>
   markFailed(params: MarkAudioTranscriptionFailedParams): Promise<boolean>
   scheduleRetry(params: ScheduleAudioTranscriptionRetryParams): Promise<boolean>

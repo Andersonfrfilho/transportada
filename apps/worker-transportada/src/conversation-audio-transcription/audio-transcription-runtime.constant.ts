@@ -20,11 +20,21 @@ export const AUDIO_TRANSCRIPTION_RETRY_DELAYS_MILLISECONDS = [
 export const AUDIO_DOWNLOAD_TIMEOUT_MILLISECONDS = 60_000
 export const AUDIO_LEASE_MARGIN_MILLISECONDS = 60_000
 
+/** Sucesso fecha `succeeded`, como toda rotina; só os dois desfechos próprios entram no catálogo. */
 export const AUDIO_TRANSCRIBE_JOB_OUTCOME = {
   ALREADY_RUNNING: 'already_running',
-  COMPLETED: 'completed',
   RUNNER_LOCK_EXPIRED: 'runner_lock_expired',
+  SUCCEEDED: 'succeeded',
 } as const
+
+/** Teto de bytes do download: áudio de 10 min em qualquer formato comum fica muito abaixo. */
+export const AUDIO_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024
+
+/** Nome do erro quando ele não é uma `Error`: o log leva o nome, nunca a mensagem. */
+export const UNKNOWN_ERROR_NAME = 'UnknownError'
+
+/** Falha de ambiente (binário ausente) volta no atraso máximo, sem gastar tentativa. */
+export const AUDIO_TRANSCRIPTION_INFRASTRUCTURE_RETRY_DELAY_MILLISECONDS = 30 * MINUTE_MILLISECONDS
 
 export const AUDIO_TRANSCRIPTION_LOG_MESSAGE = {
   CYCLE_FINISHED: 'audio_transcription_cycle_finished',
@@ -34,6 +44,7 @@ export const AUDIO_TRANSCRIPTION_LOG_MESSAGE = {
   RUNNER_FAILED: 'audio_transcription_runner_failed',
   RUNNER_LOCK_EXPIRED: 'audio_transcription_runner_lock_expired',
   RUNNER_RELEASE_FAILED: 'audio_transcription_runner_release_failed',
+  TOOLING_MISSING: 'audio_transcription_tooling_missing',
 } as const
 
 /** Falha que não é alerta: a empresa desligou, e isso é escolha dela (contract.md §5.7). */

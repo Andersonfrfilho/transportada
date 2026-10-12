@@ -6,6 +6,7 @@
 export const AUDIO_TRANSCRIPTION_LINE_STATE = {
   COMPANY_DISABLED: 'company_disabled',
   FAILED: 'failed',
+  INFRASTRUCTURE: 'infrastructure',
   OWNERSHIP_LOST: 'ownership_lost',
   PURGED: 'purged',
   READY: 'ready',
@@ -26,6 +27,7 @@ export type AudioTranscriptionRunSummary = {
   ready: number
   failed: number
   retried: number
+  infrastructure: number
   disabled: number
   purged: number
   runnerError: number
@@ -37,6 +39,7 @@ export function createRunSummary(): AudioTranscriptionRunSummary {
     disabled: 0,
     failed: 0,
     failedByCode: {},
+    infrastructure: 0,
     processed: 0,
     purged: 0,
     ready: 0,
@@ -53,6 +56,7 @@ export function addLineToSummary(
   if (result.state === AUDIO_TRANSCRIPTION_LINE_STATE.READY) summary.ready += 1
   if (result.state === AUDIO_TRANSCRIPTION_LINE_STATE.RETRIED) summary.retried += 1
   if (result.state === AUDIO_TRANSCRIPTION_LINE_STATE.PURGED) summary.purged += 1
+  if (result.state === AUDIO_TRANSCRIPTION_LINE_STATE.INFRASTRUCTURE) summary.infrastructure += 1
   if (result.state === AUDIO_TRANSCRIPTION_LINE_STATE.COMPANY_DISABLED) summary.disabled += 1
   if (result.state !== AUDIO_TRANSCRIPTION_LINE_STATE.FAILED) return
   summary.failed += 1
@@ -73,6 +77,7 @@ export function summaryToCounters(summary: AudioTranscriptionRunSummary): Record
     ready: summary.ready,
     failed: summary.failed,
     retried: summary.retried,
+    infrastructure: summary.infrastructure,
     disabled: summary.disabled,
     purged: summary.purged,
     runnerError: summary.runnerError,
@@ -81,4 +86,26 @@ export function summaryToCounters(summary: AudioTranscriptionRunSummary): Record
     counters[`failed${toCamelCase(code).replace(/^./u, (first) => first.toUpperCase())}`] = count
   }
   return counters
+}
+
+/** Duas execuções que terminam perto uma da outra (trava vencida) somam, em vez de uma apagar a outra. */
+export function mergeRunSummaries(
+  first: AudioTranscriptionRunSummary,
+  second: AudioTranscriptionRunSummary,
+): AudioTranscriptionRunSummary {
+  const failedByCode = { ...first.failedByCode }
+  for (const [code, count] of Object.entries(second.failedByCode)) {
+    failedByCode[code] = (failedByCode[code] ?? 0) + count
+  }
+  return {
+    disabled: first.disabled + second.disabled,
+    failed: first.failed + second.failed,
+    failedByCode,
+    infrastructure: first.infrastructure + second.infrastructure,
+    processed: first.processed + second.processed,
+    purged: first.purged + second.purged,
+    ready: first.ready + second.ready,
+    retried: first.retried + second.retried,
+    runnerError: first.runnerError + second.runnerError,
+  }
 }

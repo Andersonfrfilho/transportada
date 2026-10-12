@@ -1,10 +1,16 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { AttachmentObjectReaderPort } from '../aggregate-attachment/application/extract-attachment-fields.port.js'
 import type { JobRoutine } from '../job-run/application/job-routine.port.js'
 import type { AudioTranscriptionEnvironment, WorkerLogger } from '../shared/worker.types.js'
 import type { AudioDurationProbe } from './audio-duration-probe.port.js'
+import type { AudioObjectReader } from './audio-object-reader.port.js'
+import { safeLogError } from '../logging/safe-logger.service.js'
+import { AUDIO_TRANSCRIPTION_LOG_MESSAGE } from './audio-transcription-runtime.constant.js'
+import {
+  checkAudioTranscriptionTooling,
+  type AudioTranscriptionToolingProbe,
+} from './audio-transcription-tooling.policy.js'
 import {
   computeLeaseMilliseconds,
   computeRunnerLockMaxAgeMilliseconds,
@@ -27,7 +33,7 @@ import { createWhisperLocalSpeechToText } from './whisper-local-speech-to-text.g
 export type AudioTranscriptionRuntimeParams = {
   readonly environment: AudioTranscriptionEnvironment
   readonly database: AudioTranscriptionDatabase
-  readonly objectReader: AttachmentObjectReaderPort
+  readonly objectReader: AudioObjectReader
   readonly logger: WorkerLogger
   /** Só o teste troca o motor e a sonda; em produção são o whisper local e o `ffprobe`. */
   readonly speechToText?: SpeechToText
@@ -69,4 +75,31 @@ export function buildAudioTranscriptionRuntime(
     runner,
   })
   return { routine, runner }
+}
+
+export type RegisterAudioTranscriptionRuntimeParams = AudioTranscriptionRuntimeParams & {
+  readonly toolingProbe?: AudioTranscriptionToolingProbe
+}
+
+/**
+ * Com o modelo configurado mas binário, `ffprobe`, `ffmpeg` ou o arquivo do modelo ausentes, a rotina NÃO
+ * é registrada e o boot segue verde (como a ausência do modelo, RF16: `job_run_routine_missing`, e as outras
+ * rotinas do worker não podem cair por causa disto). O erro vai ao log com os nomes do que falta, no boot.
+ */
+export function registerAudioTranscriptionRuntime(
+  params: RegisterAudioTranscriptionRuntimeParams,
+): AudioTranscriptionRuntime | undefined {
+  const missing = checkAudioTranscriptionTooling({
+    environment: params.environment,
+    ...(params.toolingProbe === undefined ? {} : { probe: params.toolingProbe }),
+  })
+  if (missing.length > 0) {
+    safeLogError({
+      logger: params.logger,
+      message: AUDIO_TRANSCRIPTION_LOG_MESSAGE.TOOLING_MISSING,
+      metadata: { missing },
+    })
+    return undefined
+  }
+  return buildAudioTranscriptionRuntime(params)
 }

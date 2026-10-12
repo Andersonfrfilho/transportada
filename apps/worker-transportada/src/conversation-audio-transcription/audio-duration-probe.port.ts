@@ -5,6 +5,7 @@
 export type AudioDurationProbeParams = {
   readonly audio: Buffer
   readonly maxDurationMilliseconds: number
+  readonly signal?: AbortSignal
 }
 
 /**

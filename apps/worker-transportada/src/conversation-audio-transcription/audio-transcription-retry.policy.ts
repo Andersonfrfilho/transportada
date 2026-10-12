@@ -12,10 +12,16 @@ import {
   AUDIO_TRANSCRIPTION_RETRY_DELAYS_MILLISECONDS,
 } from './audio-transcription-runtime.constant.js'
 
-/** Cobre todas as etapas da linha: sem isso o lease venceria na 3ª tentativa e o resultado bom seria descartado. */
+const ENGINE_TIMEOUT_USES = 2
+
+/**
+ * Cobre todas as etapas da linha: sem isso o lease venceria na 3ª tentativa e o resultado bom seria descartado.
+ * O pacote `whisper-local` usa o `timeoutMs` DUAS vezes (a conversão com `ffmpeg` e depois o `whisper-cli`),
+ * então o pior caso do motor é 2 × o timeout configurado.
+ */
 export function computeLeaseMilliseconds(engineTimeoutMilliseconds: number): number {
   return (
-    engineTimeoutMilliseconds +
+    ENGINE_TIMEOUT_USES * engineTimeoutMilliseconds +
     FFPROBE_TIMEOUT_MILLISECONDS +
     DURATION_DECODE_TIMEOUT_MILLISECONDS +
     AUDIO_DOWNLOAD_TIMEOUT_MILLISECONDS +

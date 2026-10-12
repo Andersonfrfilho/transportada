@@ -255,10 +255,11 @@ import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/app
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
+import { createStorageAudioObjectReader } from './conversation-audio-transcription/storage-audio-object-reader.gateway.js'
 import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
 import { CONVERSATION_AUDIO_TRANSCRIBE_JOB } from './conversation-audio-transcription/audio-transcription-runtime.constant.js'
 import {
-  buildAudioTranscriptionRuntime,
+  registerAudioTranscriptionRuntime,
   type AudioTranscriptionRuntime,
 } from './conversation-audio-transcription/build-audio-transcription-runtime.js'
 import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
@@ -1213,13 +1214,13 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
-    // Spec 264 RF16: sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é registrada (`job_run_routine_missing`).
+    // Spec 264 RF16: sem `AUDIO_TRANSCRIPTION_MODEL_PATH` (ou com ferramenta ausente) a rotina não é registrada.
     audioTranscriptionRuntime = isAudioTranscriptionConfigured(config)
-      ? buildAudioTranscriptionRuntime({
+      ? registerAudioTranscriptionRuntime({
           database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
           environment: config.audioTranscription,
           logger,
-          objectReader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
+          objectReader: createStorageAudioObjectReader(storageGateway),
         })
       : undefined
     jobRunConsumer = await jobRunStarter({

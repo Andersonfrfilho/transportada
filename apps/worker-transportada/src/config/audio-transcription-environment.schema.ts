@@ -19,9 +19,12 @@ function blankAsUndefined(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }
 
-/** Padrão do plano § d: um núcleo livre para as outras rotinas do worker, no mínimo um. */
+/** ADR-0103: no máximo 7 — `availableParallelism()` pode ler os núcleos do host, não a cota do contêiner. */
+const MAX_DEFAULT_THREADS = 7
+
+/** Padrão do plano § d: um núcleo livre para as outras rotinas do worker, entre 1 e 7. */
 function defaultThreads(): number {
-  return Math.max(1, availableParallelism() - 1)
+  return Math.min(MAX_DEFAULT_THREADS, Math.max(1, availableParallelism() - 1))
 }
 
 export const audioTranscriptionEnvironmentShape = {

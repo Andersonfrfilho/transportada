@@ -2,8 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+/** `infrastructure`: o ambiente não tem o binário ou o processo não sobe — retriável e sem gastar tentativa. */
 export const SPEECH_TO_TEXT_FAILURE_KIND = {
   DEFINITIVE: 'definitive',
+  INFRASTRUCTURE: 'infrastructure',
   RETRIABLE: 'retriable',
 } as const
 export type SpeechToTextFailureKind =
@@ -18,3 +20,6 @@ export const DURATION_DECODE_MARGIN_MILLISECONDS = 1_000
 
 export const DEFAULT_FFPROBE_BINARY = 'ffprobe'
 export const DEFAULT_FFMPEG_BINARY = 'ffmpeg'
+
+/** Barra o protocolo de rede num arquivo hostil: o `ffmpeg`/`ffprobe` só leem arquivo e pipe. */
+export const SAFE_PROTOCOL_WHITELIST_ARGUMENTS = ['-protocol_whitelist', 'file,pipe'] as const
