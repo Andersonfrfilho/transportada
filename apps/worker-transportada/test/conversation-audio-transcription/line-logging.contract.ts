@@ -14,15 +14,17 @@ import { SpeechToTextError } from '../../src/conversation-audio-transcription/sp
 import { SPEECH_TO_TEXT_FAILURE_KIND } from '../../src/conversation-audio-transcription/audio-transcription-engine.constant.js'
 import {
   AUDIO_BYTES,
-  buildFakeRow,
-  createFakeClock,
-  createFakeLineQueue,
   createFixedProbe,
   createInstantTranscriber,
   createLogCapture,
   createMapReader,
   flushMicrotasks,
   SECRET_SPOKEN_TEXT,
+} from '../fixtures/audio-transcription-doubles.fixture.js'
+import {
+  buildFakeRow,
+  createFakeClock,
+  createFakeLineQueue,
 } from '../fixtures/audio-transcription-harness.fixture.js'
 
 const SOURCE_DIRECTORY = new URL('../../src/conversation-audio-transcription/', import.meta.url)

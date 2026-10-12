@@ -60,8 +60,8 @@ describe('transcription retry and lease policy (spec 264 T3.3)', () => {
     expect(hasExhaustedAttempts(3)).toBe(true)
   })
 
-  test('the lease covers engine + ffprobe + decode + download + margin', () => {
-    expect(computeLeaseMilliseconds(300_000)).toBe(300_000 + 15_000 + 60_000 + 60_000 + 60_000)
+  test('the lease covers 2 x engine + ffprobe + decode + download + margin', () => {
+    expect(computeLeaseMilliseconds(300_000)).toBe(2 * 300_000 + 15_000 + 60_000 + 60_000 + 60_000)
   })
 
   test('the runner lock lives batch size times one lease', () => {

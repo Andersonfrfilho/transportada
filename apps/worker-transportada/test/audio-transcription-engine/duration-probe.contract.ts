@@ -105,13 +105,53 @@ describe('ffprobe audio duration probe (spec 264 T3.2)', () => {
     expect(failure).toMatchObject({ code: 'engine_failed', kind: 'definitive' })
   })
 
-  test('a missing binary is a definitive engine_failed', async () => {
+  test('a missing binary is an infrastructure engine_failed that spends no attempt', async () => {
     const { runCommand } = scriptedRunner([{ outcome: 'spawn_failed' }])
     const probe = createFfprobeAudioDurationProbe({ runCommand })
     const failure = await failureOf(
       probe.measure({ audio: AUDIO, maxDurationMilliseconds: MAX_DURATION_MS }),
     )
-    expect(failure).toMatchObject({ code: 'engine_failed', kind: 'definitive' })
+    expect(failure).toMatchObject({ code: 'engine_failed', kind: 'infrastructure' })
+  })
+
+  test('both ffprobe and ffmpeg are started with the protocol whitelist, so a hostile file cannot reach the network (L5)', async () => {
+    const { calls, runCommand } = scriptedRunner([exited('N/A\n'), exited('out_time_us=1000000\n')])
+    await createFfprobeAudioDurationProbe({ runCommand }).measure({
+      audio: AUDIO,
+      maxDurationMilliseconds: MAX_DURATION_MS,
+    })
+    for (const call of calls) {
+      const at = call.args.indexOf('-protocol_whitelist')
+      expect(at).toBeGreaterThan(-1)
+      expect(call.args[at + 1]).toBe('file,pipe')
+    }
+  })
+
+  test('the worker abort signal reaches the child and ends as a retriable failure (M1)', async () => {
+    const controller = new AbortController()
+    const { calls, runCommand } = scriptedRunner([{ outcome: 'aborted' }])
+    controller.abort()
+    const failure = await failureOf(
+      createFfprobeAudioDurationProbe({ runCommand }).measure({
+        audio: AUDIO,
+        maxDurationMilliseconds: MAX_DURATION_MS,
+        signal: controller.signal,
+      }),
+    )
+    expect(calls[0]?.signal).toBe(controller.signal)
+    expect(failure).toMatchObject({ code: 'engine_failed', kind: 'retriable' })
+  })
+
+  test('the real runner kills the child as soon as the signal aborts', async () => {
+    const controller = new AbortController()
+    const pending = runCommandWithTimeout({
+      args: ['30'],
+      command: 'sleep',
+      signal: controller.signal,
+      timeoutMilliseconds: 60_000,
+    })
+    controller.abort()
+    expect(await pending).toEqual({ outcome: 'aborted' })
   })
 
   test('the real runner kills a child that outlives the timeout', async () => {

@@ -14,14 +14,16 @@ import type { AudioTranscriptionCycleQueuePort } from '../../src/conversation-au
 import type { JobExecutionOrigin, ScheduledJob } from '../../src/shared/job-catalog.constant.js'
 import {
   AUDIO_BYTES,
-  buildFakeRow,
-  createFakeClock,
-  createFakeLineQueue,
   createFixedProbe,
   createHeldTranscriber,
   createLogCapture,
   createMapReader,
   flushMicrotasks,
+} from '../fixtures/audio-transcription-doubles.fixture.js'
+import {
+  buildFakeRow,
+  createFakeClock,
+  createFakeLineQueue,
 } from '../fixtures/audio-transcription-harness.fixture.js'
 
 type Finished = {
@@ -98,7 +100,7 @@ describe('the transcription does not hold the serial job-run consumer (spec 264 
     const { finished, publish, rows, transcriber } = buildScenario()
     const audio = await publish('audio-1', 'conversation.audio.transcribe')
     await flushMicrotasks()
-    expect(audio.outcome).toBe('completed')
+    expect(audio.outcome).toBe('succeeded')
     expect(transcriber.calls).toBe(1)
 
     const canhoto = await publish('canhoto-1', 'trip.canhoto.read')
@@ -131,7 +133,7 @@ describe('the transcription does not hold the serial job-run consumer (spec 264 
     await flushMicrotasks()
     await publish('audio-3', 'conversation.audio.transcribe')
     const third = finished.find((entry) => entry.executionId === 'audio-3')
-    expect(third?.outcome).toBe('completed')
+    expect(third?.outcome).toBe('succeeded')
     expect(third?.counters).toMatchObject({ processed: 1, ready: 1 })
   })
 })

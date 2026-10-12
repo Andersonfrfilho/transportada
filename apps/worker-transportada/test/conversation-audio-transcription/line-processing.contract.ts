@@ -7,63 +7,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
-  processAudioTranscriptionLine,
-  type AudioTranscriptionLineDependencies,
-} from '../../src/conversation-audio-transcription/audio-transcription-line.processor.js'
-import { SPEECH_TO_TEXT_FAILURE_KIND } from '../../src/conversation-audio-transcription/audio-transcription-engine.constant.js'
-import { SpeechToTextError } from '../../src/conversation-audio-transcription/speech-to-text.error.js'
-import type { SpeechToText } from '../../src/conversation-audio-transcription/speech-to-text.port.js'
-import {
-  AUDIO_BYTES,
-  buildFakeRow,
-  createFakeClock,
-  createFakeLineQueue,
   createFixedProbe,
   createInstantTranscriber,
-  createLogCapture,
-  createMapReader,
-  type FakeRow,
-} from '../fixtures/audio-transcription-harness.fixture.js'
-
-const MAX_DURATION_MS = 600_000
-const MINUTE = 60_000
-
-type Options = {
-  readonly row?: Partial<FakeRow>
-  readonly transcriber?: SpeechToText
-  readonly probe?: ReturnType<typeof createFixedProbe>
-  readonly objects?: Record<string, Uint8Array | undefined>
-}
-
-async function processOne(options: Options = {}) {
-  const clock = createFakeClock()
-  const row = buildFakeRow(options.row)
-  const queue = createFakeLineQueue([row], clock)
-  const transcriber = options.transcriber ?? createInstantTranscriber()
-  const logs = createLogCapture()
-  const dependencies: AudioTranscriptionLineDependencies = {
-    durationProbe: options.probe ?? createFixedProbe(5_000),
-    logger: logs.logger,
-    maxDurationMilliseconds: MAX_DURATION_MS,
-    model: 'small-q5_1',
-    now: clock.now,
-    objectReader: createMapReader(options.objects ?? { 'object-1': AUDIO_BYTES }),
-    queue,
-    speechToText: transcriber,
-  }
-  const claimed = await queue.claimNext({ leaseMilliseconds: 495_000 })
-  if (claimed === undefined) throw new Error('row was not claimable')
-  const result = await processAudioTranscriptionLine({
-    dependencies,
-    line: claimed,
-    signal: new AbortController().signal,
-  })
-  return { clock, logs, result, row, transcriber }
-}
-
-function failing(error: unknown): SpeechToText {
-  return { transcribe: async () => Promise.reject(error) }
-}
+} from '../fixtures/audio-transcription-doubles.fixture.js'
+import { MAX_DURATION_MS, processOne } from './line-processing.support.js'
 
 describe('audio transcription line processing (spec 264 T3.3)', () => {
   test('a good audio becomes ready with the text, generated once', async () => {
@@ -135,85 +82,5 @@ describe('audio transcription line processing (spec 264 T3.3)', () => {
     expect(row.status).toBe('ready')
     expect(row.text).toBeNull()
     expect(transcriber.calls).toBe(0)
-  })
-
-  test('a retriable engine failure goes back to pending with the 1 minute backoff', async () => {
-    const error = new SpeechToTextError({
-      code: 'engine_timeout',
-      kind: SPEECH_TO_TEXT_FAILURE_KIND.RETRIABLE,
-    })
-    const { clock, result, row } = await processOne({ transcriber: failing(error) })
-    expect(result.state).toBe('retried')
-    expect(row.status).toBe('pending')
-    expect(row.attempts).toBe(1)
-    expect(row.nextAttemptAtMs).toBe(clock.now().getTime() + MINUTE)
-  })
-
-  test('the second failure waits 5 minutes and the third exhausts the attempts', async () => {
-    const error = new SpeechToTextError({
-      code: 'engine_failed',
-      kind: SPEECH_TO_TEXT_FAILURE_KIND.RETRIABLE,
-    })
-    const second = await processOne({ row: { attempts: 1 }, transcriber: failing(error) })
-    expect(second.row.nextAttemptAtMs).toBe(second.clock.now().getTime() + 5 * MINUTE)
-    const third = await processOne({ row: { attempts: 2 }, transcriber: failing(error) })
-    expect(third.result).toEqual({ code: 'attempts_exhausted', state: 'failed' })
-    expect(third.row.failureCode).toBe('attempts_exhausted')
-  })
-
-  test('a definitive failure closes with its own code, without retrying', async () => {
-    const error = new SpeechToTextError({
-      code: 'unsupported_format',
-      kind: SPEECH_TO_TEXT_FAILURE_KIND.DEFINITIVE,
-    })
-    const { result, row } = await processOne({ transcriber: failing(error) })
-    expect(result).toEqual({ code: 'unsupported_format', state: 'failed' })
-    expect(row.status).toBe('failed')
-  })
-
-  test('an ffprobe or ffmpeg timeout is retriable and counts the attempt', async () => {
-    const timeout = new SpeechToTextError({
-      code: 'engine_timeout',
-      kind: SPEECH_TO_TEXT_FAILURE_KIND.RETRIABLE,
-    })
-    const { result, row } = await processOne({ probe: createFixedProbe(timeout) })
-    expect(result.state).toBe('retried')
-    expect(row.attempts).toBe(1)
-  })
-
-  test('an unknown error is retriable too, and the third one still exhausts', async () => {
-    const { result } = await processOne({
-      row: { attempts: 2 },
-      transcriber: failing(new Error('boom')),
-    })
-    expect(result).toEqual({ code: 'attempts_exhausted', state: 'failed' })
-  })
-
-  test('a result written by someone who lost the lease is discarded', async () => {
-    const clock = createFakeClock()
-    const row = buildFakeRow()
-    const queue = createFakeLineQueue([row], clock)
-    const stolen = createInstantTranscriber()
-    const claimed = await queue.claimNext({ leaseMilliseconds: 1_000 })
-    if (claimed === undefined) throw new Error('not claimed')
-    Object.assign(row, { leaseToken: 'someone-else' })
-    const logs = createLogCapture()
-    const result = await processAudioTranscriptionLine({
-      dependencies: {
-        durationProbe: createFixedProbe(1_000),
-        logger: logs.logger,
-        maxDurationMilliseconds: MAX_DURATION_MS,
-        model: 'm',
-        now: clock.now,
-        objectReader: createMapReader({ 'object-1': AUDIO_BYTES }),
-        queue,
-        speechToText: stolen,
-      },
-      line: claimed,
-      signal: new AbortController().signal,
-    })
-    expect(result.state).toBe('ownership_lost')
-    expect(row.status).toBe('pending')
-    expect(row.text).toBeUndefined()
   })
 })

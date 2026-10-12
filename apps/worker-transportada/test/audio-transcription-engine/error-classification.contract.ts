@@ -44,9 +44,9 @@ const CLASSIFICATION_TABLE = [
     expected: { kind: 'retriable', code: 'engine_failed' },
   },
   {
-    name: 'definitive engine error (missing binary)',
+    name: 'infrastructure engine error (missing binary spends no attempt)',
     error: new TranscriptionError(PII_SENTINEL, ENGINE, false, MISSING_BINARY_CAUSE),
-    expected: { kind: 'definitive', code: 'engine_failed' },
+    expected: { kind: 'infrastructure', code: 'engine_failed' },
   },
   {
     name: 'unknown error',

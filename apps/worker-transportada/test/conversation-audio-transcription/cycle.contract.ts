@@ -12,12 +12,13 @@ import {
   AUDIO_TRANSCRIPTION_RUNNER_START,
   type AudioTranscriptionRunner,
 } from '../../src/conversation-audio-transcription/audio-transcription.runner.js'
-import { createLogCapture } from '../fixtures/audio-transcription-harness.fixture.js'
+import { createLogCapture } from '../fixtures/audio-transcription-doubles.fixture.js'
 
 const SUMMARY: AudioTranscriptionRunSummary = {
   disabled: 1,
   failed: 2,
   failedByCode: { too_long: 1, unsupported_format: 1 },
+  infrastructure: 0,
   processed: 5,
   purged: 0,
   ready: 1,
@@ -32,8 +33,13 @@ function buildCycle(options: {
   readonly summary?: AudioTranscriptionRunSummary
 }) {
   const calls: string[] = []
+  let isFailing = false
   const queue: AudioTranscriptionCycleQueuePort = {
-    closeExhausted: async () => (calls.push('sweep'), 1),
+    closeExhausted: async () => {
+      if (isFailing) throw new Error('sql down')
+      calls.push('sweep')
+      return 1
+    },
     countClaimable: async () => (calls.push('count'), options.claimable ?? 0),
     discoverPending: async (params) => (calls.push(`discover:${params.recoveryWindowHours}`), 3),
     materializeMilestone: async () => void calls.push('milestone'),
@@ -68,7 +74,7 @@ function buildCycle(options: {
       job: 'conversation.audio.transcribe',
       origin: 'schedule',
     })
-  return { calls, logs, run }
+  return { calls, logs, run, setFailing: (value: boolean) => void (isFailing = value) }
 }
 
 describe('conversation.audio.transcribe cycle (spec 264 T3.3)', () => {
@@ -76,7 +82,7 @@ describe('conversation.audio.transcribe cycle (spec 264 T3.3)', () => {
     const { calls, run } = buildCycle({ claimable: 4 })
     const result = await run()
     expect(calls).toEqual(['milestone', 'sweep', 'discover:72', 'purge', 'count', 'start'])
-    expect(result.outcome).toBe('completed')
+    expect(result.outcome).toBe('succeeded')
     expect(result.counters).toMatchObject({ claimable: 4, created: 3, exhausted: 1, purgedText: 2 })
   })
 
@@ -84,7 +90,7 @@ describe('conversation.audio.transcribe cycle (spec 264 T3.3)', () => {
     const { calls, run } = buildCycle({ claimable: 0 })
     const result = await run()
     expect(calls).not.toContain('start')
-    expect(result.outcome).toBe('completed')
+    expect(result.outcome).toBe('succeeded')
   })
 
   test('a busy executor is already_running, even with nothing left to claim', async () => {
@@ -125,12 +131,20 @@ describe('conversation.audio.transcribe cycle (spec 264 T3.3)', () => {
     const { calls, run } = buildCycle({ claimable: 5 })
     const result = await run(true)
     expect(calls).not.toContain('start')
-    expect(result.outcome).toBe('completed')
+    expect(result.outcome).toBe('succeeded')
   })
 
   test('the cycle log carries counters only', async () => {
     const { logs, run } = buildCycle({ claimable: 1, summary: SUMMARY })
     await run()
     expect(logs.lines.map((line) => line.message)).toEqual(['audio_transcription_cycle_finished'])
+  })
+
+  test('a failing SQL step leaves the previous summary for the next cycle (L1)', async () => {
+    const { run, setFailing } = buildCycle({ claimable: 0, summary: SUMMARY })
+    setFailing(true)
+    await expect(run()).rejects.toThrow('sql down')
+    setFailing(false)
+    expect((await run()).counters).toMatchObject({ processed: 5, ready: 1 })
   })
 })

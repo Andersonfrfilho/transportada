@@ -24,7 +24,7 @@ import {
   createFixedProbe,
   createLogCapture,
   createMapReader,
-} from '../fixtures/audio-transcription-harness.fixture.js'
+} from '../fixtures/audio-transcription-doubles.fixture.js'
 
 const MAIN_SOURCE = readFileSync(new URL('../../src/main.ts', import.meta.url), 'utf8')
 
@@ -49,7 +49,7 @@ describe('conversation.audio.transcribe registration (spec 264 T3.4)', () => {
 
   test('main registers it only behind the configured guard', () => {
     expect(MAIN_SOURCE).toMatch(
-      /isAudioTranscriptionConfigured\(config\)\s*\?\s*buildAudioTranscriptionRuntime/u,
+      /isAudioTranscriptionConfigured\(config\)\s*\?\s*registerAudioTranscriptionRuntime/u,
     )
     expect(MAIN_SOURCE).toMatch(
       /audioTranscriptionRuntime === undefined\s*\?\s*\{\}\s*:\s*\{ \[CONVERSATION_AUDIO_TRANSCRIBE_JOB\]/u,
@@ -85,7 +85,7 @@ describe('conversation.audio.transcribe registration (spec 264 T3.4)', () => {
     expect(JOB_MINIMUM_INTERVAL_SECONDS[CONVERSATION_AUDIO_TRANSCRIBE_JOB]).toBe(
       JOB_TICK_INTERVAL_SECONDS,
     )
-    for (const outcome of ['completed', 'already_running', 'runner_lock_expired', 'succeeded']) {
+    for (const outcome of ['already_running', 'runner_lock_expired', 'succeeded']) {
       expect(isJobOutcome({ job: CONVERSATION_AUDIO_TRANSCRIBE_JOB, outcome })).toBe(true)
     }
     expect(

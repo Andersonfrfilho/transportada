@@ -47,7 +47,7 @@ describe('audio transcription environment (spec 264 T3.2)', () => {
       maxDurationMilliseconds: 600_000,
       modelPath: MODEL_PATH,
       recoveryWindowHours: 72,
-      threads: Math.max(1, availableParallelism() - 1),
+      threads: Math.min(7, Math.max(1, availableParallelism() - 1)),
       timeoutMilliseconds: 300_000,
     })
   })
