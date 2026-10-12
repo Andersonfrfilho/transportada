@@ -192,7 +192,7 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** `sonnet` — Gate completo (`make check`, `make migration-test`, integração da API, `make worker-integration`,
+- [x] **T6.1** `sonnet` — Gate completo (`make check`, `make migration-test`, integração da API, `make worker-integration`,
       smokes das três apps, `bunx prettier --check` nos `.md`); `git fetch` + rebase em `origin/staging` +
       `bun install --frozen-lockfile` + gates de novo; conferir numeração de spec/ADR/migration contra `origin/*`.
 - [ ] **T6.2** `sonnet` — Publicar em staging **na ordem do plano § f** (apps tolerantes → banco/API → worker → telas),
