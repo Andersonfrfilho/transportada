@@ -273,10 +273,10 @@ export const JOB_CATALOG = [
      * Spec 264 (contract.md §5.8): o ciclo só descobre os áudios novos e entrega a transcrição a um executor em
      * processo, fora do ciclo serial. O vocabulário é o do que o ciclo informa, não o do que a transcrição de uma
      * linha concluiu (isso mora em `occurrence_conversation_audio_transcriptions.failure_code`).
-     * `completed`: entregou ou não havia nada; `already_running`: o executor está ocupado (não é falha);
+     * Sucesso fecha `succeeded`, como toda rotina. `already_running`: o executor está ocupado (não é falha);
      * `runner_lock_expired`: a trava do executor passou da idade máxima e foi solta.
      */
-    failureOutcomes: ['completed', 'already_running', 'runner_lock_expired'],
+    failureOutcomes: ['already_running', 'runner_lock_expired'],
     job: 'conversation.audio.transcribe',
     /** A batida de cinco minutos: o piso do agendador, a cadência medida na T0.2. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,

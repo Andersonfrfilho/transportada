@@ -141,7 +141,7 @@ const CATALOG = [
   },
   {
     /** Spec 264: o ciclo descobre e entrega a transcrição ao executor em processo (contract.md §5.8). */
-    failureOutcomes: ['completed', 'already_running', 'runner_lock_expired'],
+    failureOutcomes: ['already_running', 'runner_lock_expired'],
     job: 'conversation.audio.transcribe',
     minimumIntervalSeconds: 300,
   },
