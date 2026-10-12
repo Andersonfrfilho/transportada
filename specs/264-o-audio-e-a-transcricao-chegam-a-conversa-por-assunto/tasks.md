@@ -182,7 +182,7 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
 
 - [x] **T5.1** `sonnet` — Contratos antes + implementação: `SubjectConversationPanel` passa a prop de gravação; adapter
       `subjectThreadApi.service.ts` mapeia os campos; a tela antiga da ocorrência **intocada** (contrato/ouro).
-- [ ] **T5.2** `sonnet` — Configurações: "Transcrever áudios das conversas" (`settings.manage`, frase do que acontece
+- [x] **T5.2** `sonnet` — Configurações: "Transcrever áudios das conversas" (`settings.manage`, frase do que acontece
       ao desligar, D9, e a do limite de 10 minutos, RF15), query/mutação, locales `pt-BR`/`en`, contrato.
 - [ ] **T5.3** `sonnet` — Smoke Playwright do painel (gate local): gravar e enviar na conversa por assunto, ver a
       transcrição, desligar e ver só o player. Atualizar `apps/frontend-transportada/CLAUDE.md` e
