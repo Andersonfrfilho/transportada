@@ -522,3 +522,15 @@ fila offline (uma entrega só), ticks, falha com "reenviar" e respostas prontas 
 **T1b.4 (continua aberta, parcial):** o adaptador do portal está em `a2b8c5e84`. A troca do cartão pela visão do participante ficou parada em uma
 decisão: o `styles.css` do pacote traz regras globais (`:where(*)`, `:root`) e o portal não tem ferramenta de escopo de CSS (sem PostCSS aninhado);
 escopar exige ou um passo de build novo ou copiar as regras `cv-p-*` para o CSS do portal, como o painel faz em `subjectConversation.module.css`.
+
+## T5.1 — gates com banco (2026-10-12)
+
+Postgres do compose (`docker compose up -d postgres`, porta 55432) e testes rodados **no Ubuntu/WSL**: no Windows os contratos que leem
+o disco por URL quebram (`/C:/...`), sem relação com o código.
+
+- **`make migration-test` (equivalente: `bun run db:test`):** 197 pass / 2 fail na rodada com timeout padrão; com `--timeout 120000` o arquivo de
+  migration dá **161 pass / 1 fail**. A falha é `applies, constrains, rolls back, and reapplies the fiscal migration`, que bate no teto fixo de
+  30 s do próprio teste porque o clone está em `/mnt/c` (lento); as migrations da 263 (`conversation_subject`, `conversation_protocol`,
+  `quick_reply_driver_audience`) passam, inclusive o rollback com trava. Falha de ambiente, a repetir em Linux nativo ou na CI.
+- **Integração da conversa e das respostas prontas** (`driver-quick-replies`, `quick-replies`, `driver-subject-conversation`,
+  `driver-subject-conversation-write`, `office-subject-conversation`), com `.env.test`: **25 pass / 0 fail / 0 skip**.

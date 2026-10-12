@@ -212,7 +212,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
 
 > 🤖 Modelo: `sonnet`. Regra do dono: tudo aditivo; o cadastro e o uso atuais das respostas rápidas do escritório ficam idênticos.
 
-- [ ] **T5.1** `sonnet` — **API:** migration aditiva (`CHECK` de `company_quick_replies.audience` aceita `driver_reply`, com `rollback.sql` que recusa se
+- [x] **T5.1** `sonnet` — **API:** migration aditiva (`CHECK` de `company_quick_replies.audience` aceita `driver_reply`, com `rollback.sql` que recusa se
       houver linha dele); `COMPANY_QUICK_REPLY_AUDIENCES` ganha o valor sem mexer em `OccurrenceConversationParticipant`; as rotas
       `/company-settings/quick-replies` aceitam o público novo (zod); rota `GET /me/trips/current/quick-replies` (`trip.read`, `no-store`,
       só ativas, ordem do cadastro); contrato (as rotas e respostas antigas idênticas — golden), tabela de rotas, integração com banco, `make migration-test`.
