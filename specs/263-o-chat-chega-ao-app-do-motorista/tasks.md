@@ -251,3 +251,23 @@ prettier nos .md; conferir numeração de spec/ADR/migration contra origin/stagi
 Pare e pergunte antes de: deploy em produção, migration destrutiva, remover a tela antiga do painel,
 qualquer [NEEDS CLARIFICATION].
 ```
+
+## Prompt de execução — fechamento das tasks abertas (2026-10-12)
+
+Árvore única: `../transportada-wt/spec-263` (branch `work/spec-263`, a partir de `origin/staging`). Nada é feito fora dela.
+
+```text
+/oh-my-claudecode:autopilot Feche as tasks abertas da spec specs/263-o-chat-chega-ao-app-do-motorista/ (leia spec.md, plan.md, tasks.md e evidence.md antes de tocar em código). Trabalhe só em ../transportada-wt/spec-263, branch work/spec-263. Uma task por vez, nesta ordem:
+1. T1b.7 (sonnet): descarte do outbox no logout. Existe driverConversationOutboxCleanup.service.ts; confira o que falta contra o achado da T1b.3 (aviso e descarte no "Sair", LGPD) antes de escrever código.
+2. T2.2 (sonnet): contratos vermelhos primeiro (BOLA 404 CONVERSATION_NOT_FOUND, 409 CONVERSATION_CLOSED, open idempotente 201/200, rota antiga intacta, mutação de A5, alfabeto TS = CHECK, toda rota na tabela de rotas). Parte do que a T2.4 já cobre existe em apps/api-transportada/test/occurrence-conversation; só acrescente o que falta.
+3. T5.1 (sonnet): confira o que e7f092c41 já entregou (público driver_reply, rota /me/trips/current/quick-replies, migration 20261010103500) e feche o restante: golden das rotas antigas, tabela de rotas, integração com banco e make migration-test.
+4. T1b.4 (sonnet): o adaptador do portal já existe (apps/frontend-client/src/modules/occurrences/shared/portalParticipantApi.service.ts). Falta trocar o cartão pela visão do participante com channel="portal". O styles.css do pacote não entra no portal inteiro: escopar num contêiner e mapear para os tokens do portal; sem mudar o pacote.
+5. T1b.5 (sonnet): smoke Playwright do frontend-driver (abrir pelo sino, responder, responder offline; porta sintética 53112; use PLAYWRIGHT_REUSE_EXISTING_API_SERVER como no evidence.md).
+6. T1b.6 (sonnet): make check, make migration-test, integração dos arquivos tocados e publicação em staging com evidência.
+7. T4.1 a T4.3 (sonnet): prints a 375 px lado a lado com preview.html, passe de usabilidade e medida em staging; atualizar docs/ai-context e os CLAUDE.md das apps.
+Modelos: tudo em executor model=sonnet; revisão final em code-reviewer model=sonnet. Escalada: gate falhou 2x sobe um nível e registra em evidence.md.
+Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md; nunca "pular é passar" (integração sem banco é parar e relatar).
+Antes de publicar: git fetch, rebase em origin/staging, bun install --frozen-lockfile, gates, prettier nos .md.
+NÃO faça: T2.5b (depende de decisão do dono sobre o texto do D7) e T2.7 (só depois da API em produção).
+Pare e pergunte antes de: deploy em produção, migration destrutiva, remover a tela antiga do painel, qualquer [NEEDS CLARIFICATION]. Ao terminar, rode /oh-my-claudecode:cancel.
+```
