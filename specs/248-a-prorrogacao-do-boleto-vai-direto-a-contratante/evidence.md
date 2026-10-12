@@ -368,3 +368,19 @@ anexos. E-mail: chamada ao fim de `recordOccurrenceConversationMailReply`, só q
 **Desvios.** (a) A chamada do worker fica dentro de `recordOccurrenceConversationMailReply` (ali estão a conversa e o id da
 mensagem), não depois dele. (b) A "entrega ao motorista" da CA02 é a T4.6; aqui só o estado do retorno. (c) Schema do worker
 é cópia parcial (retorno e eventos); sem migration, `make migration-test` e `db:generate` não se aplicam.
+
+## T5.1 — o bloco "Retorno da contratante" na aba Tipos (2026-10-12)
+
+**Lacuna achada:** a RF1 pede validação no `PUT` e leitura nos `GET`, mas a API só tinha as colunas (T3.1): o `.strict()` do corpo recusaria os
+campos que o painel passou a mandar. Fechei os dois lados nesta task.
+
+- **API:** os oito campos do retorno entram no corpo (`occurrence.schema.ts`, faixas do banco), no caso de uso e no mapeamento
+  (`save-occurrence-type*`), no registro lido (`OccurrenceTypeRecord`), no SELECT do `GET`/lista, no UPDATE (ausente = "não mexa") e na resposta.
+  As três CHECKs entre campos viram `422` do domínio (`OCCURRENCE_TYPE_CONTRACTOR_REPLY_NEEDS_MAIL`, `_ALERT_NEEDS_WAIT`, `_FORWARD_AUTOMATIC_NEEDS_REPLY`).
+- **Painel:** `OccurrenceTypeContractorReply` (rascunho dos oito campos, "Salvar retorno" de uma vez, CHECKs como mensagem no campo), só com o e-mail à
+  contratante ligado. O seletor "enviar o boleto ao e-mail do cliente da nota" **não aparece ainda**: a CHECK `forward_needs_text` exige assunto e corpo do
+  encaminhamento, que vêm com o envio a terceiro (T4.7). O canal do motorista fica no app (sem WhatsApp, decisão do dono em 2026-10-12).
+- **Provas:** integração em Postgres `occurrence-type-contractor-reply-write.integration.ts` 3 pass / 0 fail (roteiro do SAC 6 h / 60 min / 24 grava, lê no
+  `GET` e na lista e sobrevive ao `PUT` sem os campos; faixas recusadas na fronteira; sem e-mail/sem texto/alerta sem prazo → 422); contratos da API
+  1630 pass / 0 fail (`trip-occurrence`, `occurrence-conversation`, `trip-http`); painel: `tsc` e `eslint` limpos, contrato do rascunho
+  `occurrence-contractor-reply-draft.contract.ts`. O resto da suíte do painel tem testes de varredura de disco que estouram os 5 s no clone em `/mnt/c`; a CI é a prova.

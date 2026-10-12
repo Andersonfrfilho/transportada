@@ -95,7 +95,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
+- [x] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
       com o `Select` da aplicação, os campos e as CHECKs como mensagens no campo; exceção por
       contratante com "Igual ao tipo".
 - [ ] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".

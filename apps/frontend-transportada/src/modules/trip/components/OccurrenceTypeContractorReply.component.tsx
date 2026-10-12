@@ -11,7 +11,6 @@ import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
   CONTRACTOR_REPLY_MODES,
-  NOTE_RECIPIENT_FORWARD_MODES,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
 import {
   buildContractorReplyEdit,
@@ -189,14 +188,6 @@ export function OccurrenceTypeContractorReply({
             {renderNumber('alertMaxCount')}
           </>
         ) : null}
-        {renderSelect({
-          field: 'forwardToNoteRecipient',
-          label: t('occurrenceTypeCatalog.contractorReply.fields.forwardToNoteRecipient'),
-          onChange: (forwardToNoteRecipient) => change({ forwardToNoteRecipient }),
-          optionKey: 'forwardToNoteRecipient',
-          options: NOTE_RECIPIENT_FORWARD_MODES,
-          value: draft.forwardToNoteRecipient,
-        })}
         <div className={styles.actions}>
           <Button
             className={styles.action}

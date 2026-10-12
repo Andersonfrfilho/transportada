@@ -1,6 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  ForwardToNoteRecipientMode,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
@@ -326,6 +332,14 @@ type SaveOccurrenceTypeInput = {
   readonly emailBody?: string | undefined
   /** Spec 247 (RF6): o formato da linha de item; ausente é "não mexa". */
   readonly emailItemLineTemplate?: string | undefined
+  readonly contractorReplyAlertIntervalMinutes?: number | undefined
+  readonly contractorReplyAlertMaxCount?: number | undefined
+  readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
+  readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  readonly contractorReplyMode?: ContractorReplyMode | undefined
+  readonly contractorReplyWaitHours?: null | number | undefined
+  readonly driverReplyTemplate?: string | undefined
+  readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject?: string | undefined
