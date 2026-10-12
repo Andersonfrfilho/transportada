@@ -63,7 +63,18 @@ export type MdfeAutoIssueEnvironment = {
   readonly tokenUrl: string
 }
 
+export type AudioTranscriptionEnvironment = {
+  readonly batchSize: number
+  readonly maxDurationMs: number
+  readonly modelPath: string
+  readonly recoveryWindowHours: number
+  readonly threads?: number
+  readonly timeoutMs: number
+}
+
 export type WorkerEnvironment = {
+  /** Spec 264 (RF16): ausente, a rotina de transcrição não é registrada. */
+  readonly audioTranscription?: AudioTranscriptionEnvironment
   /**
    * O `tesseract-server` que lê a CNH fotografada do anexo da candidatura (spec 071). Ausente
    * desliga o OCR em silêncio: a leitura é conveniência para o operador, nunca porta de entrada, e

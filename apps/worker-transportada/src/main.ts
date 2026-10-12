@@ -129,6 +129,8 @@ import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-rea
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
 import { createDrizzleCanhotoReadQueue } from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
 import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructure/threaded-canhoto-barcode.decoder.js'
+import { buildAudioTranscription } from './conversation-audio-transcription/audio-transcription.composition.js'
+import { AUDIO_TRANSCRIPTION_JOB } from './conversation-audio-transcription/domain/conversation-audio-transcription.constant.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
 
 import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
@@ -1206,6 +1208,16 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
+    /**
+     * Spec 264 (RF16): sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é registrada e o boot segue
+     * verde. O executor vive fora do ciclo do job-run e fecha com o desligamento do worker.
+     */
+    const audioTranscription = await buildAudioTranscription({
+      config,
+      database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      logger,
+      storage: storageGateway,
+    })
     jobRunConsumer = await jobRunStarter({
       config,
       // Registro parcial de propósito: rotina não registrada pousa em `job_run_routine_missing` e
@@ -1217,6 +1229,9 @@ export async function startWorkerRuntime(
         logger,
         now: () => new Date(),
         routines: {
+          ...(audioTranscription === undefined
+            ? {}
+            : { [AUDIO_TRANSCRIPTION_JOB]: audioTranscription.routine }),
           /**
            * ADR-0045 §3.3: sempre registrada. Ela não depende de configuração nenhuma — e uma
            * retenção que só corre quando a instalação declarou alguma coisa é retenção opcional.
@@ -1864,6 +1879,8 @@ export async function startWorkerRuntime(
          * depois do SIGTERM — o dreno nunca termina, e o orquestrador acaba matando à força.
          */
         ...(routeOptimizationProvider === undefined ? [] : [routeOptimizationProvider]),
+        // Primeiro: aborta o motor e devolve a tentativa da linha em posse antes de o banco fechar.
+        ...(audioTranscription === undefined ? [] : [audioTranscription.runner]),
         relayLoop,
         cteRelayLoop,
         mdfeRelayLoop,

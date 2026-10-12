@@ -101,6 +101,23 @@ const workerEnvironmentSchema = z
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
     // Spec 145 D9/D13: o primeiro degrau do orçamento da planta de carga; cada nova tentativa dobra.
     CARGO_LAYOUT_TIME_BUDGET_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+    // Spec 264 (RF16): sem o modelo a rotina `conversation.audio.transcribe` não é registrada.
+    AUDIO_TRANSCRIPTION_MODEL_PATH: optionalText(),
+    AUDIO_TRANSCRIPTION_THREADS: z.coerce.number().int().min(1).max(64).optional(),
+    AUDIO_TRANSCRIPTION_MAX_DURATION_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(3_600_000)
+      .default(600_000),
+    AUDIO_TRANSCRIPTION_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(2),
+    AUDIO_TRANSCRIPTION_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(10_000)
+      .max(1_800_000)
+      .default(300_000),
+    AUDIO_TRANSCRIPTION_RECOVERY_WINDOW_HOURS: z.coerce.number().int().min(1).max(720).default(72),
     // Spec 062 T005 — o convite e a recuperação de senha por WhatsApp. Sem segredo aqui: o token é
     // por empresa e vive selado no banco, gravado pela API. A versão da Graph API tem padrão porque
     // a Meta a exige no caminho e ela envelhece; a base existe para apontar para um mock local.
@@ -219,6 +236,20 @@ export function parseWorkerEnvironment(
       : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
     cargoLayoutTimeBudgetMs: result.data.CARGO_LAYOUT_TIME_BUDGET_MS,
+    ...(result.data.AUDIO_TRANSCRIPTION_MODEL_PATH === undefined
+      ? {}
+      : {
+          audioTranscription: {
+            batchSize: result.data.AUDIO_TRANSCRIPTION_BATCH_SIZE,
+            maxDurationMs: result.data.AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
+            modelPath: result.data.AUDIO_TRANSCRIPTION_MODEL_PATH,
+            recoveryWindowHours: result.data.AUDIO_TRANSCRIPTION_RECOVERY_WINDOW_HOURS,
+            ...(result.data.AUDIO_TRANSCRIPTION_THREADS === undefined
+              ? {}
+              : { threads: result.data.AUDIO_TRANSCRIPTION_THREADS }),
+            timeoutMs: result.data.AUDIO_TRANSCRIPTION_TIMEOUT_MS,
+          },
+        }),
     ...(result.data.GOOGLE_MAPS_API_KEY === undefined
       ? {}
       : { googleMapsApiKey: result.data.GOOGLE_MAPS_API_KEY }),
