@@ -66,6 +66,58 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
     )
   })
 
+  /**
+   * Spec 264: o player do áudio da conversa toca a URL assinada do bucket e a prévia da gravação
+   * (`blob:`). Sem `media-src`, a mídia cai no `default-src 'self'` e o `<audio>` falha calado no
+   * celular. Só `media-src` muda: nenhuma outra diretiva ganha a origem do storage por causa dele.
+   */
+  test("media-src é 'self', blob: e a origem do storage — em produção e em desenvolvimento", () => {
+    for (const allowsInlineScript of [false, true]) {
+      const policy = buildContentSecurityPolicy({
+        ...ORIGINS,
+        allowsInlineScript,
+        objectStorageUrl: 'https://bucket.exemplo.test/transportada',
+      })
+
+      expect(readDirective(policy, 'media-src')).toBe(
+        "media-src 'self' blob: https://bucket.exemplo.test",
+      )
+    }
+  })
+
+  test('sem storage declarado, media-src fecha em self e blob: — nunca abre', () => {
+    const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })
+
+    expect(readDirective(policy, 'media-src')).toBe("media-src 'self' blob:")
+  })
+
+  test('media-src não mexe nas demais diretivas', () => {
+    const policy = buildContentSecurityPolicy({
+      ...ORIGINS,
+      allowsInlineScript: false,
+      objectStorageUrl: 'https://bucket.exemplo.test',
+    })
+    const withoutMedia = policy
+      .split('; ')
+      .filter((directive) => !directive.startsWith('media-src '))
+
+    expect(withoutMedia).toEqual([
+      "default-src 'self'",
+      "base-uri 'self'",
+      "connect-src 'self' https://api.exemplo.test https://auth.exemplo.test https://bucket.exemplo.test",
+      "font-src 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "frame-src 'none'",
+      "img-src 'self' blob: https://api.exemplo.test https://bucket.exemplo.test",
+      "manifest-src 'self'",
+      "object-src 'none'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "worker-src 'self'",
+    ])
+  })
+
   /** O `sw.ts` e o manifesto são da própria origem — é o que a spec 147 encontra pronto. */
   test('worker e manifesto só da própria origem, e nada de frame', () => {
     const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })

@@ -30,11 +30,11 @@ if (contentSecurityPolicy === '') {
 
 /**
  * ADR-0075 §4: câmera e posição abertas para a própria origem (o canhoto e o carimbo da entrega), o
- * valor do painel. HSTS sem `includeSubDomains` e sem `preload`: a zona é da instalação.
+ * valor do painel; spec 264 (D11): o microfone também, para o áudio da conversa. HSTS sem `includeSubDomains` e sem `preload`: a zona é da instalação.
  */
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy': contentSecurityPolicy,
-  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
+  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=(self)',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=31536000',
   'X-Content-Type-Options': 'nosniff',
