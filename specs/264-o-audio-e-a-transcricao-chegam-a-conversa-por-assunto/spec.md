@@ -146,6 +146,9 @@ routine_started_at)` — `routine_started_at` gravado na **primeira execução**
   `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (padrão 72 h, configurável por env do worker) quando a rotina o encontra não é
   transcrito — a rotina que volta depois de dias parada não satura a CPU. **Confirmar com o dono antes da publicação em
   produção** (não bloqueia a Fase 1).
+- **Desligar durante a transcrição** (decisão do dono por delegação, 2026-10-12, privacidade): se a empresa for desligada
+  enquanto o áudio é transcrito, o texto **não é gravado** — a escrita do `ready` exige a empresa ainda ligada, e a linha
+  fecha `failed`/`company_disabled`.
 - **Padrão: ligada** (o dono falou em a empresa poder _desligar_). Sem linha de configuração = ligada.
 - Desligar para de transcrever na hora e a API passa a devolver `disabled` para **todos** os áudios da empresa
   (inclusive os já transcritos, que ficam ocultos e guardados). Religar mostra de novo; o que chegou enquanto

@@ -140,7 +140,7 @@ review,denied}`).
       `AudioTranscriptionRunner` do `contract.md` §5.8; registrar em `main.ts` (o executor entra nos `closeables` do
       `WorkerShutdown`) e **nas três cópias do catálogo de rotinas** (`job-catalog.constant.ts` da API, do cron e do
       worker, ao lado de `trip.canhoto.read`, com contrato de paridade; sem a do cron nunca é agendado) + rótulo no
-      painel (`frontend-transportada/src/modules/shared/jobCatalog.constant.ts`), com os desfechos `completed`,
+      painel (`frontend-transportada/src/modules/shared/jobCatalog.constant.ts`), com os desfechos `already_running` e `runner_lock_expired` (o sucesso fecha `succeeded`; era `completed`, corrigido na revisão),
       `already_running` e `runner_lock_expired` na lista fechada (`isJobOutcome`); agendamento conforme a cadência
       medida na T0.2; métricas por estado/código e alerta (exceto `company_disabled`). Aceite: contratos da T3.3 verdes + `make worker-integration`.
 - [ ] **T3.5** `sonnet` — `apps/worker-transportada/Dockerfile`: estágio de build do `whisper-cli` (tag da ADR-0103),

@@ -189,7 +189,7 @@ do ciclo fecha `attempts >= 3` como `attempts_exhausted`, e o lease é **por lin
 **executor em processo com trava de uma execução**, fora do ciclo serial do job-run (`contract.md` §5.8); janela de
 recuperação `AUDIO_TRANSCRIPTION_RECOVERY_WINDOW` (72 h, regra nova a confirmar com o dono antes de produção); o motor devolve só `{ text, engine, language }`, e `language` é a dica `pt`, não detecção; (4) expurgo: `ready` com objeto
 `deleted` ⇒ `text = null` (`ready` sem texto, `generated_at` preservado). Um áudio por vez, fora do ciclo serial do job-run (executor do `contract.md`
-§5.8: catálogo nas três cópias, desfechos `completed`/`already_running`/`runner_lock_expired`, contadores da execução
+§5.8: catálogo nas três cópias, desfechos `succeeded` (sucesso, como toda rotina)/`already_running`/`runner_lock_expired`, contadores da execução
 anterior no ciclo seguinte, soltura graciosa no `SIGTERM` que devolve a tentativa); o impacto em CPU nas outras rotinas
 é medida da T0.2, não premissa. Métricas: contagem por estado e por `failure_code`, `processing_ms`, fator de tempo
 real; alerta quando `failed` (**exceto `company_disabled`**) > 0 na hora ou `pending` mais velho que 15 min.

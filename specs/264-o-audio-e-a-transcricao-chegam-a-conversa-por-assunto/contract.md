@@ -454,7 +454,8 @@ routine_started_at)` **e** `attachment.created_at >= now() - AUDIO_TRANSCRIPTION
 LEASE, attempts = attempts + 1 where id = (select id … where status = 'pending' and attempts < 3 and
 next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now()) order by next_attempt_at limit
 1 for update skip locked) returning …`. **`attempts` sobe na reivindicação** (processo morto também conta).
-   **`LEASE` cobre todas as etapas da linha**: `AUDIO_TRANSCRIPTION_TIMEOUT_MS` + 15 s (`ffprobe`) + 60 s
+   **`LEASE` cobre todas as etapas da linha**: **2 × `AUDIO_TRANSCRIPTION_TIMEOUT_MS`** (o pacote `whisper-local` usa o
+   `timeoutMs` duas vezes: conversão com `ffmpeg` e depois `whisper-cli`) + 15 s (`ffprobe`) + 60 s
    (decodificação) + 60 s (download) + 60 s de margem. Sem isso, na 3ª tentativa o lease venceria durante uma medida
    longa, a varredura do passo 2 marcaria `attempts_exhausted` e o resultado bom seria descartado (a escrita final
    exige o `lease_token`).
@@ -466,9 +467,14 @@ next_attempt_at <= now() and (lease_expires_at is null or lease_expires_at < now
    retriável (`engine_timeout`, conta tentativa); `duração >= teto` ⇒ `failed`/`too_long` com `max_duration_ms`, **sem
    chamar o transcritor**; grava `audio_duration_ms` em todo caso medido; só então o motor com `languageHint: 'pt'`;
    `ready` grava `text` **sem U+0000** (o `text` do Postgres recusa NUL) e cortado (§5.5), `language` = a dica,
-   `engine`, `model`, `processing_ms`, `generated_at = now()`.
-6. **Erro:** retriável ⇒ `pending`, `next_attempt_at` = 1 / 5 / 30 min conforme `attempts`; com `attempts >= 3` ⇒
-   `failed`/`attempts_exhausted`. Definitivo ⇒ `failed` com o código. Alerta conta `failed` **exceto**
+   `engine`, `model`, `processing_ms`, `generated_at = now()`. **A escrita do texto exige que a empresa continue ligada**
+   (decisão do dono, 2026-10-12, privacidade): se desligou durante a transcrição, o texto NÃO é gravado e a linha fecha
+   `failed`/`company_disabled`.
+6. **Erro:** retriável ⇒ `pending`, `next_attempt_at` = **1 / 5 min** conforme `attempts` (a 3ª falha já fecha em
+   `failed`/`attempts_exhausted`; o 30 min era inalcançável e só vale para a falha de ambiente, abaixo); com `attempts >= 3` ⇒
+   `failed`/`attempts_exhausted`. **Falha de ambiente** (binário ausente, `spawn` que não sobe) ⇒ `pending` em 30 min e a
+   tentativa volta (`attempts - 1`); a rotina nem é registrada no boot se `whisper-cli`, `ffprobe`, `ffmpeg` ou o arquivo do
+   modelo faltarem (erro no log com os nomes). **Erro do storage** (≠ chave inexistente) ⇒ retriável, nunca `object_missing`. Definitivo ⇒ `failed` com o código. Alerta conta `failed` **exceto**
    `company_disabled`.
 7. **Expurgo:** `ready` com objeto `deleted` ⇒ `text = null` (`status` segue `ready`, `generated_at` preservado; o mapper trata como ausente).
 8. Toda mudança de `status`/`text`/duração/teto: `updated_at = now()` (§5.3).
@@ -496,9 +502,10 @@ serial. O impacto em CPU é medida da T0.2.
 `apps/worker-transportada/src/shared/job-catalog.constant.ts`, e o rótulo em
 `apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts` (ao lado de `trip.canhoto.read`, `:248`).
 **Desfechos na lista fechada** do job (`isJobOutcome`, `apps/worker-transportada/src/job-run/application/run-job-cycle.ts:176`;
-fora dela vira `job_run_outcome_unknown` → `unexpected_error` a cada ciclo ocupado): `completed` (entregou, ou não havia
-nada), `already_running` (executor ocupado; não é falha) e `runner_lock_expired` (trava velha, abaixo). Cada desfecho
-tem rótulo pt-BR/en no painel.
+fora dela vira `job_run_outcome_unknown` → `unexpected_error` a cada ciclo ocupado): **sucesso fecha `succeeded`**, como toda rotina
+(`COMPLETED_OUTCOME` do invólucro), e só dois desfechos próprios entram no catálogo: `already_running` (executor ocupado; não é
+falha) e `runner_lock_expired` (trava velha, abaixo). O painel só tem rótulo por desfecho para a distribuição de NF-e; as
+demais rotinas mostram o código.
 
 **Erros e contadores.**
 
