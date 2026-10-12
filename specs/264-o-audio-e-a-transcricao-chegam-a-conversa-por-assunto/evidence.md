@@ -336,3 +336,17 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   do teto fixo de 30 s do teste: rodado com o teto subido só localmente (revertido), por lentidão de ambiente.
 - `bunx prettier --check` nos arquivos novos: limpo. `bun run typecheck`: os arquivos da T2.1 sem erro; restam 2 erros em
   `test/job-catalog/catalog.contract.ts` da outra tarefa (catálogo de jobs).
+
+## T3.1 — cópia por valor do schema no worker e contrato de paridade (2026-10-12)
+
+- `apps/worker-transportada/src/database/conversation-audio-transcription.schema.ts`: `occurrenceConversationAudioTranscriptions`,
+  `companyAudioTranscriptionSettings` e as constantes `CONVERSATION_AUDIO_TRANSCRIPTION_STATUSES`,
+  `CONVERSATION_AUDIO_TRANSCRIPTION_FAILURE_CODES`, `CONVERSATION_AUDIO_TRANSCRIPTION_TEXT_MAX_LENGTH` (mais os tipos
+  `ConversationAudioTranscriptionStatus` e `ConversationAudioTranscriptionFailureCode`). A cópia de
+  `occurrenceConversationAttachments` já tinha `durationMs` e `createdAt`: nada a acrescentar.
+- Contrato `test/conversation-audio-transcription-schema/parity.contract.ts` (entrada `…-schema.contract.test.ts`, registrada no
+  script `test` do `package.json`): coluna a coluna contra a API (20 + 6), nomes e ordem das colunas, vocabulário de `status` e
+  `failure_code` contra a constante da API **e** contra o CHECK de `migration.sql`, e o teto de 20 000. Mutação provada: trocar
+  `max_duration_ms` por `max_duration_x` na cópia reprova dois testes.
+- `bun test --timeout 120000 ./test/conversation-audio-transcription-schema.contract.test.ts` → 4 pass / 0 fail.
+- `bun run typecheck` (worker) → limpo. `bunx eslint` nos arquivos novos → limpo. `prettier --write` aplicado.
