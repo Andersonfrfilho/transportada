@@ -18,6 +18,7 @@ import type { EffectiveConversationStatus } from '../domain/conversation-effecti
 import type { SubjectLabelFacts } from '../domain/conversation-subject-label.policy.js'
 import type { OpenableSubjectType } from '../domain/driver-subject-conversation.constant.js'
 import type { ConversationAttachmentRecord } from './conversation-attachment.port.js'
+import type { ConversationTranscriptionReadPort } from './conversation-transcription.port.js'
 
 export type SubjectConversationRow = {
   /** Canais como o banco os tem; a política ordena e descarta o desconhecido. */
@@ -73,7 +74,7 @@ type DriverIdentity = {
   readonly driverUserId: string
 }
 
-export type DriverSubjectTransactionPort = {
+export type DriverSubjectTransactionPort = ConversationTranscriptionReadPort & {
   /**
    * RF14: o app baixou (`delivered`) ou abriu (`read`) — aplica a política de status às mensagens da
    * operação nestas conversas, travando as linhas, numa leitura e numa escrita só.

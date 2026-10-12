@@ -9,6 +9,7 @@ import {
   OFFICE_SUBJECT_MESSAGES_DEFAULT_LIMIT,
   OFFICE_SUBJECT_MESSAGES_MAX_LIMIT,
 } from '../domain/office-subject-conversation.constant.js'
+import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import { signConversationAttachments } from './conversation-attachment.service.js'
 import type { OfficeSubjectInput } from './office-subject-access.service.js'
@@ -36,13 +37,16 @@ export function createListOfficeSubjectMessagesUseCase(dependencies: {
             OFFICE_SUBJECT_MESSAGES_MAX_LIMIT,
           ),
         })
-        const attachments = await signConversationAttachments(
-          dependencies.storage,
-          await transaction.listAttachments({
-            companyId: input.companyId,
-            messageIds: messages.map((message) => message.id),
-          }),
-        )
+        const records = await transaction.listAttachments({
+          companyId: input.companyId,
+          messageIds: messages.map((message) => message.id),
+        })
+        const attachments = await enrichAudioAttachments({
+          companyId: input.companyId,
+          reader: transaction,
+          records,
+          views: await signConversationAttachments(dependencies.storage, records),
+        })
         return messages.map((message) => ({
           ...message,
           attachments: attachments.get(message.id) ?? [],

@@ -26,6 +26,7 @@ import {
   CONVERSATION_PROTOCOL_UNIQUE_CONSTRAINT,
 } from '../domain/driver-subject-conversation.constant.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { createConversationTranscriptionReadPort } from './conversation-transcription.query.js'
 import { listSubjectConversationRows } from './driver-conversation-subject.query.js'
 import { findMySubjectByIdentity } from './driver-subject-lookup.query.js'
 import { readConversationAttachments } from './drizzle-conversation-attachment.repository.js'
@@ -226,6 +227,7 @@ export function createDriverSubjectTransactionPort(
   transaction: Transaction,
 ): DriverSubjectTransactionPort {
   return {
+    ...createConversationTranscriptionReadPort(transaction),
     applySubjectStatus: (input) => applySubjectStatus(transaction, input),
     findMySubject: (input) => findMySubjectByIdentity(transaction, input),
     findOrCreateSubjectConversation: (input) => findOrCreateSubjectConversation(transaction, input),

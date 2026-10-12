@@ -7,6 +7,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 
+import { NO_TRANSCRIPTIONS } from '../fixtures/no-transcription.fixture.js'
 import { describe, expect, test } from 'bun:test'
 
 import type {
@@ -80,6 +81,7 @@ function createFake(state: {
 }) {
   const calls: Calls = []
   const port: DriverSubjectTransactionPort = {
+    ...NO_TRANSCRIPTIONS,
     applySubjectStatus: async (input) => void calls.push({ input, name: 'applySubjectStatus' }),
     findMySubject: async (input) => {
       calls.push({ input, name: 'findMySubject' })

@@ -3624,3 +3624,24 @@ Uma consulta por página (`readOfficeReadHorizon`), sem migration. Detalhe em `s
 T5.5: o resumo da lista (`GET /me/trips/current/conversations`) e o do `/open` trazem `officeReadAt` (ISO, ausente se ninguém do escritório leu até uma
 mensagem do motorista), em lote por página (`readOfficeReadAtByConversation`, lista constante em 5 consultas). O app compara no refresh de 15 s para
 refazer a conversa aberta quando o escritório lê; as rotas antigas da 183 não mudam.
+
+## Transcrição do áudio nas conversas por assunto (spec 264 T2.3, 12/10/2026)
+
+O anexo `audio/*` das rotas por assunto (`GET`/`POST …/messages` do motorista e do escritório) ganha `durationMs?` e `transcription?`
+(`pending` · `ready` · `failed/too_long` · `disabled`; forma e mapper em `specs/264-*/contract.md` §5.2). Rotas antigas da 183, portal `/client/**` e tela
+antiga da ocorrência **não** ganham os campos (ouro byte a byte).
+
+- **Onde:** `application/conversation-audio-enrichment.service.ts` (`enrichAudioAttachments`) roda **depois** de `signConversationAttachments`, nos
+  quatro casos de uso (`list-my-subject-messages`, `reply-my-subject-conversation`, `list-office-subject-messages`, `send-office-subject-message`).
+  Nunca dentro de `signConversationAttachments` nem de `readConversationAttachments` (um contrato de texto de fonte prende os dois lados).
+- **Leituras em lote** (`ConversationTranscriptionReadPort`, `infrastructure/conversation-transcription.query.ts`, na transação do assunto):
+  `readAudioTranscriptionEnabled` (consulta própria; sem linha ⇒ ligada) e `findTranscriptionsByAttachmentIds` (`Map` por anexo, só se ligada). Página sem
+  áudio: 0 consultas; com áudio: 2 (1 se desligada). BOLA: a busca é por `(companyId do contexto, ids da página já autorizada)`.
+- **`transcriptionUpdatedAt`** no resumo da lista e do `/open` do motorista: `readTranscriptionUpdatedAtByConversation`, uma agregação
+  `max(updated_at) group by conversation_id` sobre o índice `(company_id, conversation_id, updated_at)`, sem junção. A lista de conversas passa de 5 para 6
+  consultas, constante. Ausente quando não há transcrição; a conversa só é revalidada pelo app se esse campo mudar (T4.2).
+- **Escrita:** `infrastructure/conversation-transcription-write.query.ts` (`insertPendingTranscription`, `writeExposedTranscription`) é a escrita mínima; toda
+  escrita que muda o que a API mostra grava `updated_at = now()` do banco (contrato de texto de fonte). A rotina da Fase 3 usa a mesma regra; a
+  reivindicação (lease/tentativas) não precisa.
+- **Limitação aceita:** ligar/desligar a empresa não mexe nas linhas, então o app só vê `disabled` (ou a volta do texto) na próxima mudança real da
+  conversa ou ao reabri-la (`contract.md` §5.3).

@@ -9,6 +9,7 @@ import type { TripStatus } from '../../database/trip.schema.js'
 import type { EffectiveConversationStatus } from '../domain/conversation-effective-status.policy.js'
 import type { SubjectLabelFacts } from '../domain/conversation-subject-label.policy.js'
 import type { OpenableSubjectType } from '../domain/driver-subject-conversation.constant.js'
+import type { ConversationTranscriptionReadPort } from './conversation-transcription.port.js'
 import type { DriverConversationTransactionPort } from './driver-conversation.port.js'
 import type {
   DriverSubjectTransactionPort,
@@ -40,7 +41,8 @@ export type OfficeSubjectTransactionPort = Pick<
   DriverConversationTransactionPort,
   'attachments' | 'findIdempotency' | 'insertMessage' | 'saveIdempotency'
 > &
-  Pick<DriverSubjectTransactionPort, 'findOrCreateSubjectConversation' | 'listAttachments'> & {
+  Pick<DriverSubjectTransactionPort, 'findOrCreateSubjectConversation' | 'listAttachments'> &
+  ConversationTranscriptionReadPort & {
     /** A mensagem pelo id na conversa, com o nome de quem escreveu (operação ou motorista). */
     findOfficeMessage(input: {
       readonly companyId: string

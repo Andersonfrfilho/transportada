@@ -124,6 +124,8 @@ export type ConversationAttachmentTransactionPort = {
 export type ConversationAttachmentRecord = {
   readonly bucket: string
   readonly contentType: string
+  /** Só o áudio tem (RF17); alimenta o enriquecimento das rotas por assunto, nunca a view. */
+  readonly durationMs?: null | number
   readonly fileName: string
   readonly id: string
   readonly messageId: string

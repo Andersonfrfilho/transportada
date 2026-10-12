@@ -142,6 +142,7 @@ export async function readConversationAttachments(
     .select({
       bucket: storedObjects.bucket,
       contentType: occurrenceConversationAttachments.contentType,
+      durationMs: occurrenceConversationAttachments.durationMs,
       fileName: occurrenceConversationAttachments.fileName,
       id: occurrenceConversationAttachments.id,
       messageId: occurrenceConversationAttachments.messageId,

@@ -11,6 +11,7 @@ import { buildNoticeLabel } from '../domain/conversation-subject-label.policy.js
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import { SEND_SUBJECT_APP_MESSAGE_OPERATION } from '../domain/office-subject-conversation.constant.js'
 import { ConversationNotFoundError } from '../domain/occurrence-conversation.error.js'
+import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import {
   attachConversationUploads,
@@ -132,10 +133,16 @@ export function createSendOfficeSubjectMessageUseCase(dependencies: {
       messageId: stored.messageId,
     })
     if (message === null) throw new ConversationNotFoundError()
-    const attachments = await signConversationAttachments(
-      dependencies.storage,
-      await transaction.listAttachments({ companyId: input.companyId, messageIds: [message.id] }),
-    )
+    const records = await transaction.listAttachments({
+      companyId: input.companyId,
+      messageIds: [message.id],
+    })
+    const attachments = await enrichAudioAttachments({
+      companyId: input.companyId,
+      reader: transaction,
+      records,
+      views: await signConversationAttachments(dependencies.storage, records),
+    })
     return {
       ...message,
       attachments: attachments.get(message.id) ?? [],

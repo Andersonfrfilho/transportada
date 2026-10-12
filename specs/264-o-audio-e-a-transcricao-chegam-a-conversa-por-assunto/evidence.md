@@ -389,3 +389,36 @@ Divergências e interpretações (contract.md §5.5):
   2. `failed/too_long` com `maxDurationMs` nulo ou não inteiro positivo também sai ausente (o CHECK da T2.1 impede no banco).
   3. A tabela do contrato dava `toParticipantTranscription(row | undefined, enabled)`; a assinatura é por objeto (§10 do code-standart).
   4. Os testes de contrato foram escritos junto do mapper, não antes: a prova de que eles pegam o defeito é a mutação acima.
+
+## T2.3 — leitura em lote nas rotas por assunto e `transcriptionUpdatedAt` (2026-10-12)
+
+- **Código:** `application/conversation-transcription.port.ts` (porta de leitura + `SubjectAttachmentView`),
+  `application/conversation-audio-enrichment.service.ts` (etapa separada, depois de `signConversationAttachments`, nos quatro casos de uso),
+  `infrastructure/conversation-transcription.query.ts` (3 leituras em lote, na transação do assunto; o office reaproveita as do motorista),
+  `infrastructure/conversation-transcription-write.query.ts` (escrita mínima com `updated_at = now()` do banco, usada pelos testes e pela T3.x).
+  `ConversationAttachmentRecord` ganhou `durationMs?` (a leitura antiga seleciona a coluna a mais, mas a view assinada segue com cinco campos).
+  `toSubjectConversationSummary(row, officeReadAt?, transcriptionUpdatedAt?)` (lista e `/open` do motorista).
+- **Consultas por página (Postgres real, `driver-subject-conversation-transcription.integration.ts`):** mensagens sem áudio **7**;
+  com 1, 10 e 30 áudios (todos com linha) **9, 9, 9** (+1 configuração, +1 linhas); empresa desligada **8** (a das linhas não roda). Lista de
+  conversas do motorista: **5 → 6** com 1, 10 e 30 (`driver-subject-conversation-scale`, ajustado de propósito: a agregação `transcriptionUpdatedAt`
+  é a 6ª, em lote, sem junção).
+- **Integração (0 fail, nada pulado):** estados do contrato (ready/pending/too_long/expurgado/`engine_failed`/sem linha) e `durationMs` com reserva da
+  medida do worker; anexo de imagem com `duration_ms` não ganha campo; `disabled` com empresa desligada **sem nenhuma linha**, e com linha pronta o texto
+  não vaza; `transcriptionUpdatedAt` ausente → presente (pending) → **maior** após `pending → ready` → igual sem escrita (lista e `/open`);
+  eco de `send` (escritório) e `reply` (motorista) com áudio real; BOLA (outra empresa, outra viagem da mesma empresa, id de anexo e de conversa
+  alheios consultados pela empresa errada voltam vazios).
+- **Contrato (fakes):** `conversation-audio-enrichment.contract.ts` — 0 consultas sem áudio, 2 com áudio (1, 10, 30) só com ids de áudio e a empresa do
+  contexto, 1 se desligada, não-áudio intocado; texto de fonte: só os 4 casos de uso importam a etapa (depois de assinar), `signConversationAttachments`
+  não cita os campos, todo `.set({...})` da escrita leva `` updatedAt: sql`now()` ``.
+- **Mutação (todas reprovam, arquivos restaurados e conferidos com `cmp`):** N+1 (consulta por anexo) → 1 fail (contagem); junção que perde `enabled`
+  → 2 fail; `updated_at` não gravado → 2 fail (contrato de fonte + `transcriptionUpdatedAt` não muda); campo vazando para não-áudio → 6 fail; campo
+  vazando em `signConversationAttachments` (rota antiga) → 4 fail.
+- **Gates (apps/api-transportada):** `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) ·
+  `bun --env-file=../../.env.test test --timeout 120000` → **11502 pass, 25 skip, 0 fail** (11527 testes; antes 11489 pass + 25 skip = 11514) ·
+  integração dos 10 arquivos tocados/vizinhos → 45 pass, 0 fail · `bun run db:check` "Everything's fine".
+- **Divergências / observações:**
+  1. O alvo "≥11514 pass" é pass+skip: a base da T2.2 já era 11489 pass + 25 skip; esta task soma 13 pass.
+  2. Os testes foram escritos junto da implementação, não antes: a prova de que pegam o defeito é a mutação acima.
+  3. `contract.md` §5.2 lista `reply`/`send` como casos de uso de **mensagem**; o `open` só ganhou o `transcriptionUpdatedAt` do resumo (§5.3), não anexos.
+  4. As duas suítes novas entraram na lista explícita `test:integration` do `package.json` (a lista é explícita).
+  5. Os fakes de porta das três suítes de contrato ganharam `...NO_TRANSCRIPTIONS` (`test/fixtures/no-transcription.fixture.ts`), porque a porta nova é obrigatória.

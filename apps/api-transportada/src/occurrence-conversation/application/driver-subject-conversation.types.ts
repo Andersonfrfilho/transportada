@@ -4,7 +4,7 @@
  * Spec 263 (api-contract): a forma do resumo e da mensagem que o `/me` devolve, e o resumo que o
  * caso de uso monta a partir do que o repositório leu.
  */
-import type { ConversationAttachmentView } from './conversation-attachment.port.js'
+import type { SubjectAttachmentView } from './conversation-transcription.port.js'
 import type {
   SubjectConversationRow,
   SubjectMessageRecord,
@@ -31,17 +31,20 @@ export type DriverSubjectConversationSummary = {
   readonly subjectLabel: string
   readonly subjectType: OccurrenceConversationSubjectType
   readonly tripId: null | string
+  /** Quando a transcrição de algum áudio da conversa mudou; o app compara para refazer a conversa aberta. */
+  readonly transcriptionUpdatedAt?: string
   readonly unreadCount: number
 }
 
 export type DriverSubjectMessage = Omit<SubjectMessageRecord, 'createdAt'> & {
-  readonly attachments: readonly ConversationAttachmentView[]
+  readonly attachments: readonly SubjectAttachmentView[]
   readonly createdAt: string
 }
 
 export function toSubjectConversationSummary(
   row: SubjectConversationRow,
   officeReadAt?: Date,
+  transcriptionUpdatedAt?: Date,
 ): DriverSubjectConversationSummary {
   const status = resolveEffectiveConversationStatus(row)
   return {
@@ -62,6 +65,9 @@ export function toSubjectConversationSummary(
     subjectLabel: buildSubjectLabel(row.labelFacts),
     subjectType: row.subjectType,
     tripId: row.tripId,
+    ...(transcriptionUpdatedAt === undefined
+      ? {}
+      : { transcriptionUpdatedAt: transcriptionUpdatedAt.toISOString() }),
     unreadCount: row.unreadCount,
   }
 }
