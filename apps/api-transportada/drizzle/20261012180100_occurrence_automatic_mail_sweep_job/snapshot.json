@@ -578,6 +578,12 @@
     },
     {
       "isRlsEnabled": false,
+      "name": "holiday_provider_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
       "name": "company_energy_settings",
       "entityType": "tables",
       "schema": "public"
@@ -1371,6 +1377,18 @@
     {
       "isRlsEnabled": false,
       "name": "occurrence_conversations",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversation_audio_transcriptions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "company_audio_transcription_settings",
       "entityType": "tables",
       "schema": "public"
     },
@@ -16206,6 +16224,136 @@
       "entityType": "columns",
       "schema": "public",
       "table": "holiday_import_suppressions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'feriadosapi'",
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_envelope",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hint",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "monthly_request_budget",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "holiday_provider_settings"
     },
     {
       "type": "uuid",
@@ -38415,6 +38563,344 @@
       "table": "occurrence_conversations"
     },
     {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "attachment_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conversation_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "text",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "varchar(8)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "language",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "audio_duration_ms",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "engine",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "model",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "processing_ms",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "max_duration_ms",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "next_attempt_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "generated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "enabled_since",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "routine_started_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         {
@@ -45558,6 +46044,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"content_type\" like 'audio/%'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_attachments_audio_created_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "company_id",
           "isExpression": false,
           "asc": true,
@@ -45819,6 +46326,90 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "occurrence_conversations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "conversation_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "updated_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_audio_transcriptions_conversation_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "next_attempt_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"status\" = 'pending'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_audio_transcriptions_claim_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "attachment_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"status\" = 'ready' and \"text\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_audio_transcriptions_purge_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
     },
     {
       "nameExplicit": true,
@@ -55280,6 +55871,78 @@
       "table": "occurrence_conversations"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_audio_transcriptions_company_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "attachment_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversation_attachments",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_audio_transcriptions_attachment_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "conversation_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversations",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_audio_transcriptions_conversation_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "company_audio_transcription_settings_company_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_audio_transcription_settings"
+    },
+    {
       "columns": [
         "group_id",
         "permission"
@@ -56272,6 +56935,16 @@
       "name": "holiday_import_suppressions_pkey",
       "schema": "public",
       "table": "holiday_import_suppressions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "holiday_provider_settings_pkey",
+      "schema": "public",
+      "table": "holiday_provider_settings",
       "entityType": "pks"
     },
     {
@@ -57562,6 +58235,26 @@
       "name": "occurrence_conversations_pkey",
       "schema": "public",
       "table": "occurrence_conversations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversation_audio_transcriptions_pkey",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "company_id"
+      ],
+      "nameExplicit": false,
+      "name": "company_audio_transcription_settings_pkey",
+      "schema": "public",
+      "table": "company_audio_transcription_settings",
       "entityType": "pks"
     },
     {
@@ -59003,6 +59696,17 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "holiday_import_suppressions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "provider"
+      ],
+      "nullsNotDistinct": false,
+      "name": "holiday_provider_settings_provider_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "holiday_provider_settings"
     },
     {
       "nameExplicit": true,
@@ -61135,6 +61839,18 @@
       "table": "occurrence_conversations"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "attachment_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_audio_transcriptions_attachment_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
       "nameExplicit": false,
       "columns": [
         "public_token"
@@ -62210,7 +62926,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -62252,7 +62968,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -63972,6 +64688,34 @@
       "entityType": "checks",
       "schema": "public",
       "table": "holiday_import_suppressions"
+    },
+    {
+      "value": "\"provider\" in ('feriadosapi')",
+      "name": "holiday_provider_settings_provider_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "\"monthly_request_budget\" is null or \"monthly_request_budget\" between 1 and 1000000",
+      "name": "holiday_provider_settings_budget_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "\"version\" > 0",
+      "name": "holiday_provider_settings_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
+    },
+    {
+      "value": "(\"token_envelope\" is null and \"token_hint\" is null and \"token_updated_at\" is null) or (\"token_envelope\" is not null and jsonb_typeof(\"token_envelope\") = 'object' and \"token_hint\" is not null and \"token_hint\" ~ '^[!-~]{4}$' and \"token_updated_at\" is not null)",
+      "name": "holiday_provider_settings_token_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "holiday_provider_settings"
     },
     {
       "value": "length(\"distributor_code\") > 0 and \"distributor_code\" = upper(\"distributor_code\")",
@@ -68965,189 +69709,53 @@
       "table": "occurrence_conversations"
     },
     {
-      "isRlsEnabled": false,
-      "name": "holiday_provider_settings",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "gen_random_uuid()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'feriadosapi'",
-      "generated": null,
-      "identity": null,
-      "name": "provider",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "jsonb",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "token_envelope",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "token_hint",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "token_updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "monthly_request_budget",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "1",
-      "generated": null,
-      "identity": null,
-      "name": "version",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "updated_by_user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "holiday_provider_settings_pkey",
-      "schema": "public",
-      "table": "holiday_provider_settings",
-      "entityType": "pks"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "provider"
-      ],
-      "nullsNotDistinct": false,
-      "name": "holiday_provider_settings_provider_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "holiday_provider_settings"
-    },
-    {
-      "value": "\"provider\" in ('feriadosapi')",
-      "name": "holiday_provider_settings_provider_check",
+      "value": "\"status\" in ('pending', 'ready', 'failed')",
+      "name": "occurrence_conversation_audio_transcriptions_status_check",
       "entityType": "checks",
       "schema": "public",
-      "table": "holiday_provider_settings"
+      "table": "occurrence_conversation_audio_transcriptions"
     },
     {
-      "value": "\"monthly_request_budget\" is null or \"monthly_request_budget\" between 1 and 1000000",
-      "name": "holiday_provider_settings_budget_check",
+      "value": "\"failure_code\" is null or \"failure_code\" in ('unsupported_format', 'too_long', 'empty_audio', 'object_missing', 'sha256_mismatch', 'engine_timeout', 'engine_failed', 'attempts_exhausted', 'company_disabled')",
+      "name": "occurrence_conversation_audio_transcriptions_failure_check",
       "entityType": "checks",
       "schema": "public",
-      "table": "holiday_provider_settings"
+      "table": "occurrence_conversation_audio_transcriptions"
     },
     {
-      "value": "\"version\" > 0",
-      "name": "holiday_provider_settings_version_check",
+      "value": "\"status\" <> 'failed' or \"failure_code\" is not null",
+      "name": "occurrence_conversation_audio_transcriptions_failed_code_check",
       "entityType": "checks",
       "schema": "public",
-      "table": "holiday_provider_settings"
+      "table": "occurrence_conversation_audio_transcriptions"
     },
     {
-      "value": "(\"token_envelope\" is null and \"token_hint\" is null and \"token_updated_at\" is null) or (\"token_envelope\" is not null and jsonb_typeof(\"token_envelope\") = 'object' and \"token_hint\" is not null and \"token_hint\" ~ '^[!-~]{4}$' and \"token_updated_at\" is not null)",
-      "name": "holiday_provider_settings_token_check",
+      "value": "(\"status\" = 'ready') = (\"generated_at\" is not null)",
+      "name": "occurrence_conversation_audio_transcriptions_ready_gen_check",
       "entityType": "checks",
       "schema": "public",
-      "table": "holiday_provider_settings"
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "value": "(coalesce(\"failure_code\", '') = 'too_long') = (\"max_duration_ms\" is not null)",
+      "name": "occurrence_conversation_audio_transcriptions_too_long_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "value": "\"text\" is null or char_length(\"text\") <= 20000",
+      "name": "occurrence_conversation_audio_transcriptions_text_length_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "value": "\"audio_duration_ms\" is null or \"audio_duration_ms\" > 0",
+      "name": "occurrence_conversation_audio_transcriptions_duration_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_audio_transcriptions"
     },
     {
       "isRlsEnabled": false,
