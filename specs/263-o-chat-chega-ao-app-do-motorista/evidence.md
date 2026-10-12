@@ -496,3 +496,19 @@ Já estava entregue em `7b92fbc06` e só faltava marcar: `discardCurrentConversa
 (`DriverProfile.page.tsx`), `discardOrphanedConversationOutboxFor` roda no boot/login (`main.tsx`) e `requestSignOut` conta as
 mensagens do chat no aviso de confirmação. Falha do IndexedDB nunca lança. Gate: `test/conversation.contract.test.ts` 156 pass /
 0 fail (inclui `conversation-outbox-discard.contract.ts`) e `tsc --noEmit` limpo no `frontend-driver`.
+
+## T2.2 e T5.1 — conferência dos contratos contra o que a T2.3–T2.6 e a T5.1 já entregaram (2026-10-12)
+
+**T2.2 (marcada):** todo item da task já tem contrato, escrito junto das rotas: BOLA e `CONVERSATION_NOT_FOUND` (motorista, escritório e `/me`),
+`CONVERSATION_CLOSED` (idem), `open` idempotente `created: true/false` (`me-subject-conversation-routes`, `office-subject-conversation-routes`),
+rota antiga intacta (`driver-conversation-golden`, `quick-replies-golden`), A5 (`DECISION_WRITERS` em `driver-subject-conversation.contract.ts`),
+alfabeto TS = CHECK (`database-migration/conversation-subject.static.contract.ts`, que monta o vocabulário de `OCCURRENCE_CONVERSATION_SUBJECT_TYPES`)
+e política/limite por rota (`subject-conversation-policies.contract.ts`). Não foi preciso escrever contrato novo.
+Gate local: `occurrence-conversation.contract.test.ts` + `occurrence-conversation-schema.contract.test.ts` → **455 pass / 2 fail**. As 2 falhas
+são do Windows, não do código: `readFile` recebe `/C:/...` (ENOENT) e a comparação de caminho vem com `\` em vez de `/`
+(`conversation-never-decides.contract.ts:72` e `:222`). Em Linux/CI não ocorrem.
+
+**T5.1 (continua aberta):** o contrato e a rota estão entregues (`e7f092c41`, migration `20261010103500_quick_reply_driver_audience` com
+`rollback.sql`); falta só o que exige banco — integração com Postgres e `make migration-test`. **Bloqueada:** nesta máquina não há `.env`/`.env.test`
+no worktree (o link foi negado) e o Postgres do TransportAdA não está no ar (só `ativada-dev-postgres`). Pela regra da spec, banco indisponível
+é parar e relatar.

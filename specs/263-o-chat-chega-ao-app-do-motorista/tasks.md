@@ -149,7 +149,7 @@ pack` dos dois pacotes, `file:` nos três apps em worktree descartável, `make c
       mensagens; rotas novas, antigas intactas). Saída do arquiteto `opus`; conferida contra o código.
 - [x] **T2.0** `haiku` — `frontend-driver`: `notificationDestination.service` aceita também `trip.subject-conversation-message`
       (+ teste). **Publicar o app ANTES da API** (ADR-0081 §9: app tolerante → API → telas).
-- [ ] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
+- [x] **T2.2** `sonnet` — **Contratos antes** (vermelho primeiro): BOLA (nota/viagem alheia → `404 CONVERSATION_NOT_FOUND`, mesmo
       código para empresa errada, inexistente e viagem alheia); encerrada → `409 CONVERSATION_CLOSED` (nota liberada, viagem
       cancelada/concluída, `closed`); `open` idempotente (201 e depois 200); **rota antiga intacta** (resposta exata da lista e
       das mensagens antes e depois); mutação de A5 (os casos de uso novos não importam nada de `trip_occurrence_cases`, taxa
