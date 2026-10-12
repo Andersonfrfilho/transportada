@@ -151,7 +151,7 @@ Gates:
 
 ## T3.1 — Schema e migration do retorno à contratante
 
-Migration `20261009022945_occurrence_contractor_reply` (aditiva; `migration.sql`, `rollback.sql`, `snapshot.json`).
+Migration `20261012180000_occurrence_contractor_reply` (aditiva; `migration.sql`, `rollback.sql`, `snapshot.json`).
 Constantes e vocabulários em `src/shared/occurrence-contractor-reply.constant.ts`; tabelas em
 `src/database/occurrence-contractor-reply.schema.ts`; colunas e CHECKs do tipo e da exceção em `trip.schema.ts`.
 
@@ -205,7 +205,7 @@ Gates: `bun run typecheck` ok; `bun run lint` ok; `bun --env-file=../../.env.tes
 
 ## T3.3 — Mutações da T3.2, cada uma com a execução vermelha
 
-Cada mutação foi aplicada em `drizzle/20261009022945_occurrence_contractor_reply/migration.sql`, rodou `make migration-test`
+Cada mutação foi aplicada em `drizzle/20261012180000_occurrence_contractor_reply/migration.sql`, rodou `make migration-test`
 (exit 2) e foi desfeita com `git checkout`; o `git diff` ficou vazio depois de cada uma.
 
 1. **Tirar a CHECK `company_occurrence_types_forward_automatic_needs_reply_check`** — 166 pass, 3 fail: o teste de integração
@@ -325,7 +325,7 @@ contados e o laço segue (este último vai ao Sentry). A rotina nasce **pausada*
 - Contrato do worker: 0 pass, 1 fail, `Cannot find module
 '../../src/occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-api.error.js'`; depois 19 pass.
 - Integração da fila do worker: `Cannot find module '.../occurrence-automatic-mail-sweep.routine.js'`; depois 4 pass.
-- Catálogo/migration: `job-catalog.contract.test.ts` 12 pass, 1 fail (`ENOENT .../20261009130000_occurrence_automatic_mail_sweep_job/migration.sql`);
+- Catálogo/migration: `job-catalog.contract.test.ts` 12 pass, 1 fail (`ENOENT .../20261012180100_occurrence_automatic_mail_sweep_job/migration.sql`);
   depois verde.
 
 **Gates (códigos de saída conferidos).** typecheck e lint: api 0/0, worker 0/0, cron 0/0; frontend typecheck 2 e lint 1,

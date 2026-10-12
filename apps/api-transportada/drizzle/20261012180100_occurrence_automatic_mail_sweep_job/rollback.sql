@@ -19,7 +19,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261009130000_occurrence_automatic_mail_sweep_job';
+    WHERE "name" = '20261012180100_occurrence_automatic_mail_sweep_job';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

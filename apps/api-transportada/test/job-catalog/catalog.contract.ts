@@ -190,7 +190,7 @@ const SEED_MIGRATIONS = [
   '20261007133324_cargo_preview_retention',
   '20261008164340_nfe_recipient_email_backfill_job',
   '20261009040622_holiday_provider_import',
-  '20261009130000_occurrence_automatic_mail_sweep_job',
+  '20261012180100_occurrence_automatic_mail_sweep_job',
 ] as const
 
 describe('job catalog', () => {
