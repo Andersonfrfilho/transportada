@@ -67,3 +67,32 @@ describe('a migration da rotina de transcrição entra aditiva e pausada (spec 2
     expect(text).toContain('deleted_migrations <> 1')
   })
 })
+
+describe('a migration do índice de expurgo da transcrição entra aditiva (spec 264 revisão M5)', () => {
+  const PURGE_SUFFIX = '_conversation_audio_transcription_purge_index'
+
+  async function readPurge(file: string): Promise<{ directory: string; text: string }> {
+    const directory = (await listMigrationDirectories()).find((name) => name.endsWith(PURGE_SUFFIX))
+    if (directory === undefined) throw new Error(`${PURGE_SUFFIX} migration is required`)
+    return {
+      directory,
+      text: await Bun.file(join(migrationsDirectory.pathname, directory, file)).text(),
+    }
+  }
+
+  test('é só um índice parcial sobre as linhas ready com texto, depois da migration do job', async () => {
+    const { directory, text } = await readPurge('migration.sql')
+    const instructions = text.replaceAll(/^--(?!>).*$/gmu, '').trim()
+    expect(directory > '20261012154238_conversation_audio_transcribe_job').toBe(true)
+    expect(instructions).toBe(
+      `CREATE INDEX "occurrence_conversation_audio_transcriptions_purge_idx" ON "occurrence_conversation_audio_transcriptions" ("company_id","attachment_id") WHERE "status" = 'ready' and "text" is not null;`,
+    )
+  })
+
+  test('o rollback derruba o índice e limpa o journal com guarda', async () => {
+    const { directory, text } = await readPurge('rollback.sql')
+    expect(text).toContain('DROP INDEX "occurrence_conversation_audio_transcriptions_purge_idx"')
+    expect(text).toContain(`"name" = '${directory}'`)
+    expect(text).toContain('deleted_migrations <> 1')
+  })
+})

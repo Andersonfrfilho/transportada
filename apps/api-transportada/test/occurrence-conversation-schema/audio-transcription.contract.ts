@@ -96,11 +96,16 @@ describe('a transcrição do áudio no schema (spec 264 T2.1)', () => {
         'updated_at',
       ],
       occurrence_conversation_audio_transcriptions_claim_idx: ['next_attempt_at'],
+      occurrence_conversation_audio_transcriptions_purge_idx: ['company_id', 'attachment_id'],
     })
     expect(
       indexWhereSqlByName(occurrenceConversationAudioTranscriptions)
         .occurrence_conversation_audio_transcriptions_claim_idx,
     ).toContain("'pending'")
+    expect(
+      indexWhereSqlByName(occurrenceConversationAudioTranscriptions)
+        .occurrence_conversation_audio_transcriptions_purge_idx,
+    ).toContain("'ready'")
   })
 
   test('as colunas da §5.5 existem e as obrigatórias são as que a rotina não deixa nulas', () => {

@@ -100,6 +100,9 @@ export const occurrenceConversationAudioTranscriptions = pgTable(
     index('occurrence_conversation_audio_transcriptions_claim_idx')
       .on(table.nextAttemptAt)
       .where(sql`${table.status} = 'pending'`),
+    index('occurrence_conversation_audio_transcriptions_purge_idx')
+      .on(table.companyId, table.attachmentId)
+      .where(sql`${table.status} = 'ready' and ${table.text} is not null`),
     check(
       'occurrence_conversation_audio_transcriptions_status_check',
       sql`${table.status} in (${sql.raw(inList(AUDIO_TRANSCRIPTION_STATUSES))})`,
