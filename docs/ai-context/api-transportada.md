@@ -3624,3 +3624,24 @@ Uma consulta por página (`readOfficeReadHorizon`), sem migration. Detalhe em `s
 T5.5: o resumo da lista (`GET /me/trips/current/conversations`) e o do `/open` trazem `officeReadAt` (ISO, ausente se ninguém do escritório leu até uma
 mensagem do motorista), em lote por página (`readOfficeReadAtByConversation`, lista constante em 5 consultas). O app compara no refresh de 15 s para
 refazer a conversa aberta quando o escritório lê; as rotas antigas da 183 não mudam.
+
+## Spec 264 (Fase 2) — o áudio e a transcrição chegam à conversa por assunto
+
+Só a API e só aditivo; o contrato fino está em `specs/264-*/api-contract.md` (e o raciocínio em `contract.md` §5). A rotina que preenche as tabelas é do worker.
+
+- **Configuração por empresa:** `GET`/`PUT /company-settings/audio-transcription` (`settings.manage`, `no-store`). Corpo `{ enabled }` `.strict()`;
+  resposta `{ data: { enabled, maxDurationMs, updatedAt|null } }` (lista branca). Sem linha é ligada. `maxDurationMs` vem de
+  `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` (padrão 600 000, o mesmo do worker). `DrizzleAudioTranscriptionSettingsRepository`: lock
+  consultivo por empresa + `FOR UPDATE`, _upsert_, e `audit_logs` (`company-audio-transcription.changed`) **só se o valor mudou**, na mesma
+  transação; `updated_at`/`enabled_since` do `now()` do banco; `updatedAt` fica `null` enquanto só a rotina escreveu a linha.
+- **Anexo de áudio nas quatro rotas por assunto** (`list-my-subject-messages`, `reply-my-subject-conversation`, `list-office-subject-messages`,
+  `send-office-subject-message`): `durationMs?` e `transcription?` só em `audio/*`. `enrichAudioAttachments` roda **depois** de
+  `signConversationAttachments`; a base compartilhada com as rotas antigas e o portal não muda (ouro de bytes em
+  `audio-transcription-old-routes-golden.contract.ts`). Mapper puro `toParticipantTranscription` (`participant-transcription.policy.ts`) com a tabela
+  espelhada em `participant-transcription.constant.ts`; o pacote `@adatechnology/conversation-contracts` é `devDependency` exata (0.6.0) e só `test/**`
+  o importa (paridade). Consultas por página: 0 sem áudio; 1 (configuração) + 1 (linhas) com áudio e empresa ligada; 1 com ela desligada.
+- **`transcriptionUpdatedAt`** no resumo de `GET /me/trips/current/conversations` e do `POST …/open`: `max(updated_at)` por `conversation_id`
+  (uma agregação por página, +1 na contagem da lista: 6). O app compara no refresh de 15 s (`pending → ready` não mexia em nada do snapshot).
+- **Armadilhas:** a transcrição nunca vai a log nem decide nada (contratos de texto de fonte em `audio-transcription-source.contract.ts`); só
+  `occurrence-conversation/{application,domain,infrastructure}` e a configuração da empresa citam a tabela. `bun.lock`: o `bun install` do Bun 1.4.3
+  reescreve entradas alheias — a entrada nova foi posta à mão (`@transportada/api/@adatechnology/conversation-contracts`).

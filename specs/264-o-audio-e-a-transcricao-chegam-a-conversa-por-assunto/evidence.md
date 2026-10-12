@@ -447,3 +447,11 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   são de **outra tarefa em curso na mesma árvore**: apareceu `drizzle/20261012180000_occurrence_contractor_reply/` (só com `.omc/`, sem
   `migration.sql` nem `snapshot.json`), e reprovam `static-migration` (lista de pastas), `schema-snapshot` ("ships a snapshot.json") e o
   `fiscal-schema` (lê o `migration.sql` dela). Nenhum toca arquivo desta tarefa.
+
+## T2.5 — documentação das rotas e dos campos (2026-10-12)
+
+- `specs/264-*/api-contract.md` (novo; o `tasks.md` o cita e a 263 tem o seu): rotas `GET`/`PUT /company-settings/audio-transcription`,
+  campos `durationMs`/`transcription` do anexo de áudio das quatro rotas por assunto (tabela de situações, consultas constantes por página,
+  enriquecimento depois de `signConversationAttachments`) e `transcriptionUpdatedAt` do resumo.
+- `docs/ai-context/api-transportada.md` § "Spec 264 (Fase 2)" e nota curta em `apps/api-transportada/CLAUDE.md` (seção da conversa).
+- `bunx prettier --check` nos três arquivos de documentação: limpo.

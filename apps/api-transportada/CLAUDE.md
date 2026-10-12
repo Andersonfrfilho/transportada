@@ -603,6 +603,11 @@ docs/ai-context § "A ocorrência tem duas conversas".
   motorista (`driver-occurrence-conversation-send`, 30/300 s).
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
+- **O áudio traz a transcrição só pelas rotas por assunto** (spec 264): `durationMs?`/`transcription?` no anexo `audio/*` das quatro rotas
+  por assunto, por `enrichAudioAttachments` **depois** de `signConversationAttachments` (a tela antiga e o portal não mudam, ouro de bytes);
+  `transcriptionUpdatedAt?` no resumo do motorista; `GET`/`PUT /company-settings/audio-transcription` (`settings.manage`, sem linha = ligada, audita só
+  se mudou). A transcrição nunca vai a log nem decide nada, e a API não importa `conversation-contracts` em produção (só `test/**`, devDependency exata).
+  Detalhe: docs/ai-context/api-transportada.md § "Spec 264 (Fase 2)" e `specs/264-*/api-contract.md`.
 
 ## Fleet — ficha do motorista e geocodificação
 
