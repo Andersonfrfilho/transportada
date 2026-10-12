@@ -100,6 +100,12 @@ import {
   createSetDriverAllowanceSettingsUseCase,
 } from './companies/application/driver-allowance-settings.use-case.js'
 import {
+  createGetAudioTranscriptionSettingsUseCase,
+  createSaveAudioTranscriptionSettingsUseCase,
+} from './companies/application/audio-transcription-settings.use-case.js'
+import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
+import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
+import {
   createClearLocationRetentionSettingsUseCase,
   createGetLocationRetentionSettingsUseCase,
   createReadLocationRetentionImpactUseCase,
@@ -1599,6 +1605,7 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        audioTranscriptionMaxDurationMs: config.audioTranscriptionMaxDurationMs,
         automaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
@@ -1955,6 +1962,8 @@ type CreateApplicationRoutesParams = {
    * responderia "precisão fina não disponível" mesmo com a chave configurada.
    */
   readonly googleMapsApiKey: string | undefined
+  /** Spec 264 §5.1: o teto de duração que a configuração da transcrição informa. */
+  readonly audioTranscriptionMaxDurationMs: ApiEnvironment['audioTranscriptionMaxDurationMs']
   readonly messaging: ApiEnvironment['messaging']
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
@@ -2008,6 +2017,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  audioTranscriptionMaxDurationMs,
   automaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
@@ -2133,6 +2143,7 @@ function createApplicationRoutes({
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
+  const audioTranscriptionSettings = new DrizzleAudioTranscriptionSettingsRepository(database)
   const locationRetentionDependencies = {
     now: () => new Date(),
     settings: new DrizzleLocationRetentionSettingsRepository(database),
@@ -3001,6 +3012,12 @@ function createApplicationRoutes({
       }),
       get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
       set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
+    }),
+    ...createAudioTranscriptionSettingsRoutes({
+      get: createGetAudioTranscriptionSettingsUseCase({ settings: audioTranscriptionSettings }),
+      maxDurationMs: audioTranscriptionMaxDurationMs,
+      resolveClientIp,
+      save: createSaveAudioTranscriptionSettingsUseCase({ settings: audioTranscriptionSettings }),
     }),
     ...createLocationRetentionSettingsRoutes({
       clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),

@@ -106,6 +106,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             },
             logLevel: 'error',
             messaging: undefined,
+            audioTranscriptionMaxDurationMs: 600_000,
             nfseCallbackBaseUrl: undefined,
             nfseProviderApiVersion: 'v2',
             notificationWebhookSecret: undefined,

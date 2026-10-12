@@ -413,3 +413,37 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
 - Desvio documentado: o `durationMs` vindo de `attachments.duration_ms` só é lido na consulta das linhas (a mesma que traz a
   transcrição, `left join` pelos anexos pedidos); com a empresa desligada essa consulta não roda (contagem pedida pela spec) e
   o áudio sai só com `transcription: { status: 'disabled' }`.
+
+## T2.4 — `GET`/`PUT /company-settings/audio-transcription` (2026-10-12)
+
+- **Vermelho primeiro.** Contrato `test/companies/audio-transcription-settings.contract.ts` e integração
+  `test/integration/audio-transcription-settings.integration.ts` escritos antes do código. Com a implementação removida
+  (renomeada só para a prova): `bun test ./test/companies.contract.test.ts` → `0 pass / 1 fail / 1 error`
+  (`Cannot find module '../../src/companies/application/audio-transcription-settings.use-case.js'`) e a integração →
+  `0 pass / 1 fail / 1 error`. Restaurada a implementação: verde (abaixo).
+- Rota (`companies/presentation/audio-transcription-settings.routes.ts`): `API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH`
+  (`/company-settings/audio-transcription`), `{ permission: 'settings.manage', scope: 'company' }` nos dois verbos, `no-store`,
+  corpo `{ enabled }` `.strict()` (`companyId`, `maxDurationMs` e `updatedAt` no corpo = 400, todos os erros de uma vez),
+  resposta `{ data: { enabled, maxDurationMs, updatedAt|null } }` em lista branca (isca de campos extras no objeto do
+  repositório não vaza). Empresa, usuário e IP vêm do contexto e do `resolveClientIp` (o `X-Forwarded-For` forjado não chega
+  ao repositório). Montada em `main.ts` ao lado da retenção de posição.
+- `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` no schema de env da API (padrão `600000`, entre 1 000 e 3 600 000, igual ao worker),
+  em `ApiEnvironment.audioTranscriptionMaxDurationMs`, no `.env.example` e nos dois montadores de `ApiEnvironment` das integrações.
+  ⚠️ Não declarei a variável em `.railway/railway.ts`: o bloco do worker ainda não tem as `AUDIO_TRANSCRIPTION_*`, e declarar só
+  na API faria os dois divergirem; fica para quem declarar o worker (ambos têm o mesmo padrão).
+- Repositório (`DrizzleAudioTranscriptionSettingsRepository`): lock consultivo por empresa (`acquireAudioTranscriptionLock`,
+  `FOR UPDATE` não trava linha inexistente) + `FOR UPDATE` da linha anterior; `PUT` igual ao atual não escreve nem audita (inclui
+  sem linha + `enabled: true`); mudança faz _upsert_ com `updated_at = now()`, `enabled_since = now()` ao ligar e
+  `updated_by_user_id`, e grava `audit_logs` (`company-audio-transcription.changed`, ator, empresa, `{ enabled }` antes/depois,
+  `correlationId`, `metadata.ipAddress`, permissão `settings.manage`) na mesma transação. `updatedAt` é `null` enquanto só a rotina escreveu.
+- Integração contra Postgres 18 descartável: sem linha ligada e `PUT true` não cria linha nem auditoria; desligar grava com o
+  relógio do banco (diferença para `now()` < 60 s) e uma linha de auditoria completa; repetir o valor não mexe em `updated_at` nem audita;
+  religar audita de novo e renova `enabled_since`; dois `PUT` simultâneos na primeira escrita auditam **uma** vez; linha criada pela
+  rotina (`updated_by_user_id` nulo) lê `updatedAt: null` e desligar audita contra "ligada"; a outra empresa fica intacta.
+  `bun test … ./test/integration/audio-transcription-settings.integration.ts` → 4 pass / 0 fail.
+- Contrato: `bun test ./test/companies.contract.test.ts ./test/occurrence-conversation.contract.test.ts ./test/config` → 722 pass / 0 fail.
+- `bunx tsc --noEmit` → exit 0; `bunx eslint <arquivos> --max-warnings=0` → limpo; `prettier --check` → limpo; `bun run db:check` → "Everything's fine".
+- Suíte de contrato inteira (`bun --env-file=../../.env.test test --timeout 180000`, ≈5 min): 11 466 pass / 34 skip / 3 fail. Os 3 fails
+  são de **outra tarefa em curso na mesma árvore**: apareceu `drizzle/20261012180000_occurrence_contractor_reply/` (só com `.omc/`, sem
+  `migration.sql` nem `snapshot.json`), e reprovam `static-migration` (lista de pastas), `schema-snapshot` ("ships a snapshot.json") e o
+  `fiscal-schema` (lê o `migration.sql` dela). Nenhum toca arquivo desta tarefa.

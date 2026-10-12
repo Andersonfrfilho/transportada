@@ -74,6 +74,8 @@ export type ApiEnvironment = {
    * preenche coordenada": o cadastro segue igual, e o retorno da viagem cai no endereço da empresa.
    */
   readonly driverAddressLookupUrl: string | undefined
+  /** Spec 264: o teto de duração do áudio que a rotina transcreve; só informativo para a configuração. */
+  readonly audioTranscriptionMaxDurationMs: number
   readonly nfseCallbackBaseUrl: string | undefined
   /** Versão da API da Nota RP das emissões novas (ADR 0098); a tentativa guarda a que usou. */
   readonly nfseProviderApiVersion: NfseProviderApiVersion

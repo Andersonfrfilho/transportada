@@ -210,6 +210,13 @@ const environmentSchema = z.object({
       message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Spec 264 §5.1: o teto de duração que a API informa na configuração; o worker lê a mesma variável.
+  AUDIO_TRANSCRIPTION_MAX_DURATION_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(3_600_000)
+    .default(600_000),
   // Versão da API da Nota RP que as emissões NOVAS usam (ADR 0098). A tentativa grava a versão com que
   // nasceu em `providerConfig`, e consulta, cancelamento e documentos seguem a da tentativa — voltar
   // esta variável não faz a v2 consultar `id_nota` da v3. Em branco vale v2.
@@ -426,6 +433,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     nfseProviderApiVersion: parsed.NFSE_PROVIDER_API_VERSION,
+    audioTranscriptionMaxDurationMs: parsed.AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
     googleMapsApiKey: parsed.GOOGLE_MAPS_API_KEY,
