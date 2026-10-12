@@ -542,3 +542,74 @@ pacote 0.1.0 não aceita sinal: o aborto só solta quem espera e o filho termina
 da T3.4 devolve a tentativa mesmo assim. (4) §5.6 não diz o que fazer com saída ilegível da medida: decidi definitivo
 (`engine_failed`), porque repetir não conserta arquivo corrompido. (5) O pacote não distingue "áudio vazio" nem "prazo" por
 classe: o vazio é barrado no gateway e o prazo é lido de `cause.killed`.
+
+## T3.3 — contratos e integração da rotina de transcrição (2026-10-12)
+
+Arquivos de teste (`apps/worker-transportada/test/`): `conversation-audio-transcription.contract.test.ts` (entrypoint, na
+lista do `package.json`) → `conversation-audio-transcription/{text-policy,line-processing,line-logging,runner,cycle,
+job-run-isolation,wiring}.contract.ts` (51 testes); `integration/conversation-audio-transcription.integration.ts` (18
+testes, Postgres real, na lista do `test:integration`); dublês em `fixtures/audio-transcription-{harness,graph}.fixture.ts`
+(fila em memória com a semântica de posse, transcritor que só termina quando o teste solta, sonda, leitor de objeto,
+relógio, captura de log; e o grafo SQL empresa → conversa → mensagem → objeto → anexo).
+
+Ordem honesta: o contrato foi escrito **depois** do primeiro rascunho da implementação (no mesmo ciclo), não antes; o
+vermelho foi provado por **mutação** (abaixo), não por ausência de código. Cada comportamento da lista da T3.3 tem teste:
+marco/janela/`PUT` antes da rotina sem backfill, `on conflict do nothing`, duas execuções concorrentes (só a dona do
+`lease_token` grava), backoff 1/5 min e `attempts_exhausted` na 3ª, definitivo, `too_long` (`duração >= teto`) sem chamar o
+transcritor, `company_disabled` fora do alerta (log `info`, não `error`), `sha256_mismatch`, `object_missing`, expurgo
+(`ready` sem texto, `generated_at` preservado), nenhum texto/mensagem de erro/`process.env` em log, reivindicação filtra
+`attempts < 3`, varredura fecha `attempts >= 3` com lease vencido (três reivindicações com lease vencido → varredura →
+`attempts_exhausted`; lease vivo da 3ª tentativa **não** é varrido), lease por linha, U+0000, timeout de sonda retriável,
+`updated_at` maior após `ready`/varredura/expurgo, e o isolamento do consumidor serial (invólucro `createJobCycle` de
+verdade): com o transcritor preso, o ciclo de `conversation.audio.transcribe` fecha `completed`, o de `trip.canhoto.read`
+publicado depois fecha `succeeded` antes de a transcrição terminar, e um segundo ciclo fecha `already_running` (desfecho
+conhecido, não `unexpected_error`); o ciclo seguinte grava `processed/ready/...` da execução anterior.
+
+Mutação (aplicada e revertida; contrato + integração): reivindicar sem `attempts < 3` → 2 falhas; gravar `ready` sem
+`lease_token` → 1; `release` sem devolver tentativa → 1; `start()` ignorando a trava → 3; `close()` sem soltar a linha →
+1; logar o texto → 2; `too_long` chamando o transcritor antes → 7; `>` no lugar de `>=` → 1; U+0000 não removido → 2;
+`company_disabled` no alerta → 1; backoff sempre 1 min → 2; erro do laço sem captura → 1.
+
+SQL por ciclo: **6** instruções (marco = 2 [insert das empresas sem linha + update do `routine_started_at` nulo],
+varredura de esgotados, descoberta, expurgo, contagem de reivindicáveis). Por linha: **2** (reivindicação com `FOR UPDATE
+SKIP LOCKED` + `RETURNING` unido a anexo/objeto/configuração numa instrução só; escrita guardada por `lease_token`) + 1
+reivindicação vazia que encerra o laço (medido: 6 + 2 + 1 = 9 para um áudio; o teste conta `database.execute`).
+
+## T3.4 — rotina `conversation.audio.transcribe` e executor (2026-10-12)
+
+`apps/worker-transportada/src/conversation-audio-transcription/` (cada arquivo ≤ 200 linhas, funções ≤ 40):
+`audio-transcription-runtime.constant.ts`, `-queue.port.ts` (duas portas: ciclo e linha), `-retry.policy.ts` (lease =
+timeout do motor + 15 s + 60 s + 60 s + 60 s; backoff; idade máxima da trava = `BATCH_SIZE × lease`), `-text.policy.ts`
+(U+0000, corte por code point em fronteira de palavra, nome do modelo), `-summary.ts`, `-line.{types,outcome,persistence,
+processor}.ts`, `audio-transcription.runner.ts` (executor: uma execução por vez, `AbortController`, soltura graciosa),
+`conversation-audio-transcribe.routine.ts` (ciclo só-SQL), `drizzle-audio-transcription-{cycle,line}.repository.ts`,
+`build-audio-transcription-runtime.ts`. `main.ts`: registra só com `isAudioTranscriptionConfigured(config)`; o executor é o
+primeiro dos `closeables` (antes de storage, error tracker, logger, e do banco) e também fecha no `catch` de boot.
+Catálogo nas quatro cópias (worker, API, cron, painel) ao lado de `trip.canhoto.read`, `JOB_TICK_INTERVAL_SECONDS` (5
+min), vocabulário `completed | already_running | runner_lock_expired`. Métricas/alerta: não há stack de métricas no worker;
+o resumo da execução anterior vira **contadores do job-run** (`processed/ready/failed/retried/disabled/purged/runnerError`
+e `failed<Código>` por código, `claimable/created/exhausted/purgedText` no ciclo) e o alerta é log `error`
+`audio_transcription_line_failed` por linha (nunca `company_disabled`, que é `info`).
+
+Gates (worker, primeiro plano): `typecheck` exit 0; `lint` exit 0; `test` → **2430 pass, 0 fail**, 105 arquivos (antes
+2379/104); `build` exit 0; `prettier --write` e `bun run format:check` na raiz verdes. Integração do worker
+(`test:integration` contra o Postgres descartável `transportada_worker_integration` já migrado): **309 pass, 1 fail**; a
+falha é `osrm-routing-matrix.integration.test.ts` ("ponto fora da área", `Expected 4511.2 / Received 1143650`) — serviço
+OSRM local com dataset diferente do esperado, não toca a transcrição; a transcrição passa 18/18 três vezes seguidas.
+`make worker-integration` **não rodou limpo aqui**: o Postgres local `55432` tem `transportada_worker_integration` com
+migrations parciais de outra sessão (`column "latitude" ... already exists`); o mesmo alvo foi reproduzido à mão no Postgres
+descartável `65432`.
+API: `typecheck` ok; `test` → 11511 pass, **2 fail** (`drizzle snapshot chain > the latest snapshot matches the TypeScript
+schema` e `job catalog > accepts every interval the migration already seeded`) — **ambos exigem a migration** que semeia
+`job_schedules('conversation.audio.transcribe', 300)` e amplia `job_executions_job_check`/`job_schedules_job_check`
+(molde: `20261002120000_trip_canhoto_read_job`); a tarefa proibiu migration nova, então fica **bloqueio aberto** (sem ela o
+cron nem agenda a rotina e o `INSERT` em `job_schedules` seria recusado). Cron: `typecheck` e 101 testes verdes. Painel:
+`typecheck` e 1332 testes verdes. `make check` na raiz: vermelho **só** pelos dois testes da API acima.
+
+Divergências do contrato: (1) §5.6 linha 470 lista backoff `1 / 5 / 30 min`, mas com a 3ª falha já fechando em
+`attempts_exhausted` o 30 min nunca é usado — a tabela o guarda e o teste de política o cobre. (2) "empresa desligada ao
+final": a verificação é no momento da reivindicação (a configuração vem no `RETURNING`), não de novo depois do motor —
+economiza uma consulta e o texto de empresa que desligou no meio do áudio só é exibido como `disabled` pela API. (3) O
+painel só tem rótulos por desfecho para a distribuição de NF-e (`nfeWorkspace.*.locale.json`); as demais rotinas
+mostram o código, então não inventei rótulo pt-BR/en para os três desfechos — o "rótulo" do painel é a entrada do
+catálogo. (4) Texto vazio do motor é gravado como `''` (silêncio é resultado, spec RF/tabela de estados), `ready`.

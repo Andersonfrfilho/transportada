@@ -27,7 +27,6 @@ import {
   createInstantTranscriber,
   createLogCapture,
   createMapReader,
-  flushMicrotasks,
 } from '../fixtures/audio-transcription-harness.fixture.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -497,8 +496,10 @@ describeDatabase('transcrição de áudio da conversa contra o Postgres (spec 26
         job: 'conversation.audio.transcribe',
         origin: 'schedule',
       })
-      await flushMicrotasks()
-      await flushMicrotasks()
+      for (let attempt = 0; attempt < 500 && runtime.runner.isRunning(); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      expect(runtime.runner.isRunning()).toBe(false)
       expect(result.outcome).toBe('completed')
       // 6 do ciclo (marco 2 + varredura + descoberta + expurgo + contagem), 2 da linha (reivindica + grava)
       // e 1 reivindicação vazia que encerra o laço.

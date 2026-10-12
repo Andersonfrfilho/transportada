@@ -122,7 +122,7 @@ review,denied}`).
       `createWhisperLocalTranscriber` (dependência `@adatechnology/audio-transcription-provider` em versão exata);
       variáveis no schema de ambiente do worker (plano § d); sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é
       registrada. Contrato: classificação de erro retriável/definitivo → código (RF14), sem mensagem do erro.
-- [ ] **T3.3** `sonnet` — Contratos **antes** da rotina com transcritor falso: criação de `pending` só depois do marco
+- [x] **T3.3** `sonnet` — Contratos **antes** da rotina com transcritor falso: criação de `pending` só depois do marco
       (`greatest(enabled_since, routine_started_at)`, janela de 72 h; `PUT` antes da rotina não faz backfill) e de
       empresa ligada, com `on conflict do nothing`; reivindicação `SKIP LOCKED` com `lease_token` e `attempts` subindo
       **na reivindicação** (duas execuções concorrentes, só a dona da posse grava); backoff 1/5/30 min e
@@ -136,7 +136,7 @@ review,denied}`).
       `ffprobe`/`ffmpeg` sobre arquivo que trava ⇒ retriável; toda mudança exposta faz `updated_at = now()`;
       **executor em processo**: com o transcritor falso preso, um job-run de `trip.canhoto.read` publicado depois é
       confirmado antes de a transcrição terminar, e um segundo ciclo não abre outra execução.
-- [ ] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`) e o
+- [x] **T3.4** `sonnet` — Implementar `conversation.audio.transcribe` (`src/conversation-audio-transcription/`) e o
       `AudioTranscriptionRunner` do `contract.md` §5.8; registrar em `main.ts` (o executor entra nos `closeables` do
       `WorkerShutdown`) e **nas três cópias do catálogo de rotinas** (`job-catalog.constant.ts` da API, do cron e do
       worker, ao lado de `trip.canhoto.read`, com contrato de paridade; sem a do cron nunca é agendado) + rótulo no
