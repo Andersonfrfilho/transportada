@@ -109,7 +109,7 @@ review,denied}`).
       quando a linha passa de `pending` a `ready`.
 - [x] **T2.4** `sonnet` — `GET/PUT /v1/company-settings/audio-transcription` (`settings.manage`, `.strict()`,
       auditoria, padrão ligado sem linha); tabela de rotas, contrato e integração.
-- [ ] **T2.5** `haiku` — Documentar rotas e campos em `api-contract.md` desta pasta e em
+- [x] **T2.5** `haiku` — Documentar rotas e campos em `api-contract.md` desta pasta e em
       `docs/ai-context/api-transportada.md`; núcleo em `apps/api-transportada/CLAUDE.md` (seção da conversa).
 
 ## Fase 3 — Worker: rotina, porta e imagem

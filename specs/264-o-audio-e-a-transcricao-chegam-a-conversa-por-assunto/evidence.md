@@ -449,3 +449,14 @@ Divergências e interpretações (contract.md §5.5):
      é a leitura literal de "PUT igual ao atual: nada muda, nada audita" e mantém `updatedAt: null` "enquanto nenhuma pessoa mudou". A linha nasce no primeiro `PUT enabled:false`.
   2. O contrato nomeia `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` "no schema de env da API"; entrou com `min 1000`/`max 3600000` e vazio = padrão. A linha em `.railway/railway.ts` (mesmo valor do worker) fica para a T3.2, que cria a variável do worker.
   3. Os testes foram escritos junto da implementação, não antes (como nas T2.2/T2.3): a prova de que pegam o defeito é a mutação acima.
+
+## T2.5 — documentação da API (2026-10-12)
+
+- **Criado:** `api-contract.md` nesta pasta (estado implementado até a T2.4, conferido contra o código: rotas reais, campos, erros, auditoria, custo medido na T2.3, ordem de publicação).
+- **Acrescentado:** `docs/ai-context/api-transportada.md`, seção "Contrato da conversa por assunto e configuração da transcrição (spec 264 T2.4–T2.5)". A seção da T2.3 não foi repetida.
+- **Gates:** `bunx prettier --check` nos dois `.md` → ok; `bun run format:check` na raiz → "All matched files use Prettier code style!".
+- **Divergências do que o código sustenta:**
+  1. O pedido falava em `/v1/company-settings/audio-transcription` e nas rotas por assunto com `/v1`. O código não tem esse prefixo: `API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/audio-transcription'` e o `main.ts` monta os módulos sem `basePath` (só notificação, usuário e portal agregado têm base própria). O `api-contract.md` documenta os caminhos reais. O `/v1` da T2.4 em `tasks.md` continua como está (é texto de tarefa, não foi reescrito).
+  2. `pending`, `ready` e `failed/too_long` não são gravados por nenhum caminho de produção nesta branch (`insertPendingTranscription` e `writeExposedTranscription` só têm chamadas em testes). O documento diz isso em §0.
+  3. Não foi tocado `apps/api-transportada/CLAUDE.md`, que o `tasks.md` T2.5 também cita como "núcleo". O pedido listou só `api-contract.md` e `docs/ai-context/api-transportada.md`; fica pendente se for desejado.
+- **Sem alteração de código, teste ou migration.**

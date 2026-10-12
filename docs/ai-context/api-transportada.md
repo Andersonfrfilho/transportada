@@ -3645,3 +3645,18 @@ antiga da ocorrência **não** ganham os campos (ouro byte a byte).
   reivindicação (lease/tentativas) não precisa.
 - **Limitação aceita:** ligar/desligar a empresa não mexe nas linhas, então o app só vê `disabled` (ou a volta do texto) na próxima mudança real da
   conversa ou ao reabri-la (`contract.md` §5.3).
+
+## Contrato da conversa por assunto e configuração da transcrição (spec 264 T2.4–T2.5, 12/10/2026)
+
+- **Contrato completo** (campos, formas JSON por estado, rotas reais, erros, auditoria, custo medido, ordem de publicação):
+  `specs/264-*/api-contract.md`. Este bloco não repete o que ele já diz.
+- **Configuração por empresa:** `GET` e `PUT /company-settings/audio-transcription` (`settings.manage`, escopo company). `PUT`
+  aceita só `{ enabled }` (`.strict()`); igual ao valor atual não grava nem audita. Sem linha = ligada. Auditoria
+  `company-audio-transcription.changed` só na mudança, com ator, IP e correlação. Código em `src/companies/` (`presentation/audio-transcription-settings.*`,
+  `infrastructure/drizzle-audio-transcription-settings.repository.ts`).
+- **Teto de duração:** `AUDIO_TRANSCRIPTION_MAX_DURATION_MS` (padrão `600000`, mín. `1000`, máx. `3600000`), só lido pela API nesta fase.
+- **Divergência do `contract.md` §5.1:** o `PUT` com `enabled: true` sem linha não cria linha (nada muda, `updatedAt` continua `null`).
+  A linha nasce no primeiro `PUT {enabled:false}`.
+- **Estado atual em produção:** nenhuma linha de transcrição é gravada antes da Fase 3 (o worker). Até lá, o anexo de áudio sai
+  `disabled` (empresa desligada) ou sem o campo `transcription`.
+- **Rotas por assunto sem `/v1`:** o código não tem prefixo `/v1` para as rotas da conversa, então os caminhos reais são os de `api-contract.md` §1.
