@@ -613,3 +613,35 @@ economiza uma consulta e o texto de empresa que desligou no meio do áudio só �
 painel só tem rótulos por desfecho para a distribuição de NF-e (`nfeWorkspace.*.locale.json`); as demais rotinas
 mostram o código, então não inventei rótulo pt-BR/en para os três desfechos — o "rótulo" do painel é a entrada do
 catálogo. (4) Texto vazio do motor é gravado como `''` (silêncio é resultado, spec RF/tabela de estados), `ready`.
+
+## T3.4 — migration do catálogo (2026-10-12)
+
+Autorizada pelo coordenador (necessária à T3.4; a proibição de migration era contra migration não prevista).
+`apps/api-transportada/drizzle/20261012154238_conversation_audio_transcribe_job/` (`migration.sql`, `rollback.sql`,
+`snapshot.json` por `db:generate`): (1) `job_executions_job_check` e `job_schedules_job_check` ampliadas com
+`'conversation.audio.transcribe'` (`NOT VALID` + `VALIDATE`, molde da canhoto/252); (2) semente `('conversation.audio.transcribe',
+300, now(), false, now(), 'system')` — **nasce pausada**, a mesma representação da `holiday.provider.pull`: o operador liga em
+Operações depois do deploy do worker com modelo e imagem; (3) `rollback.sql` apaga `job_executions` e `job_schedules` do
+job (regra da canhoto), restaura as duas CHECK sem ele e sai do journal com guarda `ROW_COUNT`.
+
+Registros: `SEED_MIGRATIONS` (`test/job-catalog/catalog.contract.ts`), lista de pastas
+(`static-migration.contract.ts`), contrato estático novo `conversation-audio-transcribe-job.static.contract.ts`
+(aditiva, semente pausada, rollback), asserção de integração `conversation-audio-transcribe-job.assertion.ts` (semente
+pausada em 300 s, CHECK aceita o job novo nas duas tabelas e recusa `bogus.job` com 23514) ligada em
+`database-migration.integration.ts`, e `conversation-audio-transcribe-job-rollback.assertion.ts`: as asserções que desfazem
+migrations anteriores (feriados, canhoto, calendário) desfazem esta primeiro, senão a CHECK antiga recusaria a linha do
+relógio (primeira tentativa falhou assim: `job_schedules_job_check ... violated by some row`).
+
+Gates: API `typecheck` e `lint` exit 0; `bun --env-file=../../.env.test test --timeout 120000` → 11525 pass, 0 fail;
+`db:generate` → `no_changes`; `db:check` → "Everything's fine"; `make migration-test` → **207 pass, 0 fail** (rollback
+incluído); `make check` na raiz → exit 0 (API 11516, worker 2430, cron 101, painel 1332, ...). Uma rodada de `make check` sob carga
+reprovou dois testes de API por timeout de 5 s (`deploy.contract`, `composition.contract`), sem relação; passam
+isolados e na rodada seguinte.
+
+Histórico: o commit `49c9411c9` (catálogo) deixa a API vermelha sozinho (2 testes) até a migration, que entra no commit
+seguinte (sem amend/reset, como pedido); o intervalo vermelho é só entre esses dois commits.
+
+OSRM: `osrm-routing-matrix.integration.test.ts` ("ponto fora da área", esperado 4511.2, recebido 1143650) falha **igual**
+no checkout principal em `6ab142933` (sem nenhuma mudança da 264): 3 pass, 1 fail. É o serviço OSRM local, não a
+transcrição. `make worker-integration` não roda limpo nesta máquina (banco `55432` com migrations parciais de outra sessão);
+o mesmo alvo foi rodado à mão no Postgres descartável `65432`: 309 pass, 1 fail (a do OSRM).
