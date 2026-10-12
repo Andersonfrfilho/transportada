@@ -358,3 +358,34 @@ Divergências e interpretações (contract.md §5.5):
 - **Nomes curtos:** FKs, únicos e checks foram nomeados à mão para caber em 63 bytes (o Drizzle geraria nomes longos
   que o Postgres trunca ou troca por hash). Testado.
 - **`updated_by_user_id` sem FK**, como o calendário (registrado no arquivo do schema).
+
+## T2.2 — mapper `toParticipantTranscription`, tabela espelhada e paridade (2026-10-12)
+
+- **Documentos alinhados (commit docs separado `aaab51dcf`):** `purged` não é status. `plan.md` § c (linha 112) e a
+  tabela do `contract.md` §5.2 (linha 373) passaram a `ready` sem texto (expurgado) ⇒ ausente; também corrigidas as
+  menções do worker (`plan.md` § d, `contract.md` §5.6 passos 5 e 7, `tasks.md` T2.2/T3.3).
+- **Código:** `occurrence-conversation/domain/participant-transcription.{constant,types,mapper}.ts`.
+  `toParticipantTranscription({ row, isEnabled })` (objeto, code-standart §10) e `resolveAudioDurationMs`. **Não ligado às rotas**
+  (T2.3).
+- **Paridade:** `@adatechnology/conversation-contracts` `0.6.0` exato em `devDependencies` da API (`bun install`; `bun.lock`
+  atualizado; as outras apps seguem em `0.5.0`, com cópia própria no lock). `test/occurrence-conversation/participant-transcription.contract.ts`
+  parseia cada saída do mapper com `participantTranscriptionSchema` e `participantAttachmentSchema` e exige que o parse devolva
+  o mesmo objeto (o schema é _strip_, então perda seria visível). Segunda cópia de zod (^3 do pacote × 4.4.3 da API) só em
+  `test/**`.
+- **Texto de fonte:** `participant-transcription-source.contract.ts` — nenhum `src/**` importa o pacote (estático, dinâmico
+  ou `require`); está em `devDependencies` na versão exata e fora de `dependencies`.
+- **Ouro das rotas antigas:** os três serializadores antigos (`read-occurrence-conversations`, portal, motorista antigo) não
+  citam `transcription`/`durationMs`; `signConversationAttachments` e a leitura antiga com anexo de áudio que tem `duration_ms`
+  saem byte a byte com os cinco campos.
+- **Mutação (todas reprovam):** `ready` sem texto devolvido como ready vazio (1 fail); `language` nulo passando (10);
+  texto sem corte (3); `purged` voltando como status (3); corte partindo par substituto (1); import do pacote em `src/**`
+  (1); campo novo no anexo antigo (4). Mapper e serviço restaurados depois de cada uma.
+- **Gates (apps/api-transportada):** `bun run typecheck` limpo · `bun run lint` limpo (`--max-warnings=0`) ·
+  `bun --env-file=../../.env.test test --timeout 120000` → **11489 pass, 25 skip, 0 fail** · `bun run db:check` "Everything's fine".
+- **Divergências do contrato:**
+  1. `contract.md` §5.2 (linha 372) dizia `failed` com outro código ⇒ `{ status: 'failed' }`; a task manda **ausente**.
+     Adotado ausente e a linha da tabela foi corrigida. Para o leitor é equivalente (só o player), e não vaza que houve falha
+     que a tela não distingue.
+  2. `failed/too_long` com `maxDurationMs` nulo ou não inteiro positivo também sai ausente (o CHECK da T2.1 impede no banco).
+  3. A tabela do contrato dava `toParticipantTranscription(row | undefined, enabled)`; a assinatura é por objeto (§10 do code-standart).
+  4. Os testes de contrato foram escritos junto do mapper, não antes: a prova de que eles pegam o defeito é a mutação acima.
