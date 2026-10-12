@@ -310,3 +310,51 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
 6. **`--threads` diferente de 7:** não variado.
 7. **Mac nativo com `/usr/bin/time -l`:** substituído pelo GNU `time` dentro do contêiner Alpine (a base do worker); o
    `whisper-cli` do Homebrew usa Metal e mediria a GPU do laptop.
+
+## T2.1 — schema e migration da transcrição
+
+Migration `apps/api-transportada/drizzle/20261012140238_conversation_audio_transcription/` (`migration.sql`,
+`rollback.sql`, `snapshot.json`), após `20261010103500_quick_reply_driver_audience`. Schemas em
+`src/database/occurrence-conversation-audio-transcription.schema.ts` e `company-audio-transcription-settings.schema.ts`;
+constantes em `src/shared/conversation-audio-transcription.constant.ts`; índice parcial
+`occurrence_conversation_attachments_audio_created_idx` em `occurrence-conversation.schema.ts`.
+
+Testes escritos antes (vistos vermelhos no primeiro `bun test`: importavam os schemas ainda inexistentes), e depois verdes:
+
+- `test/occurrence-conversation-schema/audio-transcription.contract.ts` (FKs com `company_id`, únicos, índices, lista de
+  status sem `disabled`/`purged`, códigos de falha da RF14 + `company_disabled`, CHECK de 20 000 `char_length`, nomes ≤ 63 bytes);
+- `test/database-migration/conversation-audio-transcription.static.contract.ts` (aditiva, sem ENUM, um único índice novo em
+  anexos, identificadores ≤ 63 bytes, rollback com ordem e guarda de `ROW_COUNT`);
+- `test/database-migration/conversation-audio-transcription.assertion.ts` (no banco: 1 transcrição por anexo; 20 000 code
+  points aceitos e 20 001 recusados, emoji incluso; `disabled` e `purged` recusados em `status`; código fora da lista
+  recusado; cada um dos 9 códigos aceito; `too_long` amarrado ao teto; `ready` exige `generated_at`; empresa inexistente
+  recusada por FK; uma configuração por empresa). Cada caso roda numa transação que volta; nada sobra para o rollback.
+- Registrados em `test/occurrence-conversation-schema.contract.test.ts`, `test/database-migration.contract.test.ts`,
+  `test/database-migration/static-migration.contract.ts` (cadeia) e `test/database-migration/database-migration.integration.ts`
+  (assertion + tabelas antes e depois do rollback/reaplicação), com `CONVERSATION_AUDIO_TRANSCRIPTION_TABLES` em `support.ts`.
+
+Comandos e saídas (worktree `transportada-wt/spec-260`, 2026-10-12):
+
+- `bun run db:generate -- --name conversation_audio_transcription` → `drizzle/20261012140238_conversation_audio_transcription/migration.sql`
+  gerada pelo drizzle-kit; SQL customizado (header e comentários) acrescentado à mão, CHECKs e índice parcial sem alteração.
+- `bun run db:generate` (depois) → `{"status":"no_changes"}`.
+- `bun run db:check` → `Everything's fine`.
+- `bun run typecheck` (`tsc --noEmit`) → sem erros.
+- `bun run lint` (`eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`) → sem saída, exit 0.
+- `prettier --check` nos arquivos tocados → `All matched files use Prettier code style!` (snapshot.json fica fora, por
+  `.prettierignore`).
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo da API) → `11427 pass, 25 skip, 0 fail`
+  (208 arquivos, 11452 testes). Os 25 skip são os de integração sem `DRIZZLE_TEST_DATABASE_URL` neste comando.
+- `make migration-test` (raiz) → 1ª rodada `203 pass, 1 fail`: `readBusinessTables` (support.ts) tem lista própria de filtro e
+  não conhecia as tabelas novas; corrigido. 2ª rodada → `204 pass, 0 fail`, exit 0, rollback e reaplicação incluídos.
+
+Divergências e interpretações (contract.md §5.5):
+
+- **`purged` não é status.** §5.5 fixa `status` em `pending|ready|failed`; o plano § c (linha 112) e a tabela do
+  contrato (linha 373) ainda citam `purged`. Adotado §5.5: expurgo = `ready` com `text is null` e `generated_at`
+  preservado (o mapper trata `ready` sem texto como ausente). Quem implementar T2.2/T3.x deve seguir isso.
+- **CHECKs do plano que o §5.5 não repete, mantidos:** `failed` exige `failure_code`; `ready` ⇔ `generated_at`;
+  `audio_duration_ms > 0` quando houver.
+- **Nomes curtos:** FKs, únicos e checks foram nomeados à mão para caber em 63 bytes (o Drizzle geraria nomes longos
+  que o Postgres trunca ou troca por hash). Testado.
+- **`updated_by_user_id` sem FK**, como o calendário (registrado no arquivo do schema).

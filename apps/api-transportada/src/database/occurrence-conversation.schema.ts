@@ -418,6 +418,10 @@ export const occurrenceConversationAttachments = pgTable(
       sql`${table.durationMs} is null or ${table.durationMs} > 0`,
     ),
     index('occurrence_conversation_attachments_message_idx').on(table.companyId, table.messageId),
+    /** Spec 264: a descoberta da transcrição varre só os áudios recentes a cada ciclo. */
+    index('occurrence_conversation_attachments_audio_created_idx')
+      .on(table.createdAt)
+      .where(sql`${table.contentType} like 'audio/%'`),
   ],
 )
 

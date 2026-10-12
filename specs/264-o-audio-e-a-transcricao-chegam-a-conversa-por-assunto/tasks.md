@@ -86,7 +86,7 @@ review,denied}`).
 
 > 🤖 Modelo: `sonnet` (T2.1 → `haiku`)
 
-- [ ] **T2.1** `haiku` — Schema Drizzle + migration aditiva `…_conversation_audio_transcription` (as duas tabelas do
+- [x] **T2.1** `haiku` — Schema Drizzle + migration aditiva `…_conversation_audio_transcription` (as duas tabelas do
       plano § c com os ajustes do `contract.md` §5.5: `conversation_id`, `lease_token`, `max_duration_ms`,
       `enabled_since`, `routine_started_at`, CHECK de 20 000 caracteres, `company_disabled`; e o **índice parcial**
       `(created_at) where content_type like 'audio/%'` em `occurrence_conversation_attachments`; CHECKs por `inList`,
