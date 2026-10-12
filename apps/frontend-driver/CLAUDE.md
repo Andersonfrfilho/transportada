@@ -451,6 +451,14 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   `ready` vazio, `failed` `too_long`, todos com `durationMs`); `.../transcription-ready` `{subjectId}` leva os `pending` a `ready` e move
   `transcriptionUpdatedAt` no resumo. O áudio que o motorista grava e envia (upload → PUT → `attachmentIds`) nasce `pending`; a URL do
   anexo de áudio serve um WAV mudo de 2 s. Teste: `driver-preview-conversations-audio.contract.ts`.
+- **Smoke do áudio (spec 264 T4.4).** `test/conversation-audio.smoke.spec.ts` (10 testes, entra no script `smoke`; build com
+  `VITE_OBJECT_STORAGE_URL` = origem da demo, senão a CSP não deixa o `<audio>` tocar). ⚠️ **No macOS o `getUserMedia({ audio })` do
+  Chromium do Playwright fica pendente** mesmo com mic falso e permissão (vídeo e enumeração funcionam; e um `AudioContext` não renderiza,
+  nem o `currentTime` do `<audio>` anda além de ~0,06 s: sem dispositivo de áudio). Por isso `conversation-audio-smoke.helper.ts` injeta
+  `getUserMedia` e um `MediaRecorder` que entregam um WAV mudo; todo o resto é código real. `PLAYWRIGHT_MICROPHONE=native` usa o do navegador.
+  Rede: `setNetwork` (`setOffline` + rota que aborta `/me/**`, porque o `route.fetch` do desvio roda no Node). Bolha na fila é a de anexo
+  pendente (nome do arquivo + relógio), sem player. "Tocando" se afirma por botão "Pausar" + `<audio>` carregado e não pausado, nunca por
+  `currentTime`. Os cabeçalhos se testam no `server.ts` de produção (o preview do Vite não os serve). `PLAYWRIGHT_SAVE_PRINTS=true` regrava os prints.
 - **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
   o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
   em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…

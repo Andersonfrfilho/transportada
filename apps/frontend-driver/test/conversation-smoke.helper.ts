@@ -15,8 +15,17 @@ const ME_PATH = /^(?:\/v1)?\/me\//u
 const DEMO_BOOT_TIMEOUT_MS = 20_000
 const DEMO_POLL_INTERVAL_MS = 200
 
+export type DemoAttachment = Readonly<{
+  contentType: string
+  durationMs?: number
+  id: string
+  transcription?: Readonly<{ status: string }>
+}>
+
 export type DemoMessage = Readonly<{
+  attachments: readonly DemoAttachment[]
   bodyText: string
+  clientMessageId: string | null
   direction: 'inbound' | 'outbound'
   id: string
 }>

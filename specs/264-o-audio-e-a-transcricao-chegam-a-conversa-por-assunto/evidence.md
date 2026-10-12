@@ -861,3 +861,39 @@ Nota para a T4.4: o smoke precisa de `VITE_OBJECT_STORAGE_URL=http://localhost:5
 
 **Gates (saída real, em `apps/frontend-driver`):** `bun run typecheck` ok; `bun run lint` sem problemas; `bun run test` → **1752 pass, 0 fail**
 (era 1691); smoke `conversation.smoke.spec.ts` sozinho → **13 passed** (2.6 min), nenhum seletor antigo mudou; `make check` na raiz → exit 0.
+
+## T4.4 — smoke Playwright do áudio no app do motorista (2026-10-12)
+
+**Causa do `getUserMedia` pendente (diagnosticada, não contornada às cegas).** Sonda no Chromium do Playwright (headless-shell e `channel: 'chromium'`),
+página em `http://localhost:53112` (contexto seguro): `permissions.query` = `granted`; `MediaRecorder.isTypeSupported` true para `audio/webm;codecs=opus`,
+`audio/webm`, `audio/mp4`; `enumerateDevices` lista os dispositivos falsos; `getUserMedia({ video })` **abre**; `getUserMedia({ audio })` fica **pendente**
+com qualquer combinação (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`, `--use-file-for-fake-audio-capture=<wav>`, permissão, `deviceId`).
+Um `AudioContext` + `MediaStreamDestination` grava 110 bytes em 2,5 s (o relógio de áudio não anda) e o `currentTime` de um `<audio>` para em ~0,06 s.
+Conclusão: neste macOS (sessão sob sandbox) o serviço de áudio do Chromium não inicia a captura/renderização; não é CSP, nem Permissions-Policy, nem
+flag. Não testei fora do sandbox (exigiria desligá-lo). **Correção adotada:** `conversation-audio-smoke.helper.ts` injeta `getUserMedia` e um `MediaRecorder`
+(WAV mudo de 3 s) por `addInitScript`; relógio, Parar, revisão, player, envio, fila e upload são o código real do app. `PLAYWRIGHT_MICROPHONE=native` usa o
+microfone do navegador (para máquina com áudio real); `playwright.config.ts` já passa as flags de mic falso e `permissions: ['microphone']`.
+
+**Testes novos** (`test/conversation-audio.smoke.spec.ts`, 10, no script `smoke` com `VITE_OBJECT_STORAGE_URL=http://localhost:53912`): cabeçalhos (no `server.ts`
+de produção, porta 53913: o preview do Vite não serve `Permissions-Policy`); gravar → "0:0x de 2:00" → parar → tocar na revisão → enviar → 1 bolha com
+player e 1 mensagem de áudio no servidor, sem texto, `clientMessageId` presente, sem duplicar em 3 s; Parar ×2 + aba oculta logo depois → revisão com áudio;
+aba oculta durante a gravação → revisão; alvos ≥ 44 px (gravar, parar, descartar, enviar) e descartar não envia; microfone negado → alerta "Sem permissão para
+usar o microfone." e o texto ainda vai; offline → bolha "Na fila" + nome do arquivo, reconectar (3 eventos `online` extras) → 1 upload, 1 POST, 1 mensagem,
+`clientMessageId` igual ao da fila, fila vazia; fila cheia (8×7 MiB de outra conta no IndexedDB) → "Fila cheia" + "reenviar", fila vazia, o texto entra e sai;
+transcrição → 4 estados + `pending → ready` sem recarregar (marcador em `window`), um só `.cv-p-thread__live`, anúncio "Transcrição pronta"; player → "Pausar"
+
+- `<audio>` carregado e não pausado, tocar o segundo pausa o primeiro, zero violação de CSP no console.
+
+**Divergências do enunciado, por medida:** (1) a bolha do áudio na fila é nome do arquivo + relógio, **sem player** (contrato §3; o pacote 0.10.0 não toca `blob:` na fila);
+o teste afirma isso. (2) "Tocando" se afirma por estado, não por `currentTime` (o relógio trava sem dispositivo de áudio). (3) `Permissions-Policy` não existe no preview; vai no `server.ts`.
+
+**Flakiness:** `--repeat-each=3` do arquivo novo → **30 passed (2.1 min)**; mais 3× o teste "sem rede" depois do contador de POST → 3 passed.
+**Prints:** `prints/t4-4-gravando-375x812.png` e `prints/t4-4-quatro-estados-375x812.png` (375x812, escuro; regravar com `PLAYWRIGHT_SAVE_PRINTS=true`). Nenhum print alheio regravado.
+
+**Mutações (cada uma aplicada, rodada e revertida com `git checkout --`):** (a) sem `audioRecording` na página → **7 falhas** (mic some); (b) sem `isFlushing` e sem
+`runExclusive` → o teste offline **sobrevivia** (a `Idempotency-Key` da demo mascara a duplicata); reforcei com contador de `POST .../uploads` e `.../messages` e 3 eventos `online`
+→ agora **3 de 3 falham**; (c) sem `media-src` na CSP → cabeçalhos, gravar (revisão) e player **falham (3)**.
+
+**Gates (apps/frontend-driver):** `typecheck` ok; `lint` ok; `test` → **1752 pass, 0 fail**; `bun run smoke` completo → **2 passed (service worker)** e **66 passed (4.0 min)**
+(13 da conversa + 10 de áudio + os do app).
+`make check` na raiz → exit 0; `bun run format:check` → "All matched files use Prettier code style!".

@@ -172,7 +172,7 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
 - [x] **T4.3** `sonnet` — Implementar a T4.2 + prop de gravação em `DriverConversations.page.tsx` + locales `pt-BR`/`en`
       (conferir as chaves de `participantLabels` da versão nova) + demo API com áudio nos quatro estados e
       `__debug` para avançar `pending → ready`.
-- [ ] **T4.4** `sonnet` — Smoke Playwright do `frontend-driver` (Chromium com microfone falso): gravar, ouvir, enviar,
+- [x] **T4.4** `sonnet` — Smoke Playwright do `frontend-driver` (Chromium com microfone falso): gravar, ouvir, enviar,
       enviar offline e reconectar sem duplicar, microfone negado, ver "Transcrevendo…" e o texto com o aviso. Atualizar
       `apps/frontend-driver/CLAUDE.md` § Conversas e `docs/ai-context/frontend-driver.md`.
 
