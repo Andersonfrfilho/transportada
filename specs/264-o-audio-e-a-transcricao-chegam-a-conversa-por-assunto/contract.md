@@ -234,7 +234,7 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
 
 ### 3.2 Player `.cv-p-audio*`
 
-- Tocar/pausar: nome muda com o estado. **Um áudio por vez por conversa** (contexto interno da timeline).
+- Tocar/pausar: nome muda com o estado. **Um áudio por vez NA PÁGINA** (decisão registrada na T1.8: satisfaz o RF7 com folga, pausa também o `review` do gravador e não vaza entre requisições em SSR; o player do operador e uma segunda cópia do pacote não são coordenados).
 - Barra: **`<input type="range">` nativo estilizado** (teclado, toque e leitor de tela de graça).
 - **URL e `src`:** a URL é resolvida **no mount, por `attachment.id`** (efeito com dependência no id; revalidação não a
   troca, RF8), e o `src` é atribuído assim que resolve, com **`preload="none"` sempre** — o navegador não baixa nada
@@ -267,7 +267,9 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
 
 - **Recolher em 6 linhas** (`-webkit-line-clamp: 6`); botão só depois de medir (`scrollHeight > clientHeight`); no
   SSR não há botão. Texto inteiro no DOM.
-- Aviso de máquina **junto** do texto (`aria-describedby` do texto para o aviso).
+- Aviso de máquina **junto** do texto: na ordem do DOM vem **antes** (aviso → texto), com `order` visual texto → aviso. Sem `aria-describedby` (o aviso já é lido antes do texto; apontar para ele leria duas vezes no VoiceOver) e sem `id`.
+- `too_long` com `maxDurationMs < 60000` não desenha nada (o piso em minutos daria 0). `maxSizeBytes <= 0` é ignorado (vale o padrão).
+- `text` que não é string (objeto, número, ausente) é tratado como transcrição ausente: só o player, sem lançar.
 - **Anúncio pela região viva que a thread já tem**, sem nó `aria-live` novo (um nó novo mudaria os 9 ouros): o bloco
   chama `useAnnounceCopy()` e a única região da conversa, `ParticipantThreadLive` (`ParticipantCopyAnnouncer.tsx`,
   `div.cv-p-thread__live[role=status][aria-live=polite]`), fala `transcriptionReady` ("Transcription ready") na troca
@@ -283,11 +285,10 @@ A vista é `ParticipantAudioRecorderView({ state, elapsedMs, … })`, separada d
    não manda `durationMs`.
 3. O nome do arquivo passa a vir **depois** do player.
 4. A classe `cv-p-attachment__audio` deixa de ser renderizada (a regra CSS, `styles.css:1327`, fica até a próxima major).
-5. Tocar um áudio pausa o outro da mesma conversa.
+5. Tocar um áudio pausa o outro em qualquer player da visão do participante na página (o player do operador e uma segunda cópia do pacote não são coordenados).
 6. Rótulos novos, opcionais, com default em inglês (§4): host que não traduz mostra inglês.
 
-E no changeset do `conversation-contracts`: `durationMs` e `transcription` opcionais, _strip_, validação por anexo
-recomendada.
+E no changeset do `conversation-contracts`: `durationMs` e `transcription` opcionais; chaves desconhecidas são descartadas, mas `transcription`/`durationMs` inválidos reprovam o anexo — validação por anexo (`participantTranscriptionSchema.safeParse`) recomendada.
 
 ## 4. Rótulos novos em `ParticipantConversationsLabels`
 
@@ -313,6 +314,7 @@ interna por `resolveParticipantAudioLabels(labels)` (`labels.x ?? DEFAULT.x`). P
 | `playAudio` / `pauseAudio` | Play audio / Pause audio                                     | tocar/pausar                                    |
 | `audioPosition`            | Audio position                                               | nome do range                                   |
 | `audioPositionValue`       | {position} of {duration}                                     | `aria-valuetext` (sem duração: só `{position}`) |
+| `audioUnavailable`         | Audio unavailable                                            | falha do player (texto estático, sem `role`)    |
 | `playbackRate`             | Playback speed {rate}                                        | velocidade                                      |
 | `transcribing`             | Transcribing…                                                | `pending`                                       |
 | `transcriptionReady`       | Transcription ready                                          | região viva                                     |
