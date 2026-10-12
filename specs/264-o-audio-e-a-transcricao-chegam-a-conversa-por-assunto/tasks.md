@@ -116,7 +116,7 @@ review,denied}`).
 
 > 🤖 Modelo: `sonnet` (T3.1 → `haiku`; T3.5 é 🧠 `opus` só se a T0.2 mudou o desenho da imagem)
 
-- [ ] **T3.1** `haiku` — Cópia por valor do schema Drizzle das duas tabelas no worker + contrato de paridade (molde dos
+- [x] **T3.1** `haiku` — Cópia por valor do schema Drizzle das duas tabelas no worker + contrato de paridade (molde dos
       quatorze arquivos de `src/database/`).
 - [ ] **T3.2** `sonnet` — `speech-to-text.port.ts` + `whisper-local-speech-to-text.gateway.ts` sobre
       `createWhisperLocalTranscriber` (dependência `@adatechnology/audio-transcription-provider` em versão exata);

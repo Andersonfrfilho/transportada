@@ -460,3 +460,38 @@ Divergências e interpretações (contract.md §5.5):
   2. `pending`, `ready` e `failed/too_long` não são gravados por nenhum caminho de produção nesta branch (`insertPendingTranscription` e `writeExposedTranscription` só têm chamadas em testes). O documento diz isso em §0.
   3. Não foi tocado `apps/api-transportada/CLAUDE.md`, que o `tasks.md` T2.5 também cita como "núcleo". O pedido listou só `api-contract.md` e `docs/ai-context/api-transportada.md`; fica pendente se for desejado.
 - **Sem alteração de código, teste ou migration.**
+
+## T3.1 — cópia por valor no worker + contrato de paridade
+
+Commit do código: `a859b255d` (`feat(264)`), em `work/spec-264`.
+
+Arquivos (cópia por valor da API, só colunas e constantes; CHECK, FK e índice ficam na API):
+
+- `apps/worker-transportada/src/database/occurrence-conversation-audio-transcription.schema.ts` (20 colunas, espelho de
+  `apps/api-transportada/src/database/occurrence-conversation-audio-transcription.schema.ts`).
+- `apps/worker-transportada/src/database/company-audio-transcription-settings.schema.ts` (6 colunas).
+- `apps/worker-transportada/src/shared/conversation-audio-transcription.constant.ts` (status, códigos de falha, teto de
+  20 000 code points, teto de duração padrão; espelho da constante da API).
+- Contrato: `apps/worker-transportada/test/occurrence-conversation/audio-transcription-schema-parity.contract.ts`, ligado ao
+  entrypoint existente `test/occurrence-conversation.contract.test.ts` (já na lista do `package.json`).
+
+Paridade: colunas da cópia iguais às da API linha a linha (igualdade exata das listas extraídas); nome da tabela e colunas
+que o worker grava/lê conferidos por `getTableConfig`; constantes comparadas código a código sem comentários.
+
+Mutação (aplicada e revertida):
+
+- `leaseToken: uuid('lease_token')` → `uuid('lease_tokn')` na cópia do worker: 2 falhas (igualdade de colunas e presença de
+  `lease_token`).
+- `AUDIO_TRANSCRIPTION_TEXT_MAX_CHARACTERS = 20_000` → `20_001` na cópia do worker: 1 falha (paridade das constantes).
+
+Gates (worker, primeiro plano):
+
+- `bun run typecheck` → exit 0.
+- `bun run lint` → exit 0.
+- `bun run test` (script do `package.json`) → antes: 2333 pass, 0 fail, 103 arquivos; depois: 2337 pass, 0 fail, 103 arquivos.
+- `prettier --check` nos cinco arquivos tocados → exit 0.
+
+Ordem: os arquivos da cópia foram escritos antes do contrato, e não o contrato visto vermelho antes da implementação. A
+prova de que o contrato reprova veio pela mutação acima.
+
+Sem alteração de API, tabela, coluna ou migration. Divergências: nenhuma entre cópia e API no momento do teste.
