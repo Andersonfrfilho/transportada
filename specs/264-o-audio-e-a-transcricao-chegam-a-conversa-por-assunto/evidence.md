@@ -2,11 +2,9 @@
 
 ## T0.2 — medidas
 
-> **Situação (2026-10-11): parcial — medida local feita, medida no Railway bloqueada por permissão.** A criação do
-> serviço temporário `spike-whisper-264` (`create-service` no projeto `transportada`, ambiente `staging`, workspace AdA
-> Technology) foi **negada pelo classificador de permissões** da sessão. Pela regra da task, nada foi contornado (nem
-> pela CLI `railway up`): nenhum serviço, volume, domínio ou variável foi criado ou tocado no Railway. A ADR-0103
-> continua **proposta**, com o candidato da medida local registrado; o "aceita" depende da medida no runner.
+> **Situação (2026-10-12): fechada.** Medida local (2026-10-11) e medida no Railway (2026-10-12, serviço temporário
+> `spike-whisper-264` no ambiente `staging` do projeto `transportada`, workspace AdA Technology, autorizado pelo dono e
+> **removido** ao fim). Modelo escolhido pelo critério fechado: **`small-q5_1`**. ADR-0103 **aceita**.
 
 ### O que se mediu e onde
 
@@ -15,9 +13,8 @@
   com `whisper-cli` compilado da tag fixada e `--threads 7` (vCPU − 1, plano § d).
 - ⚠️ **A máquina estava disputada:** `vm.loadavg` entre **12,5 e 17,9** em 11 núcleos durante toda a medida (outras
   sessões, Keycloak/MinIO/Postgres de outras árvores). Os tempos são **ruidosos** — a mesma combinação variou até 40 %
-  (`large-v3-turbo-q5_0` em 2 min: 94 s limpo vs 133 s com ruído). E o M3 não é o EPYC x86 do Railway (núcleo mais
-  rápido, NEON em vez de AVX2). **O fator de tempo real local não fecha o critério (iii) no worker**; ele só separa
-  quem tem folga larga de quem está no limite.
+  (`large-v3-turbo-q5_0` em 2 min: 94 s limpo vs 133 s com ruído). E o M3 não é a CPU x86 do Railway. **O fator de tempo real local não fecha o critério (iii) no worker** — quem
+  fecha é a medida no Railway, mais abaixo (que saiu bem mais rápida que a local).
 - **whisper.cpp:** tag `v1.9.4` (2026-09-11; a `v1.9.5` tinha 5 dias e ficou de fora pela regra de duas semanas),
   commit `927cfce34f31707e17f2bff35c349632fb9e2c3a`, conferido no build (`test "$(git rev-parse HEAD)" = ...`).
   `cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
@@ -73,7 +70,7 @@ python3 -I score.py audio out/local
 
 A saída do `whisper-cli` foi medida **crua**, antes do `collapseRepetitions` do pacote — loop aqui é loop do modelo.
 
-### Resultados por modelo
+### Resultados por modelo (local, M3 disputado)
 
 Fator de tempo real = (ffmpeg + whisper) ÷ duração. RSS = pico do processo `whisper-cli` (GNU `time %M`); o ffmpeg ficou
 em 43–45 MB em todos.
@@ -162,8 +159,8 @@ a transcrição de `d120-noise` com `--threads 7`:
 | durante `small`      |           482,7 (−11 %) |  35,3 s (era 43,4 s) |
 | sozinho (depois)     |                   559,8 |                    — |
 
-Com 7 threads de whisper em 8 CPUs a rotina vizinha perde ~11–12 % de vazão — não para. Medida em ARM disputado; o
-número do EPYC fica para o Railway.
+Com 7 threads de whisper em 8 CPUs a rotina vizinha perde ~11–12 % de vazão — não para. Medida em ARM disputado; no
+Railway o impacto foi nulo (abaixo).
 
 ### Teto do serviço e RAM (critério iv)
 
@@ -178,7 +175,7 @@ número do EPYC fica para o Railway.
 - Camada `apk add ffmpeg libstdc++ libgomp` sobre `oven/bun:1.3.14-alpine`: **107 MB** (descompactado); `whisper-cli`:
   **2,8 MB**; modelo: o tamanho do arquivo. Acréscimo à imagem do worker: `small-q5_1` ≈ **+291 MB**, `small` ≈ +598 MB,
   `turbo-q5_0` ≈ +684 MB, `turbo` ≈ +1,73 GB.
-- Build do estágio do `whisper-cli` (clone raso + cmake, 11 CPUs): **61 s**. No builder do Railway: não medido.
+- Build do estágio do `whisper-cli` (clone raso + cmake, 11 CPUs): **61 s**. No builder do Railway: abaixo.
 
 ### Cadência do agendador
 
@@ -187,37 +184,129 @@ Não é medida, é o código: `JOB_TICK_INTERVAL_SECONDS = 300` (`apps/worker-tr
 não aceita menos de 5 min. **Cadência = 5 min**, caso previsto no plano § d ("se o agendador só der 5 min, a T0.2
 registra e a spec aceita"). Latência no pior caso ≈ 5 min + fila + processamento.
 
-### Leitura contra o critério fechado (só a medida local)
+### Leitura local (2026-10-11, só para registro)
 
-| modelo                | (i) loop | (ii) erro de palavras                                  | (iii) fator ≤ 1 em 2 min (M3, disputado) | (iv) RAM ≤ 70 % |
-| --------------------- | -------- | ------------------------------------------------------ | ---------------------------------------- | --------------- |
-| `base`                | nenhum   | **reprova** — 17–23 % com ruído, 210 palavras perdidas | 0,07–0,10                                | 0,9 GB — ok     |
-| `small-q5_1`          | nenhum   | 2,5–7,6 %, perda ≤ 6 palavras                          | 0,27–0,36                                | 1,1 GB — ok     |
-| `small`               | nenhum   | 5,0–7,0 %, perda ≤ 6 palavras                          | 0,27–0,36                                | 1,4 GB — ok     |
-| `large-v3-turbo-q5_0` | nenhum   | 5,0–7,6 %, mas engole frases (16–23)                   | **0,79–1,50 — no limite já no M3**       | 1,5 GB — ok     |
-| `large-v3-turbo`      | nenhum   | 5,0–7,3 %, mas engole frases (8–16)                    | **0,79–1,12 — no limite já no M3**       | 2,5 GB — ok     |
+Na medida local, `base` reprovou (ii) e os dois turbo ficaram com fator 0,79–1,50 em 2 min, o que levou à previsão de que
+reprovariam (iii) no servidor. **A previsão estava errada:** a CPU do Railway é mais rápida que o M3 disputado (abaixo).
+O candidato local era `small-q5_1`.
 
-**Candidato local: `small-q5_1`** — o menor que passa (i)–(iv) na medida local, com folga de ~3× no fator de tempo
-real. Os dois turbo ficam no limite de (iii) **já numa CPU mais rápida que a do Railway**; a medida no EPYC tende a
-reprová-los. **Não é escolha**: (iii) só fecha no runner do Railway, que não foi medido.
+### Railway — medida no runner (2026-10-12)
+
+**Serviço:** `spike-whisper-264` (id `38e8fa38-009d-40db-b402-33a4e74d9ca6`), criado vazio por `create-service` no
+ambiente `staging` (`3cd99844…`) e implantado com `railway up --detach -p <projeto> -e <staging> -s <serviço>` a partir do
+contexto do scratchpad (Dockerfile x86, `-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON`,
+cinco modelos baixados no build com `sha256sum -c`, áudios TTS, `bench.sh`/`load.ts`/`run.sh`). Sem variável, sem
+domínio, sem volume. O `update-service` (limites/restart) foi **negado** pela permissão, e não foi preciso: o serviço
+nasceu com o mesmo teto do worker — `cpu.max=800000 100000` (8 vCPU) e `memory.max=8000000000` (8 GB), lidos do cgroup
+no próprio contêiner.
+
+- **Runner:** `Intel(R) Xeon(R) 6975P-C`, `nproc=48` visíveis, AVX2 e AVX-512 presentes (o binário usa só até AVX2).
+- **Build:** upload às 13:01:09Z, `whisper-cli` compilado em **74 s** (13:01:30 → 13:02:44), modelos baixados e
+  conferidos em paralelo (o maior terminou 13:02:17), exportação 28 s, push de **3,07 GB** (os cinco modelos) em **66 s**;
+  build total **≈ 3 min 29 s**. Contêiner de pé às 13:05:18 — **≈ 40 s** de deploy depois do push.
+- **Tamanho:** o push de 3 068 941 687 bytes leva os cinco modelos (2 706 MB); sem os quatro que não ficam, a imagem do
+  spike seria ≈ 0,36 GB. No worker, o acréscimo é ffmpeg e libs (107 MB) + `whisper-cli` x86 (**4 MB**) + `small-q5_1`
+  (**182 MB**) ≈ **+293 MB**.
+
+| modelo                | áudio      | duração (s) | ffmpeg (s) | whisper (s) | fator de tempo real | RSS pico (MB) | erro de palavras | maior repetição | maior trecho perdido |
+| --------------------- | ---------- | ----------: | ---------: | ----------: | ------------------: | ------------: | ---------------: | --------------: | -------------------: |
+| `base`                | d010-clean |          14 |       0,08 |        1,00 |                0,08 |           284 |            8,3 % |               1 |                    1 |
+| `base`                | d060-noise |          60 |       0,22 |        3,50 |                0,06 |           291 |           18,9 % |               1 |                    3 |
+| `base`                | d120-clean |         120 |       0,40 |        6,05 |                0,05 |           297 |            5,7 % |               1 |                    2 |
+| `base`                | d120-noise |         120 |       0,42 |        6,33 |                0,06 |           297 |           19,7 % |               1 |                   20 |
+| `base`                | d120-fast  |          89 |       0,32 |        5,55 |                0,07 |           294 |            3,8 % |               1 |                    1 |
+| `base`                | d300-noise |         317 |       1,06 |       14,58 |                0,05 |           316 |           29,4 % |               1 |               **84** |
+| `small-q5_1`          | d010-clean |          14 |       0,08 |        3,35 |                0,25 |           467 |            0,0 % |               1 |                    0 |
+| `small-q5_1`          | d060-noise |          60 |       0,24 |       10,93 |                0,19 |           471 |            2,5 % |               1 |                    1 |
+| `small-q5_1`          | d120-clean |         120 |       0,43 |       20,27 |            **0,17** |           479 |            3,5 % |               1 |                    6 |
+| `small-q5_1`          | d120-noise |         120 |       0,43 |       17,76 |            **0,15** |           481 |            7,6 % |               1 |                    6 |
+| `small-q5_1`          | d120-fast  |          89 |       0,31 |       16,18 |                0,19 |           473 |            2,2 % |               1 |                    3 |
+| `small-q5_1`          | d300-noise |         317 |       1,07 |       44,78 |                0,14 |           500 |            8,2 % |               1 |                   14 |
+| `small`               | d010-clean |          14 |       0,08 |        3,33 |                0,25 |           750 |            0,0 % |               1 |                    0 |
+| `small`               | d060-noise |          60 |       0,22 |       10,30 |                0,17 |           760 |            5,0 % |               1 |                    6 |
+| `small`               | d120-clean |         120 |       0,41 |       20,24 |                0,17 |           761 |            3,2 % |               1 |                    6 |
+| `small`               | d120-noise |         120 |       0,44 |       20,42 |                0,17 |           767 |            6,3 % |               1 |                    6 |
+| `small`               | d120-fast  |          89 |       0,36 |       16,28 |                0,19 |           763 |            2,2 % |               1 |                    3 |
+| `small`               | d300-noise |         317 |       0,98 |       43,69 |                0,14 |           784 |            5,9 % |               1 |                    5 |
+| `large-v3-turbo-q5_0` | d010-clean |          14 |       0,08 |       11,19 |                0,83 |           801 |            0,0 % |               1 |                    0 |
+| `large-v3-turbo-q5_0` | d060-noise |          60 |       0,22 |       33,39 |                0,56 |           807 |            5,0 % |               1 |                    6 |
+| `large-v3-turbo-q5_0` | d120-clean |         120 |       0,42 |       57,54 |                0,48 |           816 |            7,6 % |               1 |                   16 |
+| `large-v3-turbo-q5_0` | d120-noise |         120 |       0,44 |       59,19 |                0,50 |           815 |            7,3 % |               1 |                   16 |
+| `large-v3-turbo-q5_0` | d120-fast  |          89 |       0,36 |       36,91 |                0,42 |           810 |            1,6 % |               1 |                    3 |
+| `large-v3-turbo-q5_0` | d300-noise |         317 |       1,03 |      128,10 |                0,41 |           835 |            6,7 % |               1 |                   16 |
+| `large-v3-turbo`      | d010-clean |          14 |       0,08 |       10,82 |                0,80 |         1 801 |            0,0 % |               1 |                    0 |
+| `large-v3-turbo`      | d060-noise |          60 |       0,22 |       32,68 |                0,55 |         1 816 |            5,0 % |               1 |                    6 |
+| `large-v3-turbo`      | d120-clean |         120 |       0,44 |       53,77 |                0,45 |         1 823 |            7,3 % |               1 |                    8 |
+| `large-v3-turbo`      | d120-noise |         120 |       0,40 |       55,14 |                0,46 |         1 823 |            7,3 % |               1 |                   16 |
+| `large-v3-turbo`      | d120-fast  |          89 |       0,34 |       37,23 |                0,42 |         1 811 |            1,6 % |               1 |                    3 |
+| `large-v3-turbo`      | d300-noise |         317 |       1,09 |      122,76 |                0,39 |         1 845 |            6,6 % |               1 |                   16 |
+
+Os textos voltaram no log do serviço (só a transcrição do TTS de logística, sem dado pessoal) e foram pontuados com o
+mesmo `score.py`. Conferência à mão do `small-q5_1` em `d300-noise` no x86: os 14 de "maior trecho perdido" são uma frase
+("quando eu terminar aqui eu mando uma nova mensagem com as fotos dos paletes") — a mesma perda de janela que o local
+tinha mostrado em outro trecho; o resto são as trocas fonéticas já listadas ("a kia", "vim impedir", "a parma se
+aperdiu").
+
+**RAM pelo Railway** (`get-service-metrics`, amostra de 30 s, janela do spike): pico **2,20 GB** — durante o
+`large-v3-turbo` (1,85 GB de RSS + ffmpeg + cache das páginas do modelo); média 0,36 GB. CPU pico 10,1 (amostra que
+estoura o teto por arredondamento da janela), média 2,05 na janela de 1 h.
+
+**Canhoto ao lado no runner** (mesmo `load.ts`, 1 thread JS, enquanto a transcrição de 2 min com ruído usa 7):
+
+| situação                      | proxy do canhoto (op/s) | transcrição de 2 min |
+| ----------------------------- | ----------------------: | -------------------: |
+| sozinho                       |                   494,4 |                    — |
+| durante `small`               |            492,7 (−0 %) |  21,3 s (era 20,9 s) |
+| durante `large-v3-turbo-q5_0` |            489,4 (−1 %) |  59,6 s (era 59,6 s) |
+| durante `large-v3-turbo`      |            494,2 (−0 %) |  54,8 s (era 55,5 s) |
+
+Com 7 + 1 threads dentro de 8 vCPU, **nenhuma das duas perde vazão mensurável** no runner. (`small-q5_1` não entrou no
+par simultâneo; o `small` tem o mesmo custo de CPU, 20,2 vs 20,3 s em 2 min.)
+
+### Decisão pelo critério fechado (medida no Railway)
+
+| modelo                | (i) loop | (ii) erro de palavras (amostra conferida)                 | (iii) fator ≤ 1 em 2 min | (iv) RAM + base ≤ 70 % (5,6 GB) |
+| --------------------- | -------- | --------------------------------------------------------- | ------------------------ | ------------------------------- |
+| `base`                | nenhum   | **reprova** — 18,9–29,4 % com ruído, 84 palavras perdidas | 0,05–0,06                | 0,97 GB — ok                    |
+| `small-q5_1`          | nenhum   | **2,5–8,2 %**, perda ≤ 14 palavras                        | **0,15–0,17**            | **1,15 GB (14 %)** — ok         |
+| `small`               | nenhum   | 3,2–6,3 %, perda ≤ 6                                      | 0,17                     | 1,43 GB — ok                    |
+| `large-v3-turbo-q5_0` | nenhum   | 5,0–7,6 %, engole frases (16)                             | 0,48–0,50                | 1,49 GB — ok                    |
+| `large-v3-turbo`      | nenhum   | 5,0–7,3 %, engole frases (8–16)                           | 0,45–0,46                | 2,50 GB — ok                    |
+
+**Escolhido: `small-q5_1`** — o menor que cumpre os quatro. `base` é menor e não cumpre (ii). Erro de palavras aceito
+para a amostra: **≤ 8,2 %** com ruído de cabine ~8 dB, sem loop e sem janela engolida acima de uma frase. Reserva medida,
+se a T6.3 com áudio real reprovar o `small-q5_1`: `small` (mesmo custo de CPU, +0,28 GB) e depois `large-v3-turbo-q5_0`
+(fator ~0,5, +0,33 GB) — os dois cabem no worker sem mudar plano. Trocar é mudança de imagem com nova medida (ADR).
+
+**Dimensionamento que sai da medida** (plano § d):
+
+- Teto de duração **mantido em 10 min**. Pior caso no runner: 10 min × 0,17 ≈ **102 s** por áudio.
+- `AUDIO_TRANSCRIPTION_TIMEOUT_MS`: **300000** (≈ 3× o pior caso medido, para a CPU disputada com o resto do worker).
+- `AUDIO_TRANSCRIPTION_BATCH_SIZE` **2** (padrão do plano): 2 × 102 s ≈ 3,4 min < o ciclo de 5 min.
+- `AUDIO_TRANSCRIPTION_THREADS` **7** (vCPU − 1, como medido). Worker **sem mudança de plano**: 8 vCPU / 8 GB.
+- Cadência: **5 min** (o agendador, acima). Latência típica de um áudio de 1 min: até 5 min de espera + ~11 s.
+
+**Custo do spike:** o serviço viveu ~27 min (13:01 → 13:28Z). Pela média da janela de 1 h, ≈ 123 vCPU-min e ≈ 21 GB-min ⇒
+pela tabela pública do Railway (US$ 0,000463/vCPU-min, US$ 0,000231/GB-min) ≈ **US$ 0,06** (estimativa; confere na
+fatura). **Custo de operação:** só durante a transcrição — ~0,17 min de 7 vCPU por minuto de áudio ≈ **US$ 0,0006 por
+minuto de áudio** pela mesma tabela, e +0,5 GB só enquanto o processo filho roda; zero por uso fora disso.
+
+**Remoção:** `delete-service` às ~13:28Z (resposta: `detachedVolumes: []`). Conferido depois com `describe-environment`
+(staging: nenhum serviço `spike-whisper-264`, nenhum volume órfão, `staged: null`) e `list-services` (os mesmos 23 serviços
+de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviço existente tocado, produção intocada.
 
 ### O que NÃO foi medido, e por quê
 
-1. **Tudo no Railway** — `create-service` negado pelo classificador de permissões; a task manda parar, não contornar:
-   fator de tempo real no EPYC x86 (o número que decide (iii)), RAM de pico pelo `get-service-metrics`, tamanho da
-   imagem no registry, tempo de build e de deploy no Railway, impacto real no canhoto, modelo de CPU e flags
-   (AVX2/AVX-512) do runner. O contexto de build pronto ficou no scratchpad da sessão (Dockerfile x86 com
-   `-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON`, os cinco modelos baixados no build com
-   `sha256sum -c`, os áudios TTS, `bench.sh`, `load.ts` e `run.sh` que imprime tudo no log e dorme) — basta autorizar a
-   criação do serviço.
-2. **Custo do spike:** zero — não houve serviço. Estimativa para quando rodar (preço público do Railway, a conferir na
-   fatura): ~1 h com 8 vCPU e ~2 GB ≈ US$ 0,25.
-3. **Áudio real** (voz humana, sotaque, celular, cabine de verdade): proibido usar áudio de cliente e não há gravação
-   consentida ainda. Fica para a **T6.3** em staging; é lá que o aviso do README sobre loop em `small` com áudio de
-   celular se confirma ou cai.
-4. **Fator de tempo real limpo:** a máquina ficou com carga 12–18 durante toda a medida; não havia como isolá-la sem
-   derrubar trabalho de outras sessões.
-5. **Volume do Railway como alternativa à imagem** (plano § d): depende do Railway.
-6. **Mac nativo com `/usr/bin/time -l`:** substituído pelo GNU `time` dentro do contêiner Alpine, que é a mesma base do
-   worker; o `whisper-cli` do Homebrew usa Metal e mediria a GPU do laptop, não o caso.
-7. **`--threads` diferente de 7:** não variado.
+1. **Áudio real** (voz humana, sotaque, celular, cabine de verdade): proibido usar áudio de cliente e não há gravação
+   consentida ainda. Fica para a **T6.3** em staging; é lá que o aviso do README do pacote sobre loop em `small` com áudio
+   de celular se confirma ou cai. O TTS é **proxy otimista**: o erro real em pt-BR com ruído continua risco aberto.
+2. **`small-q5_1` simultâneo ao canhoto no runner:** o par rodou com `small`, `turbo-q5_0` e `turbo`; o `small-q5_1` tem
+   o mesmo custo de CPU do `small` no runner.
+3. **Imagem só com o modelo escolhido** no Railway: o push mediu a imagem com os cinco modelos; o acréscimo do worker é
+   calculado pelas camadas (+293 MB), não empurrado.
+4. **Volume do Railway como alternativa à imagem** (plano § d): a imagem com o modelo dá deploy de ~40 s e push de ~66 s
+   para 3 GB — com +293 MB não há ganho que justifique o risco de boot sem modelo; não medido.
+5. **Disputa com a planta do baú e a prévia da carga** (outras rotinas de CPU do worker): só o proxy do canhoto foi medido.
+6. **`--threads` diferente de 7:** não variado.
+7. **Mac nativo com `/usr/bin/time -l`:** substituído pelo GNU `time` dentro do contêiner Alpine (a base do worker); o
+   `whisper-cli` do Homebrew usa Metal e mediria a GPU do laptop.
