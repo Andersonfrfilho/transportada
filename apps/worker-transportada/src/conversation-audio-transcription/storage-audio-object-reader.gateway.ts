@@ -31,51 +31,71 @@ function failureOfAbort(signal: AbortSignal): SpeechToTextError {
   return new SpeechToTextError(isTimeout ? TIMEOUT_FAILURE : TRANSPORT_FAILURE)
 }
 
+/** Rejeita no aborto do sinal, para correr contra qualquer chamada ao storage que possa nunca responder. */
+function abortRace(signal: AbortSignal): { promise: Promise<never>; dispose: () => void } {
+  let onAbort: () => void = () => undefined
+  const promise = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(failureOfAbort(signal))
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  })
+  promise.catch(() => undefined)
+  return { dispose: () => signal.removeEventListener('abort', onAbort), promise }
+}
+
 async function collectBytes(
   stream: ReadableStream<Uint8Array>,
-  signal: AbortSignal,
+  aborted: Promise<never>,
 ): Promise<Uint8Array> {
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let total = 0
   try {
     for (;;) {
-      if (signal.aborted) throw failureOfAbort(signal)
-      const { done, value } = await reader.read()
+      const { done, value } = await Promise.race([reader.read(), aborted])
       if (done) break
       total += value.byteLength
       if (total > AUDIO_DOWNLOAD_MAX_BYTES) throw new SpeechToTextError(TOO_LARGE_FAILURE)
       chunks.push(value)
     }
   } finally {
+    // O aborto já rejeitou a corrida; cancelar aqui solta o fluxo parado no storage.
     await reader.cancel().catch(() => undefined)
   }
   return Buffer.concat(chunks)
 }
 
+async function openStream(
+  storage: StorageGateway,
+  location: ObjectLocation,
+  aborted: Promise<never>,
+): Promise<ReadableStream<Uint8Array> | undefined> {
+  const head = await Promise.race([storage.headObject(location), aborted])
+  if (head === undefined) return undefined
+  if (head.contentLength > AUDIO_DOWNLOAD_MAX_BYTES) throw new SpeechToTextError(TOO_LARGE_FAILURE)
+  return Promise.race([storage.getObjectStream(location), aborted])
+}
+
 /**
  * O pacote de storage colapsa todo erro do `get` em "indisponível", então a existência vem do `head`
- * (que devolve `undefined` para chave ausente); depois disso, qualquer erro é de transporte.
+ * (que devolve `undefined` para chave ausente); depois disso, qualquer erro é de transporte. Toda chamada
+ * corre contra o aborto do sinal (prazo do download ou desligamento): o storage que nunca responde, ou o
+ * fluxo que para no meio, vira falha retriável no prazo — nunca `object_missing`.
  */
 export function createStorageAudioObjectReader(storage: StorageGateway): AudioObjectReader {
   async function read(params: AudioObjectReadParams): Promise<Uint8Array | undefined> {
     const location = { bucket: params.bucket, key: params.key }
-    let stream: ReadableStream<Uint8Array>
+    const race = abortRace(params.signal)
     try {
-      const head = await storage.headObject(location)
-      if (head === undefined) return undefined
-      if (head.contentLength > AUDIO_DOWNLOAD_MAX_BYTES)
-        throw new SpeechToTextError(TOO_LARGE_FAILURE)
-      stream = await storage.getObjectStream(location)
+      if (params.signal.aborted) throw failureOfAbort(params.signal)
+      const stream = await openStream(storage, location, race.promise)
+      if (stream === undefined) return undefined
+      return await collectBytes(stream, race.promise)
     } catch (error) {
       if (error instanceof SpeechToTextError) throw error
       throw new SpeechToTextError(TRANSPORT_FAILURE)
-    }
-    try {
-      return await collectBytes(stream, params.signal)
-    } catch (error) {
-      if (error instanceof SpeechToTextError) throw error
-      throw new SpeechToTextError(TRANSPORT_FAILURE)
+    } finally {
+      race.dispose()
     }
   }
 

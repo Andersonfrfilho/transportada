@@ -90,6 +90,68 @@ describe('storage audio object reader (spec 264 H2/M4)', () => {
     ).toMatchObject({ kind: 'definitive' })
   })
 
+  test('a stream that stalls after the first chunk is cut at the real deadline, and cancelled (N1)', async () => {
+    let wasCancelled = false
+    const stalled = new ReadableStream<Uint8Array>({
+      cancel() {
+        wasCancelled = true
+      },
+      start(controller) {
+        controller.enqueue(BYTES)
+      },
+    })
+    const reader = createStorageAudioObjectReader({
+      getObjectStream: async () => stalled,
+      headObject: async () => ({ contentLength: 3 }),
+    })
+    const startedAt = Date.now()
+    const failure = await failureOf(reader.read({ ...LOCATION, signal: AbortSignal.timeout(200) }))
+    expect(failure).toMatchObject({ code: 'engine_timeout', kind: 'retriable' })
+    expect(Date.now() - startedAt).toBeLessThan(1_500)
+    expect(wasCancelled).toBe(true)
+  })
+
+  test.each([
+    [
+      'head',
+      {
+        getObjectStream: async () => streamOf(BYTES),
+        headObject: () => new Promise<never>(() => undefined),
+      },
+    ],
+    [
+      'get',
+      {
+        getObjectStream: () => new Promise<never>(() => undefined),
+        headObject: async () => ({ contentLength: 3 }),
+      },
+    ],
+  ])(
+    'a storage call that never answers (%s) ends as a retriable timeout, never as "missing" (N1)',
+    async (_name, storage) => {
+      const startedAt = Date.now()
+      const failure = await failureOf(
+        createStorageAudioObjectReader(storage).read({
+          ...LOCATION,
+          signal: AbortSignal.timeout(200),
+        }),
+      )
+      expect(failure).toMatchObject({ code: 'engine_timeout', kind: 'retriable' })
+      expect(Date.now() - startedAt).toBeLessThan(1_500)
+    },
+  )
+
+  test('a worker shutdown abort is a retriable transport failure', async () => {
+    const controller = new AbortController()
+    const reader = createStorageAudioObjectReader({
+      getObjectStream: async () => streamOf(BYTES),
+      headObject: () => new Promise<never>(() => undefined),
+    })
+    const pending = failureOf(reader.read({ ...LOCATION, signal: controller.signal }))
+    controller.abort()
+    expect(await pending).toMatchObject({ code: 'engine_failed', kind: 'retriable' })
+  })
+
   test('an expired download deadline is a retriable engine_timeout', async () => {
     const reader = createStorageAudioObjectReader({
       getObjectStream: async () => streamOf(BYTES),
