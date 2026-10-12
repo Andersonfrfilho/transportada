@@ -11,6 +11,7 @@ import {
 } from '../domain/driver-subject-conversation.constant.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import { signConversationAttachments } from './conversation-attachment.service.js'
+import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { DriverSubjectUnitOfWorkPort } from './driver-conversation-subject.port.js'
 import { deriveOwnMessageStatus } from '../domain/driver-own-message-status.policy.js'
 import { findReachableSubjectOrFail } from './driver-subject-access.service.js'
@@ -44,13 +45,17 @@ export function createListMySubjectMessagesUseCase(dependencies: {
             DRIVER_SUBJECT_MESSAGES_MAX_LIMIT,
           ),
         })
-        const attachments = await signConversationAttachments(
-          dependencies.storage,
-          await transaction.listAttachments({
-            companyId: input.companyId,
-            messageIds: messages.map((message) => message.id),
-          }),
-        )
+        const attachments = await enrichAudioAttachments({
+          attachmentsByMessage: await signConversationAttachments(
+            dependencies.storage,
+            await transaction.listAttachments({
+              companyId: input.companyId,
+              messageIds: messages.map((message) => message.id),
+            }),
+          ),
+          companyId: input.companyId,
+          reader: transaction.audioTranscriptions,
+        })
         const officeReadHorizon = await transaction.readOfficeReadHorizon({
           companyId: input.companyId,
           conversationId: subject.conversation.id,

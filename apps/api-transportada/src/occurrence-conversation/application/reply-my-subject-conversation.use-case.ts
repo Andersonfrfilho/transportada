@@ -24,6 +24,7 @@ import {
   normalizeConversationMessageBody,
   signConversationAttachments,
 } from './conversation-attachment.service.js'
+import { enrichAudioAttachments } from './conversation-audio-enrichment.service.js'
 import type { MyConversationSubject } from './driver-conversation-subject.port.js'
 import {
   buildFingerprintFields,
@@ -141,10 +142,14 @@ export function createReplyMySubjectConversationUseCase(dependencies: {
       messageId: stored.messageId,
     })
     if (message === null) throw new ConversationNotFoundError()
-    const attachments = await signConversationAttachments(
-      dependencies.storage,
-      await transaction.listAttachments({ companyId: input.companyId, messageIds: [message.id] }),
-    )
+    const attachments = await enrichAudioAttachments({
+      attachmentsByMessage: await signConversationAttachments(
+        dependencies.storage,
+        await transaction.listAttachments({ companyId: input.companyId, messageIds: [message.id] }),
+      ),
+      companyId: input.companyId,
+      reader: transaction.audioTranscriptions,
+    })
     return {
       ...message,
       attachments: attachments.get(message.id) ?? [],

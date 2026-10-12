@@ -31,6 +31,7 @@ function createOfficeTransactionPort(transaction: Transaction): OfficeSubjectTra
   const subject = createDriverSubjectTransactionPort(transaction)
   return {
     attachments: occurrence.attachments,
+    audioTranscriptions: subject.audioTranscriptions,
     findIdempotency: occurrence.findIdempotency,
     findOfficeMessage: (input) => findOfficeMessage(transaction, input),
     findOfficeSubject: (input) => findOfficeSubject(transaction, input),

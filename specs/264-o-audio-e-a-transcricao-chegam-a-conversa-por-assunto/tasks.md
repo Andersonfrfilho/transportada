@@ -94,7 +94,7 @@ review,denied}`).
       `make migration-test` verde e contrato de tenant-safety das tabelas novas. ⚠️ O `make migration-test` não
       descobre migration sozinho: criar `*.static.contract.ts` + assertion e registrá-los em
       `test/database-migration.contract.test.ts` e `test/database-migration/database-migration.integration.ts`.
-- [ ] **T2.2** `sonnet` — Contratos **antes** (vermelhos): mapper `toParticipantTranscription` por tabela (ausente,
+- [x] **T2.2** `sonnet` — Contratos **antes** (vermelhos): mapper `toParticipantTranscription` por tabela (ausente,
       `pending`, `ready`, `failed`, `purged`→ausente, empresa desligada→`disabled`); rotas por assunto do motorista e do
       escritório com o campo; **ouro** das rotas antigas `/me/.../occurrences/**` e `/client/**` sem diferença;
       "transcrição fora de log" e "nunca decide" (texto de fonte, provados por mutação). Tabela espelhada em

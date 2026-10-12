@@ -40,7 +40,10 @@ export type OfficeSubjectTransactionPort = Pick<
   DriverConversationTransactionPort,
   'attachments' | 'findIdempotency' | 'insertMessage' | 'saveIdempotency'
 > &
-  Pick<DriverSubjectTransactionPort, 'findOrCreateSubjectConversation' | 'listAttachments'> & {
+  Pick<
+    DriverSubjectTransactionPort,
+    'audioTranscriptions' | 'findOrCreateSubjectConversation' | 'listAttachments'
+  > & {
     /** A mensagem pelo id na conversa, com o nome de quem escreveu (operação ou motorista). */
     findOfficeMessage(input: {
       readonly companyId: string

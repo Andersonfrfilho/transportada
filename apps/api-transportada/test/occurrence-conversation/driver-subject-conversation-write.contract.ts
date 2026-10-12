@@ -7,6 +7,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { ConversationAttachmentRecord } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import type { AudioTranscriptionReaderPort } from '../../src/occurrence-conversation/application/conversation-audio-transcription.port.js'
 import type { DriverConversationTransactionPort } from '../../src/occurrence-conversation/application/driver-conversation.port.js'
 import type {
   MyConversationSubject,
@@ -23,8 +25,10 @@ import { REPLY_SUBJECT_APP_MESSAGE_OPERATION } from '../../src/occurrence-conver
 import {
   listNoAttachments,
   NO_ATTACHMENTS,
+  SIGNING_ATTACHMENT_STORAGE,
   UNUSED_ATTACHMENT_STORAGE,
 } from '../fixtures/conversation-attachment.fixture.js'
+import { NO_AUDIO_TRANSCRIPTIONS } from '../fixtures/participant-transcription.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000260201'
 const DRIVER_ID = '00000000-0000-4000-8000-000000260202'
@@ -63,7 +67,9 @@ const occurrenceSubject = (overrides: Partial<MyConversationSubject> = {}) =>
 type Call = { input: unknown; name: string }
 
 /** O mundo compartilhado pelas duas rotas: a mesma idempotência e as mesmas mensagens, como no banco. */
-function createWorld(state: {
+export function createWorld(state: {
+  readonly attachments?: readonly ConversationAttachmentRecord[]
+  readonly audioTranscriptions?: AudioTranscriptionReaderPort
   readonly conversationDriverUserId?: string
   readonly subject?: MyConversationSubject | null
 }) {
@@ -135,6 +141,7 @@ function createWorld(state: {
     ...shared,
     applySubjectStatus: async () => undefined,
     attachments,
+    audioTranscriptions: state.audioTranscriptions ?? NO_AUDIO_TRANSCRIPTIONS,
     findMySubject: async (input) => {
       calls.push({ input, name: 'findMySubject' })
       return current
@@ -157,7 +164,8 @@ function createWorld(state: {
         status: found.status,
       }
     },
-    listAttachments: listNoAttachments,
+    listAttachments: async (input) =>
+      (state.attachments ?? []).filter((record) => input.messageIds.includes(record.messageId)),
     listMySubjects: async () => ({ hasMore: false, rows: [] }),
     listSubjectMessages: async () => [],
     readOfficeReadHorizon: async () => null,
@@ -186,7 +194,9 @@ function createWorld(state: {
       return `${operation}|${decoded.join('|')}`
     },
   }
-  const dependencies = { clock: () => NOW, fingerprintService, storage: UNUSED_ATTACHMENT_STORAGE }
+  const storage =
+    state.attachments === undefined ? UNUSED_ATTACHMENT_STORAGE : SIGNING_ATTACHMENT_STORAGE
+  const dependencies = { clock: () => NOW, fingerprintService, storage }
   return {
     calls,
     fingerprintFields,
@@ -507,6 +517,7 @@ describe('o pedido de upload por assunto (spec 263 T2.4)', () => {
         execute: (work) =>
           work({
             applySubjectStatus: async () => undefined,
+            audioTranscriptions: NO_AUDIO_TRANSCRIPTIONS,
             findMySubject: async () => current,
             findOrCreateSubjectConversation: async () => ({ created: false, id: CONVERSATION_ID }),
             listAttachments: listNoAttachments,

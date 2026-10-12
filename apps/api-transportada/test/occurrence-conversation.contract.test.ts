@@ -34,3 +34,8 @@ import './occurrence-conversation/me-subject-conversation-write-routes.contract.
 import './occurrence-conversation/office-subject-conversation.contract.js'
 import './occurrence-conversation/office-subject-conversation-routes.contract.js'
 import './occurrence-conversation/driver-conversation-notifier.contract.js'
+import './occurrence-conversation/participant-transcription-mapper.contract.js'
+import './occurrence-conversation/participant-transcription-parity.contract.js'
+import './occurrence-conversation/subject-audio-transcription.contract.js'
+import './occurrence-conversation/audio-transcription-old-routes-golden.contract.js'
+import './occurrence-conversation/audio-transcription-source.contract.js'

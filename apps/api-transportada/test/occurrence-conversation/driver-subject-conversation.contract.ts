@@ -9,6 +9,8 @@ import { readdir, readFile } from 'node:fs/promises'
 
 import { describe, expect, test } from 'bun:test'
 
+import type { ConversationAttachmentRecord } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import type { AudioTranscriptionReaderPort } from '../../src/occurrence-conversation/application/conversation-audio-transcription.port.js'
 import type {
   DriverSubjectTransactionPort,
   MyConversationSubject,
@@ -20,6 +22,7 @@ import { createListMySubjectMessagesUseCase } from '../../src/occurrence-convers
 import { createMarkMySubjectReadUseCase } from '../../src/occurrence-conversation/application/mark-my-subject-read.use-case.js'
 import { createOpenMySubjectConversationUseCase } from '../../src/occurrence-conversation/application/open-my-subject-conversation.use-case.js'
 import { UNUSED_ATTACHMENT_STORAGE } from '../fixtures/conversation-attachment.fixture.js'
+import { NO_AUDIO_TRANSCRIPTIONS } from '../fixtures/participant-transcription.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000260001'
 const DRIVER_ID = '00000000-0000-4000-8000-000000260002'
@@ -70,7 +73,9 @@ function subject(overrides: Partial<MyConversationSubject> = {}): MyConversation
 
 type Calls = { name: string; input: unknown }[]
 
-function createFake(state: {
+export function createFake(state: {
+  readonly attachments?: readonly ConversationAttachmentRecord[]
+  readonly audioTranscriptions?: AudioTranscriptionReaderPort
   readonly hasMore?: boolean
   readonly messages?: readonly SubjectMessageRecord[]
   readonly officeReadAt?: ReadonlyMap<string, Date>
@@ -89,7 +94,9 @@ function createFake(state: {
       calls.push({ input, name: 'findOrCreateSubjectConversation' })
       return { created: true, id: CONVERSATION_ID }
     },
-    listAttachments: async () => [],
+    audioTranscriptions: state.audioTranscriptions ?? NO_AUDIO_TRANSCRIPTIONS,
+    listAttachments: async (input) =>
+      (state.attachments ?? []).filter((record) => input.messageIds.includes(record.messageId)),
     listMySubjects: async (input) => {
       calls.push({ input, name: 'listMySubjects' })
       return { hasMore: state.hasMore ?? false, rows: state.rows ?? [row()] }

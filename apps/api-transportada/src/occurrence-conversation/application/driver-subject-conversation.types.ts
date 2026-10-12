@@ -4,7 +4,7 @@
  * Spec 263 (api-contract): a forma do resumo e da mensagem que o `/me` devolve, e o resumo que o
  * caso de uso monta a partir do que o repositório leu.
  */
-import type { ConversationAttachmentView } from './conversation-attachment.port.js'
+import type { SubjectConversationAttachmentView } from './conversation-audio-transcription.types.js'
 import type {
   SubjectConversationRow,
   SubjectMessageRecord,
@@ -35,7 +35,7 @@ export type DriverSubjectConversationSummary = {
 }
 
 export type DriverSubjectMessage = Omit<SubjectMessageRecord, 'createdAt'> & {
-  readonly attachments: readonly ConversationAttachmentView[]
+  readonly attachments: readonly SubjectConversationAttachmentView[]
   readonly createdAt: string
 }
 

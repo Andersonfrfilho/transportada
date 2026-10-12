@@ -29,6 +29,7 @@ import { applyMessageStatus } from '../domain/message-status.policy.js'
 import { listSubjectConversationRows } from './driver-conversation-subject.query.js'
 import { findMySubjectByIdentity } from './driver-subject-lookup.query.js'
 import { readConversationAttachments } from './drizzle-conversation-attachment.repository.js'
+import { createDrizzleAudioTranscriptionReader } from './drizzle-conversation-audio-transcription.reader.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -227,6 +228,7 @@ export function createDriverSubjectTransactionPort(
 ): DriverSubjectTransactionPort {
   return {
     applySubjectStatus: (input) => applySubjectStatus(transaction, input),
+    audioTranscriptions: createDrizzleAudioTranscriptionReader(transaction),
     findMySubject: (input) => findMySubjectByIdentity(transaction, input),
     findOrCreateSubjectConversation: (input) => findOrCreateSubjectConversation(transaction, input),
     listAttachments: (input) => readConversationAttachments(transaction, input),

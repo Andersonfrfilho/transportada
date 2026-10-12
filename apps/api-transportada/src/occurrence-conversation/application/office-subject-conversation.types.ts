@@ -6,7 +6,7 @@
  * e a mensagem, que traz o nome de quem escreveu nos dois sentidos.
  */
 import { shortenDriverName } from '../domain/office-subject-conversation.policy.js'
-import type { ConversationAttachmentView } from './conversation-attachment.port.js'
+import type { SubjectConversationAttachmentView } from './conversation-audio-transcription.types.js'
 import type { SubjectMessageRecord } from './driver-conversation-subject.port.js'
 import type { DriverSubjectConversationSummary } from './driver-subject-conversation.types.js'
 import { toSubjectConversationSummary } from './driver-subject-conversation.types.js'
@@ -17,7 +17,7 @@ export type OfficeSubjectSummary = DriverSubjectConversationSummary & {
 }
 
 export type OfficeSubjectMessage = Omit<SubjectMessageRecord, 'createdAt'> & {
-  readonly attachments: readonly ConversationAttachmentView[]
+  readonly attachments: readonly SubjectConversationAttachmentView[]
   readonly createdAt: string
 }
 

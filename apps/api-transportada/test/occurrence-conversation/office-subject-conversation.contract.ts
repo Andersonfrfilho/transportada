@@ -7,6 +7,9 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { SubjectMessageRecord } from '../../src/occurrence-conversation/application/driver-conversation-subject.port.js'
+import type { ConversationAttachmentRecord } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import type { AudioTranscriptionReaderPort } from '../../src/occurrence-conversation/application/conversation-audio-transcription.port.js'
 import { createCloseTripSubjectConversationUseCase } from '../../src/occurrence-conversation/application/close-trip-subject-conversation.use-case.js'
 import type { OfficeSubjectInput } from '../../src/occurrence-conversation/application/office-subject-access.service.js'
 import { createListOfficeSubjectMessagesUseCase } from '../../src/occurrence-conversation/application/list-office-subject-messages.use-case.js'
@@ -28,10 +31,11 @@ import {
   OccurrenceConversationIdempotencyKeyReusedError,
 } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import {
-  listNoAttachments,
   NO_ATTACHMENTS,
+  SIGNING_ATTACHMENT_STORAGE,
   UNUSED_ATTACHMENT_STORAGE,
 } from '../fixtures/conversation-attachment.fixture.js'
+import { NO_AUDIO_TRANSCRIPTIONS } from '../fixtures/participant-transcription.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000260401'
 const TRIP_ID = '00000000-0000-4000-8000-000000260402'
@@ -90,8 +94,11 @@ function summaryRow(overrides: Partial<OfficeSubjectRow> = {}): OfficeSubjectRow
 
 type Call = { input: unknown; name: string }
 
-function createWorld(
+export function createWorld(
   state: {
+    readonly attachments?: readonly ConversationAttachmentRecord[]
+    readonly audioTranscriptions?: AudioTranscriptionReaderPort
+    readonly messages?: readonly SubjectMessageRecord[]
     readonly principal?: null | string
     readonly rows?: readonly OfficeSubjectRow[] | null
     readonly subject?: OfficeSubject | null
@@ -113,6 +120,7 @@ function createWorld(
 
   const port: OfficeSubjectTransactionPort = {
     attachments: NO_ATTACHMENTS,
+    audioTranscriptions: state.audioTranscriptions ?? NO_AUDIO_TRANSCRIPTIONS,
     findIdempotency: async (input) =>
       idempotency.get(`${input.operation}:${input.idempotencyKey}`) ?? null,
     findOfficeMessage: async ({ messageId }) => {
@@ -144,10 +152,11 @@ function createWorld(
       messages.push({ ...input, authorName: 'Operadora', id })
       return { id }
     },
-    listAttachments: listNoAttachments,
+    listAttachments: async (input) =>
+      (state.attachments ?? []).filter((found) => input.messageIds.includes(found.messageId)),
     listOfficeMessages: async (input) => {
       record('listOfficeMessages', input)
-      return []
+      return state.messages ?? []
     },
     listTripConversations: async (input) => {
       record('listTripConversations', input)
@@ -179,7 +188,8 @@ function createWorld(
       clock: () => NOW,
       fingerprintService,
       notifier: { notify: async (input) => void notices.push(input) },
-      storage: UNUSED_ATTACHMENT_STORAGE,
+      storage:
+        state.attachments === undefined ? UNUSED_ATTACHMENT_STORAGE : SIGNING_ATTACHMENT_STORAGE,
       unitOfWork,
     }),
     unitOfWork,

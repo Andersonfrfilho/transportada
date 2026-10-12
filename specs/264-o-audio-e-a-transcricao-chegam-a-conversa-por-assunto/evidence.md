@@ -350,3 +350,39 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   `max_duration_ms` por `max_duration_x` na cópia reprova dois testes.
 - `bun test --timeout 120000 ./test/conversation-audio-transcription-schema.contract.test.ts` → 4 pass / 0 fail.
 - `bun run typecheck` (worker) → limpo. `bunx eslint` nos arquivos novos → limpo. `prettier --write` aplicado.
+
+## T2.2 — contratos da transcrição nas rotas por assunto (2026-10-12)
+
+- **Vermelho primeiro.** Com os contratos escritos e antes de existir `participant-transcription.*` / porta de leitura,
+  `bun test ./test/occurrence-conversation.contract.test.ts` → `0 pass / 1 fail / 1 error`:
+  `Cannot find module '../../src/occurrence-conversation/domain/participant-transcription.constant.js'`.
+- **Verde.** Mapper puro `toParticipantTranscription(row | undefined, enabled)` e `toParticipantDurationMs` em
+  `occurrence-conversation/domain/participant-transcription.policy.ts`; tabela espelhada em
+  `participant-transcription.constant.ts`; porta `AudioTranscriptionReaderPort` (+ tipos) e
+  `enrichAudioAttachments` (`conversation-audio-enrichment.service.ts`), chamado **depois** de `signConversationAttachments` nos
+  quatro casos de uso (`list-my-subject-messages`, `reply-my-subject-conversation`, `list-office-subject-messages`,
+  `send-office-subject-message`). `readConversationAttachments`, `signConversationAttachments` e a tela antiga não mudam.
+  Leitura Postgres em `drizzle-conversation-audio-transcription.reader.ts` (a prova contra banco é da T2.3).
+- Contratos novos (todos registrados em `test/occurrence-conversation.contract.test.ts`):
+  - `participant-transcription-mapper.contract.ts`: onze casos da tabela do contract §5.2 (ausente, empresa desligada com e sem
+    linha, `pending`, `ready` com/sem idioma e motor, idioma fora de `/^[a-z]{2,3}$/` some, `failed` `too_long` com teto,
+    `failed` de outro código e `company_disabled`, `purged`), nulo nunca vira `null`, texto só em `ready`, duração (anexo vence
+    a da rotina, inteiro positivo até 86 400 000 ms).
+  - `participant-transcription-parity.contract.ts`: cada saída do mapper passa em `participantTranscriptionSchema` de
+    `@adatechnology/conversation-contracts@0.6.0` e volta idêntica; tabela espelhada confere com as constantes do pacote
+    (estados, `too_long`, 40 000, 86 400 000, regex do idioma); texto de 20 000 pontos astrais (emoji) cabe nos 40 000 UTF-16;
+    contrato de texto de fonte: nenhum `src/**` importa o pacote, e ele está só em `devDependencies`, em versão exata.
+  - `subject-audio-transcription.contract.ts`: os quatro casos de uso trazem `durationMs`/`transcription` só no anexo de áudio;
+    página sem áudio = 0 consultas; com áudio = configuração + linhas (uma vez, todos os áudios); empresa desligada = só a
+    configuração e `disabled`.
+  - `audio-transcription-old-routes-golden.contract.ts`: bytes de `/me/.../occurrences/**` (motorista), leitura do painel da
+    ocorrência e `/client/**` (portal) com um anexo de áudio, sem `transcription` nem `durationMs`.
+  - `audio-transcription-source.contract.ts`: "transcrição fora de log" e "a conversa nunca decide", com os detectores
+    exercitados contra texto adulterado (mutação) antes de varrer `src/**`.
+- Pacote `@adatechnology/conversation-contracts`: `0.6.0` é a versão publicada que exporta `participantTranscriptionSchema`
+  (`npm view` → 0.2.0…0.6.0; `0.5.0` não tem). Entrou como `devDependency` exata da API; `bun.lock` com **só** as 5 linhas
+  novas (entrada do workspace, `@transportada/api/@adatechnology/conversation-contracts` e o `zod@3.25.76` aninhado dele),
+  pois o `bun install` do Bun 1.4.3 reescrevia entradas alheias (removia `lightningcss*`, movia
+  `audio-transcription-provider` da API para o worker) e foi revertido. `bun install --frozen-lockfile` → "no changes".
+  ⚠️ As apps frontend seguem em `0.5.0` (a subida conjunta é da T4.1).
+- `bun test ./test/occurrence-conversation.contract.test.ts` → 472 pass / 0 fail.

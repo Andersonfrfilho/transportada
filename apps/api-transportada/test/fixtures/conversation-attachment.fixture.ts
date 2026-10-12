@@ -29,3 +29,9 @@ export const UNUSED_ATTACHMENT_STORAGE: ConversationAttachmentStoragePort = {
   headObject: async () => unexpected('headObject'),
   storeObject: async () => unexpected('storeObject'),
 }
+
+/** Para as suítes com anexo: a URL assinada é fixa por chave, e é só isso que a leitura pede ao storage. */
+export const SIGNING_ATTACHMENT_STORAGE: ConversationAttachmentStoragePort = {
+  ...UNUSED_ATTACHMENT_STORAGE,
+  createSignedDownload: async (input) => new URL(`https://storage.test/${input.key}`),
+}
