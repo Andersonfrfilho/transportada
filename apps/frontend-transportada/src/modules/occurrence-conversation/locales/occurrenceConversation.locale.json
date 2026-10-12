@@ -236,5 +236,23 @@
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
     "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual.",
     "driverChanged": "Esta conversa passou para outro motorista da viagem. Fale com a operação por outro canal."
+  },
+  "audioTranscription": {
+    "title": "Transcrever áudios das conversas",
+    "loading": "Carregando a configuração da transcrição",
+    "retry": "Tentar de novo",
+    "machine": "A transcrição é gerada por máquina, num modelo que roda no nosso próprio servidor: nenhuma voz sai para serviço externo. Ela pode conter erros e serve só de ajuda de leitura; o áudio continua sendo a mensagem.",
+    "limit_one": "Só áudios de menos de {{minutes}} minuto são transcritos.",
+    "limit_other": "Só áudios de menos de {{minutes}} minutos são transcritos.",
+    "effectOfTurningOff": "Ao desligar: as transcrições já geradas ficam guardadas, mas escondidas; áudios que chegarem enquanto estiver desligada não são transcritos depois, mesmo que você ligue de novo.",
+    "toggle": "Transcrever os áudios das conversas desta empresa",
+    "lastChange": "Última alteração: {{when}}",
+    "saving": "Salvando a configuração",
+    "error": {
+      "failed": "Não foi possível falar com o servidor. A configuração anterior foi mantida.",
+      "forbidden": "Você não tem permissão para alterar esta configuração.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo para continuar.",
+      "invalid": "O servidor recusou o pedido. A configuração anterior foi mantida."
+    }
   }
 }
