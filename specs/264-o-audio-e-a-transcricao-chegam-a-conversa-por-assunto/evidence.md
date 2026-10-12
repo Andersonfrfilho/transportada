@@ -683,3 +683,50 @@ Prova: os 4 testes novos (fluxo que para após o 1º pedaço e é cancelado; `he
 - **N2** — a falha de infraestrutura (binário ausente) reagenda em 30 min sem devolver a tentativa e sem teto de dias; o alerta existe (log `error` por linha e contador `infrastructure` no job-run), então o operador é avisado, mas a linha segue tentando até a janela de recuperação de 72 h passar.
 - **N3** — o provedor de storage colapsa `NoSuchBucket` (e todo erro do `get`) em "indisponível", e o `head` trata `NoSuchBucket` como objeto ausente: um banco restaurado de outro ambiente (bucket inexistente) queimaria as linhas como `object_missing` definitivo. Não dá para distinguir a ausência do BUCKET sem mudar o pacote antes de ele colapsar; fica registrado — tratar como transporte exigiria um `headBucket` ou um código novo no provedor.
 - **N4** — o `whisper-cli` não aceita `signal` e pode atrasar o desligamento do worker em até 2 × `AUDIO_TRANSCRIPTION_TIMEOUT_MS`; a T3.5 deve configurar um prazo de drenagem do serviço coerente com isso.
+
+## T3.5 — imagem do worker com whisper-cli, modelo e ffmpeg (2026-10-12)
+
+**Contrato antes (visto falhando):** `apps/worker-transportada/test/build-entrypoints.contract.test.ts` ganhou o bloco
+"worker image audio transcription contract" (4 testes: estágio `whisper-build` com tag `v1.9.4`, commit
+`927cfce34f31707e17f2bff35c349632fb9e2c3a`, `rev-parse HEAD` e `-DGGML_NATIVE=OFF`; estágio `models` com URL oficial
+`huggingface.co/ggerganov/whisper.cpp` e `sha256sum -c` do hash completo da ADR-0103; estágio final com binário, modelo,
+`ffmpeg` e `libstdc++`, sem `cmake|g++|gcc|make|git|build-base|curl`; `ENV AUDIO_TRANSCRIPTION_MODEL_PATH` e `USER
+transportada` depois da cópia). Antes do Dockerfile: 2 pass / 4 fail; depois: 6 pass / 0 fail.
+
+**Imagem:** três estágios novos no `apps/worker-transportada/Dockerfile` (`whisper-build` em `oven/bun:1.3.14-alpine`, mesma
+musl do runtime; `models` em `alpine:3.22` com `curl`); o runtime ganhou `apk add ffmpeg libstdc++ libgomp` (o `ldd` do
+binário pede os dois; `ffmpeg` traz `ffprobe`), `/usr/local/bin/whisper-cli`, `/models/ggml-small-q5_1.bin` e
+`ENV AUDIO_TRANSCRIPTION_MODEL_PATH`. `AUDIO_TRANSCRIPTION_BINARY_PATH` não é definida: o padrão do schema é `whisper-cli`
+no PATH.
+
+**Prova local** (`docker build --platform linux/amd64 -f apps/worker-transportada/Dockerfile .` da raiz, Mac arm64, amd64
+emulado):
+
+- build a frio (inclui compilar o whisper.cpp sob emulação): **105 s**;
+- `whisper-cli --help` imprime o uso; `ffprobe version 6.1.2`; usuário `uid=1001(transportada)`;
+- modelo `-rw-r--r-- root 190085487` e `sha256sum` dentro da imagem = `ae85e4a9…11bb` (o da ADR);
+- `which cmake g++ make git curl gcc` no runtime: nada;
+- tamanho (`docker image inspect`, sem compressão): **389 051 058 B** contra **156 163 249 B** da imagem anterior do
+  worker (mesmo contexto, Dockerfile de `HEAD`) = **+232,9 MB** (modelo 190 MB + ffmpeg/libs + binário);
+- transcrição real do áudio TTS sintético `d010-clean.ogg` (13,6 s, Opus): o `whisper-cli` não decodifica Opus, então o
+  `ffmpeg` do contêiner converteu para WAV 16 kHz mono e o `whisper-cli -m $AUDIO_TRANSCRIPTION_MODEL_PATH -l pt -t 7`
+  devolveu, palavra por palavra, o texto-fonte ("Bom dia, pessoal do escritório, aqui é o motorista da carreta que saiu
+  ontem à noite do centro de distribuição. Já cheguei no primeiro cliente e estou esperando a liberação da doca para
+  começar a descarga."); **9,3 s** de relógio total (ffmpeg + modelo + inferência) sob emulação amd64;
+- `docker run` sem variáveis: o entrypoint sobe e para em `worker_startup_failed` (configuração ausente), não por binário.
+- imagens `worker-t35` e `worker-t35-old` removidas.
+
+**Railway (só edição, nada aplicado):** `.railway/railway.ts`, serviço `worker` (vale para staging e production, o
+objeto é um só): `AUDIO_TRANSCRIPTION_{BATCH_SIZE=2, LANGUAGE=pt, MAX_DURATION_MS=600000, RECOVERY_WINDOW=72,
+THREADS=7, TIMEOUT_MS=300000}` como valor literal (convenção do arquivo para o que não é segredo, como
+`NFSE_PROVIDER_API_VERSION`) e `deploy.drainingSeconds: 600` (N4: até 2 × 300 s). `tsc --noEmit` do arquivo: limpo.
+`docs/spec/railway.md` registra a drenagem.
+
+**Não provado local:** x86 real (AVX2 sob emulação; o tempo de 9,3 s não vale como medida de produção, a T0.2 mediu 0,17 de
+fator no runner); o comportamento do Railway com `drainingSeconds` (o campo só existe no tipo `DeployConfig` do SDK; não
+rodei `railway config plan`, que toca a conta; os `railway.json` não o declaram e o schema online não pôde ser
+conferido); build no builder do Railway.
+
+**Divergências do plano § d:** as variáveis não são `preserve()` mas valores literais (não são segredo, e `preserve()` de
+variável que ainda não existe não a cria); `MODEL_PATH` vive só na imagem; `BINARY_PATH` não é declarada (PATH);
+`libgomp` entra além de `libstdc++`; a API não declara `AUDIO_TRANSCRIPTION_*` (o padrão de `MAX_DURATION_MS` basta).

@@ -502,3 +502,7 @@ entregava a topologia da infra a quem perguntasse. Removido com `serviceDomainDe
 Schema evolui por expand/contract. Worker antigo e novo só convivem quando
 envelopes e efeitos são compatíveis; consumidor fiscal incompatível exige drain
 e troca controlada.
+
+O `worker` declara `drainingSeconds: 600` no `.railway/railway.ts` (spec 264, N4): o `whisper-cli` não aceita
+sinal e só termina no timeout do motor (`AUDIO_TRANSCRIPTION_TIMEOUT_MS`, 300 s, até duas vezes), então um
+`SIGTERM` com prazo curto mataria a transcrição em curso. O campo existe só no SDK; os `railway.json` não o declaram.
