@@ -2151,7 +2151,7 @@ Conferido no código antes de adotar (para não ser uma definição fraca):
 
 - A tratativa **só abre em `recorded`** (`resolveOccurrenceCaseOpening`) e a **única** transição que sai de `recorded` para
   a frente é `review` (`TRANSITIONS` em `occurrence-case-state.policy.ts`). Não há caminho `recorded →
-  awaiting_contractor` nem outro que pule `under_review`. A exceção é `cancel` direto de `recorded`: o caso termina sem
+awaiting_contractor` nem outro que pule `under_review`. A exceção é `cancel` direto de `recorded`: o caso termina sem
   ninguém ter pegado, e `takenBy` é `null` (provado em `trip-occurrence-feed-case.integration.ts`).
 - `returned_to_warehouse`, `closed` e `cancelled` são terminais e `recorded` não é alcançável de volta; logo "retomada por
   outro após devolução ao barracão" **não existe** na máquina de hoje (devolver ao barracão encerra a tratativa). A regra

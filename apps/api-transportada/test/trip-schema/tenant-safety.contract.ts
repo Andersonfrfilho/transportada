@@ -377,7 +377,9 @@ describe('quem pegou a tratativa: tenant e portal (spec 164)', () => {
     expect(support).toInclude('latest.case_id = ${tripOccurrenceCases.id}')
     expect(support).toInclude("latest.to_status = 'under_review'")
     expect(support).toInclude("latest.actor_kind = 'internal'")
-    expect(support).toInclude('eq(takenByEvent.companyId, tripOccurrenceCases.companyId)')
+    expect(read('../../src/trips/infrastructure/trip-occurrence-feed.query.ts')).toInclude(
+      'eq(takenByEvent.companyId, tripOccurrenceCases.companyId)',
+    )
   })
 
   test('o portal da contratante não lê perfil de usuário nem o histórico da tratativa', () => {

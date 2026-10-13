@@ -615,7 +615,7 @@ docs/ai-context § "A ocorrência tem duas conversas".
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
 - **O motorista vê o estado do retorno da contratante na nota** (spec 248 T5.4): `GET /me/trips/current` traz `documents[].registeredOccurrences:
-  [{ id, contractorReply: { status } | null }]`, só das ocorrências da nota que abriram retorno (a nota sem retorno não leva a chave). **Mínimo e sem dado pessoal**: id da
+[{ id, contractorReply: { status } | null }]`, só das ocorrências da nota que abriram retorno (a nota sem retorno não leva a chave). **Mínimo e sem dado pessoal**: id da
   ocorrência e `status` do vocabulário de `occurrence-contractor-reply.constant.ts` — nada de prazo, endereço, anexo nem nota do operador. Montado pelo caso de uso
   (`attach-driver-document-contractor-replies.service.ts`), **depois do recorte pelo vínculo** e só com as notas das viagens dele (BOLA: nota ou viagem alheia nunca
   entra na consulta), em UMA consulta com `company_id` nas duas tabelas (`drizzle-driver-document-contractor-reply.repository.ts`); só a rota do app recebe a

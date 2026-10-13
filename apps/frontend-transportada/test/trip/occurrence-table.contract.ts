@@ -223,11 +223,12 @@ describe('listagem de ocorrências — colunas da nota', () => {
     }
     const preferences = readTripOccurrenceColumnPreferences(storage)
     expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
-    expect(preferences.order.slice(-4)).toEqual([
+    expect(preferences.order.slice(-5)).toEqual([
       'contractor',
       'destination',
       'invoiceValue',
       'conversation',
+      'takenBy',
     ])
     expect(preferences.visibility.driverName).toBe(false)
     expect(preferences.visibility.contractor).toBe(true)
