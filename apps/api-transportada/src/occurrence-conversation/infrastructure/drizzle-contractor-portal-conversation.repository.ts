@@ -25,7 +25,9 @@ import type {
   ContractorPortalConversationTransactionPort,
   ContractorPortalConversationUnitOfWorkPort,
 } from '../application/contractor-portal-conversation.port.js'
+import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import { requireOccurrenceSubject } from '../domain/occurrence-subject.policy.js'
 import {
   createConversationAttachmentTransactionPort,
@@ -75,7 +77,21 @@ function createTransactionPort(
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
 
-    applyContractorReply: (input) => applyContractorReplyToMessage(transaction, input),
+    async applyContractorReply(input) {
+      const delivery = await applyContractorReplyToMessage(transaction, input)
+      if (delivery === undefined) return undefined
+      const item = await findTripOccurrenceFeedItem(transaction, {
+        companyId: input.companyId,
+        occurrenceId: delivery.occurrenceId,
+      })
+      return {
+        messageId: delivery.driverMessageId,
+        occurrenceId: delivery.occurrenceId,
+        occurrenceLabel: item === null ? '' : describeOccurrenceLabel(item),
+        protocol: delivery.protocol,
+        recipientUserId: delivery.driverUserId,
+      }
+    },
 
     async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope, userId }) {
       if (occurrenceIds.length === 0 || scope.contractorIds.length === 0) return new Map()

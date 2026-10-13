@@ -146,6 +146,7 @@ describe('pelo portal, a conversa também nunca decide (spec 183 T652)', () => {
     const writes: string[] = []
     const useCase = createContractorPortalConversationUseCase({
       clock: () => new Date('2026-09-25T12:00:00.000Z'),
+      deliveryNotifier: { notify: async () => undefined },
       fingerprintService: { create: async ({ operation }) => operation },
       newRef: () => PORTAL_REF,
       storage: UNUSED_ATTACHMENT_STORAGE,

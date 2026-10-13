@@ -18,7 +18,15 @@ import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.ty
 import type { StoredContractorReplyConfiguration } from '../application/occurrence-mail.port.js'
 import type { ContractorReplyConfiguration } from '../domain/contractor-reply-configuration.policy.js'
 import { decideContractorReply } from '../domain/contractor-reply.policy.js'
-import { deliverContractorReplyToDriver } from './contractor-reply-driver-delivery.support.js'
+import {
+  deliverContractorReplyToDriver,
+  type DeliverContractorReplyToDriverResult,
+} from './contractor-reply-driver-delivery.support.js'
+
+export type ContractorReplyAutomaticDelivery = Extract<
+  DeliverContractorReplyToDriverResult,
+  { readonly kind: 'delivered' }
+>
 
 export async function findContractorReplyConfiguration(
   queryable: TripQueryable,
@@ -119,7 +127,10 @@ export async function openContractorReply(
     })
 }
 
-/** Moves the open reply of the conversation by the message that just arrived; any other state is left alone. */
+/**
+ * Moves the open reply of the conversation by the message that just arrived; any other state is left alone.
+ * Returns the delivery only when this call wrote to the driver chat (T4.6b), so the caller notifies after the commit.
+ */
 export async function applyContractorReplyToMessage(
   queryable: TripQueryable,
   params: {
@@ -128,7 +139,7 @@ export async function applyContractorReplyToMessage(
     readonly messageId: string
     readonly now: Date
   },
-): Promise<void> {
+): Promise<ContractorReplyAutomaticDelivery | undefined> {
   const { companyId } = params
   const [reply] = await queryable
     .select({
@@ -145,7 +156,7 @@ export async function applyContractorReplyToMessage(
     )
     .for('update')
     .limit(1)
-  if (reply === undefined) return
+  if (reply === undefined) return undefined
 
   const attachments = await queryable
     .select({
@@ -166,7 +177,7 @@ export async function applyContractorReplyToMessage(
       status: reply.status,
     },
   })
-  if (decision.kind === 'ignore') return
+  if (decision.kind === 'ignore') return undefined
 
   const isAccepted = decision.kind === 'accept'
   const toStatus = isAccepted
@@ -200,13 +211,13 @@ export async function applyContractorReplyToMessage(
   })
 
   /** RF4/RF7: modo automático — a resposta aceita segue ao motorista na mesma transação (idempotente). */
-  if (toStatus === 'reply_received') {
-    await deliverContractorReplyToDriver(queryable, {
-      actorUserId: null,
-      companyId,
-      now: params.now,
-      replyId: reply.id,
-      trigger: 'automatic',
-    })
-  }
+  if (toStatus !== 'reply_received') return undefined
+  const delivery = await deliverContractorReplyToDriver(queryable, {
+    actorUserId: null,
+    companyId,
+    now: params.now,
+    replyId: reply.id,
+    trigger: 'automatic',
+  })
+  return delivery.kind === 'delivered' ? delivery : undefined
 }
