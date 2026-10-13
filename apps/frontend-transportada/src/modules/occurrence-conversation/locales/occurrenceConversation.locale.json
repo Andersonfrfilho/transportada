@@ -195,7 +195,13 @@
     "forward": "Encaminhar à contratante",
     "forwarding": "Encaminhando…",
     "forwarded": "Encaminhada à contratante pelo portal.",
-    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes.",
+    "sendToDriver": "Enviar ao motorista",
+    "sendingToDriver": "Enviando…",
+    "sentToDriver": "Enviado ao motorista pelo chat do app.",
+    "alreadySentToDriver": "Já foi enviado ao motorista.",
+    "sendToDriverSkipped": "O motorista da viagem ainda não tem conta ativa no app.",
+    "sendToDriverError": "Não foi possível enviar. Tente de novo em instantes."
   },
   "channel": {
     "email": "E-mail",

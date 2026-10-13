@@ -195,7 +195,13 @@
     "forward": "Forward to contractor",
     "forwarding": "Forwarding…",
     "forwarded": "Forwarded to the contractor through the portal.",
-    "forwardError": "Could not forward. Try again shortly."
+    "forwardError": "Could not forward. Try again shortly.",
+    "sendToDriver": "Send to driver",
+    "sendingToDriver": "Sending…",
+    "sentToDriver": "Sent to the driver in the app chat.",
+    "alreadySentToDriver": "Already sent to the driver.",
+    "sendToDriverSkipped": "The trip driver does not have an active app account yet.",
+    "sendToDriverError": "Could not send. Try again shortly."
   },
   "channel": {
     "email": "Email",
