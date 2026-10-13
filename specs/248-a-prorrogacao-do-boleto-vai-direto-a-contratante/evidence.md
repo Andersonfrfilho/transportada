@@ -643,3 +643,21 @@ O núcleo SQL `deliverContractorReplyToDriver` **não mudou** (já devolvia `dri
   com aprovação e sem conta devolvem `undefined`; pelo adaptador do portal sai com o rótulo) e do worker (aviso uma vez; reentrega do mesmo e-mail e segunda resposta não avisam; sem conta e com aprovação não avisam).
   Contratos: API portal (avisa uma vez com o commit feito, não avisa sem entrega, falha do aviso não desfaz), adaptador da API (emissão igual à do operador), worker (use case: depois de gravar, sem entrega, falha engolida;
   notificador: chave, marcadores contra o catálogo da API, log sem dado pessoal). `tsc` e `eslint` limpos nas duas apps.
+
+## T4.7b — o boleto sai sozinho ao cliente da nota (RF10, 2026-10-13)
+
+Fecha o limite da T4.7 ("o envio automático ao cliente da nota não está feito"). Com o tipo em `forward_to_note_recipient = automatic` e a resposta da contratante aceita **no modo automático**
+(`reply_received`, o mesmo ponto da entrega ao motorista em `applyContractorReplyToMessage`), o e-mail é enfileirado pelo mesmo trilho do manual.
+
+- **Núcleo:** `contractor-reply-note-recipient-forward.support.ts`, SQL puro e **idêntico** na API e no worker (nenhuma app importa a outra; entrou em `contractor-reply-parity.contract.ts`). Cria a mensagem da 143 presa à
+  thread da ocorrência (sem token e sem mensagem de conversa), o evento `message.send.requested` no outbox e a linha em `occurrence_contractor_reply_deliveries` (`trigger = automatic`, sem ator). O worker que envia
+  é o do manual: acha a entrega por `mail_message_id`, anexa o PDF e usa o `Reply-To` do contato da empresa.
+- **Idempotência:** chave `note_recipient_email:<sha256(retorno:automatic:anexo)>`; repetir devolve `already_queued`. A chave do manual é outra (vem do cliente), então um reenvio à mão continua possível e conta no teto de 5.
+- **Falha nunca desfaz o retorno:** tudo roda num `SAVEPOINT`; o erro volta só o envio e grava `failed / send_failed` (sem endereço) por outro savepoint. Nenhum log aqui (endereço e texto nunca saem do banco).
+- **Só quando há endereço válido** (mesma política da RF11: `trim`, ≤ 254, sem `\r \n , ; < >`, `z.string().email()`): sem e-mail na nota, ou inválido, é `skipped / note_without_recipient_email` — nunca cai para outro endereço. PDF > 10 MB é `failed / attachment_too_large_for_email`; remetente não verificado ou thread ausente é `failed / send_failed`.
+- **Nunca com aprovação:** o gancho só roda quando a resposta vira `reply_received`; no `forward_after_approval` o retorno fica `awaiting_operator` e nada é enfileirado.
+- **Desvio da letra do pedido:** o enfileiramento acontece **dentro** da transação que aceita a resposta (savepoint), não depois do commit, para o e-mail nunca se perder entre o commit e a fila. Não reaproveita o caso de uso `forward-contractor-reply-by-email` (ele abre a própria transação e exige ator); reaproveita o trilho (tabelas, outbox, worker de envio) e a política de endereço.
+- **Provas (Postgres 55432; Ubuntu/WSL, bun 1.4.3):** integração da API `occurrence-contractor-reply-note-recipient-auto` (enfileira com entrega/mensagem/outbox; repetir não duplica; com aprovação nada; tipo manual/desligado nada; nota sem e-mail ou com endereço inválido `skipped`;
+  PDF grande `failed`; gatilho que derruba o outbox: retorno segue e fica `failed / send_failed`, nenhuma mensagem sobra). Worker (`occurrence-contractor-reply-received`): enfileira uma vez com reentrega do mesmo e-mail e segunda resposta; sem e-mail `skipped`;
+  aprovação nada; falha do outbox não desfaz o retorno nem a entrega ao motorista (`delivered`). Mutação: sem a chamada no gancho, 5 dos 7 testes da API ficam vermelhos. Integrações vizinhas (retorno recebido, e-mail manual, abertura, portal, motorista) e contratos de paridade verdes.
+- **Não provado:** nenhum e-mail real saiu (o envio é o `fetch` falso do worker de saída, já coberto na T4.7); não foi visto no navegador; o painel não ganhou nada novo (a linha da entrega `trigger = automatic` aparece na leitura `email-options`, mas o texto "enviado automaticamente" na linha do tempo não foi desenhado/visto).

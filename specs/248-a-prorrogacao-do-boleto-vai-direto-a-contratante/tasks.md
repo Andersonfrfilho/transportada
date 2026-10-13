@@ -80,7 +80,11 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       informado), validação RF11, limite de taxa, 5 por ocorrência, `Idempotency-Key`, mensagem de
       saída **sem thread** no worker, PDF como anexo com teto de 10 MB, máscara no log
       (`maskEmailAddress` promovida a `shared/`). Integração CA07. Manual feito (API, worker e as telas
-      do painel); o envio **automático** ao cliente da nota (RF10) segue em aberto — ver evidence.md.
+      do painel); o envio **automático** ao cliente da nota (RF10) está feito na T4.7b — ver evidence.md.
+- [x] **T4.7b** Envio **automático** ao cliente da nota (RF10): `forward_to_note_recipient = automatic` enfileira o
+      e-mail pelo trilho do manual junto da entrega ao motorista, nos dois caminhos (portal na API, e-mail no
+      worker), idempotente por (retorno, anexo), em savepoint (falha vira `failed / send_failed`, o retorno fica),
+      só com endereço válido, nunca no modo com aprovação. Integração na API e no worker; paridade byte a byte.
 - [x] **T4.8** Mutações da T4.7 registradas: aceitar `a@b.com,c@d.com`; aceitar `\r\nBcc:`; cair para
       outro endereço quando a nota não tem e-mail; enviar duas vezes com a mesma chave.
 - [ ] **T4.9** 🧠 WhatsApp: entrega por `SendMessageUseCase.sendMedia` (janela do pacote),
