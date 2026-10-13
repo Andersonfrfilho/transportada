@@ -403,6 +403,40 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 - **Limites desta task:** o aviso no sino não sai no caminho automático (só na rota do operador); o `driverReplyTemplate` vai como escrito, sem trocar marcadores.
   WhatsApp fica de fora (decisão do dono, 2026-10-12).
 
+## T5.4 — o app do motorista mostra o boleto (2026-10-12)
+
+**Conferido no código (nada disto foi refeito):**
+
+- **(a) O aviso do sino abre a conversa da ocorrência.** `notificationDestination.service.ts:30-47` devolve `{ kind: 'conversation', subject }` para
+  `trip.conversation-message` com `subjectType`/`subjectId` válidos no payload; `DriverNotifications.page.tsx:38-41` navega a `/conversas/:tipo/:id`.
+  A API manda exatamente esse payload na entrega do operador: `deliver-contractor-reply-to-driver.use-case.ts:67-76` (`subjectType: occurrence`) →
+  `driver-conversation-notifier.gateway.ts:64-76` (`trip.conversation-message` + `subjectId`/`protocol`).
+- **(b) A mensagem aparece com o anexo baixável por URL assinada.** A API assina os anexos na leitura (`driver-conversation.use-case.ts:203-215`,
+  `signConversationAttachments`); o mapper do app lê PDF como `kind: 'document'` com o nome do arquivo (`driverConversationsMapper.service.ts:27-31,49-63`) e guarda a URL por
+  anexo (`:85-94`); `resolveAttachmentUrl` a renova antes de vencer (`driverConversationsApi.service.ts:169`); o pacote renderiza `<a download>` com `min-height` de
+  toque (`ParticipantAttachmentItem.tsx`, `.cv-p-attachment--document`). A chave de entrega é a conversa do motorista **da ocorrência** (`contractor-reply-driver-delivery.support.ts:154-161`),
+  a mesma que o app lê.
+- **Lista com não lidas, leitura, resposta com anexo e aviso "sem rede":** já entregues na spec 263/264 (`conversationDigests.query.ts`, `markRead`
+  `driverConversationsApi.service.ts:168`, `driverConversationUploads.service.ts`, `useIsOnline.hook.ts`, `driver-conversations-offline.contract.ts`).
+- **(c) "Pedido enviado à contratante": NÃO existe, e não é pequeno.** O app não tem de onde ler a informação: a rota de tipos do motorista
+  (`/me/trips/current/occurrence-types`, `DriverOccurrenceType` em `driverTrip.types.ts:439-472`) não devolve `contractorReplyMode` nem estado do retorno, e a viagem não traz
+  as ocorrências já registradas. Entregá-lo pede **mudança de API** (campo no tipo resolvido por nota e/ou estado do retorno por ocorrência) — fora do escopo desta task, fica como pendência.
+
+**Entregue (só a lacuna de prova da (b)):**
+
+- Contrato novo `apps/frontend-driver/test/conversation/driver-conversations-boleto.contract.ts` (4 casos, na suíte `conversation.contract.test.ts`, fixture local, sem depender da API de demonstração):
+  o aviso da entrega abre a conversa da ocorrência; PDF é `document`; o adapter real entrega a mensagem do escritório com `boleto.pdf`; a URL assinada da leitura é a que o toque abre.
+- **Smoke do sino → conversa → download NÃO foi escrito.** Uma primeira versão (semente na demonstração + caso no smoke) reprovou na CI do PR 165: a conversa nova mexeu na altura
+  da lista ("último item acima da barra", 751,48 > 751) e o seletor do sino nunca foi rodado (não há Chromium nem Keycloak local). Foi revertida; o smoke fica para quem puder rodar Playwright.
+
+**Gates (Ubuntu/WSL, bun 1.4.3, `apps/frontend-driver`):** `bun run test` verde; `bun x tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+
+**Não provado:** o fluxo no navegador (sino → conversa → toque em `boleto.pdf` → download). O app do motorista faz login real no Keycloak em `localhost:58080`, porta no intervalo reservado pelo Windows
+(58002–58101) nesta máquina, e não há Chromium do Playwright no Ubuntu.
+
+**Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
+(2) "Pedido enviado à contratante" (acima).
+
 ## T5.2a e T5.3a — o estado do retorno no painel (2026-10-12)
 
 - **API:** `GET /trip-occurrences/:id/contractor-reply` (`fleet.read`, `no-store`; `data: null` sem retorno; 404 igual para inexistente e outra empresa),
