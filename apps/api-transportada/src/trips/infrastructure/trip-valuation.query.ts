@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { aliasedTable, and, asc, eq, inArray, sql, sum } from 'drizzle-orm'
+import { aliasedTable, and, asc, eq, inArray, isNull, sql, sum } from 'drizzle-orm'
 
 import type { FuelProduct } from '../../shared/fuel.constant.js'
 import {
@@ -1056,7 +1056,7 @@ export class DrizzleTripValuationQuery {
           eq(recipientAddress.participantId, recipientParticipant.id),
         ),
       )
-      .where(where)
+      .where(and(where, isNull(tripDocuments.releasedAt)))
   }
 
   private async readDocuments(input: {
