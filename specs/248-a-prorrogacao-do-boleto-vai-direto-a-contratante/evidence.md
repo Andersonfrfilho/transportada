@@ -403,6 +403,83 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 - **Limites desta task:** o aviso no sino não sai no caminho automático (só na rota do operador); o `driverReplyTemplate` vai como escrito, sem trocar marcadores.
   WhatsApp fica de fora (decisão do dono, 2026-10-12).
 
+## T4.7 — o boleto por e-mail ao cliente da nota ou a um endereço informado (2026-10-12)
+
+**Contratos antes do código.** `forward-contractor-reply-by-email.contract.ts` (API, 32 testes sobre um mundo em memória): o endereço informado
+(vazio, dois endereços, `;`, `\r\nBcc:`, `\n`, `Nome <a@b>`, sem arroba, acima de 254), o cliente da nota, a chave, o teto, o PDF grande, o alvo desligado na
+cópia do retorno, o e-mail da empresa não pronto, o log só com a máscara. Worker: `outbound-message.contract.ts` ganhou o ramo do terceiro.
+
+**Feito.**
+
+- **API.** `POST /trip-occurrences/:id/contractor-reply/email-delivery` (`occurrences.resolve`, `Idempotency-Key`, balde `occurrence-conversation` 30/300 s,
+  corpo `{ target, attachmentId?, address? }`, `.strict()`; `address` com o alvo da nota é 400) e `GET .../email-options` (estado dos botões; endereço da nota
+  só mascarado; `data: null` sem retorno). Caso de uso sobre portas, repositório Drizzle numa transação: trava o retorno `FOR UPDATE` (é o que faz o teto de
+  5 valer sob corrida), confere o anexo (da conversa da **contratante** desta ocorrência, empresa no filtro), a cópia do retorno (modo do alvo e os dois textos),
+  a chave, o teto, o e-mail da empresa pronto (`resolveMailSendReadiness`), e grava a mensagem da 143 + evento do outbox + a entrega `queued`.
+  `skipped / note_without_recipient_email` (também com e-mail malformado na nota) e `failed / attachment_too_large_for_email` gravam a entrega e não a fila.
+  Chave de entrega = `alvo:sha256(retorno:chave do cliente)[0..32]` (cabe nos 120 da coluna); mesma chave com **outro anexo ou outro endereço** é 409
+  (`OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED`), nunca replay calado. Erros estáveis novos: `CONTRACTOR_REPLY_EMAIL_{ADDRESS_INVALID,FORWARD_DISABLED,
+LIMIT_REACHED,ATTACHMENT_NOT_FOUND}`. `maskEmailAddress` foi para `shared/email-address-mask.policy.ts`.
+- **Worker.** A mensagem da 143 exige `thread_id`; sem migration, ela fica **presa à thread da ocorrência** (a do aviso/pedido, que sempre existe quando há
+  retorno), mas o worker a reconhece pela linha da entrega (`mail_message_id`) e então: não deriva o token (`Reply-To` = primeiro e-mail de contato da
+  empresa, ou nenhum), não manda `In-Reply-To`/`References`, lê o PDF da entrega (`attachment_id`) e fecha a entrega junto com a mensagem (`sent` + `sent_at`, ou
+  `failed` / `send_failed`). O gateway do Resend aceita `replyTo` ausente.
+- **Cadastro do tipo (lacuna achada, como na T5.1).** A API só levava `forwardToNoteRecipient`; `forwardToInformedEmail`, `forwardEmailSubject` e
+  `forwardEmailBody` não passavam pelo `PUT`/`GET`, então o painel não tinha como gravar o texto que a CHECK `forward_needs_text` exige. Entraram no corpo
+  (`occurrence.schema.ts`, `.optional()`, 200/4000), no caso de uso, no mapeamento, nos dois SELECT e no UPDATE (ausente = "não mexa"); a CHECK vira
+  `422 OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT`.
+- **Painel.** Aba Tipos: seletor do cliente da nota (não enviar / o operador envia / automático) **e** o do e-mail informado, com assunto e corpo (a regra
+  como mensagem em cada campo, `aria-invalid`; "Salvar retorno" só destrava com os dois; o `PUT` leva onze campos). Conversa da contratante: por anexo
+  recebido, "Enviar ao cliente da nota" (à vista e **desligado com o motivo** quando a nota não tem e-mail ou o teto foi atingido) e "Encaminhar para um e-mail"
+  (formulário com um campo, regra da API espelhada, recusa da API no mesmo campo, `Idempotency-Key` nova a cada tentativa), mais a lista dos envios
+  ("Boleto enviado por e-mail", endereço mascarado). O molde `SendToDriverAction` ainda não estava na `staging` quando a tarefa começou (chegou na T5.3 parte, #165/#166):
+  as duas ações por anexo convivem no mesmo `renderAttachmentActions` da conversa da contratante (um só: a segunda propagação sobrescreveria a primeira).
+
+**Provas.**
+
+- API, contratos: **11650 pass / 0 fail** (`bun --env-file=../../.env.test test --timeout 120000`, Ubuntu/WSL em `/mnt/c`); rate-limit contract com as três rotas.
+- API, integração em Postgres: `occurrence-contractor-reply-email.integration.ts` **7 pass / 0 fail** (mensagem da 143 presa à thread sem mensagem de conversa; outbox;
+  chave repetida não duplica; o sexto envio é recusado e nada novo entra na fila; nota sem e-mail → `skipped`; PDF > 10 MB → `failed`; opções só mascaradas; empresa B → 404);
+  `occurrence-type-contractor-reply-write.integration.ts` **5 pass / 0 fail** (os campos novos gravam, leem no GET e na lista, o `PUT` sem eles mantém, a CHECK vira 422).
+- Worker: `contractor-mail.contract.test.ts` **131 pass / 0 fail**; integração `occurrence-contractor-reply-email-delivery.integration.ts` **4 pass / 0 fail** contra
+  Postgres migrado (PDF da entrega em base64, sem `In-Reply-To`, `Reply-To` = contato da empresa, sem `reply_to` quando não há contato, contato de outra empresa nunca
+  usado, entrega `sent` com data / `failed` com `send_failed`); os testes de e-mail da conversa e do outbox seguem verdes.
+- Painel: contratos **8071 pass / 0 fail** (`bun test --timeout 120000` na lista do `test`; com o prazo padrão de 5 s os 15 testes de varredura de disco estouram no
+  clone em `/mnt/c`, e todos passam com prazo maior); DOM (`test:hooks`) **1359 pass / 0 fail**, com `contractor-reply-email-actions` (11) e `contractor-reply-forward-fields` (5).
+- Tudo acima foi refeito **depois** do merge com a `staging` de 2026-10-13 (#165/#166: leitura do retorno, `handled`, "Enviar ao motorista"): integração da API (e-mail, cadastro
+  do tipo, leitura do retorno, resposta recebida, abertura e aviso automático) **33 pass / 0 fail**; worker (e-mail ao terceiro, anexos e e-mail da conversa, resposta recebida,
+  outbox) **23 pass / 0 fail**. O merge conflitou em `main.ts`, nas rotas do retorno, no teste de balde e no `package.json`; no painel, as duas ações por anexo
+  (motorista e e-mail) entram no mesmo `renderAttachmentActions`.
+- `tsc --noEmit` e `eslint` limpos nas três apps (os avisos `react-hooks/exhaustive-deps` restantes são de arquivos não tocados); `prettier --check` limpo.
+
+**Desvios e limites.**
+
+- **O envio automático ao cliente da nota (RF10) não está feito.** O seletor grava `automatic` (a CHECK `forward_automatic_needs_reply` vale), mas nada o dispara ao
+  entregar ao motorista. Pedaço natural da T4.9/T4.10: núcleo SQL idêntico na API e no worker, como o da T4.6, e a ordem "sai junto com a entrega ao motorista".
+- A thread é só âncora: a mensagem da 143 do terceiro aparece na linha do tempo da ocorrência como e-mail de saída (a consulta lê as mensagens da thread). Sem
+  migration não há como evitá-lo (`contractor_mail_messages.thread_id` é `NOT NULL`); uma coluna nula ou um tipo de thread próprio seria a saída limpa.
+- A resposta de quem recebe o e-mail do terceiro vai ao contato da empresa; nunca cai na conversa da contratante (não há token, e o `Reply-To` não é o domínio de resposta).
+- Nenhum e-mail real foi enviado (o Resend é um `fetch` falso nos testes). Prints em 375/768/1280 e a comparação com o `preview.html` (T7.1) não foram feitos aqui.
+- Publicação em etapas (ADR-0081 §9): o painel tolera a API anterior (campos novos opcionais e leitura nula), mas a rota `email-options` e os campos do tipo só existem depois da API.
+
+## T4.8 — mutações da T4.7, com a execução vermelha (2026-10-12)
+
+Cada mutação aplicada ao código de produção, contrato `forward-contractor-reply-by-email.contract.ts` rodado, arquivo restaurado:
+
+| Mutação                                                                                                            | Resultado vermelho                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 — a política aceita `a@b.com,c@d.com` e `\r\nBcc:` (sem a regex de caracteres **e** sem o `z.string().email()`) | 9 falhas: "dois endereços", "ponto e vírgula", "cabeçalho Bcc", "quebra de linha", "nome com colchetes", "sem arroba", o caso de uso com `a@b.com,c@d.com` e com `x@y.com\r\nBcc: z@w.com`, e a nota com e-mail malformado |
+| M2 — nota sem e-mail cai no endereço informado (`resolveAddress(...) ?? input.address`)                            | 1 falha: "nota sem e-mail com um endereço informado junto: continua skipped"                                                                                                                                               |
+| M3 — a mesma chave envia duas vezes (a leitura da chave deixa de valer)                                            | 2 falhas: "a mesma chave devolve a mesma entrega" e "a mesma chave com outro anexo ou outro endereço é 409"                                                                                                                |
+| M4 — sem o teto de cinco                                                                                           | 1 falha: "o quinto passa e o sexto é recusado"                                                                                                                                                                             |
+| M5 — chave reusada com outro anexo/endereço vira replay calado                                                     | 1 falha: "a mesma chave com outro anexo ou outro endereço é 409"                                                                                                                                                           |
+| M6 — PDF acima de 10 MB sai                                                                                        | 1 falha: "PDF acima de 10 MB falha com o motivo e nada sai"                                                                                                                                                                |
+| M7 — o log leva o endereço em claro                                                                                | 1 falha: "o log leva só a forma mascarada"                                                                                                                                                                                 |
+
+**Sobreviventes, ditos.** Tirar só a regex de caracteres (`[\r\n,;<>]`) **não** quebra nenhum teste: o `z.string().email()` sozinho já recusa lista, `Bcc:` e "Nome <a@b>"; tirar só o
+`email()` quebra "sem arroba" (a regex sozinha segura os demais). As duas travas ficam: a regex é a lista do RF11 escrita por extenso (e protege se a versão do zod mudar a
+tolerância), o `email()` pega o resto.
+
 ## T4.10a — a rotina `occurrence.contractor-reply.alert` (2026-10-12)
 
 O worker faz tudo, sem rota da API nem permissão nova: lê o banco, move o retorno e fala com o módulo de notificações que ele já tem

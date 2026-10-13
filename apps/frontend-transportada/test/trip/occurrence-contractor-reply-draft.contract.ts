@@ -3,7 +3,7 @@
  */
 /**
  * Spec 248 T5.1: o bloco "Retorno da contratante" da aba Tipos. As CHECKs do banco aparecem como mensagem no
- * campo antes do `PUT`, e o conjunto dos oito campos vai de uma vez.
+ * campo antes do `PUT`, e o conjunto dos onze campos vai de uma vez.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -46,6 +46,9 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
       alertMode: 'off',
       attachmentKind: 'pdf',
       driverReplyTemplate: '',
+      forwardEmailBody: '',
+      forwardEmailSubject: '',
+      forwardToInformedEmail: 'off',
       forwardToNoteRecipient: 'off',
       mode: 'off',
       waitHours: '',
@@ -114,6 +117,8 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
       readContractorReplyProblems({
         draft: draft({
           driverReplyTemplate: 'Segue o boleto atualizado.',
+          forwardEmailBody: 'Segue o boleto.',
+          forwardEmailSubject: 'Boleto prorrogado',
           forwardToNoteRecipient: 'automatic',
           mode: 'forward_automatic',
         }),
@@ -122,7 +127,7 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
     ).toEqual({})
   })
 
-  test('o roteiro do SAC (6 h, alerta a cada 60 min, até 24) vira os oito campos e o PUT os leva', () => {
+  test('o roteiro do SAC (6 h, alerta a cada 60 min, até 24) vira os onze campos e o PUT os leva', () => {
     const roteiro = draft({
       alertMode: 'alert_operator',
       driverReplyTemplate: 'Segue o boleto atualizado.',
@@ -138,10 +143,97 @@ describe('o rascunho do retorno da contratante (spec 248 T5.1)', () => {
       contractorReplyMode: 'forward_after_approval',
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto atualizado.',
+      forwardEmailBody: '',
+      forwardEmailSubject: '',
+      forwardToInformedEmail: 'off',
       forwardToNoteRecipient: 'off',
     })
     expect(buildOccurrenceTypeUpdate(TYPE, edit)).toMatchObject(edit)
     expect(buildContractorReplyEdit(draft()).contractorReplyWaitHours).toBeNull()
+  })
+
+  test('qualquer envio por e-mail ligado exige assunto e corpo, no campo (a CHECK forward_needs_text)', () => {
+    for (const overrides of [
+      { forwardToNoteRecipient: 'manual' },
+      { forwardToInformedEmail: 'manual' },
+    ] as const) {
+      const problems = readContractorReplyProblems({
+        draft: draft(overrides),
+        emailsContractor: true,
+      })
+      expect(problems.forwardEmailSubject).toBe('forwardNeedsText')
+      expect(problems.forwardEmailBody).toBe('forwardNeedsText')
+      const onlyBody = readContractorReplyProblems({
+        draft: draft({ ...overrides, forwardEmailSubject: 'Boleto prorrogado' }),
+        emailsContractor: true,
+      })
+      expect(onlyBody.forwardEmailSubject).toBeUndefined()
+      expect(onlyBody.forwardEmailBody).toBe('forwardNeedsText')
+      expect(
+        readContractorReplyProblems({
+          draft: draft({
+            ...overrides,
+            forwardEmailBody: 'Segue o boleto.',
+            forwardEmailSubject: '   ',
+          }),
+          emailsContractor: true,
+        }).forwardEmailSubject,
+      ).toBe('forwardNeedsText')
+      expect(
+        readContractorReplyProblems({
+          draft: draft({
+            ...overrides,
+            forwardEmailBody: 'Segue o boleto.',
+            forwardEmailSubject: 'Boleto prorrogado',
+          }),
+          emailsContractor: true,
+        }),
+      ).toEqual({})
+    }
+  })
+
+  test('com os dois envios desligados o texto do e-mail não é cobrado nem vira problema', () => {
+    expect(
+      readContractorReplyProblems({
+        draft: draft({ forwardEmailBody: '', forwardEmailSubject: '' }),
+        emailsContractor: true,
+      }),
+    ).toEqual({})
+  })
+
+  test('o PUT leva o e-mail ao terceiro: os dois modos, o assunto e o corpo', () => {
+    const edit = buildContractorReplyEdit(
+      draft({
+        forwardEmailBody: 'Segue o boleto com o novo vencimento.',
+        forwardEmailSubject: 'Boleto prorrogado',
+        forwardToInformedEmail: 'manual',
+        forwardToNoteRecipient: 'manual',
+      }),
+    )
+    expect(edit).toMatchObject({
+      forwardEmailBody: 'Segue o boleto com o novo vencimento.',
+      forwardEmailSubject: 'Boleto prorrogado',
+      forwardToInformedEmail: 'manual',
+      forwardToNoteRecipient: 'manual',
+    })
+    expect(buildOccurrenceTypeUpdate(TYPE, edit)).toMatchObject(edit)
+  })
+
+  test('tipo gravado com o e-mail ao terceiro volta ao rascunho como está', () => {
+    expect(
+      readContractorReplyDraft({
+        ...TYPE,
+        forwardEmailBody: 'Corpo',
+        forwardEmailSubject: 'Assunto',
+        forwardToInformedEmail: 'manual',
+        forwardToNoteRecipient: 'automatic',
+      }),
+    ).toMatchObject({
+      forwardEmailBody: 'Corpo',
+      forwardEmailSubject: 'Assunto',
+      forwardToInformedEmail: 'manual',
+      forwardToNoteRecipient: 'automatic',
+    })
   })
 
   test('o rascunho só conta como mudado quando algum campo difere do salvo', () => {

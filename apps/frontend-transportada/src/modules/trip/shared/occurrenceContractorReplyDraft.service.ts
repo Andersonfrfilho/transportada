@@ -8,6 +8,7 @@ import {
   type ContractorReplyAlertMode,
   type ContractorReplyAttachmentKind,
   type ContractorReplyMode,
+  type InformedEmailForwardMode,
   type NoteRecipientForwardMode,
 } from './occurrenceContractorReply.constant'
 import type { OccurrenceType } from './occurrenceType.types'
@@ -20,6 +21,9 @@ export type ContractorReplyDraft = Readonly<{
   alertMode: ContractorReplyAlertMode
   attachmentKind: ContractorReplyAttachmentKind
   driverReplyTemplate: string
+  forwardEmailBody: string
+  forwardEmailSubject: string
+  forwardToInformedEmail: InformedEmailForwardMode
   forwardToNoteRecipient: NoteRecipientForwardMode
   mode: ContractorReplyMode
   waitHours: string
@@ -28,6 +32,7 @@ export type ContractorReplyDraft = Readonly<{
 export type ContractorReplyProblemCode =
   | 'alertNeedsWaitHours'
   | 'automaticNeedsReply'
+  | 'forwardNeedsText'
   | 'intervalOutOfRange'
   | 'maxCountOutOfRange'
   | 'needsContractorMail'
@@ -39,6 +44,8 @@ export type ContractorReplyProblems = Partial<
     | 'alertIntervalMinutes'
     | 'alertMaxCount'
     | 'driverReplyTemplate'
+    | 'forwardEmailBody'
+    | 'forwardEmailSubject'
     | 'forwardToNoteRecipient'
     | 'mode'
     | 'waitHours',
@@ -53,6 +60,9 @@ export function readContractorReplyDraft(type: OccurrenceType): ContractorReplyD
     alertMode: type.contractorReplyAlertMode ?? 'off',
     attachmentKind: type.contractorReplyAttachmentKind ?? 'pdf',
     driverReplyTemplate: type.driverReplyTemplate ?? '',
+    forwardEmailBody: type.forwardEmailBody ?? '',
+    forwardEmailSubject: type.forwardEmailSubject ?? '',
+    forwardToInformedEmail: type.forwardToInformedEmail ?? 'off',
     forwardToNoteRecipient: type.forwardToNoteRecipient ?? 'off',
     mode: type.contractorReplyMode ?? 'off',
     waitHours:
@@ -70,6 +80,11 @@ function parseInteger(text: string): null | number {
 
 function isInRange(value: null | number, range: Readonly<{ max: number; min: number }>): boolean {
   return value !== null && value >= range.min && value <= range.max
+}
+
+/** O e-mail ao terceiro só tem texto a escrever quando algum dos dois envios está ligado. */
+export function isForwardOn(draft: ContractorReplyDraft): boolean {
+  return draft.forwardToNoteRecipient !== 'off' || draft.forwardToInformedEmail !== 'off'
 }
 
 /** As mesmas CHECKs do banco (spec 248), ditas no campo antes de o `PUT` voltar `422`. */
@@ -108,6 +123,10 @@ export function readContractorReplyProblems(input: {
   if (draft.forwardToNoteRecipient === 'automatic' && !isReplyOn) {
     problems.forwardToNoteRecipient = 'automaticNeedsReply'
   }
+  if (isForwardOn(draft)) {
+    if (draft.forwardEmailSubject.trim() === '') problems.forwardEmailSubject = 'forwardNeedsText'
+    if (draft.forwardEmailBody.trim() === '') problems.forwardEmailBody = 'forwardNeedsText'
+  }
   return problems
 }
 
@@ -120,7 +139,7 @@ export function isContractorReplyDraftChanged(
   )
 }
 
-/** O `PUT` leva os oito campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
+/** O `PUT` leva os onze campos de uma vez: a CHECK avalia o conjunto, não cada campo. */
 export function buildContractorReplyEdit(draft: ContractorReplyDraft): OccurrenceTypeEdit {
   return {
     contractorReplyAlertIntervalMinutes: parseInteger(draft.alertIntervalMinutes) ?? 60,
@@ -130,6 +149,9 @@ export function buildContractorReplyEdit(draft: ContractorReplyDraft): Occurrenc
     contractorReplyMode: draft.mode,
     contractorReplyWaitHours: draft.waitHours.trim() === '' ? null : parseInteger(draft.waitHours),
     driverReplyTemplate: draft.driverReplyTemplate,
+    forwardEmailBody: draft.forwardEmailBody,
+    forwardEmailSubject: draft.forwardEmailSubject,
+    forwardToInformedEmail: draft.forwardToInformedEmail,
     forwardToNoteRecipient: draft.forwardToNoteRecipient,
   }
 }

@@ -91,6 +91,9 @@ function buildDependenciesStub(
       sendEmail,
     },
     repository: {
+      async findContractorReplyForward() {
+        return undefined
+      },
       async findLastInboundReferenceHeaders() {
         return undefined
       },

@@ -50,6 +50,8 @@ export const FORWARD_EMAIL_SUBJECT_MAX_LENGTH = 200
 export const FORWARD_EMAIL_BODY_MAX_LENGTH = 4000
 export const CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH = 500
 export const CONTRACTOR_REPLY_EMAIL_ADDRESS_MAX_LENGTH = 254
+/** Spec 248 T4.7: e-mails a terceiros por ocorrência (os que saíram ou estão na fila). */
+export const CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE = 5
 
 export const CONTRACTOR_REPLY_STATUSES = [
   'awaiting_contractor',

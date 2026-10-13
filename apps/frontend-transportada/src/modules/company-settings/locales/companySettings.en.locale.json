@@ -576,7 +576,10 @@
         "alertMode": "If the contractor is late",
         "alertIntervalMinutes": "Repeat the alert every (minutes)",
         "alertMaxCount": "Maximum alerts per occurrence",
-        "forwardToNoteRecipient": "Send the boleto to the invoice customer email"
+        "forwardToNoteRecipient": "Send the boleto to the invoice customer email",
+        "forwardToInformedEmail": "Forward the boleto to an informed email",
+        "forwardEmailSubject": "Subject of the email to the third party",
+        "forwardEmailBody": "Text of the email to the third party"
       },
       "mode": {
         "off": "Only show the reply",
@@ -596,6 +599,11 @@
         "manual": "Operator sends",
         "automatic": "Send automatically"
       },
+      "forwardToInformedEmail": {
+        "off": "Do not forward",
+        "manual": "The operator enters the email"
+      },
+      "forwardLegend": "The same subject and text go to the invoice customer and to the informed email, with the boleto attached. Up to 5 emails per occurrence.",
       "problems": {
         "needsContractorMail": "Turn on the contractor email for this type to use the reply.",
         "templateRequired": "Write the text the driver receives.",
@@ -603,7 +611,8 @@
         "alertNeedsWaitHours": "To alert on delay, enter the wait time.",
         "intervalOutOfRange": "Enter 15 to 1440 minutes.",
         "maxCountOutOfRange": "Enter 1 to 96 alerts.",
-        "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on."
+        "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
+        "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
       }
     }
   },

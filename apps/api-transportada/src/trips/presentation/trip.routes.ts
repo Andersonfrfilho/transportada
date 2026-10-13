@@ -5,6 +5,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
@@ -340,6 +341,9 @@ type SaveOccurrenceTypeInput = {
   readonly contractorReplyWaitHours?: null | number | undefined
   readonly driverReplyTemplate?: string | undefined
   readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode | undefined
+  readonly forwardToInformedEmail?: ForwardToInformedEmailMode | undefined
+  readonly forwardEmailSubject?: string | undefined
+  readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject?: string | undefined

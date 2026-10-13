@@ -14,6 +14,7 @@ import {
 import {
   OccurrenceTypeContractorReplyAlertNeedsWaitError,
   OccurrenceTypeContractorReplyNeedsMailError,
+  OccurrenceTypeForwardNeedsTextError,
 } from '../../src/trips/domain/trip.error.js'
 import { toSaveOccurrenceTypeValues } from '../../src/trips/application/save-occurrence-type-values.mapper.js'
 import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurrence.schema.js'
@@ -37,6 +38,13 @@ const SAC_REPLY = {
   contractorReplyMode: 'forward_after_approval',
   contractorReplyWaitHours: 6,
   driverReplyTemplate: 'Segue o boleto atualizado.',
+} as const
+
+const FORWARD = {
+  forwardEmailBody: 'Segue o boleto com o novo vencimento.',
+  forwardEmailSubject: 'Boleto prorrogado',
+  forwardToInformedEmail: 'manual',
+  forwardToNoteRecipient: 'manual',
 } as const
 
 function valuesFor(overrides: Partial<SaveOccurrenceTypeValues> = {}): SaveOccurrenceTypeValues {
@@ -157,6 +165,71 @@ describe('o retorno da contratante no cadastro do tipo contra o Postgres (spec 2
           ),
         ).rejects.toBeInstanceOf(OccurrenceTypeContractorReplyAlertNeedsWaitError)
       })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'o envio do boleto por e-mail (T4.7): grava, lê no get e na lista, o PUT sem os campos mantém, e a CHECK exige os dois textos',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const { companyId } = await seedCompany(database)
+        const created = await save(database, companyId, valuesFor({ ...SAC_REPLY, ...FORWARD }))
+        expect(created).toMatchObject(FORWARD)
+
+        const renamed = await save(
+          database,
+          companyId,
+          valuesFor({ ...SAC_REPLY, name: 'Prorrogação (SAC)', occurrenceTypeId: created.id }),
+        )
+        expect(renamed).toMatchObject(FORWARD)
+        const read = await findOccurrenceType(database.db, {
+          companyId,
+          occurrenceTypeId: created.id,
+        })
+        const listed = (await listOccurrenceTypes(database.db, { companyId })).find(
+          (type) => type.id === created.id,
+        )
+        for (const record of [read, listed]) expect(record).toMatchObject(FORWARD)
+
+        await expect(
+          save(
+            database,
+            companyId,
+            valuesFor({ ...SAC_REPLY, ...FORWARD, forwardEmailBody: '  ', name: 'Sem corpo' }),
+          ),
+        ).rejects.toBeInstanceOf(OccurrenceTypeForwardNeedsTextError)
+        await expect(
+          save(
+            database,
+            companyId,
+            valuesFor({ ...SAC_REPLY, ...FORWARD, forwardEmailSubject: '', name: 'Sem assunto' }),
+          ),
+        ).rejects.toBeInstanceOf(OccurrenceTypeForwardNeedsTextError)
+        expect(
+          await save(
+            database,
+            companyId,
+            valuesFor({
+              ...SAC_REPLY,
+              forwardToInformedEmail: 'off',
+              forwardToNoteRecipient: 'off',
+              name: 'Encaminhamento desligado',
+            }),
+          ),
+        ).toMatchObject({ forwardEmailBody: '', forwardEmailSubject: '' })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'a fronteira aceita o encaminhamento por e-mail e recusa modo e tamanho fora do contrato',
+    async () => {
+      expect(await parseBody({ ...SAC_REPLY, ...FORWARD })).toMatchObject(FORWARD)
+      await expect(parseBody({ forwardToInformedEmail: 'automatic' })).rejects.toBeDefined()
+      await expect(parseBody({ forwardEmailSubject: 'a'.repeat(201) })).rejects.toBeDefined()
+      await expect(parseBody({ forwardEmailBody: 'a'.repeat(4001) })).rejects.toBeDefined()
     },
     30_000,
   )
