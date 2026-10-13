@@ -46,23 +46,6 @@ function CategoryChips({ categories }: Readonly<{ categories: readonly TimelineM
   )
 }
 
-function EntryBody({ entry }: Readonly<{ entry: OccurrenceTripMapEntry }>) {
-  return (
-    <>
-      {entry.order === null ? (
-        <Icon name={OCCURRENCE_TRIP_MAP_WITHOUT_POSITION_ICON} />
-      ) : (
-        <span aria-hidden="true" className={styles.orderMark}>
-          {entry.order}
-        </span>
-      )}
-      <span aria-hidden="true" className={swatchClass(entry.category)}>
-        <Icon name={entry.icon} />
-      </span>
-    </>
-  )
-}
-
 function entryTitle(entry: OccurrenceTripMapEntry, thisOccurrence: string): string {
   return entry.isThisOccurrence ? thisOccurrence : entry.label
 }
@@ -81,19 +64,27 @@ function EntryItem({
           moment: entry.moment,
           order: entry.order,
         })
-  const body = (
-    <>
-      <EntryBody entry={entry} />
-      <span className={styles.entryText}>
-        <span>{text}</span>
-        {entry.detail === null ? null : <span className={styles.entryDetail}>{entry.detail}</span>}
-      </span>
-    </>
+  const textBlock = (
+    <span className={styles.entryText}>
+      <span>{text}</span>
+      {entry.detail === null ? null : <span className={styles.entryDetail}>{entry.detail}</span>}
+    </span>
+  )
+  const swatch = (
+    <span aria-hidden="true" className={swatchClass(entry.category)}>
+      <Icon name={entry.icon} />
+    </span>
   )
   const thisClass = entry.isThisOccurrence ? styles.entryThis : undefined
 
   if (entry.pinKey === null) {
-    return <li className={`${styles.entryRow} ${styles.entryMuted} ${thisClass ?? ''}`}>{body}</li>
+    return (
+      <li className={`${styles.entryRow} ${styles.entryMuted} ${thisClass ?? ''}`}>
+        <Icon name={OCCURRENCE_TRIP_MAP_WITHOUT_POSITION_ICON} />
+        {swatch}
+        {textBlock}
+      </li>
+    )
   }
   const { pinKey } = entry
   return (
@@ -108,7 +99,11 @@ function EntryItem({
         type="button"
         variant="ghost"
       >
-        {body}
+        <span aria-hidden="true" className={styles.orderMark}>
+          {entry.order}
+        </span>
+        {swatch}
+        {textBlock}
       </Button>
     </li>
   )

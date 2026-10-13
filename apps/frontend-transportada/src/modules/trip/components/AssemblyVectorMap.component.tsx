@@ -572,6 +572,9 @@ export function AssemblyVectorMap({
       duration: isReducedMotion === true ? 0 : FOCUS_ANIMATION_MS,
       zoom: Math.max(map.getZoom(), OCCURRENCE_TRIP_MAP_FOCUS_ZOOM),
     })
+    for (const other of markerByKeyRef.current.values()) {
+      if (other !== marker) other.getPopup()?.remove()
+    }
     if (marker.getPopup()?.isOpen() === false) marker.togglePopup()
   }, [focusRequest, isReady])
 
