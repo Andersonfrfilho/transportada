@@ -31,7 +31,7 @@ describe('a ordem do detalhe da viagem (spec 079 T021)', () => {
   it('vincular nota e ações em lote vêm antes da lista de paradas', () => {
     const paradas = posicaoDe('<TripStopList')
 
-    expect(posicaoDe("t('detail.linkDocumentTitle')")).toBeLessThan(paradas)
+    expect(posicaoDe('<TripLinkDocumentPanel')).toBeLessThan(paradas)
     expect(posicaoDe('<TripStateActions')).toBeLessThan(paradas)
   })
 

@@ -829,7 +829,17 @@
     "trailerHint": "Can be changed until dispatch.",
     "trailerLockedHint": "The trailer can no longer be changed — the trip has already dispatched.",
     "trailerPlaceholder": "No trailer attached",
-    "vehicle": "Vehicle: {{vehicle}}"
+    "vehicle": "Vehicle: {{vehicle}}",
+    "linkAvailableHint": "Only this company's notes that are not on any trip yet appear here.",
+    "linkSelected": "Link {{count}} note",
+    "linkSelected_other": "Link {{count}} notes",
+    "linkSelectedEmpty": "Select at least one note",
+    "linkTabs": "How to link the note",
+    "quickInputHint": "Type the note number and press Enter. If two free notes share the number, the screen asks which one. The 44-character key and camera reading link right away.",
+    "quickInputLabel": "Note number or key",
+    "quickInputPlaceholder": "E.g. 48214, or the 44 characters of the key",
+    "tabQuick": "Quick entry",
+    "tabSearch": "Search and select"
   },
   "empty": "No trip found",
   "error": "Could not load trips",
@@ -1097,7 +1107,8 @@
     "occurrenceTypeMomentsStageConflict": "This type has several moments, so its group (warehouse or street) cannot change without them. Adjust the moments and save again; nothing was saved.",
     "occurrenceTypeNameTaken": "An occurrence type with this name already exists. The name is unique across the company, in any stage (including receiving types, which this list does not show): choose another.",
     "occurrenceReferenceNumberRequired": "This occurrence type requires the customer document number. Fill it in instead of clearing it and save again. Nothing was saved.",
-    "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved."
+    "occurrenceDeclaredAmountRequired": "This occurrence type requires the amount paid. Fill it in (on the lines or on the occurrence, as the type asks) instead of clearing it and save again. Nothing was saved.",
+    "noteNumberNotFound": "No free note with this number in this company. Check the number or use the search."
   },
   "filters": {
     "active_one": "{{count}} active filter",
@@ -1646,8 +1657,8 @@
     "withoutDriver": "No driver"
   },
   "quickCreate": {
-    "accessKey": "Access key",
-    "accessKeyPlaceholder": "44 characters printed under the barcode",
+    "accessKey": "Note number or key",
+    "accessKeyPlaceholder": "Note number or the 44 characters of the key",
     "add": "Add",
     "cancel": "Cancel",
     "clearFilteredSelection": "Unselect all {{count}} from the filter",
@@ -1665,7 +1676,7 @@
     "failed": "Could not create the trip. Check the invoices and try again.",
     "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
-    "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
+    "intro": "Scan, read with the camera, or type the number or key of the notes that leave together. Only notes that are not on any trip yet are accepted.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
@@ -1701,7 +1712,14 @@
     "title": "New trip",
     "weightEstimated": "estimated",
     "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
-    "weightValue": "{{weight}} kg"
+    "weightValue": "{{weight}} kg",
+    "typed": {
+      "ambiguous": "{{count}} free notes share this number. Which one?",
+      "notFound": "No free note with this number or key in this company.",
+      "option": "Note {{number}}/{{series}} · {{emitter}} to {{recipient}}",
+      "pickTitle": "Choose the note",
+      "unrecognized": "Type the note number or the 44 characters of the key."
+    }
   },
   "readiness": {
     "count": "{{ready}} of {{total}} invoices with an authorized CT-e",

@@ -26,9 +26,11 @@ import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { withoutSelectedDrivers } from '../shared/tripCrewHelpers.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 import type { ScannedNfeDocument, TripDetail } from '../shared/trip.types'
+import { resolveTypedNote, type TypedNoteFeedback } from '../shared/tripNoteLookup.service'
 import {
   acceptQuickCreateScan,
   EMPTY_QUICK_CREATE_QUEUE,
+  listSelectableDocuments,
   refuseQuickCreateEntry,
   removeQuickCreateEntry,
   resolveQuickCreateEntry,
@@ -115,6 +117,8 @@ export function useTripQuickCreate(
     })
   }
 
+  const [typedNote, setTypedNote] = useState<TypedNoteFeedback | undefined>(undefined)
+
   function updateQueue(next: TripQuickCreateQueue): void {
     queueRef.current = next
     setQueue(next)
@@ -155,7 +159,45 @@ export function useTripQuickCreate(
     void lookupAccessKey(acceptance.accessKey)
   }
 
+  /**
+   * A inserção rápida aceita chave **ou número da nota**. O número é resolvido entre as notas livres
+   * que ainda não estão na fila: uma vira linha, nenhuma ou texto sem sentido vira aviso, várias
+   * pedem escolha — escolher pela pessoa entregaria carga ao cliente errado.
+   */
+  function submitTyped(text: string): void {
+    const lookup = resolveTypedNote({
+      documents: listSelectableDocuments({
+        documents: documentsQuery.data ?? [],
+        queue: queueRef.current,
+      }),
+      text,
+    })
+    if (lookup.kind === 'empty') return
+    touch()
+    if (lookup.kind === 'accessKey') {
+      setTypedNote(undefined)
+      acceptScan(text)
+      return
+    }
+    if (lookup.kind === 'unrecognized') {
+      setTypedNote({ kind: 'unrecognized' })
+      return
+    }
+    const [only] = lookup.matches
+    if (lookup.matches.length === 1 && only !== undefined) {
+      setTypedNote(undefined)
+      updateQueue(stageQuickCreateDocuments({ documents: [only], queue: queueRef.current }))
+      return
+    }
+    setTypedNote(
+      lookup.matches.length === 0
+        ? { kind: 'notFound' }
+        : { candidates: lookup.matches, kind: 'ambiguous' },
+    )
+  }
+
   function reset(): void {
+    setTypedNote(undefined)
     setCityOrder([])
     setRouteChoice(undefined)
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
@@ -324,6 +366,8 @@ export function useTripQuickCreate(
       acceptScan(text)
     },
     canScan,
+    submitTyped,
+    typedNote,
     /** Cancelar guarda o rascunho; "Limpar rascunho" é o único caminho que o apaga antes de criar. */
     close: () => {
       draftStore.dismissNotice()
@@ -353,6 +397,7 @@ export function useTripQuickCreate(
     queue,
     stageDocuments: (documents: readonly ScannedNfeDocument[]) => {
       touch()
+      setTypedNote(undefined)
       updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current }))
     },
     removeEntry: (accessKey: string) => {

@@ -7,7 +7,7 @@ import { loadFutureModule, NFE_ACCESS_KEY } from './trip.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const LINK_HOOK_PATH = 'src/modules/trip/hooks/useTripDocumentLinkForm.hook.ts'
-const DETAIL_PATH = 'src/modules/trip/components/TripDetail.component.tsx'
+const DETAIL_PATH = 'src/modules/trip/components/TripLinkDocumentPanel.component.tsx'
 const SCAN_QUEUE_PATH = 'src/modules/trip/components/TripScanQueue.component.tsx'
 
 const SECOND_ACCESS_KEY = '352608A1B2C3D4E5F644444444444444444444444444'
