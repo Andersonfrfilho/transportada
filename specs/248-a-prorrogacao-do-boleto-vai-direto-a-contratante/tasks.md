@@ -86,10 +86,12 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       `fallback_app_chat`/`wait_for_driver`, `WhatsAppWindowExpiredError` tratado; retomada no hook da
       mensagem recebida, sem consumir a mensagem, com trava por linha. Integração CA06 com o pacote
       dublê (duas mensagens seguidas → um envio).
-- [ ] **T4.10** Cron `occurrence.contractor-reply.alert` e templates de notificação com chave por
-      alerta; ações `resend-request` e `handled`. Integração CA05 (job em dobro, quatro paradas, teto).
+- [x] **T4.10a** Rotina `occurrence.contractor-reply.alert` (worker, pausada de fábrica) e template de
+      notificação com chave por alerta (`reply:<id>:<n>`). Integração CA05: job em dobro, intervalo, teto.
+- [ ] **T4.10b** Ações do operador `resend-request` e `handled` (RF6) e os testes de CA05 "quatro paradas"
+      pelas rotas (resposta chega, cancelada, tratado, teto) — a rotina já para em todas pela política.
 - [ ] **T4.11** Contrato de parede + mutação: nenhum log com e-mail, nome de arquivo, CNPJ ou número de
-      nota nos arquivos novos (CA08).
+      nota nos arquivos novos (CA08). Feito para os arquivos do alarme (T4.10a); falta o resto da fase.
 
 ## Fase 5 — Telas (etapa 3)
 
