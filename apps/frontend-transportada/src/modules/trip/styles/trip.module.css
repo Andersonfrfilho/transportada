@@ -1292,6 +1292,12 @@ button.occurrenceCaseBadge {
  * com `nowrap` + `flex-shrink: 0` não encolhe nem quebra, e sai 11px para fora da janela de 375px.
  * Deu barra horizontal na página e reprovou `responsive.smoke.spec.ts`.
  */
+.stopDocumentLabelReleased {
+  /* Nota liberada saiu da viagem: continua à vista, riscada, como histórico. */
+  text-decoration: line-through;
+  color: var(--color-text-muted, inherit);
+}
+
 .stopDocumentLabel {
   flex-shrink: 0;
   max-width: 100%;
