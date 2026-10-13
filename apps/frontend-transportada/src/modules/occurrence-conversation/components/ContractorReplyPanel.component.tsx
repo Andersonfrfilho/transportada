@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useContractorReplyQuery } from '../queries/contractorReply.query'
@@ -129,16 +130,28 @@ export function ContractorReplyPanel({
   const badgeText = state.reasonKey === null ? statusText : `${statusText} (${t(state.reasonKey)})`
 
   return (
-    <section aria-labelledby="contractor-reply-title" className={styles.panel}>
+    <section
+      aria-labelledby="contractor-reply-title"
+      className={styles.panel}
+      data-status={reply.status}
+    >
       <div className={conversationStyles.panelHead}>
         <h3 id="contractor-reply-title">
           <Icon name="invoice" size="sm" />
           {t('contractorReply.title')}
         </h3>
-        <Badge variant={state.tone}>
-          <Icon name={state.iconName} size="sm" />
-          {badgeText}
-        </Badge>
+        <Tooltip label={t(`contractorReply.hint.${reply.status}`)}>
+          <Badge
+            className={styles.statusBadge}
+            data-status={reply.status}
+            key={reply.status}
+            tabIndex={0}
+            variant={state.tone}
+          >
+            <Icon name={state.iconName} size="sm" />
+            {badgeText}
+          </Badge>
+        </Tooltip>
       </div>
       <ContractorReplyFacts reply={reply} />
       {canResolve &&
