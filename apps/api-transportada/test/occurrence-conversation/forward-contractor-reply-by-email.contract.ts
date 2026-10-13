@@ -228,6 +228,14 @@ describe('enviar o boleto ao cliente da nota (spec 248 RF10)', () => {
     })
   })
 
+  test('nota sem e-mail com um endereço informado junto: continua skipped, nunca cai nele', async () => {
+    const { state, useCase } = build({ noteEmail: null })
+    const outcome = await useCase.forward({ ...NOTE_INPUT, address: 'outro@lugar.com' })
+    expect(outcome.kind).toBe('skipped')
+    expect(state.mails).toEqual([])
+    expect(state.deliveries.map((delivery) => delivery.address)).toEqual([null])
+  })
+
   test('nota com e-mail malformado também vira skipped em vez de ir a outro lugar', async () => {
     const { state, useCase } = build({ noteEmail: 'a@b.com,c@d.com' })
     const outcome = await useCase.forward(NOTE_INPUT)

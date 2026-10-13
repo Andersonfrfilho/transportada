@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import {
@@ -38,11 +38,25 @@ export type ContractorMailReferenceHeaders = {
 }
 
 /**
+ * Spec 248 T4.7: a mensagem é o boleto levado a um terceiro (a linha da entrega aponta para ela). O
+ * `Reply-To` é o primeiro e-mail de contato da empresa, quando houver; nunca o endereço com token.
+ */
+export type ContractorReplyForwardRecord = {
+  readonly replyToAddress: null | string
+}
+
+const FORWARD_TARGETS_SQL = sql`('note_recipient_email', 'informed_email')`
+
+/**
  * O consumidor carrega a mensagem e a configuração — não mais a conversa (correção pós-entrega da
  * T009: nem o assunto nem o token de resposta dependem dela agora). Toda leitura e escrita filtra
  * por `company_id` na mesma condição, nunca como conferência depois.
  */
 export type ContractorMailOutboundWorkerRepository = {
+  findContractorReplyForward(input: {
+    readonly companyId: string
+    readonly messageId: string
+  }): Promise<ContractorReplyForwardRecord | undefined>
   findLastInboundReferenceHeaders(input: {
     readonly companyId: string
     readonly threadId: string
@@ -69,6 +83,25 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
   database: Database,
 ): ContractorMailOutboundWorkerRepository {
   return {
+    async findContractorReplyForward({ companyId, messageId }) {
+      const deliveries = (await database.execute(
+        sql`select id from occurrence_contractor_reply_deliveries
+            where company_id = ${companyId}::uuid
+              and mail_message_id = ${messageId}::uuid
+              and target in ${FORWARD_TARGETS_SQL}
+            limit 1`,
+      )) as readonly Record<string, unknown>[]
+      if (deliveries.length === 0) return undefined
+      const contacts = (await database.execute(
+        sql`select value from company_contacts
+            where company_id = ${companyId}::uuid and kind = 'email'
+            order by position asc, created_at asc, id asc
+            limit 1`,
+      )) as readonly Record<string, unknown>[]
+      const value = contacts[0]?.value
+      return { replyToAddress: typeof value === 'string' && value !== '' ? value : null }
+    },
+
     async findMessageById({ companyId, messageId }) {
       const [row] = await database
         .select({
@@ -143,6 +176,14 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
           mailMessageId: messageId,
           providerMessageId: providerEmailId,
         })
+        await transaction.execute(
+          sql`update occurrence_contractor_reply_deliveries
+              set status = 'sent', sent_at = now()
+              where company_id = ${companyId}::uuid
+                and mail_message_id = ${messageId}::uuid
+                and target in ${FORWARD_TARGETS_SQL}
+                and status = 'queued'`,
+        )
       })
     },
 
@@ -163,6 +204,14 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
           incoming: 'failed',
           mailMessageId: messageId,
         })
+        await transaction.execute(
+          sql`update occurrence_contractor_reply_deliveries
+              set status = 'failed', reason = 'send_failed'
+              where company_id = ${companyId}::uuid
+                and mail_message_id = ${messageId}::uuid
+                and target in ${FORWARD_TARGETS_SQL}
+                and status = 'queued'`,
+        )
       })
     },
   }

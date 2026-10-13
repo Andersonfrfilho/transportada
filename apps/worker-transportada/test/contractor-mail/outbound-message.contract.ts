@@ -16,6 +16,7 @@ import {
 import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type {
+  ContractorReplyForwardRecord,
   ContractorMailOutboundMessageRecord,
   ContractorMailOutboundSettingsRecord,
   ContractorMailReferenceHeaders,
@@ -58,6 +59,8 @@ function buildEnvelope(): ContractorMailOutboundEnvelopeV1 {
 function buildDependencies(input: {
   /** Spec 183 T702e: os anexos da mensagem da conversa e os bytes de cada chave no bucket. */
   readonly attachments?: readonly ContractorMailOutboundAttachmentRecord[]
+  /** Spec 248 T4.7: a mensagem é o boleto levado a um terceiro (a entrega aponta para ela). */
+  readonly forward?: ContractorReplyForwardRecord | undefined
   readonly objects?: ReadonlyMap<string, Uint8Array>
   readonly message?: ContractorMailOutboundMessageRecord
   readonly referenceHeaders?: ContractorMailReferenceHeaders
@@ -93,6 +96,9 @@ function buildDependencies(input: {
       sendEmail: input.sendEmail,
     },
     repository: {
+      async findContractorReplyForward() {
+        return input.forward
+      },
       async findLastInboundReferenceHeaders() {
         return input.referenceHeaders
       },
@@ -148,7 +154,7 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
       text: 'Este é um e-mail de teste.',
       to: ['admin@fernandes-transportadora.com.br'],
     })
-    expect(requests[0]?.replyTo.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
+    expect(requests[0]?.replyTo?.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
     expect(sentCalls).toEqual([
       { companyId: COMPANY_ID, messageId: MESSAGE_ID, providerEmailId: 'resend-email-id-1' },
     ])
@@ -504,5 +510,49 @@ describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
       'storage unreachable',
     )
     expect(failedCalls).toEqual([])
+  })
+})
+
+describe('o boleto levado a um terceiro sai sem thread de conversa (spec 248 T4.7)', () => {
+  const REFERENCE: ContractorMailReferenceHeaders = { rfcMessageId: '<contratante@mail.example>' }
+
+  async function sendAs(forward: ContractorReplyForwardRecord | undefined) {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies, sentCalls } = buildDependencies({
+      forward,
+      referenceHeaders: REFERENCE,
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+    return { request: requests[0], sentCalls }
+  }
+
+  test('sem token de resposta e sem In-Reply-To, com o contato da empresa como Reply-To', async () => {
+    const { request, sentCalls } = await sendAs({ replyToAddress: 'contato@fernandes.com.br' })
+    expect(request?.replyTo).toBe('contato@fernandes.com.br')
+    expect(request?.headers).toEqual({})
+    expect(request?.replyTo?.endsWith(`@${SETTINGS.replyDomain}`)).toBe(false)
+    expect(sentCalls).toHaveLength(1)
+  })
+
+  test('empresa sem e-mail de contato: nenhum Reply-To, nunca o endereço com token', async () => {
+    const { request } = await sendAs({ replyToAddress: null })
+    expect(request).toBeDefined()
+    expect(request && 'replyTo' in request).toBe(false)
+    expect(request?.headers).toEqual({})
+  })
+
+  test('a mensagem comum da conversa continua com o Reply-To derivado e o In-Reply-To', async () => {
+    const { request } = await sendAs(undefined)
+    expect(request?.replyTo?.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
+    expect(request?.headers).toEqual({
+      'In-Reply-To': REFERENCE.rfcMessageId,
+      References: REFERENCE.rfcMessageId,
+    })
   })
 })

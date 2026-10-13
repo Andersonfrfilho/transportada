@@ -380,7 +380,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       scope: 'occurrence-conversation',
       store: 'postgres',
       windowSeconds: 300,
-    }
+    } as const
 
     expect(
       routes.map((route) => ({
