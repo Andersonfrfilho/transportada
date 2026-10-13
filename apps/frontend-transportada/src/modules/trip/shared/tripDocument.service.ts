@@ -26,6 +26,11 @@ export function tripDocumentLabel(document: TripDocumentLabelSource): string {
   return series === '' ? number : `${number}/${series}`
 }
 
+/** Nota retirada da viagem: a linha fica como histórico, sem ação e fora das contas. */
+export function isTripDocumentReleased(document: Pick<TripDocumentDetail, 'releasedAt'>): boolean {
+  return (document.releasedAt ?? null) !== null
+}
+
 export function hasTripDocumentFiscalWarning(document: TripDocumentDetail): boolean {
   return TRIP_FISCAL_WARNING_STATUSES.some((status) => status === document.fiscalStatus)
 }

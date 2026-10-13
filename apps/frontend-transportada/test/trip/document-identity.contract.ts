@@ -5,7 +5,10 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import { tripDocumentLabel } from '../../src/modules/trip/shared/tripDocument.service'
+import {
+  isTripDocumentReleased,
+  tripDocumentLabel,
+} from '../../src/modules/trip/shared/tripDocument.service'
 
 const ROW = new URL('../../src/modules/trip/components/TripStopList.component.tsx', import.meta.url)
 
@@ -62,5 +65,13 @@ describe('a nota se identifica pelo número, não pelo UUID (spec 079 T017)', ()
    */
   it('a linha da parada usa o rótulo da nota', () => {
     expect(readFileSync(ROW, 'utf8')).toInclude('tripDocumentLabel')
+  })
+})
+
+describe('nota retirada da viagem', () => {
+  it('é retirada quando tem releasedAt, e só então', () => {
+    expect(isTripDocumentReleased({ releasedAt: '2026-10-13T16:08:15.526Z' })).toBe(true)
+    expect(isTripDocumentReleased({ releasedAt: null })).toBe(false)
+    expect(isTripDocumentReleased({} as { releasedAt: null })).toBe(false)
   })
 })
