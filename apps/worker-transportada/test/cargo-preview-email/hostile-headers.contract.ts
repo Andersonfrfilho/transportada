@@ -116,6 +116,7 @@ describe('a conversa também não verifica DKIM de cabeçalho hostil (spec 237 T
       intake: async () => ({ kind: 'not_a_preview' }),
     }
     const dependencies = {
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: {
         discard: async () => undefined,
         store: async (raw: Uint8Array) => {

@@ -261,6 +261,7 @@ describe('o anexo nos envios (spec 183 T702a)', () => {
     const fake = attachmentsFake()
     const useCase = createContractorPortalConversationUseCase({
       clock: () => NOW,
+      deliveryNotifier: { notify: async () => undefined },
       fingerprintService,
       newRef: () => REF,
       scopes: {

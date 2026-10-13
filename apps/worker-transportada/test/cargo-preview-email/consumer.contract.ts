@@ -71,6 +71,7 @@ function buildDependencies(probe: Probe): RecordContractorMailInboundMessageDepe
     },
   }
   return {
+    driverNotifier: { notify: async () => undefined },
     conversationAttachments: {
       discard: async () => undefined,
       store: async () => ({ skipped: 0, stored: [] }),

@@ -158,6 +158,7 @@ function createUseCase(
 ) {
   return createContractorPortalConversationUseCase({
     clock: () => new Date(),
+    deliveryNotifier: { notify: async () => undefined },
     fingerprintService: {
       create: async ({ fields, operation }) =>
         `${operation}:${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
