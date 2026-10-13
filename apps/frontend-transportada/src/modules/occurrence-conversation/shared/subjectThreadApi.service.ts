@@ -7,6 +7,7 @@
 import type {
   ParticipantAttachment,
   ParticipantMessage,
+  ParticipantSubjectRef,
 } from '@adatechnology/conversation-contracts'
 import type {
   ConversationThreadApi,
@@ -71,9 +72,10 @@ function toEchoMessage(input: ParticipantSendInput): ParticipantMessage {
   }
 }
 
-/** Sem `subscribe` o SDK só relê ao voltar o foco; o painel também relê a cada 15 s com a aba visível. */
-function createRefreshSubscription(
-  subject: SubjectConversationRef,
+/** Sem `subscribe` o SDK só relê ao voltar o foco; o painel também relê no intervalo, com a aba visível. */
+export function createRefreshSubscription(
+  subject: ParticipantSubjectRef,
+  intervalMs: number = SUBJECT_CONVERSATION_REFETCH_MS,
 ): NonNullable<ConversationThreadApi['subscribe']> {
   return (listener) => {
     const notify = (): void => {
@@ -84,7 +86,7 @@ function createRefreshSubscription(
         })
       }
     }
-    const intervalId = window.setInterval(notify, SUBJECT_CONVERSATION_REFETCH_MS)
+    const intervalId = window.setInterval(notify, intervalMs)
     window.addEventListener('focus', notify)
     document.addEventListener('visibilitychange', notify)
     return () => {
