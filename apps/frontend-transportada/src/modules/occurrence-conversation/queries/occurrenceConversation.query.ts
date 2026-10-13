@@ -176,6 +176,20 @@ export function useSendContractorPortalMessageMutation(occurrenceId: string) {
   })
 }
 
+/** Spec 248 T4.6: o boleto da contratante vai ao motorista; as duas conversas e o feed relêem. */
+export function useDeliverContractorReplyToDriverMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (attachmentId: string) =>
+      client.deliverContractorReplyToDriver({ attachmentId, occurrenceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
 export const OCCURRENCE_UNASSIGNED_QUERY_KEY = 'occurrence-conversation-unassigned'
 
 export function useUnassignedMessagesQuery(
