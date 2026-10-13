@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/ui/icon'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
  * Spec 248 RF13/RF6 (T5.3): o que o painel diz do retorno da contratante. Funções puras: o estado em texto
@@ -18,12 +19,43 @@ export type ContractorReplyTone = 'info' | 'secondary' | 'success' | 'warning'
 
 export type ContractorReplyStateView = Readonly<{
   alertCount: number
+  /** O ícone do estado: o olho acha o símbolo antes de ler a frase (web.md §9). */
+  iconName: IconName
   /** `true` quando o prazo passou e a API ainda não virou o retorno para "atrasada". */
   isDeadlinePassed: boolean
   labelKey: string
   reasonKey: null | string
   tone: ContractorReplyTone
 }>
+
+/** Um símbolo por estado do retorno; repete-se na lista, no painel e na linha do tempo. */
+export const ICON_BY_STATUS: Readonly<Record<ContractorReplyStatus, IconName>> = {
+  awaiting_contractor: 'clock',
+  awaiting_operator: 'document',
+  cancelled: 'close',
+  delivered: 'check',
+  handled: 'check',
+  needs_operator: 'alert',
+  overdue: 'alert',
+  reply_received: 'document',
+}
+
+/** Para onde o boleto foi: o chat do motorista ou um e-mail. */
+export const ICON_BY_DELIVERY_TARGET: Readonly<Record<string, IconName>> = {
+  driver_app_chat: 'truck',
+  driver_whatsapp: 'message',
+  informed_email: 'send',
+  note_recipient_email: 'send',
+}
+
+/** O que aconteceu com a entrega. */
+export const ICON_BY_DELIVERY_STATUS: Readonly<Record<string, IconName>> = {
+  failed: 'alert',
+  pending_window: 'clock',
+  queued: 'clock',
+  sent: 'check',
+  skipped: 'minus',
+}
 
 const TONE_BY_STATUS: Readonly<Record<ContractorReplyStatus, ContractorReplyTone>> = {
   awaiting_contractor: 'info',
@@ -55,6 +87,7 @@ export function describeContractorReplyState(
     alertCount: reply.status === 'overdue' ? reply.alertCount : 0,
     isDeadlinePassed:
       isWaiting && deadline !== null && !Number.isNaN(deadline.getTime()) && deadline <= now,
+    iconName: ICON_BY_STATUS[reply.status],
     labelKey: `contractorReply.status.${reply.status}`,
     reasonKey:
       reply.status === 'needs_operator' && reply.reason !== null
