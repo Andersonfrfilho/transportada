@@ -1056,7 +1056,7 @@ export class DrizzleTripValuationQuery {
           eq(recipientAddress.participantId, recipientParticipant.id),
         ),
       )
-      .where(where)
+      .where(and(where, excludesReleasedDocumentsUnlessCancelled()))
   }
 
   private async readDocuments(input: {
@@ -1135,4 +1135,13 @@ export class DrizzleTripValuationQuery {
 
     return new Map(rows.map((row) => [row.nfeDocumentId, row.amount]))
   }
+}
+
+/**
+ * Nota liberada saiu da viagem (`released_at`): não entra em receita, margem nem rateio. A exceção é a
+ * viagem cancelada, que libera todas as notas ao cancelar (`markCancelled`) e precisa seguir mostrando
+ * o que valia antes.
+ */
+export function excludesReleasedDocumentsUnlessCancelled() {
+  return sql`(${tripDocuments.releasedAt} is null or exists (select 1 from ${trips} where ${trips.companyId} = ${tripDocuments.companyId} and ${trips.id} = ${tripDocuments.tripId} and ${trips.status} = 'cancelled'))`
 }

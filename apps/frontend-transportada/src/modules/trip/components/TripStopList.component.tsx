@@ -715,152 +715,164 @@ function TripStopDocumentRow({
         </div>
       )}
       <div className={styles.rowActions}>
-        {actions.renderConversation?.(document.id)}
         {/*
-         * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
-         * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo do módulo dono. Sem documento
-         * decidido não se oferece nada: o selo já explica o motivo.
+         * Nota liberada saiu da viagem: fica no histórico, sem nenhuma ação. A API já responde
+         * `allowed-actions` vazio para ela; cada botão abaixo olha a viagem, não a nota.
          */}
-        {rowAction?.kind === 'cte' ? (
-          <Button
-            disabled={actions.isGeneratingCte}
-            onClick={() => actions.onGenerateCte(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="send" />
-            {t('actions.generateCte')}
-          </Button>
-        ) : null}
-        {rowAction?.kind === 'nfse' && fiscalReadiness?.nfeDocumentId != null ? (
-          /*
-           * O componente de ação é do módulo dono da NFS-e, e é ele que decide estado interno,
-           * permissão e abertura do diálogo. A linha só empresta o estilo do botão do design
-           * system — emitir daqui seria emitir contra um perfil que ninguém escolheu.
-           *
-           * Sem id da nota não há ação: o id desta linha é de `trip_documents`, e a emissão de
-           * NFS-e recebe `nfe_documents`. Usá-lo como reserva mandaria um id de outro espaço.
-           */
-          <NfseEmissionAction
-            className={buttonClassName({ size: 'sm' })}
-            {...(actions.companyId === undefined ? {} : { companyId: actions.companyId })}
-            documentIds={[fiscalReadiness.nfeDocumentId]}
-            onEmitted={actions.onNfseEmitted}
-            permissions={actions.permissions}
-          />
-        ) : null}
-        {actions.canManage &&
-        actions.canSeparateOrLoad &&
-        document.separationStatus === 'pending' ? (
-          <Button
-            disabled={actions.isTransitionPending}
-            onClick={() => actions.onSeparate(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="check" />
-            {t('actions.separate')}
-          </Button>
-        ) : null}
-        {actions.canManage &&
-        actions.canSeparateOrLoad &&
-        document.separationStatus === 'separated' ? (
-          <Button
-            disabled={actions.isTransitionPending}
-            onClick={() => actions.onLoad(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="truck" />
-            {t('actions.load')}
-          </Button>
-        ) : null}
-        {actions.capabilities.canDocument(document.id, 'fieldReturn') ? (
-          <Button
-            disabled={actions.isReturnPending}
-            onClick={() => actions.onFieldReturn(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="arrow-up" />
-            {t('actions.return')}
-          </Button>
-        ) : null}
-        {/*
-         * A API recusa desvincular nota já entregue (422 TRIP_DOCUMENT_ALREADY_DELIVERED) ou já
-         * liberada: o botão só aparece quando o desvínculo ainda é possível.
-         */}
-        {actions.canManage &&
-        actions.isEditable &&
-        document.deliveredAt === null &&
-        document.releasedAt === null ? (
-          <Button
-            disabled={actions.isReleasePending}
-            onClick={() => actions.onRelease(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="remove" />
-            {t('actions.release')}
-          </Button>
-        ) : null}
-        {actions.canManage && actions.isEditable ? (
-          <Button
-            onClick={() => actions.onOverrideAddress(document.id)}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Icon name="edit" />
-            {t('deliveryOverride.menuAction')}
-          </Button>
-        ) : null}
-        {actions.canSeparationOccurrence ? (
-          <Button
-            onClick={() => actions.onOpenSeparationOccurrence(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="alert" />
-            {t('actions.separationOccurrence')}
-          </Button>
-        ) : null}
-        {actions.canFieldOccurrence(document.id) ? (
-          <Button
-            onClick={() => actions.onOpenFieldOccurrence(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="alert" />
-            {t('actions.fieldOccurrence')}
-          </Button>
-        ) : null}
-        {actions.canFieldDelivery(document.id) ? (
-          <Button onClick={() => actions.onOpenFieldDelivery(document.id)} size="sm" type="button">
-            <Icon name="camera" />
-            {t('actions.fieldDelivery')}
-          </Button>
-        ) : null}
-        {/*
-         * Spec 223 RF6 (ADR-0091): a mesma capacidade oferece os dois caminhos — com canhoto (acima)
-         * e sem ele. Sem este botão, nota com foto obrigatória não tinha como baixar pelo painel.
-         */}
-        {actions.canFieldDelivery(document.id) ? (
-          <Button
-            disabled={actions.isDeliverPending}
-            onClick={() => actions.onFieldDeliver(document.id)}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Icon name="check" />
-            {t('actions.deliver')}
-          </Button>
-        ) : null}
+        {document.releasedAt !== null ? null : (
+          <>
+            {actions.renderConversation?.(document.id)}
+            {/*
+             * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
+             * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo do módulo dono. Sem documento
+             * decidido não se oferece nada: o selo já explica o motivo.
+             */}
+            {rowAction?.kind === 'cte' ? (
+              <Button
+                disabled={actions.isGeneratingCte}
+                onClick={() => actions.onGenerateCte(document.id)}
+                size="sm"
+                type="button"
+              >
+                <Icon name="send" />
+                {t('actions.generateCte')}
+              </Button>
+            ) : null}
+            {rowAction?.kind === 'nfse' && fiscalReadiness?.nfeDocumentId != null ? (
+              /*
+               * O componente de ação é do módulo dono da NFS-e, e é ele que decide estado interno,
+               * permissão e abertura do diálogo. A linha só empresta o estilo do botão do design
+               * system — emitir daqui seria emitir contra um perfil que ninguém escolheu.
+               *
+               * Sem id da nota não há ação: o id desta linha é de `trip_documents`, e a emissão de
+               * NFS-e recebe `nfe_documents`. Usá-lo como reserva mandaria um id de outro espaço.
+               */
+              <NfseEmissionAction
+                className={buttonClassName({ size: 'sm' })}
+                {...(actions.companyId === undefined ? {} : { companyId: actions.companyId })}
+                documentIds={[fiscalReadiness.nfeDocumentId]}
+                onEmitted={actions.onNfseEmitted}
+                permissions={actions.permissions}
+              />
+            ) : null}
+            {actions.canManage &&
+            actions.canSeparateOrLoad &&
+            document.separationStatus === 'pending' ? (
+              <Button
+                disabled={actions.isTransitionPending}
+                onClick={() => actions.onSeparate(document.id)}
+                size="sm"
+                type="button"
+              >
+                <Icon name="check" />
+                {t('actions.separate')}
+              </Button>
+            ) : null}
+            {actions.canManage &&
+            actions.canSeparateOrLoad &&
+            document.separationStatus === 'separated' ? (
+              <Button
+                disabled={actions.isTransitionPending}
+                onClick={() => actions.onLoad(document.id)}
+                size="sm"
+                type="button"
+              >
+                <Icon name="truck" />
+                {t('actions.load')}
+              </Button>
+            ) : null}
+            {actions.capabilities.canDocument(document.id, 'fieldReturn') ? (
+              <Button
+                disabled={actions.isReturnPending}
+                onClick={() => actions.onFieldReturn(document.id)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="arrow-up" />
+                {t('actions.return')}
+              </Button>
+            ) : null}
+            {/*
+             * A API recusa desvincular nota já entregue (422 TRIP_DOCUMENT_ALREADY_DELIVERED) ou já
+             * liberada: o botão só aparece quando o desvínculo ainda é possível.
+             */}
+            {actions.canManage &&
+            actions.isEditable &&
+            document.deliveredAt === null &&
+            document.releasedAt === null ? (
+              <Button
+                disabled={actions.isReleasePending}
+                onClick={() => actions.onRelease(document.id)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="remove" />
+                {t('actions.release')}
+              </Button>
+            ) : null}
+            {actions.canManage && actions.isEditable ? (
+              <Button
+                onClick={() => actions.onOverrideAddress(document.id)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Icon name="edit" />
+                {t('deliveryOverride.menuAction')}
+              </Button>
+            ) : null}
+            {actions.canSeparationOccurrence ? (
+              <Button
+                onClick={() => actions.onOpenSeparationOccurrence(document.id)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="alert" />
+                {t('actions.separationOccurrence')}
+              </Button>
+            ) : null}
+            {actions.canFieldOccurrence(document.id) ? (
+              <Button
+                onClick={() => actions.onOpenFieldOccurrence(document.id)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="alert" />
+                {t('actions.fieldOccurrence')}
+              </Button>
+            ) : null}
+            {actions.canFieldDelivery(document.id) ? (
+              <Button
+                onClick={() => actions.onOpenFieldDelivery(document.id)}
+                size="sm"
+                type="button"
+              >
+                <Icon name="camera" />
+                {t('actions.fieldDelivery')}
+              </Button>
+            ) : null}
+            {/*
+             * Spec 223 RF6 (ADR-0091): a mesma capacidade oferece os dois caminhos — com canhoto (acima)
+             * e sem ele. Sem este botão, nota com foto obrigatória não tinha como baixar pelo painel.
+             */}
+            {actions.canFieldDelivery(document.id) ? (
+              <Button
+                disabled={actions.isDeliverPending}
+                onClick={() => actions.onFieldDeliver(document.id)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Icon name="check" />
+                {t('actions.deliver')}
+              </Button>
+            ) : null}
+          </>
+        )}
       </div>
       {isOpen ? (
         <div className={styles.stopDocumentBody} id={bodyId}>
