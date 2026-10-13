@@ -424,17 +424,16 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 
 **Entregue (só a lacuna de prova da (b)):**
 
-- Contrato novo `apps/frontend-driver/test/conversation/driver-conversations-boleto.contract.ts` (5 casos, na suíte `conversation.contract.test.ts`): o aviso da entrega abre a
-  conversa; PDF é `document`; a mensagem do escritório chega ao adapter real com `boleto.pdf`; a URL assinada baixa o PDF com `Content-Disposition: attachment; filename="boleto.pdf"`; a rota de queda também entrega o anexo.
-- API de demonstração: semente da conversa "Prorrogação do boleto · NF 717795 (parada 2)" com mensagem do escritório não lida + `boleto.pdf`
-  (`driver-preview-conversations-seed.ts`, `driver-preview-conversations-boleto.ts`); a URL do anexo serve o PDF como anexo (`driver-preview-conversations.ts`, `handleStorage`).
-- Smoke `conversation.smoke.spec.ts` ("boleto: o aviso do sino abre a conversa da ocorrência…"), 375×812: aviso no sino → conversa da ocorrência → `boleto.pdf` com alvo ≥ 44 px, sem rolagem horizontal → toque baixa o PDF (`suggestedFilename` e `%PDF-`).
+- Contrato novo `apps/frontend-driver/test/conversation/driver-conversations-boleto.contract.ts` (4 casos, na suíte `conversation.contract.test.ts`, fixture local, sem depender da API de demonstração):
+  o aviso da entrega abre a conversa da ocorrência; PDF é `document`; o adapter real entrega a mensagem do escritório com `boleto.pdf`; a URL assinada da leitura é a que o toque abre.
+- **Smoke do sino → conversa → download NÃO foi escrito.** Uma primeira versão (semente na demonstração + caso no smoke) reprovou na CI do PR 165: a conversa nova mexeu na altura
+  da lista ("último item acima da barra", 751,48 > 751) e o seletor do sino nunca foi rodado (não há Chromium nem Keycloak local). Foi revertida; o smoke fica para quem puder rodar Playwright.
 
-**Gates (Ubuntu/WSL, bun 1.4.3, `apps/frontend-driver`):** `bun test ./test/conversation.contract.test.ts` 219 pass / 0 fail (eram 214; +5); `bun run test` 1757 pass / 0 fail;
-`bun x tsc --noEmit` limpo; `bun x eslint` limpo nos arquivos tocados; `prettier --write` aplicado.
+**Gates (Ubuntu/WSL, bun 1.4.3, `apps/frontend-driver`):** `bun run test` verde; `bun x tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
 
-**Não provado localmente:** o smoke Playwright (o app do motorista faz login real no Keycloak em `localhost:58080`, que cai no intervalo de portas reservado pelo Windows 58002–58101 nesta máquina,
-e não há Chromium do Playwright no Ubuntu). A prova do smoke é a CI.
+**Não provado:** o fluxo no navegador (sino → conversa → toque em `boleto.pdf` → download). O app do motorista faz login real no Keycloak em `localhost:58080`, porta no intervalo reservado pelo Windows
+(58002–58101) nesta máquina, e não há Chromium do Playwright no Ubuntu.
+
 
 **Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
 (2) "Pedido enviado à contratante" (acima).

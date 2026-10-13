@@ -36,15 +36,15 @@ function createRoutes() {
 }
 
 describe('API de demonstração do motorista: conversas', () => {
-  it('rota antiga: lista só as ocorrências, com não lidas na de avaria e na do boleto', async () => {
+  it('rota antiga: lista só as ocorrências, com não lidas só na de avaria', async () => {
     const { call } = createRoutes()
     const response = await call('GET', '/v1/me/trips/current/occurrence-conversations')
     const { data } = (await response?.json()) as {
       data: { occurrenceId: string; unreadCount: number }[]
     }
-    expect(data).toHaveLength(7)
+    expect(data).toHaveLength(6)
     expect(data.find((item) => item.occurrenceId === DAMAGE)?.unreadCount).toBe(2)
-    expect(data.filter((item) => item.unreadCount > 0)).toHaveLength(2)
+    expect(data.filter((item) => item.unreadCount > 0)).toHaveLength(1)
   })
 
   it('a mesma Idempotency-Key devolve a mesma resposta (200) sem criar outra mensagem', async () => {
@@ -67,11 +67,7 @@ describe('API de demonstração do motorista: conversas', () => {
     const { call, repository } = createRoutes()
     const response = await call('POST', `${MESSAGES_PATH}/read`)
     expect(response?.status).toBe(204)
-    const unreadByOccurrence = new Map(
-      repository.list().map((item) => [item.occurrenceId, item.unreadCount]),
-    )
-    expect(unreadByOccurrence.get(DAMAGE)).toBe(0)
-    expect(unreadByOccurrence.get(PREVIEW_OCCURRENCE_IDS.extension)).toBe(1)
+    expect(repository.list().every((item) => item.unreadCount === 0)).toBe(true)
   })
 
   it('fail-next derruba só os próximos N envios e a chave reenviada passa', async () => {
@@ -149,7 +145,12 @@ describe('API de demonstração do motorista: conversas', () => {
     expect(pagination).toEqual({ nextCursor: null })
     expect(data.map((item) => item.subjectType).sort()).toEqual([
       'document',
-      ...Array.from({ length: 7 }, () => 'occurrence'),
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
+      'occurrence',
       'trip',
     ])
     expect(data.find((item) => item.subjectId === PREVIEW_DOCUMENT_ID)?.subjectLabel).toBe(

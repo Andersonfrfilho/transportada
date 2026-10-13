@@ -108,46 +108,6 @@ export async function routeApiToDemo(page: Page): Promise<void> {
   )
 }
 
-const BELL_LIST_PATH = /\/v1\/notifications(?:\?.*)?$/u
-
-/**
- * O aviso que a API manda quando o escritório leva o boleto ao motorista (`trip.conversation-message` com o
- * assunto da ocorrência no payload). Entra depois dos mocks do login, que vencem por ordem inversa: só a
- * listagem muda, o resto do sino segue neles.
- */
-export async function routeBellToBoletoNotice(
-  page: Page,
-  notice: Readonly<{ occurrenceId: string; title: string }>,
-): Promise<void> {
-  await page.route(BELL_LIST_PATH, async (route: Route) => {
-    if (route.request().method() !== 'GET') {
-      await route.fallback()
-      return
-    }
-    await route.fulfill({
-      body: JSON.stringify({
-        data: [
-          {
-            body: 'Toque para abrir a conversa.',
-            category: 'trip',
-            createdAt: new Date().toISOString(),
-            id: '00000000-0000-4000-8000-0000000003b1',
-            payload: { subjectId: notice.occurrenceId, subjectType: 'occurrence' },
-            status: 'sent',
-            templateKey: 'trip.conversation-message',
-            title: notice.title,
-          },
-        ],
-        meta: { unreadCount: 1 },
-        pagination: { nextCursor: null },
-      }),
-      contentType: 'application/json',
-      headers: { 'access-control-allow-origin': '*' },
-      status: 200,
-    })
-  })
-}
-
 export type Box = Readonly<{ bottom: number; height: number; top: number }>
 
 export async function measure(page: Page, selector: string, index = 0): Promise<Box> {

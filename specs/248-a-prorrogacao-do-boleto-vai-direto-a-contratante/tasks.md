@@ -107,7 +107,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       anexo, download do PDF por URL assinada, aviso "sem rede"), o aviso do sino abrindo a conversa, e
       "Pedido enviado à contratante" na ocorrência.
       **Parcial** (evidence.md § T5.4): a conversa, o aviso do sino e o PDF por URL assinada já existiam
-      (263/264) e ganharam contrato, semente e smoke; **falta** "Pedido enviado à contratante", que pede
+      (263/264) e ganharam contrato (o smoke do sino não foi escrito: sem Chromium local); **falta** "Pedido enviado à contratante", que pede
       campo novo na API (tipo resolvido por nota e/ou estado do retorno), e o aviso do sino no caminho automático.
 
 ## Fase 6 — Roteiro operacional

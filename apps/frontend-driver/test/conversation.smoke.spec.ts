@@ -6,7 +6,6 @@
  * demonstração (`scripts/driver-preview-api.ts`), subida numa porta própria pelo próprio arquivo.
  */
 import type { ChildProcess } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -22,14 +21,12 @@ import {
   readDriverTexts,
   resetDemo,
   routeApiToDemo,
-  routeBellToBoletoNotice,
   startDemoApi,
 } from './conversation-smoke.helper'
 
 /** O rótulo "Protocolo" vem junto do código no mesmo elemento; o código em si segue o formato real. */
 const PROTOCOL_FORMAT = /^(?:Protocolo\s*)?\d{6}-[2-9A-HJKMNP-Z]{4}$/u
 const TOUCH_TARGET_MIN_PX = 44
-const PDF_MAGIC = '%PDF-'
 const SCROLL_TOLERANCE_PX = 2
 const ARRIVAL_TIMEOUT_MS = 20_000
 const QUEUE_DRAIN_TIMEOUT_MS = 45_000
@@ -375,37 +372,4 @@ test('respostas prontas: empresa sem lista (ou motorista sem cadastro) não dese
   await openOccurrence(page, PREVIEW_OCCURRENCE_IDS.damage, 'Avaria')
   await expect(page.locator('textarea.cv-p-composer__input')).toBeVisible()
   await expect(page.locator('.cv-p-quick')).toHaveCount(0)
-})
-
-/** Spec 248 T5.4: o boleto que o escritório levou da contratante, do aviso do sino ao PDF baixado. */
-test('boleto: o aviso do sino abre a conversa da ocorrência e o toque em boleto.pdf baixa o PDF', async ({
-  page,
-}) => {
-  const extension = PREVIEW_OCCURRENCE_IDS.extension
-  await openConversationsTab(page)
-  await routeBellToBoletoNotice(page, {
-    occurrenceId: extension,
-    title: 'Nova mensagem do escritório',
-  })
-  await page.reload()
-  await expect(page.locator('.cv-p-row').first()).toBeVisible()
-
-  await page.getByRole('button', { name: 'Notificações' }).click()
-  await page.getByRole('button', { name: /Nova mensagem do escritório/u }).click()
-  await expect(page).toHaveURL(new RegExp(`/conversas/occurrence/${extension}$`, 'u'))
-  await expect(page.getByText('Boleto atualizado da NF 717795. Mostre ao cliente.')).toBeVisible()
-
-  const link = page.locator('a.cv-p-attachment--document').filter({ hasText: 'boleto.pdf' })
-  await expect(link).toBeVisible()
-  const box = await link.boundingBox()
-  expect(box?.height).toBeGreaterThanOrEqual(TOUCH_TARGET_MIN_PX)
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  )
-  expect(overflow).toBeLessThanOrEqual(0)
-
-  const [download] = await Promise.all([page.waitForEvent('download'), link.click()])
-  expect(download.suggestedFilename()).toBe('boleto.pdf')
-  const savedPath = await download.path()
-  expect(readFileSync(savedPath).subarray(0, PDF_MAGIC.length).toString('latin1')).toBe(PDF_MAGIC)
 })
