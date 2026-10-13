@@ -139,6 +139,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 178 RF6: a troca de critério pediu uma rota nova e o roteirizador não devolveu — a
    *  anterior continua valendo. */
   TRIP_ROUTE_UNAVAILABLE: 'routeUnavailable',
+  /** Paradas vivas sem ponto no mapa — `details[].message` traz o endereço de cada uma. */
+  TRIP_ROUTE_STOPS_WITHOUT_LOCATION: 'routeStopsWithoutLocation',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
   TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',

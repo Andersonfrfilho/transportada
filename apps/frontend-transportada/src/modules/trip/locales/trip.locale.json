@@ -1073,6 +1073,7 @@
     "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
     "routeUnavailable": "O roteirizador não devolveu uma rota nova agora. A rota anterior continua valendo — tente de novo em instantes.",
+    "routeStopsWithoutLocation": "Há paradas sem ponto no mapa, e a rota só sai com todas localizadas. Use \"Corrigir ponto no mapa\" (no mapa da viagem, abaixo) para marcar cada endereço listado e tente de novo.",
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",

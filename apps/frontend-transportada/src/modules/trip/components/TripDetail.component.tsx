@@ -12,6 +12,7 @@ import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWork
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { CanhotoAutomaticReview, type CanhotoReadContext } from './CanhotoAutomaticReview.component'
+import type { TripRequestError } from '../shared/tripClient.service'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
 import { hasCanhotoReviewSettled } from '../shared/canhotoReviewSession.service'
 import { createFieldDeliveryThumbnail } from '../shared/fieldDeliveryImage.service'
@@ -652,6 +653,12 @@ export function TripDetail({
     workspace.registerFieldOccurrencesMutation.error,
     workspace.setTrailerMutation.error,
   ])
+  /** Os endereços que o 422 de rota nomeia, para a pessoa saber qual ponto corrigir. */
+  const planRouteError = workspace.planRouteMutation.error as TripRequestError | null
+  const routeStopsWithoutLocation =
+    planRouteError?.message === 'TRIP_ROUTE_STOPS_WITHOUT_LOCATION'
+      ? (planRouteError.details ?? []).map((detail) => detail.message)
+      : []
   /**
    * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
    * rota") — nunca o genérico "serverRefused" que o `feedbackKey` de cima daria a ela. Sem motivo
@@ -947,6 +954,13 @@ export function TripDetail({
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${feedbackKey}`)}
+          {routeStopsWithoutLocation.length === 0 ? null : (
+            <ul>
+              {routeStopsWithoutLocation.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+          )}
         </p>
       )}
 

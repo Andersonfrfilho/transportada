@@ -1073,6 +1073,7 @@
     "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
     "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
+    "routeStopsWithoutLocation": "Some stops have no point on the map, and the route needs every stop located. Use \"Correct point on the map\" (on the trip map, below) to mark each listed address and try again.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
