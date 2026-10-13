@@ -28,4 +28,16 @@ describe('a parada sem nota viva fica fora das coordenadas do roteiro', () => {
 
     expect(source).toMatch(/\.where\([\s\S]*?stopHasLiveDocument\(\)/)
   })
+
+  it('a revisão das paradas olha as mesmas paradas que as coordenadas', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(source).toMatch(/TRIP_STOPS_REVISION[\s\S]*?stopHasLiveDocument\(\)/)
+  })
 })

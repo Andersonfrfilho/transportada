@@ -31,7 +31,7 @@ import { TRIP_STATUSES_BEFORE_DISPATCH } from '../domain/trip-state.policy.js'
 import { parsePlannedRoute } from '../domain/parse-planned-route.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import { resolveVehicleFuelBaseline } from './effective-fuel-price.query.js'
-import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
+import { listTripStopCoordinates, stopHasLiveDocument } from './trip-stop-coordinates.support.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
 /**
@@ -71,6 +71,7 @@ const TRIP_STOPS_REVISION = sql<string>`(
   from ${tripStops}
   left join ${geocodedAddresses} on ${geocodedAddresses.addressKey} = ${tripStops.addressKey}
   where ${tripStops.companyId} = ${trips.companyId} and ${tripStops.tripId} = ${trips.id}
+    and ${stopHasLiveDocument()}
 )`
 
 export class DrizzleTripPlannedRouteRepository
