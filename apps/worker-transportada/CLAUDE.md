@@ -163,6 +163,13 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   402/403 numa cidade restringe só o par por 30 dias, e orçamento esgotado só encerra o ciclo (nenhum par muda). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com
   contrato de paridade. Detalhe: docs/ai-context § "A importação de feriados da FeriadosAPI".
 
+- **A transcrição do áudio da conversa roda aqui, com motor próprio** (spec 264, ADR-0103) — `conversation.audio.transcribe`
+  (`src/conversation-audio-transcription/`): `whisper-cli` + `small-q5_1` + `ffmpeg` na imagem, sem terceiro; **inerte sem
+  `AUDIO_TRANSCRIPTION_MODEL_PATH`** e com o job **pausado pela migration**. O trabalho pesado roda num executor em processo de
+  uma execução, fora do ciclo serial; o **lease cobre o motor duas vezes** (`computeAudioLeaseMs`), o `SIGTERM` aborta o motor e
+  devolve a tentativa, e a trava velha (`BATCH_SIZE × lease`) aborta o laço antigo (`runner_lock_expired`). Janela de 72 h, sem
+  backfill. **Nunca logar o texto**, só ids e código. Detalhe: docs/ai-context § "A transcrição do áudio da conversa".
+
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e

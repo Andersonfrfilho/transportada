@@ -669,3 +669,45 @@ CONFLICT … WHERE recurrence = 'once'` do único parcial e `NOT EXISTS` para o 
   `persistence_failed` pedem leitura do log, que só tem código, nome do erro e par); `holiday_provider_monthly_usage.requests` do
   mês contra o contador `requests` da execução; `national_mismatch` **maior que zero é esperado** (o fornecedor lista a Páscoa e
   o código conta Carnaval e Corpus Christi). O painel de rotinas mostra os contadores e o desfecho da execução.
+
+## A transcrição do áudio da conversa é rotina daqui (spec 264, ADR-0103) — `conversation.audio.transcribe`
+
+Código em `src/conversation-audio-transcription/`; contrato em `specs/264-*/contract.md` §5.5–5.8.
+
+- **Motor próprio, sem terceiro.** `whisper-cli` (whisper.cpp `v1.9.4`, commit conferido no build) com o modelo
+  `ggml-small-q5_1.bin` (sha256 conferido no build) em `/models`, e `ffmpeg`/`ffprobe` do `apk`. Roda em processo filho,
+  `--language pt`; nenhuma voz sai da infraestrutura. Imagem: ver `apps/worker-transportada/Dockerfile` (estágio `whisper`;
+  o estágio final não leva compilador, `cmake` nem `git`).
+- **Inerte sem o modelo.** Sem `AUDIO_TRANSCRIPTION_MODEL_PATH` a rotina não é registrada e o boot segue. Variáveis (todas no
+  schema de env do worker e em `.railway/railway.ts`): `..._MODEL_PATH`, `..._THREADS` (padrão vCPU − 1), `..._MAX_DURATION_MS`
+  (600000), `..._BATCH_SIZE` (2), `..._TIMEOUT_MS` (300000) e `..._RECOVERY_WINDOW_HOURS` (72). A API só lê o teto de duração, para a tela.
+- **Job pausado pela migration.** O `job_schedules` da rotina nasce `paused`: registrar a rotina (staging já tem o caminho do
+  modelo) não faz nada rodar até alguém retomar na tela de jobs. Cadência alvo 5 min.
+- **Executor em processo, fora do ciclo serial.** O consumidor de job-run é serial (`WORKER_PREFETCH` 1); transcrever minutos
+  dentro do ciclo seguraria canhoto, planta e prévia. O ciclo faz só os passos de SQL (marco, varredura de esgotados,
+  descoberta) e **entrega** ao `AudioTranscriptionRunner`, que tem trava de **uma execução** e processa até `BATCH_SIZE`
+  linhas, uma por vez. Desfechos do ciclo: `completed`, `already_running` (executor ocupado, não é falha) e
+  `runner_lock_expired`. O resumo da execução anterior (`processed`, `ready`, `failed`, `runnerError`) entra nos contadores do
+  **ciclo seguinte**.
+- **O lease cobre o motor DUAS vezes** (`computeAudioLeaseMs`): `ffmpeg` converte para WAV e `whisper-cli` transcreve, cada
+  um com o prazo `TIMEOUT_MS`; mais `ffprobe` (15 s), decodificação (60 s), download (60 s) e margem (60 s). Com 300 s dá
+  795 s. Lease menor deixaria a varredura marcar `attempts_exhausted` no meio de uma medida longa e descartar o texto bom
+  (a escrita final exige o `lease_token`).
+- **SIGTERM interrompe o motor.** O executor está nos `closeables` do `WorkerShutdown`: `close()` para de reivindicar, aborta o
+  processo filho (`AbortSignal`) e devolve a linha em curso a `pending` **devolvendo a tentativa** (`attempts - 1`); três
+  deploys seguidos não esgotam um áudio. `close()` espera todos os laços. Morte sem sinal (OOM, `kill -9`) não devolve: conta.
+- **Trava velha aborta o laço antigo.** Idade máxima da trava = `BATCH_SIZE × lease`; o ciclo que a encontra registra
+  `audio_transcription_runner_lock_expired` (erro), **aborta o laço velho** (ele devolve a linha e para de reivindicar), solta
+  a trava e devolve `runner_lock_expired`. O laço abandonado não entrega resumo. Duas execuções não corrompem nada: toda
+  escrita exige o `lease_token`.
+- **Janela de recuperação de 72 h.** Só anexo `audio/*` criado depois de `greatest(enabled_since, routine_started_at)` **e**
+  dentro de `RECOVERY_WINDOW_HOURS` é descoberto; sem backfill de histórico. Regra de produto nova, a confirmar com o dono antes de produção.
+- **Fila, estados e códigos.** Tabela da conversa por anexo; estados `pending`, `ready`, `failed`, `purged`.
+  `failure_code` fechado: `unsupported_format`, `too_long` (medido por `ffprobe`, sem chamar o motor), `empty_audio`,
+  `object_missing`, `sha256_mismatch`, `engine_timeout`, `engine_failed`, `attempts_exhausted`, `company_disabled`
+  (empresa desligada: falha só no registro, mostrada como `disabled` enquanto desligada). Reivindicação por linha com
+  `FOR UPDATE SKIP LOCKED`, `attempts < 3`, backoff 1/5/30 min; objeto `deleted` leva a `purged` e o texto é anulado.
+- **Nunca log de texto.** Logs levam só ids, estado e código; a transcrição é dado pessoal (voz de terceiros) e fica na tabela.
+  Alerta: `failed` (exceto `company_disabled`) na hora ou `pending` mais velho que 15 min.
+- **Revisão de concorrência** no commit `8dad831f4`: lease de 2× o motor, abortar com o motor preso devolve na hora, timeout
+  do `ffmpeg` (definitivo no pacote) vira `engine_timeout` retriável, `headObject` entra no prazo do download.
