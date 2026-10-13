@@ -6,7 +6,7 @@
  * `.strict()` na API: nada de `channel` nem de participante aqui. A leitura é tolerante: resumo ou
  * mensagem que o guard não reconhece sai da lista, e a tela continua de pé.
  */
-import { toConversationAttachments } from './conversationAttachment.service'
+import { toSubjectConversationAttachments } from './subjectAttachment.service'
 import {
   OCCURRENCE_CONVERSATION_ERROR,
   OccurrenceConversationRequestError,
@@ -105,7 +105,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
   }
   const name = isString(value.authorName) ? value.authorName : null
   return {
-    attachments: toConversationAttachments(value.attachments),
+    attachments: toSubjectConversationAttachments(value.attachments),
     author:
       value.direction === 'outbound'
         ? { kind: 'operation', name, userId: '' }

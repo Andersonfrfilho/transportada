@@ -19,6 +19,7 @@ import type {
   SubjectConversationRef,
   SubjectConversationSummary,
 } from '../shared/subjectConversation.types'
+import { SUBJECT_AUDIO_RECORDING } from '../shared/subjectThreadAudio.constant'
 import { buildSubjectThreadLabels } from '../shared/subjectThreadLabels.service'
 import { useSubjectThread } from '../shared/useSubjectThread.hook'
 import styles from '../styles/subjectConversation.module.css'
@@ -66,6 +67,7 @@ function SubjectThreadView({
     <div className={styles.threadPanel}>
       <ConversationThread
         api={api}
+        audioRecording={SUBJECT_AUDIO_RECORDING}
         avatars="initials"
         channels={[...summary.channels]}
         className={styles.conversationTheme ?? ''}
