@@ -342,6 +342,21 @@
         "send": "Não foi possível salvar. Tente de novo em instantes."
       }
     },
+    "resend": {
+      "open": "Reenviar o pedido à contratante",
+      "sending": "Reenviando…",
+      "sent_one": "Pedido reenviado a {{count}} contato.",
+      "sent_other": "Pedido reenviado a {{count}} contatos.",
+      "tooSoon": "O pedido foi reenviado há pouco; só dá para reenviar de novo depois do intervalo do alarme.",
+      "tooSoonAt": "Pedido reenviado há pouco. Dá para reenviar de novo em {{moment}}.",
+      "error": {
+        "notResendable": "Este retorno não espera mais a contratante; não há o que reenviar.",
+        "tooSoon": "O pedido já foi reenviado dentro do intervalo do alarme. Tente de novo mais tarde.",
+        "originalMissing": "Não achamos o pedido original na conversa com a contratante.",
+        "noRecipient": "Nenhum contato ativo da contratante recebe este pedido. Confira os contatos.",
+        "send": "Não foi possível reenviar. Tente de novo em instantes."
+      }
+    },
     "timeline": {
       "title": "Histórico",
       "empty": "Nenhum evento ainda.",
@@ -351,6 +366,7 @@
       },
       "event": {
         "awaiting_contractor": "Pedido enviado à contratante",
+        "resent": "Pedido reenviado à contratante",
         "overdue": "Retorno atrasado",
         "reply_received": "Boleto recebido",
         "awaiting_operator": "Aguardando o operador",

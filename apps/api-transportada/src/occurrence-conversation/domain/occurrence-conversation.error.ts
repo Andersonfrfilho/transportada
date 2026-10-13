@@ -287,3 +287,36 @@ export class ContractorReplyNotHandleableError extends ApiError {
     })
   }
 }
+
+/** Spec 248 RF6: só o retorno que ainda espera a contratante pode ter o pedido reenviado. */
+export class ContractorReplyNotResendableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_NOT_RESENDABLE',
+      message: 'The request can only be resent while the contractor reply is awaited or overdue',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: no máximo um reenvio por intervalo de alarme do retorno. */
+export class ContractorReplyResendTooSoonError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_RESEND_TOO_SOON',
+      message: 'The request was already resent within the alert interval of this reply',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: a mensagem do pedido original não está na conversa da contratante. */
+export class ContractorReplyOriginalRequestMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_ORIGINAL_REQUEST_MISSING',
+      message: 'The original request to the contractor was not found in the conversation',
+      status: 409,
+    })
+  }
+}

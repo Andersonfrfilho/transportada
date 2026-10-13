@@ -51,6 +51,7 @@ import {
   findContractorReplyConfiguration,
   openContractorReply,
 } from './drizzle-occurrence-contractor-reply.repository.js'
+import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
@@ -343,6 +344,12 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
 
   public openContractorReply(params: Parameters<typeof openContractorReply>[1]): Promise<void> {
     return openContractorReply(this.transaction, params)
+  }
+
+  public recordContractorReplyResend(
+    params: Parameters<typeof recordContractorReplyResend>[1],
+  ): ReturnType<typeof recordContractorReplyResend> {
+    return recordContractorReplyResend(this.transaction, params)
   }
 
   public findOccurrenceTarget(params: {

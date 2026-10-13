@@ -16,16 +16,23 @@ import {
   CONTRACTOR_REPLY_DELIVERY_STATUSES,
   CONTRACTOR_REPLY_DELIVERY_TARGETS,
   CONTRACTOR_REPLY_REASONS,
+  CONTRACTOR_REPLY_RESEND_BLOCKED_REASONS,
   CONTRACTOR_REPLY_STATUSES,
   type ContractorReplyDelivery,
   type ContractorReplyEvent,
+  type ContractorReplyResend,
   type ContractorReplyView,
   type MarkHandledOutcome,
+  type ResendRequestOutcome,
 } from './contractorReply.types'
 
 export type ContractorReplyClient = Readonly<{
   markHandled: (input: { note: string; occurrenceId: string }) => Promise<MarkHandledOutcome>
   readReply: (input: { occurrenceId: string }) => Promise<ContractorReplyView | null>
+  resendRequest: (input: {
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<ResendRequestOutcome>
 }>
 
 function oneOf<TValue extends string>(list: readonly TValue[], value: unknown): TValue | undefined {
@@ -78,6 +85,15 @@ function toDelivery(value: unknown): ContractorReplyDelivery | null {
   return { id: value.id, reason: value.reason, sentAt: value.sentAt, status, target }
 }
 
+/** Leitura tolerante: API anterior à ação (sem o campo) ou campo malformado é "sem o botão", nunca reprova o painel. */
+function toResend(value: unknown): ContractorReplyResend | null {
+  if (!isRecord(value) || typeof value.canResend !== 'boolean') return null
+  const reason =
+    value.reason === null ? null : oneOf(CONTRACTOR_REPLY_RESEND_BLOCKED_REASONS, value.reason)
+  if (reason === undefined || !isNullableString(value.availableAt)) return null
+  return { availableAt: value.availableAt, canResend: value.canResend, reason }
+}
+
 export function toContractorReplyView(value: unknown): ContractorReplyView {
   const status = isRecord(value) ? oneOf(CONTRACTOR_REPLY_STATUSES, value.status) : undefined
   if (
@@ -102,6 +118,7 @@ export function toContractorReplyView(value: unknown): ContractorReplyView {
     handledNote: value.handledNote,
     reason: oneOf(CONTRACTOR_REPLY_REASONS, value.reason) ?? null,
     replyAttachmentId: value.replyAttachmentId,
+    resend: toResend(value.resend),
     status,
   }
 }
@@ -130,6 +147,17 @@ export function createContractorReplyClient(
       return {
         kind: readOutcomeKind(payload, ['already_handled', 'handled'] as const),
       }
+    },
+    async resendRequest({ idempotencyKey, occurrenceId }) {
+      const payload = await requestJson(dependencies, `${replyPath(occurrenceId)}/resend-request`, {
+        headers: { 'idempotency-key': idempotencyKey },
+        method: 'POST',
+      })
+      const data = isRecord(payload) ? payload.data : undefined
+      if (!isRecord(data) || typeof data.recipientCount !== 'number') {
+        throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
+      }
+      return { recipientCount: data.recipientCount }
     },
     async readReply({ occurrenceId }) {
       const payload = await requestJson(dependencies, replyPath(occurrenceId))

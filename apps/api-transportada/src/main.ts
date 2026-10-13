@@ -457,6 +457,8 @@ import {
   createDrizzleContractorReplyHandledWriter,
   createDrizzleContractorReplyReader,
 } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
+import { createResendContractorReplyRequestUseCase } from './occurrence-conversation/application/resend-contractor-reply-request.use-case.js'
+import { createDrizzleContractorReplyResendReader } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-resend.repository.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -3350,6 +3352,16 @@ function createApplicationRoutes({
       }),
       readReply: createReadContractorReplyUseCase({
         reader: createDrizzleContractorReplyReader(database),
+      }),
+      /** Spec 248 RF6: o pedido volta à contratante na mesma conversa de e-mail, pelo caso de uso do envio. */
+      resendRequest: createResendContractorReplyRequestUseCase({
+        reader: createDrizzleContractorReplyResendReader(database),
+        sendMail: createSendOccurrenceMailUseCase({
+          fingerprintService,
+          secretService: contractorMailCredentialSecretService,
+          storage: storageGateway,
+          unitOfWork: new DrizzleOccurrenceMailRepository(database),
+        }),
       }),
       deliverToDriver: createDeliverContractorReplyToDriverUseCase({
         clock: () => new Date(),

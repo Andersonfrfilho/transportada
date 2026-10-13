@@ -29,6 +29,16 @@ export type ContractorReplyViewDelivery = {
   readonly target: ContractorReplyDeliveryTarget
 }
 
+/**
+ * RF6: whether "Reenviar o pedido" may be used now. `reason` is `not_waiting` (the reply no longer waits
+ * for the contractor) or `too_soon` (`availableAt` says when); both are `null` when `canResend`.
+ */
+export type ContractorReplyResendView = {
+  readonly availableAt: Date | null
+  readonly canResend: boolean
+  readonly reason: 'not_waiting' | 'too_soon' | null
+}
+
 export type ContractorReplyView = {
   readonly alertCount: number
   readonly alertMaxCount: number
@@ -38,6 +48,7 @@ export type ContractorReplyView = {
   readonly handledNote: null | string
   readonly reason: null | string
   readonly replyAttachmentId: null | string
+  readonly resend: ContractorReplyResendView
   readonly status: ContractorReplyStatus
 }
 

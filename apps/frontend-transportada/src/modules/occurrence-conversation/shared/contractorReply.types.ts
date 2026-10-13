@@ -57,6 +57,20 @@ export type ContractorReplyDelivery = Readonly<{
   target: ContractorReplyDeliveryTarget
 }>
 
+export const CONTRACTOR_REPLY_RESEND_BLOCKED_REASONS = ['not_waiting', 'too_soon'] as const
+export type ContractorReplyResendBlockedReason =
+  (typeof CONTRACTOR_REPLY_RESEND_BLOCKED_REASONS)[number]
+
+/**
+ * RF6: se "Reenviar o pedido" vale agora, dito pela API. `availableAt` só vem em `too_soon`. `null` na leitura
+ * é API anterior à ação: o painel então não oferece o botão.
+ */
+export type ContractorReplyResend = Readonly<{
+  availableAt: null | string
+  canResend: boolean
+  reason: ContractorReplyResendBlockedReason | null
+}>
+
 export type ContractorReplyView = Readonly<{
   alertCount: number
   alertMaxCount: number
@@ -66,6 +80,7 @@ export type ContractorReplyView = Readonly<{
   handledNote: null | string
   reason: ContractorReplyReason | null
   replyAttachmentId: null | string
+  resend: ContractorReplyResend | null
   status: ContractorReplyStatus
 }>
 
@@ -76,3 +91,6 @@ export type ContractorReplySummary = Readonly<{
 }>
 
 export type MarkHandledOutcome = Readonly<{ kind: 'already_handled' | 'handled' }>
+
+/** O pedido reenviado sai pelo e-mail da conversa: a API devolve só quantos contatos o receberam. */
+export type ResendRequestOutcome = Readonly<{ recipientCount: number }>
