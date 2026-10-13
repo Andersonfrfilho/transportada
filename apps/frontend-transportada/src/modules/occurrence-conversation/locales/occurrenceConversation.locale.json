@@ -275,9 +275,60 @@
     "discard": "Descartar",
     "microphoneError": "Não foi possível usar o microfone. Confira a permissão do navegador ou anexe um arquivo de áudio."
   },
+  "participant": {
+    "contractor": "Contratante",
+    "driver": "Motorista",
+    "operator": "Operador"
+  },
+  "layout": {
+    "label": "Exibição das conversas",
+    "sideBySide": "Lado a lado (conversas paralelas)",
+    "tabs": "Cada conversa em uma aba"
+  },
+  "legend": {
+    "title": "Quem é quem",
+    "show": "Mostrar a legenda",
+    "hide": "Esconder a legenda",
+    "participants": "Quem fala",
+    "channels": "Por onde",
+    "operatorHint": "Mensagem da empresa: fica do lado direito",
+    "channelHint": {
+      "email": "Mensagem por e-mail",
+      "whatsapp": "Mensagem pelo WhatsApp",
+      "app": "Mensagem no app do motorista",
+      "portal": "Mensagem no portal da contratante"
+    }
+  },
   "thread": {
     "newMessages_one": "{{count}} mensagem nova na conversa",
-    "newMessages_other": "{{count}} mensagens novas na conversa"
+    "newMessages_other": "{{count}} mensagens novas na conversa",
+    "contractorNewMessages": "Novas mensagens da contratante",
+    "via": "via {{channel}}",
+    "unread_one": "{{count}} não lida",
+    "unread_other": "{{count}} não lidas",
+    "contractor": {
+      "counterpart": "E-mail e portal da contratante"
+    },
+    "driver": {
+      "counterpart": "Chat do app do motorista"
+    },
+    "closed": {
+      "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
+      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+    },
+    "attachments": {
+      "title": "Arquivos recebidos",
+      "hint": "Leve o arquivo que chegou ao lugar certo: ao motorista, à contratante ou à ocorrência."
+    },
+    "senders": {
+      "title": "Remetente fora dos contatos"
+    },
+    "failures": {
+      "title": "Mensagem que não chegou",
+      "resent": "Reenviada por {{channel}}.",
+      "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    }
   },
   "sendRecovery": {
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",

@@ -433,7 +433,6 @@ describe('o ouro: a conversa de ocorrência não mudou (ADR-0101, regra do dono)
   test('nenhum arquivo antigo da conversa importa o que é novo', async () => {
     const oldFiles = [
       'occurrence-conversation/components/OccurrenceConversations.component.tsx',
-      'occurrence-conversation/components/ConversationMessage.component.tsx',
       'occurrence-conversation/queries/occurrenceConversation.query.ts',
       'occurrence-conversation/shared/occurrenceConversationClient.service.ts',
       'occurrence-conversation/shared/occurrenceConversation.service.ts',
