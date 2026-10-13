@@ -45,6 +45,7 @@ export function CompanyWizard({ wizard }: CompanyWizardProps) {
             lookupPending={wizard.lookupPending}
             lookupStatus={wizard.lookupStatus}
             onChange={wizard.onChange}
+            onDisplayNameModeChange={wizard.onDisplayNameModeChange}
             onLookupCnpj={wizard.onLookupCnpj}
             onTaxRegimeChange={wizard.onTaxRegimeChange}
             profile={wizard.profile}

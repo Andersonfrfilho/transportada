@@ -10,7 +10,7 @@ import { PROFILE_DIGIT_LENGTHS } from './companySettings.constant'
 import type { CompanySettingsUpdate } from './companySettings.types'
 
 type Profile = CompanySettingsUpdate['profile']
-type RequiredProfileField = Exclude<keyof Profile, 'taxRegime'>
+type RequiredProfileField = Exclude<keyof Profile, 'displayNameMode' | 'taxRegime'>
 type DigitProfileField = keyof typeof PROFILE_DIGIT_LENGTHS
 
 type TranslateFieldError = (

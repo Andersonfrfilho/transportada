@@ -10,7 +10,7 @@ import type { useCompanySettings } from './useCompanySettings.hook'
 
 type Profile = ReturnType<typeof createDefaultCompanySettings>['profile']
 type ProfileFieldInput = Readonly<{
-  field: Exclude<keyof Profile, 'taxRegime'>
+  field: Exclude<keyof Profile, 'displayNameMode' | 'taxRegime'>
   value: string
 }>
 
@@ -20,6 +20,7 @@ export type CompanyWizardController = Readonly<{
   lookupPending: boolean
   lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: ProfileFieldInput) => void
+  onDisplayNameModeChange: (value: Profile['displayNameMode']) => void
   onLookupCnpj: () => void
   onTaxRegimeChange: (value: Profile['taxRegime']) => void
   profile: Profile
@@ -40,6 +41,11 @@ export function useCompanyWizard(settings: WizardSettings): CompanyWizardControl
     setFeedbackKey(null)
     if (input.field === 'cnpj') setLookupStatus('idle')
     setProfile((current) => ({ ...current, [input.field]: input.value }))
+  }
+
+  function onDisplayNameModeChange(value: Profile['displayNameMode']): void {
+    setFeedbackKey(null)
+    setProfile((current) => ({ ...current, displayNameMode: value }))
   }
 
   function onTaxRegimeChange(value: Profile['taxRegime']): void {
@@ -77,6 +83,7 @@ export function useCompanyWizard(settings: WizardSettings): CompanyWizardControl
     lookupStatus,
     onChange,
     onLookupCnpj,
+    onDisplayNameModeChange,
     onTaxRegimeChange,
     profile,
     submit,

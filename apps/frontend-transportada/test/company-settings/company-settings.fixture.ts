@@ -38,6 +38,7 @@ export type CompanySettingsUpdateContract = Readonly<{
     cityIbgeCode: string
     cnpj: string
     complement: string
+    displayNameMode: 'legal_name' | 'trade_name'
     district: string
     email: string
     legalName: string
@@ -165,6 +166,7 @@ export const COMPANY_SETTINGS_UPDATE = {
     cityIbgeCode: '3543402',
     cnpj: '12345678000199',
     complement: '',
+    displayNameMode: 'trade_name',
     district: 'Independencia',
     email: 'fiscal@example.test',
     legalName: 'Transportadora Sintética LTDA',

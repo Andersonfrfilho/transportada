@@ -52,7 +52,7 @@ export function CompanySettingsForm({
   }
   const updateProfile = (
     input: Readonly<{
-      field: Exclude<keyof CompanySettingsUpdate['profile'], 'taxRegime'>
+      field: Exclude<keyof CompanySettingsUpdate['profile'], 'displayNameMode' | 'taxRegime'>
       value: string
     }>,
   ) => {
@@ -95,6 +95,9 @@ export function CompanySettingsForm({
         lookupPending={lookupPending}
         lookupStatus={lookupStatus}
         onChange={updateProfile}
+        onDisplayNameModeChange={(displayNameMode) =>
+          setSettings({ ...settings, profile: { ...settings.profile, displayNameMode } })
+        }
         onLookupCnpj={() => void lookupProfile()}
         onTaxRegimeChange={(taxRegime) =>
           setSettings({ ...settings, profile: { ...settings.profile, taxRegime } })
