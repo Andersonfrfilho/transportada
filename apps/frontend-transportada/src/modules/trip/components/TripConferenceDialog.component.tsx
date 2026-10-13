@@ -12,14 +12,24 @@ import { useTripCreatorName } from '../hooks/useTripCreatorName.hook'
 import { useTripConferencePdf } from '../hooks/useTripConferencePdf.hook'
 import { buildTripConference } from '../shared/tripConference.service'
 import { buildTripConferenceSheetLabels } from '../shared/tripConferenceLabels.service'
-import { buildTripConferenceSheet, ROUTE_SEPARATOR } from '../shared/tripConferenceSheet.service'
+import {
+  buildTripConferenceSheet,
+  describeTripConferenceWeight,
+  ROUTE_SEPARATOR,
+} from '../shared/tripConferenceSheet.service'
 import type { TripConferenceRow } from '../shared/tripConference.service'
 import { TripConferencePrintSheet } from './TripConferencePrintSheet.component'
-import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shared/trip.types'
+import type {
+  TripCargoWeight,
+  TripDocumentDetail,
+  TripDriverLine,
+  TripStopDetail,
+} from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripConferenceDialogProps = Readonly<{
   canReadCreator: boolean
+  cargoWeight: TripCargoWeight | null
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   isOpen: boolean
@@ -92,6 +102,7 @@ type TripConferenceContentProps = Omit<TripConferenceDialogProps, 'isOpen'>
 
 function TripConferenceContent({
   canReadCreator,
+  cargoWeight,
   documents,
   drivers,
   onClose,
@@ -108,6 +119,7 @@ function TripConferenceContent({
   const { rows, summary } = conference
   const labels = buildTripConferenceSheetLabels(t)
   const sheet = buildTripConferenceSheet({
+    cargoWeight,
     conference,
     creatorName,
     drivers,
@@ -186,6 +198,11 @@ function TripConferenceContent({
             <Icon name="package" />
             <dt>{t('conference.volumes')}</dt>
             <dd>{summary.totalVolumes}</dd>
+          </div>
+          <div>
+            <Icon name="truck" />
+            <dt>{t('conference.weight')}</dt>
+            <dd>{describeTripConferenceWeight({ cargoWeight, labels })}</dd>
           </div>
         </dl>
         {summary.cities.length === 0 ? null : (
