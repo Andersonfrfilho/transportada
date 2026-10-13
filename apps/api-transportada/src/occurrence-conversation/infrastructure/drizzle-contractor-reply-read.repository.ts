@@ -65,7 +65,16 @@ export function createDrizzleContractorReplyReader(database: Database): Contract
     async findByOccurrence(input) {
       if (!(await occurrenceExists(database, input))) return undefined
       const [reply] = await database
-        .select()
+        .select({
+          alertCount: occurrenceContractorReplies.alertCount,
+          config: occurrenceContractorReplies.config,
+          deadlineAt: occurrenceContractorReplies.deadlineAt,
+          handledNote: occurrenceContractorReplies.handledNote,
+          id: occurrenceContractorReplies.id,
+          reason: occurrenceContractorReplies.reason,
+          replyAttachmentId: occurrenceContractorReplies.replyAttachmentId,
+          status: occurrenceContractorReplies.status,
+        })
         .from(occurrenceContractorReplies)
         .where(
           and(
