@@ -140,7 +140,7 @@ aceitar (`resolveNotDeliveredStatus`). `test/driver-trip/not-delivered*.contract
 
 ## `captureRegistry` e atualização em ponto seguro
 
-`captureRegistry.service.ts`: registro das capturas abertas (`camera`, `crop`, `signature`,
+`captureRegistry.service.ts`: registro das capturas abertas (`audio`, `camera`, `crop`, `signature`,
 `occurrence-dialog`), contado por tipo (`open`/`close`), com `isIdle()`, `onIdle(listener)` e
 `hasOpened()` (nunca volta a `false` na sessão). Câmera, recorte, assinatura e o diálogo de
 ocorrência abrem e fecham nele. Dois consumidores esperam `isIdle`/`onIdle` antes de navegar a
@@ -228,8 +228,10 @@ test/dist.contract.test.ts`: o precache soma no máximo 1,5 MiB e nada de `openc
 
 **CSP e cabeçalhos** (ADR-0075 §4): `connect-src` é a própria origem, a API e o Keycloak, e um
 contrato varre `https://` em `src/`; origem só de `window.open` vai para `NON_FETCH_ORIGIN`.
-`img-src` é `'self' blob:` e a origem da API. `Permissions-Policy` abre câmera e posição para a
-própria origem (o valor do painel) e o servidor emite `Strict-Transport-Security: max-age=31536000`,
+`img-src` é `'self' blob:` e a origem da API. `media-src` é `'self' blob:` e a origem do storage (spec 264: o áudio toca por
+URL assinada do bucket e a revisão da gravação por `blob:`; sem a diretiva, cai em `default-src` e o player fica mudo sem erro). `Permissions-Policy`
+abre câmera, posição e microfone (`microphone=(self)`, spec 264 — nunca `*`) para a
+própria origem (o valor do painel, mais o microfone) e o servidor emite `Strict-Transport-Security: max-age=31536000`,
 sem `includeSubDomains` e sem `preload`. O `server.ts` não sobe sem a CSP emitida no build.
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_DRIVER_APP_URL` (obrigatória aqui; no painel é só o
@@ -253,7 +255,9 @@ Playwright usa como `VITE_DRIVER_APP_URL` só durante o próprio smoke
 `driver-service-worker.smoke.spec.ts` (sem bypass) e `driver-app.smoke.spec.ts` (com
 `VITE_SMOKE_AUTH_BYPASS=true`) — a suíte cobre CA05/CA06 (abrir com rede, recarregar sem rede,
 rede fraca), CA07 (drenagem), CA08 (sino), CA09 (atualização adiada), CA14 (consentimento e
-indicador de posição) e CA15 (44 px em 375 px). `make smoke` da raiz roda o Playwright das três apps
+indicador de posição) e CA15 (44 px em 375 px). O segundo `playwright test` do script também roda `conversation.smoke.spec.ts` (spec 263) e
+`conversation-audio.smoke.spec.ts` (spec 264, Chromium com `--use-fake-device-for-media-stream`), com `VITE_OBJECT_STORAGE_URL` apontando
+para a API de demonstração (porta `PLAYWRIGHT_DRIVER_DEMO_PORT`, 53912). `make smoke` da raiz roda o Playwright das três apps
 (painel, portal, motorista) com o Chromium instalado uma vez só pelo job `integration` da CI.
 
 ## O que a spec 147 e a spec 179 acrescentam
@@ -447,3 +451,33 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   PREENCHE, nunca envia (pacote). Demo API: `GET` da rota com 4 textos e `POST /__debug/conversations/quick-replies`
   `{texts: string[], status?: 409|500}` (zera/troca/falha; `reset` restaura). Teste: `test/conversation/driver-quick-replies.contract.ts`,
   smoke "respostas prontas".
+
+### Áudio e transcrição na conversa (spec 264)
+
+- **O player e a transcrição vêm do pacote** (`conversations-ui` 0.10.0, `conversation-contracts` 0.6.0, sempre as duas juntas nas três
+  apps): o `<audio controls>` virou o player `.cv-p-audio` e o bloco `.cv-p-transcription*` aparece por `attachment.transcription`. Os
+  rótulos do player, da transcrição **e** do gravador estão nos dois `conversation*.locale.json`
+  (`test/conversation/conversation-sdk-audio-labels.contract.ts`); ao subir o pacote, confira as chaves novas de `participantLabels`.
+- **A gravação é a prop `audioRecording`** de `DriverConversations.page.tsx` (objeto de módulo, com os tetos do pacote: 5 min e 16 MiB).
+  O microfone ocupa o lugar do "Enviar" com o campo vazio; o áudio vai como mensagem própria, pelo mesmo `sendMessage` dos anexos
+  (upload em duas etapas, fila offline e `Idempotency-Key` iguais). `onCaptureChange` liga a gravação aberta ao `captureRegistry`
+  (`audio`, via `createAudioCaptureBridge`): com microfone aceso a atualização do service worker e a reautenticação esperam.
+- **O adapter valida por anexo.** `driverConversationsMapper.service.ts` passa `transcription` por
+  `participantTranscriptionSchema.safeParse` e `durationMs` por uma guarda (inteiro positivo ≤ 24 h): inválido faz **o campo** sumir,
+  nunca a página — o schema do pacote reprova o anexo inteiro por um estado novo da API. `transcriptionUpdatedAt` do resumo entra no
+  `ConversationSnapshot` e no `diffConversationSnapshots`: `pending → ready` não mexe em `lastMessageAt`, `unreadCount` nem
+  `officeReadAt`, e sem esse campo o refresh de 15 s nunca releria a conversa. Não vaza para o resumo do pacote.
+  `test/conversation/driver-conversations-transcription.contract.ts`.
+- **A fila offline tem teto** (`CONVERSATION_OUTBOX_LIMIT`: 100 mensagens e 48 MiB **só de mensagens com arquivo** — texto sempre
+  entra até as 100), conferido antes de gravar (`conversationOutboxLimit.service.ts`) e com `QuotaExceededError` do IndexedDB tratado
+  como recusa. A recusada lança `OUTBOX_FULL`: o pacote a mostra como "Falhou — toque para reenviar", o aviso `outboxFull`
+  ("Fila cheia: conecte-se para enviar o que já está esperando.") fica acima da conversa até algo sair da fila, e **a mensagem recusada
+  só existe na memória da tela — recarregar a perde**. O "Sair" continua descartando só o que está no outbox
+  (`conversationOutboxDiscard.service.ts`). `test/conversation/conversation-outbox-limit.contract.ts`.
+- **Cabeçalhos:** `Permissions-Policy: microphone=(self)` e `media-src 'self' blob: <storage>` (ver "CSP e cabeçalhos").
+- **Demonstração.** A conversa de nota `NF 900202 · Áudios` traz um áudio por estado de transcrição (`audio-pending`, `audio-ready`,
+  `audio-failed`, `audio-disabled`); áudio enviado nasce `pending` e `POST /__debug/conversations/transcription-ready` `{attachmentId?}`
+  o leva a `ready`, mudando o `transcriptionUpdatedAt` do resumo. O storage da demonstração serve um WAV mudo para o `<audio>`.
+- **Smoke** `test/conversation-audio.smoke.spec.ts` (Chromium com microfone falso): gravar, ouvir, enviar, enviar sem rede e reconectar
+  sem duplicar, microfone negado e "Transcrevendo…" → texto com o aviso de máquina. O build do smoke leva
+  `VITE_OBJECT_STORAGE_URL` apontando para a demonstração, senão o `media-src` bloquearia o `<audio>`.

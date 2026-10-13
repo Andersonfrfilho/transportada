@@ -608,3 +608,31 @@ Contratos escritos **antes** de qualquer código da T4.3, e rodados contra a ár
 - **Desvios:** (1) o aviso `outboxFull` é um banner da página, não texto do pacote — o SDK não tem slot para isso; (2) a recusa por teto
   conta todas as mensagens do aparelho (não só as do dono da sessão). Nenhum teste existente foi enfraquecido; mudanças deliberadas já
   registradas na T4.2.
+
+## T4.4 — smoke Playwright do áudio no app do motorista (2026-10-13) — **escrito, NÃO executado**
+
+- **Escrito:** `apps/frontend-driver/test/conversation-audio.smoke.spec.ts` (375 × 812, tema escuro, Chromium com
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream` e permissão de microfone). Seis cenários: (1) o microfone ocupa o
+  lugar do "Enviar" com o campo vazio, alvo ≥ 44 px, e some quando há texto; (2) gravar, ouvir antes de enviar (o player de revisão
+  vira "Pausar áudio") e enviar → uma mensagem de áudio no servidor, ticks, "Transcrevendo…"; (3) "Transcrevendo…" vira o texto com
+  o aviso "Transcrição gerada por máquina" sem recarregar a página, depois de `POST /__debug/conversations/transcription-ready`; (4) sem
+  rede (`context.setOffline(true)`): "Na fila", servidor com 0 áudios, e ao reconectar chega **exatamente um** (conferido de novo 2 s
+  depois); (5) microfone negado (`getUserMedia` rejeitando `NotAllowedError`): "Sem permissão para usar o microfone.", sem gravador
+  aberto, texto segue funcionando; (6) a conversa `NF 900202 · Áudios` mostra os quatro estados (pendente, pronta com aviso,
+  `too_long` com "10 minutos", desligada só com o player).
+- **Fiação:** `playwright.config.ts` (`testMatch`) e o script `smoke` (o segundo `playwright test` agora roda
+  `{driver-app,conversation,conversation-audio}` e leva `VITE_OBJECT_STORAGE_URL=http://localhost:${PLAYWRIGHT_DRIVER_DEMO_PORT:-53912}`:
+  a origem do `<audio>` da demonstração precisa estar no `media-src`, senão a CSP bloquearia o player no próprio smoke). Porta do app no
+  smoke: a `53112` sintética de sempre (`DRIVER_SMOKE_PORT`), a API de demonstração na `53912`.
+- **Por que não rodou:** (a) o `loginAsLocalUser` do app é login **real** no Keycloak local (`KEYCLOAK_LOCAL_USER_PASSWORD`, stack Docker de
+  `make up`), que não existe nesta sessão; (b) não há Chromium do Playwright instalado neste WSL nem no Windows (`~/.cache/ms-playwright`
+  e `%LOCALAPPDATA%\ms-playwright` inexistentes) e baixá-lo não coube aqui; (c) o CLI do Playwright nem lista os testes sob o Bun 1.4.3 do
+  WSL (`bun run playwright test --list` → `Cannot find module '…/playwright.config.ts.esm.preflight'`, falha ao carregar a config, antes de
+  qualquer teste). O que se verificou: `tsc --noEmit` → 0 (o spec e o config compilam contra os tipos do `@playwright/test`),
+  `eslint test/conversation-audio.smoke.spec.ts playwright.config.ts` → limpo, `prettier --check` → limpo, `bun run test` do app →
+  1730 pass / 0 fail, e os seletores e os nomes acessíveis foram conferidos contra o **código-fonte** do pacote 0.10.0 (`RecordAudioButton`,
+  `RecordingGroup`, `ReviewGroup`, `ParticipantAudioPlayer`, `ParticipantAudioTranscription`) e contra os rótulos pt-BR do app.
+  **Rodar `make smoke` (ou `bun run smoke` na app) antes de publicar; a T4.4 não está marcada como concluída por isso.**
+- **Documentação:** `apps/frontend-driver/CLAUDE.md` § "Conversas (spec 263)" ganhou "Áudio e transcrição na conversa (spec 264)",
+  § "CSP e cabeçalhos" (`media-src`, `microphone=(self)`), `captureRegistry` (`audio`) e § "Testes, Playwright e portas";
+  `docs/ai-context/frontend-driver.md` ganhou "Spec 264 — O áudio e a transcrição chegam à conversa por assunto".

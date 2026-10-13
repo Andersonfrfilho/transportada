@@ -34,6 +34,7 @@ export default defineConfig({
   testMatch: process.env.PLAYWRIGHT_TEST_MATCH ?? [
     'driver-app.smoke.spec.ts',
     'conversation.smoke.spec.ts',
+    'conversation-audio.smoke.spec.ts',
     'driver-service-worker.smoke.spec.ts',
   ],
   workers: 1,

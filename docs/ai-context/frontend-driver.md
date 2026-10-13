@@ -280,3 +280,21 @@ nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNoti
   parada saiu da viagem. O escritório só dá baixa em nome de quem **está** na tripulação.
 - Sem push nem sino de atribuição (spec 217 D9). Contrato:
   `test/driver-trip/trip-reassignment.contract.ts`.
+
+## Spec 264 — O áudio e a transcrição chegam à conversa por assunto (T4.1–T4.4)
+
+- **T4.1 — a subida.** `conversations-ui` 0.9.0 → **0.10.0** e `conversation-contracts` 0.5.0 → **0.6.0** nas três apps juntas
+  (versão exata; só o UI deixaria duas cópias do contracts descartando campo em silêncio). A API já tinha o contracts 0.6.0 como
+  `devDependency` de teste. O player novo (`.cv-p-audio`) e o bloco de transcrição aparecem para todo host assim que a versão sobe, **sem**
+  ligar a gravação: por isso as chaves do player e da transcrição (`contract.md` §4) foram para `conversation*.locale.json` (motorista) e
+  `thread.labels.*` + `SUBJECT_THREAD_LABEL_KEYS` (painel) em pt-BR e en no mesmo commit. O portal (`frontend-client`) só usa o pacote
+  do operador: subiu a versão e nada mais. Nenhum teste dos três apps prendia o markup do `<audio controls>` do pacote (o do painel é o
+  `ConversationAudioPlayer` próprio da tela antiga, que não muda).
+- **T4.2/T4.3 — o motorista.** `Permissions-Policy: microphone=(self)`; CSP `media-src 'self' blob: <storage>` (hoje a diretiva cairia
+  em `default-src 'self'` e o áudio do bucket não tocaria); o adapter valida `transcription` e `durationMs` **por anexo**;
+  `transcriptionUpdatedAt` entra no snapshot do refresh; `CONVERSATION_OUTBOX_LIMIT` (100 mensagens, 48 MiB só para mensagem com
+  arquivo) com `QuotaExceededError` como recusa e `outboxFull`; `audio` no `captureRegistry`; `audioRecording` em
+  `DriverConversations.page.tsx`. Detalhe e contratos no `CLAUDE.md` do app, § "Áudio e transcrição na conversa (spec 264)".
+- **T4.4 — o smoke** (`test/conversation-audio.smoke.spec.ts`) foi escrito e checado por tipo e lint, mas depende de login real no
+  Keycloak local, da infra Docker e de Chromium, e **não foi executado** na sessão que o escreveu: rodar `make smoke` (ou `bun run smoke` na app) antes de
+  publicar.
