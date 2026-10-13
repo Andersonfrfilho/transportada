@@ -8,9 +8,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { eq } from 'drizzle-orm'
 
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { tripDocuments } from '../../src/database/trip.schema.js'
 import {
   TEN_PERCENT_RULE,
   seedTrip,
@@ -442,3 +444,46 @@ async function withDisposableDatabase(
     operation,
   })
 }
+
+describe('a nota liberada sai das contas da viagem', () => {
+  testWithPostgres(
+    'detalhe, lista e valoração deixam de contar a nota solta',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const tripId = await seedTrip(database, {
+          documentWeights: ['120.000', null],
+          vehicleId: world.capableVehicleId,
+          world,
+        })
+        const repository = new DrizzleTripRepository(database.db)
+        const before = await repository.findById({ companyId: world.companyId, tripId })
+        const revenueBefore = (await valuate(database, world.companyId, tripId)).totalRevenue
+        expect(before?.cargoWeight?.documentsWithoutWeight).toBe(1)
+
+        const [unweighted] = await database.db
+          .select({ id: tripDocuments.id, nfeDocumentId: tripDocuments.nfeDocumentId })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.tripId, tripId))
+          .then((rows) => rows.filter((row) => row.nfeDocumentId !== null).slice(-1))
+        await database.db
+          .update(tripDocuments)
+          .set({ releasedAt: new Date(), stopId: null })
+          .where(eq(tripDocuments.id, unweighted?.id ?? ''))
+
+        const detail = await repository.findById({ companyId: world.companyId, tripId })
+        const item = fieldsOf(
+          (await listAsOfficeWithFinancials(database, world)).find(
+            (candidate) => candidate.id === tripId,
+          ),
+        )
+        const revenueAfter = (await valuate(database, world.companyId, tripId)).totalRevenue
+
+        expect(detail?.cargoWeight?.documentsWithoutWeight).toBe(0)
+        expect(fieldsOf(fieldsOf(item.occupancy).weight).documentsWithoutWeight).toBe(0)
+        expect(Number.parseFloat(revenueAfter)).toBeLessThan(Number.parseFloat(revenueBefore))
+      })
+    },
+    60_000,
+  )
+})

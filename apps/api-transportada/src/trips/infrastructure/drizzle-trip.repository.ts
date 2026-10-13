@@ -1598,7 +1598,7 @@ async function readTripDetail(
   }
 
   const nfeDocumentIds = documents.flatMap((document) =>
-    document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
+    document.nfeDocumentId === null || document.releasedAt !== null ? [] : [document.nfeDocumentId],
   )
   // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
   const cargo = await loadTripOccupancy(queryable, {
