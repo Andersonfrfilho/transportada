@@ -70,6 +70,7 @@ describe('o detalhe no celular (spec 183 T801)', () => {
   test('cada aba leva só as seções dela; sem aba (tela larga), a página inteira', () => {
     expect(occurrenceDetailSectionsFor('summary')).toEqual([
       'summary',
+      'tripMap',
       'document',
       'case',
       'timeline',
@@ -78,6 +79,7 @@ describe('o detalhe no celular (spec 183 T801)', () => {
     expect(occurrenceDetailSectionsFor('driver')).toEqual(['driverContact', 'driverConversation'])
     expect(occurrenceDetailSectionsFor(null)).toEqual([
       'summary',
+      'tripMap',
       'document',
       'driverContact',
       'case',

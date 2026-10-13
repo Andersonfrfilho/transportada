@@ -2305,6 +2305,54 @@
       "unsplit": "A loja pagou R$ {{amount}} pela ocorrência inteira. Esse valor não é de um item só: distribua-o entre os itens do acerto."
     }
   },
+  "occurrenceTripMap": {
+    "title": "Mapa da viagem",
+    "hint": "Onde esta ocorrência foi registrada e por onde a viagem passou.",
+    "loading": "Carregando o mapa da viagem",
+    "error": "Não foi possível carregar o mapa da viagem.",
+    "retry": "Tentar de novo",
+    "empty": "Nenhum evento desta viagem tem posição registrada, então não há o que mostrar no mapa.",
+    "emptyStops": "As paradas desta viagem ainda não têm coordenada, então não há o que mostrar no mapa.",
+    "mapMissing": "O mapa não está disponível agora. A legenda continua abaixo.",
+    "partial": "O mapa mostra só os eventos mais recentes: a viagem tem mais do que isso.",
+    "thisOccurrence": "Esta ocorrência",
+    "caption": "O número no pino é a ordem em que o evento aconteceu. O pino com halo vermelho é esta ocorrência.",
+    "captionStopsOnly": "O mapa mostra só as paradas da viagem. O pino com halo vermelho é a parada desta nota.",
+    "pinLabel": "Ponto {{order}}: {{label}}, {{moment}}",
+    "stopTitle": "Parada {{sequence}}",
+    "stopPinLabel": "Parada {{sequence}}: {{label}}",
+    "restricted": {
+      "title": "Posição dos eventos oculta",
+      "body": "Seu acesso não inclui onde cada evento aconteceu. O mapa mostra só as paradas e a parada desta nota.",
+      "hint": "Quem administra a empresa concede a permissão de ver a posição dos eventos."
+    },
+    "occurrenceState": {
+      "withoutPosition": "A posição desta ocorrência não foi registrada.",
+      "notFound": "Esta ocorrência não aparece entre os eventos carregados da viagem."
+    },
+    "distance": {
+      "kilometers": "a {{distance}} km da parada",
+      "meters": "a {{distance}} m da parada"
+    },
+    "withoutPosition": {
+      "expired": "Sem posição: apagada pelo prazo de retenção.",
+      "restricted": "Sem posição: oculta para o seu acesso.",
+      "unavailable": "Sem posição: o aparelho não a entregou."
+    },
+    "legend": {
+      "types": "Tipos de evento no mapa",
+      "listSummary_one": "Ver o evento em ordem",
+      "listSummary_other": "Ver os {{count}} eventos em ordem",
+      "entry": "{{order}}. {{label}} · {{moment}}",
+      "entryWithoutPosition": "{{label}} · {{moment}}",
+      "focus": "Centralizar no mapa: {{entry}}",
+      "noteStop": "Parada da nota: {{sequence}} · {{label}}",
+      "noteStopFocus": "Centralizar no mapa a parada da nota: {{sequence}} · {{label}}",
+      "noteStopWithoutPoint": "Sem posição no mapa: o endereço ainda não foi localizado.",
+      "stopsOnly_one": "{{count}} parada no mapa",
+      "stopsOnly_other": "{{count}} paradas no mapa"
+    }
+  },
   "occurrenceDetail": {
     "back": "Voltar para ocorrências",
     "breadcrumb": "Navegação da ocorrência",

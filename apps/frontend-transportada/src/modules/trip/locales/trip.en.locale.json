@@ -2305,6 +2305,54 @@
       "unsplit": "The store paid R$ {{amount}} for the whole occurrence. That amount does not belong to one item: split it among the settlement items."
     }
   },
+  "occurrenceTripMap": {
+    "title": "Trip map",
+    "hint": "Where this occurrence was recorded and where the trip went.",
+    "loading": "Loading the trip map",
+    "error": "The trip map could not be loaded.",
+    "retry": "Try again",
+    "empty": "No event of this trip has a recorded position, so there is nothing to show on the map.",
+    "emptyStops": "The stops of this trip have no coordinates yet, so there is nothing to show on the map.",
+    "mapMissing": "The map is not available right now. The legend is still below.",
+    "partial": "The map shows only the most recent events: the trip has more than that.",
+    "thisOccurrence": "This occurrence",
+    "caption": "The number on a pin is the order in which the event happened. The pin with a red halo is this occurrence.",
+    "captionStopsOnly": "The map shows only the stops of the trip. The pin with a red halo is the stop of this invoice.",
+    "pinLabel": "Point {{order}}: {{label}}, {{moment}}",
+    "stopTitle": "Stop {{sequence}}",
+    "stopPinLabel": "Stop {{sequence}}: {{label}}",
+    "restricted": {
+      "title": "Event positions hidden",
+      "body": "Your access does not include where each event happened. The map shows only the stops and the stop of this invoice.",
+      "hint": "Whoever administers the company grants the permission to see event positions."
+    },
+    "occurrenceState": {
+      "withoutPosition": "The position of this occurrence was not recorded.",
+      "notFound": "This occurrence is not among the loaded events of the trip."
+    },
+    "distance": {
+      "kilometers": "{{distance}} km from the stop",
+      "meters": "{{distance}} m from the stop"
+    },
+    "withoutPosition": {
+      "expired": "No position: erased by the retention period.",
+      "restricted": "No position: hidden for your access.",
+      "unavailable": "No position: the device did not deliver it."
+    },
+    "legend": {
+      "types": "Event types on the map",
+      "listSummary_one": "See the event in order",
+      "listSummary_other": "See the {{count}} events in order",
+      "entry": "{{order}}. {{label}} · {{moment}}",
+      "entryWithoutPosition": "{{label}} · {{moment}}",
+      "focus": "Center on the map: {{entry}}",
+      "noteStop": "Stop of the invoice: {{sequence}} · {{label}}",
+      "noteStopFocus": "Center on the map the stop of the invoice: {{sequence}} · {{label}}",
+      "noteStopWithoutPoint": "No position on the map: the address has not been located yet.",
+      "stopsOnly_one": "{{count}} stop on the map",
+      "stopsOnly_other": "{{count}} stops on the map"
+    }
+  },
   "occurrenceDetail": {
     "back": "Back to occurrences",
     "breadcrumb": "Occurrence navigation",
