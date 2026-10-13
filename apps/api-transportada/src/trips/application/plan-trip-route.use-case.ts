@@ -6,6 +6,7 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import {
   TripNotFoundError,
+  TripRouteStopsWithoutLocationError,
   TripRouteUnavailableError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
@@ -43,6 +44,14 @@ export type PlanTripRoutePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripRouteState | null>
+  /**
+   * Os rótulos das paradas vivas sem coordenada. Opcional: só serve para o erro dizer **quais**
+   * endereços faltam quando o congelamento recusa a rota.
+   */
+  listStopsWithoutLocation?(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly string[]>
 }
 
 /**
@@ -143,6 +152,16 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
         companyId: input.companyId,
         tripId: input.tripId,
       })
+      const missing = (await input.repository.listStopsWithoutLocation?.(input)) ?? []
+      if (missing.length > 0) {
+        /** Só a contagem: o endereço completo fica fora do log, e a tela já o mostra a quem pode ver. */
+        input.logger?.warn('trip_route_stops_without_location', {
+          companyId: input.companyId,
+          stopsWithoutLocation: missing.length,
+          tripId: input.tripId,
+        })
+        throw new TripRouteStopsWithoutLocationError(missing)
+      }
       throw new TripRouteUnavailableError()
     }
   }

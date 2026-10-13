@@ -1073,6 +1073,7 @@
     "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
     "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
+    "routeStopsWithoutLocation": "Some stops have no point on the map, and the route needs every stop located. Use \"Correct point on the map\" (on the trip map, below) to mark each listed address and try again.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
@@ -1836,6 +1837,18 @@
     "cancel": "Cancel",
     "choiceNotReproduced": "The road may have changed since this route was chosen: the saved route could not be found again, and the trip has the cheapest route calculated today.",
     "correct": "Correct point on the map",
+    "search": "Find location",
+    "searchNotFound": "Could not find this address in the stop's city. Enter the point by hand (latitude and longitude).",
+    "searchFound": "Found: {{address}}. Check the numbers below and save.",
+    "pickAddress": "Pick the address",
+    "pointSaved": "Point saved at {{address}}.",
+    "pointSaveFailed": "The server refused the point. Check latitude and longitude (dot or comma, up to 7 decimals) and the chosen address; nothing was saved.",
+    "pointInvalid": {
+      "address": "Pick the address that will receive the point.",
+      "empty": "Enter the {{axis}}.",
+      "format": "The {{axis}} must be a number, like -21.0758798.",
+      "range": "The {{axis}} is outside the possible range."
+    },
     "correctionScope": "The correction belongs to the address, not to this trip: it applies to every trip that passes through this gate.",
     "cost": {
       "distance": "Distance",

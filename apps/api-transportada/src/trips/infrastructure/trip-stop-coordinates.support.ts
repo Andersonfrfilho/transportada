@@ -10,10 +10,12 @@
  * `geocoded_addresses` não tem tenant de propósito (ADR-0044): é cache de endereço público, e o
  * recorte por empresa está em `trip_stops`, no `where` — o lado de cima da junção.
  *
- * ⚠️ Spec 153 T704 (M4): parada sem coordenada devolve `null`, **nunca** o subconjunto das que
- * têm. Filtrar a parada não geocodificada produzia uma rota parcial silenciosa — traçado sem
- * aquela perna e distância menor do que a viagem de verdade —, e essa distância alimenta cálculo
- * de combustível e valoração. O caso extremo da spec é taxativo: sem coordenada, sem rota.
+ * ⚠️ Spec 153 T704 (M4) mandava devolver `null` para qualquer parada sem coordenada ("sem
+ * coordenada, sem rota"). **Revertido em parte por decisão do usuário (13/10/2026):** uma parada sem
+ * ponto travava a viagem inteira em Rascunho (caso ef64efdd). Agora a parada sem coordenada é
+ * **pulada** e a rota segue com as demais; `null` só quando há parada e nenhuma tem coordenada. A
+ * tela nomeia as paradas que ficaram fora ("Sem localização no mapa: …"), então a rota parcial não é
+ * silenciosa — mas a distância, e com ela combustível e valoração, não inclui a perna pulada.
  */
 import { and, asc, eq, sql } from 'drizzle-orm'
 
@@ -51,9 +53,10 @@ export async function listTripStopCoordinates(
 
   const coordinates: RouteGeometryPoint[] = []
   for (const row of rows) {
-    if (row.latitude === null || row.longitude === null) return null
+    if (row.latitude === null || row.longitude === null) continue
     coordinates.push({ latitude: Number(row.latitude), longitude: Number(row.longitude) })
   }
+  if (rows.length > 0 && coordinates.length === 0) return null
 
   return coordinates
 }
