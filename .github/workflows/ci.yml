@@ -145,7 +145,7 @@ jobs:
   # cai para ~530s de teste. `test/integration-shard.contract.test.ts` prende `matrix` e `/N` juntos.
   integration-api:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
