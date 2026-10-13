@@ -269,6 +269,8 @@ export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 export type TripOccurrenceFeedFilters = Readonly<{
   /** RF11: estado da tratativa, incluindo `none` ("sem tratativa"). Todos selecionados = sem filtro. */
   caseStatuses: readonly TripOccurrenceCaseStatusFilterValue[]
+  /** Spec 248 RF5: só as ocorrências cujo retorno da contratante está atrasado (`contractorReplyStatusIn=overdue`). */
+  contractorReplyOverdue: boolean
   createdFrom: string
   createdUntil: string
   /** Placas digitadas, separadas por vírgula — multi-valor por campo. */
@@ -280,6 +282,7 @@ export type TripOccurrenceFeedFilters = Readonly<{
 
 export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
   caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
+  contractorReplyOverdue: false,
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
@@ -357,6 +360,17 @@ export function toggleTripOccurrenceStage(
   }
 }
 
+/** O parâmetro de consulta da API e o único valor que o filtro "Atrasadas" manda (spec 248 RF5). */
+const CONTRACTOR_REPLY_STATUS_QUERY_KEY = 'contractorReplyStatusIn'
+const CONTRACTOR_REPLY_OVERDUE_STATUS = 'overdue'
+
+export function setTripOccurrenceContractorReplyOverdue(
+  filters: TripOccurrenceFeedFilters,
+  isOverdueOnly: boolean,
+): TripOccurrenceFeedFilters {
+  return { ...filters, contractorReplyOverdue: isOverdueOnly }
+}
+
 export function setTripOccurrenceCaseStatuses(
   filters: TripOccurrenceFeedFilters,
   statuses: readonly TripOccurrenceCaseStatusFilterValue[],
@@ -422,6 +436,9 @@ export function serializeTripOccurrenceQuery(
     input.filters.caseStatuses.length < TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length
   ) {
     search.set('caseStatusIn', input.filters.caseStatuses.join(','))
+  }
+  if (input.filters.contractorReplyOverdue) {
+    search.set(CONTRACTOR_REPLY_STATUS_QUERY_KEY, CONTRACTOR_REPLY_OVERDUE_STATUS)
   }
   return search.toString()
 }
@@ -506,9 +523,11 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
   const caseStatusesChanged =
     filters.caseStatuses.length === TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length ? 0 : 1
+  const contractorReplyChanged = filters.contractorReplyOverdue ? 1 : 0
   return (
     scalarFields.filter((field) => field.trim().length > 0).length +
     stagesChanged +
-    caseStatusesChanged
+    caseStatusesChanged +
+    contractorReplyChanged
   )
 }

@@ -11,6 +11,7 @@ import {
   reorderTripOccurrenceColumns,
   resolveOccurrenceTypeLabel,
   serializeTripOccurrenceQuery,
+  setTripOccurrenceContractorReplyOverdue,
   toggleTripOccurrenceOrder,
   toggleTripOccurrenceStage,
   TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
@@ -24,6 +25,11 @@ import {
   describeTripOccurrenceFilterPills,
   TRIP_OCCURRENCE_PILL_FIELDS,
 } from '@/modules/trip/shared/tripOccurrenceFilterPills.service'
+
+import {
+  readTripOccurrenceUrlFilters,
+  writeTripOccurrenceUrlFilters,
+} from '@/modules/trip/shared/tripOccurrenceUrlFilters.service'
 
 const formatDay = (value: string): string => `dia:${value}`
 
@@ -92,6 +98,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
     const pills = describeTripOccurrenceFilterPills({
       filters: {
         caseStatuses: ['recorded'],
+        contractorReplyOverdue: true,
         createdFrom: '2026-09-01',
         createdUntil: '2026-09-02',
         platesQuery: 'ABC1D23',
@@ -114,6 +121,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
   test('limpar a faixa zera as duas pontas; limpar o grupo restaura o default, nunca []', () => {
     const filters = {
       caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
+      contractorReplyOverdue: true,
       createdFrom: '2026-09-01',
       createdUntil: '2026-09-02',
       platesQuery: '',
@@ -125,6 +133,105 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
     expect(withoutRange.createdUntil).toBe('')
     const withoutStages = clearTripOccurrenceFilterField({ field: 'stages', filters })
     expect(withoutStages.stages).toEqual(TRIP_OCCURRENCE_STAGES)
+  })
+
+  test('"Atrasadas" é uma pílula com rótulo e valor próprios; limpá-la desliga o filtro', () => {
+    const filters = { ...EMPTY_TRIP_OCCURRENCE_FILTERS, contractorReplyOverdue: true }
+    expect(describeTripOccurrenceFilterPills({ filters, formatDay })).toEqual([
+      {
+        field: 'contractorReplyOverdue',
+        labelKey: 'occurrenceFeed.filters.contractorReply',
+        value: '',
+        valueKeys: ['occurrenceFeed.contractorReplyOverdue'],
+      },
+    ])
+    expect(
+      clearTripOccurrenceFilterField({ field: 'contractorReplyOverdue', filters })
+        .contractorReplyOverdue,
+    ).toBe(false)
+  })
+})
+
+describe('listagem de ocorrências — filtro "Atrasadas" (spec 248 RF5)', () => {
+  const overdue = { ...EMPTY_TRIP_OCCURRENCE_FILTERS, contractorReplyOverdue: true }
+
+  test('viaja como contractorReplyStatusIn=overdue, junto do cursor; desligado não viaja', () => {
+    const search = new URLSearchParams(
+      serializeTripOccurrenceQuery({
+        cursor: '2026-09-01T10:00:00.000Z::abc',
+        filters: overdue,
+        order: 'asc',
+        perPage: 25,
+      }),
+    )
+    expect(search.get('contractorReplyStatusIn')).toBe('overdue')
+    expect(search.get('cursor')).toBe('2026-09-01T10:00:00.000Z::abc')
+
+    expect(
+      new URLSearchParams(
+        serializeTripOccurrenceQuery({
+          cursor: null,
+          filters: EMPTY_TRIP_OCCURRENCE_FILTERS,
+          order: 'desc',
+          perPage: 25,
+        }),
+      ).has('contractorReplyStatusIn'),
+    ).toBe(false)
+  })
+
+  test('muda a chave da consulta (a paginação reinicia) e conta como um filtro ativo', () => {
+    const keyOf = (filters: typeof overdue) =>
+      serializeTripOccurrenceQuery({ cursor: null, filters, order: 'desc', perPage: 25 })
+    expect(keyOf(overdue)).not.toBe(keyOf(EMPTY_TRIP_OCCURRENCE_FILTERS))
+    expect(countActiveTripOccurrenceFilters(overdue)).toBe(1)
+    expect(setTripOccurrenceContractorReplyOverdue(EMPTY_TRIP_OCCURRENCE_FILTERS, true)).toEqual(
+      overdue,
+    )
+    expect(setTripOccurrenceContractorReplyOverdue(overdue, false)).toEqual(
+      EMPTY_TRIP_OCCURRENCE_FILTERS,
+    )
+  })
+
+  test('o endereço da lista guarda o filtro e preserva os outros parâmetros', () => {
+    expect(readTripOccurrenceUrlFilters('?contractorReply=overdue&tab=types')).toEqual({
+      contractorReplyOverdue: true,
+    })
+    expect(readTripOccurrenceUrlFilters('')).toEqual({ contractorReplyOverdue: false })
+    expect(readTripOccurrenceUrlFilters('?contractorReply=inventado')).toEqual({
+      contractorReplyOverdue: false,
+    })
+
+    expect(writeTripOccurrenceUrlFilters({ filters: overdue, search: '?tab=types' })).toBe(
+      '?tab=types&contractorReply=overdue',
+    )
+    expect(
+      writeTripOccurrenceUrlFilters({
+        filters: EMPTY_TRIP_OCCURRENCE_FILTERS,
+        search: '?tab=types&contractorReply=overdue',
+      }),
+    ).toBe('?tab=types')
+    expect(
+      writeTripOccurrenceUrlFilters({
+        filters: EMPTY_TRIP_OCCURRENCE_FILTERS,
+        search: '?contractorReply=overdue',
+      }),
+    ).toBe('')
+  })
+
+  test('a tela usa o checkbox do design system e o gancho grava a URL sem empilhar histórico', async () => {
+    const filters = await Bun.file(
+      new URL(
+        '../../src/modules/trip/components/TripOccurrenceFilters.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+    const hook = await Bun.file(
+      new URL('../../src/modules/trip/hooks/useTripOccurrenceTable.hook.ts', import.meta.url),
+    ).text()
+    expect(filters).toContain("from '@/components/ui/checkbox'")
+    expect(filters).not.toContain('type="checkbox"')
+    expect(hook).toContain('history.replaceState')
+    expect(hook).not.toContain('history.pushState')
   })
 })
 

@@ -12,6 +12,7 @@ import {
   readTripOccurrenceColumnPreferences,
   reorderTripOccurrenceColumns,
   setTripOccurrenceCaseStatuses,
+  setTripOccurrenceContractorReplyOverdue,
   toggleTripOccurrenceOrder,
   toggleTripOccurrenceStage,
   TRIP_OCCURRENCE_STAGES,
@@ -24,6 +25,10 @@ import {
   type TripOccurrenceFeedStage,
   type TripOccurrenceFeedPage,
 } from '../shared/tripOccurrenceFeed.service'
+import {
+  readTripOccurrenceUrlFilters,
+  writeTripOccurrenceUrlFilters,
+} from '../shared/tripOccurrenceUrlFilters.service'
 
 export type TripOccurrenceTableController = ReturnType<typeof useTripOccurrenceTable>
 
@@ -42,8 +47,29 @@ function getColumnStorage(): null | Storage {
   return typeof window === 'undefined' ? null : window.localStorage
 }
 
+/** Spec 248 RF5: a lista abre já filtrada quando o endereço traz `?contractorReply=overdue`. */
+function readInitialFilters(): TripOccurrenceFeedFilters {
+  if (typeof window === 'undefined') return EMPTY_TRIP_OCCURRENCE_FILTERS
+  return {
+    ...EMPTY_TRIP_OCCURRENCE_FILTERS,
+    ...readTripOccurrenceUrlFilters(window.location.search),
+  }
+}
+
+/** `replaceState`: filtrar não empilha histórico; os outros parâmetros (`tab`) ficam como estão. */
+function writeFiltersToUrl(filters: TripOccurrenceFeedFilters): void {
+  if (typeof window === 'undefined') return
+  const search = writeTripOccurrenceUrlFilters({ filters, search: window.location.search })
+  if (search === window.location.search) return
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${search}${window.location.hash}`,
+  )
+}
+
 export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
-  const [filters, setFilters] = useState<TripOccurrenceFeedFilters>(EMPTY_TRIP_OCCURRENCE_FILTERS)
+  const [filters, setFilters] = useState<TripOccurrenceFeedFilters>(readInitialFilters)
   const [order, setOrder] = useState<TripOccurrenceFeedOrder>('desc')
   const [expandedId, setExpandedId] = useState<null | string>(null)
   const [columnPreferences, setColumnPreferences] = useState<TripOccurrenceColumnPreferences>(() =>
@@ -67,6 +93,11 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
   function applyFilters(next: TripOccurrenceFeedFilters): void {
     setFilters(next)
     setExpandedId(null)
+    writeFiltersToUrl(next)
+  }
+
+  function setContractorReplyOverdue(isOverdueOnly: boolean): void {
+    applyFilters(setTripOccurrenceContractorReplyOverdue(filters, isOverdueOnly))
   }
 
   function setTextFilter(field: TripOccurrenceTextFilterField, value: string): void {
@@ -147,6 +178,7 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     moveColumn,
     order,
     setCaseStatuses,
+    setContractorReplyOverdue,
     setDateRange,
     setStages,
     setTextFilter,

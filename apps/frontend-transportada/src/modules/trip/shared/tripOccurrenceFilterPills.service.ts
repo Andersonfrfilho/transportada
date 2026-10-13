@@ -16,6 +16,7 @@ export const TRIP_OCCURRENCE_PILL_FIELDS = [
   'platesQuery',
   'createdRange',
   'caseStatuses',
+  'contractorReplyOverdue',
 ] as const
 
 export type TripOccurrencePillField = (typeof TRIP_OCCURRENCE_PILL_FIELDS)[number]
@@ -29,6 +30,7 @@ export type TripOccurrenceFilterPill = Readonly<{
 
 const FIELD_LABEL_KEY: Readonly<Record<TripOccurrencePillField, string>> = {
   caseStatuses: 'occurrenceFeed.filters.caseStatus',
+  contractorReplyOverdue: 'occurrenceFeed.filters.contractorReply',
   createdRange: 'occurrenceFeed.filters.createdRange',
   platesQuery: 'occurrenceFeed.filters.plates',
   stages: 'occurrenceFeed.filters.stage',
@@ -71,6 +73,15 @@ function describeField(
       valueKeys: filters.caseStatuses.map((status) => `occurrenceFeed.caseStatus.${status}`),
     }
   }
+  if (field === 'contractorReplyOverdue') {
+    if (!filters.contractorReplyOverdue) return null
+    return {
+      field,
+      labelKey: FIELD_LABEL_KEY[field],
+      value: '',
+      valueKeys: ['occurrenceFeed.contractorReplyOverdue'],
+    }
+  }
   if (field === 'createdRange') {
     const value = describeRangeValue({
       format: formatDay,
@@ -106,6 +117,9 @@ export function clearTripOccurrenceFilterField(
   }
   if (input.field === 'caseStatuses') {
     return { ...input.filters, caseStatuses: EMPTY_TRIP_OCCURRENCE_FILTERS.caseStatuses }
+  }
+  if (input.field === 'contractorReplyOverdue') {
+    return { ...input.filters, contractorReplyOverdue: false }
   }
   return { ...input.filters, [input.field]: '' }
 }
