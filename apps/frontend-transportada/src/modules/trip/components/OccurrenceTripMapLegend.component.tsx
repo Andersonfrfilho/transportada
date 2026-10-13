@@ -70,18 +70,15 @@ function EntryItem({
       {entry.detail === null ? null : <span className={styles.entryDetail}>{entry.detail}</span>}
     </span>
   )
-  const swatch = (
-    <span aria-hidden="true" className={swatchClass(entry.category)}>
-      <Icon name={entry.icon} />
-    </span>
-  )
   const thisClass = entry.isThisOccurrence ? styles.entryThis : undefined
 
   if (entry.pinKey === null) {
     return (
       <li className={`${styles.entryRow} ${styles.entryMuted} ${thisClass ?? ''}`}>
         <Icon name={OCCURRENCE_TRIP_MAP_WITHOUT_POSITION_ICON} />
-        {swatch}
+        <span aria-hidden="true" className={swatchClass(entry.category)}>
+          <Icon name={entry.icon} />
+        </span>
         {textBlock}
       </li>
     )
@@ -102,7 +99,9 @@ function EntryItem({
         <span aria-hidden="true" className={styles.orderMark}>
           {entry.order}
         </span>
-        {swatch}
+        <span aria-hidden="true" className={swatchClass(entry.category)}>
+          <Icon name={entry.icon} />
+        </span>
         {textBlock}
       </Button>
     </li>

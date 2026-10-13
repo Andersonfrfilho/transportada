@@ -149,7 +149,9 @@ describe('o mapa da viagem na ocorrência: texto de fonte (spec 196)', () => {
       return Object.entries(value).flatMap(([key, child]) => leaves(child, `${prefix}.${key}`))
     }
 
-    expect(leaves(en.occurrenceTripMap).sort()).toEqual(leaves(pt.occurrenceTripMap).sort())
+    expect([...leaves(en.occurrenceTripMap)].sort()).toEqual(
+      [...leaves(pt.occurrenceTripMap)].sort(),
+    )
     expect(leaves(pt.occurrenceTripMap).length).toBeGreaterThan(30)
   })
 })
