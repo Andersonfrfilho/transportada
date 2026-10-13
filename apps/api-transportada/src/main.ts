@@ -5007,6 +5007,7 @@ function createApplicationRoutes({
           }),
       },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
+      retireTripStop: { execute: (input) => trips.retireStop(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
       separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),

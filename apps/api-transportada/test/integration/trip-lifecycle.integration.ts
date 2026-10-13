@@ -369,6 +369,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         ).rejects.toMatchObject({ code: 'STATE_TRANSITION_NOT_ALLOWED', status: 409 })
         expect(
           await tripRepository.releaseDocument({
+            actor: { channel: 'backoffice', userId: crypto.randomUUID() },
             companyId,
             documentId: linkedA.id,
             tripId: trip.id,

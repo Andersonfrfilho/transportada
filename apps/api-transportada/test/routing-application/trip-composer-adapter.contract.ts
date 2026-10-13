@@ -142,6 +142,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       async releaseDocument() {
         throw new Error('not used by this contract')
       },
+      async retireStop() {
+        throw new Error('not used by this contract')
+      },
       async setTrailer() {
         throw new Error('not used by this contract')
       },
@@ -229,6 +232,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
         return []
       },
       async releaseDocument() {
+        throw new Error('not used')
+      },
+      async retireStop() {
         throw new Error('not used')
       },
       async setTrailer() {

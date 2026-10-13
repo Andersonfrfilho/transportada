@@ -17,6 +17,8 @@ import {
   TripDocumentAlreadyReleasedError,
   TripDocumentNotFoundError,
   TripNotFoundError,
+  TripStopHasDeliveredDocumentError,
+  TripStopNotFoundError,
   TripStateTransitionNotAllowedError,
   TripTrailerInUseError,
   TripTrailerNotATrailerError,
@@ -95,6 +97,13 @@ export type LinkTripDocumentInput = {
   readonly tripId: string
 }
 
+export type RetireTripStopInput = {
+  readonly context: TripCompanyContext
+  readonly note?: string
+  readonly stopId: string
+  readonly tripId: string
+}
+
 export type ReleaseTripDocumentInput = {
   readonly context: TripCompanyContext
   readonly documentId: string
@@ -126,6 +135,8 @@ export type TripUseCase = {
   ): Promise<LinkTripDocumentsAfterDispatchResponse>
   list(input: ListTripsInput): Promise<TripPage>
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
+  /** Retira a parada do rascunho: desvincula de uma vez todas as notas vivas dela. */
+  retireStop(input: RetireTripStopInput): Promise<readonly TripDocument[]>
   updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
   setTrailer(input: SetTripTrailerInput): Promise<TripDetail>
   transferCrew(input: TransferTripCrewInput): Promise<TransferTripCrewResult>
@@ -331,11 +342,34 @@ export function createTripUseCase(dependencies: {
       if (document.deliveredAt !== null) throw new TripDocumentAlreadyDeliveredError()
       if (document.releasedAt !== null) throw new TripDocumentAlreadyReleasedError()
 
-      const released = await repository.releaseDocument({ companyId, documentId, tripId })
+      const released = await repository.releaseDocument({
+        actor: { channel: TRIP_FIELD_CHANNELS.backoffice, userId: context.userId },
+        companyId,
+        documentId,
+        tripId,
+      })
       // Corrida rara: a nota foi entregue/liberada entre a leitura acima e este update.
       if (released === null) throw new TripDocumentAlreadyDeliveredError()
       await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return released
+    },
+
+    async retireStop({ context, note, stopId, tripId }) {
+      const companyId = context.companyId
+      await assertTripOpen({ companyId, repository, tripId })
+
+      const result = await repository.retireStop({
+        actor: { channel: TRIP_FIELD_CHANNELS.backoffice, userId: context.userId },
+        companyId,
+        ...(note === undefined ? {} : { note }),
+        stopId,
+        tripId,
+      })
+      if (result === null) throw new TripStopNotFoundError()
+      if (result.hasDeliveredDocument) throw new TripStopHasDeliveredDocumentError()
+
+      await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
+      return result.released
     },
 
     /**

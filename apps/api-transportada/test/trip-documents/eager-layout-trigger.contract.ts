@@ -32,7 +32,7 @@ function extractMethodBody(source: string, methodName: string): string {
 }
 
 describe('eager cargo layout trigger wiring (spec 145 D7/G006)', () => {
-  test.each(['create', 'linkDocument', 'linkDocumentsBatch', 'releaseDocument'] as const)(
+  test.each(['create', 'linkDocument', 'linkDocumentsBatch'] as const)(
     'DrizzleTripRepository.%s requests a cargo layout recalculation inside its own transaction',
     (methodName) => {
       const source = readFileSync(TRIP_REPOSITORY, 'utf8')
@@ -40,6 +40,16 @@ describe('eager cargo layout trigger wiring (spec 145 D7/G006)', () => {
       expect(body).toContain(TRIGGER_CALL)
     },
   )
+
+  test('releaseDocument e retireStop passam pelo mesmo método, que pede o recálculo da planta na própria transação', () => {
+    const source = readFileSync(TRIP_REPOSITORY, 'utf8')
+    const shared =
+      source.split('\n  private async releaseDocumentWithin(')[1]?.split('\n  }\n')[0] ?? ''
+    expect(shared).toContain(TRIGGER_CALL)
+    for (const methodName of ['releaseDocument', 'retireStop'] as const) {
+      expect(extractMethodBody(source, methodName)).toContain('releaseDocumentWithin(')
+    }
+  })
 
   test('DrizzleTripRouteRepository.reorderStops requests a cargo layout recalculation inside its own transaction', () => {
     const source = readFileSync(TRIP_ROUTE_REPOSITORY, 'utf8')
