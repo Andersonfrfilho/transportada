@@ -620,6 +620,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -2270,6 +2271,11 @@ function createApplicationRoutes({
     calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
     contexts: new DrizzleDriverStopHolidayContextRepository(database),
     logger,
+  }
+  /** Spec 248 T5.4: o estado do retorno da contratante nas notas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverContractorReplies = {
+    logger,
+    reader: new DrizzleDriverDocumentContractorReplyRepository(database),
   }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
@@ -4044,6 +4050,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,

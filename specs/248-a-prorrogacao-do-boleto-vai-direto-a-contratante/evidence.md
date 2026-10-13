@@ -541,6 +541,19 @@ pré-filtro da mesma regra (alarme ligado, abaixo do teto, prazo vencido ou entr
 **Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
 (2) "Pedido enviado à contratante" (acima).
 
+## T5.4b — "Pedido enviado à contratante" no app do motorista (2026-10-13)
+
+- **API (sem migration):** `GET /me/trips/current` ganha `documents[].registeredOccurrences: [{ id, contractorReply: { status } | null }]`, só das ocorrências da nota que
+  abriram retorno (nota sem retorno e API sem a dependência não levam a chave). `status` é o vocabulário de `CONTRACTOR_REPLY_STATUSES`; nada de prazo, endereço, anexo ou
+  nota do operador. Montado no caso de uso (`attach-driver-document-contractor-replies.service.ts`) **depois do recorte pelo vínculo**: a consulta recebe só as notas das
+  viagens do motorista (BOLA), `company_id` nas duas tabelas, uma consulta só. Só a rota do app recebe a dependência. Falha só tira o campo.
+- **App:** guarda de chaves exatas e tolerante (ausente = nada; item malformado sai, a nota fica); `DriverContractorReplyStatus` na nota, texto pt-BR/en, ícone do design
+  system, linha de 44 px. Três estados: aguardando a contratante · boleto recebido · entregue a você na conversa (`handled`/`cancelled` não aparecem).
+- **Ordem de publicação (ADR-0081 §9):** app tolerante primeiro, depois a API. O app anterior à guarda reconstrói a nota com chaves explícitas e descarta
+  `registeredOccurrences` sem erro; o app novo contra a API anterior não vê o campo e não mostra nada. Reverter a API não quebra o app novo.
+- **Decisão:** a lista só traz ocorrência que **tem** retorno (`contractorReply` nunca é `null` hoje); o tipo aceita `null` para o app não depender disso.
+- **Fora:** o aviso do sino no caminho automático; smoke Playwright da linha (sem Chromium local); a tela só informa, não abre a conversa.
+
 ## T5.2a e T5.3a — o estado do retorno no painel (2026-10-12)
 
 - **API:** `GET /trip-occurrences/:id/contractor-reply` (`fleet.read`, `no-store`; `data: null` sem retorno; 404 igual para inexistente e outra empresa),

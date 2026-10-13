@@ -2,12 +2,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   CANHOTO_REJECTION_REASONS,
+  CONTRACTOR_REPLY_STATUSES,
   isDriverOccurrenceType,
   TRIP_CREW_ROLES,
   type CanhotoRejection,
+  type ContractorReplyStatus,
   type DriverDeliveryProofSettings,
   type DriverNfeProduct,
   type DriverOccurrenceType,
+  type DriverRegisteredOccurrence,
   type DriverStopSchedule,
   type DriverTrip,
   type DriverTripDocument,
@@ -83,6 +86,38 @@ function readDocumentOccurrenceTypes(value: unknown): readonly DriverOccurrenceT
   return value.filter(isDriverOccurrenceType)
 }
 
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const present = Object.keys(value)
+  return present.length === keys.length && keys.every((key) => key in value)
+}
+
+function isContractorReplyStatus(value: unknown): value is ContractorReplyStatus {
+  return (CONTRACTOR_REPLY_STATUSES as readonly unknown[]).includes(value)
+}
+
+/** Chaves exatas e estado do vocabulário: qualquer outra forma tira a ocorrência da tela, nunca a nota. */
+function toRegisteredOccurrence(value: unknown): DriverRegisteredOccurrence | undefined {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['contractorReply', 'id'])) return undefined
+  const { contractorReply, id } = value
+  if (typeof id !== 'string' || id === '') return undefined
+  if (contractorReply === null) return { contractorReply: null, id }
+  if (!isRecord(contractorReply) || !hasOnlyKeys(contractorReply, ['status'])) return undefined
+  if (!isContractorReplyStatus(contractorReply.status)) return undefined
+  return { contractorReply: { status: contractorReply.status }, id }
+}
+
+/**
+ * Spec 248 T5.4 (ADR-0081 §9): ausente é a API anterior ao campo, e o app vai antes dela; item malformado some.
+ * Sem item válido o campo não existe, e a nota sai como saía.
+ */
+function readRegisteredOccurrences(
+  value: unknown,
+): readonly DriverRegisteredOccurrence[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const occurrences = value.flatMap((item) => toRegisteredOccurrence(item) ?? [])
+  return occurrences.length === 0 ? undefined : occurrences
+}
+
 function toProduct(value: unknown): DriverNfeProduct | undefined {
   if (!isRecord(value)) return undefined
   const { code, description, hasVaryingUnitValue, quantity, unit, unitValue } = value
@@ -112,6 +147,7 @@ function readDocumentProducts(value: unknown): readonly DriverNfeProduct[] | und
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
   const products = readDocumentProducts(value.products)
+  const registeredOccurrences = readRegisteredOccurrences(value.registeredOccurrences)
 
   /**
    * Toda ausência vira vazio: a NF-e é dado de terceiro, e a tela do motorista não pode quebrar
@@ -132,6 +168,7 @@ function toDocument(value: unknown): DriverTripDocument {
     recipientDisplayName: readOptionalText(value.recipientDisplayName),
     recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
     recipientName: readOptionalText(value.recipientName),
+    ...(registeredOccurrences === undefined ? {} : { registeredOccurrences }),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
     series: readOptionalText(value.series),
