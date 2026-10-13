@@ -14,6 +14,7 @@ import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/pr
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
@@ -360,6 +361,28 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trip-occurrences/:id/conversations/:participant/uploads',
+      },
+    ])
+  })
+
+  /** Spec 248 T4.6: levar o boleto da contratante ao motorista divide o balde das mensagens da ocorrência. */
+  test('levar o boleto ao motorista conta no Postgres, no balde das mensagens', () => {
+    const routes = createOccurrenceContractorReplyRoutes({ deliverToDriver: {} } as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
       },
     ])
   })

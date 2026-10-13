@@ -42,13 +42,14 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 > 🤖 Modelo: `sonnet` (T3.1 é 🧠 — `opus`, validar com `architect` antes)
 
-- [ ] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção,
-      `nfe_documents.recipient_email`, `occurrence_contractor_replies`,
+- [x] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção
+      (`nfe_documents.recipient_email` já existe — migration `20261008163250`, não se recria),
+      `occurrence_contractor_replies`,
       `occurrence_contractor_reply_deliveries`, `occurrence_contractor_reply_events`, FKs compostas,
       índice parcial, `tenant-safety.contract.ts`; `rollback.sql`; `make migration-test`.
-- [ ] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
+- [x] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
       `trigger = operator ⇔ actor_user_id`, unicidade por ocorrência e por `idempotency_key`.
-- [ ] **T3.3** Mutações da T3.2 registradas: tirar a CHECK `forward_to_note_recipient = automatic ⇒
+- [x] **T3.3** Mutações da T3.2 registradas: tirar a CHECK `forward_to_note_recipient = automatic ⇒
 modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `actor_user_id` nulo
       com `trigger = operator`.
 
@@ -57,19 +58,23 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 > 🤖 Modelo: `sonnet` (T4.4, T4.7 e T4.9 são 🧠 — `opus`: ação automática sem humano, envio a
 > terceiro e retomada pela mensagem do motorista)
 
-- [ ] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
+- [x] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
       0/1/N anexos, tipo pelos bytes, já entregue, cancelado, tratado; `decideAlert` (prazo,
       intervalo, teto, paradas).
-- [ ] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
-- [ ] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
+- [x] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
+- [x] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
       alertar depois do teto; ler o modo do tipo em vez da cópia do retorno.
-- [ ] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
+- [x] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
       copiada; varredor `occurrence.automatic-mail.sweep`. Integração CA01 (registro pelo app **e**
       pelo fluxo de WhatsApp) e **CA04 — só a configuração decide** (mutação: `if` pelo nome).
-- [ ] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
+  - [x] **T4.4a** abertura do retorno em `executeSend` (só `automatic`), configuração efetiva copiada, CA01 e CA04
+        contra Postgres, duas mutações com execução vermelha (evidence.md).
+  - [x] **T4.4b** varredor `occurrence.automatic-mail.sweep` (o `Promise.allSettled`/isolamento do §15 vale aqui);
+        e a CA01 pelos caminhos de entrada reais (app e WhatsApp) com o gancho.
+- [x] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
       portal (API, depois do commit da mensagem do portal) aplicam a política; integração CA02 nos
       dois caminhos, resposta duplicada e empresa B (CA09).
-- [ ] **T4.6** `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
+- [x] **T4.6** `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
       aviso no sino que já existe; o expurgo conta as duas referências. Integração.
 - [ ] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
       informado), validação RF11, limite de taxa, 5 por ocorrência, `Idempotency-Key`, mensagem de
@@ -90,7 +95,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
+- [x] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
       com o `Select` da aplicação, os campos e as CHECKs como mensagens no campo; exceção por
       contratante com "Igual ao tipo".
 - [ ] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".

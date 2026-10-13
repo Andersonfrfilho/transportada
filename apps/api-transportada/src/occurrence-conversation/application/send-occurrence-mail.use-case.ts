@@ -31,6 +31,8 @@ import {
   OccurrenceConversationNoRecipientError,
 } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
+import { openContractorReplyWhenConfigured } from './open-contractor-reply.service.js'
+import type { OpenContractorReplyLogger } from './open-contractor-reply.service.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
 import { attachConversationUploads } from './conversation-attachment.service.js'
 import type {
@@ -91,6 +93,7 @@ function deduplicateRecipients(addresses: readonly string[]): string[] {
 
 export function createSendOccurrenceMailUseCase(dependencies: {
   readonly fingerprintService: IdempotencyFingerprintPort
+  readonly logger?: OpenContractorReplyLogger
   readonly now?: () => Date
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
@@ -113,6 +116,7 @@ export function createSendOccurrenceMailUseCase(dependencies: {
 async function executeSend(params: {
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly input: SendOccurrenceMailInput
+  readonly logger?: OpenContractorReplyLogger
   readonly now: Date
   readonly secretService: ContractorMailCredentialSecretService
   readonly storage: ConversationAttachmentStoragePort
@@ -259,6 +263,18 @@ async function executeSend(params: {
       },
       transaction: transaction.attachments,
       uploadIds: input.attachmentIds ?? [],
+    })
+  }
+
+  if (input.automatic === true) {
+    await openContractorReplyWhenConfigured({
+      companyId,
+      contractorId,
+      conversationId: conversation.id,
+      logger: params.logger,
+      now: params.now,
+      occurrenceId: input.occurrenceId,
+      transaction,
     })
   }
 

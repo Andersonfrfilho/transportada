@@ -272,6 +272,7 @@ describe('o anexo nos envios (spec 183 T702a)', () => {
         execute: (work) =>
           work({
             ...idempotency(),
+            applyContractorReply: async () => undefined,
             attachments: fake.port,
             ensureConversationRefs: async () => new Map(),
             findConversation: async () => ({

@@ -127,6 +127,9 @@ import { createStorageAttachmentReaderGateway } from './aggregate-attachment/inf
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
+import { createOccurrenceAutomaticMailSweepRoutine } from './occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-sweep.routine.js'
+import { createDrizzleOccurrenceAutomaticMailQueue } from './occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
+import { createOccurrenceAutomaticMailApiGateway } from './occurrence-automatic-mail-sweep/infrastructure/occurrence-automatic-mail-api.gateway.js'
 import { createDrizzleCanhotoReadQueue } from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
 import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructure/threaded-canhoto-barcode.decoder.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
@@ -1513,6 +1516,18 @@ export async function startWorkerRuntime(
                   ),
                   reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
                 }),
+                ['occurrence.automatic-mail.sweep' as const]:
+                  createOccurrenceAutomaticMailSweepRoutine({
+                    errorTracker,
+                    logger,
+                    mailApi: createOccurrenceAutomaticMailApiGateway({
+                      configuration: config.mdfeAutoIssue,
+                    }),
+                    now: () => new Date(),
+                    queue: createDrizzleOccurrenceAutomaticMailQueue(
+                      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                    ),
+                  }),
               }),
           ...(audioTranscriptionRuntime === undefined
             ? {}

@@ -441,6 +441,10 @@ import { DrizzleTripProofReportRepository } from './trips/infrastructure/drizzle
 import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
 import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
+import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
+import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
+import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
+import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -918,36 +922,34 @@ const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
 
 /**
- * Spec 183 T802: o aviso automático à contratante, montado uma vez e usado pelos cinco caminhos de
- * registro de ocorrência (app, escritório, separação e os dois do WhatsApp), sempre depois do commit.
+ * Spec 183 T802: o caso de uso do aviso automático à contratante, montado uma vez e compartilhado
+ * pelo gancho dos registros de ocorrência e pela rota do robô da varredura (spec 248 T4.4b).
  * O aviso não leva anexo, então a storage dele recusa qualquer uso.
  */
-function buildAutomaticOccurrenceMailHook(input: {
+function buildSendAutomaticOccurrenceMailUseCase(input: {
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
   readonly idempotencyHmacKey: Uint8Array
   readonly logger: ReturnType<typeof createApiLogger>
-}): AutomaticOccurrenceMailHook {
+}): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
   const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
-  return createAutomaticOccurrenceMailHook({
-    logger: input.logger,
-    useCase: createSendAutomaticOccurrenceMailUseCase({
-      reader: createAutomaticOccurrenceMailReader(input.database),
-      sendMail: createSendOccurrenceMailUseCase({
-        fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
-        secretService: createContractorMailCredentialSecretService({
-          envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
-        }),
-        storage: {
-          createSignedDownload: noAttachmentStorage,
-          createSignedUpload: noAttachmentStorage,
-          getObjectStream: noAttachmentStorage,
-          deleteObject: noAttachmentStorage,
-          headObject: noAttachmentStorage,
-          storeObject: noAttachmentStorage,
-        },
-        unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
+  return createSendAutomaticOccurrenceMailUseCase({
+    reader: createAutomaticOccurrenceMailReader(input.database),
+    sendMail: createSendOccurrenceMailUseCase({
+      fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+      logger: input.logger,
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
       }),
+      storage: {
+        createSignedDownload: noAttachmentStorage,
+        createSignedUpload: noAttachmentStorage,
+        getObjectStream: noAttachmentStorage,
+        deleteObject: noAttachmentStorage,
+        headObject: noAttachmentStorage,
+        storeObject: noAttachmentStorage,
+      },
+      unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
     }),
   })
 }
@@ -975,11 +977,15 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
-  const automaticOccurrenceMail = buildAutomaticOccurrenceMailHook({
+  const sendAutomaticOccurrenceMail = buildSendAutomaticOccurrenceMailUseCase({
     database: database.db,
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
     idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
     logger,
+  })
+  const automaticOccurrenceMail = createAutomaticOccurrenceMailHook({
+    logger,
+    useCase: sendAutomaticOccurrenceMail,
   })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
@@ -1606,6 +1612,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
         automaticOccurrenceMail,
+        sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
@@ -1941,6 +1948,8 @@ function createAnonymousRoutes({
 type CreateApplicationRoutesParams = {
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
+  /** Spec 248 T4.4b: o mesmo caso de uso, pela porta do robô da varredura. */
+  readonly sendAutomaticOccurrenceMail: ReturnType<typeof createSendAutomaticOccurrenceMailUseCase>
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
@@ -2018,6 +2027,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 function createApplicationRoutes({
   apiPublicUrl,
   automaticOccurrenceMail,
+  sendAutomaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
@@ -3298,6 +3308,23 @@ function createApplicationRoutes({
         review: (input) => reviewCanhotoProof({ ...input, unitOfWork: canhotoReviewUnitOfWork }),
       },
       resolveClientIp,
+    }),
+    /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
+    ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
+    ...createOccurrenceContractorReplyRoutes({
+      deliverToDriver: createDeliverContractorReplyToDriverUseCase({
+        clock: () => new Date(),
+        notifier: createDriverConversationNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
+      }),
     }),
     /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */
     ...createTripDocumentReportRoutes({

@@ -23,6 +23,7 @@ import {
   type OccurrenceConversationMessageStatus,
 } from '../../database/occurrence-conversation.schema.js'
 import type { StoredInboundAttachment } from '../application/inbound-mail-attachments.service.js'
+import { applyContractorReplyToMessage } from './drizzle-occurrence-contractor-reply.repository.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -114,6 +115,12 @@ export async function recordOccurrenceConversationMailReply(
       storedObjectId: object.id,
     })
   }
+  await applyContractorReplyToMessage(transaction, {
+    companyId: input.companyId,
+    conversationId,
+    messageId: message.id,
+    now: new Date(),
+  })
   return input.attachments.length
 }
 

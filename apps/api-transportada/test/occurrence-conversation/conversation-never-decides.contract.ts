@@ -160,6 +160,7 @@ describe('pelo portal, a conversa também nunca decide (spec 183 T652)', () => {
       unitOfWork: {
         execute: (work) =>
           work({
+            applyContractorReply: async () => undefined,
             attachments: NO_ATTACHMENTS,
             listAttachments: listNoAttachments,
             ensureConversationRefs: async () => {

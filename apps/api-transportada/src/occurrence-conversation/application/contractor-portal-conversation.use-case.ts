@@ -268,6 +268,12 @@ export function createContractorPortalConversationUseCase(dependencies: {
           transaction: transaction.attachments,
           uploadIds: attachmentIds,
         })
+        await transaction.applyContractorReply({
+          companyId,
+          conversationId: conversation.id,
+          messageId: message.id,
+          now,
+        })
         const response = { createdAt: message.createdAt.toISOString() }
         await transaction.saveIdempotency({ ...key, fingerprint, response })
         return response

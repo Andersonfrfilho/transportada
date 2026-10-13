@@ -694,6 +694,39 @@ export class OccurrenceTypeDeclaredAmountNeedsItemsError extends ApiError {
   }
 }
 
+/** Spec 248 (RF1): o retorno da contratante exige o e-mail à contratante ligado e o texto ao motorista. */
+export class OccurrenceTypeContractorReplyNeedsMailError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_CONTRACTOR_REPLY_NEEDS_MAIL',
+      message: 'The contractor reply requires the contractor email on and a text for the driver.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 (RF1): alertar o atraso exige o prazo de espera. */
+export class OccurrenceTypeContractorReplyAlertNeedsWaitError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_CONTRACTOR_REPLY_ALERT_NEEDS_WAIT',
+      message: 'Alerting on delay requires the wait time.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 (RF1): enviar ao cliente da nota sem passar pelo operador exige o retorno ligado. */
+export class OccurrenceTypeForwardAutomaticNeedsReplyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY',
+      message: 'Automatic forwarding to the note customer requires the contractor reply on.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em

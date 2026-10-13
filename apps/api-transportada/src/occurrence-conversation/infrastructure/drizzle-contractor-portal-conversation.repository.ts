@@ -31,6 +31,7 @@ import {
   createConversationAttachmentTransactionPort,
   readConversationAttachments,
 } from './drizzle-conversation-attachment.repository.js'
+import { applyContractorReplyToMessage } from './drizzle-occurrence-contractor-reply.repository.js'
 import { markOccurrenceConversationRead } from './occurrence-conversation.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -73,6 +74,8 @@ function createTransactionPort(
 ): ContractorPortalConversationTransactionPort {
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
+
+    applyContractorReply: (input) => applyContractorReplyToMessage(transaction, input),
 
     async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope, userId }) {
       if (occurrenceIds.length === 0 || scope.contractorIds.length === 0) return new Map()

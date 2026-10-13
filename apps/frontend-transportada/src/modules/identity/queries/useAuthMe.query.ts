@@ -75,6 +75,8 @@ export const COMPANY_PERMISSIONS = [
   'whatsapp.settle',
   /** Spec 222 / ADR-0092: também de máquina — a leitura automática do canhoto, sem tela. */
   'trip.canhoto-auto-review',
+  /** Spec 248 T4.4b: também de máquina — o aviso automático da ocorrência à contratante, sem tela. */
+  'occurrence.automatic-mail',
   /** Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`. */
   'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */

@@ -179,6 +179,7 @@ describe('tenant context contract', () => {
         'mdfe.auto-issue',
         'whatsapp.settle',
         'trip.canhoto-auto-review',
+        'occurrence.automatic-mail',
       ])
     })
 

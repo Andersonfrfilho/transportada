@@ -170,6 +170,13 @@ export const TRIP_TABLES = [
   'trip_document_link_events',
 ] as const
 
+/** Spec 248 D6: o retorno da contratante ao motorista — uma linha por ocorrência, entregas e histórico. */
+export const OCCURRENCE_CONTRACTOR_REPLY_TABLES = [
+  'occurrence_contractor_replies',
+  'occurrence_contractor_reply_deliveries',
+  'occurrence_contractor_reply_events',
+] as const
+
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
 
 /**
@@ -326,6 +333,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...WHATSAPP_PHONE_TABLES,
     ...WHATSAPP_FLOW_GRAPH_TABLES,
     ...WHATSAPP_COMMAND_TABLES,
+    ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
     ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`

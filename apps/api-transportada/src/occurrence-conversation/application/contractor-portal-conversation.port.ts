@@ -43,6 +43,13 @@ export type PortalConversationIdempotencyRecord = {
 export type ContractorPortalConversationTransactionPort = {
   /** Spec 183 T702a (RF10): o anexo ligado à mensagem, na mesma transação. */
   readonly attachments: ConversationAttachmentTransactionPort
+  /** Spec 248 T4.5: the message may answer the open contractor reply of the conversation. */
+  applyContractorReply(input: {
+    readonly companyId: string
+    readonly conversationId: string
+    readonly messageId: string
+    readonly now: Date
+  }): Promise<void>
   /**
    * A referência de cada ocorrência listada cuja contratante (o emitente da nota) está no recorte.
    * A conversa nasce aqui quando ainda não existe (idempotente): a ocorrência chegou ao portal, e a

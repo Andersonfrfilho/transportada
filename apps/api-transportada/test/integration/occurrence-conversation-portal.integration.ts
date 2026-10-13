@@ -19,6 +19,7 @@ import {
   contractors,
   identityUsers,
   occurrenceConversationAttachments,
+  occurrenceContractorReplies,
   occurrenceConversationMessages,
   occurrenceConversations,
   storedObjects,
@@ -32,6 +33,7 @@ import { createSendContractorPortalMessageUseCase } from '../../src/occurrence-c
 import { createPublicRef } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createDrizzleContractorPortalMessageUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import { openContractorReply } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
   createOccurrenceMailUseCase,
@@ -578,6 +580,79 @@ describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', ()
         })
 
         expect(view?.contractorPortal).toEqual({ available: false })
+      })
+    },
+    30_000,
+  )
+})
+
+describe('a resposta pelo portal move o retorno (spec 248 T4.5, CA02)', () => {
+  testWithPostgres(
+    'mensagem do portal sem anexo aceito leva o retorno ao operador, na mesma transação',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const portal = await seedPortalUser(database, companyId)
+        const scope = resolveContractorScope([
+          { contractorId: await contractorIdOf(database, companyId), taxId: EMITTER_TAX_ID },
+        ])
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+        const useCase = createUseCase(database, () => scope)
+        const ref =
+          (
+            await useCase.conversationRefs({
+              context: portal,
+              occurrenceIds: [seeded.occurrenceId],
+            })
+          ).get(seeded.occurrenceId)?.ref ?? ''
+        const [conversation] = await database.db
+          .select({ id: occurrenceConversations.id })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.companyId, companyId))
+        await openContractorReply(database.db, {
+          companyId,
+          configuration: {
+            alertIntervalMinutes: 60,
+            alertMaxCount: 24,
+            alertMode: 'off',
+            attachmentKind: 'pdf',
+            driverReplyChannel: 'app_chat',
+            driverReplyTemplate: 'Segue o boleto prorrogado.',
+            driverReplyWindowClosedAction: 'fallback_app_chat',
+            forwardEmailBody: '',
+            forwardEmailSubject: '',
+            forwardToInformedEmail: 'off',
+            forwardToNoteRecipient: 'off',
+            mode: 'forward_automatic',
+            version: 1,
+            waitHours: 6,
+          },
+          conversationId: conversation?.id ?? '',
+          deadlineAt: null,
+          occurrenceId: seeded.occurrenceId,
+        })
+
+        await useCase.send({
+          bodyText: 'Segue o boleto no corpo.',
+          context: portal,
+          idempotencyKey: 'portal-send-key-0248',
+          ref,
+        })
+
+        const [reply] = await database.db
+          .select({
+            reason: occurrenceContractorReplies.reason,
+            replyMessageId: occurrenceContractorReplies.replyMessageId,
+            status: occurrenceContractorReplies.status,
+          })
+          .from(occurrenceContractorReplies)
+          .where(eq(occurrenceContractorReplies.companyId, companyId))
+        expect(reply).toMatchObject({
+          reason: 'no_accepted_attachment',
+          status: 'needs_operator',
+        })
+        expect(reply?.replyMessageId).not.toBeNull()
       })
     },
     30_000,

@@ -58,6 +58,29 @@ import { cargoArrivalDocuments } from './cargo-arrival-document.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 import {
+  CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
+  CONTRACTOR_REPLY_ALERT_MAX_COUNT,
+  CONTRACTOR_REPLY_ALERT_MODES,
+  CONTRACTOR_REPLY_ATTACHMENT_KINDS,
+  CONTRACTOR_REPLY_MODES,
+  CONTRACTOR_REPLY_TYPE_DEFAULTS,
+  CONTRACTOR_REPLY_WAIT_HOURS,
+  DRIVER_REPLY_CHANNELS,
+  DRIVER_REPLY_TEMPLATE_MAX_LENGTH,
+  DRIVER_REPLY_WINDOW_CLOSED_ACTIONS,
+  FORWARD_EMAIL_BODY_MAX_LENGTH,
+  FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
+  FORWARD_TO_INFORMED_EMAIL_MODES,
+  FORWARD_TO_NOTE_RECIPIENT_MODES,
+  type ContractorReplyAlertMode,
+  type ContractorReplyAttachmentKind,
+  type ContractorReplyMode,
+  type DriverReplyChannel,
+  type DriverReplyWindowClosedAction,
+  type ForwardToInformedEmailMode,
+  type ForwardToNoteRecipientMode,
+} from '../shared/occurrence-contractor-reply.constant.js'
+import {
   buildEventLocationChecks,
   buildEventLocationColumns,
   buildEventLocationCompanyIndex,
@@ -2922,6 +2945,50 @@ export const companyOccurrenceTypes = pgTable(
     emailItemLineTemplate: text('email_item_line_template').notNull().default(''),
     /** A design-system icon name from the closed catalog; `NULL` keeps the type without an icon. */
     iconName: varchar('icon_name', { length: 32 }).$type<OccurrenceTypeIconName>(),
+    /**
+     * Spec 248 (RF1): what the occurrence does with the contractor's answer. Constant defaults, so no
+     * existing type changes behavior on migrate; nothing is switched on by type name.
+     */
+    contractorReplyMode: varchar('contractor_reply_mode', { length: 32 })
+      .$type<ContractorReplyMode>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.mode),
+    contractorReplyAttachmentKind: varchar('contractor_reply_attachment_kind', { length: 16 })
+      .$type<ContractorReplyAttachmentKind>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.attachmentKind),
+    driverReplyChannel: varchar('driver_reply_channel', { length: 16 })
+      .$type<DriverReplyChannel>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.driverReplyChannel),
+    driverReplyWindowClosedAction: varchar('driver_reply_window_closed_action', { length: 24 })
+      .$type<DriverReplyWindowClosedAction>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.driverReplyWindowClosedAction),
+    driverReplyTemplate: text('driver_reply_template').notNull().default(''),
+    /** Null means no deadline. */
+    contractorReplyWaitHours: smallint('contractor_reply_wait_hours'),
+    contractorReplyAlertMode: varchar('contractor_reply_alert_mode', { length: 16 })
+      .$type<ContractorReplyAlertMode>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.alertMode),
+    contractorReplyAlertIntervalMinutes: smallint('contractor_reply_alert_interval_minutes')
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.alertIntervalMinutes),
+    contractorReplyAlertMaxCount: smallint('contractor_reply_alert_max_count')
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.alertMaxCount),
+    /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
+    forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
+      .$type<ForwardToNoteRecipientMode>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.forwardToNoteRecipient),
+    forwardToInformedEmail: varchar('forward_to_informed_email', { length: 16 })
+      .$type<ForwardToInformedEmailMode>()
+      .notNull()
+      .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.forwardToInformedEmail),
+    forwardEmailSubject: text('forward_email_subject').notNull().default(''),
+    forwardEmailBody: text('forward_email_body').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3027,6 +3094,78 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_icon_name_check',
       sql`${table.iconName} is null or ${table.iconName} in (${raw(inList(OCCURRENCE_TYPE_ICON_NAMES))})`,
     ),
+    check(
+      'company_occurrence_types_contractor_reply_mode_check',
+      sql`${table.contractorReplyMode} in (${raw(inList(CONTRACTOR_REPLY_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_attachment_kind_check',
+      sql`${table.contractorReplyAttachmentKind} in (${raw(inList(CONTRACTOR_REPLY_ATTACHMENT_KINDS))})`,
+    ),
+    check(
+      'company_occurrence_types_driver_reply_channel_check',
+      sql`${table.driverReplyChannel} in (${raw(inList(DRIVER_REPLY_CHANNELS))})`,
+    ),
+    check(
+      'company_occurrence_types_driver_reply_window_action_check',
+      sql`${table.driverReplyWindowClosedAction} in (${raw(inList(DRIVER_REPLY_WINDOW_CLOSED_ACTIONS))})`,
+    ),
+    check(
+      'company_occurrence_types_driver_reply_template_check',
+      sql`char_length(${table.driverReplyTemplate}) <= ${raw(String(DRIVER_REPLY_TEMPLATE_MAX_LENGTH))}`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_wait_hours_check',
+      sql`${table.contractorReplyWaitHours} between ${raw(String(CONTRACTOR_REPLY_WAIT_HOURS.min))} and ${raw(String(CONTRACTOR_REPLY_WAIT_HOURS.max))}`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_alert_mode_check',
+      sql`${table.contractorReplyAlertMode} in (${raw(inList(CONTRACTOR_REPLY_ALERT_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_alert_interval_check',
+      sql`${table.contractorReplyAlertIntervalMinutes} between ${raw(String(CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES.min))} and ${raw(String(CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES.max))}`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_alert_max_count_check',
+      sql`${table.contractorReplyAlertMaxCount} between ${raw(String(CONTRACTOR_REPLY_ALERT_MAX_COUNT.min))} and ${raw(String(CONTRACTOR_REPLY_ALERT_MAX_COUNT.max))}`,
+    ),
+    check(
+      'company_occurrence_types_forward_to_note_recipient_check',
+      sql`${table.forwardToNoteRecipient} in (${raw(inList(FORWARD_TO_NOTE_RECIPIENT_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_forward_to_informed_email_check',
+      sql`${table.forwardToInformedEmail} in (${raw(inList(FORWARD_TO_INFORMED_EMAIL_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_forward_email_subject_check',
+      sql`char_length(${table.forwardEmailSubject}) <= ${raw(String(FORWARD_EMAIL_SUBJECT_MAX_LENGTH))}`,
+    ),
+    check(
+      'company_occurrence_types_forward_email_body_check',
+      sql`char_length(${table.forwardEmailBody}) <= ${raw(String(FORWARD_EMAIL_BODY_MAX_LENGTH))}`,
+    ),
+    /**
+     * Spec 248: the four cross-field rules. They read only the type row; the contractor exception can
+     * still change the effective mode, so the use cases validate the effective configuration too.
+     */
+    check(
+      'company_occurrence_types_contractor_reply_requires_mail_check',
+      sql`${table.contractorReplyMode} = 'off' or (${table.emailsContractor} and btrim(${table.driverReplyTemplate}) <> '')`,
+    ),
+    check(
+      'company_occurrence_types_contractor_reply_alert_wait_check',
+      sql`${table.contractorReplyAlertMode} = 'off' or ${table.contractorReplyWaitHours} is not null`,
+    ),
+    check(
+      'company_occurrence_types_forward_automatic_needs_reply_check',
+      sql`${table.forwardToNoteRecipient} <> 'automatic' or ${table.contractorReplyMode} <> 'off'`,
+    ),
+    check(
+      'company_occurrence_types_forward_needs_text_check',
+      sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],
 )
@@ -3065,6 +3204,14 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     declaredAmountMode: varchar('declared_amount_mode', {
       length: 16,
     }).$type<DeliveryProofFieldMode>(),
+    /** Spec 248: the reply behavior belongs to the contractor; null inherits the type, no default. */
+    contractorReplyMode: varchar('contractor_reply_mode', {
+      length: 32,
+    }).$type<ContractorReplyMode>(),
+    contractorReplyWaitHours: smallint('contractor_reply_wait_hours'),
+    forwardToNoteRecipient: varchar('forward_to_note_recipient', {
+      length: 16,
+    }).$type<ForwardToNoteRecipientMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3135,6 +3282,18 @@ export const companyOccurrenceTypeContractorOverrides = pgTable(
     check(
       'occurrence_type_contractor_overrides_declared_amount_mode_check',
       sql`${table.declaredAmountMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_reply_mode_check',
+      sql`${table.contractorReplyMode} in (${raw(inList(CONTRACTOR_REPLY_MODES))})`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_reply_wait_hours_check',
+      sql`${table.contractorReplyWaitHours} between ${raw(String(CONTRACTOR_REPLY_WAIT_HOURS.min))} and ${raw(String(CONTRACTOR_REPLY_WAIT_HOURS.max))}`,
+    ),
+    check(
+      'occurrence_type_contractor_overrides_forward_note_check',
+      sql`${table.forwardToNoteRecipient} in (${raw(inList(FORWARD_TO_NOTE_RECIPIENT_MODES))})`,
     ),
   ],
 )

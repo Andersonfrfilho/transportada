@@ -20,6 +20,7 @@ import {
   type OccurrenceTypeSaveInput,
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeContractorMail } from './OccurrenceTypeContractorMail.component'
+import { OccurrenceTypeContractorReply } from './OccurrenceTypeContractorReply.component'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
 import { OccurrenceTypeIdentity } from './OccurrenceTypeIdentity.component'
 import { OccurrenceTypeMoments } from './OccurrenceTypeMoments.component'
@@ -88,6 +89,10 @@ export function OccurrenceTypeRow({
       {/* Spec 247 RF3: API anterior ao campo não manda `emailsContractor` — sem o bloco, nada que ela recusaria. */}
       {type.emailsContractor === undefined ? null : (
         <OccurrenceTypeContractorMail disabled={isDisabled} onEdit={handleEdit} type={type} />
+      )}
+      {/* Spec 248 T5.1: API anterior ao campo não manda `contractorReplyMode` — sem o bloco. */}
+      {type.contractorReplyMode === undefined || type.emailsContractor !== true ? null : (
+        <OccurrenceTypeContractorReply disabled={isDisabled} onEdit={handleEdit} type={type} />
       )}
       <OccurrenceTypeNotification
         disabled={isDisabled}
