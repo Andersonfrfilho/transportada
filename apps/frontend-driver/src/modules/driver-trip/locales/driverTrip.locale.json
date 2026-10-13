@@ -122,6 +122,15 @@
     "noteCount_one": "{{count}} nota",
     "noteCount_other": "{{count}} notas"
   },
+  "contractorReply": {
+    "label": "Retorno da contratante",
+    "sent": "Pedido enviado à contratante",
+    "stage": {
+      "delivered": "Entregue a você na conversa",
+      "received": "Boleto recebido",
+      "waiting": "Aguardando a contratante"
+    }
+  },
   "documentDetails": {
     "seeKey": "Ver chave",
     "hideKey": "Ocultar chave"

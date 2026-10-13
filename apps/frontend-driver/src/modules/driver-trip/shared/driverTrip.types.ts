@@ -31,6 +31,31 @@ export type HolidayWarning = Readonly<{
   reasons: readonly HolidayReason[]
 }>
 
+/**
+ * ⚠️ Cópia por valor de `CONTRACTOR_REPLY_STATUSES` da API (spec 248): o vocabulário do estado do retorno da
+ * contratante. O app só lê; um valor fora desta lista tira a ocorrência da tela, nunca derruba a nota.
+ */
+export const CONTRACTOR_REPLY_STATUSES = [
+  'awaiting_contractor',
+  'overdue',
+  'reply_received',
+  'awaiting_operator',
+  'needs_operator',
+  'delivered',
+  'handled',
+  'cancelled',
+] as const
+export type ContractorReplyStatus = (typeof CONTRACTOR_REPLY_STATUSES)[number]
+
+/**
+ * Spec 248 T5.4: uma ocorrência da nota que abriu o retorno da contratante — só o id e o estado, nunca dado
+ * pessoal. Ausente na nota é API anterior ao campo (ADR-0081 §9: o app vai antes da API) ou nota sem retorno.
+ */
+export type DriverRegisteredOccurrence = Readonly<{
+  contractorReply: Readonly<{ status: ContractorReplyStatus }> | null
+  id: string
+}>
+
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
@@ -69,6 +94,8 @@ export type DriverTripDocument = Readonly<{
    */
   recipientIsCompany: boolean
   recipientName: string
+  /** Spec 248 T5.4: as ocorrências da nota com retorno da contratante e o estado dele. Ausente = nada na tela. */
+  registeredOccurrences?: readonly DriverRegisteredOccurrence[]
   returnReason: string | null
   separationStatus: string
   series: string
