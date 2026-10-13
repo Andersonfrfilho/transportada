@@ -2,7 +2,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { useContractorReplyQuery } from '../queries/contractorReply.query'
@@ -36,7 +38,10 @@ function ContractorReplyFacts({ reply }: Readonly<{ reply: ContractorReplyView }
     <dl className={styles.facts}>
       {isWaiting && reply.deadlineAt !== null ? (
         <div>
-          <dt>{t('contractorReply.deadline')}</dt>
+          <dt>
+            <Icon name="calendar" size="sm" />
+            {t('contractorReply.deadline')}
+          </dt>
           <dd>
             {formatMoment(reply.deadlineAt)}
             {state.isDeadlinePassed ? ` · ${t('contractorReply.deadlinePassed')}` : null}
@@ -45,7 +50,10 @@ function ContractorReplyFacts({ reply }: Readonly<{ reply: ContractorReplyView }
       ) : null}
       {reply.status === 'overdue' ? (
         <div>
-          <dt>{t('contractorReply.alertsLabel')}</dt>
+          <dt>
+            <Icon name="alert" size="sm" />
+            {t('contractorReply.alertsLabel')}
+          </dt>
           <dd>
             {t('contractorReply.alertsProgress', {
               count: reply.alertCount,
@@ -56,13 +64,19 @@ function ContractorReplyFacts({ reply }: Readonly<{ reply: ContractorReplyView }
       ) : null}
       {state.reasonKey === null ? null : (
         <div>
-          <dt>{t('contractorReply.reasonLabel')}</dt>
+          <dt>
+            <Icon name="alert" size="sm" />
+            {t('contractorReply.reasonLabel')}
+          </dt>
           <dd>{t(state.reasonKey)}</dd>
         </div>
       )}
       {reply.handledNote === null ? null : (
         <div>
-          <dt>{t('contractorReply.handledNoteLabel')}</dt>
+          <dt>
+            <Icon name="edit" size="sm" />
+            {t('contractorReply.handledNoteLabel')}
+          </dt>
           <dd className={styles.note}>{reply.handledNote}</dd>
         </div>
       )}
@@ -116,10 +130,28 @@ export function ContractorReplyPanel({
   const badgeText = state.reasonKey === null ? statusText : `${statusText} (${t(state.reasonKey)})`
 
   return (
-    <section aria-labelledby="contractor-reply-title" className={styles.panel}>
+    <section
+      aria-labelledby="contractor-reply-title"
+      className={styles.panel}
+      data-status={reply.status}
+    >
       <div className={conversationStyles.panelHead}>
-        <h3 id="contractor-reply-title">{t('contractorReply.title')}</h3>
-        <Badge variant={state.tone}>{badgeText}</Badge>
+        <h3 id="contractor-reply-title">
+          <Icon name="invoice" size="sm" />
+          {t('contractorReply.title')}
+        </h3>
+        <Tooltip label={t(`contractorReply.hint.${reply.status}`)}>
+          <Badge
+            className={styles.statusBadge}
+            data-status={reply.status}
+            key={reply.status}
+            tabIndex={0}
+            variant={state.tone}
+          >
+            <Icon name={state.iconName} size="sm" />
+            {badgeText}
+          </Badge>
+        </Tooltip>
       </div>
       <ContractorReplyFacts reply={reply} />
       {canResolve &&

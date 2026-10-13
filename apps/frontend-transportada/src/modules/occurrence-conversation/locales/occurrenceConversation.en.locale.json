@@ -385,6 +385,16 @@
         "no_accepted_attachment": "no accepted attachment",
         "multiple_attachments": "more than one attachment"
       }
+    },
+    "hint": {
+      "awaiting_contractor": "We asked the contractor for the boleto and are waiting for the reply.",
+      "awaiting_operator": "The contractor replied with the boleto. You still need to check it and send it to the driver.",
+      "cancelled": "The occurrence was cancelled, so this reply no longer proceeds.",
+      "delivered": "The boleto was already sent to the driver in the app chat.",
+      "handled": "Someone in operations resolved this outside the system and left a note.",
+      "needs_operator": "The reply could not be read automatically. Open the conversation and decide.",
+      "overdue": "The contractor missed the deadline. Consider calling or resending the request.",
+      "reply_received": "The contractor replied with the boleto and it is on its way to the driver."
     }
   }
 }
