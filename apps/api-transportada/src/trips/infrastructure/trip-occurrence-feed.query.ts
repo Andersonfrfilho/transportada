@@ -53,6 +53,12 @@ import type {
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
+import {
+  buildTakenByView,
+  latestTakenEventId,
+  takenByEvent,
+  takenByProfile,
+} from './occurrence-case-taken-by.support.js'
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import {
   buildOccurrenceTypeItemsView,
@@ -224,6 +230,8 @@ async function listDocumentOccurrenceRows(
       caseRedeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
       caseStatus: tripOccurrenceCases.status,
       caseUpdatedAt: tripOccurrenceCases.updatedAt,
+      takenAt: takenByEvent.occurredAt,
+      takenByName: takenByProfile.name,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
@@ -307,6 +315,14 @@ async function listDocumentOccurrenceRows(
       ),
     )
     .leftJoin(
+      takenByEvent,
+      and(
+        eq(takenByEvent.companyId, tripOccurrenceCases.companyId),
+        eq(takenByEvent.id, latestTakenEventId()),
+      ),
+    )
+    .leftJoin(takenByProfile, eq(takenByProfile.userId, takenByEvent.actorUserId))
+    .leftJoin(
       feedActorMembership,
       and(
         eq(feedActorMembership.companyId, tripDocumentOccurrences.companyId),
@@ -370,6 +386,8 @@ function buildCaseView(row: {
   readonly caseRedeliveryPolicy: RedeliveryPolicy | null
   readonly caseStatus: TripOccurrenceCaseStatus | null
   readonly caseUpdatedAt: Date | null
+  readonly takenAt: Date | null
+  readonly takenByName: string | null
 }): TripOccurrenceFeedCaseView | null {
   if (row.caseId === null || row.caseStatus === null || row.caseRedeliveryPolicy === null) {
     return null
@@ -386,6 +404,7 @@ function buildCaseView(row: {
     redeliveryPolicy: row.caseRedeliveryPolicy === 'blocked' ? 'blocked' : 'allowed',
     settlementTotal: null,
     status: row.caseStatus,
+    takenBy: buildTakenByView(row),
     updatedAt: row.caseUpdatedAt?.toISOString() ?? new Date(0).toISOString(),
   }
 }

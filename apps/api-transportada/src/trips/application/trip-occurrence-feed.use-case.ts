@@ -47,6 +47,12 @@ export type TripOccurrenceFeedCaseView = {
   readonly redeliveryPolicy: 'allowed' | 'blocked'
   readonly settlementTotal: null
   readonly status: TripOccurrenceCaseStatus
+  /**
+   * Quem pegou a tratativa: o ator da transição mais recente para `under_review`. `null` enquanto
+   * ninguém iniciou a validação (ou o caso foi cancelado antes disso). Só o nome do perfil — nunca
+   * e-mail nem telefone — e só nesta leitura do escritório; o portal da contratante não a recebe.
+   */
+  readonly takenBy: { readonly displayName: null | string; readonly takenAt: string } | null
   readonly updatedAt: string
 }
 
