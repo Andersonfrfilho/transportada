@@ -116,6 +116,10 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
+  /* Movimento: tokens de duração; tela com animação respeita prefers-reduced-motion (web.md §16). */
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
   --layout-gutter: var(--space-8);
   --layout-max-width: 78rem;
   --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
