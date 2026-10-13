@@ -10,6 +10,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import {
+  resolveOccurrenceTakenByView,
+  TAKEN_BY_STALE_AFTER_HOURS,
+} from '@/modules/trip/shared/occurrenceTakenBy.service'
 import { createTripOccurrenceFeedClient } from '@/modules/trip/shared/tripOccurrenceFeedClient.service'
 import { EMPTY_TRIP_OCCURRENCE_FILTERS } from '@/modules/trip/shared/tripOccurrenceFeed.service'
 
@@ -130,6 +134,109 @@ describe('tolerância a case/settlementTotal ausentes no feed (achados B5/B6)', 
     const caught = await client.listOccurrences(LIST_INPUT).catch((error: unknown) => error)
 
     expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
+  })
+})
+
+/**
+ * Spec 164 (quem pegou), ADR-0081 §9: `takenBy` chegou depois do feed. O painel aceita ausente
+ * (API anterior) e malformado como "ninguém pegou" — nunca derruba a lista —, e só guarda nome e
+ * hora: qualquer outra chave que a API mandasse (contato) não passa para a tela.
+ */
+describe('quem pegou no feed (spec 164)', () => {
+  const TAKEN_BY = { displayName: 'Marina Souza', takenAt: '2026-09-22T19:20:00.000Z' } as const
+
+  async function readCase(takenBy: unknown) {
+    const rawCase: Record<string, unknown> = { ...CASE_VIEW, status: 'under_review' }
+    if (takenBy !== undefined) rawCase.takenBy = takenBy
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ case: rawCase })],
+        pagination: { nextCursor: null },
+      }),
+    )
+    const page = await client.listOccurrences(LIST_INPUT)
+    return page.items[0]?.case
+  }
+
+  test('lê quem pegou e desde quando', async () => {
+    expect((await readCase(TAKEN_BY))?.takenBy).toEqual(TAKEN_BY)
+  })
+
+  test('ausente (API anterior) e nulo viram ninguém pegou', async () => {
+    expect((await readCase(undefined))?.takenBy).toBeNull()
+    expect((await readCase(null))?.takenBy).toBeNull()
+  })
+
+  test('malformado não reprova o item: vira ninguém pegou', async () => {
+    expect((await readCase({ displayName: 'Sem hora' }))?.takenBy).toBeNull()
+    expect((await readCase('Marina'))?.takenBy).toBeNull()
+  })
+
+  test('nome ausente é aceito (perfil removido) e dado de contato não passa', async () => {
+    const taken = (
+      await readCase({
+        email: 'marina@example.com',
+        phone: '11999990000',
+        takenAt: TAKEN_BY.takenAt,
+      })
+    )?.takenBy
+    expect(taken).toEqual({ displayName: null, takenAt: TAKEN_BY.takenAt })
+  })
+})
+
+describe('o que a tela diz sobre quem pegou (spec 164)', () => {
+  const NOW = Date.parse('2026-09-22T20:00:00.000Z')
+  const baseCase = {
+    decision: null,
+    redeliveryPolicy: 'allowed',
+    settlementTotal: null,
+    status: 'recorded',
+    takenBy: null,
+    updatedAt: '2026-09-22T19:00:00.000Z',
+  } as const
+
+  test('sem tratativa não há o que dizer', () => {
+    expect(resolveOccurrenceTakenByView({ now: NOW, occurrenceCase: null })).toBeNull()
+  })
+
+  test('registrada e sem ninguém: espera, neutra na primeira hora', () => {
+    expect(resolveOccurrenceTakenByView({ now: NOW, occurrenceCase: baseCase })).toEqual({
+      hoursWaiting: 1,
+      isStale: false,
+      kind: 'waiting',
+      since: baseCase.updatedAt,
+    })
+  })
+
+  test('registrada há horas e sem ninguém: vira atenção a partir do limite', () => {
+    const later = NOW + (TAKEN_BY_STALE_AFTER_HOURS - 1) * 3_600_000
+    const view = resolveOccurrenceTakenByView({ now: later, occurrenceCase: baseCase })
+    expect(view).toMatchObject({ isStale: true, kind: 'waiting' })
+  })
+
+  test('com quem pegou: nome, iniciais e hora', () => {
+    const view = resolveOccurrenceTakenByView({
+      now: NOW,
+      occurrenceCase: {
+        ...baseCase,
+        status: 'under_review',
+        takenBy: { displayName: 'Marina Souza', takenAt: '2026-09-22T19:20:00.000Z' },
+      },
+    })
+    expect(view).toEqual({
+      initials: 'MS',
+      kind: 'taken',
+      name: 'Marina Souza',
+      takenAt: '2026-09-22T19:20:00.000Z',
+    })
+  })
+
+  test('cancelada antes de alguém pegar não pede ninguém', () => {
+    const view = resolveOccurrenceTakenByView({
+      now: NOW,
+      occurrenceCase: { ...baseCase, status: 'cancelled' },
+    })
+    expect(view).toEqual({ kind: 'none' })
   })
 })
 

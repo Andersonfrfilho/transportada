@@ -198,6 +198,7 @@ describe('listagem de ocorrências — colunas da nota', () => {
       'destination',
       'invoiceValue',
       'conversation',
+      'takenBy',
       'notified',
     ])
   })
@@ -272,6 +273,7 @@ describe('listagem de ocorrências — coluna Conversa', () => {
     redeliveryPolicy: 'allowed',
     settlementTotal: null,
     status: 'decided',
+    takenBy: null,
     updatedAt: '2026-09-24T12:00:00.000Z',
   } as const
 

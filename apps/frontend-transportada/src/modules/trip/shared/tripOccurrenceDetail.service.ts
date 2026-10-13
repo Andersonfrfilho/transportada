@@ -22,7 +22,7 @@ export type OccurrenceDriverContact = Readonly<{
 }>
 
 /** Duas letras: primeira e última palavra do nome — o avatar quando não há foto. */
-function initialsOf(name: string): string {
+export function initialsOf(name: string): string {
   const words = name
     .trim()
     .split(/\s+/u)

@@ -23,6 +23,7 @@ import {
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
+import { OccurrenceCaseTakenBy } from './OccurrenceCaseTakenBy.component'
 import {
   buildTripOccurrenceRoute,
   navigateToTripOccurrence,
@@ -140,6 +141,13 @@ function OccurrenceCell({
     return <OccurrenceDocumentCell column={column} item={item} />
   }
   if (column === 'conversation') return <OccurrenceConversationCell item={item} />
+  if (column === 'takenBy') {
+    return (
+      <td>
+        <OccurrenceCaseTakenBy occurrenceCase={item.case} variant="inline" />
+      </td>
+    )
+  }
   /** A marca de aviso enviado: o tipo cadastrado que notifica o embarcador. */
   return (
     <td>
@@ -296,6 +304,14 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             <dt>{t('occurrenceFeed.columns.driverName')}</dt>
             <dd>{item.driverName}</dd>
           </div>
+          {item.case === null ? null : (
+            <div>
+              <dt>{t('occurrenceFeed.columns.takenBy')}</dt>
+              <dd>
+                <OccurrenceCaseTakenBy occurrenceCase={item.case} variant="inline" />
+              </dd>
+            </div>
+          )}
         </dl>
         {conversation.state === null &&
         conversation.driverUnreadCount === 0 &&

@@ -1448,6 +1448,7 @@
       "notified": "Aviso",
       "stage": "Grupo",
       "stopLabel": "Parada",
+      "takenBy": "Responsável",
       "typeName": "Tipo",
       "vehiclePlate": "Placa"
     },
@@ -2221,6 +2222,22 @@
     "unreachableDocuments": "Notas fora do alcance desta viagem: {{documents}}.",
     "photoChoose": "Escolher foto",
     "photoEmpty": "Nenhuma foto escolhida"
+  },
+  "occurrenceTakenBy": {
+    "title": "Quem pegou",
+    "taken": "Pegou",
+    "unknownName": "Alguém da equipe",
+    "since": "desde {{moment}}",
+    "waiting": "Ninguém pegou ainda",
+    "waitingSince": "Registrada em {{moment}}",
+    "stale": "Parada há {{hours}} h sem ninguém pegar",
+    "none": "Sem responsável registrado",
+    "hint": {
+      "taken": "Quem pegou é quem iniciou a validação interna e conduz a tratativa.",
+      "waiting": "Ninguém iniciou a validação interna. Quem pode tratar a ocorrência assume clicando em Iniciar validação interna.",
+      "stale": "Já faz horas que ninguém iniciou a validação interna ({{hours}} h). Alguém precisa pegar esta ocorrência.",
+      "none": "Esta tratativa não passou pela validação interna: foi cancelada antes, ou é anterior a este registro."
+    }
   },
   "occurrenceCase": {
     "none": "Sem tratativa aberta para esta ocorrência.",

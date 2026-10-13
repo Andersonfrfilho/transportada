@@ -1448,6 +1448,7 @@
       "notified": "Notice",
       "stage": "Group",
       "stopLabel": "Stop",
+      "takenBy": "Owner",
       "typeName": "Type",
       "vehiclePlate": "Plate"
     },
@@ -2221,6 +2222,22 @@
     "unreachableDocuments": "Documents outside this trip's reach: {{documents}}.",
     "photoChoose": "Choose photo",
     "photoEmpty": "No photo chosen"
+  },
+  "occurrenceTakenBy": {
+    "title": "Taken by",
+    "taken": "Taken by",
+    "unknownName": "Someone on the team",
+    "since": "since {{moment}}",
+    "waiting": "Nobody has taken it yet",
+    "waitingSince": "Recorded {{moment}}",
+    "stale": "Waiting {{hours}} h with nobody taking it",
+    "none": "No owner on record",
+    "hint": {
+      "taken": "Whoever took it started the internal review and drives the case.",
+      "waiting": "Nobody has started the internal review. Anyone allowed to handle the occurrence takes it by clicking Start internal review.",
+      "stale": "It has been {{hours}} h and nobody started the internal review. Someone needs to take this occurrence.",
+      "none": "This case never went through the internal review: it was cancelled first, or predates this record."
+    }
   },
   "occurrenceCase": {
     "none": "No case opened for this occurrence.",
