@@ -434,6 +434,5 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 **Não provado:** o fluxo no navegador (sino → conversa → toque em `boleto.pdf` → download). O app do motorista faz login real no Keycloak em `localhost:58080`, porta no intervalo reservado pelo Windows
 (58002–58101) nesta máquina, e não há Chromium do Playwright no Ubuntu.
 
-
 **Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
 (2) "Pedido enviado à contratante" (acima).
