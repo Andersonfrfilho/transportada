@@ -89,6 +89,8 @@ export default defineRailway((ctx) => {
       API_PUBLIC_URL: preserve(),
       APP_ENV: preserve(),
       APP_PORT: preserve(),
+      /** Só informativo na tela da empresa: o teto que a rotina do worker aplica. */
+      AUDIO_TRANSCRIPTION_MAX_DURATION_MS: '600000',
       BOOTSTRAP_TOKEN: preserve(),
       DATABASE_URL: preserve(),
       /**
@@ -156,6 +158,14 @@ export default defineRailway((ctx) => {
       API_BASE_URL: preserve(),
       APP_BASE_URL: preserve(),
       APP_ENV: preserve(),
+      AUDIO_TRANSCRIPTION_BATCH_SIZE: '2',
+      AUDIO_TRANSCRIPTION_MAX_DURATION_MS: '600000',
+      /** Staging registra a rotina, mas o job_schedules nasce PAUSADO pela migration: nada roda até alguém retomar. */
+      AUDIO_TRANSCRIPTION_MODEL_PATH: isProduction ? preserve() : '/models/ggml-small-q5_1.bin',
+      AUDIO_TRANSCRIPTION_RECOVERY_WINDOW_HOURS: '72',
+      /** Sem valor o padrão é vCPU - 1; a ADR-0103 mediu com 7 no plano de 8 vCPU. */
+      AUDIO_TRANSCRIPTION_THREADS: preserve(),
+      AUDIO_TRANSCRIPTION_TIMEOUT_MS: '300000',
       CTE_TECHNICAL_RESPONSIBLE_CNPJ: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CONTACT: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_EMAIL: preserve(),
