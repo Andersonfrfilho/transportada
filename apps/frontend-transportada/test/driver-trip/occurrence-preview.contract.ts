@@ -37,9 +37,10 @@ function readApiOccurrenceTemplates(): Readonly<Record<string, ApiTemplate>> {
     ]),
   )
 
+  // O alerta de retorno vencido da contratante (spec 248) é da operação, não motivo de parada.
   const entries = [
     ...source.matchAll(
-      /placeholders: \[([^\]]*)\],\s*templateKey: NOTIFICATION_TEMPLATE_KEY\.(TRIP_OCCURRENCE_\w+),[\s\S]*?inbox: \{\s*body: '([^']*)'/gu,
+      /placeholders: \[([^\]]*)\],\s*templateKey: NOTIFICATION_TEMPLATE_KEY\.(TRIP_OCCURRENCE_(?!CONTRACTOR_REPLY)\w+),[\s\S]*?inbox: \{\s*body: '([^']*)'/gu,
     ),
   ]
 
