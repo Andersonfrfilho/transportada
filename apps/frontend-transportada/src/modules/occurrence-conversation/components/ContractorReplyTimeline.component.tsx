@@ -4,15 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
-<<<<<<< HEAD
-import { isResendRequestEvent } from '../shared/contractorReply.service'
-=======
 import {
   ICON_BY_DELIVERY_STATUS,
   ICON_BY_DELIVERY_TARGET,
   ICON_BY_STATUS,
+  isResendRequestEvent,
 } from '../shared/contractorReply.service'
->>>>>>> origin/staging
 import type { ContractorReplyDelivery, ContractorReplyEvent } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 

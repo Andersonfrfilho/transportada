@@ -213,6 +213,8 @@ describe('POST /trip-occurrences/:id/contractor-reply/resend-request (spec 248 R
       rateLimitWindows: { consume: async () => ({ allowed: true }) },
       routes: createOccurrenceContractorReplyRoutes({
         deliverToDriver: { deliver: async () => ({ kind: 'already_delivered' }) },
+        emailOptions: { read: async () => null },
+        forwardByEmail: { forward: async () => ({}) as never },
         markHandled: { markHandled: async () => ({ kind: 'handled' }) },
         readReply: createReadContractorReplyUseCase({
           reader: { findByOccurrence: async () => null },
