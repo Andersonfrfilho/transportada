@@ -2095,6 +2095,8 @@
     "reorderHandle": "Drag to reorder stop {{label}}",
     "selectAll": "Select every document at stop {{label}}",
     "selectAllTrip": "Select every document in the trip",
+    "releasedBadge": "Removed from trip",
+    "releasedHint": "This document was unlinked from the trip. It stays here as history and is left out of the totals.",
     "selectDocument": "Select document {{document}}",
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",
