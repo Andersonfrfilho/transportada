@@ -52,6 +52,8 @@ export type OccurrenceTripMapNoteStop = Readonly<{
 export type OccurrenceTripMapView = Readonly<{
   categories: readonly TimelineMapCategory[]
   entries: readonly OccurrenceTripMapEntry[]
+  /** Eventos com pino no mapa. Zero com a parada da nota desenhada ainda é "nenhum evento com posição". */
+  locatedCount: number
   /** `stopsOnly`: leitor sem `trip.event-location` — nenhuma coordenada de evento chega ao mapa. */
   mode: 'events' | 'stopsOnly'
   noteStop: null | OccurrenceTripMapNoteStop
@@ -235,6 +237,7 @@ export function buildOccurrenceTripMapView(input: OccurrenceTripMapInput): Occur
     return {
       categories: [],
       entries: [],
+      locatedCount: 0,
       mode: 'stopsOnly',
       noteStop: stops.noteStop,
       occurrenceState: 'not-found',
@@ -258,6 +261,7 @@ export function buildOccurrenceTripMapView(input: OccurrenceTripMapInput): Occur
   return {
     categories,
     entries,
+    locatedCount: eventPins.length,
     mode: 'events',
     noteStop: stops.noteStop,
     occurrenceState: resolveOccurrenceState(entries),
