@@ -66,6 +66,29 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
     )
   })
 
+  /**
+   * Spec 264 (contract.md §5, D11): o áudio do anexo toca por `<audio src=URL assinada>` e a revisão
+   * da gravação por `blob:`. Sem `media-src` cai em `default-src 'self'` e nada toca — sem erro
+   * visível, só um player mudo. A origem é a do bucket, nunca a da API.
+   */
+  test("media-src é 'self', blob: e a origem do storage", () => {
+    const policy = buildContentSecurityPolicy({
+      ...ORIGINS,
+      allowsInlineScript: false,
+      objectStorageUrl: 'https://bucket.exemplo.test/transportada',
+    })
+
+    expect(readDirective(policy, 'media-src')).toBe(
+      "media-src 'self' blob: https://bucket.exemplo.test",
+    )
+  })
+
+  test('sem bucket configurado, media-src fecha em self e blob: (origem ausente não abre nada)', () => {
+    const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })
+
+    expect(readDirective(policy, 'media-src')).toBe("media-src 'self' blob:")
+  })
+
   /** O `sw.ts` e o manifesto são da própria origem — é o que a spec 147 encontra pronto. */
   test('worker e manifesto só da própria origem, e nada de frame', () => {
     const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })

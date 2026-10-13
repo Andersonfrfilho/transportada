@@ -145,6 +145,7 @@ describe('API de demonstração do motorista: conversas', () => {
     expect(pagination).toEqual({ nextCursor: null })
     expect(data.map((item) => item.subjectType).sort()).toEqual([
       'document',
+      'document',
       'occurrence',
       'occurrence',
       'occurrence',

@@ -23,6 +23,7 @@ function snapshotOf(
     lastMessageAt,
     officeReadAt: officeReadAt ?? null,
     subject: { subjectId, subjectType: 'occurrence' },
+    transcriptionUpdatedAt: null,
     unreadCount,
   }))
 }

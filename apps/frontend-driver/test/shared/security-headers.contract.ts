@@ -35,13 +35,14 @@ async function readSecurityHeaders(): Promise<ReadonlyMap<string, string>> {
 describe('os cabeçalhos da app do motorista (ADR-0075 §4)', () => {
   /**
    * O motorista fotografa o canhoto e a entrega carrega onde aconteceu: câmera e posição abertas
-   * para a própria origem, o valor do painel e não o do portal. O microfone fica fechado.
+   * para a própria origem, o valor do painel e não o do portal. O microfone abre só para a própria
+   * origem (spec 264 D11: o motorista grava áudio na conversa); nunca `*`, nunca outra origem.
    */
-  test('abre câmera e posição para a própria origem e fecha o microfone', async () => {
+  test('abre câmera, posição e microfone para a própria origem', async () => {
     const headers = await readSecurityHeaders()
 
     expect(headers.get('Permissions-Policy')).toBe(
-      'camera=(self), geolocation=(self), microphone=()',
+      'camera=(self), geolocation=(self), microphone=(self)',
     )
   })
 

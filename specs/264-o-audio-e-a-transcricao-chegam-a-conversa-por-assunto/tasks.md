@@ -161,7 +161,7 @@ review,denied}`).
       todo host nessa subida); a `devDependency` de teste da API sobe junto (senão a paridade testa o schema velho;
       `contract.md` §1); `make check` das três + smoke do portal sem mudança. Vale para toda subida futura do
       contracts.
-- [ ] **T4.2** `sonnet` — Contratos antes (importados no agregador `test/conversation.contract.test.ts` /
+- [x] **T4.2** `sonnet` — Contratos antes (importados no agregador `test/conversation.contract.test.ts` /
       `test/shared.contract.test.ts`): `Permissions-Policy` com `microphone=(self)` exato; CSP com `media-src 'self'
 blob: <storage>` (hoje ausente); adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
       **por anexo** e `durationMs` por guarda (inválido ⇒ campo some, a página nunca cai; molde `readChannels`);
