@@ -398,19 +398,14 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
       },
-      /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
-      {
-        rateLimit: {
-          maxRequests: 30,
-          scope: 'occurrence-conversation',
-          store: 'postgres',
-          windowSeconds: 300,
-        },
-        signature: 'POST /trip-occurrences/:id/contractor-reply/resend-request',
-      },
       {
         rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
+      },
+      /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/resend-request',
       },
       {
         rateLimit: bucket,
