@@ -39,6 +39,7 @@ export type CompanySettings = {
     readonly cityIbgeCode: string
     readonly cnpj: string
     readonly complement: string
+    readonly displayNameMode: 'legal_name' | 'trade_name'
     readonly district: string
     readonly email: string
     readonly legalName: string
@@ -127,6 +128,7 @@ export const COMPANY_SETTINGS = {
     street: 'Rua Contract',
     taxRegime: '1',
     tradeName: 'Transportadora Contract',
+    displayNameMode: 'trade_name',
   },
 } as const satisfies CompanySettings
 
@@ -159,6 +161,7 @@ export const EXPECTED_FINGERPRINT_FIELDS = [
   '',
   COMPANY_SETTINGS.profile.legalName,
   COMPANY_SETTINGS.profile.tradeName,
+  COMPANY_SETTINGS.profile.displayNameMode,
   COMPANY_SETTINGS.profile.cnpj,
   COMPANY_SETTINGS.profile.stateRegistration,
   COMPANY_SETTINGS.profile.municipalRegistration,

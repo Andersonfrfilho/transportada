@@ -11,6 +11,8 @@ import {
 } from '../../cte-issuance/domain/cte-retry.policy.js'
 import {
   ACTIVATION_CHANNELS,
+  COMPANY_DISPLAY_NAME_MODES,
+  type CompanyDisplayNameMode,
   DEFAULT_ACTIVATION_CHANNEL,
   type FiscalEnvironment,
 } from '../../database/company-fiscal-profile.schema.js'
@@ -69,6 +71,7 @@ const persistedResponseSchema = z
         cityIbgeCode: z.string(),
         cnpj: z.string(),
         complement: z.string(),
+        displayNameMode: z.enum(COMPANY_DISPLAY_NAME_MODES),
         district: z.string(),
         email: z.string(),
         legalName: z.string(),
@@ -125,6 +128,7 @@ const settingsSelection = {
     cityIbgeCode: companyFiscalProfiles.cityIbgeCode,
     cnpj: companyFiscalProfiles.cnpj,
     complement: companyFiscalProfiles.complement,
+    displayNameMode: companyFiscalProfiles.displayNameMode,
     district: companyFiscalProfiles.district,
     email: companyFiscalProfiles.email,
     legalName: companyFiscalProfiles.legalName,
@@ -179,7 +183,10 @@ function createUnpersistedSequence(environment: FiscalEnvironment): CompanySetti
 
 export function createCompanySettingsResult(
   settings: CompanySettingsInput,
-  profileVersion: bigint,
+  stored: {
+    readonly displayNameMode: CompanyDisplayNameMode
+    readonly version: bigint
+  },
   sequenceVersion: bigint,
 ): CompanySettingsResult {
   return {
@@ -188,7 +195,11 @@ export function createCompanySettingsResult(
     cte: { ...settings.cte, version: sequenceVersion },
     cteRetry: settings.cteRetry,
     mdfe: settings.mdfe,
-    profile: { ...settings.profile, version: profileVersion },
+    profile: {
+      ...settings.profile,
+      displayNameMode: stored.displayNameMode,
+      version: stored.version,
+    },
   }
 }
 

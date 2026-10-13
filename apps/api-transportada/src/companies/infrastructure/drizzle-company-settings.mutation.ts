@@ -3,6 +3,7 @@
  */
 import { and, eq } from 'drizzle-orm'
 
+import type { CompanyDisplayNameMode } from '../../database/company-fiscal-profile.schema.js'
 import { companyFiscalProfiles } from '../../database/database.schema.js'
 import type {
   CompanyBillingDefaultsInput,
@@ -120,14 +121,17 @@ async function createSettings(
       cteRetryBackoffSeconds: [...input.settings.cteRetry.backoffSeconds],
       cteRetryMaxAttempts: input.settings.cteRetry.maxAttempts,
     })
-    .returning({ version: companyFiscalProfiles.version })
+    .returning({
+      displayNameMode: companyFiscalProfiles.displayNameMode,
+      version: companyFiscalProfiles.version,
+    })
   if (profile === undefined) {
     throw new CompanySettingsPersistenceError(
       COMPANY_SETTINGS_PERSISTENCE_FAILURE.profileNotPersisted,
     )
   }
   const sequenceVersion = await persistTargetSequence(transaction, input.companyId, input.settings)
-  return createCompanySettingsResult(input.settings, profile.version, sequenceVersion)
+  return createCompanySettingsResult(input.settings, profile, sequenceVersion)
 }
 
 async function updateSettings(
@@ -136,15 +140,15 @@ async function updateSettings(
   currentVersion: bigint,
 ): Promise<CompanySettingsResult> {
   const sequenceVersion = await persistTargetSequence(transaction, input.companyId, input.settings)
-  const profileVersion = await updateProfile(transaction, input, currentVersion)
-  return createCompanySettingsResult(input.settings, profileVersion, sequenceVersion)
+  const stored = await updateProfile(transaction, input, currentVersion)
+  return createCompanySettingsResult(input.settings, stored, sequenceVersion)
 }
 
 async function updateProfile(
   transaction: CompanySettingsTransaction,
   input: SaveSettingsInput,
   currentVersion: bigint,
-): Promise<bigint> {
+): Promise<{ readonly displayNameMode: CompanyDisplayNameMode; readonly version: bigint }> {
   const [profile] = await transaction
     .update(companyFiscalProfiles)
     .set({
@@ -164,9 +168,12 @@ async function updateProfile(
         eq(companyFiscalProfiles.version, currentVersion),
       ),
     )
-    .returning({ version: companyFiscalProfiles.version })
+    .returning({
+      displayNameMode: companyFiscalProfiles.displayNameMode,
+      version: companyFiscalProfiles.version,
+    })
   if (profile === undefined) {
     throw new CompanySettingsVersionConflictError()
   }
-  return profile.version
+  return profile
 }

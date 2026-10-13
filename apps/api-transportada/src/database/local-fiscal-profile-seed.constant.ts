@@ -51,5 +51,6 @@ export const LOCAL_FISCAL_PROFILE_SETTINGS: CompanySettingsInput = {
     street: 'Avenida do Café',
     taxRegime: '3',
     tradeName: 'AFR Fernandes Transportes',
+    displayNameMode: 'trade_name',
   },
 }

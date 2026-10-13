@@ -4,6 +4,7 @@
  * T304 (RF6): uma transação só cria a conversa, grava a mensagem e o outbox, e marca os pedidos
  * como `sent` — nenhuma decisão de negócio mora aqui (isso é do caso de uso), só leitura e escrita.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
@@ -213,6 +214,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
   }): Promise<string | undefined> {
     const [row] = await this.transaction
       .select({
+        displayNameMode: companyFiscalProfiles.displayNameMode,
         legalName: companyFiscalProfiles.legalName,
         tradeName: companyFiscalProfiles.tradeName,
       })
@@ -220,7 +222,7 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
       .where(eq(companyFiscalProfiles.companyId, params.companyId))
       .limit(1)
     if (row === undefined) return undefined
-    return row.tradeName.trim().length > 0 ? row.tradeName : row.legalName
+    return resolveCompanyDisplayName(row)
   }
 
   public async findOperatorName(params: {

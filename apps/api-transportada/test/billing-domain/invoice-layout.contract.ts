@@ -158,8 +158,7 @@ describe('invoice layout policy contract', () => {
   test('cabeçalho da transportadora vem inteiro do perfil fiscal', () => {
     const { carrier } = buildLayout(buildRows(1))
 
-    expect(carrier.legalName).toBe('TRANSPORTADORA SINTETICA LTDA')
-    expect(carrier.tradeName).toBe('Sintetica Transportes')
+    expect(carrier.displayName).toBe('Sintetica Transportes')
     expect(carrier.taxLine).toBe('CNPJ 11.222.333/0001-81 · IE 110042490114')
     expect(carrier.addressLine).toBe(
       'Rua Sintetica, 1000 · Bairro Sintetico · Cidade Sintetica/SP · CEP 01000-000',

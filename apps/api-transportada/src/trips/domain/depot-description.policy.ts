@@ -13,6 +13,9 @@
  * empresa: dizer "o barracão fica na Avenida do Café" seria afirmar uma coisa que ninguém verificou,
  * e quem cadastrou uma origem diferente da sede leria uma mentira plausível.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
+import type { CompanyDisplayNameMode } from '../../database/company-fiscal-profile.schema.js'
+
 
 /** O telefone é o primeiro da lista de contatos — a ordem que a empresa mesma escolheu. */
 export type DepotDescription = Readonly<{
@@ -27,6 +30,7 @@ export type ResolveDepotDescriptionParams = {
   readonly phone: null | string
   readonly profile: null | {
     readonly city: string
+    readonly displayNameMode?: CompanyDisplayNameMode
     readonly district: string
     readonly legalName: string
     readonly number: string
@@ -59,8 +63,8 @@ export function resolveDepotDescription(
     address: parts.join(' · '),
     legalName: profile.legalName,
     phone: input.phone === null || input.phone.trim() === '' ? null : input.phone,
-    /** Sem nome fantasia cadastrado, quem aparece é a razão social — nunca uma linha vazia. */
-    tradeName: profile.tradeName.trim() === '' ? profile.legalName : profile.tradeName,
+    /** O nome que a empresa escolheu mostrar (Configurações); fantasia vazia cai na razão social. */
+    tradeName: resolveCompanyDisplayName(profile),
   }
 }
 

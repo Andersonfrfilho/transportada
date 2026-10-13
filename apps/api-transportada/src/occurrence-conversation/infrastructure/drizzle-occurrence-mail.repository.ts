@@ -5,6 +5,7 @@
  * `company_id`; a thread, a mensagem e o outbox são os da 143 (`contractor_mail_*`), e a conversa
  * só acrescenta a linha que aponta para a mensagem de lá.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { ConversationAttachmentTransactionPort } from '../application/conversation-attachment.port.js'
 import { createConversationAttachmentTransactionPort } from './drizzle-conversation-attachment.repository.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -123,6 +124,7 @@ async function findCarrierName(
 ): Promise<string | undefined> {
   const [row] = await queryable
     .select({
+      displayNameMode: companyFiscalProfiles.displayNameMode,
       legalName: companyFiscalProfiles.legalName,
       tradeName: companyFiscalProfiles.tradeName,
     })
@@ -130,7 +132,7 @@ async function findCarrierName(
     .where(eq(companyFiscalProfiles.companyId, params.companyId))
     .limit(1)
   if (row === undefined) return undefined
-  return row.tradeName.trim().length > 0 ? row.tradeName : row.legalName
+  return resolveCompanyDisplayName(row)
 }
 
 async function findOperatorName(
