@@ -984,6 +984,32 @@ inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE`
 - **Prints.** `test/spec-196-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH`), com API dublada e
   coordenada sintética; precisa de WebGL por software (`--use-angle=swiftshader`) para o MapLibre subir.
 
+## Mapa da viagem na página da ocorrência (spec 196, extensão)
+
+- **O que mostra.** Painel "Mapa da viagem" (`OccurrenceTripMap.component.tsx`, seção `tripMap` de `occurrenceDetailSectionsFor`, logo
+  abaixo do resumo, também na aba Resumo do celular). Pinos: cada evento da viagem com posição (`TIMELINE_MAP_CATEGORY_BY_KIND` não nulo,
+  `captured` com coordenada), numerado pela ordem em que aconteceu; a ocorrência da página em destaque (o item da linha do tempo com
+  `id` igual ao da ocorrência e `kind` `stop.occurrence`/`document.occurrence`) e a parada da nota. Legenda: tipos (ícone + palavra +
+  cor), uma linha por evento — botão de 44 px que centraliza o pino e abre a dica — e a parada da nota.
+- **A conta é pura** (`occurrenceTripMap.service.ts` + `occurrenceTripMapStops.service.ts`): reaproveita `resolveTimelineLocationView`
+  (as cinco situações) e `formatTripTimelineDistance`. Eventos a menos de ~11 m partilham a ancoragem (`TIMELINE_MAP_CELL_DECIMALS`)
+  para o mapa abri-los em leque. A parada da nota: `stop.id` do evento da ocorrência → vínculo da nota (`documents[].id`) → rótulo.
+- **Sem `trip.event-location`** (`canViewEventLocation` vem da lista de permissões da conta): `mode: 'stopsOnly'` — o serviço **não lê**
+  `location` de item nenhum (defesa em profundidade, mesmo que a API a mande), desenha todas as paradas com coordenada e a da nota em
+  destaque, e o painel mostra o aviso `role="note"` (ícone `eye-off`, dica com quem concede). Com a permissão mas sem coordenada
+  (`restricted`), o evento fica na legenda como "Sem posição: oculta para o seu acesso".
+- **Sem traço.** A rota congelada **não** vem em `GET /trips/:id` (é `GET /trips/:id/route-geometry`, consulta própria) e a regra desta
+  tela é não chamar rota; `AssemblyVectorMap` recebe `geometry={null}` e `hideRoute`. Se um dia o detalhe trouxer a geometria, basta
+  passá-la ao canvas.
+- **Mudanças em `AssemblyVectorMap`** (todas opcionais, nenhum outro mapa muda): `focusRequest` (`{ nonce, stopKey }`, voo de 400 ms,
+  0 sob `prefers-reduced-motion`), `isEntryAnimated` (opacidade + `scale`, nunca `transform`, que é do MapLibre; escalonado por
+  `--pin-enter-delay`), e por ponto `color`, `popup` (linhas de texto, `textContent`), `isHighlighted` (halo de dois anéis).
+  Tokens novos em `index.css`: `--motion-fast`, `--motion-ease-out`, `--occurrence-trip-map-height`; `.vectorMap` lê `--vector-map-height`.
+- **Leitura.** `useOccurrenceTripMapData`: viagem pela chave `[trips, companyId, tripId]` (compartilhada com o detalhe) e a linha do
+  tempo por `useTripTimeline`, páginas lidas até `OCCURRENCE_TRIP_MAP_MAX_TIMELINE_PAGES` (5 × 100); passando disso o painel avisa que
+  mostra só os mais recentes. Coordenada só em memória: nunca URL, `localStorage`, log ou clipboard (contrato de fonte).
+- **Não visto em navegador** nesta entrega (login do dono): a prova é de contrato, render estático e tsc/eslint/prettier.
+
 ## Spec 240 T3.2 — a marca de cancelada
 
 A ocorrência cancelada continua listada e aparece marcada em **cinco** lugares, todos lendo a mesma

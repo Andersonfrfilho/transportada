@@ -262,6 +262,13 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
     expect(new Set(pins.map((pin) => pin.stopKey)).size).toBe(pins.length)
   })
 
+  it('conta os eventos com pino à parte da parada: parada sozinha ainda é "nenhum evento com posição"', () => {
+    expect(view().locatedCount).toBe(3)
+    expect(view({ items: [] }).locatedCount).toBe(0)
+    expect(view({ items: [] }).pins).toHaveLength(1)
+    expect(view({ canViewEventLocation: false }).locatedCount).toBe(0)
+  })
+
   it('a legenda lista só os tipos que têm pino', () => {
     expect(view().categories).toEqual(['arrived', 'occurrence', 'delivered'])
   })

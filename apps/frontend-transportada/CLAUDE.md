@@ -362,6 +362,15 @@ leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as
 `captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
 log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
 
+**O mapa da viagem na página da ocorrência** (`/ocorrencias/:id`, seção `tripMap` logo abaixo do resumo): `OccurrenceTripMap`
+lê `GET /trips/:id` (mesma chave do detalhe) e `GET /trips/:id/timeline` (páginas até o teto) — **nenhuma chamada nova, nenhuma de rota**
+(o traçado não vem no detalhe; o mapa sai sem traço, `hideRoute`). A conta é pura, `buildOccurrenceTripMapView`: eventos com
+posição viram pinos numerados pela ordem do tempo (ícone + palavra + cor por tipo), a ocorrência é o evento de `id` igual ao da página
+(destaque com halo) e a parada da nota sai do evento, do vínculo da nota ou do rótulo. Sem `trip.event-location` a coordenada de
+evento **nem é lida** (`mode: 'stopsOnly'`, aviso claro); evento `restricted`/`unavailable`/`expired` não vira pino e é nomeado com o
+motivo. Mesmo mapa (`AssemblyVectorMap`, lazy, `vectorBasemap.service`); ele ganhou `focusRequest`, `isEntryAnimated` e, por ponto,
+`color`/`popup`/`isHighlighted` (dica em texto puro). Contratos: `test/trip/occurrence-trip-map*.contract.ts(x)`.
+
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
 Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
