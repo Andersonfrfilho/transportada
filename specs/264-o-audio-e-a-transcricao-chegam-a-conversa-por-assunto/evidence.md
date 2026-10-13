@@ -455,3 +455,53 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   enriquecimento depois de `signConversationAttachments`) e `transcriptionUpdatedAt` do resumo.
 - `docs/ai-context/api-transportada.md` § "Spec 264 (Fase 2)" e nota curta em `apps/api-transportada/CLAUDE.md` (seção da conversa).
 - `bunx prettier --check` nos três arquivos de documentação: limpo.
+
+## T3.5 — imagem do worker com `whisper-cli`, `ffmpeg` e modelo (2026-10-13)
+
+- **Contratos primeiro (vermelho de verdade):** `apps/worker-transportada/test/audio-transcription-image.contract.test.ts` (novo, na lista
+  do `package.json`) criado antes de tocar o `Dockerfile` e o `.railway/railway.ts`: `bun test` → **1 pass / 8 fail** (tag fixada,
+  commit conferido, flags, sha256, `ffmpeg` no estágio final, sem ferramentas de build, as seis `AUDIO_TRANSCRIPTION_*` no worker e a
+  da API). Depois do `Dockerfile` e do `railway.ts`: 10 pass / 0 fail junto com `build-entrypoints.contract.test.ts`.
+- **`Dockerfile`:** estágio `whisper` (mesma base `oven/bun:1.3.14-alpine`) clona `ggml-org/whisper.cpp` `--branch v1.9.4`, confere
+  `git rev-parse HEAD` contra `927cfce34f31707e17f2bff35c349632fb9e2c3a` (falha o build se divergir), `cmake` Release com
+  `-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DBUILD_SHARED_LIBS=OFF`, só o alvo `whisper-cli`; baixa
+  `ggml-small-q5_1.bin` do Hugging Face e confere `sha256sum -c` contra `ae85e4a9…11bb` (a ADR-0103 e a T0.2 registram o valor).
+  Estágio final: `apk add --no-cache ffmpeg libgomp libstdc++`, `whisper-cli` em `/usr/local/bin`, `/models` copiado com
+  `--chown=transportada:transportada`; sem `build-base`/`cmake`/`git`/`curl`; `USER transportada` e `CMD` intactos.
+- **`.railway/railway.ts`:** worker ganha `BATCH_SIZE '2'`, `MAX_DURATION_MS '600000'`, `TIMEOUT_MS '300000'`,
+  `RECOVERY_WINDOW_HOURS '72'`, `THREADS preserve()` e `MODEL_PATH` = `/models/ggml-small-q5_1.bin` **só em staging**
+  (`isProduction ? preserve() : …`: produção segue inerte até aprovação humana); a API ganha `MAX_DURATION_MS '600000'`. Nenhum teste do
+  repositório compara `railway.ts` com `deploy/worker/railway.json` (o `railway.json` do worker não declara variáveis), então o
+  contrato novo cobre a paridade com os nomes do `environment.schema.ts` do worker. O job segue **pausado pela migration**.
+- **Build local** (Docker Desktop 29.8.2, Windows; contexto = cópia limpa só dos arquivos versionados que o `Dockerfile` usa, porque o
+  `node_modules` do checkout é de links do WSL e o envio de contexto do Docker Desktop falha com "Não é possível o acesso ao arquivo"):
+
+```sh
+docker.exe build --progress=plain -f apps/worker-transportada/Dockerfile -t worker-t35:local .
+#  real 3m31s (sem cache da compilação; whisper-cli: 87 s; build do worker e instalação do bun: o restante)
+docker.exe images worker-t35:local  # 1.4GB (o mesmo bun alpine + node_modules + ffmpeg + modelo 182 MB + whisper-cli 3,2 MB)
+```
+
+- **Dentro do contêiner** (`--entrypoint sh`, usuário `transportada` uid 1001):
+  - `whisper-cli --help` → `usage: whisper-cli [options] file0 file1 ...` / `supported audio formats: flac, mp3, ogg, wav`.
+  - `ffprobe -version` → `ffprobe version 6.1.2`.
+  - `ls -ld /models` → `drwxr-xr-x transportada transportada`; `ggml-small-q5_1.bin` 190 085 487 bytes, mesmo dono.
+  - `ldd whisper-cli` → só `libgomp`, `libstdc++`, `libgcc_s` e musl (os três pacotes `apk` do estágio final).
+  - `which gcc cmake git make` → nada (sem ferramentas de build). `bun --version` → 1.3.14 (entrypoint do worker intacto).
+- **Transcrição de um áudio sintético** (nenhuma voz real): TTS do Windows, voz `Microsoft Maria Desktop` (pt-BR), via
+  `System.Speech.Synthesis.SpeechSynthesizer` → WAV de 11,3 s com o texto "Bom dia. Aqui é o motorista. Cheguei na doca três e estou
+  aguardando a liberação da nota fiscal para descarregar." Os mesmos passos do motor do pacote:
+  `ffmpeg -nostdin -i teste-sintetico.wav -ar 16000 -ac 1 -y a.wav` e
+  `whisper-cli --model /models/ggml-small-q5_1.bin --file a.wav --no-timestamps --language pt --max-context 0 --threads 4`
+  → **"Bom dia. Aqui é o motorista. Cheguei na Doca 13 e estou aguardando a liberação da nota fiscal para descarregar."**
+  (a única troca é "três" → "13"; o resto é literal). `ffmpeg` também gerou um tom de 3 s (`sine=440`), e o `ffprobe` mediu 3,000000 s.
+  Tempo de parede não foi medido aqui (o `date` do busybox não tem `%N`); a medida do fator de tempo real está na T0.2, no runner.
+- **Gates** (`apps/worker-transportada`, via WSL): `bunx tsc --noEmit` → 0; `eslint` do teste novo `--max-warnings=0` → 0; `prettier --check`
+  do teste, do `railway.ts`, do `package.json`, do `CLAUDE.md` e do `docs/ai-context/worker-transportada.md` → limpo.
+
+## T3.6 — documentação da rotina (2026-10-13)
+
+- `docs/ai-context/worker-transportada.md` § "A transcrição do áudio da conversa é rotina daqui": motor e imagem, inércia sem o modelo,
+  job pausado pela migration, executor em processo, lease que cobre o motor duas vezes (795 s com `TIMEOUT_MS` 300000), `SIGTERM` que
+  aborta o motor e devolve a tentativa, trava velha que aborta o laço antigo, janela de 72 h, fila/estados/códigos, nunca log de texto.
+- Núcleo em `apps/worker-transportada/CLAUDE.md` (invariante nova, ao lado da conversa da ocorrência e dos feriados).

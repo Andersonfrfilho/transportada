@@ -143,11 +143,11 @@ review,denied}`).
       painel (`frontend-transportada/src/modules/shared/jobCatalog.constant.ts`), com os desfechos `completed`,
       `already_running` e `runner_lock_expired` na lista fechada (`isJobOutcome`); agendamento conforme a cadência
       medida na T0.2; métricas por estado/código e alerta (exceto `company_disabled`). Aceite: contratos da T3.3 verdes + `make worker-integration`.
-- [ ] **T3.5** `sonnet` — `apps/worker-transportada/Dockerfile`: estágio de build do `whisper-cli` (tag da ADR-0103),
+- [x] **T3.5** `sonnet` — `apps/worker-transportada/Dockerfile`: estágio de build do `whisper-cli` (tag da ADR-0103),
       modelo com `sha256` conferido, `ffmpeg` no runtime, sem ferramentas de build no estágio final; variáveis
       `preserve()` em `.railway/railway.ts` (conferir contra os `railway.json`, CLAUDE.md raiz). Aceite: `docker build`
       local + `whisper-cli --help` + transcrição de um áudio de teste no contêiner; contrato de build dos entrypoints.
-- [ ] **T3.6** `haiku` — Documentar a rotina em `docs/ai-context/worker-transportada.md` e o núcleo em
+- [x] **T3.6** `haiku` — Documentar a rotina em `docs/ai-context/worker-transportada.md` e o núcleo em
       `apps/worker-transportada/CLAUDE.md`.
 
 ## Fase 4 — App do motorista
