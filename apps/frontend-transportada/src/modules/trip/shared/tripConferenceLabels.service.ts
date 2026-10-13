@@ -27,5 +27,8 @@ export function buildTripConferenceSheetLabels(
     value: translate('conference.sheetValue'),
     vehicle: translate('conference.sheetVehicle'),
     volumes: translate('conference.sheetVolumes'),
+    weightEstimated: translate('conference.sheetWeightEstimated'),
+    weightMissingNotes: translate('conference.sheetWeightMissingNotes'),
+    weightNotInformed: translate('conference.sheetWeightNotInformed'),
   }
 }

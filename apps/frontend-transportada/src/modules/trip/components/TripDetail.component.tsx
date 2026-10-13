@@ -858,6 +858,7 @@ export function TripDetail({
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
         <TripConferenceAction
           canReadCreator={workspace.controller.canReadTrips}
+          cargoWeight={trip.cargoWeight ?? null}
           documents={trip.documents}
           drivers={trip.drivers}
           stops={trip.stops}
