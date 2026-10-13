@@ -30,6 +30,8 @@ type Attachment = {
 }
 type Seeded = {
   readonly companyId: string
+  readonly driverUserId: string | undefined
+  readonly occurrenceId: string
   readonly replyId: string
   readonly threadId: string
 }
@@ -51,7 +53,11 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
   const database = provider.db
   const inbound = createDrizzleContractorMailInboundWorkerRepository(database)
 
-  async function seedOccurrence(companyId: string, userId: string): Promise<string> {
+  async function seedOccurrence(
+    companyId: string,
+    userId: string,
+    withDriver: boolean,
+  ): Promise<{ readonly driverUserId: string | undefined; readonly occurrenceId: string }> {
     const vehicleId = crypto.randomUUID()
     await database.execute(
       sql`insert into user_company_memberships (id, user_id, company_id, status) values (${crypto.randomUUID()}, ${userId}, ${companyId}, 'active')`,
@@ -90,10 +96,33 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     await database.execute(sql`
       insert into trip_document_occurrences (id, company_id, trip_document_id, stage, occurrence_type_id, actor_user_id)
       values (${occurrenceId}, ${companyId}, ${tripDocumentId}, 'separation', ${typeId}, ${userId})`)
-    return occurrenceId
+    const driverUserId = withDriver ? await seedDriver(companyId, tripId) : undefined
+    return { driverUserId, occurrenceId }
   }
 
-  async function seed(mode: Mode): Promise<Seeded> {
+  async function seedDriver(companyId: string, tripId: string): Promise<string> {
+    const driverUserId = crypto.randomUUID()
+    const membershipId = crypto.randomUUID()
+    const driverId = crypto.randomUUID()
+    await database.execute(
+      sql`insert into identity_users (id, status) values (${driverUserId}, 'active')`,
+    )
+    await database.execute(
+      sql`insert into user_company_memberships (id, user_id, company_id, status) values (${membershipId}, ${driverUserId}, ${companyId}, 'active')`,
+    )
+    await database.execute(sql`
+      insert into fleet_drivers (id, company_id, name, tax_id, membership_id)
+      values (${driverId}, ${companyId}, 'Motorista Um', '11122233344', ${membershipId})`)
+    await database.execute(sql`
+      insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position)
+      values (${companyId}, ${tripId}, ${driverId}, 'Motorista Um', '11122233344', 1)`)
+    return driverUserId
+  }
+
+  async function seed(
+    mode: Mode,
+    options: { readonly withDriver?: boolean } = {},
+  ): Promise<Seeded> {
     const companyId = crypto.randomUUID()
     const userId = crypto.randomUUID()
     const contractorId = crypto.randomUUID()
@@ -108,7 +137,11 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     await database.execute(
       sql`insert into contractors (id, company_id, tax_id) values (${contractorId}, ${companyId}, '11222333000181')`,
     )
-    const occurrenceId = await seedOccurrence(companyId, userId)
+    const { driverUserId, occurrenceId } = await seedOccurrence(
+      companyId,
+      userId,
+      options.withDriver === true,
+    )
     await database.execute(sql`
       insert into contractor_mail_threads (id, company_id, contractor_id, subject_type, subject_id, reply_token_hash)
       values (${threadId}, ${companyId}, ${contractorId}, 'document_occurrence', ${occurrenceId}, ${createHash('sha256').update(threadId).digest('hex')})`)
@@ -125,7 +158,7 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     await database.execute(sql`
       insert into occurrence_contractor_replies (id, company_id, occurrence_id, conversation_id, config, status)
       values (${replyId}, ${companyId}, ${occurrenceId}, ${conversationId}, (${config}::text)::jsonb, 'awaiting_contractor')`)
-    return { companyId, replyId, threadId }
+    return { companyId, driverUserId, occurrenceId, replyId, threadId }
   }
 
   function recordReply(
@@ -201,6 +234,55 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
 
     expect((await replyOf(seeded))?.status).toBe('reply_received')
+  })
+
+  it('automático com motorista: devolve o aviso do sino; a reentrega do mesmo e-mail e a segunda resposta não avisam de novo', async () => {
+    const seeded = await seed('forward_automatic', { withDriver: true })
+    const emailId = `re_${crypto.randomUUID()}`
+
+    const first = await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+    const replayed = await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+    const second = await recordReply(seeded, `re_${crypto.randomUUID()}`, [
+      attachmentOf('application/pdf'),
+    ])
+
+    const [message] = [
+      ...(await database.execute(sql`
+        select m.id, m.automatic, m.channel, c.protocol
+        from occurrence_conversation_messages m
+        join occurrence_conversations c on c.company_id = m.company_id and c.id = m.conversation_id
+        where m.company_id = ${seeded.companyId} and c.participant = 'driver'`)),
+    ]
+    expect(message).toMatchObject({ automatic: true, channel: 'app' })
+    const expectedNotice = {
+      companyId: seeded.companyId,
+      driverMessageId: String(message?.id),
+      driverUserId: String(seeded.driverUserId),
+      occurrenceId: seeded.occurrenceId,
+      occurrenceLabel: 'NF 1/1',
+      protocol: String(message?.protocol),
+    }
+    expect(first.driverNotice).toEqual(expectedNotice)
+    expect(replayed.driverNotice).toBeUndefined()
+    expect(second.driverNotice).toBeUndefined()
+    expect((await replyOf(seeded))?.status).toBe('delivered')
+  })
+
+  it('automático com motorista sem conta, e com aprovação do operador: sem aviso, e o retorno segue o mesmo', async () => {
+    const withoutAccount = await seed('forward_automatic')
+    const approval = await seed('forward_after_approval', { withDriver: true })
+
+    const skipped = await recordReply(withoutAccount, `re_${crypto.randomUUID()}`, [
+      attachmentOf('application/pdf'),
+    ])
+    const awaiting = await recordReply(approval, `re_${crypto.randomUUID()}`, [
+      attachmentOf('application/pdf'),
+    ])
+
+    expect(skipped.driverNotice).toBeUndefined()
+    expect(awaiting.driverNotice).toBeUndefined()
+    expect((await replyOf(withoutAccount))?.status).toBe('reply_received')
+    expect((await replyOf(approval))?.status).toBe('awaiting_operator')
   })
 
   it('sem anexo aceito (só foto) e com dois PDFs: needs_operator com o motivo, sem anexo escolhido', async () => {
