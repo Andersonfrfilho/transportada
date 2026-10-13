@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { FISCAL_MONEY_SCALE, parseScaledDecimal } from '../../shared/decimal.service.js'
+import { type CompanyDisplayNameMode } from '../../database/company-fiscal-profile.schema.js'
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import {
   CNPJ_PATTERN,
   CPF_PATTERN,
@@ -41,6 +43,7 @@ export type InvoiceLayoutProfile = {
   readonly city: string
   readonly cnpj: string
   readonly defaultObservations: string
+  readonly displayNameMode?: CompanyDisplayNameMode
   readonly district: string
   readonly email: string
   readonly legalName: string
@@ -78,9 +81,9 @@ export type InvoiceLayoutReportRow = {
 export type InvoiceLayoutCarrier = {
   readonly addressLine: string
   readonly contactLine: string
-  readonly legalName: string
+  /** O nome que a empresa escolheu mostrar (Configurações). A fatura é comercial: não imprime os dois. */
+  readonly displayName: string
   readonly taxLine: string
-  readonly tradeName: string
 }
 
 export type InvoiceLayoutField = {
@@ -172,11 +175,10 @@ function buildCarrier(profile: InvoiceLayoutProfile): InvoiceLayoutCarrier {
       `CEP ${formatPostalCode(profile.postalCode)}`,
     ].join(SEPARATOR),
     contactLine: [`Tel. ${profile.phone}`, profile.email].join(SEPARATOR),
-    legalName: profile.legalName,
+    displayName: resolveCompanyDisplayName(profile),
     taxLine: [`CNPJ ${formatDocument(profile.cnpj)}`, `IE ${profile.stateRegistration}`].join(
       SEPARATOR,
     ),
-    tradeName: profile.tradeName,
   }
 }
 

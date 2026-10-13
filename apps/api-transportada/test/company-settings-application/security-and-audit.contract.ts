@@ -51,6 +51,7 @@ describe('company settings security and audit contract', () => {
       afterSnapshot: {
         cteRetryBackoffSeconds: '10,60,900',
         cteRetryMaxAttempts: '5',
+        displayNameMode: 'trade_name',
         environment: 'homologation',
         nextNumber: '13809',
         profileVersion: '1',

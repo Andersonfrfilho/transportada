@@ -53,6 +53,7 @@ export const DOCUMENT_FISCAL_PROFILE_SELECTION = {
   city: companyFiscalProfiles.city,
   cnpj: companyFiscalProfiles.cnpj,
   defaultObservations: companyFiscalProfiles.billingObservations,
+  displayNameMode: companyFiscalProfiles.displayNameMode,
   district: companyFiscalProfiles.district,
   email: companyFiscalProfiles.email,
   legalName: companyFiscalProfiles.legalName,

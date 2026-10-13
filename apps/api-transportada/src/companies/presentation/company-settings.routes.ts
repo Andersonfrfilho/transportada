@@ -148,6 +148,7 @@ function serializeSettings(settings: CompanySettingsResult | null): object {
       cityIbgeCode: settings.profile.cityIbgeCode,
       cnpj: settings.profile.cnpj,
       complement: settings.profile.complement,
+      displayNameMode: settings.profile.displayNameMode,
       district: settings.profile.district,
       email: settings.profile.email,
       legalName: settings.profile.legalName,

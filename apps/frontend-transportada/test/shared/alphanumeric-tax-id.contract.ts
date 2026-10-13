@@ -54,6 +54,7 @@ const COMPLETE_PROFILE: CompanySettingsUpdate['profile'] = {
   cityIbgeCode: '3106200',
   cnpj: OFFICIAL_CANONICAL,
   complement: '',
+  displayNameMode: 'trade_name',
   district: 'Centro',
   email: '',
   legalName: 'Transportadora Exemplo',

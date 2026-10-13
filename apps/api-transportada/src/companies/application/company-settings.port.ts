@@ -2,7 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CteRetryPolicy } from '../../cte-issuance/domain/cte-retry.policy.js'
-import type { ActivationChannel } from '../../database/company-fiscal-profile.schema.js'
+import type {
+  ActivationChannel,
+  CompanyDisplayNameMode,
+} from '../../database/company-fiscal-profile.schema.js'
 import type { MdfeInsuranceResponsibility } from '../../database/mdfe.schema.js'
 
 export type FiscalEnvironment = 'homologation' | 'production'
@@ -34,6 +37,11 @@ export type CompanyFiscalProfileInput = {
   readonly cityIbgeCode: string
   readonly cnpj: string
   readonly complement: string
+  /**
+   * Qual nome a empresa mostra nas telas, e-mails e PDFs comerciais; documento fiscal ignora. Ausente = não
+   * mexa (o painel publicado antes desta opção não a conhece e não pode apagá-la).
+   */
+  readonly displayNameMode?: CompanyDisplayNameMode | undefined
   readonly district: string
   readonly email: string
   readonly legalName: string
@@ -80,6 +88,7 @@ export type CompanySettingsResult = {
   readonly cteRetry: CteRetryPolicy
   readonly mdfe: CompanyMdfeDefaultsInput
   readonly profile: CompanyFiscalProfileInput & {
+    readonly displayNameMode: CompanyDisplayNameMode
     readonly version: bigint
   }
 }

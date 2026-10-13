@@ -374,6 +374,7 @@ describe('Drizzle migrations', () => {
       '20261012180000_occurrence_contractor_reply',
       '20261012180100_occurrence_automatic_mail_sweep_job',
       '20261013010226_occurrence_contractor_reply_alert_job',
+      '20261013172346_company_display_name_mode',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

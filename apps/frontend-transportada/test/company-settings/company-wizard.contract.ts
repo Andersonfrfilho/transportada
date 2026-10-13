@@ -50,7 +50,7 @@ describe('company settings wizard contract', () => {
     })
   })
 
-  test('the default settings factory starts every profile field blank with regime 3', async () => {
+  test('the default settings factory starts every profile field blank with regime 3 and the trade name chosen', async () => {
     const { createDefaultCompanySettings } = await loadFutureModule<DefaultsModule>(
       '../../src/modules/company-settings/shared/companySettings.constant',
     )
@@ -60,8 +60,9 @@ describe('company settings wizard contract', () => {
     }
 
     expect(defaults.profile.taxRegime).toBe('3')
+    expect(defaults.profile.displayNameMode).toBe('trade_name')
     for (const [field, value] of Object.entries(defaults.profile)) {
-      if (field === 'taxRegime') continue
+      if (field === 'taxRegime' || field === 'displayNameMode') continue
       expect(value).toBe('')
     }
   })

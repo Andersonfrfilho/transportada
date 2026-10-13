@@ -148,6 +148,17 @@ por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, ent
 injetado (`clock` em `DrizzleTripRepository`, só em `main.ts`); sem ele o campo não é calculado. Recusa do calendário vira `null` com
 `warn` só de ids e código. Detalhe: docs/ai-context § "Spec 236 T1.2".
 
+## O nome da empresa tem uma escolha só (display_name_mode)
+
+`company_fiscal_profiles.display_name_mode` (`trade_name` padrão | `legal_name`, por empresa/CNPJ, editado em Configurações → Empresa)
+decide o nome mostrado onde ele só é lido: e-mails de ocorrência e de correção de endereço, PDF da fatura, demonstrativo de ocorrência,
+descrição do barracão e `units[].displayName` da rota pública da landing (de onde saem a marca do painel, do app do motorista, do login
+Keycloak e dos e-mails de código). **Toda tela que mostra o nome da empresa chama `resolveCompanyDisplayName`**
+(`companies/domain/company-display-name.policy.ts`); fantasia vazia cai na razão social nos dois modos. Documento fiscal (CT-e, MDF-e,
+NFS-e) **nunca** passa por ali: `xNome`/`razaoSocial` é sempre a razão social. `PATCH /company-settings` sem `displayNameMode` não mexe
+na escolha (o painel publicado antes dela não a conhece). Publicar: a API aceita a chave ausente, mas o painel publicado tem guarda de
+chaves exatas no perfil — o painel desta mudança aceita a resposta com e sem a chave.
+
 ## Banco
 
 Schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL versionadas

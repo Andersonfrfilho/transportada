@@ -64,9 +64,12 @@
       return data.brandName.trim()
     }
     var unit = data && Array.isArray(data.units) ? data.units[0] : null
-    return unit && typeof unit.tradeName === 'string' && unit.tradeName.trim() !== ''
-      ? unit.tradeName.trim()
-      : null
+    if (!unit) return null
+    // `displayName` é o nome que a empresa escolheu mostrar; `tradeName` cobre a API de antes da opção.
+    var chosen = [unit.displayName, unit.tradeName].filter(function (candidate) {
+      return typeof candidate === 'string' && candidate.trim() !== ''
+    })[0]
+    return chosen ? chosen.trim() : null
   }
 
   var cached = readStorage()

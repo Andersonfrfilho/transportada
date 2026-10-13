@@ -149,6 +149,7 @@ function createFingerprintFields(
     settings.expectedVersion?.toString() ?? '',
     settings.profile.legalName,
     settings.profile.tradeName,
+    settings.profile.displayNameMode ?? '',
     settings.profile.cnpj,
     settings.profile.stateRegistration,
     settings.profile.municipalRegistration,
@@ -190,6 +191,7 @@ function createAuditSnapshot(settings: CompanySettingsResult): Readonly<Record<s
   return {
     cteRetryBackoffSeconds: settings.cteRetry.backoffSeconds.join(','),
     cteRetryMaxAttempts: settings.cteRetry.maxAttempts.toString(),
+    displayNameMode: settings.profile.displayNameMode,
     environment: settings.cte.environment,
     nextNumber: settings.cte.nextNumber.toString(),
     profileVersion: settings.profile.version.toString(),

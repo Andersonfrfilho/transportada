@@ -49,6 +49,7 @@ export function createRouteDepotQuery(database: Database): Readonly<{
         database
           .select({
             city: companyFiscalProfiles.city,
+            displayNameMode: companyFiscalProfiles.displayNameMode,
             district: companyFiscalProfiles.district,
             legalName: companyFiscalProfiles.legalName,
             number: companyFiscalProfiles.number,

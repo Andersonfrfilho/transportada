@@ -1,4 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+export const DISPLAY_NAME_MODES = ['trade_name', 'legal_name'] as const
+export type DisplayNameMode = (typeof DISPLAY_NAME_MODES)[number]
+
 export type CompanySettingsUpdate = Readonly<{
   billing: Readonly<{
     bankAccount: string
@@ -32,6 +35,7 @@ export type CompanySettingsUpdate = Readonly<{
     cityIbgeCode: string
     cnpj: string
     complement: string
+    displayNameMode: DisplayNameMode
     district: string
     email: string
     legalName: string

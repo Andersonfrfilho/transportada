@@ -65,6 +65,7 @@ async function updateProfileAndAssertAudit(
   expect(audits[1]?.beforeSnapshot).toEqual({
     cteRetryBackoffSeconds: '10,60,900',
     cteRetryMaxAttempts: '5',
+    displayNameMode: 'trade_name',
     environment: 'homologation',
     nextNumber: '13809',
     profileVersion: '1',
