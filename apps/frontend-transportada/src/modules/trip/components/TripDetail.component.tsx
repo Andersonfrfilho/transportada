@@ -128,6 +128,8 @@ type TripDetailProps = Readonly<{
   drivers: readonly FleetDriverListItem[]
   isLoadingAvailableDocuments: boolean
   linkForm: TripDocumentLinkFormController
+  /** Liga a carga das notas livres, que o detalhe só faz quando a pessoa a pede. */
+  onNeedAvailableDocuments: () => void
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
   workspace: TripWorkspaceController
@@ -296,6 +298,7 @@ export function TripDetail({
   drivers,
   isLoadingAvailableDocuments,
   linkForm,
+  onNeedAvailableDocuments,
   vehicles,
   workspace,
 }: TripDetailProps) {
@@ -1096,6 +1099,7 @@ export function TripDetail({
           isLoadingDocuments={isLoadingAvailableDocuments}
           linkForm={linkForm}
           onLinkCandidate={handleLinkDocumentId}
+          onNeedDocuments={onNeedAvailableDocuments}
           onLinkTyped={() => void handleLinkDocument()}
         />
       ) : null}

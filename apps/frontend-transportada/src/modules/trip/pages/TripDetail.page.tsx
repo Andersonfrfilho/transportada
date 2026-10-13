@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -51,12 +52,13 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    */
   const fleet = useFleet({ ...(companyId === undefined ? {} : { companyId }), permissions })
   /**
-   * As notas livres só são carregadas para quem pode vincular: a lista varre a base de notas da
-   * empresa e quem só acompanha a viagem não precisa pagar por ela. A chave é a mesma da criação
-   * de viagem, então abrir as duas telas em sequência não repete a varredura.
+   * As notas livres só são carregadas quando a pessoa as pede — abrir a busca ou digitar um número
+   * em "Vincular nota". A lista varre a base de notas da empresa, e abrir o detalhe de uma viagem
+   * não pode pagar por isso. A chave é a da criação de viagem, então a varredura é compartilhada.
    */
+  const [documentsWanted, setDocumentsWanted] = useState(false)
   const availableDocumentsQuery = useQuery({
-    enabled: workspace.controller.canManageTrips,
+    enabled: workspace.controller.canManageTrips && documentsWanted,
     queryFn: loadAvailableTripDocuments,
     queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
   })
@@ -169,6 +171,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
               availableDocuments={availableDocumentsQuery.data ?? []}
               isLoadingAvailableDocuments={availableDocumentsQuery.isLoading}
               linkForm={linkForm}
+              onNeedAvailableDocuments={() => setDocumentsWanted(true)}
               vehicles={fleet.viewModel.vehicles ?? []}
               workspace={workspace}
             />

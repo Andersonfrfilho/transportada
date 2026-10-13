@@ -23,6 +23,8 @@ type TripLinkDocumentPanelProps = Readonly<{
   isLinking: boolean
   isLoadingDocuments: boolean
   linkForm: TripDocumentLinkFormController
+  /** A pessoa abriu a busca ou começou a digitar: é hora de carregar as notas livres. */
+  onNeedDocuments: () => void
   /** Vincula o que está digitado (número, chave ou identificador). */
   onLinkTyped: () => void
   /** Número repetido entre as notas livres: a pessoa escolheu qual. */
@@ -42,6 +44,7 @@ export function TripLinkDocumentPanel({
   linkForm,
   onLinkCandidate,
   onLinkTyped,
+  onNeedDocuments,
 }: TripLinkDocumentPanelProps) {
   const { t } = useTranslation('trip')
   const [tab, setTab] = useState<LinkTab>('search')
@@ -64,17 +67,22 @@ export function TripLinkDocumentPanel({
         <input
           autoComplete="off"
           inputMode={isNfe ? 'numeric' : undefined}
-          onChange={(event) => linkForm.setValue(event.target.value)}
+          onChange={(event) => {
+            if (isNfe) onNeedDocuments()
+            linkForm.setValue(event.target.value)
+          }}
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return
             event.preventDefault()
-            if (linkForm.reference !== undefined) onLinkTyped()
+            if (linkForm.reference !== undefined && !isLoadingDocuments) onLinkTyped()
           }}
           placeholder={isNfe ? t('detail.quickInputPlaceholder') : undefined}
           value={linkForm.draft.value}
         />
-        <span className={styles.hint}>
-          {t(isNfe ? 'detail.quickInputHint' : 'detail.linkValueHint')}
+        <span className={styles.hint} role={isNfe && isLoadingDocuments ? 'status' : undefined}>
+          {isNfe && isLoadingDocuments
+            ? t('quickCreate.searchLoading')
+            : t(isNfe ? 'detail.quickInputHint' : 'detail.linkValueHint')}
         </span>
       </label>
     </div>
@@ -112,6 +120,7 @@ export function TripLinkDocumentPanel({
                     documents={availableDocuments}
                     isLoading={isLoadingDocuments}
                     key={searchEpoch}
+                    onOpen={onNeedDocuments}
                     onSelectionChange={setSelected}
                   />
                   <div className={styles.actionActions}>
@@ -157,7 +166,12 @@ export function TripLinkDocumentPanel({
           />
           <div className={styles.actionActions}>
             <Button
-              disabled={linkForm.reference === undefined || linkForm.isResolving || isLinking}
+              disabled={
+                linkForm.reference === undefined ||
+                linkForm.isResolving ||
+                isLinking ||
+                (isNfe && isLoadingDocuments)
+              }
               onClick={onLinkTyped}
               size="sm"
               type="button"

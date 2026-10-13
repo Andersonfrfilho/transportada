@@ -13,6 +13,7 @@ const COMPONENT = new URL(
   '../../src/modules/trip/components/TripDetail.component.tsx',
   import.meta.url,
 )
+const PAGE = new URL('../../src/modules/trip/pages/TripDetail.page.tsx', import.meta.url)
 const PANEL = new URL(
   '../../src/modules/trip/components/TripLinkDocumentPanel.component.tsx',
   import.meta.url,
@@ -53,5 +54,19 @@ describe('posição do bloco de vínculo de nota na tela de detalhe', () => {
     expect(panel).toInclude('<TripDocumentSearch')
     expect(panel).toInclude("id: 'search'")
     expect(panel).toInclude("id: 'quick'")
+  })
+
+  /**
+   * Abrir o detalhe de uma viagem não pode varrer a base de notas da empresa (até 40 páginas de 100):
+   * a lista só é pedida quando a pessoa abre a busca ou digita um número. Os smokes do painel que
+   * abrem o detalhe também não dublam essa rota, e a requisição solta derrubava `failures()`.
+   */
+  it('só carrega as notas livres quando a pessoa pede', () => {
+    const page = readFileSync(PAGE, 'utf8')
+    const panel = readFileSync(PANEL, 'utf8')
+
+    expect(page).toInclude('canManageTrips && documentsWanted')
+    expect(panel).toInclude('onOpen={onNeedDocuments}')
+    expect(panel).toInclude('if (isNfe) onNeedDocuments()')
   })
 })
