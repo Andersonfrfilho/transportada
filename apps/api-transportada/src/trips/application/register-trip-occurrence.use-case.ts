@@ -7,6 +7,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
@@ -200,6 +201,9 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyWaitHours?: null | number
   readonly driverReplyTemplate?: string
   readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode
+  readonly forwardToInformedEmail?: ForwardToInformedEmailMode
+  readonly forwardEmailSubject?: string
+  readonly forwardEmailBody?: string
   /**
    * Spec 164 T4 (RF3): decide se o registro abre uma tratativa (`trip_occurrence_cases`).
    * Ausente é tratado como `'unset'` — não abre; existe como opcional só para os dublês de teste
