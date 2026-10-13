@@ -28,6 +28,8 @@ export const FORWARD_EMAIL_BODY = 'Segue o boleto prorrogado.'
 export type ForwardModes = {
   readonly informed: 'manual' | 'off'
   readonly note: 'automatic' | 'manual' | 'off'
+  /** Padrão: com aprovação do operador. */
+  readonly replyMode?: 'forward_after_approval' | 'forward_automatic'
 }
 
 /** Abre o retorno pelo envio automático real; o tipo já carrega a configuração do encaminhamento. */
@@ -44,7 +46,7 @@ export async function openReplyWithForward(
   await database.db
     .update(companyOccurrenceTypes)
     .set({
-      contractorReplyMode: 'forward_after_approval',
+      contractorReplyMode: forward.replyMode ?? 'forward_after_approval',
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto prorrogado.',
       emailsContractor: true,

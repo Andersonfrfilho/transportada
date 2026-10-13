@@ -20,6 +20,7 @@ import {
   deliverContractorReplyToDriver,
   type DeliverContractorReplyToDriverResult,
 } from './contractor-reply-driver-delivery.support.js'
+import { queueContractorReplyToNoteRecipient } from './contractor-reply-note-recipient-forward.support.js'
 import type { OccurrenceConversationTransaction } from './drizzle-occurrence-conversation-mail.repository.js'
 
 export type ContractorReplyAutomaticDelivery = Extract<
@@ -118,5 +119,7 @@ export async function applyContractorReplyToMessage(
     replyId: reply.id,
     trigger: 'automatic',
   })
+  /** RF10: o mesmo boleto sai ao cliente da nota quando o tipo liga o envio automático; falha dele não desfaz nada acima. */
+  await queueContractorReplyToNoteRecipient(transaction, { companyId, replyId: reply.id })
   return delivery.kind === 'delivered' ? delivery : undefined
 }

@@ -121,7 +121,11 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
 
   async function seed(
     mode: Mode,
-    options: { readonly withDriver?: boolean } = {},
+    options: {
+      /** Liga o envio automático ao cliente da nota (RF10); `null` é a nota sem e-mail. */
+      readonly noteRecipientEmail?: null | string
+      readonly withDriver?: boolean
+    } = {},
   ): Promise<Seeded> {
     const companyId = crypto.randomUUID()
     const userId = crypto.randomUUID()
@@ -154,7 +158,27 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     await database.execute(sql`
       insert into occurrence_conversation_messages (company_id, conversation_id, channel, direction, author_user_id, body_text, status, status_times, mail_message_id)
       values (${companyId}, ${conversationId}, 'email', 'outbound', ${userId}, 'Autorizam?', 'queued', '{"queued":"2026-09-24T12:00:00.000Z"}'::jsonb, ${mailMessageId})`)
-    const config = JSON.stringify({ attachmentKind: 'pdf', mode, version: 1 })
+    const forwardsToNote = options.noteRecipientEmail !== undefined
+    if (forwardsToNote) {
+      await database.execute(
+        sql`update nfe_documents set recipient_email = ${options.noteRecipientEmail ?? null} where company_id = ${companyId}`,
+      )
+      await database.execute(sql`
+        insert into contractor_mail_settings (company_id, reply_domain, secret_envelope, sender_address, sender_name, sending_verified_at)
+        values (${companyId}, 'resposta.example.test', '{}'::jsonb, 'ocorrencias@transportadora.example.test', 'Transportadora Sintética', now())`)
+    }
+    const config = JSON.stringify({
+      attachmentKind: 'pdf',
+      ...(forwardsToNote
+        ? {
+            forwardEmailBody: 'Segue o boleto prorrogado.',
+            forwardEmailSubject: 'Boleto com novo vencimento',
+            forwardToNoteRecipient: 'automatic',
+          }
+        : {}),
+      mode,
+      version: 1,
+    })
     await database.execute(sql`
       insert into occurrence_contractor_replies (id, company_id, occurrence_id, conversation_id, config, status)
       values (${replyId}, ${companyId}, ${occurrenceId}, ${conversationId}, (${config}::text)::jsonb, 'awaiting_contractor')`)
@@ -328,5 +352,84 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
     expect((await replyOf(companyA))?.status).toBe('awaiting_contractor')
     expect((await replyOf(companyB))?.status).toBe('awaiting_operator')
     expect(await eventsOf(companyA)).toEqual([])
+  })
+
+  async function noteDeliveriesOf(seeded: Seeded) {
+    const rows = await database.execute(sql`
+      select d.status, d.reason, d.trigger, d.address, d.actor_user_id, m.to_addresses, m.subject, m.direction,
+             (select count(*)::int from contractor_mail_outbox o where o.company_id = d.company_id and o.message_id = m.id) as outbox_events
+      from occurrence_contractor_reply_deliveries d
+      left join contractor_mail_messages m on m.company_id = d.company_id and m.id = d.mail_message_id
+      where d.company_id = ${seeded.companyId} and d.target = 'note_recipient_email'`)
+    return [...rows]
+  }
+
+  it('RF10: no modo automático com o tipo em automático, o boleto vai ao e-mail do cliente da nota; a reentrega não repete', async () => {
+    const seeded = await seed('forward_automatic', {
+      noteRecipientEmail: 'cliente@destino.example.test',
+    })
+    const emailId = `re_${crypto.randomUUID()}`
+
+    await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+    await recordReply(seeded, emailId, [attachmentOf('application/pdf')])
+    await recordReply(seeded, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+
+    expect(await noteDeliveriesOf(seeded)).toEqual([
+      {
+        actor_user_id: null,
+        address: 'cliente@destino.example.test',
+        direction: 'outbound',
+        outbox_events: 1,
+        reason: null,
+        status: 'queued',
+        subject: 'Boleto com novo vencimento',
+        to_addresses: ['cliente@destino.example.test'],
+        trigger: 'automatic',
+      },
+    ])
+  })
+
+  it('RF10: nota sem e-mail vira skipped; com aprovação do operador nada sai sozinho', async () => {
+    const withoutEmail = await seed('forward_automatic', { noteRecipientEmail: null })
+    const approval = await seed('forward_after_approval', {
+      noteRecipientEmail: 'cliente@destino.example.test',
+    })
+
+    await recordReply(withoutEmail, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+    await recordReply(approval, `re_${crypto.randomUUID()}`, [attachmentOf('application/pdf')])
+
+    expect(await noteDeliveriesOf(withoutEmail)).toMatchObject([
+      { reason: 'note_without_recipient_email', status: 'skipped', to_addresses: null },
+    ])
+    expect(await noteDeliveriesOf(approval)).toEqual([])
+    expect((await replyOf(approval))?.status).toBe('awaiting_operator')
+  })
+
+  it('RF10: falha ao enfileirar o e-mail não desfaz o retorno recebido nem a entrega ao motorista', async () => {
+    const seeded = await seed('forward_automatic', {
+      noteRecipientEmail: 'cliente@destino.example.test',
+      withDriver: true,
+    })
+    await database.execute(sql`
+      create or replace function fail_mail_outbox_${sql.raw(seeded.companyId.replaceAll('-', ''))}() returns trigger language plpgsql as
+      $$ begin if new.company_id = ${sql.raw(`'${seeded.companyId}'`)}::uuid then raise exception 'outbox_unavailable'; end if; return new; end $$`)
+    await database.execute(sql`
+      create trigger fail_mail_outbox_${sql.raw(seeded.companyId.replaceAll('-', ''))} before insert on contractor_mail_outbox
+      for each row execute function fail_mail_outbox_${sql.raw(seeded.companyId.replaceAll('-', ''))}()`)
+    try {
+      const received = await recordReply(seeded, `re_${crypto.randomUUID()}`, [
+        attachmentOf('application/pdf'),
+      ])
+
+      expect(received.driverNotice).toBeDefined()
+      expect((await replyOf(seeded))?.status).toBe('delivered')
+      expect(await noteDeliveriesOf(seeded)).toMatchObject([
+        { reason: 'send_failed', status: 'failed', to_addresses: null, trigger: 'automatic' },
+      ])
+    } finally {
+      await database.execute(
+        sql`drop trigger if exists fail_mail_outbox_${sql.raw(seeded.companyId.replaceAll('-', ''))} on contractor_mail_outbox`,
+      )
+    }
   })
 })

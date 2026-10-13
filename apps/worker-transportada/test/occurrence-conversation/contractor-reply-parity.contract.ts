@@ -9,6 +9,7 @@ const API_ROOT = '../../../api-transportada/'
 const MIRRORED_FILES = [
   'src/occurrence-conversation/domain/contractor-reply.policy.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-note-recipient-forward.support.ts',
   'src/shared/occurrence-contractor-reply.constant.ts',
   'test/occurrence-conversation/contractor-reply.contract.ts',
 ] as const
