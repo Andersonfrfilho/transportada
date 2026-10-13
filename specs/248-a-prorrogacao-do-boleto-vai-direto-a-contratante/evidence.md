@@ -437,15 +437,19 @@ LIMIT_REACHED,ATTACHMENT_NOT_FOUND}`. `maskEmailAddress` foi para `shared/email-
 
 **Provas.**
 
-- API, contratos: **11642 pass / 0 fail** (`bun --env-file=../../.env.test test --timeout 120000`, Ubuntu/WSL em `/mnt/c`); rate-limit contract com as três rotas.
+- API, contratos: **11650 pass / 0 fail** (`bun --env-file=../../.env.test test --timeout 120000`, Ubuntu/WSL em `/mnt/c`); rate-limit contract com as três rotas.
 - API, integração em Postgres: `occurrence-contractor-reply-email.integration.ts` **7 pass / 0 fail** (mensagem da 143 presa à thread sem mensagem de conversa; outbox;
   chave repetida não duplica; o sexto envio é recusado e nada novo entra na fila; nota sem e-mail → `skipped`; PDF > 10 MB → `failed`; opções só mascaradas; empresa B → 404);
   `occurrence-type-contractor-reply-write.integration.ts` **5 pass / 0 fail** (os campos novos gravam, leem no GET e na lista, o `PUT` sem eles mantém, a CHECK vira 422).
 - Worker: `contractor-mail.contract.test.ts` **131 pass / 0 fail**; integração `occurrence-contractor-reply-email-delivery.integration.ts` **4 pass / 0 fail** contra
   Postgres migrado (PDF da entrega em base64, sem `In-Reply-To`, `Reply-To` = contato da empresa, sem `reply_to` quando não há contato, contato de outra empresa nunca
   usado, entrega `sent` com data / `failed` com `send_failed`); os testes de e-mail da conversa e do outbox seguem verdes.
-- Painel: contratos **8056 pass / 0 fail** (`bun test --timeout 120000` na lista do `test`; com o prazo padrão de 5 s os 15 testes de varredura de disco estouram no
+- Painel: contratos **8071 pass / 0 fail** (`bun test --timeout 120000` na lista do `test`; com o prazo padrão de 5 s os 15 testes de varredura de disco estouram no
   clone em `/mnt/c`, e todos passam com prazo maior); DOM (`test:hooks`) **1359 pass / 0 fail**, com `contractor-reply-email-actions` (11) e `contractor-reply-forward-fields` (5).
+- Tudo acima foi refeito **depois** do merge com a `staging` de 2026-10-13 (#165/#166: leitura do retorno, `handled`, "Enviar ao motorista"): integração da API (e-mail, cadastro
+  do tipo, leitura do retorno, resposta recebida, abertura e aviso automático) **33 pass / 0 fail**; worker (e-mail ao terceiro, anexos e e-mail da conversa, resposta recebida,
+  outbox) **23 pass / 0 fail**. O merge conflitou em `main.ts`, nas rotas do retorno, no teste de balde e no `package.json`; no painel, as duas ações por anexo
+  (motorista e e-mail) entram no mesmo `renderAttachmentActions`.
 - `tsc --noEmit` e `eslint` limpos nas três apps (os avisos `react-hooks/exhaustive-deps` restantes são de arquivos não tocados); `prettier --check` limpo.
 
 **Desvios e limites.**
