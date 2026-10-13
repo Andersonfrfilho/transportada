@@ -20,6 +20,7 @@ import {
   createDrizzleContractorReplyReader,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
 import { createAutomaticOccurrenceMailReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import { findTripOccurrenceFeedItem } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
@@ -143,6 +144,18 @@ describe('ler e tratar o retorno da contratante (spec 248 T5.3)', () => {
         })
         expect(view?.status).toBe('handled')
         expect(view?.handledNote).toBe(input.note)
+
+        const feedItem = await findTripOccurrenceFeedItem(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(feedItem?.contractorReply).toEqual({ alertCount: 0, status: 'handled' })
+        expect(
+          await findTripOccurrenceFeedItem(database.db, {
+            companyId: crypto.randomUUID(),
+            occurrenceId: seeded.occurrenceId,
+          }),
+        ).toBeNull()
         expect(view?.events[0]).toMatchObject({ actorKind: 'user', toStatus: 'handled' })
       })
     },
