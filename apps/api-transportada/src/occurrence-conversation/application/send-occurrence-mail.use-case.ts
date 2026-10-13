@@ -25,6 +25,8 @@ import {
   SEND_OCCURRENCE_MAIL_OPERATION,
 } from '../domain/occurrence-conversation.constant.js'
 import {
+  ContractorReplyNotResendableError,
+  ContractorReplyResendTooSoonError,
   OccurrenceConversationContractorUnknownError,
   OccurrenceConversationIdempotencyKeyReusedError,
   OccurrenceConversationMailInvalidError,
@@ -59,6 +61,11 @@ export type SendOccurrenceMailInput = {
   readonly bodyText: string
   readonly companyId: string
   readonly contactIds: readonly string[]
+  /**
+   * Spec 248 RF6: o reenvio do pedido à contratante. Dentro da transação do e-mail, trava o retorno,
+   * confere que ele espera a contratante e que o intervalo do alarme passou, e grava o evento `user`.
+   */
+  readonly contractorReplyResend?: boolean
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly occurrenceId: string
@@ -105,12 +112,28 @@ export function createSendOccurrenceMailUseCase(dependencies: {
       if ((input.actorUserId === null) !== (input.automatic === true)) {
         throw new Error('OCCURRENCE_MAIL_AUTHOR_REQUIRED')
       }
+      if (input.contractorReplyResend === true && input.automatic === true) {
+        throw new Error('OCCURRENCE_MAIL_RESEND_IS_NOT_AUTOMATIC')
+      }
       assertMailContent(input)
       return dependencies.unitOfWork.execute((transaction) =>
         executeSend({ ...dependencies, input, now: now(), transaction }),
       )
     },
   }
+}
+
+async function assertContractorReplyResendRecorded(params: {
+  readonly actorUserId: string
+  readonly companyId: string
+  readonly now: Date
+  readonly occurrenceId: string
+  readonly transaction: OccurrenceMailTransactionPort
+}): Promise<void> {
+  const { transaction, ...rest } = params
+  const outcome = await transaction.recordContractorReplyResend(rest)
+  if (outcome === 'not_resendable') throw new ContractorReplyNotResendableError()
+  if (outcome === 'too_soon') throw new ContractorReplyResendTooSoonError()
 }
 
 async function executeSend(params: {
@@ -165,6 +188,16 @@ async function executeSend(params: {
   })
   if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
   const { settings } = readiness
+
+  if (input.contractorReplyResend === true && input.actorUserId !== null) {
+    await assertContractorReplyResendRecorded({
+      actorUserId: input.actorUserId,
+      companyId,
+      now: params.now,
+      occurrenceId: input.occurrenceId,
+      transaction,
+    })
+  }
 
   const contacts = await transaction.findOccurrenceContacts({ companyId, contactIds, contractorId })
   const emailById = new Map(contacts.map((contact) => [contact.id, contact.email]))

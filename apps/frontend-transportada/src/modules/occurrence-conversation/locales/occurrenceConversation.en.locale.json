@@ -342,6 +342,21 @@
         "send": "Could not save. Try again in a moment."
       }
     },
+    "resend": {
+      "open": "Resend the request to the contractor",
+      "sending": "Resending…",
+      "sent_one": "Request resent to {{count}} contact.",
+      "sent_other": "Request resent to {{count}} contacts.",
+      "tooSoon": "The request was resent a moment ago; it can only be resent again after the alert interval.",
+      "tooSoonAt": "Request resent a moment ago. It can be resent again at {{moment}}.",
+      "error": {
+        "notResendable": "This reply no longer waits for the contractor; there is nothing to resend.",
+        "tooSoon": "The request was already resent within the alert interval. Try again later.",
+        "originalMissing": "We could not find the original request in the conversation with the contractor.",
+        "noRecipient": "No active contractor contact receives this request. Check the contacts.",
+        "send": "Could not resend. Try again in a moment."
+      }
+    },
     "timeline": {
       "title": "History",
       "empty": "No events yet.",
@@ -351,6 +366,7 @@
       },
       "event": {
         "awaiting_contractor": "Request sent to the contractor",
+        "resent": "Request resent to the contractor",
         "overdue": "Reply overdue",
         "reply_received": "Reply received",
         "awaiting_operator": "Waiting for the operator",

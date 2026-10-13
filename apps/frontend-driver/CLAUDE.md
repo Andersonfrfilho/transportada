@@ -462,7 +462,14 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
 - **Boleto da contratante (spec 248 T5.4).** O escritório leva o PDF à conversa **da ocorrência** como mensagem `app`; nada é código novo no app:
   PDF vira `kind: 'document'` no mapper e o pacote o desenha como `<a download>` com a URL assinada da leitura (renovada por `resolveAttachmentUrl`).
   Teste: `driver-conversations-boleto.contract.ts` (aviso do sino, mapper, URL assinada; fixture local). ⚠️ Sem smoke do sino → conversa → download (pede Chromium
-  e Keycloak locais) e falta "Pedido enviado à contratante" (pede campo na API).
+  e Keycloak locais).
+- **"Pedido enviado à contratante" (spec 248 T5.4).** `GET /me/trips/current` traz, na nota, `registeredOccurrences: [{ id, contractorReply: { status } | null }]`
+  (só as ocorrências que abriram retorno). A guarda (`readRegisteredOccurrences`) é de **chaves exatas e tolerante**: ausente = API anterior = nada na tela (o app vai
+  **antes** da API, ADR-0081 §9); item com chave a mais, sem id ou com estado fora do vocabulário sai, nunca derruba a nota. `DriverContractorReplyStatus` (dentro de
+  `DocumentDetails`, só texto e ícone `clock`/`document`/`check`, linha de 44 px, sem toque) mostra "Pedido enviado à contratante" e um estado por linha:
+  aguardando a contratante (`awaiting_contractor`, `overdue`) · boleto recebido (`reply_received`, `awaiting_operator`, `needs_operator`) · entregue a você na conversa
+  (`delivered`); `handled`/`cancelled` não dizem nada ao motorista e saem. `CONTRACTOR_REPLY_STATUSES` é cópia por valor da API, presa por contrato. Teste:
+  `test/driver-trip/contractor-reply-status.contract.tsx`.
 - **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
   o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
   em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…

@@ -1485,8 +1485,12 @@
       "caseStatusEmpty": "No status found",
       "removeCaseStatus": "Remove case status",
       "caseStatusSearch": "Search status",
-      "caseStatusSummary": "{{count}} selected"
+      "caseStatusSummary": "{{count}} selected",
+      "contractorReply": "Contractor reply",
+      "contractorReplyOverdue": "Overdue only",
+      "contractorReplyOverdueHint": "Shows the occurrences whose contractor reply deadline has passed."
     },
+    "contractorReplyOverdue": "Overdue",
     "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
     "kicker": "Operations",
     "kind": {

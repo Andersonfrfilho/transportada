@@ -155,6 +155,15 @@
   opacity: 0.5;
 }
 
+/* Fora da `.fieldGrid`: ali `input` ganha a altura e a borda de campo, e o checkbox do design system não é campo. */
+.filterToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: 0.85rem;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

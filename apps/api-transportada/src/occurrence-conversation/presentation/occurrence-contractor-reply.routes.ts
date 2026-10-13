@@ -30,6 +30,7 @@ import type {
   ForwardContractorReplyByEmailInput,
   ForwardContractorReplyByEmailUseCase,
 } from '../application/forward-contractor-reply-by-email.use-case.js'
+import type { createResendContractorReplyRequestUseCase } from '../application/resend-contractor-reply-request.use-case.js'
 import { OCCURRENCE_CONVERSATION_RATE_LIMIT } from './occurrence-conversation.routes.js'
 
 export const OCCURRENCE_CONTRACTOR_REPLY_DRIVER_DELIVERY_PATH =
@@ -41,6 +42,8 @@ export const OCCURRENCE_CONTRACTOR_REPLY_EMAIL_OPTIONS_PATH =
 export const OCCURRENCE_CONTRACTOR_REPLY_PATH = '/trip-occurrences/:id/contractor-reply'
 export const OCCURRENCE_CONTRACTOR_REPLY_HANDLED_PATH =
   '/trip-occurrences/:id/contractor-reply/handled'
+export const OCCURRENCE_CONTRACTOR_REPLY_RESEND_REQUEST_PATH =
+  '/trip-occurrences/:id/contractor-reply/resend-request'
 
 const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const WRITE_POLICY = { permission: 'occurrences.resolve', scope: 'company' } as const
@@ -75,6 +78,10 @@ export type OccurrenceContractorReplyRoutesDependencies = {
     'markHandled'
   >
   readonly readReply: Pick<ReturnType<typeof createReadContractorReplyUseCase>, 'read'>
+  readonly resendRequest: Pick<
+    ReturnType<typeof createResendContractorReplyRequestUseCase>,
+    'resend'
+  >
   readonly deliverToDriver: Pick<
     ReturnType<typeof createDeliverContractorReplyToDriverUseCase>,
     'deliver'
@@ -181,6 +188,31 @@ export function createOccurrenceContractorReplyRoutes(
       }),
       pathname: OCCURRENCE_CONTRACTOR_REPLY_PATH,
       policy: READ_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.resendRequest.resend({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          idempotencyKey: input.idempotencyKey,
+          occurrenceId: input.occurrenceId,
+        })
+        return jsonResponse({ data: result }, 202)
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters, request }) => ({
+        correlationId,
+        idempotencyKey: parseIdempotencyKey(request.headers.get('idempotency-key')),
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: OCCURRENCE_CONTRACTOR_REPLY_RESEND_REQUEST_PATH,
+      policy: WRITE_POLICY,
+      rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
     }),
     defineRoute<{ readonly note: string; readonly occurrenceId: string }>({
       async handle({ context, input }): Promise<Response> {

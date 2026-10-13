@@ -457,6 +457,8 @@ import {
   createDrizzleContractorReplyHandledWriter,
   createDrizzleContractorReplyReader,
 } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
+import { createResendContractorReplyRequestUseCase } from './occurrence-conversation/application/resend-contractor-reply-request.use-case.js'
+import { createDrizzleContractorReplyResendReader } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-resend.repository.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -618,6 +620,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -2269,6 +2272,11 @@ function createApplicationRoutes({
     contexts: new DrizzleDriverStopHolidayContextRepository(database),
     logger,
   }
+  /** Spec 248 T5.4: o estado do retorno da contratante nas notas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverContractorReplies = {
+    logger,
+    reader: new DrizzleDriverDocumentContractorReplyRepository(database),
+  }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -3345,6 +3353,16 @@ function createApplicationRoutes({
       readReply: createReadContractorReplyUseCase({
         reader: createDrizzleContractorReplyReader(database),
       }),
+      /** Spec 248 RF6: o pedido volta à contratante na mesma conversa de e-mail, pelo caso de uso do envio. */
+      resendRequest: createResendContractorReplyRequestUseCase({
+        reader: createDrizzleContractorReplyResendReader(database),
+        sendMail: createSendOccurrenceMailUseCase({
+          fingerprintService,
+          secretService: contractorMailCredentialSecretService,
+          storage: storageGateway,
+          unitOfWork: new DrizzleOccurrenceMailRepository(database),
+        }),
+      }),
       deliverToDriver: createDeliverContractorReplyToDriverUseCase({
         clock: () => new Date(),
         notifier: createDriverConversationNotifier({
@@ -4032,6 +4050,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,

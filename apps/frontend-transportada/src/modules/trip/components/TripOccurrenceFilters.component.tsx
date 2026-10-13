@@ -2,10 +2,12 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
@@ -125,6 +127,18 @@ export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
             to={table.filters.createdUntil}
           />
         </label>
+      </div>
+
+      <div className={styles.filterToggles}>
+        <Tooltip label={t('occurrenceFeed.filters.contractorReplyOverdueHint')}>
+          <span>
+            <Checkbox
+              checked={table.filters.contractorReplyOverdue}
+              label={t('occurrenceFeed.filters.contractorReplyOverdue')}
+              onChange={table.setContractorReplyOverdue}
+            />
+          </span>
+        </Tooltip>
       </div>
 
       <FilterPills

@@ -1485,8 +1485,12 @@
       "caseStatusEmpty": "Nenhum estado encontrado",
       "removeCaseStatus": "Remover estado de tratativa",
       "caseStatusSearch": "Buscar estado",
-      "caseStatusSummary": "{{count}} selecionados"
+      "caseStatusSummary": "{{count}} selecionados",
+      "contractorReply": "Retorno da contratante",
+      "contractorReplyOverdue": "Só as atrasadas",
+      "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou."
     },
+    "contractorReplyOverdue": "Atrasadas",
     "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
     "kicker": "Operações",
     "kind": {

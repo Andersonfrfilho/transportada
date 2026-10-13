@@ -91,6 +91,9 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       notificação com chave por alerta (`reply:<id>:<n>`). Integração CA05: job em dobro, intervalo, teto.
 - [ ] **T4.10b** Ações do operador `resend-request` e `handled` (RF6) e os testes de CA05 "quatro paradas"
       pelas rotas (resposta chega, cancelada, tratado, teto) — a rotina já para em todas pela política.
+  - [x] **T4.10b-1** `handled` (T5.3a) e `POST /trip-occurrences/:id/contractor-reply/resend-request`
+        (evidence.md § T4.10b/T5.3b).
+  - [ ] **T4.10b-2** os testes de CA05 "quatro paradas" pelas rotas.
 - [ ] **T4.11** Contrato de parede + mutação: nenhum log com e-mail, nome de arquivo, CNPJ ou número de
       nota nos arquivos novos (CA08). Feito para os arquivos do alarme (T4.10a); falta o resto da fase.
 
@@ -101,23 +104,27 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 - [x] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
       com o `Select` da aplicação, os campos e as CHECKs como mensagens no campo; exceção por
       contratante com "Igual ao tipo".
-- [ ] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".
+- [x] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".
   - [x] **T5.2a** selo (`contractorReply` no feed, uma leitura por página).
-  - [ ] **T5.2b** filtro "Atrasadas": exige filtro no SQL paginado por cursor (API, parâmetro, pílula).
+  - [x] **T5.2b** filtro "Atrasadas": no SQL paginado por cursor (`contractorReplyStatusIn=overdue`), caixa
+        de seleção e pílula do design system, estado em `?contractorReply=overdue` (evidence.md § T5.2b).
 - [ ] **T5.3** Detalhe da ocorrência: painel do retorno (estado, prazo, alertas, ações "Reenviar o
       pedido", "Marcar como tratado", contatos da contratante), envios ("Enviar ao motorista",
       "Enviar ao cliente da nota" com motivo quando indisponível, "Encaminhar para um e-mail"), linha
       do tempo com os eventos.
   - [x] **T5.3a** painel (estado, prazo, alertas, linha do tempo, envios), "Marcar como tratado" e
         "Enviar ao motorista" (boleto aceito parado no operador).
-  - [ ] **T5.3b** "Reenviar o pedido" (depende da T4.10), contatos da contratante, "Enviar ao cliente
-        da nota" e "Encaminhar para um e-mail" (dependem da T4.7).
+  - [x] **T5.3b-1** "Reenviar o pedido" (botão no painel, só nos estados que permitem, motivo quando
+        desabilitado).
+  - [ ] **T5.3b-2** contatos da contratante, "Enviar ao cliente da nota" e "Encaminhar para um e-mail"
+        (dependem da T4.7).
 - [ ] **T5.4** App do motorista: conversa da ocorrência (lista com não lidas, leitura, resposta com
       anexo, download do PDF por URL assinada, aviso "sem rede"), o aviso do sino abrindo a conversa, e
       "Pedido enviado à contratante" na ocorrência.
       **Parcial** (evidence.md § T5.4): a conversa, o aviso do sino e o PDF por URL assinada já existiam
-      (263/264) e ganharam contrato (o smoke do sino não foi escrito: sem Chromium local); **falta** "Pedido enviado à contratante", que pede
-      campo novo na API (tipo resolvido por nota e/ou estado do retorno), e o aviso do sino no caminho automático.
+      (263/264) e ganharam contrato (o smoke do sino não foi escrito: sem Chromium local); "Pedido enviado à contratante" e o estado simples
+      (aguardando a contratante · boleto recebido · entregue ao motorista) entregues na T5.4b (evidence.md; `registeredOccurrences` na nota de
+      `/me/trips/current`, app antes da API, ADR-0081 §9); **falta** o aviso do sino no caminho automático.
 
 ## Fase 6 — Roteiro operacional
 

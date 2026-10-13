@@ -9,6 +9,8 @@ import { z } from 'zod'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { TRIP_OCCURRENCE_CASE_STATUSES } from '../../database/trip.schema.js'
+import { CONTRACTOR_REPLY_STATUSES } from '../../shared/occurrence-contractor-reply.constant.js'
+import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
 import { TRIP_OCCURRENCE_FEED_STAGES } from '../application/trip-occurrence-feed.use-case.js'
 import type {
   TripOccurrenceFeedCaseStatusFilter,
@@ -27,8 +29,11 @@ const DEFAULT_PER_PAGE = 25
 const CURSOR_SEPARATOR = '::'
 const MULTI_VALUE_SEPARATOR = ','
 
+const CONTRACTOR_REPLY_STATUS_VALUES = new Set<string>(CONTRACTOR_REPLY_STATUSES)
+
 const ALLOWED_KEYS = new Set([
   'caseStatusIn',
+  'contractorReplyStatusIn',
   'createdFrom',
   'createdUntil',
   'cursor',
@@ -91,6 +96,15 @@ function parseCaseStatusIn(
   return parts as readonly TripOccurrenceFeedCaseStatusFilter[]
 }
 
+function parseContractorReplyStatusIn(
+  value: null | string,
+): readonly ContractorReplyStatus[] | undefined {
+  const parts = parseMultiValue(value)
+  if (parts === undefined) return undefined
+  if (parts.some((part) => !CONTRACTOR_REPLY_STATUS_VALUES.has(part))) throw invalidRequest()
+  return parts as readonly ContractorReplyStatus[]
+}
+
 function parsePerPage(value: null | string): number {
   if (value === null) return DEFAULT_PER_PAGE
   const parsed = Number(value)
@@ -125,9 +139,13 @@ export function parseTripOccurrenceFeedList(url: URL): {
   const stageIn = parseStageIn(url.searchParams.get('stageIn'))
   const typeIn = parseMultiValue(url.searchParams.get('typeIn'))
   const caseStatusIn = parseCaseStatusIn(url.searchParams.get('caseStatusIn'))
+  const contractorReplyStatusIn = parseContractorReplyStatusIn(
+    url.searchParams.get('contractorReplyStatusIn'),
+  )
 
   const filters: TripOccurrenceFeedFilters = {
     ...(caseStatusIn === undefined ? {} : { caseStatusIn }),
+    ...(contractorReplyStatusIn === undefined ? {} : { contractorReplyStatusIn }),
     ...(createdFrom === undefined ? {} : { createdFrom }),
     ...(createdUntil === undefined ? {} : { createdUntil }),
     ...(plateIn === undefined ? {} : { plateIn }),

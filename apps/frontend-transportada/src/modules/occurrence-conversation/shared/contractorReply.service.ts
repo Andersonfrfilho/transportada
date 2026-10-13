@@ -9,6 +9,7 @@ import { isRecord } from './occurrenceConversationGuards.validation'
 import {
   CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH,
   CONTRACTOR_REPLY_STATUSES,
+  type ContractorReplyEvent,
   type ContractorReplySummary,
   type ContractorReplyStatus,
   type ContractorReplyView,
@@ -113,6 +114,61 @@ export function canDeliverContractorReplyToDriver(
   reply: Pick<ContractorReplyView, 'replyAttachmentId' | 'status'>,
 ): boolean {
   return reply.status === 'awaiting_operator' && reply.replyAttachmentId !== null
+}
+
+export type ResendActionView =
+  | Readonly<{ kind: 'enabled' }>
+  | Readonly<{ kind: 'hidden' }>
+  | Readonly<{ availableAt: null | string; kind: 'disabled'; reasonKey: string }>
+
+/**
+ * RF6: "Reenviar o pedido" aparece só enquanto o retorno espera a contratante (aguardando ou atrasada) e a API
+ * disse o que vale agora. Desabilitado leva o motivo à vista ("já reenviado há pouco, de novo às HH:mm"); retorno
+ * que já não espera, ou API anterior à ação (sem `resend`), não oferece o botão.
+ */
+export function describeResendAction(
+  reply: Pick<ContractorReplyView, 'resend' | 'status'>,
+): ResendActionView {
+  const isWaiting = reply.status === 'awaiting_contractor' || reply.status === 'overdue'
+  if (!isWaiting || reply.resend === null) return { kind: 'hidden' }
+  if (reply.resend.canResend) return { kind: 'enabled' }
+  if (reply.resend.reason !== 'too_soon') return { kind: 'hidden' }
+  return {
+    availableAt: reply.resend.availableAt,
+    kind: 'disabled',
+    reasonKey: 'contractorReply.resend.tooSoon',
+  }
+}
+
+/** O reenvio é o evento do operador que deixa o retorno no mesmo estado de espera (a API não tem outro com essa forma). */
+export function isResendRequestEvent(
+  event: Pick<ContractorReplyEvent, 'actorKind' | 'fromStatus' | 'toStatus'>,
+): boolean {
+  return (
+    event.actorKind === 'user' &&
+    event.fromStatus === event.toStatus &&
+    (event.toStatus === 'awaiting_contractor' || event.toStatus === 'overdue')
+  )
+}
+
+const RESEND_ERROR_KEY_BY_CODE: Readonly<Record<string, string>> = {
+  CONTRACTOR_REPLY_NOT_RESENDABLE: 'contractorReply.resend.error.notResendable',
+  CONTRACTOR_REPLY_ORIGINAL_REQUEST_MISSING: 'contractorReply.resend.error.originalMissing',
+  CONTRACTOR_REPLY_RESEND_TOO_SOON: 'contractorReply.resend.error.tooSoon',
+  OCCURRENCE_CONVERSATION_NO_RECIPIENT: 'contractorReply.resend.error.noRecipient',
+}
+
+/** O texto da recusa pelo código estável da API; código que não conhecemos cai no genérico, nunca em silêncio. */
+export function resolveResendErrorKey(code: null | string): string {
+  return (
+    (code === null ? undefined : RESEND_ERROR_KEY_BY_CODE[code]) ??
+    'contractorReply.resend.error.send'
+  )
+}
+
+/** Uma chave por tentativa do operador: repetir o mesmo toque reaproveita a chave e a API devolve a resposta gravada. */
+export function createResendRequestIdempotencyKey(randomId: () => string): string {
+  return `contractor-reply-resend:${randomId()}`
 }
 
 export type HandledNoteResult =
