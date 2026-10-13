@@ -74,7 +74,7 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 - [x] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
       portal (API, depois do commit da mensagem do portal) aplicam a política; integração CA02 nos
       dois caminhos, resposta duplicada e empresa B (CA09).
-- [x] **T4.6** `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
+- [x] **T4.6** (aviso do sino também no automático: T4.6b) `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
       aviso no sino que já existe; o expurgo conta as duas referências. Integração.
 - [ ] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
       informado), validação RF11, limite de taxa, 5 por ocorrência, `Idempotency-Key`, mensagem de

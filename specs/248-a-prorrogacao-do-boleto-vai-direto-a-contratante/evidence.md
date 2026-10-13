@@ -488,3 +488,21 @@ tem motorista): chama `POST /trip-occurrences/:id/contractor-reply/driver-delive
 manda de novo) ou o aviso de que o motorista ainda não tem conta ativa. A mensagem aparece na aba Motorista da mesma ocorrência, com o anexo. Provas: contrato do cliente
 (`deliver-reply-to-driver-client.contract.ts`, que pegou o caminho errado da rota antes do push), `tsc` e `eslint` limpos; contratos de conversa e de design system do painel
 595 pass / 0 fail no Linux. **Não visto no navegador.** Faltam o selo/estado do retorno (prazo, atraso) na ocorrência e o aviso de atraso (T4.10).
+
+## T4.6b — o sino do motorista também toca na entrega automática (2026-10-13)
+
+Fecha a lacuna registrada na T4.6 e na T5.4: com `forward_automatic` o boleto chegava à conversa do motorista, mas só a rota do operador avisava o sino.
+O núcleo SQL `deliverContractorReplyToDriver` **não mudou** (já devolvia `driverUserId`, `driverMessageId`, `occurrenceId` e `protocol`; a paridade API/worker segue byte a byte).
+`applyContractorReplyToMessage` passou a devolver essa entrega (ou `undefined`: sem retorno aberto, modo com aprovação, motorista sem conta, já entregue) e quem chama avisa **depois do commit**.
+
+- **Portal (API):** o caso de uso `contractor-portal-conversation.use-case.ts` recebe a entrega pela porta `applyContractorReply` e chama o `deliveryNotifier` fora da transação; o
+  adaptador `contractor-reply-delivery-notifier.adapter.ts` emite o mesmo aviso do operador (`createDriverConversationNotifier`: `trip.conversation-message`, assunto ocorrência, protocolo,
+  chave de aviso `trip.conversation-message:<id da mensagem do motorista>`). O replay da mesma `Idempotency-Key` volta antes de aplicar, então não avisa. O texto do caso de uso não cita o motorista (contrato "nada ali fala do motorista").
+- **E-mail (worker):** `recordOccurrenceConversationMailReply` devolve o aviso junto da contagem de anexos, `recordInboundMessage` o repassa e o caso de uso do trilho `contractor-mail-inbound.v1` o envia depois da gravação por
+  `createDriverReplyNotifier` (módulo de notificações do worker, mesma chave, mesmo template, mesmos extras do payload). Rótulo da ocorrência (`NF n/série` ou o nome do tipo) por SQL, igual ao do alerta de atraso e ao da API.
+  Falha do aviso é registrada só pelo nome (`occurrence_contractor_reply_driver_notice_failed`) e **não** desfaz a gravação nem faz o e-mail ser reentregue.
+- **Chave de aviso:** `trip.conversation-message:<id da mensagem>`, idêntica à do operador (o template entra na chave); não existe um prefixo `driver-message:` no código.
+- **Provas (Postgres 55432; Ubuntu/WSL, bun 1.4.3):** integração da API `occurrence-contractor-reply-received` (automático devolve a entrega com `driverUserId`, id da mensagem, protocolo; repetir a mesma resposta devolve `undefined`;
+  com aprovação e sem conta devolvem `undefined`; pelo adaptador do portal sai com o rótulo) e do worker (aviso uma vez; reentrega do mesmo e-mail e segunda resposta não avisam; sem conta e com aprovação não avisam).
+  Contratos: API portal (avisa uma vez com o commit feito, não avisa sem entrega, falha do aviso não desfaz), adaptador da API (emissão igual à do operador), worker (use case: depois de gravar, sem entrega, falha engolida;
+  notificador: chave, marcadores contra o catálogo da API, log sem dado pessoal). `tsc` e `eslint` limpos nas duas apps.
