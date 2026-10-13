@@ -784,7 +784,14 @@ function TripStopDocumentRow({
             {t('actions.return')}
           </Button>
         ) : null}
-        {actions.canManage && actions.isEditable ? (
+        {/*
+         * A API recusa desvincular nota já entregue (422 TRIP_DOCUMENT_ALREADY_DELIVERED) ou já
+         * liberada: o botão só aparece quando o desvínculo ainda é possível.
+         */}
+        {actions.canManage &&
+        actions.isEditable &&
+        document.deliveredAt === null &&
+        document.releasedAt === null ? (
           <Button
             disabled={actions.isReleasePending}
             onClick={() => actions.onRelease(document.id)}

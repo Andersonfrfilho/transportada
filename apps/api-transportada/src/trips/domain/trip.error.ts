@@ -312,6 +312,17 @@ export class TripDocumentAlreadyDeliveredError extends ApiError {
   }
 }
 
+/** Nota já solta da viagem: dizer "entregue" nessa recusa mandava o operador atrás do defeito errado. */
+export class TripDocumentAlreadyReleasedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_ALREADY_RELEASED',
+      message: 'The document was already released from this trip.',
+      status: 422,
+    })
+  }
+}
+
 const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, string>> = {
   TRIP_ALREADY_DISPATCHED: 'The cargo already left: a dispatched trip no longer accepts changes.',
   TRIP_CANCELLED: 'A cancelled trip no longer accepts changes.',

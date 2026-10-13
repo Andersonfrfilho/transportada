@@ -1030,6 +1030,7 @@
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
+    "documentAlreadyReleased": "This document was already unlinked from this trip. Refresh the page.",
     "documentNotFound": "Document not found on this trip.",
     "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
     "documentReturnReasonRequired": "Provide the return reason.",
