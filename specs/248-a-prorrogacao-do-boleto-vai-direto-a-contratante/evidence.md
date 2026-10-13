@@ -403,6 +403,33 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 - **Limites desta task:** o aviso no sino não sai no caminho automático (só na rota do operador); o `driverReplyTemplate` vai como escrito, sem trocar marcadores.
   WhatsApp fica de fora (decisão do dono, 2026-10-12).
 
+## T4.10a — a rotina `occurrence.contractor-reply.alert` (2026-10-12)
+
+O worker faz tudo, sem rota da API nem permissão nova: lê o banco, move o retorno e fala com o módulo de notificações que ele já tem
+(`notificationModule.useCases.sendNotification`). `decideAlert` (cópia da política no worker) decide de verdade dentro da transação; a fila SQL é só o
+pré-filtro da mesma regra (alarme ligado, abaixo do teto, prazo vencido ou entrega à espera da janela, intervalo cumprido).
+
+- **Transição:** `SELECT … FOR UPDATE` do retorno, `decideAlert`, `UPDATE … WHERE alert_count = <lido> AND status = <lido>` (`status → overdue` só no
+  primeiro), evento `system` (`from_status`/`to_status`; no alerta repetido os dois são `overdue`) e destinatário (quem despachou, último
+  `trip_dispatch_snapshots`) na mesma transação. Viagem sem despacho: alerta contado, sem aviso.
+- **Aviso:** depois do commit, template novo `trip.occurrence-contractor-reply-overdue` (catálogo da API e cópia no worker, marcadores `alertNumber` e
+  `occurrenceLabel`, sino + e-mail), chave de dedupe `reply:<id>:<alert_count>`. Falha de entrega não refaz a transição: fecha o ciclo com
+  `notification_failed`.
+- **Relógio:** migration `20261013010226_occurrence_contractor_reply_alert_job` amplia as duas CHECK de `job` (lista do head de `origin/staging` + o nome novo)
+  e semeia a linha **pausada** (`system`, 300 s). Catálogo nas quatro cópias (API, cron, worker, painel) e nos três contratos.
+- **Provas (Postgres 55432, banco descartável):** integração do worker `occurrence-contractor-reply-alert.integration` **8 pass / 0 fail** (fila, empresa
+  trocada → `not_found`, primeiro alerta vira `overdue` com evento e destinatário, duas execuções simultâneas alertam uma vez, viagem sem despacho, entrega
+  à espera da janela, rotina duas vezes → um aviso, alerta de novo depois do intervalo e parada no teto). Contratos do worker (rotina, aviso, parede de log):
+  `test` do worker 2541 pass / 2 fail — as duas falhas são `threaded canhoto barcode decoder` e falham igual num worktree sem este código (ambiente). Cron `test`
+  101/0. API: `job-catalog`, `notification-catalog` 29/0 e `database-migration.contract` **184/0** (aplica, desfaz em cadeia e reaplica; teto trocado para 300 s no
+  disco lento e restaurado). `db:check` e `db:generate` → `no_changes`. `tsc` e `eslint` limpos nas quatro apps; prettier limpo.
+- **Mutações (vermelho registrado):** `occurrenceLabel` no metadata do log → `log-wall.contract` falha (`nenhum arquivo do alarme loga campo proibido`); teto
+  `<` virando `<=` na fila → 2 falhas na integração (`lists only the replies that are due`, `running the routine twice…`). Restauradas.
+- **Cadeia de rollback:** `occurrence-contractor-reply-alert-job-rollback.assertion.ts` entra na frente do rollback do varredor, que já está na cadeia da
+  transcrição e do feriado (canhoto-read-queue); `static-migration.contract.ts` lista a migration nova.
+- **Fora desta task:** ações do operador `resend-request` e `handled` (T4.10b), selo "Atrasada · N alertas" na lista, ligar a rotina em produção
+  (autorização do usuário).
+
 ## T5.4 — o app do motorista mostra o boleto (2026-10-12)
 
 **Conferido no código (nada disto foi refeito):**

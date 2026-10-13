@@ -127,6 +127,10 @@ import { createStorageAttachmentReaderGateway } from './aggregate-attachment/inf
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
+import { createOccurrenceContractorReplyAlertRoutine } from './occurrence-contractor-reply-alert/application/occurrence-contractor-reply-alert.routine.js'
+import { createContractorReplyAlertNotifier } from './occurrence-contractor-reply-alert/infrastructure/contractor-reply-alert-notifier.gateway.js'
+import { createDrizzleOccurrenceContractorReplyAlertQueue } from './occurrence-contractor-reply-alert/infrastructure/drizzle-occurrence-contractor-reply-alert-queue.repository.js'
+import { createDrizzleOccurrenceContractorReplyAlertStore } from './occurrence-contractor-reply-alert/infrastructure/drizzle-occurrence-contractor-reply-alert-store.repository.js'
 import { createOccurrenceAutomaticMailSweepRoutine } from './occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-sweep.routine.js'
 import { createDrizzleOccurrenceAutomaticMailQueue } from './occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
 import { createOccurrenceAutomaticMailApiGateway } from './occurrence-automatic-mail-sweep/infrastructure/occurrence-automatic-mail-api.gateway.js'
@@ -1495,6 +1499,25 @@ export async function startWorkerRuntime(
             envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
             logger,
           }),
+          /**
+           * Spec 248 T4.10: registrada sempre — não chama a API, só o banco e o módulo de notificações.
+           * A linha de `job_schedules` nasce pausada de fábrica.
+           */
+          ['occurrence.contractor-reply.alert' as const]:
+            createOccurrenceContractorReplyAlertRoutine({
+              errorTracker,
+              logger,
+              notifier: createContractorReplyAlertNotifier({
+                send: (params) => notificationModule.useCases.sendNotification.execute(params),
+              }),
+              now: () => new Date(),
+              queue: createDrizzleOccurrenceContractorReplyAlertQueue(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              store: createDrizzleOccurrenceContractorReplyAlertStore(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+            }),
           /**
            * Spec 222 T6.7: registrada só com o crachá do worker declarado — o worker lê a fila por SQL
            * mas reporta pela rota do robô, e sem credencial a janela pousa em `job_run_routine_missing`

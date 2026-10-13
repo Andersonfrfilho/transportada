@@ -64,6 +64,11 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   TRIP_OCCURRENCE_DOCK_CLOSED: 'trip.occurrence-dock-closed',
   TRIP_OCCURRENCE_LONG_WAIT: 'trip.occurrence-long-wait',
   TRIP_OCCURRENCE_UNEXPECTED_CHARGE: 'trip.occurrence-unexpected-charge',
+  /**
+   * Spec 248 RF5: a contratante não respondeu no prazo e a operação é alertada de novo a cada intervalo.
+   * Quem dispara é o worker (`occurrence.contractor-reply.alert`); a chave de dedupe leva o número do alerta.
+   */
+  TRIP_OCCURRENCE_CONTRACTOR_REPLY_OVERDUE: 'trip.occurrence-contractor-reply-overdue',
 } as const
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE_KEY)[keyof typeof NOTIFICATION_TEMPLATE_KEY]
@@ -220,6 +225,25 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'Agendamento exigido na parada {{stopLabel}} às {{occurredAt}} (nota {{documentLabel}}).',
+      },
+    },
+  },
+  /**
+   * Spec 248 RF5: o retorno da contratante venceu. Sem PII: a ocorrência pelo rótulo (nota ou tipo) e o
+   * número do alerta; o contato da contratante e o anexo ficam na tela, atrás de autenticação.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['alertNumber', 'occurrenceLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_CONTRACTOR_REPLY_OVERDUE,
+    templates: {
+      email: {
+        body: 'A contratante ainda não respondeu ao pedido da ocorrência {{occurrenceLabel}}. Este é o alerta {{alertNumber}}.\nAbra a ocorrência no TransportAdA para acompanhar.',
+        subject: 'Contratante sem resposta na ocorrência {{occurrenceLabel}}',
+      },
+      inbox: {
+        body: 'A contratante ainda não respondeu ao pedido da ocorrência {{occurrenceLabel}} (alerta {{alertNumber}}).',
       },
     },
   },

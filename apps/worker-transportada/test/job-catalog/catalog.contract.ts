@@ -165,6 +165,12 @@ const CATALOG = [
     job: 'occurrence.automatic-mail.sweep',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 248 T4.10: o alerta do retorno vencido da contratante; o worker faz tudo. Nasce pausada. */
+    failureOutcomes: ['notification_failed'],
+    job: 'occurrence.contractor-reply.alert',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('worker job catalog', () => {

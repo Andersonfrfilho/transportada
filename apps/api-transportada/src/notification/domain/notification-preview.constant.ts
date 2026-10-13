@@ -14,6 +14,7 @@
  * `test/notification/preview-payload.contract.ts` de cada lado é o que cobra.
  */
 export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
+  alertNumber: '2',
   batchName: 'Lote CT-e julho',
   dueDate: '10/09/2026',
   failedCount: '3',
