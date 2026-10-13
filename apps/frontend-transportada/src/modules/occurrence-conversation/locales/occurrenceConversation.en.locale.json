@@ -195,7 +195,13 @@
     "forward": "Forward to contractor",
     "forwarding": "Forwarding…",
     "forwarded": "Forwarded to the contractor through the portal.",
-    "forwardError": "Could not forward. Try again shortly."
+    "forwardError": "Could not forward. Try again shortly.",
+    "sendToDriver": "Send to driver",
+    "sendingToDriver": "Sending…",
+    "sentToDriver": "Sent to the driver in the app chat.",
+    "alreadySentToDriver": "Already sent to the driver.",
+    "sendToDriverSkipped": "The trip driver does not have an active app account yet.",
+    "sendToDriverError": "Could not send. Try again shortly."
   },
   "channel": {
     "email": "Email",
@@ -281,13 +287,6 @@
     "deadlinePassed": "past due",
     "reasonLabel": "Reason",
     "handledNoteLabel": "Operator note",
-    "deliver": {
-      "open": "Send to the driver",
-      "sending": "Sending…",
-      "done": "Sent to the driver.",
-      "skipped": "Not sent: the driver has no account in the app.",
-      "error": "Could not send to the driver. Try again in a moment."
-    },
     "handled": {
       "open": "Mark as handled",
       "note": "What was done",

@@ -419,3 +419,11 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
 - **Fora:** filtro "Atrasadas" (T5.2b: pede filtro no SQL paginado por cursor, parâmetro e pílula); "Reenviar o pedido" (depende do cron da T4.10),
   contatos da contratante, envio ao cliente da nota e a e-mail informado (T4.7). Não visto no navegador.
 - **Limites do ambiente:** no Windows os contratos que varrem disco falham antes e depois (202 na API, 24–26 no painel, as mesmas); a CI é a prova.
+
+## T5.3 (parte) — "Enviar ao motorista" no painel (2026-10-13)
+
+Na conversa da contratante da ocorrência (aba Contratante), cada anexo que a **contratante mandou** ganha o botão "Enviar ao motorista" (só com `canSend` e quando a viagem
+tem motorista): chama `POST /trip-occurrences/:id/contractor-reply/driver-delivery` com o anexo, mostra "Enviado ao motorista pelo chat do app", "Já foi enviado" (repetir não
+manda de novo) ou o aviso de que o motorista ainda não tem conta ativa. A mensagem aparece na aba Motorista da mesma ocorrência, com o anexo. Provas: contrato do cliente
+(`deliver-reply-to-driver-client.contract.ts`, que pegou o caminho errado da rota antes do push), `tsc` e `eslint` limpos; contratos de conversa e de design system do painel
+595 pass / 0 fail no Linux. **Não visto no navegador.** Faltam o selo/estado do retorno (prazo, atraso) na ocorrência e o aviso de atraso (T4.10).

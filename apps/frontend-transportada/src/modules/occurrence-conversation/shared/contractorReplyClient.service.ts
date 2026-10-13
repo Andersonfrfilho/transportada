@@ -20,15 +20,10 @@ import {
   type ContractorReplyDelivery,
   type ContractorReplyEvent,
   type ContractorReplyView,
-  type DeliverToDriverOutcome,
   type MarkHandledOutcome,
 } from './contractorReply.types'
 
 export type ContractorReplyClient = Readonly<{
-  deliverToDriver: (input: {
-    attachmentId?: string
-    occurrenceId: string
-  }) => Promise<DeliverToDriverOutcome>
   markHandled: (input: { note: string; occurrenceId: string }) => Promise<MarkHandledOutcome>
   readReply: (input: { occurrenceId: string }) => Promise<ContractorReplyView | null>
 }>
@@ -127,19 +122,6 @@ export function createContractorReplyClient(
   dependencies: ClientDependencies,
 ): ContractorReplyClient {
   return {
-    async deliverToDriver({ attachmentId, occurrenceId }) {
-      const payload = await requestJson(
-        dependencies,
-        `${replyPath(occurrenceId)}/driver-delivery`,
-        {
-          body: attachmentId === undefined ? {} : { attachmentId },
-          method: 'POST',
-        },
-      )
-      return {
-        kind: readOutcomeKind(payload, ['already_delivered', 'delivered', 'skipped'] as const),
-      }
-    },
     async markHandled({ note, occurrenceId }) {
       const payload = await requestJson(dependencies, `${replyPath(occurrenceId)}/handled`, {
         body: { note },

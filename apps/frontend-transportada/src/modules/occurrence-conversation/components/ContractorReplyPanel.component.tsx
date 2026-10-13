@@ -2,15 +2,10 @@
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
-import {
-  useContractorReplyQuery,
-  useDeliverContractorReplyToDriverMutation,
-} from '../queries/contractorReply.query'
+import { useContractorReplyQuery } from '../queries/contractorReply.query'
 import {
   canDeliverContractorReplyToDriver,
   canMarkContractorReplyHandled,
@@ -21,6 +16,7 @@ import styles from '../styles/contractorReply.module.css'
 import conversationStyles from '../styles/occurrenceConversation.module.css'
 import { ContractorReplyHandledForm } from './ContractorReplyHandledForm.component'
 import { ContractorReplyTimeline } from './ContractorReplyTimeline.component'
+import { SendToDriverAction } from './OccurrenceConversations.component'
 
 type ContractorReplyPanelProps = Readonly<{
   canResolve: boolean
@@ -29,41 +25,6 @@ type ContractorReplyPanelProps = Readonly<{
   hasDocument: boolean
   occurrenceId: string
 }>
-
-function DeliverToDriverAction({ occurrenceId }: Readonly<{ occurrenceId: string }>) {
-  const { t } = useTranslation('occurrenceConversation')
-  const mutation = useDeliverContractorReplyToDriverMutation(occurrenceId)
-  const outcome = mutation.data?.kind
-  if (outcome === 'delivered' || outcome === 'already_delivered') {
-    return <span className={conversationStyles.hint}>{t('contractorReply.deliver.done')}</span>
-  }
-  return (
-    <>
-      <Button
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        <Icon name="send" size="sm" />
-        {mutation.isPending
-          ? t('contractorReply.deliver.sending')
-          : t('contractorReply.deliver.open')}
-      </Button>
-      {outcome === 'skipped' ? (
-        <span className={conversationStyles.hint} role="status">
-          {t('contractorReply.deliver.skipped')}
-        </span>
-      ) : null}
-      {mutation.isError ? (
-        <span className={conversationStyles.error} role="alert">
-          {t('contractorReply.deliver.error')}
-        </span>
-      ) : null}
-    </>
-  )
-}
 
 function ContractorReplyFacts({ reply }: Readonly<{ reply: ContractorReplyView }>) {
   const { t } = useTranslation('occurrenceConversation')
@@ -164,8 +125,11 @@ export function ContractorReplyPanel({
       {canResolve &&
       (canDeliverContractorReplyToDriver(reply) || canMarkContractorReplyHandled(reply.status)) ? (
         <div className={styles.actions}>
-          {canDeliverContractorReplyToDriver(reply) ? (
-            <DeliverToDriverAction occurrenceId={occurrenceId} />
+          {canDeliverContractorReplyToDriver(reply) && reply.replyAttachmentId !== null ? (
+            <SendToDriverAction
+              attachmentId={reply.replyAttachmentId}
+              occurrenceId={occurrenceId}
+            />
           ) : null}
           {canMarkContractorReplyHandled(reply.status) ? (
             <ContractorReplyHandledForm occurrenceId={occurrenceId} />

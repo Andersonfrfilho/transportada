@@ -240,19 +240,4 @@ describe('o cliente do retorno (spec 248 RF13)', () => {
       'CONTRACTOR_REPLY_NOT_HANDLEABLE',
     )
   })
-
-  test('enviar ao motorista lê o desfecho; desfecho desconhecido é inválido', async () => {
-    const requests: Request[] = []
-    const client = createClient(Response.json({ data: { kind: 'skipped' } }), requests)
-
-    expect(await client.deliverToDriver({ occurrenceId: 'o-1' })).toEqual({ kind: 'skipped' })
-    expect(requests[0]?.url).toBe(
-      `${API_URL}/trip-occurrences/o-1/contractor-reply/driver-delivery`,
-    )
-
-    const unknown = createClient(Response.json({ data: { kind: 'talvez' } }))
-    expect(await failureCodeOf(unknown.deliverToDriver({ occurrenceId: 'o-1' }))).toBe(
-      'OCCURRENCE_CONVERSATION_RESPONSE_INVALID',
-    )
-  })
 })

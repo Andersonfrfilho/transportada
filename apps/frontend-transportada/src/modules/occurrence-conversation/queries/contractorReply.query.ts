@@ -9,9 +9,10 @@ import {
   createContractorReplyClient,
   type ContractorReplyClient,
 } from '../shared/contractorReplyClient.service'
-import { OCCURRENCE_CONVERSATIONS_QUERY_KEY } from './occurrenceConversation.query'
-
-export const CONTRACTOR_REPLY_QUERY_KEY = 'occurrence-contractor-reply'
+import {
+  CONTRACTOR_REPLY_QUERY_KEY,
+  OCCURRENCE_CONVERSATIONS_QUERY_KEY,
+} from './occurrenceConversation.query'
 
 /** O prazo e o alarme andam sozinhos no servidor: um minuto basta para o painel não ficar velho. */
 const CONTRACTOR_REPLY_REFETCH_MS = 60_000
@@ -51,15 +52,6 @@ export function useMarkContractorReplyHandledMutation(occurrenceId: string) {
   const refresh = useRefreshAfterReplyChange()
   return useMutation({
     mutationFn: (note: string) => client.markHandled({ note, occurrenceId }),
-    onSuccess: refresh,
-  })
-}
-
-export function useDeliverContractorReplyToDriverMutation(occurrenceId: string) {
-  const client = getContractorReplyClient()
-  const refresh = useRefreshAfterReplyChange()
-  return useMutation({
-    mutationFn: () => client.deliverToDriver({ occurrenceId }),
     onSuccess: refresh,
   })
 }

@@ -76,6 +76,3 @@ export type ContractorReplySummary = Readonly<{
 }>
 
 export type MarkHandledOutcome = Readonly<{ kind: 'already_handled' | 'handled' }>
-export type DeliverToDriverOutcome = Readonly<{
-  kind: 'already_delivered' | 'delivered' | 'skipped'
-}>
