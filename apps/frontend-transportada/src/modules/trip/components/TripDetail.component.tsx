@@ -1169,7 +1169,7 @@ export function TripDetail({
             isGeometryError={workspace.routeGeometryQuery.isError}
             isGeometryPending={workspace.routeGeometryQuery.isPending}
             isRouteChoicePending={workspace.planRouteMutation.isPending}
-            onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+            onCorrect={(correction) => workspace.correctAddressMutation.mutateAsync(correction)}
             onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
             onRouteChoiceSelect={(routeChoice) =>
               workspace.planRouteMutation.mutate({ routeChoice, tripId: trip.id })

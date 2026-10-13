@@ -1837,6 +1837,15 @@
     "cancel": "Cancel",
     "choiceNotReproduced": "The road may have changed since this route was chosen: the saved route could not be found again, and the trip has the cheapest route calculated today.",
     "correct": "Correct point on the map",
+    "pickAddress": "Pick the address",
+    "pointSaved": "Point saved at {{address}}.",
+    "pointSaveFailed": "The server refused the point. Check latitude and longitude (dot or comma, up to 7 decimals) and the chosen address; nothing was saved.",
+    "pointInvalid": {
+      "address": "Pick the address that will receive the point.",
+      "empty": "Enter the {{axis}}.",
+      "format": "The {{axis}} must be a number, like -21.0758798.",
+      "range": "The {{axis}} is outside the possible range."
+    },
     "correctionScope": "The correction belongs to the address, not to this trip: it applies to every trip that passes through this gate.",
     "cost": {
       "distance": "Distance",
