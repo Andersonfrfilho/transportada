@@ -3,6 +3,7 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import { maskEmailAddress } from '../../shared/email-address-mask.policy.js'
 import { toDisplayPersonName } from '../../shared/person-name.service.js'
 
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
@@ -172,15 +173,6 @@ export function maskIdentityEmail(value: string): string {
 
 export function maskIdentityTaxId(value: string): string {
   return maskTrailingDigits(value)
-}
-
-function maskEmailAddress(email: string): string {
-  const [local, domain] = email.split('@')
-  if (local === undefined || domain === undefined) return email
-
-  const separatorIndex = domain.indexOf('.')
-  const domainSuffix = separatorIndex === -1 ? '' : domain.slice(separatorIndex)
-  return `${local.slice(0, 1)}***@${domain.slice(0, 1)}***${domainSuffix}`
 }
 
 /** Mascarar campo vazio produziria `***` para quem nunca cadastrou nada — o vazio é a resposta. */
