@@ -60,6 +60,11 @@ export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
 ] as const
 export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
 
+export type TripOccurrenceCaseTakenBy = Readonly<{
+  displayName: null | string
+  takenAt: string
+}>
+
 /** RF10: o que a API devolve por ocorrência — `null` quando ela não abriu tratativa. */
 export type TripOccurrenceCaseView = Readonly<{
   decision: null | Readonly<{
@@ -75,6 +80,11 @@ export type TripOccurrenceCaseView = Readonly<{
    */
   settlementTotal: null | string
   status: TripOccurrenceCaseStatus
+  /**
+   * Quem pegou a tratativa (quem iniciou a validação interna). `null` enquanto ninguém pegou — e
+   * API anterior a este campo, que não o manda. Só o nome do perfil; nunca e-mail nem telefone.
+   */
+  takenBy: null | TripOccurrenceCaseTakenBy
   updatedAt: string
 }>
 
@@ -302,6 +312,7 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'destination',
   'invoiceValue',
   'conversation',
+  'takenBy',
   'notified',
 ] as const
 

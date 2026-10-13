@@ -591,6 +591,17 @@ Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniat
 só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
 `currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".
 
+## Quem pegou a tratativa (spec 164)
+
+`OccurrenceCaseTakenBy` (`variant="block"` no topo da tratativa; `"inline"` na coluna **Responsável** da lista, no cartão
+do celular e no resumo): verde "Pegou <nome> desde …" (avatar de iniciais), cinza "Ninguém pegou ainda" e, passadas
+`TAKEN_BY_STALE_AFTER_HOURS` (4 h) com a tratativa ainda `recorded`, âmbar "Parada há N h sem ninguém pegar" — sempre
+ícone + palavra + cor, dica (`Tooltip`) que explica, animação de 200 ms só sob `prefers-reduced-motion: no-preference`.
+`case.takenBy` é **opcional na entrada** (`toTakenBy`: ausente ou malformado vira "ninguém pegou"; só `displayName` e
+`takenAt` passam, nunca contato). "Sem responsável" na lista é o filtro de Tratativa **Registrada** que já existe
+(`recorded` ⇔ ninguém iniciou a validação), então não há filtro novo nem parâmetro de API. A autoria de cada passo do
+histórico é a da linha do tempo (`OccurrenceTimeline`, `actor.name`).
+
 ## A devolução soma os itens no painel (spec 247)
 
 A aba Tipos configura número do documento do cliente, valor pago (modo, escopo, rótulo) e o e-mail à contratante; a **prévia vem do

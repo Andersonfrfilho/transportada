@@ -15,6 +15,7 @@ import {
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
 } from '../shared/tripOccurrenceFeed.service'
+import { OccurrenceCaseTakenBy } from './OccurrenceCaseTakenBy.component'
 import {
   OccurrenceSettlementPanel,
   type OccurrenceSettlementPanelProps,
@@ -141,6 +142,7 @@ export function OccurrenceCasePanel({
 
   return (
     <div className={styles.occurrenceStage}>
+      <OccurrenceCaseTakenBy occurrenceCase={occurrenceCase} variant="block" />
       <p className={styles.hint}>
         {t('occurrenceCase.statusLabel')}:{' '}
         <strong>{t(`occurrenceFeed.caseStatus.${status}`)}</strong>

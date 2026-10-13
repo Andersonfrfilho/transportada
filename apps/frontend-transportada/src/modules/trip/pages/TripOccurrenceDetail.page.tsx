@@ -19,6 +19,7 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
@@ -331,6 +332,14 @@ function OccurrenceSummaryPanel({
           <dt>{t('occurrenceFeed.columns.stopLabel')}</dt>
           <dd>{occurrence.stopLabel ?? t('occurrenceDetail.driver.none')}</dd>
         </div>
+        {occurrence.case === null ? null : (
+          <div>
+            <dt>{t('occurrenceTakenBy.title')}</dt>
+            <dd>
+              <OccurrenceCaseTakenBy occurrenceCase={occurrence.case} variant="inline" />
+            </dd>
+          </div>
+        )}
         <div className={styles.occurrenceFactWide}>
           <dt>{t('occurrenceDetail.summary.description')}</dt>
           <dd className={styles.occurrenceDescription}>

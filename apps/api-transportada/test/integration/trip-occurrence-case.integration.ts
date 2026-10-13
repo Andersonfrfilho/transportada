@@ -229,6 +229,8 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
       const visible = await useCase.list({ context: contractorContext })
       expect(visible.map((item) => item.occurrenceId)).toEqual([occurrence.id])
       expect(visible[0]?.caseStatus).toBe('awaiting_contractor')
+      /** Quem pegou é dado da equipe: o portal da contratante nunca o recebe (contrato negativo). */
+      expect(JSON.stringify(visible)).not.toContain('takenBy')
 
       // A ocorrência da outra empresa/contratante nunca aparece, mesmo com o mesmo estado.
       const otherCaseId = await findCaseId(database, otherCompany.companyId, otherOccurrence.id)

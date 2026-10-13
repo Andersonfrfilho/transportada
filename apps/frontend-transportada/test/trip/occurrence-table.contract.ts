@@ -305,6 +305,7 @@ describe('listagem de ocorrências — colunas da nota', () => {
       'destination',
       'invoiceValue',
       'conversation',
+      'takenBy',
       'notified',
     ])
   })
@@ -329,11 +330,12 @@ describe('listagem de ocorrências — colunas da nota', () => {
     }
     const preferences = readTripOccurrenceColumnPreferences(storage)
     expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
-    expect(preferences.order.slice(-4)).toEqual([
+    expect(preferences.order.slice(-5)).toEqual([
       'contractor',
       'destination',
       'invoiceValue',
       'conversation',
+      'takenBy',
     ])
     expect(preferences.visibility.driverName).toBe(false)
     expect(preferences.visibility.contractor).toBe(true)
@@ -379,6 +381,7 @@ describe('listagem de ocorrências — coluna Conversa', () => {
     redeliveryPolicy: 'allowed',
     settlementTotal: null,
     status: 'decided',
+    takenBy: null,
     updatedAt: '2026-09-24T12:00:00.000Z',
   } as const
 

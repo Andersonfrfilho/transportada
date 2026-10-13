@@ -20,6 +20,7 @@ import {
   type OccurrenceSettlementView,
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
+  type TripOccurrenceCaseTakenBy,
   type TripOccurrenceCaseView,
   type TripOccurrenceConversationSummary,
   type TripOccurrenceFeedFilters,
@@ -125,8 +126,8 @@ function isNullableString(value: unknown): value is null | string {
  * `case` ausente é "sem tratativa aberta" (mesmo padrão de `null`, RF10); `settlementTotal`
  * ausente é o de hoje, `null`, até a API preencher o valor (T8).
  */
-type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal'> &
-  Readonly<{ settlementTotal?: unknown }>
+type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal' | 'takenBy'> &
+  Readonly<{ settlementTotal?: unknown; takenBy?: unknown }>
 
 /** RF10: `null` é "sem tratativa aberta" — nunca um estado inventado. */
 function isCaseView(value: unknown): value is RawCaseView {
@@ -149,9 +150,22 @@ function isCaseView(value: unknown): value is RawCaseView {
   )
 }
 
+/** Ausente ou malformado é "ninguém pegou" — o campo nunca reprova a tratativa (ADR-0081 §9). */
+function toTakenBy(value: unknown): TripOccurrenceCaseTakenBy | null {
+  if (!isRecord(value) || !isString(value.takenAt)) return null
+  return {
+    displayName: isString(value.displayName) ? value.displayName : null,
+    takenAt: value.takenAt,
+  }
+}
+
 function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
-  const { settlementTotal, ...rest } = raw
-  return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
+  const { settlementTotal, takenBy, ...rest } = raw
+  return {
+    ...rest,
+    settlementTotal: isString(settlementTotal) ? settlementTotal : null,
+    takenBy: toTakenBy(takenBy),
+  }
 }
 
 type RawFeedItem = Omit<

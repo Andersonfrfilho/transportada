@@ -29,8 +29,14 @@ describe('tenant safety da listagem de ocorrências', () => {
     // só entra depois de uma junção com `userCompanyMemberships` já escopada pela empresa (mesmo
     // padrão de nfe-documents, D16/H13). É a única junção legitimamente sem `and(eq(…companyId`.
     const actorProfileJoins = QUERY_SOURCE.match(/\.leftJoin\(feedActorProfile, eq\(/gu) ?? []
+    // Spec 164 (quem pegou): mesma exceção, mesma condição — o perfil global só entra depois da
+    // junção do evento `takenByEvent`, que carrega `companyId` da tratativa.
+    const takenByProfileJoins = QUERY_SOURCE.match(/\.leftJoin\(takenByProfile, eq\(/gu) ?? []
     expect(joins.length).toBeGreaterThan(0)
-    expect(scopedJoins.length + actorProfileJoins.length).toBe(joins.length)
+    expect(takenByProfileJoins.length).toBe(1)
+    expect(scopedJoins.length + actorProfileJoins.length + takenByProfileJoins.length).toBe(
+      joins.length,
+    )
   })
 
   test('a leitura de anexo exige empresa e ocorrência juntas', () => {

@@ -30,6 +30,7 @@ function withOpenCase(): TripOccurrenceDetail {
       redeliveryPolicy: 'allowed',
       settlementTotal: null,
       status: 'under_review',
+      takenBy: null,
       updatedAt: '2026-10-01T11:00:00.000Z',
     },
   })
