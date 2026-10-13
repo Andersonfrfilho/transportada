@@ -269,17 +269,26 @@ validação do deep link):
 portal) e a aba Motorista (app). A mesma tela serve ao app do motorista e, com peças próprias, ao
 portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
 
-- **Do `@adatechnology/conversations-ui` entram só peças que não dependem de Tailwind:**
-  `MessageText`, `StatusTicks` e `DateDivider`. O `styles.css` do pacote nunca é importado
-  (ADR-0051), e a cor de cada participante vem dos tokens.
-- **Mensagem nova é anunciada a leitor de tela** (T903, D2). O fio tem região `aria-live`
-  alimentada por `countNewIncomingMessages`, que nunca anuncia a primeira leitura. A leitura nunca
-  para: com envio pendente, o refetch é rápido; sem nada pendente, cai para
-  `CONVERSATION_IDLE_REFETCH_MS` (60 s).
-- **Envio que falhou se recupera no reenvio** (`recoverFromSendFailure`, T903 F2/F3):
-  - upload vencido esquece os ids e sobe de novo;
-  - chave já usada com outro conteúdo gera chave nova;
-  - conversa passada a outro motorista diz o motivo.
+- **O fio das duas abas é o `ConversationThread` do SDK `@adatechnology/conversations-ui`** (visão `operator`, o
+  mesmo desenho do app do motorista e da conversa por assunto; spec 263 T5.2-C). `OccurrenceThread` monta o fio
+  sobre `useOccurrenceThread` + `occurrenceThreadApi.service.ts`: o adaptador lê pelo **mesmo cache da aba**
+  (`fetchOccurrenceConversations`), envia pelo canal da aba (app ou portal) com a chave `driver-message:`/
+  `portal-message:` + `clientMessageId` do SDK, e só marca como lida com mensagem nova. Mensagem "minha" é a
+  `outbound`; o canal vai no nome (`Maria · Compras · E-mail`). O `styles.css` do pacote é importado no `main.tsx`
+  e o mapa `--cv-p-*` é o de `subjectConversation.module.css`. Balão, `<audio>`, `<svg>` e compositor próprios
+  não voltam (contrato `occurrence-thread.contract.ts`).
+- **O SDK não tem porta para ação por anexo, remetente nem reenvio por canal** (0.10.0): essas funções ficam nas
+  faixas `OccurrenceThread{Attachments,Senders,Failures}` ao lado do fio, com ícone + palavra + cor.
+  Quando o SDK ganhar o slot, as faixas viram o slot, sem mudar a regra.
+- **Mensagem nova é anunciada a leitor de tela** pela região `aria-live` do próprio SDK (rótulo `newMessages`;
+  `countNewIncomingMessages` segue no serviço). A leitura nunca para: com envio pendente, o refetch é rápido; sem
+  nada pendente, cai para `CONVERSATION_IDLE_REFETCH_MS` (60 s); o fio relê a cada 20 s e ao voltar o foco.
+- **Reenvio de mensagem que falhou** (`OccurrenceThreadFailures`): por e-mail abre o diálogo com o texto; por
+  portal ou app sai direto, com a chave da mensagem (o segundo clique é "já reenviada"). O SDK não deixa
+  preencher o compositor, por isso o reenvio não passa por ele.
+- **Recuperação de envio pelo fio**: o SDK repete o **mesmo** `clientMessageId` ao reenviar e o adaptador esquece os
+  uploads vencidos (`recoverFromSendFailure.clearUploads`); renovar a chave e dizer "conversa passada a outro
+  motorista" (T903 F2/F3) dependem de porta que o SDK não tem.
 - **Ação com chave derivada do anexo** (encaminhar à contratante, anexar à ocorrência): o 409 de chave
   usada quer dizer "já feito" e aparece assim, nunca como erro (T903, F4).
 - **"Adicionar aos contatos" é a `AddContractorContactAction` de `delivery-clients`** (T903, F5, pela
@@ -288,18 +297,18 @@ portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
   cadastro (S2).
 - **O módulo tem as próprias guardas** (`occurrenceConversationGuards.validation.ts`). Ler as de `trip`
   fechava ciclo, porque `trip` importa a conversa. Contrato: `module-boundary.contract.ts`.
-- **No celular** (T801): a lista vira cartões, o detalhe vira abas, e o fio tem altura limitada com
-  a caixa de envio logo abaixo. A caixa presa ao rodapé foi medida e descartada: cobria 359 de
-  800 px. Sob `pointer: coarse`, botões pequenos, nome do contato e "fechar" chegam a
-  `--touch-target`.
+- **No celular** (T801): a lista vira cartões, o detalhe vira abas, e o fio (`.frame` de
+  `occurrenceThread.module.css`, `min(40rem, 78dvh)`) rola por dentro, com a caixa de envio do SDK presa ao
+  fundo do próprio fio. Sob `pointer: coarse`, as faixas e o "fechar" dos diálogos chegam a `--touch-target`.
 - Áudio e microfone: § "CSP, ambiente e tema de login" acima.
 
 ## Áudio e transcrição na conversa por assunto (spec 264)
 
 - **A conversa por assunto da viagem** (`SubjectConversationPanel`, o `ConversationThread` do SDK com `perspective="operator"`) grava e envia áudio
   (`audioRecording`, teto de 16 MiB) e mostra a transcrição que a API entrega por anexo. Leitura tolerante por anexo
-  (`subjectConversationAttachment.service.ts`): `transcription`/`durationMs` inválidos fazem o CAMPO sumir, nunca a mensagem. A tela antiga da
-  ocorrência segue **sem** o campo (a guarda `toConversationAttachments` não mudou).
+  (`subjectConversationAttachment.service.ts`): `transcription`/`durationMs` inválidos fazem o CAMPO sumir, nunca a mensagem. A conversa da
+  ocorrência (abas Contratante e Motorista) usa o mesmo fio e grava/envia áudio, mas segue **sem** transcrição e duração (a guarda
+  `toConversationAttachments` não mudou; o adaptador de ocorrência não os mapeia).
 - **Configurações → aba "Transcrição de áudios"** (`?tab=audioTranscription`, só com `settings.manage`): liga/desliga a transcrição da empresa
   (`GET/PUT /company-settings/audio-transcription`, PUT `{ enabled }`). A frase do que acontece ao desligar e a do limite (`floor(maxDurationMs / 60000)`)
   ficam sempre à vista, ligadas ao controle por `aria-describedby`; falha do PUT volta ao valor anterior e mostra `role="alert"`. Desligada, a API devolve

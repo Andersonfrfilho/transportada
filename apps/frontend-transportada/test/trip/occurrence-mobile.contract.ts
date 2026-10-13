@@ -113,12 +113,12 @@ describe('o detalhe no celular (spec 183 T801)', () => {
 })
 
 /**
- * Spec 183 T903 (achado F11): o nome do contato no balão (abre o cartão) e o "fechar" dos diálogos
- * da conversa — que ficam fora de `.panel`, num portal — também chegam ao alvo de toque; e o selo de
- * status só aponta (`aria-controls`) para a lista de horários quando ela existe.
+ * Spec 183 T903 (achado F11): o "fechar" dos diálogos da conversa — que ficam fora de `.panel`, num
+ * portal — também chega ao alvo de toque. O fio e o balão são do SDK (toque de 44 px dele); as faixas
+ * de ação ao lado do fio têm o alvo no CSS próprio.
  */
-describe('alvos de toque e aria-controls da conversa (spec 183 T903, F11)', () => {
-  test('sob toque, o nome do contato e o fechar dos diálogos crescem até o alvo', async () => {
+describe('alvos de toque da conversa (spec 183 T903, F11)', () => {
+  test('sob toque, o fechar dos diálogos cresce até o alvo', async () => {
     const css = await readFile(
       new URL(
         '../../src/modules/occurrence-conversation/styles/occurrenceConversation.module.css',
@@ -127,20 +127,20 @@ describe('alvos de toque e aria-controls da conversa (spec 183 T903, F11)', () =
       'utf8',
     )
     const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
-    expect(coarse).toMatch(
-      /\.authorButton,\s*\.iconAction\s*\{[^}]*min-height: var\(--touch-target\)/u,
-    )
+    expect(coarse).toMatch(/\.iconAction\s*\{[^}]*min-height: var\(--touch-target\)/u)
     expect(coarse).toMatch(/\.iconAction\s*\{[^}]*min-width: var\(--touch-target\)/u)
   })
 
-  test('o selo aponta para a lista de horários só quando ela está aberta', async () => {
-    const source = await readFile(
+  test('as faixas ao lado do fio chegam ao alvo de toque sob toque', async () => {
+    const css = await readFile(
       new URL(
-        '../../src/modules/occurrence-conversation/components/ConversationMessage.component.tsx',
+        '../../src/modules/occurrence-conversation/styles/occurrenceThread.module.css',
         import.meta.url,
       ),
       'utf8',
     )
-    expect(source).toContain('aria-controls={isTimesOpen ? timesId : undefined}')
+    const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
+    expect(coarse).toContain('min-height: var(--touch-target)')
+    expect(css).not.toMatch(/overflow-x:\s*scroll/u)
   })
 })

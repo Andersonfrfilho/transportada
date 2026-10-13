@@ -275,9 +275,60 @@
     "discard": "Discard",
     "microphoneError": "Could not use the microphone. Check the browser permission or attach an audio file."
   },
+  "participant": {
+    "contractor": "Contractor",
+    "driver": "Driver",
+    "operator": "Operator"
+  },
+  "layout": {
+    "label": "How conversations are shown",
+    "sideBySide": "Side by side (parallel conversations)",
+    "tabs": "Each conversation in a tab"
+  },
+  "legend": {
+    "title": "Who is who",
+    "show": "Show the legend",
+    "hide": "Hide the legend",
+    "participants": "Who speaks",
+    "channels": "Through where",
+    "operatorHint": "Company message: on the right side",
+    "channelHint": {
+      "email": "Message by email",
+      "whatsapp": "Message by WhatsApp",
+      "app": "Message in the driver app",
+      "portal": "Message in the contractor portal"
+    }
+  },
   "thread": {
     "newMessages_one": "{{count}} new message in the conversation",
-    "newMessages_other": "{{count}} new messages in the conversation"
+    "newMessages_other": "{{count}} new messages in the conversation",
+    "contractorNewMessages": "New messages from the contractor",
+    "via": "via {{channel}}",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "contractor": {
+      "counterpart": "Contractor email and portal"
+    },
+    "driver": {
+      "counterpart": "Driver app chat"
+    },
+    "closed": {
+      "readOnly": "You can read the conversation, but you are not allowed to write.",
+      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to.",
+      "noPortal": "The contractor portal is not open for this occurrence. To write, use Send by email."
+    },
+    "attachments": {
+      "title": "Files received",
+      "hint": "Take the file that arrived to the right place: the driver, the contractor or the occurrence."
+    },
+    "senders": {
+      "title": "Sender outside the contacts"
+    },
+    "failures": {
+      "title": "Message that did not arrive",
+      "resent": "Resent by {{channel}}.",
+      "resendError": "Could not resend. Try again in a moment."
+    }
   },
   "sendRecovery": {
     "uploadExpired": "An attachment expired before sending. Send again — it will upload once more.",
