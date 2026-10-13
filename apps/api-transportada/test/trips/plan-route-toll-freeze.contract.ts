@@ -14,6 +14,7 @@ import type {
 } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
+  TripRouteStopsWithoutLocationError,
   TripRouteUnavailableError,
   TripStateTransitionNotAllowedError,
 } from '../../src/trips/domain/trip.error.js'
@@ -321,5 +322,58 @@ describe('o congelamento que falha não pode deixar o status mentir', () => {
 
     expect(error).toBeInstanceOf(Error)
     expect(markRoutePlannedCalls).toBe(0)
+  })
+})
+
+describe('a rota recusada por parada sem ponto no mapa diz quais endereços faltam', () => {
+  const MISSING = [
+    'RUA OSVALDO VALERINI, 80, SERTAOZINHO, SP',
+    'RUA GENERAL OSORIO, 971, SERTAOZINHO, SP',
+  ]
+
+  test('com paradas sem coordenada, o erro nomeia cada endereço em details', async () => {
+    const repository: PlanTripRoutePort = {
+      ...createPort({ hasRoute: true, tripStatus: 'draft' }),
+      async listStopsWithoutLocation() {
+        return MISSING
+      },
+    }
+
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: { freeze: () => Promise.resolve({ routeFrozen: false }) },
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripRouteStopsWithoutLocationError)
+    expect((error as TripRouteStopsWithoutLocationError).code).toBe(
+      'TRIP_ROUTE_STOPS_WITHOUT_LOCATION',
+    )
+    expect((error as TripRouteStopsWithoutLocationError).details).toEqual(
+      MISSING.map((message) => ({ field: 'stops', message })),
+    )
+  })
+
+  test('sem parada sem ponto, segue o erro genérico do roteirizador', async () => {
+    const repository: PlanTripRoutePort = {
+      ...createPort({ hasRoute: true, tripStatus: 'draft' }),
+      async listStopsWithoutLocation() {
+        return []
+      },
+    }
+
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: { freeze: () => Promise.resolve({ routeFrozen: false }) },
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripRouteUnavailableError)
   })
 })

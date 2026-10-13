@@ -14,6 +14,8 @@ import {
   type TripStatus,
 } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/database.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import { stopHasLiveDocument } from './trip-stop-coordinates.support.js'
 import type {
   DispatchTripPort,
   DispatchTripPreconditions,
@@ -91,6 +93,26 @@ export class DrizzleTripRouteRepository
     readonly tripId: string
   }): Promise<TripRouteState | null> {
     return readRouteState(this.database, input)
+  }
+
+  public async listStopsWithoutLocation(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly string[]> {
+    const rows = await this.database
+      .select({ label: tripStops.label })
+      .from(tripStops)
+      .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
+      .where(
+        and(
+          eq(tripStops.companyId, input.companyId),
+          eq(tripStops.tripId, input.tripId),
+          stopHasLiveDocument(),
+          sql`(${geocodedAddresses.latitude} is null or ${geocodedAddresses.longitude} is null)`,
+        ),
+      )
+      .orderBy(asc(tripStops.sequence))
+    return rows.map((row) => row.label)
   }
 
   public async markRoutePlanned(input: {
