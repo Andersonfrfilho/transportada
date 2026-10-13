@@ -545,6 +545,7 @@ import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createContractorReplyDeliveryNotifier } from './occurrence-conversation/infrastructure/contractor-reply-delivery-notifier.adapter.js'
 import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
 import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
@@ -617,6 +618,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -2268,6 +2270,11 @@ function createApplicationRoutes({
     contexts: new DrizzleDriverStopHolidayContextRepository(database),
     logger,
   }
+  /** Spec 248 T5.4: o estado do retorno da contratante nas notas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverContractorReplies = {
+    logger,
+    reader: new DrizzleDriverDocumentContractorReplyRepository(database),
+  }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -2476,6 +2483,17 @@ function createApplicationRoutes({
   /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
   const contractorPortalConversation = createContractorPortalConversationUseCase({
     clock: () => new Date(),
+    /** Spec 248 T4.6b: the driver bell notice of the automatic delivery, after the commit. */
+    deliveryNotifier: createContractorReplyDeliveryNotifier({
+      driverNotifier: createDriverConversationNotifier({
+        logger,
+        send: (params) =>
+          notifications.useCases.sendNotification.execute({
+            ...params,
+            locale: NOTIFICATION_DEFAULT_LOCALE,
+          } as never),
+      }),
+    }),
     fingerprintService,
     newRef: createPublicRef,
     scopes: contractorPortalRepository,
@@ -4020,6 +4038,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,

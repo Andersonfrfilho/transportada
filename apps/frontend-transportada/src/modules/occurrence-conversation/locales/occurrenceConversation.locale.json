@@ -385,6 +385,16 @@
         "no_accepted_attachment": "sem anexo aceito",
         "multiple_attachments": "mais de um anexo"
       }
+    },
+    "hint": {
+      "awaiting_contractor": "Pedimos o boleto à contratante e estamos esperando a resposta dela.",
+      "awaiting_operator": "A contratante respondeu com o boleto. Falta você conferir e enviar ao motorista.",
+      "cancelled": "A ocorrência foi cancelada, então este retorno não segue mais.",
+      "delivered": "O boleto já foi enviado ao motorista pelo chat do app.",
+      "handled": "Alguém da operação resolveu este assunto por fora e deixou uma nota.",
+      "needs_operator": "A resposta não pôde ser lida sozinha. Abra a conversa e decida o que fazer.",
+      "overdue": "A contratante passou do prazo sem responder. Vale ligar ou reenviar o pedido.",
+      "reply_received": "A contratante respondeu com o boleto e ele está a caminho do motorista."
     }
   }
 }

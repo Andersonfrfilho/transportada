@@ -51,6 +51,7 @@ async function recordWith(input: {
     }),
   }
   const dependencies: RecordContractorMailInboundMessageDependencies = {
+    driverNotifier: { notify: async () => undefined },
     conversationAttachments: {
       discard: async () => undefined,
       store: async () => ({ skipped: 0, stored: [] }),

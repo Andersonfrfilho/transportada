@@ -25,6 +25,10 @@ import type {
   CargoPreviewEmailIntakeResult,
 } from '../../cargo-preview-email/application/cargo-preview-email.types.js'
 import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
+import type {
+  DriverReplyNotice,
+  DriverReplyNoticePort,
+} from '../../occurrence-conversation/application/driver-reply-notice.port.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type {
   ContractorMailInboundSettingsRecord,
@@ -55,6 +59,8 @@ export type StoreRawEmailPort = {
 export type RecordContractorMailInboundMessageDependencies = {
   /** Spec 183 T702c1: os anexos do e-mail que viram anexo da mensagem da conversa. */
   readonly conversationAttachments: InboundConversationAttachmentsPort
+  /** Spec 248 T4.6b: o aviso do sino do motorista quando a resposta é entregue sozinha; depois do commit. */
+  readonly driverNotifier: DriverReplyNoticePort
   readonly dkimVerifier: VerifyDkimHeaderFromPort
   readonly mailGateway: ResendMailGateway
   /** Spec 237 T4.6: o ramo da prévia encaminhada; só decide a mensagem que casa o token de um perfil. */
@@ -196,7 +202,7 @@ export async function recordContractorMailInboundMessage(
       ? await dependencies.conversationAttachments.store(new Uint8Array(rawMessage))
       : { skipped: 0, stored: [] }
 
-  let recorded: { readonly linkedAttachments: number }
+  let recorded: Awaited<ReturnType<typeof recordInbound>>
   try {
     recorded = await recordInbound()
   } catch (error: unknown) {
@@ -208,6 +214,7 @@ export async function recordContractorMailInboundMessage(
   if (recorded.linkedAttachments === 0 && attachments.stored.length > 0) {
     await dependencies.conversationAttachments.discard(attachments.stored)
   }
+  if (recorded.driverNotice !== undefined) await notifyDriver(dependencies, recorded.driverNotice)
 
   return {
     attachments: { linked: recorded.linkedAttachments, skipped: attachments.skipped },
@@ -239,6 +246,18 @@ export async function recordContractorMailInboundMessage(
       threadId: thread.id,
       toAddresses: received.to,
     })
+  }
+}
+
+/** A entrega já está commitada: o aviso nunca a desfaz nem faz o e-mail ser reentregue. */
+async function notifyDriver(
+  dependencies: RecordContractorMailInboundMessageDependencies,
+  notice: DriverReplyNotice,
+): Promise<void> {
+  try {
+    await dependencies.driverNotifier.notify(notice)
+  } catch {
+    // O notificador registra a própria falha; o boleto já está na conversa do motorista.
   }
 }
 
