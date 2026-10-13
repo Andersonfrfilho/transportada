@@ -505,3 +505,46 @@ docker.exe images worker-t35:local  # 1.4GB (o mesmo bun alpine + node_modules +
   job pausado pela migration, executor em processo, lease que cobre o motor duas vezes (795 s com `TIMEOUT_MS` 300000), `SIGTERM` que
   aborta o motor e devolve a tentativa, trava velha que aborta o laço antigo, janela de 72 h, fila/estados/códigos, nunca log de texto.
 - Núcleo em `apps/worker-transportada/CLAUDE.md` (invariante nova, ao lado da conversa da ocorrência e dos feriados).
+
+## T4.1 — a subida do SDK nas três apps (2026-10-13)
+
+- **O que subiu** (versão exata, as duas juntas): `@adatechnology/conversations-ui` 0.9.0 → **0.10.0** e
+  `@adatechnology/conversation-contracts` 0.5.0 → **0.6.0** em `frontend-driver`, `frontend-transportada` e `frontend-client`. A API já
+  declarava o contracts **0.6.0** como `devDependency` exata (`apps/api-transportada/package.json`); conferido, nada a subir. `bun.lock`:
+  as três linhas de workspace, a entrada do UI (0.10.0, com o `sha512` do npm) e a do contracts (0.6.0, o `sha512` que a API já usava), e
+  **saíram** as duas entradas aninhadas `@transportada/api/@adatechnology/conversation-contracts` (e o `zod` dela), que viraram a cópia
+  única da raiz. `bun install` (Bun 1.4.3) reescreveu mais coisa (poda de `lightningcss*`, mudança de `@adatechnology/audio-transcription-provider`
+  de lugar entre API e worker): descartado com `git checkout bun.lock` e refeito à mão só com essas linhas;
+  `bun install --frozen-lockfile` → "Checked 814 installs across 942 packages (no changes)".
+- **Contrato do pacote lido do tarball** (`npm pack` 0.10.0 / 0.6.0, `dist/participant/index.d.ts` + README): a prop é
+  `audioRecording?: ParticipantAudioRecordingOptions` (`maxDurationMs?`, `maxSizeBytes?`, `onCaptureChange?`); os rótulos novos são
+  `Partial<ParticipantAudioLabels>` dentro de `ParticipantConversationsLabels` (todos opcionais), com os 25 nomes do `contract.md` §4;
+  `participantTranscriptionSchema`, `PARTICIPANT_AUDIO_DURATION_MAX_MS` e `PARTICIPANT_TRANSCRIPTION_*` saem de `conversation-contracts`.
+- **Rótulos** (14 chaves do player e da transcrição, sem as do gravador, que entram na T4.3): `conversation.locale.json` e
+  `conversation.en.locale.json` do motorista (`labels.*`); `subjectConversation.locale.json` e `.en` do painel (`thread.labels.*`) mais as
+  mesmas chaves em `SUBJECT_THREAD_LABEL_KEYS` (a lista `satisfies keyof ParticipantConversationsLabels`). O portal só usa o pacote do
+  operador (`DateDivider`, `MessageText`, `resolveMaxAttachmentSizeBytes`), não a visão do participante: subiu a versão e nada mais.
+- **Vermelho primeiro.** Contratos novos, rodados contra `package.json`/locales sem a subida: motorista
+  `test/conversation/conversation-sdk-audio-labels.contract.ts` → **156 pass / 3 fail** (versões, pt-BR, en); painel (acrescentado a
+  `subject-thread-api.contract.ts`) → **128 pass / 4 fail** (versões, repasse ao SDK, pt-BR, en); portal
+  `test/shared/conversation-sdk-versions.contract.ts` → **28 pass / 1 fail** (versões). Com a subida: motorista 159 pass / 0 fail.
+- **Testes que prendiam o markup antigo (`<audio controls>`):** nenhum nas três apps. A busca por `<audio`/`controls` em `apps/**` só acha
+  o `ConversationAudioPlayer` e o `ConversationAudioRecorder` do painel (a tela **antiga** da ocorrência, componentes próprios e
+  intocados), o `<audio>` nativo do portal (`OccurrenceConversation.component.tsx`, tela do operador do pacote antigo) e comentários.
+  Nenhum golden/teste das apps renderiza o `ParticipantAttachmentItem` do pacote. Sem teste atualizado nesta task.
+- **Gates por app** (via WSL, cwd = a app):
+  - `frontend-driver`: `tsc --noEmit` → 0; `eslint` nos `.ts` tocados → limpo; `prettier --check` → limpo; `bun run test` → **1694 pass / 0 fail**;
+    `bun run build` (`vite build` + `dist.contract`) → ok, 6 pass.
+  - `frontend-client`: `tsc` → 0; `eslint` → limpo; `prettier --check` → limpo; `bun run test` → **91 pass / 0 fail** (o contrato novo de versões incluído);
+    `bun run build` → ok. Portal sem mudança de código.
+  - `frontend-transportada`: `tsc` → 0; `eslint` nos `.ts` tocados → limpo; `prettier --check` → limpo; `bun run build` → ok (3m34s).
+    `bun run test` (script do `package.json`, nunca `bun test` cru): **7972 pass / 15 fail**, e os 15 são todos _timeout_ de varredura de
+    `src/` no `/mnt/c` (5 000 ms a 22 s), com três gates rodando em paralelo: o catálogo de ocorrência órfão, classes de CSS Module, a CSP
+    (origem externa ×2), mapa antigo removido, tokens CSS, design system (botão), pending state de mutação, OpenCV, `sendBeacon`, regex
+    `(?i:)`, `VITE_*` ×3 e o writer de Excel. Nenhum falha por asserção. Repetido sozinho com `--timeout 120000` (o mesmo script, a
+    mesma lista): **7987 pass / 0 fail** em 281 s (+ o segundo `bun test` do script, 1332 pass / 0 fail).
+  - API (paridade da transcrição, só `devDependency`): `bun --env-file=../../.env.test test ./test/occurrence-conversation/participant-transcription-parity.contract.ts`
+    → **29 pass / 0 fail**, com o contracts 0.6.0 da raiz do `bun.lock` (a cópia aninhada saiu).
+- **Smoke do portal:** sem mudança de código nem de CSP no portal; só a versão de duas dependências que o portal usa em `DateDivider`,
+  `MessageText` e `resolveMaxAttachmentSizeBytes`. O smoke Playwright do portal exige o stack local (Keycloak, API) e Chromium e **não foi
+  executado** nesta sessão (ver o fim da T4.4).

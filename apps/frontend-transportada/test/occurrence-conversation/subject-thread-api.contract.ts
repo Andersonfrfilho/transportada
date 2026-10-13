@@ -226,3 +226,55 @@ describe('o adaptador do fio do escritório (spec 263 T5.2-B)', () => {
     expect(theme).toMatch(/--cv-p-radius: 0/u)
   })
 })
+
+describe('conversations-ui 0.10.0 / conversation-contracts 0.6.0 no painel (spec 264 T4.1)', () => {
+  const PLAYER_AND_TRANSCRIPTION_LABELS = {
+    audioPlayer: [],
+    audioPosition: [],
+    audioPositionValue: ['{position}', '{duration}'],
+    audioUnavailable: [],
+    collapseTranscription: [],
+    emptyTranscription: [],
+    machineTranscription: [],
+    pauseAudio: [],
+    playAudio: [],
+    playbackRate: ['{rate}'],
+    showFullTranscription: [],
+    transcribing: [],
+    transcriptionReady: [],
+    transcriptionTooLong: ['{minutes}'],
+  } as const satisfies Readonly<Record<string, readonly string[]>>
+
+  const LOCALES = {
+    en: '../../src/modules/occurrence-conversation/locales/subjectConversation.en.locale.json',
+    'pt-BR': '../../src/modules/occurrence-conversation/locales/subjectConversation.locale.json',
+  } as const
+
+  test('as duas dependências sobem juntas, em versão exata', async () => {
+    const manifest = JSON.parse(
+      await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+    ) as { dependencies: Record<string, string> }
+    expect(manifest.dependencies['@adatechnology/conversations-ui']).toBe('0.10.0')
+    expect(manifest.dependencies['@adatechnology/conversation-contracts']).toBe('0.6.0')
+  })
+
+  test('o fio repassa ao SDK todo rótulo do player e da transcrição', () => {
+    const labels = buildSubjectThreadLabels((key) => `t:${key}`, 'Encerrada')
+    for (const key of Object.keys(PLAYER_AND_TRANSCRIPTION_LABELS)) {
+      expect(labels[key as keyof typeof labels]).toBe(`t:thread.labels.${key}`)
+    }
+  })
+
+  for (const locale of Object.keys(LOCALES) as (keyof typeof LOCALES)[]) {
+    test(`${locale}: traz os rótulos do player e da transcrição com os marcadores do SDK`, async () => {
+      const catalog = JSON.parse(
+        await readFile(new URL(LOCALES[locale], import.meta.url), 'utf8'),
+      ) as { thread: { labels: Record<string, string> } }
+      for (const [key, placeholders] of Object.entries(PLAYER_AND_TRANSCRIPTION_LABELS)) {
+        const value = catalog.thread.labels[key]
+        expect(typeof value === 'string' && value.trim() !== '').toBe(true)
+        for (const placeholder of placeholders) expect(value).toContain(placeholder)
+      }
+    })
+  }
+})
