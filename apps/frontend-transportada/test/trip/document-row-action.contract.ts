@@ -175,4 +175,15 @@ describe('nota liberada não oferece ação nenhuma na linha', () => {
       /<div className=\{styles\.rowActions\}>[\s\S]{0,400}?document\.releasedAt !== null \? null : \(\s*<>\s*\{actions\.renderConversation/,
     )
   })
+
+  it('o rótulo da nota liberada sai riscado', () => {
+    const source = readFileSync(LISTA, 'utf8')
+    const css = readFileSync(
+      new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toMatch(/document\.releasedAt === null[\s\S]{0,200}stopDocumentLabelReleased/)
+    expect(css).toMatch(/\.stopDocumentLabelReleased \{[^}]*line-through/)
+  })
 })
