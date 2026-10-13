@@ -36,6 +36,8 @@ import styles from '../styles/occurrenceConversation.module.css'
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
+import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.component'
+import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
 import {
   isForwardAlreadyDone,
   recoverFromSendFailure,
@@ -546,8 +548,25 @@ function ContractorConversationPanel({
                 ),
               })}
           {...(canWrite ? { resend } : {})}
+          /** Spec 248 T4.7: o boleto que a contratante mandou segue por e-mail ao cliente da nota ou a um endereço. */
+          {...(canSend
+            ? {
+                renderAttachmentActions: (
+                  attachment: OccurrenceConversationAttachment,
+                  message: OccurrenceConversationMessage,
+                ) =>
+                  message.direction === 'inbound' ? (
+                    <ContractorReplyEmailActions
+                      attachmentId={attachment.id}
+                      occurrenceId={occurrenceId}
+                    />
+                  ) : null,
+              }
+            : {})}
         />
       )}
+
+      {canSend ? <ContractorReplyEmailHistory occurrenceId={occurrenceId} /> : null}
 
       {canWrite && portalAvailable ? (
         <ContractorPortalComposer occurrenceId={occurrenceId} prefill={portalPrefill} />

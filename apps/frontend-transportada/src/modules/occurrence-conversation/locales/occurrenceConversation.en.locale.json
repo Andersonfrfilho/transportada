@@ -197,6 +197,47 @@
     "forwarded": "Forwarded to the contractor through the portal.",
     "forwardError": "Could not forward. Try again shortly."
   },
+  "replyEmail": {
+    "sendToNote": "Send to the invoice customer",
+    "forwardToAddress": "Forward to an email",
+    "addressLabel": "Destination email",
+    "addressHint": "One address only. The boleto goes attached, with the subject and text of the occurrence type.",
+    "send": "Send",
+    "sending": "Sending…",
+    "cancel": "Cancel",
+    "reason": {
+      "noteWithoutEmail": "The invoice has no customer email: sending is unavailable. Use \"Forward to an email\".",
+      "limitReached": "Limit of 5 emails per occurrence reached."
+    },
+    "outcome": {
+      "queued": "Queued to send to {{address}}.",
+      "alreadyQueued": "This send was already made.",
+      "note_without_recipient_email": "The invoice has no customer email: nothing was sent.",
+      "attachment_too_large_for_email": "The file is over 10 MB and does not fit in an email: nothing was sent.",
+      "send_failed": "The email could not be sent."
+    },
+    "failure": {
+      "addressInvalid": "Enter a single email address, without commas, semicolons or line breaks.",
+      "limitReached": "Limit of 5 emails per occurrence reached.",
+      "forwardDisabled": "This occurrence type does not send the boleto by email. Check the Types tab.",
+      "mailNotReady": "The company email is not ready to send yet. Check the email settings.",
+      "generic": "Could not send. Try again shortly."
+    },
+    "history": {
+      "title": "Boleto sent by email",
+      "target": {
+        "note_recipient_email": "Invoice customer",
+        "informed_email": "Informed email"
+      },
+      "status": {
+        "queued": "queued",
+        "sent": "sent",
+        "pending_window": "waiting",
+        "skipped": "not sent",
+        "failed": "failed"
+      }
+    }
+  },
   "channel": {
     "email": "Email",
     "whatsapp": "WhatsApp",

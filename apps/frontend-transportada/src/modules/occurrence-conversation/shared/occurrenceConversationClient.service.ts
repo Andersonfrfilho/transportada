@@ -5,6 +5,13 @@
  * `Idempotency-Key` do diálogo; o erro da API chega pelo `code`, nunca pelo texto.
  */
 import { isRecord, isString } from './occurrenceConversationGuards.validation'
+import {
+  readContractorReplyEmailOptions,
+  readContractorReplyEmailOutcome,
+  type ContractorReplyEmailOptions,
+  type ContractorReplyEmailOutcome,
+  type ContractorReplyEmailTarget,
+} from './contractorReplyEmail.service'
 
 import {
   toConversationAttachments,
@@ -47,6 +54,17 @@ export type ClientDependencies = Readonly<{
 }>
 
 export type OccurrenceConversationClient = Readonly<{
+  /** Spec 248 T4.7: o boleto da contratante por e-mail ao cliente da nota ou a um endereço informado. */
+  forwardContractorReplyByEmail: (input: {
+    address?: string
+    attachmentId: string
+    idempotencyKey: string
+    occurrenceId: string
+    target: ContractorReplyEmailTarget
+  }) => Promise<ContractorReplyEmailOutcome>
+  readContractorReplyEmailOptions: (input: {
+    occurrenceId: string
+  }) => Promise<ContractorReplyEmailOptions | null>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
@@ -356,6 +374,9 @@ export function withAttachments(
     : { attachmentIds, ...body }
 }
 
+const contractorReplyPath = (occurrenceId: string): string =>
+  `/trip-occurrences/${encodeURIComponent(occurrenceId)}/contractor-reply`
+
 const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
@@ -363,6 +384,31 @@ export function createOccurrenceConversationClient(
   dependencies: ClientDependencies,
 ): OccurrenceConversationClient {
   return {
+    async forwardContractorReplyByEmail({
+      address,
+      attachmentId,
+      idempotencyKey,
+      occurrenceId,
+      target,
+    }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/email-delivery`,
+        {
+          body: { attachmentId, target, ...(address === undefined ? {} : { address }) },
+          headers: { 'idempotency-key': idempotencyKey },
+          method: 'POST',
+        },
+      )
+      return readContractorReplyEmailOutcome(payload)
+    },
+    async readContractorReplyEmailOptions({ occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `${contractorReplyPath(occurrenceId)}/email-options`,
+      )
+      return readContractorReplyEmailOptions(payload)
+    },
     async assignUnassigned({ conversationId, unassignedId }) {
       await requestJson(
         dependencies,

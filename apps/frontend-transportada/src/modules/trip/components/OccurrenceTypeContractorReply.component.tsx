@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { OccurrenceTypeContractorReplyForward } from '@/modules/trip/components/OccurrenceTypeContractorReplyForward.component'
 import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
@@ -185,6 +186,13 @@ export function OccurrenceTypeContractorReply({
             {renderNumber('alertMaxCount')}
           </>
         ) : null}
+        <OccurrenceTypeContractorReplyForward
+          baseId={baseId}
+          disabled={disabled}
+          draft={draft}
+          onChange={change}
+          problems={problems}
+        />
         <div className={styles.actions}>
           <Button
             className={styles.action}
