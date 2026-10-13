@@ -1,8 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import {
+  ICON_BY_DELIVERY_STATUS,
+  ICON_BY_DELIVERY_TARGET,
+  ICON_BY_STATUS,
+} from '../shared/contractorReply.service'
 import type { ContractorReplyDelivery, ContractorReplyEvent } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 
@@ -23,10 +29,15 @@ export function ContractorReplyTimeline({ deliveries, events }: ContractorReplyT
     <>
       {deliveries.length === 0 ? null : (
         <section aria-label={t('contractorReply.deliveries.title')} className={styles.block}>
-          <h4>{t('contractorReply.deliveries.title')}</h4>
+          <h4>
+            <Icon name="send" size="sm" />
+            {t('contractorReply.deliveries.title')}
+          </h4>
           <ul className={styles.list}>
             {deliveries.map((delivery) => (
               <li key={delivery.id}>
+                <Icon name={ICON_BY_DELIVERY_TARGET[delivery.target] ?? 'message'} size="sm" />
+                <Icon name={ICON_BY_DELIVERY_STATUS[delivery.status] ?? 'clock'} size="sm" />
                 <strong>{t(`contractorReply.deliveries.target.${delivery.target}`)}</strong>
                 {' · '}
                 {t(`contractorReply.deliveries.status.${delivery.status}`)}
@@ -40,14 +51,20 @@ export function ContractorReplyTimeline({ deliveries, events }: ContractorReplyT
         </section>
       )}
       <section aria-label={t('contractorReply.timeline.title')} className={styles.block}>
-        <h4>{t('contractorReply.timeline.title')}</h4>
+        <h4>
+          <Icon name="clock" size="sm" />
+          {t('contractorReply.timeline.title')}
+        </h4>
         {events.length === 0 ? (
           <p className={styles.hint}>{t('contractorReply.timeline.empty')}</p>
         ) : (
           <ol className={styles.timeline}>
             {events.map((event) => (
               <li className={styles.timelineItem} key={event.id}>
-                <span className={styles.timelineWhen}>{formatMoment(event.createdAt)}</span>
+                <span className={styles.timelineWhen}>
+                  <Icon name={ICON_BY_STATUS[event.toStatus]} size="sm" />
+                  {formatMoment(event.createdAt)}
+                </span>
                 <span>
                   {t(`contractorReply.timeline.event.${event.toStatus}`)}
                   {' · '}

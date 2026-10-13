@@ -5,8 +5,9 @@ import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Icon } from '@/components/ui/icon'
+import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { OccurrenceTypeContractorReplyForward } from '@/modules/trip/components/OccurrenceTypeContractorReplyForward.component'
 import {
   CONTRACTOR_REPLY_ALERT_MODES,
   CONTRACTOR_REPLY_ATTACHMENT_KINDS,
@@ -33,6 +34,17 @@ type OccurrenceTypeContractorReplyProps = Readonly<{
 }>
 
 type NumberFieldName = 'alertIntervalMinutes' | 'alertMaxCount' | 'waitHours'
+
+/** Um símbolo por campo: o olho acha o que procura antes de ler a frase (web.md §9). */
+const FIELD_ICON: Readonly<Record<string, IconName>> = {
+  alertIntervalMinutes: 'refresh',
+  alertMaxCount: 'alert',
+  alertMode: 'alert',
+  attachmentKind: 'document',
+  driverReplyTemplate: 'message',
+  mode: 'send',
+  waitHours: 'clock',
+}
 
 /**
  * Spec 248 RF1/T5.1: o que fazer quando a contratante responde ao pedido (adiantamento ou prorrogação de
@@ -86,7 +98,10 @@ export function OccurrenceTypeContractorReply({
   }) {
     return (
       <div className={styles.field}>
-        <span className={styles.fieldLabel}>{input.label}</span>
+        <span className={styles.fieldLabel}>
+          <Icon name={FIELD_ICON[input.optionKey] ?? 'document'} size="sm" />
+          {input.label}
+        </span>
         <Select
           ariaLabel={input.label}
           disabled={disabled}
@@ -107,6 +122,7 @@ export function OccurrenceTypeContractorReply({
     return (
       <label className={styles.field}>
         <span className={styles.fieldLabel}>
+          <Icon name={FIELD_ICON[field] ?? 'document'} size="sm" />
           {t(`occurrenceTypeCatalog.contractorReply.fields.${field}`)}
         </span>
         <input
@@ -130,7 +146,10 @@ export function OccurrenceTypeContractorReply({
 
   return (
     <section aria-label={t('occurrenceTypeCatalog.contractorReply.title')} className={styles.mail}>
-      <p className={itemStyles.blockTitle}>{t('occurrenceTypeCatalog.contractorReply.title')}</p>
+      <p className={itemStyles.blockTitle}>
+        <Icon name="invoice" size="sm" />
+        {t('occurrenceTypeCatalog.contractorReply.title')}
+      </p>
       <p className={styles.hint}>{t('occurrenceTypeCatalog.contractorReply.legend')}</p>
       <div className={styles.fields}>
         {renderSelect({
@@ -153,6 +172,7 @@ export function OccurrenceTypeContractorReply({
             })}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
+                <Icon name={FIELD_ICON.driverReplyTemplate ?? 'message'} size="sm" />
                 {t('occurrenceTypeCatalog.contractorReply.fields.driverReplyTemplate')}
               </span>
               <textarea
@@ -185,6 +205,13 @@ export function OccurrenceTypeContractorReply({
             {renderNumber('alertMaxCount')}
           </>
         ) : null}
+        <OccurrenceTypeContractorReplyForward
+          baseId={baseId}
+          disabled={disabled}
+          draft={draft}
+          onChange={change}
+          problems={problems}
+        />
         <div className={styles.actions}>
           <Button
             className={styles.action}

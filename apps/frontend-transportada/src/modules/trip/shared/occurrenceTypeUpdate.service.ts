@@ -17,6 +17,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from '@/modules/trip/shared/occurrenceContractorReply.constant'
 
@@ -48,6 +49,9 @@ export type OccurrenceTypeSaveInput = Readonly<{
   contractorReplyMode?: ContractorReplyMode | undefined
   contractorReplyWaitHours?: null | number | undefined
   driverReplyTemplate?: string | undefined
+  forwardEmailBody?: string | undefined
+  forwardEmailSubject?: string | undefined
+  forwardToInformedEmail?: InformedEmailForwardMode | undefined
   forwardToNoteRecipient?: NoteRecipientForwardMode | undefined
   emailTemplateKey: null | string
   /** Spec 255 RF4: `null` limpa o ícone; `undefined` é "não mexe" — o `PUT` ausente mantém. */
@@ -101,6 +105,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'contractorReplyWaitHours'
       | 'driverReplyTemplate'
       | 'emailsContractor'
+      | 'forwardEmailBody'
+      | 'forwardEmailSubject'
+      | 'forwardToInformedEmail'
       | 'forwardToNoteRecipient'
       | 'emailSubject'
       | 'emailTemplateKey'

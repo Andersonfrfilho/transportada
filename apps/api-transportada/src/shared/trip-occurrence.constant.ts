@@ -255,6 +255,8 @@ export const OCCURRENCE_TYPE_CONTRACTOR_REPLY_ALERT_WAIT_CHECK =
   'company_occurrence_types_contractor_reply_alert_wait_check'
 export const OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY_CHECK =
   'company_occurrence_types_forward_automatic_needs_reply_check'
+export const OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT_CHECK =
+  'company_occurrence_types_forward_needs_text_check'
 
 /** O índice único `(company_id, lower(btrim(name)))`, em qualquer etapa — não aparece no schema TS. */
 export const OCCURRENCE_TYPE_NAME_UNIQUE = 'company_occurrence_types_company_name_unique'

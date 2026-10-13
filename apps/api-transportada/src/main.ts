@@ -444,6 +444,11 @@ import { createTripDocumentReportRoutes } from './trips/presentation/trip-docume
 import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
 import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
 import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
+import { createForwardContractorReplyByEmailUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
+import {
+  createDrizzleContractorReplyEmailReader,
+  createDrizzleContractorReplyEmailUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-email.repository.js'
 import {
   createMarkContractorReplyHandledUseCase,
   createReadContractorReplyUseCase,
@@ -3345,6 +3350,12 @@ function createApplicationRoutes({
             } as never),
         }),
         unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
+      }),
+      /** Spec 248 T4.7 (RF10–RF12): o mesmo boleto por e-mail ao cliente da nota ou a um endereço informado. */
+      emailOptions: createDrizzleContractorReplyEmailReader(database),
+      forwardByEmail: createForwardContractorReplyByEmailUseCase({
+        logger,
+        unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database),
       }),
     }),
     /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */

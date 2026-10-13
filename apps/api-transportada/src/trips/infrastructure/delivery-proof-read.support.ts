@@ -10,6 +10,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  ForwardToInformedEmailMode,
   ForwardToNoteRecipientMode,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { alias } from 'drizzle-orm/pg-core'
@@ -63,6 +64,7 @@ import {
   OCCURRENCE_TYPE_CONTRACTOR_REPLY_REQUIRES_MAIL_CHECK,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY_CHECK,
+  OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT_CHECK,
   OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_NAME_UNIQUE,
@@ -75,6 +77,7 @@ import {
   OccurrenceTypeContractorReplyNeedsMailError,
   OccurrenceTypeDeclaredAmountNeedsItemsError,
   OccurrenceTypeForwardAutomaticNeedsReplyError,
+  OccurrenceTypeForwardNeedsTextError,
   OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
   OccurrenceTypeNameTakenError,
@@ -875,6 +878,9 @@ export async function findOccurrenceType(
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
+      forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
+      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
+      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
@@ -1043,6 +1049,9 @@ export async function listOccurrenceTypes(
       contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
+      forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
+      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
+      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
@@ -1098,6 +1107,9 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
   }
   if (violated === OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY_CHECK) {
     throw new OccurrenceTypeForwardAutomaticNeedsReplyError()
+  }
+  if (violated === OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT_CHECK) {
+    throw new OccurrenceTypeForwardNeedsTextError()
   }
   if (violatedUniqueConstraint(error) === OCCURRENCE_TYPE_NAME_UNIQUE) {
     throw new OccurrenceTypeNameTakenError()
@@ -1168,6 +1180,9 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyWaitHours?: null | number | undefined
     readonly driverReplyTemplate?: string | undefined
     readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode | undefined
+    readonly forwardToInformedEmail?: ForwardToInformedEmailMode | undefined
+    readonly forwardEmailSubject?: string | undefined
+    readonly forwardEmailBody?: string | undefined
     /**
      * Spec 218 (D1, RF-B5): obrigatório na criação (a fronteira já recusa a ausência com
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
@@ -1269,6 +1284,13 @@ async function writeOccurrenceTypeRow(
     ...(input.forwardToNoteRecipient === undefined
       ? {}
       : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
+    ...(input.forwardToInformedEmail === undefined
+      ? {}
+      : { forwardToInformedEmail: input.forwardToInformedEmail }),
+    ...(input.forwardEmailSubject === undefined
+      ? {}
+      : { forwardEmailSubject: input.forwardEmailSubject }),
+    ...(input.forwardEmailBody === undefined ? {} : { forwardEmailBody: input.forwardEmailBody }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined
@@ -1349,6 +1371,9 @@ async function writeOccurrenceTypeRow(
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,
     forwardToNoteRecipient: saved.forwardToNoteRecipient,
+    forwardToInformedEmail: saved.forwardToInformedEmail,
+    forwardEmailSubject: saved.forwardEmailSubject,
+    forwardEmailBody: saved.forwardEmailBody,
     flow: saved.flow,
     id: saved.id,
     itemsMinimumCount: saved.itemsMinimumCount,
