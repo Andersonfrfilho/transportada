@@ -166,3 +166,13 @@ describe('a linha usa o rótulo derivado do documento esperado (spec 175 CA01)',
     expect(source).toInclude('<NfseEmissionAction')
   })
 })
+
+describe('nota liberada não oferece ação nenhuma na linha', () => {
+  it('as ações da linha só renderizam quando a nota não foi liberada', () => {
+    const source = readFileSync(LISTA, 'utf8')
+
+    expect(source).toMatch(
+      /<div className=\{styles\.rowActions\}>[\s\S]{0,400}?document\.releasedAt !== null \? null : \(\s*<>\s*\{actions\.renderConversation/,
+    )
+  })
+})

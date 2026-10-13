@@ -15,12 +15,21 @@
  * aquela perna e distância menor do que a viagem de verdade —, e essa distância alimenta cálculo
  * de combustível e valoração. O caso extremo da spec é taxativo: sem coordenada, sem rota.
  */
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
-import { tripStops } from '../../database/trip.schema.js'
+import { tripDocuments, tripStops } from '../../database/trip.schema.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+
+/**
+ * Parada sem nota viva (todas liberadas, ou nenhuma) não é parada: ninguém vai descarregar ali, e o
+ * seu endereço sem coordenada derrubava o roteiro inteiro. A liberação normal já apaga a parada que
+ * esvazia (`reconcileStopOnUnlink`); isto cobre a que sobrou por outro caminho.
+ */
+export function stopHasLiveDocument() {
+  return sql`exists (select 1 from ${tripDocuments} where ${tripDocuments.companyId} = ${tripStops.companyId} and ${tripDocuments.stopId} = ${tripStops.id} and ${tripDocuments.releasedAt} is null)`
+}
 
 export async function listTripStopCoordinates(
   queryable: TripQueryable,
@@ -31,7 +40,13 @@ export async function listTripStopCoordinates(
     .from(tripStops)
     /** `leftJoin` de propósito: a parada sem cache geocodificado precisa **aparecer** para vetar. */
     .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
-    .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+    .where(
+      and(
+        eq(tripStops.companyId, input.companyId),
+        eq(tripStops.tripId, input.tripId),
+        stopHasLiveDocument(),
+      ),
+    )
     .orderBy(asc(tripStops.sequence))
 
   const coordinates: RouteGeometryPoint[] = []
