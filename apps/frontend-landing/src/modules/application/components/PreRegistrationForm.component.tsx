@@ -396,7 +396,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 </option>
                 {settings.units.map((unit) => (
                   <option key={unit.companyId} value={unit.companyId}>
-                    {unit.tradeName}
+                    {unit.displayName}
                   </option>
                 ))}
               </select>

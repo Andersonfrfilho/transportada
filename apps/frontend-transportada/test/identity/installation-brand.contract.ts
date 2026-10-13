@@ -82,6 +82,22 @@ describe('a marca da instalação na tela de entrar', () => {
     expect(brand.name).toBe('TAPETE MAGICO TRANSPORTADORA')
   })
 
+  /** A empresa escolhe em Configurações qual nome mostrar; a API manda o escolhido em `displayName`. */
+  test('o nome que a empresa escolheu vence a fantasia', async () => {
+    const brand = await readInstallationBrand(
+      clientOf(() =>
+        Response.json({
+          data: {
+            brandName: null,
+            units: [{ displayName: 'TAPETE MAGICO LTDA', tradeName: 'Tapete Mágico' }],
+          },
+        }),
+      ),
+    )
+
+    expect(brand.name).toBe('TAPETE MAGICO LTDA')
+  })
+
   /** A marca da landing é escolha explícita de quem a configurou: ela vence o cadastro. */
   test('a marca da landing vence o nome da empresa', async () => {
     const brand = await readInstallationBrand(

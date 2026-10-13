@@ -62,6 +62,23 @@ describe('a leitura da marca para o e-mail', () => {
     expect((await gateway.read()).name).toBe('Exemplo Matriz')
   })
 
+  test('o nome que a empresa escolheu mostrar vence a fantasia da unidade', async () => {
+    const remote = jsonFetch({
+      data: {
+        ...SETTINGS.data,
+        brandName: '   ',
+        units: [{ displayName: 'EXEMPLO MATRIZ LTDA', tradeName: 'Exemplo Matriz' }],
+      },
+    })
+    const gateway = createLandingEmailBrandGateway({
+      apiBaseUrl: 'https://api.exemplo.com.br',
+      appBaseUrl: undefined,
+      fetch: remote.fetch,
+    })
+
+    expect((await gateway.read()).name).toBe('EXEMPLO MATRIZ LTDA')
+  })
+
   test('a leitura é guardada: dois envios seguidos não são duas idas à API', async () => {
     const remote = jsonFetch(SETTINGS)
     const gateway = createLandingEmailBrandGateway({

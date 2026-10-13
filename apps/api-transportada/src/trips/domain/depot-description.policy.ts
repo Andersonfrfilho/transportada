@@ -16,7 +16,6 @@
 import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { CompanyDisplayNameMode } from '../../database/company-fiscal-profile.schema.js'
 
-
 /** O telefone é o primeiro da lista de contatos — a ordem que a empresa mesma escolheu. */
 export type DepotDescription = Readonly<{
   address: string
