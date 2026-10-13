@@ -86,3 +86,18 @@
 .timelineActor {
   color: color-mix(in srgb, var(--color-fog) 72%, transparent);
 }
+
+/* Spec 248: o ícone ao lado do rótulo, alinhado ao texto (web.md §9). */
+.panel h3,
+.block h4,
+.facts dt,
+.list li,
+.timelineWhen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.list li {
+  flex-wrap: wrap;
+}

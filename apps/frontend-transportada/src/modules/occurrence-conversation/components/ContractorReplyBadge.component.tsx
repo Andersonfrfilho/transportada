@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { Icon } from '@/components/ui/icon'
 
 import { describeContractorReplyState } from '../shared/contractorReply.service'
 import type { ContractorReplySummary } from '../shared/contractorReply.types'
@@ -24,5 +25,10 @@ export function ContractorReplyBadge({ reply }: ContractorReplyBadgeProps) {
     state.alertCount > 0
       ? `${t(state.labelKey)} · ${t('contractorReply.alerts', { count: state.alertCount })}`
       : t(state.labelKey)
-  return <Badge variant={state.tone}>{text}</Badge>
+  return (
+    <Badge variant={state.tone}>
+      <Icon name={state.iconName} size="sm" />
+      {text}
+    </Badge>
+  )
 }
