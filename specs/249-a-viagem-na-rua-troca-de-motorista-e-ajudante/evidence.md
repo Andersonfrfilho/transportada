@@ -226,3 +226,29 @@ de `TRIP_TIMELINE_KINDS` com a API (o vermelho herdado da API parte 2) fica verd
 **Gates** (`apps/frontend-transportada`): `bun run typecheck` limpo · `bun run lint` 0 erros, 16 avisos
 (todos anteriores; nenhum em arquivo desta tarefa) · `bun run test` 7280 pass / 0 fail, e o `test:hooks`
 embutido 855 pass / 0 fail.
+
+## Pós-entrega — promoção e verificação em produção (2026-10-07 a 2026-10-11)
+
+- **Promoção**: `staging@05cbe309e` (deploy completo verde em staging) foi para a `main` em dois PRs:
+  #144 (painéis) e #145 (API, worker, cron, migrations, specs). A árvore da `main` ficou idêntica a
+  `05cbe309e` (`git diff` com 0 linhas). Leituras de produção feitas antes: 264 migrations aplicadas,
+  0 transações abertas há mais de 30 s, chave do expurgo ausente.
+- **Falha do #144**: o deploy da `main` reprovou no gate e **pulou todos os deploys** (produção não
+  mudou). Causa: 6 testes de paridade do painel que leem o código da API na mesma árvore
+  (3 por divergência de lista e 3 por `ENOENT` em arquivos da API ausentes na `main`).
+  Lição: a promoção em duas etapas **não funciona** com este CI; o #145 fechou o gate e subiu tudo
+  de uma vez (deploy de 19 min 24 s, tudo verde, API antes do painel).
+- **Cache do painel**: depois do deploy, uma aba aberta antes dele pedia
+  `filter-pills-Bix9yS69.css` (404, `text/plain`). O build novo estava íntegro (158 de 158 arquivos
+  citados pelo JS novo respondem 200; service worker com `skipWaiting`, `clientsClaim` e
+  `cleanupOutdatedCaches`). Recarga forçada resolve; é a janela de deploy descrita no PR #145.
+- **Verificação em produção (2026-10-11, sessão logada do usuário, sem gravar nada)**: viagem
+  `9086565b` (status `completed`): botão **Transferir tripulação** presente e habilitado; diálogo abre
+  com Motoristas/Ajudantes, motivo obrigatório e "O que vai mudar"; **Transferir** desabilitado sem
+  troca e sem motivo; Escape fecha sem enviar. Console sem erros. **Nenhuma transferência real foi
+  feita.**
+- **Achado**: o botão aparece em viagem concluída porque o commit `2e1ac3f74` (2026-10-08) incluiu
+  `completed` na janela. Registrado como D11 na spec e na emenda da ADR-0097.
+- **Texto do aviso do motorista**: o texto final do aviso de reatribuição (Fase 3) mantém também o
+  caso "voltou para o planejamento do escritório" (commit `f4cbfb6e2`); o texto da seção da Fase 3
+  acima é o da primeira versão.

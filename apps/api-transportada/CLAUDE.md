@@ -573,7 +573,8 @@ docs/ai-context § "A ocorrência tem duas conversas".
     anterior deixa de lê-la;
   - a resposta de quem não é o destinatário é 409 `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`;
   - a tripulação **não é fixa**: troca-se até `route_planned` (spec 217) e, com a viagem na rua,
-    por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097), que grava `trip_crew_events`;
+    por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097; janela: na rua e concluída), que grava
+    `trip_crew_events`;
     a conversa segue o motorista principal de agora.
 - **A viagem na rua recebe notas** (spec 257, exceção do ADR-0043 §2): `POST /v1/trips/:id/documents/after-dispatch`
   (`trip.report-on-behalf`, janela `dispatched`/`in_transit`/`on_delivery_route`) grava `trip_document_link_events`;

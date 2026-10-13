@@ -266,3 +266,17 @@ nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNoti
 - **Cópia por valor com paridade:** `NATIONAL_HOLIDAY_KEYS` repete a lista da API (a mutação que tira `tiradentes` reprova o contrato).
 - **Preview:** `DRIVER_PREVIEW_HOLIDAYS=on` em `scripts/driver-preview-api.ts` devolve avisos nacional, estadual e municipal; sem a variável a resposta é a de sempre.
 - **Não exercitado:** o smoke Playwright (exige login real no Keycloak local). Os prints de 375/768/1280, claro e escuro, foram aprovados pelo usuário em 2026-10-09.
+
+## Spec 249 — A viagem transferida some da lista de quem saiu (ADR-0097)
+
+- Nenhuma tela nova. A viagem passa a quem entrou pelo vínculo (`trip_drivers`) e some de quem saiu;
+  `hasReassignedTrip` (`modules/driver-trip/shared/tripReassignment.service.ts`) já tratava qualquer
+  status não terminal e continua valendo para `dispatched`, `in_transit` e `on_delivery_route`.
+- **Aviso** (`driverTrip.locale.json`/`.en.locale.json`): "Esta viagem não está mais com você — foi
+  passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você
+  entregou e registrou fica com a viagem." Mantém os **dois** casos de propósito.
+- **Recusas offline** (`rejectionCauseLabel.service.ts`): `TRIP_NOT_OF_DRIVER` (403) diz "esta viagem
+  foi transferida; peça ao escritório para registrar"; `TRIP_STOP_NOT_REACHABLE` (404) diz que a
+  parada saiu da viagem. O escritório só dá baixa em nome de quem **está** na tripulação.
+- Sem push nem sino de atribuição (spec 217 D9). Contrato:
+  `test/driver-trip/trip-reassignment.contract.ts`.

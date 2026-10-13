@@ -1540,3 +1540,34 @@ no cabeçalho da parada de `TripStopList`. Contratos: `test/trip/holiday-warning
 
 ⚠️ O smoke do painel com a CSP: `vite preview` precisa das mesmas `VITE_*` do build (a CSP nasce delas); com `VITE_API_URL` ausente o `connect-src` não inclui a API e tudo falha
 calado. O `mockSettingsShell` da 238 segue servindo as telas de Configurações.
+
+## Spec 249 — Transferir tripulação da viagem na rua e concluída (ADR-0097)
+
+- **Botão e permissão:** "Transferir tripulação" no `TripHeaderActions`, por
+  `canOfferTripFieldAction({ action: 'transferCrew' })`: exige `trip.report-on-behalf` **e** o nome
+  `transferCrew` na lista `trip[]` de `allowed-actions` (ausente = falso). `canManage` não serve (o
+  separador o tem e não transfere). A janela vem da API: `dispatched`, `in_transit`,
+  `on_delivery_route` e `completed`.
+- **Diálogo** (`modules/trip`): `TripCrewTransferDialog` + `CrewTransferMemberList` (Motoristas e
+  Ajudantes em listas separadas, resumo "Sai / Entra"), hook `useTripCrewTransferDialog`, motivo
+  obrigatório (≤500). **Sem seletor de veículo**: o veículo, a rota e as paradas não mudam.
+  `resolveCrewTransferBlocker` (`tripCrewTransfer.service.ts`) bloqueia motivo vazio, ninguém
+  dirigindo, mesma pessoa nos dois papéis, quem não dirige como motorista e tripulação igual à atual.
+- **Resposta:** `parseCrewTransfer` (`tripCrewTransfer.validation.ts`) exige as 6 chaves exatas de
+  `data.transfer` e recusa chave extra; dinheiro só como string decimal. Depois do sucesso o diálogo
+  mostra `TripCrewTransferOutcome` (custo anterior, novo e diferença, sinal mantido) e, com
+  `mdfeDriverDivergence`, o aviso de que o MDF-e autorizado segue com o condutor anterior.
+- **Erros** por `error.code`: `TRIP_CREW_UNCHANGED`, `STATE_TRANSITION_NOT_ALLOWED`,
+  `TRIP_DRIVER_CANNOT_DRIVE`, `TRIP_CREW_HELPER_NOT_ELIGIBLE`, `TRIP_CREW_HELPER_WITHOUT_DRIVER`.
+- **Linha do tempo:** item `crew_transfer` com `crewTransfer` aninhado (chave exata; `costDifference`
+  opcional e **ausente** sem `trip.financials`), `TripTimelineCrewTransfer.component.tsx`,
+  `tripTimelineCrewTransfer.service.ts` (uma frase por papel: "Motorista: Maria → João") e
+  `.validation.ts`. A mutation `transferCrewMutation` invalida o prefixo `['trips']`, que já cobre a
+  linha do tempo e `allowed-actions`.
+- ⚠️ **Perfil `finance`:** tem `trip.report-on-behalf` mas não `fleet.read`; o `useFleet` não carrega e
+  o diálogo abre sem ninguém para escolher. Decisão de produto pendente.
+- ⚠️ **Testes de paridade com a API:** `test/trip/timeline.contract.ts` e outros leem o código da
+  API na mesma árvore. Painel novo + API antiga na mesma árvore reprova o gate (promoção de 2026-10-07).
+- Contratos: `test/trip/crew-transfer.contract.ts`, `test/trip-hooks/crew-transfer-dialog.contract.ts`,
+  `test/trip/timeline-crew-transfer.contract.ts`, `test/trip-hooks/timeline-crew-transfer.contract.ts`,
+  `test/trip-hooks/crew-transfer-timeline-invalidation.contract.ts`.
