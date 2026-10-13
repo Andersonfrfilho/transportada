@@ -236,5 +236,20 @@
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
     "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual.",
     "driverChanged": "Esta conversa passou para outro motorista da viagem. Fale com a operação por outro canal."
+  },
+  "audioTranscription": {
+    "title": "Transcrever áudios das conversas",
+    "description": "Os áudios das conversas por assunto ganham o texto embaixo do player, marcado como gerado por máquina. É uma ajuda de leitura: o áudio continua sendo a mensagem.",
+    "label": "Transcrever áudios das conversas",
+    "offNotice": "Desligada, a transcrição some das conversas, mas o texto já gerado não é apagado: ao ligar de novo ele volta. Os áudios que chegarem enquanto estiver desligada não são transcritos depois.",
+    "limit": {
+      "minutes": "Só áudios de menos de {minutes} minutos são transcritos. Os maiores continuam enviados e tocando normalmente.",
+      "seconds": "Só áudios de menos de {seconds} segundos são transcritos. Os maiores continuam enviados e tocando normalmente."
+    },
+    "loading": "Carregando a configuração da transcrição",
+    "loadError": "Não foi possível carregar a configuração da transcrição. Tente de novo em instantes.",
+    "saving": "Salvando…",
+    "saved": "Salvo.",
+    "error": "Não foi possível salvar. A configuração continua como estava."
   }
 }

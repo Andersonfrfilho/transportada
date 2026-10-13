@@ -236,5 +236,20 @@
     "uploadExpired": "An attachment expired before sending. Send again — it will upload once more.",
     "alreadySent": "The previous message was already recorded. Send again to send the current text.",
     "driverChanged": "This conversation moved to another driver of the trip. Reach the office another way."
+  },
+  "audioTranscription": {
+    "title": "Transcribe conversation audios",
+    "description": "Audios in subject conversations get their text below the player, marked as machine generated. It is a reading aid: the audio remains the message.",
+    "label": "Transcribe conversation audios",
+    "offNotice": "While off, the transcription is hidden from conversations, but the text already generated is not erased: turn it on again and it comes back. Audios that arrive while it is off are not transcribed later.",
+    "limit": {
+      "minutes": "Only audios shorter than {minutes} minutes are transcribed. Longer ones are still sent and play normally.",
+      "seconds": "Only audios shorter than {seconds} seconds are transcribed. Longer ones are still sent and play normally."
+    },
+    "loading": "Loading the transcription setting",
+    "loadError": "Could not load the transcription setting. Try again shortly.",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "error": "Could not save. The setting stays as it was."
   }
 }

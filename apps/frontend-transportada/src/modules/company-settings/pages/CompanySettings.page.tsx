@@ -61,6 +61,7 @@ import {
   type ActiveCertificatesByPurpose,
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
+import { AudioTranscriptionSettingsPanel } from '@/modules/occurrence-conversation/components/AudioTranscriptionSettingsPanel.component'
 import { QuickRepliesSettingsPanel } from '@/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component'
 
 import styles from '../styles/companySettings.module.css'
@@ -253,6 +254,9 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
     return <SettingsResolutionPanel canManage={props.canManageSettings} />
   /** Spec 183 T701 (RF12): o painel é do módulo da conversa, autocontido — aqui só se decide onde. */
   if (tab === 'quickReplies') return <QuickRepliesSettingsPanel enabled={props.canManageSettings} />
+  /** Spec 264 RF17: painel do módulo da conversa, autocontido — busca os próprios dados, só com `settings.manage`. */
+  if (tab === 'audioTranscription')
+    return <AudioTranscriptionSettingsPanel enabled={props.canManageSettings} />
   /** Spec 238 Fase 2: o calendário de dias úteis é autocontido — busca os próprios dados, só com `settings.manage`. */
   if (tab === 'businessCalendar') {
     return (

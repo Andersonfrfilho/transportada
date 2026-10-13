@@ -11,7 +11,8 @@
     "entryKinds": "Espécies de lançamento",
     "quickReplies": "Respostas rápidas",
     "settingsResolution": "Verificar configuração",
-    "businessCalendar": "Calendário"
+    "businessCalendar": "Calendário",
+    "audioTranscription": "Áudio das conversas"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
