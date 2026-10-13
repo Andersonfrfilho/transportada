@@ -93,6 +93,7 @@ function buildDependenciesStub(overrides?: {
   const toAddress = overrides?.toAddress ?? `${REPLY_TOKEN}@${REPLY_DOMAIN}`
 
   return {
+    driverNotifier: { notify: async () => undefined },
     conversationAttachments: {
       discard: async () => undefined,
       store: async () => ({ skipped: 0, stored: [] }),

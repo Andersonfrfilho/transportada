@@ -32,12 +32,15 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
   /** Spec 248 RF5: o alerta de retorno vencido, disparado por `occurrence.contractor-reply.alert`. */
   TRIP_OCCURRENCE_CONTRACTOR_REPLY_OVERDUE: 'trip.occurrence-contractor-reply-overdue',
+  /** Spec 248 T4.6b: o aviso do boleto entregue ao motorista, o mesmo que a API manda no caminho do operador. */
+  TRIP_CONVERSATION_MESSAGE: 'trip.conversation-message',
 } as const
 
 export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = {
   'billing.invoice-due': ['dueDate', 'invoiceNumber'],
   'cte-batch.issuance-failed': ['batchName', 'failedCount'],
   'trip.occurrence-contractor-reply-overdue': ['alertNumber', 'occurrenceLabel'],
+  'trip.conversation-message': ['occurrenceLabel'],
 } as const
 
 /**

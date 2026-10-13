@@ -199,6 +199,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
@@ -273,6 +274,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
@@ -331,6 +333,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
@@ -387,6 +390,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({
         recordCalls,
@@ -451,6 +455,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({
         recordCalls,
@@ -509,6 +514,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ existingMessageId: crypto.randomUUID(), recordCalls }),
       secretService: {
@@ -550,6 +556,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
@@ -591,6 +598,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
@@ -633,6 +641,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
@@ -687,6 +696,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
@@ -743,6 +753,7 @@ describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
       recordCalls: input.recordCalls,
     })
     return {
+      driverNotifier: { notify: async () => undefined },
       conversationAttachments: {
         discard: async (stored) => void input.discarded.push(...stored),
         store: async () => ({ skipped: 2, stored: STORED }),

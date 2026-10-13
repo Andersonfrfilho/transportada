@@ -164,6 +164,7 @@ import { createDrizzleContractorMailOutboundWorkerRepository } from './contracto
 import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createCargoPreviewEmailIntake } from './cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
 import { createDrizzleCargoPreviewEmailRepository } from './cargo-preview-email/infrastructure/drizzle-cargo-preview-email.repository.js'
+import { createDriverReplyNotifier } from './occurrence-conversation/infrastructure/driver-reply-notifier.gateway.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
@@ -1119,6 +1120,11 @@ export async function startWorkerRuntime(
           bucket: storageBucket,
           provider: INBOUND_MAIL_STORAGE_PROVIDER,
           storage: storageGateway,
+        }),
+        /** Spec 248 T4.6b: o boleto entregue sozinho avisa o sino do motorista, depois do commit. */
+        driverNotifier: createDriverReplyNotifier({
+          logger,
+          send: (params) => notificationModule.useCases.sendNotification.execute(params),
         }),
         dkimVerifier: inboundDkimVerifier,
         mailGateway: inboundMailGateway,
