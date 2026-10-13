@@ -1,9 +1,24 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+/** A forma de `transcription` das rotas por assunto (spec 264 contract.md §1). */
+export type PreviewTranscription =
+  | { readonly status: 'pending' }
+  | {
+      readonly engine?: string
+      readonly generatedAt: string
+      readonly language?: string
+      readonly status: 'ready'
+      readonly text: string
+    }
+  | { readonly maxDurationMs?: number; readonly reason?: 'too_long'; readonly status: 'failed' }
+  | { readonly status: 'disabled' }
+
 export type PreviewAttachment = {
   readonly contentType: string
+  readonly durationMs?: number
   readonly fileName: string
   readonly id: string
   readonly sizeBytes: number
+  transcription?: PreviewTranscription
 }
 
 export type PreviewSubjectType = 'document' | 'occurrence' | 'trip'
@@ -33,6 +48,8 @@ export type PreviewConversation = {
   officeReadAt?: string
   readonly occurrenceId: string
   readonly occurrenceLabel: string
+  /** Última mudança de transcrição da conversa; o resumo a devolve e o app compara no refresh. */
+  transcriptionUpdatedAt?: string
   /** Formato `AAMMDD-XXXX`, alfabeto sem 0, 1, I, L e O. */
   readonly protocol: string
   readonly subjectType: PreviewSubjectType

@@ -11,6 +11,10 @@
  * `.../fail-next` {count, status = 503}, `.../office-read` {subjectId} (o escritório leu: as mensagens do
  * motorista passam de `delivered` ✓✓ cinza a `read` ✓✓ azul).
  *
+ * Áudio (spec 264): a conversa de nota `NF 900202 · Áudios` traz um áudio por estado de transcrição (`audio-pending`,
+ * `audio-ready`, `audio-failed`, `audio-disabled`); áudio enviado nasce `pending`. `POST /__debug/conversations/transcription-ready`
+ * {attachmentId?} avança `pending` -> `ready` (todos, sem o id) e muda o `transcriptionUpdatedAt` do resumo.
+ *
  * Respostas prontas (T5.3): `GET /me/trips/current/quick-replies` → `{data: [{id, text}]}` (4 textos de
  * partida; o `reset` as restaura). `POST /__debug/conversations/quick-replies` {texts: string[]} troca
  * a lista (`[]` = empresa sem respostas) e {status: 409|500} faz a rota responder esse erro até o `reset`.
@@ -22,6 +26,7 @@ import {
   type ConversationHandlersOptions,
   type ConversationRouteShape,
 } from './driver-preview-conversations-handlers'
+import { buildSilentWav } from './driver-preview-conversations-audio'
 import type { ConversationRepository } from './driver-preview-conversations-repository'
 import type { PreviewSubjectType } from './driver-preview-conversations.types'
 
@@ -42,6 +47,7 @@ const OCCURRENCE_ROUTE = /^occurrences\/([^/]+)\/(messages\/read|messages|upload
 const SUBJECT_ROUTE =
   /^conversations\/(occurrence|document|trip)\/([^/]+)\/(messages\/read|messages|uploads)$/
 const STORAGE_ROUTE = /^\/__conversation-storage\/([^/]+)$/
+const AUDIO_SAMPLE_MS = 3000
 const DEFAULT_QUICK_REPLY_TEXTS: readonly string[] = [
   'Cheguei ao local',
   'Cliente ausente',
@@ -140,6 +146,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
       return handlers.json({ data: { reset: true } })
     }
     if (pathname === '/__debug/conversations/quick-replies') return configureQuickReplies(body)
+    if (pathname === '/__debug/conversations/transcription-ready') {
+      const attachmentId = typeof body.attachmentId === 'string' ? body.attachmentId : undefined
+      const advanced = repository.advanceTranscriptions(
+        attachmentId === undefined ? undefined : { attachmentId },
+      )
+      return handlers.json({ data: { advanced } })
+    }
     if (pathname === '/__debug/conversations/fail-next') {
       const count = typeof body.count === 'number' ? body.count : 1
       const status = typeof body.status === 'number' ? body.status : undefined
@@ -166,8 +179,15 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
   }
 
   function handleStorage(request: Request, pathname: string): Response | undefined {
-    if (STORAGE_ROUTE.exec(pathname) === null) return undefined
+    const attachmentId = STORAGE_ROUTE.exec(pathname)?.[1]
+    if (attachmentId === undefined) return undefined
     if (request.method === 'PUT') return handlers.empty(200)
+    if (repository.findAttachment(attachmentId)?.contentType.startsWith('audio/') === true) {
+      return new Response(buildSilentWav(AUDIO_SAMPLE_MS), {
+        headers: { ...options.corsHeaders, 'content-type': 'audio/wav' },
+        status: 200,
+      })
+    }
     return new Response(ONE_PIXEL_PNG, {
       headers: { ...options.corsHeaders, 'content-type': 'image/png' },
       status: 200,

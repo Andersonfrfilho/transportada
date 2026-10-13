@@ -169,7 +169,7 @@ blob: <storage>` (hoje ausente); adapter valida `transcription` com `participant
       teto `CONVERSATION_OUTBOX_LIMIT` (100 itens; 48 MiB **só para mensagem com arquivo** — texto sempre entra até o
       teto de itens) conferido antes de gravar e `QuotaExceededError` tratado como recusa; a recusada fica só em
       memória e se perde ao recarregar (§5.4), dono, "Sair" descarta; gravação aberta registrada no `captureRegistry`.
-- [ ] **T4.3** `sonnet` — Implementar a T4.2 + prop de gravação em `DriverConversations.page.tsx` + locales `pt-BR`/`en`
+- [x] **T4.3** `sonnet` — Implementar a T4.2 + prop de gravação em `DriverConversations.page.tsx` + locales `pt-BR`/`en`
       (conferir as chaves de `participantLabels` da versão nova) + demo API com áudio nos quatro estados e
       `__debug` para avançar `pending → ready`.
 - [ ] **T4.4** `sonnet` — Smoke Playwright do `frontend-driver` (Chromium com microfone falso): gravar, ouvir, enviar,

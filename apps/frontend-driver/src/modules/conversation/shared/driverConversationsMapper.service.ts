@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ParticipantAttachment } from '@adatechnology/conversation-contracts'
+import {
+  PARTICIPANT_AUDIO_DURATION_MAX_MS,
+  participantTranscriptionSchema,
+  type ParticipantAttachment,
+} from '@adatechnology/conversation-contracts'
 
 import { conversationSubjectKey } from './conversationSnapshot.service'
 import {
@@ -26,15 +30,36 @@ export function attachmentKindOf(mimeType: string): ParticipantAttachment['kind'
   return 'document'
 }
 
+/** Inteiro positivo até o teto do contrato; qualquer outra coisa é só a duração que não veio. */
+function readDurationMs(value: unknown): number | undefined {
+  const isValid =
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= PARTICIPANT_AUDIO_DURATION_MAX_MS
+  return isValid ? value : undefined
+}
+
+/** Por anexo: um estado novo da API perde só a transcrição daquele anexo, nunca a página (molde `readChannels`). */
+function readTranscription(value: unknown): ParticipantAttachment['transcription'] {
+  if (value === undefined || value === null) return undefined
+  const parsed = participantTranscriptionSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
 function toAttachmentCandidate(raw: unknown): unknown {
   const attachment = asRecord(raw)
   const mimeType = typeof attachment.contentType === 'string' ? attachment.contentType : ''
+  const durationMs = readDurationMs(attachment.durationMs)
+  const transcription = readTranscription(attachment.transcription)
   return {
     filename: attachment.fileName,
     id: attachment.id,
     kind: attachmentKindOf(mimeType),
     mimeType,
     sizeBytes: attachment.sizeBytes,
+    ...(durationMs === undefined ? {} : { durationMs }),
+    ...(transcription === undefined ? {} : { transcription }),
   }
 }
 
@@ -120,6 +145,25 @@ export function readOfficeReadAtBySubject(payload: unknown): ReadonlyMap<string,
     }
   }
   return readAtBySubject
+}
+
+/** `transcriptionUpdatedAt` por assunto, direto do payload: quando a transcrição pronta muda, o refresh relê a conversa. */
+export function readTranscriptionUpdatedAtBySubject(payload: unknown): ReadonlyMap<string, string> {
+  const updatedAtBySubject = new Map<string, string>()
+  for (const raw of readDataArray(payload)) {
+    const { subjectId, subjectType, transcriptionUpdatedAt } = asRecord(raw)
+    if (
+      typeof transcriptionUpdatedAt === 'string' &&
+      typeof subjectId === 'string' &&
+      typeof subjectType === 'string'
+    ) {
+      updatedAtBySubject.set(
+        conversationSubjectKey({ subjectId, subjectType }),
+        transcriptionUpdatedAt,
+      )
+    }
+  }
+  return updatedAtBySubject
 }
 
 /** Resumo da rota antiga (só ocorrência): sem a direção da última mensagem, "espera resposta" é ter não lida. */

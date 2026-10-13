@@ -32,6 +32,8 @@ export type ConversationOutboxStore = Readonly<{
 }>
 
 export type OutboxEvent =
+  /** A mensagem não coube na fila (teto ou cota do aparelho) e só existe na memória da tela. */
+  | Readonly<{ type: 'enqueue-refused' }>
   | Readonly<{ type: 'pending-changed' }>
   /** A mensagem saiu (entregue) ou foi descartada: a conversa e a lista podem ter mudado. */
   | Readonly<{ subject: ParticipantSubjectRef; type: 'message-settled' }>

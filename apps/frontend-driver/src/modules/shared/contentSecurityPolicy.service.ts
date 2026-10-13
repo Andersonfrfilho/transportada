@@ -9,7 +9,8 @@
  * origem da API (o logo da instalação). A origem do armazenamento entrou com a spec 179 no
  * `connect-src` (a foto da ocorrência sobe por `PUT` direto ao bucket) e agora entra também no
  * `img-src` — o pedido do usuário de 01/10 fez esta app **exibir** imagem vinda de lá: o canhoto já
- * enviado, por URL assinada de 5 min que a API devolve.
+ * enviado, por URL assinada de 5 min que a API devolve. A spec 264 abriu `media-src` para o áudio da
+ * conversa: o anexo toca por URL assinada do mesmo bucket e a revisão da gravação por `blob:`.
  */
 
 const SELF = "'self'"
@@ -73,6 +74,9 @@ export function buildContentSecurityPolicy({
       .filter((origin): origin is string => origin !== undefined)
       .sort(),
   ].join(' ')
+  const mediaSource = [SELF, BLOB, ...(storageOrigin === undefined ? [] : [storageOrigin])].join(
+    ' ',
+  )
   const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
 
   return [
@@ -85,6 +89,7 @@ export function buildContentSecurityPolicy({
     `frame-src ${NONE}`,
     `img-src ${imageSource}`,
     `manifest-src ${SELF}`,
+    `media-src ${mediaSource}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,
     /** `style-src-attr` é ignorado pelo Safari < 15.4, e o motorista abre a app no celular. */

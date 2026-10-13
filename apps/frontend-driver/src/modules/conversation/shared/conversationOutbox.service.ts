@@ -5,6 +5,7 @@ import { isRetryDue } from '@/modules/driver-trip/shared/retryBackoff.service'
 
 import { groupBySubject, toPendingMessage } from './conversationOutboxView.service'
 import { classifyDeliveryFailure } from './conversationOutboxFailure.service'
+import { canEnterOutbox, isQuotaExceeded } from './conversationOutboxLimit.service'
 import type {
   ConversationOutboxStore,
   EnqueueMessageInput,
@@ -61,6 +62,12 @@ export function createConversationOutbox(
 
   function emit(event: OutboxEvent): void {
     for (const listener of listeners) listener(event)
+  }
+
+  /** A mensagem fica só na memória da tela: o pacote a mostra como falha e o reenvio manual a tenta de novo. */
+  function refuseEnqueue(): never {
+    emit({ type: 'enqueue-refused' })
+    throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.OUTBOX_FULL)
   }
 
   async function readOwned(): Promise<readonly OutboxMessage[]> {
@@ -127,22 +134,29 @@ export function createConversationOutbox(
       if (ownerKey === undefined) {
         throw new DriverConversationRequestError(DRIVER_CONVERSATION_ERROR.OUTBOX_OWNER_MISSING)
       }
-      await store.put({
-        attachments: input.attachments,
-        attempts: 0,
-        clientMessageId: input.clientMessageId,
-        createdAt: now().toISOString(),
-        files: input.files.map((file) => ({
-          blob: file,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-        })),
-        ownerKey,
-        state: 'queued',
-        subject: input.subject,
-        text: input.text,
-      })
+      const incomingFileBytes = input.files.reduce((total, file) => total + file.size, 0)
+      if (!canEnterOutbox({ incomingFileBytes, queued: await store.readAll() })) refuseEnqueue()
+      try {
+        await store.put({
+          attachments: input.attachments,
+          attempts: 0,
+          clientMessageId: input.clientMessageId,
+          createdAt: now().toISOString(),
+          files: input.files.map((file) => ({
+            blob: file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          })),
+          ownerKey,
+          state: 'queued',
+          subject: input.subject,
+          text: input.text,
+        })
+      } catch (error) {
+        if (isQuotaExceeded(error)) refuseEnqueue()
+        throw error
+      }
       emit({ type: 'pending-changed' })
     },
     async flush(params) {

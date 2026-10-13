@@ -571,3 +571,40 @@ Contratos escritos **antes** de qualquer código da T4.3, e rodados contra a ár
 - Rodado: `bun test ./test/conversation/<arquivo>.contract.ts` por arquivo (a falha de carga de um deles derruba o agregador inteiro, então
   o vermelho fino vem de cada um) e `bun test ./test/shared.contract.test.ts -t "media-src|microfone"` → 3 fail / 0 pass.
 - `tsc` e `eslint` ficam vermelhos de propósito neste commit (imports de módulos que a T4.3 cria); fecham na T4.3.
+
+## T4.3 — o app do motorista grava, valida e enfileira com teto (2026-10-13)
+
+- **Verde nos contratos da T4.2** (`apps/frontend-driver`, via WSL): `test/conversation.contract.test.ts` **193 pass / 0 fail** (eram 8 fail
+  na primeira rodada com a implementação: o candidato do anexo levava `transcription: undefined` e `durationMs: undefined` como **chave
+  presente** — o zod 3 as devolve, e o tipo do contracts (`exactOptionalPropertyTypes`) as recusaria —, e o protocolo semeado `A7U1` tinha um
+  `1`, fora do alfabeto do protocolo; corrigidos com `...(valor === undefined ? {} : { valor })` e `A7U2`). Suíte inteira do app
+  (`bun run test`, o script do `package.json`): **1730 pass / 0 fail**; `bun run build` (`vite build` + `dist.contract`) → ok, 6 pass, o
+  precache segue dentro de 1,5 MiB (o gravador e o player vêm no chunk preguiçoso do pacote).
+- **Gates:** `tsc --noEmit` → 0; `eslint scripts server.ts src test/conversation test/shared` → limpo; `prettier --check` → limpo. Paridade
+  da transcrição na API com o contracts 0.6.0 da raiz (`participant-transcription-parity.contract.ts`) → 29 pass / 0 fail.
+- **Cabeçalhos:** `server.ts` emite `camera=(self), geolocation=(self), microphone=(self)`; `buildContentSecurityPolicy` ganha
+  `media-src 'self' blob: <storage>` (origem do bucket por `VITE_OBJECT_STORAGE_URL`, a mesma do `connect-src` e do `img-src`; sem bucket,
+  `'self' blob:`). O `vite.config.ts` não muda: a política sai do mesmo `buildContentSecurityPolicy` no build, no `preview` e no `dev`.
+- **Adapter** (`driverConversationsMapper.service.ts`): `readTranscription` (`participantTranscriptionSchema.safeParse`, `null`/ausente/inválido
+  somem) e `readDurationMs` (inteiro positivo ≤ `PARTICIPANT_AUDIO_DURATION_MAX_MS`) por anexo; `readTranscriptionUpdatedAtBySubject` lê o
+  campo do payload da lista, `ConversationSnapshotEntry` ganha `transcriptionUpdatedAt` e o `diffConversationSnapshots` o compara. O
+  campo não entra no resumo do pacote (o schema não o conhece), como o `officeReadAt`.
+- **Fila** (`conversationOutboxLimit.service.ts`, `conversationOutbox.service.ts`): `CONVERSATION_OUTBOX_LIMIT = { maxCount: 100, maxFileBytes: 48 MiB }`
+  (`driverConversation.constant.ts`) conferido **antes** de `store.put`; `maxFileBytes` só soma e só vale com mensagem com arquivo; a contagem é
+  do aparelho inteiro (`store.readAll()`, todos os donos), porque a cota do IndexedDB também é. Recusa (teto ou `QuotaExceededError` do `put`)
+  emite `enqueue-refused` e lança `DriverConversationRequestError('DRIVER_CONVERSATION_OUTBOX_FULL')`; o pacote trata o `sendMessage` que lança
+  como "Falhou — toque para reenviar" (a bolha local, só na memória). `useConversationOutbox` guarda o aviso (`conversationOutboxNotice.service.ts`)
+  até uma mensagem sair da fila, e a página o mostra como `role="alert"` acima da conversa (`outboxFull`). O "Sair" segue
+  `conversationOutboxDiscard.service.ts`, sem mudança: a recusada nunca esteve no store.
+- **Gravação:** `audio` em `CAPTURE_KINDS`; `createAudioCaptureBridge(captureRegistry)` (`driverAudioCapture.service.ts`) liga o
+  `onCaptureChange` ao `open`/`close('audio')` sem empilhar aviso repetido; `DriverConversations.page.tsx` passa
+  `audioRecording={AUDIO_RECORDING}` (objeto de módulo, sem `maxDurationMs`/`maxSizeBytes`: valem os do pacote, 5 min e 16 MiB).
+- **Locales:** os 11 rótulos do gravador e `outboxFull` em `conversation.locale.json` e `.en`.
+- **Demonstração** (`scripts/driver-preview-*`): conversa de nota `NF 900202 · Áudios` (`00000000-0000-4000-8000-000000000299`) com quatro
+  áudios do escritório, um por estado (`audio-pending`, `audio-ready`, `audio-failed` com `too_long` e 600 000 ms, `audio-disabled`); áudio
+  enviado pelo app nasce `pending`; `POST /__debug/conversations/transcription-ready` `{attachmentId?}` avança `pending → ready` e muda o
+  `transcriptionUpdatedAt` do resumo; o storage da demonstração serve um WAV mudo de 3 s para `audio/*`. Ela ficou numa **nota** (não
+  numa 7ª ocorrência) para não mudar a contagem da rota antiga, que só lista ocorrências.
+- **Desvios:** (1) o aviso `outboxFull` é um banner da página, não texto do pacote — o SDK não tem slot para isso; (2) a recusa por teto
+  conta todas as mensagens do aparelho (não só as do dono da sessão). Nenhum teste existente foi enfraquecido; mudanças deliberadas já
+  registradas na T4.2.

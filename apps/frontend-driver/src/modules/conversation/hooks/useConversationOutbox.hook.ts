@@ -2,9 +2,11 @@
 import type { ParticipantPendingMessage } from '@adatechnology/conversations-ui/participant'
 import { useEffect, useState } from 'react'
 
+import { reduceOutboxNotice, type OutboxNotice } from '../shared/conversationOutboxNotice.service'
 import type { DriverConversationsApi } from '../shared/driverConversationsApi.service'
 
 export type ConversationOutboxView = Readonly<{
+  notice: OutboxNotice | undefined
   onRetryPending: (clientMessageId: string) => void
   pendingMessages: readonly ParticipantPendingMessage[]
 }>
@@ -12,6 +14,7 @@ export type ConversationOutboxView = Readonly<{
 /** A fila durável do aparelho, na forma que o pacote espera (`pendingMessages` + reenvio manual). */
 export function useConversationOutbox(api: DriverConversationsApi): ConversationOutboxView {
   const [pendingMessages, setPendingMessages] = useState<readonly ParticipantPendingMessage[]>([])
+  const [notice, setNotice] = useState<OutboxNotice | undefined>(undefined)
 
   useEffect(() => {
     let isCancelled = false
@@ -27,6 +30,7 @@ export function useConversationOutbox(api: DriverConversationsApi): Conversation
 
     refresh()
     const unsubscribe = api.outbox.subscribe((event) => {
+      setNotice((current) => reduceOutboxNotice(current, event))
       if (event.type === 'pending-changed') refresh()
     })
     return () => {
@@ -39,5 +43,5 @@ export function useConversationOutbox(api: DriverConversationsApi): Conversation
     api.retryPending(clientMessageId).catch(() => undefined)
   }
 
-  return { onRetryPending: handleRetryPending, pendingMessages }
+  return { notice, onRetryPending: handleRetryPending, pendingMessages }
 }

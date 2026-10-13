@@ -1,6 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /** Dados sintéticos das conversas da demonstração do motorista (spec 263). Sem PII real. */
+import {
+  buildSeedAudioAttachments,
+  PREVIEW_AUDIO_DOCUMENT_ID,
+} from './driver-preview-conversations-audio'
 import type {
+  PreviewAttachment,
   PreviewChannel,
   PreviewConversation,
   PreviewMessage,
@@ -8,6 +13,8 @@ import type {
 } from './driver-preview-conversations.types'
 
 type SeedLine = Readonly<{
+  /** Posição em `buildSeedAudioAttachments`: a bolha leva esse áudio (spec 264). */
+  audioIndex?: number
   direction: PreviewMessage['direction']
   isUnread?: boolean
   text: string
@@ -129,6 +136,18 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
     subjectType: 'document',
   },
   {
+    id: PREVIEW_AUDIO_DOCUMENT_ID,
+    label: 'NF 900202 · Áudios (demonstração)',
+    lines: [
+      { audioIndex: 0, direction: 'outbound', text: '' },
+      { audioIndex: 1, direction: 'outbound', text: '' },
+      { audioIndex: 2, direction: 'outbound', text: '' },
+      { audioIndex: 3, direction: 'outbound', text: '' },
+    ],
+    protocolSuffix: 'A7U2',
+    subjectType: 'document',
+  },
+  {
     id: PREVIEW_TRIP_ID,
     label: 'Viagem de 09/10',
     lines: [
@@ -146,11 +165,18 @@ export function toProtocol(now: number, suffix: string): string {
 }
 
 function toMessage(
-  input: Readonly<{ at: number; conversationId: string; index: number; line: SeedLine }>,
+  input: Readonly<{
+    at: number
+    audio: readonly PreviewAttachment[]
+    conversationId: string
+    index: number
+    line: SeedLine
+  }>,
 ): PreviewMessage {
   const { line } = input
+  const audio = line.audioIndex === undefined ? undefined : input.audio[line.audioIndex]
   return {
-    attachments: [],
+    attachments: audio === undefined ? [] : [audio],
     authorName: line.direction === 'outbound' ? OFFICE_AUTHOR : DRIVER_AUTHOR,
     bodyText: line.text,
     createdAt: new Date(input.at).toISOString(),
@@ -163,11 +189,13 @@ function toMessage(
 
 /** As mensagens recuam do mais recente: a última chegou há 5 min, cada anterior 3 min antes. */
 export function buildSeedConversations(now: number): PreviewConversation[] {
+  const audio = buildSeedAudioAttachments(now)
   return SEED_CONVERSATIONS.map((seed) => ({
     channels: seed.channels ?? ['app'],
     ...(seed.iconName === undefined ? {} : { iconName: seed.iconName }),
     messages: seed.lines.map((line, index) =>
       toMessage({
+        audio,
         at: now - (seed.lines.length - index) * 3 * MINUTE_MS - 2 * MINUTE_MS,
         conversationId: seed.id,
         index,
@@ -178,5 +206,8 @@ export function buildSeedConversations(now: number): PreviewConversation[] {
     occurrenceLabel: seed.label,
     protocol: toProtocol(now, seed.protocolSuffix),
     subjectType: seed.subjectType ?? 'occurrence',
+    ...(seed.lines.some((line) => line.audioIndex !== undefined)
+      ? { transcriptionUpdatedAt: new Date(now).toISOString() }
+      : {}),
   }))
 }

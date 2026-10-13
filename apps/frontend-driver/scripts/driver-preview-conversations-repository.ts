@@ -4,6 +4,7 @@
  * preview**: repositório em memória, espelhando `me-occurrence-conversation.routes.ts` da API real.
  * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.
  */
+import { readyTranscription } from './driver-preview-conversations-audio'
 import {
   buildSeedConversations,
   DRIVER_AUTHOR,
@@ -40,6 +41,9 @@ export type SendMessageResult = Readonly<{
 type OpenConversationResult = Readonly<{ isNew: boolean; summary: Record<string, unknown> }>
 
 export type ConversationRepository = Readonly<{
+  /** Spec 264: `pending` vira `ready` (um áudio, ou todos); devolve quantos mudaram. */
+  advanceTranscriptions: (input?: Readonly<{ attachmentId?: string }>) => number
+  findAttachment: (attachmentId: string) => PreviewAttachment | undefined
   failNext: (input: Readonly<{ count: number; status?: number }>) => void
   has: (input: Readonly<{ subjectId: string; subjectType: PreviewSubjectType }>) => boolean
   injectOfficeMessage: (input: Readonly<{ subjectId: string; text: string }>) => string | undefined
@@ -78,6 +82,9 @@ function toSummary(conversation: PreviewConversation): Record<string, unknown> {
     subjectId: conversation.occurrenceId,
     subjectLabel: conversation.occurrenceLabel,
     subjectType: conversation.subjectType,
+    ...(conversation.transcriptionUpdatedAt === undefined
+      ? {}
+      : { transcriptionUpdatedAt: conversation.transcriptionUpdatedAt }),
     tripId: PREVIEW_TRIP_ID,
     unreadCount: conversation.messages.filter((message) => message.isUnread).length,
   }
@@ -109,6 +116,32 @@ export function createConversationRepository(now: () => number = Date.now): Conv
     return id
   }
 
+  /** Áudio enviado entra `pending`: a rotina real cria a linha no ciclo seguinte. */
+  function toSentAttachment(upload: PreviewAttachment): PreviewAttachment {
+    return upload.contentType.startsWith('audio/')
+      ? { ...upload, transcription: { status: 'pending' } }
+      : upload
+  }
+
+  function advanceTranscriptions(input?: Readonly<{ attachmentId?: string }>): number {
+    let advanced = 0
+    for (const conversation of conversations) {
+      let hasChanged = false
+      for (const message of conversation.messages) {
+        for (const attachment of message.attachments) {
+          const isTarget = input?.attachmentId === undefined || input.attachmentId === attachment.id
+          if (isTarget && attachment.transcription?.status === 'pending') {
+            attachment.transcription = readyTranscription(new Date(now()).toISOString())
+            advanced += 1
+            hasChanged = true
+          }
+        }
+      }
+      if (hasChanged) conversation.transcriptionUpdatedAt = new Date(now()).toISOString()
+    }
+    return advanced
+  }
+
   function send(input: SendMessageInput): SendMessageResult | number | undefined {
     const conversation = find(input.subjectId)
     if (conversation === undefined) return undefined
@@ -118,7 +151,13 @@ export function createConversationRepository(now: () => number = Date.now): Conv
       pendingFailure.count -= 1
       return pendingFailure.status
     }
-    const attachments = input.attachmentIds.flatMap((id) => uploads.get(id) ?? [])
+    const attachments = input.attachmentIds.flatMap((id) => {
+      const upload = uploads.get(id)
+      return upload === undefined ? [] : [toSentAttachment(upload)]
+    })
+    if (attachments.some((attachment) => attachment.transcription !== undefined)) {
+      conversation.transcriptionUpdatedAt = new Date(now()).toISOString()
+    }
     const messageId = append(conversation, {
       attachments,
       authorName: DRIVER_AUTHOR,
@@ -133,6 +172,12 @@ export function createConversationRepository(now: () => number = Date.now): Conv
   }
 
   return {
+    advanceTranscriptions,
+    findAttachment: (attachmentId) =>
+      conversations
+        .flatMap((conversation) => conversation.messages)
+        .flatMap((message) => message.attachments)
+        .find((attachment) => attachment.id === attachmentId) ?? uploads.get(attachmentId),
     failNext(input) {
       pendingFailure = { count: input.count, status: input.status ?? DEFAULT_FAIL_STATUS }
     },

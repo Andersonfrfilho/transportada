@@ -34,7 +34,7 @@ if (contentSecurityPolicy === '') {
  */
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy': contentSecurityPolicy,
-  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
+  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=(self)',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=31536000',
   'X-Content-Type-Options': 'nosniff',

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
- * Registro das capturas abertas (plan D2): câmera, recorte, assinatura e diálogo de ocorrência.
+ * Registro das capturas abertas (plan D2): áudio, câmera, recorte, assinatura e diálogo de ocorrência.
  * Tudo que navega a página — o `keycloak.init` da volta da rede (D4) e a atualização do SW (D2) —
  * espera `isIdle()`, porque navegar no meio de uma captura joga fora o que o motorista fez.
  *
@@ -9,6 +9,8 @@
  * do SW (`serviceWorkerUpdate.service.ts`) só aplica sozinha antes da primeira captura da sessão.
  */
 export const CAPTURE_KINDS = [
+  /** Spec 264: a gravação de áudio da conversa, do pedido do microfone até enviar ou descartar. */
+  'audio',
   'camera',
   'crop',
   'signature',

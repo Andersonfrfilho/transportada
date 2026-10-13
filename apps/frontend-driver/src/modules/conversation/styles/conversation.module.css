@@ -47,6 +47,15 @@
   padding: var(--space-4);
 }
 
+/* Fila cheia (spec 264 §5.4): o aviso fica acima da conversa até algo sair da fila. */
+.outboxNotice {
+  background: color-mix(in srgb, var(--color-alert) 14%, var(--color-asphalt));
+  border-left: 0.25rem solid var(--color-alert);
+  color: var(--color-fog);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
 .tabIcon {
   display: inline-flex;
   position: relative;

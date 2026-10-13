@@ -13,6 +13,7 @@ import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
+import { captureRegistry } from '@/modules/driver-trip/shared/captureRegistry.service'
 import {
   navigateToDriverConversation,
   navigateToDriverSection,
@@ -23,10 +24,14 @@ import { useConversationOutbox } from '../hooks/useConversationOutbox.hook'
 import { useConversationPathname } from '../hooks/useConversationPathname.hook'
 import { useDriverQuickReplies } from '../hooks/useDriverQuickReplies.hook'
 import { UNREAD_CONVERSATIONS_QUERY_KEY } from '../shared/driverConversation.constant'
+import { createAudioCaptureBridge } from '../shared/driverAudioCapture.service'
 import { getDriverConversationsApi } from '../shared/driverConversationsApiInstance.service'
 import { buildDriverSubjectGroups } from '../shared/driverSubjectGroups.constant'
 import { renderDriverSubjectIcon } from '../shared/driverSubjectIcon.service'
 import styles from '../styles/conversation.module.css'
+
+/** Os tetos de duração e de tamanho são os do pacote (5 min, 16 MiB — a política de áudio da API). */
+const AUDIO_RECORDING = { onCaptureChange: createAudioCaptureBridge(captureRegistry) }
 
 const ParticipantConversations = lazy(async () => {
   const module = await import('@adatechnology/conversations-ui/participant')
@@ -37,7 +42,7 @@ export function DriverConversationsPage() {
   const { i18n, t } = useTranslation('conversation')
   const queryClient = useQueryClient()
   const api = getDriverConversationsApi()
-  const { onRetryPending, pendingMessages } = useConversationOutbox(api)
+  const { notice, onRetryPending, pendingMessages } = useConversationOutbox(api)
   const quickReplies = useDriverQuickReplies()
   const selected = parseDriverConversationSubject(useConversationPathname())
   const labels = t('labels', { returnObjects: true }) as Partial<ParticipantConversationsLabels>
@@ -59,6 +64,11 @@ export function DriverConversationsPage() {
   return (
     <div className={styles.conversationShell}>
       <main className={styles.conversationMain}>
+        {notice === 'outbox-full' ? (
+          <p role="alert" className={styles.outboxNotice}>
+            {t('outboxFull')}
+          </p>
+        ) : null}
         <Suspense
           fallback={
             <p role="status" className={styles.loadingNotice}>
@@ -68,6 +78,7 @@ export function DriverConversationsPage() {
         >
           <ParticipantConversations
             api={api}
+            audioRecording={AUDIO_RECORDING}
             avatars="initials"
             className={styles.conversationTheme ?? ''}
             labels={labels}
