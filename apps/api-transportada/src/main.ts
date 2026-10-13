@@ -442,6 +442,9 @@ import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip
 import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
+import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
+import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
+import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -3308,6 +3311,21 @@ function createApplicationRoutes({
     }),
     /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
+    ...createOccurrenceContractorReplyRoutes({
+      deliverToDriver: createDeliverContractorReplyToDriverUseCase({
+        clock: () => new Date(),
+        notifier: createDriverConversationNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
+      }),
+    }),
     /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */
     ...createTripDocumentReportRoutes({
       exportTripProofPdf: createExportTripProofPdfUseCase({

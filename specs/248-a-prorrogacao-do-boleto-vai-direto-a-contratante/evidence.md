@@ -384,3 +384,21 @@ campos que o painel passou a mandar. Fechei os dois lados nesta task.
   `GET` e na lista e sobrevive ao `PUT` sem os campos; faixas recusadas na fronteira; sem e-mail/sem texto/alerta sem prazo → 422); contratos da API
   1630 pass / 0 fail (`trip-occurrence`, `occurrence-conversation`, `trip-http`); painel: `tsc` e `eslint` limpos, contrato do rascunho
   `occurrence-contractor-reply-draft.contract.ts`. O resto da suíte do painel tem testes de varredura de disco que estouram os 5 s no clone em `/mnt/c`; a CI é a prova.
+
+## T4.6 — o boleto volta ao motorista, com o anexo (2026-10-12)
+
+`deliverContractorReplyToDriver` (SQL puro, idêntico na API e no worker; contrato de paridade) leva o anexo da resposta da contratante à conversa do
+**motorista** no canal `app`: texto = `driverReplyTemplate` copiado no retorno, anexo = **nova linha apontando o mesmo `stored_object`** (nenhum byte copiado),
+entrega `driver_app_chat` gravada em `occurrence_contractor_reply_deliveries` com chave `driver_app_chat:<retorno>:<anexo>` (repetir não manda de novo) e o retorno
+vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, no modo automático, pelos dois caminhos (e-mail no worker e portal na API).
+
+- **Operador (modo com aprovação, RF9):** `POST /trip-occurrences/:id/contractor-reply/driver-delivery` (`occurrences.resolve`, balde `occurrence-conversation`),
+  corpo opcional `{ attachmentId }` para levar outro anexo da conversa da contratante; 201 entregue, 200 já entregue ou pulado (`driver_without_account`).
+  O aviso no sino (`trip.conversation-message`) sai depois do commit e nunca desfaz a entrega.
+- **Onde o motorista e o escritório veem:** a mensagem entra na conversa do motorista da ocorrência (a mesma que o app e a aba Motorista do painel já leem),
+  com o anexo baixável por URL assinada, como qualquer anexo do escritório.
+- **Provas (Postgres):** `occurrence-contractor-reply-received.integration.ts` 8 pass / 1 fail — a falha é o teste antigo "sem anexo aceito…" no teto de 30 s do clone em `/mnt/c`
+  (passa isolado); os três novos passam: automático entrega com o mesmo `stored_object` e `automatic = true`; com aprovação o operador entrega uma vez e a segunda é
+  `already_delivered`; motorista sem conta vira entrega `skipped` e o retorno não muda. Contratos da API **11604 pass / 0 fail**; `use-case` e balde de taxa com contrato próprio.
+- **Limites desta task:** o aviso no sino não sai no caminho automático (só na rota do operador); o `driverReplyTemplate` vai como escrito, sem trocar marcadores.
+  WhatsApp fica de fora (decisão do dono, 2026-10-12).

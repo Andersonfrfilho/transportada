@@ -18,6 +18,7 @@ import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.ty
 import type { StoredContractorReplyConfiguration } from '../application/occurrence-mail.port.js'
 import type { ContractorReplyConfiguration } from '../domain/contractor-reply-configuration.policy.js'
 import { decideContractorReply } from '../domain/contractor-reply.policy.js'
+import { deliverContractorReplyToDriver } from './contractor-reply-driver-delivery.support.js'
 
 export async function findContractorReplyConfiguration(
   queryable: TripQueryable,
@@ -197,4 +198,15 @@ export async function applyContractorReplyToMessage(
     replyId: reply.id,
     toStatus,
   })
+
+  /** RF4/RF7: modo automático — a resposta aceita segue ao motorista na mesma transação (idempotente). */
+  if (toStatus === 'reply_received') {
+    await deliverContractorReplyToDriver(queryable, {
+      actorUserId: null,
+      companyId,
+      now: params.now,
+      replyId: reply.id,
+      trigger: 'automatic',
+    })
+  }
 }

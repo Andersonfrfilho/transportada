@@ -12,13 +12,16 @@ import { and, eq } from 'drizzle-orm'
 import {
   companyOccurrenceTypes,
   occurrenceContractorReplies,
+  occurrenceContractorReplyDeliveries,
   occurrenceContractorReplyEvents,
   occurrenceConversationAttachments,
+  occurrenceConversations,
   occurrenceConversationMessages,
   storedObjects,
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
 import { createAutomaticOccurrenceMailReader } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
@@ -27,7 +30,11 @@ import {
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
 import type { Seeded } from '../fixtures/occurrence-conversation-database.fixture.js'
-import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
+import {
+  linkDriverMembership,
+  seedCompany,
+  testWithPostgres,
+} from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 type Mode = 'forward_after_approval' | 'forward_automatic'
@@ -356,5 +363,151 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
       })
     },
     30_000,
+  )
+})
+
+async function driverMessagesOf(database: TestDatabase, companyId: string) {
+  return database.db
+    .select({
+      automatic: occurrenceConversationMessages.automatic,
+      bodyText: occurrenceConversationMessages.bodyText,
+      channel: occurrenceConversationMessages.channel,
+      direction: occurrenceConversationMessages.direction,
+      id: occurrenceConversationMessages.id,
+    })
+    .from(occurrenceConversationMessages)
+    .innerJoin(
+      occurrenceConversations,
+      and(
+        eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+        eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+      ),
+    )
+    .where(
+      and(
+        eq(occurrenceConversations.companyId, companyId),
+        eq(occurrenceConversations.participant, 'driver'),
+      ),
+    )
+}
+
+describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () => {
+  testWithPostgres(
+    'modo automático: a resposta aceita vira mensagem no chat do motorista com o mesmo objeto do bucket',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const conversationId = await openReply(database, seeded, 'forward_automatic')
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: received.messageId })
+
+        expect((await replyOf(database, companyId)).status).toBe('delivered')
+        const [message] = await driverMessagesOf(database, companyId)
+        expect(message).toMatchObject({
+          automatic: true,
+          bodyText: 'Segue o boleto prorrogado.',
+          channel: 'app',
+          direction: 'outbound',
+        })
+        const [source] = await database.db
+          .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.id, received.attachmentIds[0] ?? ''))
+        const delivered = await database.db
+          .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.messageId, message?.id ?? ''))
+        expect(delivered).toEqual([{ storedObjectId: source?.storedObjectId ?? '' }])
+        const deliveries = await database.db
+          .select({
+            status: occurrenceContractorReplyDeliveries.status,
+            target: occurrenceContractorReplyDeliveries.target,
+            trigger: occurrenceContractorReplyDeliveries.trigger,
+          })
+          .from(occurrenceContractorReplyDeliveries)
+          .where(eq(occurrenceContractorReplyDeliveries.companyId, companyId))
+        expect(deliveries).toEqual([
+          { status: 'sent', target: 'driver_app_chat', trigger: 'automatic' },
+        ])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'com aprovação: o operador entrega uma vez; repetir não manda de novo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const conversationId = await openReply(database, seeded, 'forward_after_approval')
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+        await apply(database, { companyId, conversationId, messageId: received.messageId })
+        const reply = await replyOf(database, companyId)
+        expect(reply.status).toBe('awaiting_operator')
+        expect(await driverMessagesOf(database, companyId)).toEqual([])
+
+        const deliver = () =>
+          database.db.transaction((transaction) =>
+            deliverContractorReplyToDriver(transaction, {
+              actorUserId: seeded.company.userId,
+              companyId,
+              now: new Date(),
+              replyId: reply.id,
+              trigger: 'operator',
+            }),
+          )
+        expect((await deliver()).kind).toBe('delivered')
+        expect((await deliver()).kind).toBe('already_delivered')
+
+        expect((await replyOf(database, companyId)).status).toBe('delivered')
+        const messages = await driverMessagesOf(database, companyId)
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({ automatic: false, channel: 'app' })
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'motorista sem conta: a entrega fica registrada como pulada e o retorno não muda',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const conversationId = await openReply(database, seeded, 'forward_automatic')
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        await apply(database, { companyId, conversationId, messageId: received.messageId })
+
+        expect((await replyOf(database, companyId)).status).toBe('reply_received')
+        expect(await driverMessagesOf(database, companyId)).toEqual([])
+        const deliveries = await database.db
+          .select({
+            reason: occurrenceContractorReplyDeliveries.reason,
+            status: occurrenceContractorReplyDeliveries.status,
+          })
+          .from(occurrenceContractorReplyDeliveries)
+          .where(eq(occurrenceContractorReplyDeliveries.companyId, companyId))
+        expect(deliveries).toEqual([{ reason: 'driver_without_account', status: 'skipped' }])
+      })
+    },
+    60_000,
   )
 })

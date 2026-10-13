@@ -16,6 +16,7 @@ import {
   decideContractorReply,
   type ContractorReplyDecisionInput,
 } from '../domain/contractor-reply.policy.js'
+import { deliverContractorReplyToDriver } from './contractor-reply-driver-delivery.support.js'
 import type { OccurrenceConversationTransaction } from './drizzle-occurrence-conversation-mail.repository.js'
 
 export async function applyContractorReplyToMessage(
@@ -96,4 +97,15 @@ export async function applyContractorReplyToMessage(
     replyId: reply.id,
     toStatus,
   })
+
+  /** RF4/RF7: modo automático — a resposta aceita segue ao motorista na mesma transação (idempotente). */
+  if (toStatus === 'reply_received') {
+    await deliverContractorReplyToDriver(transaction, {
+      actorUserId: null,
+      companyId,
+      now: params.now,
+      replyId: reply.id,
+      trigger: 'automatic',
+    })
+  }
 }
