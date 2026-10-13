@@ -43,3 +43,33 @@ describe('coordenada do ponto da parada', () => {
     })
   })
 })
+
+describe('busca do ponto da parada', () => {
+  const base = {
+    city: '',
+    district: '',
+    label: '',
+    number: '',
+    postalCode: '',
+    state: 'SP',
+    street: '',
+  }
+
+  it('só aceita resultado da cidade da parada e com coordenada', async () => {
+    const { pickStopPointSuggestion } = await import(
+      '../../src/modules/trip/shared/stopPointSearch.service'
+    )
+    const outra = { ...base, city: 'Ribeirão Preto', latitude: '-21.1', longitude: '-47.8' }
+    const semPonto = { ...base, city: 'Sertãozinho', latitude: null, longitude: null }
+    const certa = {
+      ...base,
+      city: 'Sertãozinho',
+      latitude: '-21.0758798',
+      longitude: '-47.9026041',
+    }
+    const label = 'RUA GENERAL OSORIO, 971, SERTAOZINHO, SP'
+
+    expect(pickStopPointSuggestion({ label, suggestions: [outra, semPonto, certa] })).toBe(certa)
+    expect(pickStopPointSuggestion({ label, suggestions: [outra, semPonto] })).toBeNull()
+  })
+})

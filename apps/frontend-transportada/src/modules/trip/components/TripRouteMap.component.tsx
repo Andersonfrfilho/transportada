@@ -13,6 +13,7 @@ import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import { normalizeStopPointCoordinate } from '../shared/stopPointCoordinates.service'
+import { searchStopPoint } from '../shared/stopPointSearch.service'
 import type { TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { RouteTollSummary } from './RouteTollSummary.component'
@@ -220,6 +221,7 @@ function TripStopPointCorrection({
   const { t } = useTranslation('trip')
   /** Abre vazio de propósito: o primeiro endereço pré-marcado levava a salvar o ponto na parada errada. */
   const [addressKey, setAddressKey] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
   const [feedback, setFeedback] = useState<null | Readonly<{
     kind: 'error' | 'saved'
     text: string
@@ -252,6 +254,34 @@ function TripStopPointCorrection({
         </Button>
       </>
     )
+  }
+
+  async function handleSearch(): Promise<void> {
+    const selected = stops.find((stop) => stop.addressKey === addressKey)
+    if (selected === undefined) {
+      setFeedback({ kind: 'error', text: t('routeMap.pointInvalid.address') })
+      return
+    }
+    setIsSearching(true)
+    setFeedback(null)
+    try {
+      const found = await searchStopPoint({
+        fetch: globalThis.fetch.bind(globalThis),
+        label: selected.label,
+        signal: new AbortController().signal,
+      })
+      if (found === null || found.latitude === null || found.longitude === null) {
+        setFeedback({ kind: 'error', text: t('routeMap.searchNotFound') })
+      } else {
+        setLatitude(found.latitude)
+        setLongitude(found.longitude)
+        setFeedback({ kind: 'error', text: t('routeMap.searchFound', { address: found.label }) })
+      }
+    } catch {
+      setFeedback({ kind: 'error', text: t('routeMap.searchNotFound') })
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   async function handleSave(): Promise<void> {
@@ -309,6 +339,16 @@ function TripStopPointCorrection({
         placeholder={t('routeMap.pickAddress')}
         value={addressKey}
       />
+      <Button
+        disabled={isSearching || addressKey === ''}
+        onClick={() => void handleSearch()}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="search" />
+        {t('routeMap.search')}
+      </Button>
       <input
         aria-label={t('routeMap.latitude')}
         onChange={(event) => setLatitude(event.target.value)}
