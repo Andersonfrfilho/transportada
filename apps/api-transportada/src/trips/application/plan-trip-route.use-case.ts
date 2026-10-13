@@ -153,7 +153,15 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
         tripId: input.tripId,
       })
       const missing = (await input.repository.listStopsWithoutLocation?.(input)) ?? []
-      if (missing.length > 0) throw new TripRouteStopsWithoutLocationError(missing)
+      if (missing.length > 0) {
+        /** Só a contagem: o endereço completo fica fora do log, e a tela já o mostra a quem pode ver. */
+        input.logger?.warn('trip_route_stops_without_location', {
+          companyId: input.companyId,
+          stopsWithoutLocation: missing.length,
+          tripId: input.tripId,
+        })
+        throw new TripRouteStopsWithoutLocationError(missing)
+      }
       throw new TripRouteUnavailableError()
     }
   }
