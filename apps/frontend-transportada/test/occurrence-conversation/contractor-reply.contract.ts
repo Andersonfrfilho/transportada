@@ -9,7 +9,11 @@ import { describe, expect, test } from 'bun:test'
 import {
   canDeliverContractorReplyToDriver,
   canMarkContractorReplyHandled,
+  createResendRequestIdempotencyKey,
   describeContractorReplyState,
+  describeResendAction,
+  isResendRequestEvent,
+  resolveResendErrorKey,
   toContractorReplySummary,
   validateHandledNote,
 } from '@/modules/occurrence-conversation/shared/contractorReply.service'
@@ -239,5 +243,131 @@ describe('o cliente do retorno (spec 248 RF13)', () => {
     expect(await failureCodeOf(refused.markHandled({ note: 'Liguei.', occurrenceId: 'o-1' }))).toBe(
       'CONTRACTOR_REPLY_NOT_HANDLEABLE',
     )
+  })
+})
+
+describe('reenviar o pedido à contratante (spec 248 RF6)', () => {
+  const allowed = { availableAt: null, canResend: true, reason: null } as const
+  const tooSoon = {
+    availableAt: '2026-10-12T21:00:00.000Z',
+    canResend: false,
+    reason: 'too_soon',
+  } as const
+
+  test('o botão vale só enquanto o retorno espera a contratante e a API liberou', () => {
+    for (const status of CONTRACTOR_REPLY_STATUSES) {
+      const isWaiting = status === 'awaiting_contractor' || status === 'overdue'
+      expect(describeResendAction({ resend: allowed, status }).kind).toBe(
+        isWaiting ? 'enabled' : 'hidden',
+      )
+    }
+  })
+
+  test('dentro do intervalo do alarme fica desabilitado, com o motivo e a hora em que volta', () => {
+    expect(describeResendAction({ resend: tooSoon, status: 'overdue' })).toEqual({
+      availableAt: '2026-10-12T21:00:00.000Z',
+      kind: 'disabled',
+      reasonKey: 'contractorReply.resend.tooSoon',
+    })
+  })
+
+  test('API anterior à ação (sem o campo) ou resposta que já não espera: sem botão, nunca um botão que dá 409', () => {
+    expect(describeResendAction({ resend: null, status: 'overdue' })).toEqual({ kind: 'hidden' })
+    expect(
+      describeResendAction({
+        resend: { availableAt: null, canResend: false, reason: 'not_waiting' },
+        status: 'overdue',
+      }),
+    ).toEqual({ kind: 'hidden' })
+  })
+
+  test('o evento do operador que deixa o retorno no mesmo estado de espera é o reenvio', () => {
+    const event = { actorKind: 'user', fromStatus: 'overdue', toStatus: 'overdue' } as const
+    expect(isResendRequestEvent(event)).toBe(true)
+    expect(isResendRequestEvent({ ...event, actorKind: 'system' })).toBe(false)
+    expect(isResendRequestEvent({ ...event, fromStatus: 'awaiting_contractor' })).toBe(false)
+    expect(
+      isResendRequestEvent({ actorKind: 'user', fromStatus: 'handled', toStatus: 'handled' }),
+    ).toBe(false)
+    expect(
+      isResendRequestEvent({ actorKind: 'user', fromStatus: 'overdue', toStatus: 'handled' }),
+    ).toBe(false)
+  })
+
+  test('a recusa sai pelo código estável da API; código desconhecido cai no texto genérico', () => {
+    expect(resolveResendErrorKey('CONTRACTOR_REPLY_RESEND_TOO_SOON')).toBe(
+      'contractorReply.resend.error.tooSoon',
+    )
+    expect(resolveResendErrorKey('CONTRACTOR_REPLY_NOT_RESENDABLE')).toBe(
+      'contractorReply.resend.error.notResendable',
+    )
+    expect(resolveResendErrorKey('OCCURRENCE_CONVERSATION_NO_RECIPIENT')).toBe(
+      'contractorReply.resend.error.noRecipient',
+    )
+    expect(resolveResendErrorKey('INVENTADO')).toBe('contractorReply.resend.error.send')
+    expect(resolveResendErrorKey(null)).toBe('contractorReply.resend.error.send')
+  })
+
+  test('a chave da tentativa tem o prefixo da ação e o aleatório de quem chama', () => {
+    expect(createResendRequestIdempotencyKey(() => 'abc')).toBe('contractor-reply-resend:abc')
+  })
+
+  test('a leitura traz o campo do reenvio; sem ele ou malformado é nulo, e o painel segue', async () => {
+    const withResend = createClient(Response.json({ data: { ...VIEW, resend: tooSoon } }))
+    expect((await withResend.readReply({ occurrenceId: 'o-1' }))?.resend).toEqual(tooSoon)
+
+    const without = createClient(Response.json({ data: VIEW }))
+    expect((await without.readReply({ occurrenceId: 'o-1' }))?.resend).toBeNull()
+
+    const malformed = createClient(
+      Response.json({ data: { ...VIEW, resend: { canResend: true, reason: 'inventado' } } }),
+    )
+    expect((await malformed.readReply({ occurrenceId: 'o-1' }))?.resend).toBeNull()
+  })
+
+  test('reenviar é um POST sem corpo, com a Idempotency-Key, e devolve quantos contatos receberam', async () => {
+    const requests: Request[] = []
+    const client = createClient(
+      Response.json({ data: { recipientCount: 2 } }, { status: 202 }),
+      requests,
+    )
+
+    expect(
+      await client.resendRequest({
+        idempotencyKey: 'contractor-reply-resend:abc',
+        occurrenceId: 'o-1',
+      }),
+    ).toEqual({ recipientCount: 2 })
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.url).toBe(`${API_URL}/trip-occurrences/o-1/contractor-reply/resend-request`)
+    expect(requests[0]?.headers.get('idempotency-key')).toBe('contractor-reply-resend:abc')
+    expect(await requests[0]?.text()).toBe('')
+  })
+
+  test('a recusa chega pelo código; resposta sem a contagem é inválida', async () => {
+    const refused = createClient(
+      Response.json(
+        { error: { code: 'CONTRACTOR_REPLY_RESEND_TOO_SOON', message: 'x' } },
+        { status: 409 },
+      ),
+    )
+    expect(
+      await failureCodeOf(
+        refused.resendRequest({
+          idempotencyKey: 'contractor-reply-resend:abc',
+          occurrenceId: 'o-1',
+        }),
+      ),
+    ).toBe('CONTRACTOR_REPLY_RESEND_TOO_SOON')
+
+    const invalid = createClient(Response.json({ data: {} }, { status: 202 }))
+    expect(
+      await failureCodeOf(
+        invalid.resendRequest({
+          idempotencyKey: 'contractor-reply-resend:abc',
+          occurrenceId: 'o-1',
+        }),
+      ),
+    ).toBe('OCCURRENCE_CONVERSATION_RESPONSE_INVALID')
   })
 })

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { isResendRequestEvent } from '../shared/contractorReply.service'
 import type { ContractorReplyDelivery, ContractorReplyEvent } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 
@@ -49,7 +50,9 @@ export function ContractorReplyTimeline({ deliveries, events }: ContractorReplyT
               <li className={styles.timelineItem} key={event.id}>
                 <span className={styles.timelineWhen}>{formatMoment(event.createdAt)}</span>
                 <span>
-                  {t(`contractorReply.timeline.event.${event.toStatus}`)}
+                  {isResendRequestEvent(event)
+                    ? t('contractorReply.timeline.event.resent')
+                    : t(`contractorReply.timeline.event.${event.toStatus}`)}
                   {' · '}
                   <span className={styles.timelineActor}>
                     {t(`contractorReply.timeline.actor.${event.actorKind}`)}

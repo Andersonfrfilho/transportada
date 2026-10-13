@@ -10,11 +10,13 @@ import {
   canDeliverContractorReplyToDriver,
   canMarkContractorReplyHandled,
   describeContractorReplyState,
+  describeResendAction,
 } from '../shared/contractorReply.service'
 import type { ContractorReplyView } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 import conversationStyles from '../styles/occurrenceConversation.module.css'
 import { ContractorReplyHandledForm } from './ContractorReplyHandledForm.component'
+import { ContractorReplyResendAction } from './ContractorReplyResendAction.component'
 import { ContractorReplyTimeline } from './ContractorReplyTimeline.component'
 import { SendToDriverAction } from './OccurrenceConversations.component'
 
@@ -123,7 +125,9 @@ export function ContractorReplyPanel({
       </div>
       <ContractorReplyFacts reply={reply} />
       {canResolve &&
-      (canDeliverContractorReplyToDriver(reply) || canMarkContractorReplyHandled(reply.status)) ? (
+      (canDeliverContractorReplyToDriver(reply) ||
+        canMarkContractorReplyHandled(reply.status) ||
+        describeResendAction(reply).kind !== 'hidden') ? (
         <div className={styles.actions}>
           {canDeliverContractorReplyToDriver(reply) && reply.replyAttachmentId !== null ? (
             <SendToDriverAction
@@ -131,6 +135,7 @@ export function ContractorReplyPanel({
               occurrenceId={occurrenceId}
             />
           ) : null}
+          <ContractorReplyResendAction occurrenceId={occurrenceId} reply={reply} />
           {canMarkContractorReplyHandled(reply.status) ? (
             <ContractorReplyHandledForm occurrenceId={occurrenceId} />
           ) : null}
