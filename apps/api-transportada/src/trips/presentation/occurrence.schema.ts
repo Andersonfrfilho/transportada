@@ -9,6 +9,9 @@ import {
   CONTRACTOR_REPLY_MODES,
   CONTRACTOR_REPLY_WAIT_HOURS,
   DRIVER_REPLY_TEMPLATE_MAX_LENGTH,
+  FORWARD_EMAIL_BODY_MAX_LENGTH,
+  FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
+  FORWARD_TO_INFORMED_EMAIL_MODES,
   FORWARD_TO_NOTE_RECIPIENT_MODES,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import { z } from 'zod'
@@ -487,6 +490,9 @@ const occurrenceTypeSchema = z
       .optional(),
     driverReplyTemplate: z.string().max(DRIVER_REPLY_TEMPLATE_MAX_LENGTH).optional(),
     forwardToNoteRecipient: z.enum(FORWARD_TO_NOTE_RECIPIENT_MODES).optional(),
+    forwardToInformedEmail: z.enum(FORWARD_TO_INFORMED_EMAIL_MODES).optional(),
+    forwardEmailSubject: z.string().max(FORWARD_EMAIL_SUBJECT_MAX_LENGTH).optional(),
+    forwardEmailBody: z.string().max(FORWARD_EMAIL_BODY_MAX_LENGTH).optional(),
     /**
      * Spec 166 (RF3/RF9), spec 246 T1c.3 (RF1b): um produto ou vários. ⚠️ **Opcional sem `default`,
      * pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um `default(true)` religaria

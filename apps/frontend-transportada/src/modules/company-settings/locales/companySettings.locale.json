@@ -576,7 +576,10 @@
         "alertMode": "Se a contratante atrasar",
         "alertIntervalMinutes": "Repetir o alerta a cada (minutos)",
         "alertMaxCount": "Máximo de alertas por ocorrência",
-        "forwardToNoteRecipient": "Enviar o boleto ao e-mail do cliente da nota"
+        "forwardToNoteRecipient": "Enviar o boleto ao e-mail do cliente da nota",
+        "forwardToInformedEmail": "Encaminhar o boleto a um e-mail informado",
+        "forwardEmailSubject": "Assunto do e-mail ao terceiro",
+        "forwardEmailBody": "Texto do e-mail ao terceiro"
       },
       "mode": {
         "off": "Só mostrar a resposta",
@@ -596,6 +599,11 @@
         "manual": "O operador envia",
         "automatic": "Enviar automaticamente"
       },
+      "forwardToInformedEmail": {
+        "off": "Não encaminhar",
+        "manual": "O operador informa o e-mail"
+      },
+      "forwardLegend": "O mesmo assunto e texto vão ao cliente da nota e ao e-mail informado, com o boleto em anexo. No máximo 5 e-mails por ocorrência.",
       "problems": {
         "needsContractorMail": "Ligue o e-mail à contratante deste tipo para usar o retorno.",
         "templateRequired": "Escreva o texto que o motorista recebe.",
@@ -603,7 +611,8 @@
         "alertNeedsWaitHours": "Para alertar o atraso, informe o prazo de espera.",
         "intervalOutOfRange": "Informe de 15 a 1440 minutos.",
         "maxCountOutOfRange": "Informe de 1 a 96 alertas.",
-        "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado."
+        "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado.",
+        "forwardNeedsText": "Escreva o assunto e o texto: o e-mail ao terceiro não sai sem os dois."
       }
     }
   },

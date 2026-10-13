@@ -727,6 +727,17 @@ export class OccurrenceTypeForwardAutomaticNeedsReplyError extends ApiError {
   }
 }
 
+/** Spec 248 T4.7 (RF10/RF11): enviar o boleto por e-mail a um terceiro exige o assunto e o corpo do e-mail. */
+export class OccurrenceTypeForwardNeedsTextError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT',
+      message: 'Forwarding the invoice by e-mail requires a subject and a body.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * A conta autenticada tem o papel, mas nenhum cadastro de motorista aponta para ela. É configuração
  * pendente do escritório, não falha do motorista — e o código é estável para a tela dizer isso em

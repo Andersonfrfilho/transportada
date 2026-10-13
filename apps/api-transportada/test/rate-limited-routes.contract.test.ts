@@ -365,14 +365,26 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 248 T4.6 e RF6: levar o boleto ao motorista e reenviar o pedido dividem o balde das mensagens da ocorrência. */
-  test('levar o boleto ao motorista e reenviar o pedido contam no Postgres, no balde das mensagens', () => {
+  /**
+   * Spec 248 T4.6/T4.7/RF6: levar o boleto da contratante ao motorista, por e-mail ao cliente da nota ou a um endereço
+   * informado, e reenviar o pedido à contratante dividem o balde das mensagens da ocorrência, como o "tratado" (as
+   * leituras não gravam nem custam).
+   */
+  test('levar o boleto, por e-mail, e reenviar o pedido contam no Postgres, no balde das mensagens', () => {
     const routes = createOccurrenceContractorReplyRoutes({
       deliverToDriver: {},
+      emailOptions: {},
+      forwardByEmail: {},
       markHandled: {},
       readReply: {},
       resendRequest: {},
     } as never)
+    const bucket = {
+      maxRequests: 30,
+      scope: 'occurrence-conversation',
+      store: 'postgres',
+      windowSeconds: 300,
+    } as const
 
     expect(
       routes
@@ -383,12 +395,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         })),
     ).toEqual([
       {
-        rateLimit: {
-          maxRequests: 30,
-          scope: 'occurrence-conversation',
-          store: 'postgres',
-          windowSeconds: 300,
-        },
+        rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
       },
       /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
@@ -402,12 +409,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         signature: 'POST /trip-occurrences/:id/contractor-reply/resend-request',
       },
       {
-        rateLimit: {
-          maxRequests: 30,
-          scope: 'occurrence-conversation',
-          store: 'postgres',
-          windowSeconds: 300,
-        },
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
+      },
+      {
+        rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/handled',
       },
     ])

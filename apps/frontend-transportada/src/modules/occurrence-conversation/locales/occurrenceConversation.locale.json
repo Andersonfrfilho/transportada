@@ -203,6 +203,47 @@
     "sendToDriverSkipped": "O motorista da viagem ainda não tem conta ativa no app.",
     "sendToDriverError": "Não foi possível enviar. Tente de novo em instantes."
   },
+  "replyEmail": {
+    "sendToNote": "Enviar ao cliente da nota",
+    "forwardToAddress": "Encaminhar para um e-mail",
+    "addressLabel": "E-mail de destino",
+    "addressHint": "Um endereço só. O boleto vai em anexo, com o assunto e o texto do tipo da ocorrência.",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "cancel": "Cancelar",
+    "reason": {
+      "noteWithoutEmail": "A nota não tem e-mail do cliente: o envio fica indisponível. Use \"Encaminhar para um e-mail\".",
+      "limitReached": "Limite de 5 e-mails por ocorrência atingido."
+    },
+    "outcome": {
+      "queued": "Na fila para envio a {{address}}.",
+      "alreadyQueued": "Este envio já foi feito.",
+      "note_without_recipient_email": "A nota não tem e-mail do cliente: nada foi enviado.",
+      "attachment_too_large_for_email": "O arquivo passa de 10 MB e não cabe em e-mail: nada foi enviado.",
+      "send_failed": "O e-mail não pôde ser enviado."
+    },
+    "failure": {
+      "addressInvalid": "Informe um endereço de e-mail só, sem vírgula, ponto e vírgula nem quebra de linha.",
+      "limitReached": "Limite de 5 e-mails por ocorrência atingido.",
+      "forwardDisabled": "Este tipo de ocorrência não envia o boleto por e-mail. Confira a aba Tipos.",
+      "mailNotReady": "O e-mail da empresa ainda não está pronto para enviar. Confira as configurações de e-mail.",
+      "generic": "Não foi possível enviar. Tente de novo em instantes."
+    },
+    "history": {
+      "title": "Boleto enviado por e-mail",
+      "target": {
+        "note_recipient_email": "Cliente da nota",
+        "informed_email": "E-mail informado"
+      },
+      "status": {
+        "queued": "na fila",
+        "sent": "enviado",
+        "pending_window": "aguardando",
+        "skipped": "não enviado",
+        "failed": "falhou"
+      }
+    }
+  },
   "channel": {
     "email": "E-mail",
     "whatsapp": "WhatsApp",

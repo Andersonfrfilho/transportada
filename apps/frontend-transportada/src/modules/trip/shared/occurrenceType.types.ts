@@ -14,6 +14,7 @@ import type {
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
+  InformedEmailForwardMode,
   NoteRecipientForwardMode,
 } from './occurrenceContractorReply.constant'
 
@@ -50,6 +51,9 @@ export type OccurrenceType = Readonly<{
   contractorReplyMode?: ContractorReplyMode
   contractorReplyWaitHours?: null | number
   driverReplyTemplate?: string
+  forwardEmailBody?: string
+  forwardEmailSubject?: string
+  forwardToInformedEmail?: InformedEmailForwardMode
   forwardToNoteRecipient?: NoteRecipientForwardMode
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
