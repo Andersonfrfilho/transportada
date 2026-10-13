@@ -23,6 +23,7 @@ import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.compo
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
+import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
 import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
@@ -477,6 +478,13 @@ function OccurrenceDetailSections({
       <OccurrenceTimelinePanel
         {...(companyId === undefined ? {} : { companyId })}
         occurrenceId={occurrence.id}
+      />
+    ),
+    tripMap: () => (
+      <OccurrenceTripMap
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
       />
     ),
   }

@@ -136,6 +136,11 @@
   --control-height-dense: 1.5rem;
   /* Alvo de toque de 44px do `web.md` §10: o compacto do design system fica um degrau abaixo */
   --touch-target: 2.75rem;
+  /* Movimento: confirma uma entrada ou uma troca, nunca decora. Todo uso tem o bloco de `prefers-reduced-motion`. */
+  --motion-fast: 160ms;
+  --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  /* O mapa da viagem na página da ocorrência: altura fixa, a mesma dos demais mapas (cabe em 375 px) */
+  --occurrence-trip-map-height: 18rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
   /* A foto do comprovante aberta tem teto de altura; a largura segue a proporção, nunca a coluna toda */

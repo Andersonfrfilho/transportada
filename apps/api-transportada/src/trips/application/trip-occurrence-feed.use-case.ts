@@ -7,6 +7,7 @@
  */
 import type { OccurrenceContractorReplySummary } from '../../occurrence-conversation/infrastructure/occurrence-contractor-reply-summary.query.js'
 import type { OccurrenceConversationSummary } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
+import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type {
   TripOccurrenceCaseDecisionKind,
@@ -144,6 +145,11 @@ export type TripOccurrenceFeedCaseStatusFilter = 'none' | TripOccurrenceCaseStat
 
 export type TripOccurrenceFeedFilters = {
   readonly caseStatusIn?: readonly TripOccurrenceFeedCaseStatusFilter[]
+  /**
+   * Spec 248 RF5/RF13: o estado do retorno da contratante. "Atrasadas" é `['overdue']`. Só a ocorrência de
+   * nota tem retorno: a de parada nunca casa com este filtro.
+   */
+  readonly contractorReplyStatusIn?: readonly ContractorReplyStatus[]
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly plateIn?: readonly string[]

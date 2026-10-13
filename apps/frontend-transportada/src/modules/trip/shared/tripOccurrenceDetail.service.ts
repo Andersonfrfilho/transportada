@@ -115,6 +115,7 @@ export type OccurrenceDetailSection =
   | 'driverConversation'
   | 'summary'
   | 'timeline'
+  | 'tripMap'
 
 /**
  * As seções de cada aba no celular; `null` é a tela larga, com a página inteira na ordem de
@@ -123,10 +124,10 @@ export type OccurrenceDetailSection =
 export function occurrenceDetailSectionsFor(
   tab: OccurrenceDetailPhoneTab | null,
 ): readonly OccurrenceDetailSection[] {
-  if (tab === 'summary') return ['summary', 'document', 'case', 'timeline']
+  if (tab === 'summary') return ['summary', 'tripMap', 'document', 'case', 'timeline']
   if (tab === 'contractor') return ['contractorConversation']
   if (tab === 'driver') return ['driverContact', 'driverConversation']
-  return ['summary', 'document', 'driverContact', 'case', 'conversations', 'timeline']
+  return ['summary', 'tripMap', 'document', 'driverContact', 'case', 'conversations', 'timeline']
 }
 
 export type OccurrenceActionState =

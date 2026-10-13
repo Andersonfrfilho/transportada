@@ -543,3 +543,30 @@ arquivo e falha com qualquer seletor fora do namespace. O cartão da ocorrência
 `ParticipantConversations channel="portal"` sob demanda, **sem mudar o pacote**. Gate no `frontend-client`: `eslint` limpo, `tsc --noEmit`
 limpo, `vite build` ok, contratos 38 pass / 1 fail (o de áudio, que lê `src/` por URL e quebra no Windows). **Não visto no navegador**: o
 portal exige API real e Keycloak; a conferência visual entra na T4.1.
+
+## T5.2-C — As abas Contratante e Motorista da ocorrência usam o `ConversationThread` (pedido do dono, 2026-10-13)
+
+- **Entregue:** o fio das duas abas é o `ConversationThread` do SDK (0.10.0, `perspective="operator"`): `OccurrenceThread` + `useOccurrenceThread` +
+  `occurrenceThreadApi.service.ts` (lê pelo cache da aba via `fetchOccurrenceConversations`; envia pelo canal da aba com `driver-message:`/`portal-message:` +
+  `clientMessageId`; áudio, anexo e chips de respostas rápidas do SDK; `markRead` só com não lida). Removidos `ConversationMessage.component.tsx`, o fio, os dois
+  compositores e os blocos de CSS que só eles usavam (o resto do módulo e o app do motorista seguem usando o CSS).
+- **Funções que seguem** (faixas ao lado do fio, ícone + palavra + cor, porque o SDK não tem porta): ações por anexo (`OccurrenceThreadAttachments`: Enviar ao motorista,
+  Encaminhar à contratante, Anexar à ocorrência, as do e-mail), remetente fora dos contatos / "Remetente não confirmado" / Adicionar aos contatos (`OccurrenceThreadSenders`),
+  mensagem que falhou com reenvio por outro canal (`OccurrenceThreadFailures`: e-mail abre o diálogo; portal/app saem direto com a chave da mensagem).
+- **Complementos do dono:** participante com ícone e cor próprios (`conversationParticipant.constant.ts`: contratante `organization`/azul-petróleo, motorista `truck`/cobre,
+  operador `workspace-operations`/verde; tokens da casa via `color-mix`), avatar do balão por `renderAuthorAvatar` (ícone + cor), borda do balão por classe do SDK, legenda
+  recolhível (participantes e canais com ícone + palavra + dica), cabeçalho de coluna com não lidas, seletor "Lado a lado | Cada conversa em uma aba" sempre visível, padrão lado a lado
+  ≥ 64 rem, escolha em `localStorage` (try/catch, chave por empresa), entrada curta do balão com `prefers-reduced-motion`. Nome da contratante no balão: **só o nome** (contato casado ou
+  nome de exibição do `From`); sem nome legível ou nome que é o próprio endereço, "Contratante"; "Remetente não confirmado" continua no balão por segurança (S2).
+- **Contratos:** `occurrence-thread.contract.ts` (adaptador, nome sem e-mail, texto de fonte), `conversation-participants.contract.ts` (ícone/tom únicos, todo canal com ícone, locales, modo de exibição
+  puro). Ajustados: `live-region`, `quick-replies`, `conversation-view`, `occurrence-mobile`, `subject-conversation` (o ouro deixou de listar o balão removido).
+- **Gates (WSL, cópia do worktree):** `tsc --noEmit` limpo; eslint do módulo e dos testes limpo; prettier limpo; `occurrence-conversation.contract.test.ts` 228 pass/0 fail; `design-system` 427/0;
+  `test:hooks` 1359/0; suíte principal com `--timeout 120000`: 8087 pass, restam 4 falhas de ambiente (fuso do processo, `Executable not found: bun` no spawn do server.ts, que o script usa), nenhuma do módulo.
+- **NÃO feito / NÃO provado:**
+  - **Nada visto no navegador** (login é do dono). Os seletores `.cv-p-bubble`/`--mine` usados na borda e na entrada do balão vêm da evidência da T5.2-B, não foram conferidos no DOM; contraste dos novos tons e da `.unread` não foi medido.
+  - **O SDK não renderiza ícone de canal nem ícone+palavra de estado dentro do balão**: o canal vai como texto no nome (`via E-mail`) e o estado é o tique do SDK; o ícone do canal só existe na legenda.
+  - **"Encaminhado de <participante>" não existe**: a API não marca a mensagem levada de uma conversa à outra. Precisaria de um campo (ex.: `forwardedFromParticipant`) na mensagem; sem ele o item levado só aparece na outra coluna (a conversa relê em ≤ 20 s), sem rótulo.
+  - Foto da ocorrência/da entrega como cartão de contexto no topo: não feito. Miniatura/lightbox de imagem, cartão de PDF e player de áudio são os do SDK, não conferidos.
+  - Nome do atendente: o front já usa `displayName` do `From`; a API devolve `identity.displayName` (null quando o e-mail não traz nome) — não alterei a API.
+  - O SDK não deixa preencher o compositor: o reenvio por portal/app envia direto e o 409 de chave usada diz "já reenviada"; renovar a chave e "conversa passada a outro motorista" (T903 F2/F3) não passam pelo fio.
+  - Preferência "por usuário": a chave é por empresa (o painel não expõe o id do usuário no cliente); animação "entre colunas" é a de entrada de qualquer balão, não um destaque do item levado.

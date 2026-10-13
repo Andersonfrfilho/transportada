@@ -275,9 +275,60 @@
     "discard": "Descartar",
     "microphoneError": "Não foi possível usar o microfone. Confira a permissão do navegador ou anexe um arquivo de áudio."
   },
+  "participant": {
+    "contractor": "Contratante",
+    "driver": "Motorista",
+    "operator": "Operador"
+  },
+  "layout": {
+    "label": "Exibição das conversas",
+    "sideBySide": "Lado a lado (conversas paralelas)",
+    "tabs": "Cada conversa em uma aba"
+  },
+  "legend": {
+    "title": "Quem é quem",
+    "show": "Mostrar a legenda",
+    "hide": "Esconder a legenda",
+    "participants": "Quem fala",
+    "channels": "Por onde",
+    "operatorHint": "Mensagem da empresa: fica do lado direito",
+    "channelHint": {
+      "email": "Mensagem por e-mail",
+      "whatsapp": "Mensagem pelo WhatsApp",
+      "app": "Mensagem no app do motorista",
+      "portal": "Mensagem no portal da contratante"
+    }
+  },
   "thread": {
     "newMessages_one": "{{count}} mensagem nova na conversa",
-    "newMessages_other": "{{count}} mensagens novas na conversa"
+    "newMessages_other": "{{count}} mensagens novas na conversa",
+    "contractorNewMessages": "Novas mensagens da contratante",
+    "via": "via {{channel}}",
+    "unread_one": "{{count}} não lida",
+    "unread_other": "{{count}} não lidas",
+    "contractor": {
+      "counterpart": "E-mail e portal da contratante"
+    },
+    "driver": {
+      "counterpart": "Chat do app do motorista"
+    },
+    "closed": {
+      "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
+      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+    },
+    "attachments": {
+      "title": "Arquivos recebidos",
+      "hint": "Leve o arquivo que chegou ao lugar certo: ao motorista, à contratante ou à ocorrência."
+    },
+    "senders": {
+      "title": "Remetente fora dos contatos"
+    },
+    "failures": {
+      "title": "Mensagem que não chegou",
+      "resent": "Reenviada por {{channel}}.",
+      "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    }
   },
   "sendRecovery": {
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
@@ -342,6 +393,21 @@
         "send": "Não foi possível salvar. Tente de novo em instantes."
       }
     },
+    "resend": {
+      "open": "Reenviar o pedido à contratante",
+      "sending": "Reenviando…",
+      "sent_one": "Pedido reenviado a {{count}} contato.",
+      "sent_other": "Pedido reenviado a {{count}} contatos.",
+      "tooSoon": "O pedido foi reenviado há pouco; só dá para reenviar de novo depois do intervalo do alarme.",
+      "tooSoonAt": "Pedido reenviado há pouco. Dá para reenviar de novo em {{moment}}.",
+      "error": {
+        "notResendable": "Este retorno não espera mais a contratante; não há o que reenviar.",
+        "tooSoon": "O pedido já foi reenviado dentro do intervalo do alarme. Tente de novo mais tarde.",
+        "originalMissing": "Não achamos o pedido original na conversa com a contratante.",
+        "noRecipient": "Nenhum contato ativo da contratante recebe este pedido. Confira os contatos.",
+        "send": "Não foi possível reenviar. Tente de novo em instantes."
+      }
+    },
     "timeline": {
       "title": "Histórico",
       "empty": "Nenhum evento ainda.",
@@ -351,6 +417,7 @@
       },
       "event": {
         "awaiting_contractor": "Pedido enviado à contratante",
+        "resent": "Pedido reenviado à contratante",
         "overdue": "Retorno atrasado",
         "reply_received": "Boleto recebido",
         "awaiting_operator": "Aguardando o operador",

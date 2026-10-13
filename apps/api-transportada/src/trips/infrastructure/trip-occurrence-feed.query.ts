@@ -19,6 +19,7 @@ import { identityUserProfiles } from '../../database/identity-user-profile.schem
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import { occurrenceContractorReplies } from '../../database/occurrence-contractor-reply.schema.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -186,6 +187,34 @@ function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQ
   return null
 }
 
+/**
+ * Spec 248 RF5: o filtro "Atrasadas" mora no SQL, na mesma consulta que corta o cursor — filtrar a página
+ * já cortada no cliente devolveria páginas quase vazias. `exists` por `(company_id, occurrence_id)` (a
+ * unique do retorno), nunca uma junção: uma ocorrência tem no máximo um retorno e a junção não deve
+ * multiplicar linhas do cursor.
+ */
+function contractorReplyStatusCondition(
+  filters: TripOccurrenceFeedFilters | undefined,
+): SQL | null {
+  if (filters?.contractorReplyStatusIn === undefined) return null
+  if (filters.contractorReplyStatusIn.length === 0) return null
+  return sql`exists (
+    select 1 from ${occurrenceContractorReplies}
+    where ${occurrenceContractorReplies.companyId} = ${tripDocumentOccurrences.companyId}
+      and ${occurrenceContractorReplies.occurrenceId} = ${tripDocumentOccurrences.id}
+      and ${inArray(occurrenceContractorReplies.status, [...filters.contractorReplyStatusIn])}
+  )`
+}
+
+/** A ocorrência de parada não tem retorno da contratante: com o filtro ligado, ela nunca casa. */
+function stopOccurrencesMatchContractorReplyFilter(
+  filters: TripOccurrenceFeedFilters | undefined,
+): boolean {
+  return (
+    filters?.contractorReplyStatusIn === undefined || filters.contractorReplyStatusIn.length === 0
+  )
+}
+
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
   query: FeedRowQuery,
@@ -219,6 +248,8 @@ async function listDocumentOccurrenceRows(
   }
   const caseCondition = caseStatusCondition(query.filters)
   if (caseCondition !== null) conditions.push(caseCondition)
+  const contractorReplyCondition = contractorReplyStatusCondition(query.filters)
+  if (contractorReplyCondition !== null) conditions.push(contractorReplyCondition)
 
   const rows = await queryable
     .select({
@@ -426,6 +457,7 @@ async function listStopOccurrenceRows(
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
   if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
+  if (!stopOccurrencesMatchContractorReplyFilter(query.filters)) return []
 
   const conditions: SQL[] = [
     eq(tripStopOccurrences.companyId, query.companyId),

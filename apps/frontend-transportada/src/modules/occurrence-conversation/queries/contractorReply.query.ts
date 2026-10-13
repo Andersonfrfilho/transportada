@@ -47,6 +47,17 @@ function useRefreshAfterReplyChange() {
   }
 }
 
+/** `idempotencyKey` é da tentativa: o painel a mantém enquanto falha e a troca depois de um envio que deu certo. */
+export function useResendContractorReplyRequestMutation(occurrenceId: string) {
+  const client = getContractorReplyClient()
+  const refresh = useRefreshAfterReplyChange()
+  return useMutation({
+    mutationFn: (idempotencyKey: string) => client.resendRequest({ idempotencyKey, occurrenceId }),
+    /** Também na recusa: um 409 quer dizer que o painel estava velho, e a releitura vira o botão. */
+    onSettled: refresh,
+  })
+}
+
 export function useMarkContractorReplyHandledMutation(occurrenceId: string) {
   const client = getContractorReplyClient()
   const refresh = useRefreshAfterReplyChange()

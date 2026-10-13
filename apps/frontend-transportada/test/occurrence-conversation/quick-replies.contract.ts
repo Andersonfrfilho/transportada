@@ -118,8 +118,12 @@ describe('as respostas rápidas por texto de fonte (spec 183 T701)', () => {
   })
 
   test('os compositores oferecem as respostas do público da aba', () => {
-    const conversations = readFileSync(
-      'src/modules/occurrence-conversation/components/OccurrenceConversations.component.tsx',
+    const thread = readFileSync(
+      'src/modules/occurrence-conversation/components/OccurrenceThread.component.tsx',
+      'utf8',
+    )
+    const hook = readFileSync(
+      'src/modules/occurrence-conversation/shared/useOccurrenceThread.hook.ts',
       'utf8',
     )
     const dialog = readFileSync(
@@ -127,8 +131,9 @@ describe('as respostas rápidas por texto de fonte (spec 183 T701)', () => {
       'utf8',
     )
 
-    expect(conversations).toMatch(/<QuickReplyPicker\s+audience="driver"/u)
-    expect(conversations).toMatch(/<QuickReplyPicker\s+audience="contractor"/u)
+    /** O fio do SDK oferece as respostas do público da aba (`driver` ou `contractor`) como chips que só preenchem. */
+    expect(hook).toContain('useComposerQuickRepliesQuery(participant)')
+    expect(thread).toContain('quickReplies={threadQuickReplies}')
     expect(dialog).toMatch(/<QuickReplyPicker\s+audience="contractor"/u)
   })
 })

@@ -26,17 +26,25 @@ describe('mensagem nova anunciada (spec 183 T902, D2)', () => {
     ).toBe(0)
   })
 
-  test('o fio do painel tem a região polite', async () => {
-    const component = await readFile(
+  test('o fio do painel é o do SDK, que tem a própria região polite, e o rótulo do anúncio é traduzido', async () => {
+    const thread = await readFile(
       new URL(
-        '../../src/modules/occurrence-conversation/components/OccurrenceConversations.component.tsx',
+        '../../src/modules/occurrence-conversation/components/OccurrenceThread.component.tsx',
         import.meta.url,
       ),
       'utf8',
     )
-    const thread = component.slice(component.indexOf('function ConversationThread('))
+    const labels = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/shared/subjectThreadLabels.service.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
 
-    expect(thread).toMatch(/aria-live="polite"/u)
+    expect(thread).toContain('<ConversationThread')
+    expect(thread).toContain('newMessages:')
+    expect(labels).toContain("'newMessages'")
   })
 })
 

@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl'
+import { LngLatBounds, Map as MapLibreMap, Marker, Popup, type GeoJSONSource } from 'maplibre-gl'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,7 @@ import {
   TIMELINE_MAP_LEG_LABEL_STYLE,
   TIMELINE_MAP_ORDER_BADGE_STYLE,
 } from '../shared/tripTimelineMap.constant'
+import { OCCURRENCE_TRIP_MAP_FOCUS_ZOOM } from '../shared/occurrenceTripMap.constant'
 import { resolveTimelineLegLabels } from '../shared/tripTimelineMap.service'
 import { resolvePinInk } from '../shared/stopColor.service'
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
@@ -47,6 +48,8 @@ import { resolveRouteLegs } from '../shared/routeGeometry.service'
 import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
+  /** Mapa da ocorrência: centraliza o pino (e abre a dica dele) toda vez que `nonce` muda. */
+  focusRequest?: Readonly<{ nonce: number; stopKey: string }> | undefined
   geometry: RouteGeometry | null
   /**
    * ⚠️ Não desenha linha nenhuma — só os pinos. Serve ao rascunho de ordem (spec 111 D8): sem a
@@ -54,6 +57,8 @@ type AssemblyVectorMapProps = Readonly<{
    * ninguém mediu parece um caminho que não existe.
    */
   hideRoute?: boolean | undefined
+  /** Mapa da ocorrência: os pinos entram com um fade curto, escalonado; sob `prefers-reduced-motion` é instantâneo. */
+  isEntryAnimated?: boolean | undefined
   /** Fundo sem placa de radar nem selo de pedágio: o pino é a coisa mais forte da imagem. */
   isQuietBasemap?: boolean | undefined
   /**
@@ -91,6 +96,12 @@ type LegLabelMarker = Readonly<{
 }>
 
 const NEARBY_SOURCE = 'fora-da-selecao'
+/** O voo até o pino pedido pela legenda: curto o bastante para não atrasar quem só quer ver a dica. */
+const FOCUS_ANIMATION_MS = 400
+/** A dica abre acima do pino e do selo de ordem, sem cobri-los. */
+const POPUP_OFFSET_PIXELS = 22
+/** Cada pino entra um pouco depois do anterior: a ordem do tempo aparece na chegada deles. */
+const PIN_ENTER_STAGGER_MS = 40
 /**
  * Spec 096 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
  * pela camada `cabine-de-pedagio` do basemap: aquela é toda cabine da região, sem valor.
@@ -140,8 +151,10 @@ function readToken(token: string): string {
 }
 
 export function AssemblyVectorMap({
+  focusRequest,
   geometry,
   hideRoute,
+  isEntryAnimated,
   isQuietBasemap,
   legLabel,
   nearby,
@@ -153,6 +166,8 @@ export function AssemblyVectorMap({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markersRef = useRef<Marker[]>([])
+  /** Os marcadores pela chave do ponto: a legenda do mapa da ocorrência pede o foco por ela. */
+  const markerByKeyRef = useRef(new Map<string, Marker>())
   /** Os rótulos de tempo e as pontas de cada trecho, para decidir a cada zoom quem cabe na tela. */
   const legLabelsRef = useRef<readonly LegLabelMarker[]>([])
   const [isReady, setIsReady] = useState(false)
@@ -443,18 +458,25 @@ export function AssemblyVectorMap({
     const map = mapRef.current
     if (map === null || !isReady) return
 
-    for (const marker of markersRef.current) marker.remove()
+    for (const marker of markersRef.current) {
+      marker.getPopup()?.remove()
+      marker.remove()
+    }
     markersRef.current = []
+    markerByKeyRef.current.clear()
 
     const markerOffsets = resolveMarkerOffsets(points)
     const badgeHosts: HTMLElement[] = []
-    for (const point of points) {
+    for (const [index, point] of points.entries()) {
       const element = stopElement({
         approximate: point.isApproximate,
         ariaLabel: point.ariaLabel,
-        color: stopColor(point.sequence ?? 1),
+        color: point.color ?? stopColor(point.sequence ?? 1),
         count: point.count ?? 1,
+        enterIndex: isEntryAnimated === true ? index : undefined,
         glyph: point.glyph,
+        isHighlighted: point.isHighlighted === true,
+        isInteractive: point.popup !== undefined,
         orderBadge: point.orderBadge,
         outline: resolveBasemapOutline(readToken, theme),
         sequence: point.sequence ?? 1,
@@ -465,14 +487,15 @@ export function AssemblyVectorMap({
         element.append(host)
         badgeHosts.push(host)
       }
-      markersRef.current.push(
-        new Marker({
-          element,
-          offset: (markerOffsets.get(point.stopKey) ?? [0, 0]) as [number, number],
-        })
-          .setLngLat([point.longitude, point.latitude])
-          .addTo(map),
-      )
+      const marker = new Marker({
+        element,
+        offset: (markerOffsets.get(point.stopKey) ?? [0, 0]) as [number, number],
+      })
+        .setLngLat([point.longitude, point.latitude])
+        .addTo(map)
+      if (point.popup !== undefined) marker.setPopup(buildPinPopup(point.popup))
+      markersRef.current.push(marker)
+      markerByKeyRef.current.set(point.stopKey, marker)
     }
 
     /**
@@ -534,7 +557,26 @@ export function AssemblyVectorMap({
      * exatamente o defeito que `fitToTrip` veio corrigir. Trocar de opção no seletor também reenquadra,
      * que é o certo: a alternativa tem outra extensão.
      */
-  }, [geometry, isReady, nearby, points, stopColor, theme])
+  }, [geometry, isEntryAnimated, isReady, nearby, points, stopColor, theme])
+
+  /** A legenda do mapa da ocorrência pede o pino pelo nome; o mapa o centraliza e abre a dica dele. */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null || !isReady || focusRequest === undefined) return
+    const marker = markerByKeyRef.current.get(focusRequest.stopKey)
+    if (marker === undefined) return
+
+    const isReducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    map.easeTo({
+      center: marker.getLngLat(),
+      duration: isReducedMotion === true ? 0 : FOCUS_ANIMATION_MS,
+      zoom: Math.max(map.getZoom(), OCCURRENCE_TRIP_MAP_FOCUS_ZOOM),
+    })
+    for (const other of markerByKeyRef.current.values()) {
+      if (other !== marker) other.getPopup()?.remove()
+    }
+    if (marker.getPopup()?.isOpen() === false) marker.togglePopup()
+  }, [focusRequest, isReady])
 
   /**
    * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 096 D3):
@@ -814,8 +856,14 @@ function stopElement(input: {
   readonly color: string
   /** Eventos agrupados neste pino; acima de 1 aparece o selo com a contagem. */
   readonly count: number
+  /** Posição do pino na entrada escalonada; `undefined` desliga a animação. */
+  readonly enterIndex: number | undefined
   /** Ícone no lugar do número (minimapa da linha do tempo). */
   readonly glyph: IconName | undefined
+  /** O evento que a página é: pino maior, com halo de alerta. */
+  readonly isHighlighted: boolean
+  /** Pino com dica: aceita o clique (os demais deixam o arrasto passar para o mapa). */
+  readonly isInteractive: boolean
   /** Spec 196: o número da ordem como selo no canto superior esquerdo, junto ao glifo. */
   readonly orderBadge: string | undefined
   readonly outline: string
@@ -859,12 +907,40 @@ function stopElement(input: {
     applyCustomProperties(element, TIMELINE_MAP_ORDER_BADGE_STYLE)
     element.append(orderBadgeElement(input.orderBadge, input.outline))
   }
+  if (input.isHighlighted) element.classList.add(styles.tilePinHighlight ?? '')
+  if (input.isInteractive) element.classList.add(styles.tilePinInteractive ?? '')
+  if (input.enterIndex !== undefined) {
+    element.classList.add(styles.tilePinEnter ?? '')
+    element.style.setProperty(
+      '--pin-enter-delay',
+      `${String(input.enterIndex * PIN_ENTER_STAGGER_MS)}ms`,
+    )
+  }
   if (input.ariaLabel !== undefined) {
     /** `title` nativo é proibido pelo design system; o pino inteiro é a imagem que se narra. */
     element.setAttribute('role', 'img')
     element.setAttribute('aria-label', input.ariaLabel)
   }
   return element
+}
+
+/**
+ * A dica do pino: texto puro (`textContent`), nunca HTML — o rótulo da parada e o nome do tipo vêm
+ * do servidor. A primeira linha é o título.
+ */
+function buildPinPopup(lines: readonly string[]): Popup {
+  const body = document.createElement('div')
+  body.className = styles.tilePopupBody ?? ''
+  for (const [index, line] of lines.entries()) {
+    const row = document.createElement(index === 0 ? 'strong' : 'span')
+    row.textContent = line
+    body.append(row)
+  }
+  return new Popup({
+    className: styles.tilePopupFrame ?? '',
+    maxWidth: '16rem',
+    offset: POPUP_OFFSET_PIXELS,
+  }).setDOMContent(body)
 }
 
 /**
