@@ -69,6 +69,12 @@ export type ContractorReplyView = Readonly<{
   status: ContractorReplyStatus
 }>
 
+/** O que a listagem de ocorrências carrega do retorno: só o estado e a contagem de alertas. */
+export type ContractorReplySummary = Readonly<{
+  alertCount: number
+  status: ContractorReplyStatus
+}>
+
 export type MarkHandledOutcome = Readonly<{ kind: 'already_handled' | 'handled' }>
 export type DeliverToDriverOutcome = Readonly<{
   kind: 'already_delivered' | 'delivered' | 'skipped'

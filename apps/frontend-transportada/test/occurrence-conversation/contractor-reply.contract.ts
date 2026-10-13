@@ -10,6 +10,7 @@ import {
   canDeliverContractorReplyToDriver,
   canMarkContractorReplyHandled,
   describeContractorReplyState,
+  toContractorReplySummary,
   validateHandledNote,
 } from '@/modules/occurrence-conversation/shared/contractorReply.service'
 import { createContractorReplyClient } from '@/modules/occurrence-conversation/shared/contractorReplyClient.service'
@@ -92,6 +93,19 @@ describe('o estado do retorno em texto (spec 248 RF13)', () => {
       overdue: 'warning',
       reply_received: 'info',
     })
+  })
+})
+
+describe('o selo da listagem (spec 248 RF13, T5.2)', () => {
+  test('lê estado e alertas; ausente, malformado ou estado desconhecido é "sem retorno"', () => {
+    expect(toContractorReplySummary({ alertCount: 3, status: 'overdue' })).toEqual({
+      alertCount: 3,
+      status: 'overdue',
+    })
+    expect(toContractorReplySummary(undefined)).toBeNull()
+    expect(toContractorReplySummary(null)).toBeNull()
+    expect(toContractorReplySummary({ alertCount: '3', status: 'overdue' })).toBeNull()
+    expect(toContractorReplySummary({ alertCount: 0, status: 'inventado' })).toBeNull()
   })
 })
 

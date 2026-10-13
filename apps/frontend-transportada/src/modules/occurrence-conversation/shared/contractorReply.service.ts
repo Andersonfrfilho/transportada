@@ -4,8 +4,11 @@
  * (chave de rótulo + parâmetros), o tom do selo, o que o operador pode fazer e a validação da nota do
  * "Marcar como tratado". Quem decide o estado é a API; aqui só se descreve.
  */
+import { isRecord } from './occurrenceConversationGuards.validation'
 import {
   CONTRACTOR_REPLY_HANDLED_NOTE_MAX_LENGTH,
+  CONTRACTOR_REPLY_STATUSES,
+  type ContractorReplySummary,
   type ContractorReplyStatus,
   type ContractorReplyView,
 } from './contractorReply.types'
@@ -58,6 +61,14 @@ export function describeContractorReplyState(
         : null,
     tone: TONE_BY_STATUS[reply.status],
   }
+}
+
+/** Leitura tolerante da listagem: ausente ou malformado é "sem retorno", nunca reprova a linha. */
+export function toContractorReplySummary(value: unknown): ContractorReplySummary | null {
+  if (!isRecord(value)) return null
+  const knownStatus = CONTRACTOR_REPLY_STATUSES.find((candidate) => candidate === value.status)
+  if (knownStatus === undefined || typeof value.alertCount !== 'number') return null
+  return { alertCount: value.alertCount, status: knownStatus }
 }
 
 export function canMarkContractorReplyHandled(status: ContractorReplyStatus): boolean {
