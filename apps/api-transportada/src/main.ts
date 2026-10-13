@@ -449,6 +449,14 @@ import {
   createDrizzleContractorReplyEmailReader,
   createDrizzleContractorReplyEmailUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-email.repository.js'
+import {
+  createMarkContractorReplyHandledUseCase,
+  createReadContractorReplyUseCase,
+} from './occurrence-conversation/application/contractor-reply-read.use-case.js'
+import {
+  createDrizzleContractorReplyHandledWriter,
+  createDrizzleContractorReplyReader,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -3318,6 +3326,13 @@ function createApplicationRoutes({
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
     /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
     ...createOccurrenceContractorReplyRoutes({
+      markHandled: createMarkContractorReplyHandledUseCase({
+        clock: () => new Date(),
+        writer: createDrizzleContractorReplyHandledWriter(database),
+      }),
+      readReply: createReadContractorReplyUseCase({
+        reader: createDrizzleContractorReplyReader(database),
+      }),
       deliverToDriver: createDeliverContractorReplyToDriverUseCase({
         clock: () => new Date(),
         notifier: createDriverConversationNotifier({

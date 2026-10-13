@@ -12,6 +12,7 @@ import { AddContractorContactAction } from '@/modules/delivery-clients/component
 
 import {
   OCCURRENCE_CONVERSATIONS_QUERY_KEY,
+  useDeliverContractorReplyToDriverMutation,
   useMarkConversationReadMutation,
   useOccurrenceConversationsQuery,
   useSendContractorPortalMessageMutation,
@@ -101,6 +102,48 @@ function ForwardToContractorAction({
       {send.isError ? (
         <span className={styles.error} role="alert">
           {t('attachment.forwardError')}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Spec 248 T4.6 (RF7/RF9): leva o anexo que a contratante mandou (o boleto) ao motorista, pelo chat do app. O
+ * servidor guarda uma entrega por anexo: repetir é "já enviado", nunca outra mensagem.
+ */
+export function SendToDriverAction({
+  attachmentId,
+  occurrenceId,
+}: Readonly<{ attachmentId: string; occurrenceId: string }>) {
+  const { t } = useTranslation('occurrenceConversation')
+  const deliver = useDeliverContractorReplyToDriverMutation(occurrenceId)
+  if (deliver.isSuccess && deliver.data !== 'skipped') {
+    return (
+      <span className={styles.hint}>
+        {deliver.data === 'delivered'
+          ? t('attachment.sentToDriver')
+          : t('attachment.alreadySentToDriver')}
+      </span>
+    )
+  }
+  return (
+    <>
+      <Button
+        disabled={deliver.isPending}
+        onClick={() => deliver.mutate(attachmentId)}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        <Icon name="send" size="sm" />
+        {deliver.isPending ? t('attachment.sendingToDriver') : t('attachment.sendToDriver')}
+      </Button>
+      {deliver.isError || deliver.data === 'skipped' ? (
+        <span className={styles.error} role="alert">
+          {deliver.data === 'skipped'
+            ? t('attachment.sendToDriverSkipped')
+            : t('attachment.sendToDriverError')}
         </span>
       ) : null}
     </>
@@ -467,6 +510,7 @@ function ContractorConversationPanel({
   contractorName,
   conversation,
   hasDocument,
+  hasDriver,
   occurrenceId,
   portalAvailable,
 }: Readonly<{
@@ -476,6 +520,8 @@ function ContractorConversationPanel({
   contractorName: string
   conversation: OccurrenceConversation | undefined
   hasDocument: boolean
+  /** Spec 248 T4.6: a viagem tem motorista para receber o boleto. */
+  hasDriver: boolean
   occurrenceId: string
   /** Spec 183 T654: o portal mostra a ocorrência e alguém da contratante tem conta. */
   portalAvailable: boolean
@@ -531,6 +577,32 @@ function ContractorConversationPanel({
         <ConversationThread
           canManageContacts={canManageContacts && contractorId !== null}
           messages={messages}
+          /**
+           * Spec 248 T4.6/T4.7: o boleto que a contratante mandou segue ao motorista (quando há motorista) e, por
+           * e-mail, ao cliente da nota ou a um endereço informado — as duas ações no mesmo anexo.
+           */
+          {...(canSend
+            ? {
+                renderAttachmentActions: (
+                  attachment: OccurrenceConversationAttachment,
+                  message: OccurrenceConversationMessage,
+                ) =>
+                  message.direction === 'inbound' ? (
+                    <>
+                      {hasDriver ? (
+                        <SendToDriverAction
+                          attachmentId={attachment.id}
+                          occurrenceId={occurrenceId}
+                        />
+                      ) : null}
+                      <ContractorReplyEmailActions
+                        attachmentId={attachment.id}
+                        occurrenceId={occurrenceId}
+                      />
+                    </>
+                  ) : null,
+              }
+            : {})}
           {...(contractorId === null
             ? {}
             : {
@@ -548,21 +620,6 @@ function ContractorConversationPanel({
                 ),
               })}
           {...(canWrite ? { resend } : {})}
-          /** Spec 248 T4.7: o boleto que a contratante mandou segue por e-mail ao cliente da nota ou a um endereço. */
-          {...(canSend
-            ? {
-                renderAttachmentActions: (
-                  attachment: OccurrenceConversationAttachment,
-                  message: OccurrenceConversationMessage,
-                ) =>
-                  message.direction === 'inbound' ? (
-                    <ContractorReplyEmailActions
-                      attachmentId={attachment.id}
-                      occurrenceId={occurrenceId}
-                    />
-                  ) : null,
-              }
-            : {})}
         />
       )}
 
@@ -642,6 +699,7 @@ export function OccurrenceConversations({
       contractorName={contractorName}
       conversation={contractorConversation}
       hasDocument={hasDocument}
+      hasDriver={driverName !== null}
       occurrenceId={occurrenceId}
       portalAvailable={query.data?.contractorPortal.available ?? false}
     />

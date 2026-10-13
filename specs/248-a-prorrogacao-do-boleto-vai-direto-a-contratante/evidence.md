@@ -432,8 +432,8 @@ LIMIT_REACHED,ATTACHMENT_NOT_FOUND}`. `maskEmailAddress` foi para `shared/email-
   como mensagem em cada campo, `aria-invalid`; "Salvar retorno" só destrava com os dois; o `PUT` leva onze campos). Conversa da contratante: por anexo
   recebido, "Enviar ao cliente da nota" (à vista e **desligado com o motivo** quando a nota não tem e-mail ou o teto foi atingido) e "Encaminhar para um e-mail"
   (formulário com um campo, regra da API espelhada, recusa da API no mesmo campo, `Idempotency-Key` nova a cada tentativa), mais a lista dos envios
-  ("Boleto enviado por e-mail", endereço mascarado). O molde `SendToDriverAction` citado no pedido **não existe na `staging`**: a ação por anexo foi escrita
-  do zero, no padrão de `ForwardToContractorAction`.
+  ("Boleto enviado por e-mail", endereço mascarado). O molde `SendToDriverAction` ainda não estava na `staging` quando a tarefa começou (chegou na T5.3 parte, #165/#166):
+  as duas ações por anexo convivem no mesmo `renderAttachmentActions` da conversa da contratante (um só: a segunda propagação sobrescreveria a primeira).
 
 **Provas.**
 
@@ -475,3 +475,62 @@ Cada mutação aplicada ao código de produção, contrato `forward-contractor-r
 **Sobreviventes, ditos.** Tirar só a regex de caracteres (`[\r\n,;<>]`) **não** quebra nenhum teste: o `z.string().email()` sozinho já recusa lista, `Bcc:` e "Nome <a@b>"; tirar só o
 `email()` quebra "sem arroba" (a regex sozinha segura os demais). As duas travas ficam: a regex é a lista do RF11 escrita por extenso (e protege se a versão do zod mudar a
 tolerância), o `email()` pega o resto.
+
+## T5.4 — o app do motorista mostra o boleto (2026-10-12)
+
+**Conferido no código (nada disto foi refeito):**
+
+- **(a) O aviso do sino abre a conversa da ocorrência.** `notificationDestination.service.ts:30-47` devolve `{ kind: 'conversation', subject }` para
+  `trip.conversation-message` com `subjectType`/`subjectId` válidos no payload; `DriverNotifications.page.tsx:38-41` navega a `/conversas/:tipo/:id`.
+  A API manda exatamente esse payload na entrega do operador: `deliver-contractor-reply-to-driver.use-case.ts:67-76` (`subjectType: occurrence`) →
+  `driver-conversation-notifier.gateway.ts:64-76` (`trip.conversation-message` + `subjectId`/`protocol`).
+- **(b) A mensagem aparece com o anexo baixável por URL assinada.** A API assina os anexos na leitura (`driver-conversation.use-case.ts:203-215`,
+  `signConversationAttachments`); o mapper do app lê PDF como `kind: 'document'` com o nome do arquivo (`driverConversationsMapper.service.ts:27-31,49-63`) e guarda a URL por
+  anexo (`:85-94`); `resolveAttachmentUrl` a renova antes de vencer (`driverConversationsApi.service.ts:169`); o pacote renderiza `<a download>` com `min-height` de
+  toque (`ParticipantAttachmentItem.tsx`, `.cv-p-attachment--document`). A chave de entrega é a conversa do motorista **da ocorrência** (`contractor-reply-driver-delivery.support.ts:154-161`),
+  a mesma que o app lê.
+- **Lista com não lidas, leitura, resposta com anexo e aviso "sem rede":** já entregues na spec 263/264 (`conversationDigests.query.ts`, `markRead`
+  `driverConversationsApi.service.ts:168`, `driverConversationUploads.service.ts`, `useIsOnline.hook.ts`, `driver-conversations-offline.contract.ts`).
+- **(c) "Pedido enviado à contratante": NÃO existe, e não é pequeno.** O app não tem de onde ler a informação: a rota de tipos do motorista
+  (`/me/trips/current/occurrence-types`, `DriverOccurrenceType` em `driverTrip.types.ts:439-472`) não devolve `contractorReplyMode` nem estado do retorno, e a viagem não traz
+  as ocorrências já registradas. Entregá-lo pede **mudança de API** (campo no tipo resolvido por nota e/ou estado do retorno por ocorrência) — fora do escopo desta task, fica como pendência.
+
+**Entregue (só a lacuna de prova da (b)):**
+
+- Contrato novo `apps/frontend-driver/test/conversation/driver-conversations-boleto.contract.ts` (4 casos, na suíte `conversation.contract.test.ts`, fixture local, sem depender da API de demonstração):
+  o aviso da entrega abre a conversa da ocorrência; PDF é `document`; o adapter real entrega a mensagem do escritório com `boleto.pdf`; a URL assinada da leitura é a que o toque abre.
+- **Smoke do sino → conversa → download NÃO foi escrito.** Uma primeira versão (semente na demonstração + caso no smoke) reprovou na CI do PR 165: a conversa nova mexeu na altura
+  da lista ("último item acima da barra", 751,48 > 751) e o seletor do sino nunca foi rodado (não há Chromium nem Keycloak local). Foi revertida; o smoke fica para quem puder rodar Playwright.
+
+**Gates (Ubuntu/WSL, bun 1.4.3, `apps/frontend-driver`):** `bun run test` verde; `bun x tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+
+**Não provado:** o fluxo no navegador (sino → conversa → toque em `boleto.pdf` → download). O app do motorista faz login real no Keycloak em `localhost:58080`, porta no intervalo reservado pelo Windows
+(58002–58101) nesta máquina, e não há Chromium do Playwright no Ubuntu.
+
+**Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
+(2) "Pedido enviado à contratante" (acima).
+
+## T5.2a e T5.3a — o estado do retorno no painel (2026-10-12)
+
+- **API:** `GET /trip-occurrences/:id/contractor-reply` (`fleet.read`, `no-store`; `data: null` sem retorno; 404 igual para inexistente e outra empresa),
+  `POST .../contractor-reply/handled` (`occurrences.resolve`, `{ note }` 1–500 aparada, 201 na primeira, 200 ao repetir, 409
+  `CONTRACTOR_REPLY_NOT_HANDLEABLE` com retorno entregue ou cancelado; transição condicional por estado dentro da transação, com evento `user`; a
+  CHECK `handled_shape` recebe autor e nota juntos). Evento sem usuário, entrega sem endereço. O feed `GET /trip-occurrences` traz
+  `contractorReply { status, alertCount } | null` (uma leitura por página, `company_id`).
+- **Painel:** `ContractorReplyPanel` no topo da conversa da ocorrência (selo com o estado em texto, prazo, alertas "N de M", motivo, nota do operador,
+  envios, histórico), "Marcar como tratado" com nota e "Enviar ao motorista" (boleto aceito parado no operador); `ContractorReplyBadge` na célula
+  Conversa e no cartão da lista. Leitura tolerante: evento/entrega desconhecido sai, API anterior vira sem selo.
+- **Provas:** contratos da API (`contractor-reply-read.contract.ts`, balde em `rate-limited-routes`); integração em Postgres
+  `occurrence-contractor-reply-read.integration.ts` 3 pass, mais `trip-occurrence-feed-case`, `-feed-document`, `-detail` e
+  `occurrence-conversation-read` verdes (19 pass / 0 fail); painel `contractor-reply.contract.ts`; `tsc` e `eslint` limpos nas duas apps.
+- **Fora:** filtro "Atrasadas" (T5.2b: pede filtro no SQL paginado por cursor, parâmetro e pílula); "Reenviar o pedido" (depende do cron da T4.10),
+  contatos da contratante, envio ao cliente da nota e a e-mail informado (T4.7). Não visto no navegador.
+- **Limites do ambiente:** no Windows os contratos que varrem disco falham antes e depois (202 na API, 24–26 no painel, as mesmas); a CI é a prova.
+
+## T5.3 (parte) — "Enviar ao motorista" no painel (2026-10-13)
+
+Na conversa da contratante da ocorrência (aba Contratante), cada anexo que a **contratante mandou** ganha o botão "Enviar ao motorista" (só com `canSend` e quando a viagem
+tem motorista): chama `POST /trip-occurrences/:id/contractor-reply/driver-delivery` com o anexo, mostra "Enviado ao motorista pelo chat do app", "Já foi enviado" (repetir não
+manda de novo) ou o aviso de que o motorista ainda não tem conta ativa. A mensagem aparece na aba Motorista da mesma ocorrência, com o anexo. Provas: contrato do cliente
+(`deliver-reply-to-driver-client.contract.ts`, que pegou o caminho errado da rota antes do push), `tsc` e `eslint` limpos; contratos de conversa e de design system do painel
+595 pass / 0 fail no Linux. **Não visto no navegador.** Faltam o selo/estado do retorno (prazo, atraso) na ocorrência e o aviso de atraso (T4.10).

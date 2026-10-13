@@ -195,7 +195,13 @@
     "forward": "Forward to contractor",
     "forwarding": "Forwarding…",
     "forwarded": "Forwarded to the contractor through the portal.",
-    "forwardError": "Could not forward. Try again shortly."
+    "forwardError": "Could not forward. Try again shortly.",
+    "sendToDriver": "Send to driver",
+    "sendingToDriver": "Sending…",
+    "sentToDriver": "Sent to the driver in the app chat.",
+    "alreadySentToDriver": "Already sent to the driver.",
+    "sendToDriverSkipped": "The trip driver does not have an active app account yet.",
+    "sendToDriverError": "Could not send. Try again shortly."
   },
   "replyEmail": {
     "sendToNote": "Send to the invoice customer",
@@ -294,6 +300,91 @@
       "forbidden": "You do not have permission to change this setting.",
       "unauthenticated": "Your session has expired. Sign in again to continue.",
       "invalid": "The server refused the request. The previous setting was kept."
+    }
+  },
+  "contractorReply": {
+    "title": "Contractor reply",
+    "loading": "Loading the contractor reply",
+    "error": "Could not load the contractor reply. Try again in a moment.",
+    "status": {
+      "awaiting_contractor": "Waiting for the contractor",
+      "overdue": "Overdue",
+      "reply_received": "Reply received",
+      "awaiting_operator": "Waiting for the operator",
+      "needs_operator": "Needs the operator",
+      "delivered": "Delivered",
+      "handled": "Handled",
+      "cancelled": "Cancelled"
+    },
+    "reason": {
+      "no_accepted_attachment": "no accepted attachment",
+      "multiple_attachments": "more than one attachment"
+    },
+    "alerts_one": "{{count}} alert",
+    "alerts_other": "{{count}} alerts",
+    "alertsLabel": "Alerts sent",
+    "alertsProgress": "{{count}} of {{max}}",
+    "deadline": "Deadline",
+    "deadlinePassed": "past due",
+    "reasonLabel": "Reason",
+    "handledNoteLabel": "Operator note",
+    "handled": {
+      "open": "Mark as handled",
+      "note": "What was done",
+      "hint": "Required, up to {{max}} characters. It stays with your name on this occurrence.",
+      "cancel": "Cancel",
+      "confirm": "Mark as handled",
+      "saving": "Saving…",
+      "error": {
+        "required": "Write what was done.",
+        "tooLong": "The note exceeded {{max}} characters.",
+        "notHandleable": "This reply was already delivered or cancelled, so there is nothing left to handle.",
+        "send": "Could not save. Try again in a moment."
+      }
+    },
+    "timeline": {
+      "title": "History",
+      "empty": "No events yet.",
+      "actor": {
+        "system": "System",
+        "user": "Operations"
+      },
+      "event": {
+        "awaiting_contractor": "Request sent to the contractor",
+        "overdue": "Reply overdue",
+        "reply_received": "Reply received",
+        "awaiting_operator": "Waiting for the operator",
+        "needs_operator": "Needs the operator",
+        "delivered": "Delivered to the driver",
+        "handled": "Marked as handled",
+        "cancelled": "Cancelled"
+      }
+    },
+    "deliveries": {
+      "title": "Deliveries",
+      "target": {
+        "driver_app_chat": "Driver, app chat",
+        "driver_whatsapp": "Driver, WhatsApp",
+        "note_recipient_email": "Invoice customer, e-mail",
+        "informed_email": "Informed e-mail"
+      },
+      "status": {
+        "queued": "queued",
+        "sent": "sent",
+        "pending_window": "waiting for the driver to write",
+        "skipped": "not sent",
+        "failed": "failed"
+      },
+      "reason": {
+        "driver_without_account": "driver without an account",
+        "driver_unreachable": "driver unreachable",
+        "whatsapp_window_closed": "WhatsApp window closed",
+        "note_without_recipient_email": "invoice without a customer e-mail",
+        "attachment_too_large_for_email": "file too large for e-mail",
+        "send_failed": "sending failed",
+        "no_accepted_attachment": "no accepted attachment",
+        "multiple_attachments": "more than one attachment"
+      }
     }
   }
 }

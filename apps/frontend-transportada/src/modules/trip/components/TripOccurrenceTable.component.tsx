@@ -8,6 +8,8 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { ContractorReplyBadge } from '@/modules/occurrence-conversation/components/ContractorReplyBadge.component'
+
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
@@ -78,6 +80,7 @@ function OccurrenceConversationCell({ item }: Readonly<{ item: TripOccurrenceFee
           {t(`occurrenceFeed.conversation.${cell.state.kind}.${cell.state.value}`)}
         </span>
       )}
+      {item.contractorReply == null ? null : <ContractorReplyBadge reply={item.contractorReply} />}
       {cell.driverUnreadCount === 0 ? null : (
         <span className={styles.occurrenceCellNote}>
           {t('occurrenceFeed.conversation.driverUnread', { count: cell.driverUnreadCount })}
@@ -294,8 +297,13 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             <dd>{item.driverName}</dd>
           </div>
         </dl>
-        {conversation.state === null && conversation.driverUnreadCount === 0 ? null : (
+        {conversation.state === null &&
+        conversation.driverUnreadCount === 0 &&
+        item.contractorReply == null ? null : (
           <span className={styles.occurrenceCardHead}>
+            {item.contractorReply == null ? null : (
+              <ContractorReplyBadge reply={item.contractorReply} />
+            )}
             {conversation.state === null ? null : (
               <span className={styles.statusBadge}>
                 {t(

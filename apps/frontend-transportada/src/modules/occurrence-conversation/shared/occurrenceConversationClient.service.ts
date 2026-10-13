@@ -94,6 +94,11 @@ export type OccurrenceConversationClient = Readonly<{
     idempotencyKey: string
     occurrenceId: string
   }) => Promise<void>
+  /** Spec 248 T4.6: leva o boleto da contratante ao motorista pelo chat do app. */
+  deliverContractorReplyToDriver: (input: {
+    attachmentId: string
+    occurrenceId: string
+  }) => Promise<'already_delivered' | 'delivered' | 'skipped'>
   sendDriverAppMessage: (input: {
     attachmentIds?: readonly string[]
     body: string
@@ -380,6 +385,14 @@ const contractorReplyPath = (occurrenceId: string): string =>
 const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
+function readDeliveryKind(payload: unknown): 'already_delivered' | 'delivered' | 'skipped' {
+  const data =
+    typeof payload === 'object' && payload !== null && 'data' in payload ? payload.data : undefined
+  const kind = typeof data === 'object' && data !== null && 'kind' in data ? data.kind : undefined
+  if (kind === 'delivered' || kind === 'already_delivered' || kind === 'skipped') return kind
+  throw new Error('OCCURRENCE_CONVERSATION_RESPONSE_INVALID')
+}
+
 export function createOccurrenceConversationClient(
   dependencies: ClientDependencies,
 ): OccurrenceConversationClient {
@@ -467,6 +480,14 @@ export function createOccurrenceConversationClient(
         { body: declared, method: 'POST' },
       )
       return readConversationUpload(payload)
+    },
+    async deliverContractorReplyToDriver({ attachmentId, occurrenceId }) {
+      const payload = await requestJson(
+        dependencies,
+        `/trip-occurrences/${encodeURIComponent(occurrenceId)}/contractor-reply/driver-delivery`,
+        { body: { attachmentId }, method: 'POST' },
+      )
+      return readDeliveryKind(payload)
     },
     async sendDriverAppMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {

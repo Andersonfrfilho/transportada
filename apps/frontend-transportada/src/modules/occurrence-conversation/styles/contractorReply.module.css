@@ -1,0 +1,88 @@
+/* Spec 248 T5.3: o painel do retorno da contratante. Só tokens da casa; o selo do estado é o `Badge`. */
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.facts div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.facts dt {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.block {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.block h4 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.list,
+.timeline {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.timelineItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.timelineWhen {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.timelineActor {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}

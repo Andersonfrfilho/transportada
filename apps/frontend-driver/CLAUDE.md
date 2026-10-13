@@ -459,6 +459,10 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   Rede: `setNetwork` (`setOffline` + rota que aborta `/me/**`, porque o `route.fetch` do desvio roda no Node). Bolha na fila é a de anexo
   pendente (nome do arquivo + relógio), sem player. "Tocando" se afirma por botão "Pausar" + `<audio>` carregado e não pausado, nunca por
   `currentTime`. Os cabeçalhos se testam no `server.ts` de produção (o preview do Vite não os serve). `PLAYWRIGHT_SAVE_PRINTS=true` regrava os prints.
+- **Boleto da contratante (spec 248 T5.4).** O escritório leva o PDF à conversa **da ocorrência** como mensagem `app`; nada é código novo no app:
+  PDF vira `kind: 'document'` no mapper e o pacote o desenha como `<a download>` com a URL assinada da leitura (renovada por `resolveAttachmentUrl`).
+  Teste: `driver-conversations-boleto.contract.ts` (aviso do sino, mapper, URL assinada; fixture local). ⚠️ Sem smoke do sino → conversa → download (pede Chromium
+  e Keycloak locais) e falta "Pedido enviado à contratante" (pede campo na API).
 - **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
   o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
   em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…
