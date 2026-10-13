@@ -52,6 +52,7 @@ export class CompanyGroupRepositoryFixture implements CompanyGroupRepositoryPort
     readonly postalCode: string
     readonly state: string
     readonly street: string
+    readonly displayName: string
     readonly tradeName: string
   }[] = []
 

@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
 import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
@@ -18,9 +19,11 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { OccurrenceCancellationMark } from '../components/OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
+import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
 import { OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import {
@@ -329,6 +332,14 @@ function OccurrenceSummaryPanel({
           <dt>{t('occurrenceFeed.columns.stopLabel')}</dt>
           <dd>{occurrence.stopLabel ?? t('occurrenceDetail.driver.none')}</dd>
         </div>
+        {occurrence.case === null ? null : (
+          <div>
+            <dt>{t('occurrenceTakenBy.title')}</dt>
+            <dd>
+              <OccurrenceCaseTakenBy occurrenceCase={occurrence.case} variant="inline" />
+            </dd>
+          </div>
+        )}
         <div className={styles.occurrenceFactWide}>
           <dt>{t('occurrenceDetail.summary.description')}</dt>
           <dd className={styles.occurrenceDescription}>
@@ -380,6 +391,14 @@ function OccurrenceDetailSections({
         <div className={styles.panelHead}>
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
+        {participant === 'driver' ? null : (
+          <ContractorReplyPanel
+            canResolve={canResolveOccurrenceCases}
+            {...(companyId === undefined ? {} : { companyId })}
+            hasDocument={occurrence.document !== null}
+            occurrenceId={occurrence.id}
+          />
+        )}
         <OccurrenceConversations
           canManageContacts={canManageContacts}
           canSend={canResolveOccurrenceCases}
@@ -459,6 +478,13 @@ function OccurrenceDetailSections({
       <OccurrenceTimelinePanel
         {...(companyId === undefined ? {} : { companyId })}
         occurrenceId={occurrence.id}
+      />
+    ),
+    tripMap: () => (
+      <OccurrenceTripMap
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
       />
     ),
   }

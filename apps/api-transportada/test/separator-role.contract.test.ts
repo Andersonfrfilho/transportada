@@ -7,6 +7,8 @@ import { createBillingRoutes } from '../src/billing/presentation/billing.routes'
 import { createBusinessCalendarSettingsRoutes } from '../src/business-calendar/presentation/business-calendar-settings.routes'
 import { createDayChecksRoutes } from '../src/business-calendar/presentation/day-checks.routes'
 import { createHolidayImportRoutes } from '../src/business-calendar/presentation/holiday-import.routes'
+import { createHolidayImportEnablementRoutes } from '../src/business-calendar/presentation/holiday-import-enablement.routes'
+import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/presentation/holiday-provider-settings.routes'
 import { createMunicipalHolidayRoutes } from '../src/business-calendar/presentation/municipal-holiday.routes'
 import { createMunicipalHolidayRuleRoutes } from '../src/business-calendar/presentation/municipal-holiday-rule.routes'
 import { createStateHolidayRoutes } from '../src/business-calendar/presentation/state-holiday.routes'
@@ -26,6 +28,8 @@ import { resolveCompanyPermissions } from '../src/identity/domain/authorization.
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createOfficeSubjectConversationRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation.routes'
+import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentation/quick-replies.routes'
 import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
@@ -104,6 +108,10 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
+    // Spec 263 T2.4b: a conversa de nota e de viagem. Ler é `fleet.read`; escrever é `trip.manage` — quem
+    // despacha fala com o motorista, e o separador monta e despacha. A ocorrência continua `occurrences.resolve`.
+    ...createOfficeSubjectConversationRoutes(dependencies),
+    ...createOfficeSubjectConversationWriteRoutes(dependencies),
     // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
     // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
     ...createQuickReplyRoutes(dependencies),
@@ -115,6 +123,11 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createBusinessCalendarSettingsRoutes(dependencies),
     // Spec 252 T4.1: a gestão da importação de feriados é configuração (`settings.manage`, ler e escrever).
     ...createHolidayImportRoutes(dependencies),
+    // Spec 262: a chave da FeriadosAPI é da instalação — ler é `settings.manage`, escrever é `holiday-import.configure`
+    // (só o `company-admin`). O separador não alcança nenhuma das três rotas.
+    ...createHolidayProviderSettingsRoutes(dependencies),
+    // Spec 262 T3.4: o liga/desliga da importação da empresa é configuração (`settings.manage`, ler e escrever).
+    ...createHolidayImportEnablementRoutes(dependencies),
     // Spec 252 T4.2: a consulta de dias de feriado da montagem é `fleet.read`, e o separador monta o roteiro.
     ...createDayChecksRoutes(dependencies),
     // Spec 237 T2.3 (ADR-0094 §6): a chegada e a primeira separação são do separador — ele confere
@@ -347,6 +360,9 @@ describe('separator role contract', () => {
        * separador já enxerga cada uma delas espalhada; aqui é a mesma informação, só unida.
        */
       'GET /trips/:id/timeline',
+      // Spec 263 T2.4b: as conversas de nota e de viagem da viagem, lidas sob `fleet.read`.
+      'GET /trips/:tripId/conversations',
+      'GET /trips/:tripId/conversations/:subjectType/:subjectId/messages',
       /**
        * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
        * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
@@ -459,6 +475,12 @@ describe('separator role contract', () => {
       /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
       'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/schedule',
+      // Spec 263 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages/read',
+      'POST /trips/:tripId/conversations/:subjectType/:subjectId/uploads',
+      'POST /trips/:tripId/conversations/open',
       /**
        * ⚠️ **Decisão escrita (spec 085 G002/G003):** o separador **alcança** a prévia de carga. Ela
        * responde "cabe no baú, e em que ordem entra?", que é a pergunta de quem carrega o caminhão
@@ -584,5 +606,18 @@ describe('cargo.measure — a permissão de quem mede a caixa', () => {
     for (const role of ['driver', 'aggregate', 'contractor'] as const) {
       expect(resolveCompanyPermissions([role])).not.toContain('cargo.measure')
     }
+  })
+})
+
+/**
+ * Spec 262 / ADR-0102 D6: o separador monta a viagem no galpão e o ajudante só acompanha; nenhum dos dois
+ * configura a chave da FeriadosAPI nem o orçamento mensal da instalação.
+ */
+describe('holiday-import.configure — a chave da FeriadosAPI não chega ao galpão', () => {
+  test('não chega ao separador nem ao ajudante, e o separador não ganha settings.manage por isso', () => {
+    for (const role of ['separator', 'helper'] as const) {
+      expect(resolveCompanyPermissions([role])).not.toContain('holiday-import.configure')
+    }
+    expect(resolveCompanyPermissions(['separator'])).not.toContain('settings.manage')
   })
 })

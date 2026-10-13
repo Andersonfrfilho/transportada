@@ -6,6 +6,7 @@
  * ⚠️ Nenhuma sentença daqui toca `billing_*`, `cte_*`, `nfse_*` ou `fiscal_sequences` — e o teste de
  * integração prova isso por **contagem lida antes e depois**, não por ausência de erro.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -92,7 +93,9 @@ export class DrizzleOccurrenceStatementRepository implements OccurrenceStatement
     const [row] = await this.database
       .select({
         cnpj: companyFiscalProfiles.cnpj,
+        displayNameMode: companyFiscalProfiles.displayNameMode,
         legalName: companyFiscalProfiles.legalName,
+        tradeName: companyFiscalProfiles.tradeName,
       })
       .from(companyFiscalProfiles)
       .where(eq(companyFiscalProfiles.companyId, input.companyId))
@@ -103,7 +106,7 @@ export class DrizzleOccurrenceStatementRepository implements OccurrenceStatement
      * seria trocar um documento comercial por um erro, e este documento não é fiscal (RF30).
      */
     if (row === undefined) return { legalName: UNKNOWN_CARRIER_NAME, taxLine: '' }
-    return { legalName: row.legalName, taxLine: `CNPJ ${row.cnpj}` }
+    return { legalName: resolveCompanyDisplayName(row), taxLine: `CNPJ ${row.cnpj}` }
   }
 
   public async findStatementObject(input: {

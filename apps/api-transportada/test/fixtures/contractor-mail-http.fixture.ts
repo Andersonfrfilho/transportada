@@ -6,6 +6,7 @@ import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
 import { createRequestHandler } from '../../src/http/request-handler.service'
+import type { RateLimitWindowStorePort } from '../../src/http/rate-limit-window.port'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity'
@@ -167,6 +168,7 @@ async function loadRoutes(input: RouteDependencies): Promise<readonly Registered
 
 export function createTestRouter(input: {
   readonly context: AuthenticatedContext<CompanyContext>
+  readonly rateLimitWindows?: RateLimitWindowStorePort
   readonly routes: readonly RegisteredRoute[]
 }) {
   const authorization = new AuthorizationService()
@@ -197,7 +199,7 @@ export function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
-    rateLimitWindows: { consume: async () => ({ allowed: true }) },
+    rateLimitWindows: input.rateLimitWindows ?? { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

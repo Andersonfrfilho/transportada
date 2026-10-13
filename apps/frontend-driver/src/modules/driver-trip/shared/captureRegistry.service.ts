@@ -17,6 +17,8 @@ export const CAPTURE_KINDS = [
   'persisting',
   /** Spec 189 T9.2 (M10): nome/documento do recebedor digitados e ainda não anexados. */
   'proof-form',
+  /** Spec 264: o microfone aberto na conversa, do pedido de permissão até enviar ou descartar o áudio. */
+  'audio-recording',
 ] as const
 export type CaptureKind = (typeof CAPTURE_KINDS)[number]
 

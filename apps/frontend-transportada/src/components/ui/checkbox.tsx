@@ -6,6 +6,7 @@ import styles from './checkbox.module.css'
 type CheckboxProps = Readonly<{
   checked: boolean
   onChange: (checked: boolean) => void
+  ariaDescribedBy?: string
   ariaLabel?: string
   disabled?: boolean
   indeterminate?: boolean
@@ -15,6 +16,7 @@ type CheckboxProps = Readonly<{
 }>
 
 export function Checkbox({
+  ariaDescribedBy,
   ariaLabel,
   checked,
   disabled = false,
@@ -34,6 +36,7 @@ export function Checkbox({
   const control = (
     <>
       <input
+        aria-describedby={ariaDescribedBy}
         aria-label={ariaLabel}
         checked={checked}
         className={styles.input}

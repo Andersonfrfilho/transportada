@@ -724,6 +724,21 @@ describe('trip use case contract', () => {
     expect(fixture.releaseCalls).toEqual([])
   })
 
+  test('refuses to unlink a document that was already released, saying so', async () => {
+    const fixture = createFixture({
+      documentResult: document({ releasedAt: '2026-08-02T09:00:00.000Z' }),
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .releaseDocument({ context: CONTEXT, documentId: DOCUMENT_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).code).toBe('TRIP_DOCUMENT_ALREADY_RELEASED')
+    expect(fixture.releaseCalls).toEqual([])
+  })
+
   test('closing an already closed trip is idempotent', async () => {
     const closedTrip = openTrip({ status: 'completed' })
     const fixture = createFixture({ stored: closedTrip })

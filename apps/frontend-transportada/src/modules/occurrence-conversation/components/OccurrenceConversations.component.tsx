@@ -1,7 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { DateDivider } from '@adatechnology/conversations-ui'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -12,55 +11,51 @@ import { AddContractorContactAction } from '@/modules/delivery-clients/component
 
 import {
   OCCURRENCE_CONVERSATIONS_QUERY_KEY,
-  useMarkConversationReadMutation,
+  useDeliverContractorReplyToDriverMutation,
   useOccurrenceConversationsQuery,
   useSendContractorPortalMessageMutation,
-  useSendDriverAppMessageMutation,
 } from '../queries/occurrenceConversation.query'
-import {
-  createDriverMessageIdempotencyKey,
-  createPortalMessageIdempotencyKey,
-  countNewIncomingMessages,
-  groupConversationByDay,
-  OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
-  validateDriverMessageDraft,
-} from '../shared/occurrenceConversation.service'
-import { insertQuickReply } from '../shared/quickReplies.service'
+import { isForwardAlreadyDone } from '../shared/conversationAttachment.service'
 import type {
-  OccurrenceConversationAttachment,
-  OccurrenceConversationMessage,
   ContractorSenderSuggestion,
   OccurrenceConversation,
+  OccurrenceConversationAttachment,
+  OccurrenceConversationMessage,
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
-import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
-import { QuickReplyPicker } from './QuickReplyPicker.component'
-import { ConversationMessage } from './ConversationMessage.component'
+import threadStyles from '../styles/occurrenceThread.module.css'
+import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
+
 import {
-  isForwardAlreadyDone,
-  recoverFromSendFailure,
-  type SendFailureRecovery,
-} from '../shared/conversationAttachment.service'
-import { resendChannelFor } from '../shared/messageStatus.service'
+  conversationLayoutStorageKey,
+  readConversationLayout,
+  resolveConversationLayout,
+  writeConversationLayout,
+  type ConversationLayoutMode,
+} from '../shared/occurrenceConversationLayout.service'
+import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.component'
+import { ConversationColumn, ConversationLayoutSwitch } from './ConversationLayoutSwitch.component'
+import { OccurrenceConversationLegend } from './OccurrenceConversationLegend.component'
+import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
+import { OccurrenceThread } from './OccurrenceThread.component'
+import {
+  OccurrenceThreadAttachments,
+  type RenderAttachmentActions,
+} from './OccurrenceThreadAttachments.component'
+import { OccurrenceThreadFailures } from './OccurrenceThreadFailures.component'
+import { OccurrenceThreadSenders } from './OccurrenceThreadSenders.component'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
-/** A chave do dia no fuso de quem vê: `en-CA` escreve `AAAA-MM-DD`. */
-const dayKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-})
-
-function dayKey(iso: string): string {
-  const moment = new Date(iso)
-  return Number.isNaN(moment.getTime()) ? iso.slice(0, 10) : dayKeyFormatter.format(moment)
+/** `localStorage` pode não existir ou lançar (janela privada, bloqueio): a preferência é conveniência. */
+function getLayoutStorage(): null | Storage {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
+  }
 }
 
-/** Spec 183 T702d: a ação sobre um anexo, montada por quem sabe fazê-la. */
-export type RenderAttachmentActions = (
-  attachment: OccurrenceConversationAttachment,
-  message: OccurrenceConversationMessage,
-) => ReactNode
+export type { RenderAttachmentActions } from './OccurrenceThreadAttachments.component'
 
 /**
  * Spec 183 T702d (P7): encaminhar à contratante o anexo que o motorista mandou — uma mensagem pelo
@@ -105,76 +100,56 @@ function ForwardToContractorAction({
   )
 }
 
-/** O fio da conversa por dia, nas duas abas. */
-type ConversationResend = NonNullable<Parameters<typeof ConversationMessage>[0]['resend']>
-
-function ConversationThread({
-  canManageContacts,
-  messages,
-  renderAddContact,
-  renderAttachmentActions,
-  resend,
-}: Readonly<{
-  canManageContacts: boolean
-  messages: OccurrenceConversation['messages']
-  renderAddContact?: (suggestion: ContractorSenderSuggestion) => ReactNode
-  renderAttachmentActions?: RenderAttachmentActions
-  resend?: ConversationResend
-}>) {
+/**
+ * Spec 248 T4.6 (RF7/RF9): leva o anexo que a contratante mandou (o boleto) ao motorista, pelo chat do app. O
+ * servidor guarda uma entrega por anexo: repetir é "já enviado", nunca outra mensagem.
+ */
+export function SendToDriverAction({
+  attachmentId,
+  occurrenceId,
+}: Readonly<{ attachmentId: string; occurrenceId: string }>) {
   const { t } = useTranslation('occurrenceConversation')
-  const [announcement, setAnnouncement] = useState('')
-  const previousIds = useRef<null | readonly string[]>(null)
-  /** Spec 183 T902 (D2): a leitura que traz mensagem nova a anuncia; a primeira, não. */
-  useEffect(() => {
-    const count = countNewIncomingMessages(previousIds.current, messages)
-    previousIds.current = messages.map((message) => message.id)
-    if (count > 0) setAnnouncement(t('thread.newMessages', { count }))
-  }, [messages, t])
-
+  const deliver = useDeliverContractorReplyToDriverMutation(occurrenceId)
+  if (deliver.isSuccess && deliver.data !== 'skipped') {
+    return (
+      <span className={styles.hint}>
+        {deliver.data === 'delivered'
+          ? t('attachment.sentToDriver')
+          : t('attachment.alreadySentToDriver')}
+      </span>
+    )
+  }
   return (
-    <div className={styles.thread}>
-      <p aria-live="polite" className={styles.srOnly}>
-        {announcement}
-      </p>
-      {groupConversationByDay(messages, dayKey).map((group) => (
-        <section aria-label={group.day} className={styles.daySection} key={group.day}>
-          <DateDivider
-            classNames={{ label: styles.dayLabel ?? '', root: styles.dayDivider ?? '' }}
-            iso={group.messages[0]?.createdAt ?? group.day}
-          />
-          {group.messages.map((message) => (
-            <ConversationMessage
-              canManageContacts={canManageContacts}
-              key={message.id}
-              message={message}
-              {...(renderAddContact === undefined ? {} : { renderAddContact })}
-              {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
-              {...(resend === undefined ? {} : { resend })}
-            />
-          ))}
-        </section>
-      ))}
-    </div>
+    <>
+      <Button
+        disabled={deliver.isPending}
+        onClick={() => deliver.mutate(attachmentId)}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        <Icon name="send" size="sm" />
+        {deliver.isPending ? t('attachment.sendingToDriver') : t('attachment.sendToDriver')}
+      </Button>
+      {deliver.isError || deliver.data === 'skipped' ? (
+        <span className={styles.error} role="alert">
+          {deliver.data === 'skipped'
+            ? t('attachment.sendToDriverSkipped')
+            : t('attachment.sendToDriverError')}
+        </span>
+      ) : null}
+    </>
   )
-}
-
-/** RF15: abrir a aba com mensagem nova marca como lida — para quem abriu, não para os outros. */
-function useMarkReadOnOpen(conversation: OccurrenceConversation | undefined): void {
-  const { mutate: markConversationRead } = useMarkConversationReadMutation()
-  const conversationId = conversation?.id
-  const unreadCount = conversation?.unreadCount ?? 0
-  useEffect(() => {
-    if (conversationId !== undefined && unreadCount > 0) markConversationRead(conversationId)
-  }, [conversationId, markConversationRead, unreadCount])
 }
 
 /**
  * Spec 183 T603 (P7): a conversa com o motorista pelo app. A mensagem vira aviso na caixa dele e
- * aparece na tela da conversa no PWA (T604). Uma chave por mensagem escrita: reenviar depois de uma
- * queda de rede não duplica.
+ * aparece na tela da conversa no PWA (T604). O fio e a caixa de envio são do `ConversationThread`
+ * do SDK; as ações por anexo e o reenvio de mensagem que falhou ficam nas faixas ao lado.
  */
 function DriverConversationPanel({
   canSend,
+  companyId,
   conversation,
   driverName,
   occurrenceId,
@@ -182,6 +157,7 @@ function DriverConversationPanel({
   renderAttachmentActions,
 }: Readonly<{
   canSend: boolean
+  companyId?: string
   conversation: OccurrenceConversation | undefined
   driverName: string
   occurrenceId: string
@@ -190,135 +166,201 @@ function DriverConversationPanel({
   renderAttachmentActions?: RenderAttachmentActions
 }>) {
   const { t } = useTranslation('occurrenceConversation')
-  const send = useSendDriverAppMessageMutation(occurrenceId)
-  const [draft, setDraft] = useState('')
-  const [idempotencyKey, setIdempotencyKey] = useState(() =>
-    createDriverMessageIdempotencyKey(() => crypto.randomUUID()),
-  )
-  const [error, setError] = useState<'required' | 'tooLong' | null>(null)
-  /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
-  const [files, setFiles] = useState<readonly File[]>([])
-  const uploaded = useRef(new Map<File, string>())
-  const [failureReason, setFailureReason] = useState<SendFailureRecovery['reason']>('generic')
-  const composerRef = useRef<HTMLTextAreaElement>(null)
-  useMarkReadOnOpen(conversation)
   const messages = conversation?.messages ?? []
-  /** Spec 183 T703: o WhatsApp que falhou volta ao compositor do app, com o mesmo texto. */
-  const resend: ConversationResend = {
-    channelFor: (message) =>
-      resendChannelFor(message, { participant: 'driver', portalAvailable: false }),
-    onResend: (message) => {
-      setDraft(message.bodyText)
-      composerRef.current?.focus()
-    },
-  }
-
-  function submit(): void {
-    const validated = validateDriverMessageDraft(draft, files.length)
-    if ('error' in validated) {
-      setError(validated.error)
-      return
+  /** Spec 183 T702d: as ações só no arquivo que o motorista mandou. */
+  const attachmentActions: RenderAttachmentActions = (attachment, message) => {
+    if (message.direction !== 'inbound') return null
+    const attachToOccurrence = renderAttachmentActions?.(attachment, message)
+    const canForward = canSend && portalAvailable
+    if (!canForward && (attachToOccurrence === null || attachToOccurrence === undefined)) {
+      return null
     }
-    setError(null)
-    send.mutate(
-      { body: validated.body, files, idempotencyKey, uploaded: uploaded.current },
-      {
-        onSuccess: () => {
-          setDraft('')
-          setFiles([])
-          uploaded.current = new Map()
-          setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
-        },
-        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
-        onError: (failure) => {
-          const recovery = recoverFromSendFailure(failure)
-          if (recovery.clearUploads) uploaded.current = new Map()
-          if (recovery.renewKey)
-            setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
-          setFailureReason(recovery.reason)
-        },
-      },
+    return (
+      <>
+        {canForward ? (
+          <ForwardToContractorAction attachmentId={attachment.id} occurrenceId={occurrenceId} />
+        ) : null}
+        {attachToOccurrence}
+      </>
     )
   }
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.panelHead}>
-        <h3>
-          {driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
-        </h3>
-      </div>
-      {messages.length === 0 ? (
-        <p className={styles.hint}>{t('driver.empty')}</p>
-      ) : (
-        <ConversationThread
-          canManageContacts={false}
+    <div className={threadStyles.panel}>
+      {messages.length === 0 ? <p className={threadStyles.hint}>{t('driver.empty')}</p> : null}
+      <OccurrenceThreadFailures
+        canResend={canSend}
+        messages={messages}
+        occurrenceId={occurrenceId}
+        participant="driver"
+        portalAvailable={false}
+      />
+      <OccurrenceThreadAttachments
+        messages={messages}
+        renderAttachmentActions={attachmentActions}
+      />
+      <OccurrenceThread
+        closedNotice={t('thread.closed.readOnly')}
+        {...(companyId === undefined ? {} : { companyId })}
+        counterpartLabel={t('thread.driver.counterpart')}
+        occurrenceId={occurrenceId}
+        participant="driver"
+        status={canSend ? 'open' : 'closed'}
+        title={driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
+      />
+    </div>
+  )
+}
+
+type ContractorConversationPanelProps = Readonly<{
+  canManageContacts: boolean
+  canSend: boolean
+  companyId?: string
+  contractorId: null | string
+  contractorName: string
+  conversation: OccurrenceConversation | undefined
+  hasDocument: boolean
+  /** Spec 248 T4.6: a viagem tem motorista para receber o boleto. */
+  hasDriver: boolean
+  occurrenceId: string
+  /** Spec 183 T654: o portal mostra a ocorrência e alguém da contratante tem conta. */
+  portalAvailable: boolean
+}>
+
+function resolveContractorClosedNotice(input: {
+  canSend: boolean
+  canWrite: boolean
+  t: (key: string) => string
+}): string {
+  if (!input.canSend) return input.t('thread.closed.readOnly')
+  if (!input.canWrite) return input.t('thread.closed.noRecipient')
+  return input.t('thread.closed.noPortal')
+}
+
+function ContractorConversationPanel({
+  canManageContacts,
+  canSend,
+  companyId,
+  contractorId,
+  contractorName,
+  conversation,
+  hasDocument,
+  hasDriver,
+  occurrenceId,
+  portalAvailable,
+}: ContractorConversationPanelProps) {
+  const { t } = useTranslation('occurrenceConversation')
+  const [isSending, setSending] = useState(false)
+  const queryClient = useQueryClient()
+  /** Spec 183 T703: o reenvio por e-mail leva o texto da mensagem que falhou ao diálogo. */
+  const [mailBody, setMailBody] = useState<string | undefined>(undefined)
+  const messages = conversation?.messages ?? []
+  const canWrite = canSend && hasDocument && contractorId !== null
+  const canWritePortal = canWrite && portalAvailable
+
+  /**
+   * Spec 248 T4.6/T4.7: o boleto que a contratante mandou segue ao motorista (quando há motorista) e, por
+   * e-mail, ao cliente da nota ou a um endereço informado — as duas ações no mesmo arquivo.
+   */
+  const attachmentActions: RenderAttachmentActions = (
+    attachment: OccurrenceConversationAttachment,
+    message: OccurrenceConversationMessage,
+  ) =>
+    canSend && message.direction === 'inbound' ? (
+      <>
+        {hasDriver ? (
+          <SendToDriverAction attachmentId={attachment.id} occurrenceId={occurrenceId} />
+        ) : null}
+        <ContractorReplyEmailActions attachmentId={attachment.id} occurrenceId={occurrenceId} />
+      </>
+    ) : null
+
+  /** Spec 183 T903 (F5): a ação de `delivery-clients`; gravado, a conversa relê. */
+  const renderAddContact = (suggestion: ContractorSenderSuggestion) =>
+    contractorId === null ? null : (
+      <AddContractorContactAction
+        contractorId={contractorId}
+        onCreated={() =>
+          void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+        }
+        suggestion={suggestion}
+      />
+    )
+
+  return (
+    <div className={threadStyles.panel}>
+      {!hasDocument ? <p className={threadStyles.hint}>{t('contractor.noDocument')}</p> : null}
+      {hasDocument && contractorId === null ? (
+        <p className={threadStyles.hint}>{t('contractor.noContractor')}</p>
+      ) : null}
+      {messages.length === 0 && canWrite ? (
+        <p className={threadStyles.hint}>{t('contractor.empty')}</p>
+      ) : null}
+
+      <OccurrenceThreadFailures
+        canResend={canWrite}
+        messages={messages}
+        occurrenceId={occurrenceId}
+        onOpenMail={(message) => {
+          setMailBody(message.bodyText)
+          setSending(true)
+        }}
+        participant="contractor"
+        portalAvailable={portalAvailable}
+      />
+      <OccurrenceThreadSenders
+        canManageContacts={canManageContacts && contractorId !== null}
+        messages={messages}
+        renderAddContact={renderAddContact}
+      />
+      {canSend ? (
+        <OccurrenceThreadAttachments
           messages={messages}
-          {...(canSend ? { resend } : {})}
-          /** Spec 183 T702d: as ações só na mensagem que o motorista mandou. */
-          renderAttachmentActions={(attachment, message) =>
-            message.direction === 'inbound' ? (
-              <>
-                {canSend && portalAvailable ? (
-                  <ForwardToContractorAction
-                    attachmentId={attachment.id}
-                    occurrenceId={occurrenceId}
-                  />
-                ) : null}
-                {renderAttachmentActions?.(attachment, message)}
-              </>
-            ) : null
+          renderAttachmentActions={attachmentActions}
+        />
+      ) : null}
+
+      {canWrite || messages.length > 0 ? (
+        <OccurrenceThread
+          closedNotice={resolveContractorClosedNotice({
+            canSend,
+            canWrite,
+            t: (key) => t(key),
+          })}
+          {...(companyId === undefined ? {} : { companyId })}
+          counterpartLabel={t('thread.contractor.counterpart')}
+          {...(canWrite
+            ? {
+                headerActions: (
+                  <Button onClick={() => setSending(true)} size="sm" type="button">
+                    <Icon name="send" size="sm" />
+                    {t('contractor.send')}
+                  </Button>
+                ),
+              }
+            : {})}
+          occurrenceId={occurrenceId}
+          participant="contractor"
+          status={canWritePortal ? 'open' : 'closed'}
+          title={
+            contractorName === ''
+              ? t('contractor.title')
+              : t('contractor.withName', { name: contractorName })
           }
         />
-      )}
-      {canSend ? (
-        <form
-          className={`${styles.panel} ${styles.composer}`}
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit()
+      ) : null}
+
+      {canSend ? <ContractorReplyEmailHistory occurrenceId={occurrenceId} /> : null}
+
+      {isSending ? (
+        <SendToContractorDialog
+          {...(mailBody === undefined ? {} : { initialBody: mailBody })}
+          onClose={() => {
+            setSending(false)
+            setMailBody(undefined)
           }}
-        >
-          <QuickReplyPicker
-            audience="driver"
-            disabled={send.isPending}
-            onPick={(text) => setDraft((current) => insertQuickReply(current, text))}
-          />
-          <label className={styles.field}>
-            <span>{t('driver.message')}</span>
-            <textarea
-              disabled={send.isPending}
-              ref={composerRef}
-              maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={3}
-              value={draft}
-            />
-            {error === null ? null : (
-              <span className={styles.error}>{t(`driver.error.${error}`)}</span>
-            )}
-          </label>
-          <ConversationAttachmentPicker
-            allowRecording
-            channel="app"
-            disabled={send.isPending}
-            files={files}
-            onChange={setFiles}
-          />
-          {send.isError ? (
-            <p className={styles.error} role="alert">
-              {failureReason === 'generic'
-                ? t('driver.error.send')
-                : t(`sendRecovery.${failureReason}`)}
-            </p>
-          ) : null}
-          <div className={styles.footer}>
-            <Button disabled={send.isPending} type="submit">
-              {send.isPending ? t('driver.sending') : t('driver.send')}
-            </Button>
-          </div>
-        </form>
+          occurrenceId={occurrenceId}
+        />
       ) : null}
     </div>
   )
@@ -348,228 +390,8 @@ type OccurrenceConversationsProps = Readonly<{
 }>
 
 /**
- * Spec 183 T654 (RF21, D9): a mensagem à contratante pelo portal. Só o texto; quem tem conta no
- * portal recebe o aviso por e-mail sem o corpo. Uma chave por mensagem escrita, como no app.
- */
-function ContractorPortalComposer({
-  occurrenceId,
-  prefill,
-}: Readonly<{
-  occurrenceId: string
-  /** Spec 183 T703: o texto de uma mensagem que falhou em outro canal, a reenviar por aqui. */
-  prefill: null | Readonly<{ nonce: number; text: string }>
-}>) {
-  const { t } = useTranslation('occurrenceConversation')
-  const send = useSendContractorPortalMessageMutation(occurrenceId)
-  const [draft, setDraft] = useState('')
-  const composerRef = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => {
-    if (prefill === null) return
-    setDraft(prefill.text)
-    composerRef.current?.focus()
-  }, [prefill])
-  const [idempotencyKey, setIdempotencyKey] = useState(() =>
-    createPortalMessageIdempotencyKey(() => crypto.randomUUID()),
-  )
-  const [error, setError] = useState<'required' | 'tooLong' | null>(null)
-  /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
-  const [files, setFiles] = useState<readonly File[]>([])
-  const uploaded = useRef(new Map<File, string>())
-  const [failureReason, setFailureReason] = useState<SendFailureRecovery['reason']>('generic')
-
-  function submit(): void {
-    const validated = validateDriverMessageDraft(draft, files.length)
-    if ('error' in validated) {
-      setError(validated.error)
-      return
-    }
-    setError(null)
-    send.mutate(
-      { body: validated.body, files, idempotencyKey, uploaded: uploaded.current },
-      {
-        onSuccess: () => {
-          setDraft('')
-          setFiles([])
-          uploaded.current = new Map()
-          setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
-        },
-        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
-        onError: (failure) => {
-          const recovery = recoverFromSendFailure(failure)
-          if (recovery.clearUploads) uploaded.current = new Map()
-          if (recovery.renewKey)
-            setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
-          setFailureReason(recovery.reason)
-        },
-      },
-    )
-  }
-
-  return (
-    <form
-      className={`${styles.panel} ${styles.composer}`}
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault()
-        submit()
-      }}
-    >
-      <QuickReplyPicker
-        audience="contractor"
-        disabled={send.isPending}
-        onPick={(text) => setDraft((current) => insertQuickReply(current, text))}
-      />
-      <label className={styles.field}>
-        <span>{t('contractor.portal.message')}</span>
-        <textarea
-          disabled={send.isPending}
-          ref={composerRef}
-          maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
-          onChange={(event) => setDraft(event.target.value)}
-          rows={3}
-          value={draft}
-        />
-        {error === null ? (
-          <span className={styles.hint}>{t('contractor.portal.hint')}</span>
-        ) : (
-          <span className={styles.error}>{t(`contractor.portal.error.${error}`)}</span>
-        )}
-      </label>
-      <ConversationAttachmentPicker
-        allowRecording
-        channel="portal"
-        disabled={send.isPending}
-        files={files}
-        onChange={setFiles}
-      />
-      {send.isError ? (
-        <p className={styles.error} role="alert">
-          {failureReason === 'generic'
-            ? t('contractor.portal.error.send')
-            : t(`sendRecovery.${failureReason}`)}
-        </p>
-      ) : null}
-      <div className={styles.footer}>
-        <Button disabled={send.isPending} type="submit">
-          {send.isPending ? t('contractor.portal.sending') : t('contractor.portal.send')}
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-function ContractorConversationPanel({
-  canManageContacts,
-  canSend,
-  contractorId,
-  contractorName,
-  conversation,
-  hasDocument,
-  occurrenceId,
-  portalAvailable,
-}: Readonly<{
-  canManageContacts: boolean
-  canSend: boolean
-  contractorId: null | string
-  contractorName: string
-  conversation: OccurrenceConversation | undefined
-  hasDocument: boolean
-  occurrenceId: string
-  /** Spec 183 T654: o portal mostra a ocorrência e alguém da contratante tem conta. */
-  portalAvailable: boolean
-}>) {
-  const { t } = useTranslation('occurrenceConversation')
-  const [isSending, setSending] = useState(false)
-  const queryClient = useQueryClient()
-  /** Spec 183 T703: o reenvio leva o texto ao compositor do portal ou ao diálogo do e-mail. */
-  const [portalPrefill, setPortalPrefill] = useState<null | { nonce: number; text: string }>(null)
-  const [mailBody, setMailBody] = useState<string | undefined>(undefined)
-  useMarkReadOnOpen(conversation)
-
-  const messages = conversation?.messages ?? []
-  const canWrite = canSend && hasDocument && contractorId !== null
-  const resend: ConversationResend = {
-    channelFor: (message) =>
-      resendChannelFor(message, { participant: 'contractor', portalAvailable }),
-    onResend: (message, channel) => {
-      if (channel === 'portal') {
-        setPortalPrefill({ nonce: Date.now(), text: message.bodyText })
-        return
-      }
-      setMailBody(message.bodyText)
-      setSending(true)
-    },
-  }
-
-  return (
-    <div className={styles.panel}>
-      <div className={styles.panelHead}>
-        <h3>
-          {contractorName === ''
-            ? t('contractor.title')
-            : t('contractor.withName', { name: contractorName })}
-        </h3>
-        {canWrite ? (
-          <Button onClick={() => setSending(true)} size="sm" type="button">
-            {t('contractor.send')}
-          </Button>
-        ) : null}
-      </div>
-
-      {!hasDocument ? <p className={styles.hint}>{t('contractor.noDocument')}</p> : null}
-      {hasDocument && contractorId === null ? (
-        <p className={styles.hint}>{t('contractor.noContractor')}</p>
-      ) : null}
-
-      {messages.length === 0 ? (
-        hasDocument && contractorId !== null ? (
-          <p className={styles.hint}>{t('contractor.empty')}</p>
-        ) : null
-      ) : (
-        <ConversationThread
-          canManageContacts={canManageContacts && contractorId !== null}
-          messages={messages}
-          {...(contractorId === null
-            ? {}
-            : {
-                /** Spec 183 T903 (F5): a ação de `delivery-clients`; gravado, a conversa relê. */
-                renderAddContact: (suggestion: ContractorSenderSuggestion) => (
-                  <AddContractorContactAction
-                    contractorId={contractorId}
-                    onCreated={() =>
-                      void queryClient.invalidateQueries({
-                        queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY],
-                      })
-                    }
-                    suggestion={suggestion}
-                  />
-                ),
-              })}
-          {...(canWrite ? { resend } : {})}
-        />
-      )}
-
-      {canWrite && portalAvailable ? (
-        <ContractorPortalComposer occurrenceId={occurrenceId} prefill={portalPrefill} />
-      ) : null}
-
-      {isSending ? (
-        <SendToContractorDialog
-          {...(mailBody === undefined ? {} : { initialBody: mailBody })}
-          onClose={() => {
-            setSending(false)
-            setMailBody(undefined)
-          }}
-          occurrenceId={occurrenceId}
-        />
-      ) : null}
-    </div>
-  )
-}
-
-/**
  * Spec 183 T407 (P4): as conversas da ocorrência, em abas por participante montadas do nosso lado
- * (o pacote não tem abas — T101). Hoje só a Contratante por e-mail; a do Motorista chega na T603.
+ * (o pacote não tem abas — T101). Cada aba é um `ConversationThread` do SDK, o mesmo desenho do app do motorista.
  */
 export function OccurrenceConversations({
   canManageContacts,
@@ -585,6 +407,18 @@ export function OccurrenceConversations({
 }: OccurrenceConversationsProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [tab, setTab] = useState('contractor')
+  const layoutStorageKey = conversationLayoutStorageKey(companyId)
+  const [storedLayout, setStoredLayout] = useState(() =>
+    readConversationLayout(getLayoutStorage(), layoutStorageKey),
+  )
+  const layout = resolveConversationLayout({
+    isWide: useMinWidth('64rem'),
+    stored: storedLayout,
+  })
+  function handleLayoutChange(mode: ConversationLayoutMode): void {
+    setStoredLayout(mode)
+    writeConversationLayout(getLayoutStorage(), layoutStorageKey, mode)
+  }
   const query = useOccurrenceConversationsQuery({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: true,
@@ -615,26 +449,30 @@ export function OccurrenceConversations({
     )
   }
 
+  const portalAvailable = query.data?.contractorPortal.available ?? false
   const contractorPanel = (
     <ContractorConversationPanel
       canManageContacts={canManageContacts}
       canSend={canSend}
+      {...(companyId === undefined ? {} : { companyId })}
       contractorId={contractorId}
       contractorName={contractorName}
       conversation={contractorConversation}
       hasDocument={hasDocument}
+      hasDriver={driverName !== null}
       occurrenceId={occurrenceId}
-      portalAvailable={query.data?.contractorPortal.available ?? false}
+      portalAvailable={portalAvailable}
     />
   )
   const driverPanel =
     driverName === null ? null : (
       <DriverConversationPanel
         canSend={canSend}
+        {...(companyId === undefined ? {} : { companyId })}
         conversation={driverConversation}
         driverName={driverName}
         occurrenceId={occurrenceId}
-        portalAvailable={query.data?.contractorPortal.available ?? false}
+        portalAvailable={portalAvailable}
         {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
       />
     )
@@ -645,7 +483,7 @@ export function OccurrenceConversations({
     return driverPanel ?? <p className={styles.hint}>{t('driver.noDriver')}</p>
   }
 
-  return (
+  const tabs = (
     <Tabs
       ariaLabel={t('tabs.ariaLabel')}
       items={[
@@ -671,5 +509,26 @@ export function OccurrenceConversations({
       onChange={setTab}
       value={tab}
     />
+  )
+  /** Duas conversas ao mesmo tempo: o item enviado de uma coluna aparece na outra sem trocar de aba. */
+  const columns = (
+    <div className={threadStyles.columns}>
+      <ConversationColumn participant="contractor" unreadCount={unread}>
+        {contractorPanel}
+      </ConversationColumn>
+      {driverPanel === null ? null : (
+        <ConversationColumn participant="driver" unreadCount={driverUnread}>
+          {driverPanel}
+        </ConversationColumn>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={threadStyles.panel}>
+      <ConversationLayoutSwitch layout={layout} onChange={handleLayoutChange} />
+      <OccurrenceConversationLegend />
+      {layout === 'side-by-side' ? columns : tabs}
+    </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   MAX_TRUSTED_PROXY_HOPS,
 } from '../shared/client-ip.constant'
 import type { ApiEnvironment } from '../shared/api.types'
+import { AUDIO_TRANSCRIPTION_DEFAULT_MAX_DURATION_MS } from '../shared/conversation-audio-transcription.constant'
 import {
   DEFAULT_NFSE_PROVIDER_API_VERSION,
   NFSE_PROVIDER_API_VERSIONS,
@@ -216,6 +217,16 @@ const environmentSchema = z.object({
   NFSE_PROVIDER_API_VERSION: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.enum(NFSE_PROVIDER_API_VERSIONS).default(DEFAULT_NFSE_PROVIDER_API_VERSION),
+  ),
+  // Spec 264: teto de duração do áudio transcrito, só informado pela API (o worker aplica o mesmo valor).
+  AUDIO_TRANSCRIPTION_MAX_DURATION_MS: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(3_600_000)
+      .default(AUDIO_TRANSCRIPTION_DEFAULT_MAX_DURATION_MS),
   ),
   // Endereço público desta instalação, usado para publicar no provedor de identidade a URL da foto
   // de perfil. Não é adivinhável a partir do request: atrás de proxy o `Host` é o do proxy, e o
@@ -424,6 +435,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     apiPublicUrl: parsed.API_PUBLIC_URL,
     driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
+    audioTranscriptionMaxDurationMs: parsed.AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     nfseProviderApiVersion: parsed.NFSE_PROVIDER_API_VERSION,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,

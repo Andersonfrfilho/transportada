@@ -20,14 +20,26 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 import { contractorContacts, contractorMailMessages } from './contractor-mail.schema.js'
 import { contractors } from './delivery-client.schema.js'
 import { companies, identityUsers } from './identity.schema.js'
+import {
+  CLIENT_MESSAGE_ID_CHARACTERS_PATTERN,
+  CLIENT_MESSAGE_ID_MAX_LENGTH,
+  CLIENT_MESSAGE_ID_MIN_LENGTH,
+  CONVERSATION_PROTOCOL_PATTERN,
+  OCCURRENCE_CONVERSATION_SUBJECT,
+  OCCURRENCE_CONVERSATION_SUBJECT_TYPES,
+  type OccurrenceConversationSubjectType,
+} from '../shared/occurrence-conversation-subject.constant.js'
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
+import { tripDocuments, trips } from './trip.schema.js'
 
 /** As duas fontes da listagem de ocorrências (`trip_stop_occurrences`, `trip_document_occurrences`). */
 export const OCCURRENCE_CONVERSATION_KINDS = ['stop', 'document'] as const
@@ -69,13 +81,28 @@ export const occurrenceConversations = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>().notNull(),
+    /** Spec 263: o assunto da conversa; toda linha anterior é `occurrence`. */
+    subjectType: varchar('subject_type', { length: 16 })
+      .$type<OccurrenceConversationSubjectType>()
+      .notNull()
+      .default(OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE),
+    /** Nulo nas conversas de nota e de viagem (o CHECK de forma prende). */
+    occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>(),
     /**
      * Sem FK, como `trip_occurrence_cases`: a ocorrência vive em duas tabelas, e `occurrence_kind`
      * diz qual. Quem abre a conversa confere a ocorrência dentro da empresa antes.
      */
-    occurrenceId: uuid('occurrence_id').notNull(),
+    occurrenceId: uuid('occurrence_id'),
+    /** Spec 263: a viagem da conversa de nota ou de viagem. */
+    tripId: uuid('trip_id'),
+    /** Spec 263: o vínculo nota-viagem (`trip_documents.id`) da conversa de nota. */
+    tripDocumentId: uuid('trip_document_id'),
     participant: text().$type<OccurrenceConversationParticipant>().notNull(),
+    /**
+     * Spec 263 D8: `AAMMDD-XXXX`, gerado pelo trigger `BEFORE INSERT` e imutável (`BEFORE UPDATE`). O padrão
+     * `''` é só a sentinela que deixa o INSERT existente intocado: o CHECK o recusa e o trigger sempre o troca.
+     */
+    protocol: text().notNull().default(''),
     contractorId: uuid('contractor_id'),
     /** O usuário do motorista (vínculo ativo): é por ele que o app e o WhatsApp verificado chegam. */
     driverUserId: uuid('driver_user_id'),
@@ -101,10 +128,39 @@ export const occurrenceConversations = pgTable(
       table.participant,
     ),
     unique('occurrence_conversations_public_ref_unique').on(table.publicRef),
+    unique('occurrence_conversations_company_protocol_unique').on(table.companyId, table.protocol),
+    uniqueIndex('occurrence_conversations_document_subject_unique')
+      .on(table.companyId, table.tripDocumentId, table.participant)
+      .where(
+        sql`${table.subjectType} = ${sql.raw(`'${OCCURRENCE_CONVERSATION_SUBJECT.DOCUMENT}'`)}`,
+      ),
+    uniqueIndex('occurrence_conversations_trip_subject_unique')
+      .on(table.companyId, table.tripId, table.participant)
+      .where(sql`${table.subjectType} = ${sql.raw(`'${OCCURRENCE_CONVERSATION_SUBJECT.TRIP}'`)}`),
+    index('occurrence_conversations_driver_user_idx')
+      .on(table.companyId, table.driverUserId)
+      .where(sql`${table.participant} = 'driver'`),
+    index('occurrence_conversations_trip_idx')
+      .on(table.companyId, table.tripId)
+      .where(sql`${table.tripId} is not null`),
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'occurrence_conversations_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'occurrence_conversations_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'occurrence_conversations_trip_document_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -125,6 +181,21 @@ export const occurrenceConversations = pgTable(
     check(
       'occurrence_conversations_occurrence_kind_check',
       sql`${table.occurrenceKind} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_KINDS))})`,
+    ),
+    check(
+      'occurrence_conversations_subject_type_check',
+      sql`${table.subjectType} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_SUBJECT_TYPES))})`,
+    ),
+    /** ADR-0101: ocorrência é `occurrence_*` e nada mais; nota e viagem são só do motorista, sem `occurrence_*`. */
+    check(
+      'occurrence_conversations_subject_shape_check',
+      sql`(${table.subjectType} = 'occurrence' and ${table.occurrenceKind} is not null and ${table.occurrenceId} is not null and ${table.tripId} is null and ${table.tripDocumentId} is null)
+        or (${table.subjectType} = 'document' and ${table.participant} = 'driver' and ${table.tripId} is not null and ${table.tripDocumentId} is not null and ${table.occurrenceKind} is null and ${table.occurrenceId} is null)
+        or (${table.subjectType} = 'trip' and ${table.participant} = 'driver' and ${table.tripId} is not null and ${table.tripDocumentId} is null and ${table.occurrenceKind} is null and ${table.occurrenceId} is null)`,
+    ),
+    check(
+      'occurrence_conversations_protocol_check',
+      sql`${table.protocol} ~ ${sql.raw(`'${CONVERSATION_PROTOCOL_PATTERN}'`)}`,
     ),
     check(
       'occurrence_conversations_participant_check',
@@ -184,6 +255,8 @@ export const occurrenceConversationMessages = pgTable(
     mailMessageId: uuid('mail_message_id'),
     /** RF8: o id opaco da Meta, sem FK para o schema `meta_whatsapp`; é por ele que o status chega. */
     providerMessageId: text('provider_message_id'),
+    /** Spec 263: o eco da `Idempotency-Key` do app (a fila offline não duplica na troca de rota). */
+    clientMessageId: text('client_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -274,6 +347,13 @@ export const occurrenceConversationMessages = pgTable(
       sql`${table.channel} <> 'portal' or ${table.status} is null or ${table.status} in ('delivered', 'read')`,
     ),
     check(
+      'occurrence_conversation_messages_client_message_id_check',
+      sql`${table.clientMessageId} is null or (char_length(${table.clientMessageId}) between ${sql.raw(String(CLIENT_MESSAGE_ID_MIN_LENGTH))} and ${sql.raw(String(CLIENT_MESSAGE_ID_MAX_LENGTH))} and ${table.clientMessageId} ~ ${sql.raw(`'${CLIENT_MESSAGE_ID_CHARACTERS_PATTERN}'`)})`,
+    ),
+    uniqueIndex('occurrence_conversation_messages_client_message_unique')
+      .on(table.companyId, table.conversationId, table.direction, table.clientMessageId)
+      .where(sql`${table.clientMessageId} is not null`),
+    check(
       'occurrence_conversation_messages_body_length_check',
       sql`length(${table.bodyText}) <= 8000`,
     ),
@@ -338,6 +418,10 @@ export const occurrenceConversationAttachments = pgTable(
       sql`${table.durationMs} is null or ${table.durationMs} > 0`,
     ),
     index('occurrence_conversation_attachments_message_idx').on(table.companyId, table.messageId),
+    /** Spec 264: a descoberta da transcrição varre só os áudios recentes a cada ciclo. */
+    index('occurrence_conversation_attachments_audio_created_idx')
+      .on(table.createdAt)
+      .where(sql`${table.contentType} like 'audio/%'`),
   ],
 )
 
@@ -469,8 +553,14 @@ export const occurrenceConversationUnassigned = pgTable(
 )
 
 /** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — a mesma divisão das abas. */
-export const COMPANY_QUICK_REPLY_AUDIENCES = OCCURRENCE_CONVERSATION_PARTICIPANTS
-export type CompanyQuickReplyAudience = OccurrenceConversationParticipant
+export const COMPANY_QUICK_REPLY_AUDIENCES = [
+  ...OCCURRENCE_CONVERSATION_PARTICIPANTS,
+  'driver_reply',
+] as const
+export type CompanyQuickReplyAudience = (typeof COMPANY_QUICK_REPLY_AUDIENCES)[number]
+
+/** Spec 263 D11: as respostas prontas do MOTORISTA ao escritório (as demais são do escritório a eles). */
+export const DRIVER_REPLY_AUDIENCE = 'driver_reply' satisfies CompanyQuickReplyAudience
 
 /** O teto do texto de uma resposta rápida (RF12): é um começo de mensagem, não um modelo. */
 export const COMPANY_QUICK_REPLY_MAX_LENGTH = 500
@@ -534,8 +624,11 @@ export const occurrenceConversationUploads = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>().notNull(),
-    occurrenceId: uuid('occurrence_id').notNull(),
+    /** Nulos no envio de arquivo da conversa de nota ou de viagem, que aponta `conversation_id`. */
+    occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>(),
+    occurrenceId: uuid('occurrence_id'),
+    /** Spec 263: a conversa de nota ou de viagem; exclusivo com `occurrence_kind` + `occurrence_id`. */
+    conversationId: uuid('conversation_id'),
     participant: text().$type<OccurrenceConversationParticipant>().notNull(),
     channel: text().$type<OccurrenceConversationChannel>().notNull(),
     requestedByUserId: uuid('requested_by_user_id').notNull(),
@@ -555,6 +648,13 @@ export const occurrenceConversationUploads = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'occurrence_conversation_uploads_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.conversationId],
+      foreignColumns: [occurrenceConversations.companyId, occurrenceConversations.id],
+      name: 'occurrence_conversation_uploads_conversation_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -580,6 +680,11 @@ export const occurrenceConversationUploads = pgTable(
     check(
       'occurrence_conversation_uploads_occurrence_kind_check',
       sql`${table.occurrenceKind} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_KINDS))})`,
+    ),
+    check(
+      'occurrence_conversation_uploads_subject_check',
+      sql`(${table.occurrenceKind} is not null and ${table.occurrenceId} is not null and ${table.conversationId} is null)
+        or (${table.occurrenceKind} is null and ${table.occurrenceId} is null and ${table.conversationId} is not null)`,
     ),
     check('occurrence_conversation_uploads_size_check', sql`${table.declaredSizeBytes} > 0`),
     check(

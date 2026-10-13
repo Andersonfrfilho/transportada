@@ -1,0 +1,294 @@
+/* O fio da ocorrência é o `ConversationThread` do SDK (o mesmo do app do motorista); aqui só a moldura, o mapa dos
+ * `--cv-p-*` (reaproveitado de subjectConversation.module.css) e as faixas de ação que o SDK não tem porta para
+ * desenhar: arquivos recebidos, remetente fora dos contatos e mensagem que não chegou. Mobile primeiro. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  height: min(40rem, 78dvh);
+  min-height: 22rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.frame > :global(.cv-p-root) {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.notices {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notice {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-inline-start-width: 0.25rem;
+  background: color-mix(in srgb, var(--color-graphite) 85%, var(--color-asphalt));
+}
+
+.noticeInfo {
+  border-inline-start-color: var(--color-copper);
+}
+
+.noticeAlert {
+  border-inline-start-color: var(--color-alert);
+}
+
+.noticeTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  font-weight: 600;
+}
+
+.noticeAlert .noticeTitle {
+  color: var(--color-alert-ink);
+}
+
+.noticeInfo .noticeTitle {
+  color: var(--color-copper-ink);
+}
+
+.noticeBody {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--field-font-size-compact);
+}
+
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.error {
+  color: var(--color-alert-ink);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.tag {
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.attachmentList {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.attachmentFile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-fog);
+  font-size: var(--field-font-size-compact);
+  text-decoration: none;
+}
+
+.attachmentFile:hover,
+.attachmentFile:focus-visible {
+  text-decoration: underline;
+}
+
+.attachmentName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse) {
+  .attachmentFile,
+  .noticeActions button,
+  .layoutSwitch button,
+  .legend button {
+    min-height: var(--touch-target);
+  }
+}
+
+/* Cada participante tem cor e ícone próprios; cor nunca vem sozinha (sempre ícone + nome). Matizes separados no
+ * círculo: contratante azul-petróleo, motorista âmbar/cobre, operador verde. Tudo derivado dos tokens da casa. */
+.panel,
+.frame,
+.legend,
+.columns {
+  --tone-contractor-color: color-mix(in srgb, var(--color-zone-0) 62%, var(--color-fog));
+  --tone-driver-color: var(--color-copper-ink);
+  --tone-operator-color: var(--color-ready-ink);
+}
+
+.toneContractor {
+  --participant-color: var(--tone-contractor-color);
+}
+
+.toneDriver {
+  --participant-color: var(--tone-driver-color);
+}
+
+.toneOperator {
+  --participant-color: var(--tone-operator-color);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--participant-color);
+  color: var(--participant-color);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  font-weight: 600;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  border: 2px solid var(--participant-color);
+  border-radius: 50%;
+  color: var(--participant-color);
+  background: var(--color-graphite);
+}
+
+.channel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+/* A borda do balão diz de quem é: a do operador (minha) em verde; a do outro lado na cor do participante da aba. */
+.frame :global(.cv-p-bubble--mine) {
+  border: 1px solid var(--tone-operator-color);
+}
+
+.frame :global(.cv-p-bubble:not(.cv-p-bubble--mine)) {
+  border: 1px solid var(--participant-color);
+}
+
+/* Mensagem que chega (também a levada de uma conversa à outra): entrada curta, só opacidade e deslocamento. */
+@keyframes bubbleEnter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.frame :global(.cv-p-bubble) {
+  animation: bubbleEnter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame :global(.cv-p-bubble) {
+    animation: none;
+  }
+}
+
+.legend {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.legendBody {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.legendList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.layoutSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Lado a lado só em tela larga (64 rem); abaixo disso as colunas empilham, e o celular segue em abas por padrão. */
+.columns {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.column {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.columnHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 3px solid var(--participant-color);
+}
+
+.unread {
+  padding: 0 var(--space-2);
+  color: var(--color-ink-on-accent);
+  background: var(--participant-color);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+@media (min-width: 64rem) {
+  .columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

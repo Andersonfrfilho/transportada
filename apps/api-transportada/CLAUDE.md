@@ -43,10 +43,12 @@ Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →
 `route.execute` → `parse` (Zod) → `handle` → use-case → repositório.
 
-O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date` (`CORS_EXPOSE_HEADERS` em
-`src/shared/api.constant.ts`) só à origem permitida: sem ele o navegador não deixa o app do motorista ler o
-`Date` da resposta, e o desvio do relógio (spec 234) nunca é medido — sem erro nenhum. Contrato em
-`test/cors.contract.test.ts`.
+O CORS (`applyCorsHeaders`) expõe `access-control-expose-headers: Date, Retry-After, Content-Disposition`
+(`CORS_EXPOSE_HEADERS` em `src/shared/api.constant.ts`) só à origem permitida: sem `Date` o app do motorista não lê o
+relógio da resposta e o desvio (spec 234) nunca é medido; sem `Content-Disposition` todo download (CT-e XML/ZIP,
+relatórios, PDFs) perde o nome que o servidor decidiu, porque painel e API são origens diferentes — sem erro nenhum, só
+o nome de fallback. Rota nova que devolve cabeçalho que o cliente lê entre origens entra nessa lista. Contrato da lista
+exata em `test/cors.contract.test.ts`; o smoke do CT-e do painel lê o valor deste arquivo em vez de fingi-lo.
 
 **Expurgo de posição por empresa** (spec 239): tabela `company_location_retention_settings`, rotas
 `GET`/`PUT /company-settings/location-retention` (`settings.manage`), carência 24 h, `retention_days 30–90`. Detalhe:
@@ -129,11 +131,33 @@ docs/ai-context § "Spec 252 T4.2".
 com 1 ou 30 paradas; +1 com parada aberta mas nenhuma que avise (sem ETA e sem começar), +0 sem parada aberta. Falha ou calendário recusado só tira o aviso e loga `driver_holiday_warning_unavailable` (ids e contagem). A nota,
 a pontualidade do comprovante, `missingAfterHours` e o repositório da leitura **não citam** `business-calendar` nem `holiday-warning` — nem em comentário (contrato
 `driver-holiday-warning-isolation`). Detalhe: docs/ai-context § "Spec 252 T4.3".
+A chave da FeriadosAPI e o liga/desliga (spec 262, ADR-0102; Fases 2 e 3 em staging): tabela da INSTALAÇÃO `holiday_provider_settings` (sem `company_id`; chave
+selada A256GCM com AAD `…holiday-provider-token:v1:${settingsId}`, dica de 4 caracteres, `version`, orçamento NULL = o padrão 4500 — o `GET` devolve o valor
+efetivo e `budgetOrigin`). Rotas `GET` (`settings.manage`) e `PUT`/`DELETE …/token` (`holiday-import.configure`, só `company-admin`, balde `postgres`
+`holiday-provider-settings` de 10/h por empresa+usuário, **não** global) em `/holiday-imports/provider-settings`, e `GET|PUT /company-settings/holiday-import`
+(`settings.manage`; upsert só de `is_enabled`). Só `drizzle-holiday-provider-settings.repository.ts` importa a tabela (contrato
+`holiday-import-global-isolation`); `settingsId` é gerado antes de selar; nada de chave em resposta, log ou auditoria. A escrita é permissão dedicada
+`holiday-import.configure` (só `company-admin`, **no fim** de `TRANSPORTADA_PERMISSIONS`: o painel compara a lista em ordem); recusas `400 HOLIDAY_PROVIDER_TOKEN_INVALID`,
+`409 HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT`, `500 HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE`; auditoria `holiday-provider-settings.{saved,token-removed}` e
+`holiday-import.enablement-changed` (a trilha cai na empresa do ator, sem chave, dica nem envelope). ⚠️ A API **não vai a `main` antes do painel da Fase 1**
+(a permissão nova derruba o `/auth/me` do painel antigo) e `CORS_EXPOSE_HEADERS` é só `Date`, então o `Retry-After` do 429 não chega ao navegador. Detalhe:
+docs/ai-context § "Spec 262 (Fases 2 e 3)", `docs/SECURITY.md` e `specs/262-*/evidence.md`.
 O prazo de entrega por nota (spec 236 T1.2, ADR-0096 §6): `documents[].deliveryDeadline` no detalhe da viagem (só no `TripDocumentDetail`),
 derivado na leitura da **cópia** do prazo na chegada, com o calendário da cidade do destino físico (desvio manual por cima) carregado **uma vez
 por viagem**: +0 consultas sem chegada, exatamente +6 com candidata (desvio, entrega e as quatro do calendário, **em série**). O relógio é
 injetado (`clock` em `DrizzleTripRepository`, só em `main.ts`); sem ele o campo não é calculado. Recusa do calendário vira `null` com
 `warn` só de ids e código. Detalhe: docs/ai-context § "Spec 236 T1.2".
+
+## O nome da empresa tem uma escolha só (display_name_mode)
+
+`company_fiscal_profiles.display_name_mode` (`trade_name` padrão | `legal_name`, por empresa/CNPJ, editado em Configurações → Empresa)
+decide o nome mostrado onde ele só é lido: e-mails de ocorrência e de correção de endereço, PDF da fatura, demonstrativo de ocorrência,
+descrição do barracão e `units[].displayName` da rota pública da landing (de onde saem a marca do painel, do app do motorista, do login
+Keycloak e dos e-mails de código). **Toda tela que mostra o nome da empresa chama `resolveCompanyDisplayName`**
+(`companies/domain/company-display-name.policy.ts`); fantasia vazia cai na razão social nos dois modos. Documento fiscal (CT-e, MDF-e,
+NFS-e) **nunca** passa por ali: `xNome`/`razaoSocial` é sempre a razão social. `PATCH /company-settings` sem `displayNameMode` não mexe
+na escolha (o painel publicado antes dela não a conhece). Publicar: a API aceita a chave ausente, mas o painel publicado tem guarda de
+chaves exatas no perfil — o painel desta mudança aceita a resposta com e sem a chave.
 
 ## Banco
 
@@ -511,6 +535,17 @@ ocorrência seria autoaprovação, o mesmo erro que a ADR-0067 fechou) conduz `r
 (só no papel `contractor`, nunca em papel interno) é do contratante no portal, e só alcança
 `awaiting_contractor → decided`.
 
+**Quem pegou a tratativa é derivado, não coluna** (spec 164, `occurrence-case-taken-by.support.ts`): é o ator da
+transição **mais recente `→ under_review`** (ação `review`, a única porta da tratativa para a frente; `recorded` só
+nasce na abertura e `returned_to_warehouse`/`closed`/`cancelled` são terminais, então hoje há no máximo um). Sai em
+`case.takenBy { displayName, takenAt } | null` do feed e do detalhe (`GET /trip-occurrences[/:id]`) — só o nome do
+perfil, nunca e-mail, telefone nem CPF —, sempre ligado ao `company_id` da própria tratativa e ao ator `internal`.
+Caso cancelado antes do `review` fica `null`. Na linha do tempo, evento de ator `contractor` sai com `name: null` (o
+operador vê "Contratante", nunca a conta do portal). O portal da contratante **nunca** importa perfil nem o histórico
+(contrato negativo em `test/trip-schema/tenant-safety.contract.ts` + `trip-occurrence-case.integration.ts`). Chave nova
+em resposta: o painel publicado tolera (`isCaseView` não é de chaves exatas), mas a ordem da ADR-0081 §9 vale — painel
+com `takenBy` opcional antes, API depois.
+
 **A fronteira de visibilidade do portal é do SQL, não da tela.** `contractor-occurrence.query.ts` faz
 `inner join` com `trip_occurrence_cases` filtrando `status in ('awaiting_contractor', 'decided',
 'closed')` **dentro da consulta**, somado ao recorte de `ContractorScope` (ADR-0050 §4). Tratativa
@@ -573,7 +608,8 @@ docs/ai-context § "A ocorrência tem duas conversas".
     anterior deixa de lê-la;
   - a resposta de quem não é o destinatário é 409 `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`;
   - a tripulação **não é fixa**: troca-se até `route_planned` (spec 217) e, com a viagem na rua,
-    por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097), que grava `trip_crew_events`;
+    por `POST /v1/trips/:id/crew-transfers` (spec 249, ADR-0097; janela: na rua e concluída), que grava
+    `trip_crew_events`;
     a conversa segue o motorista principal de agora.
 - **A viagem na rua recebe notas** (spec 257, exceção do ADR-0043 §2): `POST /v1/trips/:id/documents/after-dispatch`
   (`trip.report-on-behalf`, janela `dispatched`/`in_transit`/`on_delivery_route`) grava `trip_document_link_events`;
@@ -589,6 +625,14 @@ docs/ai-context § "A ocorrência tem duas conversas".
   motorista (`driver-occurrence-conversation-send`, 30/300 s).
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
+- **O motorista vê o estado do retorno da contratante na nota** (spec 248 T5.4): `GET /me/trips/current` traz `documents[].registeredOccurrences:
+[{ id, contractorReply: { status } | null }]`, só das ocorrências da nota que abriram retorno (a nota sem retorno não leva a chave). **Mínimo e sem dado pessoal**: id da
+  ocorrência e `status` do vocabulário de `occurrence-contractor-reply.constant.ts` — nada de prazo, endereço, anexo nem nota do operador. Montado pelo caso de uso
+  (`attach-driver-document-contractor-replies.service.ts`), **depois do recorte pelo vínculo** e só com as notas das viagens dele (BOLA: nota ou viagem alheia nunca
+  entra na consulta), em UMA consulta com `company_id` nas duas tabelas (`drizzle-driver-document-contractor-reply.repository.ts`); só a rota do app recebe a
+  dependência (o fluxo do WhatsApp não). Falha da leitura só tira o campo (`driver_contractor_reply_unavailable`, contagem sem id). Contratos:
+  `test/trip-domain/driver-document-contractor-reply.contract.ts`, `test/integration/driver-document-contractor-reply.integration.ts`. ⚠️ **Ordem de publicação
+  (ADR-0081 §9): o app do motorista (guarda tolerante) vai ANTES desta API** — o app anterior descarta a chave que não conhece e não quebra, mas só o app novo a mostra.
 
 ## Fleet — ficha do motorista e geocodificação
 

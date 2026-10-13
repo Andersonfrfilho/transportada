@@ -127,6 +127,13 @@ import { createStorageAttachmentReaderGateway } from './aggregate-attachment/inf
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
+import { createOccurrenceContractorReplyAlertRoutine } from './occurrence-contractor-reply-alert/application/occurrence-contractor-reply-alert.routine.js'
+import { createContractorReplyAlertNotifier } from './occurrence-contractor-reply-alert/infrastructure/contractor-reply-alert-notifier.gateway.js'
+import { createDrizzleOccurrenceContractorReplyAlertQueue } from './occurrence-contractor-reply-alert/infrastructure/drizzle-occurrence-contractor-reply-alert-queue.repository.js'
+import { createDrizzleOccurrenceContractorReplyAlertStore } from './occurrence-contractor-reply-alert/infrastructure/drizzle-occurrence-contractor-reply-alert-store.repository.js'
+import { createOccurrenceAutomaticMailSweepRoutine } from './occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-sweep.routine.js'
+import { createDrizzleOccurrenceAutomaticMailQueue } from './occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
+import { createOccurrenceAutomaticMailApiGateway } from './occurrence-automatic-mail-sweep/infrastructure/occurrence-automatic-mail-api.gateway.js'
 import { createDrizzleCanhotoReadQueue } from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
 import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructure/threaded-canhoto-barcode.decoder.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
@@ -157,6 +164,7 @@ import { createDrizzleContractorMailOutboundWorkerRepository } from './contracto
 import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createCargoPreviewEmailIntake } from './cargo-preview-email/application/intake-cargo-preview-email.use-case.js'
 import { createDrizzleCargoPreviewEmailRepository } from './cargo-preview-email/infrastructure/drizzle-cargo-preview-email.repository.js'
+import { createDriverReplyNotifier } from './occurrence-conversation/infrastructure/driver-reply-notifier.gateway.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
@@ -255,6 +263,13 @@ import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/app
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
+import { createStorageAudioObjectReader } from './conversation-audio-transcription/storage-audio-object-reader.gateway.js'
+import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
+import { CONVERSATION_AUDIO_TRANSCRIBE_JOB } from './conversation-audio-transcription/audio-transcription-runtime.constant.js'
+import {
+  registerAudioTranscriptionRuntime,
+  type AudioTranscriptionRuntime,
+} from './conversation-audio-transcription/build-audio-transcription-runtime.js'
 import { createCargoPreviewRetentionRoutine } from './cargo-preview-retention/application/cargo-preview-retention.routine.js'
 import { CARGO_PREVIEW_RETENTION_JOB } from './cargo-preview-retention/domain/cargo-preview-retention.constant.js'
 import { createDrizzleApplyCargoPreviewRetentionBatch } from './cargo-preview-retention/infrastructure/drizzle-cargo-preview-retention.repository.js'
@@ -685,6 +700,7 @@ export async function startWorkerRuntime(
   let syntheticConsumer: RuntimeConsumer | undefined
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
+  let audioTranscriptionRuntime: AudioTranscriptionRuntime | undefined
   let notificationConsumer: RuntimeConsumer | undefined
   let routeOptimizationConsumer: RuntimeConsumer | undefined
   let routeOptimizationProvider: RabbitMqProvider | undefined
@@ -1105,6 +1121,11 @@ export async function startWorkerRuntime(
           provider: INBOUND_MAIL_STORAGE_PROVIDER,
           storage: storageGateway,
         }),
+        /** Spec 248 T4.6b: o boleto entregue sozinho avisa o sino do motorista, depois do commit. */
+        driverNotifier: createDriverReplyNotifier({
+          logger,
+          send: (params) => notificationModule.useCases.sendNotification.execute(params),
+        }),
         dkimVerifier: inboundDkimVerifier,
         mailGateway: inboundMailGateway,
         /** Spec 237 T4.6: a prévia por e-mail encaminhado, antes do trilho da conversa. */
@@ -1206,6 +1227,15 @@ export async function startWorkerRuntime(
       logger,
       provider: passwordResetDeliveryPublisher,
     })
+    // Spec 264 RF16: sem `AUDIO_TRANSCRIPTION_MODEL_PATH` (ou com ferramenta ausente) a rotina não é registrada.
+    audioTranscriptionRuntime = isAudioTranscriptionConfigured(config)
+      ? registerAudioTranscriptionRuntime({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          environment: config.audioTranscription,
+          logger,
+          objectReader: createStorageAudioObjectReader(storageGateway),
+        })
+      : undefined
     jobRunConsumer = await jobRunStarter({
       config,
       // Registro parcial de propósito: rotina não registrada pousa em `job_run_routine_missing` e
@@ -1466,15 +1496,34 @@ export async function startWorkerRuntime(
                 }),
               }),
           /**
-           * Spec 252 (ADR-0100): registrada só com o token da FeriadosAPI. Sem ele nada sai do produto e
-           * a janela pousaria em `job_run_routine_missing` — a linha de `job_schedules` nasce pausada
-           * de fábrica, então ela nem abre até o usuário configurar o token e despausar.
+           * Spec 262 (ADR-0102): registrada sempre. A chave da FeriadosAPI e o orçamento moram no banco
+           * (tela da instalação) e são lidos a cada ciclo; sem chave nada sai do produto e a janela fecha
+           * `succeeded` com `token_missing`. A linha de `job_schedules` nasce pausada de fábrica.
            */
           ...buildHolidayProviderPullRegistry({
-            config,
             database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
             logger,
           }),
+          /**
+           * Spec 248 T4.10: registrada sempre — não chama a API, só o banco e o módulo de notificações.
+           * A linha de `job_schedules` nasce pausada de fábrica.
+           */
+          ['occurrence.contractor-reply.alert' as const]:
+            createOccurrenceContractorReplyAlertRoutine({
+              errorTracker,
+              logger,
+              notifier: createContractorReplyAlertNotifier({
+                send: (params) => notificationModule.useCases.sendNotification.execute(params),
+              }),
+              now: () => new Date(),
+              queue: createDrizzleOccurrenceContractorReplyAlertQueue(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              store: createDrizzleOccurrenceContractorReplyAlertStore(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+            }),
           /**
            * Spec 222 T6.7: registrada só com o crachá do worker declarado — o worker lê a fila por SQL
            * mas reporta pela rota do robô, e sem credencial a janela pousa em `job_run_routine_missing`
@@ -1496,7 +1545,22 @@ export async function startWorkerRuntime(
                   ),
                   reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
                 }),
+                ['occurrence.automatic-mail.sweep' as const]:
+                  createOccurrenceAutomaticMailSweepRoutine({
+                    errorTracker,
+                    logger,
+                    mailApi: createOccurrenceAutomaticMailApiGateway({
+                      configuration: config.mdfeAutoIssue,
+                    }),
+                    now: () => new Date(),
+                    queue: createDrizzleOccurrenceAutomaticMailQueue(
+                      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                    ),
+                  }),
               }),
+          ...(audioTranscriptionRuntime === undefined
+            ? {}
+            : { [CONVERSATION_AUDIO_TRANSCRIBE_JOB]: audioTranscriptionRuntime.routine }),
           // Sem aviso de rejeição: a porta é opcional e ainda não tem adaptador, porque o catálogo
           // de templates não tem chave de NFS-e rejeitada. A reconciliação fiscal não espera por ela.
           [NFSE_STATUS_PULL_JOB]: createNfseStatusPullRoutine({
@@ -1859,6 +1923,8 @@ export async function startWorkerRuntime(
     passwordResetDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
+        // Antes do banco e do storage: a soltura graciosa devolve a tentativa da linha em voo.
+        ...(audioTranscriptionRuntime === undefined ? [] : [audioTranscriptionRuntime.runner]),
         /**
          * A conexão do roteirizador fecha com as demais. Deixá-la aberta mantém o processo vivo
          * depois do SIGTERM — o dreno nunca termina, e o orquestrador acaba matando à força.
@@ -1962,6 +2028,7 @@ export async function startWorkerRuntime(
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
     await jobRunConsumer?.cancel().catch(() => undefined)
+    await audioTranscriptionRuntime?.runner.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)

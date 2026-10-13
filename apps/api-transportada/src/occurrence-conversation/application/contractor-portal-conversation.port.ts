@@ -40,9 +40,35 @@ export type PortalConversationIdempotencyRecord = {
   readonly response: unknown
 }
 
+/** Spec 248 T4.6b: what the automatic delivery of the reply wrote, for the notice that goes out after the commit. */
+export type ContractorReplyDelivery = {
+  readonly messageId: string
+  readonly occurrenceId: string
+  readonly occurrenceLabel: string
+  readonly protocol: string
+  readonly recipientUserId: string
+}
+
+export type ContractorReplyDeliveryNotifierPort = {
+  notify(input: {
+    readonly companyId: string
+    readonly delivery: ContractorReplyDelivery
+  }): Promise<void>
+}
+
 export type ContractorPortalConversationTransactionPort = {
   /** Spec 183 T702a (RF10): o anexo ligado à mensagem, na mesma transação. */
   readonly attachments: ConversationAttachmentTransactionPort
+  /**
+   * Spec 248 T4.5: the message may answer the open contractor reply of the conversation. In the automatic
+   * mode it also delivers the accepted reply onward and returns what was written (T4.6b).
+   */
+  applyContractorReply(input: {
+    readonly companyId: string
+    readonly conversationId: string
+    readonly messageId: string
+    readonly now: Date
+  }): Promise<ContractorReplyDelivery | undefined>
   /**
    * A referência de cada ocorrência listada cuja contratante (o emitente da nota) está no recorte.
    * A conversa nasce aqui quando ainda não existe (idempotente): a ocorrência chegou ao portal, e a

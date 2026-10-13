@@ -71,9 +71,17 @@ export async function endScenario(): Promise<void> {
   await settle()
 }
 
-export async function mountPanel(canManage = true): Promise<void> {
+/** `canConfigureHolidayImport` é a permissão `holiday-import.configure`: só quem a tem troca a chave (spec 262). */
+export async function mountPanel(
+  canManage = true,
+  canConfigureHolidayImport = true,
+): Promise<void> {
   rendered = await renderWithQueryClient(
-    createElement(BusinessCalendarPanel, { canManage, companyId: COMPANY_ID }),
+    createElement(BusinessCalendarPanel, {
+      canConfigureHolidayImport,
+      canManage,
+      companyId: COMPANY_ID,
+    }),
   )
   await settle()
 }

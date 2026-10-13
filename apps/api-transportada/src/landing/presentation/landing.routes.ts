@@ -174,6 +174,7 @@ function serializePublic(settings: PublicLandingSettings): object {
       // tem mais de uma unidade (T011); esconder companyId deixaria o select sem valor para enviar.
       companyId: unit.companyId,
       complement: unit.complement,
+      displayName: unit.displayName,
       district: unit.district,
       number: unit.number,
       phone: unit.phone,

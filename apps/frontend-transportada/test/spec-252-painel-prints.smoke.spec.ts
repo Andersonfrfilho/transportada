@@ -305,7 +305,7 @@ async function openAssembly(page: Page, dayChecks: 'down' | 'up'): Promise<void>
   await loginAsLocalUser(page)
   await page.getByRole('button', { name: 'Nova viagem' }).click()
   const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
-  const accessKeyField = dialog.getByLabel('Chave de acesso')
+  const accessKeyField = dialog.getByLabel('Número da nota ou chave')
   await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
   await accessKeyField.press('Enter')
   await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)

@@ -7,12 +7,18 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 
 import styles from '../styles/trip.module.css'
-import type { TripDocumentDetail, TripDriverLine, TripStopDetail } from '../shared/trip.types'
+import type {
+  TripCargoWeight,
+  TripDocumentDetail,
+  TripDriverLine,
+  TripStopDetail,
+} from '../shared/trip.types'
 
 import { TripConferenceDialog } from './TripConferenceDialog.component'
 
 type TripConferenceActionProps = Readonly<{
   canReadCreator: boolean
+  cargoWeight: TripCargoWeight | null
   documents: readonly TripDocumentDetail[]
   drivers: readonly TripDriverLine[]
   stops: readonly TripStopDetail[]
@@ -23,6 +29,7 @@ type TripConferenceActionProps = Readonly<{
 
 export function TripConferenceAction({
   canReadCreator,
+  cargoWeight,
   documents,
   drivers,
   stops,
@@ -49,6 +56,7 @@ export function TripConferenceAction({
       </Tooltip>
       <TripConferenceDialog
         canReadCreator={canReadCreator}
+        cargoWeight={cargoWeight}
         documents={documents}
         drivers={drivers}
         isOpen={isOpen}

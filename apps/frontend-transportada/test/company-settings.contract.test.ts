@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './company-settings/contacts-panel.contract.js'
+import './company-settings/display-name-mode.contract.js'
 import './company-settings/activation-channel.contract.js'
 import './company-settings/billing-defaults.contract.js'
 import './company-settings/certificate-purpose.contract.js'

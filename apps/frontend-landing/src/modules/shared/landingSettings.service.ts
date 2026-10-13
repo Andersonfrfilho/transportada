@@ -7,6 +7,8 @@ export type LandingGroupUnit = Readonly<{
   city: string
   companyId: string
   complement: string
+  /** O nome que a empresa escolheu mostrar (Configurações); API anterior à opção cai na fantasia. */
+  displayName: string
   district: string
   number: string
   phone: string
@@ -115,6 +117,7 @@ function sanitizeUnit(value: unknown): LandingGroupUnit | undefined {
     city: text('city'),
     companyId: text('companyId'),
     complement: text('complement'),
+    displayName: text('displayName') || text('tradeName'),
     district: text('district'),
     number: text('number'),
     phone: text('phone'),

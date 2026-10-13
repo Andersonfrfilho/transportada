@@ -984,6 +984,32 @@ inalterada (ambos filtram pela ficha). Erro de viagem `TRIP_DRIVER_CANNOT_DRIVE`
 - **Prints.** `test/spec-196-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH`), com API dublada e
   coordenada sintética; precisa de WebGL por software (`--use-angle=swiftshader`) para o MapLibre subir.
 
+## Mapa da viagem na página da ocorrência (spec 196, extensão)
+
+- **O que mostra.** Painel "Mapa da viagem" (`OccurrenceTripMap.component.tsx`, seção `tripMap` de `occurrenceDetailSectionsFor`, logo
+  abaixo do resumo, também na aba Resumo do celular). Pinos: cada evento da viagem com posição (`TIMELINE_MAP_CATEGORY_BY_KIND` não nulo,
+  `captured` com coordenada), numerado pela ordem em que aconteceu; a ocorrência da página em destaque (o item da linha do tempo com
+  `id` igual ao da ocorrência e `kind` `stop.occurrence`/`document.occurrence`) e a parada da nota. Legenda: tipos (ícone + palavra +
+  cor), uma linha por evento — botão de 44 px que centraliza o pino e abre a dica — e a parada da nota.
+- **A conta é pura** (`occurrenceTripMap.service.ts` + `occurrenceTripMapStops.service.ts`): reaproveita `resolveTimelineLocationView`
+  (as cinco situações) e `formatTripTimelineDistance`. Eventos a menos de ~11 m partilham a ancoragem (`TIMELINE_MAP_CELL_DECIMALS`)
+  para o mapa abri-los em leque. A parada da nota: `stop.id` do evento da ocorrência → vínculo da nota (`documents[].id`) → rótulo.
+- **Sem `trip.event-location`** (`canViewEventLocation` vem da lista de permissões da conta): `mode: 'stopsOnly'` — o serviço **não lê**
+  `location` de item nenhum (defesa em profundidade, mesmo que a API a mande), desenha todas as paradas com coordenada e a da nota em
+  destaque, e o painel mostra o aviso `role="note"` (ícone `eye-off`, dica com quem concede). Com a permissão mas sem coordenada
+  (`restricted`), o evento fica na legenda como "Sem posição: oculta para o seu acesso".
+- **Sem traço.** A rota congelada **não** vem em `GET /trips/:id` (é `GET /trips/:id/route-geometry`, consulta própria) e a regra desta
+  tela é não chamar rota; `AssemblyVectorMap` recebe `geometry={null}` e `hideRoute`. Se um dia o detalhe trouxer a geometria, basta
+  passá-la ao canvas.
+- **Mudanças em `AssemblyVectorMap`** (todas opcionais, nenhum outro mapa muda): `focusRequest` (`{ nonce, stopKey }`, voo de 400 ms,
+  0 sob `prefers-reduced-motion`), `isEntryAnimated` (opacidade + `scale`, nunca `transform`, que é do MapLibre; escalonado por
+  `--pin-enter-delay`), e por ponto `color`, `popup` (linhas de texto, `textContent`), `isHighlighted` (halo de dois anéis).
+  Tokens novos em `index.css`: `--motion-fast`, `--motion-ease-out`, `--occurrence-trip-map-height`; `.vectorMap` lê `--vector-map-height`.
+- **Leitura.** `useOccurrenceTripMapData`: viagem pela chave `[trips, companyId, tripId]` (compartilhada com o detalhe) e a linha do
+  tempo por `useTripTimeline`, páginas lidas até `OCCURRENCE_TRIP_MAP_MAX_TIMELINE_PAGES` (5 × 100); passando disso o painel avisa que
+  mostra só os mais recentes. Coordenada só em memória: nunca URL, `localStorage`, log ou clipboard (contrato de fonte).
+- **Não visto em navegador** nesta entrega (login do dono): a prova é de contrato, render estático e tsc/eslint/prettier.
+
 ## Spec 240 T3.2 — a marca de cancelada
 
 A ocorrência cancelada continua listada e aparece marcada em **cinco** lugares, todos lendo a mesma
@@ -1540,3 +1566,95 @@ no cabeçalho da parada de `TripStopList`. Contratos: `test/trip/holiday-warning
 
 ⚠️ O smoke do painel com a CSP: `vite preview` precisa das mesmas `VITE_*` do build (a CSP nasce delas); com `VITE_API_URL` ausente o `connect-src` não inclui a API e tudo falha
 calado. O `mockSettingsShell` da 238 segue servindo as telas de Configurações.
+
+## Spec 249 — Transferir tripulação da viagem na rua e concluída (ADR-0097)
+
+- **Botão e permissão:** "Transferir tripulação" no `TripHeaderActions`, por
+  `canOfferTripFieldAction({ action: 'transferCrew' })`: exige `trip.report-on-behalf` **e** o nome
+  `transferCrew` na lista `trip[]` de `allowed-actions` (ausente = falso). `canManage` não serve (o
+  separador o tem e não transfere). A janela vem da API: `dispatched`, `in_transit`,
+  `on_delivery_route` e `completed`.
+- **Diálogo** (`modules/trip`): `TripCrewTransferDialog` + `CrewTransferMemberList` (Motoristas e
+  Ajudantes em listas separadas, resumo "Sai / Entra"), hook `useTripCrewTransferDialog`, motivo
+  obrigatório (≤500). **Sem seletor de veículo**: o veículo, a rota e as paradas não mudam.
+  `resolveCrewTransferBlocker` (`tripCrewTransfer.service.ts`) bloqueia motivo vazio, ninguém
+  dirigindo, mesma pessoa nos dois papéis, quem não dirige como motorista e tripulação igual à atual.
+- **Resposta:** `parseCrewTransfer` (`tripCrewTransfer.validation.ts`) exige as 6 chaves exatas de
+  `data.transfer` e recusa chave extra; dinheiro só como string decimal. Depois do sucesso o diálogo
+  mostra `TripCrewTransferOutcome` (custo anterior, novo e diferença, sinal mantido) e, com
+  `mdfeDriverDivergence`, o aviso de que o MDF-e autorizado segue com o condutor anterior.
+- **Erros** por `error.code`: `TRIP_CREW_UNCHANGED`, `STATE_TRANSITION_NOT_ALLOWED`,
+  `TRIP_DRIVER_CANNOT_DRIVE`, `TRIP_CREW_HELPER_NOT_ELIGIBLE`, `TRIP_CREW_HELPER_WITHOUT_DRIVER`.
+- **Linha do tempo:** item `crew_transfer` com `crewTransfer` aninhado (chave exata; `costDifference`
+  opcional e **ausente** sem `trip.financials`), `TripTimelineCrewTransfer.component.tsx`,
+  `tripTimelineCrewTransfer.service.ts` (uma frase por papel: "Motorista: Maria → João") e
+  `.validation.ts`. A mutation `transferCrewMutation` invalida o prefixo `['trips']`, que já cobre a
+  linha do tempo e `allowed-actions`.
+- ⚠️ **Perfil `finance`:** tem `trip.report-on-behalf` mas não `fleet.read`; o `useFleet` não carrega e
+  o diálogo abre sem ninguém para escolher. Decisão de produto pendente.
+- ⚠️ **Testes de paridade com a API:** `test/trip/timeline.contract.ts` e outros leem o código da
+  API na mesma árvore. Painel novo + API antiga na mesma árvore reprova o gate (promoção de 2026-10-07).
+- Contratos: `test/trip/crew-transfer.contract.ts`, `test/trip-hooks/crew-transfer-dialog.contract.ts`,
+  `test/trip/timeline-crew-transfer.contract.ts`, `test/trip-hooks/timeline-crew-transfer.contract.ts`,
+  `test/trip-hooks/crew-transfer-timeline-invalidation.contract.ts`.
+
+## Spec 262 (Fase 5) — a chave da FeriadosAPI se configura na aba Calendário
+
+**Estado:** em `origin/staging` (Deploy verde `38170135676`, 2026-10-11); **produção não tem a tela** e ela só vai depois do worker da Fase 4 e do
+painel tolerante da Fase 1 em `main` (ordem em `specs/262-*/evidence.md` § "T6.1 — fechamento"). Substitui, no cartão de status, o que a seção da 252 acima diz
+sobre "a API nem conhece o orçamento": agora ela conhece (`monthlyRequestBudget` do `GET provider-settings`).
+
+- **Cliente e guardas** (`modules/company-settings/shared/holidayProviderSettings*.ts`): `holidayProviderSettingsClient.service.ts` fala com
+  `GET|PUT /holiday-imports/provider-settings`, `DELETE …/token` e `GET|PUT /company-settings/holiday-import`. As guardas
+  (`holidayProviderSettingsGuards.validation.ts`) são de **chaves exatas**: `budgetOrigin`, `monthlyRequestBudget`, `tokenConfigured`, `tokenHint`,
+  `tokenUpdatedAt`, `updatedAt`, `version`; o interruptor tem só `isEnabled` e `origin`. Chave a mais (por exemplo `token`) é recusada e a resposta é
+  descartada. O corpo do `PUT` só leva o que foi pedido: `token` vazio não vai, `monthlyRequestBudget: null` chega ao corpo ("Usar o padrão"), o mesmo
+  número já gravado não é reenviado e `expectedVersion` some na criação.
+- **Bloco** `HolidayProviderSettings` (entra **antes** de `HolidayImportStatus` em `BusinessCalendarPanel`): `HolidayProviderSummary`, `HolidayProviderForm`
+  (remonta por `key = version`), `HolidayProviderInput`, `HolidayProviderRemoval`, `HolidayProviderFeedback`, `HolidayImportToggle`; hooks
+  `useHolidayProviderActions` (vive **acima** do formulário para o "salvo", a recusa e a confirmação atravessarem a remontagem) e
+  `useHolidayImportToggle`; serviço puro `holidayProviderSettingsForm.service.ts`; CSS `holidayProviderSettings.module.css`.
+- **Campo da chave:** `type="password"`, `autoComplete="off"`, `spellCheck={false}`, rótulo "Nova chave" quando já há uma, e **nunca preenchido de volta**
+  (vazio ao abrir, depois de salvar e depois de recusa do servidor). A recusa **local** de formato mantém o texto, porque ele nem saiu do navegador.
+  Dica `…1234` + data; orçamento com marca "padrão" quando `budgetOrigin = 'default'`; uso do mês (`monthlyRequests` do status) e aviso quando `>=` o orçamento.
+- **Permissões:** o painel recebe a prop `canConfigureHolidayImport` (`holiday-import.configure` lida de `/auth/me` em `CompanySettings.page.tsx`). Sem ela o
+  bloco é só leitura (estado visível, sem campo, sem Salvar/Remover). O interruptor da empresa é o `Checkbox` do design system e só pede `settings.manage`
+  (igual à rota). Escrever a chave exige as **duas** (a aba só existe com `settings.manage`).
+- **409** relê a configuração (a tela mostra o que o outro administrador gravou); ⚠️ o contrato `mutation-pending-state` proíbe `onSuccess: async`, então a
+  releitura é promessa **sem `await`**. **429** mostra "tente de novo em N min" (`retryAfterMinutes`, mínimo 1) **só se** o navegador ler o `Retry-After`,
+  e hoje a API expõe só `Date` em `CORS_EXPOSE_HEADERS`: em produção o painel cai no texto sem minutos (mesmo defeito latente no 429 do e-mail de teste da 143).
+  Códigos novos com texto pt/en: `HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT`, `HOLIDAY_PROVIDER_TOKEN_INVALID`, `HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE`.
+- "Remover chave" pede confirmação (o texto diz que o orçamento e os feriados importados ficam). "Salvar" sem mudança não chama a API e diz "Nada para
+  salvar" (`role="status"`); o botão **não** é desabilitado, por acessibilidade. Texto fixo: salvar a chave não liga a busca, a rotina nasce pausada e é
+  despausada em Operações.
+- **Manchetes do cartão (D8)** em `resolveImportStatusView({ settings, status })` (objeto, não dois posicionais), por prioridade: desligada → **sem chave** →
+  **chave ilegível** (`lastRun.outcome = credential_unreadable`) → os três desfechos de fornecedor → **orçamento do mês atingido** (`monthlyRequests >=
+monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par → aguardando → em dia. `settings` é opcional: se o `GET provider-settings`
+  falhar, o cartão é o de antes. Cartão e bloco leem a **mesma chave de consulta** (uma ida só à rede) e o cartão espera a configuração antes de desenhar
+  (não pisca "em dia" para virar "sem chave"). "Aguardando" só manda despausar em Operações quando há chave. Os textos "sem token" foram reescritos
+  (`headline.unauthorized` = "chave inválida"); um contrato varre pt e en e proíbe "sem token"/"no token".
+- **Dublê de teste** `holidayProviderSettingsDouble.helper.ts`: as mesmas transições da API (versão obrigatória/ausente → 409, dica = 4 últimos, `null` volta ao
+  padrão, `DELETE` zera só a chave). **Nunca guarda a chave inteira.**
+- **Prints:** smoke `test/spec-262-painel-prints.smoke.spec.ts` (+ `spec-262-prints-smoke.helper.ts`): build real (`vite build` direto, sem o `prebuild`
+  que baixa modelos) + `vite preview` do binário da app numa porta própria, API inteira dublada, **chave sentinela falsa** que não pode estar em lugar nenhum
+  do corpo. 16 telas × 375/768/1280 × claro/escuro = 96 PNG, fora do repositório.
+- ⚠️ **Teste de DOM: nunca imprimir nó do happy-dom numa asserção** (`expect(node).toBeNull()`, `toBe` entre elementos): o Bun cai com SIGTRAP, sem
+  relatório, ao formatar o elemento quando a asserção falha. Compare `node === null`, `textContent` ou um atributo. (Mesma lição da 252, acima: vale para os
+  contratos de DOM da 262.)
+- Contratos: `holiday-provider-settings` (26), DOM `business-calendar-provider-settings` (36) e `business-calendar-import-toggle` (10), puro
+  `holiday-provider-form` (25), `holiday-import-headline` (19), DOM `business-calendar-import-headlines` (10) e `business-calendar-permission` ajustado.
+
+## Áudio e transcrição no painel (spec 264, T5.1–T5.3, 12/10/2026)
+
+- **Leitura (T5.1).** `subjectConversationAttachment.service.ts` lê `transcription` e `durationMs` crus por `id` e valida cada um
+  (`participantTranscriptionSchema.safeParse`; duração inteira, > 0, ≤ teto): inválido faz o campo sumir. `subjectThreadApi.service.ts` mapeia ao
+  `ParticipantAttachment`. O envio do áudio usa o mesmo upload em duas etapas e a mesma `Idempotency-Key` (`subject-message:<clientMessageId>`) do anexo.
+- **Configuração (T5.2).** Aba própria em Configurações, painel `AudioTranscriptionSettingsPanel` (módulo `occurrence-conversation`); cliente com `fetch`
+  próprio para distinguir 400/401/403; mutação otimista que volta ao valor anterior no erro (o `onSettled` não pode devolver o `invalidateQueries`: segurava a
+  mutação em `pending` e o erro nunca aparecia).
+- **Smoke (T5.3).** `test/audio-transcription.smoke.spec.ts` (10 testes: player e quatro estados, "desligada" só com player, gravar/ouvir/enviar sem duplicar,
+  descartar não envia, ligar/desligar/religar, PUT 500 e 403, acessibilidade, sem `settings.manage`, e a ida e volta configuração→conversa).
+  - O `<audio>` do dublê **precisa** vir da origem da página: a CSP do preview bloqueia o resto e o player fica "Áudio indisponível" — foi o que o print
+    mostrou na primeira tentativa, com o teste verde. Hoje o teste afirma zero `.cv-p-audio__error` e o botão "Tocar áudio" habilitado.
+  - A página de Configurações lê `/company-settings/logo` ao abrir; sem dublê, `failures()` acusa `ERR_FAILED`.
+  - O que o `getUserMedia` injetado NÃO prova: captura real do microfone, codec do `MediaRecorder` real, permissão do navegador, nem reprodução com saída de áudio.

@@ -17,6 +17,7 @@ import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
 import { assertHelperRoleRollbackRefusesHelpers } from './helper-role-rollback.assertion.js'
 import { assertHolidayProviderImport } from './holiday-provider-import.assertion.js'
+import { assertHolidayProviderSettings } from './holiday-provider-settings.assertion.js'
 import { assertIdentityConstraints } from './identity-constraints.assertion.js'
 import { assertInvitationConstraints } from './invitation-constraints.assertion.js'
 import { assertCargoPreviewFailureCodes } from './cargo-preview-failure-codes.assertion.js'
@@ -25,10 +26,17 @@ import { assertCargoPreviewEmailIntake } from './cargo-preview-email-intake.asse
 import { assertArrivalReferenceLabel } from './contractor-receiving-arrival-reference-label.assertion.js'
 import { assertLocationRetentionRollbackRefusesRecordedSettings } from './location-retention-rollback.assertion.js'
 import { assertMdfeConstraints } from './mdfe-constraints.assertion.js'
+import { assertConversationProtocol } from './conversation-protocol.assertion.js'
+import { assertQuickReplyDriverAudience } from './quick-reply-driver-audience.assertion.js'
+import { assertConversationSubject } from './conversation-subject.assertion.js'
+import { assertConversationAudioTranscription } from './conversation-audio-transcription.assertion.js'
+import { assertConversationAudioTranscribeJob } from './conversation-audio-transcribe-job.assertion.js'
 import { assertNfeAddressesParticipantIndex } from './nfe-addresses-participant-index.assertion.js'
 import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order-index.assertion.js'
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
+import { assertOccurrenceContractorReplyRollback } from './occurrence-contractor-reply.assertion.js'
+import { assertOccurrenceContractorReplyConstraints } from './occurrence-contractor-reply-constraints.assertion.js'
 import { assertNfeRecipientEmailRollback } from './nfe-recipient-email.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
 import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
@@ -63,13 +71,16 @@ import {
   NFSE_TABLES,
   DELIVERY_CLIENT_TABLES,
   HOLIDAY_PROVIDER_TABLES,
+  HOLIDAY_PROVIDER_SETTINGS_TABLES,
   CONTRACTOR_PORTAL_TABLES,
   MULTI_VEHICLE_SUGGESTION_TABLES,
   WHATSAPP_CHANNEL_TABLES,
   WHATSAPP_PHONE_TABLES,
   WHATSAPP_FLOW_GRAPH_TABLES,
   WHATSAPP_COMMAND_TABLES,
+  CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
   TRIP_FINANCIAL_TABLES,
+  OCCURRENCE_CONTRACTOR_REPLY_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
@@ -110,8 +121,10 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
+            ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
@@ -119,6 +132,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_PHONE_TABLES,
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
+            ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -194,6 +208,22 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceContractorReplyConstraints({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertOccurrenceContractorReplyRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         await assertNfeRecipientEmailRollback({
@@ -373,6 +403,41 @@ describe('Drizzle migration integration', () => {
           database,
           directories: migrationDirectories,
         })
+        await assertHolidayProviderSettings({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertConversationSubject({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+        await assertConversationProtocol({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          userId: identityFixture.userId,
+        })
+        await assertQuickReplyDriverAudience({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertConversationAudioTranscription({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+        await assertConversationAudioTranscribeJob(database)
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories
@@ -404,8 +469,10 @@ describe('Drizzle migration integration', () => {
             ...MDFE_TABLES,
             ...NFSE_TABLES,
             ...TRIP_TABLES,
+            ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
             ...DELIVERY_CLIENT_TABLES,
             ...HOLIDAY_PROVIDER_TABLES,
+            ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
             ...TRIP_FINANCIAL_TABLES,
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
@@ -413,6 +480,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_PHONE_TABLES,
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
+            ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

@@ -23,7 +23,10 @@ import {
   type OccurrenceConversationMessageStatus,
 } from '../../database/occurrence-conversation.schema.js'
 import type { StoredInboundAttachment } from '../application/inbound-mail-attachments.service.js'
+import type { DriverReplyNotice } from '../application/driver-reply-notice.port.js'
+import { applyContractorReplyToMessage } from './drizzle-occurrence-contractor-reply.repository.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { findOccurrenceLabel } from './occurrence-label.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 export type OccurrenceConversationTransaction = Parameters<
@@ -70,9 +73,12 @@ export async function recordOccurrenceConversationMailReply(
     readonly mailMessageId: string
     readonly threadId: string
   },
-): Promise<number> {
+): Promise<{
+  readonly driverNotice: DriverReplyNotice | undefined
+  readonly linkedAttachments: number
+}> {
   const conversationId = await findOccurrenceConversationByThread(transaction, input)
-  if (conversationId === undefined) return 0
+  if (conversationId === undefined) return { driverNotice: undefined, linkedAttachments: 0 }
 
   const [message] = await transaction
     .insert(occurrenceConversationMessages)
@@ -114,7 +120,27 @@ export async function recordOccurrenceConversationMailReply(
       storedObjectId: object.id,
     })
   }
-  return input.attachments.length
+  const delivery = await applyContractorReplyToMessage(transaction, {
+    companyId: input.companyId,
+    conversationId,
+    messageId: message.id,
+    now: new Date(),
+  })
+  const driverNotice =
+    delivery === undefined
+      ? undefined
+      : {
+          companyId: input.companyId,
+          driverMessageId: delivery.driverMessageId,
+          driverUserId: delivery.driverUserId,
+          occurrenceId: delivery.occurrenceId,
+          occurrenceLabel: await findOccurrenceLabel(transaction, {
+            companyId: input.companyId,
+            occurrenceId: delivery.occurrenceId,
+          }),
+          protocol: delivery.protocol,
+        }
+  return { driverNotice, linkedAttachments: input.attachments.length }
 }
 
 export async function applyOccurrenceConversationMailStatus(

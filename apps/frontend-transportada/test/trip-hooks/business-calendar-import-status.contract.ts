@@ -74,7 +74,8 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
 
     await waitForText('Aguardando a primeira execução')
     expect(status()).toContain('Nenhuma busca feita ainda.')
-    expect(status()).toContain('Em Operações, confira se ela está pausada ou sem token.')
+    expect(status()).toContain('Em Operações, despause a rotina holiday.provider.pull')
+    expect(status()).not.toContain('sem token')
   })
 
   it('token errado: a rotina terminou recusada e nada foi gravado, então o cartão diz isso e não "aguardando"', async () => {
@@ -85,10 +86,10 @@ describe('importação de feriados: estado da rotina (spec 252 T5.2)', () => {
     })
     await mountPanel()
 
-    await waitForText('Fornecedor recusou o acesso: token inválido ou plano sem cobertura')
+    await waitForText('Fornecedor recusou o acesso: chave inválida ou plano sem cobertura')
     expect(status()).not.toContain('Aguardando a primeira execução')
-    expect(status()).toContain('Confira a chave configurada e o plano contratado')
-    expect(status()).toContain('Operações')
+    expect(status()).toContain('Confira a chave em "Chave da FeriadosAPI" e o plano contratado')
+    expect(status()).not.toContain('sem token')
     expect(status()).toContain('Último ciclo da rotina: 09/10/2026')
     expect(status()).toContain('10:00')
   })

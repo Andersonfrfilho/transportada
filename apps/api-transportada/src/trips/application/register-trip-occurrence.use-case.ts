@@ -3,6 +3,13 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  ForwardToInformedEmailMode,
+  ForwardToNoteRecipientMode,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import { OCCURRENCE_MOMENT, TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
@@ -185,6 +192,18 @@ export type OccurrenceTypeRecord = {
   readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
+  /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */
+  readonly contractorReplyAlertIntervalMinutes?: number
+  readonly contractorReplyAlertMaxCount?: number
+  readonly contractorReplyAlertMode?: ContractorReplyAlertMode
+  readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
+  readonly contractorReplyMode?: ContractorReplyMode
+  readonly contractorReplyWaitHours?: null | number
+  readonly driverReplyTemplate?: string
+  readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode
+  readonly forwardToInformedEmail?: ForwardToInformedEmailMode
+  readonly forwardEmailSubject?: string
+  readonly forwardEmailBody?: string
   /**
    * Spec 164 T4 (RF3): decide se o registro abre uma tratativa (`trip_occurrence_cases`).
    * Ausente é tratado como `'unset'` — não abre; existe como opcional só para os dublês de teste

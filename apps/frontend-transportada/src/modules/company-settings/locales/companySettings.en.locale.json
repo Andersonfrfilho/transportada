@@ -11,7 +11,8 @@
     "entryKinds": "Entry kinds",
     "quickReplies": "Quick replies",
     "settingsResolution": "Check configuration",
-    "businessCalendar": "Calendar"
+    "businessCalendar": "Calendar",
+    "audioTranscription": "Audio transcription"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -121,6 +122,10 @@
   "lookupError": "Company data could not be found for this CNPJ.",
   "stateRegistration": "State registration",
   "municipalRegistration": "Municipal registration",
+  "displayNameMode": "Company name on screens, emails and PDFs",
+  "displayNameModeHint": "Applies to the panel, the driver app, emails and PDFs. Fiscal documents (CT-e, MDF-e, NFS-e) always carry the legal name.",
+  "displayNameModeLegalName": "Legal name",
+  "displayNameModeTradeName": "Trade name",
   "taxRegime": "Tax regime",
   "taxRegime1": "Simples Nacional",
   "taxRegime2": "Simples Nacional — excess sublimit",
@@ -560,6 +565,58 @@
         "exception": {
           "has": "Has exception"
         }
+      }
+    },
+    "contractorReply": {
+      "title": "Contractor reply",
+      "legend": "The request goes to the contractor; when they answer with the updated boleto, the system can pass the reply to the driver without going through the operator.",
+      "save": "Save reply settings",
+      "undo": "Undo",
+      "fields": {
+        "mode": "When the reply arrives",
+        "attachmentKind": "Attachment that counts as the reply",
+        "driverReplyTemplate": "Text sent to the driver",
+        "waitHours": "Wait time (hours, empty = no deadline)",
+        "alertMode": "If the contractor is late",
+        "alertIntervalMinutes": "Repeat the alert every (minutes)",
+        "alertMaxCount": "Maximum alerts per occurrence",
+        "forwardToNoteRecipient": "Send the boleto to the invoice customer email",
+        "forwardToInformedEmail": "Forward the boleto to an informed email",
+        "forwardEmailSubject": "Subject of the email to the third party",
+        "forwardEmailBody": "Text of the email to the third party"
+      },
+      "mode": {
+        "off": "Only show the reply",
+        "forward_after_approval": "Pass to the driver after operator approval",
+        "forward_automatic": "Pass to the driver automatically"
+      },
+      "attachmentKind": {
+        "pdf": "PDF only",
+        "pdf_or_image": "PDF or image"
+      },
+      "alertMode": {
+        "off": "Do not alert",
+        "alert_operator": "Alert the operation"
+      },
+      "forwardToNoteRecipient": {
+        "off": "Do not send",
+        "manual": "Operator sends",
+        "automatic": "Send automatically"
+      },
+      "forwardToInformedEmail": {
+        "off": "Do not forward",
+        "manual": "The operator enters the email"
+      },
+      "forwardLegend": "The same subject and text go to the invoice customer and to the informed email, with the boleto attached. Up to 5 emails per occurrence.",
+      "problems": {
+        "needsContractorMail": "Turn on the contractor email for this type to use the reply.",
+        "templateRequired": "Write the text the driver receives.",
+        "waitHoursOutOfRange": "Enter 1 to 168 hours.",
+        "alertNeedsWaitHours": "To alert on delay, enter the wait time.",
+        "intervalOutOfRange": "Enter 15 to 1440 minutes.",
+        "maxCountOutOfRange": "Enter 1 to 96 alerts.",
+        "automaticNeedsReply": "Automatic sending to the invoice customer requires the reply to be on.",
+        "forwardNeedsText": "Write the subject and the text: the email to the third party is not sent without both."
       }
     }
   },

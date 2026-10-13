@@ -70,6 +70,7 @@ export function createDefaultCompanySettings(): CompanySettingsUpdate {
       cityIbgeCode: '',
       cnpj: '',
       complement: '',
+      displayNameMode: 'trade_name',
       district: '',
       email: '',
       legalName: '',

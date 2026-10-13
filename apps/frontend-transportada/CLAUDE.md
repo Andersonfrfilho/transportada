@@ -269,17 +269,26 @@ validação do deep link):
 portal) e a aba Motorista (app). A mesma tela serve ao app do motorista e, com peças próprias, ao
 portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
 
-- **Do `@adatechnology/conversations-ui` entram só peças que não dependem de Tailwind:**
-  `MessageText`, `StatusTicks` e `DateDivider`. O `styles.css` do pacote nunca é importado
-  (ADR-0051), e a cor de cada participante vem dos tokens.
-- **Mensagem nova é anunciada a leitor de tela** (T903, D2). O fio tem região `aria-live`
-  alimentada por `countNewIncomingMessages`, que nunca anuncia a primeira leitura. A leitura nunca
-  para: com envio pendente, o refetch é rápido; sem nada pendente, cai para
-  `CONVERSATION_IDLE_REFETCH_MS` (60 s).
-- **Envio que falhou se recupera no reenvio** (`recoverFromSendFailure`, T903 F2/F3):
-  - upload vencido esquece os ids e sobe de novo;
-  - chave já usada com outro conteúdo gera chave nova;
-  - conversa passada a outro motorista diz o motivo.
+- **O fio das duas abas é o `ConversationThread` do SDK `@adatechnology/conversations-ui`** (visão `operator`, o
+  mesmo desenho do app do motorista e da conversa por assunto; spec 263 T5.2-C). `OccurrenceThread` monta o fio
+  sobre `useOccurrenceThread` + `occurrenceThreadApi.service.ts`: o adaptador lê pelo **mesmo cache da aba**
+  (`fetchOccurrenceConversations`), envia pelo canal da aba (app ou portal) com a chave `driver-message:`/
+  `portal-message:` + `clientMessageId` do SDK, e só marca como lida com mensagem nova. Mensagem "minha" é a
+  `outbound`; o canal vai no nome (`Maria · Compras · E-mail`). O `styles.css` do pacote é importado no `main.tsx`
+  e o mapa `--cv-p-*` é o de `subjectConversation.module.css`. Balão, `<audio>`, `<svg>` e compositor próprios
+  não voltam (contrato `occurrence-thread.contract.ts`).
+- **O SDK não tem porta para ação por anexo, remetente nem reenvio por canal** (0.10.0): essas funções ficam nas
+  faixas `OccurrenceThread{Attachments,Senders,Failures}` ao lado do fio, com ícone + palavra + cor.
+  Quando o SDK ganhar o slot, as faixas viram o slot, sem mudar a regra.
+- **Mensagem nova é anunciada a leitor de tela** pela região `aria-live` do próprio SDK (rótulo `newMessages`;
+  `countNewIncomingMessages` segue no serviço). A leitura nunca para: com envio pendente, o refetch é rápido; sem
+  nada pendente, cai para `CONVERSATION_IDLE_REFETCH_MS` (60 s); o fio relê a cada 20 s e ao voltar o foco.
+- **Reenvio de mensagem que falhou** (`OccurrenceThreadFailures`): por e-mail abre o diálogo com o texto; por
+  portal ou app sai direto, com a chave da mensagem (o segundo clique é "já reenviada"). O SDK não deixa
+  preencher o compositor, por isso o reenvio não passa por ele.
+- **Recuperação de envio pelo fio**: o SDK repete o **mesmo** `clientMessageId` ao reenviar e o adaptador esquece os
+  uploads vencidos (`recoverFromSendFailure.clearUploads`); renovar a chave e dizer "conversa passada a outro
+  motorista" (T903 F2/F3) dependem de porta que o SDK não tem.
 - **Ação com chave derivada do anexo** (encaminhar à contratante, anexar à ocorrência): o 409 de chave
   usada quer dizer "já feito" e aparece assim, nunca como erro (T903, F4).
 - **"Adicionar aos contatos" é a `AddContractorContactAction` de `delivery-clients`** (T903, F5, pela
@@ -288,11 +297,29 @@ portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
   cadastro (S2).
 - **O módulo tem as próprias guardas** (`occurrenceConversationGuards.validation.ts`). Ler as de `trip`
   fechava ciclo, porque `trip` importa a conversa. Contrato: `module-boundary.contract.ts`.
-- **No celular** (T801): a lista vira cartões, o detalhe vira abas, e o fio tem altura limitada com
-  a caixa de envio logo abaixo. A caixa presa ao rodapé foi medida e descartada: cobria 359 de
-  800 px. Sob `pointer: coarse`, botões pequenos, nome do contato e "fechar" chegam a
-  `--touch-target`.
+- **No celular** (T801): a lista vira cartões, o detalhe vira abas, e o fio (`.frame` de
+  `occurrenceThread.module.css`, `min(40rem, 78dvh)`) rola por dentro, com a caixa de envio do SDK presa ao
+  fundo do próprio fio. Sob `pointer: coarse`, as faixas e o "fechar" dos diálogos chegam a `--touch-target`.
 - Áudio e microfone: § "CSP, ambiente e tema de login" acima.
+
+## Áudio e transcrição na conversa por assunto (spec 264)
+
+- **A conversa por assunto da viagem** (`SubjectConversationPanel`, o `ConversationThread` do SDK com `perspective="operator"`) grava e envia áudio
+  (`audioRecording`, teto de 16 MiB) e mostra a transcrição que a API entrega por anexo. Leitura tolerante por anexo
+  (`subjectConversationAttachment.service.ts`): `transcription`/`durationMs` inválidos fazem o CAMPO sumir, nunca a mensagem. A conversa da
+  ocorrência (abas Contratante e Motorista) usa o mesmo fio e grava/envia áudio, mas segue **sem** transcrição e duração (a guarda
+  `toConversationAttachments` não mudou; o adaptador de ocorrência não os mapeia).
+- **Configurações → aba "Transcrição de áudios"** (`?tab=audioTranscription`, só com `settings.manage`): liga/desliga a transcrição da empresa
+  (`GET/PUT /company-settings/audio-transcription`, PUT `{ enabled }`). A frase do que acontece ao desligar e a do limite (`floor(maxDurationMs / 60000)`)
+  ficam sempre à vista, ligadas ao controle por `aria-describedby`; falha do PUT volta ao valor anterior e mostra `role="alert"`. Desligada, a API devolve
+  `{ status: 'disabled' }` e a conversa mostra só o player.
+- **Smoke (T5.3): `test/audio-transcription.smoke.spec.ts`** (registrado em `testMatch` do `playwright.config.ts`; helper
+  `audio-transcription-smoke.helper.ts`). Todo teste afirma `failures()` vazio: rota da API sem dublê (a de `/company-settings/logo`, a de
+  `/occurrence-quick-replies`) vira `ERR_FAILED` e derrubou o deploy de staging antes. O `getUserMedia` do Chromium fica pendente neste macOS: o helper
+  injeta `getUserMedia` + `MediaRecorder` (WAV mudo); `PLAYWRIGHT_MICROPHONE=native` usa o real. ⚠️ O preview só libera `media-src 'self' blob:`: o áudio do
+  dublê sai da **origem da própria página** (`PLAYWRIGHT_FRONTEND_PORT`), senão o player mostra "Áudio indisponível" e o teste passa sem tocar nada.
+  ⚠️ Local, a 53000 costuma ser de outra sessão: `PLAYWRIGHT_FRONTEND_PORT=53110 PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true bun run smoke`.
+- O `Checkbox` do design system mede 24 px de altura no desktop (fora do alvo de 44 px dos botões de gravar/parar/enviar); não é desta spec mudá-lo.
 
 ## Testes de hook com DOM
 
@@ -343,6 +370,15 @@ leitura) e `TripTimelineLocationMap` (lazy, dois pinos, mapa quieto sem radar). 
 leva rótulo na tela. `location` e `locationState` chegam sempre (o validador as exige) e `location: null` com
 `captured` é o leitor sem `trip.event-location` — a tela não oferece mapa. Coordenada nunca em URL nem em
 log. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 196".
+
+**O mapa da viagem na página da ocorrência** (`/ocorrencias/:id`, seção `tripMap` logo abaixo do resumo): `OccurrenceTripMap`
+lê `GET /trips/:id` (mesma chave do detalhe) e `GET /trips/:id/timeline` (páginas até o teto) — **nenhuma chamada nova, nenhuma de rota**
+(o traçado não vem no detalhe; o mapa sai sem traço, `hideRoute`). A conta é pura, `buildOccurrenceTripMapView`: eventos com
+posição viram pinos numerados pela ordem do tempo (ícone + palavra + cor por tipo), a ocorrência é o evento de `id` igual ao da página
+(destaque com halo) e a parada da nota sai do evento, do vínculo da nota ou do rótulo. Sem `trip.event-location` a coordenada de
+evento **nem é lida** (`mode: 'stopsOnly'`, aviso claro); evento `restricted`/`unavailable`/`expired` não vira pino e é nomeado com o
+motivo. Mesmo mapa (`AssemblyVectorMap`, lazy, `vectorBasemap.service`); ele ganhou `focusRequest`, `isEntryAnimated` e, por ponto,
+`color`/`popup`/`isHighlighted` (dica em texto puro). Contratos: `test/trip/occurrence-trip-map*.contract.ts(x)`.
 
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
@@ -510,6 +546,38 @@ resposta (`AbortSignal.timeout`) volta ao aviso nacional de hoje. No detalhe, `s
 "Removidos pelo fornecedor" só oferece "Desligar" para data de hoje em diante (a API devolve 409 antes disso). Só informa: nada entra em `disabled`. Prints:
 `test/spec-252-painel-prints.smoke.spec.ts` (`SPEC_252_PRINTS_DIRECTORY`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 252 T5.2/T5.3".
 
+## Os feriados vêm da FeriadosAPI e avisam na montagem (spec 252 T5.2/T5.3)
+
+Aba **Calendário**: três blocos novos ao fim — "Importação de feriados" (manchete do estado da rotina, legenda das origens), "Removidos pelo fornecedor"
+(`removedByProvider` é `{ items, truncated }`) e "Feriados desligados" (`GET /holiday-imports/suppressions` paginada de 20). Linha **importada** oferece
+"Desligar" (`POST /holiday-imports/suppressions { holidayId, scope }`), não "Excluir"; **restaurar volta na próxima execução diária** e o texto diz isso.
+`409 HOLIDAY_IMPORT_PAST_DATE` / `HOLIDAY_IMPORT_DATE_LOCKED` / `HOLIDAY_NOT_IMPORTED` têm texto próprio. A coluna Origem lê `origin?: 'typed' | 'imported'`
+**opcional** da linha (a API o manda desde 2026-10-09; sem ele a célula fica vazia, nunca "cadastrada" por chute). O **cartão de status é honesto**
+(spec 252): a manchete sai do último ciclo da rotina (`lastRun.outcome`: `provider_unauthorized` → "token inválido ou plano sem cobertura",
+`provider_unreachable` → "indisponível, tentando de novo", `malformed_response` → "resposta inesperada") e `pairs.planRestricted > 0` vira um
+aviso à parte que não bloqueia o "Em dia"; os dois campos são **opcionais** nas guardas (o painel é publicado antes da API) e a manchete de
+cota não existe mais. Cliente próprio
+(`holidayImportClient.service.ts`), guardas de chaves exatas, namespace `businessCalendar.import.*`. Contratos: `test/business-calendar/holiday-import.contract.ts`
+e `test/trip-hooks/business-calendar-import-*.contract.ts`.
+
+**Montagem e detalhe:** quando o solver termina, `useSolverCityOrder` faz **uma** chamada a `POST /business-calendar/day-checks` (pares cidade × dia únicos, ≤ 200,
+cidade = 1º segmento da `addressKey`, dia civil de São Paulo da ETA) e o aviso aparece por parada (`AssemblyStopHolidayNotice`); rota caída, resposta ruim ou 5 s sem
+resposta (`AbortSignal.timeout`) volta ao aviso nacional de hoje. No detalhe, `stops[].holidayWarnings` vira o selo `TripStopHolidayBadge` (focável, `tabIndex={0}`: a dica abre no foco).
+"Removidos pelo fornecedor" só oferece "Desligar" para data de hoje em diante (a API devolve 409 antes disso). Só informa: nada entra em `disabled`. Prints:
+`test/spec-252-painel-prints.smoke.spec.ts` (`SPEC_252_PRINTS_DIRECTORY`). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 252 T5.2/T5.3".
+
+## A chave da FeriadosAPI se configura na aba Calendário (spec 262, ADR-0102)
+
+Bloco `HolidayProviderSettings` **antes** de `HolidayImportStatus`: chave, orçamento mensal e o interruptor da importação da empresa. Regras que não se
+negociam: o campo da chave é `type="password"`, `autoComplete="off"` e **nunca é preenchido de volta** (nem depois de salvar, nem depois de recusa do servidor);
+as guardas (`holidayProviderSettingsGuards.validation.ts`) são de **chaves exatas** e descartam resposta com `token` a mais; o corpo do `PUT` só leva o que foi
+pedido (`expectedVersion` obrigatório fora da criação, `monthlyRequestBudget: null` volta ao padrão). Escrever exige `holiday-import.configure` **e**
+`settings.manage` (prop `canConfigureHolidayImport`; sem ela o bloco é só leitura); o interruptor pede só `settings.manage`. O cartão de status ganhou as manchetes
+"sem chave", "chave ilegível" e "orçamento do mês atingido" por prioridade em `resolveImportStatusView({ settings, status })`, com `>=` como o worker, e lê a
+**mesma** chave de consulta do bloco. O 409 relê a configuração (promessa sem `await`: o contrato `mutation-pending-state` proíbe `onSuccess: async`). ⚠️ O
+`Retry-After` do 429 só chega se a API o expuser no CORS (hoje só `Date`): em produção a tela cai no texto sem minutos. Teste de DOM nunca imprime nó do happy-dom
+(SIGTRAP). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 262 (Fase 5)".
+
 ## O cadastro de tipos de ocorrência mora em `/ocorrencias` (spec 246)
 
 A aba **Tipos** de `/ocorrencias` (só com `settings.manage`; aba ativa na URL) substitui "Tipos de ocorrência" de
@@ -545,6 +613,17 @@ a ação não se desfaz, decisão só `other`/`goods_paid` (nunca reentrega), e 
 Origem de tratativa cancelada não motiva devolução; URLs assinadas das miniaturas ficam estáveis entre leituras; progresso do celular
 só conta notas que ainda se separam. ⚠️ Em contrato de DOM, `beforeEach` de arquivo vale para a suíte inteira: leia o dublê por
 `currentCaseDouble()`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 237 T3.4b".
+
+## Quem pegou a tratativa (spec 164)
+
+`OccurrenceCaseTakenBy` (`variant="block"` no topo da tratativa; `"inline"` na coluna **Responsável** da lista, no cartão
+do celular e no resumo): verde "Pegou <nome> desde …" (avatar de iniciais), cinza "Ninguém pegou ainda" e, passadas
+`TAKEN_BY_STALE_AFTER_HOURS` (4 h) com a tratativa ainda `recorded`, âmbar "Parada há N h sem ninguém pegar" — sempre
+ícone + palavra + cor, dica (`Tooltip`) que explica, animação de 200 ms só sob `prefers-reduced-motion: no-preference`.
+`case.takenBy` é **opcional na entrada** (`toTakenBy`: ausente ou malformado vira "ninguém pegou"; só `displayName` e
+`takenAt` passam, nunca contato). "Sem responsável" na lista é o filtro de Tratativa **Registrada** que já existe
+(`recorded` ⇔ ninguém iniciou a validação), então não há filtro novo nem parâmetro de API. A autoria de cada passo do
+histórico é a da linha do tempo (`OccurrenceTimeline`, `actor.name`).
 
 ## A devolução soma os itens no painel (spec 247)
 

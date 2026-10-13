@@ -29,7 +29,10 @@ const API_CATALOG_SOURCE = readFileSync(
 )
 
 function apiOccurrenceKeys(): readonly string[] {
-  const matches = [...API_CATALOG_SOURCE.matchAll(/'(trip\.occurrence-[a-z-]+)'/gu)]
+  // `contractor-reply` é o alerta de atraso da operação (spec 248), não motivo de parada do motorista.
+  const matches = [
+    ...API_CATALOG_SOURCE.matchAll(/'(trip\.occurrence-(?!contractor-reply)[a-z-]+)'/gu),
+  ]
   return [...new Set(matches.map(([, key]) => key as string))].toSorted()
 }
 

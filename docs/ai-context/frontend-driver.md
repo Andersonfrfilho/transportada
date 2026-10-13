@@ -266,3 +266,35 @@ nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNoti
 - **Cópia por valor com paridade:** `NATIONAL_HOLIDAY_KEYS` repete a lista da API (a mutação que tira `tiradentes` reprova o contrato).
 - **Preview:** `DRIVER_PREVIEW_HOLIDAYS=on` em `scripts/driver-preview-api.ts` devolve avisos nacional, estadual e municipal; sem a variável a resposta é a de sempre.
 - **Não exercitado:** o smoke Playwright (exige login real no Keycloak local). Os prints de 375/768/1280, claro e escuro, foram aprovados pelo usuário em 2026-10-09.
+
+## Spec 249 — A viagem transferida some da lista de quem saiu (ADR-0097)
+
+- Nenhuma tela nova. A viagem passa a quem entrou pelo vínculo (`trip_drivers`) e some de quem saiu;
+  `hasReassignedTrip` (`modules/driver-trip/shared/tripReassignment.service.ts`) já tratava qualquer
+  status não terminal e continua valendo para `dispatched`, `in_transit` e `on_delivery_route`.
+- **Aviso** (`driverTrip.locale.json`/`.en.locale.json`): "Esta viagem não está mais com você — foi
+  passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você
+  entregou e registrou fica com a viagem." Mantém os **dois** casos de propósito.
+- **Recusas offline** (`rejectionCauseLabel.service.ts`): `TRIP_NOT_OF_DRIVER` (403) diz "esta viagem
+  foi transferida; peça ao escritório para registrar"; `TRIP_STOP_NOT_REACHABLE` (404) diz que a
+  parada saiu da viagem. O escritório só dá baixa em nome de quem **está** na tripulação.
+- Sem push nem sino de atribuição (spec 217 D9). Contrato:
+  `test/driver-trip/trip-reassignment.contract.ts`.
+
+## Áudio e transcrição na conversa (spec 264, T4.2–T4.4)
+
+- **Fluxo.** O gravador é do pacote (`audioRecording={driverAudioRecordingOptions}`: 2 min, 8 MiB). Gravar → relógio ("0:03 de 2:00") →
+  Parar → "Ouça antes de enviar" (player da revisão) → Enviar áudio → upload em duas etapas como a foto → bolha com player e a
+  transcrição (`Transcrevendo…`, texto + "Transcrição gerada por máquina", "Nada foi dito no áudio", "só para áudios de menos de 10 minutos").
+  Aba oculta ou Parar duas vezes levam à revisão com o áudio (defeito H1 do SDK, provado no smoke).
+- **Cabeçalhos.** `Permissions-Policy: camera=(self), geolocation=(self), microphone=(self)` e CSP com `media-src 'self' blob: <storage>`,
+  do `server.ts` de produção (o preview do Vite não serve cabeçalho de segurança; a CSP chega ao preview pelo build).
+- **Fila offline com teto.** 100 itens e 48 MiB de arquivo (aparelho inteiro); texto entra até o teto de itens; recusa = `OUTBOX_FULL`,
+  alerta "Fila cheia" e bolha `failed` só em memória. Bolha de áudio na fila: nome do arquivo + "Na fila", sem player (contrato §3).
+  Reconexão entrega uma vez: a trava `isFlushing` + `runExclusive` evita repetir upload/POST, e a `Idempotency-Key` protege o servidor.
+- **Demo e debug.** API `scripts/driver-preview-api.ts`: `POST /__debug/conversations/audio-samples` e `.../transcription-ready`
+  (`{subjectId}`); o áudio enviado nasce `pending`; a URL do anexo serve um WAV mudo de 2 s.
+- **Como rodar.** `bun run smoke` na app (sobe 53112 e a demo 53912 sozinho; nunca use 53901/53200). Só o áudio:
+  `PLAYWRIGHT_TEST_MATCH=conversation-audio.smoke.spec.ts` com as mesmas variáveis do script (inclui `VITE_OBJECT_STORAGE_URL`).
+- **Ambiente.** Chromium headless no macOS: `getUserMedia` de áudio pendente e relógio do `<audio>` travado; o smoke injeta o microfone
+  (helper) e afirma "tocando" por estado, não por `currentTime`. Detalhe em `apps/frontend-driver/CLAUDE.md`.

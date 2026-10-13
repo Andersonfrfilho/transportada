@@ -1,0 +1,85 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ParticipantConversationsLabels } from '@adatechnology/conversations-ui/participant'
+
+/** Os rótulos do SDK que o fio usa; a lista inteira mora em `thread.labels.*` do namespace do assunto. */
+export const SUBJECT_THREAD_LABEL_KEYS = [
+  'attach',
+  'attachmentTooLarge',
+  'attachmentTypeNotAccepted',
+  'attachmentsList',
+  'audioEmpty',
+  'audioPlayer',
+  'audioPosition',
+  'audioPositionValue',
+  'audioTooLarge',
+  'audioUnavailable',
+  'back',
+  'channelApp',
+  'channelEmail',
+  'channelPortal',
+  'channelWebchat',
+  'channelWhatsapp',
+  'channelsGroup',
+  'collapseTranscription',
+  'copyProtocol',
+  'copyValue',
+  'discard',
+  'discardAudio',
+  'downloadAttachment',
+  'edit',
+  'emptyTranscription',
+  'externalLinkHint',
+  'loadError',
+  'loadMore',
+  'loadOlder',
+  'loading',
+  'machineTranscription',
+  'me',
+  'messageInputLabel',
+  'messageInputPlaceholder',
+  'messageOptions',
+  'microphoneDenied',
+  'newMessages',
+  'notFound',
+  'pauseAudio',
+  'playAudio',
+  'playbackRate',
+  'protocolCopied',
+  'protocolPrefix',
+  'quickRepliesGroup',
+  'recordAudio',
+  'recordingElapsed',
+  'recordingInProgress',
+  'recordingUnsupported',
+  'removeAttachment',
+  'retry',
+  'reviewAudio',
+  'scrollToLatest',
+  'send',
+  'sendAudio',
+  'showFullTranscription',
+  'statusDelivered',
+  'statusFailed',
+  'statusFailedShort',
+  'statusQueued',
+  'statusRead',
+  'statusSending',
+  'statusSent',
+  'stopRecording',
+  'transcribing',
+  'transcriptionReady',
+  'transcriptionTooLong',
+  'valueCopied',
+] as const satisfies readonly (keyof ParticipantConversationsLabels)[]
+
+export type SubjectThreadTranslate = (key: string) => string
+
+/** `closedNotice` varia com o motivo (encerrada, viagem terminou, só leitura): quem monta passa o texto. */
+export function buildSubjectThreadLabels(
+  translate: SubjectThreadTranslate,
+  closedNotice: string,
+): Partial<ParticipantConversationsLabels> {
+  const labels: Partial<Record<keyof ParticipantConversationsLabels, string>> = { closedNotice }
+  for (const key of SUBJECT_THREAD_LABEL_KEYS) labels[key] = translate(`thread.labels.${key}`)
+  return labels
+}

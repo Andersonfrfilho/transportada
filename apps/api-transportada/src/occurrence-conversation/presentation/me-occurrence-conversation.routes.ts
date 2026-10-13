@@ -51,7 +51,7 @@ export const DRIVER_CONVERSATION_SEND_RATE_LIMIT = {
   windowSeconds: 300,
 } as const
 
-const replySchema = z
+export const replySchema = z
   .object({
     attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),

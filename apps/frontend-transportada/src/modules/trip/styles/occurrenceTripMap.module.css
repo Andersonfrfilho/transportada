@@ -1,0 +1,145 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/* Mobile-first: a 375px tudo empilha em uma coluna e nenhuma linha tem largura fixa. */
+.canvas {
+  /* Altura fixa por token (index.css): o mapa não pula quando a legenda carrega. */
+  --vector-map-height: var(--occurrence-trip-map-height);
+  min-width: 0;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Aviso: ícone + palavra + cor (âmbar = atenção), nunca só a cor. */
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-2);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  border-radius: var(--radius-md, 4px);
+  background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  font-size: 0.9rem;
+}
+
+.notice svg {
+  margin-top: 0.1rem;
+  color: var(--color-copper-ink);
+}
+
+.noticeTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.noticeBody {
+  grid-column: 2;
+  margin: 0;
+  color: var(--color-slate);
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.chip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.entries {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-copper);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+/* Alvo de toque de 44px (web.md §10): a linha inteira da legenda é o botão que centraliza o pino. */
+.entryButton {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--touch-target);
+  text-align: left;
+  white-space: normal;
+}
+
+.entryRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  font-size: 0.85rem;
+}
+
+.entryText {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.entryDetail {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+/* A ocorrência da página: negrito e traço de alerta à esquerda — a forma também a destaca. */
+.entryThis {
+  border-left: var(--space-1) solid var(--color-alert);
+  font-weight: 600;
+}
+
+/* O evento sem posição fica esmaecido e sem clique: não há pino a centralizar. */
+.entryMuted {
+  color: var(--color-slate);
+}
+
+.orderMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  background: var(--color-fog);
+  color: var(--color-asphalt);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.stopRow {
+  display: grid;
+  gap: var(--space-1);
+}

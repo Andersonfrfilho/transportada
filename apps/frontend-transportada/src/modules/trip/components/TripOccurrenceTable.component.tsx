@@ -8,6 +8,8 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { ContractorReplyBadge } from '@/modules/occurrence-conversation/components/ContractorReplyBadge.component'
+
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
@@ -21,6 +23,7 @@ import {
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
+import { OccurrenceCaseTakenBy } from './OccurrenceCaseTakenBy.component'
 import {
   buildTripOccurrenceRoute,
   navigateToTripOccurrence,
@@ -78,6 +81,7 @@ function OccurrenceConversationCell({ item }: Readonly<{ item: TripOccurrenceFee
           {t(`occurrenceFeed.conversation.${cell.state.kind}.${cell.state.value}`)}
         </span>
       )}
+      {item.contractorReply == null ? null : <ContractorReplyBadge reply={item.contractorReply} />}
       {cell.driverUnreadCount === 0 ? null : (
         <span className={styles.occurrenceCellNote}>
           {t('occurrenceFeed.conversation.driverUnread', { count: cell.driverUnreadCount })}
@@ -137,6 +141,13 @@ function OccurrenceCell({
     return <OccurrenceDocumentCell column={column} item={item} />
   }
   if (column === 'conversation') return <OccurrenceConversationCell item={item} />
+  if (column === 'takenBy') {
+    return (
+      <td>
+        <OccurrenceCaseTakenBy occurrenceCase={item.case} variant="inline" />
+      </td>
+    )
+  }
   /** A marca de aviso enviado: o tipo cadastrado que notifica o embarcador. */
   return (
     <td>
@@ -293,9 +304,22 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
             <dt>{t('occurrenceFeed.columns.driverName')}</dt>
             <dd>{item.driverName}</dd>
           </div>
+          {item.case === null ? null : (
+            <div>
+              <dt>{t('occurrenceFeed.columns.takenBy')}</dt>
+              <dd>
+                <OccurrenceCaseTakenBy occurrenceCase={item.case} variant="inline" />
+              </dd>
+            </div>
+          )}
         </dl>
-        {conversation.state === null && conversation.driverUnreadCount === 0 ? null : (
+        {conversation.state === null &&
+        conversation.driverUnreadCount === 0 &&
+        item.contractorReply == null ? null : (
           <span className={styles.occurrenceCardHead}>
+            {item.contractorReply == null ? null : (
+              <ContractorReplyBadge reply={item.contractorReply} />
+            )}
             {conversation.state === null ? null : (
               <span className={styles.statusBadge}>
                 {t(

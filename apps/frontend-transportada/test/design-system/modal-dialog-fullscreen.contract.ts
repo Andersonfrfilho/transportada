@@ -126,6 +126,11 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
   },
   { dialog: '.dialog', filePath: 'src/modules/trip/styles/trip.module.css', overlay: '.overlay' },
   {
+    dialog: '.dialog',
+    filePath: 'src/modules/occurrence-conversation/styles/subjectConversation.module.css',
+    overlay: '.overlay',
+  },
+  {
     dialog: '.mdfeGateDialog',
     filePath: 'src/modules/trip/styles/trip.module.css',
     overlay: '.mdfeGateOverlay',

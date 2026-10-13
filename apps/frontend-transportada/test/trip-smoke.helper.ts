@@ -1196,6 +1196,15 @@ async function registerTripMocks(
       },
     })
   })
+  // Spec 263: o detalhe da viagem lista as conversas por assunto; sem este mock o pedido escapa
+  // para a API (que não sobe no smoke) e volta `net::ERR_FAILED`, que reprova `api.failures()`.
+  await input.page.route(/\/trips\/[^/]+\/conversations(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
   await input.page.route(/\/trips\/occurrence-types\/field$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)

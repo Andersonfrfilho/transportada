@@ -26,6 +26,7 @@ export const SETTINGS_PANELS = [
   'quickReplies',
   'settingsResolution',
   'businessCalendar',
+  'audioTranscription',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -42,6 +43,7 @@ export const SETTINGS_PANEL_MODULES = [
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
+  | 'audioTranscription'
   | 'businessCalendar'
   | 'cameraMeasurementSettings'
   | 'cargoSettings'
@@ -84,6 +86,12 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  /** Spec 264 RF17: cadastro da empresa que muda o que a conversa por assunto mostra — aba própria de Configurações. */
+  audioTranscription: {
+    module: 'company-settings',
+    source: 'audioTranscription',
+    tab: 'audioTranscription',
+  },
   /**
    * Spec 238 Fase 2: o calendário (sábado, feriados municipais e estaduais) é da empresa inteira e do prazo de
    * entrega em dias úteis, não de um módulo — aba própria de Configurações, só com `settings.manage`.
@@ -237,6 +245,7 @@ export function resolveSettingsDataScope(
     settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
   )
   return {
+    audioTranscription: sources.has('audioTranscription'),
     businessCalendar: sources.has('businessCalendar'),
     cameraMeasurementSettings: sources.has('cameraMeasurementSettings'),
     cargoSettings: sources.has('cargoSettings'),
@@ -272,6 +281,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'quickReplies',
   'settingsResolution',
   'businessCalendar',
+  'audioTranscription',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

@@ -24,6 +24,9 @@ const SUPPORT_ONLY = [
   // Spec 252 (cartão de status honesto): o último ciclo da rotina também é da instalação (`job_executions` não tem
   // empresa no ciclo agendado); o contrato de isolamento prende a projeção a `outcome` e `finishedAt`.
   'holiday-import-last-run.query.ts',
+  // Spec 262: a chave da FeriadosAPI e o orçamento são da instalação (tabela sem `company_id`); a fronteira é o
+  // contrato `holiday-import-global-isolation` (só este repositório importa a tabela) e a auditoria cai na empresa do ator.
+  'drizzle-holiday-provider-settings.repository.ts',
 ]
 
 function repositorySources(): readonly { readonly name: string; readonly text: string }[] {

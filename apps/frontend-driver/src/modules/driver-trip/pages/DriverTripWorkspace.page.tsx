@@ -8,6 +8,8 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { OpenSubjectConversationButton } from '@/modules/conversation/components/OpenSubjectConversationButton.component'
+import { OpenSubjectConversationProvider } from '@/modules/conversation/components/OpenSubjectConversationProvider.component'
 
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverForeignPendingNotice } from '../components/DriverForeignPendingNotice.component'
@@ -264,10 +266,7 @@ export function DriverTripWorkspacePage() {
             <Skeleton variant="block" />
           </SkeletonGroup>
         </main>
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -279,10 +278,7 @@ export function DriverTripWorkspacePage() {
         <main className={styles.shell}>
           <p role="alert">{t('error')}</p>
         </main>
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -304,10 +300,7 @@ export function DriverTripWorkspacePage() {
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
           stops={trip?.stops ?? []}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -367,10 +360,7 @@ export function DriverTripWorkspacePage() {
           queueView={driverTrip.queueView}
           snapshot={snapshot}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -390,10 +380,7 @@ export function DriverTripWorkspacePage() {
           onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
           onOpenQueue={() => navigateToDriverSection('queue')}
         />
-        <DriverBottomBar
-          section={section}
-          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-        />
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
     )
   }
@@ -704,6 +691,13 @@ export function DriverTripWorkspacePage() {
               {t('tripCreatedAt', { date: formatTripCreatedAt(trip.createdAt) })}
             </p>
           )}
+          {trip === undefined || !canReportOnTrip(trip) ? null : (
+            <OpenSubjectConversationButton
+              contextLabel={t('tripCodeLabel')}
+              subjectId={trip.id}
+              subjectType="trip"
+            />
+          )}
           {trip?.status === 'on_delivery_route' ? (
             <p className={styles.tripOnRoute}>
               <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
@@ -934,64 +928,63 @@ export function DriverTripWorkspacePage() {
             {t('search.noResults')}
           </p>
         ) : (
-          <ul className={styles.stopList}>
-            {visibleStops.map((stop) => {
-              const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
-              const blockingStopSequence = startRouteBlock.enabled
-                ? undefined
-                : trip.stops.find((candidate) => candidate.id === startRouteBlock.blockingStopId)
-                    ?.sequence
-              return (
-                <DriverStopCard
-                  {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
-                  canReportArrival={canReportArrival({
-                    enRouteStopId,
-                    isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
-                    stop,
-                  })}
-                  canStartRoute={startRouteBlock}
-                  deliverActivityByDocumentId={deliverActivityByDocumentId}
-                  isCurrent={stop.id === currentStopId}
-                  isEnRoute={stop.id === enRouteStopId}
-                  isFieldWorkBlocked={isTripAwaitingDispatch}
-                  isLocationDenied={isLocationDenied}
-                  isOpen={stopExpansion.isOpen(stop.id)}
-                  isReadOnly={!canReportOnTrip(trip)}
-                  key={stop.id}
-                  lastKnownLocation={lastKnownLocation}
-                  queueView={driverTrip.queueView}
-                  sentReportKeys={driverTrip.sentReportKeys}
-                  tappedReports={tappedReports}
-                  returnActivityByDocumentId={returnActivityByDocumentId}
-                  stop={stop}
-                  stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
-                  onArrive={arriveAtStop}
-                  onCancelDeparture={cancelStopDeparture}
-                  onDeliver={deliverDocument}
-                  onDepart={departStop}
-                  onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
-                  onFocusStop={focusStop}
-                  onHeaderRef={registerStopHeaderRef}
-                  onProof={handleProof}
-                  onProofFieldsUpdate={handleProofFieldsUpdate}
-                  onRemoveProof={handleRemoveProof}
-                  occurrenceTypes={occurrenceTypes}
-                  onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
-                  onToggle={() => stopExpansion.toggle(stop.id)}
-                  onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
-                  onStopOccurrence={(input) => void reportStopOccurrence(input)}
-                  notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
-                  onNotDelivered={(input) => void reportNotDelivered(input)}
-                />
-              )
-            })}
-          </ul>
+          <OpenSubjectConversationProvider isEnabled={canReportOnTrip(trip)}>
+            <ul className={styles.stopList}>
+              {visibleStops.map((stop) => {
+                const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
+                const blockingStopSequence = startRouteBlock.enabled
+                  ? undefined
+                  : trip.stops.find((candidate) => candidate.id === startRouteBlock.blockingStopId)
+                      ?.sequence
+                return (
+                  <DriverStopCard
+                    {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
+                    canReportArrival={canReportArrival({
+                      enRouteStopId,
+                      isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
+                      stop,
+                    })}
+                    canStartRoute={startRouteBlock}
+                    deliverActivityByDocumentId={deliverActivityByDocumentId}
+                    isCurrent={stop.id === currentStopId}
+                    isEnRoute={stop.id === enRouteStopId}
+                    isFieldWorkBlocked={isTripAwaitingDispatch}
+                    isLocationDenied={isLocationDenied}
+                    isOpen={stopExpansion.isOpen(stop.id)}
+                    isReadOnly={!canReportOnTrip(trip)}
+                    key={stop.id}
+                    lastKnownLocation={lastKnownLocation}
+                    queueView={driverTrip.queueView}
+                    sentReportKeys={driverTrip.sentReportKeys}
+                    tappedReports={tappedReports}
+                    returnActivityByDocumentId={returnActivityByDocumentId}
+                    stop={stop}
+                    stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
+                    onArrive={arriveAtStop}
+                    onCancelDeparture={cancelStopDeparture}
+                    onDeliver={deliverDocument}
+                    onDepart={departStop}
+                    onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
+                    onFocusStop={focusStop}
+                    onHeaderRef={registerStopHeaderRef}
+                    onProof={handleProof}
+                    onProofFieldsUpdate={handleProofFieldsUpdate}
+                    onRemoveProof={handleRemoveProof}
+                    occurrenceTypes={occurrenceTypes}
+                    onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
+                    onToggle={() => stopExpansion.toggle(stop.id)}
+                    onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
+                    onStopOccurrence={(input) => void reportStopOccurrence(input)}
+                    notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
+                    onNotDelivered={(input) => void reportNotDelivered(input)}
+                  />
+                )
+              })}
+            </ul>
+          </OpenSubjectConversationProvider>
         )}
       </main>
-      <DriverBottomBar
-        section={section}
-        onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
-      />
+      <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
     </div>
   )
 }

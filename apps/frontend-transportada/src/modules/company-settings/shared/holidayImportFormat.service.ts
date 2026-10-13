@@ -46,6 +46,14 @@ export function formatInstantDateTime(input: Formatting): string {
   return formatInstant({ ...input, withTime: true })
 }
 
+/** Contagem com o separador de milhar do idioma (`4.500` em pt-BR, `4,500` em en): "42 de 4.500 consultas". */
+export function formatCount({
+  language,
+  value,
+}: Readonly<{ language: string; value: number }>): string {
+  return new Intl.NumberFormat(localeOf(language)).format(value)
+}
+
 export type HolidayPlace = Readonly<{ ibgeCode: string; scope: HolidayImportScope }>
 
 /** O estado pela sigla; a cidade pelo nome do IBGE quando a lista chegou, senão pelo código — nunca vazio. */

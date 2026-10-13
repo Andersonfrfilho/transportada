@@ -103,6 +103,7 @@ function driverTransaction(attachments: ConversationAttachmentTransactionPort) {
     findOrCreateDriverConversation: async ({ driverUserId }: { driverUserId: string }) => ({
       driverUserId,
       id: 'conversation-driver',
+      protocol: '261009-AB12',
     }),
     insertMessage: async () => ({ id: 'message-1' }),
     listAttachments: async () => [],
@@ -260,6 +261,7 @@ describe('o anexo nos envios (spec 183 T702a)', () => {
     const fake = attachmentsFake()
     const useCase = createContractorPortalConversationUseCase({
       clock: () => NOW,
+      deliveryNotifier: { notify: async () => undefined },
       fingerprintService,
       newRef: () => REF,
       scopes: {
@@ -271,6 +273,7 @@ describe('o anexo nos envios (spec 183 T702a)', () => {
         execute: (work) =>
           work({
             ...idempotency(),
+            applyContractorReply: async () => undefined,
             attachments: fake.port,
             ensureConversationRefs: async () => new Map(),
             findConversation: async () => ({

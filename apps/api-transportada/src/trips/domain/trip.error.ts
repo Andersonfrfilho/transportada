@@ -312,6 +312,17 @@ export class TripDocumentAlreadyDeliveredError extends ApiError {
   }
 }
 
+/** Nota já solta da viagem: dizer "entregue" nessa recusa mandava o operador atrás do defeito errado. */
+export class TripDocumentAlreadyReleasedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_ALREADY_RELEASED',
+      message: 'The document was already released from this trip.',
+      status: 422,
+    })
+  }
+}
+
 const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, string>> = {
   TRIP_ALREADY_DISPATCHED: 'The cargo already left: a dispatched trip no longer accepts changes.',
   TRIP_CANCELLED: 'A cancelled trip no longer accepts changes.',
@@ -689,6 +700,50 @@ export class OccurrenceTypeDeclaredAmountNeedsItemsError extends ApiError {
     super({
       code: 'OCCURRENCE_TYPE_DECLARED_AMOUNT_NEEDS_ITEMS',
       message: 'A declared amount per item requires the occurrence type to carry items.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 (RF1): o retorno da contratante exige o e-mail à contratante ligado e o texto ao motorista. */
+export class OccurrenceTypeContractorReplyNeedsMailError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_CONTRACTOR_REPLY_NEEDS_MAIL',
+      message: 'The contractor reply requires the contractor email on and a text for the driver.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 (RF1): alertar o atraso exige o prazo de espera. */
+export class OccurrenceTypeContractorReplyAlertNeedsWaitError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_CONTRACTOR_REPLY_ALERT_NEEDS_WAIT',
+      message: 'Alerting on delay requires the wait time.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 (RF1): enviar ao cliente da nota sem passar pelo operador exige o retorno ligado. */
+export class OccurrenceTypeForwardAutomaticNeedsReplyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY',
+      message: 'Automatic forwarding to the note customer requires the contractor reply on.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 248 T4.7 (RF10/RF11): enviar o boleto por e-mail a um terceiro exige o assunto e o corpo do e-mail. */
+export class OccurrenceTypeForwardNeedsTextError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT',
+      message: 'Forwarding the invoice by e-mail requires a subject and a body.',
       status: 422,
     })
   }

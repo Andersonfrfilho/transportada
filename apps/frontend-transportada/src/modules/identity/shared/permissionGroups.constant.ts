@@ -37,7 +37,12 @@ export const PERMISSION_GROUPS = [
   { key: 'nfse', permissions: ['nfse.read', 'nfse.manage', 'nfse.issue', 'nfse.cancel'] },
   {
     key: 'settings',
-    permissions: ['settings.manage', 'addresses.read', 'view-preferences.manage'],
+    permissions: [
+      'settings.manage',
+      'holiday-import.configure',
+      'addresses.read',
+      'view-preferences.manage',
+    ],
   },
   { key: 'operations', permissions: ['operations.read', 'operations.run', 'audit.read'] },
   { key: 'occurrences', permissions: ['occurrences.resolve'] },

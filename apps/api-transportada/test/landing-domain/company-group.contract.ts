@@ -21,6 +21,7 @@ function buildUnit(overrides: Partial<CompanyGroupUnit>): CompanyGroupUnit {
     postalCode: '01000000',
     state: 'SP',
     street: 'Rua Um',
+    displayName: 'Unidade',
     tradeName: 'Unidade',
     ...overrides,
   }

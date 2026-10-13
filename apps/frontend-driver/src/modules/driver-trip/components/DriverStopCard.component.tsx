@@ -8,7 +8,9 @@ import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
+import { DocumentConversationSlot } from '@/modules/conversation/components/DocumentConversationSlot.component'
 
+import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
@@ -1099,6 +1101,11 @@ function DocumentDetails({ document }: DocumentDetailsProps) {
           {document.accessKey}
         </p>
       ) : null}
+      <DriverContractorReplyStatus occurrences={document.registeredOccurrences} />
+      <DocumentConversationSlot
+        contextLabel={t('loadSheet.note', { number: document.number, series: document.series })}
+        documentId={document.id}
+      />
     </div>
   )
 }

@@ -137,3 +137,11 @@ Cobertura ponta a ponta em
 `api-transportada/test/integration/alphanumeric-cnpj-end-to-end.integration.ts`: nota de emitente
 alfanumérico → lote → frete → payload de CT-e → DACTE → fatura. Ele **não** cobre assinatura e
 transmissão (o XML nasce no worker, com certificado e rede).
+
+**A conversa da ocorrência agora é a visão do participante** (spec 263, T1b.4, RF13). O cartão usa
+`ParticipantConversations channel="portal"` de `@adatechnology/conversations-ui/participant` (carregado sob demanda) com um
+`ParticipantConversationsApi` próprio (`portalParticipantApi.service.ts`, sobre as rotas de sempre) e `subjectGroups`. O
+`styles.css` do pacote **continua fora**: `scripts/extract-participant-css.mjs` copia só as regras `.cv-p*` para
+`src/styles/participantConversation.css` (arquivo gerado — rodar o script ao subir a versão do pacote), e `.conversation__participant`
+em `index.css` mapeia os `--cv-p-*` para os tokens do portal. O contrato `test/occurrences/portal-participant.contract.ts` falha se
+entrar regra global nesse CSS. `OccurrenceConversation.component.tsx` (o balão antigo) ficou sem uso na tela; sai quando o dono aprovar.

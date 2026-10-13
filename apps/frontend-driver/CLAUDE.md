@@ -404,3 +404,81 @@ Detalhe e medições: `docs/ai-context/frontend-driver.md` § "Spec 254".
 - A nota do motorista não muda com feriado (CA16, contrato na API). Nada é importado do painel (ADR-0075).
 
 Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
+
+## Conversas (spec 263)
+
+- **A tela não é copiada para o app.** `DriverConversations.page.tsx` só monta o `ParticipantConversations` de
+  `@adatechnology/conversations-ui/participant` (import dinâmico) e liga rota, adapter, tema, rótulos e ícones. Layout, busca,
+  protocolo, canais e bolhas vêm do pacote; cópia da tela é regressão (ADR-0075 §7). Fixe `conversations-ui` e
+  `conversation-contracts` em versão exata, e atualize as três apps juntas.
+- **Rotas por assunto, com queda.** O adapter (`driverConversationsApi.service.ts`) fala com
+  `/me/trips/current/conversations[/:subjectType/:subjectId/{messages,messages/read,uploads}]` e a resposta já traz
+  `awaitingDriver` e o eco do `clientMessageId` — não há mais remendo no app. `driverConversationRoutes.service.ts` cai nas rotas de
+  ocorrência (`occurrence-conversations`, `occurrences/:id/**`) quando a nova responde 501 ou 404 **que não seja**
+  `CONVERSATION_NOT_FOUND` (API ainda não implantada, ADR-0081 §9), e fica nelas até recarregar. Na queda, nota e viagem são
+  recusadas (`SUBJECT_UNSUPPORTED`) e `awaitingParticipant` vira "tem não lida". Teste: `driver-conversations-fallback.contract.ts`.
+- **Fila offline.** A `Idempotency-Key` é o `clientMessageId` em toda tentativa e em qualquer das duas rotas; a fila guarda
+  `subjectType`/`subjectId` e reenvia pela rota do assunto. Assunto desconhecido é recusado antes de ir à fila.
+- **Protocolo, canais e ícone.** O mapper repassa `protocol`, `channels` (só os que o pacote conhece) e `iconName` **se a API
+  mandou** — sem campo, nada aparece, nunca se inventa. `renderDriverSubjectIcon` mapeia o catálogo da spec 255 para o `<Icon>` do
+  app e devolve `null` fora dele (o pacote usa o ícone do grupo). Rótulos novos do SDK entram em `conversation.locale.json` **e**
+  `.en`; ao subir o pacote, confira as chaves de `participantLabels`.
+- **"Falar com o escritório" (T3.3).** Nota (dentro de `DocumentDetails`, pelo `DocumentConversationSlot`) e topo da viagem chamam
+  `openConversation` (`POST .../conversations/open`, sem queda: 404 sem `CONVERSATION_NOT_FOUND`/501 = `CONVERSATIONS_UNAVAILABLE`, o botão
+  some até recarregar) e navegam para `/conversas/:tipo/:id`. O cartão da parada só muda se a `OpenSubjectConversationProvider` estiver
+  ligada (golden `test/fixtures/driver-stop-card.golden.html`); o selo lê a mesma query da aba (`conversationDigests.query.ts`), sem polling extra.
+- **"Sair" descarta o outbox do chat (LGPD, T1b.7).** Texto e foto de mensagem não enviada não ficam no aparelho: o "Sair" soma as
+  mensagens à contagem do aviso (`requestSignOut`) e, ao confirmar — ou sem pendência, de forma idempotente —, `discardCurrentConversationOutbox`
+  apaga o outbox do dono antes do logout; no boot, `discardOrphanedConversationOutboxFor(subHash)` apaga o de outros donos. Falha de
+  IndexedDB nunca bloqueia login nem logout (devolve `failed`, sem conteúdo). Teste: `conversation-outbox-discard.contract.ts`.
+- **Demonstração.** `scripts/driver-preview-conversations*.ts` serve as duas famílias de rota; reinicie a API de demonstração
+  (porta 53901) depois de mudar o script.
+  A mensagem do motorista nasce `delivered` (✓✓ cinza) e `POST /__debug/conversations/office-read` `{subjectId}` a leva a `read`
+  (✓✓ azul); `office-reply` e `fail-next` (`status: 422` = recusa permanente → botão de reenviar) seguem como antes.
+- **Áudio e transcrição (spec 264 T4.2/T4.3).** A gravação é do pacote: `DriverConversations.page.tsx` só passa
+  `audioRecording={driverAudioRecordingOptions}` (`driverAudioRecording.service.ts`: 2 min e 8 MiB, tetos que só baixam o padrão do SDK
+  de 5 min e 16 MiB). `onCaptureChange` abre/fecha o kind `audio-recording` do `captureRegistry`, então o SW e o "Entrar de novo" esperam a
+  gravação fechar. `Permissions-Policy` é `microphone=(self)` (`server.ts`) e a CSP ganha `media-src 'self' blob: <storage>`
+  (`contentSecurityPolicy.service.ts`, produção e dev). O adapter valida `transcription` com `participantTranscriptionSchema.safeParse`
+  **por anexo** e `durationMs` por guarda: inválido ⇒ o campo some, a página nunca cai. `transcriptionUpdatedAt` vem do resumo, fora do
+  schema do pacote, e o `diffConversationSnapshots` o compara — é o que faz o refresh de 15 s ver `pending → ready`.
+- **Fila offline com teto (spec 264 §5.4).** `CONVERSATION_OUTBOX_LIMIT`: 100 itens e 48 MiB de arquivo, conferidos **antes** de gravar
+  (`conversationOutboxLimit.service.ts`); os bytes valem só para mensagem com arquivo, o texto entra sempre até o teto de itens. A cota
+  vale pelo aparelho inteiro (outras contas contam). Acima do teto, ou `QuotaExceededError`, o `enqueue` lança `OUTBOX_FULL`: a bolha
+  fica `failed` no pacote, a página mostra `outboxFull` ("Fila cheia…") até uma mensagem sair, e **a mensagem recusada fica só em memória —
+  recarregar a página a perde** (reenviar pelo toque funciona enquanto a página estiver aberta). Dono da fila e "Sair" valem como nas outras.
+- **Demo de áudio.** `POST /__debug/conversations/audio-samples` `{subjectId}` põe quatro áudios na conversa (`pending`, `ready` com texto,
+  `ready` vazio, `failed` `too_long`, todos com `durationMs`); `.../transcription-ready` `{subjectId}` leva os `pending` a `ready` e move
+  `transcriptionUpdatedAt` no resumo. O áudio que o motorista grava e envia (upload → PUT → `attachmentIds`) nasce `pending`; a URL do
+  anexo de áudio serve um WAV mudo de 2 s. Teste: `driver-preview-conversations-audio.contract.ts`.
+- **Smoke do áudio (spec 264 T4.4).** `test/conversation-audio.smoke.spec.ts` (10 testes, entra no script `smoke`; build com
+  `VITE_OBJECT_STORAGE_URL` = origem da demo, senão a CSP não deixa o `<audio>` tocar). ⚠️ **No macOS o `getUserMedia({ audio })` do
+  Chromium do Playwright fica pendente** mesmo com mic falso e permissão (vídeo e enumeração funcionam; e um `AudioContext` não renderiza,
+  nem o `currentTime` do `<audio>` anda além de ~0,06 s: sem dispositivo de áudio). Por isso `conversation-audio-smoke.helper.ts` injeta
+  `getUserMedia` e um `MediaRecorder` que entregam um WAV mudo; todo o resto é código real. `PLAYWRIGHT_MICROPHONE=native` usa o do navegador.
+  Rede: `setNetwork` (`setOffline` + rota que aborta `/me/**`, porque o `route.fetch` do desvio roda no Node). Bolha na fila é a de anexo
+  pendente (nome do arquivo + relógio), sem player. "Tocando" se afirma por botão "Pausar" + `<audio>` carregado e não pausado, nunca por
+  `currentTime`. Os cabeçalhos se testam no `server.ts` de produção (o preview do Vite não os serve). `PLAYWRIGHT_SAVE_PRINTS=true` regrava os prints.
+- **Boleto da contratante (spec 248 T5.4).** O escritório leva o PDF à conversa **da ocorrência** como mensagem `app`; nada é código novo no app:
+  PDF vira `kind: 'document'` no mapper e o pacote o desenha como `<a download>` com a URL assinada da leitura (renovada por `resolveAttachmentUrl`).
+  Teste: `driver-conversations-boleto.contract.ts` (aviso do sino, mapper, URL assinada; fixture local). ⚠️ Sem smoke do sino → conversa → download (pede Chromium
+  e Keycloak locais).
+- **"Pedido enviado à contratante" (spec 248 T5.4).** `GET /me/trips/current` traz, na nota, `registeredOccurrences: [{ id, contractorReply: { status } | null }]`
+  (só as ocorrências que abriram retorno). A guarda (`readRegisteredOccurrences`) é de **chaves exatas e tolerante**: ausente = API anterior = nada na tela (o app vai
+  **antes** da API, ADR-0081 §9); item com chave a mais, sem id ou com estado fora do vocabulário sai, nunca derruba a nota. `DriverContractorReplyStatus` (dentro de
+  `DocumentDetails`, só texto e ícone `clock`/`document`/`check`, linha de 44 px, sem toque) mostra "Pedido enviado à contratante" e um estado por linha:
+  aguardando a contratante (`awaiting_contractor`, `overdue`) · boleto recebido (`reply_received`, `awaiting_operator`, `needs_operator`) · entregue a você na conversa
+  (`delivered`); `handled`/`cancelled` não dizem nada ao motorista e saem. `CONTRACTOR_REPLY_STATUSES` é cópia por valor da API, presa por contrato. Teste:
+  `test/driver-trip/contractor-reply-status.contract.tsx`.
+- **Ticks da mensagem do motorista (T5.4).** O status vem do servidor nas rotas novas (`delivered`/`read`, derivado de leitura do escritório);
+  o mapper só repassa os valores que o pacote conhece e a ausência (rota antiga) segue sem status. Fila offline = relógio (`queued`),
+  em voo = ✓ (`sending`, do pacote), falha permanente = botão "Falhou — toque para reenviar". Rótulos `statusDelivered`/`statusRead`/…
+  já existem nos dois locales. Teste: `test/conversation/driver-message-status.contract.ts`, smoke "ticks" e "falha".
+- **Respostas prontas da empresa (T5.3, D11).** `GET /me/trips/current/quick-replies` → `{data:[{id,text}]}`; o serviço
+  `driverQuickReplies.service.ts` guarda a **última lista boa** no `localStorage` (chave por dono da sessão, sem dono não há cache) e a
+  usa só quando a resposta não chegou (rede, token, 5xx); 4xx (`409 DRIVER_NOT_REGISTERED`), corpo inválido e lista vazia = sem chips,
+  nunca erro na tela. `useDriverQuickReplies` (`networkMode: 'always'`, senão a consulta pausa offline) mapeia `{id,text}` para o
+  `QuickReply` do participante (`title` = texto cortado em 40, `body` = texto inteiro) e a página passa em `quickReplies`; tocar
+  PREENCHE, nunca envia (pacote). Demo API: `GET` da rota com 4 textos e `POST /__debug/conversations/quick-replies`
+  `{texts: string[], status?: 409|500}` (zera/troca/falha; `reset` restaura). Teste: `test/conversation/driver-quick-replies.contract.ts`,
+  smoke "respostas prontas".

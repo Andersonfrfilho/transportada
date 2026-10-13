@@ -11,7 +11,8 @@
     "entryKinds": "Espécies de lançamento",
     "quickReplies": "Respostas rápidas",
     "settingsResolution": "Verificar configuração",
-    "businessCalendar": "Calendário"
+    "businessCalendar": "Calendário",
+    "audioTranscription": "Transcrição de áudios"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -121,6 +122,10 @@
   "lookupError": "Não foi possível localizar dados para este CNPJ.",
   "stateRegistration": "Inscrição estadual",
   "municipalRegistration": "Inscrição municipal",
+  "displayNameMode": "Nome da empresa nas telas, e-mails e PDFs",
+  "displayNameModeHint": "Vale para o painel, o app do motorista, e-mails e PDFs. Documentos fiscais (CT-e, MDF-e, NFS-e) sempre levam a razão social.",
+  "displayNameModeLegalName": "Razão social",
+  "displayNameModeTradeName": "Nome fantasia",
   "taxRegime": "Regime tributário",
   "taxRegime1": "Simples Nacional",
   "taxRegime2": "Simples Nacional — excesso de sublimite",
@@ -560,6 +565,58 @@
         "exception": {
           "has": "Tem exceção"
         }
+      }
+    },
+    "contractorReply": {
+      "title": "Retorno da contratante",
+      "legend": "O pedido vai à contratante; quando ela responde com o boleto atualizado, o sistema pode levar a resposta ao motorista sem passar pela operação.",
+      "save": "Salvar retorno",
+      "undo": "Desfazer",
+      "fields": {
+        "mode": "Ao receber a resposta",
+        "attachmentKind": "Anexo que vale como retorno",
+        "driverReplyTemplate": "Texto enviado ao motorista",
+        "waitHours": "Prazo de espera (horas, vazio = sem prazo)",
+        "alertMode": "Se a contratante atrasar",
+        "alertIntervalMinutes": "Repetir o alerta a cada (minutos)",
+        "alertMaxCount": "Máximo de alertas por ocorrência",
+        "forwardToNoteRecipient": "Enviar o boleto ao e-mail do cliente da nota",
+        "forwardToInformedEmail": "Encaminhar o boleto a um e-mail informado",
+        "forwardEmailSubject": "Assunto do e-mail ao terceiro",
+        "forwardEmailBody": "Texto do e-mail ao terceiro"
+      },
+      "mode": {
+        "off": "Só mostrar a resposta",
+        "forward_after_approval": "Levar ao motorista depois da aprovação do operador",
+        "forward_automatic": "Levar ao motorista automaticamente"
+      },
+      "attachmentKind": {
+        "pdf": "Somente PDF",
+        "pdf_or_image": "PDF ou imagem"
+      },
+      "alertMode": {
+        "off": "Não alertar",
+        "alert_operator": "Alertar a operação"
+      },
+      "forwardToNoteRecipient": {
+        "off": "Não enviar",
+        "manual": "O operador envia",
+        "automatic": "Enviar automaticamente"
+      },
+      "forwardToInformedEmail": {
+        "off": "Não encaminhar",
+        "manual": "O operador informa o e-mail"
+      },
+      "forwardLegend": "O mesmo assunto e texto vão ao cliente da nota e ao e-mail informado, com o boleto em anexo. No máximo 5 e-mails por ocorrência.",
+      "problems": {
+        "needsContractorMail": "Ligue o e-mail à contratante deste tipo para usar o retorno.",
+        "templateRequired": "Escreva o texto que o motorista recebe.",
+        "waitHoursOutOfRange": "Informe de 1 a 168 horas.",
+        "alertNeedsWaitHours": "Para alertar o atraso, informe o prazo de espera.",
+        "intervalOutOfRange": "Informe de 15 a 1440 minutos.",
+        "maxCountOutOfRange": "Informe de 1 a 96 alertas.",
+        "automaticNeedsReply": "O envio automático ao cliente da nota exige que o retorno esteja ligado.",
+        "forwardNeedsText": "Escreva o assunto e o texto: o e-mail ao terceiro não sai sem os dois."
       }
     }
   },

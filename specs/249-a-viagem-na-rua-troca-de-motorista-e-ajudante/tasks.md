@@ -25,7 +25,7 @@ Migration pede `make migration-test` além do `make check`.
       repositório). Saída: 5 linhas no `plan.md`, sem código.
 - [x] **T1.2** Contratos vermelhos primeiro: grade de `trip-state.contract.ts` com a ação nova nos
       10 status; `crew-transfer.contract.ts` (permissão, corpo, `reason` obrigatório, `409
-TRIP_CREW_UNCHANGED`, recusa em `completed`/`cancelled`/`separating`, veículo ausente do corpo);
+TRIP_CREW_UNCHANGED`, recusa em `cancelled`, antes do despacho e em `separating`, veículo ausente do corpo);
       `separator-role.contract.test.ts` prova que o separador não alcança a rota.
 - [x] **T1.3** Migration `trip_crew_events` + `rollback.sql` + `snapshot.json` + schema Drizzle.
       `make migration-test` verde.
@@ -45,7 +45,7 @@ TRIP_CREW_UNCHANGED`, recusa em `completed`/`cancelled`/`separating`, veículo a
       `costDifference` e `mdfeDriverDivergence`, estados do diálogo (motivo vazio desabilita).
 - [x] **T2.2** `TripCrewTransferDialog`, hook, cliente, botão no `TripHeaderActions` por
       `allowed-actions`, locales pt-BR/en, aviso de MDF-e, resumo da diferença de custo.
-- [ ] **T2.3** Evento de tripulação na linha do tempo da viagem.
+- [x] **T2.3** Evento de tripulação na linha do tempo da viagem.
 
 ## Fase 3 — App do motorista
 
@@ -61,9 +61,21 @@ TRIP_CREW_UNCHANGED`, recusa em `completed`/`cancelled`/`separating`, veículo a
 - [x] **T4.1** `docs/ai-context/*`, corrigir "tripulação fixa" em `A/CLAUDE.md` e
       `docs/ai-context/api-transportada.md`, ADR curta (valor e MDF-e), prettier nos `.md`.
 - [ ] **T4.2** Revisão de design e usabilidade do diálogo: print do painel (web.md §15), uma vez.
-- [ ] **T4.3** Gates completos: `make check`, `make migration-test`, integração tocada
+      _Aberta: o print da tela não foi tirado (o usuário dispensou o preview em 2026-10-07)._
+- [x] **T4.3** Gates completos: `make check`, `make migration-test`, integração tocada
       (`bun --env-file=../../.env.test run test:integration`). Publicar em staging (`fetch → rebase →
 install → gates → push HEAD:staging`). PR `staging → main` aberto para aprovação humana.
+
+## Fase 5 — Depois da entrega (2026-10-08 a 2026-10-11)
+
+> 🤖 Modelo: `haiku`
+
+- [x] **T5.1** `completed` entra na janela e o diálogo vira "por papel" (commit `2e1ac3f74`, do
+      usuário). Contratos ajustados no mesmo commit.
+- [x] **T5.2** Promoção para produção em um deploy só (PRs #144 e #145), verificada com o botão e o
+      diálogo abertos em produção (sem transferência real). Registro em `evidence.md`.
+- [x] **T5.3** Spec, plano, tasks, ADR-0097 e contextos de IA atualizados para a janela com
+      `completed` (D11, D12).
 
 ## Prompt de execução
 

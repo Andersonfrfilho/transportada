@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +16,7 @@ import type { LinkDocumentsAfterDispatchResult } from '../shared/tripDocumentLin
 import styles from '../styles/trip.module.css'
 import { TripDocumentLinkOutcome } from './TripDocumentLinkOutcome.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
+import { TripQuickNoteInput } from './TripQuickNoteInput.component'
 
 type TripLinkDocumentsAfterDispatchDialogProps = Readonly<{
   isOpen: boolean
@@ -45,7 +47,14 @@ export function TripLinkDocumentsAfterDispatchDialog({
     queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
   })
 
+  /** Nota escolhida pelo campo rápido: a busca remonta para refletir a marcação nova. */
+  const [searchEpoch, setSearchEpoch] = useState(0)
+
   if (!isOpen) return null
+
+  const pickableDocuments = (documentsQuery.data ?? []).filter(
+    (document) => !dialog.nfeDocumentIds.includes(document.id),
+  )
 
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
@@ -74,9 +83,17 @@ export function TripLinkDocumentsAfterDispatchDialog({
 
         {dialog.outcome === undefined ? (
           <div className={styles.linkDocumentsBody}>
+            <TripQuickNoteInput
+              documents={pickableDocuments}
+              onPick={(document) => {
+                dialog.setNfeDocumentIds([...dialog.nfeDocumentIds, document.id])
+                setSearchEpoch((current) => current + 1)
+              }}
+            />
             <TripDocumentSearch
               documents={documentsQuery.data ?? []}
               isLoading={documentsQuery.isLoading}
+              key={searchEpoch}
               onSelectionChange={(documents) =>
                 dialog.setNfeDocumentIds(documents.map((document) => document.id))
               }

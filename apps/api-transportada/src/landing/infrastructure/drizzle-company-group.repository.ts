@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, like } from 'drizzle-orm'
 
@@ -33,18 +34,29 @@ export function createDrizzleCompanyGroupRepository(
           cnpj: companyFiscalProfiles.cnpj,
           companyId: companyFiscalProfiles.companyId,
           complement: companyFiscalProfiles.complement,
+          displayNameMode: companyFiscalProfiles.displayNameMode,
           district: companyFiscalProfiles.district,
           number: companyFiscalProfiles.number,
           phone: companyFiscalProfiles.phone,
           postalCode: companyFiscalProfiles.postalCode,
           state: companyFiscalProfiles.state,
           street: companyFiscalProfiles.street,
+          legalName: companyFiscalProfiles.legalName,
           tradeName: companyFiscalProfiles.tradeName,
         })
         .from(companyFiscalProfiles)
         .where(like(companyFiscalProfiles.cnpj, `${root}%`))
 
-      return orderGroupUnits(rows)
+      return orderGroupUnits(
+        rows.map(({ displayNameMode, legalName, ...unit }) => ({
+          ...unit,
+          displayName: resolveCompanyDisplayName({
+            displayNameMode,
+            legalName,
+            tradeName: unit.tradeName,
+          }),
+        })),
+      )
     },
   }
 }

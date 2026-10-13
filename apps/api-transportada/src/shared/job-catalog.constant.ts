@@ -260,6 +260,19 @@ export const JOB_CATALOG = [
   },
   {
     /**
+     * Spec 264 (contract.md §5.8): o ciclo só descobre os áudios novos e entrega a transcrição a um executor em
+     * processo, fora do ciclo serial. O vocabulário é o do que o ciclo informa, não o do que a transcrição de uma
+     * linha concluiu (isso mora em `occurrence_conversation_audio_transcriptions.failure_code`).
+     * Sucesso fecha `succeeded`, como toda rotina. `already_running`: o executor está ocupado (não é falha);
+     * `runner_lock_expired`: a trava do executor passou da idade máxima e foi solta.
+     */
+    failureOutcomes: ['already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    /** A batida de cinco minutos: o piso do agendador, a cadência medida na T0.2. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
+  {
+    /**
      * Spec 237 T4.8 (decisão do usuário, 2026-10-06): 90 dias depois de a prévia da carga ficar sem
      * item em aberto, a rotina apaga do bucket a planilha e o MIME bruto do e-mail encaminhado e
      * anula os quatro campos pessoais dos itens. Só toca o próprio banco e o bucket: o imprevisto já
@@ -289,10 +302,41 @@ export const JOB_CATALOG = [
      * Importação de feriados da FeriadosAPI. Nasce pausada de fábrica: sem token, cada janela seria
      * uma chamada recusada. Falha de fornecedor é código estável, nunca texto solto.
      */
-    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    failureOutcomes: [
+      'provider_unreachable',
+      'provider_unauthorized',
+      'malformed_response',
+      'credential_unreadable',
+    ],
     job: 'holiday.provider.pull',
     /** Uma hora: a cota mensal é o teto real, e o piso de uma hora é cortesia com o fornecedor. */
     minimumIntervalSeconds: 3_600,
+  },
+  {
+    /**
+     * Spec 248 T4.4b: a ocorrência que o aviso automático não alcançou (a API caiu depois do commit, o
+     * e-mail ainda não estava pronto) é achada por consulta e enviada pela rota do robô, uma vez só
+     * pela chave de idempotência. O worker pede, a API decide e grava.
+     *
+     * Nasce **pausada** (a migration a semeia desligada): só liga com autorização do usuário em produção.
+     */
+    failureOutcomes: ['api_unreachable', 'api_unauthorized'],
+    job: 'occurrence.automatic-mail.sweep',
+    /** A batida: o aviso atrasado precisa sair enquanto a contratante ainda espera por ele. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
+  {
+    /**
+     * Spec 248 T4.10: o retorno da contratante que venceu passa a `overdue` e a operação é alertada a cada
+     * intervalo, até o teto. O worker faz tudo (transição por `alert_count`, evento e aviso no sino); a
+     * falha de entrega do aviso é o único desfecho próprio.
+     *
+     * Nasce **pausada** (a migration a semeia desligada): só liga com autorização do usuário em produção.
+     */
+    failureOutcomes: ['notification_failed'],
+    job: 'occurrence.contractor-reply.alert',
+    /** A batida: o intervalo do tipo é de minutos, e o piso do relógio já é cinco. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
 ] as const
 

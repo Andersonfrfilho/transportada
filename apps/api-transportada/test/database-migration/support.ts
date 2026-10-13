@@ -170,6 +170,13 @@ export const TRIP_TABLES = [
   'trip_document_link_events',
 ] as const
 
+/** Spec 248 D6: o retorno da contratante ao motorista — uma linha por ocorrência, entregas e histórico. */
+export const OCCURRENCE_CONTRACTOR_REPLY_TABLES = [
+  'occurrence_contractor_replies',
+  'occurrence_contractor_reply_deliveries',
+  'occurrence_contractor_reply_events',
+] as const
+
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
 
 /**
@@ -205,6 +212,9 @@ export const HOLIDAY_PROVIDER_TABLES = [
   'company_holiday_import_settings',
   'holiday_import_suppressions',
 ] as const
+
+/** Spec 262: a chave selada da FeriadosAPI, numa migration própria (a 252 não a conhece). */
+export const HOLIDAY_PROVIDER_SETTINGS_TABLES = ['holiday_provider_settings'] as const
 
 /**
  * Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa.
@@ -315,6 +325,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...TRIP_TABLES,
     ...DELIVERY_CLIENT_TABLES,
     ...HOLIDAY_PROVIDER_TABLES,
+    ...HOLIDAY_PROVIDER_SETTINGS_TABLES,
     ...TRIP_FINANCIAL_TABLES,
     ...CONTRACTOR_PORTAL_TABLES,
     ...MULTI_VEHICLE_SUGGESTION_TABLES,
@@ -322,6 +333,8 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...WHATSAPP_PHONE_TABLES,
     ...WHATSAPP_FLOW_GRAPH_TABLES,
     ...WHATSAPP_COMMAND_TABLES,
+    ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
+    ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
@@ -418,3 +431,9 @@ export async function withDisposableDatabase(
 export const FIRST_DIRECTORY_REQUIRING_SNAPSHOT = '20260910120000_vehicle_reference_every_type'
 
 export const SNAPSHOT_FILE = 'snapshot.json'
+
+/** Spec 264 T2.1: a transcrição do áudio e a configuração por empresa, numa migration própria. */
+export const CONVERSATION_AUDIO_TRANSCRIPTION_TABLES = [
+  'company_audio_transcription_settings',
+  'occurrence_conversation_audio_transcriptions',
+] as const

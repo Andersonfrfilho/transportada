@@ -123,8 +123,8 @@ para `apps/frontend-driver` (nenhuma menção em `specs/189-*/`), por isso a D14
 **`company_occurrence_type_contractor_overrides`:** `contractor_reply_mode`,
 `contractor_reply_wait_hours`, `forward_to_note_recipient` — nulos, sem default.
 
-**`nfe_documents`:** `recipient_email text NULL`, CHECK `length <= 254 and ~ padrão de e-mail` (o mesmo
-de `fleet.schema.ts:124-125`). Preenchido no import pelo worker; backfill sob autorização.
+**`nfe_documents`:** `recipient_email` **já existe** (migration `20261008163250_nfe_recipient_email`, T2.x); esta
+migration não o recria. Preenchido no import pelo worker; backfill sob autorização.
 
 **`occurrence_contractor_replies`** (uma por ocorrência, padrão de tenant):
 
@@ -168,8 +168,8 @@ created_at, sent_at
 `to_status`, `reason`, `actor_kind` (`system` | `user`), `actor_user_id` (nulo ⇔ `system`),
 `created_at`. Nenhum `UPDATE`/`DELETE` no código (contrato de parede).
 
-`rollback.sql`: derruba as três tabelas, as colunas novas do tipo, da exceção e `recipient_email`;
-registra o que se perde (histórico dos retornos, e-mails de destinatário importados). Não toca nada
+`rollback.sql`: derruba as três tabelas, as colunas novas do tipo e da exceção (nunca `recipient_email`, que é de outra migration);
+recusa rodar com retorno gravado (histórico dos retornos). Não toca nada
 da 183/241/246/247.
 
 ## Fluxo

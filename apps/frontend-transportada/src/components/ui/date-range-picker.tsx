@@ -24,6 +24,8 @@ import styles from './date-range-picker.module.css'
 export type DateRangePickerProps = Readonly<{
   ariaLabel: string
   clearLabel: string
+  /** Gatilho baixo, para ficar ao lado de `Select compact`; desligue ao lado de campos de altura cheia. */
+  compact?: boolean
   from: string
   nextMonthLabel: string
   onChange: (from: string, to: string) => void
@@ -35,6 +37,7 @@ export type DateRangePickerProps = Readonly<{
 export function DateRangePicker({
   ariaLabel,
   clearLabel,
+  compact = true,
   from,
   nextMonthLabel,
   onChange,
@@ -83,7 +86,7 @@ export function DateRangePicker({
       <button
         aria-expanded={open}
         aria-label={ariaLabel}
-        className={`${SELECT_TRIGGER_CLASS_NAMES.trigger ?? ''} ${SELECT_TRIGGER_CLASS_NAMES.triggerCompact ?? ''}`}
+        className={`${SELECT_TRIGGER_CLASS_NAMES.trigger ?? ''} ${compact ? (SELECT_TRIGGER_CLASS_NAMES.triggerCompact ?? '') : ''}`}
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

@@ -1,0 +1,124 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
+import { z } from 'zod'
+
+import type { ApiLogger } from '../../shared/api.types.js'
+import {
+  HOLIDAY_PROVIDER_TOKEN_AAD_PREFIX,
+  HOLIDAY_PROVIDER_TOKEN_PATTERN,
+} from '../domain/holiday-provider-settings.constant.js'
+import {
+  HolidayProviderTokenFormatError,
+  HolidayProviderTokenUnavailableError,
+} from '../domain/holiday-provider-settings.error.js'
+
+const TEXT_DECODER = new TextDecoder()
+const TEXT_ENCODER = new TextEncoder()
+
+const envelopeSchema = z
+  .object({
+    algorithm: z.literal('A256GCM'),
+    ciphertext: z.string().min(1),
+    keyId: z.string().min(1),
+    nonce: z.string().min(1),
+    version: z.literal(1),
+  })
+  .strict()
+
+const secretSchema = z.object({ token: z.string().regex(HOLIDAY_PROVIDER_TOKEN_PATTERN) }).strict()
+
+export type HolidayProviderTokenScope = { readonly settingsId: string }
+
+const VAULT_FAILURE_LOG_MESSAGE = 'holiday_provider_token.vault_failed'
+const VAULT_OPERATION = { DECRYPT: 'decrypt', ENCRYPT: 'encrypt' } as const
+type VaultOperation = (typeof VAULT_OPERATION)[keyof typeof VAULT_OPERATION]
+
+export type HolidayProviderTokenSecretService = {
+  decrypt(input: HolidayProviderTokenScope & { readonly envelope: unknown }): Promise<string>
+  encrypt(input: HolidayProviderTokenScope & { readonly token: string }): Promise<SecretEnvelopeV1>
+}
+
+/**
+ * Spec 262 (ADR-0102 D5): a chave da FeriadosAPI selada no mesmo desenho da credencial da Nota RP e do Resend.
+ * O AAD amarra o envelope à **linha**: `transportada:holiday-provider-token:v1:${settingsId}`. Envelope copiado para
+ * outra instalação (chaveiro e id diferentes) não abre. O plaintext é UTF-8 de `{"token":"…"}`, `.strict()`.
+ *
+ * O worker abre este envelope com uma cópia por valor deste serviço (só `decrypt`). ⚠️ O `decrypt` daqui é a
+ * FONTE DE PARIDADE da T4.1: a cópia do worker repete o AAD, a regra da chave, o `.strict()` e o parse do envelope
+ * dentro do `try`; mudou algo aqui, o contrato de paridade da T4.1 tem de acompanhar.
+ */
+export function createHolidayProviderTokenSecretService(input: {
+  readonly envelopeProvider: SecretEnvelopeProvider
+  readonly logger?: ApiLogger
+}): HolidayProviderTokenSecretService {
+  const { envelopeProvider: provider, logger } = input
+  return {
+    decrypt: (request) => decryptToken({ input: request, logger, provider }),
+    encrypt: (request) => encryptToken({ input: request, logger, provider }),
+  }
+}
+
+/**
+ * O cliente recebe sempre a mesma resposta; o operador precisa distinguir um chaveiro mal configurado de qualquer outra
+ * falha. Só o NOME do erro e a operação saem: a mensagem pode citar o id da chave de cifragem, e o valor lançado pode ser
+ * qualquer coisa — nunca a chave da FeriadosAPI, o envelope ou o id da linha.
+ */
+function logVaultFailure(params: {
+  readonly failure: unknown
+  readonly logger: ApiLogger | undefined
+  readonly operation: VaultOperation
+}): void {
+  const errorName = params.failure instanceof Error ? params.failure.name : typeof params.failure
+  params.logger?.error(VAULT_FAILURE_LOG_MESSAGE, { errorName, operation: params.operation })
+}
+
+async function encryptToken(params: {
+  readonly input: HolidayProviderTokenScope & { readonly token: string }
+  readonly logger: ApiLogger | undefined
+  readonly provider: SecretEnvelopeProvider
+}): Promise<SecretEnvelopeV1> {
+  const { input, logger, provider } = params
+  // Antes de qualquer criptografia: chave fora da regra é erro do chamador, não falha do cofre.
+  if (!HOLIDAY_PROVIDER_TOKEN_PATTERN.test(input.token)) throw new HolidayProviderTokenFormatError()
+
+  const additionalAuthenticatedData = createAdditionalAuthenticatedData(input)
+  let plaintext: Uint8Array | undefined
+  try {
+    plaintext = TEXT_ENCODER.encode(JSON.stringify({ token: input.token }))
+    const envelope = await provider.encrypt({ additionalAuthenticatedData, plaintext })
+    return envelopeSchema.parse(envelope)
+  } catch (failure) {
+    logVaultFailure({ failure, logger, operation: VAULT_OPERATION.ENCRYPT })
+    throw new HolidayProviderTokenUnavailableError()
+  } finally {
+    plaintext?.fill(0)
+    additionalAuthenticatedData.fill(0)
+  }
+}
+
+async function decryptToken(params: {
+  readonly input: HolidayProviderTokenScope & { readonly envelope: unknown }
+  readonly logger: ApiLogger | undefined
+  readonly provider: SecretEnvelopeProvider
+}): Promise<string> {
+  const { input, logger, provider } = params
+  const additionalAuthenticatedData = createAdditionalAuthenticatedData(input)
+  let plaintext: Uint8Array | undefined
+  try {
+    const envelope = envelopeSchema.parse(input.envelope)
+    plaintext = await provider.decrypt({ additionalAuthenticatedData, envelope })
+    return secretSchema.parse(JSON.parse(TEXT_DECODER.decode(plaintext)) as unknown).token
+  } catch (failure) {
+    logVaultFailure({ failure, logger, operation: VAULT_OPERATION.DECRYPT })
+    throw new HolidayProviderTokenUnavailableError()
+  } finally {
+    plaintext?.fill(0)
+    additionalAuthenticatedData.fill(0)
+  }
+}
+
+function createAdditionalAuthenticatedData(input: HolidayProviderTokenScope): Uint8Array {
+  return TEXT_ENCODER.encode(`${HOLIDAY_PROVIDER_TOKEN_AAD_PREFIX}${input.settingsId}`)
+}

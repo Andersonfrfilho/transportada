@@ -39,6 +39,7 @@ export function TripReportFilterPanel({ contractors, filters }: TripReportFilter
           {t('filters.report.search')}
           <input
             aria-label={t('filters.report.search')}
+            className={styles.compactInput}
             onChange={(event) => setField('search', event.target.value)}
             placeholder={t('filters.report.searchPlaceholder')}
             value={state.search}

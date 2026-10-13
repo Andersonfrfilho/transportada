@@ -31,6 +31,7 @@ export default defineConfig({
     'field-delivery.smoke.spec.ts',
     'field-delivery-cargo.smoke.spec.ts',
     'trip-timeline.smoke.spec.ts',
+    'audio-transcription.smoke.spec.ts',
   ],
   workers: 1,
   use: {

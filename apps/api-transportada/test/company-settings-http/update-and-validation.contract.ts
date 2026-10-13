@@ -120,6 +120,40 @@ describe('PATCH /company-settings HTTP contract', () => {
   })
 })
 
+describe('PATCH /company-settings display name contract', () => {
+  test('forwards the chosen display name to the use case', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const body = settingsBodyWith({ path: 'profile.displayNameMode', value: 'legal_name' })
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]?.settings.profile.displayNameMode).toBe('legal_name')
+  })
+
+  test('leaves the choice alone when an older panel does not send it', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const profile: Record<string, unknown> = { ...VALID_HTTP_SETTINGS_BODY.profile }
+    delete profile['displayNameMode']
+    const body = { ...VALID_HTTP_SETTINGS_BODY, profile }
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.updateCalls[0]?.settings.profile.displayNameMode).toBeUndefined()
+  })
+
+  test('rejects a name that is neither the legal nor the trade name', async () => {
+    const fixture = await createCompanySettingsHttpFixture()
+    const body = settingsBodyWith({ path: 'profile.displayNameMode', value: 'nickname' })
+
+    const response = await fixture.handle(patchSettingsRequest({ body }))
+
+    expect(response.status).toBe(400)
+    expect(fixture.updateCalls).toHaveLength(0)
+  })
+})
+
 describe('PATCH /company-settings CT-e retry policy contract', () => {
   test('forwards the parsed retry policy to the use case instead of the domain default', async () => {
     const fixture = await createCompanySettingsHttpFixture()

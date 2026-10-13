@@ -426,6 +426,10 @@
         "label": "Automatic proof-of-delivery review",
         "where": "Service only: the robot that reads the delivery receipt, no screen. No person receives it."
       },
+      "occurrence.automatic-mail": {
+        "label": "Automatic occurrence notice",
+        "where": "Service only: the robot that sends the notice to the contractor, no screen. No person receives it."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."
@@ -445,6 +449,10 @@
       "settings.manage": {
         "label": "Configurar a empresa",
         "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
+      },
+      "holiday-import.configure": {
+        "label": "Configure the key and budget of the holiday import",
+        "where": "The access key to the holiday provider and the monthly request ceiling, for the whole installation."
       },
       "addresses.read": {
         "label": "Consultar CEP",

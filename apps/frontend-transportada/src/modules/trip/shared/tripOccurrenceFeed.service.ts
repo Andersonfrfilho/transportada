@@ -9,6 +9,8 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
+import type { ContractorReplySummary } from '@/modules/occurrence-conversation/shared/contractorReply.types'
+
 import type {
   DeclaredAmountScope,
   OccurrenceAttachmentMode,
@@ -58,6 +60,11 @@ export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
 ] as const
 export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
 
+export type TripOccurrenceCaseTakenBy = Readonly<{
+  displayName: null | string
+  takenAt: string
+}>
+
 /** RF10: o que a API devolve por ocorrência — `null` quando ela não abriu tratativa. */
 export type TripOccurrenceCaseView = Readonly<{
   decision: null | Readonly<{
@@ -73,6 +80,11 @@ export type TripOccurrenceCaseView = Readonly<{
    */
   settlementTotal: null | string
   status: TripOccurrenceCaseStatus
+  /**
+   * Quem pegou a tratativa (quem iniciou a validação interna). `null` enquanto ninguém pegou — e
+   * API anterior a este campo, que não o manda. Só o nome do perfil; nunca e-mail nem telefone.
+   */
+  takenBy: null | TripOccurrenceCaseTakenBy
   updatedAt: string
 }>
 
@@ -117,6 +129,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   /** Spec 240 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
   cancellation?: null | OccurrenceCancellation
   case: null | TripOccurrenceCaseView
+  /** Spec 248 RF13: o selo do retorno da contratante; `null` sem retorno e na API anterior. */
+  contractorReply?: ContractorReplySummary | null
   /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
   conversation: TripOccurrenceConversationSummary
   createdAt: string
@@ -265,6 +279,8 @@ export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 export type TripOccurrenceFeedFilters = Readonly<{
   /** RF11: estado da tratativa, incluindo `none` ("sem tratativa"). Todos selecionados = sem filtro. */
   caseStatuses: readonly TripOccurrenceCaseStatusFilterValue[]
+  /** Spec 248 RF5: só as ocorrências cujo retorno da contratante está atrasado (`contractorReplyStatusIn=overdue`). */
+  contractorReplyOverdue: boolean
   createdFrom: string
   createdUntil: string
   /** Placas digitadas, separadas por vírgula — multi-valor por campo. */
@@ -276,6 +292,7 @@ export type TripOccurrenceFeedFilters = Readonly<{
 
 export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
   caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
+  contractorReplyOverdue: false,
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
@@ -295,6 +312,7 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'destination',
   'invoiceValue',
   'conversation',
+  'takenBy',
   'notified',
 ] as const
 
@@ -351,6 +369,17 @@ export function toggleTripOccurrenceStage(
     ...filters,
     stages: TRIP_OCCURRENCE_STAGES.filter((current) => selected.includes(current)),
   }
+}
+
+/** O parâmetro de consulta da API e o único valor que o filtro "Atrasadas" manda (spec 248 RF5). */
+const CONTRACTOR_REPLY_STATUS_QUERY_KEY = 'contractorReplyStatusIn'
+const CONTRACTOR_REPLY_OVERDUE_STATUS = 'overdue'
+
+export function setTripOccurrenceContractorReplyOverdue(
+  filters: TripOccurrenceFeedFilters,
+  isOverdueOnly: boolean,
+): TripOccurrenceFeedFilters {
+  return { ...filters, contractorReplyOverdue: isOverdueOnly }
 }
 
 export function setTripOccurrenceCaseStatuses(
@@ -418,6 +447,9 @@ export function serializeTripOccurrenceQuery(
     input.filters.caseStatuses.length < TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length
   ) {
     search.set('caseStatusIn', input.filters.caseStatuses.join(','))
+  }
+  if (input.filters.contractorReplyOverdue) {
+    search.set(CONTRACTOR_REPLY_STATUS_QUERY_KEY, CONTRACTOR_REPLY_OVERDUE_STATUS)
   }
   return search.toString()
 }
@@ -502,9 +534,11 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
   const caseStatusesChanged =
     filters.caseStatuses.length === TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length ? 0 : 1
+  const contractorReplyChanged = filters.contractorReplyOverdue ? 1 : 0
   return (
     scalarFields.filter((field) => field.trim().length > 0).length +
     stagesChanged +
-    caseStatusesChanged
+    caseStatusesChanged +
+    contractorReplyChanged
   )
 }

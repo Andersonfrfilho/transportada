@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { toContractorReplySummary } from '@/modules/occurrence-conversation/shared/contractorReply.service'
+
 import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
@@ -18,6 +20,7 @@ import {
   type OccurrenceSettlementView,
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
+  type TripOccurrenceCaseTakenBy,
   type TripOccurrenceCaseView,
   type TripOccurrenceConversationSummary,
   type TripOccurrenceFeedFilters,
@@ -123,8 +126,8 @@ function isNullableString(value: unknown): value is null | string {
  * `case` ausente é "sem tratativa aberta" (mesmo padrão de `null`, RF10); `settlementTotal`
  * ausente é o de hoje, `null`, até a API preencher o valor (T8).
  */
-type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal'> &
-  Readonly<{ settlementTotal?: unknown }>
+type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal' | 'takenBy'> &
+  Readonly<{ settlementTotal?: unknown; takenBy?: unknown }>
 
 /** RF10: `null` é "sem tratativa aberta" — nunca um estado inventado. */
 function isCaseView(value: unknown): value is RawCaseView {
@@ -147,13 +150,34 @@ function isCaseView(value: unknown): value is RawCaseView {
   )
 }
 
-function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
-  const { settlementTotal, ...rest } = raw
-  return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
+/** Ausente ou malformado é "ninguém pegou" — o campo nunca reprova a tratativa (ADR-0081 §9). */
+function toTakenBy(value: unknown): TripOccurrenceCaseTakenBy | null {
+  if (!isRecord(value) || !isString(value.takenAt)) return null
+  return {
+    displayName: isString(value.displayName) ? value.displayName : null,
+    takenAt: value.takenAt,
+  }
 }
 
-type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'conversation' | 'document'> &
-  Readonly<{ case?: unknown; conversation?: unknown; document?: unknown }>
+function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
+  const { settlementTotal, takenBy, ...rest } = raw
+  return {
+    ...rest,
+    settlementTotal: isString(settlementTotal) ? settlementTotal : null,
+    takenBy: toTakenBy(takenBy),
+  }
+}
+
+type RawFeedItem = Omit<
+  TripOccurrenceFeedItem,
+  'case' | 'contractorReply' | 'conversation' | 'document'
+> &
+  Readonly<{
+    case?: unknown
+    contractorReply?: unknown
+    conversation?: unknown
+    document?: unknown
+  }>
 
 /** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
 function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
@@ -208,9 +232,11 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { cancellation, case: rawCase, conversation, document, ...rest } = raw
+  const { cancellation, case: rawCase, contractorReply, conversation, document, ...rest } = raw
+  const replySummary = toContractorReplySummary(contractorReply)
   return {
     ...rest,
+    ...(replySummary === null ? {} : { contractorReply: replySummary }),
     cancellation: isOccurrenceCancellation(cancellation) ? cancellation : null,
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
     conversation: toConversationSummary(conversation),

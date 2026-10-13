@@ -181,13 +181,13 @@ describe('a mensagem da conversa (spec 183 T407)', () => {
 
     const source = await readFile(
       new URL(
-        '../../src/modules/occurrence-conversation/components/ConversationMessage.component.tsx',
+        '../../src/modules/occurrence-conversation/components/OccurrenceThreadSenders.component.tsx',
         import.meta.url,
       ),
       'utf8',
     )
-    expect(source).toMatch(/author\.unverified \? \(/u)
-    expect(source).toMatch(/canManageContacts && !author\.unverified/u)
+    expect(source).toMatch(/sender\.unverified \? t\('author\.unverified'\)/u)
+    expect(source).toMatch(/canManageContacts && !sender\.unverified/u)
   })
 })
 

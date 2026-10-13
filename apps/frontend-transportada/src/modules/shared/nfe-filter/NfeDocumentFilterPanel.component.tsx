@@ -157,6 +157,21 @@ export function NfeDocumentFilterPanel({ controller }: NfeDocumentFilterPanelPro
 
           <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.number')}</span>
+            <input
+              aria-label={t('documents.numberExact')}
+              className={styles.filterInput}
+              inputMode="numeric"
+              onChange={(event) => {
+                controller.setNumberFrom(event.target.value)
+                controller.setNumberTo(event.target.value)
+              }}
+              placeholder={t('documents.numberExact')}
+              value={
+                controller.filters.numberFrom === controller.filters.numberTo
+                  ? controller.filters.numberFrom
+                  : ''
+              }
+            />
             <div className={styles.rangeInputs}>
               <input
                 aria-label={t('documents.numberFrom')}

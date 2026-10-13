@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { hasPendingOutboundStatus } from '../shared/messageStatus.service'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -11,7 +11,10 @@ import {
   type OccurrenceConversationClient,
 } from '../shared/occurrenceConversationClient.service'
 import { uploadConversationAttachments } from '../shared/conversationAttachment.service'
-import type { ContractorMailRequest } from '../shared/occurrenceConversation.types'
+import type {
+  ContractorMailRequest,
+  OccurrenceConversationsView,
+} from '../shared/occurrenceConversation.types'
 
 /**
  * Spec 183 T702b: a mensagem com anexo. `uploaded` é do rascunho — o reenvio depois de uma falha
@@ -60,6 +63,7 @@ async function sendWithAttachments(
 }
 
 export const OCCURRENCE_CONVERSATIONS_QUERY_KEY = 'occurrence-conversations'
+export const CONTRACTOR_REPLY_QUERY_KEY = 'occurrence-contractor-reply'
 
 export function getOccurrenceConversationClient(): OccurrenceConversationClient {
   return createOccurrenceConversationClient({
@@ -70,7 +74,28 @@ export function getOccurrenceConversationClient(): OccurrenceConversationClient 
 }
 
 /** O Resend e a Meta confirmam em segundos; 20 s é folga sem martelar a API. */
-const CONVERSATION_STATUS_REFETCH_MS = 20_000
+export const CONVERSATION_STATUS_REFETCH_MS = 20_000
+/** O fio do SDK e a aba leem a mesma conversa: dentro desta janela, o fio reaproveita a leitura da aba. */
+const CONVERSATION_SHARED_READ_STALE_MS = 2_000
+
+export function occurrenceConversationsQueryKey(
+  input: Readonly<{ companyId?: string; occurrenceId: string }>,
+): readonly unknown[] {
+  return [OCCURRENCE_CONVERSATIONS_QUERY_KEY, input.companyId, input.occurrenceId]
+}
+
+/** O `ConversationThread` do SDK lê pelo mesmo cache da aba, sem segunda ida à API. */
+export function fetchOccurrenceConversations(
+  queryClient: QueryClient,
+  input: Readonly<{ companyId?: string; occurrenceId: string }>,
+): Promise<OccurrenceConversationsView> {
+  return queryClient.fetchQuery({
+    queryFn: () =>
+      getOccurrenceConversationClient().listConversations({ occurrenceId: input.occurrenceId }),
+    queryKey: occurrenceConversationsQueryKey(input),
+    staleTime: CONVERSATION_SHARED_READ_STALE_MS,
+  })
+}
 /** Sem status a esperar, só a mensagem nova do outro lado: um minuto basta para conversa humana. */
 export const CONVERSATION_IDLE_REFETCH_MS = 60_000
 
@@ -81,7 +106,7 @@ export function useOccurrenceConversationsQuery(
   return useQuery({
     enabled: input.enabled,
     queryFn: () => client.listConversations({ occurrenceId: input.occurrenceId }),
-    queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY, input.companyId, input.occurrenceId],
+    queryKey: occurrenceConversationsQueryKey(input),
     /**
      * Spec 183 T703 (P8): o selo muda sozinho — com mensagem que sai ainda podendo avançar, a
      * conversa volta a ser lida a cada 20 s. Spec 183 T902 (D2): mesmo com tudo confirmado, a
@@ -170,6 +195,21 @@ export function useSendContractorPortalMessageMutation(occurrenceId: string) {
     mutationFn: (input: ConversationMessageDraft) =>
       sendWithAttachments(client, { ...input, occurrenceId, participant: 'contractor' }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
+/** Spec 248 T4.6: o boleto da contratante vai ao motorista; as duas conversas e o feed relêem. */
+export function useDeliverContractorReplyToDriverMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (attachmentId: string) =>
+      client.deliverContractorReplyToDriver({ attachmentId, occurrenceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [CONTRACTOR_REPLY_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
     },

@@ -68,6 +68,8 @@ export type HolidayImportSuppressionsPage = Readonly<{
 }>
 
 export type HolidayImportStatusView = Readonly<{
+  /** A chave de locale da explicação sob a manchete: quase sempre `import.status.explain.<manchete>`. */
+  explainKey: string
   failedPairs: number
   failures: readonly Readonly<{ code: string; messageKey: string; pairs: number }>[]
   headline: HolidayImportHeadline

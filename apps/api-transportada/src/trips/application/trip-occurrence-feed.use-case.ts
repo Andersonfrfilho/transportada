@@ -5,7 +5,9 @@
  * e o que houve na parada (`trip_stop_occurrences`) numa lista só, por empresa. **Leitura pura** —
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
+import type { OccurrenceContractorReplySummary } from '../../occurrence-conversation/infrastructure/occurrence-contractor-reply-summary.query.js'
 import type { OccurrenceConversationSummary } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
+import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type {
   TripOccurrenceCaseDecisionKind,
@@ -46,6 +48,12 @@ export type TripOccurrenceFeedCaseView = {
   readonly redeliveryPolicy: 'allowed' | 'blocked'
   readonly settlementTotal: null
   readonly status: TripOccurrenceCaseStatus
+  /**
+   * Quem pegou a tratativa: o ator da transição mais recente para `under_review`. `null` enquanto
+   * ninguém iniciou a validação (ou o caso foi cancelado antes disso). Só o nome do perfil — nunca
+   * e-mail nem telefone — e só nesta leitura do escritório; o portal da contratante não a recebe.
+   */
+  readonly takenBy: { readonly displayName: null | string; readonly takenAt: string } | null
   readonly updatedAt: string
 }
 
@@ -88,6 +96,8 @@ export type TripOccurrenceFeedItem = {
    * vendo ainda não leu. A decisão (aprovada, recusada) **não** é estado de conversa: é `case`.
    */
   readonly conversation: OccurrenceConversationSummary
+  /** Spec 248 RF13: o selo do retorno da contratante; `null` sem retorno e na parada. */
+  readonly contractorReply: OccurrenceContractorReplySummary | null
   /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
   readonly case: TripOccurrenceFeedCaseView | null
   /** Spec 240 RF9: `null` quando não cancelada; a cancelada continua na lista, marcada. */
@@ -135,6 +145,11 @@ export type TripOccurrenceFeedCaseStatusFilter = 'none' | TripOccurrenceCaseStat
 
 export type TripOccurrenceFeedFilters = {
   readonly caseStatusIn?: readonly TripOccurrenceFeedCaseStatusFilter[]
+  /**
+   * Spec 248 RF5/RF13: o estado do retorno da contratante. "Atrasadas" é `['overdue']`. Só a ocorrência de
+   * nota tem retorno: a de parada nunca casa com este filtro.
+   */
+  readonly contractorReplyStatusIn?: readonly ContractorReplyStatus[]
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly plateIn?: readonly string[]

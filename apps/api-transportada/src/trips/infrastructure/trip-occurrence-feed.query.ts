@@ -19,6 +19,7 @@ import { identityUserProfiles } from '../../database/identity-user-profile.schem
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
+import { occurrenceContractorReplies } from '../../database/occurrence-contractor-reply.schema.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -53,6 +54,12 @@ import type {
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
+import {
+  buildTakenByView,
+  latestTakenEventId,
+  takenByEvent,
+  takenByProfile,
+} from './occurrence-case-taken-by.support.js'
 import { listOccurrenceCancellationsByIds } from './occurrence-correction-read.query.js'
 import {
   buildOccurrenceTypeItemsView,
@@ -65,6 +72,7 @@ import {
   EMPTY_CONVERSATION_SUMMARY,
   listOccurrenceConversationSummaries,
 } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
+import { listOccurrenceContractorReplySummaries } from '../../occurrence-conversation/infrastructure/occurrence-contractor-reply-summary.query.js'
 
 /** O papel do emitente em `nfe_participants` — o mesmo literal de `findChargeParties`. */
 const EMITTER_ROLE = 'emitter'
@@ -76,6 +84,7 @@ const EMITTER_ROLE = 'emitter'
 type FeedRow = Omit<
   TripOccurrenceFeedItem,
   | 'cancellation'
+  | 'contractorReply'
   | 'conversation'
   | 'createdAt'
   | 'document'
@@ -178,6 +187,34 @@ function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQ
   return null
 }
 
+/**
+ * Spec 248 RF5: o filtro "Atrasadas" mora no SQL, na mesma consulta que corta o cursor — filtrar a página
+ * já cortada no cliente devolveria páginas quase vazias. `exists` por `(company_id, occurrence_id)` (a
+ * unique do retorno), nunca uma junção: uma ocorrência tem no máximo um retorno e a junção não deve
+ * multiplicar linhas do cursor.
+ */
+function contractorReplyStatusCondition(
+  filters: TripOccurrenceFeedFilters | undefined,
+): SQL | null {
+  if (filters?.contractorReplyStatusIn === undefined) return null
+  if (filters.contractorReplyStatusIn.length === 0) return null
+  return sql`exists (
+    select 1 from ${occurrenceContractorReplies}
+    where ${occurrenceContractorReplies.companyId} = ${tripDocumentOccurrences.companyId}
+      and ${occurrenceContractorReplies.occurrenceId} = ${tripDocumentOccurrences.id}
+      and ${inArray(occurrenceContractorReplies.status, [...filters.contractorReplyStatusIn])}
+  )`
+}
+
+/** A ocorrência de parada não tem retorno da contratante: com o filtro ligado, ela nunca casa. */
+function stopOccurrencesMatchContractorReplyFilter(
+  filters: TripOccurrenceFeedFilters | undefined,
+): boolean {
+  return (
+    filters?.contractorReplyStatusIn === undefined || filters.contractorReplyStatusIn.length === 0
+  )
+}
+
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
   query: FeedRowQuery,
@@ -211,6 +248,8 @@ async function listDocumentOccurrenceRows(
   }
   const caseCondition = caseStatusCondition(query.filters)
   if (caseCondition !== null) conditions.push(caseCondition)
+  const contractorReplyCondition = contractorReplyStatusCondition(query.filters)
+  if (contractorReplyCondition !== null) conditions.push(contractorReplyCondition)
 
   const rows = await queryable
     .select({
@@ -222,6 +261,8 @@ async function listDocumentOccurrenceRows(
       caseRedeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
       caseStatus: tripOccurrenceCases.status,
       caseUpdatedAt: tripOccurrenceCases.updatedAt,
+      takenAt: takenByEvent.occurredAt,
+      takenByName: takenByProfile.name,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
@@ -305,6 +346,14 @@ async function listDocumentOccurrenceRows(
       ),
     )
     .leftJoin(
+      takenByEvent,
+      and(
+        eq(takenByEvent.companyId, tripOccurrenceCases.companyId),
+        eq(takenByEvent.id, latestTakenEventId()),
+      ),
+    )
+    .leftJoin(takenByProfile, eq(takenByProfile.userId, takenByEvent.actorUserId))
+    .leftJoin(
       feedActorMembership,
       and(
         eq(feedActorMembership.companyId, tripDocumentOccurrences.companyId),
@@ -368,6 +417,8 @@ function buildCaseView(row: {
   readonly caseRedeliveryPolicy: RedeliveryPolicy | null
   readonly caseStatus: TripOccurrenceCaseStatus | null
   readonly caseUpdatedAt: Date | null
+  readonly takenAt: Date | null
+  readonly takenByName: string | null
 }): TripOccurrenceFeedCaseView | null {
   if (row.caseId === null || row.caseStatus === null || row.caseRedeliveryPolicy === null) {
     return null
@@ -384,6 +435,7 @@ function buildCaseView(row: {
     redeliveryPolicy: row.caseRedeliveryPolicy === 'blocked' ? 'blocked' : 'allowed',
     settlementTotal: null,
     status: row.caseStatus,
+    takenBy: buildTakenByView(row),
     updatedAt: row.caseUpdatedAt?.toISOString() ?? new Date(0).toISOString(),
   }
 }
@@ -405,6 +457,7 @@ async function listStopOccurrenceRows(
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
   if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
+  if (!stopOccurrencesMatchContractorReplyFilter(query.filters)) return []
 
   const conditions: SQL[] = [
     eq(tripStopOccurrences.companyId, query.companyId),
@@ -608,7 +661,7 @@ async function toFeedItems(
    * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
    * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
    */
-  const [cancellations, typeShapes] = await Promise.all([
+  const [cancellations, typeShapes, contractorReplies] = await Promise.all([
     listOccurrenceCancellationsByIds(queryable, {
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
@@ -619,6 +672,11 @@ async function toFeedItems(
       occurrenceTypeIds: rows.flatMap((row) =>
         row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
       ),
+    }),
+    /** Spec 248 T5.2: o selo do retorno da contratante; só a ocorrência de nota tem retorno. */
+    listOccurrenceContractorReplySummaries(queryable, {
+      companyId,
+      occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
     }),
   ])
 
@@ -633,6 +691,7 @@ async function toFeedItems(
       typeAllowsMultipleItems,
       typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
+      contractorReply: row.source === 'document' ? (contractorReplies.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
       document:

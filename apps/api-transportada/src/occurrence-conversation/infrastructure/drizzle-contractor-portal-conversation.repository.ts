@@ -25,11 +25,15 @@ import type {
   ContractorPortalConversationTransactionPort,
   ContractorPortalConversationUnitOfWorkPort,
 } from '../application/contractor-portal-conversation.port.js'
+import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
+import { requireOccurrenceSubject } from '../domain/occurrence-subject.policy.js'
 import {
   createConversationAttachmentTransactionPort,
   readConversationAttachments,
 } from './drizzle-conversation-attachment.repository.js'
+import { applyContractorReplyToMessage } from './drizzle-occurrence-contractor-reply.repository.js'
 import { markOccurrenceConversationRead } from './occurrence-conversation.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -72,6 +76,22 @@ function createTransactionPort(
 ): ContractorPortalConversationTransactionPort {
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
+
+    async applyContractorReply(input) {
+      const delivery = await applyContractorReplyToMessage(transaction, input)
+      if (delivery === undefined) return undefined
+      const item = await findTripOccurrenceFeedItem(transaction, {
+        companyId: input.companyId,
+        occurrenceId: delivery.occurrenceId,
+      })
+      return {
+        messageId: delivery.driverMessageId,
+        occurrenceId: delivery.occurrenceId,
+        occurrenceLabel: item === null ? '' : describeOccurrenceLabel(item),
+        protocol: delivery.protocol,
+        recipientUserId: delivery.driverUserId,
+      }
+    },
 
     async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope, userId }) {
       if (occurrenceIds.length === 0 || scope.contractorIds.length === 0) return new Map()
@@ -219,7 +239,7 @@ function createTransactionPort(
           ),
         )
         .limit(1)
-      return row ?? null
+      return row === undefined ? null : requireOccurrenceSubject(row)
     },
 
     async findIdempotency({ companyId, idempotencyKey, operation }) {

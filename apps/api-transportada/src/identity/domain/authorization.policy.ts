@@ -93,6 +93,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'trip.canhoto-auto-review',
   /**
+   * Spec 248 T4.4b: o aviso automático da ocorrência à contratante, também do **serviço** e de uma rota
+   * só. O robô pede o envio e o servidor decide e grava; ele não recebe `trip.manage`.
+   */
+  'occurrence.automatic-mail',
+  /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
    * da prefeitura — quem confere caixa não administra nada disso.
@@ -114,6 +119,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * `contractor`; nenhum papel interno recebe esta permissão.
    */
   'occurrences.decide',
+  /**
+   * Spec 262 / ADR-0102 D6: a chave da FeriadosAPI e o orçamento mensal são da INSTALAÇÃO, não de uma empresa.
+   * `settings.manage` concedido por grupo (para cadastrar feriado, por exemplo) não leva a chave de carona
+   * (mesmo raciocínio do `cargo.measure`). Só o `company-admin`, que controla os grupos; ler segue `settings.manage`.
+   */
+  'holiday-import.configure',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -155,6 +166,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'trip.financials',
     'cargo.measure',
     'occurrences.resolve',
+    'holiday-import.configure',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -269,7 +281,12 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
    * a viagem já está pronta para ter.
    */
-  automation: Object.freeze(['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review']),
+  automation: Object.freeze([
+    'mdfe.auto-issue',
+    'whatsapp.settle',
+    'trip.canhoto-auto-review',
+    'occurrence.automatic-mail',
+  ]),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {
@@ -375,6 +392,7 @@ export const SERVICE_ONLY_PERMISSIONS = [
   'mdfe.auto-issue',
   'whatsapp.settle',
   'trip.canhoto-auto-review',
+  'occurrence.automatic-mail',
 ] as const
 
 /** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */

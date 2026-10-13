@@ -74,6 +74,7 @@ export async function createAggregateApplicationHttpFixture({
       postalCode: '01000000',
       state: 'SP',
       street: 'Rua Um',
+      displayName: 'Sede',
       tradeName: 'Sede',
     },
   ]

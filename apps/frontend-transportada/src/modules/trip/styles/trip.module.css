@@ -155,6 +155,15 @@
   opacity: 0.5;
 }
 
+/* Fora da `.fieldGrid`: ali `input` ganha a altura e a borda de campo, e o checkbox do design system não é campo. */
+.filterToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: 0.85rem;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -2433,6 +2442,88 @@ button.occurrenceCaseBadge {
 }
 
 /*
+  Mapa da ocorrência — o pino com dica aceita clique (os demais deixam o arrasto passar ao mapa).
+*/
+.tilePinInteractive {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/*
+  O evento que a página é: halo de alerta em dois anéis (o papel separa o pino da cor do halo) e um
+  degrau maior. `scale` e não `transform` — o MapLibre é dono do `transform` do marcador. A forma
+  também carrega o destaque, não só a cor: o halo existe no preto e branco.
+*/
+.tilePinHighlight {
+  box-shadow:
+    0 0 0 2px var(--color-asphalt),
+    0 0 0 5px var(--color-alert);
+  scale: 1.3;
+}
+
+/* Entrada dos pinos: opacidade e `scale` (composição pura), escalonada por `--pin-enter-delay`. */
+.tilePinEnter {
+  animation: pin-enter var(--motion-fast) var(--motion-ease-out) backwards;
+  animation-delay: var(--pin-enter-delay, 0ms);
+}
+
+@keyframes pin-enter {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tilePinEnter {
+    animation: none;
+  }
+}
+
+/* A dica do pino herda o papel e a tinta do tema; o MapLibre a entrega branca. */
+.tilePopupFrame :global(.maplibregl-popup-content) {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-graphite);
+  border-radius: var(--radius-md, 4px);
+  background: var(--color-asphalt);
+  color: var(--color-fog);
+  font-size: 0.85rem;
+}
+
+.tilePopupFrame :global(.maplibregl-popup-close-button) {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  color: var(--color-fog);
+}
+
+.tilePopupFrame:global(.maplibregl-popup-anchor-bottom) :global(.maplibregl-popup-tip),
+.tilePopupFrame:global(.maplibregl-popup-anchor-bottom-left) :global(.maplibregl-popup-tip),
+.tilePopupFrame:global(.maplibregl-popup-anchor-bottom-right) :global(.maplibregl-popup-tip) {
+  border-top-color: var(--color-asphalt);
+}
+
+.tilePopupFrame:global(.maplibregl-popup-anchor-top) :global(.maplibregl-popup-tip),
+.tilePopupFrame:global(.maplibregl-popup-anchor-top-left) :global(.maplibregl-popup-tip),
+.tilePopupFrame:global(.maplibregl-popup-anchor-top-right) :global(.maplibregl-popup-tip) {
+  border-bottom-color: var(--color-asphalt);
+}
+
+.tilePopupFrame:global(.maplibregl-popup-anchor-left) :global(.maplibregl-popup-tip) {
+  border-right-color: var(--color-asphalt);
+}
+
+.tilePopupFrame:global(.maplibregl-popup-anchor-right) :global(.maplibregl-popup-tip) {
+  border-left-color: var(--color-asphalt);
+}
+
+.tilePopupBody {
+  display: grid;
+  gap: var(--space-1);
+  padding-right: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+/*
   Spec 196 — quanto tempo passou de um ponto ao seguinte, escrito sobre o trecho que os liga. Mesma
   paleta dos selos do pino, pelo mesmo motivo: ele divide o fundo com a via e com o traço colorido.
 */
@@ -2991,7 +3082,8 @@ button.occurrenceCaseBadge {
   isolation: isolate;
   overflow: hidden;
   width: 100%;
-  height: 18rem;
+  /* Quem precisa de outra altura (o mapa da ocorrência) a declara por token no elemento pai. */
+  height: var(--vector-map-height, 18rem);
   border: 1px solid var(--color-graphite);
   border-radius: var(--radius-md, 4px);
 }
@@ -3642,6 +3734,7 @@ button.occurrenceCaseBadge {
   .printSheetField {
     display: grid;
     gap: 0.5mm;
+    min-width: 0;
   }
 
   .printSheetField dt {
@@ -3654,7 +3747,9 @@ button.occurrenceCaseBadge {
   .printSheetField dd {
     margin: 0;
     font-size: 0.78rem;
+    overflow-wrap: anywhere;
     text-transform: uppercase;
+    white-space: normal;
   }
 
   .printSheetTable {
@@ -5600,6 +5695,11 @@ button.occurrenceCaseBadge {
   align-content: start;
 }
 
+.reportFilterToggle {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .reportFilters {
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: grid;
@@ -5670,11 +5770,12 @@ button.occurrenceCaseBadge {
 .conferenceSummary dd {
   margin: 0;
   font-size: 1.25rem;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 40rem) {
   .conferenceSummary {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -5807,6 +5908,12 @@ button.occurrenceCaseBadge {
 /* Título, selos e botão têm alturas diferentes (texto, selo, alvo de toque): centralizados, não pela linha de base. */
 .tripDetailHead {
   align-items: center;
+  justify-content: flex-start;
+}
+
+/* Com `space-between` o selo caía no meio do cabeçalho; ele e as ações seguintes vão juntos ao canto direito. */
+.tripDetailHead > .statusBadge {
+  margin-left: auto;
 }
 
 /* O identificador é anotação do título, não um campo: sem caixa própria. */
@@ -5817,4 +5924,397 @@ button.occurrenceCaseBadge {
   color: var(--color-slate);
   font-family: var(--font-utility);
   font-size: 0.78rem;
+}
+
+/* Cartão centrado no desktop: a casca `mdfeGate*` é tela cheia, feita para formulário no celular. */
+@media (min-width: 40rem) {
+  .conferenceDialog {
+    width: min(100% - var(--layout-gutter), 62rem);
+    height: auto;
+    max-height: 90vh;
+    border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  }
+}
+
+.conferenceActions {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+/* Conferência: números em destaque, rótulo discreto e cabeçalho separado do corpo. */
+.conferenceDialog .mdfeGateHeader {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+.conferenceSummary div {
+  border-color: color-mix(in srgb, var(--color-slate) 24%, transparent);
+  border-left: 3px solid var(--color-copper);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.conferenceSummary dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.conferenceSummary dd {
+  font-family: var(--font-utility);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-fog);
+}
+
+.conferenceDialog .tableScroll {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+/* Mesma altura dos campos compactos do painel de notas que vem logo acima. */
+.fieldGrid input.compactInput {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
+@media (min-width: 40rem) {
+  .conferenceTable th,
+  .conferenceTable td {
+    padding: var(--space-2) var(--space-3);
+    vertical-align: top;
+  }
+
+  .conferenceTable td {
+    white-space: normal;
+  }
+
+  .conferenceTable td.conferenceKey:first-child,
+  .conferenceTable td:nth-child(4) {
+    white-space: nowrap;
+  }
+
+  .conferenceTable th:nth-child(4),
+  .conferenceTable th:nth-child(5),
+  .conferenceTable td:nth-child(4),
+  .conferenceTable td:nth-child(5) {
+    text-align: right;
+  }
+}
+
+.conferenceIdentity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.conferenceChip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+/* Ícone no canto do cartão de resumo: o olho acha "valor" ou "volumes" antes de ler o rótulo. */
+.conferenceSummary div {
+  position: relative;
+}
+
+.conferenceSummary div > svg {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  color: var(--color-copper);
+  opacity: 0.8;
+}
+
+.conferenceTable tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-slate) 8%, transparent);
+}
+
+.conferenceTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-graphite);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.conferenceChip {
+  text-transform: none;
+}
+
+/* Conferência por parada: cada destino é um cartão com as notas dele, em vez de uma tabela de cinco colunas. */
+.conferenceStops,
+.conferenceNotes {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conferenceNotes {
+  gap: 0;
+}
+
+.conferenceStop {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.conferenceStopHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.conferenceStopIndex {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+.conferenceStopLabel {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.conferenceStopTotals {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.conferenceNote {
+  display: grid;
+  gap: var(--space-1) var(--space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.conferenceNote + .conferenceNote {
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.conferenceNoteNumber {
+  font-family: var(--font-utility);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.conferenceNoteClient {
+  grid-column: 1;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.conferenceNoteMeta {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-self: end;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.conferenceNoteValue {
+  grid-column: 2;
+  justify-self: end;
+  font-family: var(--font-utility);
+  font-weight: 700;
+}
+
+@media (min-width: 40rem) {
+  .conferenceNote {
+    grid-template-columns: 9rem minmax(0, 1fr) 4.5rem 8rem;
+  }
+
+  .conferenceNoteClient,
+  .conferenceNoteValue {
+    grid-column: auto;
+  }
+}
+
+.conferenceNoteClient {
+  color: var(--color-fog);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.conferenceNoteAddress {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  gap: var(--space-1);
+  align-items: flex-start;
+  color: var(--color-slate);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .conferenceNoteAddress {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .conferenceNoteNumber {
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+}
+
+.conferenceStopNotes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.conferenceStopLabel {
+  flex: 0 1 auto;
+}
+
+.conferenceStopNotes {
+  flex: 1 1 auto;
+}
+
+.proofProgress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  font-size: 0.85rem;
+}
+
+.proofProgress progress {
+  flex: 1 1 8rem;
+  min-width: 0;
+  height: var(--space-2);
+  accent-color: var(--color-copper);
+}
+
+/*
+ * Quem pegou a tratativa (spec 164). Verde = alguém pegou, âmbar = parada sem ninguém,
+ * cinza = sem responsável. A cor nunca vem sozinha: ícone e palavra dizem o mesmo.
+ */
+.takenByBlock {
+  --taken-by-ink: var(--color-slate-ink);
+  --taken-by-tone: var(--color-slate);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--taken-by-tone) 45%, transparent);
+  border-left: 4px solid var(--taken-by-tone);
+  background: color-mix(in srgb, var(--taken-by-tone) 12%, transparent);
+}
+
+.takenByBlock[data-tone='ready'],
+.takenByInline[data-tone='ready'] {
+  --taken-by-ink: var(--color-ready-ink);
+  --taken-by-tone: var(--color-ready);
+}
+
+.takenByBlock[data-tone='attention'],
+.takenByInline[data-tone='attention'] {
+  --taken-by-ink: var(--color-copper-ink);
+  --taken-by-tone: var(--color-copper);
+}
+
+.takenByAvatar {
+  width: var(--touch-target);
+  height: var(--touch-target);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--taken-by-tone);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--taken-by-tone) 20%, transparent);
+  color: var(--taken-by-ink);
+  font-weight: 700;
+}
+
+.takenByText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.takenByLabel {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--taken-by-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.takenBySince {
+  color: var(--color-slate-ink);
+  font-size: 0.8rem;
+}
+
+.takenByInline {
+  --taken-by-ink: var(--color-slate-ink);
+  --taken-by-tone: var(--color-slate);
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--taken-by-ink);
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .takenByBlock {
+    animation: takenByIn 200ms ease-out;
+  }
+}
+
+@keyframes takenByIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .takenByBlock {
+    animation: none;
+  }
 }

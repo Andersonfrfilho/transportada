@@ -2139,3 +2139,61 @@ neste ambiente — a correção de A4/A5 que o afeta está coberta por contrato 
 - `bunx prettier --check .` — "All matched files use Prettier code style!".
 - `bun run --cwd apps/frontend-transportada test` — **4981 pass / 0 fail** (contratos) + **44 pass /
   0 fail** (`test:hooks`).
+
+## Quem pegou a tratativa (pedido do dono: "as tratativas visualizadas por quem pegou")
+
+### Decisão de desenho (tomada sem perguntar)
+
+"Quem pegou" = o ator da transição mais recente `→ under_review` (ação `review`, "Iniciar validação interna"). Sai do
+histórico (`trip_occurrence_case_events.actor_user_id`); **nenhuma migration, nenhuma coluna**.
+
+Conferido no código antes de adotar (para não ser uma definição fraca):
+
+- A tratativa **só abre em `recorded`** (`resolveOccurrenceCaseOpening`) e a **única** transição que sai de `recorded` para
+  a frente é `review` (`TRANSITIONS` em `occurrence-case-state.policy.ts`). Não há caminho `recorded →
+awaiting_contractor` nem outro que pule `under_review`. A exceção é `cancel` direto de `recorded`: o caso termina sem
+  ninguém ter pegado, e `takenBy` é `null` (provado em `trip-occurrence-feed-case.integration.ts`).
+- `returned_to_warehouse`, `closed` e `cancelled` são terminais e `recorded` não é alcançável de volta; logo "retomada por
+  outro após devolução ao barracão" **não existe** na máquina de hoje (devolver ao barracão encerra a tratativa). A regra
+  "vale o ator da transição mais recente" está implementada (`order by occurred_at desc, id desc limit 1`) e fica correta
+  se uma spec futura reabrir a tratativa.
+- O evento de abertura (`from_status` nulo) tem como ator quem **registrou** a ocorrência — não é "quem pegou" e por isso
+  não conta.
+
+### O que mudou
+
+- **API**: `case.takenBy { displayName, takenAt } | null` em `GET /trip-occurrences` e `GET /trip-occurrences/:id`
+  (mesma consulta; `occurrence-case-taken-by.support.ts`). Só o nome do perfil; sem e-mail, telefone ou CPF. O join é
+  preso ao `company_id` da tratativa e ao ator `internal` (BOLA). Na linha do tempo (`trip-occurrence-timeline.query.ts`),
+  evento de ator `contractor` passa a sair com `name: null` — antes o nome da conta do portal chegava ao operador.
+- **Autoria de cada passo**: já existia (`actor.kind` + `actor.name` da linha do tempo, spec 183); o vocabulário
+  `operation | contractor | system | driver` cobre o pedido `user | system | contractor`. Não criei um segundo campo
+  paralelo.
+- **Painel**: bloco "Quem pegou" no topo da tratativa; coluna "Responsável" na lista (e item no cartão do celular); linha
+  no resumo. "Ninguém pegou ainda" fica neutro e vira âmbar depois de 4 h em `recorded`.
+- **Filtro "Sem responsável"**: **não criado**. O filtro de Tratativa **Registrada** já é exatamente isso (`recorded` ⇔
+  ninguém iniciou a validação), e um filtro novo exigiria parâmetro de API e de cursor sem ganho.
+
+### Ordem de publicação (ADR-0081 §9)
+
+O guard do painel publicado para o feed (`isCaseView`, `tripOccurrenceFeedClient.service.ts`) **não é de chaves exatas**:
+chave a mais em `case` é ignorada, então o painel de hoje já tolera `takenBy`. Mesmo assim vale a ordem: **1) painel
+(este PR já o torna tolerante e o mostra), 2) API**. Uma API nova com painel antigo não quebra nada (só não mostra); um
+painel novo com API antiga mostra "Sem responsável registrado" (cinza) nas tratativas já iniciadas e "Ninguém pegou
+ainda" nas `recorded` — correto enquanto a API não chega, e sem aviso âmbar falso: o âmbar só vale em `recorded`.
+
+### Provas
+
+- `test/integration/trip-occurrence-feed-case.integration.ts` (Postgres real): sem `review` → `takenBy: null`; após
+  `review` por A, `contractor_submission` por B e `decide` do contratante → `takenBy` continua A; serialização sem
+  telefone, e-mail ou nome de B; linha do tempo com nome de A e B e **sem** o nome do contratante (`name: null`); outra
+  empresa não lê o feed, o item nem a linha do tempo; cancelada antes de pegar → `null`.
+- `test/trip-schema/tenant-safety.contract.ts`: o SQL de quem pegou é preso à empresa e ao ator interno; o portal da
+  contratante não importa `takenBy`, perfil nem o histórico; a linha do tempo não entrega o nome do contratante.
+- `test/integration/trip-occurrence-case.integration.ts`: a lista do portal (`awaiting_contractor`) não contém `takenBy`.
+- Painel: `test/trip/occurrence-feed-tolerance.contract.ts` (ausente/nulo/malformado/contato extra) e a decisão de texto
+  (`resolveOccurrenceTakenByView`).
+
+### Não provado
+
+Prova visual (o login do painel local é do dono): bloco, coluna e cartão não foram vistos em tela.

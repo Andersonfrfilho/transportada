@@ -147,14 +147,16 @@
     "pick": "Resposta rápida",
     "loading": "Carregando as respostas rápidas",
     "loadError": "Não foi possível carregar as respostas rápidas. Tente de novo em instantes.",
-    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar.",
+    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar. As respostas do motorista são as mensagens prontas que o app do motorista oferece acima do campo de texto.",
     "audience": {
       "contractor": "Para a contratante",
-      "driver": "Para o motorista"
+      "driver": "Para o motorista",
+      "driver_reply": "Respostas do motorista"
     },
     "new": {
       "contractor": "Nova resposta para a contratante",
-      "driver": "Nova resposta para o motorista"
+      "driver": "Nova resposta para o motorista",
+      "driver_reply": "Nova resposta do motorista"
     },
     "empty": "Nenhuma resposta cadastrada.",
     "limit": "Até 500 caracteres.",
@@ -193,7 +195,54 @@
     "forward": "Encaminhar à contratante",
     "forwarding": "Encaminhando…",
     "forwarded": "Encaminhada à contratante pelo portal.",
-    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes.",
+    "sendToDriver": "Enviar ao motorista",
+    "sendingToDriver": "Enviando…",
+    "sentToDriver": "Enviado ao motorista pelo chat do app.",
+    "alreadySentToDriver": "Já foi enviado ao motorista.",
+    "sendToDriverSkipped": "O motorista da viagem ainda não tem conta ativa no app.",
+    "sendToDriverError": "Não foi possível enviar. Tente de novo em instantes."
+  },
+  "replyEmail": {
+    "sendToNote": "Enviar ao cliente da nota",
+    "forwardToAddress": "Encaminhar para um e-mail",
+    "addressLabel": "E-mail de destino",
+    "addressHint": "Um endereço só. O boleto vai em anexo, com o assunto e o texto do tipo da ocorrência.",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "cancel": "Cancelar",
+    "reason": {
+      "noteWithoutEmail": "A nota não tem e-mail do cliente: o envio fica indisponível. Use \"Encaminhar para um e-mail\".",
+      "limitReached": "Limite de 5 e-mails por ocorrência atingido."
+    },
+    "outcome": {
+      "queued": "Na fila para envio a {{address}}.",
+      "alreadyQueued": "Este envio já foi feito.",
+      "note_without_recipient_email": "A nota não tem e-mail do cliente: nada foi enviado.",
+      "attachment_too_large_for_email": "O arquivo passa de 10 MB e não cabe em e-mail: nada foi enviado.",
+      "send_failed": "O e-mail não pôde ser enviado."
+    },
+    "failure": {
+      "addressInvalid": "Informe um endereço de e-mail só, sem vírgula, ponto e vírgula nem quebra de linha.",
+      "limitReached": "Limite de 5 e-mails por ocorrência atingido.",
+      "forwardDisabled": "Este tipo de ocorrência não envia o boleto por e-mail. Confira a aba Tipos.",
+      "mailNotReady": "O e-mail da empresa ainda não está pronto para enviar. Confira as configurações de e-mail.",
+      "generic": "Não foi possível enviar. Tente de novo em instantes."
+    },
+    "history": {
+      "title": "Boleto enviado por e-mail",
+      "target": {
+        "note_recipient_email": "Cliente da nota",
+        "informed_email": "E-mail informado"
+      },
+      "status": {
+        "queued": "na fila",
+        "sent": "enviado",
+        "pending_window": "aguardando",
+        "skipped": "não enviado",
+        "failed": "falhou"
+      }
+    }
   },
   "channel": {
     "email": "E-mail",
@@ -226,13 +275,193 @@
     "discard": "Descartar",
     "microphoneError": "Não foi possível usar o microfone. Confira a permissão do navegador ou anexe um arquivo de áudio."
   },
+  "participant": {
+    "contractor": "Contratante",
+    "driver": "Motorista",
+    "operator": "Operador"
+  },
+  "layout": {
+    "label": "Exibição das conversas",
+    "sideBySide": "Lado a lado (conversas paralelas)",
+    "tabs": "Cada conversa em uma aba"
+  },
+  "legend": {
+    "title": "Quem é quem",
+    "show": "Mostrar a legenda",
+    "hide": "Esconder a legenda",
+    "participants": "Quem fala",
+    "channels": "Por onde",
+    "operatorHint": "Mensagem da empresa: fica do lado direito",
+    "channelHint": {
+      "email": "Mensagem por e-mail",
+      "whatsapp": "Mensagem pelo WhatsApp",
+      "app": "Mensagem no app do motorista",
+      "portal": "Mensagem no portal da contratante"
+    }
+  },
   "thread": {
     "newMessages_one": "{{count}} mensagem nova na conversa",
-    "newMessages_other": "{{count}} mensagens novas na conversa"
+    "newMessages_other": "{{count}} mensagens novas na conversa",
+    "contractorNewMessages": "Novas mensagens da contratante",
+    "via": "via {{channel}}",
+    "unread_one": "{{count}} não lida",
+    "unread_other": "{{count}} não lidas",
+    "contractor": {
+      "counterpart": "E-mail e portal da contratante"
+    },
+    "driver": {
+      "counterpart": "Chat do app do motorista"
+    },
+    "closed": {
+      "readOnly": "Você pode ler a conversa, mas não tem permissão para escrever.",
+      "noRecipient": "Sem nota ou sem contratante identificada, não há a quem escrever.",
+      "noPortal": "O portal da contratante não está aberto para esta ocorrência. Para escrever, use Enviar por e-mail."
+    },
+    "attachments": {
+      "title": "Arquivos recebidos",
+      "hint": "Leve o arquivo que chegou ao lugar certo: ao motorista, à contratante ou à ocorrência."
+    },
+    "senders": {
+      "title": "Remetente fora dos contatos"
+    },
+    "failures": {
+      "title": "Mensagem que não chegou",
+      "resent": "Reenviada por {{channel}}.",
+      "resendError": "Não foi possível reenviar. Tente de novo em instantes."
+    }
   },
   "sendRecovery": {
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
     "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual.",
     "driverChanged": "Esta conversa passou para outro motorista da viagem. Fale com a operação por outro canal."
+  },
+  "audioTranscription": {
+    "title": "Transcrever áudios das conversas",
+    "loading": "Carregando a configuração da transcrição",
+    "retry": "Tentar de novo",
+    "machine": "A transcrição é gerada por máquina, num modelo que roda no nosso próprio servidor: nenhuma voz sai para serviço externo. Ela pode conter erros e serve só de ajuda de leitura; o áudio continua sendo a mensagem.",
+    "limit_one": "Só áudios de menos de {{minutes}} minuto são transcritos.",
+    "limit_other": "Só áudios de menos de {{minutes}} minutos são transcritos.",
+    "effectOfTurningOff": "Ao desligar: as transcrições já geradas ficam guardadas, mas escondidas; áudios que chegarem enquanto estiver desligada não são transcritos depois, mesmo que você ligue de novo.",
+    "toggle": "Transcrever os áudios das conversas desta empresa",
+    "lastChange": "Última alteração: {{when}}",
+    "saving": "Salvando a configuração",
+    "error": {
+      "failed": "Não foi possível falar com o servidor. A configuração anterior foi mantida.",
+      "forbidden": "Você não tem permissão para alterar esta configuração.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo para continuar.",
+      "invalid": "O servidor recusou o pedido. A configuração anterior foi mantida."
+    }
+  },
+  "contractorReply": {
+    "title": "Retorno da contratante",
+    "loading": "Carregando o retorno da contratante",
+    "error": "Não foi possível carregar o retorno da contratante. Tente de novo em instantes.",
+    "status": {
+      "awaiting_contractor": "Aguardando a contratante",
+      "overdue": "Atrasada",
+      "reply_received": "Boleto recebido",
+      "awaiting_operator": "Aguardando o operador",
+      "needs_operator": "Precisa do operador",
+      "delivered": "Entregue",
+      "handled": "Tratado",
+      "cancelled": "Cancelado"
+    },
+    "reason": {
+      "no_accepted_attachment": "sem anexo aceito",
+      "multiple_attachments": "mais de um anexo"
+    },
+    "alerts_one": "{{count}} alerta",
+    "alerts_other": "{{count}} alertas",
+    "alertsLabel": "Alertas enviados",
+    "alertsProgress": "{{count}} de {{max}}",
+    "deadline": "Prazo",
+    "deadlinePassed": "vencido",
+    "reasonLabel": "Motivo",
+    "handledNoteLabel": "Nota do operador",
+    "handled": {
+      "open": "Marcar como tratado",
+      "note": "O que foi feito",
+      "hint": "Obrigatória, até {{max}} caracteres. Fica com o seu nome nesta ocorrência.",
+      "cancel": "Cancelar",
+      "confirm": "Marcar como tratado",
+      "saving": "Salvando…",
+      "error": {
+        "required": "Escreva o que foi feito.",
+        "tooLong": "A nota passou do limite de {{max}} caracteres.",
+        "notHandleable": "Este retorno já foi entregue ou cancelado; não há mais o que tratar.",
+        "send": "Não foi possível salvar. Tente de novo em instantes."
+      }
+    },
+    "resend": {
+      "open": "Reenviar o pedido à contratante",
+      "sending": "Reenviando…",
+      "sent_one": "Pedido reenviado a {{count}} contato.",
+      "sent_other": "Pedido reenviado a {{count}} contatos.",
+      "tooSoon": "O pedido foi reenviado há pouco; só dá para reenviar de novo depois do intervalo do alarme.",
+      "tooSoonAt": "Pedido reenviado há pouco. Dá para reenviar de novo em {{moment}}.",
+      "error": {
+        "notResendable": "Este retorno não espera mais a contratante; não há o que reenviar.",
+        "tooSoon": "O pedido já foi reenviado dentro do intervalo do alarme. Tente de novo mais tarde.",
+        "originalMissing": "Não achamos o pedido original na conversa com a contratante.",
+        "noRecipient": "Nenhum contato ativo da contratante recebe este pedido. Confira os contatos.",
+        "send": "Não foi possível reenviar. Tente de novo em instantes."
+      }
+    },
+    "timeline": {
+      "title": "Histórico",
+      "empty": "Nenhum evento ainda.",
+      "actor": {
+        "system": "Sistema",
+        "user": "Operação"
+      },
+      "event": {
+        "awaiting_contractor": "Pedido enviado à contratante",
+        "resent": "Pedido reenviado à contratante",
+        "overdue": "Retorno atrasado",
+        "reply_received": "Boleto recebido",
+        "awaiting_operator": "Aguardando o operador",
+        "needs_operator": "Precisa do operador",
+        "delivered": "Entregue ao motorista",
+        "handled": "Marcado como tratado",
+        "cancelled": "Cancelado"
+      }
+    },
+    "deliveries": {
+      "title": "Envios",
+      "target": {
+        "driver_app_chat": "Motorista, chat do app",
+        "driver_whatsapp": "Motorista, WhatsApp",
+        "note_recipient_email": "Cliente da nota, e-mail",
+        "informed_email": "E-mail informado"
+      },
+      "status": {
+        "queued": "na fila",
+        "sent": "enviado",
+        "pending_window": "aguardando o motorista escrever",
+        "skipped": "não enviado",
+        "failed": "falhou"
+      },
+      "reason": {
+        "driver_without_account": "motorista sem conta",
+        "driver_unreachable": "motorista inalcançável",
+        "whatsapp_window_closed": "janela do WhatsApp fechada",
+        "note_without_recipient_email": "nota sem e-mail do cliente",
+        "attachment_too_large_for_email": "arquivo grande demais para e-mail",
+        "send_failed": "falha no envio",
+        "no_accepted_attachment": "sem anexo aceito",
+        "multiple_attachments": "mais de um anexo"
+      }
+    },
+    "hint": {
+      "awaiting_contractor": "Pedimos o boleto à contratante e estamos esperando a resposta dela.",
+      "awaiting_operator": "A contratante respondeu com o boleto. Falta você conferir e enviar ao motorista.",
+      "cancelled": "A ocorrência foi cancelada, então este retorno não segue mais.",
+      "delivered": "O boleto já foi enviado ao motorista pelo chat do app.",
+      "handled": "Alguém da operação resolveu este assunto por fora e deixou uma nota.",
+      "needs_operator": "A resposta não pôde ser lida sozinha. Abra a conversa e decida o que fazer.",
+      "overdue": "A contratante passou do prazo sem responder. Vale ligar ou reenviar o pedido.",
+      "reply_received": "A contratante respondeu com o boleto e ele está a caminho do motorista."
+    }
   }
 }

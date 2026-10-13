@@ -127,10 +127,10 @@ async function listCaseSources(
     )
 
   return rows.map((row) => ({
-    actor: {
-      kind: row.actorKind === 'contractor' ? 'contractor' : 'operation',
-      name: row.actorName ?? null,
-    },
+    actor:
+      row.actorKind === 'contractor'
+        ? { kind: 'contractor', name: null }
+        : { kind: 'operation', name: row.actorName ?? null },
     fromStatus: row.fromStatus ?? null,
     id: row.id,
     kind: 'case.transition',

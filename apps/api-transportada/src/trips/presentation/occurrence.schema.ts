@@ -1,6 +1,19 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
+  CONTRACTOR_REPLY_ALERT_MAX_COUNT,
+  CONTRACTOR_REPLY_ALERT_MODES,
+  CONTRACTOR_REPLY_ATTACHMENT_KINDS,
+  CONTRACTOR_REPLY_MODES,
+  CONTRACTOR_REPLY_WAIT_HOURS,
+  DRIVER_REPLY_TEMPLATE_MAX_LENGTH,
+  FORWARD_EMAIL_BODY_MAX_LENGTH,
+  FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
+  FORWARD_TO_INFORMED_EMAIL_MODES,
+  FORWARD_TO_NOTE_RECIPIENT_MODES,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import { z } from 'zod'
 
 import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
@@ -448,6 +461,38 @@ const occurrenceTypeSchema = z
      * LINHA — `{{linhasItens}}` ali dentro seria recursão. Ausente é "não mexa"; vazio é a linha padrão.
      */
     emailItemLineTemplate: emailItemLineTemplateSchema.optional(),
+    /**
+     * Spec 248 (RF1): o retorno da contratante. ⚠️ **Opcionais sem `default`, pelo mesmo motivo de
+     * `attachmentMode`**: ausente é "não mexa". As CHECKs entre campos (retorno exige e-mail e texto;
+     * alerta exige prazo; automático exige retorno) ficam no banco e viram 422 no cadastro.
+     */
+    contractorReplyAlertIntervalMinutes: z
+      .number()
+      .int()
+      .min(CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES.min)
+      .max(CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES.max)
+      .optional(),
+    contractorReplyAlertMaxCount: z
+      .number()
+      .int()
+      .min(CONTRACTOR_REPLY_ALERT_MAX_COUNT.min)
+      .max(CONTRACTOR_REPLY_ALERT_MAX_COUNT.max)
+      .optional(),
+    contractorReplyAlertMode: z.enum(CONTRACTOR_REPLY_ALERT_MODES).optional(),
+    contractorReplyAttachmentKind: z.enum(CONTRACTOR_REPLY_ATTACHMENT_KINDS).optional(),
+    contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
+    contractorReplyWaitHours: z
+      .number()
+      .int()
+      .min(CONTRACTOR_REPLY_WAIT_HOURS.min)
+      .max(CONTRACTOR_REPLY_WAIT_HOURS.max)
+      .nullable()
+      .optional(),
+    driverReplyTemplate: z.string().max(DRIVER_REPLY_TEMPLATE_MAX_LENGTH).optional(),
+    forwardToNoteRecipient: z.enum(FORWARD_TO_NOTE_RECIPIENT_MODES).optional(),
+    forwardToInformedEmail: z.enum(FORWARD_TO_INFORMED_EMAIL_MODES).optional(),
+    forwardEmailSubject: z.string().max(FORWARD_EMAIL_SUBJECT_MAX_LENGTH).optional(),
+    forwardEmailBody: z.string().max(FORWARD_EMAIL_BODY_MAX_LENGTH).optional(),
     /**
      * Spec 166 (RF3/RF9), spec 246 T1c.3 (RF1b): um produto ou vários. ⚠️ **Opcional sem `default`,
      * pelo mesmo motivo de `attachmentMode`**: ausente é "não mexa" — um `default(true)` religaria

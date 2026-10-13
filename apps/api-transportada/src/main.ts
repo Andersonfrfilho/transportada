@@ -106,6 +106,12 @@ import {
   createSaveLocationRetentionSettingsUseCase,
 } from './companies/application/location-retention-settings.use-case.js'
 import { DrizzleDriverAllowanceSettingsRepository } from './companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
+import {
+  createGetAudioTranscriptionSettingsUseCase,
+  createSaveAudioTranscriptionSettingsUseCase,
+} from './companies/application/audio-transcription-settings.use-case.js'
+import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
+import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
@@ -435,6 +441,25 @@ import { DrizzleTripProofReportRepository } from './trips/infrastructure/drizzle
 import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip-report.repository.js'
 import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
+import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
+import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
+import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
+import { createForwardContractorReplyByEmailUseCase } from './occurrence-conversation/application/forward-contractor-reply-by-email.use-case.js'
+import {
+  createDrizzleContractorReplyEmailReader,
+  createDrizzleContractorReplyEmailUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-email.repository.js'
+import {
+  createMarkContractorReplyHandledUseCase,
+  createReadContractorReplyUseCase,
+} from './occurrence-conversation/application/contractor-reply-read.use-case.js'
+import {
+  createDrizzleContractorReplyHandledWriter,
+  createDrizzleContractorReplyReader,
+} from './occurrence-conversation/infrastructure/drizzle-contractor-reply-read.repository.js'
+import { createResendContractorReplyRequestUseCase } from './occurrence-conversation/application/resend-contractor-reply-request.use-case.js'
+import { createDrizzleContractorReplyResendReader } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-resend.repository.js'
+import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -442,6 +467,28 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createMeQuickReplyRoutes } from './occurrence-conversation/presentation/me-quick-replies.routes.js'
+import { createMeSubjectConversationRoutes } from './occurrence-conversation/presentation/me-subject-conversation.routes.js'
+import { createMeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/me-subject-conversation-write.routes.js'
+import { createOfficeSubjectConversationRoutes } from './occurrence-conversation/presentation/office-subject-conversation.routes.js'
+import { createOfficeSubjectConversationWriteRoutes } from './occurrence-conversation/presentation/office-subject-conversation-write.routes.js'
+import { createListTripSubjectConversationsUseCase } from './occurrence-conversation/application/list-trip-subject-conversations.use-case.js'
+import { createListOfficeSubjectMessagesUseCase } from './occurrence-conversation/application/list-office-subject-messages.use-case.js'
+import { createMarkOfficeSubjectReadUseCase } from './occurrence-conversation/application/mark-office-subject-read.use-case.js'
+import { createOpenTripSubjectConversationUseCase } from './occurrence-conversation/application/open-trip-subject-conversation.use-case.js'
+import { createCloseTripSubjectConversationUseCase } from './occurrence-conversation/application/close-trip-subject-conversation.use-case.js'
+import { createRequestOfficeSubjectUploadUseCase } from './occurrence-conversation/application/request-office-subject-upload.use-case.js'
+import { createSendOfficeSubjectMessageUseCase } from './occurrence-conversation/application/send-office-subject-message.use-case.js'
+import { createDrizzleOfficeSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-office-subject-conversation.repository.js'
+import { createOfficeSubjectNotifier } from './occurrence-conversation/infrastructure/office-subject-notifier.adapter.js'
+import { createReplyMySubjectConversationUseCase } from './occurrence-conversation/application/reply-my-subject-conversation.use-case.js'
+import { createRequestMySubjectUploadUseCase } from './occurrence-conversation/application/request-my-subject-upload.use-case.js'
+import { createDrizzleDriverSubjectWriteUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-subject-write.repository.js'
+import { createListMySubjectConversationsUseCase } from './occurrence-conversation/application/list-my-subject-conversations.use-case.js'
+import { createListMySubjectMessagesUseCase } from './occurrence-conversation/application/list-my-subject-messages.use-case.js'
+import { createMarkMySubjectReadUseCase } from './occurrence-conversation/application/mark-my-subject-read.use-case.js'
+import { createOpenMySubjectConversationUseCase } from './occurrence-conversation/application/open-my-subject-conversation.use-case.js'
+import { createDrizzleDriverSubjectUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation-subject.repository.js'
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
 import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
@@ -500,6 +547,7 @@ import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createContractorReplyDeliveryNotifier } from './occurrence-conversation/infrastructure/contractor-reply-delivery-notifier.adapter.js'
 import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
 import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
@@ -572,6 +620,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -625,20 +674,27 @@ import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
 import { createBusinessCalendarSettingsUseCases } from './business-calendar/application/business-calendar-settings.use-case.js'
 import { createDayChecksUseCase } from './business-calendar/application/day-checks.use-case.js'
+import { createHolidayImportEnablementUseCases } from './business-calendar/application/holiday-import-enablement.use-case.js'
 import { createHolidayImportUseCases } from './business-calendar/application/holiday-import.use-case.js'
+import { createHolidayProviderSettingsUseCases } from './business-calendar/application/holiday-provider-settings.use-case.js'
+import { createHolidayProviderTokenSecretService } from './business-calendar/application/holiday-provider-token-secret.service.js'
 import { createMunicipalHolidayRulesUseCases } from './business-calendar/application/municipal-holiday-rules.use-case.js'
 import { createMunicipalHolidaysUseCases } from './business-calendar/application/municipal-holidays.use-case.js'
 import { createStateHolidaysUseCases } from './business-calendar/application/state-holidays.use-case.js'
 import { DrizzleBusinessCalendarSettingsRepository } from './business-calendar/infrastructure/drizzle-business-calendar-settings.repository.js'
 import { DrizzleHolidayWarningRepository } from './business-calendar/infrastructure/drizzle-holiday-warning.repository.js'
+import { DrizzleHolidayImportEnablementRepository } from './business-calendar/infrastructure/drizzle-holiday-import-enablement.repository.js'
 import { DrizzleHolidayImportStatusRepository } from './business-calendar/infrastructure/drizzle-holiday-import-status.repository.js'
 import { DrizzleHolidayImportSuppressionRepository } from './business-calendar/infrastructure/drizzle-holiday-import-suppression.repository.js'
+import { DrizzleHolidayProviderSettingsRepository } from './business-calendar/infrastructure/drizzle-holiday-provider-settings.repository.js'
 import { DrizzleMunicipalHolidayRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday.repository.js'
 import { DrizzleMunicipalHolidayRuleRepository } from './business-calendar/infrastructure/drizzle-municipal-holiday-rule.repository.js'
 import { DrizzleStateHolidayRepository } from './business-calendar/infrastructure/drizzle-state-holiday.repository.js'
 import { createBusinessCalendarSettingsRoutes } from './business-calendar/presentation/business-calendar-settings.routes.js'
 import { createDayChecksRoutes } from './business-calendar/presentation/day-checks.routes.js'
+import { createHolidayImportEnablementRoutes } from './business-calendar/presentation/holiday-import-enablement.routes.js'
 import { createHolidayImportRoutes } from './business-calendar/presentation/holiday-import.routes.js'
+import { createHolidayProviderSettingsRoutes } from './business-calendar/presentation/holiday-provider-settings.routes.js'
 import { createMunicipalHolidayRoutes } from './business-calendar/presentation/municipal-holiday.routes.js'
 import { createMunicipalHolidayRuleRoutes } from './business-calendar/presentation/municipal-holiday-rule.routes.js'
 import { createStateHolidayRoutes } from './business-calendar/presentation/state-holiday.routes.js'
@@ -883,36 +939,34 @@ const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
 
 /**
- * Spec 183 T802: o aviso automático à contratante, montado uma vez e usado pelos cinco caminhos de
- * registro de ocorrência (app, escritório, separação e os dois do WhatsApp), sempre depois do commit.
+ * Spec 183 T802: o caso de uso do aviso automático à contratante, montado uma vez e compartilhado
+ * pelo gancho dos registros de ocorrência e pela rota do robô da varredura (spec 248 T4.4b).
  * O aviso não leva anexo, então a storage dele recusa qualquer uso.
  */
-function buildAutomaticOccurrenceMailHook(input: {
+function buildSendAutomaticOccurrenceMailUseCase(input: {
   readonly database: ReturnType<typeof createDatabaseProvider>['db']
   readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
   readonly idempotencyHmacKey: Uint8Array
   readonly logger: ReturnType<typeof createApiLogger>
-}): AutomaticOccurrenceMailHook {
+}): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
   const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
-  return createAutomaticOccurrenceMailHook({
-    logger: input.logger,
-    useCase: createSendAutomaticOccurrenceMailUseCase({
-      reader: createAutomaticOccurrenceMailReader(input.database),
-      sendMail: createSendOccurrenceMailUseCase({
-        fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
-        secretService: createContractorMailCredentialSecretService({
-          envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
-        }),
-        storage: {
-          createSignedDownload: noAttachmentStorage,
-          createSignedUpload: noAttachmentStorage,
-          getObjectStream: noAttachmentStorage,
-          deleteObject: noAttachmentStorage,
-          headObject: noAttachmentStorage,
-          storeObject: noAttachmentStorage,
-        },
-        unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
+  return createSendAutomaticOccurrenceMailUseCase({
+    reader: createAutomaticOccurrenceMailReader(input.database),
+    sendMail: createSendOccurrenceMailUseCase({
+      fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+      logger: input.logger,
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
       }),
+      storage: {
+        createSignedDownload: noAttachmentStorage,
+        createSignedUpload: noAttachmentStorage,
+        getObjectStream: noAttachmentStorage,
+        deleteObject: noAttachmentStorage,
+        headObject: noAttachmentStorage,
+        storeObject: noAttachmentStorage,
+      },
+      unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
     }),
   })
 }
@@ -940,11 +994,15 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
-  const automaticOccurrenceMail = buildAutomaticOccurrenceMailHook({
+  const sendAutomaticOccurrenceMail = buildSendAutomaticOccurrenceMailUseCase({
     database: database.db,
     envelopeKeyRing: config.cryptography.envelopeKeyRing,
     idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
     logger,
+  })
+  const automaticOccurrenceMail = createAutomaticOccurrenceMailHook({
+    logger,
+    useCase: sendAutomaticOccurrenceMail,
   })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
@@ -1571,6 +1629,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
         automaticOccurrenceMail,
+        sendAutomaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
@@ -1583,6 +1642,7 @@ export function bootstrap(): Bun.Server<undefined> {
         idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
         keycloak: config.keycloak,
         logger,
+        audioTranscriptionMaxDurationMs: config.audioTranscriptionMaxDurationMs,
         nfseProviderApiVersion: config.nfseProviderApiVersion,
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
@@ -1905,6 +1965,8 @@ function createAnonymousRoutes({
 type CreateApplicationRoutesParams = {
   /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
+  /** Spec 248 T4.4b: o mesmo caso de uso, pela porta do robô da varredura. */
+  readonly sendAutomaticOccurrenceMail: ReturnType<typeof createSendAutomaticOccurrenceMailUseCase>
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
@@ -1930,6 +1992,8 @@ type CreateApplicationRoutesParams = {
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
+  /** Spec 264: teto de duração do áudio transcrito, informado em `GET /company-settings/audio-transcription`. */
+  readonly audioTranscriptionMaxDurationMs: ApiEnvironment['audioTranscriptionMaxDurationMs']
   /** ADR 0098: a versão da API da Nota RP que as emissões novas gravam na tentativa. */
   readonly nfseProviderApiVersion: ApiEnvironment['nfseProviderApiVersion']
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
@@ -1980,6 +2044,7 @@ async function readTripRouteGeometryStopsOrWarn(input: {
 function createApplicationRoutes({
   apiPublicUrl,
   automaticOccurrenceMail,
+  sendAutomaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
@@ -1992,6 +2057,7 @@ function createApplicationRoutes({
   idempotencyHmacKey,
   keycloak,
   logger,
+  audioTranscriptionMaxDurationMs,
   nfseProviderApiVersion,
   postalCodeProviders,
   resolveClientIp,
@@ -2108,6 +2174,10 @@ function createApplicationRoutes({
     now: () => new Date(),
     settings: new DrizzleLocationRetentionSettingsRepository(database),
   }
+  const audioTranscriptionDependencies = {
+    maxDurationMs: audioTranscriptionMaxDurationMs,
+    settings: new DrizzleAudioTranscriptionSettingsRepository(database),
+  }
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -2201,6 +2271,11 @@ function createApplicationRoutes({
     calendar: new DrizzleHolidayWarningRepository(database, businessCalendarClock.now),
     contexts: new DrizzleDriverStopHolidayContextRepository(database),
     logger,
+  }
+  /** Spec 248 T5.4: o estado do retorno da contratante nas notas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverContractorReplies = {
+    logger,
+    reader: new DrizzleDriverDocumentContractorReplyRepository(database),
   }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
@@ -2410,6 +2485,17 @@ function createApplicationRoutes({
   /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
   const contractorPortalConversation = createContractorPortalConversationUseCase({
     clock: () => new Date(),
+    /** Spec 248 T4.6b: the driver bell notice of the automatic delivery, after the commit. */
+    deliveryNotifier: createContractorReplyDeliveryNotifier({
+      driverNotifier: createDriverConversationNotifier({
+        logger,
+        send: (params) =>
+          notifications.useCases.sendNotification.execute({
+            ...params,
+            locale: NOTIFICATION_DEFAULT_LOCALE,
+          } as never),
+      }),
+    }),
     fingerprintService,
     newRef: createPublicRef,
     scopes: contractorPortalRepository,
@@ -2973,6 +3059,11 @@ function createApplicationRoutes({
       get: createGetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
       set: createSetDriverAllowanceSettingsUseCase({ settings: driverAllowanceSettingsRepository }),
     }),
+    ...createAudioTranscriptionSettingsRoutes({
+      get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+      resolveClientIp,
+      save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+    }),
     ...createLocationRetentionSettingsRoutes({
       clear: createClearLocationRetentionSettingsUseCase(locationRetentionDependencies),
       get: createGetLocationRetentionSettingsUseCase(locationRetentionDependencies),
@@ -3017,6 +3108,19 @@ function createApplicationRoutes({
         ...businessCalendarClock,
         statusRepository: new DrizzleHolidayImportStatusRepository(database),
         suppressionRepository: new DrizzleHolidayImportSuppressionRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createHolidayImportEnablementRoutes({
+      ...createHolidayImportEnablementUseCases({
+        repository: new DrizzleHolidayImportEnablementRepository(database),
+      }),
+      resolveClientIp,
+    }),
+    ...createHolidayProviderSettingsRoutes({
+      ...createHolidayProviderSettingsUseCases({
+        port: new DrizzleHolidayProviderSettingsRepository(database),
+        secrets: createHolidayProviderTokenSecretService({ envelopeProvider, logger }),
       }),
       resolveClientIp,
     }),
@@ -3238,6 +3342,46 @@ function createApplicationRoutes({
       },
       resolveClientIp,
     }),
+    /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
+    ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    /** Spec 248 T4.6 (RF7/RF9): o operador leva o boleto da contratante ao motorista, pelo chat do app. */
+    ...createOccurrenceContractorReplyRoutes({
+      markHandled: createMarkContractorReplyHandledUseCase({
+        clock: () => new Date(),
+        writer: createDrizzleContractorReplyHandledWriter(database),
+      }),
+      readReply: createReadContractorReplyUseCase({
+        reader: createDrizzleContractorReplyReader(database),
+      }),
+      /** Spec 248 RF6: o pedido volta à contratante na mesma conversa de e-mail, pelo caso de uso do envio. */
+      resendRequest: createResendContractorReplyRequestUseCase({
+        reader: createDrizzleContractorReplyResendReader(database),
+        sendMail: createSendOccurrenceMailUseCase({
+          fingerprintService,
+          secretService: contractorMailCredentialSecretService,
+          storage: storageGateway,
+          unitOfWork: new DrizzleOccurrenceMailRepository(database),
+        }),
+      }),
+      deliverToDriver: createDeliverContractorReplyToDriverUseCase({
+        clock: () => new Date(),
+        notifier: createDriverConversationNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        unitOfWork: createDrizzleContractorReplyDeliveryUnitOfWork(database),
+      }),
+      /** Spec 248 T4.7 (RF10–RF12): o mesmo boleto por e-mail ao cliente da nota ou a um endereço informado. */
+      emailOptions: createDrizzleContractorReplyEmailReader(database),
+      forwardByEmail: createForwardContractorReplyByEmailUseCase({
+        logger,
+        unitOfWork: createDrizzleContractorReplyEmailUnitOfWork(database),
+      }),
+    }),
     /** Spec 253 RF1/RF10: o relatório de viagens e o PDF de canhotos, mesma política de leitura. */
     ...createTripDocumentReportRoutes({
       exportTripProofPdf: createExportTripProofPdfUseCase({
@@ -3364,6 +3508,92 @@ function createApplicationRoutes({
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 263 T2.4 (ADR-0101): a conversa por assunto (nota, viagem, ocorrência) no `/me`, lado de leitura. */
+    ...createMeSubjectConversationRoutes({
+      list: createListMySubjectConversationsUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      markRead: createMarkMySubjectReadUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      messages: createListMySubjectMessagesUseCase({
+        clock: () => new Date(),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      open: createOpenMySubjectConversationUseCase({
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 263 T2.4: o lado de escrita — resposta com eco do `clientMessageId` e envio de arquivo. */
+    ...createMeSubjectConversationWriteRoutes({
+      reply: createReplyMySubjectConversationUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverSubjectWriteUnitOfWork(database),
+      }),
+      requestUpload: createRequestMySubjectUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverSubjectUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /**
+     * Spec 263 T2.4b (ADR-0101): a conversa de nota e de viagem vista pelo escritório, por viagem. Ler é
+     * `fleet.read`; abrir, enviar, anexar e encerrar são `trip.manage`.
+     */
+    ...createOfficeSubjectConversationRoutes({
+      list: createListTripSubjectConversationsUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      markRead: createMarkOfficeSubjectReadUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      messages: createListOfficeSubjectMessagesUseCase({
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+    }),
+    ...createOfficeSubjectConversationWriteRoutes({
+      close: createCloseTripSubjectConversationUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      open: createOpenTripSubjectConversationUseCase({
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      requestUpload: createRequestOfficeSubjectUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
+      send: createSendOfficeSubjectMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        notifier: createOfficeSubjectNotifier(
+          createDriverConversationNotifier({
+            logger,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
+        ),
+        storage: storageGateway,
+        unitOfWork: createDrizzleOfficeSubjectUnitOfWork(database),
+      }),
     }),
     ...createOccurrenceConversationUnassignedRoutes({
       assign: createAssignUnassignedMessageUseCase({
@@ -3561,6 +3791,13 @@ function createApplicationRoutes({
       quickReplies: createQuickRepliesUseCase({
         unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
       }),
+    }),
+    /** Spec 263 T5.1 (D11): as respostas prontas do motorista (público `driver_reply`), lidas pelo app. */
+    ...createMeQuickReplyRoutes({
+      quickReplies: createQuickRepliesUseCase({
+        unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
@@ -3813,6 +4050,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
           repository: currentDriverTripRepository,

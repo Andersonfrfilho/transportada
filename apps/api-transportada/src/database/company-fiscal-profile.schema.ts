@@ -38,6 +38,19 @@ export type FiscalEnvironment = (typeof FISCAL_ENVIRONMENTS)[number]
 export const BILLING_OBSERVATIONS_MAX_LENGTH = 500
 
 /**
+ * Qual dos dois nomes a empresa mostra onde o nome aparece só para ser lido (painel, app do motorista,
+ * e-mails, PDFs comerciais). `trade_name` é o padrão e cai na razão social quando a fantasia está vazia.
+ * Documento fiscal ignora esta escolha e leva sempre a razão social.
+ */
+export const COMPANY_DISPLAY_NAME_MODES = ['trade_name', 'legal_name'] as const
+export type CompanyDisplayNameMode = (typeof COMPANY_DISPLAY_NAME_MODES)[number]
+export const DEFAULT_COMPANY_DISPLAY_NAME_MODE: CompanyDisplayNameMode = 'trade_name'
+
+const COMPANY_DISPLAY_NAME_MODE_LIST = sql.raw(
+  COMPANY_DISPLAY_NAME_MODES.map((mode) => `'${mode}'`).join(', '),
+)
+
+/**
  * Por onde o código de ativação sai. É da empresa, não de quem convida — e `email` é o padrão
  * porque é o único canal com driver hoje (`worker/src/identity/infrastructure/invitation-channel.gateway.ts`).
  */
@@ -63,6 +76,10 @@ export const companyFiscalProfiles = pgTable(
       }),
     legalName: text('legal_name').notNull(),
     tradeName: text('trade_name').notNull(),
+    displayNameMode: text('display_name_mode')
+      .$type<CompanyDisplayNameMode>()
+      .notNull()
+      .default(DEFAULT_COMPANY_DISPLAY_NAME_MODE),
     cnpj: text().notNull(),
     stateRegistration: text('state_registration').notNull(),
     municipalRegistration: text('municipal_registration').notNull(),
@@ -131,6 +148,10 @@ export const companyFiscalProfiles = pgTable(
     check(
       'company_fiscal_profiles_activation_channel_check',
       sql`${table.activationChannel} in (${ACTIVATION_CHANNEL_LIST})`,
+    ),
+    check(
+      'company_fiscal_profiles_display_name_mode_check',
+      sql`${table.displayNameMode} in (${COMPANY_DISPLAY_NAME_MODE_LIST})`,
     ),
     check(
       'company_fiscal_profiles_billing_bank_code_check',

@@ -146,3 +146,16 @@
 - M4: `GET /trips` limita `limit` a 100 (`readPaging`/`parseLimit`, regex `1..100`). Os `inArray` da ocupação recebem 100 ids de viagem e os ids de notas; o estouro de 65.535 parâmetros só ocorreria com ~650 notas por viagem em média. Risco registrado, API inalterada.
 - M2 (conhecido, não alterado): o custo só soma à linha que já tem receita — decisão documentada da spec.
 - Linha clicável: a `<tr>` da lista abre a viagem (`handleRowClick` + `shouldOpenTripFromRowClick`, puro); ignora clique em elemento interativo (`closest`), texto selecionado, botão ≠ principal e tecla modificadora. Teclado segue pelo botão "Ver" (sem tabIndex/role na linha); CSS `.clickableRow` com hover/focus-within. Contrato `test/trip/trip-row-click.contract.ts`. Não provado em navegador nem com clique DOM real (a app não tem testing-library).
+
+## Rebase sobre origin/staging — 2026-10-09
+
+- `git rebase origin/staging` (95 commits novos na staging; 19 da 259): 1 conflito, em `apps/api-transportada/package.json`
+  (linha `test:integration`, lista explícita). Resolvido tomando a linha da staging e acrescentando só
+  `trip-list-occupancy-financials.integration.ts`. Nenhuma migration nossa; spec 259 sem colisão de número.
+- `bun install --frozen-lockfile`: sem mudanças. `bun run typecheck` (6 apps): limpo. `bun run lint`: exit 0 (16 avisos
+  `exhaustive-deps` antigos, em arquivos não tocados).
+- API (contrato, `bun --env-file=../../.env.test run test`): 11175 pass, 25 skip, 0 fail. Painel (`bun run test`): 7831 pass +
+  1233 pass (hooks), 0 fail.
+- Integração tocada (`trip-list-occupancy-financials`, `trip-detail-query-count`, `trip-repository`, `trip-cargo-carrier`): 22 pass, 0 fail.
+- `format:check` na raiz falha só em `specs/260-…/preview.html`, arquivo local de outra sessão que não está na staging nem nesta branch.
+- Não rodado: `make check` encadeado (barra no `format:check` acima), suíte de integração inteira (~17 min), `make migration-test` (sem migration).

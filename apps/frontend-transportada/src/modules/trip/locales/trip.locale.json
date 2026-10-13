@@ -461,8 +461,7 @@
     "blocker": {
       "noDocuments": "Escolha ao menos uma nota.",
       "reasonRequired": "Informe o motivo para concluir.",
-      "reasonTooLong": "O motivo passa de 500 caracteres.",
-      "tooManyDocuments": "Escolha no máximo 300 notas por vez."
+      "reasonTooLong": "O motivo passa de 500 caracteres."
     },
     "error": {
       "generic": "Não foi possível acrescentar as notas agora. Tente de novo.",
@@ -830,7 +829,17 @@
     "trailerHint": "Pode ser trocada até o despacho.",
     "trailerLockedHint": "A carreta não pode mais ser trocada — a viagem já foi despachada.",
     "trailerPlaceholder": "Sem carreta atrelada",
-    "vehicle": "Veículo: {{vehicle}}"
+    "vehicle": "Veículo: {{vehicle}}",
+    "linkAvailableHint": "Só aparecem notas desta empresa que ainda não estão em nenhuma viagem.",
+    "linkSelected": "Vincular {{count}} nota",
+    "linkSelected_other": "Vincular {{count}} notas",
+    "linkSelectedEmpty": "Marque ao menos uma nota",
+    "linkTabs": "Como vincular a nota",
+    "quickInputHint": "Digite o número da nota e aperte Enter. Se houver duas notas livres com o mesmo número, a tela pergunta qual é. A chave de 44 caracteres e a leitura pela câmera vinculam direto.",
+    "quickInputLabel": "Número da nota ou chave",
+    "quickInputPlaceholder": "Ex.: 48214, ou os 44 caracteres da chave",
+    "tabQuick": "Inserção rápida",
+    "tabSearch": "Buscar e selecionar"
   },
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
@@ -1030,6 +1039,7 @@
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
+    "documentAlreadyReleased": "Esta nota já foi desvinculada desta viagem. Atualize a tela.",
     "documentNotFound": "Nota não encontrada nesta viagem.",
     "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
     "documentReturnReasonRequired": "Informe o motivo da devolução.",
@@ -1098,7 +1108,8 @@
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
     "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
-    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
+    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.",
+    "noteNumberNotFound": "Nenhuma nota livre com este número nesta empresa. Confira o número ou use a busca."
   },
   "filters": {
     "active_one": "{{count}} filtro ativo",
@@ -1449,6 +1460,7 @@
       "notified": "Aviso",
       "stage": "Grupo",
       "stopLabel": "Parada",
+      "takenBy": "Responsável",
       "typeName": "Tipo",
       "vehiclePlate": "Placa"
     },
@@ -1486,8 +1498,12 @@
       "caseStatusEmpty": "Nenhum estado encontrado",
       "removeCaseStatus": "Remover estado de tratativa",
       "caseStatusSearch": "Buscar estado",
-      "caseStatusSummary": "{{count}} selecionados"
+      "caseStatusSummary": "{{count}} selecionados",
+      "contractorReply": "Retorno da contratante",
+      "contractorReplyOverdue": "Só as atrasadas",
+      "contractorReplyOverdueHint": "Mostra as ocorrências cujo prazo de resposta da contratante já passou."
     },
+    "contractorReplyOverdue": "Atrasadas",
     "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
     "kicker": "Operações",
     "kind": {
@@ -1642,8 +1658,8 @@
     "withoutDriver": "Sem motorista"
   },
   "quickCreate": {
-    "accessKey": "Chave de acesso",
-    "accessKeyPlaceholder": "44 caracteres impressos sob o código de barras",
+    "accessKey": "Número da nota ou chave",
+    "accessKeyPlaceholder": "Número da nota ou 44 caracteres da chave",
     "add": "Acrescentar",
     "cancel": "Cancelar",
     "clearFilteredSelection": "Desmarcar as {{count}} do filtro",
@@ -1661,7 +1677,7 @@
     "failed": "Não foi possível criar a viagem. Confira as notas e tente de novo.",
     "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
     "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem.",
-    "intro": "Bipe ou digite a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
+    "intro": "Bipe, leia pela câmera ou digite o número ou a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
@@ -1697,7 +1713,14 @@
     "title": "Nova viagem",
     "weightEstimated": "estimado",
     "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
-    "weightValue": "{{weight}} kg"
+    "weightValue": "{{weight}} kg",
+    "typed": {
+      "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
+      "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
+      "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
+      "pickTitle": "Escolha a nota",
+      "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."
+    }
   },
   "readiness": {
     "count": "{{ready}} de {{total}} notas com CT-e autorizado",
@@ -2223,6 +2246,22 @@
     "photoChoose": "Escolher foto",
     "photoEmpty": "Nenhuma foto escolhida"
   },
+  "occurrenceTakenBy": {
+    "title": "Quem pegou",
+    "taken": "Pegou",
+    "unknownName": "Alguém da equipe",
+    "since": "desde {{moment}}",
+    "waiting": "Ninguém pegou ainda",
+    "waitingSince": "Registrada em {{moment}}",
+    "stale": "Parada há {{hours}} h sem ninguém pegar",
+    "none": "Sem responsável registrado",
+    "hint": {
+      "taken": "Quem pegou é quem iniciou a validação interna e conduz a tratativa.",
+      "waiting": "Ninguém iniciou a validação interna. Quem pode tratar a ocorrência assume clicando em Iniciar validação interna.",
+      "stale": "Já faz horas que ninguém iniciou a validação interna ({{hours}} h). Alguém precisa pegar esta ocorrência.",
+      "none": "Esta tratativa não passou pela validação interna: foi cancelada antes, ou é anterior a este registro."
+    }
+  },
   "occurrenceCase": {
     "none": "Sem tratativa aberta para esta ocorrência.",
     "statusLabel": "Passo atual",
@@ -2300,6 +2339,54 @@
       "unpaid": "A loja não pagou, sem valor a acertar",
       "use": "Usar a sugestão do registro",
       "unsplit": "A loja pagou R$ {{amount}} pela ocorrência inteira. Esse valor não é de um item só: distribua-o entre os itens do acerto."
+    }
+  },
+  "occurrenceTripMap": {
+    "title": "Mapa da viagem",
+    "hint": "Onde esta ocorrência foi registrada e por onde a viagem passou.",
+    "loading": "Carregando o mapa da viagem",
+    "error": "Não foi possível carregar o mapa da viagem.",
+    "retry": "Tentar de novo",
+    "empty": "Nenhum evento desta viagem tem posição registrada, então não há o que mostrar no mapa.",
+    "emptyStops": "As paradas desta viagem ainda não têm coordenada, então não há o que mostrar no mapa.",
+    "mapMissing": "O mapa não está disponível agora. A legenda continua abaixo.",
+    "partial": "O mapa mostra só os eventos mais recentes: a viagem tem mais do que isso.",
+    "thisOccurrence": "Esta ocorrência",
+    "caption": "O número no pino é a ordem em que o evento aconteceu. O pino com halo vermelho é esta ocorrência.",
+    "captionStopsOnly": "O mapa mostra só as paradas da viagem. O pino com halo vermelho é a parada desta nota.",
+    "pinLabel": "Ponto {{order}}: {{label}}, {{moment}}",
+    "stopTitle": "Parada {{sequence}}",
+    "stopPinLabel": "Parada {{sequence}}: {{label}}",
+    "restricted": {
+      "title": "Posição dos eventos oculta",
+      "body": "Seu acesso não inclui onde cada evento aconteceu. O mapa mostra só as paradas e a parada desta nota.",
+      "hint": "Quem administra a empresa concede a permissão de ver a posição dos eventos."
+    },
+    "occurrenceState": {
+      "withoutPosition": "A posição desta ocorrência não foi registrada.",
+      "notFound": "Esta ocorrência não aparece entre os eventos carregados da viagem."
+    },
+    "distance": {
+      "kilometers": "a {{distance}} km da parada",
+      "meters": "a {{distance}} m da parada"
+    },
+    "withoutPosition": {
+      "expired": "Sem posição: apagada pelo prazo de retenção.",
+      "restricted": "Sem posição: oculta para o seu acesso.",
+      "unavailable": "Sem posição: o aparelho não a entregou."
+    },
+    "legend": {
+      "types": "Tipos de evento no mapa",
+      "listSummary_one": "Ver o evento em ordem",
+      "listSummary_other": "Ver os {{count}} eventos em ordem",
+      "entry": "{{order}}. {{label}} · {{moment}}",
+      "entryWithoutPosition": "{{label}} · {{moment}}",
+      "focus": "Centralizar no mapa: {{entry}}",
+      "noteStop": "Parada da nota: {{sequence}} · {{label}}",
+      "noteStopFocus": "Centralizar no mapa a parada da nota: {{sequence}} · {{label}}",
+      "noteStopWithoutPoint": "Sem posição no mapa: o endereço ainda não foi localizado.",
+      "stopsOnly_one": "{{count}} parada no mapa",
+      "stopsOnly_other": "{{count}} paradas no mapa"
     }
   },
   "occurrenceDetail": {
@@ -2487,6 +2574,10 @@
     "title_other": "Encerrar {{count}} viagens"
   },
   "proofPdfExport": {
+    "planning": "Contando os canhotos para dividir o PDF…",
+    "part": "Gerando o PDF {{current}} de {{total}}…",
+    "cancel": "Cancelar",
+    "cancelled": "Exportação cancelada. {{saved}} arquivo(s) já baixado(s).",
     "button": "Exportar canhotos (PDF)",
     "exporting": "Gerando PDF…",
     "tooManyDocuments": "Selecione até {{max}} notas ou refine o filtro para exportar os canhotos.",
@@ -2541,6 +2632,7 @@
     "volumesColumn": "Volumes",
     "series": "série {{series}}",
     "unknown": "—",
+    "stopTotals": "{{notes}} nota(s) · {{volumes}} volume(s)",
     "noStop": "Sem parada definida",
     "empty": "Nenhuma nota nesta viagem ainda.",
     "print": "Imprimir para assinatura",
@@ -2565,6 +2657,10 @@
     "sheetTrip": "Viagem",
     "sheetPrintedAt": "Emitido em",
     "sheetNotes": "Notas",
+    "sheetWeightEstimated": "estimado",
+    "sheetWeightMissingNotes": "nota(s) sem peso informado",
+    "sheetWeightNotInformed": "peso não informado",
+    "weight": "Peso",
     "downloadPdf": "Baixar PDF",
     "pdfFailed": "Não foi possível gerar o PDF. Tente de novo.",
     "sheetCreatedBy": "Criada por",

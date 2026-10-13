@@ -5,6 +5,8 @@
 export type CompanyGroupUnit = Readonly<{
   companyId: string
   cnpj: string
+  /** O nome que a empresa escolheu mostrar (Configurações). Quem exibe a unidade usa este. */
+  displayName: string
   tradeName: string
   street: string
   number: string

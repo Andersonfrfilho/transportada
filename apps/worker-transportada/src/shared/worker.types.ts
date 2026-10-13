@@ -48,6 +48,18 @@ export type IdentityDocumentBackfillEnvironment = {
   readonly issuer: string
 }
 
+/** Spec 264: ausente (sem modelo) a rotina `conversation.audio.transcribe` não é registrada. */
+export type AudioTranscriptionEnvironment = {
+  readonly batchSize: number
+  readonly binaryPath: string
+  readonly language: string
+  readonly maxDurationMilliseconds: number
+  readonly modelPath: string
+  readonly recoveryWindowHours: number
+  readonly threads: number
+  readonly timeoutMilliseconds: number
+}
+
 export type FuelPricePullEnvironment = {
   readonly aneelBaseUrl: string
   readonly aneelTimeoutMilliseconds: number
@@ -84,6 +96,7 @@ export type WorkerEnvironment = {
   readonly apiBaseUrl: string | undefined
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */
   readonly appBaseUrl: string | undefined
+  readonly audioTranscription?: AudioTranscriptionEnvironment
   readonly appEnv: string
   /** Spec 145 D13: o primeiro degrau do orçamento da planta de carga, em ms. */
   readonly cargoLayoutTimeBudgetMs: number

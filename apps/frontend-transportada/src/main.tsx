@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
+import '@adatechnology/conversations-ui/styles.css'
 import '@adatechnology/notification-ui/styles.css'
 import { lazy, StrictMode, Suspense, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'

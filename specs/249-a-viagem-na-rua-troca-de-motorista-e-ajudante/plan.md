@@ -81,7 +81,7 @@
 
 Erros (envelope padrão `{ error: { code, message } }`): `400` corpo inválido · `403` sem permissão
 · `404` viagem inexistente · `409 STATE_TRANSITION_NOT_ALLOWED` fora da janela (com `reason` do
-motivo: cancelada, concluída, ainda não despachada) · `409 TRIP_CREW_UNCHANGED` · `422` ficha
+motivo: cancelada, ainda não despachada; `completed` está liberada desde 2026-10-08) · `409 TRIP_CREW_UNCHANGED` · `422` ficha
 inelegível (`TRIP_DRIVER_CANNOT_DRIVE` e equivalentes da 235).
 
 `allowed-actions` ganha o nome `transferCrew` dentro da lista `trip[]` (que é uma lista de nomes, não
@@ -117,3 +117,18 @@ trip_crew_events` + `audit_logs` → `readTripDetail(transaction)`.
   (`HELPER_JOURNEY_WITHOUT_RETURN` é só aviso).
 - O motorista usa `daily_allowance_days` ou `suggestAllowanceDays(planned_duration_seconds)`; **não**
   usa `planned_journey_seconds` (esse é do ajudante).
+
+## Mudanças depois da entrega (2026-10-08)
+
+- **Janela**: `isCrewTransferable` passou a incluir `completed` (spec D1/D11). Os contratos
+  `trip-state.contract.ts`, `crew-status.contract.ts`, `policy.contract.ts` e
+  `trip-crew-transfer.contract.ts` foram ajustados no mesmo commit (`2e1ac3f74`).
+- **Painel**: `TripCrewTransferDialog` ganhou `CrewTransferMemberList` (Motoristas / Ajudantes),
+  resumo "Sai / Entra" e locales novos (`crewTransferDialog.*`). O selo de status acompanha a altura
+  dos botões do cabeçalho.
+- **Promoção para produção (2026-10-07)**: o painel tem testes de **paridade que leem o código da
+  API** (`TRIP_TIMELINE_KINDS`, allowlist de permissões, papéis, `cargo-preview.constant.ts`,
+  `fleet-linked-roles.constant.ts`, `document-cost-apportionment.types.ts`). Promover os painéis num PR e a
+  API em outro deixa o gate vermelho no primeiro (6 testes) e o deploy é pulado. A promoção foi
+  feita num único deploy: a API sobe antes do painel (`deploy-frontend` e `deploy-driver` dependem de
+  `deploy-api`), e um painel antigo já aberto falha nas partes carregadas sob demanda até recarregar.

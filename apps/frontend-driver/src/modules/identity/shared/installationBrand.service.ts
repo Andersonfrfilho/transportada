@@ -43,7 +43,7 @@ function readOwnTradeName(data: Record<string, unknown> | undefined): string | n
   const units: unknown = data?.units
   if (!Array.isArray(units)) return null
   const own: unknown = units[0]
-  return isRecord(own) ? readText(own.tradeName) : null
+  return isRecord(own) ? (readText(own.displayName) ?? readText(own.tradeName)) : null
 }
 
 /**
