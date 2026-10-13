@@ -99,8 +99,25 @@ export class DrizzleTripRouteRepository
     readonly companyId: string
     readonly tripId: string
   }): Promise<readonly string[]> {
-    const rows = await this.database
-      .select({ label: tripStops.label })
+    const rows = await this.selectStopsWithoutLocation(input)
+    return rows.map((row) => row.label)
+  }
+
+  /** As chaves de endereço das paradas vivas sem ponto, sem repetir (duas paradas, um endereço). */
+  public async listAddressKeysWithoutLocation(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly string[]> {
+    const rows = await this.selectStopsWithoutLocation(input)
+    return [...new Set(rows.map((row) => row.addressKey))]
+  }
+
+  private selectStopsWithoutLocation(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }) {
+    return this.database
+      .select({ addressKey: tripStops.addressKey, label: tripStops.label })
       .from(tripStops)
       .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
       .where(
@@ -112,7 +129,6 @@ export class DrizzleTripRouteRepository
         ),
       )
       .orderBy(asc(tripStops.sequence))
-    return rows.map((row) => row.label)
   }
 
   public async markRoutePlanned(input: {

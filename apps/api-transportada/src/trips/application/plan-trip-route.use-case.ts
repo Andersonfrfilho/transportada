@@ -11,6 +11,7 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
+import type { TripStopPointResolver } from './resolve-trip-stop-points.use-case.js'
 import {
   TRIP_ROUTE_FREEZE_FAILED_MESSAGE,
   type TripRouteFreezeLogger,
@@ -86,6 +87,8 @@ export type PlanTripRouteInput = {
   readonly repository: PlanTripRoutePort
   /** RF3 (spec 153 T201): qual rota reproduzir. Ausente segue o default do congelador. */
   readonly routeChoice?: RouteChoice
+  /** Resolve no provedor o ponto das paradas sem coordenada, antes do congelamento. Ausente, nada muda. */
+  readonly stopPointResolver?: TripStopPointResolver
   readonly tollFreezer?: PlanTripRouteTollFreezer
   readonly tripId: string
 }
@@ -132,6 +135,11 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
   }
 
   if (input.tollFreezer !== undefined) {
+    await input.stopPointResolver?.resolve({
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      tripId: input.tripId,
+    })
     const freezeResult = await input.tollFreezer.freeze({
       companyId: input.companyId,
       ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),

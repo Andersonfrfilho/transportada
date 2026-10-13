@@ -4,6 +4,7 @@
 import './trips/dispatched-is-sealed.contract.js'
 import './trips/plan-and-dispatch.contract.js'
 import './trips/plan-route-toll-freeze.contract.js'
+import './trips/resolve-trip-stop-points.contract.js'
 import './trips/routes.contract.js'
 import './trips/depot-description.contract.js'
 import './trips/route-geometry-money-redaction.contract.js'
