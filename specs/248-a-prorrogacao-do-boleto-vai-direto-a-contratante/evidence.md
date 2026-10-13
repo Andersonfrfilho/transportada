@@ -402,3 +402,11 @@ vai a `delivered` com evento. Roda dentro da transação que aceita a resposta, 
   `already_delivered`; motorista sem conta vira entrega `skipped` e o retorno não muda. Contratos da API **11604 pass / 0 fail**; `use-case` e balde de taxa com contrato próprio.
 - **Limites desta task:** o aviso no sino não sai no caminho automático (só na rota do operador); o `driverReplyTemplate` vai como escrito, sem trocar marcadores.
   WhatsApp fica de fora (decisão do dono, 2026-10-12).
+
+## T5.3 (parte) — "Enviar ao motorista" no painel (2026-10-13)
+
+Na conversa da contratante da ocorrência (aba Contratante), cada anexo que a **contratante mandou** ganha o botão "Enviar ao motorista" (só com `canSend` e quando a viagem
+tem motorista): chama `POST /trip-occurrences/:id/contractor-reply/driver-delivery` com o anexo, mostra "Enviado ao motorista pelo chat do app", "Já foi enviado" (repetir não
+manda de novo) ou o aviso de que o motorista ainda não tem conta ativa. A mensagem aparece na aba Motorista da mesma ocorrência, com o anexo. Provas: contrato do cliente
+(`deliver-reply-to-driver-client.contract.ts`, que pegou o caminho errado da rota antes do push), `tsc` e `eslint` limpos; contratos de conversa e de design system do painel
+595 pass / 0 fail no Linux. **Não visto no navegador.** Faltam o selo/estado do retorno (prazo, atraso) na ocorrência e o aviso de atraso (T4.10).
