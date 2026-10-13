@@ -65,6 +65,7 @@ import {
   EMPTY_CONVERSATION_SUMMARY,
   listOccurrenceConversationSummaries,
 } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
+import { listOccurrenceContractorReplySummaries } from '../../occurrence-conversation/infrastructure/occurrence-contractor-reply-summary.query.js'
 
 /** O papel do emitente em `nfe_participants` — o mesmo literal de `findChargeParties`. */
 const EMITTER_ROLE = 'emitter'
@@ -76,6 +77,7 @@ const EMITTER_ROLE = 'emitter'
 type FeedRow = Omit<
   TripOccurrenceFeedItem,
   | 'cancellation'
+  | 'contractorReply'
   | 'conversation'
   | 'createdAt'
   | 'document'
@@ -608,7 +610,7 @@ async function toFeedItems(
    * Spec 240 RF9 e 241 RF5: o cancelamento (a parada nunca é cancelada) e o modo de itens dos tipos
    * da página inteira, uma leitura cada, em paralelo — o modo de itens isolado de falha.
    */
-  const [cancellations, typeShapes] = await Promise.all([
+  const [cancellations, typeShapes, contractorReplies] = await Promise.all([
     listOccurrenceCancellationsByIds(queryable, {
       companyId,
       occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
@@ -619,6 +621,11 @@ async function toFeedItems(
       occurrenceTypeIds: rows.flatMap((row) =>
         row.occurrenceTypeId === null ? [] : [row.occurrenceTypeId],
       ),
+    }),
+    /** Spec 248 T5.2: o selo do retorno da contratante; só a ocorrência de nota tem retorno. */
+    listOccurrenceContractorReplySummaries(queryable, {
+      companyId,
+      occurrenceIds: rows.filter((row) => row.source === 'document').map((row) => row.id),
     }),
   ])
 
@@ -633,6 +640,7 @@ async function toFeedItems(
       typeAllowsMultipleItems,
       typeItemsMode,
       cancellation: row.source === 'document' ? (cancellations.get(row.id) ?? null) : null,
+      contractorReply: row.source === 'document' ? (contractorReplies.get(row.id) ?? null) : null,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
       document:
