@@ -172,7 +172,20 @@ export type OccurrenceMailTransactionPort = {
     readonly deadlineAt: Date | null
     readonly occurrenceId: string
   }): Promise<void>
+  /**
+   * Spec 248 RF6: locks the reply, re-checks that it may be resent now and records the `user` event that
+   * marks the resend. The rule is decided here, inside the transaction of the mail, so two requests with
+   * different keys cannot both pass.
+   */
+  recordContractorReplyResend(params: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly now: Date
+    readonly occurrenceId: string
+  }): Promise<RecordContractorReplyResendOutcome>
 }
+
+export type RecordContractorReplyResendOutcome = 'not_resendable' | 'recorded' | 'too_soon'
 
 export type OccurrenceMailUnitOfWorkPort = {
   execute<TResult>(

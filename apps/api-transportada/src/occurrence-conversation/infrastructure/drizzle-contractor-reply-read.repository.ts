@@ -20,6 +20,11 @@ import type {
   ContractorReplyView,
 } from '../application/contractor-reply-view.port.js'
 import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-configuration.policy.js'
+import { decideResend } from '../domain/contractor-reply-resend.policy.js'
+import {
+  findLastResendAt,
+  readAlertIntervalMinutes,
+} from './drizzle-contractor-reply-resend.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -60,7 +65,11 @@ function readAlertMaxCount(config: unknown): number {
   return parsed.success ? parsed.data : 0
 }
 
-export function createDrizzleContractorReplyReader(database: Database): ContractorReplyReaderPort {
+export function createDrizzleContractorReplyReader(
+  database: Database,
+  options: { readonly clock?: () => Date } = {},
+): ContractorReplyReaderPort {
+  const clock = options.clock ?? (() => new Date())
   return {
     async findByOccurrence(input) {
       if (!(await occurrenceExists(database, input))) return undefined
@@ -125,6 +134,15 @@ export function createDrizzleContractorReplyReader(database: Database): Contract
           .orderBy(desc(occurrenceContractorReplyDeliveries.createdAt)),
       ])
 
+      const decision = decideResend({
+        alertIntervalMinutes: readAlertIntervalMinutes(reply.config),
+        lastResendAt: await findLastResendAt(database, {
+          companyId: input.companyId,
+          replyId: reply.id,
+        }),
+        now: clock(),
+        status: reply.status,
+      })
       const view: ContractorReplyView = {
         alertCount: reply.alertCount,
         alertMaxCount: readAlertMaxCount(reply.config),
@@ -134,6 +152,10 @@ export function createDrizzleContractorReplyReader(database: Database): Contract
         handledNote: reply.handledNote,
         reason: reply.reason,
         replyAttachmentId: reply.replyAttachmentId,
+        resend:
+          decision.kind === 'allowed'
+            ? { availableAt: null, canResend: true, reason: null }
+            : { availableAt: decision.availableAt, canResend: false, reason: decision.reason },
         status: reply.status,
       }
       return view

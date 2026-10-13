@@ -117,4 +117,33 @@ describe('fronteira da listagem de ocorrências', () => {
   test('caseStatusIn fora do vocabulário é recusa, não silêncio', () => {
     expect(() => parse('?caseStatusIn=invented')).toThrow()
   })
+
+  /** Spec 248 RF5/RF13: "Atrasadas" é `contractorReplyStatusIn=overdue`, validado contra o vocabulário do retorno. */
+  test('contractorReplyStatusIn aceita estados do retorno, um ou vários, e convive com o cursor', () => {
+    expect(parse('?contractorReplyStatusIn=overdue').filters).toEqual({
+      contractorReplyStatusIn: ['overdue'],
+    })
+    expect(parse('?contractorReplyStatusIn=overdue,awaiting_contractor').filters).toEqual({
+      contractorReplyStatusIn: ['overdue', 'awaiting_contractor'],
+    })
+
+    const withCursor = parse(
+      '?contractorReplyStatusIn=overdue&cursor=2026-09-01T10:00:00.000Z::00000000-0000-4000-8000-000000000001',
+    )
+    expect(withCursor.cursor).toBe('2026-09-01T10:00:00.000Z::00000000-0000-4000-8000-000000000001')
+    expect(withCursor.filters).toEqual({ contractorReplyStatusIn: ['overdue'] })
+  })
+
+  test('contractorReplyStatusIn fora do vocabulário, vazio ou repetido é recusa, não silêncio', () => {
+    expect(() => parse('?contractorReplyStatusIn=late')).toThrow()
+    expect(() => parse('?contractorReplyStatusIn=overdue,late')).toThrow()
+    expect(() => parse('?contractorReplyStatusIn=')).toThrow()
+    expect(() =>
+      parse('?contractorReplyStatusIn=overdue&contractorReplyStatusIn=delivered'),
+    ).toThrow()
+  })
+
+  test('sem o parâmetro não há filtro de retorno', () => {
+    expect(parse('?stageIn=delivery').filters).toEqual({ stageIn: ['delivery'] })
+  })
 })

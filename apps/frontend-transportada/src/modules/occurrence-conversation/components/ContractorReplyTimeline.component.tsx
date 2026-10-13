@@ -8,6 +8,7 @@ import {
   ICON_BY_DELIVERY_STATUS,
   ICON_BY_DELIVERY_TARGET,
   ICON_BY_STATUS,
+  isResendRequestEvent,
 } from '../shared/contractorReply.service'
 import type { ContractorReplyDelivery, ContractorReplyEvent } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
@@ -66,7 +67,9 @@ export function ContractorReplyTimeline({ deliveries, events }: ContractorReplyT
                   {formatMoment(event.createdAt)}
                 </span>
                 <span>
-                  {t(`contractorReply.timeline.event.${event.toStatus}`)}
+                  {isResendRequestEvent(event)
+                    ? t('contractorReply.timeline.event.resent')
+                    : t(`contractorReply.timeline.event.${event.toStatus}`)}
                   {' · '}
                   <span className={styles.timelineActor}>
                     {t(`contractorReply.timeline.actor.${event.actorKind}`)}

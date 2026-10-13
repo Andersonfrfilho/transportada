@@ -541,6 +541,19 @@ pré-filtro da mesma regra (alarme ligado, abaixo do teto, prazo vencido ou entr
 **Limites que ficam para outra task:** (1) o aviso do sino **não sai no caminho automático** da entrega (já registrado na T4.6) — com `forward_automatic` o motorista só vê o boleto abrindo a aba Conversas;
 (2) "Pedido enviado à contratante" (acima).
 
+## T5.4b — "Pedido enviado à contratante" no app do motorista (2026-10-13)
+
+- **API (sem migration):** `GET /me/trips/current` ganha `documents[].registeredOccurrences: [{ id, contractorReply: { status } | null }]`, só das ocorrências da nota que
+  abriram retorno (nota sem retorno e API sem a dependência não levam a chave). `status` é o vocabulário de `CONTRACTOR_REPLY_STATUSES`; nada de prazo, endereço, anexo ou
+  nota do operador. Montado no caso de uso (`attach-driver-document-contractor-replies.service.ts`) **depois do recorte pelo vínculo**: a consulta recebe só as notas das
+  viagens do motorista (BOLA), `company_id` nas duas tabelas, uma consulta só. Só a rota do app recebe a dependência. Falha só tira o campo.
+- **App:** guarda de chaves exatas e tolerante (ausente = nada; item malformado sai, a nota fica); `DriverContractorReplyStatus` na nota, texto pt-BR/en, ícone do design
+  system, linha de 44 px. Três estados: aguardando a contratante · boleto recebido · entregue a você na conversa (`handled`/`cancelled` não aparecem).
+- **Ordem de publicação (ADR-0081 §9):** app tolerante primeiro, depois a API. O app anterior à guarda reconstrói a nota com chaves explícitas e descarta
+  `registeredOccurrences` sem erro; o app novo contra a API anterior não vê o campo e não mostra nada. Reverter a API não quebra o app novo.
+- **Decisão:** a lista só traz ocorrência que **tem** retorno (`contractorReply` nunca é `null` hoje); o tipo aceita `null` para o app não depender disso.
+- **Fora:** o aviso do sino no caminho automático; smoke Playwright da linha (sem Chromium local); a tela só informa, não abre a conversa.
+
 ## T5.2a e T5.3a — o estado do retorno no painel (2026-10-12)
 
 - **API:** `GET /trip-occurrences/:id/contractor-reply` (`fleet.read`, `no-store`; `data: null` sem retorno; 404 igual para inexistente e outra empresa),
@@ -565,6 +578,53 @@ tem motorista): chama `POST /trip-occurrences/:id/contractor-reply/driver-delive
 manda de novo) ou o aviso de que o motorista ainda não tem conta ativa. A mensagem aparece na aba Motorista da mesma ocorrência, com o anexo. Provas: contrato do cliente
 (`deliver-reply-to-driver-client.contract.ts`, que pegou o caminho errado da rota antes do push), `tsc` e `eslint` limpos; contratos de conversa e de design system do painel
 595 pass / 0 fail no Linux. **Não visto no navegador.** Faltam o selo/estado do retorno (prazo, atraso) na ocorrência e o aviso de atraso (T4.10).
+
+## T5.2b — o filtro "Atrasadas" da lista de ocorrências (2026-10-13)
+
+**Contrato do parâmetro.** `GET /trip-occurrences?contractorReplyStatusIn=<estado>[,<estado>…]`, vocabulário fechado `CONTRACTOR_REPLY_STATUSES`. Valor fora dele, vazio ou
+parâmetro repetido é `400` (como os outros filtros da lista). "Atrasadas" é `contractorReplyStatusIn=overdue`. Aplicado **no SQL**, na consulta que também corta o cursor:
+`exists (select 1 from occurrence_contractor_replies where company_id = … and occurrence_id = … and status in (…))`, sem junção (um retorno por ocorrência, a junção não
+multiplica linhas). A ocorrência de parada não tem retorno e nunca casa com o filtro (a consulta dela nem corre).
+
+**Contrato do cursor.** Não muda: segue `<createdAt ISO>::<uuid>`, chave (hora, id) da própria ocorrência, igual com e sem filtro. Por isso a página vem cheia e o cursor
+fica estável: uma atrasada que deixa de ser atrasada entre duas páginas sai da lista sem repetir nem pular as demais (provado). O filtro entra na chave da consulta do painel
+(a paginação reinicia sozinha).
+
+**Painel.** Caixa de seleção do design system "Só as atrasadas" (fora da `.fieldGrid`, onde `input` ganha estilo de campo) + pílula "Retorno da contratante: Atrasadas" em
+`FilterPills`; estado em `?contractorReply=overdue` (lido ao abrir, gravado por `replaceState`, outros parâmetros como `tab` preservados; valor desconhecido é ignorado).
+
+**Provas.** Integração em Postgres `trip-occurrence-feed-overdue.integration.ts` (4 casos: só atrasadas + selo + parada fora; vários estados e página vazia; cursor nas duas
+ordens e com uma atrasada saindo entre as páginas; empresa errada). Contratos: `feed.contract.ts` (parâmetro), `occurrence-table.contract.ts` (serialização, pílula, URL, checkbox do DS).
+Mutação: filtro tirado do SQL → 4 falhas na integração.
+
+⚠️ **Achado anterior à 248 (não corrigido aqui):** o cursor da lista guarda a hora em milissegundos (`Date`) e o banco grava microssegundos; na ordem **crescente** a última linha de
+uma página pode reaparecer na seguinte quando a hora tem microssegundos. A integração fixa horas de milissegundo cheio (`pinCreatedAt`) para provar o filtro e não essa borda.
+
+## T4.10b / T5.3b — "Reenviar o pedido à contratante" (2026-10-13)
+
+**Rota.** `POST /trip-occurrences/:id/contractor-reply/resend-request` — `occurrences.resolve`, `Idempotency-Key` obrigatória (`400` sem ela), sem corpo, balde
+`occurrence-conversation` (30/300 s, Postgres; em `rate-limited-routes.contract.test.ts`). `202 { data: { conversationId, conversationMessageId, recipientCount } }`.
+`409 CONTRACTOR_REPLY_NOT_RESENDABLE` (sem retorno ou fora de aguardando/atrasada), `409 CONTRACTOR_REPLY_RESEND_TOO_SOON` (menos que `alert_interval_minutes` do retorno desde o
+último reenvio), `409 CONTRACTOR_REPLY_ORIGINAL_REQUEST_MISSING`, `422 OCCURRENCE_CONVERSATION_NO_RECIPIENT` (nenhum contato ativo do pedido).
+
+**Como.** Reusa `send-occurrence-mail.use-case` (mesma conversa e thread de e-mail do aviso automático). Corpo = "Reenvio do pedido abaixo." + linha em branco + o texto original
+(a primeira mensagem de saída da conversa da contratante); assunto = o original; destinatários = os contatos ativos que ainda têm um endereço a que o pedido foi. O envio
+ganhou a opção `contractorReplyResend`: **dentro da transação do e-mail**, `recordContractorReplyResend` trava o retorno (`FOR UPDATE`), reconfere estado e intervalo
+(`decideResend`) e grava o evento `user`. Dois pedidos de chaves diferentes não passam juntos, e falha no envio desfaz o evento. Repetir a mesma chave devolve a resposta gravada
+sem reconferir o intervalo (a conferência vem depois do replay).
+
+**Sem migration.** O reenvio é o único evento `user` com `from_status = to_status` num estado de espera (o "tratado" termina em `handled`, os alertas são `system`); a hora do último reenvio
+sai do `max(created_at)` desses eventos. Marcador explícito pediria ampliar a CHECK de `reason` dos eventos (migration) — não foi preciso.
+
+**Leitura.** `GET …/contractor-reply` ganhou `resend { canResend, reason: 'not_waiting'|'too_soon'|null, availableAt }`. **Painel:** `ContractorReplyResendAction` no `ContractorReplyPanel` — só nos estados
+de espera, desabilitado com o motivo e a hora em que volta, chave de tentativa mantida enquanto falha, recusa por código estável; a linha do tempo mostra "Pedido reenviado à contratante".
+API anterior (sem `resend`) não mostra o botão.
+
+**Provas (Ubuntu/WSL, bun 1.4.3, Postgres 55432).** Integração `occurrence-contractor-reply-resend.integration.ts` (8 casos: mesma conversa/thread/assunto/destinatários e outbox; cedo demais e depois do intervalo
+
+- leitura; atrasada; replay; corrida de duas chaves; seis estados que recusam; sem retorno/empresa errada; sem contato → 422 e evento desfeito). Contratos: `contractor-reply-resend.contract.ts`, `occurrence-mail.contract.ts`,
+  `contractor-reply.contract.ts` (painel). Mutação: intervalo desligado → 3 falhas. Contrato da API inteiro 11640 pass / 0 fail; integrações tocadas 61 / 0; painel 8059 + 1343 (hooks) pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps.
+  **Não visto no navegador.** Falta T4.10b-2 (os testes de CA05 "quatro paradas" pelas rotas) e T5.3b-2 (T4.7).
 
 ## T4.6b — o sino do motorista também toca na entrega automática (2026-10-13)
 

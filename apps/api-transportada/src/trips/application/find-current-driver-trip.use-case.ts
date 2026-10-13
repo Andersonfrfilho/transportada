@@ -25,9 +25,21 @@ import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 import type { DriverDocumentProduct } from '../domain/driver-document-products.policy.js'
+import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
+import { attachDriverDocumentContractorReplies } from './attach-driver-document-contractor-replies.service.js'
 import { attachDriverStopHolidayWarnings } from './attach-driver-stop-holiday-warnings.service.js'
+import type { DriverContractorRepliesDependency } from './driver-document-contractor-reply.port.js'
 import type { DriverHolidayWarningsDependency } from './driver-stop-holiday-warning.port.js'
 import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
+
+/**
+ * Spec 248 T5.4: uma ocorrência da nota que abriu o retorno da contratante. Só o id e o estado do retorno:
+ * nenhum endereço, prazo, anexo nem nota do operador sai para o motorista.
+ */
+export type DriverRegisteredOccurrence = {
+  readonly contractorReply: { readonly status: ContractorReplyStatus } | null
+  readonly id: string
+}
 
 export type DriverTripDocument = {
   readonly accessKey: string
@@ -74,6 +86,11 @@ export type DriverTripDocument = {
   readonly recipientIsCompany: boolean
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
+  /**
+   * Spec 248 T5.4: as ocorrências desta nota que abriram o retorno da contratante, com o estado dele. Ausente
+   * é nota sem retorno ou a leitura que falhou nesta chamada (refinamento isolado); o app lê tolerante.
+   */
+  readonly registeredOccurrences?: readonly DriverRegisteredOccurrence[]
   readonly returnReason: string | null
   readonly separationStatus: string
   readonly series: string
@@ -192,6 +209,8 @@ export type FindCurrentDriverTripInput = {
   /** Spec 244 D2: `false` não lista as fotos pendentes (a conta não pode enviá-las). Ausente = `true`. */
   readonly canReportProofs?: boolean
   readonly companyId: string
+  /** Spec 248 T5.4: o estado do retorno da contratante nas notas. Ausente = sem o campo e sem consulta a mais. */
+  readonly contractorReplies?: DriverContractorRepliesDependency
   /** Spec 252 T4.3: o aviso de feriado nas paradas. Ausente = sem aviso e sem consulta a mais. */
   readonly holidayWarnings?: DriverHolidayWarningsDependency
   readonly membershipId: string
@@ -249,11 +268,17 @@ export async function findCurrentDriverTrip(
     now: input.now,
     trips,
   })
+  /** Também depois do recorte pelo vínculo: só as notas das viagens dele entram na consulta. */
+  const tripsWithReplies = await attachDriverDocumentContractorReplies({
+    companyId: input.companyId,
+    ...(input.contractorReplies === undefined ? {} : { dependency: input.contractorReplies }),
+    trips: tripsWithWarnings,
+  })
 
   return {
     isRegisteredDriver: true,
     pendingProofs,
     score: scores.get(driverId) ?? null,
-    trips: tripsWithWarnings,
+    trips: tripsWithReplies,
   }
 }
