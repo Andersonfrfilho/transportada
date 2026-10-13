@@ -7,7 +7,7 @@
  * indisponível, e o envio falha em vez de sair sem o arquivo.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
 import type { ContractorMailOutboundAttachmentsPort } from '../../contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import { storedObjects } from '../../database/nfe.schema.js'
@@ -25,6 +25,31 @@ export function createContractorMailOutboundAttachments(dependencies: {
 }): ContractorMailOutboundAttachmentsPort {
   return {
     async list({ companyId, messageId }) {
+      /** Spec 248 T4.7: o boleto levado a um terceiro aponta o anexo pela entrega, não por mensagem de conversa. */
+      const forwarded = (await dependencies.database.execute(
+        sql`select stored.bucket as bucket, stored.deleted_at as deleted_at, stored.status as status,
+                   attachment.content_type as content_type, attachment.file_name as file_name,
+                   stored.object_key as key, attachment.sha256 as sha256, attachment.size_bytes as size_bytes
+            from occurrence_contractor_reply_deliveries delivery
+            join occurrence_conversation_attachments attachment
+              on attachment.company_id = delivery.company_id and attachment.id = delivery.attachment_id
+            join stored_objects stored
+              on stored.company_id = attachment.company_id and stored.id = attachment.stored_object_id
+            where delivery.company_id = ${companyId}::uuid
+              and delivery.mail_message_id = ${messageId}::uuid
+              and delivery.target in ('note_recipient_email', 'informed_email')`,
+      )) as readonly Record<string, unknown>[]
+      if (forwarded.length > 0) {
+        return forwarded.map((row) => ({
+          available: row.status !== 'deleted' && row.deleted_at === null,
+          bucket: String(row.bucket),
+          contentType: String(row.content_type),
+          fileName: String(row.file_name),
+          key: String(row.key),
+          sha256: String(row.sha256),
+          sizeBytes: Number(row.size_bytes),
+        }))
+      }
       const rows = await dependencies.database
         .select({
           bucket: storedObjects.bucket,

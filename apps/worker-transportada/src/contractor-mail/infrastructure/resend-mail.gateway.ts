@@ -72,7 +72,8 @@ export type SendResendEmailInput = {
   /** Spec 150 T302: sem HTML, o e-mail sai só em texto — a chave nem vai no corpo do POST. */
   readonly html?: string
   readonly idempotencyKey: string
-  readonly replyTo: string
+  /** Spec 248 T4.7: o e-mail levado a um terceiro não tem token de resposta; sem contato da empresa, sem `Reply-To`. */
+  readonly replyTo?: string
   readonly subject: string
   readonly text: string
   readonly to: readonly string[]
@@ -124,7 +125,7 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
           from: request.from,
           headers: request.headers,
           ...(request.html === undefined ? {} : { html: request.html }),
-          reply_to: request.replyTo,
+          ...(request.replyTo === undefined ? {} : { reply_to: request.replyTo }),
           subject: request.subject,
           text: request.text,
           to: [...request.to],

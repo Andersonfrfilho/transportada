@@ -90,17 +90,32 @@ export async function sendContractorMailOutboundMessage(
     settingsId: settings.id,
   })
 
-  const token = deriveReplyToken({
-    companyId,
-    replyTokenSecret: secret.replyTokenSecret,
-    threadId: message.threadId,
-  })
-  const replyToAddress = buildReplyAddress({ replyDomain: settings.replyDomain, token })
+  /**
+   * Spec 248 T4.7: o boleto levado a um terceiro (cliente da nota ou e-mail informado) sai preso à thread da
+   * ocorrência só por exigência da coluna. Sem token de resposta e sem `In-Reply-To`: a resposta de quem
+   * recebe nunca cai na conversa da contratante; o `Reply-To` é o contato da empresa, quando houver.
+   */
+  const forward = await dependencies.repository.findContractorReplyForward({ companyId, messageId })
+  const threadReplyTo = forward === undefined ? undefined : (forward.replyToAddress ?? undefined)
+  const replyToAddress =
+    forward === undefined
+      ? buildReplyAddress({
+          replyDomain: settings.replyDomain,
+          token: deriveReplyToken({
+            companyId,
+            replyTokenSecret: secret.replyTokenSecret,
+            threadId: message.threadId,
+          }),
+        })
+      : threadReplyTo
 
-  const referenceHeaders = await dependencies.repository.findLastInboundReferenceHeaders({
-    companyId,
-    threadId: message.threadId,
-  })
+  const referenceHeaders =
+    forward === undefined
+      ? await dependencies.repository.findLastInboundReferenceHeaders({
+          companyId,
+          threadId: message.threadId,
+        })
+      : undefined
   const headers: Record<string, string> =
     referenceHeaders === undefined
       ? {}
@@ -125,7 +140,7 @@ export async function sendContractorMailOutboundMessage(
       headers,
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       idempotencyKey: messageId,
-      replyTo: replyToAddress,
+      ...(replyToAddress === undefined ? {} : { replyTo: replyToAddress }),
       subject: message.subject,
       text: message.bodyText,
       to: deduplicateRecipients(message.toAddresses),

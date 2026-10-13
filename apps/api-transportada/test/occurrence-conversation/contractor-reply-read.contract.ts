@@ -109,6 +109,12 @@ function build(overrides: {
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createOccurrenceContractorReplyRoutes({
       deliverToDriver: { deliver: async () => ({ kind: 'already_delivered' }) },
+      emailOptions: { read: async () => null },
+      forwardByEmail: {
+        forward: () => {
+          throw new Error('NOT_USED_BY_THIS_CONTRACT')
+        },
+      },
       markHandled: createMarkContractorReplyHandledUseCase({ clock: () => NOW, writer }),
       readReply: createReadContractorReplyUseCase({ reader }),
     }),

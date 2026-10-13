@@ -28,3 +28,7 @@ export type ContractorReplyMode = (typeof CONTRACTOR_REPLY_MODES)[number]
 export type ContractorReplyAttachmentKind = (typeof CONTRACTOR_REPLY_ATTACHMENT_KINDS)[number]
 export type ContractorReplyAlertMode = (typeof CONTRACTOR_REPLY_ALERT_MODES)[number]
 export type NoteRecipientForwardMode = (typeof NOTE_RECIPIENT_FORWARD_MODES)[number]
+export type InformedEmailForwardMode = (typeof INFORMED_EMAIL_FORWARD_MODES)[number]
+
+export const FORWARD_EMAIL_SUBJECT_MAX_LENGTH = 200
+export const FORWARD_EMAIL_BODY_MAX_LENGTH = 4000

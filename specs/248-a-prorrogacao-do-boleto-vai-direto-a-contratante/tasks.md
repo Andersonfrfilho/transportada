@@ -76,11 +76,12 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       dois caminhos, resposta duplicada e empresa B (CA09).
 - [x] **T4.6** (aviso do sino também no automático: T4.6b) `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
       aviso no sino que já existe; o expurgo conta as duas referências. Integração.
-- [ ] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
+- [x] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
       informado), validação RF11, limite de taxa, 5 por ocorrência, `Idempotency-Key`, mensagem de
       saída **sem thread** no worker, PDF como anexo com teto de 10 MB, máscara no log
-      (`maskEmailAddress` promovida a `shared/`). Integração CA07.
-- [ ] **T4.8** Mutações da T4.7 registradas: aceitar `a@b.com,c@d.com`; aceitar `\r\nBcc:`; cair para
+      (`maskEmailAddress` promovida a `shared/`). Integração CA07. Manual feito (API, worker e as telas
+      do painel); o envio **automático** ao cliente da nota (RF10) segue em aberto — ver evidence.md.
+- [x] **T4.8** Mutações da T4.7 registradas: aceitar `a@b.com,c@d.com`; aceitar `\r\nBcc:`; cair para
       outro endereço quando a nota não tem e-mail; enviar duas vezes com a mesma chave.
 - [ ] **T4.9** 🧠 WhatsApp: entrega por `SendMessageUseCase.sendMedia` (janela do pacote),
       `fallback_app_chat`/`wait_for_driver`, `WhatsAppWindowExpiredError` tratado; retomada no hook da

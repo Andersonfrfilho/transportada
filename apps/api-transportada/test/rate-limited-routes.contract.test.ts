@@ -365,13 +365,24 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 248 T4.6: levar o boleto da contratante ao motorista divide o balde das mensagens da ocorrência. */
-  test('levar o boleto ao motorista conta no Postgres, no balde das mensagens', () => {
+  /**
+   * Spec 248 T4.6/T4.7: levar o boleto da contratante ao motorista e, por e-mail, ao cliente da nota ou a um
+   * endereço informado divide o balde das mensagens da ocorrência, como o "tratado" (as leituras não gravam nem custam).
+   */
+  test('levar o boleto ao motorista e por e-mail conta no Postgres, no balde das mensagens', () => {
     const routes = createOccurrenceContractorReplyRoutes({
       deliverToDriver: {},
+      emailOptions: {},
+      forwardByEmail: {},
       markHandled: {},
       readReply: {},
     } as never)
+    const bucket = {
+      maxRequests: 30,
+      scope: 'occurrence-conversation',
+      store: 'postgres',
+      windowSeconds: 300,
+    } as const
 
     expect(
       routes
@@ -382,21 +393,15 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         })),
     ).toEqual([
       {
-        rateLimit: {
-          maxRequests: 30,
-          scope: 'occurrence-conversation',
-          store: 'postgres',
-          windowSeconds: 300,
-        },
+        rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
       },
       {
-        rateLimit: {
-          maxRequests: 30,
-          scope: 'occurrence-conversation',
-          store: 'postgres',
-          windowSeconds: 300,
-        },
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
+      },
+      {
+        rateLimit: bucket,
         signature: 'POST /trip-occurrences/:id/contractor-reply/handled',
       },
     ])

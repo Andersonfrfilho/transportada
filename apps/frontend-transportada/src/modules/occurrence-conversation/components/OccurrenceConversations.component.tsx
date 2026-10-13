@@ -37,6 +37,8 @@ import styles from '../styles/occurrenceConversation.module.css'
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
+import { ContractorReplyEmailActions } from './ContractorReplyEmailActions.component'
+import { ContractorReplyEmailHistory } from './ContractorReplyEmailHistory.component'
 import {
   isForwardAlreadyDone,
   recoverFromSendFailure,
@@ -575,15 +577,29 @@ function ContractorConversationPanel({
         <ConversationThread
           canManageContacts={canManageContacts && contractorId !== null}
           messages={messages}
-          /** Spec 248 T4.6: o boleto que a contratante mandou segue ao motorista, quando há motorista. */
-          {...(canSend && hasDriver
+          /**
+           * Spec 248 T4.6/T4.7: o boleto que a contratante mandou segue ao motorista (quando há motorista) e, por
+           * e-mail, ao cliente da nota ou a um endereço informado — as duas ações no mesmo anexo.
+           */
+          {...(canSend
             ? {
                 renderAttachmentActions: (
                   attachment: OccurrenceConversationAttachment,
                   message: OccurrenceConversationMessage,
                 ) =>
                   message.direction === 'inbound' ? (
-                    <SendToDriverAction attachmentId={attachment.id} occurrenceId={occurrenceId} />
+                    <>
+                      {hasDriver ? (
+                        <SendToDriverAction
+                          attachmentId={attachment.id}
+                          occurrenceId={occurrenceId}
+                        />
+                      ) : null}
+                      <ContractorReplyEmailActions
+                        attachmentId={attachment.id}
+                        occurrenceId={occurrenceId}
+                      />
+                    </>
                   ) : null,
               }
             : {})}
@@ -606,6 +622,8 @@ function ContractorConversationPanel({
           {...(canWrite ? { resend } : {})}
         />
       )}
+
+      {canSend ? <ContractorReplyEmailHistory occurrenceId={occurrenceId} /> : null}
 
       {canWrite && portalAvailable ? (
         <ContractorPortalComposer occurrenceId={occurrenceId} prefill={portalPrefill} />
