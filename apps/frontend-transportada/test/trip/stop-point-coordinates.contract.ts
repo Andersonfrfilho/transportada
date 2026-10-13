@@ -73,3 +73,21 @@ describe('busca do ponto da parada', () => {
     expect(pickStopPointSuggestion({ label, suggestions: [outra, semPonto] })).toBeNull()
   })
 })
+
+describe('endereços do 422 de rota', () => {
+  it('lê os endereços de TRIP_ROUTE_STOPS_WITHOUT_LOCATION e ignora outros erros', async () => {
+    const { readRouteStopsWithoutLocation } = await import(
+      '../../src/modules/trip/shared/stopPointCoordinates.service'
+    )
+    const error = Object.assign(new Error('TRIP_ROUTE_STOPS_WITHOUT_LOCATION'), {
+      details: [
+        { field: 'stops', message: 'RUA A, 1' },
+        { field: 'stops', message: 'RUA B, 2' },
+      ],
+    })
+
+    expect(readRouteStopsWithoutLocation(error)).toEqual(['RUA A, 1', 'RUA B, 2'])
+    expect(readRouteStopsWithoutLocation(new Error('TRIP_ROUTE_UNAVAILABLE'))).toEqual([])
+    expect(readRouteStopsWithoutLocation(null)).toEqual([])
+  })
+})

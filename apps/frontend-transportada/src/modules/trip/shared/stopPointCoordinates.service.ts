@@ -24,3 +24,14 @@ export function normalizeStopPointCoordinate(
     value: decimals === undefined ? integer : `${integer}.${decimals.slice(0, MAX_DECIMALS)}`,
   }
 }
+
+/** Os endereços que `TRIP_ROUTE_STOPS_WITHOUT_LOCATION` traz em `details`; vazio para qualquer outro erro. */
+export function readRouteStopsWithoutLocation(error: unknown): readonly string[] {
+  if (!(error instanceof Error) || error.message !== 'TRIP_ROUTE_STOPS_WITHOUT_LOCATION') return []
+  const details: unknown = (error as { details?: unknown }).details
+  if (!Array.isArray(details)) return []
+  return details.flatMap((detail: unknown) => {
+    const message = (detail as { message?: unknown } | null)?.message
+    return typeof message === 'string' ? [message] : []
+  })
+}
