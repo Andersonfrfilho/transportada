@@ -103,6 +103,12 @@ export type AssemblyMapPoint = Readonly<{
   orderBadge?: string
   /** O que o leitor de tela ouve no pino: ordem e tipo juntos, não um no lugar do outro. */
   ariaLabel?: string
+  /** Mapa da ocorrência: a cor do pino quando ela não sai da paleta das paradas (cor por tipo de evento). */
+  color?: string
+  /** Mapa da ocorrência: o pino de destaque, maior e com halo — o evento que a página é. */
+  isHighlighted?: boolean
+  /** Mapa da ocorrência: o texto da dica do pino (a primeira linha é o título). Sempre texto, nunca HTML. */
+  popup?: readonly string[]
   /** A ordem que o operador montou. `null` na cidade que ficou de fora da seleção. */
   sequence: number | null
   x: number
