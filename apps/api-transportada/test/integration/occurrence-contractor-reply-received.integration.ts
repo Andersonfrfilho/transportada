@@ -20,6 +20,7 @@ import {
   storedObjects,
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
+import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { deliverContractorReplyToDriver } from '../../src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.js'
 import { applyContractorReplyToMessage } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-contractor-reply.repository.js'
@@ -220,8 +221,13 @@ describe('a resposta da contratante move o retorno (spec 248 T4.5, CA02)', () =>
           conversationId,
         })
 
-        await apply(database, { companyId, conversationId, messageId: received.messageId })
+        const applied = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
 
+        expect(applied).toBeUndefined()
         expect((await replyOf(database, companyId)).status).toBe('reply_received')
       })
     },
@@ -398,7 +404,11 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const { companyId } = seeded.company
-        await linkDriverMembership(database, seeded.company, seeded.company.firstDriverId)
+        const driverUserId = await linkDriverMembership(
+          database,
+          seeded.company,
+          seeded.company.firstDriverId,
+        )
         const conversationId = await openReply(database, seeded, 'forward_automatic')
         const received = await receiveReply(database, {
           companyId,
@@ -406,10 +416,21 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
           conversationId,
         })
 
-        await apply(database, { companyId, conversationId, messageId: received.messageId })
+        const delivery = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
 
         expect((await replyOf(database, companyId)).status).toBe('delivered')
         const [message] = await driverMessagesOf(database, companyId)
+        expect(delivery).toMatchObject({
+          driverMessageId: message?.id,
+          driverUserId,
+          kind: 'delivered',
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(delivery?.protocol).toMatch(/^[0-9]{6}-[2-9A-HJKMNP-Z]{4}$/u)
         expect(message).toMatchObject({
           automatic: true,
           bodyText: 'Segue o boleto prorrogado.',
@@ -436,6 +457,55 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
         expect(deliveries).toEqual([
           { status: 'sent', target: 'driver_app_chat', trigger: 'automatic' },
         ])
+
+        const repeated = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
+        expect(repeated).toBeUndefined()
+        expect(await driverMessagesOf(database, companyId)).toHaveLength(1)
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'pelo adaptador do portal: devolve o necessário ao aviso, com o rótulo da ocorrência',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        const driverUserId = await linkDriverMembership(
+          database,
+          seeded.company,
+          seeded.company.firstDriverId,
+        )
+        const conversationId = await openReply(database, seeded, 'forward_automatic')
+        const received = await receiveReply(database, {
+          companyId,
+          contentTypes: ['application/pdf'],
+          conversationId,
+        })
+
+        const delivery = await createDrizzleContractorPortalConversationUnitOfWork(
+          database.db,
+        ).execute((transaction) =>
+          transaction.applyContractorReply({
+            companyId,
+            conversationId,
+            messageId: received.messageId,
+            now: new Date(),
+          }),
+        )
+
+        const [message] = await driverMessagesOf(database, companyId)
+        expect(delivery).toMatchObject({
+          messageId: message?.id,
+          occurrenceId: seeded.occurrenceId,
+          recipientUserId: driverUserId,
+        })
+        expect(delivery?.occurrenceLabel).not.toBe('')
       })
     },
     60_000,
@@ -454,7 +524,12 @@ describe('o boleto volta ao motorista com o anexo (spec 248 T4.6, RF7/RF9)', () 
           contentTypes: ['application/pdf'],
           conversationId,
         })
-        await apply(database, { companyId, conversationId, messageId: received.messageId })
+        const applied = await apply(database, {
+          companyId,
+          conversationId,
+          messageId: received.messageId,
+        })
+        expect(applied).toBeUndefined()
         const reply = await replyOf(database, companyId)
         expect(reply.status).toBe('awaiting_operator')
         expect(await driverMessagesOf(database, companyId)).toEqual([])

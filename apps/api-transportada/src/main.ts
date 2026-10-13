@@ -547,6 +547,7 @@ import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createContractorReplyDeliveryNotifier } from './occurrence-conversation/infrastructure/contractor-reply-delivery-notifier.adapter.js'
 import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
 import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
@@ -2478,6 +2479,17 @@ function createApplicationRoutes({
   /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
   const contractorPortalConversation = createContractorPortalConversationUseCase({
     clock: () => new Date(),
+    /** Spec 248 T4.6b: the driver bell notice of the automatic delivery, after the commit. */
+    deliveryNotifier: createContractorReplyDeliveryNotifier({
+      driverNotifier: createDriverConversationNotifier({
+        logger,
+        send: (params) =>
+          notifications.useCases.sendNotification.execute({
+            ...params,
+            locale: NOTIFICATION_DEFAULT_LOCALE,
+          } as never),
+      }),
+    }),
     fingerprintService,
     newRef: createPublicRef,
     scopes: contractorPortalRepository,
