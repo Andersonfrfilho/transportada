@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /** Dados sintéticos das conversas da demonstração do motorista (spec 263). Sem PII real. */
+import { PREVIEW_BOLETO_ATTACHMENT } from './driver-preview-conversations-boleto'
 import type {
+  PreviewAttachment,
   PreviewChannel,
   PreviewConversation,
   PreviewMessage,
@@ -8,6 +10,7 @@ import type {
 } from './driver-preview-conversations.types'
 
 type SeedLine = Readonly<{
+  attachments?: readonly PreviewAttachment[]
   direction: PreviewMessage['direction']
   isUnread?: boolean
   text: string
@@ -30,6 +33,7 @@ const MINUTE_MS = 60 * 1000
 export const PREVIEW_OCCURRENCE_IDS = {
   absent: '00000000-0000-4000-8000-000000000262',
   damage: '00000000-0000-4000-8000-000000000261',
+  extension: '00000000-0000-4000-8000-000000000269',
   history: '00000000-0000-4000-8000-000000000264',
   receipt: '00000000-0000-4000-8000-000000000267',
   refusal: '00000000-0000-4000-8000-000000000263',
@@ -116,6 +120,21 @@ const SEED_CONVERSATIONS: readonly SeedConversation[] = [
     protocolSuffix: 'C9D4',
   },
   {
+    iconName: 'money',
+    id: PREVIEW_OCCURRENCE_IDS.extension,
+    label: 'Prorrogação do boleto · NF 717795 (parada 2)',
+    lines: [
+      { direction: 'inbound', text: 'O cliente pediu para prorrogar o vencimento do boleto.' },
+      {
+        attachments: [PREVIEW_BOLETO_ATTACHMENT],
+        direction: 'outbound',
+        isUnread: true,
+        text: 'Boleto atualizado da NF 717795. Mostre ao cliente.',
+      },
+    ],
+    protocolSuffix: 'B4K7',
+  },
+  {
     id: PREVIEW_DOCUMENT_ID,
     label: 'NF 900101 · Mercearia do Centro',
     lines: [
@@ -150,7 +169,7 @@ function toMessage(
 ): PreviewMessage {
   const { line } = input
   return {
-    attachments: [],
+    attachments: line.attachments ?? [],
     authorName: line.direction === 'outbound' ? OFFICE_AUTHOR : DRIVER_AUTHOR,
     bodyText: line.text,
     createdAt: new Date(input.at).toISOString(),

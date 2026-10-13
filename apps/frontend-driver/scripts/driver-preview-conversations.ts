@@ -31,6 +31,11 @@ import {
   type ConversationRouteShape,
 } from './driver-preview-conversations-handlers'
 import { AUDIO_CONTENT_TYPE_PREFIX, SILENT_WAV } from './driver-preview-conversations-audio'
+import {
+  BOLETO_PDF,
+  PDF_CONTENT_TYPE,
+  PREVIEW_BOLETO_FILE_NAME,
+} from './driver-preview-conversations-boleto'
 import type { ConversationRepository } from './driver-preview-conversations-repository'
 import type { PreviewSubjectType } from './driver-preview-conversations.types'
 
@@ -196,6 +201,16 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Co
     if (contentType?.startsWith(AUDIO_CONTENT_TYPE_PREFIX) === true) {
       return new Response(SILENT_WAV, {
         headers: { ...options.corsHeaders, 'content-type': 'audio/wav' },
+        status: 200,
+      })
+    }
+    if (contentType === PDF_CONTENT_TYPE) {
+      return new Response(BOLETO_PDF, {
+        headers: {
+          ...options.corsHeaders,
+          'content-disposition': `attachment; filename="${PREVIEW_BOLETO_FILE_NAME}"`,
+          'content-type': PDF_CONTENT_TYPE,
+        },
         status: 200,
       })
     }
