@@ -1029,6 +1029,7 @@
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
+    "documentAlreadyReleased": "Esta nota já foi desvinculada desta viagem. Atualize a tela.",
     "documentNotFound": "Nota não encontrada nesta viagem.",
     "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
     "documentReturnReasonRequired": "Informe o motivo da devolução.",

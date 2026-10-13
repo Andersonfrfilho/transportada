@@ -14,6 +14,7 @@ import { checkTripCloseRequiresReason } from '../domain/trip-close.policy.js'
 import {
   TripCloseReasonRequiredError,
   TripDocumentAlreadyDeliveredError,
+  TripDocumentAlreadyReleasedError,
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
@@ -328,6 +329,7 @@ export function createTripUseCase(dependencies: {
 
       const document = await findTripDocumentOrThrow({ companyId, documentId, repository, tripId })
       if (document.deliveredAt !== null) throw new TripDocumentAlreadyDeliveredError()
+      if (document.releasedAt !== null) throw new TripDocumentAlreadyReleasedError()
 
       const released = await repository.releaseDocument({ companyId, documentId, tripId })
       // Corrida rara: a nota foi entregue/liberada entre a leitura acima e este update.
