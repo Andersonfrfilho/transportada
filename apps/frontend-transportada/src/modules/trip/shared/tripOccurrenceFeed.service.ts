@@ -9,6 +9,8 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
+import type { ContractorReplySummary } from '@/modules/occurrence-conversation/shared/contractorReply.types'
+
 import type {
   DeclaredAmountScope,
   OccurrenceAttachmentMode,
@@ -117,6 +119,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   /** Spec 240 RF9: `null` é "não foi cancelada"; a cancelada continua na leitura, marcada. */
   cancellation?: null | OccurrenceCancellation
   case: null | TripOccurrenceCaseView
+  /** Spec 248 RF13: o selo do retorno da contratante; `null` sem retorno e na API anterior. */
+  contractorReply?: ContractorReplySummary | null
   /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
   conversation: TripOccurrenceConversationSummary
   createdAt: string

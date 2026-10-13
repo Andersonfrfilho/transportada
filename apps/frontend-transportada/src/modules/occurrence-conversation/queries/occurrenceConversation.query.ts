@@ -60,6 +60,7 @@ async function sendWithAttachments(
 }
 
 export const OCCURRENCE_CONVERSATIONS_QUERY_KEY = 'occurrence-conversations'
+export const CONTRACTOR_REPLY_QUERY_KEY = 'occurrence-contractor-reply'
 
 export function getOccurrenceConversationClient(): OccurrenceConversationClient {
   return createOccurrenceConversationClient({
@@ -184,6 +185,7 @@ export function useDeliverContractorReplyToDriverMutation(occurrenceId: string) 
     mutationFn: (attachmentId: string) =>
       client.deliverContractorReplyToDriver({ attachmentId, occurrenceId }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [CONTRACTOR_REPLY_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
     },

@@ -36,6 +36,7 @@ import './occurrence-conversation/office-subject-conversation-routes.contract.js
 import './occurrence-conversation/driver-conversation-notifier.contract.js'
 import './occurrence-conversation/contractor-reply.contract.js'
 import './occurrence-conversation/contractor-reply-configuration.contract.js'
+import './occurrence-conversation/contractor-reply-read.contract.js'
 import './occurrence-conversation/participant-transcription.contract.js'
 import './occurrence-conversation/participant-transcription-source.contract.js'
 import './occurrence-conversation/conversation-audio-enrichment.contract.js'

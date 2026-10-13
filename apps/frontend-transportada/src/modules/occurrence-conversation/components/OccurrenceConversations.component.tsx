@@ -110,7 +110,7 @@ function ForwardToContractorAction({
  * Spec 248 T4.6 (RF7/RF9): leva o anexo que a contratante mandou (o boleto) ao motorista, pelo chat do app. O
  * servidor guarda uma entrega por anexo: repetir é "já enviado", nunca outra mensagem.
  */
-function SendToDriverAction({
+export function SendToDriverAction({
   attachmentId,
   occurrenceId,
 }: Readonly<{ attachmentId: string; occurrenceId: string }>) {

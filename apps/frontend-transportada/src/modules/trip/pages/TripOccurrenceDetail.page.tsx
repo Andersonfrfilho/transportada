@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
 import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
@@ -380,6 +381,14 @@ function OccurrenceDetailSections({
         <div className={styles.panelHead}>
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
+        {participant === 'driver' ? null : (
+          <ContractorReplyPanel
+            canResolve={canResolveOccurrenceCases}
+            {...(companyId === undefined ? {} : { companyId })}
+            hasDocument={occurrence.document !== null}
+            occurrenceId={occurrence.id}
+          />
+        )}
         <OccurrenceConversations
           canManageContacts={canManageContacts}
           canSend={canResolveOccurrenceCases}

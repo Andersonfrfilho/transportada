@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { toContractorReplySummary } from '@/modules/occurrence-conversation/shared/contractorReply.service'
+
 import { OCCURRENCE_ITEMS_MODES } from './occurrence.constant'
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isOneOf, isRecord, isString } from './tripGuards.validation'
@@ -152,8 +154,16 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
   return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
 }
 
-type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'conversation' | 'document'> &
-  Readonly<{ case?: unknown; conversation?: unknown; document?: unknown }>
+type RawFeedItem = Omit<
+  TripOccurrenceFeedItem,
+  'case' | 'contractorReply' | 'conversation' | 'document'
+> &
+  Readonly<{
+    case?: unknown
+    contractorReply?: unknown
+    conversation?: unknown
+    document?: unknown
+  }>
 
 /** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
 function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
@@ -208,9 +218,11 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { cancellation, case: rawCase, conversation, document, ...rest } = raw
+  const { cancellation, case: rawCase, contractorReply, conversation, document, ...rest } = raw
+  const replySummary = toContractorReplySummary(contractorReply)
   return {
     ...rest,
+    ...(replySummary === null ? {} : { contractorReply: replySummary }),
     cancellation: isOccurrenceCancellation(cancellation) ? cancellation : null,
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
     conversation: toConversationSummary(conversation),

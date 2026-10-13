@@ -276,3 +276,14 @@ export class ConversationNoDriverError extends ApiError {
     })
   }
 }
+
+/** Spec 248 RF6: o retorno já foi entregue ou cancelado; não há mais o que tratar. */
+export class ContractorReplyNotHandleableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_NOT_HANDLEABLE',
+      message: 'The contractor reply is already delivered or cancelled',
+      status: 409,
+    })
+  }
+}
