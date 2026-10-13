@@ -365,12 +365,13 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 248 T4.6: levar o boleto da contratante ao motorista divide o balde das mensagens da ocorrência. */
-  test('levar o boleto ao motorista conta no Postgres, no balde das mensagens', () => {
+  /** Spec 248 T4.6 e RF6: levar o boleto ao motorista e reenviar o pedido dividem o balde das mensagens da ocorrência. */
+  test('levar o boleto ao motorista e reenviar o pedido contam no Postgres, no balde das mensagens', () => {
     const routes = createOccurrenceContractorReplyRoutes({
       deliverToDriver: {},
       markHandled: {},
       readReply: {},
+      resendRequest: {},
     } as never)
 
     expect(
@@ -389,6 +390,16 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
+      },
+      /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/contractor-reply/resend-request',
       },
       {
         rateLimit: {

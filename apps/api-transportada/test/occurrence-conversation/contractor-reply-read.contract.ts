@@ -57,6 +57,7 @@ const VIEW: ContractorReplyView = {
   handledNote: null,
   reason: null,
   replyAttachmentId: null,
+  resend: { availableAt: null, canResend: true, reason: null },
   status: 'overdue',
 }
 
@@ -111,6 +112,7 @@ function build(overrides: {
       deliverToDriver: { deliver: async () => ({ kind: 'already_delivered' }) },
       markHandled: createMarkContractorReplyHandledUseCase({ clock: () => NOW, writer }),
       readReply: createReadContractorReplyUseCase({ reader }),
+      resendRequest: { resend: async () => ({}) as never },
     }),
     tenantContext: { resolveCompany: async () => context },
     userPictureExistence: stubUserPictureExistence(),
@@ -144,6 +146,7 @@ describe('GET /trip-occurrences/:id/contractor-reply (spec 248 RF13)', () => {
       alertCount: 2,
       alertMaxCount: 24,
       replyAttachmentId: null,
+      resend: { availableAt: null, canResend: true, reason: null },
       status: 'overdue',
     })
     expect(JSON.stringify(body)).not.toContain('actorUserId')
