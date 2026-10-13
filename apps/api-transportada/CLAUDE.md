@@ -524,6 +524,17 @@ ocorrência seria autoaprovação, o mesmo erro que a ADR-0067 fechou) conduz `r
 (só no papel `contractor`, nunca em papel interno) é do contratante no portal, e só alcança
 `awaiting_contractor → decided`.
 
+**Quem pegou a tratativa é derivado, não coluna** (spec 164, `occurrence-case-taken-by.support.ts`): é o ator da
+transição **mais recente `→ under_review`** (ação `review`, a única porta da tratativa para a frente; `recorded` só
+nasce na abertura e `returned_to_warehouse`/`closed`/`cancelled` são terminais, então hoje há no máximo um). Sai em
+`case.takenBy { displayName, takenAt } | null` do feed e do detalhe (`GET /trip-occurrences[/:id]`) — só o nome do
+perfil, nunca e-mail, telefone nem CPF —, sempre ligado ao `company_id` da própria tratativa e ao ator `internal`.
+Caso cancelado antes do `review` fica `null`. Na linha do tempo, evento de ator `contractor` sai com `name: null` (o
+operador vê "Contratante", nunca a conta do portal). O portal da contratante **nunca** importa perfil nem o histórico
+(contrato negativo em `test/trip-schema/tenant-safety.contract.ts` + `trip-occurrence-case.integration.ts`). Chave nova
+em resposta: o painel publicado tolera (`isCaseView` não é de chaves exatas), mas a ordem da ADR-0081 §9 vale — painel
+com `takenBy` opcional antes, API depois.
+
 **A fronteira de visibilidade do portal é do SQL, não da tela.** `contractor-occurrence.query.ts` faz
 `inner join` com `trip_occurrence_cases` filtrando `status in ('awaiting_contractor', 'decided',
 'closed')` **dentro da consulta**, somado ao recorte de `ContractorScope` (ADR-0050 §4). Tratativa
