@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,8 @@ import { TripTimeline } from '../components/TripTimeline.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
 import { useTripTimeline } from '../hooks/useTripTimeline.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
+import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
+import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY } from '../shared/trip.constant'
 import { navigateToTrips } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
 
@@ -47,7 +50,18 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    * compartilha chave de consulta com a aba de veículos e não custa requisição nova.
    */
   const fleet = useFleet({ ...(companyId === undefined ? {} : { companyId }), permissions })
+  /**
+   * As notas livres só são carregadas para quem pode vincular: a lista varre a base de notas da
+   * empresa e quem só acompanha a viagem não precisa pagar por ela. A chave é a mesma da criação
+   * de viagem, então abrir as duas telas em sequência não repete a varredura.
+   */
+  const availableDocumentsQuery = useQuery({
+    enabled: workspace.controller.canManageTrips,
+    queryFn: loadAvailableTripDocuments,
+    queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
+  })
   const linkForm = useTripDocumentLinkForm({
+    availableDocuments: availableDocumentsQuery.data ?? [],
     findNfeDocumentByAccessKey: workspace.controller.findNfeDocumentByAccessKey,
     linkScannedDocument: ({ documentId }) =>
       workspace.linkDocumentMutation.mutateAsync({
@@ -152,6 +166,8 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
               canAdjustTollBooth={canAdjustTollBooth}
               canReadFinancials={financials.canReadFinancials}
               drivers={fleet.viewModel.drivers ?? []}
+              availableDocuments={availableDocumentsQuery.data ?? []}
+              isLoadingAvailableDocuments={availableDocumentsQuery.isLoading}
               linkForm={linkForm}
               vehicles={fleet.viewModel.vehicles ?? []}
               workspace={workspace}

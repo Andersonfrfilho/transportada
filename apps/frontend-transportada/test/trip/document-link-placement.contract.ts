@@ -13,13 +13,17 @@ const COMPONENT = new URL(
   '../../src/modules/trip/components/TripDetail.component.tsx',
   import.meta.url,
 )
+const PANEL = new URL(
+  '../../src/modules/trip/components/TripLinkDocumentPanel.component.tsx',
+  import.meta.url,
+)
 
 describe('posição do bloco de vínculo de nota na tela de detalhe', () => {
   const source = readFileSync(COMPONENT, 'utf8')
 
   it('aparece depois do fluxo de processo e antes do painel de carga', () => {
     const processFlowIndex = source.indexOf('<TripProcessFlow')
-    const linkFormIndex = source.indexOf("t('detail.linkDocumentTitle')")
+    const linkFormIndex = source.indexOf('<TripLinkDocumentPanel')
     const cargoPanelIndex = source.indexOf('<TripCargoPanel')
 
     expect(processFlowIndex).toBeGreaterThan(-1)
@@ -30,16 +34,24 @@ describe('posição do bloco de vínculo de nota na tela de detalhe', () => {
   })
 
   it('preserva a condição de exibição e o comportamento do bloco movido', () => {
-    const linkFormIndex = source.indexOf("t('detail.linkDocumentTitle')")
+    const linkFormIndex = source.indexOf('<TripLinkDocumentPanel')
     const blockStart = source.lastIndexOf('{canManage && isEditable ?', linkFormIndex)
 
     expect(blockStart).toBeGreaterThan(-1)
+    expect(source.slice(blockStart, linkFormIndex)).not.toInclude('<TripScanQueue')
+    expect(source).toInclude('handleLinkDocument')
 
-    const blockEnd = source.indexOf('</BarcodeScanner', linkFormIndex)
-    const block = source.slice(blockStart, blockEnd === -1 ? undefined : blockEnd)
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toInclude("t('detail.linkDocumentTitle')")
+    expect(panel).toInclude('<TripScanQueue')
+    expect(panel).toInclude('<BarcodeScanner')
+  })
 
-    expect(block).toInclude('<TripScanQueue')
-    expect(block).toInclude('<BarcodeScanner')
-    expect(block).toInclude('handleLinkDocument')
+  it('o painel oferece busca com os filtros da tela de notas e a inserção rápida', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+
+    expect(panel).toInclude('<TripDocumentSearch')
+    expect(panel).toInclude("id: 'search'")
+    expect(panel).toInclude("id: 'quick'")
   })
 })

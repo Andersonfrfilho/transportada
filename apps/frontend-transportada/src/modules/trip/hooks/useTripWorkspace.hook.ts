@@ -584,6 +584,8 @@ export function useTripWorkspace(
     await invalidate()
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.tripCargoLink, queryClient })
+    /** A nota vinculada deixa de estar livre: a busca e a inserção rápida não podem mais oferecê-la. */
+    await queryClient.invalidateQueries({ queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY })
   }
 
   /**

@@ -3,12 +3,12 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { formatPhone } from '@/modules/shared/phone.service'
-import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
+import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { CanhotoAutomaticReview, type CanhotoReadContext } from './CanhotoAutomaticReview.component'
@@ -93,7 +93,7 @@ import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripConferenceAction } from './TripConferenceAction.component'
-import { TripScanQueue } from './TripScanQueue.component'
+import { TripLinkDocumentPanel } from './TripLinkDocumentPanel.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
@@ -118,12 +118,15 @@ import { TripConversationsPanel } from '@/modules/occurrence-conversation/compon
 import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
+  /** As notas livres da empresa: alimentam a busca e a inserção rápida por número do "Vincular nota". */
+  availableDocuments: readonly NfeDocumentListItem[]
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
   /** Sem `trip.financials` o pedágio da rota some da tela — nunca zero (spec 153 D10). */
   canReadFinancials: boolean
   /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
   drivers: readonly FleetDriverListItem[]
+  isLoadingAvailableDocuments: boolean
   linkForm: TripDocumentLinkFormController
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
@@ -287,9 +290,11 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
 }
 
 export function TripDetail({
+  availableDocuments,
   canAdjustTollBooth,
   canReadFinancials,
   drivers,
+  isLoadingAvailableDocuments,
   linkForm,
   vehicles,
   workspace,
@@ -786,9 +791,13 @@ export function TripDetail({
 
   /** A chave lida vira identificador antes do vínculo: a rota não conhece chave de acesso. */
   async function handleLinkDocument(): Promise<void> {
-    if (trip === undefined) return
     const documentId = await linkForm.resolveDocumentId()
     if (documentId === undefined) return
+    handleLinkDocumentId(documentId)
+  }
+
+  function handleLinkDocumentId(documentId: string): void {
+    if (trip === undefined) return
     const body = buildLinkTripDocumentBody({ mode: linkForm.draft.mode, value: documentId })
     workspace.linkDocumentMutation.mutate(
       { ...body, tripId: trip.id },
@@ -1081,70 +1090,14 @@ export function TripDetail({
       />
 
       {canManage && isEditable ? (
-        <div className={styles.actionForm}>
-          <h3>{t('detail.linkDocumentTitle')}</h3>
-          <div className={styles.fieldGrid}>
-            <label>
-              {t('detail.linkMode')}
-              <Select
-                ariaLabel={t('detail.linkMode')}
-                options={[
-                  { label: t('detail.linkModeNfe'), value: 'nfe' },
-                  { label: t('detail.linkModeFreight'), value: 'freight' },
-                ]}
-                value={linkForm.draft.mode}
-                onChange={(value) => linkForm.setMode(value as 'freight' | 'nfe')}
-              />
-            </label>
-            <label>
-              {t('detail.linkValue')}
-              <input
-                autoComplete="off"
-                onChange={(event) => linkForm.setValue(event.target.value)}
-                value={linkForm.draft.value}
-              />
-              <span className={styles.hint}>{t('detail.linkValueHint')}</span>
-            </label>
-          </div>
-          {linkForm.issue === undefined ? null : (
-            <p className={styles.alert} role="alert">
-              {t(`feedback.${linkForm.issue}`)}
-            </p>
-          )}
-          <div className={styles.actionActions}>
-            <Button
-              disabled={
-                linkForm.reference === undefined ||
-                linkForm.isResolving ||
-                workspace.linkDocumentMutation.isPending
-              }
-              onClick={() => void handleLinkDocument()}
-              size="sm"
-              type="button"
-            >
-              <Icon name="link" />
-              {t('actions.linkDocument')}
-            </Button>
-            {linkForm.canScan ? (
-              <Button onClick={linkForm.openScanner} size="sm" type="button" variant="secondary">
-                <Icon name="camera" />
-                {t('detail.scan')}
-              </Button>
-            ) : null}
-          </div>
-          <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
-          <BarcodeScanner
-            closeLabel={t('detail.scanClose')}
-            deniedMessage={t('detail.scanDenied')}
-            isOpen={linkForm.isScannerOpen}
-            onClose={linkForm.closeScanner}
-            onRead={linkForm.acceptScan}
-            readingMessage={t('detail.scanReading')}
-            startingMessage={t('detail.scanStarting')}
-            title={t('detail.scanTitle')}
-            unavailableMessage={t('detail.scanUnavailable')}
-          />
-        </div>
+        <TripLinkDocumentPanel
+          availableDocuments={availableDocuments}
+          isLinking={workspace.linkDocumentMutation.isPending}
+          isLoadingDocuments={isLoadingAvailableDocuments}
+          linkForm={linkForm}
+          onLinkCandidate={handleLinkDocumentId}
+          onLinkTyped={() => void handleLinkDocument()}
+        />
       ) : null}
 
       {/*

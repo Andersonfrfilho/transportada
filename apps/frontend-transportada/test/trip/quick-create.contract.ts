@@ -220,7 +220,7 @@ describe('trip quick create contract', () => {
   test('keeps the typed key as a path of its own, gated behind the same service', async () => {
     const dialog = await readApplicationFile(DIALOG_PATH)
 
-    expect(dialog).toContain('quickCreate.acceptScan(typedKey)')
+    expect(dialog).toContain('quickCreate.submitTyped(typedKey)')
     expect(dialog).toContain('quickCreate.canScan ? (')
   })
 

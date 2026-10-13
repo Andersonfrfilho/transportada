@@ -829,7 +829,17 @@
     "trailerHint": "Pode ser trocada até o despacho.",
     "trailerLockedHint": "A carreta não pode mais ser trocada — a viagem já foi despachada.",
     "trailerPlaceholder": "Sem carreta atrelada",
-    "vehicle": "Veículo: {{vehicle}}"
+    "vehicle": "Veículo: {{vehicle}}",
+    "linkAvailableHint": "Só aparecem notas desta empresa que ainda não estão em nenhuma viagem.",
+    "linkSelected": "Vincular {{count}} nota",
+    "linkSelected_other": "Vincular {{count}} notas",
+    "linkSelectedEmpty": "Marque ao menos uma nota",
+    "linkTabs": "Como vincular a nota",
+    "quickInputHint": "Digite o número da nota e aperte Enter. Se houver duas notas livres com o mesmo número, a tela pergunta qual é. A chave de 44 caracteres e a leitura pela câmera vinculam direto.",
+    "quickInputLabel": "Número da nota ou chave",
+    "quickInputPlaceholder": "Ex.: 48214, ou os 44 caracteres da chave",
+    "tabQuick": "Inserção rápida",
+    "tabSearch": "Buscar e selecionar"
   },
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
@@ -1097,7 +1107,8 @@
     "occurrenceTypeMomentsStageConflict": "Este tipo tem vários momentos e o grupo (galpão ou rua) não pode ser trocado sem eles. Ajuste os momentos e salve de novo; nada foi gravado.",
     "occurrenceTypeNameTaken": "Já existe um tipo de ocorrência com este nome. O nome é único na empresa, em qualquer etapa (inclusive os tipos de recebimento, que esta lista não mostra): escolha outro.",
     "occurrenceReferenceNumberRequired": "Este tipo de ocorrência exige o número do documento do cliente. Preencha o número em vez de limpá-lo e salve de novo. Nada foi gravado.",
-    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado."
+    "occurrenceDeclaredAmountRequired": "Este tipo de ocorrência exige o valor pago. Preencha o valor (nas linhas ou na ocorrência, conforme o tipo) em vez de limpá-lo e salve de novo. Nada foi gravado.",
+    "noteNumberNotFound": "Nenhuma nota livre com este número nesta empresa. Confira o número ou use a busca."
   },
   "filters": {
     "active_one": "{{count}} filtro ativo",
@@ -1646,8 +1657,8 @@
     "withoutDriver": "Sem motorista"
   },
   "quickCreate": {
-    "accessKey": "Chave de acesso",
-    "accessKeyPlaceholder": "44 caracteres impressos sob o código de barras",
+    "accessKey": "Número da nota ou chave",
+    "accessKeyPlaceholder": "Número da nota ou 44 caracteres da chave",
     "add": "Acrescentar",
     "cancel": "Cancelar",
     "clearFilteredSelection": "Desmarcar as {{count}} do filtro",
@@ -1665,7 +1676,7 @@
     "failed": "Não foi possível criar a viagem. Confira as notas e tente de novo.",
     "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
     "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem.",
-    "intro": "Bipe ou digite a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
+    "intro": "Bipe, leia pela câmera ou digite o número ou a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
@@ -1701,7 +1712,14 @@
     "title": "Nova viagem",
     "weightEstimated": "estimado",
     "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
-    "weightValue": "{{weight}} kg"
+    "weightValue": "{{weight}} kg",
+    "typed": {
+      "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
+      "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
+      "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
+      "pickTitle": "Escolha a nota",
+      "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."
+    }
   },
   "readiness": {
     "count": "{{ready}} de {{total}} notas com CT-e autorizado",
