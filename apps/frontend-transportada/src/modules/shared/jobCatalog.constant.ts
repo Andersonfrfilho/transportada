@@ -316,6 +316,19 @@ export const JOB_CATALOG = [
     /** A batida: o aviso atrasado precisa sair enquanto a contratante ainda espera por ele. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 248 T4.10: o retorno da contratante que venceu passa a `overdue` e a operação é alertada a cada
+     * intervalo, até o teto. O worker faz tudo (transição por `alert_count`, evento e aviso no sino); a
+     * falha de entrega do aviso é o único desfecho próprio.
+     *
+     * Nasce **pausada** (a migration a semeia desligada): só liga com autorização do usuário em produção.
+     */
+    failureOutcomes: ['notification_failed'],
+    job: 'occurrence.contractor-reply.alert',
+    /** A batida: o intervalo do tipo é de minutos, e o piso do relógio já é cinco. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

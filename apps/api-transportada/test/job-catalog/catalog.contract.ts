@@ -174,6 +174,12 @@ const CATALOG = [
     job: 'occurrence.automatic-mail.sweep',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 248 T4.10: o alerta do retorno vencido da contratante; o worker faz tudo. Nasce pausada. */
+    failureOutcomes: ['notification_failed'],
+    job: 'occurrence.contractor-reply.alert',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -200,6 +206,7 @@ const SEED_MIGRATIONS = [
   '20261009040622_holiday_provider_import',
   '20261012180100_occurrence_automatic_mail_sweep_job',
   '20261012154238_conversation_audio_transcribe_job',
+  '20261013010226_occurrence_contractor_reply_alert_job',
 ] as const
 
 describe('job catalog', () => {
