@@ -1617,3 +1617,23 @@ monthlyRequestBudget` da configuração; `>=` como o worker) → falha por par �
   contratos de DOM da 262.)
 - Contratos: `holiday-provider-settings` (26), DOM `business-calendar-provider-settings` (36) e `business-calendar-import-toggle` (10), puro
   `holiday-provider-form` (25), `holiday-import-headline` (19), DOM `business-calendar-import-headlines` (10) e `business-calendar-permission` ajustado.
+
+## Spec 264 (Fase 5) — o painel grava áudio e mostra a transcrição na conversa por assunto
+
+- **Gravação.** `SubjectConversationPanel` passa `audioRecording={SUBJECT_AUDIO_RECORDING}` ao `ConversationThread` do SDK 0.10.0 (`conversations-ui/participant`).
+  O objeto é de módulo (`subjectThreadAudio.constant.ts`, `{}`): sem teto próprio valem os 5 min e 16 MiB do pacote, e o objeto estável não refaz o efeito do SDK.
+  Os 11 rótulos do gravador entram em `SUBJECT_THREAD_LABEL_KEYS` e em `thread.labels.*` (pt-BR e en). O painel não tem `captureRegistry`
+  (isso é do app do motorista): nada a registrar. `Permissions-Policy` já trazia `microphone=(self)` e a CSP já trazia `media-src 'self' blob: <bucket>` (spec 183 T705);
+  os contratos `security-headers` e `content-security-policy` já os prendem.
+- **Leitura.** `subjectAttachment.service.ts` (`toSubjectConversationAttachments`) lê `durationMs` (inteiro positivo ≤ `PARTICIPANT_AUDIO_DURATION_MAX_MS`) e `transcription`
+  (`participantTranscriptionSchema.safeParse` **por anexo de áudio**; inválida ou `null` some só o campo, a página segue) e `toParticipantAttachment` os repassa ao SDK.
+  `OccurrenceConversationAttachment` ganhou os dois campos **opcionais**.
+- ⚠️ **A tela antiga da ocorrência não muda.** Ela segue em `toConversationAttachments`, que continua descartando os dois campos; o contrato
+  `subject-thread-audio.contract.ts` tem o ouro (saída exata de cinco chaves e varredura sem `transcription`/`audioRecording`/`durationMs` nos arquivos da tela antiga).
+- **Configuração.** Aba **Áudio das conversas** de Configurações (`audioTranscription`, `settings.manage`; `SETTINGS_PANEL_PLACEMENT` com fonte `audioTranscriptionSettings`).
+  `AudioTranscriptionSettingsPanel` (módulo da conversa, autocontido como o das respostas rápidas): `Checkbox` rotulado, frase do que acontece ao desligar (D9: esconde,
+  não apaga, sem backfill) e a do limite (`audioTranscription.limit.minutes|seconds`, número de `maxDurationMs`, nunca fixo). Cliente de chaves exatas
+  (`audioTranscriptionSettings.service.ts`: `{enabled, maxDurationMs, updatedAt}`), `PUT {enabled}`; a caixa mostra o valor pedido enquanto grava.
+- **Smoke** `test/spec-264-audio.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-264-audio.smoke.spec.ts bun run smoke`): grava com microfone falso, envia, vê o texto
+  e o aviso de máquina, desliga em Configurações e vê só o player. **Escrito e não executado** (sem Chromium nem stack local na sessão; o seletor do botão da conversa na viagem
+  é o ponto mais provável de ajuste ao rodar).

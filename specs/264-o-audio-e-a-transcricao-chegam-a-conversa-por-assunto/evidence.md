@@ -326,7 +326,7 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
   `test/occurrence-conversation-schema/audio-transcription.contract.ts` (toda FK composta com `company_id`).
 - `bun run db:generate --name zz_probe` → `{"status":"no_changes"}`; `bun run db:check` → "Everything's fine".
 - `bun test ./test/database-migration.contract.test.ts ./test/occurrence-conversation-schema.contract.test.ts
-  ./test/migration-chain.contract.test.ts` (`--timeout 180000`): 199 pass / 1 fail. O 1 fail é
+./test/migration-chain.contract.test.ts` (`--timeout 180000`): 199 pass / 1 fail. O 1 fail é
   `schema-snapshot` "latest snapshot matches the TypeScript schema", causado pelo `conversation.audio.transcribe` que **outra
   tarefa** acrescentou ao `job-catalog.constant.ts` (CHECK de `job_executions`/`job_schedules`) e ainda não tem migration;
   o `db:generate` da T2.1, feito antes, deu `no_changes`.
@@ -396,7 +396,7 @@ de antes). Nenhum domínio foi gerado, nenhuma variável escrita, nenhum serviç
 - `toSubjectConversationSummary(row, officeReadAt?, transcriptionUpdatedAt?)` acrescenta `transcriptionUpdatedAt` (ISO) ao
   resumo de `GET /me/trips/current/conversations` e de `POST …/open`, lido por
   `transaction.audioTranscriptions.readTranscriptionUpdatedAtByConversation` (um `select conversation_id, max(updated_at) …
-  group by conversation_id` com `inArray` das conversas da página, só `company_id` + `conversation_id`, sem junção;
+group by conversation_id` com `inArray` das conversas da página, só `company_id` + `conversation_id`, sem junção;
   índice `occurrence_conversation_audio_transcriptions_conv_updated_idx`).
 - Integração `test/integration/audio-transcription-subject-read.integration.ts` (Postgres 18 descartável, `./test/integration/…`):
   - consultas constantes medidas por `countQueries`: a página sem áudio é a base `B`; com 1 áudio **e** com 6 áudios é `B + 2`
@@ -636,3 +636,54 @@ Contratos escritos **antes** de qualquer código da T4.3, e rodados contra a ár
 - **Documentação:** `apps/frontend-driver/CLAUDE.md` § "Conversas (spec 263)" ganhou "Áudio e transcrição na conversa (spec 264)",
   § "CSP e cabeçalhos" (`media-src`, `microphone=(self)`), `captureRegistry` (`audio`) e § "Testes, Playwright e portas";
   `docs/ai-context/frontend-driver.md` ganhou "Spec 264 — O áudio e a transcrição chegam à conversa por assunto".
+
+## T5.1 — o painel grava áudio e lê duração e transcrição por anexo (2026-10-13)
+
+- **Vermelho primeiro** (`test/occurrence-conversation/subject-thread-audio.contract.ts`, importado em `occurrence-conversation.contract.test.ts`): sem
+  código, falha de carga (`subjectThreadAudio.constant` não existe); só com a constante, **4 pass / 8 fail** (ligação da prop, 11 rótulos no fio, pt-BR, en, e
+  os quatro testes do adaptador). Verde com a implementação: **12 pass / 0 fail**. Os 4 que já passavam são o ouro da tela antiga e o anexo que não é áudio.
+- **O que mudou:** `SubjectConversationPanel` passa `audioRecording={SUBJECT_AUDIO_RECORDING}` (objeto de módulo `{}`, valem 5 min e 16 MiB do pacote);
+  11 rótulos do gravador em `SUBJECT_THREAD_LABEL_KEYS` e em `thread.labels.*` (pt-BR e en, os mesmos textos do app do motorista);
+  `subjectAttachment.service.ts` (`toSubjectConversationAttachments`: `participantTranscriptionSchema.safeParse` por anexo **de áudio**, `durationMs` inteiro positivo
+  ≤ `PARTICIPANT_AUDIO_DURATION_MAX_MS`, inválido some só o campo); `toParticipantAttachment` repassa; `OccurrenceConversationAttachment` ganhou os dois campos opcionais.
+- **Tela antiga intocada:** `git diff` sem nenhum arquivo de `OccurrenceConversations`, `ConversationMessage`, `ConversationAttachments`, `ConversationAudio*`,
+  `occurrenceConversationClient` nem `conversationAttachment.service`; ouro executável: `toConversationAttachments` devolve as cinco chaves de sempre e uma varredura
+  de oito arquivos da tela antiga não acha `transcription|audioRecording|durationMs`.
+- **Cabeçalhos:** nada a mudar. `server.ts` já emite `microphone=(self)` e `buildContentSecurityPolicy` já emite `media-src 'self' blob: <bucket>` (spec 183 T705),
+  presos por `security-headers.contract.ts` e `content-security-policy.contract.ts`. O painel não tem `captureRegistry`, então não há onde registrar a gravação.
+- Desvio: o mapeamento é feito em duas camadas (validação no cliente das rotas por assunto, repasse no adaptador), porque o cliente descartava os campos antes de o
+  adaptador vê-los; `toConversationAttachments` (tela antiga) ficou como estava.
+
+## T5.2 — "Transcrever áudios das conversas" em Configurações (2026-10-13)
+
+- **Vermelho primeiro** (`test/occurrence-conversation/audio-transcription-settings.contract.ts`): falha de carga (`audioTranscriptionSettings.service` não existe).
+  Verde: **12 pass / 0 fail** (cliente: `GET` e `PUT {enabled}`, chaves exatas, extra/ausente/tipo errado = resposta inválida; limite por `maxDurationMs`; aba e escopo de
+  dados; página; painel com `Checkbox` e sem `<input` cru; locales pt-BR e en com marcadores; nome da aba nos dois locales de Configurações).
+- **O que mudou:** aba `audioTranscription` em `COMPANY_SETTINGS_TAB_IDS`/`SETTINGS_PANEL_PLACEMENT` (fonte `audioTranscriptionSettings`, só com `settings.manage`);
+  `AudioTranscriptionSettingsPanel` (módulo da conversa, autocontido como o das respostas rápidas), `audioTranscriptionSettings.query.ts` (TanStack Query, `setQueryData`
+  no sucesso), `audioTranscriptionSettings.service.ts`; textos em `occurrenceConversation[.en].locale.json` (`audioTranscription.*`).
+- **Acessibilidade:** `Checkbox` do design system com rótulo associado (teclado nativo), `role="status"` ao salvar e `role="alert"` na recusa; a caixa mostra o valor
+  pedido enquanto grava e volta ao gravado se o servidor recusar; segundo clique durante o pedido é ignorado.
+- **Frases:** desligada, o painel diz que a transcrição some das conversas mas o texto gerado não é apagado e que o que chegar enquanto estiver desligada não é
+  transcrito depois (D9); sempre diz "Só áudios de menos de {minutes} minutos são transcritos…" com o número de `maxDurationMs` (segundos se não fechar minuto) (RF15).
+- Desvio: usa o `Checkbox` do design system do painel (regra "Checkbox" da tabela do `CLAUDE.md` da app), não um componente shadcn novo: a app declara design system caseiro.
+
+## T5.3 — smoke Playwright do painel — **escrito, NÃO executado**
+
+- **Escrito:** `apps/frontend-transportada/test/spec-264-audio.smoke.spec.ts` (Chromium com `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream` e permissão
+  de microfone): abre a conversa de uma nota na viagem, grava, ouve antes de enviar, envia, vê o player, o texto e "Transcrição gerada por máquina"; em Configurações vê o
+  interruptor ligado e a frase de 10 minutos, desliga (`PUT {enabled:false}` conferido), e a conversa mostra só o player. API inteira dublada por `page.route`. Fora da CI
+  (rodar com `PLAYWRIGHT_TEST_MATCH=spec-264-audio.smoke.spec.ts bun run smoke`).
+- **Por que não rodou:** não há Chromium do Playwright instalado nem stack local (Keycloak/Docker) nesta sessão, e o CLI do Playwright não carrega a config sob o Bun 1.4.3 do WSL.
+  Verificado: `tsc --noEmit` → 0, `eslint` → limpo, `prettier --check` → limpo. Os nomes acessíveis foram tirados do código do SDK 0.10.0 e dos locales. O ponto mais provável de
+  ajuste ao rodar é o botão "Falar com o motorista" no detalhe da viagem (pode estar dentro da nota recolhida) e a nota usada (`AUTHORIZED_DOCUMENT_ID`).
+- **Documentação:** `apps/frontend-transportada/CLAUDE.md` (§ "O áudio e a transcrição na conversa por assunto") e `docs/ai-context/frontend-transportada.md` (§ "Spec 264 (Fase 5)").
+  **T5.3 não foi marcada como concluída** até o smoke rodar.
+
+## Gates da Fase 5 (`apps/frontend-transportada`, via WSL, 2026-10-13)
+
+- `tsc --noEmit` → 0; `eslint` nos arquivos tocados (módulo da conversa, `company-settings/shared` e `pages`, `test/occurrence-conversation`, o smoke) → limpo;
+  `prettier --check` nos arquivos tocados e nos `.md` → limpo.
+- `bun run test`: primeira rodada **7997 pass / 14 fail**, os 14 são _timeout_ de varredura de `src/` no `/mnt/c` (5 a 17 s), nenhum por asserção; repetida com
+  `--timeout 120000` (mesma lista do script): **8011 pass / 0 fail**; `bun run test:hooks` → **1332 pass / 0 fail**.
+- `bun run build` → ok (`built in 3m 40s`, precache 199 entradas). `frontend-client` e `frontend-driver` não foram tocados nesta fase.

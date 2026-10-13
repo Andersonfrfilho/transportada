@@ -567,3 +567,12 @@ O acerto da 164 sugere o valor pago, senão a soma, mas só onde há tratativa (
 Detalhe: docs/ai-context/frontend-transportada.md § "Spec 247".
 
 ⚠️ **O ícone do tipo é catálogo fechado** (spec 255): `occurrenceTypeIcon.constant.ts` é cópia por valor da API; ampliar exige API (migration) + esta cópia + `icon.tsx` + `frontend-driver`. Detalhe: docs/ai-context/frontend-transportada.md § "Spec 255".
+
+## O áudio e a transcrição na conversa por assunto (spec 264)
+
+`SubjectConversationPanel` grava áudio (`audioRecording={SUBJECT_AUDIO_RECORDING}`, objeto de módulo, tetos do pacote) e mostra player e transcrição (SDK 0.10.0).
+O cliente das rotas por assunto valida `durationMs` e `transcription` **por anexo de áudio** (`subjectAttachment.service.ts`, `participantTranscriptionSchema.safeParse`;
+inválido some só o campo) e o adaptador os repassa. ⚠️ **A tela antiga da ocorrência não ganha nada disso** (`toConversationAttachments` continua descartando os campos; ouro em
+`test/occurrence-conversation/subject-thread-audio.contract.ts`). Rótulos novos entram em `SUBJECT_THREAD_LABEL_KEYS` e nos dois locales do assunto. Aba **Áudio das conversas**
+de Configurações (`settings.manage`): `AudioTranscriptionSettingsPanel`, `GET/PUT /company-settings/audio-transcription`; desligar esconde e não apaga (D9) e a frase do limite
+vem de `maxDurationMs`. Smoke `test/spec-264-audio.smoke.spec.ts` (fora da CI). Detalhe: docs/ai-context/frontend-transportada.md § "Spec 264 (Fase 5)".
