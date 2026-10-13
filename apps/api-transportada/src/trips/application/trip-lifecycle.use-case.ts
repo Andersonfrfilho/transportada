@@ -21,6 +21,7 @@ import {
   type OverrideDeliveryAddressPort,
 } from './override-delivery-address.use-case.js'
 import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
+import type { TripStopPointResolver } from './resolve-trip-stop-points.use-case.js'
 import {
   planTripRoute,
   type PlanTripRoutePort,
@@ -57,6 +58,8 @@ export type TripLifecycleDependencies = {
   /** T704 L7: a falha do recongelamento vira aviso com os ids, nunca silêncio. */
   readonly routeFreezeLogger?: TripRouteFreezeLogger
   readonly stopRepository: ListTripStopsPort
+  /** Resolve no provedor o ponto das paradas sem coordenada ao planejar a rota. */
+  readonly stopPointResolver?: TripStopPointResolver
   /** Spec 060 D4b: a entrega concluída propõe a taxa recorrente. Ausente, nada muda na entrega. */
   readonly suggestCharges?: SuggestDeliveryChargesPort
   /** Spec 090 T11: congela o pedágio no planejamento. Ausente, o comportamento é o de antes da task. */
@@ -258,6 +261,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           repository: dependencies.routeRepository,
           ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
           tripId: input.tripId,
+          ...(dependencies.stopPointResolver === undefined
+            ? {}
+            : { stopPointResolver: dependencies.stopPointResolver }),
           ...(dependencies.tollFreezer === undefined
             ? {}
             : { tollFreezer: dependencies.tollFreezer }),
