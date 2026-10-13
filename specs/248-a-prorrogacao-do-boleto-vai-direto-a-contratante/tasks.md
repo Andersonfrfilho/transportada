@@ -101,10 +101,16 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
       com o `Select` da aplicação, os campos e as CHECKs como mensagens no campo; exceção por
       contratante com "Igual ao tipo".
 - [ ] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".
+  - [x] **T5.2a** selo (`contractorReply` no feed, uma leitura por página).
+  - [ ] **T5.2b** filtro "Atrasadas": exige filtro no SQL paginado por cursor (API, parâmetro, pílula).
 - [ ] **T5.3** Detalhe da ocorrência: painel do retorno (estado, prazo, alertas, ações "Reenviar o
       pedido", "Marcar como tratado", contatos da contratante), envios ("Enviar ao motorista",
       "Enviar ao cliente da nota" com motivo quando indisponível, "Encaminhar para um e-mail"), linha
       do tempo com os eventos.
+  - [x] **T5.3a** painel (estado, prazo, alertas, linha do tempo, envios), "Marcar como tratado" e
+        "Enviar ao motorista" (boleto aceito parado no operador).
+  - [ ] **T5.3b** "Reenviar o pedido" (depende da T4.10), contatos da contratante, "Enviar ao cliente
+        da nota" e "Encaminhar para um e-mail" (dependem da T4.7).
 - [ ] **T5.4** App do motorista: conversa da ocorrência (lista com não lidas, leitura, resposta com
       anexo, download do PDF por URL assinada, aviso "sem rede"), o aviso do sino abrindo a conversa, e
       "Pedido enviado à contratante" na ocorrência.

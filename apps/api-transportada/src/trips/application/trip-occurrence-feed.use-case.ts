@@ -5,6 +5,7 @@
  * e o que houve na parada (`trip_stop_occurrences`) numa lista só, por empresa. **Leitura pura** —
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
+import type { OccurrenceContractorReplySummary } from '../../occurrence-conversation/infrastructure/occurrence-contractor-reply-summary.query.js'
 import type { OccurrenceConversationSummary } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type {
@@ -88,6 +89,8 @@ export type TripOccurrenceFeedItem = {
    * vendo ainda não leu. A decisão (aprovada, recusada) **não** é estado de conversa: é `case`.
    */
   readonly conversation: OccurrenceConversationSummary
+  /** Spec 248 RF13: o selo do retorno da contratante; `null` sem retorno e na parada. */
+  readonly contractorReply: OccurrenceContractorReplySummary | null
   /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
   readonly case: TripOccurrenceFeedCaseView | null
   /** Spec 240 RF9: `null` quando não cancelada; a cancelada continua na lista, marcada. */

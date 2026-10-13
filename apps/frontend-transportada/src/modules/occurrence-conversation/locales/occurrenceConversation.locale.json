@@ -260,5 +260,90 @@
       "unauthenticated": "Sua sessão expirou. Entre de novo para continuar.",
       "invalid": "O servidor recusou o pedido. A configuração anterior foi mantida."
     }
+  },
+  "contractorReply": {
+    "title": "Retorno da contratante",
+    "loading": "Carregando o retorno da contratante",
+    "error": "Não foi possível carregar o retorno da contratante. Tente de novo em instantes.",
+    "status": {
+      "awaiting_contractor": "Aguardando a contratante",
+      "overdue": "Atrasada",
+      "reply_received": "Boleto recebido",
+      "awaiting_operator": "Aguardando o operador",
+      "needs_operator": "Precisa do operador",
+      "delivered": "Entregue",
+      "handled": "Tratado",
+      "cancelled": "Cancelado"
+    },
+    "reason": {
+      "no_accepted_attachment": "sem anexo aceito",
+      "multiple_attachments": "mais de um anexo"
+    },
+    "alerts_one": "{{count}} alerta",
+    "alerts_other": "{{count}} alertas",
+    "alertsLabel": "Alertas enviados",
+    "alertsProgress": "{{count}} de {{max}}",
+    "deadline": "Prazo",
+    "deadlinePassed": "vencido",
+    "reasonLabel": "Motivo",
+    "handledNoteLabel": "Nota do operador",
+    "handled": {
+      "open": "Marcar como tratado",
+      "note": "O que foi feito",
+      "hint": "Obrigatória, até {{max}} caracteres. Fica com o seu nome nesta ocorrência.",
+      "cancel": "Cancelar",
+      "confirm": "Marcar como tratado",
+      "saving": "Salvando…",
+      "error": {
+        "required": "Escreva o que foi feito.",
+        "tooLong": "A nota passou do limite de {{max}} caracteres.",
+        "notHandleable": "Este retorno já foi entregue ou cancelado; não há mais o que tratar.",
+        "send": "Não foi possível salvar. Tente de novo em instantes."
+      }
+    },
+    "timeline": {
+      "title": "Histórico",
+      "empty": "Nenhum evento ainda.",
+      "actor": {
+        "system": "Sistema",
+        "user": "Operação"
+      },
+      "event": {
+        "awaiting_contractor": "Pedido enviado à contratante",
+        "overdue": "Retorno atrasado",
+        "reply_received": "Boleto recebido",
+        "awaiting_operator": "Aguardando o operador",
+        "needs_operator": "Precisa do operador",
+        "delivered": "Entregue ao motorista",
+        "handled": "Marcado como tratado",
+        "cancelled": "Cancelado"
+      }
+    },
+    "deliveries": {
+      "title": "Envios",
+      "target": {
+        "driver_app_chat": "Motorista, chat do app",
+        "driver_whatsapp": "Motorista, WhatsApp",
+        "note_recipient_email": "Cliente da nota, e-mail",
+        "informed_email": "E-mail informado"
+      },
+      "status": {
+        "queued": "na fila",
+        "sent": "enviado",
+        "pending_window": "aguardando o motorista escrever",
+        "skipped": "não enviado",
+        "failed": "falhou"
+      },
+      "reason": {
+        "driver_without_account": "motorista sem conta",
+        "driver_unreachable": "motorista inalcançável",
+        "whatsapp_window_closed": "janela do WhatsApp fechada",
+        "note_without_recipient_email": "nota sem e-mail do cliente",
+        "attachment_too_large_for_email": "arquivo grande demais para e-mail",
+        "send_failed": "falha no envio",
+        "no_accepted_attachment": "sem anexo aceito",
+        "multiple_attachments": "mais de um anexo"
+      }
+    }
   }
 }

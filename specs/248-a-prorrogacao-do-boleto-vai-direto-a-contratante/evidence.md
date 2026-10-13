@@ -430,6 +430,23 @@ pré-filtro da mesma regra (alarme ligado, abaixo do teto, prazo vencido ou entr
 - **Fora desta task:** ações do operador `resend-request` e `handled` (T4.10b), selo "Atrasada · N alertas" na lista, ligar a rotina em produção
   (autorização do usuário).
 
+## T5.2a e T5.3a — o estado do retorno no painel (2026-10-12)
+
+- **API:** `GET /trip-occurrences/:id/contractor-reply` (`fleet.read`, `no-store`; `data: null` sem retorno; 404 igual para inexistente e outra empresa),
+  `POST .../contractor-reply/handled` (`occurrences.resolve`, `{ note }` 1–500 aparada, 201 na primeira, 200 ao repetir, 409
+  `CONTRACTOR_REPLY_NOT_HANDLEABLE` com retorno entregue ou cancelado; transição condicional por estado dentro da transação, com evento `user`; a
+  CHECK `handled_shape` recebe autor e nota juntos). Evento sem usuário, entrega sem endereço. O feed `GET /trip-occurrences` traz
+  `contractorReply { status, alertCount } | null` (uma leitura por página, `company_id`).
+- **Painel:** `ContractorReplyPanel` no topo da conversa da ocorrência (selo com o estado em texto, prazo, alertas "N de M", motivo, nota do operador,
+  envios, histórico), "Marcar como tratado" com nota e "Enviar ao motorista" (boleto aceito parado no operador); `ContractorReplyBadge` na célula
+  Conversa e no cartão da lista. Leitura tolerante: evento/entrega desconhecido sai, API anterior vira sem selo.
+- **Provas:** contratos da API (`contractor-reply-read.contract.ts`, balde em `rate-limited-routes`); integração em Postgres
+  `occurrence-contractor-reply-read.integration.ts` 3 pass, mais `trip-occurrence-feed-case`, `-feed-document`, `-detail` e
+  `occurrence-conversation-read` verdes (19 pass / 0 fail); painel `contractor-reply.contract.ts`; `tsc` e `eslint` limpos nas duas apps.
+- **Fora:** filtro "Atrasadas" (T5.2b: pede filtro no SQL paginado por cursor, parâmetro e pílula); "Reenviar o pedido" (depende do cron da T4.10),
+  contatos da contratante, envio ao cliente da nota e a e-mail informado (T4.7). Não visto no navegador.
+- **Limites do ambiente:** no Windows os contratos que varrem disco falham antes e depois (202 na API, 24–26 no painel, as mesmas); a CI é a prova.
+
 ## T5.3 (parte) — "Enviar ao motorista" no painel (2026-10-13)
 
 Na conversa da contratante da ocorrência (aba Contratante), cada anexo que a **contratante mandou** ganha o botão "Enviar ao motorista" (só com `canSend` e quando a viagem
