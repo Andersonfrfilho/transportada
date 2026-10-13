@@ -116,6 +116,7 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
+  TRIP_DOCUMENT_ALREADY_RELEASED: 'documentAlreadyReleased',
   TRIP_DOCUMENT_NOT_FOUND: 'documentNotFound',
   /** Spec 156 T7.3/T9: alguma nota do lote não pertence à viagem — `details.unreachableDocumentIds`. */
   TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
