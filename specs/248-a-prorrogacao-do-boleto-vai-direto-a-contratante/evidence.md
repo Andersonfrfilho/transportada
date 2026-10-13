@@ -608,6 +608,7 @@ de espera, desabilitado com o motivo e a hora em que volta, chave de tentativa m
 API anterior (sem `resend`) não mostra o botão.
 
 **Provas (Ubuntu/WSL, bun 1.4.3, Postgres 55432).** Integração `occurrence-contractor-reply-resend.integration.ts` (8 casos: mesma conversa/thread/assunto/destinatários e outbox; cedo demais e depois do intervalo
-+ leitura; atrasada; replay; corrida de duas chaves; seis estados que recusam; sem retorno/empresa errada; sem contato → 422 e evento desfeito). Contratos: `contractor-reply-resend.contract.ts`, `occurrence-mail.contract.ts`,
-`contractor-reply.contract.ts` (painel). Mutação: intervalo desligado → 3 falhas. Contrato da API inteiro 11640 pass / 0 fail; integrações tocadas 61 / 0; painel 8059 + 1343 (hooks) pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps.
-**Não visto no navegador.** Falta T4.10b-2 (os testes de CA05 "quatro paradas" pelas rotas) e T5.3b-2 (T4.7).
+
+- leitura; atrasada; replay; corrida de duas chaves; seis estados que recusam; sem retorno/empresa errada; sem contato → 422 e evento desfeito). Contratos: `contractor-reply-resend.contract.ts`, `occurrence-mail.contract.ts`,
+  `contractor-reply.contract.ts` (painel). Mutação: intervalo desligado → 3 falhas. Contrato da API inteiro 11640 pass / 0 fail; integrações tocadas 61 / 0; painel 8059 + 1343 (hooks) pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps.
+  **Não visto no navegador.** Falta T4.10b-2 (os testes de CA05 "quatro paradas" pelas rotas) e T5.3b-2 (T4.7).
