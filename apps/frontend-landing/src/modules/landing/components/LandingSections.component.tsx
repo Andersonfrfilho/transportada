@@ -155,8 +155,8 @@ export function WhereWeAreSection({ settings }: SectionProps): ReactNode {
       <h2 className={styles.sectionTitle}>{title}</h2>
       <div className={styles.list}>
         {settings.units.map((unit) => (
-          <article className={styles.unitCard} key={`${unit.tradeName}-${unit.postalCode}`}>
-            <p className={styles.unitName}>{unit.tradeName}</p>
+          <article className={styles.unitCard} key={`${unit.displayName}-${unit.postalCode}`}>
+            <p className={styles.unitName}>{unit.displayName}</p>
             <p className={styles.unitAddress}>{unitAddress(unit)}</p>
           </article>
         ))}

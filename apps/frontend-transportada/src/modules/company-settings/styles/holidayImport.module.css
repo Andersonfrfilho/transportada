@@ -93,12 +93,16 @@
   --headline-ink: var(--color-ready-ink);
 }
 
-.headline[data-headline='unreachable'] {
+/* Spec 262: faltar chave e esgotar o orçamento pedem uma ação do administrador (cobre); a chave que não abre é falha. */
+.headline[data-headline='unreachable'],
+.headline[data-headline='noToken'],
+.headline[data-headline='budgetReached'] {
   --headline-ink: var(--color-copper-ink);
 }
 
 .headline[data-headline='failing'],
 .headline[data-headline='unauthorized'],
+.headline[data-headline='tokenUnreadable'],
 .headline[data-headline='malformed'] {
   --headline-ink: var(--color-alert-ink);
 }

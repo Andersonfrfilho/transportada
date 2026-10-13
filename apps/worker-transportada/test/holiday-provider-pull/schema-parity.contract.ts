@@ -14,6 +14,7 @@ import {
   companyHolidayImportSettings,
   holidayImportCities,
 } from '../../src/database/holiday-import.schema.js'
+import { holidayProviderSettings } from '../../src/database/holiday-provider-settings.schema.js'
 import {
   holidayProviderEntries,
   holidayProviderFetches,
@@ -25,13 +26,21 @@ const API_IMPORT = new URL(
   '../../../api-transportada/src/database/holiday-import.schema.ts',
   import.meta.url,
 )
+const WORKER_SETTINGS = new URL(
+  '../../src/database/holiday-provider-settings.schema.ts',
+  import.meta.url,
+)
+const API_SETTINGS = new URL(
+  '../../../api-transportada/src/database/holiday-provider-settings.schema.ts',
+  import.meta.url,
+)
 const WORKER_PROVIDER = new URL('../../src/database/holiday-provider.schema.ts', import.meta.url)
 const API_PROVIDER = new URL(
   '../../../api-transportada/src/database/holiday-provider.schema.ts',
   import.meta.url,
 )
 
-const COLUMN_START = /^\s+[a-zA-Z]+: (boolean|date|integer|text|timestamp|uuid)\(/u
+const COLUMN_START = /^\s+[a-zA-Z]+: (bigint|boolean|date|integer|jsonb|text|timestamp|uuid)\(/u
 
 /** Uma coluna é a declaração inteira, que pode quebrar em várias linhas e termina na linha com `,`. */
 function extractColumnStatements(source: string): string[] {
@@ -126,5 +135,26 @@ describe('o cache global do fornecedor espelha a API (spec 252 T3.3)', () => {
       'removed_at',
     ])
     expect(columnNames(holidayProviderMonthlyUsage)).toEqual(['month', 'requests'])
+  })
+})
+
+describe('a chave selada da FeriadosAPI espelha a API (spec 262 T2.2)', () => {
+  test('toda coluna é a da API, na mesma declaração', async () => {
+    await compareColumns({ api: API_SETTINGS, expectedCount: 10, worker: WORKER_SETTINGS })
+  })
+
+  test('os nomes de coluna são os do banco', () => {
+    expect(columnNames(holidayProviderSettings)).toEqual([
+      'id',
+      'provider',
+      'token_envelope',
+      'token_hint',
+      'token_updated_at',
+      'monthly_request_budget',
+      'version',
+      'updated_by_user_id',
+      'created_at',
+      'updated_at',
+    ])
   })
 })

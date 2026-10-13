@@ -23,7 +23,7 @@ type TripConferencePrintSheetProps = Readonly<{
  */
 export function TripConferencePrintSheet({ brand, labels, sheet }: TripConferencePrintSheetProps) {
   return createPortal(
-    <div className={styles.printSheet} data-print-region>
+    <div className={styles.printSheet} data-print-region="exclusive">
       <header className={styles.printSheetHeader}>
         <span className={styles.printSheetBrand}>
           <InstallationBrandMark

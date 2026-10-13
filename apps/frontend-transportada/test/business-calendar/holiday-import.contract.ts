@@ -32,6 +32,7 @@ import {
   isHolidayImportStatus,
   isHolidayImportSuppression,
 } from '@/modules/company-settings/shared/holidayImportGuards.validation'
+import type { HolidayImportStatus } from '@/modules/company-settings/shared/holidayImport.types'
 import { resolveImportStatusView } from '@/modules/company-settings/shared/holidayImportStatus.service'
 
 import {
@@ -345,9 +346,14 @@ describe('origem de cada linha do calendário', () => {
   })
 })
 
+/** Sem a configuração da instalação (o `GET` do bloco da chave falhou ou ainda não chegou): o cartão é o de antes. */
+function viewOf(status: HolidayImportStatus) {
+  return resolveImportStatusView({ status })
+}
+
 describe('leitura do status que a tela imprime', () => {
   test('rotina em dia: a maior parte concluída, sem falha, com última busca', () => {
-    const view = resolveImportStatusView(buildImportStatus())
+    const view = viewOf(buildImportStatus())
 
     expect(view.headline).toBe('healthy')
     expect(view.progress).toEqual({ done: 8, ratio: 0.8, total: 10 })
@@ -355,7 +361,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('nunca buscou: aguarda a primeira execução da rotina diária', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         lastFetchedAt: null,
         pairs: { done: 0, failed: 0, notCovered: 0, pending: 10, quotaExhausted: 0, total: 10 },
@@ -366,7 +372,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('empresa fora da importação vence qualquer outro estado', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         failures: [{ errorCode: 'provider_unreachable', pairs: 3 }],
         isEnabled: false,
@@ -377,7 +383,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('a última execução recusada pelo fornecedor vence a espera: token errado não é "aguardando"', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         lastFetchedAt: null,
         lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome: 'provider_unauthorized' },
@@ -390,9 +396,8 @@ describe('leitura do status que a tela imprime', () => {
 
   test('cada falha de fornecedor da última execução tem a própria manchete', () => {
     const headlineOf = (outcome: string) =>
-      resolveImportStatusView(
-        buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }),
-      ).headline
+      viewOf(buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }))
+        .headline
 
     expect(headlineOf('provider_unauthorized')).toBe('unauthorized')
     expect(headlineOf('provider_unreachable')).toBe('unreachable')
@@ -401,9 +406,8 @@ describe('leitura do status que a tela imprime', () => {
 
   test('última execução que terminou bem, cancelada ou com desfecho desconhecido não manda na manchete', () => {
     const headlineOf = (outcome: string) =>
-      resolveImportStatusView(
-        buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }),
-      ).headline
+      viewOf(buildImportStatus({ lastRun: { finishedAt: '2026-10-09T13:00:00.000Z', outcome } }))
+        .headline
 
     for (const outcome of ['succeeded', 'cancelled', 'abandoned', 'unexpected_error', 'novo']) {
       expect(headlineOf(outcome)).toBe('healthy')
@@ -415,8 +419,8 @@ describe('leitura do status que a tela imprime', () => {
     const withNullRun = buildImportStatus({ lastFetchedAt: null, lastRun: null })
 
     expect(omitted).toBeDefined()
-    expect(resolveImportStatusView(withoutRun).headline).toBe('waiting')
-    expect(resolveImportStatusView(withNullRun).headline).toBe('waiting')
+    expect(viewOf(withoutRun).headline).toBe('waiting')
+    expect(viewOf(withNullRun).headline).toBe('waiting')
   })
 
   test('empresa desligada vence até a recusa do fornecedor; a recusa vence as falhas por par', () => {
@@ -426,12 +430,12 @@ describe('leitura do status que a tela imprime', () => {
     const disabled = buildImportStatus({ isEnabled: false, lastRun: run })
     const refused = buildImportStatus({ failures, lastRun: run })
 
-    expect(resolveImportStatusView(disabled).headline).toBe('disabled')
-    expect(resolveImportStatusView(refused).headline).toBe('unauthorized')
+    expect(viewOf(disabled).headline).toBe('disabled')
+    expect(viewOf(refused).headline).toBe('unauthorized')
   })
 
   test('par fora do plano não é falha: o aviso sai à parte e as demais cidades seguem "em dia"', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
         pairs: {
@@ -453,7 +457,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('falha real junto do par fora do plano: "com falhas", só com a falha real na lista', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         failures: [
           { errorCode: 'provider_plan_restricted', pairs: 2 },
@@ -478,7 +482,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('API antiga, sem `planRestricted`: o par fora do plano continua falha na lista, como antes', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         failures: [{ errorCode: 'provider_plan_restricted', pairs: 2 }],
         pairs: { done: 6, failed: 2, notCovered: 0, pending: 2, quotaExhausted: 0, total: 10 },
@@ -494,10 +498,8 @@ describe('leitura do status que a tela imprime', () => {
   test('a data do último ciclo da rotina sai na visão; sem ciclo, null', () => {
     const withoutCycle = buildImportStatus({ lastRun: null })
 
-    expect(resolveImportStatusView(buildImportStatus()).lastRunFinishedAt).toBe(
-      '2026-10-09T09:31:00.000Z',
-    )
-    expect(resolveImportStatusView(withoutCycle).lastRunFinishedAt).toBeNull()
+    expect(viewOf(buildImportStatus()).lastRunFinishedAt).toBe('2026-10-09T09:31:00.000Z')
+    expect(viewOf(withoutCycle).lastRunFinishedAt).toBeNull()
   })
 
   test('a manchete de cota não existe mais: ninguém a alcançava', () => {
@@ -509,7 +511,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('total zero não divide por zero', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         pairs: { done: 0, failed: 0, notCovered: 0, pending: 0, quotaExhausted: 0, total: 0 },
       }),
@@ -519,7 +521,7 @@ describe('leitura do status que a tela imprime', () => {
   })
 
   test('cada falha vira texto pelo código; código desconhecido cai no texto genérico', () => {
-    const view = resolveImportStatusView(
+    const view = viewOf(
       buildImportStatus({
         failures: [
           { errorCode: 'provider_unreachable', pairs: 2 },
@@ -565,16 +567,16 @@ describe('locale da importação', () => {
     }
 
     expect(headline.unauthorized).toBe(
-      'Fornecedor recusou o acesso: token inválido ou plano sem cobertura',
+      'Fornecedor recusou o acesso: chave inválida ou plano sem cobertura',
     )
     expect(explain.unauthorized).toContain('chave')
     expect(explain.unauthorized).toContain('plano')
-    expect(explain.unauthorized).toContain('Operações')
+    expect(explain.unauthorized).not.toContain('sem token')
     expect(headline.unreachable).toBe('Fornecedor indisponível, tentando de novo')
     expect(headline.malformed).toBe('Resposta inesperada do fornecedor')
     expect(explain.malformed).toContain('suporte')
     expect(explain.waiting).toContain('Operações')
-    expect(explain.waiting).toContain('sem token')
+    expect(explain.waiting).not.toContain('sem token')
   })
 
   test('o aviso de plano e a data do ciclo têm texto no singular e no plural, nos dois idiomas', () => {

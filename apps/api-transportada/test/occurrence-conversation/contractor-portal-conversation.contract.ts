@@ -17,6 +17,7 @@ import { ContractorNotBoundError } from '../../src/contractor-portal/domain/cont
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import type {
   ContractorPortalConversationTransactionPort,
+  ContractorReplyDelivery,
   PortalConversationMessageRecord,
 } from '../../src/occurrence-conversation/application/contractor-portal-conversation.port.js'
 import {
@@ -50,7 +51,16 @@ type Fake = {
   readonly messages: PortalConversationMessageRecord[]
 }
 
-function createFake(options: { readonly found?: boolean; readonly scopeError?: Error } = {}) {
+function createFake(
+  options: {
+    readonly delivery?: ContractorReplyDelivery
+    readonly found?: boolean
+    readonly notifierFails?: boolean
+    readonly scopeError?: Error
+  } = {},
+) {
+  const notices: Record<string, unknown>[] = []
+  const state = { committed: false }
   const fake: Fake = {
     calls: [],
     idempotency: new Map(),
@@ -82,6 +92,10 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
     ],
   }
   const transaction: ContractorPortalConversationTransactionPort = {
+    async applyContractorReply(input) {
+      fake.calls.push({ input, name: 'applyContractorReply' })
+      return options.delivery
+    },
     attachments: {
       attachUpload: async () => undefined,
       lockPendingUploads: async () => [],
@@ -137,6 +151,12 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
   }
   const useCase = createContractorPortalConversationUseCase({
     clock: () => NOW,
+    deliveryNotifier: {
+      notify: async (notice) => {
+        if (options.notifierFails === true) throw new Error('queue down')
+        notices.push({ ...notice, committedWhenSent: state.committed })
+      },
+    },
     fingerprintService: {
       create: async ({ fields, operation }) =>
         `${operation}:${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
@@ -156,9 +176,15 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
       headObject: async () => undefined,
       storeObject: async () => undefined,
     },
-    unitOfWork: { execute: (work) => work(transaction) },
+    unitOfWork: {
+      execute: async (work) => {
+        const result = await work(transaction)
+        state.committed = true
+        return result
+      },
+    },
   })
-  return { fake, useCase }
+  return { fake, notices, useCase }
 }
 
 describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)', () => {
@@ -262,6 +288,75 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
       companyId: COMPANY_ID,
       conversationId: CONVERSATION_ID,
       createdAt: NOW,
+    })
+  })
+
+  /** Spec 248 T4.5: a resposta pelo portal move o retorno na mesma transação, uma vez por mensagem nova. */
+  test('o envio aplica a resposta ao retorno com a mensagem gravada; o replay não aplica de novo', async () => {
+    const { fake, useCase } = createFake()
+    const send = () =>
+      useCase.send({
+        bodyText: 'Mandei a nota.',
+        context: CONTEXT,
+        idempotencyKey: 'portal-send-key-0001',
+        ref: REF,
+      })
+
+    await send()
+    await send()
+
+    const applied = fake.calls.filter((call) => call.name === 'applyContractorReply')
+    expect(applied).toHaveLength(1)
+    expect(applied[0]?.input).toEqual({
+      companyId: COMPANY_ID,
+      conversationId: CONVERSATION_ID,
+      messageId: 'message-internal-new',
+      now: NOW,
+    })
+  })
+
+  /** Spec 248 T4.6b: a entrega automática ao motorista avisa o sino dele depois do commit. */
+  describe('o aviso do sino do motorista na entrega automática (T4.6b)', () => {
+    const DRIVER_DELIVERY: ContractorReplyDelivery = {
+      messageId: 'driver-message-1',
+      occurrenceId: 'occurrence-1',
+      occurrenceLabel: 'NF 123/1',
+      protocol: '261012-AB12',
+      recipientUserId: 'driver-user-1',
+    }
+    const send = (useCase: ReturnType<typeof createFake>['useCase']) =>
+      useCase.send({
+        bodyText: 'Segue o boleto.',
+        context: CONTEXT,
+        idempotencyKey: 'portal-send-key-0001',
+        ref: REF,
+      })
+
+    test('avisa o motorista uma vez, com a chave do app, só depois de gravar', async () => {
+      const { notices, useCase } = createFake({ delivery: DRIVER_DELIVERY })
+
+      await send(useCase)
+      await send(useCase)
+
+      expect(notices).toEqual([
+        { committedWhenSent: true, companyId: COMPANY_ID, delivery: DRIVER_DELIVERY },
+      ])
+    })
+
+    test('sem entrega ao motorista (modo com aprovação, conta sem motorista, repetida), não avisa', async () => {
+      const { notices, useCase } = createFake()
+
+      await send(useCase)
+
+      expect(notices).toEqual([])
+    })
+
+    test('a falha do aviso nunca desfaz a resposta gravada', async () => {
+      const { fake, useCase } = createFake({ delivery: DRIVER_DELIVERY, notifierFails: true })
+
+      await expect(send(useCase)).resolves.toEqual({ createdAt: NOW.toISOString() })
+
+      expect(fake.calls.filter((call) => call.name === 'insertPortalMessage')).toHaveLength(1)
     })
   })
 

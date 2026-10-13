@@ -13,6 +13,13 @@ import {
   type OccurrenceTypeFlow,
   type TripOccurrenceStage,
 } from '@/modules/trip/shared/occurrence.constant'
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  InformedEmailForwardMode,
+  NoteRecipientForwardMode,
+} from '@/modules/trip/shared/occurrenceContractorReply.constant'
 
 export type OccurrenceTypeSaveInput = Readonly<{
   active: boolean
@@ -34,6 +41,18 @@ export type OccurrenceTypeSaveInput = Readonly<{
   emailSubject?: string | undefined
   /** Spec 183 T802: o aviso automático à contratante — `undefined` é "não mexe". */
   emailsContractor?: boolean | undefined
+  /** Spec 248 RF1: o retorno da contratante — `undefined` é "não mexe". */
+  contractorReplyAlertIntervalMinutes?: number | undefined
+  contractorReplyAlertMaxCount?: number | undefined
+  contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
+  contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  contractorReplyMode?: ContractorReplyMode | undefined
+  contractorReplyWaitHours?: null | number | undefined
+  driverReplyTemplate?: string | undefined
+  forwardEmailBody?: string | undefined
+  forwardEmailSubject?: string | undefined
+  forwardToInformedEmail?: InformedEmailForwardMode | undefined
+  forwardToNoteRecipient?: NoteRecipientForwardMode | undefined
   emailTemplateKey: null | string
   /** Spec 255 RF4: `null` limpa o ícone; `undefined` é "não mexe" — o `PUT` ausente mantém. */
   iconName?: null | string | undefined
@@ -78,7 +97,18 @@ export type OccurrenceTypeEdit = Readonly<
       | 'declaredAmountScope'
       | 'emailBody'
       | 'emailItemLineTemplate'
+      | 'contractorReplyAlertIntervalMinutes'
+      | 'contractorReplyAlertMaxCount'
+      | 'contractorReplyAlertMode'
+      | 'contractorReplyAttachmentKind'
+      | 'contractorReplyMode'
+      | 'contractorReplyWaitHours'
+      | 'driverReplyTemplate'
       | 'emailsContractor'
+      | 'forwardEmailBody'
+      | 'forwardEmailSubject'
+      | 'forwardToInformedEmail'
+      | 'forwardToNoteRecipient'
       | 'emailSubject'
       | 'emailTemplateKey'
       | 'flow'

@@ -86,6 +86,13 @@
   background: var(--color-asphalt);
 }
 
+/* Classe dobrada: dentro de `.dialog`/`.fieldGrid` do módulo de viagens, `input` (0,1,1) vencia a classe simples e devolvia 3rem a um campo que mora ao lado de seletores de 2,4rem. */
+.filterInput.filterInput {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
 .filterInput:focus {
   outline: 1px solid var(--color-copper);
 }

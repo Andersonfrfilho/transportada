@@ -124,7 +124,12 @@ describe('paridade com o catálogo da API', () => {
     const serviceOnly = await readServiceOnlyPermissions()
     const grouped = new Set<string>(PERMISSION_GROUPS.flatMap((group) => [...group.permissions]))
 
-    expect(serviceOnly).toEqual(['mdfe.auto-issue', 'whatsapp.settle', 'trip.canhoto-auto-review'])
+    expect(serviceOnly).toEqual([
+      'mdfe.auto-issue',
+      'whatsapp.settle',
+      'trip.canhoto-auto-review',
+      'occurrence.automatic-mail',
+    ])
     for (const permission of serviceOnly) {
       expect({ grouped: grouped.has(permission), permission }).toEqual({
         grouped: false,

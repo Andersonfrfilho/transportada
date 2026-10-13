@@ -4,7 +4,7 @@ import { formatStoredPhone } from '@/modules/shared/phone.service'
 import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import type { TripConference } from './tripConference.service'
-import type { TripDriverLine } from './trip.types'
+import type { TripCargoWeight, TripDriverLine } from './trip.types'
 
 export type TripConferenceSheetLabels = Readonly<{
   checkedBy: string
@@ -28,6 +28,9 @@ export type TripConferenceSheetLabels = Readonly<{
   value: string
   vehicle: string
   volumes: string
+  weightEstimated: string
+  weightMissingNotes: string
+  weightNotInformed: string
 }>
 
 export type TripConferenceSheetField = Readonly<{ label: string; value: string }>
@@ -43,6 +46,8 @@ export type TripConferenceSheetModel = Readonly<{
 }>
 
 export type BuildTripConferenceSheetInput = Readonly<{
+  /** O peso da carga da viagem (spec 079): `null` quando a API não o calculou. */
+  cargoWeight: TripCargoWeight | null
   conference: TripConference
   creatorName: null | string | undefined
   drivers: readonly TripDriverLine[]
@@ -70,6 +75,37 @@ function formatMoney(value: string): string {
   return formatAmount(value).replace(NON_BREAKING_SPACE, ' ')
 }
 
+const weightFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+})
+
+/**
+ * O peso que o motorista assina, em kg e com a mesma casa decimal do painel. Sem peso em nenhuma nota
+ * é "peso não informado", nunca `0,00 kg`: zero afirmaria que a carga não pesa. Com parte das notas
+ * sem peso, o total é só do que se sabe e a folha diz quantas ficaram de fora; peso estimado leva a
+ * marca ao lado do número, como em todo lugar que o painel o mostra.
+ */
+export function describeTripConferenceWeight(input: {
+  readonly cargoWeight: TripCargoWeight | null
+  readonly labels: TripConferenceSheetLabels
+}): string {
+  const { cargoWeight, labels } = input
+  const kilograms =
+    cargoWeight === null ? Number.NaN : Number.parseFloat(cargoWeight.grossWeightKilograms)
+
+  if (cargoWeight === null || !Number.isFinite(kilograms) || kilograms <= 0) {
+    return labels.weightNotInformed
+  }
+
+  const parts = [`${weightFormatter.format(kilograms).replace(NON_BREAKING_SPACE, ' ')} kg`]
+  if (cargoWeight.source === 'estimated') parts.push(`(${labels.weightEstimated})`)
+  const missing = cargoWeight.documentsWithoutWeight
+  const text = parts.join(' ')
+
+  return missing > 0 ? `${text} · ${missing} ${labels.weightMissingNotes}` : text
+}
+
 function describeDriver(driver: TripDriverLine): string {
   const taxId = driver.driverTaxId === null ? '' : ` · ${formatTaxId(driver.driverTaxId)}`
   const phone =
@@ -82,7 +118,7 @@ function describeDriver(driver: TripDriverLine): string {
 
 /** Cada campo só existe se tiver valor: a folha leva o que há na viagem, nunca um rótulo vazio. */
 function buildFields(input: BuildTripConferenceSheetInput): readonly TripConferenceSheetField[] {
-  const { conference, creatorName, drivers, labels, tripCode, vehiclePlate } = input
+  const { cargoWeight, conference, creatorName, drivers, labels, tripCode, vehiclePlate } = input
   const { summary } = conference
   const crew = drivers.filter((driver) => driver.role !== 'helper')
   const fields: TripConferenceSheetField[] = [
@@ -95,7 +131,7 @@ function buildFields(input: BuildTripConferenceSheetInput): readonly TripConfere
     },
     {
       label: labels.notes,
-      value: `${summary.noteCount} · ${summary.totalVolumes} ${labels.volumes.toLowerCase()}`,
+      value: `${summary.noteCount} · ${summary.totalVolumes} ${labels.volumes.toLowerCase()} · ${describeTripConferenceWeight({ cargoWeight, labels })}`,
     },
   ]
 

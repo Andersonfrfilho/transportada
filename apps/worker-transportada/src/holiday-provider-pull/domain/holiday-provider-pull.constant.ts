@@ -5,9 +5,13 @@ export const HOLIDAY_PROVIDER_PULL_JOB = 'holiday.provider.pull'
 
 export const FERIADOS_API_BASE_URL = 'https://feriadosapi.com'
 
+/** O valor de `holiday_provider_settings.provider` do único fornecedor (a CHECK da API aceita só este). */
+export const FERIADOS_API_SETTINGS_PROVIDER = 'feriadosapi'
+
 /**
- * Padrão de `FERIADOS_API_MONTHLY_REQUEST_BUDGET`: o limite do plano Developer (5.000 consultas por mês)
- * menos 10% de folga. O plano e o valor são a Q3 da spec 252, ainda em aberto: o usuário configura.
+ * Orçamento mensal padrão: o limite do plano Developer (5.000 consultas por mês) menos 10% de folga. O plano e
+ * o valor são a Q3 da spec 252, ainda em aberto. Vale quando `monthly_request_budget` é NULL; o administrador
+ * o define na tela da instalação (spec 262). Cópia por valor da API, com contrato de paridade.
  */
 export const FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET = 4500
 

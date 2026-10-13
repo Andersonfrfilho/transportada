@@ -143,6 +143,8 @@ export default defineRailway((ctx) => {
   const worker = service('worker', {
     build: { builder: 'DOCKERFILE', dockerfilePath: 'apps/worker-transportada/Dockerfile' },
     deploy: {
+      /** Spec 264 (N4): o whisper-cli não aceita sinal e só termina no timeout do motor, até 2 × 300 s. */
+      drainingSeconds: 600,
       healthcheckPath: '/health/live',
       healthcheckTimeout: 120,
       restartPolicyType: 'ON_FAILURE',
@@ -156,6 +158,16 @@ export default defineRailway((ctx) => {
       API_BASE_URL: preserve(),
       APP_BASE_URL: preserve(),
       APP_ENV: preserve(),
+      /**
+       * Spec 264 / ADR-0103: valores não secretos, versionados aqui. `AUDIO_TRANSCRIPTION_MODEL_PATH` mora
+       * na imagem (`ENV` do Dockerfile) e o binário é achado no PATH, então nenhum dos dois é declarado.
+       */
+      AUDIO_TRANSCRIPTION_BATCH_SIZE: '2',
+      AUDIO_TRANSCRIPTION_LANGUAGE: 'pt',
+      AUDIO_TRANSCRIPTION_MAX_DURATION_MS: '600000',
+      AUDIO_TRANSCRIPTION_RECOVERY_WINDOW: '72',
+      AUDIO_TRANSCRIPTION_THREADS: '7',
+      AUDIO_TRANSCRIPTION_TIMEOUT_MS: '300000',
       CTE_TECHNICAL_RESPONSIBLE_CNPJ: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CONTACT: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_EMAIL: preserve(),
@@ -165,9 +177,8 @@ export default defineRailway((ctx) => {
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
-      /** Spec 252: orçamento de requisições do mês (vazio vale 4500). Só o worker lê. */
+      /** Spec 262: as duas FERIADOS_API_* são legado ignorado pelo worker (chave e orçamento moram no banco); saem na T4.4. */
       FERIADOS_API_MONTHLY_REQUEST_BUDGET: preserve(),
-      /** Spec 252: token da FeriadosAPI — passo do usuário; sem ele a rotina não é registrada. Só o worker lê. */
       FERIADOS_API_TOKEN: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),

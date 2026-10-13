@@ -147,14 +147,16 @@
     "pick": "Quick reply",
     "loading": "Loading quick replies",
     "loadError": "Could not load the quick replies. Try again in a moment.",
-    "description": "Ready texts offered by the composer of each conversation tab. Picking one only inserts the text; the writer still edits it before sending. Deactivating removes it from the composer without deleting it.",
+    "description": "Ready texts offered by the composer of each conversation tab. Picking one only inserts the text; the writer still edits it before sending. Deactivating removes it from the composer without deleting it. Driver replies are the ready messages the driver app offers above the text field.",
     "audience": {
       "contractor": "For the contractor",
-      "driver": "For the driver"
+      "driver": "For the driver",
+      "driver_reply": "Driver replies"
     },
     "new": {
       "contractor": "New reply for the contractor",
-      "driver": "New reply for the driver"
+      "driver": "New reply for the driver",
+      "driver_reply": "New driver reply to the office"
     },
     "empty": "No reply yet.",
     "limit": "Up to 500 characters.",
@@ -193,7 +195,54 @@
     "forward": "Forward to contractor",
     "forwarding": "Forwarding…",
     "forwarded": "Forwarded to the contractor through the portal.",
-    "forwardError": "Could not forward. Try again shortly."
+    "forwardError": "Could not forward. Try again shortly.",
+    "sendToDriver": "Send to driver",
+    "sendingToDriver": "Sending…",
+    "sentToDriver": "Sent to the driver in the app chat.",
+    "alreadySentToDriver": "Already sent to the driver.",
+    "sendToDriverSkipped": "The trip driver does not have an active app account yet.",
+    "sendToDriverError": "Could not send. Try again shortly."
+  },
+  "replyEmail": {
+    "sendToNote": "Send to the invoice customer",
+    "forwardToAddress": "Forward to an email",
+    "addressLabel": "Destination email",
+    "addressHint": "One address only. The boleto goes attached, with the subject and text of the occurrence type.",
+    "send": "Send",
+    "sending": "Sending…",
+    "cancel": "Cancel",
+    "reason": {
+      "noteWithoutEmail": "The invoice has no customer email: sending is unavailable. Use \"Forward to an email\".",
+      "limitReached": "Limit of 5 emails per occurrence reached."
+    },
+    "outcome": {
+      "queued": "Queued to send to {{address}}.",
+      "alreadyQueued": "This send was already made.",
+      "note_without_recipient_email": "The invoice has no customer email: nothing was sent.",
+      "attachment_too_large_for_email": "The file is over 10 MB and does not fit in an email: nothing was sent.",
+      "send_failed": "The email could not be sent."
+    },
+    "failure": {
+      "addressInvalid": "Enter a single email address, without commas, semicolons or line breaks.",
+      "limitReached": "Limit of 5 emails per occurrence reached.",
+      "forwardDisabled": "This occurrence type does not send the boleto by email. Check the Types tab.",
+      "mailNotReady": "The company email is not ready to send yet. Check the email settings.",
+      "generic": "Could not send. Try again shortly."
+    },
+    "history": {
+      "title": "Boleto sent by email",
+      "target": {
+        "note_recipient_email": "Invoice customer",
+        "informed_email": "Informed email"
+      },
+      "status": {
+        "queued": "queued",
+        "sent": "sent",
+        "pending_window": "waiting",
+        "skipped": "not sent",
+        "failed": "failed"
+      }
+    }
   },
   "channel": {
     "email": "Email",
@@ -226,13 +275,193 @@
     "discard": "Discard",
     "microphoneError": "Could not use the microphone. Check the browser permission or attach an audio file."
   },
+  "participant": {
+    "contractor": "Contractor",
+    "driver": "Driver",
+    "operator": "Operator"
+  },
+  "layout": {
+    "label": "How conversations are shown",
+    "sideBySide": "Side by side (parallel conversations)",
+    "tabs": "Each conversation in a tab"
+  },
+  "legend": {
+    "title": "Who is who",
+    "show": "Show the legend",
+    "hide": "Hide the legend",
+    "participants": "Who speaks",
+    "channels": "Through where",
+    "operatorHint": "Company message: on the right side",
+    "channelHint": {
+      "email": "Message by email",
+      "whatsapp": "Message by WhatsApp",
+      "app": "Message in the driver app",
+      "portal": "Message in the contractor portal"
+    }
+  },
   "thread": {
     "newMessages_one": "{{count}} new message in the conversation",
-    "newMessages_other": "{{count}} new messages in the conversation"
+    "newMessages_other": "{{count}} new messages in the conversation",
+    "contractorNewMessages": "New messages from the contractor",
+    "via": "via {{channel}}",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "contractor": {
+      "counterpart": "Contractor email and portal"
+    },
+    "driver": {
+      "counterpart": "Driver app chat"
+    },
+    "closed": {
+      "readOnly": "You can read the conversation, but you are not allowed to write.",
+      "noRecipient": "Without an invoice or an identified contractor there is nobody to write to.",
+      "noPortal": "The contractor portal is not open for this occurrence. To write, use Send by email."
+    },
+    "attachments": {
+      "title": "Files received",
+      "hint": "Take the file that arrived to the right place: the driver, the contractor or the occurrence."
+    },
+    "senders": {
+      "title": "Sender outside the contacts"
+    },
+    "failures": {
+      "title": "Message that did not arrive",
+      "resent": "Resent by {{channel}}.",
+      "resendError": "Could not resend. Try again in a moment."
+    }
   },
   "sendRecovery": {
     "uploadExpired": "An attachment expired before sending. Send again — it will upload once more.",
     "alreadySent": "The previous message was already recorded. Send again to send the current text.",
     "driverChanged": "This conversation moved to another driver of the trip. Reach the office another way."
+  },
+  "audioTranscription": {
+    "title": "Transcribe conversation audio",
+    "loading": "Loading the transcription setting",
+    "retry": "Try again",
+    "machine": "The transcription is generated by a machine, in a model that runs on our own server: no voice leaves for an external service. It may contain mistakes and is only a reading aid; the audio remains the message.",
+    "limit_one": "Only audio shorter than {{minutes}} minute is transcribed.",
+    "limit_other": "Only audio shorter than {{minutes}} minutes is transcribed.",
+    "effectOfTurningOff": "When turned off: transcriptions already generated are kept but hidden; audio that arrives while it is off is not transcribed later, even if you turn it back on.",
+    "toggle": "Transcribe this company's conversation audio",
+    "lastChange": "Last change: {{when}}",
+    "saving": "Saving the setting",
+    "error": {
+      "failed": "Could not reach the server. The previous setting was kept.",
+      "forbidden": "You do not have permission to change this setting.",
+      "unauthenticated": "Your session has expired. Sign in again to continue.",
+      "invalid": "The server refused the request. The previous setting was kept."
+    }
+  },
+  "contractorReply": {
+    "title": "Contractor reply",
+    "loading": "Loading the contractor reply",
+    "error": "Could not load the contractor reply. Try again in a moment.",
+    "status": {
+      "awaiting_contractor": "Waiting for the contractor",
+      "overdue": "Overdue",
+      "reply_received": "Reply received",
+      "awaiting_operator": "Waiting for the operator",
+      "needs_operator": "Needs the operator",
+      "delivered": "Delivered",
+      "handled": "Handled",
+      "cancelled": "Cancelled"
+    },
+    "reason": {
+      "no_accepted_attachment": "no accepted attachment",
+      "multiple_attachments": "more than one attachment"
+    },
+    "alerts_one": "{{count}} alert",
+    "alerts_other": "{{count}} alerts",
+    "alertsLabel": "Alerts sent",
+    "alertsProgress": "{{count}} of {{max}}",
+    "deadline": "Deadline",
+    "deadlinePassed": "past due",
+    "reasonLabel": "Reason",
+    "handledNoteLabel": "Operator note",
+    "handled": {
+      "open": "Mark as handled",
+      "note": "What was done",
+      "hint": "Required, up to {{max}} characters. It stays with your name on this occurrence.",
+      "cancel": "Cancel",
+      "confirm": "Mark as handled",
+      "saving": "Saving…",
+      "error": {
+        "required": "Write what was done.",
+        "tooLong": "The note exceeded {{max}} characters.",
+        "notHandleable": "This reply was already delivered or cancelled, so there is nothing left to handle.",
+        "send": "Could not save. Try again in a moment."
+      }
+    },
+    "resend": {
+      "open": "Resend the request to the contractor",
+      "sending": "Resending…",
+      "sent_one": "Request resent to {{count}} contact.",
+      "sent_other": "Request resent to {{count}} contacts.",
+      "tooSoon": "The request was resent a moment ago; it can only be resent again after the alert interval.",
+      "tooSoonAt": "Request resent a moment ago. It can be resent again at {{moment}}.",
+      "error": {
+        "notResendable": "This reply no longer waits for the contractor; there is nothing to resend.",
+        "tooSoon": "The request was already resent within the alert interval. Try again later.",
+        "originalMissing": "We could not find the original request in the conversation with the contractor.",
+        "noRecipient": "No active contractor contact receives this request. Check the contacts.",
+        "send": "Could not resend. Try again in a moment."
+      }
+    },
+    "timeline": {
+      "title": "History",
+      "empty": "No events yet.",
+      "actor": {
+        "system": "System",
+        "user": "Operations"
+      },
+      "event": {
+        "awaiting_contractor": "Request sent to the contractor",
+        "resent": "Request resent to the contractor",
+        "overdue": "Reply overdue",
+        "reply_received": "Reply received",
+        "awaiting_operator": "Waiting for the operator",
+        "needs_operator": "Needs the operator",
+        "delivered": "Delivered to the driver",
+        "handled": "Marked as handled",
+        "cancelled": "Cancelled"
+      }
+    },
+    "deliveries": {
+      "title": "Deliveries",
+      "target": {
+        "driver_app_chat": "Driver, app chat",
+        "driver_whatsapp": "Driver, WhatsApp",
+        "note_recipient_email": "Invoice customer, e-mail",
+        "informed_email": "Informed e-mail"
+      },
+      "status": {
+        "queued": "queued",
+        "sent": "sent",
+        "pending_window": "waiting for the driver to write",
+        "skipped": "not sent",
+        "failed": "failed"
+      },
+      "reason": {
+        "driver_without_account": "driver without an account",
+        "driver_unreachable": "driver unreachable",
+        "whatsapp_window_closed": "WhatsApp window closed",
+        "note_without_recipient_email": "invoice without a customer e-mail",
+        "attachment_too_large_for_email": "file too large for e-mail",
+        "send_failed": "sending failed",
+        "no_accepted_attachment": "no accepted attachment",
+        "multiple_attachments": "more than one attachment"
+      }
+    },
+    "hint": {
+      "awaiting_contractor": "We asked the contractor for the boleto and are waiting for the reply.",
+      "awaiting_operator": "The contractor replied with the boleto. You still need to check it and send it to the driver.",
+      "cancelled": "The occurrence was cancelled, so this reply no longer proceeds.",
+      "delivered": "The boleto was already sent to the driver in the app chat.",
+      "handled": "Someone in operations resolved this outside the system and left a note.",
+      "needs_operator": "The reply could not be read automatically. Open the conversation and decide.",
+      "overdue": "The contractor missed the deadline. Consider calling or resending the request.",
+      "reply_received": "The contractor replied with the boleto and it is on its way to the driver."
+    }
   }
 }

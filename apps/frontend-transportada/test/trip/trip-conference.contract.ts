@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -18,9 +20,11 @@ import { buildTripConferenceSheetLabels } from '@/modules/trip/shared/tripConfer
 import {
   buildTripConferenceFileName,
   buildTripConferenceSheet,
+  describeTripConferenceWeight,
   ROUTE_SEPARATOR,
 } from '@/modules/trip/shared/tripConferenceSheet.service'
 import type {
+  TripCargoWeight,
   TripDocumentDetail,
   TripStopDetail,
   TripTimelineItem,
@@ -190,6 +194,7 @@ describe('buildTripConferenceSheet', () => {
     const conference = buildTripConference({ documents: [doc], stops: [] })
     const sheet = buildTripConferenceSheet({
       ...base,
+      cargoWeight: null,
       conference,
       creatorName: 'Maria Souza',
       drivers: [],
@@ -210,6 +215,7 @@ describe('buildTripConferenceSheet', () => {
     const conference = buildTripConference({ documents: [], stops: [] })
     const sheet = buildTripConferenceSheet({
       ...base,
+      cargoWeight: null,
       conference,
       creatorName: undefined,
       drivers: [],
@@ -232,6 +238,7 @@ describe('buildTripConferencePdf', () => {
     const conference = buildTripConference({ documents: [doc], stops: [] })
     const labels = buildTripConferenceSheetLabels((key) => key)
     const sheet = buildTripConferenceSheet({
+      cargoWeight: null,
       conference,
       creatorName: 'Maria Souza',
       drivers: [],
@@ -262,6 +269,7 @@ describe('cidades da rota na folha', () => {
       stops: [stop({ documents: [only], label: 'RUA A, 1, AGUAI, SP', sequence: 1 })],
     })
     const sheet = buildTripConferenceSheet({
+      cargoWeight: null,
       conference,
       creatorName: null,
       drivers: [],
@@ -395,5 +403,76 @@ describe('readTripCreatorName', () => {
 
     expect(name).toBeNull()
     expect(calls).toBe(MAX_PAGES_TO_FIND_CREATOR)
+  })
+})
+
+describe('peso na folha que o motorista assina', () => {
+  const labels = buildTripConferenceSheetLabels((key) => key)
+  const weight = (overrides: Partial<TripCargoWeight>): TripCargoWeight => ({
+    documentsWithoutWeight: 0,
+    grossWeightKilograms: '1234.5000',
+    maxPayloadKg: null,
+    payloadRatio: null,
+    source: 'declared',
+    ...overrides,
+  })
+
+  it('escreve o total em kg, com duas casas', () => {
+    expect(describeTripConferenceWeight({ cargoWeight: weight({}), labels })).toBe('1.234,50 kg')
+  })
+
+  it('sem peso nenhum diz "não informado" em vez de 0,00 kg', () => {
+    expect(describeTripConferenceWeight({ cargoWeight: null, labels })).toBe(
+      'conference.sheetWeightNotInformed',
+    )
+    expect(
+      describeTripConferenceWeight({
+        cargoWeight: weight({ grossWeightKilograms: '0.0000' }),
+        labels,
+      }),
+    ).toBe('conference.sheetWeightNotInformed')
+  })
+
+  it('marca o peso estimado e conta as notas que ficaram sem peso', () => {
+    const text = describeTripConferenceWeight({
+      cargoWeight: weight({ documentsWithoutWeight: 2, source: 'estimated' }),
+      labels,
+    })
+
+    expect(text).toBe(
+      '1.234,50 kg (conference.sheetWeightEstimated) · 2 conference.sheetWeightMissingNotes',
+    )
+  })
+
+  it('o peso sai ao lado dos volumes, na folha impressa e no PDF', () => {
+    const doc = document({ id: 'a', nfeNumber: '1', volumeCount: 3 })
+    const sheet = buildTripConferenceSheet({
+      cargoWeight: weight({ grossWeightKilograms: '80' }),
+      conference: buildTripConference({ documents: [doc], stops: [] }),
+      creatorName: null,
+      drivers: [],
+      labels,
+      printedOn: new Date('2026-10-08T18:00:00Z'),
+      tripCode: 'x',
+      vehiclePlate: null,
+    })
+
+    expect(sheet.fields.find((field) => field.label === 'conference.sheetNotes')?.value).toBe(
+      '1 · 3 conference.sheetvolumes · 80,00 kg',
+    )
+  })
+})
+
+describe('o botão Imprimir leva só a folha', () => {
+  const read = (path: string): string =>
+    readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
+
+  it('a folha é a região exclusiva e o CSS esconde todo o resto do body', () => {
+    expect(read('src/modules/trip/components/TripConferencePrintSheet.component.tsx')).toContain(
+      'data-print-region="exclusive"',
+    )
+    expect(read('src/styles/index.css')).toContain(
+      "body:has([data-print-region='exclusive']) > :not([data-print-region='exclusive'])",
+    )
   })
 })

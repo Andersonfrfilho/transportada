@@ -10,6 +10,7 @@ import {
   isRecord,
   isSafeCertificate,
   isSettingsResponse,
+  withDisplayNameDefault,
   toSafeCertificate,
 } from './companySettingsResponse.validation'
 import {
@@ -239,6 +240,7 @@ function cleanUpdate(input: CompanySettingsUpdate): CompanySettingsUpdate {
       cityIbgeCode: input.profile.cityIbgeCode,
       cnpj: input.profile.cnpj,
       complement: input.profile.complement,
+      displayNameMode: input.profile.displayNameMode,
       district: input.profile.district,
       email: input.profile.email,
       legalName: input.profile.legalName,
@@ -352,7 +354,7 @@ async function removeLogo(dependencies: ClientDependencies): Promise<void> {
 async function readSettings(dependencies: ClientDependencies): Promise<CompanySettingsResponse> {
   const response = await getRequest({ dependencies, path: '/company-settings' })
   if (!isSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
-  return response
+  return withDisplayNameDefault(response)
 }
 
 async function readCertificates(
@@ -440,7 +442,7 @@ async function updateSettings(
     }),
   })
   if (!isSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
-  return response
+  return withDisplayNameDefault(response)
 }
 
 async function requestScheduledDistribution(

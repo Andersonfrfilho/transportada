@@ -37,6 +37,7 @@ describe('permissão do calendário (spec 238 RF7)', () => {
       'Sábado',
       'Feriados municipais',
       'Feriados estaduais',
+      'Chave da FeriadosAPI',
       'Importação de feriados',
       'Removidos pelo fornecedor',
       'Feriados desligados',
@@ -46,6 +47,17 @@ describe('permissão do calendário (spec 238 RF7)', () => {
     )
     expect(text()).toContain('feriados nacionais e estaduais não fecham clientes no roteiro')
     expect(text()).toContain('o prazo de entrega por contratante conta todos')
+  })
+
+  it('sem `holiday-import.configure` os mesmos blocos aparecem: a aba é de `settings.manage`, só a escrita da chave é de outra permissão', async () => {
+    await mountPanel(true, false)
+
+    await waitForText('Chave da FeriadosAPI')
+    const headings = [...document.querySelectorAll('h3')].map((heading) => heading.textContent)
+    expect(headings).toContain('Chave da FeriadosAPI')
+    expect(headings.indexOf('Chave da FeriadosAPI')).toBeLessThan(
+      headings.indexOf('Importação de feriados'),
+    )
   })
 
   it('o aviso fixo diz até que ano: sem regras é o ano corrente + 10', async () => {

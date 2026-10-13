@@ -132,6 +132,12 @@ const CATALOG = [
     minimumIntervalSeconds: 300,
   },
   {
+    /** Spec 264: o ciclo descobre e entrega a transcrição ao executor em processo (contract.md §5.8). */
+    failureOutcomes: ['already_running', 'runner_lock_expired'],
+    job: 'conversation.audio.transcribe',
+    minimumIntervalSeconds: 300,
+  },
+  {
     /** Spec 237 T4.8: a retenção dos dados da planilha só toca o próprio banco e o bucket. */
     failureOutcomes: [],
     job: 'cargo-preview.retention.apply',
@@ -145,9 +151,26 @@ const CATALOG = [
   },
   {
     /** Fornecedor externo com cota mensal: o teto real é a cota, o piso de uma hora é cortesia. */
-    failureOutcomes: ['provider_unreachable', 'provider_unauthorized', 'malformed_response'],
+    failureOutcomes: [
+      'provider_unreachable',
+      'provider_unauthorized',
+      'malformed_response',
+      'credential_unreadable',
+    ],
     job: 'holiday.provider.pull',
     minimumIntervalSeconds: 3600,
+  },
+  {
+    /** Spec 248 T4.4b: o aviso que a viagem não mandou; o worker pede, a API envia. Nasce pausada. */
+    failureOutcomes: ['api_unreachable', 'api_unauthorized'],
+    job: 'occurrence.automatic-mail.sweep',
+    minimumIntervalSeconds: 300,
+  },
+  {
+    /** Spec 248 T4.10: o alerta do retorno vencido da contratante; o worker faz tudo. Nasce pausada. */
+    failureOutcomes: ['notification_failed'],
+    job: 'occurrence.contractor-reply.alert',
+    minimumIntervalSeconds: 300,
   },
 ] as const
 

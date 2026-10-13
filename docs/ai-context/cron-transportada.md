@@ -141,8 +141,8 @@ quatro apps — o cron não a executa, só a reconhece: quem roda é o **worker*
 `docs/ai-context/worker-transportada.md` § "A limpeza do limitador de taxa é rotina do worker".
 
 ⚠️ `holiday.provider.pull` (spec 252, a importação de feriados da FeriadosAPI) está no mesmo caso: o catálogo
-mirrorizado a reconhece para o contrato de paridade das quatro apps, mas quem a executa é o **worker** (e só com
-`FERIADOS_API_TOKEN`); o cron nunca chama o fornecedor nem lê o token. Ver
+mirrorizado a reconhece para o contrato de paridade das quatro apps, mas quem a executa é o **worker** (que a registra
+sempre e lê a chave e o orçamento do banco a cada ciclo, spec 262); o cron nunca chama o fornecedor nem lê a chave. Ver
 `docs/ai-context/worker-transportada.md` § "A importação de feriados da FeriadosAPI".
 
 ⚠️ O catálogo `FUEL_TYPES` é **cópia por valor** nas três apps que o usam —

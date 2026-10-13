@@ -32,6 +32,7 @@ import {
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
+import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import type { TripQuickCreateController } from '../hooks/useTripQuickCreate.hook'
 import {
@@ -208,7 +209,7 @@ export function TripQuickCreateDialog({
   /** A chave digitada passa pelo mesmo caminho do bipe: quem decide o que ela vira é o serviço. */
   function submitTypedKey(): void {
     if (typedKey.trim() === '') return
-    quickCreate.acceptScan(typedKey)
+    quickCreate.submitTyped(typedKey)
     setTypedKey('')
   }
 
@@ -277,6 +278,10 @@ export function TripQuickCreateDialog({
             </Button>
           ) : null}
         </div>
+        <TripTypedNoteFeedback
+          note={quickCreate.typedNote}
+          onPick={(document) => quickCreate.stageDocuments([document])}
+        />
 
         {/*
           ⚠️ A busca oferece só o que ainda não está na fila. Nota escolhida sai da lista e volta

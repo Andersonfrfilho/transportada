@@ -11,8 +11,11 @@ import type {
   HolidayImportStatus,
   HolidayImportStatusView,
 } from './holidayImport.types'
+import type { HolidayProviderSettings } from './holidayProviderSettings.types'
 
 const FAILURE_MESSAGE_PREFIX = 'import.failures'
+const EXPLAIN_MESSAGE_PREFIX = 'import.status.explain'
+const WAITING_WITH_TOKEN = 'waitingWithToken'
 const UNKNOWN_FAILURE = 'unknown'
 
 function isKnownFailure(code: string): boolean {
@@ -37,14 +40,40 @@ function countFailedPairs(status: HolidayImportStatus): number {
 }
 
 /**
- * Uma manchete só, por prioridade: empresa fora da importação, o que o fornecedor fez no último ciclo da rotina, falha
- * por par, ainda sem a primeira busca, em dia. Os números ficam todos na tela — a manchete é a primeira coisa que o
- * operador precisa saber, não a única.
+ * O `status` não traz a chave nem o orçamento (são da instalação): "sem chave" e "orçamento atingido" vêm da configuração
+ * lida à parte. Sem ela (a leitura falhou ou ainda não chegou), o cartão é o de antes — nenhuma das duas manchetes.
  */
-function resolveHeadline(status: HolidayImportStatus): HolidayImportHeadline {
+type StatusViewInput = Readonly<{
+  settings?: HolidayProviderSettings | undefined
+  status: HolidayImportStatus
+}>
+
+/** `>=` casa com o worker, que só reivindica uma requisição enquanto `requests < budget`. */
+function hasReachedBudget({ settings, status }: StatusViewInput): boolean {
+  return settings !== undefined && status.monthlyRequests >= settings.monthlyRequestBudget
+}
+
+/** A chave foi salva depois do último ciclo: o desfecho dele é da chave velha e não vale para a nova. */
+function isKeyNewerThanLastRun({ settings, status }: StatusViewInput): boolean {
+  const keySavedAt = Date.parse(settings?.tokenUpdatedAt ?? '')
+  const lastRunAt = Date.parse(status.lastRun?.finishedAt ?? '')
+  return keySavedAt > lastRunAt
+}
+
+/**
+ * Uma manchete só, por prioridade (spec 262 D8): empresa fora da importação, sem chave, o que o último ciclo da rotina
+ * disse da chave e do fornecedor (ou "chave nova, aguardando o próximo ciclo" se a chave é mais nova que o ciclo),
+ * orçamento do mês atingido, falha por par, ainda sem a primeira busca, em dia. Os números ficam todos na tela — a manchete é a primeira coisa que o operador precisa saber, não a única.
+ */
+function resolveHeadline(input: StatusViewInput): HolidayImportHeadline {
+  const { settings, status } = input
   if (!status.isEnabled) return HOLIDAY_IMPORT_HEADLINE.DISABLED
+  if (settings?.tokenConfigured === false) return HOLIDAY_IMPORT_HEADLINE.NO_TOKEN
   const runHeadline = resolveRunFailureHeadline(status.lastRun?.outcome)
-  if (runHeadline !== undefined) return runHeadline
+  if (runHeadline !== undefined) {
+    return isKeyNewerThanLastRun(input) ? HOLIDAY_IMPORT_HEADLINE.NEW_KEY_PENDING : runHeadline
+  }
+  if (hasReachedBudget(input)) return HOLIDAY_IMPORT_HEADLINE.BUDGET_REACHED
   if (listVisibleFailures(status).length > 0 || countFailedPairs(status) > 0) {
     return HOLIDAY_IMPORT_HEADLINE.FAILING
   }
@@ -52,16 +81,26 @@ function resolveHeadline(status: HolidayImportStatus): HolidayImportHeadline {
   return HOLIDAY_IMPORT_HEADLINE.HEALTHY
 }
 
-export function resolveImportStatusView(status: HolidayImportStatus): HolidayImportStatusView {
+/** "Aguardando" só manda despausar em Operações quando a chave existe: sem ela o que falta é a chave. */
+function resolveExplainKey(input: Readonly<{ headline: HolidayImportHeadline } & StatusViewInput>) {
+  const isWaitingWithToken =
+    input.headline === HOLIDAY_IMPORT_HEADLINE.WAITING && input.settings?.tokenConfigured === true
+  return `${EXPLAIN_MESSAGE_PREFIX}.${isWaitingWithToken ? WAITING_WITH_TOKEN : input.headline}`
+}
+
+export function resolveImportStatusView(input: StatusViewInput): HolidayImportStatusView {
+  const { status } = input
   const { done, total } = status.pairs
+  const headline = resolveHeadline(input)
   return {
+    explainKey: resolveExplainKey({ ...input, headline }),
     failedPairs: countFailedPairs(status),
     failures: listVisibleFailures(status).map(({ errorCode, pairs }) => ({
       code: errorCode,
       messageKey: `${FAILURE_MESSAGE_PREFIX}.${isKnownFailure(errorCode) ? errorCode : UNKNOWN_FAILURE}`,
       pairs,
     })),
-    headline: resolveHeadline(status),
+    headline,
     lastRunFinishedAt: status.lastRun?.finishedAt ?? null,
     planRestrictedPairs: status.pairs.planRestricted ?? 0,
     progress: { done, ratio: total === 0 ? 0 : done / total, total },

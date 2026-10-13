@@ -6,6 +6,13 @@
  * uma junção sem `company_id` em qualquer degrau é o caminho pelo qual o canhoto de uma empresa
  * aparece na tela de outra.
  */
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  ForwardToInformedEmailMode,
+  ForwardToNoteRecipientMode,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
@@ -53,7 +60,11 @@ import type {
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
 import {
+  OCCURRENCE_TYPE_CONTRACTOR_REPLY_ALERT_WAIT_CHECK,
+  OCCURRENCE_TYPE_CONTRACTOR_REPLY_REQUIRES_MAIL_CHECK,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
+  OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY_CHECK,
+  OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT_CHECK,
   OCCURRENCE_TYPE_ITEMS_MINIMUM_SHAPE_CHECK,
   OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
   OCCURRENCE_TYPE_NAME_UNIQUE,
@@ -62,7 +73,11 @@ import {
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.types.js'
 import {
+  OccurrenceTypeContractorReplyAlertNeedsWaitError,
+  OccurrenceTypeContractorReplyNeedsMailError,
   OccurrenceTypeDeclaredAmountNeedsItemsError,
+  OccurrenceTypeForwardAutomaticNeedsReplyError,
+  OccurrenceTypeForwardNeedsTextError,
   OccurrenceTypeItemsMinimumRequiresRequiredError,
   OccurrenceTypeItemsOffRedeliveryPolicyError,
   OccurrenceTypeNameTakenError,
@@ -854,6 +869,18 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorReplyAlertIntervalMinutes:
+        companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
+      contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
+      contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
+      contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
+      contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
+      driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
+      forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
+      forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
+      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
+      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
@@ -1013,6 +1040,18 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      contractorReplyAlertIntervalMinutes:
+        companyOccurrenceTypes.contractorReplyAlertIntervalMinutes,
+      contractorReplyAlertMaxCount: companyOccurrenceTypes.contractorReplyAlertMaxCount,
+      contractorReplyAlertMode: companyOccurrenceTypes.contractorReplyAlertMode,
+      contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
+      contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
+      contractorReplyWaitHours: companyOccurrenceTypes.contractorReplyWaitHours,
+      driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
+      forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
+      forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
+      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
+      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
@@ -1059,6 +1098,18 @@ function rethrowOccurrenceTypeViolation(error: unknown): never {
   }
   if (violated === OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK) {
     throw new OccurrenceTypeDeclaredAmountNeedsItemsError()
+  }
+  if (violated === OCCURRENCE_TYPE_CONTRACTOR_REPLY_REQUIRES_MAIL_CHECK) {
+    throw new OccurrenceTypeContractorReplyNeedsMailError()
+  }
+  if (violated === OCCURRENCE_TYPE_CONTRACTOR_REPLY_ALERT_WAIT_CHECK) {
+    throw new OccurrenceTypeContractorReplyAlertNeedsWaitError()
+  }
+  if (violated === OCCURRENCE_TYPE_FORWARD_AUTOMATIC_NEEDS_REPLY_CHECK) {
+    throw new OccurrenceTypeForwardAutomaticNeedsReplyError()
+  }
+  if (violated === OCCURRENCE_TYPE_FORWARD_NEEDS_TEXT_CHECK) {
+    throw new OccurrenceTypeForwardNeedsTextError()
   }
   if (violatedUniqueConstraint(error) === OCCURRENCE_TYPE_NAME_UNIQUE) {
     throw new OccurrenceTypeNameTakenError()
@@ -1121,6 +1172,17 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    readonly contractorReplyAlertIntervalMinutes?: number | undefined
+    readonly contractorReplyAlertMaxCount?: number | undefined
+    readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
+    readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+    readonly contractorReplyMode?: ContractorReplyMode | undefined
+    readonly contractorReplyWaitHours?: null | number | undefined
+    readonly driverReplyTemplate?: string | undefined
+    readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode | undefined
+    readonly forwardToInformedEmail?: ForwardToInformedEmailMode | undefined
+    readonly forwardEmailSubject?: string | undefined
+    readonly forwardEmailBody?: string | undefined
     /**
      * Spec 218 (D1, RF-B5): obrigatório na criação (a fronteira já recusa a ausência com
      * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
@@ -1198,6 +1260,37 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.contractorReplyAlertIntervalMinutes === undefined
+      ? {}
+      : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
+    ...(input.contractorReplyAlertMaxCount === undefined
+      ? {}
+      : { contractorReplyAlertMaxCount: input.contractorReplyAlertMaxCount }),
+    ...(input.contractorReplyAlertMode === undefined
+      ? {}
+      : { contractorReplyAlertMode: input.contractorReplyAlertMode }),
+    ...(input.contractorReplyAttachmentKind === undefined
+      ? {}
+      : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
+    ...(input.contractorReplyMode === undefined
+      ? {}
+      : { contractorReplyMode: input.contractorReplyMode }),
+    ...(input.contractorReplyWaitHours === undefined
+      ? {}
+      : { contractorReplyWaitHours: input.contractorReplyWaitHours }),
+    ...(input.driverReplyTemplate === undefined
+      ? {}
+      : { driverReplyTemplate: input.driverReplyTemplate }),
+    ...(input.forwardToNoteRecipient === undefined
+      ? {}
+      : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
+    ...(input.forwardToInformedEmail === undefined
+      ? {}
+      : { forwardToInformedEmail: input.forwardToInformedEmail }),
+    ...(input.forwardEmailSubject === undefined
+      ? {}
+      : { forwardEmailSubject: input.forwardEmailSubject }),
+    ...(input.forwardEmailBody === undefined ? {} : { forwardEmailBody: input.forwardEmailBody }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined
@@ -1270,6 +1363,17 @@ async function writeOccurrenceTypeRow(
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
+    contractorReplyAlertMaxCount: saved.contractorReplyAlertMaxCount,
+    contractorReplyAlertMode: saved.contractorReplyAlertMode,
+    contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
+    contractorReplyMode: saved.contractorReplyMode,
+    contractorReplyWaitHours: saved.contractorReplyWaitHours,
+    driverReplyTemplate: saved.driverReplyTemplate,
+    forwardToNoteRecipient: saved.forwardToNoteRecipient,
+    forwardToInformedEmail: saved.forwardToInformedEmail,
+    forwardEmailSubject: saved.forwardEmailSubject,
+    forwardEmailBody: saved.forwardEmailBody,
     flow: saved.flow,
     id: saved.id,
     itemsMinimumCount: saved.itemsMinimumCount,

@@ -22,7 +22,7 @@ export function HolidayRefusal({ onShortcut, refusal }: HolidayRefusalProps) {
   const message =
     refusal.messageKey === GENERIC_MESSAGE_KEY
       ? t('errors.withCode', { code: refusal.code, message: t(GENERIC_MESSAGE_KEY) })
-      : t(refusal.messageKey)
+      : t(refusal.messageKey, { minutes: refusal.retryAfterMinutes })
 
   return (
     <div className={styles.refusal} role="alert">

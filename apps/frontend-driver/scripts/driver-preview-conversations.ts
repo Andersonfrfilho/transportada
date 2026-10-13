@@ -1,0 +1,229 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * Rotas de conversa da API de demonstração do motorista (spec 263). **Só para preview**: espelha
+ * `me-occurrence-conversation.routes.ts` (rota antiga, por ocorrência) e as rotas por assunto do
+ * `api-contract.md` (`/me/trips/current/conversations/**`) sobre um repositório em memória.
+ * Importável sem efeito colateral — quem sobe o servidor é `driver-preview-api.ts`.
+ *
+ * Abrir: `POST /me/trips/current/conversations/open` {subjectType: document|trip, subjectId}.
+ *
+ * Debug: `POST /__debug/conversations/reset`, `.../office-reply` {subjectId, text},
+ * `.../fail-next` {count, status = 503}, `.../office-read` {subjectId} (o escritório leu: as mensagens do
+ * motorista passam de `delivered` ✓✓ cinza a `read` ✓✓ azul).
+ *
+ * Respostas prontas (T5.3): `GET /me/trips/current/quick-replies` → `{data: [{id, text}]}` (4 textos de
+ * partida; o `reset` as restaura). `POST /__debug/conversations/quick-replies` {texts: string[]} troca
+ * a lista (`[]` = empresa sem respostas) e {status: 409|500} faz a rota responder esse erro até o `reset`.
+ *
+ * Áudio e transcrição (spec 264 T4.3): `POST /__debug/conversations/audio-samples` {subjectId} põe quatro áudios
+ * do motorista na conversa, um por estado (`pending`, `ready` com texto, `ready` vazio, `failed` `too_long`),
+ * cada um com `durationMs`; o resumo passa a trazer `transcriptionUpdatedAt`. `.../transcription-ready`
+ * {subjectId} leva os `pending` a `ready` (inclusive o áudio que o motorista gravou e enviou, que nasce
+ * `pending`) e move `transcriptionUpdatedAt` — o refresh de 15 s do app o percebe sem recarregar. O envio
+ * aceita o áudio como a foto: `POST .../uploads` → `PUT` na URL assinada → `attachmentIds` na mensagem; a
+ * URL do anexo de áudio serve um WAV mudo de 2 s, que o player toca.
+ */
+import {
+  createConversationHandlers,
+  readRecord,
+  type ConversationHandlers,
+  type ConversationHandlersOptions,
+  type ConversationRouteShape,
+} from './driver-preview-conversations-handlers'
+import { AUDIO_CONTENT_TYPE_PREFIX, SILENT_WAV } from './driver-preview-conversations-audio'
+import type { ConversationRepository } from './driver-preview-conversations-repository'
+import type { PreviewSubjectType } from './driver-preview-conversations.types'
+
+export type ConversationRoutesOptions = ConversationHandlersOptions
+
+export type ConversationRoutes = (request: Request, url: URL) => Promise<Response | undefined>
+
+type RouteTarget = Readonly<{
+  action: string
+  notFoundCode: string
+  shape: ConversationRouteShape
+  subjectId: string
+  subjectType: PreviewSubjectType
+}>
+
+const TRIP_PREFIX = /^(?:\/v1)?\/me\/trips\/current\//
+const OCCURRENCE_ROUTE = /^occurrences\/([^/]+)\/(messages\/read|messages|uploads)$/
+const SUBJECT_ROUTE =
+  /^conversations\/(occurrence|document|trip)\/([^/]+)\/(messages\/read|messages|uploads)$/
+const STORAGE_ROUTE = /^\/__conversation-storage\/([^/]+)$/
+const DEFAULT_QUICK_REPLY_TEXTS: readonly string[] = [
+  'Cheguei ao local',
+  'Cliente ausente',
+  'Aguardando liberação da doca',
+  'Descarga concluída',
+]
+const ONE_PIXEL_PNG = Uint8Array.from(
+  atob(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  ),
+  (character) => character.charCodeAt(0),
+)
+
+function matchTarget(route: string): RouteTarget | undefined {
+  const legacy = OCCURRENCE_ROUTE.exec(route)
+  if (legacy !== null) {
+    return {
+      action: legacy[2] ?? '',
+      notFoundCode: 'OCCURRENCE_CONVERSATION_NOT_FOUND',
+      shape: 'legacy',
+      subjectId: decodeURIComponent(legacy[1] ?? ''),
+      subjectType: 'occurrence',
+    }
+  }
+  const subject = SUBJECT_ROUTE.exec(route)
+  if (subject === null) return undefined
+  return {
+    action: subject[3] ?? '',
+    notFoundCode: 'CONVERSATION_NOT_FOUND',
+    shape: 'subject',
+    subjectId: decodeURIComponent(subject[2] ?? ''),
+    subjectType: subject[1] as PreviewSubjectType,
+  }
+}
+
+async function handleTarget(
+  input: Readonly<{
+    handlers: ConversationHandlers
+    repository: ConversationRepository
+    request: Request
+    target: RouteTarget
+  }>,
+): Promise<Response | undefined> {
+  const { handlers, repository, request, target } = input
+  const { subjectId, subjectType } = target
+  if (!repository.has({ subjectId, subjectType })) return handlers.notFound(target.notFoundCode)
+  if (target.action === 'messages/read' && request.method === 'POST') {
+    repository.markRead(subjectId)
+    return handlers.empty(204)
+  }
+  if (target.action === 'uploads' && request.method === 'POST') {
+    return handlers.requestUpload(request)
+  }
+  if (target.action !== 'messages') return undefined
+  if (request.method === 'POST') {
+    return handlers.postMessage({ ...target, request })
+  }
+  const messages = repository.messages(subjectId) ?? []
+  return handlers.json({
+    data: messages.map((message) => handlers.toApiMessage(message, target.shape)),
+  })
+}
+
+export function createConversationRoutes(options: ConversationRoutesOptions): ConversationRoutes {
+  const { repository } = options
+  const handlers = createConversationHandlers(options)
+  let quickReplyTexts: readonly string[] = DEFAULT_QUICK_REPLY_TEXTS
+  let quickRepliesFailureStatus: number | undefined
+
+  function respondQuickReplies(): Response {
+    if (quickRepliesFailureStatus !== undefined) {
+      const code =
+        quickRepliesFailureStatus === 409 ? 'DRIVER_NOT_REGISTERED' : 'QUICK_REPLIES_UNAVAILABLE'
+      return handlers.json({ error: { code, message: code } }, quickRepliesFailureStatus)
+    }
+    return handlers.json({
+      data: quickReplyTexts.map((text, index) => ({ id: `quick-reply-${index + 1}`, text })),
+    })
+  }
+
+  function configureQuickReplies(body: Record<string, unknown>): Response {
+    if (Array.isArray(body.texts)) {
+      quickReplyTexts = body.texts.filter((text): text is string => typeof text === 'string')
+    }
+    quickRepliesFailureStatus = typeof body.status === 'number' ? body.status : undefined
+    return handlers.json({ data: { count: quickReplyTexts.length } })
+  }
+
+  async function handleDebug(request: Request, pathname: string): Promise<Response | undefined> {
+    if (request.method !== 'POST') return undefined
+    const body = readRecord(await request.json().catch(() => undefined))
+    if (pathname === '/__debug/conversations/reset') {
+      repository.reset()
+      quickReplyTexts = DEFAULT_QUICK_REPLY_TEXTS
+      quickRepliesFailureStatus = undefined
+      return handlers.json({ data: { reset: true } })
+    }
+    if (pathname === '/__debug/conversations/quick-replies') return configureQuickReplies(body)
+    if (pathname === '/__debug/conversations/fail-next') {
+      const count = typeof body.count === 'number' ? body.count : 1
+      const status = typeof body.status === 'number' ? body.status : undefined
+      repository.failNext({ count, ...(status === undefined ? {} : { status }) })
+      return handlers.json({ data: { count, status: status ?? 503 } })
+    }
+    if (pathname === '/__debug/conversations/office-reply') {
+      const subjectId = body.subjectId ?? body.occurrenceId
+      const messageId = repository.injectOfficeMessage({
+        subjectId: typeof subjectId === 'string' ? subjectId : '',
+        text: typeof body.text === 'string' ? body.text : handlers.AUTO_REPLY_TEXT,
+      })
+      return messageId === undefined
+        ? handlers.notFound('CONVERSATION_NOT_FOUND')
+        : handlers.json({ data: { messageId } }, 201)
+    }
+    if (pathname === '/__debug/conversations/audio-samples') {
+      return typeof body.subjectId === 'string' && repository.seedAudioSamples(body.subjectId)
+        ? handlers.json({ data: { seeded: 4 } }, 201)
+        : handlers.notFound('CONVERSATION_NOT_FOUND')
+    }
+    if (pathname === '/__debug/conversations/transcription-ready') {
+      const count =
+        typeof body.subjectId === 'string'
+          ? repository.advanceTranscriptions(body.subjectId)
+          : undefined
+      return count === undefined
+        ? handlers.notFound('CONVERSATION_NOT_FOUND')
+        : handlers.json({ data: { count } })
+    }
+    if (pathname === '/__debug/conversations/office-read') {
+      const subjectId = body.subjectId ?? body.occurrenceId
+      return typeof subjectId === 'string' && repository.markOfficeRead(subjectId)
+        ? handlers.json({ data: { read: true } })
+        : handlers.notFound('CONVERSATION_NOT_FOUND')
+    }
+    return undefined
+  }
+
+  function handleStorage(request: Request, pathname: string): Response | undefined {
+    const route = STORAGE_ROUTE.exec(pathname)
+    if (route === null) return undefined
+    if (request.method === 'PUT') return handlers.empty(200)
+    const contentType = repository.attachmentContentType(decodeURIComponent(route[1] ?? ''))
+    if (contentType?.startsWith(AUDIO_CONTENT_TYPE_PREFIX) === true) {
+      return new Response(SILENT_WAV, {
+        headers: { ...options.corsHeaders, 'content-type': 'audio/wav' },
+        status: 200,
+      })
+    }
+    return new Response(ONE_PIXEL_PNG, {
+      headers: { ...options.corsHeaders, 'content-type': 'image/png' },
+      status: 200,
+    })
+  }
+
+  return async function routeConversation(request, url) {
+    const { pathname } = url
+    if (pathname.startsWith('/__debug/conversations/')) return handleDebug(request, pathname)
+    if (pathname.startsWith('/__conversation-storage/')) return handleStorage(request, pathname)
+    const trip = TRIP_PREFIX.exec(pathname)
+    if (trip === null) return undefined
+    const route = pathname.slice(trip[0].length)
+    if (route === 'quick-replies' && request.method === 'GET') return respondQuickReplies()
+    if (route === 'occurrence-conversations' && request.method === 'GET') {
+      return handlers.json({ data: repository.list() })
+    }
+    if (route === 'conversations' && request.method === 'GET') {
+      return handlers.json({ data: repository.listSummaries(), pagination: { nextCursor: null } })
+    }
+    if (route === 'conversations/open' && request.method === 'POST') {
+      return handlers.openConversation(request)
+    }
+    const target = matchTarget(route)
+    if (target === undefined) return undefined
+    return handleTarget({ handlers, repository, request, target })
+  }
+}

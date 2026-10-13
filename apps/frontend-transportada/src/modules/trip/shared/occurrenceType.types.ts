@@ -10,6 +10,13 @@ import type {
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from './occurrence.constant'
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  InformedEmailForwardMode,
+  NoteRecipientForwardMode,
+} from './occurrenceContractorReply.constant'
 
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
@@ -36,6 +43,18 @@ export type OccurrenceType = Readonly<{
   emailSubject: string
   /** Spec 183 T802: o tipo avisa a contratante sozinho no registro. Ausente é API anterior ao campo. */
   emailsContractor?: boolean
+  /** Spec 248 RF1: o retorno da contratante — todos opcionais; ausentes são API anterior aos campos. */
+  contractorReplyAlertIntervalMinutes?: number
+  contractorReplyAlertMaxCount?: number
+  contractorReplyAlertMode?: ContractorReplyAlertMode
+  contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
+  contractorReplyMode?: ContractorReplyMode
+  contractorReplyWaitHours?: null | number
+  driverReplyTemplate?: string
+  forwardEmailBody?: string
+  forwardEmailSubject?: string
+  forwardToInformedEmail?: InformedEmailForwardMode
+  forwardToNoteRecipient?: NoteRecipientForwardMode
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
   /** Spec 255 RF1: o ícone do design system; nulo ou ausente é sem ícone. Ausente é API anterior. */

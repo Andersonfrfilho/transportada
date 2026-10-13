@@ -5,6 +5,50 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-10-11 — spec 264 T0.3 — a transcrição de áudio vira dado pessoal novo: finalidade, retenção amarrada ao áudio e modelo próprio
+
+**Onde:** ainda não existe; é o desenho da spec 264 (D2, D10, D12, RF18) e da ADR-0103. Vai para a rotina de transcrição do `apps/worker-transportada`, para a tabela de texto com `company_id` (migration própria) e para as rotas `/me/trips/current/conversations/**` e `/trips/:tripId/conversations/**` de `apps/api-transportada`.
+
+**O que é:** a transcrição é um texto derivado da voz de quem gravou (motorista, operador, ou contratante quando o áudio chega por e-mail ou portal). Passa a ser dado pessoal com regras próprias, separadas das do áudio.
+
+- **Finalidade:** leitura assistida da conversa por assunto (ajuda de leitura, marcada como de máquina, embaixo do player). Nunca decide, nunca alimenta tratativa, cobrança ou acerto (D4; `conversation-never-decides.contract.ts`).
+- **Base:** execução do contrato de transporte, como a spec 264 registra em D10. A spec não cita legítimo interesse nem consentimento, então nenhuma outra base é registrada aqui. Se o controlador quiser outra, a decisão precisa vir antes do primeiro áudio transcrito em produção.
+- **Retenção amarrada ao áudio:** a transcrição nunca vive mais que o áudio. Objeto do áudio em `deleted` em `stored_objects` ⇒ a rotina anula `text` e marca o expurgo; a API nunca mostra texto de áudio apagado.
+- **Onde aparece:** só nas rotas da conversa por assunto do motorista e do escritório (D12), e na conversa antiga da ocorrência apenas se o mesmo serializador servir as duas. **Nunca** em sino, e-mail à contratante, mensagem de WhatsApp, prévia da lista de conversas, busca, log, Sentry, métrica, evento de outbox, aviso, `clientDiagnostics` ou erro.
+- **Log:** só ids, estado, código de erro, duração e motor. Nenhum trecho do texto transcrito entra em log ou mensagem de erro.
+- **Processamento:** modelo próprio no worker, sem custo por uso e sem mandar a voz de terceiros a serviço externo (D2, ADR-0103). Groq e OpenAI ficam fora. O WAV temporário vive em diretório próprio e é apagado no `finally`; o disco do contêiner é efêmero.
+- **Desligar:** a empresa pode desligar a transcrição (padrão ligada). Desligada, a API devolve `disabled` para todos os áudios da empresa; os textos já gerados ficam ocultos e guardados. Religar mostra de novo, sem transcrever retroativamente o que chegou enquanto estava desligada.
+
+**Risco:** o texto da voz de motorista, operador ou contratante fica legível para quem lê a conversa. Se vazar, expõe o conteúdo falado, e não só o áudio.
+
+**Mitigação:** isolamento por `company_id` com a mesma checagem por objeto da conversa (BOLA das 183 e 263); retenção amarrada ao áudio; nada em log nem em canal de notificação; modelo próprio; desligável pela empresa.
+
+**Origem:** spec 264, T0.3 (D2, D10, D12, RF18). Registrado em 2026-10-11.
+
+### 2026-10-11 — spec 264 T0.3 — o app do motorista passa a pedir microfone e a tocar áudio por `blob:` (`microphone=(self)`, `media-src`)
+
+**Onde:** `apps/frontend-driver`, cabeçalho `Permissions-Policy` e diretiva `media-src` da CSP, a ser alterados na implementação da spec 264 (D11). O desenho é o mesmo do painel (`apps/frontend-transportada`, `server.ts` e `shared/contentSecurityPolicy.service.ts`, 183 T705).
+
+**O que é:** hoje o app do motorista envia `Permissions-Policy: microphone=()` e a CSP não declara `media-src`, então cai em `default-src 'self'` e nem o áudio do bucket toca. A mudança:
+
+- `Permissions-Policy: microphone=(self)`: o motorista grava áudio na conversa da viagem (183 D8, RF17).
+- `media-src 'self' blob: <origem do storage de anexos>`: `blob:` serve para ouvir a gravação antes de enviar; a origem do storage entra só como origem exata, sem curinga.
+- O portal da contratante segue `microphone=()`.
+
+A autorização é a mesma que o dono deu ao painel em 25/09/2026 (183 T705), quando o painel ainda servia o motorista. A app própria (ADR-0075) nasceu sem ela, e a spec 264 D11 a registra para a app.
+
+**Risco:** com o microfone permitido à origem, qualquer código executado nessa origem passa a poder abrir o microfone. E `blob:` em `media-src` aceita mídia criada no próprio navegador.
+
+**Mitigação:**
+
+- `(self)` exato, sem `*`, e sem iframe de terceiro herdando o microfone. O contrato de cabeçalhos exige essa forma exata, como no painel.
+- `media-src` não afrouxa `script-src` nem `default-src`; a diretiva só recebe `'self'`, `blob:` e a origem do storage.
+- O microfone só abre no clique em "Gravar áudio", a trilha para ao terminar ou ao sair da tela, e a gravação para sozinha em 5 min.
+- O áudio existe só como blob até o operador escolher "Usar áudio". Ele sobe por URL assinada, é conferido pelos bytes (OGG, MP4 ou WEBM) e vai ao bucket privado com a retenção dos anexos.
+- Que o blob não sobreviva ao fechamento da tela precisa ser provado na implementação, não assumido.
+
+**Origem:** spec 264, T0.3 (D11). Registrado em 2026-10-11.
+
 **Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
 (`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
 authorization.policy.ts` (`occurrences.decide` no papel `contractor`, `occurrences.resolve` em
@@ -61,13 +105,15 @@ o valor do acerto.
 ### 2026-10-07 — spec 252 — a FeriadosAPI vira destino de saída, e os termos de uso não dizem se o dado pode ser guardado (pendência do usuário)
 
 **Onde:** `worker-transportada`, rotina `holiday.provider.pull` (spec 252, ADR-0100). **Implementada em 2026-10-09
-(T3.1 a T3.5, mais a 2ª rodada da revisão) e inerte:** sem `FERIADOS_API_TOKEN` ela não é registrada, e a linha dela em
-`job_schedules` nasce pausada (D13).
+(T3.1 a T3.5, mais a 2ª rodada da revisão) e inerte:** pausada de fábrica (D13) e, sem chave, sem requisição nenhuma. ⚠️ Spec 262: a
+chave deixou de ser a variável `FERIADOS_API_TOKEN` e mora selada no banco (ver a Emenda abaixo); a rotina passou a ser registrada
+sempre. O texto desta entrada descreve a 252; onde diz "token da variável", vale a Emenda.
 
 **Destino de saída: `feriadosapi.com`** (host fixo no código, `FERIADOS_API_BASE_URL`; não é configurável). O **worker é a
-única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam nem leem o token (contrato). O token
-`FERIADOS_API_TOKEN` existe **só no serviço do worker** (`.railway/railway.ts`, `preserve()`; `.env.example` sem valor) e
-passa só pelo schema de ambiente validado. Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
+única app que fala com ele**; API, cron, painel e app do motorista nunca o chamam (contrato). ⚠️ A 262 muda a parte do "leem": a
+API passa a **receber e selar** a chave (o cron e o painel seguem sem ler a chave; o painel só vê `tokenConfigured` e a dica de 4
+caracteres). Na 252 o token existia **só no serviço do worker** como `FERIADOS_API_TOKEN`; com a 262 o worker o lê **do banco, a cada
+ciclo**, e a variável deixou de existir no schema (o `.railway/railway.ts` a mantém como legado ignorado até a T4.4). Não há lista de destinos à parte neste arquivo: esta entrada é o registro.
 
 **O que é:** a rotina vai buscar feriados municipais e estaduais em `feriadosapi.com` e **gravá-los** no banco (cache
 global do fornecedor e `municipal_holidays`/`state_holidays` da empresa). A página de termos de uso do fornecedor
@@ -76,7 +122,7 @@ risco que os termos do Google Maps Platform (spec 186, ADR-0044 §3), aceito lá
 não foi aceito**.
 
 **O que sai:** só o **código IBGE** da cidade (ou a sigla da UF) e o **ano**, com `Authorization: Bearer
-<FERIADOS_API_TOKEN>`. **Nenhum dado pessoal é enviado:** nunca `companyId`, nome de cliente, CNPJ, endereço ou nota.
+<chave>` (a chave aberta do banco, em memória, só durante o ciclo). **Nenhum dado pessoal é enviado:** nunca `companyId`, nome de cliente, CNPJ, endereço ou nota.
 Feriado não é dado pessoal. A cidade vem das notas da própria empresa, mas só o código dela cruza a fronteira.
 
 **O que está publicado (staging, deploys verdes de 2026-10-09; produção só leva o roteirizador por cidade e os clientes
@@ -90,13 +136,14 @@ T5.4). Detalhe e SHAs: `specs/252-*/evidence.md` § "T6.1 — fechamento".
 
 **O que segura (provado nas tasks T3.1 a T3.5 e na 2ª rodada):**
 
-- **Token:** só no worker, opcional (sem ele a rotina não é registrada e nada sai); só ASCII visível (`^[\x21-\x7E]+$`),
-  senão o boot cai sem ecoar o valor. **Não aparece em nenhuma mensagem de erro por construção** (o erro do cliente
+- **Token:** na 252, só no worker e opcional; **com a 262, selado no banco e lido pelo worker a cada ciclo** (sem chave a rotina
+  não faz requisição; só ASCII visível de 16 a 512 caracteres, validado pela API ao gravar e de novo na abertura). **Não aparece em nenhuma mensagem de erro por construção** (o erro do cliente
   carrega só o código; `reason` é só o nome do erro de transporte) e um contrato roda a rotina inteira com um fornecedor
   que ecoa o token de seis jeitos e o procura no log e nos contadores (CA9). `redirect: 'error'`: o cabeçalho nunca segue
   para outro host.
 - **Custo:** orçamento mensal da instalação incrementado por upsert imediatamente antes de cada chamada
-  (`FERIADOS_API_MONTHLY_REQUEST_BUDGET`, inteiro de 1 a 1.000.000, padrão 4500), teto de 100 requisições por ciclo,
+  (coluna `monthly_request_budget` da linha da instalação, inteiro de 1 a 1.000.000, NULL = padrão 4500; era
+  `FERIADOS_API_MONTHLY_REQUEST_BUDGET` na 252), teto de 100 requisições por ciclo,
   espaçamento de 1,2 s e disjuntor de 3 falhas de rede seguidas. Orçamento esgotado só encerra o ciclo.
 - **Resposta hostil:** corpo com teto de 512 KB lido por stream, página de até 100 itens, nome sem caractere de controle ou
   de formato, `Retry-After` limitado entre 60 s e 24 h, guarda Zod (`malformed_response`, nada gravado), data de outro ano
@@ -132,7 +179,7 @@ do erro e par.
 **Riscos abertos (passos do usuário, nada disso foi decidido pela IA):**
 
 - **Q4, termos de uso** (`[NEEDS CLARIFICATION]`): confirmar com o fornecedor que guardar os feriados é permitido **antes**
-  de configurar `FERIADOS_API_TOKEN`. Enquanto isso o produto não envia nada.
+  de gravar a chave da FeriadosAPI pela tela (na 252 era configurar `FERIADOS_API_TOKEN`). Enquanto isso o produto não envia nada.
 - **Q3, plano e cota** (`[NEEDS CLARIFICATION]`): a documentação não diz quanto uma cidade do interior consome; o padrão
   4500 pressupõe o plano Developer (5.000 por mês, menos 10% de folga). Orçamento não se testa baixo no 1º ciclo.
 - **Índice de `nfe_addresses`:** a descoberta faz `Seq Scan` por lote (1,5 ms com 2.100 notas no teste) e a leitura do
@@ -141,10 +188,97 @@ do erro e par.
 - **Forma de resposta real do fornecedor:** nenhuma resposta real foi vista; a guarda Zod foi escrita pela documentação
   (`evidence.md` § T3.1). O 1º ciclo real confirma ou corrige.
 
-**Pendência (passo do usuário):** Q3 e Q4 acima, e só então configurar o token no worker de staging e despausar a rotina.
+**Pendência (passo do usuário):** Q3 e Q4 acima, e só então gravar a chave pela tela da instalação e despausar a rotina.
 `feriadosapi.com` já consta aqui como destino de saída; o que falta é a decisão de ligar.
 
+**Emenda (spec 262, ADR-0102):** a chave deixou a variável de ambiente e mora selada no banco, digitada no painel por `company-admin`; a API passa a **receber e
+selar** a chave (a frase "API … nunca leem o token" acima deixou de valer) e o worker segue sendo a única app que a usa contra o fornecedor. A exceção ao §4/§5 do
+`security.md`, o modelo de ameaça, as rotas, o que nunca aparece, a ordem de publicação e os riscos abertos estão na entrada própria **"2026-10-11 — spec 262"**, logo abaixo.
+
 **Origem:** spec 252, desenho do `architect` (`opus`). Registrado em 2026-10-07; atualizado em 2026-10-09 (T6.1).
+
+### 2026-10-11 — spec 262 — a chave da FeriadosAPI passa a ser digitada no painel e a morar selada no banco (exceção declarada ao §4/§5 do `security.md`)
+
+**Onde:** `api-transportada`, módulo `business-calendar` (rotas `/holiday-imports/provider-settings` e `/company-settings/holiday-import`, selo
+`holiday-provider-token-secret.service.ts`, `drizzle-holiday-provider-settings.repository.ts`, auditoria); `worker-transportada` (leitor
+`drizzle-holiday-provider-settings.reader.ts`, cópia do selo, rotina `holiday.provider.pull`); `frontend-transportada` (bloco "Chave da FeriadosAPI" na
+aba Calendário); tabela `holiday_provider_settings`; ADR-0102 (emenda do ADR-0100 D9 e D10). Complementa a entrada da 252, acima.
+
+**Estado em 2026-10-11:** Fases 1, 2, 3 e 5 em `origin/staging` com Deploy verde (painel tolerante, migration, API e telas); a **Fase 4 (worker) está só
+na branch local `work/262-f4`**, à espera do Gate A do usuário — então hoje, em staging, a chave pode ser gravada e **nada a lê**. **Produção não tem nada da
+262** (a 252 está em `main`, e o worker de produção ainda lê `FERIADOS_API_TOKEN`).
+
+**A exceção ao §4/§5 do `security.md`.** O §4 diz que segredo só existe como variável de ambiente validada no boot; a chave da FeriadosAPI passa a ser
+**credencial de terceiro configurada em tempo de execução pelo dono do ambiente**, no mesmo padrão que o produto já usa para a credencial da NFS-e
+(`nfse_provider_credentials`), o certificado A1 (`digital_certificates`) e a chave do Resend (`contractor_mail_settings`): envelope A256GCM com o
+chaveiro de aplicação e AAD por linha (`transportada:holiday-provider-token:v1:${settingsId}`), nunca variável. O que o §4 protege continua valendo: o
+**segredo-raiz** (`ENCRYPTION_KEYRING_JSON`/`ENCRYPTION_ACTIVE_KEY_ID`) segue só no ambiente e fora do banco; o §5 (campo sensível cifrado com chave de aplicação
+separada da do banco) é atendido; o backup do banco leva só o envelope (o chaveiro não está nele). A exceção é **de lugar**, não de proteção. Motivo da
+mudança: ligar a importação exigia acesso ao Railway, que a transportadora não tem (decisão do usuário em 2026-10-09).
+
+**Quem alcança, e o que cada rota exige:**
+
+| Rota                                              | Permissão                  | Limitador                              |
+| ------------------------------------------------- | -------------------------- | -------------------------------------- |
+| `GET /holiday-imports/provider-settings`          | `settings.manage`          | —                                      |
+| `PUT /holiday-imports/provider-settings`          | `holiday-import.configure` | 10 por hora, balde `postgres`, escrita |
+| `DELETE /holiday-imports/provider-settings/token` | `holiday-import.configure` | o mesmo balde do `PUT`                 |
+| `GET\|PUT /company-settings/holiday-import`       | `settings.manage`          | —                                      |
+
+`holiday-import.configure` existe só no papel `company-admin` (concedível por grupo; o `settings.manage` por grupo **não** leva a chave de carona; separador e
+ajudante não alcançam as rotas de escrita, `test/separator-role.contract.test.ts`). Corpo `.strict()`, resposta por lista branca, `cache-control: no-store`.
+
+**Modelo de ameaça (o que ficou de pé, dito sem enfeite):**
+
+- **Qualquer `company-admin` de qualquer empresa da instalação edita a chave da instalação** (inclusive a sobrescreve). Não existe ator de plataforma
+  (ADR-0021: um deploy por transportadora, um dono). Mitigação: permissão dedicada, auditoria, `updated_by_user_id` na linha. Aceito.
+- **A auditoria cai só na empresa do ator** (`audit_logs` exige `company_id` e ator por FK de membership): o dono da instalação que olhe a trilha de uma empresa
+  não vê a troca feita por outra. Contrato: "o administrador da empresa B sobrescreve a chave e a auditoria cai em B".
+- **A dica de 4 caracteres é visível** a qualquer usuário com `settings.manage` de **qualquer** empresa da instalação (`GET` devolve `tokenHint` e
+  `tokenUpdatedAt`; nunca o envelope nem quem alterou). Quatro caracteres de uma chave de 16 a 512 reduzem pouco a busca, mas são dado do segredo.
+- **A chave em claro passa pela memória da API durante o `PUT`** (corpo cru, string decodificada, objeto do `JSON.parse`, string aparada pelo Zod,
+  `JSON.stringify` do plaintext, `Uint8Array` do `TextEncoder`, cópias internas do WebCrypto). O `fill(0)` zera **só um** desses pedaços (o `Uint8Array` e o
+  AAD); o resto fica até o coletor de lixo e não é zerável em JS. Mitigação real: nunca em log, auditoria, métrica nem mensagem de erro. Não é mitigação
+  contra dump de memória. Muda a afirmação da 252: a API deixou de "nunca ler o token" e passa a **receber e selar**; o **worker** segue sendo a única app que
+  **usa** a chave contra o fornecedor (o cron e o painel não a leem; o painel só vê `tokenConfigured` e a dica).
+- **O limitador é por empresa + usuário** (`companyId:userId`), **não** global da instalação: cada administrador de cada empresa tem 10 escritas por hora, então
+  vários administradores somam mais do que 10 trocas por hora na instalação. O limite conta antes do `parse`, então corpo inválido também gasta.
+- **Chave removida ou trocada no meio de um ciclo do worker continua em uso até o ciclo acabar** (≤ 100 requisições, ~2 min), e "Remover chave" **não para a
+  aplicação** do cache global às empresas (só toca o banco). Para parar tudo: pausar a rotina em Operações ou desligar a importação da empresa.
+- **`credential_unreadable`** (chave do chaveiro removida, envelope corrompido ou copiado de outra instalação): a busca não roda e o ciclo fecha com esse desfecho,
+  visível no cartão de status. Antes de tirar uma chave do chaveiro, salvar a chave da FeriadosAPI de novo pela tela (consulta de conferência, só leitura, sem valor,
+  em `specs/262-*/plan.md`).
+- **A API não testa a chave no fornecedor** (o worker é o único que fala com `feriadosapi.com`): chave errada só aparece no ciclo seguinte como `provider_unauthorized`.
+
+**O que NUNCA aparece (provado por sentinela em contrato e integração):** a chave, a dica e o envelope não aparecem em nenhuma resposta além da dica no `GET`/`PUT`,
+em nenhuma linha de log, em nenhuma coluna de `audit_logs` (a auditoria guarda só `{ monthlyRequestBudget, tokenConfigured, version }` e `changedFields`) nem em
+mensagem de erro (o `400` diz o campo e a regra; o `500` do cofre tem mensagem fixa; o erro do worker é só o código). Quem alterou nunca sai por rota. No painel, o
+campo é `type="password"`, `autoComplete="off"` e nunca é preenchido de volta; o smoke de prints procura uma chave sentinela falsa em todo o corpo da página.
+
+**Ordem de publicação e de promoção (obrigatória):** (1) painel tolerante (catálogo e permissão) → (2) migration + API + catálogo do cron → (3) **Gate A**: o
+usuário confere **só o nome** da variável `FERIADOS_API_*` no worker de staging e de produção; a saída nunca contém um valor (o `railway variables` comum imprime a
+linha com o valor e queima a chave) → (4) worker → ciclo conferido → (5) telas → (6) **T4.4** (tirar as duas variáveis do `.railway/railway.ts`). **Nunca
+`railway config apply` a partir de um checkout de staging antes de o worker da 262 estar em `main`:** "omitir é apagar", e o `apply` destruiria a variável que o worker
+de **produção** ainda lê, antes de a chave estar no banco. Em produção, PRs separados sobre `origin/main`; a **API não vai a `main` antes do painel da Fase 1 em
+produção** (a permissão nova faz o `/auth/me` do painel antigo falhar com `IDENTITY_AUTH_ME_INVALID` para todo `company-admin`). Migration em produção pede aprovação humana
+própria.
+
+**Riscos abertos e o que NÃO foi feito (cada um é um passo ou uma tarefa, não um esquecimento):**
+
+- **Q3 (plano e cota) e Q4 (termos de uso)** da 252 seguem abertas e bloqueiam **ligar** a rotina (passo do usuário). A tela não despausa nada.
+- **`CORS_EXPOSE_HEADERS` é só `Date`** (`apps/api-transportada/src/shared/api.constant.ts`): o navegador não lê `Retry-After`, então o `429` da tela mostra o texto sem
+  "tente de novo em N min" em produção (o mesmo defeito latente existe no `429` do e-mail de teste da 143). Correção, **não feita**: `'Date, Retry-After'`.
+- **`DELETE` com `If-Match`** (concorrência otimista na remoção): não feito; a remoção é idempotente e não usa a versão.
+- **Scrubber do Sentry / captura de exceção:** não feito. Se um erro 5xx durante o `PUT` for capturado com o corpo da requisição, a chave poderia sair do processo; **não foi
+  verificado** nesta entrada se a captura inclui o corpo. Tarefa à parte.
+- **Log de `ApiError` 5xx:** não feito. O `500 HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE` (falha do cofre) responde com mensagem fixa e sem o motivo; garantir que a falha apareça no log do
+  servidor, sem a chave, é tarefa à parte (não foi verificado aqui se o tratador global já loga `ApiError` de status 5xx).
+- **Sem confirmação por senha** (step-up): o produto não tem reautenticação; seria spec própria.
+- **Formato real da chave** (lacuna da 252): o mínimo de 16 caracteres pode recusar uma chave legítima mais curta; o ajuste é uma constante com contrato.
+- **Revisão final `opus` de código** da 262 (auditoria do §15 do `code-standart.md`) e a **revisão de design e usabilidade** com o usuário: pendentes (ver
+  `specs/262-*/evidence.md` § "T6.1 — fechamento").
+
+**Origem:** spec 262, ADR-0102. Registrado em 2026-10-11 (T6.1, documentação).
 
 ### 2026-10-09 — spec 252 T4.1 — a gestão da importação de feriados: quem alcança, o que audita e por que o cache global não sai cru
 

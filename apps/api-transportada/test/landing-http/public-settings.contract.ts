@@ -22,6 +22,7 @@ const GROUP_UNIT = {
   postalCode: '01000000',
   state: 'SP',
   street: 'Rua Um',
+  displayName: 'Sede (nome exibido)',
   tradeName: 'Sede',
 }
 
@@ -50,6 +51,7 @@ describe(`GET ${LANDING_PUBLIC_PATH} HTTP contract`, () => {
             city: 'São Paulo',
             companyId: COMPANY_ID,
             complement: '',
+            displayName: 'Sede (nome exibido)',
             district: 'Centro',
             number: '100',
             phone: '11999999999',

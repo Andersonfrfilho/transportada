@@ -106,6 +106,7 @@ export function createSettings(cnpj: string): CompanySettingsInput {
       street: 'Rua Integration',
       taxRegime: '1',
       tradeName: 'Transportadora Integration',
+      displayNameMode: 'trade_name',
     },
   }
 }

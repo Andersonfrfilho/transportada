@@ -12,9 +12,15 @@ import { describe, expect, test } from 'bun:test'
 import type {
   OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
+  RecordContractorReplyResendOutcome,
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
 } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
+import {
+  ContractorReplyNotResendableError,
+  ContractorReplyResendTooSoonError,
+} from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
+import type { StoredContractorReplyConfiguration } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
 import type { ConversationUploadTarget } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
 import { createPreviewOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
@@ -43,12 +49,18 @@ type FakeState = {
   conversationMessages: Parameters<OccurrenceMailTransactionPort['recordConversationMessage']>[0][]
   idempotency: Map<string, { fingerprint: string; response: SendOccurrenceMailResult }>
   mails: RecordOccurrenceMailInput[]
+  openedReplies: Parameters<OccurrenceMailTransactionPort['openContractorReply']>[0][]
+  replyReads: string[]
+  resendCalls: Parameters<OccurrenceMailTransactionPort['recordContractorReplyResend']>[0][]
   threadId: string | undefined
 }
 
 function createFake(
   overrides: Partial<{
     contacts: readonly { email: string; id: string }[]
+    logger: { warn: (event: string, fields?: Record<string, unknown>) => void }
+    replyConfiguration: StoredContractorReplyConfiguration | null
+    resendOutcome: RecordContractorReplyResendOutcome
     settings: Awaited<ReturnType<OccurrenceMailTransactionPort['findMailSettings']>>
     target: OccurrenceMailTarget | null
     /** Spec 183 T702e: o tamanho de cada objeto subido, pelo `head()`. */
@@ -64,6 +76,9 @@ function createFake(
     conversations: [],
     idempotency: new Map(),
     mails: [],
+    openedReplies: [],
+    replyReads: [],
+    resendCalls: [],
     threadId: undefined,
   }
   const transaction: OccurrenceMailTransactionPort = {
@@ -83,6 +98,17 @@ function createFake(
     },
     async listOccurrenceRecipients() {
       return []
+    },
+    async findContractorReplyConfiguration({ occurrenceId }) {
+      state.replyReads.push(occurrenceId)
+      return overrides.replyConfiguration ?? null
+    },
+    async openContractorReply(params) {
+      state.openedReplies.push(params)
+    },
+    async recordContractorReplyResend(params) {
+      state.resendCalls.push(params)
+      return overrides.resendOutcome ?? 'recorded'
     },
     async findCarrierName() {
       return 'Transportadora Sintética'
@@ -141,6 +167,7 @@ function createFake(
     },
   }
   const useCase = createSendOccurrenceMailUseCase({
+    ...(overrides.logger === undefined ? {} : { logger: overrides.logger }),
     fingerprintService: {
       create: async ({ fields }) =>
         fields.map((field) => new TextDecoder().decode(field)).join('|'),
@@ -501,6 +528,171 @@ describe('o aviso automático, sem autor humano (spec 183 T802)', () => {
     expect(await failure(() => useCase.send(input({ actorUserId: null })))).toMatchObject({
       message: 'OCCURRENCE_MAIL_AUTHOR_REQUIRED',
     })
+  })
+})
+
+const REPLY_TYPE: StoredContractorReplyConfiguration['type'] = {
+  alertIntervalMinutes: 60,
+  alertMaxCount: 24,
+  alertMode: 'off',
+  attachmentKind: 'pdf',
+  driverReplyChannel: 'app_chat',
+  driverReplyTemplate: 'Segue o boleto prorrogado.',
+  driverReplyWindowClosedAction: 'fallback_app_chat',
+  emailsContractor: true,
+  forwardEmailBody: '',
+  forwardEmailSubject: '',
+  forwardToInformedEmail: 'off',
+  forwardToNoteRecipient: 'off',
+  mode: 'forward_automatic',
+  waitHours: 6,
+}
+
+describe('a abertura do retorno da contratante no envio automático (spec 248 T4.4a)', () => {
+  const configured = { override: null, type: REPLY_TYPE }
+
+  test('automático com o modo ligado abre o retorno uma vez, com a cópia da configuração e o prazo', async () => {
+    const { state, useCase } = createFake({ replyConfiguration: configured })
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies).toEqual([
+      {
+        companyId: COMPANY_ID,
+        configuration: expect.objectContaining({
+          attachmentKind: 'pdf',
+          mode: 'forward_automatic',
+          version: 1,
+          waitHours: 6,
+        }),
+        conversationId: 'conversation-1',
+        deadlineAt: new Date(NOW.getTime() + 6 * 3_600_000),
+        occurrenceId: OCCURRENCE_ID,
+      },
+    ])
+  })
+
+  test('sem prazo no tipo, o retorno abre sem `deadlineAt`', async () => {
+    const { state, useCase } = createFake({
+      replyConfiguration: { override: null, type: { ...REPLY_TYPE, waitHours: null } },
+    })
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies[0]).toMatchObject({ deadlineAt: null })
+  })
+
+  test('o modo desligado não abre retorno', async () => {
+    const { state, useCase } = createFake({
+      replyConfiguration: { override: null, type: { ...REPLY_TYPE, mode: 'off' } },
+    })
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies).toEqual([])
+  })
+
+  test('o envio manual do operador nunca abre retorno, nem lê a configuração', async () => {
+    const { state, useCase } = createFake({ replyConfiguration: configured })
+
+    await useCase.send(input())
+
+    expect(state.openedReplies).toEqual([])
+    expect(state.replyReads).toEqual([])
+  })
+
+  test('a repetição da mesma chave devolve a resposta gravada e não abre outro retorno', async () => {
+    const { state, useCase } = createFake({ replyConfiguration: configured })
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies).toHaveLength(1)
+    expect(state.replyReads).toHaveLength(1)
+  })
+
+  test('envio que não sai (e-mail da empresa não pronto) não abre retorno', async () => {
+    const { state, useCase } = createFake({ replyConfiguration: configured, settings: undefined })
+
+    await failure(() => useCase.send(input({ actorUserId: null, automatic: true })))
+
+    expect(state.openedReplies).toEqual([])
+  })
+
+  test('combinação efetiva inválida não abre retorno, avisa só com contagem e o envio segue', async () => {
+    const warnings: { event: string; fields: Record<string, unknown> | undefined }[] = []
+    const { state, useCase } = createFake({
+      logger: { warn: (event, fields) => void warnings.push({ event, fields }) },
+      replyConfiguration: { override: null, type: { ...REPLY_TYPE, driverReplyTemplate: '  ' } },
+    })
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies).toEqual([])
+    expect(state.mails).toHaveLength(1)
+    expect(warnings).toEqual([
+      {
+        event: 'occurrence_contractor_reply_configuration_invalid',
+        fields: { companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID },
+      },
+    ])
+  })
+
+  test('ocorrência fora do retorno (sem configuração achada) não abre nada', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.openedReplies).toEqual([])
+  })
+})
+
+describe('o reenvio do pedido à contratante no mesmo e-mail (spec 248 RF6)', () => {
+  test('o envio comum nunca toca o retorno; o reenvio grava o evento do operador com o relógio do envio', async () => {
+    const plain = createFake()
+    await plain.useCase.send(input())
+    expect(plain.state.resendCalls).toEqual([])
+
+    const { state, useCase } = createFake()
+    await useCase.send(input({ contractorReplyResend: true }))
+    expect(state.resendCalls).toEqual([
+      { actorUserId: ACTOR_ID, companyId: COMPANY_ID, now: NOW, occurrenceId: OCCURRENCE_ID },
+    ])
+    expect(state.mails).toHaveLength(1)
+  })
+
+  test('retorno que não espera mais a contratante, ou cedo demais: 409 e nada de e-mail gravado', async () => {
+    const notWaiting = createFake({ resendOutcome: 'not_resendable' })
+    expect(
+      await failure(() => notWaiting.useCase.send(input({ contractorReplyResend: true }))),
+    ).toBeInstanceOf(ContractorReplyNotResendableError)
+    expect(notWaiting.state.mails).toEqual([])
+    expect(notWaiting.state.conversationMessages).toEqual([])
+
+    const tooSoon = createFake({ resendOutcome: 'too_soon' })
+    expect(
+      await failure(() => tooSoon.useCase.send(input({ contractorReplyResend: true }))),
+    ).toBeInstanceOf(ContractorReplyResendTooSoonError)
+    expect(tooSoon.state.mails).toEqual([])
+  })
+
+  test('repetir a mesma chave devolve a resposta gravada sem conferir o intervalo de novo', async () => {
+    const { state, useCase } = createFake()
+    const first = await useCase.send(input({ contractorReplyResend: true }))
+    const second = await useCase.send(input({ contractorReplyResend: true }))
+
+    expect(second).toEqual(first)
+    expect(state.resendCalls).toHaveLength(1)
+    expect(state.mails).toHaveLength(1)
+  })
+
+  test('o reenvio é sempre de um operador: o aviso automático não pode ser reenvio', async () => {
+    const { useCase } = createFake()
+    expect(
+      await failure(() =>
+        useCase.send(input({ actorUserId: null, automatic: true, contractorReplyResend: true })),
+      ),
+    ).toMatchObject({ message: 'OCCURRENCE_MAIL_RESEND_IS_NOT_AUTOMATIC' })
   })
 })
 

@@ -14,6 +14,7 @@
  * `test/notification/preview-payload.contract.ts` de cada lado é o que cobra.
  */
 export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
+  alertNumber: '2',
   batchName: 'Lote CT-e julho',
   dueDate: '10/09/2026',
   failedCount: '3',
@@ -23,4 +24,6 @@ export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, stri
   plate: 'RTA2E19',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
+  /** Spec 263 T2.5: o aviso do sino da conversa de nota e de viagem. */
+  subjectLabel: 'NF 4512/1',
 }

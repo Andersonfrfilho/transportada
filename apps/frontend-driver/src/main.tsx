@@ -1,12 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationProvider } from '@adatechnology/notification-ui'
 import '@adatechnology/notification-ui/styles.css'
+import '@adatechnology/conversations-ui/styles.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 
+import { useConversationOutboxFlush } from '@/modules/conversation/hooks/useConversationOutboxFlush.hook'
+import { DriverConversationsPage } from '@/modules/conversation/pages/DriverConversations.page'
+import { discardOrphanedConversationOutboxFor } from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
+import { setDriverConversationOwner } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { DriverServiceWorkerUpdateNotice } from '@/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component'
 import { DriverSessionExpiredNotice } from '@/modules/driver-trip/components/DriverSessionExpiredNotice.component'
@@ -60,6 +65,7 @@ import {
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import {
   resolveDriverRouteSection,
+  type DriverRouteSection,
   subscribeDriverRoute,
 } from '@/modules/shared/driverRoute.service'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
@@ -181,6 +187,12 @@ function renderScreen(root: Root, screen: ReactNode): void {
   )
 }
 
+function renderSection(section: DriverRouteSection): ReactNode {
+  if (section === 'notifications') return <DriverNotificationsPage />
+  if (section === 'conversations') return <DriverConversationsPage />
+  return <DriverTripWorkspacePage />
+}
+
 type DriverShellProps = Readonly<{ session: DriverSession }>
 
 /**
@@ -192,6 +204,7 @@ type DriverShellProps = Readonly<{ session: DriverSession }>
 function DriverShell({ session }: DriverShellProps): ReactNode {
   const [section, setSection] = useState(() => resolveDriverRouteSection(window.location.pathname))
   const sessionExpiry = useSessionExpiry(session.canSync)
+  useConversationOutboxFlush(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 
@@ -208,7 +221,7 @@ function DriverShell({ session }: DriverShellProps): ReactNode {
           client={getNotificationClient()}
           theme={{ rootClassName: NOTIFICATION_THEME_CLASS }}
         >
-          {section === 'notifications' ? <DriverNotificationsPage /> : <DriverTripWorkspacePage />}
+          {renderSection(section)}
         </NotificationProvider>
       </DriverSessionContext>
     </QueryClientProvider>
@@ -267,6 +280,8 @@ async function startAuthenticated(root: Root): Promise<void> {
   /** O cache da consulta pode ser do snapshot de outra sessão, montado antes deste login. */
   queryClient.clear()
   const freshSnapshot = await adoptAuthorizedSnapshot({ payload: authorizedPayload, subHash })
+  setDriverConversationOwner(subHash)
+  void discardOrphanedConversationOutboxFor(subHash)
   renderScreen(
     root,
     <DriverShell

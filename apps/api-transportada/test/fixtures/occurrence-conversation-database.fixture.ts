@@ -141,13 +141,14 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
 export function createOccurrenceMailUseCase(
   database: TestDatabase,
   storage: ConversationAttachmentStoragePort = UNUSED_ATTACHMENT_STORAGE,
+  now: Date = new Date('2026-09-24T18:00:00.000Z'),
 ) {
   return createSendOccurrenceMailUseCase({
     fingerprintService: {
       create: async ({ fields }) =>
         fields.map((field) => new TextDecoder().decode(field)).join('|'),
     },
-    now: () => new Date('2026-09-24T18:00:00.000Z'),
+    now: () => now,
     secretService: {
       decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'b'.repeat(64) }),
     } as never,

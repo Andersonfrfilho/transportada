@@ -67,6 +67,7 @@ export function buildNotificationSettingsOptions(translate: TranslateLabel): {
  * a aparecer crua no preview, e `test/notification/preview-payload.contract.ts` é o que cobra.
  */
 export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
+  alertNumber: '2',
   batchName: 'Lote CT-e julho',
   documentLabel: '883658/1',
   dueDate: '10/09/2026',
@@ -80,4 +81,5 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   rejectionReason: 'Alíquota fora do intervalo permitido',
   // O exemplo leva **número**: é a mesma regra do rótulo da parada, que imprimia rua sem ele.
   stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
+  subjectLabel: 'NF 4512/1',
 }

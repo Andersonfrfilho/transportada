@@ -39,6 +39,7 @@ const PROFILE: InvoiceLayoutProfile = {
   stateRegistration: '110042490114',
   street: 'Rua Sintetica',
   tradeName: 'Sintetica Transportes',
+  displayNameMode: 'legal_name',
 }
 
 const EMPTY_PAYMENT_PROFILE: InvoiceLayoutProfile = {

@@ -3,7 +3,9 @@
  *
  * O resumo de um ciclo de `holiday.provider.pull`: os contadores do cartão do painel e a palavra do
  * catálogo em que a linha fecha. Falha nossa vence a do fornecedor; entre as do fornecedor, a que o
- * usuário resolve vem primeiro. Orçamento do mês e teto do ciclo são contadores, não falha.
+ * usuário resolve vem primeiro. Orçamento do mês e teto do ciclo são contadores, não falha. Sem chave
+ * guardada (`token_missing`) também não é falha; a chave guardada que não abre fecha em
+ * `credential_unreadable`, logo abaixo de `unexpected_error` (spec 262).
  */
 import type { JobOutcome } from '../../shared/job-catalog.constant.js'
 
@@ -48,6 +50,8 @@ export function buildCounters(state: CycleState): Readonly<Record<string, number
     requests: fetch?.requests ?? 0,
     stage_failures: state.stageFailures,
     state_inserted: apply?.stateInserted ?? 0,
+    token_missing: flag(fetch?.tokenMissing),
+    token_unreadable: flag(fetch?.tokenUnreadable),
   }
   const alwaysShown = new Set(['municipal_inserted', 'requests', 'state_inserted'])
 
@@ -71,6 +75,7 @@ export function resolveOutcome(state: CycleState): JobOutcome {
   if (countOwnFailures(state) > 0) return 'unexpected_error'
 
   const { fetch } = state
+  if (fetch?.tokenUnreadable === true) return 'credential_unreadable'
   if (fetch?.unauthorized === true) return 'provider_unauthorized'
   // Nada funcionou porque o plano restringiu tudo: é o mesmo problema de quem vai ao painel conferir o plano.
   if ((fetch?.planRestricted ?? 0) > 0 && fetch?.pairsFetched === 0) return 'provider_unauthorized'

@@ -7,11 +7,14 @@ import styles from '../styles/businessCalendar.module.css'
 import { HolidayImportRemoved } from './HolidayImportRemoved.component'
 import { HolidayImportStatus } from './HolidayImportStatus.component'
 import { HolidayImportSuppressions } from './HolidayImportSuppressions.component'
+import { HolidayProviderSettings } from './HolidayProviderSettings.component'
 import { MunicipalHolidaySection } from './MunicipalHolidaySection.component'
 import { SaturdayBlock } from './SaturdayBlock.component'
 import { StateHolidaySection } from './StateHolidaySection.component'
 
 export type BusinessCalendarPanelProps = Readonly<{
+  /** `holiday-import.configure` (spec 262): sem ela o bloco da chave da FeriadosAPI é só leitura. */
+  canConfigureHolidayImport: boolean
   canManage: boolean
   companyId: string | undefined
 }>
@@ -23,7 +26,11 @@ export type BusinessCalendarPanelProps = Readonly<{
  * há bloco e não há chamada à API. O aviso fixo diz o que cada feriado fecha — o roteiro lê só as datas geradas
  * pelas regras municipais.
  */
-export function BusinessCalendarPanel({ canManage, companyId }: BusinessCalendarPanelProps) {
+export function BusinessCalendarPanel({
+  canConfigureHolidayImport,
+  canManage,
+  companyId,
+}: BusinessCalendarPanelProps) {
   const { t } = useTranslation('businessCalendar')
   const panel = useBusinessCalendarPanel({ canManage, companyId })
 
@@ -42,6 +49,11 @@ export function BusinessCalendarPanel({ canManage, companyId }: BusinessCalendar
           <SaturdayBlock companyId={companyId} enabled />
           <MunicipalHolidaySection companyId={companyId} enabled />
           <StateHolidaySection companyId={companyId} enabled />
+          <HolidayProviderSettings
+            canConfigure={canConfigureHolidayImport}
+            companyId={companyId}
+            enabled
+          />
           <HolidayImportStatus companyId={companyId} enabled />
           <HolidayImportRemoved companyId={companyId} enabled />
           <HolidayImportSuppressions companyId={companyId} enabled />

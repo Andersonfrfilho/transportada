@@ -219,11 +219,14 @@ async function registerUserPictureMock(page: Page): Promise<void> {
  * O que a página de Configurações lê para abrir (identidade só com `settings.manage`, empresa, certificados, foto).
  * Sem `access-control-allow-origin` fixo: o preview dos prints sobe numa porta própria, e o Playwright o acrescenta.
  */
-export async function mockSettingsShell(page: Page): Promise<void> {
+export async function mockSettingsShell(
+  page: Page,
+  options: Readonly<{ permissions?: readonly string[] }> = {},
+): Promise<void> {
   const identity = {
     company: { id: '00000000-0000-4000-8000-000000000001' },
     identity: { userId: '00000000-0000-4000-8000-000000000002' },
-    permissions: ['settings.manage'],
+    permissions: options.permissions ?? ['settings.manage'],
     roles: ['viewer'],
   }
   // Com `VITE_SMOKE_AUTH_BYPASS` a identidade vem do `sessionStorage`, não da rede.

@@ -126,7 +126,9 @@
     "month": "Month",
     "day": "Day",
     "holidayOn": "Date",
-    "name": "Name"
+    "name": "Name",
+    "token": "FeriadosAPI key",
+    "monthlyRequestBudget": "Requests per month"
   },
   "fieldErrors": {
     "required": "Fill in this field.",
@@ -237,6 +239,7 @@
     "FORBIDDEN": "Your profile does not have permission for this action.",
     "UNAUTHENTICATED": "Your session expired. Sign in again.",
     "TOO_MANY_REQUESTS": "Too many requests in a short time. Wait a moment and try again.",
+    "TOO_MANY_REQUESTS_AFTER": "Too many attempts in a row. Try again in {{minutes}} min.",
     "DATABASE_UNAVAILABLE": "The database is unavailable right now. Try again in a moment.",
     "BUSINESS_CALENDAR_NETWORK_ERROR": "Could not reach the server. Check the connection and try again.",
     "BUSINESS_CALENDAR_REQUEST_FAILED": "The server did not respond as expected.",
@@ -260,7 +263,75 @@
     "BUSINESS_CALENDAR_TOO_MANY_RULES": "Too many rules to build the calendar.",
     "HOLIDAY_IMPORT_PAST_DATE": "Only a date from today onwards can be turned off: past dates stay as they are.",
     "HOLIDAY_IMPORT_DATE_LOCKED": "The date of an imported holiday cannot be changed. Turn this one off and register the new date.",
-    "HOLIDAY_NOT_IMPORTED": "This holiday is not imported: use Delete. The list was refreshed."
+    "HOLIDAY_NOT_IMPORTED": "This holiday is not imported: use Delete. The list was refreshed.",
+    "HOLIDAY_PROVIDER_SETTINGS_VERSION_CONFLICT": "Someone else changed this setting while you were editing. The values were reloaded: check them and save again. Nothing you typed was saved.",
+    "HOLIDAY_PROVIDER_TOKEN_INVALID": "The key does not follow the accepted format: 16 to 512 characters, with no spaces, accents or control characters.",
+    "HOLIDAY_PROVIDER_TOKEN_UNAVAILABLE": "The key could not be stored right now. Nothing was saved: try again in a moment."
+  },
+  "providerSettings": {
+    "title": "FeriadosAPI key",
+    "hint": "The FeriadosAPI access key and the monthly request budget apply to the whole installation: every company uses the same one. It is stored encrypted and never shown back.",
+    "loading": "Loading the FeriadosAPI key",
+    "token": {
+      "configured": "Key configured (…{{hint}}) on {{date}}",
+      "configuredNoDate": "Key configured (…{{hint}})",
+      "missing": "No key configured. Without one the import fetches nothing."
+    },
+    "budget": {
+      "value_one": "{{value}} request per month",
+      "value_other": "{{value}} requests per month",
+      "defaultTag": "default"
+    },
+    "usage": {
+      "line": "{{used}} of {{budget}} requests used this month (whole installation)",
+      "reached": "This month's budget was reached: fetching stays stopped until next month or until the budget is raised."
+    },
+    "form": {
+      "token": {
+        "label": "FeriadosAPI key",
+        "hint": "Paste the key as FeriadosAPI shows it. It is never shown back.",
+        "replace": {
+          "label": "New key",
+          "hint": "Leave empty to keep the current key; paste another to replace it. It is never shown back."
+        }
+      },
+      "budget": {
+        "label": "Requests per month",
+        "hint": "From 1 to 1,000,000. Leave empty to use the default.",
+        "placeholder": "default: {{value}}",
+        "useDefault": "Use the default"
+      },
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Settings saved.",
+      "unchanged": "Nothing to save: type a new key or change the budget."
+    },
+    "errors": {
+      "token": "The key must be 16 to 512 visible characters, with no spaces or accents.",
+      "monthlyRequestBudget": "Enter a whole number from 1 to 1,000,000, with no dots or commas."
+    },
+    "remove": {
+      "action": "Remove key",
+      "title": "Remove the FeriadosAPI key?",
+      "body": "The import stops fetching until a new key is saved. The budget is kept and the holidays already imported stay.",
+      "confirm": "Yes, remove the key",
+      "cancel": "Cancel",
+      "removing": "Removing…",
+      "removed": "Key removed."
+    },
+    "readOnly": "Only the company administrator can replace or remove the key and change the budget. Here you see the state.",
+    "routine": "Saving the key does not start fetching: the holiday.provider.pull routine starts paused and is unpaused in Operations.",
+    "toggle": {
+      "label": "Import holidays from FeriadosAPI",
+      "hint": "Turning it off does not delete the holidays already imported: the dates stay in the calendar. To remove one, use Turn off in the list.",
+      "origin": {
+        "default": "Default: the import is on.",
+        "company": "Set by this company."
+      },
+      "loading": "Loading the import switch",
+      "saving": "Saving…",
+      "saved": "Saved."
+    }
   },
   "import": {
     "title": "Holiday import",
@@ -278,16 +349,25 @@
       "headline": {
         "healthy": "Up to date",
         "waiting": "Waiting for the first run",
-        "unauthorized": "Provider refused access: invalid token or plan without coverage",
+        "unauthorized": "Provider refused access: invalid key or plan without coverage",
         "unreachable": "Provider unavailable, trying again",
         "malformed": "Unexpected provider response",
         "failing": "With failures",
-        "disabled": "Turned off for this company"
+        "disabled": "Turned off for this company",
+        "noToken": "No FeriadosAPI key",
+        "tokenUnreadable": "The stored key does not open",
+        "newKeyPending": "New key saved, waiting for the next cycle",
+        "budgetReached": "Monthly budget reached"
       },
       "explain": {
         "healthy": "The daily routine fetched the holidays of the tracked cities.",
-        "waiting": "The daily routine has not fetched anything yet. In Operations, check whether it is paused or has no token.",
-        "unauthorized": "The provider refused the routine's last cycle. Check the configured key and the plan contracted with the provider; in Operations, see whether the routine is paused or has no token.",
+        "waiting": "The daily routine has not fetched anything yet. In Operations, check whether it is paused.",
+        "waitingWithToken": "The key is configured, but the daily routine has not fetched anything yet. In Operations, unpause the holiday.provider.pull routine for the first fetch.",
+        "unauthorized": "The provider refused the routine's last cycle. Check the key in \"FeriadosAPI key\" and the plan contracted with the provider.",
+        "noToken": "The import fetches nothing while there is no key. Paste the key in the \"FeriadosAPI key\" block above; once saved, the routine still has to be unpaused in Operations.",
+        "tokenUnreadable": "The key is stored, but the last cycle could not open it (for example, after the installation's encryption key changed). Paste the key again in the \"FeriadosAPI key\" block: it is sealed again.",
+        "newKeyPending": "The routine's last cycle predates the new key, so its result no longer applies. The status updates after the next cycle; if the holiday.provider.pull routine is paused, it needs to be unpaused in Operations.",
+        "budgetReached": "The import has used all of this month's requests and stays stopped until next month. To continue sooner, raise the budget in the \"FeriadosAPI key\" block.",
         "unreachable": "The provider did not answer in the last cycle. The routine retries on its own in the next cycle; nothing needs to be done now.",
         "malformed": "The provider answered in a format the routine does not understand and nothing was stored. The contract may have changed: tell support.",
         "failing": "Some fetches failed. The routine retries on its own, with growing intervals.",

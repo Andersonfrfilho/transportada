@@ -1,8 +1,12 @@
 # Tarefas — 252
 
+> **Passagem de bastão (2026-10-12):** a 252 está em produção (#155, #156, #159) com a rotina pausada e sem chave; o que falta
+> (Q3/Q4, despausar, 1º ciclo, a chave pela tela da spec 262) está em `specs/262-a-chave-da-feriadosapi-se-configura-no-painel/handoff.md`.
+
 > **Q3 e Q4 estão `[NEEDS CLARIFICATION]`** (`spec.md`): não bloqueiam nenhuma task de código; bloqueiam **ligar a
-> rotina** (configurar `FERIADOS_API_TOKEN` e despausar a rotina, que nasce pausada de fábrica — D13), que é passo do
-> usuário. Migration **só staging** (Q2). **Fases 0 a 5 feitas e publicadas em staging** (2026-10-07 e 2026-10-09; SHAs e deploys
+> rotina** (gravar a chave da FeriadosAPI pela tela da instalação e despausar a rotina, que nasce pausada de fábrica — D13), que é
+> passo do usuário. ⚠️ **Superado pela spec 262:** a chave deixou de ser a variável `FERIADOS_API_TOKEN` (o worker a lê do banco a cada
+> ciclo e ignora a variável); onde este arquivo diz "configurar o token no worker", leia "gravar a chave pela tela". Migration **só staging** (Q2). **Fases 0 a 5 feitas e publicadas em staging** (2026-10-07 e 2026-10-09; SHAs e deploys
 > no quadro de `evidence.md` § "T6.1 — fechamento"); a rotina nasce inerte sem token e pausada. **Produção ainda não leva a 252**
 > (só o roteirizador por cidade e os clientes tolerantes, PR #154). **T6.1: a documentação viva está feita** (2026-10-09, branch
 > `work/252-t6`); **faltam a revisão final `opus` e a revisão de design com o usuário.**
@@ -146,7 +150,7 @@ CONFLICT` sobre o predicado do único parcial `once`), só datas
       integração vermelhos, `9b1450794` código, `a52a193ad` ajuste de dado de teste): Fase 1 conferida em `origin/staging`
       (`4454228ac`), aplicação por empresa sob a trava de calendário da 238, 11 integrações contra Postgres, 18 mutações
       vermelhas; `evidence.md` § T3.4.
-- [x] **T3.5** `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
+- [x] **T3.5** (⚠️ a configuração por variável de ambiente foi **superada pela 262**: chave e orçamento no banco) `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` (inteiro `>= 1`) no schema do worker
       (vazio = ausente), registro condicional da rotina (`job_run_routine_missing` sem token), `.env.example` sem valor,
       `.railway/railway.ts` com `preserve()`, contrato de que o token não aparece no log (inclusive em erro). (CA8, CA9) **Feita em 2026-10-09** (`9b64e1726` contratos
       vermelhos, `264b7f31a` código): sem token a rotina não é registrada e o boot segue verde; orçamento inteiro `>= 1`
@@ -268,13 +272,13 @@ tolerante (T5.1) e app do motorista tolerante (T5.1b) (staging em 2026-10-07; pr
 (T2.2 e T2.3, staging em 2026-10-09 04:53Z) → API da gestão e dos avisos (T4.1, T4.2) e worker inerte (Fase 3) → API do
 motorista (T4.3) → app do motorista (T5.4) → painel (T5.2, T5.3) → API com `origin` (**depois** do painel). Tudo em staging, com
 Deploy verde (quadro em `evidence.md` § "T6.1 — fechamento"). **Faltam, nesta ordem:** o usuário confirma termos e plano (Q3, Q4),
-configura o token em staging e despausa a rotina → acompanhar o 1º ciclo e registrar em `evidence.md` → revisão final
+grava a chave pela tela em staging (a variável é ignorada) e despausa a rotina → acompanhar o 1º ciclo e registrar em `evidence.md` → revisão final
 `opus` e revisão de design → produção por PR `staging → main` com aprovação humana (a migration com aprovação própria, e o painel
 antes da API por causa do `origin`).
 
 ### Roteiro do 1º ciclo real (passo do usuário, depois de Q3 e Q4)
 
-Configurar `FERIADOS_API_TOKEN` e **deixar o orçamento no valor do plano — não testar com orçamento baixo** (o orçamento
+Gravar a chave pela tela da instalação (aba Calendário; a variável `FERIADOS_API_TOKEN` é ignorada) e **deixar o orçamento no valor do plano — não testar com orçamento baixo** (o orçamento
 esgotado só encerra o ciclo e o ciclo seguinte já parte do mês gasto). Despausar `holiday.provider.pull` e conferir, em
 staging, só por leitura:
 
@@ -303,6 +307,6 @@ Decida ou pergunte os achados abertos de evidence.md § "T6.1 — fechamento" (m
 em produção; índice de nfe_addresses).
 A revisão de design e usabilidade (web.md §15, tela real contra os prints aprovados, painel e app do motorista) é com o usuário.
 Escalada: gate falhou 2x → sobe um nível (haiku→sonnet→opus) e registra em evidence.md.
-Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), configurar ou pedir FERIADOS_API_TOKEN,
+Pare e pergunte antes de: produção (deploy, PR staging→main, migration em produção), gravar ou pedir a chave da FeriadosAPI,
 despausar a rotina holiday.provider.pull, mudar o contrato do solver e qualquer tela publicada sem print aprovado.
 ```

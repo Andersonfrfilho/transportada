@@ -33,6 +33,11 @@ type TripDocumentSearchProps = Readonly<{
    * sem isto, a cidade vizinha que ficou de fora não teria como aparecer em lugar nenhum.
    */
   onFilteredChange?: (documents: readonly ScannedNfeDocument[]) => void
+  /**
+   * Avisa que a pessoa abriu a busca. Quem carrega a lista só quando ela é pedida (o detalhe da
+   * viagem, para não varrer a base de notas a cada abertura) liga a consulta aqui.
+   */
+  onOpen?: () => void
   onSelectionChange?: (documents: readonly ScannedNfeDocument[]) => void
   /**
    * A escolha que já existia fora da busca. ⚠️ Sem ela, a busca remontada (diálogo reaberto,
@@ -53,6 +58,7 @@ export function TripDocumentSearch({
   documents,
   isLoading = false,
   onFilteredChange,
+  onOpen,
   onSelectionChange,
   onStage,
   selectedIds,
@@ -104,7 +110,15 @@ export function TripDocumentSearch({
   return (
     <section className={styles.searchSection}>
       <div className={styles.scanRow}>
-        <Button onClick={() => setIsOpen(!isOpen)} size="sm" type="button" variant="secondary">
+        <Button
+          onClick={() => {
+            if (!isOpen) onOpen?.()
+            setIsOpen(!isOpen)
+          }}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
           <Icon name="search" />
           {t('quickCreate.search')}
           {table.selectedCount > 0 ? <CountBadge count={table.selectedCount} /> : null}

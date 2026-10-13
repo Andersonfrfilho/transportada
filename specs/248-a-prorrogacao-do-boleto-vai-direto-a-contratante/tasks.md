@@ -42,13 +42,14 @@ No worker, `make worker-integration` provisiona o banco descartável.
 
 > 🤖 Modelo: `sonnet` (T3.1 é 🧠 — `opus`, validar com `architect` antes)
 
-- [ ] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção,
-      `nfe_documents.recipient_email`, `occurrence_contractor_replies`,
+- [x] **T3.1** 🧠 Schema e migration: colunas do tipo e CHECKs (`spec.md`), colunas da exceção
+      (`nfe_documents.recipient_email` já existe — migration `20261008163250`, não se recria),
+      `occurrence_contractor_replies`,
       `occurrence_contractor_reply_deliveries`, `occurrence_contractor_reply_events`, FKs compostas,
       índice parcial, `tenant-safety.contract.ts`; `rollback.sql`; `make migration-test`.
-- [ ] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
+- [x] **T3.2** Integração da migration: defaults, cada CHECK do tipo, `handled ⇔ autor e nota`,
       `trigger = operator ⇔ actor_user_id`, unicidade por ocorrência e por `idempotency_key`.
-- [ ] **T3.3** Mutações da T3.2 registradas: tirar a CHECK `forward_to_note_recipient = automatic ⇒
+- [x] **T3.3** Mutações da T3.2 registradas: tirar a CHECK `forward_to_note_recipient = automatic ⇒
 modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `actor_user_id` nulo
       com `trigger = operator`.
 
@@ -57,50 +58,77 @@ modo ≠ off`; default `automatic` em `forward_to_note_recipient`; permitir `act
 > 🤖 Modelo: `sonnet` (T4.4, T4.7 e T4.9 são 🧠 — `opus`: ação automática sem humano, envio a
 > terceiro e retomada pela mensagem do motorista)
 
-- [ ] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
+- [x] **T4.1** Contrato **antes**: `contractor-reply.contract.ts` (API **e** worker, mesma tabela):
       0/1/N anexos, tipo pelos bytes, já entregue, cancelado, tratado; `decideAlert` (prazo,
       intervalo, teto, paradas).
-- [ ] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
-- [ ] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
+- [x] **T4.2** `decideContractorReply` e `decideAlert` nas duas apps.
+- [x] **T4.3** Mutações da T4.1 registradas: aceitar pelo nome do arquivo; entregar com dois PDFs;
       alertar depois do teto; ler o modo do tipo em vez da cópia do retorno.
-- [ ] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
+- [x] **T4.4** 🧠 Abertura do retorno na transação do envio automático, com configuração **efetiva**
       copiada; varredor `occurrence.automatic-mail.sweep`. Integração CA01 (registro pelo app **e**
       pelo fluxo de WhatsApp) e **CA04 — só a configuração decide** (mutação: `if` pelo nome).
-- [ ] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
+  - [x] **T4.4a** abertura do retorno em `executeSend` (só `automatic`), configuração efetiva copiada, CA01 e CA04
+        contra Postgres, duas mutações com execução vermelha (evidence.md).
+  - [x] **T4.4b** varredor `occurrence.automatic-mail.sweep` (o `Promise.allSettled`/isolamento do §15 vale aqui);
+        e a CA01 pelos caminhos de entrada reais (app e WhatsApp) com o gancho.
+- [x] **T4.5** Resposta por e-mail (worker, depois de `recordOccurrenceConversationMailReply`) e pelo
       portal (API, depois do commit da mensagem do portal) aplicam a política; integração CA02 nos
       dois caminhos, resposta duplicada e empresa B (CA09).
-- [ ] **T4.6** `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
+- [x] **T4.6** (aviso do sino também no automático: T4.6b) `deliverContractorReplyToDriver` no `app_chat`, referência ao mesmo `stored_object`,
       aviso no sino que já existe; o expurgo conta as duas referências. Integração.
-- [ ] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
+- [x] **T4.7** 🧠 Envio a terceiro: `forward-contractor-reply-by-email` (cliente da nota e e-mail
       informado), validação RF11, limite de taxa, 5 por ocorrência, `Idempotency-Key`, mensagem de
       saída **sem thread** no worker, PDF como anexo com teto de 10 MB, máscara no log
-      (`maskEmailAddress` promovida a `shared/`). Integração CA07.
-- [ ] **T4.8** Mutações da T4.7 registradas: aceitar `a@b.com,c@d.com`; aceitar `\r\nBcc:`; cair para
+      (`maskEmailAddress` promovida a `shared/`). Integração CA07. Manual feito (API, worker e as telas
+      do painel); o envio **automático** ao cliente da nota (RF10) está feito na T4.7b — ver evidence.md.
+- [x] **T4.7b** Envio **automático** ao cliente da nota (RF10): `forward_to_note_recipient = automatic` enfileira o
+      e-mail pelo trilho do manual junto da entrega ao motorista, nos dois caminhos (portal na API, e-mail no
+      worker), idempotente por (retorno, anexo), em savepoint (falha vira `failed / send_failed`, o retorno fica),
+      só com endereço válido, nunca no modo com aprovação. Integração na API e no worker; paridade byte a byte.
+- [x] **T4.8** Mutações da T4.7 registradas: aceitar `a@b.com,c@d.com`; aceitar `\r\nBcc:`; cair para
       outro endereço quando a nota não tem e-mail; enviar duas vezes com a mesma chave.
 - [ ] **T4.9** 🧠 WhatsApp: entrega por `SendMessageUseCase.sendMedia` (janela do pacote),
       `fallback_app_chat`/`wait_for_driver`, `WhatsAppWindowExpiredError` tratado; retomada no hook da
       mensagem recebida, sem consumir a mensagem, com trava por linha. Integração CA06 com o pacote
       dublê (duas mensagens seguidas → um envio).
-- [ ] **T4.10** Cron `occurrence.contractor-reply.alert` e templates de notificação com chave por
-      alerta; ações `resend-request` e `handled`. Integração CA05 (job em dobro, quatro paradas, teto).
+- [x] **T4.10a** Rotina `occurrence.contractor-reply.alert` (worker, pausada de fábrica) e template de
+      notificação com chave por alerta (`reply:<id>:<n>`). Integração CA05: job em dobro, intervalo, teto.
+- [ ] **T4.10b** Ações do operador `resend-request` e `handled` (RF6) e os testes de CA05 "quatro paradas"
+      pelas rotas (resposta chega, cancelada, tratado, teto) — a rotina já para em todas pela política.
+  - [x] **T4.10b-1** `handled` (T5.3a) e `POST /trip-occurrences/:id/contractor-reply/resend-request`
+        (evidence.md § T4.10b/T5.3b).
+  - [ ] **T4.10b-2** os testes de CA05 "quatro paradas" pelas rotas.
 - [ ] **T4.11** Contrato de parede + mutação: nenhum log com e-mail, nome de arquivo, CNPJ ou número de
-      nota nos arquivos novos (CA08).
+      nota nos arquivos novos (CA08). Feito para os arquivos do alarme (T4.10a); falta o resto da fase.
 
 ## Fase 5 — Telas (etapa 3)
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
+- [x] **T5.1** Aba Tipos: bloco "Retorno da contratante" (dentro de "E-mail à contratante" da 247),
       com o `Select` da aplicação, os campos e as CHECKs como mensagens no campo; exceção por
       contratante com "Igual ao tipo".
-- [ ] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".
+- [x] **T5.2** Lista de ocorrências: selo do retorno e filtro "Atrasadas".
+  - [x] **T5.2a** selo (`contractorReply` no feed, uma leitura por página).
+  - [x] **T5.2b** filtro "Atrasadas": no SQL paginado por cursor (`contractorReplyStatusIn=overdue`), caixa
+        de seleção e pílula do design system, estado em `?contractorReply=overdue` (evidence.md § T5.2b).
 - [ ] **T5.3** Detalhe da ocorrência: painel do retorno (estado, prazo, alertas, ações "Reenviar o
       pedido", "Marcar como tratado", contatos da contratante), envios ("Enviar ao motorista",
       "Enviar ao cliente da nota" com motivo quando indisponível, "Encaminhar para um e-mail"), linha
       do tempo com os eventos.
+  - [x] **T5.3a** painel (estado, prazo, alertas, linha do tempo, envios), "Marcar como tratado" e
+        "Enviar ao motorista" (boleto aceito parado no operador).
+  - [x] **T5.3b-1** "Reenviar o pedido" (botão no painel, só nos estados que permitem, motivo quando
+        desabilitado).
+  - [ ] **T5.3b-2** contatos da contratante, "Enviar ao cliente da nota" e "Encaminhar para um e-mail"
+        (dependem da T4.7).
 - [ ] **T5.4** App do motorista: conversa da ocorrência (lista com não lidas, leitura, resposta com
       anexo, download do PDF por URL assinada, aviso "sem rede"), o aviso do sino abrindo a conversa, e
       "Pedido enviado à contratante" na ocorrência.
+      **Parcial** (evidence.md § T5.4): a conversa, o aviso do sino e o PDF por URL assinada já existiam
+      (263/264) e ganharam contrato (o smoke do sino não foi escrito: sem Chromium local); "Pedido enviado à contratante" e o estado simples
+      (aguardando a contratante · boleto recebido · entregue ao motorista) entregues na T5.4b (evidence.md; `registeredOccurrences` na nota de
+      `/me/trips/current`, app antes da API, ADR-0081 §9); **falta** o aviso do sino no caminho automático.
 
 ## Fase 6 — Roteiro operacional
 

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { formatInstantDateTime } from '../shared/holidayImportFormat.service'
 import type { HolidayImportStatus } from '../shared/holidayImport.types'
+import type { HolidayProviderSettings } from '../shared/holidayProviderSettings.types'
 import { resolveImportStatusView } from '../shared/holidayImportStatus.service'
 import businessCalendarStyles from '../styles/businessCalendar.module.css'
 import styles from '../styles/holidayImport.module.css'
@@ -12,15 +13,19 @@ const PAIR_KEYS = ['pending', 'failed', 'notCovered', 'quotaExhausted'] as const
 
 type PairFact = (typeof PAIR_KEYS)[number]
 
-type HolidayImportStatusBodyProps = Readonly<{ status: HolidayImportStatus }>
+type HolidayImportStatusBodyProps = Readonly<{
+  /** A configuração da instalação; `undefined` se a leitura falhou, e o cartão é o de antes. */
+  settings: HolidayProviderSettings | undefined
+  status: HolidayImportStatus
+}>
 
 /**
  * O estado que a rotina deixou: uma manchete (a primeira coisa que o operador precisa saber), a barra de progresso, os
  * números, e cada falha por extenso. Os contadores zerados não aparecem — só o que pede atenção.
  */
-export function HolidayImportStatusBody({ status }: HolidayImportStatusBodyProps) {
+export function HolidayImportStatusBody({ settings, status }: HolidayImportStatusBodyProps) {
   const { i18n, t } = useTranslation('businessCalendar')
-  const view = resolveImportStatusView(status)
+  const view = resolveImportStatusView({ settings, status })
   const progressText = t('import.status.progress', {
     done: view.progress.done,
     total: view.progress.total,
@@ -38,7 +43,7 @@ export function HolidayImportStatusBody({ status }: HolidayImportStatusBodyProps
       <p className={styles.headline} data-headline={view.headline}>
         {t(`import.status.headline.${view.headline}`)}
       </p>
-      <p className={businessCalendarStyles.hint}>{t(`import.status.explain.${view.headline}`)}</p>
+      <p className={businessCalendarStyles.hint}>{t(view.explainKey)}</p>
       {hasPlanWarning ? (
         <div className={styles.warning} data-warning="plan-restricted">
           <p>{t('import.status.planRestricted', { count: view.planRestrictedPairs })}</p>

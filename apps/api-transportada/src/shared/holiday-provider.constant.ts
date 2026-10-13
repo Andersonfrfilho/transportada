@@ -93,3 +93,15 @@ export const HOLIDAY_PROVIDER_TYPES_BY_SCOPE = {
     HOLIDAY_PROVIDER_TYPE.FACULTATIVE,
   ],
 } as const
+
+/**
+ * Spec 262 (ADR-0102): o orçamento mensal de requisições vive no banco, e a API e o worker precisam do mesmo
+ * padrão e do mesmo teto. ⚠️ Cópia por valor de `worker-transportada/.../holiday-provider-pull.constant.ts`,
+ * com a paridade cobrada pelo contrato `holiday-provider-pull/parity.contract.ts` do worker.
+ */
+export const FERIADOS_API_DEFAULT_MONTHLY_REQUEST_BUDGET = 4500
+export const FERIADOS_API_MIN_MONTHLY_REQUEST_BUDGET = 1
+export const FERIADOS_API_MAX_MONTHLY_REQUEST_BUDGET = 1_000_000
+
+/** O único fornecedor de feriados; a coluna `provider` deixa a porta aberta e a CHECK aceita só este. */
+export const HOLIDAY_PROVIDER_SETTINGS_PROVIDERS = ['feriadosapi'] as const

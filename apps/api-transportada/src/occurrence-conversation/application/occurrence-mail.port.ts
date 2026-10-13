@@ -11,6 +11,11 @@ import type {
   ContractorContactType,
 } from '../../database/contractor-mail.schema.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type {
+  ContractorReplyConfiguration,
+  ContractorReplyOverride,
+  ContractorReplyTypeConfiguration,
+} from '../domain/contractor-reply-configuration.policy.js'
 
 /** A ocorrência como o e-mail precisa dela: de que tipo, e de qual contratante (pelo emitente). */
 export type OccurrenceMailTarget = {
@@ -73,6 +78,12 @@ export type RecordOccurrenceMailInput = {
   readonly subject: string
   readonly threadId: string
   readonly toAddresses: readonly string[]
+}
+
+/** Spec 248: the type of the occurrence and the exception of its contractor, read in the send. */
+export type StoredContractorReplyConfiguration = {
+  readonly override: ContractorReplyOverride | null
+  readonly type: ContractorReplyTypeConfiguration
 }
 
 export type OccurrenceMailTransactionPort = {
@@ -147,7 +158,34 @@ export type OccurrenceMailTransactionPort = {
     readonly mailMessageId: string
     readonly queuedAt: string
   }): Promise<{ readonly id: string }>
+  /** `null` when the occurrence is not a document occurrence (the reply points at those only). */
+  findContractorReplyConfiguration(params: {
+    readonly companyId: string
+    readonly contractorId: string
+    readonly occurrenceId: string
+  }): Promise<StoredContractorReplyConfiguration | null>
+  /** One reply per occurrence: a second open for the same occurrence changes nothing. */
+  openContractorReply(params: {
+    readonly companyId: string
+    readonly configuration: ContractorReplyConfiguration
+    readonly conversationId: string
+    readonly deadlineAt: Date | null
+    readonly occurrenceId: string
+  }): Promise<void>
+  /**
+   * Spec 248 RF6: locks the reply, re-checks that it may be resent now and records the `user` event that
+   * marks the resend. The rule is decided here, inside the transaction of the mail, so two requests with
+   * different keys cannot both pass.
+   */
+  recordContractorReplyResend(params: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly now: Date
+    readonly occurrenceId: string
+  }): Promise<RecordContractorReplyResendOutcome>
 }
+
+export type RecordContractorReplyResendOutcome = 'not_resendable' | 'recorded' | 'too_soon'
 
 export type OccurrenceMailUnitOfWorkPort = {
   execute<TResult>(

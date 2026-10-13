@@ -972,6 +972,41 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { emailsContractor: input.emailsContractor }),
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 248 RF1: o retorno da contratante — só vai o que a edição muda. */
+          ...(input.contractorReplyAlertIntervalMinutes === undefined
+            ? {}
+            : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
+          ...(input.contractorReplyAlertMaxCount === undefined
+            ? {}
+            : { contractorReplyAlertMaxCount: input.contractorReplyAlertMaxCount }),
+          ...(input.contractorReplyAlertMode === undefined
+            ? {}
+            : { contractorReplyAlertMode: input.contractorReplyAlertMode }),
+          ...(input.contractorReplyAttachmentKind === undefined
+            ? {}
+            : { contractorReplyAttachmentKind: input.contractorReplyAttachmentKind }),
+          ...(input.contractorReplyMode === undefined
+            ? {}
+            : { contractorReplyMode: input.contractorReplyMode }),
+          ...(input.contractorReplyWaitHours === undefined
+            ? {}
+            : { contractorReplyWaitHours: input.contractorReplyWaitHours }),
+          ...(input.driverReplyTemplate === undefined
+            ? {}
+            : { driverReplyTemplate: input.driverReplyTemplate }),
+          ...(input.forwardToNoteRecipient === undefined
+            ? {}
+            : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
+          /** Spec 248 T4.7: o e-mail ao terceiro — a CHECK exige assunto e corpo juntos com qualquer envio ligado. */
+          ...(input.forwardToInformedEmail === undefined
+            ? {}
+            : { forwardToInformedEmail: input.forwardToInformedEmail }),
+          ...(input.forwardEmailSubject === undefined
+            ? {}
+            : { forwardEmailSubject: input.forwardEmailSubject }),
+          ...(input.forwardEmailBody === undefined
+            ? {}
+            : { forwardEmailBody: input.forwardEmailBody }),
           /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
           ...(input.flow === undefined ? {} : { flow: input.flow }),
           /** Spec 241 RF4: mesma regra do `flow` — ausente é "não mexe". */

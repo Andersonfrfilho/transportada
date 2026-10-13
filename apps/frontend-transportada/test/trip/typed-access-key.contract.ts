@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import { loadFutureModule, NFE_ACCESS_KEY, NFE_DOCUMENT_ID } from './trip.fixture'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
-const DETAIL_PATH = 'src/modules/trip/components/TripDetail.component.tsx'
+const DETAIL_PATH = 'src/modules/trip/components/TripLinkDocumentPanel.component.tsx'
 const LINK_HOOK_PATH = 'src/modules/trip/hooks/useTripDocumentLinkForm.hook.ts'
 const SCAN_QUEUE_SERVICE_PATH = 'src/modules/trip/shared/tripScanQueue.service.ts'
 const FORM_SERVICE_PATH = '../../src/modules/trip/shared/tripForm.service'
@@ -136,6 +136,9 @@ describe('trip typed access key contract', () => {
 
     const detailKeys = [
       'linkValueHint',
+      'quickInputHint',
+      'tabQuick',
+      'tabSearch',
       'scan',
       'scanClose',
       'scanDenied',

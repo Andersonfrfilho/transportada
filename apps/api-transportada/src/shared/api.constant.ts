@@ -57,6 +57,8 @@ export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/dri
 export const API_COMPANY_SETTINGS_LOCATION_RETENTION_PATH = '/company-settings/location-retention'
 export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
   '/company-settings/location-retention/impact'
+/** Spec 264 RF17: a empresa liga ou desliga a transcrição dos áudios das conversas por assunto. */
+export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/audio-transcription'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
@@ -135,6 +137,20 @@ export const API_HOLIDAY_IMPORTS_PATH = '/holiday-imports'
 export const API_HOLIDAY_IMPORT_STATUS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/status`
 export const API_HOLIDAY_IMPORT_CITIES_PATH = `${API_HOLIDAY_IMPORTS_PATH}/cities`
 export const API_HOLIDAY_IMPORT_SUPPRESSIONS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/suppressions`
+/** Spec 262 (ADR-0102): a chave da FeriadosAPI e o orçamento mensal, da INSTALAÇÃO; o liga/desliga é da empresa. */
+export const API_HOLIDAY_PROVIDER_SETTINGS_PATH = `${API_HOLIDAY_IMPORTS_PATH}/provider-settings`
+export const API_HOLIDAY_PROVIDER_SETTINGS_TOKEN_PATH = `${API_HOLIDAY_PROVIDER_SETTINGS_PATH}/token`
+export const API_COMPANY_SETTINGS_HOLIDAY_IMPORT_PATH = '/company-settings/holiday-import'
+/**
+ * Trocar e remover a chave gastam o mesmo balde: 10 escritas por hora, no Postgres, por empresa + usuário
+ * (`companyId:userId`). ⚠️ NÃO é um teto global da instalação: a chave é da instalação, mas cada administrador de
+ * cada empresa tem o próprio balde.
+ */
+export const HOLIDAY_PROVIDER_SETTINGS_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'holiday-provider-settings',
+  windowSeconds: 3_600,
+} as const
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
 export const API_OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'
@@ -255,8 +271,8 @@ export const HTTP_GET_METHOD = 'GET'
 export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
-/** `Date` não é seguro para leitura entre origens; o app do motorista mede o relógio por ele. */
-export const CORS_EXPOSE_HEADERS = 'Date'
+/** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
+export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
 /**

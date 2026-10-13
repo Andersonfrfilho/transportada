@@ -236,3 +236,87 @@ export class OccurrenceConversationForwardInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 263 (ADR-0101 §3): conversa de nota ou de viagem que o motorista não alcança — assunto
+ * inexistente, de outra empresa, de viagem alheia ou conversa de outro motorista. Uma resposta só: a
+ * diferença entre os casos confirmaria a existência.
+ */
+export class ConversationNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_NOT_FOUND',
+      message: 'Conversation not found',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 263 (ADR-0101 §4): nota liberada, viagem terminal ou conversa encerrada pelo escritório. */
+export class ConversationClosedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_CLOSED',
+      message: 'The conversation is closed',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 263 T2.4b (ADR-0101 §3): o escritório abre ou escreve na conversa de uma nota ou da viagem, mas a
+ * viagem não tem motorista principal com vínculo ativo — não há a quem entregar a mensagem.
+ */
+export class ConversationNoDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONVERSATION_NO_DRIVER',
+      message: 'The trip has no active driver to talk to',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: o retorno já foi entregue ou cancelado; não há mais o que tratar. */
+export class ContractorReplyNotHandleableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_NOT_HANDLEABLE',
+      message: 'The contractor reply is already delivered or cancelled',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: só o retorno que ainda espera a contratante pode ter o pedido reenviado. */
+export class ContractorReplyNotResendableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_NOT_RESENDABLE',
+      message: 'The request can only be resent while the contractor reply is awaited or overdue',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: no máximo um reenvio por intervalo de alarme do retorno. */
+export class ContractorReplyResendTooSoonError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_RESEND_TOO_SOON',
+      message: 'The request was already resent within the alert interval of this reply',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 248 RF6: a mensagem do pedido original não está na conversa da contratante. */
+export class ContractorReplyOriginalRequestMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_REPLY_ORIGINAL_REQUEST_MISSING',
+      message: 'The original request to the contractor was not found in the conversation',
+      status: 409,
+    })
+  }
+}

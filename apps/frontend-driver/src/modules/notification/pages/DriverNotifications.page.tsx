@@ -10,9 +10,13 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { navigateToDriverSection } from '@/modules/shared/driverRoute.service'
+import {
+  navigateToDriverConversation,
+  navigateToDriverSection,
+} from '@/modules/shared/driverRoute.service'
 
 import styles from '../../driver-trip/styles/driverTrip.module.css'
+import { resolveNotificationDestination } from '../shared/notificationDestination.service'
 
 export function DriverNotificationsPage() {
   const { t } = useTranslation('driverTrip')
@@ -31,8 +35,11 @@ export function DriverNotificationsPage() {
       </Button>
       <h1 className={styles.profileName}>{t('nav.notifications')}</h1>
       <NotificationList
-        onSelect={() => {
-          navigateToDriverSection('notifications')
+        onSelect={(notification) => {
+          const destination = resolveNotificationDestination(notification)
+          if (destination.kind === 'conversation') navigateToDriverConversation(destination.subject)
+          else if (destination.kind === 'conversations') navigateToDriverSection('conversations')
+          else navigateToDriverSection('notifications')
         }}
       />
     </main>

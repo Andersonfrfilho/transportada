@@ -21,7 +21,7 @@ import {
 import styles from '../styles/companySettings.module.css'
 
 type Profile = CompanySettingsUpdate['profile']
-type TextField = Exclude<keyof Profile, 'taxRegime'>
+type TextField = Exclude<keyof Profile, 'displayNameMode' | 'taxRegime'>
 type FieldDefinition = Readonly<{
   field: TextField
   inputMode?: 'email' | 'numeric' | 'text'
@@ -57,6 +57,7 @@ type CompanyProfileFieldsProps = Readonly<{
   lookupPending: boolean
   lookupStatus: 'error' | 'idle' | 'success'
   onChange: (input: Readonly<{ field: TextField; value: string }>) => void
+  onDisplayNameModeChange: (value: Profile['displayNameMode']) => void
   onLookupCnpj: () => void
   onTaxRegimeChange: (value: Profile['taxRegime']) => void
   profile: Profile
@@ -150,6 +151,43 @@ function ProfileTextField(
   )
 }
 
+function DisplayNameModeField(
+  props: Readonly<{
+    onChange: (value: Profile['displayNameMode']) => void
+    value: Profile['displayNameMode']
+  }>,
+) {
+  const { t } = useTranslation('companySettings')
+  const options: readonly Readonly<{ label: string; value: Profile['displayNameMode'] }>[] = [
+    { label: t('displayNameModeTradeName'), value: 'trade_name' },
+    { label: t('displayNameModeLegalName'), value: 'legal_name' },
+  ]
+  return (
+    <div className={styles.taxRegimeField}>
+      <span>{t('displayNameMode')}</span>
+      <div className={styles.taxRegimeOptions} role="radiogroup" aria-label={t('displayNameMode')}>
+        {options.map((option) => (
+          <button
+            aria-checked={props.value === option.value}
+            className={
+              props.value === option.value
+                ? `${styles.taxRegimeOption} ${styles.taxRegimeOptionSelected}`
+                : styles.taxRegimeOption
+            }
+            key={option.value}
+            role="radio"
+            type="button"
+            onClick={() => props.onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <small>{t('displayNameModeHint')}</small>
+    </div>
+  )
+}
+
 function TaxRegimeField(
   props: Readonly<{
     onChange: (value: Profile['taxRegime']) => void
@@ -193,6 +231,7 @@ export function CompanyProfileFields({
   lookupPending,
   lookupStatus,
   onChange,
+  onDisplayNameModeChange,
   onLookupCnpj,
   onTaxRegimeChange,
   profile,
@@ -229,6 +268,7 @@ export function CompanyProfileFields({
             value={profile[definition.field]}
           />
         ))}
+        <DisplayNameModeField onChange={onDisplayNameModeChange} value={profile.displayNameMode} />
         <TaxRegimeField onChange={onTaxRegimeChange} value={profile.taxRegime} />
       </div>
     </fieldset>

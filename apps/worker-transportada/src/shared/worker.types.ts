@@ -48,17 +48,23 @@ export type IdentityDocumentBackfillEnvironment = {
   readonly issuer: string
 }
 
+/** Spec 264: ausente (sem modelo) a rotina `conversation.audio.transcribe` não é registrada. */
+export type AudioTranscriptionEnvironment = {
+  readonly batchSize: number
+  readonly binaryPath: string
+  readonly language: string
+  readonly maxDurationMilliseconds: number
+  readonly modelPath: string
+  readonly recoveryWindowHours: number
+  readonly threads: number
+  readonly timeoutMilliseconds: number
+}
+
 export type FuelPricePullEnvironment = {
   readonly aneelBaseUrl: string
   readonly aneelTimeoutMilliseconds: number
   readonly anpBaseUrl: string
   readonly anpTimeoutMilliseconds: number
-}
-
-/** ADR-0100 D10: o token da FeriadosAPI e o orçamento de requisições do mês. O token nunca sai daqui para log. */
-export type HolidayProviderPullEnvironment = {
-  readonly monthlyRequestBudget: number
-  readonly token: string
 }
 
 /** ADR-0047: o crachá do worker. O segredo nunca sai daqui para log ou métrica. */
@@ -78,12 +84,11 @@ export type WorkerEnvironment = {
   readonly aggregateDocumentOcrUrl?: string
   /** ADR-0062: sem ela a rotina `geocoding.refine` não é registrada. */
   readonly googleMapsApiKey?: string
-  /** ADR-0100: sem o token a rotina `holiday.provider.pull` não é registrada e nada sai do produto. */
-  readonly holidayProviderPull?: HolidayProviderPullEnvironment
   /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
   readonly apiBaseUrl: string | undefined
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */
   readonly appBaseUrl: string | undefined
+  readonly audioTranscription?: AudioTranscriptionEnvironment
   readonly appEnv: string
   /** Spec 145 D13: o primeiro degrau do orçamento da planta de carga, em ms. */
   readonly cargoLayoutTimeBudgetMs: number

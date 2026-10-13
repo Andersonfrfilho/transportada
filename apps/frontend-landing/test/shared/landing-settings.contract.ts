@@ -40,6 +40,29 @@ describe('landing settings', () => {
     }
   })
 
+  test('a unidade mostra o nome que a empresa escolheu', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              units: [{ displayName: 'SEDE TRANSPORTES LTDA', tradeName: 'Sede' }],
+            },
+          }),
+          { headers: { 'content-type': 'application/json' }, status: 200 },
+        ),
+      )) as unknown as typeof fetch
+
+    try {
+      const settings = await fetchLandingSettings({ apiBaseUrl: 'http://localhost:1' })
+      expect(settings.units[0]?.displayName).toBe('SEDE TRANSPORTES LTDA')
+      expect(settings.units[0]?.tradeName).toBe('Sede')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('cor hex inválida nunca vaza para o CSS — cai no token padrão', () => {
     expect(sanitizeAccentColor('red')).toBeUndefined()
     expect(sanitizeAccentColor('#fff')).toBeUndefined()
@@ -74,6 +97,8 @@ describe('landing settings', () => {
           city: 'São Paulo',
           companyId: 'company-1',
           complement: '',
+          // API anterior à opção do nome: a fantasia segue sendo o nome mostrado.
+          displayName: 'Sede',
           district: '',
           number: '',
           phone: '',

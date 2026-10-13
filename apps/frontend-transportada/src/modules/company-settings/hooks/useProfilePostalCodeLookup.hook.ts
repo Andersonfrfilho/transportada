@@ -5,7 +5,7 @@ import { usePostalCodeLookup } from '@/modules/shared/usePostalCodeLookup.hook'
 import type { CompanySettingsUpdate } from '../shared/companySettingsClient.service'
 
 type Profile = CompanySettingsUpdate['profile']
-type ProfileTextField = Exclude<keyof Profile, 'taxRegime'>
+type ProfileTextField = Exclude<keyof Profile, 'displayNameMode' | 'taxRegime'>
 
 /** Os quatro campos que o CEP sabe preencher têm aqui o nome do cadastro da empresa. */
 const POSTAL_CODE_FIELDS = {

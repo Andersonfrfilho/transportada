@@ -116,6 +116,10 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
+  /* Movimento: tokens de duração; tela com animação respeita prefers-reduced-motion (web.md §16). */
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
   --layout-gutter: var(--space-8);
   --layout-max-width: 78rem;
   --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
@@ -132,6 +136,11 @@
   --control-height-dense: 1.5rem;
   /* Alvo de toque de 44px do `web.md` §10: o compacto do design system fica um degrau abaixo */
   --touch-target: 2.75rem;
+  /* Movimento: confirma uma entrada ou uma troca, nunca decora. Todo uso tem o bloco de `prefers-reduced-motion`. */
+  --motion-fast: 160ms;
+  --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  /* O mapa da viagem na página da ocorrência: altura fixa, a mesma dos demais mapas (cabe em 375 px) */
+  --occurrence-trip-map-height: 18rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
   /* A foto do comprovante aberta tem teto de altura; a largura segue a proporção, nunca a coluna toda */
@@ -1704,6 +1713,11 @@ footer {
   }
 
   body:has([data-print-region]) > :not([data-print-region]):not(:has([data-print-region])) {
+    display: none;
+  }
+
+  /* Folha em portal que imprime sozinha: o app inteiro (e a região de carga dentro dele) sai do layout. */
+  body:has([data-print-region='exclusive']) > :not([data-print-region='exclusive']) {
     display: none;
   }
 

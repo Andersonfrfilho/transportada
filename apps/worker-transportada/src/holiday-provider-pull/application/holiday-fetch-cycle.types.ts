@@ -23,13 +23,17 @@ export type FetchTally = {
   planRestricted: number
   rateLimited: boolean
   requests: number
+  /** Spec 262: não há chave guardada — a busca nem foi montada, e isso não é falha. */
+  tokenMissing: boolean
+  /** Spec 262: há chave guardada e ela não abre — a busca nem foi montada. */
+  tokenUnreadable: boolean
   unauthorized: boolean
   unexpectedFailures: number
   unreachable: number
 }
 
 export type FetchHolidayProviderDependencies = {
-  /** `FERIADOS_API_MONTHLY_REQUEST_BUDGET`: o teto de requisições do mês, por instalação. */
+  /** O teto de requisições do mês, por instalação: lido do banco a cada ciclo (spec 262). */
   readonly budget: number
   readonly client: HolidayProviderClient
   readonly clock: RequestClock

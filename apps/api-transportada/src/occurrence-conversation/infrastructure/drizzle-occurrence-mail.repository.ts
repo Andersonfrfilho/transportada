@@ -5,6 +5,7 @@
  * `company_id`; a thread, a mensagem e o outbox são os da 143 (`contractor_mail_*`), e a conversa
  * só acrescenta a linha que aponta para a mensagem de lá.
  */
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import type { ConversationAttachmentTransactionPort } from '../application/conversation-attachment.port.js'
 import { createConversationAttachmentTransactionPort } from './drizzle-conversation-attachment.repository.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -47,6 +48,11 @@ import type {
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
 } from '../application/occurrence-mail.port.js'
+import {
+  findContractorReplyConfiguration,
+  openContractorReply,
+} from './drizzle-occurrence-contractor-reply.repository.js'
+import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
@@ -118,6 +124,7 @@ async function findCarrierName(
 ): Promise<string | undefined> {
   const [row] = await queryable
     .select({
+      displayNameMode: companyFiscalProfiles.displayNameMode,
       legalName: companyFiscalProfiles.legalName,
       tradeName: companyFiscalProfiles.tradeName,
     })
@@ -125,7 +132,7 @@ async function findCarrierName(
     .where(eq(companyFiscalProfiles.companyId, params.companyId))
     .limit(1)
   if (row === undefined) return undefined
-  return row.tradeName.trim().length > 0 ? row.tradeName : row.legalName
+  return resolveCompanyDisplayName(row)
 }
 
 async function findOperatorName(
@@ -329,6 +336,22 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly contractorId: string
   }): Promise<readonly OccurrenceMailRecipientCandidate[]> {
     return listOccurrenceRecipients(this.transaction, params)
+  }
+
+  public findContractorReplyConfiguration(
+    params: Parameters<typeof findContractorReplyConfiguration>[1],
+  ): ReturnType<typeof findContractorReplyConfiguration> {
+    return findContractorReplyConfiguration(this.transaction, params)
+  }
+
+  public openContractorReply(params: Parameters<typeof openContractorReply>[1]): Promise<void> {
+    return openContractorReply(this.transaction, params)
+  }
+
+  public recordContractorReplyResend(
+    params: Parameters<typeof recordContractorReplyResend>[1],
+  ): ReturnType<typeof recordContractorReplyResend> {
+    return recordContractorReplyResend(this.transaction, params)
   }
 
   public findOccurrenceTarget(params: {

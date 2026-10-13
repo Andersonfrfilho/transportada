@@ -29,6 +29,8 @@ import type {
   ContractorPortalConversationTransactionPort,
   ContractorPortalConversationUnitOfWorkPort,
   ContractorPortalScopePort,
+  ContractorReplyDelivery,
+  ContractorReplyDeliveryNotifierPort,
   PortalConversationMessageRecord,
   PortalConversationSummary,
 } from './contractor-portal-conversation.port.js'
@@ -160,8 +162,23 @@ function portalUploadTarget(
   }
 }
 
+/** The delivery is already committed: a failed notice never undoes it, and the notifier logs its own failure. */
+async function notifyDelivery(
+  notifier: ContractorReplyDeliveryNotifierPort,
+  companyId: string,
+  delivery: ContractorReplyDelivery,
+): Promise<void> {
+  try {
+    await notifier.notify({ companyId, delivery })
+  } catch {
+    // The notifier registers its own failure; the reply is already delivered.
+  }
+}
+
 export function createContractorPortalConversationUseCase(dependencies: {
   readonly clock: () => Date
+  /** Spec 248 T4.6b: the notice of the automatic delivery, sent after the commit. */
+  readonly deliveryNotifier: ContractorReplyDeliveryNotifierPort
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly newRef: () => string
   readonly scopes: ContractorPortalScopePort
@@ -233,7 +250,7 @@ export function createContractorPortalConversationUseCase(dependencies: {
       const attachmentIds = input.attachmentIds ?? []
       const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
       const { companyId, userId } = input.context
-      return withConversation(input, async (transaction, conversation) => {
+      const outcome = await withConversation(input, async (transaction, conversation) => {
         const fingerprint = await dependencies.fingerprintService.create({
           fields: [companyId, input.ref, userId, bodyText, attachmentIds.join(',')].map((value) =>
             ENCODER.encode(value),
@@ -250,7 +267,10 @@ export function createContractorPortalConversationUseCase(dependencies: {
           if (replay.fingerprint !== fingerprint) {
             throw new OccurrenceConversationIdempotencyKeyReusedError()
           }
-          return replay.response as { readonly createdAt: string }
+          return {
+            delivery: undefined,
+            response: replay.response as { readonly createdAt: string },
+          }
         }
         const now = dependencies.clock()
         const message = await transaction.insertPortalMessage({
@@ -268,10 +288,20 @@ export function createContractorPortalConversationUseCase(dependencies: {
           transaction: transaction.attachments,
           uploadIds: attachmentIds,
         })
+        const delivery = await transaction.applyContractorReply({
+          companyId,
+          conversationId: conversation.id,
+          messageId: message.id,
+          now,
+        })
         const response = { createdAt: message.createdAt.toISOString() }
         await transaction.saveIdempotency({ ...key, fingerprint, response })
-        return response
+        return { delivery, response }
       })
+      if (outcome.delivery !== undefined) {
+        await notifyDelivery(dependencies.deliveryNotifier, companyId, outcome.delivery)
+      }
+      return outcome.response
     },
   }
 }

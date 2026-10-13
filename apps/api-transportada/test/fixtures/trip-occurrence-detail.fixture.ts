@@ -11,6 +11,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   case: null,
   corrections: [],
   declaredAmount: null,
+  contractorReply: null,
   conversation: { contractorState: 'none', driverUnreadCount: 0 },
   channel: 'driver_app',
   createdAt: '2026-09-24T14:12:00.000Z',

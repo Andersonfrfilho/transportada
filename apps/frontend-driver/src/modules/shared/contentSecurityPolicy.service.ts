@@ -73,6 +73,10 @@ export function buildContentSecurityPolicy({
       .filter((origin): origin is string => origin !== undefined)
       .sort(),
   ].join(' ')
+  /** Spec 264: o áudio da conversa toca a URL assinada do bucket e a prévia da gravação (`blob:`). */
+  const mediaSource = [SELF, BLOB, ...(storageOrigin === undefined ? [] : [storageOrigin])].join(
+    ' ',
+  )
   const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
 
   return [
@@ -85,6 +89,7 @@ export function buildContentSecurityPolicy({
     `frame-src ${NONE}`,
     `img-src ${imageSource}`,
     `manifest-src ${SELF}`,
+    `media-src ${mediaSource}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,
     /** `style-src-attr` é ignorado pelo Safari < 15.4, e o motorista abre a app no celular. */

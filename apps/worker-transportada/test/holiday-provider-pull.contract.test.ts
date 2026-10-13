@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './holiday-provider-pull/access.contract.js'
 import './holiday-provider-pull/apply.contract.js'
 import './holiday-provider-pull/discovery.contract.js'
 import './holiday-provider-pull/environment.contract.js'
@@ -13,3 +14,5 @@ import './holiday-provider-pull/registration.contract.js'
 import './holiday-provider-pull/routine.contract.js'
 import './holiday-provider-pull/schema-parity.contract.js'
 import './holiday-provider-pull/token-privacy.contract.js'
+import './holiday-provider-pull/token-secret.contract.js'
+import './holiday-provider-pull/token-secret-parity.contract.js'

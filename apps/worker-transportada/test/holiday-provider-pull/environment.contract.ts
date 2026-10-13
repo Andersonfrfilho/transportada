@@ -1,12 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 262 T4.3 (D4, CA9): `FERIADOS_API_TOKEN` e `FERIADOS_API_MONTHLY_REQUEST_BUDGET` deixaram de existir —
+ * a chave e o orçamento moram no banco e a tela os configura. O schema do worker não é `.strict()`: a variável que
+ * sobrar no Railway é ignorada, nunca derruba o boot e nunca vira configuração.
  */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  parseWorkerEnvironment,
-  WorkerConfigurationError,
-} from '../../src/config/environment.schema.js'
+import { parseWorkerEnvironment } from '../../src/config/environment.schema.js'
 
 const BASE_ENVIRONMENT = {
   APP_ENV: 'local',
@@ -15,97 +16,40 @@ const BASE_ENVIRONMENT = {
   RABBITMQ_URL: 'amqp://transportada:transportada@localhost:55672',
 } as const
 
-const TOKEN = 'fixture-token-0123456789'
+const TOKEN = 'FAKE-feriados-key-Q7zK-0123456789'
 
 function parse(extra: Record<string, string>) {
   return parseWorkerEnvironment({ ...BASE_ENVIRONMENT, ...extra })
 }
 
-describe('a configuração da importação de feriados no worker (spec 252 T3.5, D10)', () => {
-  test('sem token a rotina não existe e o boot segue verde', () => {
-    expect(parse({}).holidayProviderPull).toBeUndefined()
-    expect('holidayProviderPull' in parse({})).toBeFalse()
-  })
+describe('a importação de feriados não tem mais configuração de ambiente no worker (spec 262 T4.3)', () => {
+  test('o ambiente validado não carrega `holidayProviderPull`, com ou sem as variáveis antigas', () => {
+    const cases: ReadonlyArray<Record<string, string>> = [
+      {},
+      { FERIADOS_API_TOKEN: TOKEN },
+      { FERIADOS_API_MONTHLY_REQUEST_BUDGET: '300', FERIADOS_API_TOKEN: TOKEN },
+    ]
 
-  test('vazio e só espaços são ausência, como a chave do Google', () => {
-    for (const token of ['', '   ']) {
-      expect(parse({ FERIADOS_API_TOKEN: token }).holidayProviderPull).toBeUndefined()
-    }
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '', FERIADOS_API_TOKEN: '' })
-        .holidayProviderPull,
-    ).toBeUndefined()
-  })
-
-  test('com token e sem orçamento vale o padrão de 4.500 (plano Developer menos 10%, Q3 em aberto)', () => {
-    expect(parse({ FERIADOS_API_TOKEN: TOKEN }).holidayProviderPull).toEqual({
-      monthlyRequestBudget: 4500,
-      token: TOKEN,
-    })
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '', FERIADOS_API_TOKEN: TOKEN })
-        .holidayProviderPull?.monthlyRequestBudget,
-    ).toBe(4500)
-  })
-
-  test('o orçamento é um inteiro a partir de 1, aparado', () => {
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: ' 300 ', FERIADOS_API_TOKEN: TOKEN })
-        .holidayProviderPull?.monthlyRequestBudget,
-    ).toBe(300)
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '1', FERIADOS_API_TOKEN: TOKEN })
-        .holidayProviderPull?.monthlyRequestBudget,
-    ).toBe(1)
-  })
-
-  test('orçamento torto derruba o boot, com ou sem token', () => {
-    for (const budget of ['0', '-5', '1.5', 'abc', '1e3x', '12 345']) {
-      expect(() => parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: budget })).toThrow(
-        WorkerConfigurationError,
-      )
-      expect(() =>
-        parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: budget, FERIADOS_API_TOKEN: TOKEN }),
-      ).toThrow(WorkerConfigurationError)
+    for (const extra of cases) {
+      expect('holidayProviderPull' in parse(extra)).toBeFalse()
     }
   })
 
-  test('o orçamento tem teto de 1.000.000: acima disso é engano de configuração', () => {
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '1000000', FERIADOS_API_TOKEN: TOKEN })
-        .holidayProviderPull?.monthlyRequestBudget,
-    ).toBe(1_000_000)
-    for (const budget of ['1000001', '99999999999']) {
-      expect(() =>
-        parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: budget, FERIADOS_API_TOKEN: TOKEN }),
-      ).toThrow(WorkerConfigurationError)
+  test('a variável que sobrar no Railway é ignorada: nem derruba o boot, nem vira configuração', () => {
+    const leftovers: ReadonlyArray<Record<string, string>> = [
+      { FERIADOS_API_TOKEN: 'valor com espaço e acentuação é' },
+      { FERIADOS_API_MONTHLY_REQUEST_BUDGET: 'abc' },
+      { FERIADOS_API_MONTHLY_REQUEST_BUDGET: '1000001', FERIADOS_API_TOKEN: TOKEN },
+      { FERIADOS_API_MONTHLY_REQUEST_BUDGET: '0', FERIADOS_API_TOKEN: '' },
+    ]
+
+    for (const extra of leftovers) {
+      expect(() => parse(extra)).not.toThrow()
+      expect(JSON.stringify(parse(extra))).not.toContain('FERIADOS')
     }
   })
 
-  test('o token só aceita ASCII visível: espaço no meio, acento ou quebra de linha derrubam o boot', () => {
-    for (const token of ['abc def', 'tokén-com-acento', 'abc\ndef', 'abc\tdef', 'tok\u0000en']) {
-      expect(() => parse({ FERIADOS_API_TOKEN: token })).toThrow(WorkerConfigurationError)
-    }
-    expect(
-      parse({ FERIADOS_API_TOKEN: ' Bearer-safe_Token.0123~+/= ' }).holidayProviderPull?.token,
-    ).toBe('Bearer-safe_Token.0123~+/=')
-  })
-
-  test('o orçamento sozinho, sem token, não liga a rotina', () => {
-    expect(
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: '300' }).holidayProviderPull,
-    ).toBeUndefined()
-  })
-
-  test('o erro de configuração não carrega o valor do token', () => {
-    try {
-      parse({ FERIADOS_API_MONTHLY_REQUEST_BUDGET: 'abc', FERIADOS_API_TOKEN: TOKEN })
-      throw new Error('expected a configuration error')
-    } catch (error: unknown) {
-      expect(String(error)).not.toContain(TOKEN)
-      expect(JSON.stringify(error, Object.getOwnPropertyNames(error as object))).not.toContain(
-        TOKEN,
-      )
-    }
+  test('o valor da variável que sobrar não aparece em nenhum campo do ambiente validado', () => {
+    expect(JSON.stringify(parse({ FERIADOS_API_TOKEN: TOKEN }))).not.toContain(TOKEN)
   })
 })

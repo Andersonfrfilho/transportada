@@ -194,6 +194,7 @@
     "firstPage": "Primeira página",
     "lastPage": "Última página",
     "pageIndicator": "Página {{current}} de {{total}}",
+    "numberExact": "Número da nota",
     "numberFrom": "Número inicial",
     "numberTo": "Número final",
     "operator": "Operador",

@@ -48,6 +48,8 @@ import notificationLocale from '@/modules/notification/locales/notification.loca
 import notificationEnglishLocale from '@/modules/notification/locales/notification.en.locale.json'
 import occurrenceConversationLocale from '@/modules/occurrence-conversation/locales/occurrenceConversation.locale.json'
 import occurrenceConversationEnglishLocale from '@/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json'
+import subjectConversationLocale from '@/modules/occurrence-conversation/locales/subjectConversation.locale.json'
+import subjectConversationEnglishLocale from '@/modules/occurrence-conversation/locales/subjectConversation.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
 import pendingItemsLocale from '@/modules/pending-items/locales/pendingItems.locale.json'
@@ -85,6 +87,7 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceEnglishLocale,
       notification: notificationEnglishLocale,
       occurrenceConversation: occurrenceConversationEnglishLocale,
+      subjectConversation: subjectConversationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       pendingItems: pendingItemsEnglishLocale,
       previewEmail: previewEmailEnglishLocale,
@@ -114,6 +117,7 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceLocale,
       notification: notificationLocale,
       occurrenceConversation: occurrenceConversationLocale,
+      subjectConversation: subjectConversationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       pendingItems: pendingItemsLocale,
       previewEmail: previewEmailLocale,

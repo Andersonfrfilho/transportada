@@ -25,6 +25,11 @@ import type {
 import { buildSettings } from '../fixtures/businessCalendar.fixture'
 import { buildImportStatus } from '../fixtures/holidayImport.fixture'
 
+import {
+  createProviderSettingsClient,
+  resetProviderSettingsDouble,
+} from './holidayProviderSettingsDouble.helper'
+
 export const DOUBLE_CURRENT_YEAR = 2026
 const HORIZON_YEARS = 10
 
@@ -68,6 +73,7 @@ export function resetBusinessCalendarDouble(): void {
     suppressions: [],
   })
   businessCalendarDouble.failNext.clear()
+  resetProviderSettingsDouble()
 }
 
 function id(prefix: string): string {
@@ -490,9 +496,12 @@ const client: BusinessCalendarClient = {
   ...stateClient,
 }
 
+const providerSettingsClient = createProviderSettingsClient(record)
+
 void mock.module('@/modules/company-settings/shared/businessCalendarClient.provider', () => ({
   getBusinessCalendarClient: () => client,
   getHolidayImportClient: () => importClient,
+  getHolidayProviderSettingsClient: () => providerSettingsClient,
   getMunicipalityDirectory: () => (input: Readonly<{ state: string }>) => {
     businessCalendarDouble.calls.push(`DIRECTORY ${input.state}`)
     const entries = businessCalendarDouble.municipalities[input.state] ?? []

@@ -11,6 +11,7 @@ import {
 } from '../../database/contractor-mail.schema.js'
 import { storedObjects } from '../../database/nfe.schema.js'
 import type { StoredInboundAttachment } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
+import type { DriverReplyNotice } from '../../occurrence-conversation/application/driver-reply-notice.port.js'
 import {
   findOccurrenceConversationByThread,
   recordOccurrenceConversationMailReply,
@@ -83,10 +84,16 @@ export type ContractorMailInboundWorkerRepository = {
     readonly companyId: string
     readonly replyTokenHashes: readonly string[]
   }): Promise<readonly ContractorMailInboundThreadRecord[]>
-  /** `linkedAttachments`: quantos anexos viraram anexo da mensagem da conversa (spec 183 T702c1). */
-  recordInboundMessage(
-    input: RecordContractorMailInboundMessageInput,
-  ): Promise<{ readonly id: string; readonly linkedAttachments: number }>
+  /**
+   * `linkedAttachments`: quantos anexos viraram anexo da mensagem da conversa (spec 183 T702c1).
+   * `driverNotice` (spec 248 T4.6b): o que a entrega automática gravou no chat do motorista, para o aviso do sino
+   * depois do commit; ausente quando nada foi entregue.
+   */
+  recordInboundMessage(input: RecordContractorMailInboundMessageInput): Promise<{
+    readonly driverNotice?: DriverReplyNotice | undefined
+    readonly id: string
+    readonly linkedAttachments: number
+  }>
   /** Spec 183 T702c1: sem conversa na thread, o anexo do e-mail nem é extraído. */
   threadHasOccurrenceConversation(input: {
     readonly companyId: string
@@ -227,7 +234,11 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             mailMessageId: message.id,
             threadId: input.threadId,
           })
-          return { id: message.id, linkedAttachments: linked }
+          return {
+            driverNotice: linked.driverNotice,
+            id: message.id,
+            linkedAttachments: linked.linkedAttachments,
+          }
         }
 
         const [existing] = await transaction

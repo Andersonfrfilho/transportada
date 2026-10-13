@@ -363,6 +363,45 @@ describe('occurrence attachment query tenant safety (spec 161 T3)', () => {
  * este último **sem FK** para a ocorrência. Um degrau sem `company_id` deixaria o tipo de outra
  * empresa decidir se a nota desta fica para trás. Prova por texto de fonte, como as vizinhas.
  */
+/**
+ * Spec 164 (quem pegou): o nome do operador é dado da equipe. A leitura do escritório o carrega pelo
+ * histórico de eventos da PRÓPRIA tratativa (mesma empresa, ator interno); o portal da contratante
+ * nunca importa perfil de usuário nem o histórico — contrato negativo por texto de fonte.
+ */
+describe('quem pegou a tratativa: tenant e portal (spec 164)', () => {
+  const read = (path: string): string => readFileSync(new URL(path, import.meta.url), 'utf8')
+  const support = read('../../src/trips/infrastructure/occurrence-case-taken-by.support.ts')
+
+  test('o evento de quem pegou é da mesma empresa e do ator interno, nunca do contratante', () => {
+    expect(support).toInclude('latest.company_id = ${tripOccurrenceCases.companyId}')
+    expect(support).toInclude('latest.case_id = ${tripOccurrenceCases.id}')
+    expect(support).toInclude("latest.to_status = 'under_review'")
+    expect(support).toInclude("latest.actor_kind = 'internal'")
+    expect(read('../../src/trips/infrastructure/trip-occurrence-feed.query.ts')).toInclude(
+      'eq(takenByEvent.companyId, tripOccurrenceCases.companyId)',
+    )
+  })
+
+  test('o portal da contratante não lê perfil de usuário nem o histórico da tratativa', () => {
+    for (const path of [
+      '../../src/contractor-portal/infrastructure/contractor-occurrence.query.ts',
+      '../../src/contractor-portal/infrastructure/contractor-occurrence-document.support.ts',
+      '../../src/contractor-portal/presentation/contractor-occurrence.routes.ts',
+    ]) {
+      const source = read(path)
+      expect(source).not.toInclude('takenBy')
+      expect(source).not.toInclude('identityUserProfiles')
+      expect(source).not.toInclude('tripOccurrenceCaseEvents')
+      expect(source).not.toInclude('occurrence-case-taken-by')
+    }
+  })
+
+  test('a linha do tempo não entrega o nome de quem é da contratante', () => {
+    const timeline = read('../../src/trips/infrastructure/trip-occurrence-timeline.query.ts')
+    expect(timeline).toInclude("{ kind: 'contractor', name: null }")
+  })
+})
+
 describe('dispatch readiness query tenant safety (spec 185 T3.1)', () => {
   const source = readFileSync(
     new URL('../../src/trips/infrastructure/dispatch-readiness.query.ts', import.meta.url),

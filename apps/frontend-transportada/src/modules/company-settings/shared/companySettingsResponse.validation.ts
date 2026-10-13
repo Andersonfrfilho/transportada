@@ -4,7 +4,11 @@ import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
   CTE_RETRY_MAX_ATTEMPTS_LIMIT,
 } from './companySettings.constant'
-import { ACTIVATION_CHANNELS, CERTIFICATE_PURPOSES } from './companySettings.types'
+import {
+  ACTIVATION_CHANNELS,
+  CERTIFICATE_PURPOSES,
+  DISPLAY_NAME_MODES,
+} from './companySettings.types'
 import type {
   CompanyProfileLookup,
   CompanyProfileLookupResponse,
@@ -159,8 +163,15 @@ function isMdfeDefaults(value: unknown): boolean {
   )
 }
 
+/**
+ * `displayNameMode` é opcional na resposta: a API que ainda não conhece a opção responde sem ela, e o painel
+ * tolerante a lê como o padrão (`withDisplayNameDefault`). Chaves exatas continuam valendo para o resto.
+ */
 function isFiscalProfile(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys(value, PROFILE_KEYS)) return false
+  if (!isRecord(value)) return false
+  const withMode = hasExactKeys(value, [...PROFILE_KEYS, 'displayNameMode'])
+  if (!withMode && !hasExactKeys(value, PROFILE_KEYS)) return false
+  if (withMode && !DISPLAY_NAME_MODES.some((mode) => mode === value.displayNameMode)) return false
   const allTextFields = PROFILE_KEYS.filter((key) => key !== 'taxRegime')
   return (
     allTextFields.every((key) => typeof value[key] === 'string') &&
@@ -204,4 +215,13 @@ export function isCompanyProfileLookupResponse(
     hasExactKeys(value, ['data']) &&
     (value.data === null || isCompanyProfileLookup(value.data))
   )
+}
+
+/** A resposta de uma API anterior à opção do nome não traz `displayNameMode`: vale o padrão, a fantasia. */
+export function withDisplayNameDefault(response: CompanySettingsResponse): CompanySettingsResponse {
+  const { profile } = response.data
+  if (profile === null) return response
+  const stored: Partial<Pick<typeof profile, 'displayNameMode'>> = profile
+  if (stored.displayNameMode !== undefined) return response
+  return { data: { ...response.data, profile: { ...profile, displayNameMode: 'trade_name' } } }
 }

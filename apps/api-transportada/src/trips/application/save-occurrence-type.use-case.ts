@@ -33,6 +33,13 @@ import {
   normalizeOccurrenceMoments,
 } from '../domain/occurrence-moment.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
+import type {
+  ContractorReplyAlertMode,
+  ContractorReplyAttachmentKind,
+  ContractorReplyMode,
+  ForwardToInformedEmailMode,
+  ForwardToNoteRecipientMode,
+} from '../../shared/occurrence-contractor-reply.constant.js'
 
 /** O catálogo de templates da empresa, visto pelo único predicado que este cadastro precisa. */
 export type OccurrenceEmailTemplateCatalogPort = {
@@ -64,6 +71,18 @@ export type SaveOccurrenceTypeValues = {
   readonly emailBody?: string | undefined
   /** Spec 247 (RF6): o formato de cada linha de item do e-mail. Ausente é "não mexa". */
   readonly emailItemLineTemplate?: string | undefined
+  /** Spec 248 (RF1): o retorno da contratante. Ausente é "não mexa" — nunca o padrão da coluna. */
+  readonly contractorReplyAlertIntervalMinutes?: number | undefined
+  readonly contractorReplyAlertMaxCount?: number | undefined
+  readonly contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
+  readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
+  readonly contractorReplyMode?: ContractorReplyMode | undefined
+  readonly contractorReplyWaitHours?: null | number | undefined
+  readonly driverReplyTemplate?: string | undefined
+  readonly forwardToNoteRecipient?: ForwardToNoteRecipientMode | undefined
+  readonly forwardToInformedEmail?: ForwardToInformedEmailMode | undefined
+  readonly forwardEmailSubject?: string | undefined
+  readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject?: string | undefined

@@ -18,9 +18,11 @@ import {
   tripDrivers,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
+import { OCCURRENCE_CONVERSATION_SUBJECT } from '../../shared/occurrence-conversation-subject.constant.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { requireOccurrenceId } from '../domain/occurrence-subject.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import {
   createConversationAttachmentTransactionPort,
@@ -49,7 +51,7 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
-function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
+export function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
   return {
     attachments: createConversationAttachmentTransactionPort(transaction),
     listAttachments: (input) => readConversationAttachments(transaction, input),
@@ -74,7 +76,12 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
             eq(occurrenceConversations.participant, 'driver'),
             eq(occurrenceConversations.driverUserId, driverUserId),
             ...(occurrenceId === null
-              ? []
+              ? [
+                  eq(
+                    occurrenceConversations.subjectType,
+                    OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE,
+                  ),
+                ]
               : [eq(occurrenceConversations.occurrenceId, occurrenceId)]),
             eq(occurrenceConversationMessages.direction, 'outbound'),
             eq(occurrenceConversationMessages.channel, 'app'),
@@ -128,13 +135,15 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
             eq(occurrenceConversations.companyId, companyId),
             eq(occurrenceConversations.participant, 'driver'),
             eq(occurrenceConversations.driverUserId, driverUserId),
+            eq(occurrenceConversations.subjectType, OCCURRENCE_CONVERSATION_SUBJECT.OCCURRENCE),
           ),
         )
         .groupBy(occurrenceConversations.occurrenceId)
         .orderBy(desc(sql`max(${occurrenceConversationMessages.createdAt})`))
         .limit(MY_CONVERSATIONS_LIMIT)
       const summaries = []
-      for (const row of rows) {
+      for (const candidate of rows) {
+        const row = { ...candidate, occurrenceId: requireOccurrenceId(candidate.occurrenceId) }
         const item = await findTripOccurrenceFeedItem(transaction, {
           companyId,
           occurrenceId: row.occurrenceId,
@@ -256,6 +265,7 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
         .select({
           driverUserId: occurrenceConversations.driverUserId,
           id: occurrenceConversations.id,
+          protocol: occurrenceConversations.protocol,
         })
         .from(occurrenceConversations)
         .where(where)
@@ -264,7 +274,11 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
       if (conversation?.driverUserId == null) {
         throw new Error('driver conversation was not created')
       }
-      return { driverUserId: conversation.driverUserId, id: conversation.id }
+      return {
+        driverUserId: conversation.driverUserId,
+        id: conversation.id,
+        protocol: conversation.protocol,
+      }
     },
 
     async insertMessage(input) {
@@ -277,6 +291,7 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
           companyId: input.companyId,
           conversationId: input.conversationId,
           createdAt: input.createdAt,
+          clientMessageId: input.idempotencyKey,
           direction: input.direction,
           driverUserId: input.driverUserId,
           status: input.status,

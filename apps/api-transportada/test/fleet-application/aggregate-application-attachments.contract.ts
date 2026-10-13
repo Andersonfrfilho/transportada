@@ -182,6 +182,7 @@ describe('anexo de candidatura — vínculo no envio', () => {
             postalCode: '14400000',
             state: 'SP',
             street: 'Rua Um',
+            displayName: 'Sede',
             tradeName: 'Sede',
           },
         ],

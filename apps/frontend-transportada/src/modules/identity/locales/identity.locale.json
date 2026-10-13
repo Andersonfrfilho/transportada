@@ -426,6 +426,10 @@
         "label": "Leitura automática de canhoto",
         "where": "Só do serviço: o robô que lê o canhoto, sem tela. Nenhuma pessoa recebe."
       },
+      "occurrence.automatic-mail": {
+        "label": "Aviso automático de ocorrência",
+        "where": "Só do serviço: o robô que envia o aviso à contratante, sem tela. Nenhuma pessoa recebe."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."
@@ -445,6 +449,10 @@
       "settings.manage": {
         "label": "Configurar a empresa",
         "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
+      },
+      "holiday-import.configure": {
+        "label": "Configurar a chave e o orçamento da importação de feriados",
+        "where": "A chave de acesso ao fornecedor de feriados e o teto mensal de consultas, para toda a instalação."
       },
       "addresses.read": {
         "label": "Consultar CEP",

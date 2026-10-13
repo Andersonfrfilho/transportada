@@ -113,6 +113,11 @@ ready | failed` (`failed` exige `error_code` `PREVIEW_*`). O arquivo fica no buc
 - HolidayImportCity, CompanyHolidayImportSettings e HolidayImportSuppression: o que é da empresa na importação —
   a demanda (cidades de destino físico das notas, por volume), o cursor da descoberta com o interruptor, e a
   supressão do operador (a data desligada que a importação não traz de volta).
+- HolidayProviderSettings (`holiday_provider_settings`, spec 262, ADR-0102): a chave da FeriadosAPI e o orçamento
+  mensal **da instalação**, uma linha por fornecedor, sem `company_id` (a conta e a cota são do dono da instalação,
+  ADR-0021). A chave é o `token_envelope` (envelope A256GCM com AAD pelo `id` da linha; o `keyId` mora dentro dele),
+  mais a dica de 4 caracteres e a data; só a API a sela e só o worker a abre. `monthly_request_budget` nulo é o
+  padrão (4500); sem linha, sem chave. O interruptor por empresa segue em `CompanyHolidayImportSettings.is_enabled`.
 - TripStopSchedule: o agendamento da parada — um por parada, e ele **bloqueia o despacho** enquanto
   estiver pendente ou recusado. O protocolo viaja até o motorista: um agendamento que o sistema
   conhece e ele não é um agendamento que não existe.
@@ -190,6 +195,8 @@ recipient_code)` unique.
   nunca nulo: nacional é `'BR'`); `municipal_holidays` e `state_holidays` ligam a entrada por FK **composta** `(provider_entry_id,
 código, data)`, e a linha vem de regra **ou** do fornecedor, nunca dos dois; a importada estadual é só `once`;
   `holiday_import_suppressions(company_id, scope, ibge_code, holiday_on)` unique.
+- `holiday_provider_settings(provider)` unique, `provider` só `'feriadosapi'`; a chave é tudo-ou-nada (envelope objeto, dica de exatamente 4
+  caracteres ASCII visíveis e data juntos, ou os três nulos); `monthly_request_budget` nulo ou de 1 a 1.000.000; `version > 0`.
 - índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
 - ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 

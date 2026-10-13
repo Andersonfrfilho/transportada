@@ -40,6 +40,7 @@ import {
   EMPTY_MDFE_DEFAULTS,
 } from '../shared/companySettings.constant'
 import { useCompanySettings } from '../hooks/useCompanySettings.hook'
+import { HOLIDAY_IMPORT_CONFIGURE_PERMISSION } from '../shared/holidayProviderSettings.constant'
 import {
   CERTIFICATE_PURPOSES,
   type CertificatePurpose,
@@ -60,6 +61,7 @@ import {
   type ActiveCertificatesByPurpose,
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
+import { AudioTranscriptionSettingsPanel } from '@/modules/occurrence-conversation/components/AudioTranscriptionSettingsPanel.component'
 import { QuickRepliesSettingsPanel } from '@/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component'
 
 import styles from '../styles/companySettings.module.css'
@@ -115,6 +117,7 @@ type ContactsSection = Readonly<{
 type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
+  canConfigureHolidayImport: boolean
   canManageSettings: boolean
   companyId: string | undefined
   /** Spec 221 RF-D2: a permissão vem do mapa de `workspaceAccess`, nunca de uma cópia local. */
@@ -251,9 +254,19 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
     return <SettingsResolutionPanel canManage={props.canManageSettings} />
   /** Spec 183 T701 (RF12): o painel é do módulo da conversa, autocontido — aqui só se decide onde. */
   if (tab === 'quickReplies') return <QuickRepliesSettingsPanel enabled={props.canManageSettings} />
+  /** Spec 264 RF17: painel autocontido — busca a própria configuração, só com `settings.manage`. */
+  if (tab === 'audioTranscription') {
+    return <AudioTranscriptionSettingsPanel canManage={props.canManageSettings} />
+  }
   /** Spec 238 Fase 2: o calendário de dias úteis é autocontido — busca os próprios dados, só com `settings.manage`. */
   if (tab === 'businessCalendar') {
-    return <BusinessCalendarPanel canManage={props.canManageSettings} companyId={props.companyId} />
+    return (
+      <BusinessCalendarPanel
+        canConfigureHolidayImport={props.canConfigureHolidayImport}
+        canManage={props.canManageSettings}
+        companyId={props.companyId}
+      />
+    )
   }
   if (tab === 'site') {
     return (
@@ -398,6 +411,7 @@ export function CompanySettingsPage() {
       <SettingsBody
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        canConfigureHolidayImport={permissions.includes(HOLIDAY_IMPORT_CONFIGURE_PERMISSION)}
         canManageSettings={canManageSettings}
         companyId={companyId}
         isForbidden={isWorkspaceForbidden({

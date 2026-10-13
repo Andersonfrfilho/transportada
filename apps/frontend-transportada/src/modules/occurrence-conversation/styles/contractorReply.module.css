@@ -1,0 +1,173 @@
+/* Spec 248 T5.3: o painel do retorno da contratante. Só tokens da casa; o selo do estado é o `Badge`. */
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.facts div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.facts dt {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.block {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.block h4 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.list,
+.timeline {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.timelineItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+.timelineWhen {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+.timelineActor {
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+}
+
+/* Spec 248: o ícone ao lado do rótulo, alinhado ao texto (web.md §9). */
+.panel h3,
+.block h4,
+.facts dt,
+.list li,
+.timelineWhen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.list li {
+  flex-wrap: wrap;
+}
+
+/* Cor por função (teoria das cores): verde conclui, âmbar pede atenção, vermelho alerta, frio e cinza só informam. */
+.panel {
+  --reply-accent: var(--color-slate);
+
+  border-left: 3px solid var(--reply-accent);
+  transition: border-color var(--motion-base) ease-out;
+  animation: reply-panel-enter var(--motion-base) ease-out both;
+}
+
+.panel[data-status='delivered'],
+.panel[data-status='handled'] {
+  --reply-accent: var(--color-ready);
+}
+
+.panel[data-status='awaiting_operator'],
+.panel[data-status='reply_received'] {
+  --reply-accent: var(--color-copper);
+}
+
+.panel[data-status='overdue'],
+.panel[data-status='needs_operator'] {
+  --reply-accent: var(--color-alert);
+}
+
+.panel[data-status='cancelled'] {
+  --reply-accent: color-mix(in srgb, var(--color-slate) 55%, transparent);
+}
+
+/* Troca de estado: o selo "pousa" uma vez para o olho perceber o que mudou. */
+.statusBadge {
+  animation: reply-badge-land var(--motion-base) ease-out both;
+}
+
+.timelineItem {
+  animation: reply-panel-enter var(--motion-base) ease-out both;
+}
+
+@keyframes reply-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reply-badge-land {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .statusBadge,
+  .timelineItem {
+    animation: none;
+    transition: none;
+  }
+}

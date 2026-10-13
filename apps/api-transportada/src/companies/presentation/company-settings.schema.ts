@@ -7,6 +7,7 @@ import type { CompanySettingsInput } from '../application/company-settings.port.
 import {
   ACTIVATION_CHANNELS,
   BILLING_OBSERVATIONS_MAX_LENGTH,
+  COMPANY_DISPLAY_NAME_MODES,
   DEFAULT_ACTIVATION_CHANNEL,
 } from '../../database/company-fiscal-profile.schema.js'
 import {
@@ -60,6 +61,7 @@ const profileSchema = z
     cityIbgeCode: z.string().regex(/^\d{7}$/),
     cnpj: buildTaxIdSchema(CNPJ_PATTERN),
     complement: optionalText(100),
+    displayNameMode: z.enum(COMPANY_DISPLAY_NAME_MODES).optional(),
     district: requiredText({ maximum: 100, minimum: 1 }),
     email: optionalText(254),
     legalName: requiredText({ maximum: 200, minimum: 2 }),

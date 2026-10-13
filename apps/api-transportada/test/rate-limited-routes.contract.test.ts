@@ -10,10 +10,13 @@ import { createAddressCorrectionRoutes } from '../src/address-correction/present
 import { createCargoArrivalOccurrenceRoutes } from '../src/cargo-receiving/presentation/cargo-arrival-occurrence.routes'
 import { createCargoPreviewRoutes } from '../src/cargo-receiving/presentation/cargo-preview.routes'
 import { createContractorPreviewEmailRoutes } from '../src/cargo-receiving/presentation/contractor-preview-email.routes'
+import { createHolidayProviderSettingsRoutes } from '../src/business-calendar/presentation/holiday-provider-settings.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
 import { createLocationRetentionSettingsRoutes } from '../src/companies/presentation/location-retention-settings.routes'
 import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.routes'
@@ -143,6 +146,30 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'POST /trips/:id/start-route': trip,
       'POST /trips/:id/stops/:stopId/arrive': trip,
       'POST /trips/:id/stops/:stopId/occurrences': trip,
+    })
+  })
+
+  /**
+   * Spec 262 (CA3): a chave da FeriadosAPI é da instalação e o `PUT` sela com o chaveiro: as duas escritas
+   * (trocar e remover) gastam o mesmo balde de 10 por hora; a leitura não tem teto.
+   */
+  test('as escritas da chave da FeriadosAPI dividem um balde de 10 por hora no Postgres', () => {
+    const routes = createHolidayProviderSettingsRoutes(unusedDependencies() as never)
+
+    const limited = Object.fromEntries(
+      routes.map((route) => [`${route.method} ${route.pathname}`, route.rateLimit]),
+    )
+    const bucket = {
+      maxRequests: 10,
+      scope: 'holiday-provider-settings',
+      store: 'postgres',
+      windowSeconds: 3600,
+    } as const
+
+    expect(limited).toEqual({
+      'DELETE /holiday-imports/provider-settings/token': bucket,
+      'GET /holiday-imports/provider-settings': undefined,
+      'PUT /holiday-imports/provider-settings': bucket,
     })
   })
 
@@ -334,6 +361,108 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trip-occurrences/:id/conversations/:participant/uploads',
+      },
+    ])
+  })
+
+  /**
+   * Spec 248 T4.6/T4.7/RF6: levar o boleto da contratante ao motorista, por e-mail ao cliente da nota ou a um endereço
+   * informado, e reenviar o pedido à contratante dividem o balde das mensagens da ocorrência, como o "tratado" (as
+   * leituras não gravam nem custam).
+   */
+  test('levar o boleto, por e-mail, e reenviar o pedido contam no Postgres, no balde das mensagens', () => {
+    const routes = createOccurrenceContractorReplyRoutes({
+      deliverToDriver: {},
+      emailOptions: {},
+      forwardByEmail: {},
+      markHandled: {},
+      readReply: {},
+      resendRequest: {},
+    } as never)
+    const bucket = {
+      maxRequests: 30,
+      scope: 'occurrence-conversation',
+      store: 'postgres',
+      windowSeconds: 300,
+    } as const
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/driver-delivery',
+      },
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/email-delivery',
+      },
+      /** Spec 248 RF6: reenviar o pedido à contratante manda e-mail, no balde das mensagens da ocorrência. */
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/resend-request',
+      },
+      {
+        rateLimit: bucket,
+        signature: 'POST /trip-occurrences/:id/contractor-reply/handled',
+      },
+    ])
+  })
+
+  /**
+   * Spec 263 T2.4b: o escritório fala com o motorista na nota e na viagem. Envio e subida de arquivo
+   * dividem o balde das rotas antigas do escritório (alternar de rota não dobra a cota); abrir e encerrar
+   * gravam linha e têm o balde deles.
+   */
+  test('a conversa de nota e de viagem pelo escritório conta no Postgres', () => {
+    const routes = createOfficeSubjectConversationWriteRoutes(unusedDependencies() as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'office-subject-conversation-state',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/open',
+      },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'office-subject-conversation-state',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
+      },
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',
+      },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'occurrence-conversation-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:tripId/conversations/:subjectType/:subjectId/uploads',
       },
     ])
   })
@@ -590,6 +719,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
 
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
+      'business-calendar/presentation/holiday-provider-settings.routes.ts',
       'cargo-receiving/presentation/cargo-arrival-occurrence.routes.ts',
       'cargo-receiving/presentation/cargo-preview.routes.ts',
       'cargo-receiving/presentation/contractor-preview-email.routes.ts',
@@ -601,7 +731,9 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'identity/presentation/user-activation.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/me-subject-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/office-subject-conversation-write.routes.ts',
       'trips/presentation/me-client-diagnostics.routes.ts',
       'trips/presentation/me-location.routes.ts',
       'trips/presentation/me-proof-receiver.routes.ts',

@@ -1,0 +1,30 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 248 T4.4b: a migration do varredor amplia as mesmas CHECK de `job` que as anteriores restauram no
+ * rollback delas; ela sai primeiro (ordem inversa), senão a CHECK antiga recusaria a linha do relógio.
+ * Só desfaz se ainda estiver no journal, então chamar de novo não faz nada. A do alerta do retorno vencido
+ * (T4.10) veio depois e amplia a mesma CHECK, então sai antes desta.
+ */
+import type { SQL } from 'bun'
+import { join } from 'node:path'
+
+import { rollbackContractorReplyAlertJobIfApplied } from './occurrence-contractor-reply-alert-job-rollback.assertion.js'
+import { migrationsDirectory, readMigrationNames } from './support.js'
+
+const MIGRATION_SUFFIX = '_occurrence_automatic_mail_sweep_job'
+
+export async function rollbackAutomaticMailSweepJobIfApplied(
+  database: SQL,
+  directories: readonly string[],
+): Promise<void> {
+  const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
+  if (directory === undefined) return
+  if (!(await readMigrationNames(database)).includes(directory)) return
+
+  await rollbackContractorReplyAlertJobIfApplied(database, directories)
+
+  await database.unsafe(
+    await Bun.file(join(migrationsDirectory.pathname, directory, 'rollback.sql')).text(),
+  )
+}
