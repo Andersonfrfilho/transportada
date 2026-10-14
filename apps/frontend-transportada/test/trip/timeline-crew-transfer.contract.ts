@@ -94,7 +94,7 @@ function lookup(dictionary: unknown, path: string): unknown {
 
 describe('vocabulário da linha do tempo com a transferência de tripulação (spec 249)', () => {
   it('crew_transfer entra na lista de kinds depois do endereço corrigido', () => {
-    expect([...TRIP_TIMELINE_KINDS].slice(-3, -1)).toEqual([
+    expect([...TRIP_TIMELINE_KINDS].slice(-4, -2)).toEqual([
       'stop.address_corrected',
       'crew_transfer',
     ])

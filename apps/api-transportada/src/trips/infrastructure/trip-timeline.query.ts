@@ -31,6 +31,7 @@ import {
 } from './trip-timeline-status.query.js'
 import { listAddressCorrectedRows } from './trip-timeline-address.query.js'
 import { listCrewTransferRows } from './trip-timeline-crew.query.js'
+import { listDocumentReleasedRows } from './trip-timeline-document-release.query.js'
 import { listDocumentsAddedRows } from './trip-timeline-documents-added.query.js'
 import { listCanhotoPhotoRows } from './trip-timeline-proof.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
@@ -125,6 +126,7 @@ export async function listTripTimeline(
     addressCorrections,
     crewTransfers,
     documentsAdded,
+    documentsReleased,
   ] = await Promise.all([
     listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
@@ -137,6 +139,7 @@ export async function listTripTimeline(
     listAddressCorrectedRows(queryable, params),
     listCrewTransferRows(queryable, params),
     listDocumentsAddedRows(queryable, params),
+    listDocumentReleasedRows(queryable, params),
   ])
 
   const merged = mergeTripTimeline({
@@ -153,6 +156,7 @@ export async function listTripTimeline(
       addressCorrections,
       crewTransfers,
       documentsAdded,
+      documentsReleased,
     ],
   })
   const last = merged.items[merged.items.length - 1]

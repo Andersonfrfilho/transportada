@@ -199,6 +199,10 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
       return t('eventTimeline.itemTitle.crewTransfer')
     case 'documents_added':
       return t('eventTimeline.itemTitle.documentsAdded')
+    case 'document.released':
+      return t('eventTimeline.itemTitle.documentReleased', {
+        document: formatTripTimelineDocumentLabel(item.document, t),
+      })
     case 'document.status_changed':
       return item.toStatus !== null && KNOWN_DOCUMENT_STATUSES.has(item.toStatus)
         ? t(`eventTimeline.itemTitle.documentStatus.${item.toStatus}`, {
