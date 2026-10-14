@@ -219,6 +219,9 @@ type ProfileFormModule = {
   readonly EMPTY_NFSE_PROFILE_DRAFT: Record<string, unknown>
   readonly NFSE_DESCRIPTION_VARIABLES: readonly string[]
   readonly NFSE_PROFILE_BLOCK_REASON: Readonly<Record<string, string>>
+  readonly pickInitialNfseProfile: <T extends { readonly id: string; readonly status: string }>(
+    profiles: readonly T[],
+  ) => T | undefined
   readonly toIssRateDecimal: (percent: string) => null | string
   readonly toIssRatePercent: (rate: string) => string
   readonly toNfseProfileDraft: (profile: unknown) => Record<string, unknown>
@@ -515,6 +518,38 @@ describe('nfse profile form contract', () => {
       expect(submission.status).toBe('blocked')
       expect(submission.reason).toBe(scenario.reason as string)
     }
+  })
+
+  test('o perfil existente carrega com regra, NBS, município e ISS como foram cadastrados', async () => {
+    const { toNfseProfileDraft } = await loadFutureModule<ProfileFormModule>(PROFILE_FORM_MODULE)
+
+    const draft = toNfseProfileDraft({
+      ...PROFILE,
+      freightRuleId: FREIGHT_RULE_ID,
+      issRate: '0.020000',
+      municipalityIbgeCode: '3543402',
+      municipalTaxationCode: '160101',
+      nationalTaxationCode: '160201',
+      nbsCode: '105011900',
+    })
+
+    expect(draft['freightRuleId']).toBe(FREIGHT_RULE_ID)
+    expect(draft['issRatePercent']).toBe('2')
+    expect(draft['nbsCode']).toBe('105011900')
+    expect(draft['municipalityIbgeCode']).toBe('3543402')
+    expect(draft['municipalTaxationCode']).toBe('160101')
+    expect(draft['nationalTaxationCode']).toBe('160201')
+  })
+
+  test('a tela abre no perfil ativo já cadastrado, e só cai em "novo" sem nenhum perfil', async () => {
+    const { pickInitialNfseProfile } =
+      await loadFutureModule<ProfileFormModule>(PROFILE_FORM_MODULE)
+    const inactive = { id: 'a', status: 'inactive' }
+    const active = { id: 'b', status: 'active' }
+
+    expect(pickInitialNfseProfile([inactive, active])).toBe(active)
+    expect(pickInitialNfseProfile([inactive])).toBe(inactive)
+    expect(pickInitialNfseProfile([])).toBeUndefined()
   })
 
   test('as cinco variáveis da descrição são as que o motor da API resolve', async () => {
