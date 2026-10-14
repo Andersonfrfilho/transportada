@@ -1384,8 +1384,8 @@
   border: 0;
   cursor: pointer;
   display: block;
+  flex: none;
   padding: 0;
-  width: 100%;
 }
 
 .proofCaptureThumbnailButton:focus-visible {
@@ -1666,14 +1666,31 @@
 .proofCaptureAttached {
   display: grid;
   gap: var(--space-3);
+  /* A altura do quadro confirmado (miniatura + respiro + borda): vazio, anexado e confirmado ocupam o mesmo espaço. */
+  min-height: calc(var(--space-16) + var(--space-6) + 2px);
+}
+
+/*
+ * Defeito 14/10: a miniatura ocupava a largura inteira e crescia com a proporção da foto; ao confirmar, o
+ * cartão voltava ao quadro pequeno e a tela, com o botão de confirmar mais abaixo, ficava para trás. A
+ * miniatura agora tem o mesmo quadro fixo da foto já confirmada (`proofConfirmedThumbnail`) — a imagem
+ * inteira abre em "Ver imagem" — e a linha reserva a altura do quadro confirmado.
+ */
+.proofCaptureAttachedRow {
+  align-items: start;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .proofCaptureThumbnail {
   border: 1px solid var(--color-slate);
   display: block;
-  height: auto;
+  height: var(--space-16);
+  object-fit: cover;
+  width: var(--space-16);
+}
+
+.proofCaptureThumbnailSignature {
   object-fit: contain;
-  width: 100%;
 }
 
 .proofCaptureAttachedText {

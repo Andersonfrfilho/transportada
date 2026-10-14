@@ -1634,7 +1634,7 @@ function ProofCaptureFields({
     if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
     if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
     return (
-      <div className={styles.proofCaptureAttached}>
+      <div className={`${styles.proofCaptureAttached} ${styles.proofCaptureAttachedRow}`}>
         <button
           aria-label={t('proofCapture.view')}
           className={styles.proofCaptureThumbnailButton}
@@ -1643,7 +1643,9 @@ function ProofCaptureFields({
         >
           <img
             alt={kind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')}
-            className={styles.proofCaptureThumbnail}
+            className={`${styles.proofCaptureThumbnail} ${
+              kind === 'signature' ? styles.proofCaptureThumbnailSignature : ''
+            }`}
             src={preview.previewUrl}
           />
         </button>
