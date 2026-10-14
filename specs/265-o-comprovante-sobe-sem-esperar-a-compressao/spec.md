@@ -2,8 +2,8 @@
 
 > Registrada em 2026-10-14, a partir do defeito P0 do motorista Duylen (comprovante preso em
 > "enviando"). **Numeração.** Conferida em 2026-10-14 com `ls specs` e
-> `git log --all -- 'specs/265*'`: a última é a 264. Esta é a **265**. Estado: **rascunho para
-> aprovação** — nada implementado; as decisões abertas estão em "Dúvidas".
+> `git log --all -- 'specs/265*'`: a última é a 264. Esta é a **265**. Estado: **decisões fechadas em
+> 2026-10-14 pelo usuário** (ver "Decisões"); nada implementado ainda.
 
 ## Assunto já tratado em
 
@@ -83,8 +83,14 @@ guardado e visível no painel, marcado "sem versão leve", e o comprovante não 
 - **RF6** Estado do comprovante: `received → processing → ready | processing_failed`. A API e o painel
   expõem o estado; `processing_failed` mantém o original acessível.
 - **RF7** Idempotência: o evento carrega a chave do anexo; reprocessar não duplica objeto nem leitura.
-- **RF8** O original é guardado por prazo configurável e depois apagado, mantendo só a versão leve
-  (retenção em Dúvidas).
+- **RF8** O original é apagado do storage assim que a versão leve e a miniatura estão gravadas e a
+  leitura do código de barras terminou (`ready`). Se o processamento falha, o original fica (RF6) até
+  haver reprocesso ou decisão humana. Não há prazo fixo.
+- **RF12** O app mostra o upload com **barra de progresso e porcentagem** (bytes enviados / total) e
+  um indicador de carregamento; o estado sai de "enviando N%" para "enviado, processando".
+- **RF13** Logs para acompanhar: no aparelho, `step_timing` do upload com `uploadedBytes`, `totalBytes`,
+  `durationMs` e modelo (254); na API e no worker, `delivery_proof_processing` com `variant`, tamanhos,
+  duração e resultado, consultáveis por `proofId`.
 - **RF9** Aparelho: orçamento de tempo da redução (`PROOF_PHOTO_REDUCTION_BUDGET_MS`, padrão 8 s). Ao
   estourar, cancela a redução e envia o original; registra `send_failed`/`timeout` com modelo do
   aparelho (254).
@@ -122,13 +128,15 @@ guardado e visível no painel, marcado "sem versão leve", e o comprovante não 
 - Contrato do app: redução estourando o orçamento envia o original e registra o diagnóstico com modelo.
 - Smoke: motorista confirma sem esperar; o painel mostra "processando" e depois a foto.
 
+## Decisões (2026-10-14, usuário)
+
+- **Teto do original:** 12 MiB (`PROOF_ORIGINAL_MAX_BYTES`), com loading e porcentagem de subida no app
+  e logs para acompanhar (RF12, RF13). O p95 real das fotos entra em `evidence.md` (T001) como conferência,
+  não como bloqueio.
+- **Retenção:** o original sai depois que existir a versão comprimida (RF8).
+- **Orçamento da redução no aparelho:** 8 s, fixo.
+- **Painel:** a conferência do canhoto espera `ready` (RF11), mostrando o original enquanto isso.
+
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: teto do original — 12 MiB cobre as câmeras atuais? Precisa de medida nas fotos
-  reais da frota antes de fechar.]
-- [NEEDS CLARIFICATION: retenção do original — 7 dias, 30 dias, ou guardar sempre? (custo de storage
-  contra valor probatório do canhoto).]
-- [NEEDS CLARIFICATION: o orçamento de 8 s é por foto ou o aparelho decide pela média das últimas
-  (como as faixas do PR #211)? Proposta: orçamento fixo, faixas só escolhem a qualidade.]
-- [NEEDS CLARIFICATION: o painel pode mostrar "processando" na conferência do canhoto, ou o operador
-  espera `ready`? Proposta: espera, com o original visível.]
+Nenhuma bloqueante aberta.
