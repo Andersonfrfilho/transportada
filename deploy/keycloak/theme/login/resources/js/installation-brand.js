@@ -60,13 +60,12 @@
   }
 
   function readOwnName(data) {
-    if (data && typeof data.brandName === 'string' && data.brandName.trim() !== '') {
-      return data.brandName.trim()
-    }
     var unit = data && Array.isArray(data.units) ? data.units[0] : null
-    if (!unit) return null
-    // `displayName` é o nome que a empresa escolheu mostrar; `tradeName` cobre a API de antes da opção.
-    var chosen = [unit.displayName, unit.tradeName].filter(function (candidate) {
+    var brand = data && typeof data.brandName === 'string' ? data.brandName : null
+    if (!unit) return brand && brand.trim() !== '' ? brand.trim() : null
+    // `displayName` é o nome que a empresa escolheu em Configurações e vence a marca do site; sem ele
+    // (API de antes da opção) vale a marca do site e, por último, `tradeName`.
+    var chosen = [unit.displayName, brand, unit.tradeName].filter(function (candidate) {
       return typeof candidate === 'string' && candidate.trim() !== ''
     })[0]
     return chosen ? chosen.trim() : null

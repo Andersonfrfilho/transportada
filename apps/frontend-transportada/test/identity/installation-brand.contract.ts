@@ -114,6 +114,24 @@ describe('a marca da instalação na tela de entrar', () => {
     expect(brand.name).toBe('Tapete Mágico')
   })
 
+  /** O nome escolhido em Configurações vence a marca da landing: a escolha manda em toda tela. */
+  test('o nome escolhido em Configurações vence a marca da landing', async () => {
+    const brand = await readInstallationBrand(
+      clientOf(() =>
+        Response.json({
+          data: {
+            brandName: 'Tapete Mágico',
+            units: [
+              { displayName: 'TAPETE MAGICO TRANSPORTADORA LTDA', tradeName: 'Tapete Mágico' },
+            ],
+          },
+        }),
+      ),
+    )
+
+    expect(brand.name).toBe('TAPETE MAGICO TRANSPORTADORA LTDA')
+  })
+
   /** Grupo com mais de um CNPJ: a primeira unidade é a própria, e é dela que a tela fala. */
   test('unidade sem nome não vira nome vazio', async () => {
     const brand = await readInstallationBrand(

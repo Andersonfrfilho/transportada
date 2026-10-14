@@ -16,6 +16,7 @@ import { createHash } from 'node:crypto'
 import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
 
 export type ContractorReplyNoteRecipientRunner = {
@@ -211,12 +212,16 @@ async function queue(
 
   const [carrier] = await rowsOf(
     runner,
-    sql`select trade_name, legal_name from company_fiscal_profiles where company_id = ${companyId}::uuid`,
+    sql`select trade_name, legal_name, display_name_mode from company_fiscal_profiles where company_id = ${companyId}::uuid`,
   )
-  const tradeName = text(carrier, 'trade_name') ?? ''
+  const displayNameMode = text(carrier, 'display_name_mode')
   const mail = buildMail({
     body: texts.body,
-    carrierName: tradeName.trim() === '' ? (text(carrier, 'legal_name') ?? '') : tradeName,
+    carrierName: resolveCompanyDisplayName({
+      displayNameMode: displayNameMode === 'legal_name' ? 'legal_name' : 'trade_name',
+      legalName: text(carrier, 'legal_name') ?? '',
+      tradeName: text(carrier, 'trade_name') ?? '',
+    }),
     subject: texts.subject,
   })
   const [message] = await rowsOf(
