@@ -1,8 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { CSSProperties } from 'react'
+
 import styles from '../styles/driverTrip.module.css'
 
+/** Pedido do usuário (14/10): faíscas saindo das batidas — cada uma voa para (dx, dy) e some. */
+const SPARKS: readonly Readonly<{ dx: number; dy: number; r: number }>[] = [
+  { dx: -6, dy: -12, r: 1.8 },
+  { dx: 2, dy: -15, r: 2.2 },
+  { dx: 9, dy: -11, r: 1.8 },
+  { dx: -9, dy: -3, r: 1.5 },
+  { dx: 11, dy: -4, r: 1.5 },
+]
+
 /**
- * Pedido do usuário (14/10): "um personagem marretando a imagem". Um bonequinho de traço bate com
+ * Pedido do usuário (14/10): "um personagem marretando a imagem" e a marreta do Donkey Kong (cabeça larga atravessada no cabo). Um bonequinho de traço bate com
  * a marreta na foto, que amassa a cada pancada — é o que o motorista vê enquanto a foto é reduzida.
  * Só desenho: `aria-hidden`, o texto de contagem ao lado é quem fala com o leitor de tela. As cores
  * vêm de `currentcolor` e do cobre do tema; o movimento mora no CSS e some com "reduzir animações".
@@ -70,26 +81,54 @@ export function ProofReducingMallet() {
         y1="28"
         y2="36"
       />
+      {SPARKS.map((spark) => (
+        <circle
+          className={styles.proofMalletSpark}
+          cx="35"
+          cy="26"
+          fill="var(--color-copper)"
+          key={`${spark.dx}:${spark.dy}`}
+          r={spark.r}
+          style={{ '--spark-dx': `${spark.dx}px`, '--spark-dy': `${spark.dy}px` } as CSSProperties}
+        />
+      ))}
       <g className={styles.proofMalletArm}>
         <line
           stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="2"
+          strokeLinecap="square"
+          strokeWidth="2.5"
           x1="14"
-          x2="30"
+          x2="29"
           y1="20"
           y2="20"
         />
+        <rect
+          fill="var(--color-copper)"
+          height="16"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          width="8"
+          x="28"
+          y="12"
+        />
         <line
           stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="2"
-          x1="30"
-          x2="30"
-          y1="14"
-          y2="26"
+          strokeOpacity="0.45"
+          strokeWidth="1.2"
+          x1="28.5"
+          x2="35.5"
+          y1="16"
+          y2="16"
         />
-        <rect fill="var(--color-copper)" height="9" rx="1.5" width="8" x="26" y="9" />
+        <line
+          stroke="currentColor"
+          strokeOpacity="0.45"
+          strokeWidth="1.2"
+          x1="28.5"
+          x2="35.5"
+          y1="24"
+          y2="24"
+        />
       </g>
     </svg>
   )

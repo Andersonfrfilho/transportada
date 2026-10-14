@@ -1813,6 +1813,10 @@
   transform-origin: 14px 20px;
 }
 
+.proofMalletSpark {
+  opacity: 0;
+}
+
 .proofMalletPhoto {
   transform-box: fill-box;
   transform-origin: center bottom;
@@ -1845,6 +1849,10 @@
     animation: driver-proof-mallet-squash 0.7s ease-in infinite;
   }
 
+  .proofMalletSpark {
+    animation: driver-proof-mallet-spark 0.7s ease-out infinite;
+  }
+
   .proofReducingFill {
     animation: driver-proof-reducing-fill linear forwards;
   }
@@ -1852,16 +1860,16 @@
 
 @keyframes driver-proof-mallet-swing {
   0% {
-    transform: rotate(-55deg);
+    transform: rotate(-60deg);
   }
 
   60%,
   72% {
-    transform: rotate(40deg);
+    transform: rotate(14deg);
   }
 
   100% {
-    transform: rotate(-55deg);
+    transform: rotate(-60deg);
   }
 }
 
@@ -1878,6 +1886,28 @@
 
   80% {
     transform: scale(0.98, 1.04);
+  }
+}
+
+@keyframes driver-proof-mallet-spark {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+
+  64% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  90% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--spark-dx), var(--spark-dy));
   }
 }
 
