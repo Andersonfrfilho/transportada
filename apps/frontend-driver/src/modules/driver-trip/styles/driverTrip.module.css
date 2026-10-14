@@ -1822,6 +1822,12 @@
   transform-origin: center bottom;
 }
 
+.proofReducingPercent {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-inline-start: auto;
+}
+
 .proofReducingTrack {
   background: color-mix(in srgb, currentcolor 15%, transparent);
   border-radius: 999px;

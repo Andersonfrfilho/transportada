@@ -22,6 +22,7 @@ import {
   PROOF_PHOTO_MAX_SIDE,
   PROOF_PHOTO_TARGET_BYTES,
   resolveProofPhotoStartQuality,
+  resolveProofReductionPercent,
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
 import { resolveRejectionCauseLabelKey } from '@/modules/driver-trip/shared/rejectionCauseLabel.service'
 
@@ -110,6 +111,16 @@ describe('a qualidade da redução se ajusta ao tempo medido no aparelho', () =>
     expect(resolveProofPhotoStartQuality(5_000)).toBe(0.7)
     expect(resolveProofPhotoStartQuality(8_000)).toBe(0.6)
     expect(resolveProofPhotoStartQuality(10_600)).toBe(0.5)
+  })
+})
+
+describe('a porcentagem da redução é estimada pelo tempo e nunca passa de 99', () => {
+  it('0% no início, proporcional ao teto e trava em 99 enquanto não termina', () => {
+    expect(resolveProofReductionPercent({ elapsedMs: 0 })).toBe(0)
+    expect(resolveProofReductionPercent({ elapsedMs: 10_000 })).toBe(50)
+    expect(resolveProofReductionPercent({ elapsedMs: 20_000 })).toBe(99)
+    expect(resolveProofReductionPercent({ elapsedMs: 90_000 })).toBe(99)
+    expect(resolveProofReductionPercent({ elapsedMs: -5 })).toBe(0)
   })
 })
 
