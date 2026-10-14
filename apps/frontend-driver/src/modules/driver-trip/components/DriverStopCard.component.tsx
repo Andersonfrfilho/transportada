@@ -701,6 +701,9 @@ type DocumentRowProps = Readonly<{
   stop: DriverTripStop
 }>
 
+/** Quanto o botão de confirmar fica trancado depois do primeiro toque (cobre os 8 s do GPS). */
+const DELIVERY_CONFIRM_LOCK_MS = 10_000
+
 function DocumentSettledState({ document }: Readonly<{ document: DriverTripDocument }>) {
   const { t } = useTranslation('driverTrip')
 
@@ -747,7 +750,22 @@ function DocumentRow({
   /** Spec 218 (RF-A1): o servidor já resolveu as camadas — aqui só se lê o plano pronto. */
   const requiresProof = requiresProofBeforeDelivery(resolveProofFormPlan(proofSettings))
 
+  /**
+   * Defeito de 14/10 (staging): o toque grava e espera o GPS (até 8 s) antes de a nota virar
+   * "entregue" na tela, então o botão seguia ali e o motorista tocou duas vezes — dois `deliver` com 1 s
+   * de intervalo. O primeiro toque tranca o botão; a trava solta sozinha caso a entrega não chegue a
+   * assentar (recusa), para o motorista poder tentar de novo.
+   */
+  const [isConfirming, setIsConfirming] = useState(false)
+  useEffect(() => {
+    if (!isConfirming) return undefined
+    const timer = setTimeout(() => setIsConfirming(false), DELIVERY_CONFIRM_LOCK_MS)
+    return () => clearTimeout(timer)
+  }, [isConfirming])
+
   function confirmDelivery(): void {
+    if (isConfirming) return
+    setIsConfirming(true)
     onAnnounce(t('activity.toast.delivered'))
     onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
   }
@@ -895,7 +913,7 @@ function DocumentRow({
              * entrega", desabilitado até completar.
              */}
             {!requiresProof ? (
-              <Button onClick={confirmDelivery} type="button">
+              <Button disabled={isConfirming} onClick={confirmDelivery} type="button">
                 <Icon name="check" />
                 {t('deliver')}
               </Button>
@@ -926,6 +944,7 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
+              isConfirming={isConfirming}
               onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
               onConfirm={confirmDelivery}
             />
@@ -984,6 +1003,7 @@ function DocumentOccurrenceButton({ isOpen, onToggle }: DocumentOccurrenceButton
 
 type PreDeliveryProofGateProps = Readonly<{
   captureProps: DeliveryProofSectionProps
+  isConfirming: boolean
   onCancel: () => void
   onConfirm: () => void
 }>
@@ -993,7 +1013,12 @@ type PreDeliveryProofGateProps = Readonly<{
  * depois — e "Confirmar entrega", desabilitado enquanto faltar obrigatório. Cada anexo entra na
  * fila na hora (spec 203), marcado para esperar a entrega: o gate atrasa só o `deliver`.
  */
-function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDeliveryProofGateProps) {
+function PreDeliveryProofGate({
+  captureProps,
+  isConfirming,
+  onCancel,
+  onConfirm,
+}: PreDeliveryProofGateProps) {
   const { t } = useTranslation('driverTrip')
   const titleId = useId()
   const missingId = useId()
@@ -1031,7 +1056,7 @@ function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDelivery
               <div className={styles.actions}>
                 <Button
                   aria-describedby={missingFields.length > 0 ? missingId : undefined}
-                  disabled={missingFields.length > 0}
+                  disabled={missingFields.length > 0 || isConfirming}
                   onClick={() => {
                     capture.pushLateFieldUpdate()
                     onConfirm()
