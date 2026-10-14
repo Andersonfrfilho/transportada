@@ -9,6 +9,7 @@ import type { FreightRuleSummary } from '@/modules/freight/shared/freightClient.
 import {
   buildNfseProfileSubmission,
   EMPTY_NFSE_PROFILE_DRAFT,
+  pickInitialNfseProfile,
   toNfseProfileDraft,
   type NfseProfileBlockReason,
   type NfseProfileDraft,
@@ -67,18 +68,23 @@ function ProfileSkeleton(): JSX.Element {
 
 export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): JSX.Element {
   const { t } = useTranslation('nfseInvoice')
-  const [selectedId, setSelectedId] = useState<string>(NEW_PROFILE_VALUE)
-  const [draft, setDraft] = useState<NfseProfileDraft>(EMPTY_NFSE_PROFILE_DRAFT)
+  // `null` é "ainda não escolheu": a tela abre no perfil cadastrado, não num rascunho vazio.
+  const [chosenId, setChosenId] = useState<null | string>(null)
+  const [editedDraft, setEditedDraft] = useState<NfseProfileDraft | null>(null)
   const [blockReason, setBlockReason] = useState<NfseProfileBlockReason | undefined>(undefined)
 
+  const selectedId = chosenId ?? pickInitialNfseProfile(props.profiles)?.id ?? NEW_PROFILE_VALUE
   const selected = props.profiles.find((profile) => profile.id === selectedId)
+  const draft =
+    editedDraft ??
+    (selected === undefined ? EMPTY_NFSE_PROFILE_DRAFT : toNfseProfileDraft(selected))
   const hasTaxationPair =
     selected?.nationalTaxationCode != null || selected?.simplesNationalRate != null
 
   function handleSelect(value: string) {
     const profile = props.profiles.find((candidate) => candidate.id === value)
-    setSelectedId(profile === undefined ? NEW_PROFILE_VALUE : profile.id)
-    setDraft(profile === undefined ? EMPTY_NFSE_PROFILE_DRAFT : toNfseProfileDraft(profile))
+    setChosenId(profile === undefined ? NEW_PROFILE_VALUE : profile.id)
+    setEditedDraft(null)
     setBlockReason(undefined)
   }
 
@@ -150,7 +156,7 @@ export function NfseEmissionProfilePanel(props: NfseEmissionProfilePanelProps): 
             disabled={props.disabled}
             draft={draft}
             freightRules={props.freightRules}
-            onChange={setDraft}
+            onChange={setEditedDraft}
           />
           <button className={styles.primaryAction} disabled={props.disabled} type="submit">
             <Icon name="save" />
