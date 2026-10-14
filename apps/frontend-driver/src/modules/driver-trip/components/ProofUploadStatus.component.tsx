@@ -61,15 +61,19 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
     return (
       <div className={styles.proofQueueCard} role="status">
         <span className={styles.proofQueueTitle}>
-          <ProofSendingThrower />
+          {/* A nuvem só anima com bytes saindo de verdade (porcentagem real); parada na fila é relógio. */}
+          {upload.uploadPercent === undefined ? (
+            <span
+              aria-label={t('proofCapture.upload.queuedIcon')}
+              className={styles.proofQueuedIcon}
+              role="img"
+            >
+              <Icon aria-hidden="true" name="clock" size="sm" />
+            </span>
+          ) : (
+            <ProofSendingThrower />
+          )}
           {t('proofCapture.upload.queuedTitle')}
-          <span
-            aria-label={t('proofCapture.upload.queuedIcon')}
-            className={styles.proofQueuedIcon}
-            role="img"
-          >
-            <Icon aria-hidden="true" name="clock" size="sm" />
-          </span>
         </span>
         {upload.uploadPercent === undefined ? (
           <span>{t('proofCapture.upload.queuedHint')}</span>

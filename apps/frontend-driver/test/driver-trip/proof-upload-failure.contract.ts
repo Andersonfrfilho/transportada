@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -42,5 +44,21 @@ describe('a foto que não termina de subir diz por quê (pedido do usuário, 14/
     expect(store.get('doc:photo')).toEqual({ failure: { kind: 'server', status: 503 }, percent: 0 })
     store.begin('doc:photo')
     expect(store.get('doc:photo')).toEqual({ percent: 0 })
+  })
+
+  it('a nuvem só anima com upload real: sem porcentagem, o cartão mostra o relógio parado', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/ProofUploadStatus.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const card = source.slice(source.indexOf("upload.status === 'uploading'"))
+    expect(card.indexOf('upload.uploadPercent === undefined')).toBeGreaterThan(-1)
+    expect(card.indexOf('<ProofSendingThrower />')).toBeGreaterThan(
+      card.indexOf('upload.uploadPercent === undefined'),
+    )
+    expect(source.match(/<ProofSendingThrower \/>/gu)).toHaveLength(1)
   })
 })
