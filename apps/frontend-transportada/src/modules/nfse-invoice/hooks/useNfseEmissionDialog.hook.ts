@@ -31,6 +31,10 @@ import {
   type NfseEmissionSummary,
 } from '../shared/nfseEmission.service'
 import {
+  describeNfseProfileTaxation,
+  type NfseProfileTaxationSummary,
+} from '../shared/nfseNationalTaxation.service'
+import {
   NFSE_EMISSION_PROFILES_QUERY_KEY,
   NFSE_ISSUE_PERMISSION,
 } from '../shared/nfseInvoice.constant'
@@ -71,6 +75,7 @@ export type UseNfseEmissionDialogResult = Readonly<{
   period: string
   profileId: null | string
   profileOptions: readonly NfseEmissionSelectOption[]
+  profileTaxation: NfseProfileTaxationSummary
   selectedCount: number
   setDescription: (description: string) => void
   setPeriod: (period: string) => void
@@ -252,6 +257,9 @@ export function useNfseEmissionDialog(
     period,
     profileId,
     profileOptions: buildNfseProfileSelectOptions(profiles),
+    profileTaxation: describeNfseProfileTaxation(
+      profiles.find((profile) => profile.id === profileId) ?? {},
+    ),
     pageCount: rowPage.pageCount,
     pageNumber: rowPage.pageNumber,
     pageSize,

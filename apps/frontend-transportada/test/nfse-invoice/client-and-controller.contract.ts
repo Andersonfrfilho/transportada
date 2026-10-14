@@ -502,6 +502,53 @@ describe('nfse emission profile options contract', () => {
     ).toThrow('NFSE_INVOICE_RESPONSE_INVALID')
   })
 
+  test('accepts the profile tax pair on an option, and an option that does not carry it yet', async () => {
+    const { createNfseInvoiceResponseAdapters } =
+      await loadFutureModule<AdaptersModule>(ADAPTERS_MODULE)
+    const adapters = createNfseInvoiceResponseAdapters()
+    const withPair = {
+      ...EMISSION_PROFILE_OPTION,
+      nationalTaxationCode: '160201',
+      simplesNationalRate: '4.500000',
+    }
+    const withoutPair = {
+      ...EMISSION_PROFILE_OPTION,
+      nationalTaxationCode: null,
+      simplesNationalRate: null,
+    }
+
+    expect(adapters.emissionProfilesFromApi({ data: [withPair, withoutPair] })).toEqual([
+      withPair,
+      withoutPair,
+    ])
+    expect(() =>
+      adapters.emissionProfilesFromApi({
+        data: [{ ...EMISSION_PROFILE_OPTION, nationalTaxationCode: 160201 }],
+      }),
+    ).toThrow('NFSE_INVOICE_RESPONSE_INVALID')
+  })
+
+  test('summarizes what the chosen profile carries, and warns only when the pair is known to be missing', async () => {
+    const { describeNfseProfileTaxation } = await loadFutureModule<TaxationModule>(
+      '../../src/modules/nfse-invoice/shared/nfseNationalTaxation.service',
+    )
+
+    expect(
+      describeNfseProfileTaxation({
+        nationalTaxationCode: '160201',
+        simplesNationalRate: '4.500000',
+      }),
+    ).toEqual({ code: '160201', rate: '4,5', status: 'complete' })
+    expect(
+      describeNfseProfileTaxation({ nationalTaxationCode: '160201', simplesNationalRate: null }),
+    ).toEqual({ code: '160201', rate: '', status: 'missing' })
+    expect(
+      describeNfseProfileTaxation({ nationalTaxationCode: null, simplesNationalRate: null }).status,
+    ).toBe('missing')
+    // A API ainda não manda o par: sem a informação, a tela não acusa falta que ela não conhece.
+    expect(describeNfseProfileTaxation({}).status).toBe('unknown')
+  })
+
   /** O gate do diálogo é a permissão de emitir, não a de administrar a empresa. */
   test('gates the profile query on nfse.issue', async () => {
     const hook = await Bun.file(
@@ -669,4 +716,11 @@ type ControllerModule = {
     readonly canIssueInvoices: boolean
     readonly canReadInvoices: boolean
   }
+}
+
+type TaxationModule = {
+  readonly describeNfseProfileTaxation: (profile: {
+    readonly nationalTaxationCode?: null | string
+    readonly simplesNationalRate?: null | string
+  }) => { readonly code: string; readonly rate: string; readonly status: string }
 }
