@@ -20,7 +20,7 @@ const SUPPORTED_LOGO_TYPES = new Set(['image/png', 'image/jpeg'])
 const FIELD_LABEL_HEIGHT_MM = 4.5
 const FIELD_LINE_HEIGHT_MM = 3.8
 const FIELD_ROW_GAP_MM = 1.5
-const COLUMN_WIDTHS_MM = { 0: 10, 1: 20, 2: 22, 4: 52, 5: 28, 6: 32, 7: 18, 8: 28 } as const
+const COLUMN_WIDTHS_MM = { 0: 10, 1: 20, 2: 22, 4: 48, 5: 26, 6: 28, 7: 16, 8: 24, 9: 26 } as const
 
 /** A lista quebra entre cidades, nunca no meio do nome de uma: "SANTA RITA DO PASSA QUATRO" fica inteira. */
 export function packCitiesIntoLines(input: {
@@ -149,12 +149,14 @@ export async function buildTripConferencePdf(input: BuildTripConferencePdfInput)
       6: { cellWidth: COLUMN_WIDTHS_MM[6] },
       7: { cellWidth: COLUMN_WIDTHS_MM[7], halign: 'center' },
       8: { cellWidth: COLUMN_WIDTHS_MM[8], halign: 'right' },
+      9: { cellWidth: COLUMN_WIDTHS_MM[9], halign: 'right' },
     },
     foot: [
       [
         { colSpan: 7, content: sheet.totalsRow[0] ?? '', styles: { halign: 'right' } },
         { content: sheet.totalsRow[1] ?? '', styles: { halign: 'center' } },
         { content: sheet.totalsRow[2] ?? '', styles: { halign: 'right' } },
+        { content: sheet.totalsRow[3] ?? '', styles: { halign: 'right' } },
       ],
     ],
     footStyles: { fillColor: HEADER_FILL, fontStyle: 'bold', textColor: 0 },

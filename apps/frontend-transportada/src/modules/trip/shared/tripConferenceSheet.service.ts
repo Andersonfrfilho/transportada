@@ -28,6 +28,7 @@ export type TripConferenceSheetLabels = Readonly<{
   value: string
   vehicle: string
   volumes: string
+  weight: string
   weightEstimated: string
   weightMissingNotes: string
   weightNotInformed: string
@@ -106,6 +107,10 @@ export function describeTripConferenceWeight(input: {
   return missing > 0 ? `${text} · ${missing} ${labels.weightMissingNotes}` : text
 }
 
+function formatWeightKilograms(kilograms: number): string {
+  return weightFormatter.format(kilograms).replace(NON_BREAKING_SPACE, ' ')
+}
+
 function describeDriver(driver: TripDriverLine): string {
   const taxId = driver.driverTaxId === null ? '' : ` · ${formatTaxId(driver.driverTaxId)}`
   const phone =
@@ -138,11 +143,28 @@ function buildFields(input: BuildTripConferenceSheetInput): readonly TripConfere
   return fields.filter((field) => field.value !== '')
 }
 
+/**
+ * O peso embaixo da coluna: a soma das notas que a API pesou; API anterior (sem peso por nota) cai no
+ * total da viagem. Sem nenhum dos dois fica vazio — o "peso não informado" já está no campo Notas.
+ */
+function describeTotalWeight(input: {
+  readonly cargoWeight: TripCargoWeight | null
+  readonly summary: TripConference['summary']
+}): string {
+  const { cargoWeight, summary } = input
+  const fallback =
+    cargoWeight === null ? Number.NaN : Number.parseFloat(cargoWeight.grossWeightKilograms)
+  const kilograms =
+    summary.totalWeightKilograms ?? (Number.isFinite(fallback) && fallback > 0 ? fallback : null)
+
+  return kilograms === null ? '' : formatWeightKilograms(kilograms)
+}
+
 /** O que a folha mostra, já formatado: a impressão e o PDF desenham o mesmo conteúdo. */
 export function buildTripConferenceSheet(
   input: BuildTripConferenceSheetInput,
 ): TripConferenceSheetModel {
-  const { conference, labels, printedOn } = input
+  const { cargoWeight, conference, labels, printedOn } = input
   const { rows, summary } = conference
 
   return {
@@ -155,6 +177,7 @@ export function buildTripConferenceSheet(
       labels.deliveredAt,
       labels.deliveryStatus,
       labels.volumes,
+      labels.weight,
       labels.value,
     ],
     fields: buildFields(input),
@@ -169,11 +192,15 @@ export function buildTripConferenceSheet(
       '',
       '',
       row.volumeCount === null ? '' : String(row.volumeCount),
+      row.weightKilograms === null
+        ? ''
+        : `${formatWeightKilograms(row.weightKilograms)}${row.weightSource === 'estimated' ? ` (${labels.weightEstimated})` : ''}`,
       row.totalValue === null ? '' : formatMoney(row.totalValue),
     ]),
     totalsRow: [
       `${labels.total} · ${summary.noteCount} ${labels.notes.toLowerCase()}`,
       String(summary.totalVolumes),
+      describeTotalWeight({ cargoWeight, summary }),
       formatMoney(summary.totalValue),
     ],
   }

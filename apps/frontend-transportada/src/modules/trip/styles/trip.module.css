@@ -3800,23 +3800,27 @@ button.occurrenceCaseBadge {
   }
 
   .printSheetTable th:nth-child(5) {
-    width: 52mm;
+    width: 48mm;
   }
 
   .printSheetTable th:nth-child(6) {
-    width: 28mm;
+    width: 26mm;
   }
 
   .printSheetTable th:nth-child(7) {
-    width: 32mm;
+    width: 28mm;
   }
 
   .printSheetTable th:nth-child(8) {
-    width: 18mm;
+    width: 16mm;
   }
 
   .printSheetTable th:nth-child(9) {
-    width: 28mm;
+    width: 24mm;
+  }
+
+  .printSheetTable th:nth-child(10) {
+    width: 26mm;
   }
 
   .printSheetTable td.printSheetClient {
