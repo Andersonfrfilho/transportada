@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverStopCard.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { DocumentConversationSlot } from '@/modules/conversation/components/Docu
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
+import { focusFinishButton, revealStopStart } from '../shared/stopFocus.service'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCargoField } from './ProofCargoField.component'
@@ -292,6 +293,17 @@ export function DriverStopCard({
   const [isLateRegistration, setIsLateRegistration] = useState(false)
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
+  /**
+   * Pedido do usuário (14/10): quando esta parada vira a atual (a anterior foi concluída ou devolvida),
+   * a tela leva o topo dela à vista — o motorista não precisa rolar para iniciar a próxima. Nunca na
+   * montagem: abrir o app não pode sair rolando.
+   */
+  const cardRef = useRef<HTMLLIElement>(null)
+  const wasCurrentRef = useRef(isCurrent)
+  useEffect(() => {
+    if (isCurrent && !wasCurrentRef.current) revealStopStart(cardRef.current)
+    wasCurrentRef.current = isCurrent
+  }, [isCurrent])
   const areFieldActionsHidden = isFieldWorkBlocked || isReadOnly
   /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
   const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
@@ -346,6 +358,8 @@ export function DriverStopCard({
   return (
     <li
       className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}`}
+      data-stop-card=""
+      ref={cardRef}
     >
       {/* Padrão WAI-ARIA de acordeão: o `<h2>` embrulha o botão, nunca o inverso (heading não é
           conteúdo de frase — não pode morar dentro de um `<button>`). */}
@@ -354,6 +368,7 @@ export function DriverStopCard({
           aria-controls={bodyId}
           aria-expanded={isOpen}
           className={styles.stopHeader}
+          data-stop-header=""
           onClick={onToggle}
           ref={(element) => onHeaderRef(stop.id, element)}
           type="button"
@@ -748,6 +763,7 @@ function DocumentRow({
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
+  const rowRef = useRef<HTMLLIElement>(null)
   const [openOccurrence, setOpenOccurrence] = useState(false)
   const stopProofSettings = stop.deliveryProof
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
@@ -845,7 +861,7 @@ function DocumentRow({
   }
 
   return (
-    <li className={styles.document}>
+    <li className={styles.document} ref={rowRef}>
       <DocumentDetails document={document} />
       <DriverNotDeliveredStatus occurrenceKey={notDeliveredKey} status={notDeliveredStatus} />
       {/*
@@ -971,6 +987,8 @@ function DocumentRow({
                 })
                 onAnnounce(t('activity.toast.returned'))
                 setOpenReturn(false)
+                /* Pedido do usuário (14/10): devolvida, o topo do cartão volta à vista — sem rolar para achar a próxima. */
+                requestAnimationFrame(() => revealStopStart(rowRef.current))
               }}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             />
@@ -1058,7 +1076,7 @@ function PreDeliveryProofGate({
                   {t('deliveryGate.missingLead', { fields: fieldsText })}
                 </p>
               ) : null}
-              <div className={styles.actions}>
+              <div className={styles.actions} ref={capture.finishActionsRef}>
                 <Button
                   aria-describedby={missingFields.length > 0 ? missingId : undefined}
                   disabled={missingFields.length > 0 || isConfirming}
@@ -1206,6 +1224,8 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     }
     setShowMissing(false)
     setConcludedAt(new Date().toISOString())
+    /* Pedido do usuário (14/10): concluído, o topo do cartão volta à vista — a próxima ação começa dali. */
+    revealStopStart(capture.finishActionsRef.current)
   }
 
   return (
@@ -1214,7 +1234,7 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
       renderFooter={(capture) => {
         const missingText = showMissing ? describeMissing(capture) : ''
         return (
-          <div className={styles.actions}>
+          <div className={styles.actions} ref={capture.finishActionsRef}>
             {missingText === '' ? null : (
               <div className={styles.completeBlocked} role="alert">
                 <Icon name="alert" />
@@ -1251,6 +1271,8 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
 
 /** O que o rodapé de quem monta a captura precisa ler dela — nada além disso sai do componente. */
 type ProofCaptureState = Readonly<{
+  /** A faixa de ações do fim do formulário: a captura leva o foco a ele quando a foto entra. */
+  finishActionsRef: RefObject<HTMLDivElement | null>
   plan: ProofFormPlan
   /** Envia o que foi digitado e ainda não saiu pelo `onBlur` (fila ou PATCH). */
   pushLateFieldUpdate: () => void
@@ -1367,6 +1389,17 @@ function ProofCaptureFields({
       : (previewByKind[openImageKind].previewUrl ??
         (openImageKind === 'photo' ? storedThumbnailUrl : undefined))
   const nameInputRef = useRef<HTMLInputElement>(null)
+  /**
+   * Pedido do usuário (14/10): a foto entrou — o foco vai ao "Concluir"/"Confirmar", que é o passo
+   * seguinte, em vez de a tela ficar onde estava. Só se o botão já está liberado e ninguém está digitando.
+   */
+  const finishActionsRef = useRef<HTMLDivElement>(null)
+  const [focusFinishNextRender, setFocusFinishNextRender] = useState(false)
+  useEffect(() => {
+    if (!focusFinishNextRender) return
+    focusFinishButton(finishActionsRef.current)
+    setFocusFinishNextRender(false)
+  }, [focusFinishNextRender])
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
   useEffect(() => {
@@ -1459,6 +1492,7 @@ function ProofCaptureFields({
         /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
         previewByKind[kind].showPhoto(file)
         blockedByFields(next)
+        setFocusFinishNextRender(true)
       }
     })
   }
@@ -1886,6 +1920,7 @@ function ProofCaptureFields({
           ) : null}
 
           {renderFooter({
+            finishActionsRef,
             plan,
             pushLateFieldUpdate: () => pushLateFieldUpdate(),
             values: currentValues,
