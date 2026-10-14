@@ -170,6 +170,21 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   402/403 numa cidade restringe só o par por 30 dias, e orçamento esgotado só encerra o ciclo (nenhum par muda). As tabelas do cache são globais, sem `company_id`, e o schema Drizzle delas é cópia por valor com
   contrato de paridade. Detalhe: docs/ai-context § "A importação de feriados da FeriadosAPI".
 
+- **O comprovante enviado sem redução é tratado aqui** (spec 265, fase worker) — trilho `delivery-proof-processing.v1`
+  (prefetch 1, 4 retries de 15 s), relay sobre `delivery_proof_outbox`, evento só para `variant = original` (o `reduced`
+  segue na rotina `trip.canhoto.read`). A imagem roda numa `worker_thread` (`delivery-proof-image.worker.ts`, prazo 45 s) com
+  `setInterval` ocioso de propósito: **o Bun não segura o laço de eventos enquanto o wasm do jsquash instancia** e a thread
+  saía com código 13 sem erro. O cabeçalho é lido antes de decodificar (teto 40 MP, anti decompression bomb); a orientação EXIF
+  vira pixel (o decodificador não aplica) e o reencode descarta EXIF/GPS. Régua: lado 2000 px, JPEG em degraus até ~900 KiB,
+  teto 960 KiB; miniatura 320 px, alvo 60 KiB, teto 128 KiB — cópias por valor, presas em `test/delivery-proof-processing/`.
+  Ordem que torna cada passo repetível: objetos novos no bucket → troca `object_id` (uma transação, guardada por estado e
+  original esperado) → leitura do código **sobre o original** (reporta pela rota do robô da 222; falha **não** segura o
+  `ready`, a rotina agendada refaz sobre o leve) → apaga o original do bucket → numa transação anula `original_object_id`
+  (FK `restrict`), fecha `ready` e marca o `stored_objects` como `deleted`. Falha em qualquer ponto antes mantém o original;
+  esgotadas as tentativas, `processing_failed` só com **código** em `processing_error`. Evento velho (`objectKey` ≠ original da
+  linha) é descartado. A fila de `trip.canhoto.read` espera `received`/`processing` e lê `coalesce(original_object_id, object_id)`.
+  A leitura do código de barras compartilha `canhoto-barcode.reader.ts` com a thread do canhoto.
+
 ## O expurgo de posição (spec 196, ADR-0081)
 
 `trip.location.purge` (`trip-location-purge/`) varre **as cinco tabelas** de evento com ponto, uma por vez e

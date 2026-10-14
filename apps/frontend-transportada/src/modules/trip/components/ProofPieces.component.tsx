@@ -7,6 +7,7 @@ import type { DeliveryProofPieces } from '../shared/deliveryProofCard.service'
 import styles from '../styles/trip.module.css'
 
 import { ProofImage } from './ProofImage.component'
+import { ProofProcessingNote } from './ProofProcessingNote.component'
 
 type ProofPiecesProps = Readonly<{
   onOpen: (proofId: string) => void
@@ -29,6 +30,7 @@ export function ProofPieces({ onOpen, pieces }: ProofPiecesProps) {
           variant="main"
         />
       )}
+      {main === undefined ? null : <ProofProcessingNote proof={main.proof} />}
       {others.length === 0 ? null : (
         <ul aria-label={t('deliveryProof.piecesLabel')} className={styles.proofStrip}>
           {others.map((piece) => (

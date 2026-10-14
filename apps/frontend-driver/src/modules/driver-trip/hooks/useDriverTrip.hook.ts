@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { driverClockOffset } from '../shared/clockOffset.service'
+import { proofProgressKey, proofUploadProgress } from '../shared/proofUploadProgress.service'
 import {
   getDriverDiagnostics,
   getDriverTripClient,
+  describeAttachmentFailure,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
 import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
@@ -288,8 +290,18 @@ export function useDriverTrip(
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
   const syncDrainTimerRef = useRef<() => void>(() => undefined)
 
+  /**
+   * Defeito de 14/10 (staging): duas leituras da fila em voo (o duplo `deliver`, a drenagem e a
+   * redução pedem a releitura quase juntas) podiam terminar fora de ordem — a mais antiga, ainda com
+   * o anexo na fila, gravava por último e a tela ficava em "enviando" com a fila já vazia. Só o
+   * resultado da leitura mais recente vale.
+   */
+  const queueViewReadRef = useRef(0)
   const refreshQueueView = useCallback(async (): Promise<void> => {
+    queueViewReadRef.current += 1
+    const readId = queueViewReadRef.current
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
+    if (readId !== queueViewReadRef.current) return
     /** ADR-0075 §8: a fila da tela é a do dono da sessão; o resto é "pendência de outra conta". */
     const pending = partitionPendingByOwner({
       attachments,
@@ -408,9 +420,15 @@ export function useDriverTrip(
           }
         },
         sendAttachment: async (attachment: QueuedAttachment): Promise<AttachmentSendOutcome> => {
+          const progressKey = proofProgressKey({
+            documentId: attachment.documentId,
+            kind: attachment.kind,
+          })
+          proofUploadProgress.begin(progressKey)
           try {
             const result = await client.attachProof({
               attachmentKey: attachment.attachmentKey,
+              onUploadProgress: (progress) => proofUploadProgress.report(progressKey, progress),
               capturedAt: attachment.capturedAt,
               ...(attachment.clockOffsetMs === undefined
                 ? {}
@@ -461,8 +479,12 @@ export function useDriverTrip(
                 subHash: session.subHash,
               }).catch(() => undefined)
             }
+            proofUploadProgress.accepted(progressKey, result.processingState)
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
+            const failure = describeAttachmentFailure(error)
+            if (failure === undefined) proofUploadProgress.clear(progressKey)
+            else proofUploadProgress.fail(progressKey, failure)
             return toAttachmentSendOutcome(error)
           }
         },

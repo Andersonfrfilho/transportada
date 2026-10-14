@@ -809,11 +809,13 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await cameraChooser.setFiles(SMOKE_PHOTO)
   await page.getByRole('button', { name: 'Usar sem recorte' }).click()
 
-  // A foto anexada deixou de dizer "anexada" e passou a dizer em que pé está o envio: "Enviando"
-  // enquanto a fila não drenou, com a tranquilidade de que ela já está guardada no aparelho.
-  await expect(item.getByText('Enviando', { exact: true })).toBeVisible()
+  // A foto tirada no portão antes da entrega não sobe sozinha: o cartão diz que falta confirmar a entrega (o relógio
+  // de "Na fila" só aparece depois do botão), e a foto continua guardada no aparelho.
   await expect(
-    item.getByText('A foto está guardada no aparelho e segue mesmo sem sinal.'),
+    item.getByText('Foto salva, falta confirmar a entrega', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    item.getByText('A foto está guardada. Ela só sobe quando você tocar em Confirmar entrega.'),
   ).toBeVisible()
   await expect(item.getByRole('img', { name: 'Miniatura da foto do canhoto' })).toBeVisible()
   // O rótulo "Refazer" só chega depois do refreshQueueView() assíncrono (leitura do IndexedDB) —

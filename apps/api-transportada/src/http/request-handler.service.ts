@@ -4,7 +4,6 @@
 import { safeLogInfo } from '../logging/safe-logger.service'
 import {
   API_AUTH_ME_PATH,
-  APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES,
   CORRELATION_ID_HEADER,
   HTTP_ERROR,
   IDLE_TIMEOUT_SECONDS,
@@ -14,6 +13,7 @@ import { ApiError } from '../shared/api.error'
 import { runInRequestScope } from '../shared/request-scope.service'
 import type { ApiLogger, RequestTimeoutPort } from '../shared/api.types'
 import { applyCorsHeaders, handleCorsPreflight } from './cors.service'
+import { resolveRequestBodyLimits } from './request-body-limit.service'
 import type { HttpRouter } from './router.service'
 import { isNoStorePath } from './request-path.service'
 import { parseCorrelationId, parseRequestMetadata } from './request.schema'
@@ -123,7 +123,8 @@ async function executeRequest({
     pathname: requestPathname,
   })
   server.timeout(request, dependencies.requestTimeoutSeconds)
-  assertRequestSize(metadata.contentLength)
+  const limits = resolveRequestBodyLimits({ method: request.method, pathname: requestPathname })
+  assertRequestSize({ contentLength: metadata.contentLength, maxBytes: limits.applicationBytes })
   assertRequestActive(request.signal)
   const response =
     handleCorsPreflight({
@@ -137,6 +138,9 @@ async function executeRequest({
         method: metadata.method,
         pathname: metadata.pathname,
         request,
+        // Sem `content-length` o tamanho só se sabe lendo: o roteador limita o fluxo ao teto da rota,
+        // depois de autenticar e autorizar (spec 265 RF2).
+        streamedBodyLimitBytes: limits.serverBytes,
       }),
     ))
   assertRequestActive(request.signal)
@@ -152,8 +156,11 @@ function isEventStream(response: Response): boolean {
   return (response.headers.get('content-type') ?? '').startsWith(SSE_CONTENT_TYPE)
 }
 
-function assertRequestSize(contentLength: number | undefined): void {
-  if (contentLength !== undefined && contentLength > APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES) {
+function assertRequestSize(input: {
+  readonly contentLength: number | undefined
+  readonly maxBytes: number
+}): void {
+  if (input.contentLength !== undefined && input.contentLength > input.maxBytes) {
     throw new ApiError(HTTP_ERROR.payloadTooLarge)
   }
 }

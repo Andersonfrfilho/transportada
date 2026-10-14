@@ -649,6 +649,11 @@
     "products": "What's in the document",
     "productsToggle": "{{count}} item in the document",
     "productsToggle_other": "{{count}} items in the document",
+    "processing": {
+      "failed": "No light version (original kept)",
+      "processing": "Processing the photo…",
+      "waitingReview": "Wait for the photo to finish processing before reviewing the proof."
+    },
     "punctuality": {
       "on_time": "On time",
       "late": "Late",

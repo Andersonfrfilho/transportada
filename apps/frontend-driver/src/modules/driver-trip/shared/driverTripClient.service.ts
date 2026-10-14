@@ -47,6 +47,14 @@ import type {
   DiagnosticInput,
 } from './clientDiagnostics.types'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
+import {
+  PROOF_ORIGINAL_MAX_BYTES,
+  resolveProofUploadVariant,
+  type ProofUploadVariant,
+} from './proofPhotoReduction.service'
+import { readProofProcessingState, type ProofProcessingState } from './proofUploadProgress.service'
+import type { ProofUploadFailure } from './proofUploadProgress.service'
+import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -74,6 +82,10 @@ const REQUEST_TIMEOUT_MILLISECONDS = 20_000
  * parada, não contra a conexão lenta.
  */
 const UPLOAD_TIMEOUT_MILLISECONDS = 90_000
+/** Spec 265: o original (até 12 MiB) em 3G leva o que a foto reduzida não leva; o teto continua contra a conexão parada. */
+const ORIGINAL_UPLOAD_TIMEOUT_MILLISECONDS = 240_000
+/** Spec 265 RF13: o upload do comprovante deixa `step_timing`/`send_failed` neste passo, rotulado com este `reportKind`. */
+const PROOF_UPLOAD_REPORT_KIND = 'proof'
 /** O refresh do token precede a requisição: sem teto aqui, o teto de baixo nunca é alcançado. */
 const ACCESS_TOKEN_TIMEOUT_MILLISECONDS = 15_000
 
@@ -163,12 +175,30 @@ export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
   return { cause, ...(details === undefined ? {} : { details }), kind: 'rejected' }
 }
 
+/**
+ * Por que um envio da fila ficou para depois, em palavras que a tela traduz. Só descreve — quem
+ * decide continua sendo `toAttachmentSendOutcome`. `undefined` quando o servidor recusou (não é "depois").
+ */
+export function describeAttachmentFailure(error: unknown): ProofUploadFailure | undefined {
+  if (toAttachmentSendOutcome(error).kind !== 'failed-network') return undefined
+  if (error instanceof DriverTripRequestError) {
+    if (error.isTimeout) return { kind: 'timeout' }
+    if (error.isOffline) return { kind: 'network' }
+    return error.status === undefined
+      ? { kind: 'network' }
+      : { kind: 'server', status: error.status }
+  }
+  return { kind: 'session' }
+}
+
 type ClientDependencies = Readonly<{
   apiUrl: string
   /** Spec 234 D1: onde cada resposta bem-sucedida deixa o desvio do relógio; ausente, não se mede. */
   clockOffset?: ClockOffsetStore
   /** Spec 254: só observa — nunca muda o resultado de um envio; ausente, não se mede. */
   diagnostics?: Pick<ClientDiagnostics, 'record'> | undefined
+  /** Spec 265 RF12: fábrica do `XMLHttpRequest` do envio com progresso; ausente, o comprovante sobe por `fetch`. */
+  createXhr?: () => XMLHttpRequest
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
   /** Só o teste passa, para fixar a hora do aparelho; em produção vale o `Date.now`. */
@@ -213,6 +243,16 @@ export type DriverTripClient = Readonly<{
     lateRegistration?: boolean
     latitude?: number
     longitude?: number
+    /**
+     * Spec 265 RF12: bytes enviados / total, vindos do `XMLHttpRequest` (o `fetch` não reporta envio).
+     * Sem este callback — ou sem `XMLHttpRequest` — o envio segue pelo `fetch`, como antes.
+     */
+    onUploadProgress?: (progress: UploadProgress) => void
+    /**
+     * Spec 265 RF3: `reduced` (cabe em 960 KiB) ou `original` (a redução estourou o orçamento de 8 s).
+     * Ausente, sai do tamanho do arquivo; assinatura e PDF não declaram variante.
+     */
+    variant?: ProofUploadVariant
     /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
     receivedBy?: string
     receivedByDetail?: string
@@ -220,7 +260,14 @@ export type DriverTripClient = Readonly<{
     receiverName?: string
     /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
     thumbnail?: File
-  }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
+  }) => Promise<
+    Readonly<{
+      id: string
+      /** Spec 265 RF6/RF10: só `received`/`processing` aparecem; `ready` e a API antiga (sem o campo) são `undefined`. */
+      processingState?: ProofProcessingState
+      punctuality: ProofPunctuality
+    }>
+  >
   /**
    * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
    *
@@ -367,9 +414,20 @@ function stopOccurrenceReference(
 export function createDriverTripClient(dependencies: ClientDependencies): DriverTripClient {
   return {
     async attachProof(input) {
+      const variant =
+        input.variant ?? resolveProofUploadVariant({ file: input.file, kind: input.kind })
+      /** Spec 265: acima do teto real do original a API recusa 422; o app recusa antes, sem gastar dados. */
+      if (variant === 'original' && input.file.size > PROOF_ORIGINAL_MAX_BYTES) {
+        throw new DriverTripRequestError({
+          code: 'TRIP_DELIVERY_PROOF_TOO_LARGE',
+          isOffline: false,
+          status: 422,
+        })
+      }
       const form = new FormData()
       form.set('file', input.file)
       form.set('kind', input.kind)
+      if (variant !== undefined) form.set('variant', variant)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
@@ -391,11 +449,27 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         form.set('lateRegistration', 'true')
       }
 
-      const payload = await request({
+      const payload = await traceStep({
+        context: {
+          photoBytes: input.file.size,
+          reportKind: PROOF_UPLOAD_REPORT_KIND,
+          ...(input.attachmentKey === undefined ? {} : { attachmentKey: input.attachmentKey }),
+        },
         dependencies,
-        form,
-        method: 'POST',
-        path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
+        run: () =>
+          request({
+            dependencies,
+            form,
+            method: 'POST',
+            ...(input.onUploadProgress === undefined
+              ? {}
+              : { onUploadProgress: input.onUploadProgress }),
+            path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
+            ...(variant === 'original'
+              ? { timeoutMilliseconds: ORIGINAL_UPLOAD_TIMEOUT_MILLISECONDS }
+              : {}),
+          }),
+        step: STEP_UPLOAD_PUT,
       })
       return toProofAttachResult(payload)
     },
@@ -741,6 +815,7 @@ async function putOccurrencePhoto(input: {
 
 /** Contexto do envio que rotula o evento — só campos da lista permitida (spec 254 RF4). */
 type StepContext = Readonly<{
+  attachmentKey?: string | undefined
   attempt?: number | undefined
   idempotencyKey?: string | undefined
   photoBytes?: number | undefined
@@ -897,6 +972,7 @@ function buildBaseDependencies(): ClientDependencies {
   return {
     apiUrl: getDriverEnvironment().apiBaseUrl,
     clockOffset: driverClockOffset,
+    ...(typeof XMLHttpRequest === 'undefined' ? {} : { createXhr: () => new XMLHttpRequest() }),
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
   }
@@ -963,9 +1039,11 @@ async function requestFile(
   }
 }
 
-function toProofAttachResult(
-  payload: unknown,
-): Readonly<{ id: string; punctuality: ProofPunctuality }> {
+function toProofAttachResult(payload: unknown): Readonly<{
+  id: string
+  processingState?: ProofProcessingState
+  punctuality: ProofPunctuality
+}> {
   const data =
     typeof payload === 'object' && payload !== null
       ? (payload as { readonly data?: unknown }).data
@@ -981,7 +1059,12 @@ function toProofAttachResult(
     throw new DriverTripResponseError()
   }
 
-  return { id: record.id, punctuality: record.punctuality as ProofPunctuality }
+  const processingState = readProofProcessingState(record.processingState)
+  return {
+    id: record.id,
+    ...(processingState === undefined ? {} : { processingState }),
+    punctuality: record.punctuality as ProofPunctuality,
+  }
 }
 
 function readFileName(disposition: string | null, fallback: string): string {
@@ -1084,6 +1167,8 @@ async function request(
     form?: FormData
     idempotencyKey?: string
     method: 'GET' | 'PATCH' | 'POST' | 'PUT'
+    /** Spec 265 RF12: só o multipart do comprovante; liga o `XMLHttpRequest` com progresso de envio. */
+    onUploadProgress?: (progress: UploadProgress) => void
     path: string
     signal?: AbortSignal
     timeoutMilliseconds?: number
@@ -1112,9 +1197,21 @@ async function request(
   const sentAtMs = now()
   let response: Response
   try {
-    response = await input.dependencies.fetch(
-      new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
-    )
+    const { createXhr } = input.dependencies
+    response =
+      input.form !== undefined && input.onUploadProgress !== undefined && createXhr !== undefined
+        ? await sendFormWithUploadProgress({
+            createXhr,
+            form: input.form,
+            headers,
+            method: input.method,
+            onProgress: input.onUploadProgress,
+            signal: requestInit.signal,
+            url: `${input.dependencies.apiUrl}${input.path}`,
+          })
+        : await input.dependencies.fetch(
+            new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
+          )
   } catch (error) {
     // Rede caída: quem chamou devolve o item para a fila em vez de dizer ao motorista que falhou.
     throw offline({ isTimeout: isDeadlineError(error) })

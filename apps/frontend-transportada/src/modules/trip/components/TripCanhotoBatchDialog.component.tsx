@@ -20,7 +20,10 @@ import {
   resolveRovingDocumentId,
 } from '../shared/canhotoBatchRovingFocus.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
-import { resolveDeliveryProofImageSource } from '../shared/deliveryProof.service'
+import {
+  isDeliveryProofAwaitingProcessing,
+  resolveDeliveryProofImageSource,
+} from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
 import type { ProofImageOutcome } from './ProofImage.component'
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
@@ -66,10 +69,13 @@ export function TripCanhotoBatchDialog({
   /** Foto que não abriu — ou que nem existe — nunca entra no maço: a tela não aprova o que não mostrou. */
   const hasImageFailed = (item: CanhotoBatchItem): boolean =>
     failedIds.has(item.documentId) || resolveDeliveryProofImageSource(item.proof) === ''
+  /** Spec 265 RF11: foto ainda em processamento não entra no maço — a conferência espera `ready`. */
+  const isHeld = (item: CanhotoBatchItem): boolean =>
+    hasImageFailed(item) || isDeliveryProofAwaitingProcessing(item.proof)
   const isChecked = (item: CanhotoBatchItem): boolean =>
-    !uncheckedIds.has(item.documentId) && !hasImageFailed(item)
+    !uncheckedIds.has(item.documentId) && !isHeld(item)
   /** Foto quebrada não entra na navegação: não há o que conferir, e a caixa dela é desabilitada. */
-  const eligibleIds = items.filter((item) => !hasImageFailed(item)).map((item) => item.documentId)
+  const eligibleIds = items.filter((item) => !isHeld(item)).map((item) => item.documentId)
   const rovingId = resolveRovingDocumentId({ eligibleIds, requestedId: requestedFocusId })
   const checkedItems = items.filter(isChecked)
   const isWaitingImages = checkedItems.some((item) => !loadedIds.has(item.documentId))

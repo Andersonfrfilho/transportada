@@ -255,8 +255,28 @@
         "photo": "Carregando a foto do canhoto",
         "signature": "Carregando a assinatura"
       },
-      "sending": "Enviando",
+      "queuedHint": "Enviando assim que a conexão permitir. Quando chegar ao servidor, aparece “Enviada às” e o relógio some.",
+      "queuedTitle": "Na fila, aguardando envio",
+      "waitingConfirmTitle": "Foto salva, falta confirmar a entrega",
+      "waitingDeliveryTitle": "Foto salva, sobe com a entrega",
+      "waitingConfirm": "A foto está guardada. Ela só sobe quando você tocar em Confirmar entrega.",
+      "waitingDelivery": "A foto está guardada e sobe logo depois que a entrega for enviada.",
+      "lastTryFailed": "A última tentativa não terminou: {{reason}}. Vai tentar de novo sozinho.",
+      "failure": {
+        "network": "sem conexão com o servidor",
+        "timeout": "o envio demorou demais",
+        "session": "a sessão precisa ser renovada",
+        "server": "servidor indisponível (erro {{status}})"
+      },
+      "queuedIcon": "Na fila, ainda enviando ao servidor",
+      "reducing": "Reduzindo a foto para enviar mais rápido",
+      "reducingCountdown": "Aguarde {{seconds}} s: reduzindo a foto",
+      "reducingAlmost": "Quase pronto: finalizando a foto",
+      "reducingHint": "Pode continuar e confirmar: a foto fica na fila e segue sozinha.",
       "savedOnDevice": "A foto está guardada no aparelho e segue mesmo sem sinal.",
+      "sentProcessing": "Chegou ao servidor, processando",
+      "uploadingPercent": "Enviando {{percent}}%",
+      "uploadingProgress": "Progresso do envio da foto",
       "sent": "Enviada às {{time}}",
       "failed": "Não foi possível enviar a foto. Ela continua guardada no aparelho."
     }
@@ -288,7 +308,8 @@
     "complete": "Concluir",
     "completedAt": "Comprovante concluído às {{time}}",
     "edit": "Editar",
-    "completeMissing": "Faltam: {{fields}}. Concluir assim mesmo?",
+    "completeBlockedTitle": "Ainda não dá para concluir",
+    "completeBlocked": "Falta: {{fields}}. Complete e toque em Concluir de novo.",
     "missing": {
       "photo": "a foto",
       "signature": "a assinatura",

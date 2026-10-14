@@ -151,6 +151,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('cargoPreview.cancel')
           },
         }),
+        startDeliveryProofProcessingConsumer: async () => ({
+          cancel: async () => {
+            calls.push('deliveryProofProcessing.cancel')
+          },
+        }),
         startContractorMailOutboundConsumer: async () => ({
           cancel: async () => {
             calls.push('contractorMailOutbound.cancel')
@@ -212,6 +217,7 @@ describe('NF-e worker runtime contract', () => {
       'passwordResetDelivery.cancel',
       'aggregateAttachment.cancel',
       'cargoPreview.cancel',
+      'deliveryProofProcessing.cancel',
       'contractorMailOutbound.cancel',
       'contractorMailInbound.cancel',
       'cargoLayout.cancel',
@@ -235,6 +241,8 @@ describe('NF-e worker runtime contract', () => {
       // Spec 237 Fase 4a: o trilho da prévia, com o mesmo cuidado do anexo — fecha junto, ou o
       // processo não sai no SIGTERM.
       'provider.close:transportada.runtime.contract.cargo-preview.v1.main.queue',
+      // Spec 265: o trilho do comprovante fecha junto, ou o processo não sai no SIGTERM.
+      'provider.close:transportada.runtime.contract.delivery-proof-processing.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-outbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-inbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.cargo-layout.v1.main.queue',
@@ -301,6 +309,7 @@ describe('NF-e worker runtime contract', () => {
         startPasswordResetDeliveryConsumer: async () => undefined,
         startAggregateAttachmentConsumer: async () => undefined,
         startCargoPreviewConsumer: async () => undefined,
+        startDeliveryProofProcessingConsumer: async () => undefined,
         startContractorMailOutboundConsumer: async () => undefined,
         startContractorMailInboundConsumer: async () => undefined,
         startCargoLayoutConsumer: async () => undefined,

@@ -34,6 +34,8 @@ export type QueuedProofAttachmentView = Readonly<{
   blob: Blob
   documentId: string
   kind: QueuedAttachment['kind']
+  /** A foto ainda espera a versão leve: a tela avisa que está reduzindo. */
+  isReducing?: true
 }>
 
 export type EventQueueItemView = Readonly<{
@@ -72,11 +74,12 @@ function toProofAttachments(
 ): Pick<EventQueueItemView, 'proofAttachments'> {
   if (group.length === 0) return {}
   return {
-    proofAttachments: group.map(({ attachmentKey, blob, documentId, kind }) => ({
+    proofAttachments: group.map(({ attachmentKey, blob, documentId, kind, pendingReduction }) => ({
       attachmentKey,
       blob,
       documentId,
       kind,
+      ...(pendingReduction === true ? { isReducing: true as const } : {}),
     })),
   }
 }

@@ -11,6 +11,11 @@ import {
   type DriverUploadProofKind,
 } from '../domain/delivery-event.constant.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
+import {
+  DEFAULT_DELIVERY_PROOF_VARIANT,
+  isDeliveryProofVariant,
+  type DeliveryProofVariant,
+} from '../domain/delivery-proof.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import { normalizeReceivedBy } from './received-by.schema.js'
 
@@ -33,6 +38,11 @@ const LATITUDE_FIELD = 'latitude'
 const LONGITUDE_FIELD = 'longitude'
 const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
+/**
+ * Spec 265 RF3: `reduced` (padrão, o app antigo não manda o campo) ou `original`. O servidor não confia: o
+ * tamanho real e o tipo pelos bytes são conferidos pelo caso de uso.
+ */
+const VARIANT_FIELD = 'variant'
 /** Spec 205 RF3: o "Registrar entrega depois" — texto `true`/`false`, ausente ou vazio é `false`. */
 const LATE_REGISTRATION_FIELD = 'lateRegistration'
 /** Spec 234 D2: servidor − aparelho em ms, texto inteiro com sinal opcional. */
@@ -147,7 +157,9 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
   let form: Awaited<ReturnType<Request['formData']>>
   try {
     form = await request.formData()
-  } catch {
+  } catch (error: unknown) {
+    // O 413 da leitura em fluxo (spec 265 RF2) não é corpo malformado: a causa nomeada chega à tela.
+    if (error instanceof ApiError) throw error
     throw new ApiError(HTTP_ERROR.invalidRequest)
   }
 
@@ -165,6 +177,7 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     throw new ApiError(HTTP_ERROR.invalidRequest)
   }
 
+  const variant = parseVariant(form)
   const location = parseProofLocation(form)
   const thumbnail = await parseThumbnail(form)
   const clockOffsetMs = parseClockOffset(form)
@@ -186,7 +199,17 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     }),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
     ...(thumbnail === undefined ? {} : { thumbnail }),
+    variant,
   }
+}
+
+/** Ausente ou vazio é o app antigo (`reduced`); presente e fora do vocabulário é `400`, nunca um padrão adivinhado. */
+function parseVariant(form: Awaited<ReturnType<Request['formData']>>): DeliveryProofVariant {
+  const value = readOptionalField(form, VARIANT_FIELD)
+  if (value === undefined) return DEFAULT_DELIVERY_PROOF_VARIANT
+  if (!isDeliveryProofVariant(value)) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return value
 }
 
 /** Ausente ou vazio é o comprovante sem miniatura; texto no lugar do arquivo é `400`. */

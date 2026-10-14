@@ -241,8 +241,28 @@
         "photo": "Loading the receipt photo",
         "signature": "Loading the signature"
       },
-      "sending": "Sending",
+      "queuedHint": "Sending as soon as the connection allows. When it reaches the server, it turns into “Sent at” and the clock goes away.",
+      "queuedTitle": "Queued, waiting to send",
+      "waitingConfirmTitle": "Photo saved, delivery still to confirm",
+      "waitingDeliveryTitle": "Photo saved, goes up with the delivery",
+      "waitingConfirm": "The photo is saved. It only goes up when you tap Confirm delivery.",
+      "waitingDelivery": "The photo is saved and goes up right after the delivery is sent.",
+      "lastTryFailed": "The last try did not finish: {{reason}}. It will retry on its own.",
+      "failure": {
+        "network": "no connection to the server",
+        "timeout": "the upload took too long",
+        "session": "the session needs to be renewed",
+        "server": "server unavailable (error {{status}})"
+      },
+      "queuedIcon": "Queued, still sending to the server",
+      "reducing": "Shrinking the photo so it sends faster",
+      "reducingCountdown": "Wait {{seconds}} s: shrinking the photo",
+      "reducingAlmost": "Almost done: finishing the photo",
+      "reducingHint": "You can keep going and confirm: the photo stays queued and goes on its own.",
       "savedOnDevice": "The photo is saved on the device and keeps going even without signal.",
+      "sentProcessing": "Reached the server, processing",
+      "uploadingPercent": "Sending {{percent}}%",
+      "uploadingProgress": "Photo upload progress",
       "sent": "Sent at {{time}}",
       "failed": "The photo could not be sent. It is still saved on the device."
     }
@@ -274,7 +294,8 @@
     "complete": "Complete",
     "completedAt": "Proof completed at {{time}}",
     "edit": "Edit",
-    "completeMissing": "Missing: {{fields}}. Complete anyway?",
+    "completeBlockedTitle": "Cannot complete yet",
+    "completeBlocked": "Missing: {{fields}}. Fill it in and tap Complete again.",
     "missing": {
       "photo": "the photo",
       "signature": "the signature",

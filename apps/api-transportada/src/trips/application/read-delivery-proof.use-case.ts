@@ -15,8 +15,10 @@ import type {
   TripDeliveryProofCanhotoReviewOrigin,
   TripDeliveryProofCanhotoReviewReason,
   TripDeliveryProofKind,
+  TripDeliveryProofProcessingState,
   TripDeliveryProofPunctuality,
 } from '../../database/trip.schema.js'
+import { resolveDeliveryProofProcessingState } from '../domain/delivery-proof.policy.js'
 
 import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
 
@@ -63,6 +65,8 @@ export type DeliveryProofRecord = CanhotoReviewRecord & {
   readonly locationState?: EventLocationState | null
   readonly mimeType: string
   readonly objectKey: string
+  /** Spec 265 RF6: nulo ou ausente é o comprovante que sobe já leve e todo o histórico (`ready`). */
+  readonly processingState?: TripDeliveryProofProcessingState | null
   readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: **sempre** a máscara (`***.938.570-**`). O valor em claro não sai da coluna selada. */
   readonly receiverDocumentMasked: string
@@ -136,6 +140,12 @@ export type DeliveryProofView = CanhotoReviewView & {
   readonly kind: TripDeliveryProofKind
   /** Spec 205 RF7: só como dado — a tela não o interpreta. */
   readonly lateRegistration: boolean
+  /**
+   * Spec 265 RF6/RF11: o estado do tratamento do arquivo. **Ausente é `ready`** — a chave só sai quando
+   * há o que dizer (`received`, `processing`, `processing_failed`): o painel publicado confere as chaves
+   * exatas do comprovante, e a chave nova em todo comprovante o apagaria (ADR-0081 §9).
+   */
+  readonly processingState?: Exclude<TripDeliveryProofProcessingState, 'ready'>
   readonly punctuality?: TripDeliveryProofPunctuality
   /** ADR-0057 §3: mascarado em toda leitura. Vazio quando a empresa não colhe documento. */
   readonly receiverDocument: string
@@ -307,6 +317,7 @@ async function buildDeliveryProofView({
     kind: record.kind,
     lateRegistration: record.lateRegistration,
     ...buildCanhotoReviewView(record),
+    ...buildProcessingStateView(record),
     ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
     receiverDocument: record.receiverDocumentMasked,
     receiverName: record.receiverName,
@@ -314,6 +325,15 @@ async function buildDeliveryProofView({
     receivedByDetail: record.receivedByDetail,
     ...(thumbnailDownload ? { thumbnailUrl: thumbnailDownload.url } : {}),
   }
+}
+
+function buildProcessingStateView(record: {
+  readonly processingState?: TripDeliveryProofProcessingState | null
+}): Pick<DeliveryProofView, 'processingState'> {
+  const state = resolveDeliveryProofProcessingState(record.processingState)
+  if (state === 'ready') return {}
+
+  return { processingState: state }
 }
 
 /**

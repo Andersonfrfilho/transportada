@@ -701,6 +701,9 @@ type DocumentRowProps = Readonly<{
   stop: DriverTripStop
 }>
 
+/** Quanto o botão de confirmar fica trancado depois do primeiro toque (cobre os 8 s do GPS). */
+const DELIVERY_CONFIRM_LOCK_MS = 10_000
+
 function DocumentSettledState({ document }: Readonly<{ document: DriverTripDocument }>) {
   const { t } = useTranslation('driverTrip')
 
@@ -747,7 +750,22 @@ function DocumentRow({
   /** Spec 218 (RF-A1): o servidor já resolveu as camadas — aqui só se lê o plano pronto. */
   const requiresProof = requiresProofBeforeDelivery(resolveProofFormPlan(proofSettings))
 
+  /**
+   * Defeito de 14/10 (staging): o toque grava e espera o GPS (até 8 s) antes de a nota virar
+   * "entregue" na tela, então o botão seguia ali e o motorista tocou duas vezes — dois `deliver` com 1 s
+   * de intervalo. O primeiro toque tranca o botão; a trava solta sozinha caso a entrega não chegue a
+   * assentar (recusa), para o motorista poder tentar de novo.
+   */
+  const [isConfirming, setIsConfirming] = useState(false)
+  useEffect(() => {
+    if (!isConfirming) return undefined
+    const timer = setTimeout(() => setIsConfirming(false), DELIVERY_CONFIRM_LOCK_MS)
+    return () => clearTimeout(timer)
+  }, [isConfirming])
+
   function confirmDelivery(): void {
+    if (isConfirming) return
+    setIsConfirming(true)
     onAnnounce(t('activity.toast.delivered'))
     onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
   }
@@ -895,7 +913,7 @@ function DocumentRow({
              * entrega", desabilitado até completar.
              */}
             {!requiresProof ? (
-              <Button onClick={confirmDelivery} type="button">
+              <Button disabled={isConfirming} onClick={confirmDelivery} type="button">
                 <Icon name="check" />
                 {t('deliver')}
               </Button>
@@ -926,6 +944,7 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
+              isConfirming={isConfirming}
               onCancel={() => onDiscardProofAwaitingDelivery(document.id)}
               onConfirm={confirmDelivery}
             />
@@ -984,6 +1003,7 @@ function DocumentOccurrenceButton({ isOpen, onToggle }: DocumentOccurrenceButton
 
 type PreDeliveryProofGateProps = Readonly<{
   captureProps: DeliveryProofSectionProps
+  isConfirming: boolean
   onCancel: () => void
   onConfirm: () => void
 }>
@@ -993,7 +1013,12 @@ type PreDeliveryProofGateProps = Readonly<{
  * depois — e "Confirmar entrega", desabilitado enquanto faltar obrigatório. Cada anexo entra na
  * fila na hora (spec 203), marcado para esperar a entrega: o gate atrasa só o `deliver`.
  */
-function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDeliveryProofGateProps) {
+function PreDeliveryProofGate({
+  captureProps,
+  isConfirming,
+  onCancel,
+  onConfirm,
+}: PreDeliveryProofGateProps) {
   const { t } = useTranslation('driverTrip')
   const titleId = useId()
   const missingId = useId()
@@ -1031,7 +1056,7 @@ function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDelivery
               <div className={styles.actions}>
                 <Button
                   aria-describedby={missingFields.length > 0 ? missingId : undefined}
-                  disabled={missingFields.length > 0}
+                  disabled={missingFields.length > 0 || isConfirming}
                   onClick={() => {
                     capture.pushLateFieldUpdate()
                     onConfirm()
@@ -1147,39 +1172,60 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
 
+  /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
+  const [showMissing, setShowMissing] = useState(false)
+
+  /** O que ainda falta, dito em palavras — vazio quando o comprovante está completo. */
+  function describeMissing(capture: ProofCaptureState): string {
+    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
+    const cargoMissingCount = countMissingCargoPhotos({
+      plan: capture.plan,
+      values: capture.values,
+    })
+    return pending
+      .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
+      .join(', ')
+  }
+
   /**
-   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
-   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
-   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
-   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
+   * Pedido do usuário (14/10, revoga o "nunca trava" da spec 203/207): com pendência obrigatória,
+   * "Concluir" não segue — o aviso no desenho do app diz o que falta, e some sozinho quando o
+   * motorista resolve. A foto/assinatura já guardada nunca é descartada. Antes de fechar, garante que
+   * edições digitadas e ainda não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
    */
   function handleComplete(capture: ProofCaptureState): void {
     capture.pushLateFieldUpdate()
-    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
-    if (pending.length > 0) {
-      const cargoMissingCount = countMissingCargoPhotos({
-        plan: capture.plan,
-        values: capture.values,
-      })
-      const fieldsText = pending
-        .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
-        .join(', ')
-      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
+    if (describeMissing(capture) !== '') {
+      setShowMissing(true)
+      return
     }
+    setShowMissing(false)
     setConcludedAt(new Date().toISOString())
   }
 
   return (
     <ProofCaptureFields
       {...props}
-      renderFooter={(capture) => (
-        <div className={styles.actions}>
-          <Button onClick={() => handleComplete(capture)} type="button">
-            <Icon name="check" />
-            {t('proofFields.complete')}
-          </Button>
-        </div>
-      )}
+      renderFooter={(capture) => {
+        const missingText = showMissing ? describeMissing(capture) : ''
+        return (
+          <div className={styles.actions}>
+            {missingText === '' ? null : (
+              <div className={styles.completeBlocked} role="alert">
+                <Icon name="alert" />
+                <div>
+                  <strong>{t('proofFields.completeBlockedTitle')}</strong>
+                  <p>{t('proofFields.completeBlocked', { fields: missingText })}</p>
+                </div>
+              </div>
+            )}
+            <Button onClick={() => handleComplete(capture)} type="button">
+              <Icon name="check" />
+              {t('proofFields.complete')}
+            </Button>
+          </div>
+        )
+      }}
       summary={
         concludedAt === undefined ? undefined : (
           <>
@@ -1283,17 +1329,20 @@ function ProofCaptureFields({
   const photoPreview = usePhotoPreviewUrl(queuedAtMount.photo?.blob)
   const signaturePreview = usePhotoPreviewUrl(queuedAtMount.signature?.blob)
   const previewByKind = { photo: photoPreview, signature: signaturePreview }
-  const photoUpload = useProofUploadStatus({
-    isAttached: attached.photo,
-    isConfirmedByServer: isProofConfirmedByServer({
-      hasLocalAttachment: false,
-      isDelivered: serverProof?.isDelivered ?? false,
-      isRequired: plan.fields.photo === 'required',
-      kind: 'photo',
-      proofPending: serverProof?.proofPending ?? true,
-    }),
-    ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
-  })
+  const photoUpload = useProofUploadStatus(
+    {
+      isAttached: attached.photo,
+      isConfirmedByServer: isProofConfirmedByServer({
+        hasLocalAttachment: false,
+        isDelivered: serverProof?.isDelivered ?? false,
+        isRequired: plan.fields.photo === 'required',
+        kind: 'photo',
+        proofPending: serverProof?.proofPending ?? true,
+      }),
+      ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
+    },
+    { documentId, kind: 'photo' },
+  )
   const isPhotoConfirmedByServer = isProofConfirmedByServer({
     hasLocalAttachment: attached.photo,
     isDelivered: serverProof?.isDelivered ?? false,
@@ -1317,7 +1366,8 @@ function ProofCaptureFields({
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
   useEffect(() => {
     if (!selectNameOnNextRender) return
-    nameInputRef.current?.focus()
+    /* Sem rolar: o foco no nome não pode arrastar a tela para baixo depois de a foto ser confirmada. */
+    nameInputRef.current?.focus({ preventScroll: true })
     nameInputRef.current?.select()
     setSelectNameOnNextRender(false)
   }, [selectNameOnNextRender])
@@ -1491,9 +1541,21 @@ function ProofCaptureFields({
     values: { receivedBy, receivedByDetail },
   })
 
+  /**
+   * Defeito de 14/10 (staging): a foto subiu e saiu da fila antes de esta seção montar (a nota virou
+   * "entregue" e remontou), então `attached.photo` nasce falso e o "Concluir" acusava "Faltam: foto"
+   * com o canhoto já no servidor. O snapshot que diz "a foto chegou" também conta como foto.
+   */
+  const isPhotoOnServer = isProofConfirmedByServer({
+    hasLocalAttachment: false,
+    isDelivered: serverProof?.isDelivered ?? false,
+    isRequired: plan.fields.photo === 'required',
+    kind: 'photo',
+    proofPending: serverProof?.proofPending ?? true,
+  })
   const currentValues = {
     cargoCount: cargoKeys.length,
-    hasPhoto: attached.photo,
+    hasPhoto: attached.photo || isPhotoOnServer,
     hasSignature: attached.signature,
     receivedBy,
     receivedByDetail,

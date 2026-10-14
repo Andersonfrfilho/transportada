@@ -56,7 +56,39 @@ export function buildOccurrencePhotoQualitySequence(
   return sequence
 }
 
-export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+/** Imagem já decodificada: `ImageBitmap` (decodificada fora da thread da tela) ou, sem ele, `HTMLImageElement`. */
+export type DecodedImage = HTMLImageElement | ImageBitmap
+
+function readImageSize(image: DecodedImage): OccurrencePhotoImageSize {
+  return 'naturalWidth' in image
+    ? { height: image.naturalHeight, width: image.naturalWidth }
+    : { height: image.height, width: image.width }
+}
+
+/** Cede a vez à tela entre degraus: num aparelho simples, a compressão em fila seguida congela os toques. */
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
+}
+
+/**
+ * Defeito de 14/10: num Samsung A12, reduzir o canhoto levou 10,6 s com a tela congelada. O
+ * `createImageBitmap` decodifica fora da thread da tela; sem ele (ou se recusar o arquivo), cai no
+ * `Image` de antes.
+ */
+export async function loadImageFromFile(file: File): Promise<DecodedImage> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file, { imageOrientation: 'from-image' })
+    } catch {
+      /* cai no Image */
+    }
+  }
+  return loadHtmlImageFromFile(file)
+}
+
+function loadHtmlImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
@@ -89,15 +121,16 @@ function encodeCanvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise
  * tentativa; quem chama confere o teto do servidor.
  */
 export async function encodeImageToJpeg(input: {
-  readonly image: HTMLImageElement
+  readonly image: DecodedImage
   readonly maxSide: number
   readonly startQuality?: number
   readonly targetBytes: number
 }): Promise<Blob> {
+  const source = readImageSize(input.image)
   const size = computeOccurrencePhotoOriginalDimensions({
-    height: input.image.naturalHeight,
+    height: source.height,
     maxSide: input.maxSide,
-    width: input.image.naturalWidth,
+    width: source.width,
   })
   const canvas = document.createElement('canvas')
   canvas.width = size.width
@@ -108,6 +141,7 @@ export async function encodeImageToJpeg(input: {
 
   let smallest: Blob | undefined
   for (const quality of buildOccurrencePhotoQualitySequence(input.startQuality)) {
+    await yieldToMainThread()
     const blob = await encodeCanvasToJpeg(canvas, quality)
     if (smallest === undefined || blob.size < smallest.size) smallest = blob
     if (blob.size <= input.targetBytes) break

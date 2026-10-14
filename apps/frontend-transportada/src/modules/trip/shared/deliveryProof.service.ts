@@ -14,6 +14,7 @@ import type {
   DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS,
   DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
   DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
+  DELIVERY_PROOF_PROCESSING_STATE_OPTIONS,
   DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
 } from './trip.constant'
@@ -24,6 +25,8 @@ export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
 export type DeliveryProofReceivedBy = (typeof DELIVERY_PROOF_RECEIVED_BY_OPTIONS)[number]
 
 export type DeliveryProofPunctuality = (typeof DELIVERY_PROOF_PUNCTUALITY_OPTIONS)[number]
+
+export type DeliveryProofProcessingState = (typeof DELIVERY_PROOF_PROCESSING_STATE_OPTIONS)[number]
 
 export type DeliveryProofCanhotoReview = (typeof DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS)[number]
 
@@ -61,6 +64,8 @@ export type DeliveryProof = Readonly<{
   kind: DeliveryProofKind
   /** Spec 205 RF8: o comprovante (ou a entrega dele) foi registrado depois. Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 265: só vem quando a foto ainda não está pronta; ausente é `ready`. */
+  processingState?: DeliveryProofProcessingState
   /** Spec 220 RF16: ausente em comprovante antigo. */
   punctuality?: DeliveryProofPunctuality
   /** ADR-0057 §3: sempre a máscara; esta tela não o mostra. */
@@ -171,4 +176,26 @@ export function resolveDeliveryProofFullSizeUrl(proof: DeliveryProof): string {
 /** Spec 233 D6: o raio do primeiro comprovante que o trouxe; nenhum, nenhum raio — nunca um suposto. */
 export function resolveProofRadiusMeters(proofs: readonly DeliveryProof[]): number | undefined {
   return proofs.find((proof) => proof.proofRadiusMeters !== undefined)?.proofRadiusMeters
+}
+
+/** Spec 265: ausente é pronto — a API só diz o que ainda não terminou. */
+export function resolveDeliveryProofProcessingState(
+  proof: DeliveryProof,
+): DeliveryProofProcessingState {
+  return proof.processingState ?? 'ready'
+}
+
+/** Spec 265 RF11: a versão leve ainda vai sair; a conferência manual espera `ready`. */
+export function isDeliveryProofAwaitingProcessing(proof: DeliveryProof): boolean {
+  const state = resolveDeliveryProofProcessingState(proof)
+  return state === 'received' || state === 'processing'
+}
+
+/** Qual linha discreta a tela mostra; `undefined` quando a foto está pronta. */
+export function presentDeliveryProofProcessing(
+  proof: DeliveryProof,
+): 'failed' | 'processing' | undefined {
+  const state = resolveDeliveryProofProcessingState(proof)
+  if (state === 'processing_failed') return 'failed'
+  return state === 'ready' ? undefined : 'processing'
 }

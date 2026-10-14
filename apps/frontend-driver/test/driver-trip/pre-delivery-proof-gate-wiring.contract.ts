@@ -45,7 +45,7 @@ describe('o gate de antes da entrega no cartão da parada (spec 218)', () => {
   it('"Confirmar entrega" fica desabilitado enquanto listMissingProofFields acusar algo', () => {
     const gate = gateSource()
     expect(gate).toInclude('listMissingProofFields({')
-    expect(gate).toInclude('disabled={missingFields.length > 0}')
+    expect(gate).toInclude('disabled={missingFields.length > 0 || isConfirming}')
     expect(gate).toInclude("t('deliveryGate.confirm')")
     /* Aviso, não erro — o mesmo tom do resto do comprovante (spec 203). */
     expect(gate).not.toInclude('role="alert"')

@@ -26,11 +26,20 @@ describe('o botão "Concluir" do comprovante (spec 207)', () => {
     expect(card).toContain('handleComplete')
   })
 
-  it('confirma antes de concluir com pendência obrigatória — nunca trava, e a foto não é descartada', () => {
+  it('com pendência obrigatória, não conclui: mostra o aviso do app (role=alert) dizendo o que falta, sem window.confirm', () => {
     const card = readComponentSource()
+    const complete = card.slice(
+      card.indexOf('function handleComplete('),
+      card.indexOf('function handleComplete(') + 600,
+    )
     expect(card).toContain('listAllPendingFields')
-    expect(card).toContain("t('proofFields.completeMissing'")
-    expect(card).toContain('window.confirm(')
+    expect(card).toContain("t('proofFields.completeBlocked'")
+    expect(card).toContain('className={styles.completeBlocked} role="alert"')
+    expect(complete).toContain('return')
+    expect(complete.indexOf('setShowMissing(true)')).toBeLessThan(
+      complete.indexOf('setConcludedAt('),
+    )
+    expect(card).not.toContain("t('proofFields.completeMissing'")
   })
 
   it('concluído mostra "Comprovante concluído às HH:MM" e Editar reabre', () => {

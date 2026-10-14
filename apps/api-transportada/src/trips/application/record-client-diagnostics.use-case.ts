@@ -39,6 +39,8 @@ export type RecordClientDiagnosticsParams = {
   readonly device?: ClientDiagnosticDevice | undefined
   readonly events: readonly ClientDiagnosticEvent[]
   readonly membershipId: string
+  /** Cabeçalho `User-Agent` da requisição (traz o modelo do aparelho); truncado ao logar. */
+  readonly userAgent?: string | undefined
 }
 
 export type RecordClientDiagnosticsUseCase = {
@@ -51,17 +53,23 @@ function omitUndefined(fields: Record<string, unknown>): Record<string, unknown>
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined))
 }
 
-function pickDevice(device: ClientDiagnosticDevice | undefined): Record<string, unknown> {
-  if (device === undefined) return {}
+const MAX_LOGGED_USER_AGENT_LENGTH = 200
+
+function pickDevice(
+  device: ClientDiagnosticDevice | undefined,
+  userAgent: string | undefined,
+): Record<string, unknown> {
+  if (device === undefined && userAgent === undefined) return {}
 
   return {
     device: omitUndefined({
-      appVersion: device.appVersion,
-      deviceMemoryGb: device.deviceMemoryGb,
-      effectiveType: device.effectiveType,
-      hardwareConcurrency: device.hardwareConcurrency,
-      isStandalone: device.isStandalone,
-      saveData: device.saveData,
+      appVersion: device?.appVersion,
+      deviceMemoryGb: device?.deviceMemoryGb,
+      effectiveType: device?.effectiveType,
+      hardwareConcurrency: device?.hardwareConcurrency,
+      isStandalone: device?.isStandalone,
+      saveData: device?.saveData,
+      userAgent: userAgent?.slice(0, MAX_LOGGED_USER_AGENT_LENGTH),
     }),
   }
 }
@@ -70,8 +78,8 @@ export function createRecordClientDiagnosticsUseCase({
   logger,
 }: Dependencies): RecordClientDiagnosticsUseCase {
   return {
-    execute({ companyId, device, events, membershipId }): void {
-      const deviceMetadata = pickDevice(device)
+    execute({ companyId, device, events, membershipId, userAgent }): void {
+      const deviceMetadata = pickDevice(device, userAgent)
 
       for (const event of events) {
         safeLogInfo({
