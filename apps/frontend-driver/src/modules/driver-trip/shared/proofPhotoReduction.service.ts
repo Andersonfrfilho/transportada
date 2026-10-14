@@ -15,6 +15,39 @@ export const PROOF_PHOTO_TARGET_BYTES = 900 * 1024
  */
 export const PROOF_PHOTO_START_QUALITY = 0.7
 /**
+ * Pedido do usuário (14/10): a escolha é automática pelo tempo medido. Se a redução anterior neste
+ * aparelho levou `PROOF_PHOTO_SLOW_DEVICE_MS` ou mais, a próxima já comprime a 0,5 (um degrau só,
+ * o piso de legibilidade) em vez de arriscar o teto de 20 s.
+ */
+export const PROOF_PHOTO_SLOW_DEVICE_MS = 8_000
+export const PROOF_PHOTO_SLOW_DEVICE_QUALITY = 0.5
+const PROOF_PHOTO_LAST_DURATION_KEY = 'driver.proofPhotoReduction.lastDurationMs'
+
+/** Pura: sem medida ainda (primeira foto) ou aparelho rápido, 0,7; aparelho lento, 0,5. */
+export function resolveProofPhotoStartQuality(lastDurationMs: number | undefined): number {
+  return lastDurationMs !== undefined && lastDurationMs >= PROOF_PHOTO_SLOW_DEVICE_MS
+    ? PROOF_PHOTO_SLOW_DEVICE_QUALITY
+    : PROOF_PHOTO_START_QUALITY
+}
+
+function readLastReductionDuration(): number | undefined {
+  try {
+    const raw = globalThis.localStorage?.getItem(PROOF_PHOTO_LAST_DURATION_KEY)
+    const value = raw === null || raw === undefined ? Number.NaN : Number(raw)
+    return Number.isFinite(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function rememberReductionDuration(durationMs: number): void {
+  try {
+    globalThis.localStorage?.setItem(PROOF_PHOTO_LAST_DURATION_KEY, String(durationMs))
+  } catch {
+    /** Sem armazenamento (aba privada): a próxima foto começa em 0,7 e mede de novo. */
+  }
+}
+/**
  * Teto duro, cópia de `OFFICE_PROOF_MAX_BYTES` da API (960 KiB): o corpo inteiro da requisição para
  * em 1 MiB (413 antes da rota), e acima de 960 KiB o arquivo volta 422 `TOO_LARGE`.
  */
@@ -102,13 +135,15 @@ export async function buildProofPhotoWithThumbnail(input: {
 
 /** Impura: decodifica uma vez e reencoda pelo canvas, que descarta o EXIF (e o GPS) sozinho. */
 export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPhoto> {
+  const startedAt = Date.now()
+  const startQuality = resolveProofPhotoStartQuality(readLastReductionDuration())
   const image = await loadImageFromFile(file)
   const blob = await fitProofPhotoWithinCap({
     encode: (maxSide) =>
       encodeImageToJpeg({
         image,
         maxSide,
-        startQuality: PROOF_PHOTO_START_QUALITY,
+        startQuality,
         targetBytes: PROOF_PHOTO_TARGET_BYTES,
       }),
   })
@@ -122,6 +157,7 @@ export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPh
       }),
     original: blob,
   })
+  rememberReductionDuration(Date.now() - startedAt)
   const baseName = file.name.replace(/\.[^./\\]+$/u, '') || 'canhoto'
   return {
     blob: original,
