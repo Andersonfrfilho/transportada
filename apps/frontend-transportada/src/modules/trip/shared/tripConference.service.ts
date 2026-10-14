@@ -18,6 +18,9 @@ export type TripConferenceRow = Readonly<{
   noteSeries: string
   totalValue: null | string
   volumeCount: null | number
+  /** Peso bruto da nota em kg; `null` quando a nota não tem peso (nunca zero). */
+  weightKilograms: null | number
+  weightSource: 'estimated' | 'xml' | null
 }>
 
 export type TripConferenceSummary = Readonly<{
@@ -28,6 +31,8 @@ export type TripConferenceSummary = Readonly<{
   stopCount: number
   totalValue: string
   totalVolumes: number
+  /** Soma do peso das notas que o têm; `null` quando nenhuma nota traz peso. */
+  totalWeightKilograms: null | number
 }>
 
 export type TripConference = Readonly<{
@@ -50,6 +55,15 @@ export function extractCityFromStopLabel(label: string): string {
   return city ?? ''
 }
 
+function readNoteWeight(document: TripDocumentDetail): null | number {
+  const kilograms =
+    typeof document.cargoGrossWeight === 'string'
+      ? Number.parseFloat(document.cargoGrossWeight)
+      : Number.NaN
+
+  return Number.isFinite(kilograms) && kilograms > 0 ? kilograms : null
+}
+
 function toRow(document: TripDocumentDetail, destinationLabel: string): TripConferenceRow {
   return {
     city: extractCityFromStopLabel(destinationLabel),
@@ -61,6 +75,8 @@ function toRow(document: TripDocumentDetail, destinationLabel: string): TripConf
     noteSeries: document.nfeSeries?.trim() ?? '',
     totalValue: hasText(document.nfeTotalValue) ? document.nfeTotalValue.trim() : null,
     volumeCount: typeof document.volumeCount === 'number' ? document.volumeCount : null,
+    weightKilograms: readNoteWeight(document),
+    weightSource: document.cargoWeightSource ?? null,
   }
 }
 
@@ -84,6 +100,7 @@ export function buildTripConference(source: TripConferenceSource): TripConferenc
     .filter((document) => !listedIds.has(document.id))
     .map((document) => toRow(document, ''))
   const rows = [...stopRows, ...looseRows]
+  const weights = rows.flatMap((row) => (row.weightKilograms === null ? [] : [row.weightKilograms]))
   const values = rows.flatMap((row) => (row.totalValue === null ? [] : [row.totalValue]))
 
   return {
@@ -95,6 +112,10 @@ export function buildTripConference(source: TripConferenceSource): TripConferenc
       stopCount: orderedStops.filter((stop) => stop.documents.length > 0).length,
       totalValue: sumScaledAmounts(values),
       totalVolumes: rows.reduce((sum, row) => sum + (row.volumeCount ?? 0), 0),
+      totalWeightKilograms:
+        weights.length === 0
+          ? null
+          : Math.round(weights.reduce((sum, w) => sum + w, 0) * 10_000) / 10_000,
     },
   }
 }
