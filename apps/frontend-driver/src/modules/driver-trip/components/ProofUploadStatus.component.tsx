@@ -7,7 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { ProofReducingMallet } from './ProofReducingMallet.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
-import { PROOF_PHOTO_REDUCTION_TIMEOUT_MS } from '../shared/proofPhotoReduction.service'
+import {
+  PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
+  resolveProofReductionPercent,
+} from '../shared/proofPhotoReduction.service'
 import { PROOF_SENDING_BAR_HEIGHT, PROOF_SENDING_BAR_WIDTH } from '../shared/proofUpload.constant'
 import type { ProofUploadView } from '../hooks/useProofUploadStatus.hook'
 import styles from '../styles/driverTrip.module.css'
@@ -82,6 +85,12 @@ function ProofReducingCountdown() {
         {secondsLeft > 0
           ? t('proofCapture.upload.reducingCountdown', { seconds: secondsLeft })
           : t('proofCapture.upload.reducingAlmost')}
+        <span className={styles.proofReducingPercent}>
+          {resolveProofReductionPercent({
+            elapsedMs: PROOF_PHOTO_REDUCTION_TIMEOUT_MS - secondsLeft * 1000,
+          })}
+          %
+        </span>
       </span>
       <span aria-hidden="true" className={styles.proofReducingTrack}>
         <span

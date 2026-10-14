@@ -74,6 +74,20 @@ const PROOF_REQUEST_FILES_BUDGET_BYTES = 1000 * 1024
  */
 export const PROOF_PHOTO_REDUCTION_TIMEOUT_MS = 20_000
 
+/**
+ * Pedido do usuário (14/10): a redução mostra porcentagem. É estimativa pelo tempo gasto contra o
+ * teto, não progresso real do canvas (que não reporta nenhum): trava em 99 enquanto a redução não
+ * termina, para a tela nunca dizer 100% de algo que ainda roda.
+ */
+export function resolveProofReductionPercent(input: {
+  readonly elapsedMs: number
+  readonly timeoutMs?: number
+}): number {
+  const timeoutMs = input.timeoutMs ?? PROOF_PHOTO_REDUCTION_TIMEOUT_MS
+  const raw = Math.floor((Math.max(0, input.elapsedMs) / timeoutMs) * 100)
+  return Math.min(99, raw)
+}
+
 export type ProofPhotoWithThumbnail = Readonly<{ original: Blob; thumbnail?: Blob }>
 
 export type ReducedProofPhoto = Readonly<{ blob: Blob; fileName: string; thumbnail?: Blob }>
