@@ -9,25 +9,28 @@ import type { QueuedAttachment } from './offlineAttachments.service'
 export const PROOF_PHOTO_MAX_SIDE = 2000
 export const PROOF_PHOTO_TARGET_BYTES = 900 * 1024
 /**
- * Pedido do usuário (14/10): redução mais rápida. Cada degrau de qualidade é um `toBlob` do lado
- * inteiro, caro em aparelho fraco; começar em 0,7 (e não 0,85) costuma caber já no primeiro, e o
- * canhoto segue legível.
+ * Pedido do usuário (14/10): a qualidade acompanha o tempo que a redução anterior levou neste
+ * aparelho. Rápido (sem medida ainda, ou menos de 3 s) fica em 0,9; depois desce por faixas até 0,5
+ * (o piso de legibilidade), para o aparelho lento não arriscar o teto de 20 s. Cada degrau do
+ * `toBlob` é caro em aparelho fraco, por isso a faixa lenta já começa baixa.
  */
-export const PROOF_PHOTO_START_QUALITY = 0.7
-/**
- * Pedido do usuário (14/10): a escolha é automática pelo tempo medido. Se a redução anterior neste
- * aparelho levou `PROOF_PHOTO_SLOW_DEVICE_MS` ou mais, a próxima já comprime a 0,5 (um degrau só,
- * o piso de legibilidade) em vez de arriscar o teto de 20 s.
- */
-export const PROOF_PHOTO_SLOW_DEVICE_MS = 8_000
-export const PROOF_PHOTO_SLOW_DEVICE_QUALITY = 0.5
+export const PROOF_PHOTO_QUALITY_BANDS: readonly Readonly<{
+  maxDurationMs: number
+  quality: number
+}>[] = [
+  { maxDurationMs: 3_000, quality: 0.9 },
+  { maxDurationMs: 5_000, quality: 0.85 },
+  { maxDurationMs: 8_000, quality: 0.7 },
+  { maxDurationMs: 10_000, quality: 0.6 },
+]
+export const PROOF_PHOTO_SLOWEST_QUALITY = 0.5
 const PROOF_PHOTO_LAST_DURATION_KEY = 'driver.proofPhotoReduction.lastDurationMs'
 
-/** Pura: sem medida ainda (primeira foto) ou aparelho rápido, 0,7; aparelho lento, 0,5. */
+/** Pura: a primeira faixa cujo teto de tempo comporta a medida; acima de todas, 0,5. */
 export function resolveProofPhotoStartQuality(lastDurationMs: number | undefined): number {
-  return lastDurationMs !== undefined && lastDurationMs >= PROOF_PHOTO_SLOW_DEVICE_MS
-    ? PROOF_PHOTO_SLOW_DEVICE_QUALITY
-    : PROOF_PHOTO_START_QUALITY
+  if (lastDurationMs === undefined) return PROOF_PHOTO_QUALITY_BANDS[0]?.quality ?? 0.9
+  const band = PROOF_PHOTO_QUALITY_BANDS.find((item) => lastDurationMs < item.maxDurationMs)
+  return band?.quality ?? PROOF_PHOTO_SLOWEST_QUALITY
 }
 
 function readLastReductionDuration(): number | undefined {
@@ -44,7 +47,7 @@ function rememberReductionDuration(durationMs: number): void {
   try {
     globalThis.localStorage?.setItem(PROOF_PHOTO_LAST_DURATION_KEY, String(durationMs))
   } catch {
-    /** Sem armazenamento (aba privada): a próxima foto começa em 0,7 e mede de novo. */
+    /** Sem armazenamento (aba privada): a próxima foto começa em 0,9 e mede de novo. */
   }
 }
 /**

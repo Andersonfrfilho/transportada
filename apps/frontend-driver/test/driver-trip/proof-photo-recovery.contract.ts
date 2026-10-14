@@ -20,7 +20,6 @@ import {
   fitProofPhotoWithinCap,
   PROOF_PHOTO_MAX_BYTES,
   PROOF_PHOTO_MAX_SIDE,
-  PROOF_PHOTO_SLOW_DEVICE_MS,
   PROOF_PHOTO_TARGET_BYTES,
   resolveProofPhotoStartQuality,
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
@@ -104,10 +103,12 @@ async function drain(attachmentStore: AttachmentStore, only?: string) {
 }
 
 describe('a qualidade da redução se ajusta ao tempo medido no aparelho', () => {
-  it('sem medida ou aparelho rápido começa em 0,7; lento (8 s ou mais) vai direto a 0,5', () => {
-    expect(resolveProofPhotoStartQuality(undefined)).toBe(0.7)
-    expect(resolveProofPhotoStartQuality(PROOF_PHOTO_SLOW_DEVICE_MS - 1)).toBe(0.7)
-    expect(resolveProofPhotoStartQuality(PROOF_PHOTO_SLOW_DEVICE_MS)).toBe(0.5)
+  it('sem medida começa em 0,9 e desce por faixas até 0,5 conforme o tempo', () => {
+    expect(resolveProofPhotoStartQuality(undefined)).toBe(0.9)
+    expect(resolveProofPhotoStartQuality(2_999)).toBe(0.9)
+    expect(resolveProofPhotoStartQuality(3_000)).toBe(0.85)
+    expect(resolveProofPhotoStartQuality(5_000)).toBe(0.7)
+    expect(resolveProofPhotoStartQuality(8_000)).toBe(0.6)
     expect(resolveProofPhotoStartQuality(10_600)).toBe(0.5)
   })
 })
