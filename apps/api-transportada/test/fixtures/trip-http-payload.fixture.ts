@@ -188,6 +188,8 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   openOccurrenceCase: false,
   proofPending: false,
   volumeCount: 12,
+  cargoGrossWeight: '108.6700',
+  cargoWeightSource: 'xml',
 }
 
 export const TRIP_DETAIL: TripDetail = {
