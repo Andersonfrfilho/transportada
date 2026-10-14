@@ -5,12 +5,27 @@ import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_LANDING_SETTINGS,
   fetchLandingSettings,
+  resolveLandingBrandName,
 } from '../../src/modules/shared/landingSettings.service.js'
 import { sanitizeAccentColor } from '../../src/modules/shared/landingSettings.validation.js'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 /** Onde um literal de cliente (nome, telefone, e-mail) apareceria se alguém hardcodasse a marca. */
 const CLIENT_LITERAL_PATTERN = /transportadora (azul|vermelha|verde)/iu
+
+const DEFAULT_UNIT = {
+  city: '',
+  companyId: 'company-1',
+  complement: '',
+  displayName: '',
+  district: '',
+  number: '',
+  phone: '',
+  postalCode: '',
+  state: '',
+  street: '',
+  tradeName: 'Sede',
+}
 
 describe('landing settings', () => {
   test('sem linha configurada ou fetch fora do ar, devolve o padrão do app', async () => {
@@ -38,6 +53,18 @@ describe('landing settings', () => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  test('a marca da página segue o nome escolhido em Configurações, antes da marca do site', () => {
+    const unit = { ...DEFAULT_UNIT, displayName: 'SEDE TRANSPORTES LTDA' }
+    const withUnit = { ...DEFAULT_LANDING_SETTINGS, brandName: 'Tapete Mágico', units: [unit] }
+
+    expect(resolveLandingBrandName(withUnit)).toBe('SEDE TRANSPORTES LTDA')
+    expect(resolveLandingBrandName({ ...withUnit, units: [{ ...unit, displayName: '  ' }] })).toBe(
+      'Tapete Mágico',
+    )
+    expect(resolveLandingBrandName({ ...withUnit, units: [] })).toBe('Tapete Mágico')
+    expect(resolveLandingBrandName(DEFAULT_LANDING_SETTINGS)).toBeUndefined()
   })
 
   test('a unidade mostra o nome que a empresa escolheu', async () => {
