@@ -282,7 +282,8 @@
     "complete": "Complete",
     "completedAt": "Proof completed at {{time}}",
     "edit": "Edit",
-    "completeMissing": "Missing: {{fields}}. Complete anyway?",
+    "completeBlockedTitle": "Cannot complete yet",
+    "completeBlocked": "Missing: {{fields}}. Fill it in and tap Complete again.",
     "missing": {
       "photo": "the photo",
       "signature": "the signature",

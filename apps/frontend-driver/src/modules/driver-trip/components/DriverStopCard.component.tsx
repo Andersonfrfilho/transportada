@@ -1172,39 +1172,60 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
 
+  /** Pedido do usuário (14/10): tocou em "Concluir" com pendência, o aviso fica na tela até resolver. */
+  const [showMissing, setShowMissing] = useState(false)
+
+  /** O que ainda falta, dito em palavras — vazio quando o comprovante está completo. */
+  function describeMissing(capture: ProofCaptureState): string {
+    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
+    const cargoMissingCount = countMissingCargoPhotos({
+      plan: capture.plan,
+      values: capture.values,
+    })
+    return pending
+      .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
+      .join(', ')
+  }
+
   /**
-   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
-   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
-   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
-   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
+   * Pedido do usuário (14/10, revoga o "nunca trava" da spec 203/207): com pendência obrigatória,
+   * "Concluir" não segue — o aviso no desenho do app diz o que falta, e some sozinho quando o
+   * motorista resolve. A foto/assinatura já guardada nunca é descartada. Antes de fechar, garante que
+   * edições digitadas e ainda não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
    */
   function handleComplete(capture: ProofCaptureState): void {
     capture.pushLateFieldUpdate()
-    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
-    if (pending.length > 0) {
-      const cargoMissingCount = countMissingCargoPhotos({
-        plan: capture.plan,
-        values: capture.values,
-      })
-      const fieldsText = pending
-        .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
-        .join(', ')
-      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
+    if (describeMissing(capture) !== '') {
+      setShowMissing(true)
+      return
     }
+    setShowMissing(false)
     setConcludedAt(new Date().toISOString())
   }
 
   return (
     <ProofCaptureFields
       {...props}
-      renderFooter={(capture) => (
-        <div className={styles.actions}>
-          <Button onClick={() => handleComplete(capture)} type="button">
-            <Icon name="check" />
-            {t('proofFields.complete')}
-          </Button>
-        </div>
-      )}
+      renderFooter={(capture) => {
+        const missingText = showMissing ? describeMissing(capture) : ''
+        return (
+          <div className={styles.actions}>
+            {missingText === '' ? null : (
+              <div className={styles.completeBlocked} role="alert">
+                <Icon name="alert" />
+                <div>
+                  <strong>{t('proofFields.completeBlockedTitle')}</strong>
+                  <p>{t('proofFields.completeBlocked', { fields: missingText })}</p>
+                </div>
+              </div>
+            )}
+            <Button onClick={() => handleComplete(capture)} type="button">
+              <Icon name="check" />
+              {t('proofFields.complete')}
+            </Button>
+          </div>
+        )
+      }}
       summary={
         concludedAt === undefined ? undefined : (
           <>
