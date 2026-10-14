@@ -19,7 +19,7 @@ CREATE TABLE "delivery_proof_outbox" (
 	CONSTRAINT "delivery_proof_outbox_event_type_check" CHECK ("event_type" in ('delivery-proof.processing.requested'))
 );
 --> statement-breakpoint
-ALTER TABLE "trip_delivery_proofs" ADD COLUMN "processing_state" varchar(16);--> statement-breakpoint
+ALTER TABLE "trip_delivery_proofs" ADD COLUMN "processing_state" varchar(32);--> statement-breakpoint
 ALTER TABLE "trip_delivery_proofs" ADD COLUMN "original_object_id" uuid;--> statement-breakpoint
 ALTER TABLE "trip_delivery_proofs" ADD COLUMN "processing_error" varchar(64);--> statement-breakpoint
 CREATE INDEX "trip_delivery_proofs_company_original_idx" ON "trip_delivery_proofs" ("company_id","original_object_id") WHERE "original_object_id" is not null;--> statement-breakpoint

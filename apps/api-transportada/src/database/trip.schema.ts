@@ -2136,7 +2136,7 @@ export const tripDeliveryProofs = pgTable(
      * `processing_failed`. Sem backfill, coluna anulável (RNF4).
      */
     processingState: varchar('processing_state', {
-      length: 16,
+      length: 32,
     }).$type<TripDeliveryProofProcessingState>(),
     /**
      * Spec 265 RF6/RF8: o objeto do original enviado sem redução. Enquanto o worker não gera a versão

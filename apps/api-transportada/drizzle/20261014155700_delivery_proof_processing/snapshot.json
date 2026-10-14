@@ -31183,7 +31183,7 @@
       "table": "trip_delivery_proofs"
     },
     {
-      "type": "varchar(16)",
+      "type": "varchar(32)",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
