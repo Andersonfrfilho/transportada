@@ -22,7 +22,17 @@ export type ProofUploadObservation = Readonly<{
 export type ProofUploadTracker = Readonly<{
   hasBeenQueued: boolean
   sentAt: string | undefined
+  /** Desde quando o anexo está "anexado" sem nunca ter sido visto na fila: base da folga abaixo. */
+  unqueuedSince?: string
 }>
+
+/**
+ * Defeito de 14/10 (staging): fila vazia, anexo nunca visto nela e nenhuma confirmação do snapshot
+ * (foto opcional, ou snapshot ainda velho) deixavam "enviando" para sempre. O `enqueueProof` só
+ * devolve depois de gravar e reler a fila, então um anexo que segue fora dela passado este prazo já
+ * foi levado pela drenagem.
+ */
+export const PROOF_UNSEEN_IN_QUEUE_GRACE_MS = 4_000
 
 export const INITIAL_PROOF_UPLOAD_TRACKER: ProofUploadTracker = {
   hasBeenQueued: false,
@@ -65,7 +75,10 @@ export function trackProofUpload(input: {
 }): ProofUploadTracker {
   const { now, observation, previous } = input
   if (!observation.isAttached) {
-    const isAlreadyClear = !previous.hasBeenQueued && previous.sentAt === undefined
+    const isAlreadyClear =
+      !previous.hasBeenQueued &&
+      previous.sentAt === undefined &&
+      previous.unqueuedSince === undefined
     return isAlreadyClear ? previous : INITIAL_PROOF_UPLOAD_TRACKER
   }
   if (observation.isQueued) {
@@ -75,7 +88,14 @@ export function trackProofUpload(input: {
   if (previous.hasBeenQueued && previous.sentAt === undefined) {
     return { hasBeenQueued: true, sentAt: now }
   }
-  return previous
+  if (previous.sentAt !== undefined) return previous
+  if (previous.unqueuedSince === undefined) {
+    return { hasBeenQueued: false, sentAt: undefined, unqueuedSince: now }
+  }
+  const waitedMs = Date.parse(now) - Date.parse(previous.unqueuedSince)
+  return waitedMs >= PROOF_UNSEEN_IN_QUEUE_GRACE_MS
+    ? { hasBeenQueued: true, sentAt: now }
+    : previous
 }
 
 export function resolveProofUploadStatus(input: {

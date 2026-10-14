@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import type { EventQueueItemView } from '@/modules/driver-trip/shared/eventQueueView.service'
 import {
   INITIAL_PROOF_UPLOAD_TRACKER,
+  PROOF_UNSEEN_IN_QUEUE_GRACE_MS,
   resolveProofUploadObservation,
   resolveProofUploadStatus,
   trackProofUpload,
@@ -213,5 +214,32 @@ describe('o envio do canhoto tem estado visível (defeito 2)', () => {
         tracker: INITIAL_PROOF_UPLOAD_TRACKER,
       }),
     ).toBe('reducing')
+  })
+
+  it('fila vazia e nunca vista nela, passada a folga: enviada, não "enviando" para sempre (14/10)', () => {
+    const observation = { isAttached: true, isQueued: false, isRejected: false }
+    const first = trackProofUpload({
+      now: NOW,
+      observation,
+      previous: INITIAL_PROOF_UPLOAD_TRACKER,
+    })
+    expect(resolveProofUploadStatus({ observation, tracker: first })).toBe('uploading')
+    const afterGrace = new Date(Date.parse(NOW) + PROOF_UNSEEN_IN_QUEUE_GRACE_MS).toISOString()
+    const tracker = trackProofUpload({ now: afterGrace, observation, previous: first })
+    expect(resolveProofUploadStatus({ observation, tracker })).toBe('sent')
+    expect(tracker.sentAt).toBe(afterGrace)
+  })
+
+  it('a folga não vence se o anexo aparece na fila no meio', () => {
+    const unseen = { isAttached: true, isQueued: false, isRejected: false }
+    const queued = { isAttached: true, isQueued: true, isRejected: false }
+    const first = trackProofUpload({
+      now: NOW,
+      observation: unseen,
+      previous: INITIAL_PROOF_UPLOAD_TRACKER,
+    })
+    const tracker = trackProofUpload({ now: LATER, observation: queued, previous: first })
+    expect(resolveProofUploadStatus({ observation: queued, tracker })).toBe('uploading')
+    expect(tracker.sentAt).toBeUndefined()
   })
 })
