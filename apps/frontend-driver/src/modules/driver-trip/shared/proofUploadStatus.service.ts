@@ -6,6 +6,12 @@ export type ProofUploadStatus = 'empty' | 'failed' | 'sent' | 'uploading'
 /** O que a fila diz, neste render, sobre o anexo de um kind da nota. */
 export type ProofUploadObservation = Readonly<{
   isAttached: boolean
+  /**
+   * O servidor já tem a foto (snapshot: entregue, obrigatória, `proofPending` desligado). Cobre a
+   * drenagem tão rápida que nenhum render viu o anexo na fila: sem isto a tela ficava em
+   * "enviando" para sempre, com a fila vazia e o `/proof` já aceito (defeito de 14/10).
+   */
+  isConfirmedByServer?: boolean
   isQueued: boolean
   isRejected: boolean
 }>
@@ -70,7 +76,8 @@ export function resolveProofUploadStatus(input: {
   if (!observation.isAttached) return 'empty'
   if (observation.isRejected) return 'failed'
   if (observation.isQueued) return 'uploading'
-  return tracker.sentAt === undefined ? 'uploading' : 'sent'
+  if (tracker.sentAt !== undefined) return 'sent'
+  return observation.isConfirmedByServer === true ? 'sent' : 'uploading'
 }
 
 /**
