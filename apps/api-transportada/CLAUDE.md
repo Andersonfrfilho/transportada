@@ -440,6 +440,8 @@ não volta ao pool. ⚠️ Toda consulta que decide "nota disponível" filtra po
 status da viagem — `findTripLinks` não filtrava isso e 324 vínculos liberados ficaram invisíveis para
 a montagem de roteiro (medido 2026-09-08); o padrão correto é `buildActiveTripLinkFilters`.
 
+**Retirar a parada do rascunho deixa histórico** (`POST /trips/:id/stops/:stopId/retire`, `trip.manage`, corpo opcional `{ note }`): desvincula numa transação todas as notas vivas da parada, pelo mesmo caminho do `DELETE /trips/:id/documents/:documentId` (`releaseDocumentWithin`: reconcilia a parada, limpa a rota gravada, pede a planta; o caso de uso recongela rota e pedágio). Só antes do despacho (`checkTripAcceptsLinkage`); parada com nota já entregue responde 422 `TRIP_STOP_HAS_DELIVERED_DOCUMENT`, parada de outra viagem 404 `TRIP_STOP_NOT_FOUND`. Cada desvínculo manual — de uma nota ou da parada — grava uma linha em `trip_document_release_events` (ator, canal, `scope` `document|stop`, rótulo da parada e motivo) e a linha do tempo a lê como `document.released` (`documentRelease`). Cancelar a viagem e deixar nota para trás no despacho **não** escrevem aí. ⚠️ O painel publicado descarta o `kind` que não conhece (spec 206 D12), então a API pode ir antes do painel.
+
 **A nota que não coube vai para a fila de revisão, por botão** (spec 148 T7):
 `trip_document_reviews` (`pending → moved | swapped_in | relinked`, sem ENUM), rotas em
 `trip-document-review.routes.ts` — `POST /trips/:id/cargo-layouts/:layoutId/release-unplaced`,

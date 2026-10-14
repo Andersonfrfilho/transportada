@@ -348,6 +348,7 @@ describe('trip repository integration', () => {
         ).toBeNull()
         expect(
           await repository.releaseDocument({
+            actor: { channel: 'backoffice', userId: crypto.randomUUID() },
             companyId: otherCompanyId,
             documentId: nfeLink.id,
             tripId: created.id,
@@ -371,6 +372,7 @@ describe('trip repository integration', () => {
         // Entregue trava: o release na camada de banco também recusa, espelhando o domínio.
         expect(
           await repository.releaseDocument({
+            actor: { channel: 'backoffice', userId: crypto.randomUUID() },
             companyId,
             documentId: nfeLink.id,
             tripId: created.id,
@@ -378,6 +380,7 @@ describe('trip repository integration', () => {
         ).toBeNull()
 
         const released = await repository.releaseDocument({
+          actor: { channel: 'backoffice', userId: crypto.randomUUID() },
           companyId,
           documentId: freightLink.id,
           tripId: created.id,
@@ -417,6 +420,7 @@ describe('trip repository integration', () => {
           ),
         ).toMatchObject({ fiscalStatus: 'cancelled' })
         const releasedCancelledNfe = await repository.releaseDocument({
+          actor: { channel: 'backoffice', userId: crypto.randomUUID() },
           companyId,
           documentId: cancelledNfeLink.id,
           tripId: secondTrip.id,

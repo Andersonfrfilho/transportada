@@ -91,6 +91,11 @@ export async function loadDocumentCargoWeights(
 export async function loadTripCargoWeight(
   queryable: TripQueryable,
   input: {
+    /**
+     * As notas que **somam** no total da viagem. Ausente, são todas as de `nfeDocumentIds`; a nota
+     * solta (`released_at`) continua com o peso próprio na linha, mas fora da soma (spec 187).
+     */
+    readonly countedNfeDocumentIds?: readonly string[]
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
   },
@@ -109,9 +114,12 @@ export async function loadTripCargoWeight(
   const documents = input.nfeDocumentIds.map(
     (documentId) => weights.get(documentId) ?? NO_DOCUMENT_CARGO_WEIGHT,
   )
+  const counted = (input.countedNfeDocumentIds ?? input.nfeDocumentIds).map(
+    (documentId) => weights.get(documentId) ?? NO_DOCUMENT_CARGO_WEIGHT,
+  )
 
   return {
-    view: resolveTripCargoWeight({ documents }),
+    view: counted.length === 0 ? null : resolveTripCargoWeight({ documents: counted }),
     weights,
     weightByDocument: new Map(
       input.nfeDocumentIds.map((documentId, index) => [

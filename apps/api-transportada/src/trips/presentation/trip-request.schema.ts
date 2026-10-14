@@ -315,6 +315,13 @@ export const closeTripSchema = z
 
 export type CloseTripBody = z.infer<typeof closeTripSchema>
 
+/** Retirar a parada: o motivo é opcional e vai para o histórico da viagem. */
+export const retireTripStopSchema = z
+  .object({ note: z.string().trim().min(1).max(500).optional() })
+  .strict()
+
+export type RetireTripStopBody = z.infer<typeof retireTripStopSchema>
+
 /** Feature 147 T10: `null` desatrela a carreta — a viagem continua existindo sem uma. */
 export const setTripTrailerSchema = z.object({ trailerVehicleId: z.uuid().nullable() }).strict()
 

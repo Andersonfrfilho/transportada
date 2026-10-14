@@ -226,6 +226,9 @@ function createFixture(params: FixtureParams = {}) {
         ? document({ releasedAt: '2026-08-02T10:00:00.000Z' })
         : params.releaseResult
     },
+    async retireStop() {
+      throw new Error('RETIRE_STOP_NOT_EXERCISED_HERE')
+    },
     async updateCrew(input) {
       updateCrewCalls.push(input)
       const trip = params.stored === undefined ? openTrip() : params.stored
@@ -706,7 +709,12 @@ describe('trip use case contract', () => {
 
     expect(released.releasedAt).not.toBeNull()
     expect(fixture.releaseCalls).toEqual([
-      { companyId: COMPANY_ID, documentId: DOCUMENT_ID, tripId: TRIP_ID },
+      {
+        actor: { channel: 'backoffice', userId: CONTEXT.userId },
+        companyId: COMPANY_ID,
+        documentId: DOCUMENT_ID,
+        tripId: TRIP_ID,
+      },
     ])
   })
 

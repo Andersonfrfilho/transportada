@@ -172,7 +172,7 @@ describe('nota liberada não oferece ação nenhuma na linha', () => {
     const source = readFileSync(LISTA, 'utf8')
 
     expect(source).toMatch(
-      /<div className=\{styles\.rowActions\}>[\s\S]{0,400}?document\.releasedAt !== null \? null : \(\s*<>\s*\{actions\.renderConversation/,
+      /\{isReleased \? null : \(\s*<div className=\{styles\.rowActions\}>\s*\{actions\.renderConversation/,
     )
   })
 

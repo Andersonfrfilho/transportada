@@ -397,6 +397,8 @@ export const TRIP_TIMELINE_KINDS = [
   'crew_transfer',
   /** Spec 257 D9: notas acrescentadas a uma viagem que já saiu. Prioridade 8 na API. */
   'documents_added',
+  /** A nota retirada do rascunho. Prioridade 8 na API: sem causa nem efeito entre os eventos. */
+  'document.released',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -475,6 +477,13 @@ export type TripTimelineDocumentsAdded = Readonly<{
   reason: string
 }>
 
+/** A retirada da nota: de qual parada saiu, se foi a parada inteira e o motivo digitado. */
+export type TripTimelineDocumentRelease = Readonly<{
+  note: null | string
+  scope: 'document' | 'stop'
+  stopLabel: null | string
+}>
+
 export type TripTimelineItem = Readonly<{
   /** Spec 228 D8: só em `stop.address_corrected`. Ausente em qualquer outro kind. */
   addressChange?: TripTimelineAddressChange
@@ -488,6 +497,8 @@ export type TripTimelineItem = Readonly<{
   document: null | TripTimelineDocumentReference
   /** Spec 257 D9: só em `documents_added`, e nele é obrigatório. */
   documentsAdded?: TripTimelineDocumentsAdded
+  /** Só em `document.released`, e nele é obrigatório. */
+  documentRelease?: TripTimelineDocumentRelease
   /** Só em `*.status_changed`. */
   fromStatus: null | string
   id: string

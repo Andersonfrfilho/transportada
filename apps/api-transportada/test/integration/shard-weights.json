@@ -242,6 +242,7 @@
   "./test/integration/trip-report-facets.integration.ts": 16,
   "./test/integration/trip-report.integration.ts": 21,
   "./test/integration/trip-repository.integration.ts": 15,
+  "./test/integration/trip-retire-stop.integration.ts": 14,
   "./test/integration/trip-status-write-guard.integration.ts": 12,
   "./test/integration/trip-timeline.integration.ts": 135,
   "./test/integration/trip-valuation-document-figures.integration.ts": 21,

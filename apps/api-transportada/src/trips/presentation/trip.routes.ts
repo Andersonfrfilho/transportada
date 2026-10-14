@@ -127,6 +127,7 @@ import type {
   LinkTripDocumentInput,
   ListTripsInput,
   ReleaseTripDocumentInput,
+  RetireTripStopInput,
   UpdateTripCrewInput,
 } from '../application/trip.use-case.js'
 import type {
@@ -169,6 +170,7 @@ import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-ba
 import {
   parseBatchTransitionTripDocumentsRequest,
   parseCloseTripRequest,
+  parseRetireTripStopRequest,
   parseCreateTripRequest,
   parseCreateTripCteBatchRequest,
   parseDispatchTripRequest,
@@ -459,6 +461,7 @@ const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
  * porque quem fala com o cliente é quem monta a viagem — o motorista só **lê** a hora e o protocolo.
  */
 const TRIP_STOP_SCHEDULE_PATH = `${TRIP_STOPS_PATH}/:stopId/schedule`
+const TRIP_STOP_RETIRE_PATH = `${TRIP_STOPS_PATH}/:stopId/retire`
 const TRIP_SCHEDULES_PATH = `${API_TRIPS_PATH}/:id/schedules`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH = `${TRIP_DOCUMENT_PATH}/delivery-address`
 const TRIP_DOCUMENT_DELIVERY_ADDRESS_HISTORY_PATH = `${TRIP_DOCUMENT_DELIVERY_ADDRESS_PATH}-history`
@@ -742,6 +745,9 @@ type Dependencies = {
   }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
+  }
+  readonly retireTripStop: {
+    execute(input: TenantInput<RetireTripStopInput>): Promise<readonly TripDocument[]>
   }
   readonly listDeliveryAddressHistory: {
     execute(
@@ -1599,6 +1605,29 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<RetireTripStopInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const documents = await dependencies.retireTripStop.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: { data: documents.map(serializeTripDocument) },
+          status: 200,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseRetireTripStopRequest(request)
+        return {
+          ...(body.note === undefined ? {} : { note: body.note }),
+          stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_STOP_RETIRE_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<Omit<CloseTripInput, 'context'>>({

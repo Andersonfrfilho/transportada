@@ -39,6 +39,18 @@ export type TripDriverDetail = TripDriverLine & {
   readonly driverPhone: string
 }
 
+/** Quem desvinculou e por qual canal — vai para o histórico da viagem (`trip_document_release_events`). */
+export type TripDocumentReleaseActor = {
+  readonly channel: TripFieldChannel
+  readonly userId: string
+}
+
+export type RetireTripStopResult = {
+  /** Nota já entregue na parada: nada foi retirado. */
+  readonly hasDeliveredDocument: boolean
+  readonly released: readonly TripDocument[]
+}
+
 export type TripCompanyContext = {
   readonly companyId: string
   readonly userId: string
@@ -498,10 +510,19 @@ export type TripRepositoryPort = {
   ): Promise<LinkTripDocumentsAfterDispatchResult | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
+    readonly actor: TripDocumentReleaseActor
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null>
+  /** `null` quando a parada não é desta viagem. Uma só transação: ou sai a parada inteira, ou nada. */
+  retireStop(input: {
+    readonly actor: TripDocumentReleaseActor
+    readonly companyId: string
+    readonly note?: string
+    readonly stopId: string
+    readonly tripId: string
+  }): Promise<RetireTripStopResult | null>
   /**
    * Feature 147 T10: `null` quando a viagem não existe. Re-checa o portão de estado dentro da
    * transação (como `linkDocument`) e traduz `trips_company_trailer_open_unique` (23505) em

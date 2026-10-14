@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/fleet.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
@@ -68,8 +68,8 @@ export async function readTripListOccupancies(
 }
 
 /**
- * As notas são as de `trip_documents.nfe_document_id`, sem filtrar liberadas — o mesmo critério do
- * detalhe (`readTripDetail`), e é ele que faz os dois números baterem.
+ * As notas são as de `trip_documents.nfe_document_id` ainda vinculadas (`released_at` nulo) — o mesmo
+ * critério do detalhe (`readTripDetail`), e é ele que faz os dois números baterem.
  */
 export async function readTripListOccupancyFacts(
   queryable: TripQueryable,
@@ -206,6 +206,7 @@ async function readNfeDocumentIdsByTrip(
         eq(tripDocuments.companyId, input.companyId),
         inArray(tripDocuments.tripId, [...input.tripIds]),
         isNotNull(tripDocuments.nfeDocumentId),
+        isNull(tripDocuments.releasedAt),
       ),
     )
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))

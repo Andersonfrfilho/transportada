@@ -1537,3 +1537,24 @@ export class TripProofReportTooLargeError extends ApiError {
     })
   }
 }
+
+export class TripStopNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_STOP_NOT_FOUND',
+      message: 'The stop does not belong to this trip.',
+      status: 404,
+    })
+  }
+}
+
+/** Uma nota da parada já foi entregue: entrega feita não se desfaz retirando a parada. */
+export class TripStopHasDeliveredDocumentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_STOP_HAS_DELIVERED_DOCUMENT',
+      message: 'A stop with a delivered document cannot be retired.',
+      status: 422,
+    })
+  }
+}

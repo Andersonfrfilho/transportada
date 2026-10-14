@@ -784,6 +784,73 @@ export const tripDocumentLinkEvents = pgTable(
   ],
 )
 
+export const TRIP_DOCUMENT_RELEASE_SCOPES = ['document', 'stop'] as const
+export type TripDocumentReleaseScope = (typeof TRIP_DOCUMENT_RELEASE_SCOPES)[number]
+export const TRIP_DOCUMENT_RELEASE_EVENT_NOTE_MAXIMUM_LENGTH = 500
+
+/**
+ * A nota desvinculada de uma viagem ainda não despachada, para a linha do tempo dizer o que
+ * aconteceu e quem fez. Uma linha por nota: retirar a parada inteira grava uma por nota da parada,
+ * todas com `scope = 'stop'` e o mesmo instante. Só o desvínculo manual escreve aqui — cancelar a
+ * viagem e deixar nota para trás no despacho já têm o próprio registro.
+ */
+export const tripDocumentReleaseEvents = pgTable(
+  'trip_document_release_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    channel: varchar('channel', { length: 16 }).$type<TripFieldChannel>().notNull(),
+    scope: varchar('scope', { length: 16 }).$type<TripDocumentReleaseScope>().notNull(),
+    stopLabel: text('stop_label'),
+    note: text(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_release_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_document_release_events_company_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_document_release_events_company_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('trip_document_release_events_company_id_id_unique').on(table.companyId, table.id),
+    index('trip_document_release_events_company_trip_created_at_idx').on(
+      table.companyId,
+      table.tripId,
+      table.createdAt,
+    ),
+    check(
+      'trip_document_release_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_document_release_events_scope_check',
+      sql`${table.scope} in (${raw(inList(TRIP_DOCUMENT_RELEASE_SCOPES))})`,
+    ),
+    check(
+      'trip_document_release_events_note_check',
+      sql`${table.note} is null or char_length(${table.note}) between 1 and ${raw(String(TRIP_DOCUMENT_RELEASE_EVENT_NOTE_MAXIMUM_LENGTH))}`,
+    ),
+  ],
+)
+
 /** Mesmo desenho de `mdfe_manifest_drivers` (ADR-0023 §1): `driver_id` + posição, mínimo 1. */
 export const tripDrivers = pgTable(
   'trip_drivers',

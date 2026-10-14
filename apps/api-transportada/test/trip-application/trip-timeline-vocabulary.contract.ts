@@ -17,12 +17,13 @@ import type { TripTimelineItem } from '../../src/trips/application/trip-timeline
 
 describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
   test('os dois kinds da 228 entram depois de trip.created, na ordem da D6, e a 249 fecha a lista', () => {
-    expect(TRIP_TIMELINE_KINDS.slice(-5)).toEqual([
+    expect(TRIP_TIMELINE_KINDS.slice(-6)).toEqual([
       'trip.created',
       'document.canhoto_photo',
       'stop.address_corrected',
       'crew_transfer',
       'documents_added',
+      'document.released',
     ])
   })
 
@@ -35,6 +36,8 @@ describe('vocabulário da linha do tempo (spec 228 T1.1)', () => {
       'document.canhoto_photo': 3,
       'document.delivered': 4,
       'document.occurrence': 2,
+      /** A nota retirada do rascunho: sem causa nem efeito entre os eventos, empata acima de todos. */
+      'document.released': 8,
       'document.returned': 3,
       'document.status_changed': 5,
       'stop.address_corrected': 2,

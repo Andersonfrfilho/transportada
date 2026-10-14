@@ -22,6 +22,7 @@ import type { TripFilters } from '../application/trip.port.js'
 import {
   batchTransitionTripDocumentsSchema,
   closeTripSchema,
+  retireTripStopSchema,
   createTripCteBatchSchema,
   createTripSchema,
   dispatchTripSchema,
@@ -39,6 +40,7 @@ import {
   updateTripCrewSchema,
   type BatchTransitionTripDocumentsBody,
   type CloseTripBody,
+  type RetireTripStopBody,
   type CreateTripBody,
   type CreateTripCteBatchBody,
   type DispatchTripBody,
@@ -177,6 +179,10 @@ export async function parseSetTripMdfeRequirementRequest(
 
 export async function parseCloseTripRequest(request: Request): Promise<CloseTripBody> {
   return parseOptionalBody(closeTripSchema, request)
+}
+
+export async function parseRetireTripStopRequest(request: Request): Promise<RetireTripStopBody> {
+  return parseOptionalBody(retireTripStopSchema, request)
 }
 
 export async function parseSetTripTrailerRequest(request: Request): Promise<SetTripTrailerBody> {

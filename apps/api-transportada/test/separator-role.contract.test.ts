@@ -474,6 +474,7 @@ describe('separator role contract', () => {
       'POST /trips/:id/plan-route',
       /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
       'POST /trips/:id/revenues',
+      'POST /trips/:id/stops/:stopId/retire',
       'POST /trips/:id/stops/:stopId/schedule',
       // Spec 263 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',

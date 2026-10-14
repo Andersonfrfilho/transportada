@@ -931,6 +931,7 @@
       "unknownDocument": "Nota",
       "unknownOccurrenceType": "não informado",
       "unknownStatus": "não informada",
+      "documentReleased": "Nota {{document}} retirada da viagem",
       "documentsAdded": "Notas acrescentadas"
     },
     "loadMore": "Carregar mais",
@@ -2108,6 +2109,8 @@
     "reorderHandle": "Arrastar para reordenar a parada {{label}}",
     "selectAll": "Selecionar todas as notas da parada {{label}}",
     "selectAllTrip": "Selecionar todas as notas da viagem",
+    "releasedBadge": "Retirada da viagem",
+    "releasedHint": "Esta nota foi desvinculada da viagem. Fica aqui como histórico e não entra nas contas.",
     "selectDocument": "Selecionar a nota {{document}}",
     "selectionClear": "Limpar seleção",
     "selectionCount": "{{count}} nota selecionada",

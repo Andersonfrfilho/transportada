@@ -26,6 +26,8 @@ import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import {
   TRIP_TERMINAL_STATUSES,
+  type TripDocumentReleaseScope,
+  tripDocumentReleaseEvents,
   tripDocuments,
   tripDrivers,
   tripStops,
@@ -39,9 +41,11 @@ import {
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type {
   CreateTripRecord,
+  RetireTripStopResult,
   TripDetail,
   TripDocument,
   TripDocumentDetail,
+  TripDocumentReleaseActor,
   TripFilters,
   TripPage,
   TripRepositoryPort,
@@ -1028,58 +1032,146 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 
   public async releaseDocument(input: {
+    readonly actor: TripDocumentReleaseActor
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null> {
-    return this.database.transaction(async (transaction) => {
-      // A parada de origem precisa ser lida **antes** do `UPDATE` abaixo: `RETURNING` reflete o
-      // estado novo da linha (`stop_id` já nulo), não o antigo — a T010 aprendeu isso do jeito
-      // caro com `releaseUnloadedDocuments`.
-      const previousStopId = await readDocumentStopIdBeforeRelease(transaction, {
-        companyId: input.companyId,
-        documentId: input.documentId,
-      })
+    return this.database.transaction((transaction) =>
+      this.releaseDocumentWithin(transaction, { ...input, scope: 'document' }),
+    )
+  }
 
-      const [released] = await transaction
-        .update(tripDocuments)
-        .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
+  /**
+   * Retirar a parada é desvincular, de uma vez, todas as notas vivas dela. `null` = parada que não
+   * é desta viagem. Uma nota já entregue segura a parada inteira (`hasDeliveredDocument`): entrega
+   * feita não se desfaz por aqui.
+   */
+  public async retireStop(input: {
+    readonly actor: TripDocumentReleaseActor
+    readonly companyId: string
+    readonly note?: string
+    readonly stopId: string
+    readonly tripId: string
+  }): Promise<RetireTripStopResult | null> {
+    return this.database.transaction(async (transaction) => {
+      const [stop] = await transaction
+        .select({ label: tripStops.label })
+        .from(tripStops)
         .where(
           and(
-            ...buildTripDocumentFilters(input),
-            isNull(tripDocuments.deliveredAt),
-            isNull(tripDocuments.releasedAt),
-            tripStillOpen(input),
+            eq(tripStops.companyId, input.companyId),
+            eq(tripStops.tripId, input.tripId),
+            eq(tripStops.id, input.stopId),
           ),
         )
-        .returning()
-      if (released === undefined) return null
+        .limit(1)
+      if (stop === undefined) return null
 
-      // A nota já perdeu a referência à parada no `UPDATE` acima — só depois disso
-      // `reconcileStopOnUnlink` pode contar corretamente se a parada esvaziou (T007).
-      if (previousStopId !== null) {
-        await reconcileStopOnUnlink({
-          companyId: input.companyId,
-          repository: createTripStopReconciliationPort(transaction),
-          stopId: previousStopId,
-        })
+      const documents = await transaction
+        .select({ deliveredAt: tripDocuments.deliveredAt, id: tripDocuments.id })
+        .from(tripDocuments)
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            eq(tripDocuments.tripId, input.tripId),
+            eq(tripDocuments.stopId, input.stopId),
+            isNull(tripDocuments.releasedAt),
+          ),
+        )
+        .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+      if (documents.some((document) => document.deliveredAt !== null)) {
+        return { hasDeliveredDocument: true, released: [] }
       }
 
-      /**
-       * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
-       * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
-       * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
-       */
-      await clearPlannedRoute(transaction, {
-        companyId: input.companyId,
-        tripId: input.tripId,
-      })
-      await this.requestCargoLayoutForTrip(transaction, {
-        companyId: input.companyId,
-        tripId: input.tripId,
-      })
-      return mapTripDocument(released)
+      const released: TripDocument[] = []
+      for (const document of documents) {
+        const result = await this.releaseDocumentWithin(transaction, {
+          actor: input.actor,
+          companyId: input.companyId,
+          documentId: document.id,
+          ...(input.note === undefined ? {} : { note: input.note }),
+          scope: 'stop',
+          tripId: input.tripId,
+        })
+        if (result !== null) released.push(result)
+      }
+      return { hasDeliveredDocument: false, released }
     })
+  }
+
+  private async releaseDocumentWithin(
+    transaction: TripTransaction,
+    input: {
+      readonly actor: TripDocumentReleaseActor
+      readonly companyId: string
+      readonly documentId: string
+      readonly note?: string
+      readonly scope: TripDocumentReleaseScope
+      readonly tripId: string
+    },
+  ): Promise<TripDocument | null> {
+    // A parada de origem (e o rótulo dela) precisa ser lida **antes** do `UPDATE` abaixo: `RETURNING` reflete o
+    // estado novo da linha (`stop_id` já nulo), não o antigo — a T010 aprendeu isso do jeito
+    // caro com `releaseUnloadedDocuments`.
+    const previousStopId = await readDocumentStopIdBeforeRelease(transaction, {
+      companyId: input.companyId,
+      documentId: input.documentId,
+    })
+    const previousStopLabel = await readStopLabel(transaction, {
+      companyId: input.companyId,
+      stopId: previousStopId,
+    })
+
+    const [released] = await transaction
+      .update(tripDocuments)
+      .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
+      .where(
+        and(
+          ...buildTripDocumentFilters(input),
+          isNull(tripDocuments.deliveredAt),
+          isNull(tripDocuments.releasedAt),
+          tripStillOpen(input),
+        ),
+      )
+      .returning()
+    if (released === undefined) return null
+
+    await transaction.insert(tripDocumentReleaseEvents).values({
+      actorUserId: input.actor.userId,
+      channel: input.actor.channel,
+      companyId: input.companyId,
+      note: input.note ?? null,
+      scope: input.scope,
+      stopLabel: previousStopLabel,
+      tripDocumentId: released.id,
+      tripId: input.tripId,
+    })
+
+    // A nota já perdeu a referência à parada no `UPDATE` acima — só depois disso
+    // `reconcileStopOnUnlink` pode contar corretamente se a parada esvaziou (T007).
+    if (previousStopId !== null) {
+      await reconcileStopOnUnlink({
+        companyId: input.companyId,
+        repository: createTripStopReconciliationPort(transaction),
+        stopId: previousStopId,
+      })
+    }
+
+    /**
+     * T704 M1: o conjunto de paradas mudou, então a rota gravada descreve uma viagem que não
+     * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
+     * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
+     */
+    await clearPlannedRoute(transaction, {
+      companyId: input.companyId,
+      tripId: input.tripId,
+    })
+    await this.requestCargoLayoutForTrip(transaction, {
+      companyId: input.companyId,
+      tripId: input.tripId,
+    })
+    return mapTripDocument(released)
   }
 }
 
@@ -1131,6 +1223,19 @@ export async function reconcileLinkedDocumentStop(
  * O `RETURNING` do `UPDATE` que libera a nota já reflete `stop_id = null` — a T010 aprendeu isso do
  * jeito caro. A parada de origem precisa ser lida numa consulta separada, antes de reconciliar.
  */
+async function readStopLabel(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly stopId: string | null },
+): Promise<string | null> {
+  if (input.stopId === null) return null
+  const [row] = await transaction
+    .select({ label: tripStops.label })
+    .from(tripStops)
+    .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))
+    .limit(1)
+  return row?.label ?? null
+}
+
 export async function readDocumentStopIdBeforeRelease(
   transaction: TripTransaction,
   input: { readonly companyId: string; readonly documentId: string },
@@ -1511,6 +1616,12 @@ async function readTripDetail(
    */
   const cargoWeights = await loadTripCargoWeight(queryable, {
     companyId: input.companyId,
+    /** Nota solta (`released_at`) mostra o próprio peso na linha, mas não soma no total (spec 187). */
+    countedNfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null || row.document.releasedAt !== null
+        ? []
+        : [row.document.nfeDocumentId],
+    ),
     nfeDocumentIds: documentRecords.flatMap((row) =>
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
@@ -1616,7 +1727,7 @@ async function readTripDetail(
   }
 
   const nfeDocumentIds = documents.flatMap((document) =>
-    document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
+    document.nfeDocumentId === null || document.releasedAt !== null ? [] : [document.nfeDocumentId],
   )
   // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
   const cargo = await loadTripOccupancy(queryable, {

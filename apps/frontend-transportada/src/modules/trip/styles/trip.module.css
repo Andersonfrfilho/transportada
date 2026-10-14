@@ -6328,3 +6328,26 @@ button.occurrenceCaseBadge {
     animation: none;
   }
 }
+
+/**
+ * Nota retirada da viagem: a linha segue na lista como histórico, riscada e com o selo dizendo o
+ * porquê — sem ação e sem entrar nas contas. O risco vai no texto, não na linha inteira, para o
+ * selo e o estado continuarem legíveis; o contraste do texto não muda.
+ */
+.releasedRow .stopDocumentLabel,
+.releasedRow .stopDocumentMeta {
+  text-decoration: line-through;
+}
+
+.releasedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-dense);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 55%, transparent);
+  background: color-mix(in srgb, var(--color-slate) 14%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
