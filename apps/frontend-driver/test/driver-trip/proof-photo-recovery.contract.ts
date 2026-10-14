@@ -117,8 +117,8 @@ describe('a qualidade da redução se ajusta ao tempo medido no aparelho', () =>
 describe('a porcentagem da redução é estimada pelo tempo e nunca passa de 99', () => {
   it('0% no início, proporcional ao teto e trava em 99 enquanto não termina', () => {
     expect(resolveProofReductionPercent({ elapsedMs: 0 })).toBe(0)
-    expect(resolveProofReductionPercent({ elapsedMs: 10_000 })).toBe(50)
-    expect(resolveProofReductionPercent({ elapsedMs: 20_000 })).toBe(99)
+    expect(resolveProofReductionPercent({ elapsedMs: 4_000 })).toBe(50)
+    expect(resolveProofReductionPercent({ elapsedMs: 8_000 })).toBe(99)
     expect(resolveProofReductionPercent({ elapsedMs: 90_000 })).toBe(99)
     expect(resolveProofReductionPercent({ elapsedMs: -5 })).toBe(0)
   })

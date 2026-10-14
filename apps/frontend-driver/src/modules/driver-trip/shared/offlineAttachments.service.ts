@@ -54,6 +54,11 @@ export type QueuedAttachment = Readonly<{
    * redução troca o arquivo e tira a marca; a falha dela também tira, e o original sobe.
    */
   pendingReduction?: true
+  /**
+   * Spec 265 RF9: a redução estourou o orçamento de 8 s (ou falhou) e foi abandonada — o original
+   * sobe com `variant = 'original'`, e a varredura não tenta reduzir de novo.
+   */
+  reductionAbandoned?: true
   /** Spec 193 D1: quem recebeu, em relação ao destinatário — código de `RECEIVED_BY_OPTIONS`. */
   receivedBy?: string
   /** Spec 193 D1: o detalhe curto — nunca em log, mesmo espírito do nome e do documento. */
