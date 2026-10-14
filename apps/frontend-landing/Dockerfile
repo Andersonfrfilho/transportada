@@ -18,6 +18,8 @@ COPY apps/frontend-landing apps/frontend-landing
 ARG VITE_API_URL
 ARG VITE_APP_ENV
 ARG VITE_APP_URL
+# Chave pública do Turnstile (não é segredo). Sem ela o build não tem widget e a API com TURNSTILE_SECRET_KEY recusa o cadastro (403).
+ARG VITE_TURNSTILE_SITE_KEY
 RUN bun run --cwd apps/frontend-landing build
 
 FROM oven/bun:1.3.14-alpine AS runtime

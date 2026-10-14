@@ -295,6 +295,7 @@ export default defineRailway((ctx) => {
       VITE_API_URL: preserve(),
       VITE_APP_ENV: preserve(),
       VITE_APP_URL: preserve(),
+      VITE_TURNSTILE_SITE_KEY: preserve(),
     },
   })
 
