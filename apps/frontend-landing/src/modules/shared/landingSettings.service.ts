@@ -54,6 +54,17 @@ export const DEFAULT_LANDING_SETTINGS: LandingSettings = {
   units: [],
 }
 
+/**
+ * A marca que a página mostra: o nome que a empresa escolheu em Configurações (primeira unidade do
+ * grupo, que é a própria) e só então a marca do site. Mesma ordem da API, do app do motorista e dos
+ * e-mails — `brandName` sozinho ignorava a escolha entre razão social e fantasia.
+ */
+export function resolveLandingBrandName(settings: LandingSettings): string | undefined {
+  const [own] = settings.units
+  const displayName = own?.displayName.trim() ?? ''
+  return displayName === '' ? settings.brandName : displayName
+}
+
 /** Item sem forma de contato é descartado, não interpretado: a rota é entrada de fronteira. */
 function sanitizeContact(value: unknown): LandingContact | undefined {
   if (typeof value !== 'object' || value === null) return undefined
