@@ -36,6 +36,7 @@ import type {
   ContractorReplyEmailTransactionPort,
   ContractorReplyEmailUnitOfWorkPort,
 } from '../application/forward-contractor-reply-by-email.port.js'
+import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-configuration.policy.js'
 import { OCCURRENCE_THREAD_SUBJECT_TYPE } from '../domain/occurrence-conversation.constant.js'
 
@@ -101,12 +102,13 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyEmail
         .select({
           legalName: companyFiscalProfiles.legalName,
           tradeName: companyFiscalProfiles.tradeName,
+          displayNameMode: companyFiscalProfiles.displayNameMode,
         })
         .from(companyFiscalProfiles)
         .where(eq(companyFiscalProfiles.companyId, companyId))
         .limit(1)
       if (row === undefined) return undefined
-      return row.tradeName.trim().length > 0 ? row.tradeName : row.legalName
+      return resolveCompanyDisplayName(row)
     },
 
     async findDeliveryByKey({ companyId, idempotencyKey }) {
