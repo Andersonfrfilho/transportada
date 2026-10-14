@@ -397,6 +397,8 @@ export const TRIP_TIMELINE_KINDS = [
   'crew_transfer',
   /** Spec 257 D9: notas acrescentadas a uma viagem que já saiu. Prioridade 8 na API. */
   'documents_added',
+  /** A nota (ou a parada inteira) retirada de uma viagem ainda no barracão. Prioridade 8 na API. */
+  'document.released',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -486,6 +488,8 @@ export type TripTimelineItem = Readonly<{
   /** Spec 249 D6: só em `crew_transfer`, e nele é obrigatória. */
   crewTransfer?: TripTimelineCrewTransfer
   document: null | TripTimelineDocumentReference
+  /** Só em `document.released`, e nele é obrigatório. */
+  documentRelease?: TripTimelineDocumentRelease
   /** Spec 257 D9: só em `documents_added`, e nele é obrigatório. */
   documentsAdded?: TripTimelineDocumentsAdded
   /** Só em `*.status_changed`. */
@@ -1549,4 +1553,11 @@ export type LinkTripDocumentsBatchResult = Readonly<{
 export type LinkTripDocumentsBatchInput = Readonly<{
   nfeDocumentIds: readonly string[]
   tripId: string
+}>
+
+/** O que a retirada mostra: de qual parada saiu, se foi a parada inteira e o motivo digitado. */
+export type TripTimelineDocumentRelease = Readonly<{
+  note: null | string
+  scope: 'document' | 'stop'
+  stopLabel: null | string
 }>

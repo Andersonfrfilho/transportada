@@ -178,6 +178,7 @@ import {
   isUnsignedInteger,
 } from './tripGuards.validation'
 import { hasCrewTransferForKind } from './tripTimelineCrewTransfer.validation'
+import { hasDocumentReleaseForKind } from './tripTimelineDocumentRelease.validation'
 import { hasDocumentsAddedForKind } from './tripTimelineDocumentsAdded.validation'
 import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
 import {
@@ -1690,6 +1691,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
     hasAddressChangeForKind(value) &&
     hasCrewTransferForKind(value) &&
     hasDocumentsAddedForKind(value) &&
+    hasDocumentReleaseForKind(value) &&
     (value.isSystemActor === undefined || isBoolean(value.isSystemActor)) &&
     (value.location === null || isTimelineLocation(value.location)) &&
     (value.locationState === null || isOneOf(value.locationState, TRIP_TIMELINE_LOCATION_STATES)) &&

@@ -931,7 +931,8 @@
       "unknownDocument": "Invoice",
       "unknownOccurrenceType": "unspecified",
       "unknownStatus": "unspecified",
-      "documentsAdded": "Notes added"
+      "documentsAdded": "Notes added",
+      "documentReleased": "{{document}} removed from the trip"
     },
     "loadMore": "Load more",
     "loading": "Loading the timeline",
@@ -1024,6 +1025,11 @@
       "addressCorrectedAt": "Corrected at {{moment}}",
       "legendAddress": "Plain pin: new point of the stop address. Numbered pin: stop {{sequence}}.",
       "legendAddressEventOnly": "Plain pin: new point of the stop address."
+    },
+    "documentRelease": {
+      "note": "Reason: {{note}}",
+      "stop": "Stop: {{stop}}",
+      "wholeStop": "Removed together with the whole stop."
     },
     "documentsAdded": {
       "count_one": "{{count}} note added",

@@ -931,7 +931,8 @@
       "unknownDocument": "Nota",
       "unknownOccurrenceType": "não informado",
       "unknownStatus": "não informada",
-      "documentsAdded": "Notas acrescentadas"
+      "documentsAdded": "Notas acrescentadas",
+      "documentReleased": "{{document}} retirada da viagem"
     },
     "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
@@ -1024,6 +1025,11 @@
       "addressCorrectedAt": "Corrigido em {{moment}}",
       "legendAddress": "Pino liso: novo ponto do endereço da parada. Pino numerado: parada {{sequence}}.",
       "legendAddressEventOnly": "Pino liso: novo ponto do endereço da parada."
+    },
+    "documentRelease": {
+      "note": "Motivo: {{note}}",
+      "stop": "Parada: {{stop}}",
+      "wholeStop": "Retirada junto com a parada inteira."
     },
     "documentsAdded": {
       "count_one": "{{count}} nota acrescentada",

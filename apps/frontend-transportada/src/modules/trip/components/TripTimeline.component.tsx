@@ -15,6 +15,7 @@ import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed
 import type { TripStopDetail, TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
 import { resolveTripTimelineAddressChange } from '../shared/tripTimelineAddressChange.service'
 import { resolveTripTimelineCrewTransfer } from '../shared/tripTimelineCrewTransfer.service'
+import { resolveTripTimelineDocumentRelease } from '../shared/tripTimelineDocumentRelease.service'
 import { resolveTripTimelineDocumentsAdded } from '../shared/tripTimelineDocumentsAdded.service'
 import {
   hasTripTimelineExpandableDetail,
@@ -47,6 +48,7 @@ import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { TripTimelineCrewTransfer } from './TripTimelineCrewTransfer.component'
+import { TripTimelineDocumentRelease } from './TripTimelineDocumentRelease.component'
 import { TripTimelineDocumentsAdded } from './TripTimelineDocumentsAdded.component'
 import { TripTimelineLocation } from './TripTimelineLocation.component'
 import {
@@ -391,6 +393,7 @@ export function TripTimelineEntry({
   const addressChange = resolveTripTimelineAddressChange(item, translate)
   const crewTransfer = resolveTripTimelineCrewTransfer(item, translate)
   const documentsAdded = resolveTripTimelineDocumentsAdded(item, translate)
+  const documentRelease = resolveTripTimelineDocumentRelease(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -540,6 +543,7 @@ export function TripTimelineEntry({
           )}
           {crewTransfer === null ? null : <TripTimelineCrewTransfer view={crewTransfer} />}
           {documentsAdded === null ? null : <TripTimelineDocumentsAdded view={documentsAdded} />}
+          {documentRelease === null ? null : <TripTimelineDocumentRelease view={documentRelease} />}
         </div>
       </div>
       {/**

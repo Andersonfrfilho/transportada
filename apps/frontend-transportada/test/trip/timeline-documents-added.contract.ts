@@ -72,8 +72,12 @@ function lookup(dictionary: unknown, path: string): unknown {
 }
 
 describe('vocabulário da linha do tempo com as notas acrescentadas (spec 257)', () => {
-  it('documents_added é o último kind, depois da transferência de tripulação', () => {
-    expect([...TRIP_TIMELINE_KINDS].slice(-2)).toEqual(['crew_transfer', 'documents_added'])
+  it('documents_added vem depois da transferência de tripulação e antes da retirada de nota', () => {
+    expect([...TRIP_TIMELINE_KINDS].slice(-3)).toEqual([
+      'crew_transfer',
+      'documents_added',
+      'document.released',
+    ])
   })
 
   it('o evento tem ícone de documento, tom neutro e fica fora do mapa da viagem', () => {
