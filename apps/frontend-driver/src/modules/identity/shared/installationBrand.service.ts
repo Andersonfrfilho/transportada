@@ -39,6 +39,13 @@ function readText(value: unknown): string | null {
  * empresa — e é a primeira unidade que é a própria, quando o grupo tem mais de um CNPJ. Ler só o
  * primeiro campo mostrava a marca do produto tendo a da empresa em mãos.
  */
+function readOwnDisplayName(data: Record<string, unknown> | undefined): string | null {
+  const units: unknown = data?.units
+  if (!Array.isArray(units)) return null
+  const own: unknown = units[0]
+  return isRecord(own) ? readText(own.displayName) : null
+}
+
 function readOwnTradeName(data: Record<string, unknown> | undefined): string | null {
   const units: unknown = data?.units
   if (!Array.isArray(units)) return null
@@ -63,7 +70,10 @@ export async function readInstallationBrand({
     const payload: unknown = await response.json()
     const data = isRecord(payload) && isRecord(payload.data) ? payload.data : undefined
 
-    return { logoUrl, name: readText(data?.brandName) ?? readOwnTradeName(data) }
+    return {
+      logoUrl,
+      name: readOwnDisplayName(data) ?? readText(data?.brandName) ?? readOwnTradeName(data),
+    }
   } catch {
     return { logoUrl, name: null }
   }

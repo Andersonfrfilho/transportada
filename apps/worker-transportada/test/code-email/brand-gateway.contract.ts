@@ -51,6 +51,22 @@ describe('a leitura da marca para o e-mail', () => {
     expect(remote.calls).toEqual(['https://api.exemplo.com.br/public/landing-settings'])
   })
 
+  test('o nome escolhido em Configurações vence a marca da landing', async () => {
+    const remote = jsonFetch({
+      data: {
+        ...SETTINGS.data,
+        units: [{ displayName: 'Exemplo Razão Social LTDA', tradeName: 'Exemplo Matriz' }],
+      },
+    })
+    const gateway = createLandingEmailBrandGateway({
+      apiBaseUrl: 'https://api.exemplo.com.br',
+      appBaseUrl: undefined,
+      fetch: remote.fetch,
+    })
+
+    expect((await gateway.read()).name).toBe('Exemplo Razão Social LTDA')
+  })
+
   test('sem `brandName` o nome vem da primeira unidade — o cadastro da própria empresa', async () => {
     const remote = jsonFetch({ data: { ...SETTINGS.data, brandName: '   ' } })
     const gateway = createLandingEmailBrandGateway({
