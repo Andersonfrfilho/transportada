@@ -50,13 +50,16 @@ export type NfseEmissionProfileDetail = NfseEmissionProfileSettings & {
 }
 
 /**
- * A projeção que o diálogo de emissão enxerga. Quem emite escolhe o perfil e escreve a descrição;
- * alíquota, CNAE, item da lista e tomador são configuração da empresa e não atravessam por aqui.
+ * A projeção que o diálogo de emissão enxerga. Quem emite escolhe o perfil, escreve a descrição e
+ * vê o par de tributação nacional que a v3 exige (o diálogo avisa antes de confirmar se faltar);
+ * alíquota do ISS, CNAE, item da lista e tomador são configuração da empresa e não atravessam por aqui.
  */
 export type NfseEmissionProfileOption = {
   readonly descriptionTemplate: string
   readonly id: string
   readonly name: string
+  readonly nationalTaxationCode: string | null
+  readonly simplesNationalRate: string | null
 }
 
 export type NfseEmissionProfileFilters = {
