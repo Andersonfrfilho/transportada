@@ -252,6 +252,9 @@ export type NfseEmissionProfileOption = Readonly<{
   descriptionTemplate: string
   id: string
   name: string
+  /** Opcionais enquanto a API não os serve; `null` é "o perfil não tem" e ausente é "não sei". */
+  nationalTaxationCode?: null | string
+  simplesNationalRate?: null | string
 }>
 
 export type NfseInvoiceSelection = Readonly<{

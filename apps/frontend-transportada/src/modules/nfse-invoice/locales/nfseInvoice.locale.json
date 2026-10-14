@@ -287,6 +287,8 @@
     "subtitle": "{{count}} notas selecionadas, agrupadas por tomador.",
     "close": "Fechar",
     "profile": "Perfil de emissão",
+    "profileTaxation": "Tributação nacional {{code}} · Simples {{rate}}%",
+    "profileTaxationMissing": "O perfil escolhido não tem o código de tributação nacional ou a alíquota do Simples. Preencha os dois em NFS-e → Configuração → Perfil de emissão antes de emitir.",
     "profilePlaceholder": "Escolha o perfil",
     "profileUnavailable": "Seu acesso não permite listar os perfis de emissão, e o perfil é obrigatório para emitir.",
     "forbidden": "Seu acesso permite ver a prévia, mas não emitir a nota de serviço.",
