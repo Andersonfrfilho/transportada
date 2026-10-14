@@ -57,6 +57,8 @@ const returnSchema = z
     lateRegistration: lateRegistrationSchema,
     location: locationSchema.nullish(),
     reason: z.enum(DRIVER_RETURN_REASONS),
+    /** Spec 260 NC1: "Não entregue, voltou ao barracão" — solta a nota para outra viagem. */
+    returnToWarehouse: z.boolean().optional(),
   })
   .strict()
 
@@ -190,6 +192,7 @@ export async function parseDocumentReturnRequest(request: Request): Promise<
     readonly lateRegistration: boolean
     readonly location: ReportedLocation | null
     readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
+    readonly returnToWarehouse: boolean
   } & EventClockFields
 > {
   const body = await parseBody(returnSchema, request)
@@ -199,6 +202,7 @@ export async function parseDocumentReturnRequest(request: Request): Promise<
     lateRegistration: body.lateRegistration ?? false,
     location: toReportedLocation(body.location),
     reason: body.reason,
+    returnToWarehouse: body.returnToWarehouse ?? false,
   }
 }
 

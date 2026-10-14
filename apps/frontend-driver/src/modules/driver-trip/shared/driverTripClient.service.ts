@@ -333,6 +333,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
         ...clockFields,
         location: report.location,
         reason: report.reason,
+        ...(report.returnToWarehouse === true ? { returnToWarehouse: true } : {}),
         ...(shouldSendLateRegistration({
           isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
           lateRegistration: report.lateRegistration,

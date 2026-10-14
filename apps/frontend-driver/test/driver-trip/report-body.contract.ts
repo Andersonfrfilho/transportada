@@ -48,6 +48,41 @@ describe('o corpo de deliver/return leva a marca do registro tardio', () => {
     })
   })
 
+  it('return que volta ao barracão leva `returnToWarehouse` no corpo', () => {
+    const body = reportBody({
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'key-1',
+        kind: 'return',
+        location: null,
+        reason: 'recipient_absent',
+        returnToWarehouse: true,
+      },
+      stamp: undefined,
+    })
+
+    expect(JSON.parse(body)).toEqual({
+      location: null,
+      reason: 'recipient_absent',
+      returnToWarehouse: true,
+    })
+  })
+
+  it('return sem o pedido não manda a chave', () => {
+    const body = reportBody({
+      report: {
+        documentId: 'document-1',
+        idempotencyKey: 'key-1',
+        kind: 'return',
+        location: null,
+        reason: 'recipient_absent',
+      },
+      stamp: undefined,
+    })
+
+    expect(JSON.parse(body)).toEqual({ location: null, reason: 'recipient_absent' })
+  })
+
   it('sem a marca, o corpo continua igual', () => {
     const body = reportBody({
       report: {
