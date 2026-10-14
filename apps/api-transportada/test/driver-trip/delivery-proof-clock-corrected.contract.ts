@@ -243,7 +243,11 @@ describe('caso de uso: foto julgada pelo relógio corrigido (spec 234 D4/D4b)', 
       THIRTY_HOURS_LATER,
     )
 
-    expect(result).toEqual({ id: 'proof-existing', punctuality: PROOF_PUNCTUALITY.late })
+    expect(result).toEqual({
+      id: 'proof-existing',
+      processingState: 'ready',
+      punctuality: PROOF_PUNCTUALITY.late,
+    })
     expect(world.saved).toHaveLength(0)
     expect(world.stored).toHaveLength(0)
   })

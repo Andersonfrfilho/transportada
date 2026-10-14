@@ -2,10 +2,13 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
+import type { TripDeliveryProofProcessingState } from '../../database/trip.schema.js'
+
 /**
  * Spec 156 T15 M7: o teto do arquivo nas rotas multipart do escritório. O corpo inteiro da
  * requisição para em `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` (1 MiB, 413 antes da rota), e o
- * roteador não tem teto por rota — então o arquivo para 64 KiB abaixo, a folga dos campos e das
+ * roteador não tem teto por rota (só a rota do comprovante do motorista tem, spec 265, para o `original`) —
+ * então o arquivo para 64 KiB abaixo, a folga dos campos e das
  * fronteiras do multipart. Acima disto e abaixo de 1 MiB, a resposta é 422 `TOO_LARGE`, com o código
  * que a tela sabe explicar. A tela reduz a foto para ~900 KB antes de enviar.
  */
@@ -19,6 +22,39 @@ export const OFFICE_PROOF_MAX_BYTES = 960 * 1024
  * app soubesse explicar; o 422 `TOO_LARGE` nunca era alcançado.
  */
 export const DELIVERY_PROOF_MAX_BYTES = OFFICE_PROOF_MAX_BYTES
+
+/**
+ * Spec 265 (decisão de 14/10/2026): o teto do **original** que sobe sem redução quando o aparelho estourou o
+ * orçamento de 8 s. 12 MiB cobrem a câmera de celular com folga; vale **só** para `variant = 'original'` do
+ * comprovante do motorista — o corpo da requisição ganha o teto correspondente
+ * (`PROOF_ORIGINAL_MAX_REQUEST_BODY_SIZE_BYTES`), e a versão reduzida e o escritório seguem em 960 KiB.
+ */
+export const PROOF_ORIGINAL_MAX_BYTES = 12 * 1024 * 1024
+
+/**
+ * Spec 265 RF3: o cliente declara a variante, o servidor não confia nela para o tamanho nem para o tipo.
+ * `reduced` é a foto que o aparelho já reduziu (e a única que o escritório e o app antigo conhecem);
+ * `original` é a foto da câmera como saiu, que o worker reduz depois.
+ */
+export const DELIVERY_PROOF_VARIANTS = ['reduced', 'original'] as const
+export type DeliveryProofVariant = (typeof DELIVERY_PROOF_VARIANTS)[number]
+export const DEFAULT_DELIVERY_PROOF_VARIANT: DeliveryProofVariant = 'reduced'
+
+export function isDeliveryProofVariant(value: unknown): value is DeliveryProofVariant {
+  return typeof value === 'string' && (DELIVERY_PROOF_VARIANTS as readonly string[]).includes(value)
+}
+
+/**
+ * Spec 265 RF6: o que as leituras publicam do estado do tratamento do arquivo. Coluna nula (o comprovante
+ * que sobe já leve e todo o histórico) é `ready` — não há nada a esperar.
+ */
+export const DELIVERY_PROOF_READY_STATE: TripDeliveryProofProcessingState = 'ready'
+
+export function resolveDeliveryProofProcessingState(
+  state: TripDeliveryProofProcessingState | null | undefined,
+): TripDeliveryProofProcessingState {
+  return state ?? DELIVERY_PROOF_READY_STATE
+}
 
 /** Spec 220 RF17 (spec 161 D12): o teto duro da miniatura gerada no cliente — 320 px cabem folgados. */
 export const DELIVERY_PROOF_THUMBNAIL_MAX_BYTES = 128 * 1024
@@ -66,5 +102,18 @@ export function matchesDeliveryProofSignature(input: {
 }): boolean {
   return DELIVERY_PROOF_SIGNATURES[input.mimeType].every((signature) =>
     signature.bytes.every((byte, index) => input.bytes[signature.offset + index] === byte),
+  )
+}
+
+/**
+ * Spec 265 RF3: o tipo **pelos bytes**, para o `original` — o `content-type` do multipart é o que o cliente
+ * disse, e o arquivo vai ser decodificado no worker. `null` quando nenhuma das três assinaturas casa
+ * (HEIC, PDF, arquivo vazio e o que mais for).
+ */
+export function detectDeliveryProofMimeType(bytes: Uint8Array): DeliveryProofMimeType | null {
+  return (
+    DELIVERY_PROOF_MIME_TYPES.find((mimeType) =>
+      matchesDeliveryProofSignature({ bytes, mimeType }),
+    ) ?? null
   )
 }

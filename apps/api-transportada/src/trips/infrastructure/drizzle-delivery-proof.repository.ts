@@ -11,6 +11,7 @@ import {
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
+import { deliveryProofOutbox } from '../../database/delivery-proof-outbox.schema.js'
 import type { EventLocationState } from '../../database/event-location.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
@@ -23,8 +24,12 @@ import {
   trips,
   type ReceivedBy,
   type TripDeliveryProofKind,
+  type TripDeliveryProofProcessingState,
 } from '../../database/trip.schema.js'
-import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
+import type {
+  DeliveryProofPort,
+  DeliveryProofProcessingRequest,
+} from '../application/attach-delivery-proof.use-case.js'
 import { buildCanhotoReviewReset } from '../domain/canhoto-review.policy.js'
 import { resolveEventLocationState } from '../domain/event-location-state.policy.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
@@ -258,9 +263,17 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     readonly companyId: string
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
-  }): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality } | null> {
+  }): Promise<{
+    readonly id: string
+    readonly processingState: TripDeliveryProofProcessingState | null
+    readonly punctuality: ProofPunctuality
+  } | null> {
     const [record] = await this.database
-      .select({ id: tripDeliveryProofs.id, punctuality: tripDeliveryProofs.punctuality })
+      .select({
+        id: tripDeliveryProofs.id,
+        processingState: tripDeliveryProofs.processingState,
+        punctuality: tripDeliveryProofs.punctuality,
+      })
       .from(tripDeliveryProofs)
       .where(
         and(
@@ -377,6 +390,22 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 
       if (proof === undefined) throw new Error('TRIP_DELIVERY_PROOF_NOT_SAVED')
 
+      /**
+       * Spec 265 RF4: o pedido ao worker na **mesma transação** do objeto e da linha (ADR-0053) — sem
+       * ele o `201` prometeria um tratamento que nunca acontece, e sem a linha o worker leria um
+       * comprovante que não existe. O `proof.id` é o que ficou na linha: o upsert de uma recaptura pode
+       * ter mantido o id antigo, e o evento aponta para o que a tela vai ler.
+       */
+      if (input.processing !== undefined) {
+        await transaction.insert(deliveryProofOutbox).values(
+          buildProcessingOutboxValues({
+            input,
+            processing: input.processing,
+            proofId: proof.id,
+          }),
+        )
+      }
+
       return proof
     })
   }
@@ -445,6 +474,8 @@ type SaveProofInput = {
   readonly receivedByDetail: string | null
   readonly sha256: string
   readonly sizeBytes: number
+  /** Spec 265 RF4/RF6: o `original` nasce `received` e pede o tratamento ao worker; ausente é o `reduced`. */
+  readonly processing?: DeliveryProofProcessingRequest
   /** Spec 220 RF17: ausente é o comprovante sem miniatura (RF19); `retention_until` nulo, como o original. */
   readonly thumbnail?: {
     readonly mimeType: string
@@ -452,6 +483,45 @@ type SaveProofInput = {
     readonly objectKey: string
     readonly sha256: string
     readonly sizeBytes: number
+  }
+}
+
+/**
+ * Spec 265 RF6: as três colunas do tratamento, nos dois caminhos (insert e upsert). A recaptura **zera**
+ * o estado: o que estava em andamento era do objeto que saiu, e deixar `received` sobre um `reduced`
+ * novo — ou o inverso — mentiria sobre o arquivo que a tela vai abrir.
+ */
+function buildProofProcessingColumns(input: Pick<SaveProofInput, 'processing'>) {
+  return {
+    originalObjectId: input.processing?.originalObjectId ?? null,
+    processingError: null,
+    processingState: input.processing === undefined ? null : ('received' as const),
+  }
+}
+
+/**
+ * Spec 265 RF4/RF7: o evento do worker leva **referência** — empresa, comprovante, chave do anexo, variante
+ * e a chave do objeto —, nunca bytes: foto de canhoto não fica em fila. Exportada para o contrato.
+ */
+export function buildProcessingOutboxValues(params: {
+  readonly input: Pick<SaveProofInput, 'attachmentKey' | 'companyId' | 'objectKey'>
+  readonly proofId: string
+  readonly processing: DeliveryProofProcessingRequest
+}) {
+  const { input, processing, proofId } = params
+
+  return {
+    companyId: input.companyId,
+    correlationId: processing.correlationId,
+    eventType: 'delivery-proof.processing.requested' as const,
+    payload: {
+      attachmentKey: input.attachmentKey,
+      companyId: input.companyId,
+      objectKey: input.objectKey,
+      proofId,
+      variant: processing.variant,
+    },
+    proofId,
   }
 }
 
@@ -491,6 +561,7 @@ export function buildProofInsertValues(input: SaveProofInput) {
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+    ...buildProofProcessingColumns(input),
     punctuality: input.punctuality,
     receiverDocumentEnvelope: input.receiverDocumentEnvelope,
     receiverDocumentMasked: input.receiverDocumentMasked,
@@ -526,6 +597,7 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+    ...buildProofProcessingColumns(input),
     punctuality: input.punctuality,
     receivedBy: input.receivedBy,
     receivedByDetail: input.receivedByDetail,

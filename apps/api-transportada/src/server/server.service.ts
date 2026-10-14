@@ -2,14 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { createRequestHandler, createServerErrorHandler } from '../http/request-handler.service'
+import { SERVER_REQUEST_BODY_CEILING_BYTES } from '../http/request-body-limit.service'
 import type { HttpRouter } from '../http/router.service'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service'
-import {
-  API_HOSTNAME,
-  IDLE_TIMEOUT_SECONDS,
-  REQUEST_TIMEOUT_SECONDS,
-  SERVER_MAX_REQUEST_BODY_SIZE_BYTES,
-} from '../shared/api.constant'
+import { API_HOSTNAME, IDLE_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
 import type {
   ApiEnvironment,
   ApiLogger,
@@ -43,7 +39,8 @@ export function startApiServer({
     fetch: handle,
     hostname: API_HOSTNAME,
     idleTimeout: IDLE_TIMEOUT_SECONDS,
-    maxRequestBodySize: SERVER_MAX_REQUEST_BODY_SIZE_BYTES,
+    /** O maior teto por rota (spec 265): o de cada rota é cobrado por `resolveRequestBodyLimits`. */
+    maxRequestBodySize: SERVER_REQUEST_BODY_CEILING_BYTES,
     port: config.port,
   })
 }

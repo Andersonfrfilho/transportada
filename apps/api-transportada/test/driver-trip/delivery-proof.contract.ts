@@ -177,7 +177,11 @@ describe('o comprovante da entrega', () => {
 
     const result = await attachDeliveryProof(buildInput(world, { attachmentKey: 'retry-1' }))
 
-    expect(result).toEqual({ id: 'proof-existing', punctuality: PROOF_PUNCTUALITY.late })
+    expect(result).toEqual({
+      id: 'proof-existing',
+      processingState: 'ready',
+      punctuality: PROOF_PUNCTUALITY.late,
+    })
     expect(world.stored).toHaveLength(0)
     expect(world.saved).toHaveLength(0)
   })

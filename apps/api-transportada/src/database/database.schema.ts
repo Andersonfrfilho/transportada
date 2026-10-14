@@ -473,6 +473,7 @@ export { loginIdentifiers, LOGIN_IDENTIFIER_KINDS } from './login-identifier.sch
 export type { LoginIdentifierKind } from './login-identifier.schema.js'
 export * from './trip-cargo-layout.schema.js'
 export * from './trip-cargo-layout-outbox.schema.js'
+export * from './delivery-proof-outbox.schema.js'
 export * from './trip-document-review.schema.js'
 export * from './rate-limit-window.schema.js'
 export * from './occurrence-conversation.schema.js'

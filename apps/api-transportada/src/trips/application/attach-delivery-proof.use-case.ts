@@ -7,7 +7,11 @@ import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import {
   TRIP_DELIVERY_PROOF_CARGO_KIND,
   type TripDeliveryProofKind,
+  type TripDeliveryProofProcessingState,
 } from '../../database/trip.schema.js'
+import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+import { ApiError } from '../../shared/api.error.js'
 import {
   classifyProofPunctuality,
   mergeProofPunctuality,
@@ -18,9 +22,14 @@ import {
 import { resolveOccurredAt } from '../domain/occurred-at.policy.js'
 import {
   buildDeliveryProofObjectKey,
+  DEFAULT_DELIVERY_PROOF_VARIANT,
   DELIVERY_PROOF_MAX_BYTES,
   DELIVERY_PROOF_THUMBNAIL_MAX_BYTES,
+  detectDeliveryProofMimeType,
   isDeliveryProofMimeType,
+  PROOF_ORIGINAL_MAX_BYTES,
+  resolveDeliveryProofProcessingState,
+  type DeliveryProofVariant,
 } from '../domain/delivery-proof.policy.js'
 import {
   maskTaxId,
@@ -88,6 +97,20 @@ export type DeliveryProofUpload = {
   readonly receiverName: string
   /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
   readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  /**
+   * Spec 265 RF3: `original` é a foto da câmera como saiu (até 12 MiB), que o worker reduz depois;
+   * `reduced` é a que o aparelho já reduziu. Ausente (escritório, app antigo) é `reduced`. O servidor
+   * não confia na declaração: confere o tamanho real e o tipo pelos bytes.
+   */
+  readonly variant?: DeliveryProofVariant
+}
+
+/** Spec 265 RF4: o pedido de tratamento que acompanha o comprovante `original`. */
+export type DeliveryProofProcessingRequest = {
+  readonly correlationId: string
+  /** O objeto do original: o mesmo de `objectId` até o worker gravar a versão leve. */
+  readonly originalObjectId: string
+  readonly variant: 'original'
 }
 
 export type DeliveryProofStoragePort = {
@@ -147,7 +170,12 @@ export type DeliveryProofPort = {
     readonly companyId: string
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
-  }): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality } | null>
+  }): Promise<{
+    readonly id: string
+    /** Spec 265 RF6: o estado do tratamento; ausente ou nulo é o comprovante que não tem o que esperar. */
+    readonly processingState?: TripDeliveryProofProcessingState | null
+    readonly punctuality: ProofPunctuality
+  } | null>
   /**
    * Spec 159 T11: a pontualidade da foto que a substituta vai sobrescrever (upsert por
    * evento+tipo). `null` quando o evento ainda não tem comprovante daquele tipo.
@@ -190,6 +218,12 @@ export type DeliveryProofPort = {
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
+    /**
+     * Spec 265 RF4/RF6: o `original` sobe sem redução — a linha nasce `received` apontando para o
+     * objeto original, e o pedido ao worker (outbox) é gravado na mesma transação. Ausente é o
+     * `reduced`: nada a tratar, nada a pedir.
+     */
+    readonly processing?: DeliveryProofProcessingRequest
     readonly punctuality: ProofPunctuality
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
@@ -213,7 +247,11 @@ export type DeliveryProofPort = {
 export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
+  /** Spec 265 RF13: a correlação da requisição — vai no log e no pedido ao worker. Ausente cai no `proofId`. */
+  readonly correlationId?: string
   readonly documentId: string
+  /** Spec 265 RF13: o log `delivery_proof_processing`. Ausente é sem log (o escritório e os dublês). */
+  readonly logger?: ApiLogger
   readonly newObjectId: () => string
   readonly newProofId: () => string
   /** ADR-0070 §3, spec 159 RF5: quando o servidor recebeu a foto — referência sem `capturedAt`. */
@@ -229,19 +267,116 @@ export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly upload: DeliveryProofUpload
 }
 
+/** O que o comprovante aceito virou: `received` aguarda o worker; `ready` não tem o que esperar. */
+export type AttachedDeliveryProof = {
+  readonly id: string
+  /** Spec 265 RF6: o estado do tratamento do arquivo que a resposta publica. */
+  readonly processingState: TripDeliveryProofProcessingState
+  readonly punctuality: ProofPunctuality
+}
+
+type AttachOutcome = 'received' | 'replayed' | 'stored'
+
 /**
  * Spec 057, P2 "o comprovante". Ele anexa **a uma entrega que já aconteceu**: a confirmação nunca
  * espera pelo arquivo, porque em 3G ruim esperar é perder a entrega.
+ *
+ * Spec 265 RF13: toda tentativa deixa um `delivery_proof_processing` no log — variante, bytes, duração e
+ * resultado, com o `proofId` quando o comprovante existe. Nunca o conteúdo do arquivo, o EXIF nem quem
+ * recebeu.
  */
 export async function attachDeliveryProof(
   input: AttachDeliveryProofInput,
-): Promise<{ readonly id: string; readonly punctuality: ProofPunctuality }> {
-  if (input.upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
+): Promise<AttachedDeliveryProof> {
+  const startedAt = performance.now()
+  try {
+    const attached = await attachDeliveryProofUnlogged(input)
+    logProofProcessing({
+      input,
+      level: 'info',
+      outcome: attached.outcome,
+      proofId: attached.proof.id,
+      startedAt,
+    })
+
+    return attached.proof
+  } catch (error: unknown) {
+    logProofProcessing({
+      input,
+      level: 'warn',
+      outcome: 'rejected',
+      reason: error instanceof ApiError ? error.code : 'UNEXPECTED',
+      startedAt,
+    })
+    throw error
+  }
+}
+
+function logProofProcessing(params: {
+  readonly input: AttachDeliveryProofInput
+  readonly level: 'info' | 'warn'
+  readonly outcome: AttachOutcome | 'rejected'
+  readonly proofId?: string
+  readonly reason?: string
+  readonly startedAt: number
+}): void {
+  const { input } = params
+  if (input.logger === undefined) return
+  const { upload } = input
+  const metadata = {
+    attachmentKey: upload.attachmentKey,
+    bytes: upload.bytes.byteLength,
+    companyId: input.companyId,
+    ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+    documentId: input.documentId,
+    durationMs: Math.round(performance.now() - params.startedAt),
+    kind: upload.kind,
+    outcome: params.outcome,
+    ...(params.proofId === undefined ? {} : { proofId: params.proofId }),
+    ...(params.reason === undefined ? {} : { reason: params.reason }),
+    ...(upload.thumbnail === undefined
+      ? {}
+      : { thumbnailBytes: upload.thumbnail.bytes.byteLength }),
+    variant: upload.variant ?? DEFAULT_DELIVERY_PROOF_VARIANT,
+  }
+  const log = params.level === 'info' ? safeLogInfo : safeLogWarn
+  log({ logger: input.logger, message: 'delivery_proof_processing', metadata })
+}
+
+/**
+ * Spec 265 RF3: o tamanho real e o tipo são conferidos aqui, não no cabeçalho do cliente. O `reduced`
+ * mantém o teto de 960 KiB e o tipo declarado, como antes; o `original` vai até 12 MiB e o tipo sai dos
+ * primeiros bytes — o arquivo vai ser decodificado no worker.
+ */
+function resolveUploadedFile(upload: DeliveryProofUpload): {
+  readonly mimeType: string
+  readonly variant: DeliveryProofVariant
+} {
+  const variant = upload.variant ?? DEFAULT_DELIVERY_PROOF_VARIANT
+  if (variant === 'reduced') {
+    if (upload.bytes.byteLength > DELIVERY_PROOF_MAX_BYTES) {
+      throw new TripDeliveryProofRejectedError('TOO_LARGE')
+    }
+    if (!isDeliveryProofMimeType(upload.mimeType)) {
+      throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+    }
+
+    return { mimeType: upload.mimeType, variant }
+  }
+
+  if (upload.bytes.byteLength > PROOF_ORIGINAL_MAX_BYTES) {
     throw new TripDeliveryProofRejectedError('TOO_LARGE')
   }
-  if (!isDeliveryProofMimeType(input.upload.mimeType)) {
-    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
-  }
+  const detected = detectDeliveryProofMimeType(upload.bytes)
+  if (detected === null) throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+
+  return { mimeType: detected, variant }
+}
+
+async function attachDeliveryProofUnlogged(
+  input: AttachDeliveryProofInput,
+): Promise<{ readonly outcome: AttachOutcome; readonly proof: AttachedDeliveryProof }> {
+  const file = resolveUploadedFile(input.upload)
   assertThumbnailAccepted(input.upload.thumbnail)
 
   /**
@@ -279,7 +414,16 @@ export async function attachDeliveryProof(
       eventId,
       kind: input.upload.kind,
     })
-    if (existing !== null) return existing
+    if (existing !== null) {
+      return {
+        outcome: 'replayed',
+        proof: {
+          id: existing.id,
+          processingState: resolveDeliveryProofProcessingState(existing.processingState),
+          punctuality: existing.punctuality,
+        },
+      }
+    }
   }
 
   const authorship = deriveFieldAuthorship(input)
@@ -318,7 +462,7 @@ export async function attachDeliveryProof(
   const stored = await input.storage.store({
     bytes: input.upload.bytes,
     companyId: input.companyId,
-    mimeType: input.upload.mimeType,
+    mimeType: file.mimeType,
     objectId,
     objectKey,
   })
@@ -359,9 +503,18 @@ export async function attachDeliveryProof(
     lateRegistration: input.upload.lateRegistration ?? false,
     latitude: input.upload.position?.latitude ?? null,
     longitude: input.upload.position?.longitude ?? null,
-    mimeType: input.upload.mimeType,
+    mimeType: file.mimeType,
     objectId,
     objectKey,
+    ...(file.variant === 'original'
+      ? {
+          processing: {
+            correlationId: input.correlationId ?? proofId,
+            originalObjectId: objectId,
+            variant: file.variant,
+          },
+        }
+      : {}),
     punctuality,
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
@@ -373,7 +526,16 @@ export async function attachDeliveryProof(
     ...(thumbnail === undefined ? {} : { thumbnail }),
   })
 
-  return { ...proof, punctuality }
+  const isOriginal = file.variant === 'original'
+
+  return {
+    outcome: isOriginal ? 'received' : 'stored',
+    proof: {
+      ...proof,
+      processingState: isOriginal ? 'received' : resolveDeliveryProofProcessingState(null),
+      punctuality,
+    },
+  }
 }
 
 function assertThumbnailAccepted(thumbnail: DeliveryProofUpload['thumbnail']): void {
