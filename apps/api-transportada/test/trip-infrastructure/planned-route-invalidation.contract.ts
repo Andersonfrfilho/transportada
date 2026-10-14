@@ -154,7 +154,7 @@ describe('T704 M3: a escrita do congelamento não atropela estado mais novo', ()
   })
 })
 
-describe('T704 M4: parada sem coordenada não vira rota parcial', () => {
+describe('T704 M4 (revisto): parada sem coordenada é pulada, a rota segue', () => {
   type GeocodedRow = { readonly latitude: string | null; readonly longitude: string | null }
 
   function createSelectRecorder(rows: readonly GeocodedRow[]): TripQueryable {
@@ -167,11 +167,27 @@ describe('T704 M4: parada sem coordenada não vira rota parcial', () => {
     return { select: () => chain } as unknown as TripQueryable
   }
 
-  test('uma parada sem coordenada devolve null — nunca o subconjunto geocodificado', async () => {
+  test('parada sem coordenada é pulada e as demais seguem', async () => {
     const coordinates = await listTripStopCoordinates(
       createSelectRecorder([
         { latitude: '-21.1775', longitude: '-47.8103' },
         { latitude: null, longitude: null },
+        { latitude: '-21.9967', longitude: '-47.4256' },
+      ]),
+      { companyId: COMPANY_ID, tripId: TRIP_ID },
+    )
+
+    expect(coordinates).toEqual([
+      { latitude: -21.1775, longitude: -47.8103 },
+      { latitude: -21.9967, longitude: -47.4256 },
+    ])
+  })
+
+  test('nenhuma parada com coordenada devolve null', async () => {
+    const coordinates = await listTripStopCoordinates(
+      createSelectRecorder([
+        { latitude: null, longitude: null },
+        { latitude: null, longitude: '-47.8' },
       ]),
       { companyId: COMPANY_ID, tripId: TRIP_ID },
     )

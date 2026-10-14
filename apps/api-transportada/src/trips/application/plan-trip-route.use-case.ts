@@ -6,10 +6,12 @@ import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import {
   TripNotFoundError,
+  TripRouteStopsWithoutLocationError,
   TripRouteUnavailableError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
+import type { TripStopPointResolver } from './resolve-trip-stop-points.use-case.js'
 import {
   TRIP_ROUTE_FREEZE_FAILED_MESSAGE,
   type TripRouteFreezeLogger,
@@ -43,6 +45,14 @@ export type PlanTripRoutePort = {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripRouteState | null>
+  /**
+   * Os rótulos das paradas vivas sem coordenada. Opcional: só serve para o erro dizer **quais**
+   * endereços faltam quando o congelamento recusa a rota.
+   */
+  listStopsWithoutLocation?(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly string[]>
 }
 
 /**
@@ -77,6 +87,8 @@ export type PlanTripRouteInput = {
   readonly repository: PlanTripRoutePort
   /** RF3 (spec 153 T201): qual rota reproduzir. Ausente segue o default do congelador. */
   readonly routeChoice?: RouteChoice
+  /** Resolve no provedor o ponto das paradas sem coordenada, antes do congelamento. Ausente, nada muda. */
+  readonly stopPointResolver?: TripStopPointResolver
   readonly tollFreezer?: PlanTripRouteTollFreezer
   readonly tripId: string
 }
@@ -123,6 +135,11 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
   }
 
   if (input.tollFreezer !== undefined) {
+    await input.stopPointResolver?.resolve({
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      tripId: input.tripId,
+    })
     const freezeResult = await input.tollFreezer.freeze({
       companyId: input.companyId,
       ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
@@ -143,6 +160,16 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
         companyId: input.companyId,
         tripId: input.tripId,
       })
+      const missing = (await input.repository.listStopsWithoutLocation?.(input)) ?? []
+      if (missing.length > 0) {
+        /** Só a contagem: o endereço completo fica fora do log, e a tela já o mostra a quem pode ver. */
+        input.logger?.warn('trip_route_stops_without_location', {
+          companyId: input.companyId,
+          stopsWithoutLocation: missing.length,
+          tripId: input.tripId,
+        })
+        throw new TripRouteStopsWithoutLocationError(missing)
+      }
       throw new TripRouteUnavailableError()
     }
   }
