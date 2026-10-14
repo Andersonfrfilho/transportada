@@ -1888,6 +1888,16 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .proofReadyCheck {
+    animation: driver-proof-ready-pulse 1.4s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .proofReadyArrow {
+    animation: driver-proof-ready-arrow 1.1s ease-in-out infinite;
+  }
+
   .proofSendingPhoto {
     animation: driver-proof-sending-throw 1.2s ease-in-out infinite;
   }
@@ -1969,6 +1979,28 @@
 }
 
 /* Pedido do usuário (14/10): a foto sai da mão do boneco e voa em arco até a nuvem. */
+@keyframes driver-proof-ready-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes driver-proof-ready-arrow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(5px);
+  }
+}
+
 @keyframes driver-proof-sending-throw {
   0% {
     opacity: 0;

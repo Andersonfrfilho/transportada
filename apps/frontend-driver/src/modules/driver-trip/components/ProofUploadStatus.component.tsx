@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import { ProofReducingMallet } from './ProofReducingMallet.component'
+import { ProofReadyToConfirm } from './ProofReadyToConfirm.component'
 import { ProofSendingThrower } from './ProofSendingThrower.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
 import {
@@ -43,7 +44,11 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
     return (
       <div className={styles.proofQueueCard} role="status">
         <span className={styles.proofQueueTitle}>
-          <Icon aria-hidden="true" name="clock" size="sm" />
+          {upload.waitingFor === 'confirm' ? (
+            <ProofReadyToConfirm />
+          ) : (
+            <Icon aria-hidden="true" name="clock" size="sm" />
+          )}
           {t(
             upload.waitingFor === 'confirm'
               ? 'proofCapture.upload.waitingConfirmTitle'

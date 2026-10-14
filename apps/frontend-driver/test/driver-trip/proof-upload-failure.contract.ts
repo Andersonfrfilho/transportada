@@ -61,4 +61,21 @@ describe('a foto que não termina de subir diz por quê (pedido do usuário, 14/
     )
     expect(source.match(/<ProofSendingThrower \/>/gu)).toHaveLength(1)
   })
+
+  it('foto salva esperando "Confirmar entrega" tem animação própria, que não é a da nuvem', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/ProofUploadStatus.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const waiting = source.slice(
+      source.indexOf("upload.status === 'waiting'"),
+      source.indexOf("upload.status === 'uploading'"),
+    )
+    expect(waiting).toContain("upload.waitingFor === 'confirm'")
+    expect(waiting).toContain('<ProofReadyToConfirm />')
+    expect(waiting).not.toContain('<ProofSendingThrower />')
+  })
 })
