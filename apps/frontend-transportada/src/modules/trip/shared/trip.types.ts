@@ -570,6 +570,9 @@ export type TripDocumentDetail = TripDocument &
     nfeTotalValue?: null | string
     /** Spec 233 D5: quantos volumes a nota declara. Ausente é API anterior; `null`, nota sem a informação. */
     volumeCount?: null | number
+    /** Peso bruto da nota em kg (decimal em texto). Ausente é API anterior; `null`, nota sem peso — nunca `0`. */
+    cargoGrossWeight?: null | string
+    cargoWeightSource?: 'estimated' | 'xml' | null
     /**
      * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como
      * dizer" (`freightSource: 'missing'`/ausente), nunca `R$ 0,00`. Opcional: API anterior não manda.
