@@ -175,6 +175,8 @@ function serializeProfileOption(option: NfseEmissionProfileOption): object {
     descriptionTemplate: option.descriptionTemplate,
     id: option.id,
     name: option.name,
+    nationalTaxationCode: option.nationalTaxationCode,
+    simplesNationalRate: option.simplesNationalRate,
   }
 }
 

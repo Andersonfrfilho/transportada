@@ -52,7 +52,7 @@ describe('NFS-e emission profile options route contract', () => {
    * O item da opção é fechado por asserção de chaves: um campo novo em `serializeProfile` que
    * escorregue para cá entregaria alíquota e CNAE a quem só pode emitir.
    */
-  test('projects exactly the three fields the emission dialog needs', async () => {
+  test('projects exactly the five fields the emission dialog needs', async () => {
     const fixture = await createNfseProfilesHttpFixture({
       permissions: ISSUE_ONLY_CONTEXT.permissions,
     })
@@ -60,7 +60,13 @@ describe('NFS-e emission profile options route contract', () => {
     const response = await fixture.handle(getRequest(OPTIONS_PATH))
     const payload = (await response.json()) as { data: readonly Record<string, unknown>[] }
 
-    expect(Object.keys(payload.data[0] ?? {}).sort()).toEqual(['descriptionTemplate', 'id', 'name'])
+    expect(Object.keys(payload.data[0] ?? {}).sort()).toEqual([
+      'descriptionTemplate',
+      'id',
+      'name',
+      'nationalTaxationCode',
+      'simplesNationalRate',
+    ])
     expect(JSON.stringify(payload)).not.toContain(PROFILE_SETTINGS.issRate)
     expect(JSON.stringify(payload)).not.toContain(PROFILE_SETTINGS.cnaeCode)
   })
