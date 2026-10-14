@@ -1519,9 +1519,21 @@ function ProofCaptureFields({
     values: { receivedBy, receivedByDetail },
   })
 
+  /**
+   * Defeito de 14/10 (staging): a foto subiu e saiu da fila antes de esta seção montar (a nota virou
+   * "entregue" e remontou), então `attached.photo` nasce falso e o "Concluir" acusava "Faltam: foto"
+   * com o canhoto já no servidor. O snapshot que diz "a foto chegou" também conta como foto.
+   */
+  const isPhotoOnServer = isProofConfirmedByServer({
+    hasLocalAttachment: false,
+    isDelivered: serverProof?.isDelivered ?? false,
+    isRequired: plan.fields.photo === 'required',
+    kind: 'photo',
+    proofPending: serverProof?.proofPending ?? true,
+  })
   const currentValues = {
     cargoCount: cargoKeys.length,
-    hasPhoto: attached.photo,
+    hasPhoto: attached.photo || isPhotoOnServer,
     hasSignature: attached.signature,
     receivedBy,
     receivedByDetail,
