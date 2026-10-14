@@ -241,6 +241,7 @@
         "photo": "Loading the receipt photo",
         "signature": "Loading the signature"
       },
+      "queuedHint": "Sending as soon as the connection allows. When it reaches the server, it turns into “Sent at” and the clock goes away.",
       "queuedTitle": "Queued, waiting to send",
       "waitingConfirm": "The photo is saved. It only goes up when you tap Confirm delivery.",
       "waitingDelivery": "The photo is saved and goes up right after the delivery is sent.",

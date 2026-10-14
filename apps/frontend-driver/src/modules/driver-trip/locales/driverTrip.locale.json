@@ -255,6 +255,7 @@
         "photo": "Carregando a foto do canhoto",
         "signature": "Carregando a assinatura"
       },
+      "queuedHint": "Enviando assim que a conexão permitir. Quando chegar ao servidor, aparece “Enviada às” e o relógio some.",
       "queuedTitle": "Na fila, aguardando envio",
       "waitingConfirm": "A foto está guardada. Ela só sobe quando você tocar em Confirmar entrega.",
       "waitingDelivery": "A foto está guardada e sobe logo depois que a entrega for enviada.",

@@ -71,7 +71,9 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
             <Icon aria-hidden="true" name="clock" size="sm" />
           </span>
         </span>
-        {upload.uploadPercent === undefined ? null : (
+        {upload.uploadPercent === undefined ? (
+          <span>{t('proofCapture.upload.queuedHint')}</span>
+        ) : (
           <ProofUploadProgressBar percent={upload.uploadPercent} />
         )}
         {upload.failure === undefined ? null : (
