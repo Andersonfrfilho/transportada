@@ -198,7 +198,10 @@ export type MeTripDependencies = {
       },
   ) => Promise<ReportStopOccurrenceResult>
   readonly reportReturn: (
-    input: DriverDocumentOutcomeInput & { readonly reason: DriverReturnReason },
+    input: DriverDocumentOutcomeInput & {
+      readonly reason: DriverReturnReason
+      readonly returnToWarehouse?: boolean
+    },
   ) => Promise<ReportDocumentOutcomeResult>
   readonly registerDriverOccurrence: (input: {
     readonly actorUserId: string
@@ -547,6 +550,7 @@ export function createMeTripRoutes(
         readonly lateRegistration: boolean
         readonly location: ReportedLocation | null
         readonly reason: DriverReturnReason
+        readonly returnToWarehouse: boolean
       }
     >({
       async handle({ context, input }): Promise<Response> {

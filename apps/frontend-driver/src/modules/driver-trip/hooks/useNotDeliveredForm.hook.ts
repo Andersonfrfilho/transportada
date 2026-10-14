@@ -29,6 +29,7 @@ export type NotDeliveredForm = Readonly<{
   handleOccurrenceTypeSelect: (occurrenceTypeId: string) => void
   handlePhotoSelect: (file: File) => void
   handleReasonSelect: (reason: DriverReturnReason) => void
+  handleReturnToWarehouseToggle: () => void
   isNoteRequired: boolean
   missing: readonly NotDeliveredField[]
   photoPreviewUrl: string | undefined
@@ -44,6 +45,7 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
   const [reason, setReason] = useState<DriverReturnReason | undefined>(undefined)
   const [occurrenceTypeId, setOccurrenceTypeId] = useState<string | undefined>(undefined)
   const [note, setNote] = useState('')
+  const [returnToWarehouse, setReturnToWarehouse] = useState(false)
   const [photo, setPhoto] = useState<DriverOccurrencePhoto | undefined>(undefined)
   const [photoState, setPhotoState] = useState<NotDeliveredPhotoState>('idle')
   const photoPreview = usePhotoPreviewUrl()
@@ -56,6 +58,7 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
     occurrenceTypeId,
     photo,
     reason,
+    returnToWarehouse,
   }
   const missing = listMissingNotDeliveredFields({ draft, occurrenceTypes })
   const availableTypes = listAvailableOccurrenceTypes(occurrenceTypes)
@@ -85,6 +88,7 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
     handleOccurrenceTypeSelect: setOccurrenceTypeId,
     handlePhotoSelect: (file) => void readPhoto(file),
     handleReasonSelect: setReason,
+    handleReturnToWarehouseToggle: () => setReturnToWarehouse((current) => !current),
     isNoteRequired: selectedType?.attachmentMode === 'required',
     missing,
     photoPreviewUrl: photoPreview.previewUrl,
