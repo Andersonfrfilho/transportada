@@ -8,7 +8,7 @@ import { ProofReducingMallet } from './ProofReducingMallet.component'
 import { ProofSendingThrower } from './ProofSendingThrower.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
 import {
-  PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
+  PROOF_PHOTO_REDUCTION_BUDGET_MS,
   resolveProofReductionPercent,
 } from '../shared/proofPhotoReduction.service'
 import type { ProofUploadView } from '../hooks/useProofUploadStatus.hook'
@@ -27,6 +27,16 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
 
   if (upload.status === 'reducing') return <ProofReducingCountdown />
 
+  /** Spec 265 RF10: o servidor guardou o arquivo e o worker ainda o trata — o motorista segue, nada a esperar. */
+  if (upload.processingState !== undefined) {
+    return (
+      <span className={styles.proofUploadChip} role="status">
+        <Icon aria-hidden="true" name="clock" size="sm" />
+        {t('proofCapture.upload.sentProcessing')}
+      </span>
+    )
+  }
+
   if (upload.status === 'uploading') {
     return (
       <div className={styles.proofUploadSending} role="status">
@@ -41,6 +51,9 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
             <Icon aria-hidden="true" name="clock" size="sm" />
           </span>
         </span>
+        {upload.uploadPercent === undefined ? null : (
+          <ProofUploadProgressBar percent={upload.uploadPercent} />
+        )}
         <span className={styles.stopMeta}>{t('proofCapture.upload.savedOnDevice')}</span>
       </div>
     )
@@ -67,13 +80,41 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
 }
 
 /**
- * Pedido do usuário (14/10): "aguarde N segundos" com ícone animado. A contagem é o teto da redução
- * (`PROOF_PHOTO_REDUCTION_TIMEOUT_MS`): passou dela, o original sobe como está — o motorista vê
+ * Spec 265 RF12: porcentagem REAL de subida (bytes enviados / total, do `XMLHttpRequest`) e a barra
+ * proporcional a ela — diferente da redução abaixo, que é estimativa por tempo.
+ */
+function ProofUploadProgressBar({ percent }: Readonly<{ percent: number }>) {
+  const { t } = useTranslation('driverTrip')
+  return (
+    <>
+      <span className={styles.proofReducingPercent}>
+        {t('proofCapture.upload.uploadingPercent', { percent })}
+      </span>
+      <span
+        aria-label={t('proofCapture.upload.uploadingProgress')}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={percent}
+        className={styles.proofReducingTrack}
+        role="progressbar"
+      >
+        <span
+          className={styles.proofUploadFill}
+          style={{ transform: `scaleX(${percent / 100})` }}
+        />
+      </span>
+    </>
+  )
+}
+
+/**
+ * Pedido do usuário (14/10): "aguarde N segundos" com ícone animado. A contagem é o orçamento da redução (8 s, spec 265)
+ * (`PROOF_PHOTO_REDUCTION_BUDGET_MS`): passou dela, o original sobe como está — o motorista vê
  * quanto, no máximo, falta, e pode seguir e confirmar enquanto isso.
  */
 function ProofReducingCountdown() {
   const { t } = useTranslation('driverTrip')
-  const [secondsLeft, setSecondsLeft] = useState(PROOF_PHOTO_REDUCTION_TIMEOUT_MS / 1000)
+  const [secondsLeft, setSecondsLeft] = useState(PROOF_PHOTO_REDUCTION_BUDGET_MS / 1000)
 
   useEffect(() => {
     const timer = setInterval(() => setSecondsLeft((current) => Math.max(0, current - 1)), 1000)
@@ -89,7 +130,7 @@ function ProofReducingCountdown() {
           : t('proofCapture.upload.reducingAlmost')}
         <span className={styles.proofReducingPercent}>
           {resolveProofReductionPercent({
-            elapsedMs: PROOF_PHOTO_REDUCTION_TIMEOUT_MS - secondsLeft * 1000,
+            elapsedMs: PROOF_PHOTO_REDUCTION_BUDGET_MS - secondsLeft * 1000,
           })}
           %
         </span>
@@ -97,7 +138,7 @@ function ProofReducingCountdown() {
       <span aria-hidden="true" className={styles.proofReducingTrack}>
         <span
           className={styles.proofReducingFill}
-          style={{ animationDuration: `${PROOF_PHOTO_REDUCTION_TIMEOUT_MS}ms` }}
+          style={{ animationDuration: `${PROOF_PHOTO_REDUCTION_BUDGET_MS}ms` }}
         />
       </span>
       <span className={styles.stopMeta}>{t('proofCapture.upload.reducingHint')}</span>

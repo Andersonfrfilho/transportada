@@ -1837,6 +1837,16 @@
   width: 100%;
 }
 
+.proofUploadFill {
+  background: var(--color-copper);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.2s linear;
+}
+
 .proofReducingFill {
   background: var(--color-copper);
   border-radius: inherit;

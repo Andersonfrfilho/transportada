@@ -168,6 +168,8 @@ export const TRIP_TABLES = [
   'trip_crew_events',
   /** Spec 257 D9: o histórico das notas acrescentadas a uma viagem que já saiu. */
   'trip_document_link_events',
+  /** Spec 265 RF4: o pedido de tratamento do comprovante enviado sem redução, gravado com ele. */
+  'delivery_proof_outbox',
 ] as const
 
 /** Spec 248 D6: o retorno da contratante ao motorista — uma linha por ocorrência, entregas e histórico. */

@@ -43,6 +43,7 @@ import {
   type RegisteredAnonymousRateLimitPolicy,
   type RouteRateLimitPolicy,
 } from './rate-limiter.service'
+import { limitRequestBody } from './request-body-limit.service'
 import { resolveLogPathname } from './request-path.service'
 
 type RouteAuthorizationPort = {
@@ -146,6 +147,11 @@ type RouterRequest = {
   readonly method: string
   readonly pathname: string
   readonly request: Request
+  /**
+   * Spec 265 RF2: o teto do corpo que chega sem `content-length` (em pedaços), da rota. Ausente é sem
+   * limite aqui — o do servidor vale sozinho.
+   */
+  readonly streamedBodyLimitBytes?: number
 }
 
 type DynamicRouteCandidate = {
@@ -245,7 +251,13 @@ export function createRouter({
     logPathname(pathname: string): string {
       return resolveLogPathname({ pathname, templates: logTemplates })
     },
-    async handle({ correlationId, method, pathname, request }: RouterRequest): Promise<Response> {
+    async handle({
+      correlationId,
+      method,
+      pathname,
+      request,
+      streamedBodyLimitBytes,
+    }: RouterRequest): Promise<Response> {
       if (isHealthPath(pathname)) {
         return handleHealthRequest({ healthService, method, pathname })
       }
@@ -262,7 +274,7 @@ export function createRouter({
           correlationId,
           limitTarget: anonymousRateLimit.consumeTarget,
           pathParameters: anonymousRoute.pathParameters,
-          request,
+          request: boundStreamedBody(request, streamedBodyLimitBytes),
         })
       }
       // Caminho anônimo com método errado morre aqui: descobrir isso não pode custar autenticação.
@@ -274,7 +286,9 @@ export function createRouter({
       // resolve identidade pelo `authResolver` dele. Autenticar duas vezes daria 401 no que é
       // público. Os conjuntos são disjuntos pelo prefixo (`/v1`, `/user`), que nenhuma rota nossa usa.
       const matchedModuleRouter = moduleRouters.find((candidate) => candidate.router.match(request))
-      if (matchedModuleRouter !== undefined) return matchedModuleRouter.router.handle(request)
+      if (matchedModuleRouter !== undefined) {
+        return matchedModuleRouter.router.handle(boundStreamedBody(request, streamedBodyLimitBytes))
+      }
 
       const identity = await authentication.authenticate(request.headers.get('authorization'))
       if (pathname === API_AUTH_ME_PATH) {
@@ -307,10 +321,21 @@ export function createRouter({
         context,
         correlationId,
         pathParameters: matchedRoute.pathParameters,
-        request,
+        request: boundStreamedBody(request, streamedBodyLimitBytes),
       })
     },
   })
+}
+
+/**
+ * Spec 265 RF2: corpo sem `content-length` só tem tamanho conhecido lendo — o fluxo para no teto da rota.
+ * Fica aqui, depois da autenticação e da autorização, e não no começo do pedido: rota que recusa antes
+ * de ler o corpo não pode tê-lo tocado.
+ */
+function boundStreamedBody(request: Request, maxBytes: number | undefined): Request {
+  if (maxBytes === undefined || request.headers.has('content-length')) return request
+
+  return limitRequestBody(request, maxBytes)
 }
 
 /**

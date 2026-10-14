@@ -248,6 +248,9 @@
       "reducingAlmost": "Almost done: finishing the photo",
       "reducingHint": "You can keep going and confirm: the photo stays queued and goes on its own.",
       "savedOnDevice": "The photo is saved on the device and keeps going even without signal.",
+      "sentProcessing": "Sent, processing",
+      "uploadingPercent": "Sending {{percent}}%",
+      "uploadingProgress": "Photo upload progress",
       "sent": "Sent at {{time}}",
       "failed": "The photo could not be sent. It is still saved on the device."
     }

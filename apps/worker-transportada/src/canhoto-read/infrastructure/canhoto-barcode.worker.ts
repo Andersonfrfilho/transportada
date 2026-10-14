@@ -5,21 +5,15 @@
  * e no processo principal pararia a emissão fiscal junto. Sem rede, sem banco e **sem log**.
  */
 import { parentPort, workerData } from 'node:worker_threads'
-import { BinaryBitmap, Code128Reader, HybridBinarizer, RGBLuminanceSource } from '@zxing/library'
 
 import type { DecodeCanhotoBarcodeParams } from '../application/canhoto-barcode-decoder.port.js'
 import type { CanhotoSupportedMediaType } from '../domain/canhoto-read.constant.js'
-
-type DecodedImage = Readonly<{ data: Uint8ClampedArray; height: number; width: number }>
+import { isImageOverPixelCeiling } from '../../delivery-proof-processing/domain/image-header.policy.js'
+import { readCode128Text, type DecodedImage } from './canhoto-barcode.reader.js'
 
 type ImageDecoder = (buffer: ArrayBuffer) => Promise<DecodedImage>
 
 export type ImageDecoderLoader = (mediaType: CanhotoSupportedMediaType) => Promise<ImageDecoder>
-
-const RED_WEIGHT = 299
-const GREEN_WEIGHT = 587
-const BLUE_WEIGHT = 114
-const WEIGHT_DIVISOR = 1000
 
 /**
  * Carregar o decodificador fica **fora** do `try` da leitura: módulo ausente é falha de
@@ -37,29 +31,20 @@ function isBrokenWasmModule(error: unknown): boolean {
   return error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError
 }
 
-function toLuminance(image: DecodedImage): Uint8ClampedArray {
-  const luminance = new Uint8ClampedArray(image.width * image.height)
-  for (let index = 0, offset = 0; index < luminance.length; index += 1, offset += 4) {
-    luminance[index] =
-      ((image.data[offset] ?? 0) * RED_WEIGHT +
-        (image.data[offset + 1] ?? 0) * GREEN_WEIGHT +
-        (image.data[offset + 2] ?? 0) * BLUE_WEIGHT) /
-      WEIGHT_DIVISOR
-  }
-  return luminance
-}
-
-/** Imagem ilegível ou sem código é o mesmo fato para a rotina — "olhou e não achou" —, então vira `null`. */
+/**
+ * Imagem ilegível ou sem código é o mesmo fato para a rotina — "olhou e não achou" —, então vira `null`.
+ * Spec 265 RNF1: o cabeçalho diz as dimensões antes de qualquer pixel ser alocado; o que passa do teto
+ * de pixels (anti decompression bomb) nem chega ao decodificador — o original do motorista pode ter
+ * até 12 MiB, e a leitura do `processing_failed` passa a abri-lo.
+ */
 export async function readBarcodeText(input: {
   readonly loadDecoder: ImageDecoderLoader
   readonly params: DecodeCanhotoBarcodeParams
 }): Promise<string | null> {
+  if (isImageOverPixelCeiling(input.params.bytes, input.params.mediaType)) return null
   const decode = await input.loadDecoder(input.params.mediaType)
   try {
-    const image = await decode(input.params.bytes.buffer as ArrayBuffer)
-    const source = new RGBLuminanceSource(toLuminance(image), image.width, image.height)
-    const bitmap = new BinaryBitmap(new HybridBinarizer(source))
-    return new Code128Reader().decode(bitmap, new Map()).getText()
+    return readCode128Text(await decode(input.params.bytes.buffer as ArrayBuffer))
   } catch (error) {
     if (isBrokenWasmModule(error)) throw error
     return null

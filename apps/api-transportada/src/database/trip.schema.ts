@@ -1905,6 +1905,19 @@ export type TripDeliveryProofCanhotoReview = (typeof TRIP_DELIVERY_PROOF_CANHOTO
 export const TRIP_DELIVERY_PROOF_CANHOTO_REJECTED_REVIEW = 'rejected'
 
 /**
+ * Spec 265 RF6: o tratamento do arquivo do comprovante enviado sem redução no aparelho. Coluna
+ * anulável: `null` é "nada a tratar" e a leitura o publica como `ready`.
+ */
+export const TRIP_DELIVERY_PROOF_PROCESSING_STATES = [
+  'received',
+  'processing',
+  'ready',
+  'processing_failed',
+] as const
+export type TripDeliveryProofProcessingState =
+  (typeof TRIP_DELIVERY_PROOF_PROCESSING_STATES)[number]
+
+/**
  * Spec 220 RF26/RF27: **quem decidiu**, não como o número foi lido — o outro eixo é
  * `TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES`. Fundir os dois quebra os CHECKs: aprovação
  * `manual` tem ator e `automatic` não tem nenhum, e uma recusa (sempre manual) ainda pode
@@ -2116,8 +2129,39 @@ export const tripDeliveryProofs = pgTable(
      * Falha de infraestrutura não grava: ela merece o próximo ciclo.
      */
     canhotoReadAttemptedAt: timestamp('canhoto_read_attempted_at', { withTimezone: true }),
+    /**
+     * Spec 265 RF6: o estado do tratamento do arquivo. Nulo é o comprovante que sobe já leve (a
+     * redução aconteceu no aparelho) e todo o histórico — a leitura o publica como `ready`. Só o
+     * envio `original` grava `received`; o worker leva a `processing` e a `ready` ou
+     * `processing_failed`. Sem backfill, coluna anulável (RNF4).
+     */
+    processingState: varchar('processing_state', {
+      length: 32,
+    }).$type<TripDeliveryProofProcessingState>(),
+    /**
+     * Spec 265 RF6/RF8: o objeto do original enviado sem redução. Enquanto o worker não gera a versão
+     * leve, `object_id` aponta para o mesmo objeto (o painel mostra o original); `processing_failed`
+     * mantém os dois. Nulo depois que o original é apagado (RF8, worker).
+     */
+    originalObjectId: uuid('original_object_id'),
+    /** Spec 265 RF6: o código curto da falha do worker, só em `processing_failed`. Nunca texto de erro nem EXIF. */
+    processingError: varchar('processing_error', { length: 64 }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.companyId, table.originalObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_delivery_proofs_company_original_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('trip_delivery_proofs_company_original_idx')
+      .on(table.companyId, table.originalObjectId)
+      .where(sql`${table.originalObjectId} is not null`),
+    check(
+      'trip_delivery_proofs_processing_state_check',
+      sql`${table.processingState} is null or ${table.processingState} in (${raw(inList(TRIP_DELIVERY_PROOF_PROCESSING_STATES))})`,
+    ),
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],

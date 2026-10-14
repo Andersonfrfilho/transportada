@@ -274,7 +274,20 @@ export const CORS_MAX_AGE_SECONDS = 300
 /** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
 export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
+/**
+ * Teto do corpo das demais rotas no servidor (`Bun.serve`) — o que vale para toda rota que não tem teto
+ * próprio. O do `Bun.serve` de fato é `SERVER_REQUEST_BODY_CEILING_BYTES` (o maior de todos os tetos por
+ * rota); o corpo de cada rota é cobrado por `resolveRequestBodyLimits`, nunca só pelo servidor.
+ */
 export const SERVER_MAX_REQUEST_BODY_SIZE_BYTES = 2_097_152
+/**
+ * Spec 265 RF1: o corpo da rota `POST /me/trips/current/documents/:documentId/proof` — a única que passa
+ * de 1 MiB, porque o original da câmera (3-5 MB, até 12 MiB) sobe inteiro quando a redução no aparelho
+ * estourou o orçamento. 12 MiB de arquivo (`PROOF_ORIGINAL_MAX_BYTES`) + 128 KiB de miniatura + 128 KiB
+ * de campos e fronteiras do multipart: acima disto o 413 vem antes da rota; entre o arquivo e este teto
+ * o caso de uso responde 422 `TOO_LARGE` com o código que a tela sabe explicar.
+ */
+export const PROOF_ORIGINAL_MAX_REQUEST_BODY_SIZE_BYTES = 12 * 1_048_576 + 256 * 1_024
 /**
  * Janela ociosa do stream (SSE), não da requisição comum: o heartbeat do módulo de notificações bate
  * a cada 25s, e a conexão precisa sobreviver ao silêncio entre duas batidas.

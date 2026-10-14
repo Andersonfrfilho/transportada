@@ -19,6 +19,9 @@ export type SeedCanhotoProofInput = Readonly<{
   noteNumber: string
   noteSeries: string
   objectKey?: string
+  /** Spec 265: o objeto da linha é um original enviado sem redução (`original_object_id` aponta para ele). */
+  original?: boolean
+  processingState?: 'processing' | 'processing_failed' | 'ready' | 'received'
   sizeBytes?: number
 }>
 
@@ -121,12 +124,15 @@ export async function createCanhotoGraph(database: Database): Promise<CanhotoGra
       purpose: 'delivery_proof',
       sizeBytes: input.sizeBytes ?? 100,
     })
+    // Spec 265: o `original` nasce `received`, apontando o objeto da linha como o original.
+    const processingState = input.processingState ?? null
+    const originalObjectId = input.original === true ? objectId : null
     await database.execute(sql`
       insert into trip_delivery_proofs
         (id, company_id, stop_event_id, kind, object_id, actor_user_id, canhoto_review,
-         created_at)
+         created_at, processing_state, original_object_id)
       values (${proofId}, ${companyId}, ${stopEventId}, 'photo', ${objectId}, ${userId},
-        'pending', ${input.createdAt})
+        'pending', ${input.createdAt}, ${processingState}::varchar, ${originalObjectId}::uuid)
     `)
     return { documentId, nfeDocumentId, objectId, objectKey, proofId, stopEventId }
   }

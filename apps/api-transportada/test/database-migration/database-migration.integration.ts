@@ -9,6 +9,7 @@ import { assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
+import { assertDeliveryProofProcessing } from './delivery-proof-processing.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
 import { assertEventLocationWhatsappRollbackRefusesRecordedPoints } from './event-location-whatsapp-rollback.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
@@ -438,6 +439,14 @@ describe('Drizzle migration integration', () => {
           userId: identityFixture.userId,
         })
         await assertConversationAudioTranscribeJob(database)
+        await assertDeliveryProofProcessing({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
 
         const postIdentityRollbacks = await Promise.all(
           postIdentityDirectories

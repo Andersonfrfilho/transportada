@@ -6,7 +6,8 @@ import {
   STEP_PHOTO_REDUCE,
 } from './clientDiagnostics.constant'
 import {
-  PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
+  PROOF_PHOTO_REDUCTION_BUDGET_MS,
+  ProofPhotoReductionCancelledError,
   reduceProofPhotoToJpeg,
 } from './proofPhotoReduction.service'
 
@@ -17,7 +18,7 @@ import type { ProofPhotoReducer } from './proofPhotoRecovery.service'
  * 14/10: a redução que não termina estourava o teto em silêncio (nada nos logs); agora o estouro
  * também deixa um `send_failed` `timeout`, com o tamanho da foto.
  */
-export const reduceProofPhotoWithTiming: ProofPhotoReducer = async (file) => {
+export const reduceProofPhotoWithTiming: ProofPhotoReducer = async (file, options) => {
   const startedAt = Date.now()
   const describe = (eventKind: typeof EVENT_KIND_SEND_FAILED | typeof EVENT_KIND_STEP_TIMING) => ({
     durationMs: Date.now() - startedAt,
@@ -26,20 +27,30 @@ export const reduceProofPhotoWithTiming: ProofPhotoReducer = async (file) => {
     step: STEP_PHOTO_REDUCE,
   })
   let isSettled = false
-  const timer = setTimeout(() => {
-    if (isSettled) return
+  let hasReportedTimeout = false
+  /** Spec 265 RF9: o estouro do orçamento de 8 s vira um só `send_failed`/`timeout` (o modelo vem do User-Agent da API). */
+  const reportTimeout = () => {
+    if (hasReportedTimeout) return
+    hasReportedTimeout = true
     getDriverDiagnostics().record({
       ...describe(EVENT_KIND_SEND_FAILED),
       failureKind: 'timeout',
     })
-  }, PROOF_PHOTO_REDUCTION_TIMEOUT_MS)
+  }
+  const timer = setTimeout(() => {
+    if (!isSettled) reportTimeout()
+  }, PROOF_PHOTO_REDUCTION_BUDGET_MS)
   try {
-    const result = await reduceProofPhotoToJpeg(file)
+    const result = await reduceProofPhotoToJpeg(file, options)
     isSettled = true
     getDriverDiagnostics().record(describe(EVENT_KIND_STEP_TIMING))
     return result
   } catch (error) {
     isSettled = true
+    if (error instanceof ProofPhotoReductionCancelledError) {
+      reportTimeout()
+      throw error
+    }
     getDriverDiagnostics().record({ ...describe(EVENT_KIND_SEND_FAILED), failureKind: 'local' })
     throw error
   } finally {

@@ -24,6 +24,16 @@ const QUEUE_PREDICATE = sql`p."canhoto_review" = 'pending'
   and p."canhoto_read_attempted_at" is null`
 
 /**
+ * Spec 265 T008: o comprovante enviado sem redução (`received`/`processing`) é do trilho
+ * `delivery-proof-processing`, que lê o código de barras sobre o **original**; a rotina só entra quando
+ * o estado assentou. `null` e `ready` leem o objeto da linha (o leve); `processing_failed` mantém o
+ * original, e é ele que `coalesce(original_object_id, object_id)` entrega — a leitura nunca é sobre uma
+ * versão degradada quando o original existe.
+ */
+const PROCESSING_SETTLED_PREDICATE = sql`(p."processing_state" is null
+  or p."processing_state" in ('ready', 'processing_failed'))`
+
+/**
  * `trip_delivery_proofs` não tem `trip_id` nem `document_id`: vêm de `stop_event_id` →
  * `trip_stop_events.trip_document_id` → `trip_documents`. Objeto que não está `final` (apagado ou
  * ainda em staging) fica de fora: ele nunca será baixável e, como falha de infraestrutura não
@@ -53,9 +63,11 @@ export function buildPendingCanhotoProofsQuery(params: ListPendingCanhotoProofsP
     join trip_documents d on d."id" = e."trip_document_id" and d."company_id" = e."company_id"
     join trips t on t."id" = d."trip_id" and t."company_id" = d."company_id"
     join companies c on c."id" = p."company_id"
-    join stored_objects o on o."id" = p."object_id" and o."company_id" = p."company_id"
+    join stored_objects o
+      on o."id" = coalesce(p."original_object_id", p."object_id") and o."company_id" = p."company_id"
     where p."kind" = 'photo'
       and ${QUEUE_PREDICATE}
+      and ${PROCESSING_SETTLED_PREDICATE}
       and c."status" = 'active'
       and t."status" <> 'cancelled'
       and d."released_at" is null
