@@ -1952,3 +1952,9 @@
     transform: translate(32px, 4px) scale(0.3);
   }
 }
+
+/* Pedido do usuário (14/10): o ícone de "na fila" fica enquanto o envio não completou e sai com o "Enviada às". */
+.proofQueuedIcon {
+  color: var(--color-slate);
+  flex: none;
+}

@@ -241,7 +241,8 @@
         "photo": "Loading the receipt photo",
         "signature": "Loading the signature"
       },
-      "sending": "Sending",
+      "sending": "Sent",
+      "queuedIcon": "Queued, still sending to the server",
       "reducing": "Shrinking the photo so it sends faster",
       "reducingCountdown": "Wait {{seconds}} s: shrinking the photo",
       "reducingAlmost": "Almost done: finishing the photo",

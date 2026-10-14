@@ -33,6 +33,13 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
         <span className={styles.proofUploadSendingLine}>
           <ProofSendingThrower />
           {t('proofCapture.upload.sending')}
+          <span
+            aria-label={t('proofCapture.upload.queuedIcon')}
+            className={styles.proofQueuedIcon}
+            role="img"
+          >
+            <Icon aria-hidden="true" name="clock" size="sm" />
+          </span>
         </span>
         <span className={styles.stopMeta}>{t('proofCapture.upload.savedOnDevice')}</span>
       </div>

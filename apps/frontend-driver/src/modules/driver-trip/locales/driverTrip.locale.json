@@ -255,7 +255,8 @@
         "photo": "Carregando a foto do canhoto",
         "signature": "Carregando a assinatura"
       },
-      "sending": "Enviando",
+      "sending": "Enviado",
+      "queuedIcon": "Na fila, ainda enviando ao servidor",
       "reducing": "Reduzindo a foto para enviar mais rápido",
       "reducingCountdown": "Aguarde {{seconds}} s: reduzindo a foto",
       "reducingAlmost": "Quase pronto: finalizando a foto",
