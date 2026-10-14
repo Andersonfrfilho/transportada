@@ -37,7 +37,7 @@ import {
   type DocumentReturnActivityView,
   type TappedStopReport,
 } from '../shared/documentActivity.service'
-import { PROOF_FRAME_SIZE } from '../shared/proofUpload.constant'
+import { PROOF_PHOTO_AREA_HEIGHT } from '../shared/proofUpload.constant'
 import {
   isProofConfirmedByServer,
   resolveProofUploadObservation,
@@ -1619,7 +1619,7 @@ function ProofCaptureFields({
         className={styles.proofCaptureAttached}
         label={t(`proofCapture.upload.loading.${kind}`)}
       >
-        <Skeleton height={PROOF_FRAME_SIZE} width={PROOF_FRAME_SIZE} />
+        <Skeleton height={PROOF_PHOTO_AREA_HEIGHT} width="100%" />
       </SkeletonGroup>
     )
   }
@@ -1634,7 +1634,7 @@ function ProofCaptureFields({
     if (!attached[kind]) return kind === 'photo' && rendersPhotoCapture ? renderEmptyFrame() : null
     if (preview.previewUrl === undefined) return renderLoadingFrame(kind)
     return (
-      <div className={`${styles.proofCaptureAttached} ${styles.proofCaptureAttachedRow}`}>
+      <div className={styles.proofCaptureAttached}>
         <button
           aria-label={t('proofCapture.view')}
           className={styles.proofCaptureThumbnailButton}
@@ -1643,9 +1643,7 @@ function ProofCaptureFields({
         >
           <img
             alt={kind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')}
-            className={`${styles.proofCaptureThumbnail} ${
-              kind === 'signature' ? styles.proofCaptureThumbnailSignature : ''
-            }`}
+            className={styles.proofCaptureThumbnail}
             src={preview.previewUrl}
           />
         </button>

@@ -89,13 +89,13 @@ describe('o comprovante que o servidor já tem, sem cópia neste aparelho', () =
     const rule = STYLES.slice(STYLES.indexOf('.proofConfirmedFrame {'))
     const block = rule.slice(0, rule.indexOf('}'))
     expect(block).toInclude('width: 100%')
-    expect(block).toInclude('min-height: var(--space-16)')
     expect(block).not.toInclude('width: var(--space-16)')
 
     const thumbnailRule = STYLES.slice(STYLES.indexOf('.proofConfirmedThumbnail {'))
     const thumbnail = thumbnailRule.slice(0, thumbnailRule.indexOf('}'))
-    expect(thumbnail).toInclude('width: var(--space-16)')
-    expect(thumbnail).toInclude('height: var(--space-16)')
+    // Pedido do usuário (14/10): a área da foto é largura inteira e altura fixa, igual à vazia e à anexada.
+    expect(thumbnail).toInclude('width: 100%')
+    expect(thumbnail).toInclude('height: var(--proof-photo-area)')
   })
 
   it('o texto existe em pt-BR e en, sem hora', () => {

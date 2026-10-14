@@ -14,16 +14,15 @@ function ruleBody(selector: string): string {
 }
 
 describe('o cartão da foto não muda de altura ao anexar nem ao confirmar (pedido do usuário, 14/10)', () => {
-  it('a miniatura anexada tem quadro fixo, igual ao da foto confirmada, e não cresce com a proporção da foto', () => {
+  it('a miniatura ocupa a largura toda numa altura fixa, a mesma da moldura vazia e da confirmada', () => {
     const thumbnail = ruleBody('.proofCaptureThumbnail')
-    expect(thumbnail).toContain('height: var(--space-16)')
-    expect(thumbnail).toContain('width: var(--space-16)')
+    expect(thumbnail).toContain('height: var(--proof-photo-area)')
+    expect(thumbnail).toContain('width: 100%')
+    expect(thumbnail).toContain('object-fit: contain')
     expect(thumbnail).not.toContain('height: auto')
-    expect(thumbnail).not.toContain('width: 100%')
-  })
-
-  it('vazio, anexado e confirmado reservam a mesma altura mínima', () => {
-    expect(ruleBody('.proofCaptureAttached')).toContain('min-height: calc(')
+    expect(ruleBody('.proofConfirmedThumbnail')).toContain('height: var(--proof-photo-area)')
+    expect(ruleBody('.proofEmptyFrame')).toContain('min-height: var(--proof-photo-area)')
+    expect(ruleBody('.proofCaptureAttached')).toContain('--proof-photo-area:')
   })
 
   it('o foco do nome do recebedor não rola a tela', () => {
