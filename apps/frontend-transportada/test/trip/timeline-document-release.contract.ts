@@ -82,7 +82,7 @@ describe('a retirada de nota na linha do tempo', () => {
 
   it('o título nomeia a nota', () => {
     expect(resolveTripTimelineTitle(RELEASED_ITEM as TripTimelineItem, translate)).toBe(
-      'eventTimeline.itemTitle.documentReleased(document=eventTimeline.itemTitle.documentLabel(number=907064,series=2))',
+      'eventTimeline.itemTitle.documentReleased(document=eventTimeline.itemTitle.documentLabel(invoice=907064/2))',
     )
   })
 

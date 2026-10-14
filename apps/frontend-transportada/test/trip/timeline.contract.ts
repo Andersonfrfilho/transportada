@@ -370,12 +370,13 @@ describe('vocabulário da spec 228 na linha do tempo', () => {
 
   it('recusa addressChange em qualquer kind que não seja o do endereço', () => {
     const addressChange = { displacementMeters: 45, origin: 'operator' }
-    /** `crew_transfer` (249) e `documents_added` (257) levam a própria chave obrigatória: o controle sem chave não vale para eles. */
+    /** `crew_transfer` (249), `documents_added` (257) e `document.released` levam a própria chave obrigatória: o controle sem chave não vale para eles. */
     for (const kind of TRIP_TIMELINE_KINDS.filter(
       (candidate) =>
         candidate !== 'stop.address_corrected' &&
         candidate !== 'crew_transfer' &&
-        candidate !== 'documents_added',
+        candidate !== 'documents_added' &&
+        candidate !== 'document.released',
     )) {
       expect(() =>
         adapters.tripTimelineFromApi({
