@@ -87,7 +87,7 @@ async function readBrand(input: {
       contactEmail: readText(data?.contactEmail),
       contactPhone: readText(data?.contactPhone),
       logoUrl: `${baseUrl}${PUBLIC_LOGO_PATH}`,
-      name: readText(data?.brandName) ?? readOwnTradeName(data),
+      name: readOwnDisplayName(data) ?? readText(data?.brandName) ?? readOwnTradeName(data),
     }
   } catch {
     return input.fallback
@@ -99,6 +99,13 @@ async function readBrand(input: {
  * nome da transportadora chega no mesmo corpo, em `units[]`, vindo do cadastro de empresa — a
  * primeira unidade é a própria quando o grupo tem mais de um CNPJ.
  */
+function readOwnDisplayName(data: Record<string, unknown> | undefined): string | undefined {
+  const units: unknown = data?.units
+  if (!Array.isArray(units)) return undefined
+  const own: unknown = units[0]
+  return isRecord(own) ? readText(own.displayName) : undefined
+}
+
 function readOwnTradeName(data: Record<string, unknown> | undefined): string | undefined {
   const units: unknown = data?.units
   if (!Array.isArray(units)) return undefined
