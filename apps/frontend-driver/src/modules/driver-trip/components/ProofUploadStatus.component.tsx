@@ -77,10 +77,18 @@ function ProofReducingCountdown() {
   return (
     <div className={styles.proofUploadSending} role="status">
       <span className={styles.proofUploadSendingLine}>
-        <span aria-hidden="true" className={styles.syncStatusSpinner} />
+        <span aria-hidden="true" className={styles.proofReducingIcon}>
+          <Icon name="camera" size="sm" />
+        </span>
         {secondsLeft > 0
           ? t('proofCapture.upload.reducingCountdown', { seconds: secondsLeft })
           : t('proofCapture.upload.reducingAlmost')}
+      </span>
+      <span aria-hidden="true" className={styles.proofReducingTrack}>
+        <span
+          className={styles.proofReducingFill}
+          style={{ animationDuration: `${PROOF_PHOTO_REDUCTION_TIMEOUT_MS}ms` }}
+        />
       </span>
       <span className={styles.stopMeta}>{t('proofCapture.upload.reducingHint')}</span>
     </div>

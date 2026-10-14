@@ -21,6 +21,7 @@ import {
   PROOF_PHOTO_MAX_BYTES,
   PROOF_PHOTO_MAX_SIDE,
   PROOF_PHOTO_TARGET_BYTES,
+  resolveProofPhotoStartQuality,
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
 import { resolveRejectionCauseLabelKey } from '@/modules/driver-trip/shared/rejectionCauseLabel.service'
 
@@ -100,6 +101,17 @@ async function drain(attachmentStore: AttachmentStore, only?: string) {
   })
   return sent
 }
+
+describe('a qualidade da redução se ajusta ao tempo medido no aparelho', () => {
+  it('sem medida começa em 0,9 e desce por faixas até 0,5 conforme o tempo', () => {
+    expect(resolveProofPhotoStartQuality(undefined)).toBe(0.9)
+    expect(resolveProofPhotoStartQuality(2_999)).toBe(0.9)
+    expect(resolveProofPhotoStartQuality(3_000)).toBe(0.85)
+    expect(resolveProofPhotoStartQuality(5_000)).toBe(0.7)
+    expect(resolveProofPhotoStartQuality(8_000)).toBe(0.6)
+    expect(resolveProofPhotoStartQuality(10_600)).toBe(0.5)
+  })
+})
 
 describe('o canhoto cabe no teto do servidor (spec 212)', () => {
   it('lado de 2000 px, alvo de ~900 KiB e teto duro de 960 KiB — o do escritório', () => {

@@ -1796,3 +1796,62 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/*
+ * Pedido do usuário (14/10): a redução da foto ganha uma animação própria — o ícone da câmera
+ * encolhe pulsando (a foto "apertando") e a barra enche até o teto da redução. Parado, sem
+ * animação, quem pediu movimento reduzido ainda vê o ícone e a barra no estado inicial.
+ */
+.proofReducingIcon {
+  align-items: center;
+  color: var(--color-copper);
+  display: inline-flex;
+  flex: none;
+}
+
+.proofReducingTrack {
+  background: color-mix(in srgb, currentcolor 15%, transparent);
+  border-radius: 999px;
+  display: block;
+  height: var(--space-1);
+  overflow: hidden;
+  width: 100%;
+}
+
+.proofReducingFill {
+  background: var(--color-copper);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proofReducingIcon {
+    animation: driver-proof-reducing-squeeze 1s ease-in-out infinite;
+  }
+
+  .proofReducingFill {
+    animation: driver-proof-reducing-fill linear forwards;
+  }
+}
+
+@keyframes driver-proof-reducing-squeeze {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes driver-proof-reducing-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
