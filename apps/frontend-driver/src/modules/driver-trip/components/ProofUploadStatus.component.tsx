@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { ProofReducingMallet } from './ProofReducingMallet.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
 import { PROOF_PHOTO_REDUCTION_TIMEOUT_MS } from '../shared/proofPhotoReduction.service'
 import { PROOF_SENDING_BAR_HEIGHT, PROOF_SENDING_BAR_WIDTH } from '../shared/proofUpload.constant'
@@ -77,9 +78,7 @@ function ProofReducingCountdown() {
   return (
     <div className={styles.proofUploadSending} role="status">
       <span className={styles.proofUploadSendingLine}>
-        <span aria-hidden="true" className={styles.proofReducingIcon}>
-          <Icon name="camera" size="sm" />
-        </span>
+        <ProofReducingMallet />
         {secondsLeft > 0
           ? t('proofCapture.upload.reducingCountdown', { seconds: secondsLeft })
           : t('proofCapture.upload.reducingAlmost')}

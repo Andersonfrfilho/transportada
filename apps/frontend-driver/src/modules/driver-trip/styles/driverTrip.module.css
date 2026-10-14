@@ -1798,15 +1798,24 @@
 }
 
 /*
- * Pedido do usuário (14/10): a redução da foto ganha uma animação própria — o ícone da câmera
- * encolhe pulsando (a foto "apertando") e a barra enche até o teto da redução. Parado, sem
- * animação, quem pediu movimento reduzido ainda vê o ícone e a barra no estado inicial.
+ * Pedido do usuário (14/10): a redução da foto ganha uma animação própria — um bonequinho marreta
+ * a foto, que amassa a cada pancada, e a barra enche até o teto da redução. Quem pediu movimento
+ * reduzido vê o desenho e a barra parados.
  */
-.proofReducingIcon {
-  align-items: center;
-  color: var(--color-copper);
-  display: inline-flex;
+.proofMallet {
+  color: var(--color-slate);
+  display: block;
   flex: none;
+}
+
+.proofMalletArm {
+  transform-box: view-box;
+  transform-origin: 14px 20px;
+}
+
+.proofMalletPhoto {
+  transform-box: fill-box;
+  transform-origin: center bottom;
 }
 
 .proofReducingTrack {
@@ -1828,8 +1837,12 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .proofReducingIcon {
-    animation: driver-proof-reducing-squeeze 1s ease-in-out infinite;
+  .proofMalletArm {
+    animation: driver-proof-mallet-swing 0.7s ease-in infinite;
+  }
+
+  .proofMalletPhoto {
+    animation: driver-proof-mallet-squash 0.7s ease-in infinite;
   }
 
   .proofReducingFill {
@@ -1837,16 +1850,34 @@
   }
 }
 
-@keyframes driver-proof-reducing-squeeze {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
+@keyframes driver-proof-mallet-swing {
+  0% {
+    transform: rotate(-55deg);
   }
 
-  50% {
-    opacity: 0.6;
-    transform: scale(0.7);
+  60%,
+  72% {
+    transform: rotate(40deg);
+  }
+
+  100% {
+    transform: rotate(-55deg);
+  }
+}
+
+@keyframes driver-proof-mallet-squash {
+  0%,
+  55%,
+  100% {
+    transform: scale(1, 1);
+  }
+
+  65% {
+    transform: scale(1.12, 0.7);
+  }
+
+  80% {
+    transform: scale(0.98, 1.04);
   }
 }
 
