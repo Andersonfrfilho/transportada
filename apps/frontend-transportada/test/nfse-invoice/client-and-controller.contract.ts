@@ -179,6 +179,29 @@ describe('nfse invoice client contract', () => {
     })
   })
 
+  /** Regressão: o corpo é montado campo a campo e `period` ficava de fora, então `{{periodo}}` saía vazio. */
+  test('sends the typed service period on preview and create, and omits it when blank', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    await client.previewInvoices({ ...SELECTION_BODY, period: '05/10/2026 a 09/10/2026' })
+    await client.createInvoices({
+      ...SELECTION_BODY,
+      idempotencyKey: SYNTHETIC_IDEMPOTENCY_KEY,
+      period: '05/10/2026 a 09/10/2026',
+    })
+    await client.previewInvoices(SELECTION_BODY)
+
+    const [preview, create, blank] = requests
+    if (preview === undefined || create === undefined || blank === undefined) {
+      throw new Error('NFSE_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(await preview.json()).toMatchObject({ period: '05/10/2026 a 09/10/2026' })
+    expect(await create.json()).toMatchObject({ period: '05/10/2026 a 09/10/2026' })
+    expect(await blank.json()).not.toHaveProperty('period')
+  })
+
   /** O documento fiscal sai por URL assinada: a resposta é o link, nunca os bytes do XML. */
   test('asks for the signed xml and pdf links instead of the fiscal bytes', async () => {
     const requests: Request[] = []
@@ -580,6 +603,7 @@ function createStubClient(calls: string[]): InvoiceClient {
 type SelectionInput = Readonly<{
   descriptionTemplate?: string
   documentIds: readonly string[]
+  period?: string
   profileId: string
 }>
 
