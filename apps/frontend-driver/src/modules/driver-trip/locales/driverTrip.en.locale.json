@@ -242,6 +242,10 @@
         "signature": "Loading the signature"
       },
       "sending": "Sending",
+      "reducing": "Shrinking the photo so it sends faster",
+      "reducingCountdown": "Wait {{seconds}} s: shrinking the photo",
+      "reducingAlmost": "Almost done: finishing the photo",
+      "reducingHint": "You can keep going and confirm: the photo stays queued and goes on its own.",
       "savedOnDevice": "The photo is saved on the device and keeps going even without signal.",
       "sent": "Sent at {{time}}",
       "failed": "The photo could not be sent. It is still saved on the device."

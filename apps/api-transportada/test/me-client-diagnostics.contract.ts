@@ -136,6 +136,25 @@ describe('rota de diagnóstico do cliente do motorista (spec 254 RF6/RF7)', () =
     expect(logs[1]?.metadata).toMatchObject({ durationMs: 1_840, step: 'baixa_total' })
   })
 
+  test('o modelo do aparelho vem do User-Agent da requisição e vai ao log, truncado', async () => {
+    const harness = await buildHarness()
+    const userAgent = `Mozilla/5.0 (Linux; Android 12; SM-A125M) ${'x'.repeat(300)}`
+    const base = post({ events: [VALID_EVENT] })
+    const request = new Request(base.url, {
+      body: await base.text(),
+      headers: { ...Object.fromEntries(base.headers), 'user-agent': userAgent },
+      method: 'POST',
+    })
+
+    const response = await harness.handle(request)
+
+    expect(response.status).toBe(204)
+    const logged = (harness.diagnosticLogs()[0]?.metadata as { device?: { userAgent?: string } })
+      .device?.userAgent
+    expect(logged?.startsWith('Mozilla/5.0 (Linux; Android 12; SM-A125M)')).toBe(true)
+    expect(logged?.length).toBe(200)
+  })
+
   test('falha local do aparelho (foto que não reduz) é aceita e registrada', async () => {
     const harness = await buildHarness()
 

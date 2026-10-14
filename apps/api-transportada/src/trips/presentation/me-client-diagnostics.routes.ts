@@ -97,7 +97,10 @@ const bodySchema = z
   })
   .strict()
 
-type ClientDiagnosticsBody = z.infer<typeof bodySchema>
+type ClientDiagnosticsBody = z.infer<typeof bodySchema> & {
+  /** Do cabeçalho `User-Agent`: é dele que sai o modelo do aparelho, que o app não manda. */
+  readonly userAgent?: string | undefined
+}
 
 export type MeClientDiagnosticsDependencies = { readonly logger: ApiLogger }
 
@@ -129,12 +132,16 @@ export function createMeClientDiagnosticsRoutes(
           device: input.device,
           events: input.events,
           membershipId: context.scope.membershipId,
+          userAgent: input.userAgent,
         })
 
         return Promise.resolve(new Response(null, { status: 204 }))
       },
       method: 'POST',
-      parse: async ({ request }) => parseDiagnosticsBody(request),
+      parse: async ({ request }) => ({
+        ...(await parseDiagnosticsBody(request)),
+        userAgent: request.headers.get('user-agent') ?? undefined,
+      }),
       pathname: API_ME_CLIENT_DIAGNOSTICS_PATH,
       policy: REPORT_POLICY,
       rateLimit: CLIENT_DIAGNOSTICS_RATE_LIMIT,

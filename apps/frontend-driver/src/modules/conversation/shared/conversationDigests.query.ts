@@ -25,6 +25,8 @@ export function conversationDigestsQueryOptions(canSync: boolean) {
     enabled: canSync,
     queryFn: fetchConversationDigests,
     queryKey: UNREAD_CONVERSATIONS_QUERY_KEY,
+    /** O selo é opcional: se a lista falhar, não repete em rajada nem segura o app — o próximo ciclo tenta de novo. */
+    retry: false,
     staleTime: CONVERSATION_DIGESTS_STALE_TIME_MS,
   }
 }

@@ -39,7 +39,7 @@ describe('o envio do canhoto tem estado visível (defeito 2)', () => {
       kind: 'photo',
       queueView: [queueItem()],
     })
-    expect(observation).toEqual({ isQueued: true, isRejected: false })
+    expect(observation).toEqual({ isQueued: true, isReducing: false, isRejected: false })
   })
 
   it('foto de outra nota ou de outro tipo não conta', () => {
@@ -162,5 +162,56 @@ describe('o envio do canhoto tem estado visível (defeito 2)', () => {
     expect(trackProofUpload({ now: LATER, observation: removed, previous: first })).toEqual(
       INITIAL_PROOF_UPLOAD_TRACKER,
     )
+  })
+
+  it('fila vazia, nunca vista na fila e o servidor já tem a foto: enviada, não "enviando"', () => {
+    const observation = {
+      isAttached: true,
+      isConfirmedByServer: true,
+      isQueued: false,
+      isRejected: false,
+    }
+    expect(resolveProofUploadStatus({ observation, tracker: INITIAL_PROOF_UPLOAD_TRACKER })).toBe(
+      'sent',
+    )
+  })
+
+  it('fila vazia sem confirmação do servidor continua enviando', () => {
+    const observation = {
+      isAttached: true,
+      isConfirmedByServer: false,
+      isQueued: false,
+      isRejected: false,
+    }
+    expect(resolveProofUploadStatus({ observation, tracker: INITIAL_PROOF_UPLOAD_TRACKER })).toBe(
+      'uploading',
+    )
+  })
+
+  it('foto na fila ainda reduzindo: avisa que está reduzindo, sem travar', () => {
+    const observation = resolveProofUploadObservation({
+      documentId: DOCUMENT_ID,
+      kind: 'photo',
+      queueView: [
+        queueItem({
+          proofAttachments: [
+            {
+              attachmentKey: 'attachment-1',
+              blob: new Blob(['x']),
+              documentId: DOCUMENT_ID,
+              isReducing: true,
+              kind: 'photo',
+            },
+          ],
+        }),
+      ],
+    })
+    expect(observation.isReducing).toBe(true)
+    expect(
+      resolveProofUploadStatus({
+        observation: { isAttached: true, ...observation },
+        tracker: INITIAL_PROOF_UPLOAD_TRACKER,
+      }),
+    ).toBe('reducing')
   })
 })

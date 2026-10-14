@@ -1285,6 +1285,13 @@ function ProofCaptureFields({
   const previewByKind = { photo: photoPreview, signature: signaturePreview }
   const photoUpload = useProofUploadStatus({
     isAttached: attached.photo,
+    isConfirmedByServer: isProofConfirmedByServer({
+      hasLocalAttachment: false,
+      isDelivered: serverProof?.isDelivered ?? false,
+      isRequired: plan.fields.photo === 'required',
+      kind: 'photo',
+      proofPending: serverProof?.proofPending ?? true,
+    }),
     ...resolveProofUploadObservation({ documentId, kind: 'photo', queueView }),
   })
   const isPhotoConfirmedByServer = isProofConfirmedByServer({
