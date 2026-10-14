@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { driverClockOffset } from '../shared/clockOffset.service'
+import { proofProgressKey, proofUploadProgress } from '../shared/proofUploadProgress.service'
 import {
   getDriverDiagnostics,
   getDriverTripClient,
@@ -418,9 +419,15 @@ export function useDriverTrip(
           }
         },
         sendAttachment: async (attachment: QueuedAttachment): Promise<AttachmentSendOutcome> => {
+          const progressKey = proofProgressKey({
+            documentId: attachment.documentId,
+            kind: attachment.kind,
+          })
+          proofUploadProgress.begin(progressKey)
           try {
             const result = await client.attachProof({
               attachmentKey: attachment.attachmentKey,
+              onUploadProgress: (progress) => proofUploadProgress.report(progressKey, progress),
               capturedAt: attachment.capturedAt,
               ...(attachment.clockOffsetMs === undefined
                 ? {}
@@ -471,8 +478,10 @@ export function useDriverTrip(
                 subHash: session.subHash,
               }).catch(() => undefined)
             }
+            proofUploadProgress.accepted(progressKey, result.processingState)
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
+            proofUploadProgress.clear(progressKey)
             return toAttachmentSendOutcome(error)
           }
         },

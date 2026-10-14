@@ -3,12 +3,15 @@ import type { AttachmentStore, QueuedAttachment } from './offlineAttachments.ser
 import {
   clearPendingReduction,
   needsProofPhotoReduction,
-  PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
+  PROOF_PHOTO_REDUCTION_BUDGET_MS,
   replaceAttachmentBlob,
   type ReducedProofPhoto,
 } from './proofPhotoReduction.service'
 
-export type ProofPhotoReducer = (file: File) => Promise<ReducedProofPhoto>
+export type ProofPhotoReducer = (
+  file: File,
+  options?: { readonly signal?: AbortSignal },
+) => Promise<ReducedProofPhoto>
 
 /** As reduções em voo, pela `attachmentKey` — vive na memória do hook, uma por instância. */
 export type ProofPhotoReductions = Map<string, Promise<void>>
@@ -18,7 +21,7 @@ type ReduceQueuedProofPhotoInput = Readonly<{
   attachmentStore: AttachmentStore
   eventKey: string
   reduce: ProofPhotoReducer
-  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_TIMEOUT_MS`. */
+  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_BUDGET_MS` (8 s). */
   reductionTimeoutMs?: number
   reductions: ProofPhotoReductions
 }>
@@ -29,14 +32,16 @@ type ReduceQueuedProofPhotoInput = Readonly<{
  */
 export async function settleReductionWithinTimeout(input: {
   readonly reduction: Promise<ReducedProofPhoto>
+  /** Spec 265: chamado ao estourar o orçamento — cancela a redução que segue rodando. */
+  readonly onTimeout?: () => void
   readonly timeoutMs?: number
 }): Promise<ReducedProofPhoto | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const expiry = new Promise<undefined>((resolve) => {
-    timer = setTimeout(
-      () => resolve(undefined),
-      input.timeoutMs ?? PROOF_PHOTO_REDUCTION_TIMEOUT_MS,
-    )
+    timer = setTimeout(() => {
+      input.onTimeout?.()
+      resolve(undefined)
+    }, input.timeoutMs ?? PROOF_PHOTO_REDUCTION_BUDGET_MS)
   })
 
   try {
@@ -49,8 +54,10 @@ export async function settleReductionWithinTimeout(input: {
 async function runReduction(input: ReduceQueuedProofPhotoInput): Promise<void> {
   const { attachment } = input
   const source = new File([attachment.blob], attachment.fileName, { type: attachment.blob.type })
+  const controller = new AbortController()
   const reduced = await settleReductionWithinTimeout({
-    reduction: input.reduce(source),
+    onTimeout: () => controller.abort(),
+    reduction: input.reduce(source, { signal: controller.signal }),
     ...(input.reductionTimeoutMs === undefined ? {} : { timeoutMs: input.reductionTimeoutMs }),
   })
   const replacement =
@@ -93,7 +100,7 @@ export function reduceQueuedProofPhoto(input: ReduceQueuedProofPhotoInput): Prom
 export async function recoverQueuedProofPhotos(input: {
   readonly attachmentStore: AttachmentStore
   readonly reduce: ProofPhotoReducer
-  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_TIMEOUT_MS`. */
+  /** Só o teste aperta o teto; em produção vale `PROOF_PHOTO_REDUCTION_BUDGET_MS` (8 s). */
   readonly reductionTimeoutMs?: number
   readonly reductions: ProofPhotoReductions
 }): Promise<number> {

@@ -11,7 +11,7 @@ export const PROOF_PHOTO_TARGET_BYTES = 900 * 1024
 /**
  * Pedido do usuário (14/10): a qualidade acompanha o tempo que a redução anterior levou neste
  * aparelho. Rápido (sem medida ainda, ou menos de 3 s) fica em 0,9; depois desce por faixas até 0,5
- * (o piso de legibilidade), para o aparelho lento não arriscar o teto de 20 s. Cada degrau do
+ * (o piso de legibilidade), para o aparelho lento não arriscar o orçamento de 8 s (spec 265). Cada degrau do
  * `toBlob` é caro em aparelho fraco, por isso a faixa lenta já começa baixa.
  */
 export const PROOF_PHOTO_QUALITY_BANDS: readonly Readonly<{
@@ -55,6 +55,28 @@ function rememberReductionDuration(durationMs: number): void {
  * em 1 MiB (413 antes da rota), e acima de 960 KiB o arquivo volta 422 `TOO_LARGE`.
  */
 export const PROOF_PHOTO_MAX_BYTES = 960 * 1024
+/**
+ * Spec 265 RF3/RF1: cópia por valor de `PROOF_ORIGINAL_MAX_BYTES` da API (ADR-0075 §7) — o teto do
+ * **original** que sobe sem redução com `variant = 'original'`. Acima dele a API recusa 422
+ * `TRIP_DELIVERY_PROOF_TOO_LARGE`; o app recusa antes, sem gastar dados. A paridade é vigiada por
+ * `test/driver-trip/proof-original-parity.contract.ts`.
+ */
+export const PROOF_ORIGINAL_MAX_BYTES = 12 * 1024 * 1024
+export const PROOF_UPLOAD_VARIANTS = ['reduced', 'original'] as const
+export type ProofUploadVariant = (typeof PROOF_UPLOAD_VARIANTS)[number]
+
+/**
+ * Spec 265 RF3: a variante que o multipart declara. Foto (ou mercadoria) acima do teto leve sobe como
+ * `original`; a que coube sobe como `reduced`. Assinatura e PDF não passam pela redução: sem variante.
+ */
+export function resolveProofUploadVariant(input: {
+  readonly file: Blob
+  readonly kind: string
+}): ProofUploadVariant | undefined {
+  if (!shouldReduceProofFile(input)) return undefined
+  return input.file.size > PROOF_PHOTO_MAX_BYTES ? 'original' : 'reduced'
+}
+
 /** Acima do teto mesmo no piso de qualidade, o lado cai 20% por tentativa, até um canhoto legível. */
 const PROOF_PHOTO_SIDE_STEP = 0.8
 const PROOF_PHOTO_MINIMUM_SIDE = 640
@@ -66,13 +88,22 @@ export const PROOF_THUMBNAIL_MAX_BYTES = 128 * 1024
 /** O corpo inteiro da API para em 1 MiB: original + miniatura acima disto voltaria 413 e prenderia a foto. */
 const PROOF_REQUEST_FILES_BUDGET_BYTES = 1000 * 1024
 /**
- * Defeito medido em produção (01/10): a redução depende de `Image.onload` e `canvas.toBlob`, e
- * nenhuma das duas promete assentar — blob que o navegador não decodifica deixa a promise pendente
- * para sempre. Sem teto, `pendingReduction` nunca sai e a drenagem pula o anexo em toda volta
- * (`offlineAttachments.service.ts`): a foto fica em "enviando" para sempre, sem erro nem
- * retentativa. Estourar o teto é tratado como falha — a marca sai e o original sobe como está.
+ * Spec 265 RF9 (decisão de 14/10): o orçamento da redução é **8 s, fixo**. Defeito medido em produção
+ * (01/10 e 14/10): a redução depende de `Image.onload` e `canvas.toBlob`, e em aparelho fraco (SM-A125M:
+ * 10,6 s) ou com blob que o navegador não decodifica ela não assenta. Estourar o orçamento abandona a
+ * redução (cancela entre os degraus) e o ORIGINAL sobe com `variant = 'original'`, até 12 MiB.
  */
-export const PROOF_PHOTO_REDUCTION_TIMEOUT_MS = 20_000
+export const PROOF_PHOTO_REDUCTION_BUDGET_MS = 8_000
+/** Nome antigo (teto de 20 s): mantido como alias para quem ainda importa; vale o orçamento. */
+export const PROOF_PHOTO_REDUCTION_TIMEOUT_MS = PROOF_PHOTO_REDUCTION_BUDGET_MS
+
+/** A redução abandonada: o chamador cancelou (orçamento estourado) e o degrau seguinte não roda. */
+export class ProofPhotoReductionCancelledError extends Error {
+  constructor() {
+    super('PROOF_PHOTO_REDUCTION_CANCELLED')
+    this.name = 'ProofPhotoReductionCancelledError'
+  }
+}
 
 /**
  * Pedido do usuário (14/10): a redução mostra porcentagem. É estimativa pelo tempo gasto contra o
@@ -83,7 +114,7 @@ export function resolveProofReductionPercent(input: {
   readonly elapsedMs: number
   readonly timeoutMs?: number
 }): number {
-  const timeoutMs = input.timeoutMs ?? PROOF_PHOTO_REDUCTION_TIMEOUT_MS
+  const timeoutMs = input.timeoutMs ?? PROOF_PHOTO_REDUCTION_BUDGET_MS
   const raw = Math.floor((Math.max(0, input.elapsedMs) / timeoutMs) * 100)
   return Math.min(99, raw)
 }
@@ -121,9 +152,12 @@ export function buildProofPhotoSideSequence(): readonly number[] {
  */
 export async function fitProofPhotoWithinCap(input: {
   readonly encode: (maxSide: number) => Promise<Blob>
+  /** Spec 265 RF9: orçamento estourado — o próximo degrau (caro) não roda. */
+  readonly signal?: AbortSignal
 }): Promise<Blob> {
   let smallest: Blob | undefined
   for (const side of buildProofPhotoSideSequence()) {
+    if (input.signal?.aborted === true) throw new ProofPhotoReductionCancelledError()
     const blob = await input.encode(side)
     if (smallest === undefined || blob.size < smallest.size) smallest = blob
     if (blob.size <= PROOF_PHOTO_MAX_BYTES) return blob
@@ -151,11 +185,39 @@ export async function buildProofPhotoWithThumbnail(input: {
 }
 
 /** Impura: decodifica uma vez e reencoda pelo canvas, que descarta o EXIF (e o GPS) sozinho. */
-export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPhoto> {
+export async function reduceProofPhotoToJpeg(
+  file: File,
+  options: { readonly signal?: AbortSignal } = {},
+): Promise<ReducedProofPhoto> {
   const startedAt = Date.now()
+  const { signal } = options
   const startQuality = resolveProofPhotoStartQuality(readLastReductionDuration())
+  try {
+    return await reduceWithin({ file, signal, startQuality })
+  } catch (error) {
+    /** Abandonada por orçamento: a medida vira o orçamento, e a próxima foto sai em faixa mais baixa. */
+    if (error instanceof ProofPhotoReductionCancelledError) {
+      rememberReductionDuration(Math.max(Date.now() - startedAt, PROOF_PHOTO_REDUCTION_BUDGET_MS))
+    }
+    throw error
+  }
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new ProofPhotoReductionCancelledError()
+}
+
+async function reduceWithin(input: {
+  readonly file: File
+  readonly signal: AbortSignal | undefined
+  readonly startQuality: number
+}): Promise<ReducedProofPhoto> {
+  const { file, signal, startQuality } = input
+  const startedAt = Date.now()
   const image = await loadImageFromFile(file)
+  throwIfCancelled(signal)
   const blob = await fitProofPhotoWithinCap({
+    ...(signal === undefined ? {} : { signal }),
     encode: (maxSide) =>
       encodeImageToJpeg({
         image,
@@ -164,6 +226,7 @@ export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPh
         targetBytes: PROOF_PHOTO_TARGET_BYTES,
       }),
   })
+  throwIfCancelled(signal)
   const { original, thumbnail } = await buildProofPhotoWithThumbnail({
     encodeThumbnail: (maxSide) =>
       encodeImageToJpeg({
@@ -190,6 +253,8 @@ export async function reduceProofPhotoToJpeg(file: File): Promise<ReducedProofPh
  */
 export function needsProofPhotoReduction(attachment: QueuedAttachment): boolean {
   if (!shouldReduceProofFile({ file: attachment.blob, kind: attachment.kind })) return false
+  /** Spec 265: a redução abandonada por orçamento não volta a gastar 8 s a cada drenagem — o original sobe. */
+  if (attachment.reductionAbandoned === true) return false
   return attachment.pendingReduction === true || attachment.blob.size > PROOF_PHOTO_MAX_BYTES
 }
 
@@ -201,6 +266,7 @@ function withoutReductionMarks(input: {
     ...input.item,
   }
   delete next.pendingReduction
+  if (input.isReplaced) delete next.reductionAbandoned
   /** O arquivo trocado é outro: a recusa era do anterior, e a drenagem automática volta a levá-lo. */
   if (input.isReplaced) delete next.rejectionCause
   /** A miniatura velha é do arquivo que saiu: a troca traz a nova, ou fica sem. */
@@ -231,14 +297,17 @@ export function replaceAttachmentBlob(input: {
   })
 }
 
-/** A redução falhou ou não ganhou nada: tira a marca, e o original sobe como está. */
+/**
+ * A redução falhou, estourou o orçamento ou não ganhou nada: tira a marca, e o original sobe como está
+ * (spec 265: com `variant = 'original'`). `reductionAbandoned` impede nova tentativa a cada drenagem.
+ */
 export function clearPendingReduction(input: {
   attachmentKey: string
   items: readonly QueuedAttachment[]
 }): readonly QueuedAttachment[] {
   return input.items.map((item) =>
     item.attachmentKey === input.attachmentKey
-      ? withoutReductionMarks({ isReplaced: false, item })
+      ? { ...withoutReductionMarks({ isReplaced: false, item }), reductionAbandoned: true as const }
       : item,
   )
 }

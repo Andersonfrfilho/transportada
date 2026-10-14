@@ -482,3 +482,14 @@ Detalhe: `docs/ai-context/frontend-driver.md` § "Spec 252".
   PREENCHE, nunca envia (pacote). Demo API: `GET` da rota com 4 textos e `POST /__debug/conversations/quick-replies`
   `{texts: string[], status?: 409|500}` (zera/troca/falha; `reset` restaura). Teste: `test/conversation/driver-quick-replies.contract.ts`,
   smoke "respostas prontas".
+
+## O comprovante sobe sem esperar a compressão (spec 265, T010)
+
+Orçamento da redução: **8 s fixos** (`PROOF_PHOTO_REDUCTION_BUDGET_MS`; `..._TIMEOUT_MS` é só alias). Estourou, a redução é cancelada entre os degraus
+(`AbortSignal`), o anexo ganha `reductionAbandoned` (a varredura não gasta mais 8 s a cada drenagem) e o ORIGINAL sobe com `variant=original`
+(`resolveProofUploadVariant`: acima de 960 KiB é `original`, senão `reduced`; assinatura/PDF não declaram). Teto do original 12 MiB
+(`PROOF_ORIGINAL_MAX_BYTES`, cópia por valor da API): acima, `attachProof` lança 422 `TRIP_DELIVERY_PROOF_TOO_LARGE` sem abrir conexão. A barra de subida é
+**real** (`XMLHttpRequest.upload.onprogress`, só no multipart do comprovante; `createXhr` nas dependências do cliente, sem ele/sem callback vai por `fetch`),
+guardada em `proofUploadProgress.service.ts` e lida por `useProofUploadStatus`. `processingState` `received`/`processing` na resposta mostra "Enviado, processando";
+sem o campo nada muda. Diagnóstico do upload: `step_timing`/`send_failed` em `upload_put` com `reportKind: 'proof'`, `photoBytes` (total) e `durationMs`;
+o modelo vem do `User-Agent` da API. Publicar depois da API (ADR-0081 §9). `test/driver-trip/proof-original-budget.contract.ts`, `proof-upload-progress.contract.ts`, `proof-original-parity.contract.ts`.
