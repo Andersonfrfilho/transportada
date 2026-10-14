@@ -163,4 +163,28 @@ describe('o envio do canhoto tem estado visível (defeito 2)', () => {
       INITIAL_PROOF_UPLOAD_TRACKER,
     )
   })
+
+  it('fila vazia, nunca vista na fila e o servidor já tem a foto: enviada, não "enviando"', () => {
+    const observation = {
+      isAttached: true,
+      isConfirmedByServer: true,
+      isQueued: false,
+      isRejected: false,
+    }
+    expect(resolveProofUploadStatus({ observation, tracker: INITIAL_PROOF_UPLOAD_TRACKER })).toBe(
+      'sent',
+    )
+  })
+
+  it('fila vazia sem confirmação do servidor continua enviando', () => {
+    const observation = {
+      isAttached: true,
+      isConfirmedByServer: false,
+      isQueued: false,
+      isRejected: false,
+    }
+    expect(resolveProofUploadStatus({ observation, tracker: INITIAL_PROOF_UPLOAD_TRACKER })).toBe(
+      'uploading',
+    )
+  })
 })
