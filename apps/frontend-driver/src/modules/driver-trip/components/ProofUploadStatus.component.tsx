@@ -84,11 +84,11 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
           )}
           {t('proofCapture.upload.queuedTitle')}
         </span>
+        {/* Pedido do usuário (14/10): barra e porcentagem durante todo o envio. Na fila nenhum byte saiu: 0% verdadeiro. */}
         {upload.uploadPercent === undefined ? (
           <span>{t('proofCapture.upload.queuedHint')}</span>
-        ) : (
-          <ProofUploadProgressBar percent={upload.uploadPercent} />
-        )}
+        ) : null}
+        <ProofUploadProgressBar percent={upload.uploadPercent ?? 0} />
         {upload.failure === undefined ? null : (
           <span className={styles.proofFieldError}>
             {t('proofCapture.upload.lastTryFailed', {

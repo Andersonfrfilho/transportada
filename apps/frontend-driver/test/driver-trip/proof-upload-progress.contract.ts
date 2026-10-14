@@ -307,6 +307,13 @@ describe('spec 265 RF10/RF12: o estado da tela', () => {
     ).toBe('sent')
   })
 
+  it('na fila a barra aparece em 0% (nenhum byte saiu) e a nuvem só anima com porcentagem real', () => {
+    const root = resolve(import.meta.dir, '../../src/modules/driver-trip')
+    const component = readFileSync(`${root}/components/ProofUploadStatus.component.tsx`, 'utf8')
+    expect(component).toContain('<ProofUploadProgressBar percent={upload.uploadPercent ?? 0} />')
+    expect(component).toContain('upload.uploadPercent === undefined ? (')
+  })
+
   it('o componente mostra a barra, o aviso "processando" e as chaves existem nos dois idiomas', () => {
     const root = resolve(import.meta.dir, '../../src/modules/driver-trip')
     const component = readFileSync(`${root}/components/ProofUploadStatus.component.tsx`, 'utf8')
