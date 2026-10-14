@@ -257,6 +257,8 @@
       },
       "sending": "Enviando",
       "reducing": "Reduzindo a foto para enviar mais rápido",
+      "reducingCountdown": "Aguarde {{seconds}} s: reduzindo a foto",
+      "reducingAlmost": "Quase pronto: finalizando a foto",
       "reducingHint": "Pode continuar e confirmar: a foto fica na fila e segue sozinha.",
       "savedOnDevice": "A foto está guardada no aparelho e segue mesmo sem sinal.",
       "sent": "Enviada às {{time}}",

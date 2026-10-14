@@ -1796,3 +1796,129 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/*
+ * Pedido do usuário (14/10): a redução da foto ganha uma animação própria — um bonequinho marreta
+ * a foto, que amassa a cada pancada, e a barra enche até o teto da redução. Quem pediu movimento
+ * reduzido vê o desenho e a barra parados.
+ */
+.proofMallet {
+  color: var(--color-slate);
+  display: block;
+  flex: none;
+}
+
+.proofMalletArm {
+  transform-box: view-box;
+  transform-origin: 14px 20px;
+}
+
+.proofMalletSpark {
+  opacity: 0;
+}
+
+.proofMalletPhoto {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.proofReducingPercent {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-inline-start: auto;
+}
+
+.proofReducingTrack {
+  background: color-mix(in srgb, currentcolor 15%, transparent);
+  border-radius: 999px;
+  display: block;
+  height: var(--space-1);
+  overflow: hidden;
+  width: 100%;
+}
+
+.proofReducingFill {
+  background: var(--color-copper);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proofMalletArm {
+    animation: driver-proof-mallet-swing 0.7s ease-in infinite;
+  }
+
+  .proofMalletPhoto {
+    animation: driver-proof-mallet-squash 0.7s ease-in infinite;
+  }
+
+  .proofMalletSpark {
+    animation: driver-proof-mallet-spark 0.7s ease-out infinite;
+  }
+
+  .proofReducingFill {
+    animation: driver-proof-reducing-fill linear forwards;
+  }
+}
+
+@keyframes driver-proof-mallet-swing {
+  0% {
+    transform: rotate(-60deg);
+  }
+
+  60%,
+  72% {
+    transform: rotate(14deg);
+  }
+
+  100% {
+    transform: rotate(-60deg);
+  }
+}
+
+@keyframes driver-proof-mallet-squash {
+  0%,
+  55%,
+  100% {
+    transform: scale(1, 1);
+  }
+
+  65% {
+    transform: scale(1.12, 0.7);
+  }
+
+  80% {
+    transform: scale(0.98, 1.04);
+  }
+}
+
+@keyframes driver-proof-mallet-spark {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+
+  64% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  90% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--spark-dx), var(--spark-dy));
+  }
+}
+
+@keyframes driver-proof-reducing-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
