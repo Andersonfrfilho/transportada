@@ -224,6 +224,7 @@ type DriverStopCardProps = Readonly<{
   /** Pedido do usuário (25/09): o toque no cabeçalho abre/fecha — o aberto vem da página, derivado. */
   onToggle: () => void
   /** Spec 179 RF5: por nota, "na fila" / "enviado" / "recusado" da ocorrência com foto. */
+  notDeliveredKeyByDocumentId?: ReadonlyMap<string, string>
   notDeliveredStatusByDocumentId: ReadonlyMap<string, NotDeliveredStatus>
   /**
    * Pedido do usuário (25/09): "Cheguei" libera a entrega — a mesma fila que o resto do cartão lê,
@@ -254,6 +255,7 @@ export function DriverStopCard({
   isOpen,
   isReadOnly = false,
   lastKnownLocation,
+  notDeliveredKeyByDocumentId,
   notDeliveredStatusByDocumentId,
   onArrive,
   onCancelDeparture,
@@ -602,6 +604,7 @@ export function DriverStopCard({
               isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
               key={document.id}
+              notDeliveredKey={notDeliveredKeyByDocumentId?.get(document.id)}
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
               onAnnounce={(message) => announce(document.id, message)}
               onDeliver={onDeliver}
@@ -674,6 +677,7 @@ type DocumentRowProps = Readonly<{
   isReadOnly: boolean
   /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
   isLateRegistration: boolean
+  notDeliveredKey: string | undefined
   notDeliveredStatus: NotDeliveredStatus | undefined
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
@@ -726,6 +730,7 @@ function DocumentRow({
   isLateRegistration,
   isLocationDenied,
   isReadOnly,
+  notDeliveredKey,
   notDeliveredStatus,
   occurrenceHandlers,
   occurrenceTypes,
@@ -775,7 +780,7 @@ function DocumentRow({
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <DocumentDetails document={document} />
         <DocumentSettledState document={document} />
-        <DriverNotDeliveredStatus status={notDeliveredStatus} />
+        <DriverNotDeliveredStatus occurrenceKey={notDeliveredKey} status={notDeliveredStatus} />
       </li>
     ) : (
       <li className={styles.document}>
@@ -809,7 +814,7 @@ function DocumentRow({
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <DocumentDetails document={document} />
         <DocumentSettledState document={document} />
-        <DriverNotDeliveredStatus status={notDeliveredStatus} />
+        <DriverNotDeliveredStatus occurrenceKey={notDeliveredKey} status={notDeliveredStatus} />
         <div className={styles.actions}>
           <DocumentOccurrenceButton
             isOpen={openOccurrence}
@@ -842,7 +847,7 @@ function DocumentRow({
   return (
     <li className={styles.document}>
       <DocumentDetails document={document} />
-      <DriverNotDeliveredStatus status={notDeliveredStatus} />
+      <DriverNotDeliveredStatus occurrenceKey={notDeliveredKey} status={notDeliveredStatus} />
       {/*
        * Pedido do usuário (25/09): "registrei e nada aconteceu?" — a nota ainda não bate como
        * entregue/devolvida no snapshot (a API não confirmou), mas o toque já está na fila, e a
