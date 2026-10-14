@@ -421,6 +421,11 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
       (typeof value.volumeCount === 'number' &&
         Number.isFinite(value.volumeCount) &&
         value.volumeCount >= 0)) &&
+    isAbsentOrNullableString(value.cargoGrossWeight) &&
+    (value.cargoWeightSource === undefined ||
+      value.cargoWeightSource === null ||
+      value.cargoWeightSource === 'xml' ||
+      value.cargoWeightSource === 'estimated') &&
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
