@@ -1616,6 +1616,12 @@ async function readTripDetail(
    */
   const cargoWeights = await loadTripCargoWeight(queryable, {
     companyId: input.companyId,
+    /** Nota solta (`released_at`) mostra o próprio peso na linha, mas não soma no total (spec 187). */
+    countedNfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null || row.document.releasedAt !== null
+        ? []
+        : [row.document.nfeDocumentId],
+    ),
     nfeDocumentIds: documentRecords.flatMap((row) =>
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
