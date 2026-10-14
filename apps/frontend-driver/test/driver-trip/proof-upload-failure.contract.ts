@@ -1,0 +1,46 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { describe, expect, it } from 'bun:test'
+
+import {
+  describeAttachmentFailure,
+  DriverTripRequestError,
+} from '@/modules/driver-trip/shared/driverTripClient.service'
+import { createProofUploadProgressStore } from '@/modules/driver-trip/shared/proofUploadProgress.service'
+
+describe('a foto que não termina de subir diz por quê (pedido do usuário, 14/10)', () => {
+  it('rede, tempo esgotado e gateway fora viram motivo; recusa do servidor não', () => {
+    expect(
+      describeAttachmentFailure(
+        new DriverTripRequestError({ code: 'OFFLINE', isOffline: true, isTimeout: false }),
+      ),
+    ).toEqual({ kind: 'network' })
+    expect(
+      describeAttachmentFailure(
+        new DriverTripRequestError({ code: 'OFFLINE', isOffline: true, isTimeout: true }),
+      ),
+    ).toEqual({ kind: 'timeout' })
+    expect(
+      describeAttachmentFailure(
+        new DriverTripRequestError({ code: 'BAD_GATEWAY', isOffline: false, status: 502 }),
+      ),
+    ).toEqual({ kind: 'server', status: 502 })
+    expect(
+      describeAttachmentFailure(
+        new DriverTripRequestError({
+          code: 'TRIP_DELIVERY_PROOF_TOO_LARGE',
+          isOffline: false,
+          status: 422,
+        }),
+      ),
+    ).toBeUndefined()
+  })
+
+  it('a falha fica no progresso e o próximo envio começa limpo', () => {
+    const store = createProofUploadProgressStore()
+    store.begin('doc:photo')
+    store.fail('doc:photo', { kind: 'server', status: 503 })
+    expect(store.get('doc:photo')).toEqual({ failure: { kind: 'server', status: 503 }, percent: 0 })
+    store.begin('doc:photo')
+    expect(store.get('doc:photo')).toEqual({ percent: 0 })
+  })
+})

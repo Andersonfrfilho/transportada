@@ -1366,7 +1366,8 @@ function ProofCaptureFields({
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
   useEffect(() => {
     if (!selectNameOnNextRender) return
-    nameInputRef.current?.focus()
+    /* Sem rolar: o foco no nome não pode arrastar a tela para baixo depois de a foto ser confirmada. */
+    nameInputRef.current?.focus({ preventScroll: true })
     nameInputRef.current?.select()
     setSelectNameOnNextRender(false)
   }, [selectNameOnNextRender])

@@ -12,6 +12,7 @@ import {
   resolveProofReductionPercent,
 } from '../shared/proofPhotoReduction.service'
 import type { ProofUploadView } from '../hooks/useProofUploadStatus.hook'
+import type { ProofUploadFailure } from '../shared/proofUploadProgress.service'
 import styles from '../styles/driverTrip.module.css'
 
 type ProofUploadStatusProps = Readonly<{
@@ -37,12 +38,31 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
     )
   }
 
+  /** Colhida antes da entrega, ou atrás dela na fila: nada sobe ainda, e a tela diz o que falta. */
+  if (upload.status === 'waiting') {
+    return (
+      <div className={styles.proofQueueCard} role="status">
+        <span className={styles.proofQueueTitle}>
+          <Icon aria-hidden="true" name="clock" size="sm" />
+          {t('proofCapture.upload.queuedTitle')}
+        </span>
+        <span>
+          {t(
+            upload.waitingFor === 'confirm'
+              ? 'proofCapture.upload.waitingConfirm'
+              : 'proofCapture.upload.waitingDelivery',
+          )}
+        </span>
+      </div>
+    )
+  }
+
   if (upload.status === 'uploading') {
     return (
-      <div className={styles.proofUploadSending} role="status">
-        <span className={styles.proofUploadSendingLine}>
+      <div className={styles.proofQueueCard} role="status">
+        <span className={styles.proofQueueTitle}>
           <ProofSendingThrower />
-          {t('proofCapture.upload.sending')}
+          {t('proofCapture.upload.queuedTitle')}
           <span
             aria-label={t('proofCapture.upload.queuedIcon')}
             className={styles.proofQueuedIcon}
@@ -53,6 +73,13 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
         </span>
         {upload.uploadPercent === undefined ? null : (
           <ProofUploadProgressBar percent={upload.uploadPercent} />
+        )}
+        {upload.failure === undefined ? null : (
+          <span className={styles.proofFieldError}>
+            {t('proofCapture.upload.lastTryFailed', {
+              reason: t(describeFailureKey(upload.failure), { status: upload.failure.status }),
+            })}
+          </span>
         )}
         <span className={styles.stopMeta}>{t('proofCapture.upload.savedOnDevice')}</span>
       </div>
@@ -77,6 +104,11 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
   }
 
   return null
+}
+
+/** O motivo da última tentativa, na língua do motorista — sem código nem texto do servidor. */
+function describeFailureKey(failure: ProofUploadFailure): string {
+  return `proofCapture.upload.failure.${failure.kind}`
 }
 
 /**

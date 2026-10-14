@@ -1696,6 +1696,22 @@
   gap: var(--space-1);
 }
 
+.proofQueueCard {
+  border: 1px solid var(--color-copper);
+  border-left-width: 4px;
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.proofQueueTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
 .proofUploadSendingLine {
   align-items: center;
   display: flex;
