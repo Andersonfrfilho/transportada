@@ -6,7 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { DeliveryProof } from '../shared/deliveryProof.service'
+import {
+  isDeliveryProofAwaitingProcessing,
+  type DeliveryProof,
+} from '../shared/deliveryProof.service'
 import { formatDeliveryProofTime } from '../shared/deliveryProofCard.service'
 
 import type { CanhotoReviewActions } from './ProofReview.component'
@@ -31,13 +34,17 @@ export function ProofReviewActions({
   const { t } = useTranslation('trip')
   if (!canReview || proof.canhotoReview !== 'pending') return null
 
+  /** Spec 265 RF11: com a foto em processamento o original aparece, mas a conferência manual espera. */
+  const isAwaiting = isDeliveryProofAwaitingProcessing(proof)
+
   return (
     <>
-      <Button onClick={onReject} size="sm" type="button" variant="secondary">
+      {isAwaiting ? <span>{t('deliveryProof.processing.waitingReview')}</span> : null}
+      <Button disabled={isAwaiting} onClick={onReject} size="sm" type="button" variant="secondary">
         <Icon name="close" />
         {t('deliveryProof.canhotoReview.reject')}
       </Button>
-      <Button onClick={onApprove} size="sm" type="button">
+      <Button disabled={isAwaiting} onClick={onApprove} size="sm" type="button">
         <Icon name="check" />
         {t('deliveryProof.canhotoReview.approve')}
       </Button>

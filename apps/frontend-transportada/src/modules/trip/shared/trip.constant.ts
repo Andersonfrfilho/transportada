@@ -736,8 +736,20 @@ export const DELIVERY_PROOF_OPTIONAL_KEYS = [
   'lateRegistration',
   'proofRadiusMeters',
   'punctuality',
+  'processingState',
   'receiverDocument',
   'thumbnailUrl',
+] as const
+
+/**
+ * Spec 265 T009 (ADR-0081 §9): o estado do processamento da foto. A API só o manda quando não é
+ * `ready`; **ausente é pronto** — nunca `null`, nunca um padrão adivinhado além disso.
+ */
+export const DELIVERY_PROOF_PROCESSING_STATE_OPTIONS = [
+  'received',
+  'processing',
+  'ready',
+  'processing_failed',
 ] as const
 
 /**

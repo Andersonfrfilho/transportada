@@ -78,6 +78,7 @@ import {
   DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
   DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
   DELIVERY_PROOF_OPTIONAL_KEYS,
+  DELIVERY_PROOF_PROCESSING_STATE_OPTIONS,
   DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
@@ -1433,6 +1434,8 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
       isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
     (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
     (value.proofRadiusMeters === undefined || isPositiveFiniteNumber(value.proofRadiusMeters)) &&
+    (value.processingState === undefined ||
+      isOneOf(value.processingState, DELIVERY_PROOF_PROCESSING_STATE_OPTIONS)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&

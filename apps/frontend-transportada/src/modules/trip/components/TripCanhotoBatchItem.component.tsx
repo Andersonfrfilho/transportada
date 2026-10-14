@@ -9,9 +9,11 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
+import { isDeliveryProofAwaitingProcessing } from '../shared/deliveryProof.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
 import type { ProofImageOutcome } from './ProofImage.component'
 import { ProofImage } from './ProofImage.component'
+import { ProofProcessingNote } from './ProofProcessingNote.component'
 import { ProofReview } from './ProofReview.component'
 import styles from '../styles/trip.module.css'
 
@@ -39,6 +41,8 @@ export function TripCanhotoBatchItem({
 }: TripCanhotoBatchItemProps) {
   const { t } = useTranslation('trip')
   const { documentId, label, proof } = item
+  /** RF11: o original aparece, mas a conferência espera a foto ficar pronta. */
+  const isAwaiting = isDeliveryProofAwaitingProcessing(proof)
 
   return (
     <li
@@ -55,6 +59,10 @@ export function TripCanhotoBatchItem({
         tabIndex={-1}
         variant="main"
       />
+      <ProofProcessingNote proof={proof} />
+      {isAwaiting ? (
+        <p className={styles.hint}>{t('deliveryProof.processing.waitingReview')}</p>
+      ) : null}
       <ProofReview proof={proof} />
       {hasImageFailed ? (
         <p className={styles.alert} role="alert">
@@ -64,7 +72,7 @@ export function TripCanhotoBatchItem({
       <Checkbox
         ariaLabel={t('deliveryProof.canhotoBatch.selectItem', { label })}
         checked={isChecked}
-        disabled={hasImageFailed}
+        disabled={hasImageFailed || isAwaiting}
         label={t('deliveryProof.canhotoBatch.noteLabel', { label })}
         onChange={(checked) => actions.onCheckedChange(documentId, checked)}
         tabIndex={isFocusTarget ? 0 : -1}
