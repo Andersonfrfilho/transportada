@@ -8,14 +8,20 @@ import {
   trackProofUpload,
   type ProofUploadObservation,
   type ProofUploadStatus,
+  type ProofWaitingFor,
 } from '../shared/proofUploadStatus.service'
 import {
   proofProgressKey,
   proofUploadProgress,
   type ProofProcessingState,
+  type ProofUploadFailure,
 } from '../shared/proofUploadProgress.service'
 
 export type ProofUploadView = Readonly<{
+  /** A última tentativa não terminou (rede, servidor, sessão): a foto segue na fila e tenta de novo. */
+  failure?: ProofUploadFailure
+  /** Por que a foto está na fila sem tentar subir (esperando a entrega). */
+  waitingFor?: ProofWaitingFor
   /** Spec 265 RF10: o servidor aceitou e ainda trata o arquivo — "Enviado, processando". */
   processingState?: ProofProcessingState
   sentAt: string | undefined
@@ -76,7 +82,16 @@ export function useProofUploadStatus(
       : { processingState: progress.processingState }),
     sentAt: nextTracker.sentAt,
     status,
-    ...(progress === undefined || status !== 'uploading' || progress.processingState !== undefined
+    ...(status === 'waiting' && observation.waitingFor !== undefined
+      ? { waitingFor: observation.waitingFor }
+      : {}),
+    ...(progress?.failure === undefined || status !== 'uploading'
+      ? {}
+      : { failure: progress.failure }),
+    ...(progress === undefined ||
+    status !== 'uploading' ||
+    progress.processingState !== undefined ||
+    progress.failure !== undefined
       ? {}
       : { uploadPercent: progress.percent }),
   }

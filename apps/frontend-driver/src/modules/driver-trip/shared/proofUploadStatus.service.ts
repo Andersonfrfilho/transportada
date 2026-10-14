@@ -1,7 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { EventQueueItemView } from './eventQueueView.service'
+import { isAwaitingDeliveryKey } from './offlineAttachments.service'
 
-export type ProofUploadStatus = 'empty' | 'failed' | 'reducing' | 'sent' | 'uploading'
+export type ProofUploadStatus = 'empty' | 'failed' | 'reducing' | 'sent' | 'uploading' | 'waiting'
+
+/**
+ * Por que a foto está na fila **sem tentar subir**: `confirm` — foi colhida antes da entrega e só
+ * sobe quando o motorista toca em "Confirmar entrega"; `delivery` — a entrega ainda está na fila e
+ * a foto vai atrás dela.
+ */
+export type ProofWaitingFor = 'confirm' | 'delivery'
 
 /** O que a fila diz, neste render, sobre o anexo de um kind da nota. */
 export type ProofUploadObservation = Readonly<{
@@ -16,6 +24,8 @@ export type ProofUploadObservation = Readonly<{
   /** A foto na fila ainda espera a versão leve (redução em andamento no aparelho). */
   isReducing?: boolean
   isRejected: boolean
+  /** A foto está na fila, mas não pode subir ainda (pedido do usuário, 14/10: dizer o porquê). */
+  waitingFor?: ProofWaitingFor
 }>
 
 /** O que a tela lembra entre renders: já viu o anexo na fila? e quando o servidor o aceitou? */
@@ -60,7 +70,19 @@ export function resolveProofUploadObservation(input: {
         attachment.isReducing === true,
     ),
   )
-  return { isQueued: holders.length > 0, isReducing, isRejected }
+  const waitingFor = resolveWaitingFor(holders)
+  return {
+    isQueued: holders.length > 0,
+    isReducing,
+    isRejected,
+    ...(waitingFor === undefined ? {} : { waitingFor }),
+  }
+}
+
+function resolveWaitingFor(holders: readonly EventQueueItemView[]): ProofWaitingFor | undefined {
+  if (holders.some((item) => isAwaitingDeliveryKey(item.idempotencyKey))) return 'confirm'
+  if (holders.some((item) => item.kind !== 'proof')) return 'delivery'
+  return undefined
 }
 
 /**
@@ -106,7 +128,7 @@ export function resolveProofUploadStatus(input: {
   if (!observation.isAttached) return 'empty'
   if (observation.isRejected) return 'failed'
   if (observation.isReducing === true && observation.isQueued) return 'reducing'
-  if (observation.isQueued) return 'uploading'
+  if (observation.isQueued) return observation.waitingFor === undefined ? 'uploading' : 'waiting'
   if (tracker.sentAt !== undefined) return 'sent'
   return observation.isConfirmedByServer === true ? 'sent' : 'uploading'
 }

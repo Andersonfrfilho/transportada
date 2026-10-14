@@ -53,6 +53,7 @@ import {
   type ProofUploadVariant,
 } from './proofPhotoReduction.service'
 import { readProofProcessingState, type ProofProcessingState } from './proofUploadProgress.service'
+import type { ProofUploadFailure } from './proofUploadProgress.service'
 import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
@@ -172,6 +173,22 @@ export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
       : 'REQUEST_FAILED'
   const details = error instanceof DriverTripRequestError ? error.details : undefined
   return { cause, ...(details === undefined ? {} : { details }), kind: 'rejected' }
+}
+
+/**
+ * Por que um envio da fila ficou para depois, em palavras que a tela traduz. Só descreve — quem
+ * decide continua sendo `toAttachmentSendOutcome`. `undefined` quando o servidor recusou (não é "depois").
+ */
+export function describeAttachmentFailure(error: unknown): ProofUploadFailure | undefined {
+  if (toAttachmentSendOutcome(error).kind !== 'failed-network') return undefined
+  if (error instanceof DriverTripRequestError) {
+    if (error.isTimeout) return { kind: 'timeout' }
+    if (error.isOffline) return { kind: 'network' }
+    return error.status === undefined
+      ? { kind: 'network' }
+      : { kind: 'server', status: error.status }
+  }
+  return { kind: 'session' }
 }
 
 type ClientDependencies = Readonly<{

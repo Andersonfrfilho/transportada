@@ -242,4 +242,37 @@ describe('o envio do canhoto tem estado visível (defeito 2)', () => {
     expect(resolveProofUploadStatus({ observation: queued, tracker })).toBe('uploading')
     expect(tracker.sentAt).toBeUndefined()
   })
+
+  it('foto colhida antes da entrega: na fila, esperando a confirmação — não "enviando"', () => {
+    const observation = resolveProofUploadObservation({
+      documentId: DOCUMENT_ID,
+      kind: 'photo',
+      queueView: [queueItem({ idempotencyKey: 'awaiting-delivery:doc-1', kind: 'proof' })],
+    })
+    expect(observation.waitingFor).toBe('confirm')
+    expect(
+      resolveProofUploadStatus({
+        observation: { isAttached: true, ...observation },
+        tracker: INITIAL_PROOF_UPLOAD_TRACKER,
+      }),
+    ).toBe('waiting')
+  })
+
+  it('foto atrás da entrega ainda na fila: espera a entrega sair', () => {
+    const observation = resolveProofUploadObservation({
+      documentId: DOCUMENT_ID,
+      kind: 'photo',
+      queueView: [queueItem({ kind: 'deliver' })],
+    })
+    expect(observation.waitingFor).toBe('delivery')
+  })
+
+  it('foto de entrega já aceita (grupo órfão): sobe sozinha, sem espera', () => {
+    const observation = resolveProofUploadObservation({
+      documentId: DOCUMENT_ID,
+      kind: 'photo',
+      queueView: [queueItem({ kind: 'proof' })],
+    })
+    expect(observation.waitingFor).toBeUndefined()
+  })
 })

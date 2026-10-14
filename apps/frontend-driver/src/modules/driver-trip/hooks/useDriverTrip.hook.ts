@@ -8,6 +8,7 @@ import { proofProgressKey, proofUploadProgress } from '../shared/proofUploadProg
 import {
   getDriverDiagnostics,
   getDriverTripClient,
+  describeAttachmentFailure,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
 import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
@@ -481,7 +482,9 @@ export function useDriverTrip(
             proofUploadProgress.accepted(progressKey, result.processingState)
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
-            proofUploadProgress.clear(progressKey)
+            const failure = describeAttachmentFailure(error)
+            if (failure === undefined) proofUploadProgress.clear(progressKey)
+            else proofUploadProgress.fail(progressKey, failure)
             return toAttachmentSendOutcome(error)
           }
         },

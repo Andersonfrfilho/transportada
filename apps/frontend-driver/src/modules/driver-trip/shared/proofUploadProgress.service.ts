@@ -8,7 +8,15 @@
  */
 export type ProofProcessingState = 'received' | 'processing'
 
+/** Por que a última tentativa de subir a foto não terminou — o que a tela pode dizer sem texto livre. */
+export type ProofUploadFailure = Readonly<{
+  kind: 'network' | 'server' | 'session' | 'timeout'
+  /** Só em `server`: o status HTTP (502, 503, 504, 429, 408). */
+  status?: number
+}>
+
 export type ProofUploadProgressEntry = Readonly<{
+  failure?: ProofUploadFailure
   percent: number
   processingState?: ProofProcessingState
 }>
@@ -68,7 +76,11 @@ export function createProofUploadProgressStore() {
         ...(processingState === undefined ? {} : { processingState }),
       })
     },
-    /** O envio falhou ou foi recusado: a barra some, e a fila diz o que houve. */
+    /** A tentativa não terminou (rede, servidor, sessão): a foto segue na fila e a tela diz por quê. */
+    fail(key: string, failure: ProofUploadFailure): void {
+      write(key, { failure, percent: 0 })
+    },
+    /** O envio foi recusado pelo servidor: a barra some, e a fila diz o que houve. */
     clear(key: string): void {
       if (entries[key] !== undefined) write(key, undefined)
     },

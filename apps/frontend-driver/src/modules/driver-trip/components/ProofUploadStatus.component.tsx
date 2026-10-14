@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 
 import { ProofReducingMallet } from './ProofReducingMallet.component'
+import { ProofReadyToConfirm } from './ProofReadyToConfirm.component'
 import { ProofSendingThrower } from './ProofSendingThrower.component'
 import { formatActivityTime } from '../shared/documentActivity.service'
 import {
@@ -12,6 +13,7 @@ import {
   resolveProofReductionPercent,
 } from '../shared/proofPhotoReduction.service'
 import type { ProofUploadView } from '../hooks/useProofUploadStatus.hook'
+import type { ProofUploadFailure } from '../shared/proofUploadProgress.service'
 import styles from '../styles/driverTrip.module.css'
 
 type ProofUploadStatusProps = Readonly<{
@@ -37,22 +39,62 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
     )
   }
 
+  /** Colhida antes da entrega, ou atrás dela na fila: nada sobe ainda, e a tela diz o que falta. */
+  if (upload.status === 'waiting') {
+    return (
+      <div className={styles.proofQueueCard} role="status">
+        <span className={styles.proofQueueTitle}>
+          {upload.waitingFor === 'confirm' ? (
+            <ProofReadyToConfirm />
+          ) : (
+            <Icon aria-hidden="true" name="clock" size="sm" />
+          )}
+          {t(
+            upload.waitingFor === 'confirm'
+              ? 'proofCapture.upload.waitingConfirmTitle'
+              : 'proofCapture.upload.waitingDeliveryTitle',
+          )}
+        </span>
+        <span>
+          {t(
+            upload.waitingFor === 'confirm'
+              ? 'proofCapture.upload.waitingConfirm'
+              : 'proofCapture.upload.waitingDelivery',
+          )}
+        </span>
+      </div>
+    )
+  }
+
   if (upload.status === 'uploading') {
     return (
-      <div className={styles.proofUploadSending} role="status">
-        <span className={styles.proofUploadSendingLine}>
-          <ProofSendingThrower />
-          {t('proofCapture.upload.sending')}
-          <span
-            aria-label={t('proofCapture.upload.queuedIcon')}
-            className={styles.proofQueuedIcon}
-            role="img"
-          >
-            <Icon aria-hidden="true" name="clock" size="sm" />
-          </span>
+      <div className={styles.proofQueueCard} role="status">
+        <span className={styles.proofQueueTitle}>
+          {/* A nuvem só anima com bytes saindo de verdade (porcentagem real); parada na fila é relógio. */}
+          {upload.uploadPercent === undefined ? (
+            <span
+              aria-label={t('proofCapture.upload.queuedIcon')}
+              className={styles.proofQueuedIcon}
+              role="img"
+            >
+              <Icon aria-hidden="true" name="clock" size="sm" />
+            </span>
+          ) : (
+            <ProofSendingThrower />
+          )}
+          {t('proofCapture.upload.queuedTitle')}
         </span>
-        {upload.uploadPercent === undefined ? null : (
+        {upload.uploadPercent === undefined ? (
+          <span>{t('proofCapture.upload.queuedHint')}</span>
+        ) : (
           <ProofUploadProgressBar percent={upload.uploadPercent} />
+        )}
+        {upload.failure === undefined ? null : (
+          <span className={styles.proofFieldError}>
+            {t('proofCapture.upload.lastTryFailed', {
+              reason: t(describeFailureKey(upload.failure), { status: upload.failure.status }),
+            })}
+          </span>
         )}
         <span className={styles.stopMeta}>{t('proofCapture.upload.savedOnDevice')}</span>
       </div>
@@ -77,6 +119,11 @@ export function ProofUploadStatus({ upload }: ProofUploadStatusProps) {
   }
 
   return null
+}
+
+/** O motivo da última tentativa, na língua do motorista — sem código nem texto do servidor. */
+function describeFailureKey(failure: ProofUploadFailure): string {
+  return `proofCapture.upload.failure.${failure.kind}`
 }
 
 /**
