@@ -931,6 +931,7 @@
       "unknownDocument": "Nota",
       "unknownOccurrenceType": "não informado",
       "unknownStatus": "não informada",
+      "documentReleased": "Nota {{document}} retirada da viagem",
       "documentsAdded": "Notas acrescentadas"
     },
     "loadMore": "Carregar mais",

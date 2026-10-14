@@ -24,6 +24,7 @@ const ICON_BY_KIND = {
   'document.canhoto_photo': 'camera',
   'document.delivered': 'check',
   'document.occurrence': 'alert',
+  'document.released': 'remove',
   'document.returned': 'refresh',
   'document.status_changed': 'document',
   documents_added: 'document',
@@ -40,6 +41,7 @@ const ICON_BY_KIND = {
 const NEUTRAL_KINDS: ReadonlySet<TripTimelineKind> = new Set([
   'crew_transfer',
   'document.canhoto_photo',
+  'document.released',
   'documents_added',
   'stop.address_corrected',
   'stop.arrived',

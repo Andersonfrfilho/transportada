@@ -595,11 +595,15 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   'addressChange',
   'crewTransfer',
+  'documentRelease',
   'documentsAdded',
   /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
   'isSystemActor',
   'lateRegistration',
 ] as const
+
+/** A retirada da nota: chave exata, nenhuma opcional. */
+export const TRIP_TIMELINE_DOCUMENT_RELEASE_KEYS = ['note', 'scope', 'stopLabel'] as const
 
 /** Spec 257 D9: chave exata, nenhuma opcional — não há dinheiro aqui. */
 export const TRIP_TIMELINE_DOCUMENTS_ADDED_KEYS = [

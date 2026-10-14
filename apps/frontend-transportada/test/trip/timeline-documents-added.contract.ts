@@ -72,8 +72,12 @@ function lookup(dictionary: unknown, path: string): unknown {
 }
 
 describe('vocabulário da linha do tempo com as notas acrescentadas (spec 257)', () => {
-  it('documents_added é o último kind, depois da transferência de tripulação', () => {
-    expect([...TRIP_TIMELINE_KINDS].slice(-2)).toEqual(['crew_transfer', 'documents_added'])
+  it('documents_added vem depois da transferência de tripulação e antes da nota retirada', () => {
+    expect([...TRIP_TIMELINE_KINDS].slice(-3)).toEqual([
+      'crew_transfer',
+      'documents_added',
+      'document.released',
+    ])
   })
 
   it('o evento tem ícone de documento, tom neutro e fica fora do mapa da viagem', () => {
@@ -193,5 +197,49 @@ describe('textos do acréscimo nos dois idiomas (spec 257 D9)', () => {
       expect([key, typeof lookup(tripEn, key)]).toEqual([key, 'string'])
       expect(placeholders(lookup(tripEn, key))).toEqual(placeholders(lookup(tripPt, key)))
     }
+  })
+})
+
+describe('a nota retirada na linha do tempo', () => {
+  const RELEASED_ITEM = {
+    ...BASE_ITEM,
+    documentRelease: { note: 'cliente cancelou', scope: 'document', stopLabel: 'Rua A, 10' },
+    kind: 'document.released',
+  }
+
+  it('lê o item com a chave obrigatória e recusa a chave em outro kind', () => {
+    expect(() =>
+      adapters.tripTimelineFromApi({ items: [RELEASED_ITEM], nextCursor: null }),
+    ).not.toThrow()
+    expect(() =>
+      adapters.tripTimelineFromApi({
+        items: [{ ...RELEASED_ITEM, kind: 'trip.created' }],
+        nextCursor: null,
+      }),
+    ).toThrow()
+  })
+
+  it('recusa o item sem a chave ou com escopo fora do vocabulário', () => {
+    const withoutKey: Record<string, unknown> = { ...RELEASED_ITEM }
+    delete withoutKey.documentRelease
+    expect(() => adapters.tripTimelineFromApi({ items: [withoutKey], nextCursor: null })).toThrow()
+    expect(() =>
+      adapters.tripTimelineFromApi({
+        items: [
+          { ...RELEASED_ITEM, documentRelease: { note: null, scope: 'all', stopLabel: null } },
+        ],
+        nextCursor: null,
+      }),
+    ).toThrow()
+  })
+
+  it('tem ícone, tom neutro, fica fora do mapa e o texto existe nos dois idiomas', () => {
+    expect(resolveTripTimelineIcon({ ...RELEASED_ITEM } as never)).toEqual({
+      icon: 'remove',
+      tone: 'neutral',
+    })
+    expect(TIMELINE_MAP_CATEGORY_BY_KIND['document.released']).toBeNull()
+    expect(typeof lookup(tripPt, 'eventTimeline.itemTitle.documentReleased')).toBe('string')
+    expect(typeof lookup(tripEn, 'eventTimeline.itemTitle.documentReleased')).toBe('string')
   })
 })

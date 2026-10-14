@@ -178,7 +178,10 @@ import {
   isUnsignedInteger,
 } from './tripGuards.validation'
 import { hasCrewTransferForKind } from './tripTimelineCrewTransfer.validation'
-import { hasDocumentsAddedForKind } from './tripTimelineDocumentsAdded.validation'
+import {
+  hasDocumentReleaseForKind,
+  hasDocumentsAddedForKind,
+} from './tripTimelineDocumentsAdded.validation'
 import { readTolerantList, readTolerantRecord } from './tripTolerance.service'
 import {
   dropMalformedDeliveryDeadline,
@@ -1689,6 +1692,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     hasAddressChangeForKind(value) &&
     hasCrewTransferForKind(value) &&
+    hasDocumentReleaseForKind(value) &&
     hasDocumentsAddedForKind(value) &&
     (value.isSystemActor === undefined || isBoolean(value.isSystemActor)) &&
     (value.location === null || isTimelineLocation(value.location)) &&

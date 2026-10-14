@@ -931,6 +931,7 @@
       "unknownDocument": "Invoice",
       "unknownOccurrenceType": "unspecified",
       "unknownStatus": "unspecified",
+      "documentReleased": "Note {{document}} removed from the trip",
       "documentsAdded": "Notes added"
     },
     "loadMore": "Load more",
