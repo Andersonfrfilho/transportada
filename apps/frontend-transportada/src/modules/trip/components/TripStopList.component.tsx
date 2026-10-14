@@ -567,7 +567,15 @@ function TripStopDocumentRow({
           onClick={() => actions.onToggleDocument(document.id)}
           type="button"
         >
-          <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+          <span
+            className={
+              document.releasedAt === null
+                ? styles.stopDocumentLabel
+                : `${styles.stopDocumentLabel} ${styles.stopDocumentLabelReleased}`
+            }
+          >
+            {tripDocumentLabel(document)}
+          </span>
           <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} />
         </button>
         <div className={styles.stopDocumentBadgeRow}>

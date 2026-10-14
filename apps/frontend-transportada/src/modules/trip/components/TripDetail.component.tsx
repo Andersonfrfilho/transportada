@@ -13,6 +13,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { CanhotoAutomaticReview, type CanhotoReadContext } from './CanhotoAutomaticReview.component'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
+import { readRouteStopsWithoutLocation } from '../shared/stopPointCoordinates.service'
 import { hasCanhotoReviewSettled } from '../shared/canhotoReviewSession.service'
 import { createFieldDeliveryThumbnail } from '../shared/fieldDeliveryImage.service'
 import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
@@ -652,6 +653,8 @@ export function TripDetail({
     workspace.registerFieldOccurrencesMutation.error,
     workspace.setTrailerMutation.error,
   ])
+  /** Os endereços que o 422 de rota nomeia, para a pessoa saber qual ponto corrigir. */
+  const routeStopsWithoutLocation = readRouteStopsWithoutLocation(workspace.planRouteMutation.error)
   /**
    * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
    * rota") — nunca o genérico "serverRefused" que o `feedbackKey` de cima daria a ela. Sem motivo
@@ -947,6 +950,13 @@ export function TripDetail({
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${feedbackKey}`)}
+          {routeStopsWithoutLocation.length === 0 ? null : (
+            <ul>
+              {routeStopsWithoutLocation.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+          )}
         </p>
       )}
 
@@ -1155,7 +1165,7 @@ export function TripDetail({
             isGeometryError={workspace.routeGeometryQuery.isError}
             isGeometryPending={workspace.routeGeometryQuery.isPending}
             isRouteChoicePending={workspace.planRouteMutation.isPending}
-            onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+            onCorrect={(correction) => workspace.correctAddressMutation.mutateAsync(correction)}
             onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
             onRouteChoiceSelect={(routeChoice) =>
               workspace.planRouteMutation.mutate({ routeChoice, tripId: trip.id })
